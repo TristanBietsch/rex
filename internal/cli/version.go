@@ -53,4 +53,3 @@ func notImplemented(verb string) error {
 // Keep these exported so cmd/rex/main.go compiles between tasks.
 
 func RunDaemon(args []string) error     { _ = args; return notImplemented("daemon") }
-func RunCompletion(args []string) error { _ = args; return notImplemented("completion") }
