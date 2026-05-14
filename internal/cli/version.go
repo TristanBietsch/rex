@@ -43,13 +43,3 @@ func RunVersion() error {
 	fmt.Println(version)
 	return nil
 }
-
-// notImplemented is the placeholder body for stubs that will be replaced in later tasks.
-func notImplemented(verb string) error {
-	return NewExitError(ExitGeneric, fmt.Sprintf("%s: not implemented yet", verb))
-}
-
-// Verb stubs — each gets replaced by its own file in subsequent tasks (B6-B17).
-// Keep these exported so cmd/rex/main.go compiles between tasks.
-
-func RunDaemon(args []string) error     { _ = args; return notImplemented("daemon") }
