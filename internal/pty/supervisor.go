@@ -24,6 +24,7 @@ type SupervisorConfig struct {
 	CWD        string          // working directory for the child
 	Adapter    adapter.Adapter // nil = no state classification (tests/echo tool)
 	OutputSink func(b []byte)  // called with every chunk read from PTY; non-blocking
+	InputCh    chan []byte     // optional: stdin bytes from clients
 	IdleTick   time.Duration   // how often we sample idle for the adapter (default 200ms)
 }
 
@@ -56,6 +57,16 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		return fmt.Errorf("pty start: %w", err)
 	}
 	defer f.Close()
+
+	if s.cfg.InputCh != nil {
+		go func() {
+			for b := range s.cfg.InputCh {
+				if _, err := f.Write(b); err != nil {
+					return
+				}
+			}
+		}()
+	}
 
 	if err := s.cfg.Store.Transition(sess.ID, protocol.StateWorking); err != nil {
 		return err

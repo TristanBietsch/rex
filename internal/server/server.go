@@ -34,6 +34,9 @@ type Server struct {
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
+
+	outputSubsMu sync.RWMutex
+	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
 }
 
 // New unlinks any stale socket and constructs a Server. It does not listen yet.
@@ -124,4 +127,35 @@ func (s *Server) InputChannel(sessionID string) chan []byte {
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	return s.inputChannels[sessionID]
+}
+
+// SubscribeSessionOutput registers a per-session output callback. Returns a cancel func.
+func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func() {
+	s.outputSubsMu.Lock()
+	defer s.outputSubsMu.Unlock()
+	if s.outputSubs == nil {
+		s.outputSubs = make(map[string][]func([]byte))
+	}
+	idx := len(s.outputSubs[sessionID])
+	s.outputSubs[sessionID] = append(s.outputSubs[sessionID], fn)
+	return func() {
+		s.outputSubsMu.Lock()
+		defer s.outputSubsMu.Unlock()
+		list := s.outputSubs[sessionID]
+		if idx < len(list) {
+			list[idx] = nil
+			s.outputSubs[sessionID] = list
+		}
+	}
+}
+
+// broadcastSessionOutput sends bytes to all subscribers of a session.
+func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
+	s.outputSubsMu.RLock()
+	defer s.outputSubsMu.RUnlock()
+	for _, fn := range s.outputSubs[sessionID] {
+		if fn != nil {
+			fn(b)
+		}
+	}
 }

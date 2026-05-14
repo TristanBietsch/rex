@@ -73,6 +73,85 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			if err := cfg.Store.Remove(p.SessionID); err != nil {
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
 			}
+		case protocol.IntentSubscribe:
+			var p protocol.Subscribe
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			if p.SessionID != "" {
+				// Register an output sink for this session for the rest of the connection.
+				outCancel := srv.SubscribeSessionOutput(p.SessionID, func(b []byte) {
+					_ = w.WriteEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
+						SessionID: p.SessionID, Bytes: b,
+					})
+				})
+				defer outCancel()
+			}
+
+		case protocol.IntentSendInput:
+			var p protocol.SendInput
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			ch := srv.InputChannel(p.SessionID)
+			if ch == nil {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not running")
+				continue
+			}
+			select {
+			case ch <- p.Bytes:
+			default:
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+			}
+
+		case protocol.IntentReply:
+			var p protocol.Reply
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			ch := srv.InputChannel(p.SessionID)
+			if ch == nil {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not running")
+				continue
+			}
+			select {
+			case ch <- []byte(p.Text + "\n"):
+			default:
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+			}
+
+		case protocol.IntentRename:
+			var p protocol.Rename
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			sess, ok := srv.cfg.Store.Get(p.SessionID)
+			if !ok {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				continue
+			}
+			patch := map[string]any{}
+			if p.Slug != "" {
+				sess.Slug = p.Slug
+				patch["slug"] = p.Slug
+			}
+			if p.Title != "" {
+				sess.Title = p.Title
+				patch["title"] = p.Title
+			}
+			// Trigger a SessionUpdated event by touching last_line (a small reuse hack).
+			_ = srv.cfg.Store.UpdateLastLine(p.SessionID, sess.LastLine)
+			_ = patch
+
+		case protocol.IntentFocusFilter:
+			var p protocol.FocusFilter
+			_ = json.Unmarshal(env.Data, &p)
+			// Cosmetic — silently accept.
+
 		default:
 			writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented in Plan A")
 		}
@@ -126,17 +205,24 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		return fmt.Errorf("build adapter: %w", err)
 	}
 
+	inputCh := make(chan []byte, 16)
+	srv.RegisterInputChannel(sess.ID, inputCh)
+
 	sup := pty.New(pty.SupervisorConfig{
-		StateDir:   cfg.StateDir,
-		Store:      cfg.Store,
-		Command:    cmdArgs,
-		CWD:        p.CWD,
-		Adapter:    ad,
-		OutputSink: nil, // Plan A: subscribers consume via SessionOutput in Plan B; for now drop.
+		StateDir: cfg.StateDir,
+		Store:    cfg.Store,
+		Command:  cmdArgs,
+		CWD:      p.CWD,
+		Adapter:  ad,
+		InputCh:  inputCh,
+		OutputSink: func(b []byte) {
+			srv.broadcastSessionOutput(sess.ID, b)
+		},
 	})
 
 	// Run in a background goroutine; the store events drive the wire.
 	go func() {
+		defer srv.UnregisterInputChannel(sess.ID)
 		defer srv.ReleaseSession()
 		_ = sup.Run(ctx, sess)
 	}()
