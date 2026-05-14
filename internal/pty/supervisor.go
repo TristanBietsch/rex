@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/creack/pty"
@@ -61,6 +62,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	}
 
 	// Track the most recent output window and last-chunk time for adapter classification.
+	// windowMu guards window and lastChunk accessed from both the reader goroutine and
+	// the ticker select case.
+	var windowMu sync.Mutex
 	window := make([]byte, 0, 8192)
 	lastChunk := time.Now()
 	errc := make(chan error, 1)
@@ -79,10 +83,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				if s.cfg.OutputSink != nil {
 					s.cfg.OutputSink(chunk)
 				}
+				windowMu.Lock()
 				window = appendBounded(window, chunk, 8192)
 				lastChunk = time.Now()
+				line := lastNonEmptyLine(window)
+				windowMu.Unlock()
 				// Update last_line — last non-empty line in the window.
-				if line := lastNonEmptyLine(window); line != "" {
+				if line != "" {
 					_ = s.cfg.Store.UpdateLastLine(sess.ID, line)
 				}
 			}
@@ -134,8 +141,11 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			if s.cfg.Adapter == nil {
 				continue
 			}
+			windowMu.Lock()
 			idle := time.Since(lastChunk)
-			next := s.cfg.Adapter.Detect(window, idle)
+			windowSnap := append([]byte(nil), window...)
+			windowMu.Unlock()
+			next := s.cfg.Adapter.Detect(windowSnap, idle)
 			if next == "" {
 				continue
 			}
