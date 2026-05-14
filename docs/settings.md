@@ -1,5 +1,9 @@
 # Settings
 
+Canonical notes for the Rex board settings surface.
+
+**UI reference:** `docs/mockup.html` — screen 8 (spinner gallery), screen 13 (settings), screen 14 (models sub-page).
+
 Settings are user preferences that affect appearance, behavior, audio, onboarding, and advanced runtime. They are surfaced in three layers:
 
 1. A **registry** in Go that defines every setting once: id, label, section, type, default, options, help text.
@@ -7,6 +11,11 @@ Settings are user preferences that affect appearance, behavior, audio, onboardin
 3. A **Lua config file** (`~/.config/rex/init.lua`) and a **YAML config file** (`~/.config/rex/config.yaml`) that override defaults at startup. Lua wins over YAML.
 
 Adding a new setting is **one struct literal** in `internal/settings/registry.go`. The page, the Lua API, the CLI, and the persistence layer all pick it up automatically.
+
+## Entry
+
+- **`S`** from board focus, or **`:settings`** in command mode, opens the settings overlay.
+- **Navigation:** `j` / `k` select row, **enter** edit, **`r`** reset row to default, **`?`** help, **esc** close.
 
 ## Registry shape
 
@@ -28,48 +37,78 @@ type SettingOption struct {
 }
 ```
 
-A setting with a single `Option` is allowed — it renders as a "locked" value in the page (visible but not editable). This is the v0 default for most enums: one canonical choice now, more added over time without UI changes.
+A setting with a single `Option` is allowed — it renders as a "locked" value in the page (visible but not editable).
 
-## Sections and v0 settings
+## Appearance
 
-### Appearance
+### Color scheme
 
-| ID | Type | Default | v0 Options | Notes |
-| --- | --- | --- | --- | --- |
-| `color_scheme` | Enum | `default` | `default` | Themes are pluggable — adding one is a registry entry plus a palette JSON. |
-| `spinner` | Enum | `braille` | `braille` | Future: line, arc, quadrant, half-circle, static. |
-| `row_density` | Enum | `normal` | `normal` | Future: `compact` (no blank row between sections), `comfortable` (extra padding). |
-| `prompt_glyph` | String | `λ` | any single grapheme | Replaces the leading glyph on the bottom prompt. Examples: `λ`, `›`, `❯`, `…`, `$`. The `:` command-mode prefix is always `:` and not affected. |
-| `reduce_motion` | Bool | `false` | — | Disables every animation. Equivalent to `--no-animation`. |
-| `blinking_enabled` | Bool | `true` | — | When off, the done-blink doesn't fire (row just lands in Completed). |
-| `show_help_bar` | Bool | `true` | — | When off, the bottom help line is hidden — extra room for the board. Toggle with `H` keybind. |
+- **Catalog:** `default` · `noir` · `paper`
+- **Default selection:** `default`
+- **noir:** Deeper black, cooler accents (night / OLED-friendly).
+- **paper:** Light background, dark foreground (daytime / contrast variant).
 
-### Audio
+### Spinner type
 
-| ID | Type | Default | v0 Options | Notes |
-| --- | --- | --- | --- | --- |
-| `soundset` | Enum | `factorio` | `factorio`, `off` | `off` mutes every event. Future: `default` (clean beeps), `mechanical` (heavier clicks), custom user-defined sets. |
-| `master_volume` | Float | `0.80` | 0.0 – 1.0 | Linear scale; applied to every event PCM at playback. |
+- **Catalog (in order, no other names in v1):**
 
-### Behavior
+  | # | id           | frames / notes |
+  |---|--------------|----------------|
+  | 1 | `braille`    | `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` — ~10 fps; fallback `*` when ASCII-only, non-TTY, reduce-motion, or no animation. |
+  | 2 | `ascii_line` | `\| / - \` — safest fonts; same `*` fallback as braille when motion off where applicable. |
+  | 3 | `moon`       | `◐ ◓ ◑ ◒` — single cell, low noise. |
+  | 4 | `pulse`      | `· • ● •` — subtle heartbeat. |
+  | 5 | `blocks`     | `░ ▒ ▓ █ ▓ ▒` — one-column "loading bar" feel. |
 
-| ID | Type | Default | v0 Options | Notes |
-| --- | --- | --- | --- | --- |
-| `keybind_preset` | Enum | `default` | `default` | Future: `vim` (stricter modal), `emacs`, `nano`. Lua can rebind individually regardless of preset. |
-| `mouse_enabled` | Bool | `true` | — | When off, the TUI ignores mouse events; keyboard alone drives everything. |
-| `max_concurrent_sessions` | Int | `16` | 1 – 64 | Daemon's PTY cap. Above this, `NewSession` returns `ErrTooManySessions`. |
+- **Removed from catalog:** `arrows` (8-direction ring) — do not ship or document.
+- **Default selection:** `braille`
 
-### Onboarding
+### Row density
 
-| ID | Type | Default | v0 Options | Notes |
-| --- | --- | --- | --- | --- |
-| `onboarding_models` | List | each tool's models when `enabled_by_default != false` | every model in the registry | Multi-select sub-page. Tools marked `enabled_by_default: false` in the registry (Grok, DeepSeek, Kimi) ship hidden and must be ticked here to appear in the wizard. Likewise, users can hide any default model they never use to keep the wizard short. |
+- **Catalog:** `compact` · `normal` · `roomy`
+- **Default:** `normal`
+- **compact:** More rows visible, tighter vertical rhythm.
+- **roomy:** Larger hit targets and spacing.
 
-### Advanced
+### Prompt glyph
 
-| ID | Type | Default | v0 Options | Notes |
-| --- | --- | --- | --- | --- |
-| `lua_config_path` | String | `~/.config/rex/init.lua` | path | Read-only display in the page; edit on disk and `:reload`. |
+- **Constraint:** exactly **one grapheme** (user-defined Unicode allowed).
+- **Built-in presets:** `>` · `%` · `❯` · `▸` · `∴` (plus default **`λ`** as the Rex default).
+- **Not** in preset list: `»`, `➜` (dropped in favor of `%` and `▸`).
+- **Default:** `λ`
+
+### Motion & chrome
+
+| Setting | Type | Default |
+|---------|------|---------|
+| reduce motion | toggle | off |
+| turn off blinking | toggle | off |
+| show help bar | toggle | on |
+
+## Audio
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `sound_enabled` | `true` | Master on/off toggle. When `false`, every event is muted regardless of `soundset` or `master_volume`; the ANSI BEL fallback is also suppressed. |
+| `soundset` | `factorio` | Catalog TBD ("more soundsets coming" in mockup). |
+| `master_volume` | `0.80` | Step with `-` / `+`. Linear scale applied to every event PCM at playback. |
+
+## Behavior
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `keybind_preset` | `default` | More presets TBD. |
+| `mouse_enabled` | `true` | When off, the TUI ignores mouse events; keyboard alone drives everything. |
+| `max_concurrent_sessions` | `16` | Daemon's PTY cap (1–64). Adjust with `-` / `+`. Above this, `NewSession` returns `ErrTooManySessions`. |
+
+## Onboarding
+
+- **add / rm models** — opens sub-page (mockup screen 14): per-model visibility toggles, paid/local hints.
+- Tools marked `enabled_by_default: false` in the registry (Grok, DeepSeek, Kimi) ship hidden and must be ticked here to appear in the wizard.
+
+## Advanced
+
+- **Lua config** path: `~/.config/rex/init.lua` — **`rex config edit`** opens it.
 
 ## Lua config
 
@@ -125,25 +164,6 @@ The TUI override is volatile by default — it lives in memory for the session. 
 2. Reference its `ID` from any code that needs the value via `settings.Get("foo")`.
 3. **Done.** The settings page, the Lua API, and `rex config` all expose it automatically. No TUI / Lua / CLI code changes.
 
-## TUI settings page
-
-Triggered by:
-
-- `:settings` (command mode)
-- `S` (keybind, capital-S so it doesn't collide with `s`)
-
-Renders as a centered modal listing every setting grouped by Section, current value shown in the right column. Vim-navigable; mouse-clickable.
-
-| Key | Action |
-| --- | --- |
-| `j` / `k` | Move row |
-| `enter` | Edit selected setting (sub-modal for enums, inline toggle for bool, inline numeric for int/float, text input for string) |
-| `r` | Reset selected setting to default |
-| `esc` | Close the page |
-| `?` | Show help for the selected setting (the `Help` field) |
-
-Editing a setting validates the value against its type/range/options. Invalid values stay in the modal with an inline error and the previous value is kept.
-
 ## CLI
 
 ```sh
@@ -155,3 +175,9 @@ rex config edit                         # open init.lua in $EDITOR
 ```
 
 `rex config set` exits non-zero with a useful diagnostic when the value is invalid for that setting's type/range/options.
+
+## Persistence & implementation notes
+
+- Store user choices in Rex config (exact path and schema to be defined by implementation).
+- Spinner implementation must respect **reduce motion** and TTY capability; match fallback rules in the table above.
+- When the mockup and this doc disagree, **update this doc to match the mockup** after intentional UI changes.
