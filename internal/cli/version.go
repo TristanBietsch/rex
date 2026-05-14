@@ -56,7 +56,6 @@ func RunNew(args []string) error        { _ = args; return notImplemented("new")
 func RunAttach(args []string) error     { _ = args; return notImplemented("attach") }
 func RunReply(args []string) error      { _ = args; return notImplemented("reply") }
 func RunSend(args []string) error       { _ = args; return notImplemented("send") }
-func RunLog(args []string) error        { _ = args; return notImplemented("log") }
 func RunWait(args []string) error       { _ = args; return notImplemented("wait") }
 func RunRm(args []string) error         { _ = args; return notImplemented("rm") }
 func RunRename(args []string) error     { _ = args; return notImplemented("rename") }
