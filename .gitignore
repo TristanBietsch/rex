@@ -15,3 +15,15 @@ TODO.md
 # Local runtime artifacts (the user's actual state dir is XDG, but if anyone runs from cwd…)
 /sessions/
 /rex.sock
+
+# env
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# claude
+.claude
+claude.md
+claude/*
