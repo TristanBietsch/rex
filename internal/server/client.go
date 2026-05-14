@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -15,7 +16,8 @@ import (
 	"github.com/tristanbietsch/rex/internal/state"
 )
 
-func handleClient(ctx context.Context, conn net.Conn, cfg Config) {
+func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
+	cfg := srv.cfg
 	defer conn.Close()
 	r := protocol.NewReader(conn)
 	w := protocol.NewWriter(conn)
@@ -55,8 +57,12 @@ func handleClient(ctx context.Context, conn net.Conn, cfg Config) {
 				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			if err := handleNewSession(ctx, env.ID, p, cfg, w); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeSpawn, err.Error())
+			if err := handleNewSession(ctx, env.ID, p, srv, w); err != nil {
+				code := protocol.ErrCodeSpawn
+				if strings.Contains(err.Error(), "too many concurrent sessions") {
+					code = protocol.ErrCodeTooManySessions
+				}
+				writeError(w, env.ID, code, err.Error())
 			}
 		case protocol.IntentDelete:
 			var p protocol.Delete
@@ -73,11 +79,17 @@ func handleClient(ctx context.Context, conn net.Conn, cfg Config) {
 	}
 }
 
-func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, cfg Config, w *protocol.Writer) error {
+func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, w *protocol.Writer) error {
+	cfg := srv.cfg
 	tool, model, ok := cfg.Registry.FindModel(p.ToolID, p.ModelID)
 	if !ok {
 		return fmt.Errorf("tool %s/%s not in registry", p.ToolID, p.ModelID)
 	}
+
+	if !srv.TryAcquireSession() {
+		return fmt.Errorf("too many concurrent sessions (cap=%d)", cfg.MaxConcurrentSessions)
+	}
+	// From here, must release on error.
 
 	id := ids.NewSessionID()
 	// Disambiguate against the live set.
@@ -103,11 +115,14 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		StartedAt: time.Now().UTC(),
 	}
 	if err := cfg.Store.Add(sess); err != nil {
+		srv.ReleaseSession()
 		return err
 	}
 
 	ad, err := adapter.For(tool)
 	if err != nil {
+		srv.ReleaseSession()
+		_ = cfg.Store.Remove(sess.ID)
 		return fmt.Errorf("build adapter: %w", err)
 	}
 
@@ -122,9 +137,11 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 
 	// Run in a background goroutine; the store events drive the wire.
 	go func() {
+		defer srv.ReleaseSession()
 		_ = sup.Run(ctx, sess)
 	}()
 	_ = intentID
+	_ = w
 	return nil
 }
 

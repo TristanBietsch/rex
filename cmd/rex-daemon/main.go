@@ -30,6 +30,7 @@ func run(args []string) error {
 	stateDir := fs.String("state-dir", defaultStateDir(), "state directory")
 	toolsPath := fs.String("tools", defaultToolsPath(), "path to tools.yaml override (optional)")
 	printVersion := fs.Bool("version", false, "print version and exit")
+	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -61,10 +62,11 @@ func run(args []string) error {
 	}
 
 	srv, err := server.New(server.Config{
-		Socket:   *socketPath,
-		StateDir: *stateDir,
-		Registry: reg,
-		Store:    store,
+		Socket:                *socketPath,
+		StateDir:              *stateDir,
+		Registry:              reg,
+		Store:                 store,
+		MaxConcurrentSessions: *maxConcurrent,
 	})
 	if err != nil {
 		return fmt.Errorf("server: %w", err)

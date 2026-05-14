@@ -9,24 +9,31 @@ import (
 	"os"
 	"sync"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/tristanbietsch/rex/internal/registry"
 	"github.com/tristanbietsch/rex/internal/state"
 )
 
 // Config bundles a Server's dependencies.
 type Config struct {
-	Socket   string
-	StateDir string
-	Registry *registry.Registry
-	Store    *state.Store
+	Socket                string
+	StateDir              string
+	Registry              *registry.Registry
+	Store                 *state.Store
+	MaxConcurrentSessions int
 }
 
 // Server owns the UDS listener and accepts clients.
 type Server struct {
 	cfg    Config
+	sem    *semaphore.Weighted // nil = no cap
 	wg     sync.WaitGroup
-	once   sync.Once //nolint:unused // placeholder for Plan B
-	closed bool      //nolint:unused // placeholder for Plan B
+	once   sync.Once //nolint:unused // placeholder for Plan B/C graceful drain
+	closed bool      //nolint:unused // placeholder for Plan B/C graceful drain
+
+	inputMu       sync.Mutex
+	inputChannels map[string]chan []byte
 }
 
 // New unlinks any stale socket and constructs a Server. It does not listen yet.
@@ -37,7 +44,11 @@ func New(cfg Config) (*Server, error) {
 	// Unlink any stale socket. If something is actually listening on it we'll
 	// fail on Listen below, which is the right outcome.
 	_ = os.Remove(cfg.Socket)
-	return &Server{cfg: cfg}, nil
+	s := &Server{cfg: cfg}
+	if cfg.MaxConcurrentSessions > 0 {
+		s.sem = semaphore.NewWeighted(int64(cfg.MaxConcurrentSessions))
+	}
+	return s, nil
 }
 
 // Serve listens until ctx is canceled. The socket is unlinked on return.
@@ -69,7 +80,48 @@ func (s *Server) Serve(ctx context.Context) error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			handleClient(ctx, conn, s.cfg)
+			handleClient(ctx, conn, s)
 		}()
 	}
+}
+
+// TryAcquireSession reserves a session slot. Returns false if the cap is reached.
+func (s *Server) TryAcquireSession() bool {
+	if s.sem == nil {
+		return true
+	}
+	return s.sem.TryAcquire(1)
+}
+
+// ReleaseSession returns a session slot.
+func (s *Server) ReleaseSession() {
+	if s.sem == nil {
+		return
+	}
+	s.sem.Release(1)
+}
+
+// RegisterInputChannel attaches a channel for forwarding raw bytes to a session.
+// Called by the spawn handler at session creation time.
+func (s *Server) RegisterInputChannel(sessionID string, ch chan []byte) {
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
+	if s.inputChannels == nil {
+		s.inputChannels = make(map[string]chan []byte)
+	}
+	s.inputChannels[sessionID] = ch
+}
+
+// UnregisterInputChannel removes the channel after the session exits.
+func (s *Server) UnregisterInputChannel(sessionID string) {
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
+	delete(s.inputChannels, sessionID)
+}
+
+// InputChannel returns the channel for a session, or nil if none registered.
+func (s *Server) InputChannel(sessionID string) chan []byte {
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
+	return s.inputChannels[sessionID]
 }
