@@ -130,11 +130,15 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					final = protocol.StateFailed
 				}
 			}
-			if err := s.cfg.Store.Transition(sess.ID, final); err != nil {
-				return err
-			}
+			// Update in-memory state first so the persisted meta reflects the terminal state.
+			sess.State = final
+			sess.LastEventAt = time.Now().UTC()
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
+			}
+			// Now broadcast — subscribers can safely read meta.json after this fires.
+			if err := s.cfg.Store.Transition(sess.ID, final); err != nil {
+				return err
 			}
 			return nil
 		case <-ticker.C:

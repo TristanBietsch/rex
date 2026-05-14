@@ -58,16 +58,8 @@ func TestE2E_FullFlow(t *testing.T) {
 	}
 	require.NotEmpty(t, sessID)
 
-	// Verify meta.json on disk.
-	// WriteMeta is called after the done event is broadcast, so we poll briefly.
+	// Verify meta.json on disk (no poll needed — supervisor writes meta before broadcasting done).
 	meta := filepath.Join(stateDir, "sessions", sessID, "meta.json")
-	var statErr error
-	for i := 0; i < 50; i++ {
-		_, statErr = os.Stat(meta)
-		if statErr == nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	require.NoError(t, statErr, "meta.json must exist on disk after done at %s", meta)
+	_, err = os.Stat(meta)
+	require.NoError(t, err, "meta.json must exist on disk after done at %s", meta)
 }
