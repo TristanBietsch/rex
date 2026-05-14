@@ -15,7 +15,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/state"
 )
 
-func startServer(t *testing.T) (string, context.CancelFunc) {
+func startServer(t *testing.T) (string, string, context.CancelFunc) {
 	t.Helper()
 	// Use os.MkdirTemp with a short prefix so the unix socket path stays within
 	// macOS's 104-byte sockaddr_un.sun_path limit (103 usable chars + null).
@@ -38,11 +38,11 @@ func startServer(t *testing.T) (string, context.CancelFunc) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	return sock, cancel
+	return sock, dir, cancel
 }
 
 func TestNewSession_SpawnsAndCompletes(t *testing.T) {
-	sock, cancel := startServer(t)
+	sock, _, cancel := startServer(t)
 	defer cancel()
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
