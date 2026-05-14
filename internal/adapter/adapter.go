@@ -1,9 +1,8 @@
 // Package adapter classifies session state from PTY output.
-//
-// Plan A ships HeuristicCLI (regex + idle). Plan B adds ClaudeStructured.
 package adapter
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/protocol"
@@ -11,13 +10,7 @@ import (
 )
 
 // Adapter classifies output chunks into states.
-//
-// The adapter is given a window of recent bytes plus the time since the last
-// chunk arrived. It returns the state the session should be in (or an empty
-// string to leave the state unchanged).
 type Adapter interface {
-	// Detect returns the next state given recent output and idle duration.
-	// Returns "" to leave the state unchanged.
 	Detect(window []byte, idle time.Duration) protocol.State
 }
 
@@ -25,11 +18,15 @@ type Adapter interface {
 func For(t registry.Tool) (Adapter, error) {
 	switch t.Detect.Kind {
 	case "heuristic":
-		return NewHeuristic(t.Detect.PromptRegex, time.Duration(t.Detect.IdleMs)*time.Millisecond), nil
+		return NewHeuristic(t.Detect.PromptRegex, time.Duration(t.Detect.IdleMs)*time.Millisecond)
 	case "structured":
-		// Plan B will return ClaudeStructured here.
-		return nil, ErrStructuredUnsupported
+		switch t.Detect.Format {
+		case "claude_jsonl":
+			return NewClaudeStructured(), nil
+		default:
+			return nil, fmt.Errorf("unsupported structured format %q", t.Detect.Format)
+		}
 	default:
-		return nil, ErrUnknownDetect
+		return nil, fmt.Errorf("%w: %q", ErrUnknownDetect, t.Detect.Kind)
 	}
 }
