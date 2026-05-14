@@ -3,15 +3,16 @@ package registry
 
 // Tool is one entry in the registry.
 type Tool struct {
-	ID          string   `yaml:"id"`
-	Name        string   `yaml:"name"`
-	Category    string   `yaml:"category"` // "paid" | "self_hosted"
-	Command     []string `yaml:"command"`
-	CWDStrategy string   `yaml:"cwd_strategy,omitempty"` // "inherit" | "session_dir"
-	Detect      Detect   `yaml:"detect"`
-	Icon        string   `yaml:"icon"`
-	Color       string   `yaml:"color"`
-	Models      []Model  `yaml:"models"`
+	ID               string   `yaml:"id"`
+	Name             string   `yaml:"name"`
+	Category         string   `yaml:"category"` // "paid" | "self_hosted"
+	Command          []string `yaml:"command"`
+	CWDStrategy      string   `yaml:"cwd_strategy,omitempty"` // "inherit" | "session_dir"
+	Detect           Detect   `yaml:"detect"`
+	Icon             string   `yaml:"icon"`
+	Color            string   `yaml:"color"`
+	EnabledByDefault *bool    `yaml:"enabled_by_default,omitempty"`
+	Models           []Model  `yaml:"models"`
 }
 
 // Detect describes how the adapter decides session state.

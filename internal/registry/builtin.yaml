@@ -1,6 +1,9 @@
-# Built-in tools shipped with rex-daemon. Plan A only ships a test tool.
-# Real tools (claude/codex/gemini/ollama) land in Plan B once their adapters exist.
+# Built-in tools shipped with rex-daemon.
+#
+# Tools with `enabled_by_default: false` are opt-in: they're available but the
+# wizard hides them until the user enables them in Settings → Onboarding.
 tools:
+  # Test tool — used by integration tests and the smoke recipe.
   - id: echo
     name: "Echo (test)"
     category: self_hosted
@@ -21,3 +24,165 @@ tools:
       - id: long
         name: "Longer script"
         args: ["for i in $(seq 1 5); do echo \"step $i\"; sleep 1; done; echo 'done'"]
+
+  - id: claude
+    name: "Claude Code"
+    category: paid
+    command: ["claude", "--output-format=stream-json", "--verbose"]
+    detect:
+      kind: structured
+      format: claude_jsonl
+    icon: "◆"
+    color: "#D97757"
+    models:
+      - id: opus
+        name: "Opus 4.7"
+        args: ["--model", "opus"]
+        effort:
+          options: [minimal, default, high, max]
+          default: default
+          arg_template: "--effort={value}"
+      - id: sonnet
+        name: "Sonnet 4.6"
+        args: ["--model", "sonnet"]
+        effort:
+          options: [minimal, default, high, max]
+          default: default
+          arg_template: "--effort={value}"
+      - id: haiku
+        name: "Haiku 4.5"
+        args: ["--model", "haiku"]
+        effort:
+          options: [minimal, default]
+          default: default
+          arg_template: "--effort={value}"
+
+  - id: codex
+    name: "OpenAI Codex"
+    category: paid
+    command: ["codex"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^❯ "
+      idle_ms: 1200
+    icon: "◇"
+    color: "#10A37F"
+    models:
+      - id: gpt-5
+        name: "GPT-5"
+        args: ["--model", "gpt-5"]
+        effort:
+          options: [low, medium, high]
+          default: medium
+          arg_template: "--reasoning-effort={value}"
+      - id: gpt-5-codex
+        name: "GPT-5 Codex"
+        args: ["--model", "gpt-5-codex"]
+        effort:
+          options: [low, medium, high]
+          default: medium
+          arg_template: "--reasoning-effort={value}"
+
+  - id: gemini
+    name: "Gemini CLI"
+    category: paid
+    command: ["gemini"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^> "
+      idle_ms: 1200
+    icon: "◈"
+    color: "#4285F4"
+    models:
+      - id: 2.5-pro
+        name: "Gemini 2.5 Pro"
+        args: ["--model", "gemini-2.5-pro"]
+      - id: 2.5-flash
+        name: "Gemini 2.5 Flash"
+        args: ["--model", "gemini-2.5-flash"]
+
+  - id: ollama
+    name: "Ollama (local)"
+    category: self_hosted
+    command: ["ollama", "run"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)>>> $"
+      idle_ms: 1500
+    icon: "◉"
+    color: "#B8A382"
+    models:
+      - id: llama3.1
+        name: "llama3.1"
+        args: ["llama3.1"]
+      - id: mistral
+        name: "mistral"
+        args: ["mistral"]
+
+  - id: grok
+    name: "Grok (xAI)"
+    category: paid
+    command: ["grok"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^> $"
+      idle_ms: 1200
+    icon: "⬢"
+    color: "#E5544D"
+    enabled_by_default: false
+    models:
+      - id: grok-4
+        name: "Grok 4"
+        args: ["--model", "grok-4"]
+        effort:
+          options: [low, medium, high]
+          default: medium
+          arg_template: "--reasoning-effort={value}"
+      - id: grok-4-mini
+        name: "Grok 4 Mini"
+        args: ["--model", "grok-4-mini"]
+
+  - id: deepseek
+    name: "DeepSeek"
+    category: paid
+    command: ["deepseek"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^> $"
+      idle_ms: 1200
+    icon: "⊙"
+    color: "#5E72E4"
+    enabled_by_default: false
+    models:
+      - id: deepseek-chat
+        name: "DeepSeek Chat"
+        args: ["--model", "deepseek-chat"]
+      - id: deepseek-coder
+        name: "DeepSeek Coder"
+        args: ["--model", "deepseek-coder"]
+      - id: deepseek-reasoner
+        name: "DeepSeek Reasoner"
+        args: ["--model", "deepseek-reasoner"]
+        effort:
+          options: [low, medium, high]
+          default: medium
+          arg_template: "--effort={value}"
+
+  - id: kimi
+    name: "Kimi (Moonshot)"
+    category: paid
+    command: ["kimi"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^> $"
+      idle_ms: 1200
+    icon: "◗"
+    color: "#7C3AED"
+    enabled_by_default: false
+    models:
+      - id: kimi-k2
+        name: "Kimi K2"
+        args: ["--model", "kimi-k2"]
+      - id: kimi-k2-mini
+        name: "Kimi K2 Mini"
+        args: ["--model", "kimi-k2-mini"]
