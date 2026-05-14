@@ -1,0 +1,17 @@
+# TODO
+TODO.md
+
+# Binaries
+/rex-daemon
+/rex
+*.test
+*.out
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local runtime artifacts (the user's actual state dir is XDG, but if anyone runs from cwd…)
+/sessions/
+/rex.sock
