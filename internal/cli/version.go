@@ -52,7 +52,6 @@ func notImplemented(verb string) error {
 // Verb stubs — each gets replaced by its own file in subsequent tasks (B6-B17).
 // Keep these exported so cmd/rex/main.go compiles between tasks.
 
-func RunStatus(args []string) error     { _ = args; return notImplemented("status") }
 func RunLs(args []string) error         { _ = args; return notImplemented("ls") }
 func RunNew(args []string) error        { _ = args; return notImplemented("new") }
 func RunAttach(args []string) error     { _ = args; return notImplemented("attach") }
