@@ -53,8 +53,6 @@ func notImplemented(verb string) error {
 // Keep these exported so cmd/rex/main.go compiles between tasks.
 
 func RunAttach(args []string) error     { _ = args; return notImplemented("attach") }
-func RunReply(args []string) error      { _ = args; return notImplemented("reply") }
-func RunSend(args []string) error       { _ = args; return notImplemented("send") }
 func RunWait(args []string) error       { _ = args; return notImplemented("wait") }
 func RunReload(args []string) error     { _ = args; return notImplemented("reload") }
 func RunDaemon(args []string) error     { _ = args; return notImplemented("daemon") }
