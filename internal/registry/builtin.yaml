@@ -1,0 +1,23 @@
+# Built-in tools shipped with rex-daemon. Plan A only ships a test tool.
+# Real tools (claude/codex/gemini/ollama) land in Plan B once their adapters exist.
+tools:
+  - id: echo
+    name: "Echo (test)"
+    category: self_hosted
+    command: ["bash", "-c"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^awaiting input:"
+      idle_ms: 800
+    icon: "◉"
+    color: "#94A3B8"
+    models:
+      - id: short
+        name: "Short script"
+        args: ["echo 'hello from rex'; sleep 1; echo 'work in progress'; sleep 1; echo 'done'"]
+      - id: prompt
+        name: "Waits for input"
+        args: ["echo 'awaiting input:'; read line; echo \"got: $line\"; echo 'done'"]
+      - id: long
+        name: "Longer script"
+        args: ["for i in $(seq 1 5); do echo \"step $i\"; sleep 1; done; echo 'done'"]

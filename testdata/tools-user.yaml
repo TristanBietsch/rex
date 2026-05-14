@@ -1,0 +1,20 @@
+tools:
+  - id: echo
+    models:
+      - id: extra
+        name: "Extra (user-added)"
+        args: ["echo 'extra'; echo 'done'"]
+  - id: usertool
+    name: "User tool"
+    category: self_hosted
+    command: ["true"]
+    detect:
+      kind: heuristic
+      prompt_regex: ">"
+      idle_ms: 500
+    icon: "◐"
+    color: "#FF00FF"
+    models:
+      - id: only
+        name: "Only"
+        args: []
