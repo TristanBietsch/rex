@@ -77,6 +77,21 @@ A setting with a single `Option` is allowed — it renders as a "locked" value i
 - **Not** in preset list: `»`, `➜` (dropped in favor of `%` and `▸`).
 - **Default:** `λ`
 
+### Header style
+
+Controls how the aggregate counts at the top render. State colors apply in every mode (yellow needs-input / blue working / green done / red failed).
+
+- **Catalog:** `verbose` · `glyphs` · `numbers`
+- **Default:** `verbose`
+
+| id | example | notes |
+|---|---|---|
+| `verbose` | `2 awaiting input · 4 working · 1 completed` | Spelled out, bullet-separated. Default. |
+| `glyphs`  | `◆ 2   ⠋ 4   ● 1` | State glyph + colored count. Adds the needs-input `◆`, the working spinner frame, and the done `●` (using the same glyph vocabulary as row state markers). |
+| `numbers` | `2 4 1` | Just colored counts, no glyphs or labels. Densest. Yellow / blue / green left-to-right. |
+
+Failed and crashed totals are appended in red only when non-zero, regardless of mode (`… ✕ 1` / `… ○ 2`).
+
 ### Motion & chrome
 
 | Setting | Type | Default |
