@@ -153,6 +153,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		if k.Type == tea.KeyEsc {
 			return closeModal(m)
 		}
+		if cmd := forwardKeyToModal(m, k); cmd != nil {
+			return m, cmd
+		}
 		return m, nil
 	}
 	if m.Focus == FocusWizard {

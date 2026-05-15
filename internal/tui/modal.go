@@ -83,6 +83,86 @@ func handleModalOutput(m Model, env protocol.Envelope) Model {
 	return m
 }
 
+// keyToBytes converts a tea.KeyMsg into the byte sequence a PTY would expect.
+// Returns nil for unsupported keys (caller drops them).
+func keyToBytes(k tea.KeyMsg) []byte {
+	switch k.Type {
+	case tea.KeyRunes:
+		return []byte(string(k.Runes))
+	case tea.KeySpace:
+		return []byte{' '}
+	case tea.KeyEnter:
+		return []byte{'\r'}
+	case tea.KeyTab:
+		return []byte{'\t'}
+	case tea.KeyBackspace:
+		return []byte{0x7f}
+	case tea.KeyDelete:
+		return []byte("\x1b[3~")
+	case tea.KeyUp:
+		return []byte("\x1b[A")
+	case tea.KeyDown:
+		return []byte("\x1b[B")
+	case tea.KeyRight:
+		return []byte("\x1b[C")
+	case tea.KeyLeft:
+		return []byte("\x1b[D")
+	case tea.KeyHome:
+		return []byte("\x1b[H")
+	case tea.KeyEnd:
+		return []byte("\x1b[F")
+	case tea.KeyPgUp:
+		return []byte("\x1b[5~")
+	case tea.KeyPgDown:
+		return []byte("\x1b[6~")
+	case tea.KeyCtrlA:
+		return []byte{0x01}
+	case tea.KeyCtrlB:
+		return []byte{0x02}
+	case tea.KeyCtrlC:
+		return []byte{0x03}
+	case tea.KeyCtrlD:
+		return []byte{0x04}
+	case tea.KeyCtrlE:
+		return []byte{0x05}
+	case tea.KeyCtrlF:
+		return []byte{0x06}
+	case tea.KeyCtrlK:
+		return []byte{0x0b}
+	case tea.KeyCtrlL:
+		return []byte{0x0c}
+	case tea.KeyCtrlN:
+		return []byte{0x0e}
+	case tea.KeyCtrlP:
+		return []byte{0x10}
+	case tea.KeyCtrlU:
+		return []byte{0x15}
+	case tea.KeyCtrlW:
+		return []byte{0x17}
+	case tea.KeyCtrlY:
+		return []byte{0x19}
+	case tea.KeyCtrlZ:
+		return []byte{0x1a}
+	}
+	return nil
+}
+
+// forwardKeyToModal converts a key event into a SendInput command.
+func forwardKeyToModal(m Model, k tea.KeyMsg) tea.Cmd {
+	if m.Modal == nil || m.Client == nil {
+		return nil
+	}
+	b := keyToBytes(k)
+	if b == nil {
+		return nil
+	}
+	sessID := m.Modal.SessionID
+	return func() tea.Msg {
+		_ = m.Client.SendInput(sessID, b)
+		return nil
+	}
+}
+
 func renderModal(m Model) string {
 	if m.Modal == nil {
 		return ""
@@ -100,7 +180,7 @@ func renderModal(m Model) string {
 			styleStateWorking.Render("["+string(sess.State)+"]"),
 	)
 	body := m.Modal.Viewport.View()
-	footer := styleDim.Render("esc to close")
+	footer := styleDim.Render("esc to detach · type to send input")
 	border := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorBorder).
