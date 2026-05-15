@@ -79,11 +79,17 @@ const (
 	rowIndent = 2
 )
 
+// maxDescW keeps the description column readable on very wide terminals.
+const maxDescW = 80
+
 func rowLayout(width int) (descW int) {
 	used := rowIndent + colMarker + colGap + colID + colGap + colSlug + colGap + colGap + colModel + colGap + colTime
 	descW = width - used
 	if descW < 8 {
 		descW = 8
+	}
+	if descW > maxDescW {
+		descW = maxDescW
 	}
 	return descW
 }
@@ -126,7 +132,13 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 	indent := rowStyle.Render(strings.Repeat(" ", rowIndent))
 
 	row := indent + marker + gap + id + gap + slug + gap + desc + gap + model + gap + t
-	row = rowStyle.Width(width).Render(row)
+	// Don't force row to full terminal width — let it be its natural size so the
+	// selection highlight only covers the content cells, not the entire line.
+	rowW := rowIndent + colMarker + colGap + colID + colGap + colSlug + colGap + descW + colGap + colModel + colGap + colTime
+	if rowW > width {
+		rowW = width
+	}
+	row = rowStyle.Width(rowW).Render(row)
 
 	if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
 		if time.Now().UnixMilli()/200%2 == 0 {

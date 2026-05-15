@@ -13,9 +13,8 @@ import (
 	"github.com/tristanbietsch/rex/internal/settings"
 )
 
-// maxContentWidth caps the inner board content; the rest of the terminal width is
-// horizontal margin so the board doesn't sprawl on ultrawide screens.
-const maxContentWidth = 110
+// boardPad is the side margin we leave so content isn't flush against the terminal edges.
+const boardPad = 0
 
 func Run(socket string) error {
 	c, err := client.Dial(socket)
@@ -93,12 +92,13 @@ func (m Model) View() string {
 	return renderFullScreen(m, w, h)
 }
 
-// contentWidth returns the inner board content width (capped, centered).
+// contentWidth returns the inner board content width (full terminal width).
 func contentWidth(termWidth int) int {
-	if termWidth > maxContentWidth {
-		return maxContentWidth
+	w := termWidth - 2*boardPad
+	if w < 40 {
+		return termWidth
 	}
-	return termWidth
+	return w
 }
 
 func renderFullScreen(m Model, w, h int) string {
