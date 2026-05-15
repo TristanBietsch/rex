@@ -19,6 +19,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case DaemonEventMsg:
 		m = m.applyEvent(msg.Env)
+		if m.Modal != nil {
+			m = handleModalOutput(m, msg.Env)
+		}
 		return m, listenDaemon(m.Client)
 	case DaemonErrMsg:
 		m.Err = msg.Err.Error()
@@ -87,6 +90,11 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			m.Focus = FocusPrompt
 			m.Err = ""
 			return m, nil
+		case "enter":
+			if m.SelectedID == "" {
+				return m, nil
+			}
+			return openModal(m, m.SelectedID)
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""
@@ -100,6 +108,12 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusConfirmQuit {
 		return updateConfirmQuitKey(m, k)
+	}
+	if m.Focus == FocusModal {
+		if k.Type == tea.KeyEsc {
+			return closeModal(m)
+		}
+		return m, nil
 	}
 
 	return m, nil

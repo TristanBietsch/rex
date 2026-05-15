@@ -35,6 +35,8 @@ type Model struct {
 	Err          string
 	SpinnerTick  int
 	Quitting     bool
+
+	Modal *ModalState
 }
 
 func (m Model) applyEvent(env protocol.Envelope) Model {
