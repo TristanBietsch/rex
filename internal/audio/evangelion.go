@@ -55,5 +55,18 @@ func evangelionCatalog() map[string][]burst {
 			{tones: []tone{{1318, 12, 7}}},
 			{tones: []tone{{1976, 24, 15}, {2637, 14, 7}}},
 		},
+		// Boot OK: high FM blip — NERV terminal "row checked".
+		EventBootOK: {
+			{tones: []tone{{2349, 20, 12}, {4699, 10, 5}}},
+		},
+		// Boot WARN: softer off-tuned blip with a slight tail.
+		EventBootWarn: {
+			{tones: []tone{{1568, 30, 22}, {1175, 20, 14}}},
+		},
+		// Boot FAIL: descending dissonant pair, klaxon edge, distinct from EventDelete.
+		EventBootFail: {
+			{tones: []tone{{880, 30, 18}, {1318, 18, 10}}},
+			{tones: []tone{{440, 90, 70}, {220, 60, 45}}},
+		},
 	}
 }
