@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/settings"
 )
 
@@ -30,6 +31,9 @@ func openSettings(m Model) (Model, tea.Cmd) {
 	}
 	m.Settings = st
 	m.Focus = FocusSettings
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventOpen)
+	}
 	return m, nil
 }
 
@@ -40,6 +44,9 @@ func closeSettings(m Model) Model {
 	}
 	m.Settings = nil
 	m.Focus = FocusBoard
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventClose)
+	}
 	return m
 }
 

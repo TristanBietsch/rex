@@ -7,9 +7,8 @@ import (
 	"strings"
 )
 
-// RunReload sends SIGHUP to the running rex-daemon. The daemon-side handler
-// for SIGHUP (re-reading tools.yaml) is Plan C work; this command just sends
-// the signal so the user/script can trigger it.
+// RunReload sends SIGHUP to the running rex-daemon so the user/script can
+// trigger a config re-read.
 func RunReload(args []string) error {
 	fs := flag.NewFlagSet("reload", flag.ContinueOnError)
 	if err := fs.Parse(args); err != nil {

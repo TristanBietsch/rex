@@ -10,6 +10,7 @@ const (
 	IntentReply       = "Reply"
 	IntentRename      = "Rename"
 	IntentDelete      = "Delete"
+	IntentResize      = "Resize"
 	IntentFocusFilter = "FocusFilter"
 	IntentShutdown    = "Shutdown"
 )
@@ -20,8 +21,18 @@ type Hello struct {
 }
 
 // Subscribe controls what events flow back. SessionID == "" means board-wide updates only.
+// Replay asks the daemon to emit the tail of the session's transcript as a SessionOutput
+// event before live output starts flowing — useful for attach/scrollback.
 type Subscribe struct {
 	SessionID string `json:"session_id,omitempty"`
+	Replay    bool   `json:"replay,omitempty"`
+}
+
+// Resize asks the daemon to resize a running session's PTY.
+type Resize struct {
+	SessionID string `json:"session_id"`
+	Cols      uint16 `json:"cols"`
+	Rows      uint16 `json:"rows"`
 }
 
 // NewSession asks the daemon to spawn a new agent session.

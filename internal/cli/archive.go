@@ -7,7 +7,6 @@ import (
 )
 
 // RunArchive marks a completed session as archived by prefixing its Title.
-// Plan B: marker-prefix approach. Plan C: replace with explicit Archive intent.
 func RunArchive(args []string) error {
 	fs := flag.NewFlagSet("archive", flag.ContinueOnError)
 	socket := fs.String("socket", DefaultSocket(), "UDS path")

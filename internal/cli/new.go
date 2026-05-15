@@ -20,7 +20,7 @@ func RunNew(args []string) error {
 	effort := fs.String("effort", "", "reasoning effort")
 	slug := fs.String("slug", "", "session slug (defaults to derived from prompt)")
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
-	noAttach := fs.Bool("no-attach", true, "spawn and exit (Plan B default)")
+	noAttach := fs.Bool("no-attach", true, "spawn and exit (default)")
 	if err := fs.Parse(args); err != nil {
 		return NewExitError(ExitInvalidArgs, err.Error())
 	}

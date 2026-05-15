@@ -18,14 +18,18 @@ import (
 
 // SupervisorConfig configures a per-session supervisor.
 type SupervisorConfig struct {
-	StateDir   string          // root of persisted state (~/.local/share/rex)
-	Store      *state.Store    // central store for state transitions
-	Command    []string        // argv to spawn (command + args resolved from registry+model)
-	CWD        string          // working directory for the child
-	Adapter    adapter.Adapter // nil = no state classification (tests/echo tool)
-	OutputSink func(b []byte)  // called with every chunk read from PTY; non-blocking
-	InputCh    chan []byte     // optional: stdin bytes from clients
-	IdleTick   time.Duration   // how often we sample idle for the adapter (default 200ms)
+	StateDir         string          // root of persisted state (~/.local/share/rex)
+	Store            *state.Store    // central store for state transitions
+	Command          []string        // argv to spawn (command + args resolved from registry+model)
+	CWD              string          // working directory for the child
+	Adapter          adapter.Adapter // nil = no state classification (tests/echo tool)
+	OutputSink       func(b []byte)  // called with every chunk read from PTY; non-blocking
+	InputCh          chan []byte     // optional: stdin bytes from clients
+	IdleTick         time.Duration   // how often we sample idle for the adapter (default 200ms)
+	InitialCols      uint16          // initial PTY width (0 = default)
+	InitialRows      uint16          // initial PTY height (0 = default)
+	RegisterResize   func(resize func(cols, rows uint16) error)
+	UnregisterResize func()
 }
 
 // Supervisor runs one PTY session to completion.
@@ -51,12 +55,30 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if s.cfg.CWD != "" {
 		cmd.Dir = s.cfg.CWD
 	}
-	f, err := pty.Start(cmd)
+	cols := s.cfg.InitialCols
+	rows := s.cfg.InitialRows
+	if cols == 0 {
+		cols = 120
+	}
+	if rows == 0 {
+		rows = 32
+	}
+	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
 	if err != nil {
 		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 		return fmt.Errorf("pty start: %w", err)
 	}
 	defer f.Close()
+
+	// Expose a resize callback to subscribers (attach clients).
+	if s.cfg.RegisterResize != nil {
+		s.cfg.RegisterResize(func(c, r uint16) error {
+			return pty.Setsize(f, &pty.Winsize{Cols: c, Rows: r})
+		})
+		if s.cfg.UnregisterResize != nil {
+			defer s.cfg.UnregisterResize()
+		}
+	}
 
 	if s.cfg.InputCh != nil {
 		go func() {

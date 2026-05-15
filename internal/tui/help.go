@@ -19,7 +19,7 @@ func renderHelp() string {
 		"  t             cycle tool filter",
 		"",
 		styleSlug.Render("Actions"),
-		"  enter         open modal on selected session",
+		"  enter         attach to selected session (ctrl+] to detach)",
 		"  n             new-agent wizard",
 		"  dd            delete selected",
 		"  i             focus λ prompt (new-session text)",

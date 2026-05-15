@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"golang.org/x/term"
 
@@ -12,14 +14,20 @@ import (
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
 
+// detachKey is the byte that disconnects us from the session and returns control
+// to the caller (the TUI, or the shell that invoked `rex attach`). 0x1d == Ctrl+].
+const detachKey byte = 0x1d
+
 // RunAttach connects the user's terminal to a session's PTY.
 //
-// Detach sequence: ctrl+a then d (same as tmux/screen). Read-only mode skips
-// stdin forwarding.
+// The daemon owns the agent process; we plumb stdin/stdout and the terminal size
+// so the agent's TUI renders natively in the caller's terminal. Press Ctrl+] to
+// detach. Read-only mode skips stdin forwarding.
 func RunAttach(args []string) error {
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
 	socket := fs.String("socket", DefaultSocket(), "UDS path")
 	readOnly := fs.Bool("read-only", false, "attach as observer (no input forwarding)")
+	noReplay := fs.Bool("no-replay", false, "skip transcript backlog on attach")
 	if err := fs.Parse(args); err != nil {
 		return NewExitError(ExitInvalidArgs, err.Error())
 	}
@@ -38,60 +46,85 @@ func RunAttach(args []string) error {
 		return err
 	}
 
-	if err := c.Subscribe(sess.ID); err != nil {
-		return NewExitError(ExitGeneric, err.Error())
+	stdoutFd := int(os.Stdout.Fd())
+	stdinFd := int(os.Stdin.Fd())
+
+	// Size the daemon's PTY to our terminal before subscribing so the agent's
+	// first redraw lands at the right geometry.
+	if term.IsTerminal(stdoutFd) {
+		if w, h, gerr := term.GetSize(stdoutFd); gerr == nil && w > 0 && h > 0 {
+			_ = c.Resize(sess.ID, uint16(w), uint16(h))
+		}
+	}
+
+	if *noReplay {
+		if err := c.Subscribe(sess.ID); err != nil {
+			return NewExitError(ExitGeneric, err.Error())
+		}
+	} else {
+		if err := c.SubscribeReplay(sess.ID); err != nil {
+			return NewExitError(ExitGeneric, err.Error())
+		}
 	}
 
 	// Put terminal in raw mode if stdin is a TTY.
-	fd := int(os.Stdin.Fd())
 	var oldState *term.State
-	if term.IsTerminal(fd) {
-		oldState, err = term.MakeRaw(fd)
+	if term.IsTerminal(stdinFd) {
+		oldState, err = term.MakeRaw(stdinFd)
 		if err != nil {
 			return NewExitError(ExitGeneric, fmt.Sprintf("raw mode: %v", err))
 		}
-		defer func() { _ = term.Restore(fd, oldState) }()
+		defer func() { _ = term.Restore(stdinFd, oldState) }()
 	}
 
-	fmt.Fprintf(os.Stderr, "\r\n[attached to %s — ctrl+a d to detach]\r\n", sess.Slug)
+	// Switch to the alt-screen so we don't trample the caller's scrollback,
+	// hide the cursor until the agent draws its own, then restore on exit.
+	const enterAlt = "\x1b[?1049h\x1b[?25l"
+	const exitAlt = "\x1b[?25h\x1b[?1049l"
+	_, _ = os.Stdout.WriteString(enterAlt)
+	defer func() { _, _ = os.Stdout.WriteString(exitAlt) }()
 
-	// stdin → SendInput, watching for ctrl+a d.
-	stdinDone := make(chan struct{})
+	// SIGWINCH → resize the daemon's PTY.
+	winch := make(chan os.Signal, 1)
+	signal.Notify(winch, syscall.SIGWINCH)
+	defer signal.Stop(winch)
+	go func() {
+		for range winch {
+			if w, h, gerr := term.GetSize(stdoutFd); gerr == nil && w > 0 && h > 0 {
+				_ = c.Resize(sess.ID, uint16(w), uint16(h))
+			}
+		}
+	}()
+
+	// stdin → daemon, watching for Ctrl+] to detach.
 	if !*readOnly {
 		go func() {
-			defer close(stdinDone)
-			buf := make([]byte, 1024)
-			var prev byte
+			buf := make([]byte, 4096)
 			for {
 				n, rerr := os.Stdin.Read(buf)
 				if n > 0 {
 					chunk := buf[:n]
-					if containsDetachSeq(chunk, prev) {
+					if idx := indexByte(chunk, detachKey); idx >= 0 {
+						if idx > 0 {
+							_ = c.SendInput(sess.ID, chunk[:idx])
+						}
+						_ = c.Close() // unblock the event loop
 						return
 					}
-					prev = chunk[n-1]
 					_ = c.SendInput(sess.ID, chunk)
 				}
 				if rerr != nil {
+					_ = c.Close()
 					return
 				}
 			}
 		}()
-	} else {
-		close(stdinDone)
 	}
 
-	// daemon events → stdout.
+	// daemon → stdout.
 	for {
-		select {
-		case <-stdinDone:
-			fmt.Fprintf(os.Stderr, "\r\n[detached]\r\n")
-			return nil
-		default:
-		}
 		env, err := c.NextEvent()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "\r\n[connection closed]\r\n")
 			return nil
 		}
 		if env.Type == protocol.EventSessionOutput {
@@ -103,19 +136,11 @@ func RunAttach(args []string) error {
 	}
 }
 
-// containsDetachSeq returns true if `chunk` (with a hint of the previous chunk's
-// last byte) contains the ctrl+a d sequence.
-func containsDetachSeq(chunk []byte, prevByte byte) bool {
-	if len(chunk) == 0 {
-		return false
-	}
-	if prevByte == 0x01 && chunk[0] == 'd' {
-		return true
-	}
-	for i := 0; i+1 < len(chunk); i++ {
-		if chunk[i] == 0x01 && chunk[i+1] == 'd' {
-			return true
+func indexByte(b []byte, c byte) int {
+	for i := range b {
+		if b[i] == c {
+			return i
 		}
 	}
-	return false
+	return -1
 }

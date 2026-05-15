@@ -1,15 +1,24 @@
 package tui
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
+
+// attachDoneMsg signals that a child `rex attach` process exited and we should
+// resume the TUI. We surface any error in the status line.
+type attachDoneMsg struct {
+	err error
+}
 
 var (
 	lastMouseRow  = -1
@@ -22,15 +31,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
-		if m.Modal != nil {
-			m = resizeModal(m, m.Width, m.Height)
-		}
 		return m, nil
 	case DaemonEventMsg:
 		m = m.applyEvent(msg.Env)
-		if m.Modal != nil {
-			m = handleModalOutput(m, msg.Env)
-		}
 		return m, listenDaemon(m.Client)
 	case DaemonErrMsg:
 		// Surface the error in the status line, don't take down the TUI.
@@ -39,6 +42,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SpinnerTickMsg:
 		m.SpinnerTick++
 		return m, tickSpinner()
+	case attachDoneMsg:
+		if msg.err != nil {
+			m.Err = "attach: " + msg.err.Error()
+		}
+		return m, nil
 	case tea.KeyMsg:
 		return updateKey(m, msg)
 	case tea.MouseMsg:
@@ -48,8 +56,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
-	// Plan C ships click-to-select + double-click-to-open. Exact row math
-	// requires layout coordinates; we use a header-offset heuristic.
+	// Click-to-select + double-click-to-open. Exact row math requires layout
+	// coordinates; we use a header-offset heuristic.
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return m, nil
 	}
@@ -67,7 +75,7 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 	now := time.Now()
 	if lastMouseRow == idx && now.Sub(lastMouseTime) < 350*time.Millisecond {
 		// Double-click — open modal.
-		return openModal(m, rows[idx].ID)
+		return attachSession(m, rows[idx].ID)
 	}
 	lastMouseRow = idx
 	lastMouseTime = now
@@ -82,12 +90,17 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 
 	// Board focus: navigation, mode switches, single-key actions, and 'd' chord.
 	if m.Focus == FocusBoard {
-		// Chord handling — only the first 'd' arms the chord; second 'd' fires.
+		// Chord handling — only the first 'd' arms the chord; second 'd' opens
+		// the delete confirmation prompt.
 		if k.String() == "d" {
 			if m.PendingChord == "d" {
 				m.PendingChord = ""
 				if m.SelectedID != "" {
-					return m, deleteSessionCmd(m.Client, m.SelectedID)
+					m.PendingDeleteID = m.SelectedID
+					m.Focus = FocusConfirmDelete
+					if m.Audio != nil {
+						m.Audio.Play(audio.EventOpen)
+					}
 				}
 				return m, nil
 			}
@@ -130,11 +143,12 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return openWizard(m)
 		case "?":
 			m.Focus = FocusHelp
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventOpen)
+			}
 			return m, nil
 		case "S":
 			return openSettings(m)
-		case "/":
-			return openSlash(m)
 		case "i":
 			m.Focus = FocusPrompt
 			m.Err = ""
@@ -143,11 +157,14 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			if m.SelectedID == "" {
 				return m, nil
 			}
-			return openModal(m, m.SelectedID)
+			return attachSession(m, m.SelectedID)
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""
 			m.Err = ""
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventCommand)
+			}
 			return m, nil
 		}
 	}
@@ -158,8 +175,8 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusConfirmQuit {
 		return updateConfirmQuitKey(m, k)
 	}
-	if m.Focus == FocusModal {
-		return updateModalKey(m, k)
+	if m.Focus == FocusConfirmDelete {
+		return updateConfirmDeleteKey(m, k)
 	}
 	if m.Focus == FocusWizard {
 		return updateWizardKey(m, k)
@@ -168,68 +185,40 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		switch k.String() {
 		case "esc", "?":
 			m.Focus = FocusBoard
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventClose)
+			}
 		}
 		return m, nil
 	}
 	if m.Focus == FocusSettings {
 		return updateSettingsKey(m, k)
 	}
-	if m.Focus == FocusSlash {
-		return updateSlashKey(m, k)
-	}
 
 	return m, nil
 }
 
-// updateModalKey handles keystrokes while a session modal is open.
-// Ctrl+] always detaches. ":" enters a vim-style command line (':q' to quit).
-// Everything else is forwarded to the underlying session PTY.
-func updateModalKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
-	if m.Modal == nil {
+// attachSession suspends the TUI and runs `rex attach <id>` as a child process so
+// the agent's terminal output renders natively in the user's terminal. When the
+// child exits (Ctrl+]) we resume the TUI via attachDoneMsg.
+func attachSession(m Model, sessionID string) (Model, tea.Cmd) {
+	self, err := os.Executable()
+	if err != nil {
+		m.Err = fmt.Sprintf("attach: locate self: %v", err)
 		return m, nil
 	}
-	if k.Type == tea.KeyCtrlCloseBracket {
-		return closeModal(m)
+	if m.Audio != nil {
+		m.Audio.Play("open")
 	}
-	if m.Modal.CmdMode {
-		switch k.Type {
-		case tea.KeyEsc:
-			m.Modal.CmdMode = false
-			m.Modal.CmdText = ""
-			return m, nil
-		case tea.KeyEnter:
-			cmd := strings.TrimSpace(m.Modal.CmdText)
-			m.Modal.CmdMode = false
-			m.Modal.CmdText = ""
-			switch cmd {
-			case "q", "quit", "bg", "detach":
-				return closeModal(m)
-			}
-			return m, nil
-		case tea.KeyBackspace:
-			if len(m.Modal.CmdText) > 0 {
-				m.Modal.CmdText = m.Modal.CmdText[:len(m.Modal.CmdText)-1]
-			}
-			return m, nil
-		case tea.KeyRunes:
-			m.Modal.CmdText += string(k.Runes)
-			return m, nil
-		case tea.KeySpace:
-			m.Modal.CmdText += " "
-			return m, nil
-		}
-		return m, nil
+	args := []string{"attach"}
+	if m.Socket != "" {
+		args = append(args, "--socket", m.Socket)
 	}
-	// Trigger modal command mode on bare colon.
-	if k.Type == tea.KeyRunes && string(k.Runes) == ":" {
-		m.Modal.CmdMode = true
-		m.Modal.CmdText = ""
-		return m, nil
-	}
-	if cmd := forwardKeyToModal(m, k); cmd != nil {
-		return m, cmd
-	}
-	return m, nil
+	args = append(args, sessionID)
+	child := exec.Command(self, args...)
+	return m, tea.ExecProcess(child, func(err error) tea.Msg {
+		return attachDoneMsg{err: err}
+	})
 }
 
 func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
@@ -311,6 +300,30 @@ func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	case tea.KeySpace:
 		m.CmdText += " "
+		return m, nil
+	}
+	return m, nil
+}
+
+func updateConfirmDeleteKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	switch k.String() {
+	case "y", "Y":
+		id := m.PendingDeleteID
+		m.PendingDeleteID = ""
+		m.Focus = FocusBoard
+		if id == "" {
+			return m, nil
+		}
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventDelete)
+		}
+		return m, deleteSessionCmd(m.Client, id)
+	case "n", "N", "esc", "enter":
+		m.PendingDeleteID = ""
+		m.Focus = FocusBoard
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventClose)
+		}
 		return m, nil
 	}
 	return m, nil

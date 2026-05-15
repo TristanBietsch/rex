@@ -16,7 +16,7 @@ func RunLs(args []string) error {
 	toolFilter := fs.String("tool", "", "filter by tool id")
 	modelFilter := fs.String("model", "", "filter by model id")
 	showArchived := fs.Bool("show-archived", false, "include archived sessions")
-	short := fs.Bool("short", false, "compact mode (no-op in Plan B; reserved)")
+	short := fs.Bool("short", false, "compact mode (reserved)")
 	asJSON := fs.Bool("json", false, "output JSONL")
 	if err := fs.Parse(args); err != nil {
 		return NewExitError(ExitInvalidArgs, err.Error())

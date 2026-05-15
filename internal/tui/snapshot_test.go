@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/viewport"
-
 	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/registry"
 )
@@ -85,13 +83,6 @@ func TestBoardSnapshot(t *testing.T) {
 			m.Focus = FocusWizard
 			m.Wizard = &WizardState{Step: wizConfirm, Tools: tools, ToolIdx: 1,
 				SlugText: "payment-migration", CWDText: "/Users/tristan", EffortIdx: 1}
-			return m
-		}},
-		{"modal", func(m Model) Model {
-			m.Focus = FocusModal
-			vp := viewport.New(60, 14)
-			vp.SetContent("$ claude\nWelcome! Press enter to continue.\n> _")
-			m.Modal = &ModalState{SessionID: "1", Viewport: vp}
 			return m
 		}},
 	}

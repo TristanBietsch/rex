@@ -53,7 +53,6 @@ func renderHelpLine(m Model, width int) string {
 		styleHeaderApp.Render("n") + styleDim.Render(" new"),
 		styleHeaderApp.Render("t") + styleDim.Render(" filter"),
 		styleHeaderApp.Render(":") + styleDim.Render(" command"),
-		styleHeaderApp.Render("/") + styleDim.Render(" slash"),
 		styleHeaderApp.Render("dd") + styleDim.Render(" delete"),
 		styleHeaderApp.Render("?") + styleDim.Render(" help"),
 	}

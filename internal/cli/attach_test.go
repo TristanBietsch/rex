@@ -2,25 +2,23 @@ package cli
 
 import "testing"
 
-func TestContainsDetachSeq(t *testing.T) {
+func TestIndexByte(t *testing.T) {
 	cases := []struct {
 		name string
-		prev byte
 		in   []byte
-		want bool
+		c    byte
+		want int
 	}{
-		{"empty", 0, nil, false},
-		{"no match", 0, []byte("hello"), false},
-		{"split across boundary", 0x01, []byte("d"), true},
-		{"within chunk", 0, []byte{0x01, 'd'}, true},
-		{"within chunk surrounded", 0, []byte("abc\x01defg"), true},
-		{"ctrl+a alone, no d", 0x01, []byte("e"), false},
+		{"empty", nil, 0x1d, -1},
+		{"absent", []byte("hello"), 0x1d, -1},
+		{"first", []byte{0x1d, 'a'}, 0x1d, 0},
+		{"middle", []byte("ab\x1dcd"), 0x1d, 2},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := containsDetachSeq(c.in, c.prev)
+			got := indexByte(c.in, c.c)
 			if got != c.want {
-				t.Fatalf("want %v got %v", c.want, got)
+				t.Fatalf("want %d got %d", c.want, got)
 			}
 		})
 	}

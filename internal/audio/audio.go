@@ -28,6 +28,7 @@ const (
 	EventNav     = "nav"
 	EventOpen    = "open"
 	EventClose   = "close"
+	EventCommand = "command"
 )
 
 // Config tunes playback.
@@ -158,6 +159,12 @@ func (p *Player) bakeAll() {
 	p.pcm[EventClose] = bakeSequence(
 		burst{tones: []tone{{660, 30, 18}}},
 		burst{tones: []tone{{330, 30, 18}}},
+	)
+	// Command (":") — distinct from EventNav: a crisp two-tone "menu opens"
+	// chime, with a brief overtone on the resolve so it reads as deliberate.
+	p.pcm[EventCommand] = bakeSequence(
+		burst{tones: []tone{{1568, 16, 10}}},
+		burst{tones: []tone{{1175, 32, 22}, {2349, 18, 10}}},
 	)
 }
 

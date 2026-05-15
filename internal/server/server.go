@@ -30,14 +30,20 @@ type Server struct {
 	cfg    Config
 	sem    *semaphore.Weighted // nil = no cap
 	wg     sync.WaitGroup
-	once   sync.Once //nolint:unused // placeholder for Plan B/C graceful drain
-	closed bool      //nolint:unused // placeholder for Plan B/C graceful drain
+	once   sync.Once //nolint:unused // reserved for graceful drain
+	closed bool      //nolint:unused // reserved for graceful drain
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
 
 	outputSubsMu sync.RWMutex
 	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
+
+	resizeMu    sync.RWMutex
+	resizeFuncs map[string]func(cols, rows uint16) error
+
+	stopMu    sync.Mutex
+	stopFuncs map[string]func()
 }
 
 // SetRegistry atomically swaps the registry used for future spawns.
@@ -173,5 +179,70 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 		if fn != nil {
 			fn(b)
 		}
+	}
+}
+
+// RegisterResize stores a resize callback for a session. Called by the supervisor at PTY start.
+func (s *Server) RegisterResize(sessionID string, fn func(cols, rows uint16) error) {
+	s.resizeMu.Lock()
+	defer s.resizeMu.Unlock()
+	if s.resizeFuncs == nil {
+		s.resizeFuncs = make(map[string]func(cols, rows uint16) error)
+	}
+	s.resizeFuncs[sessionID] = fn
+}
+
+// UnregisterResize removes the callback after the session exits.
+func (s *Server) UnregisterResize(sessionID string) {
+	s.resizeMu.Lock()
+	defer s.resizeMu.Unlock()
+	delete(s.resizeFuncs, sessionID)
+}
+
+// Resize invokes a session's resize callback if registered.
+func (s *Server) Resize(sessionID string, cols, rows uint16) error {
+	s.resizeMu.RLock()
+	fn := s.resizeFuncs[sessionID]
+	s.resizeMu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+	return fn(cols, rows)
+}
+
+// TranscriptDir returns the directory backing transcripts (state root + sessions/<id>).
+func (s *Server) TranscriptDir() string {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
+	return s.cfg.StateDir
+}
+
+// RegisterStop stores a stop function for a session. handleNewSession registers a
+// closure that cancels the supervisor's context and waits for it to exit, so callers
+// (e.g. IntentDelete) can synchronously tear down the running PTY.
+func (s *Server) RegisterStop(sessionID string, stop func()) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.stopFuncs == nil {
+		s.stopFuncs = make(map[string]func())
+	}
+	s.stopFuncs[sessionID] = stop
+}
+
+// UnregisterStop removes the stop func after the supervisor goroutine exits.
+func (s *Server) UnregisterStop(sessionID string) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	delete(s.stopFuncs, sessionID)
+}
+
+// StopSession invokes the registered stop func (no-op if the session isn't running).
+// Blocks until the supervisor goroutine has exited.
+func (s *Server) StopSession(sessionID string) {
+	s.stopMu.Lock()
+	stop := s.stopFuncs[sessionID]
+	s.stopMu.Unlock()
+	if stop != nil {
+		stop()
 	}
 }

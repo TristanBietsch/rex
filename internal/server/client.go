@@ -16,6 +16,11 @@ import (
 	"github.com/tristanbietsch/rex/internal/state"
 )
 
+// transcriptReplayMax caps how many trailing bytes of the transcript we replay
+// to a freshly-subscribed client. Big enough to cover an agent's recent screen
+// (~64×400) without flooding the wire.
+const transcriptReplayMax = 256 * 1024
+
 func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	cfg := srv.cfg
 	defer conn.Close()
@@ -70,9 +75,15 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
+			// Tear down a running supervisor first so its goroutines don't race with
+			// the on-disk cleanup below.
+			srv.StopSession(p.SessionID)
 			if err := cfg.Store.Remove(p.SessionID); err != nil {
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				continue
 			}
+			// Disk cleanup is best-effort — the session is already gone from memory.
+			_ = state.RemoveSessionDir(cfg.StateDir, p.SessionID)
 		case protocol.IntentSubscribe:
 			var p protocol.Subscribe
 			if err := json.Unmarshal(env.Data, &p); err != nil {
@@ -80,6 +91,13 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				continue
 			}
 			if p.SessionID != "" {
+				if p.Replay {
+					if tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax); err == nil && len(tail) > 0 {
+						_ = w.WriteEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
+							SessionID: p.SessionID, Bytes: tail,
+						})
+					}
+				}
 				// Register an output sink for this session for the rest of the connection.
 				outCancel := srv.SubscribeSessionOutput(p.SessionID, func(b []byte) {
 					_ = w.WriteEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
@@ -87,6 +105,19 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 					})
 				})
 				defer outCancel()
+			}
+
+		case protocol.IntentResize:
+			var p protocol.Resize
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			if p.Cols == 0 || p.Rows == 0 {
+				continue
+			}
+			if err := srv.Resize(p.SessionID, p.Cols, p.Rows); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
 			}
 
 		case protocol.IntentSendInput:
@@ -153,7 +184,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			// Cosmetic — silently accept.
 
 		default:
-			writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented in Plan A")
+			writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 		}
 	}
 }
@@ -219,13 +250,29 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)
 		},
+		RegisterResize: func(fn func(cols, rows uint16) error) {
+			srv.RegisterResize(sess.ID, fn)
+		},
+		UnregisterResize: func() {
+			srv.UnregisterResize(sess.ID)
+		},
+	})
+
+	// Per-session ctx + done so IntentDelete can synchronously tear the PTY down.
+	sessCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	srv.RegisterStop(sess.ID, func() {
+		cancel()
+		<-done
 	})
 
 	// Run in a background goroutine; the store events drive the wire.
 	go func() {
+		defer close(done)
+		defer srv.UnregisterStop(sess.ID)
 		defer srv.UnregisterInputChannel(sess.ID)
 		defer srv.ReleaseSession()
-		_ = sup.Run(ctx, sess)
+		_ = sup.Run(sessCtx, sess)
 	}()
 	_ = intentID
 	_ = w

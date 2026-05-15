@@ -16,17 +16,17 @@ const (
 	FocusBoard Focus = iota
 	FocusPrompt
 	FocusCommand
-	FocusModal
 	FocusWizard
 	FocusHelp
 	FocusConfirmQuit
+	FocusConfirmDelete
 	FocusSettings
-	FocusSlash
 )
 
 // Model is the root Bubble Tea model.
 type Model struct {
 	Client       *client.Client
+	Socket       string // path to daemon UDS, forwarded to child `rex attach`
 	Focus        Focus
 	Width        int
 	Height       int
@@ -40,14 +40,12 @@ type Model struct {
 	SpinnerTick  int
 	Quitting     bool
 
-	Modal    *ModalState
 	Wizard   *WizardState
 	Settings *SettingsState
-	Slash    *SlashState
 	Audio    *audio.Player
 
-	// SearchQuery is set by `/find <query>` and filters the board.
-	SearchQuery string
+	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
+	PendingDeleteID string
 
 	// BlinkUntil tracks done-blink expiry per session.
 	BlinkUntil map[string]time.Time

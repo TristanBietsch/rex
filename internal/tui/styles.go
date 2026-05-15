@@ -30,11 +30,7 @@ var (
 	styleBorderFg     = lipgloss.NewStyle().Foreground(colorBorder)
 	styleSelected     = lipgloss.NewStyle().Background(colorBgElev).Foreground(colorFgPrimary)
 
-	styleStateWorking = lipgloss.NewStyle().Bold(true).Foreground(colorWorking)
-	styleStateNeeds   = lipgloss.NewStyle().Bold(true).Foreground(colorNeeds)
-	styleStateDone    = lipgloss.NewStyle().Bold(true).Foreground(colorDone)
-	styleStateFailed  = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
-	styleStateCrashed = lipgloss.NewStyle().Bold(true).Foreground(colorCrashed)
+	styleStateFailed = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
 
 	styleNewBtn     = lipgloss.NewStyle().Foreground(colorFgDim)
 	styleChipActive = lipgloss.NewStyle().Foreground(colorFgPrimary)

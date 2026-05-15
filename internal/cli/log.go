@@ -11,10 +11,8 @@ import (
 	"github.com/tristanbietsch/rex/internal/client"
 )
 
-// RunLog prints (or tails) the transcript for a session.
-//
-// Plan B reads the transcript file directly from disk. Plan C will optionally
-// route through the daemon's SessionOutput stream for live in-memory tailing.
+// RunLog prints (or tails) the transcript for a session by reading the
+// transcript file directly from disk.
 func RunLog(args []string) error {
 	fs := flag.NewFlagSet("log", flag.ContinueOnError)
 	socket := fs.String("socket", DefaultSocket(), "UDS path")

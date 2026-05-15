@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
@@ -33,6 +34,7 @@ func Run(socket string) error {
 
 	m := Model{
 		Client:   c,
+		Socket:   socket,
 		Focus:    FocusBoard,
 		Sessions: snap.Sessions,
 		Filter:   "all",
@@ -80,16 +82,12 @@ func (m Model) View() string {
 	}
 
 	switch m.Focus {
-	case FocusModal:
-		return centerOverlay(w, h, renderModal(m), renderFullScreen(m, w, h))
 	case FocusWizard:
 		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
 	case FocusHelp:
 		return centerOverlay(w, h, renderHelp(), renderFullScreen(m, w, h))
 	case FocusSettings:
 		return centerOverlay(w, h, renderSettings(m), renderFullScreen(m, w, h))
-	case FocusSlash:
-		return centerOverlay(w, h, renderSlash(m), renderFullScreen(m, w, h))
 	}
 
 	return renderFullScreen(m, w, h)
@@ -112,9 +110,12 @@ func renderFullScreen(m Model, w, h int) string {
 	helpline := renderHelpLine(m, cw)
 
 	var bottom string
-	if m.Focus == FocusConfirmQuit {
+	switch m.Focus {
+	case FocusConfirmQuit:
 		bottom = hr + "\n" + renderQuitConfirm(cw) + "\n" + helpline
-	} else {
+	case FocusConfirmDelete:
+		bottom = hr + "\n" + renderDeleteConfirm(m, cw) + "\n" + helpline
+	default:
 		bottom = hr + "\n" + renderPrompt(m, cw) + "\n" + helpline
 	}
 
@@ -143,13 +144,57 @@ func renderFullScreen(m Model, w, h int) string {
 	return strings.Join(lines, "\n")
 }
 
-// centerOverlay places `content` in a bordered popup centered on a w×h field.
-// No background fill — the terminal's native bg shows around it.
-func centerOverlay(w, h int, content, _ string) string {
+// centerOverlay composites `content` as a bordered popup centered over `bg`.
+// The board behind it stays visible around the popup so it reads as an
+// overlay, not a separate screen.
+func centerOverlay(w, h int, content, bg string) string {
 	box := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(colorBorder).
 		Padding(1, 2).
 		Render(content)
-	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
+
+	bgLines := strings.Split(bg, "\n")
+	for len(bgLines) < h {
+		bgLines = append(bgLines, "")
+	}
+
+	popupLines := strings.Split(box, "\n")
+	popupW := 0
+	for _, l := range popupLines {
+		if pw := ansi.StringWidth(l); pw > popupW {
+			popupW = pw
+		}
+	}
+	popupH := len(popupLines)
+
+	x := (w - popupW) / 2
+	if x < 0 {
+		x = 0
+	}
+	y := (h - popupH) / 2
+	if y < 0 {
+		y = 0
+	}
+
+	for i, pl := range popupLines {
+		row := y + i
+		if row >= len(bgLines) {
+			break
+		}
+		bgLine := bgLines[row]
+		bgW := ansi.StringWidth(bgLine)
+		if bgW < x+popupW {
+			bgLine += strings.Repeat(" ", x+popupW-bgW)
+		}
+		left := ansi.Truncate(bgLine, x, "")
+		right := ansi.TruncateLeft(bgLine, x+popupW, "")
+		plW := ansi.StringWidth(pl)
+		if plW < popupW {
+			pl += strings.Repeat(" ", popupW-plW)
+		}
+		bgLines[row] = left + pl + right
+	}
+
+	return strings.Join(bgLines, "\n")
 }

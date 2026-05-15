@@ -32,6 +32,27 @@ func TestAppendTranscript(t *testing.T) {
 	require.Equal(t, "line1\nline2\n", string(b))
 }
 
+func TestTranscriptTail(t *testing.T) {
+	dir := t.TempDir()
+
+	// Missing transcript → (nil, nil).
+	b, err := TranscriptTail(dir, "missing", 1024)
+	require.NoError(t, err)
+	require.Nil(t, b)
+
+	// Smaller than max → return whole file.
+	require.NoError(t, AppendTranscript(dir, "id1", []byte("hello")))
+	b, err = TranscriptTail(dir, "id1", 1024)
+	require.NoError(t, err)
+	require.Equal(t, "hello", string(b))
+
+	// Larger than max → return last N bytes.
+	require.NoError(t, AppendTranscript(dir, "id2", []byte("abcdefghijklmnop")))
+	b, err = TranscriptTail(dir, "id2", 4)
+	require.NoError(t, err)
+	require.Equal(t, "mnop", string(b))
+}
+
 func TestLoadAllRecoversCrashed(t *testing.T) {
 	dir := t.TempDir()
 	sess := &Session{

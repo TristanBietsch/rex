@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/registry"
@@ -59,6 +60,9 @@ func openWizard(m Model) (Model, tea.Cmd) {
 	cwd, _ := os.Getwd()
 	m.Wizard = &WizardState{Step: wizProvider, Tools: visible, CWDText: cwd}
 	m.Focus = FocusWizard
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventOpen)
+	}
 	return m, nil
 }
 
@@ -186,44 +190,64 @@ func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case "esc":
 		m.Wizard = nil
 		m.Focus = FocusBoard
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventClose)
+		}
 		return m, nil
 	case "b":
 		prevWizardStep(m.Wizard)
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventNav)
+		}
 		return m, nil
 	case "j", "down":
+		moved := false
 		switch m.Wizard.Step {
 		case wizProvider:
 			if m.Wizard.ToolIdx+1 < len(m.Wizard.Tools) {
 				m.Wizard.ToolIdx++
 				m.Wizard.ModelIdx = 0
+				moved = true
 			}
 		case wizModel:
 			tool := m.Wizard.Tools[m.Wizard.ToolIdx]
 			if m.Wizard.ModelIdx+1 < len(tool.Models) {
 				m.Wizard.ModelIdx++
+				moved = true
 			}
 		case wizEffort:
 			opts := m.Wizard.currentModel().Effort.Options
 			if m.Wizard.EffortIdx+1 < len(opts) {
 				m.Wizard.EffortIdx++
+				moved = true
 			}
+		}
+		if moved && m.Audio != nil {
+			m.Audio.Play(audio.EventNav)
 		}
 		return m, nil
 	case "k", "up":
+		moved := false
 		switch m.Wizard.Step {
 		case wizProvider:
 			if m.Wizard.ToolIdx > 0 {
 				m.Wizard.ToolIdx--
 				m.Wizard.ModelIdx = 0
+				moved = true
 			}
 		case wizModel:
 			if m.Wizard.ModelIdx > 0 {
 				m.Wizard.ModelIdx--
+				moved = true
 			}
 		case wizEffort:
 			if m.Wizard.EffortIdx > 0 {
 				m.Wizard.EffortIdx--
+				moved = true
 			}
+		}
+		if moved && m.Audio != nil {
+			m.Audio.Play(audio.EventNav)
 		}
 		return m, nil
 	case "enter":
@@ -242,9 +266,15 @@ func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			cmd := wizardLaunchCmd(m.Client, tool.ID, model.ID, m.Wizard.currentEffort(), slug, m.Wizard.TitleText, cwd)
 			m.Wizard = nil
 			m.Focus = FocusBoard
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventClose)
+			}
 			return m, cmd
 		default:
 			nextWizardStep(m.Wizard)
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventNav)
+			}
 			return m, nil
 		}
 	}
@@ -256,15 +286,27 @@ func updateWizardNameStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyEsc:
 		m.Wizard = nil
 		m.Focus = FocusBoard
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventClose)
+		}
 		return m, nil
 	case tea.KeyTab:
 		m.Wizard.Field = (m.Wizard.Field + 1) % 3
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventNav)
+		}
 		return m, nil
 	case tea.KeyShiftTab:
 		m.Wizard.Field = (m.Wizard.Field + 2) % 3
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventNav)
+		}
 		return m, nil
 	case tea.KeyEnter:
 		nextWizardStep(m.Wizard)
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventNav)
+		}
 		return m, nil
 	case tea.KeyBackspace:
 		s := m.Wizard.fieldValue()
@@ -282,6 +324,9 @@ func updateWizardNameStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	switch k.String() {
 	case "b":
 		prevWizardStep(m.Wizard)
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventNav)
+		}
 		return m, nil
 	}
 	return m, nil
@@ -330,10 +375,17 @@ func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd
 	}
 }
 
-// Wizard inner content width: fixed so columns align cleanly regardless of terminal.
-const wizardWidth = 64
+// Wizard inner content dimensions: fixed so every step renders at the same size
+// and feels roomy enough for the largest step (model list under Claude).
+const (
+	wizardWidth      = 78
+	wizardBodyLines  = 12 // option/field area between title and footer
+	wizardFooterPush = 1  // blank line before footer
+)
 
 // renderWizard returns the wizard popup body (no border — overlay wraps it).
+// Every step pads its body to the same number of lines so the popup keeps a
+// constant footprint as the user steps through it.
 func renderWizard(m Model) string {
 	if m.Wizard == nil {
 		return ""
@@ -341,59 +393,80 @@ func renderWizard(m Model) string {
 	totalSteps := 5
 	stepNum := int(m.Wizard.Step) + 1
 
-	var lines []string
-	title := func(rest string) string {
+	titleLine := func(rest string) string {
 		return styleHeaderMeta.Render(fmt.Sprintf("step %d / %d — ", stepNum, totalSteps)) +
 			styleHeaderApp.Render(rest)
 	}
 
+	var (
+		title string
+		body  []string
+	)
+
 	switch m.Wizard.Step {
 	case wizProvider:
-		lines = append(lines, title("choose a provider"))
-		lines = append(lines, "")
+		title = titleLine("choose a provider")
 		for i, t := range m.Wizard.Tools {
-			lines = append(lines, wizOption(i == m.Wizard.ToolIdx, t.Name, "", t.Category, wizardWidth))
+			body = append(body, wizOption(i == m.Wizard.ToolIdx, t.Name, "", t.Category, wizardWidth))
 		}
 	case wizModel:
 		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
-		lines = append(lines, title("choose a model — "+tool.Name))
-		lines = append(lines, "")
+		title = titleLine("choose a model — " + tool.Name)
 		for i, mm := range tool.Models {
-			lines = append(lines, wizOption(i == m.Wizard.ModelIdx, mm.Name, "", "", wizardWidth))
+			body = append(body, wizOption(i == m.Wizard.ModelIdx, mm.Name, "", "", wizardWidth))
 		}
 	case wizEffort:
 		m2 := m.Wizard.currentModel()
-		lines = append(lines, title("reasoning effort — "+m2.Name))
-		lines = append(lines, "")
+		title = titleLine("reasoning effort — " + m2.Name)
 		for i, opt := range m2.Effort.Options {
-			lines = append(lines, wizOption(i == m.Wizard.EffortIdx, opt, "", "", wizardWidth))
+			body = append(body, wizOption(i == m.Wizard.EffortIdx, opt, "", "", wizardWidth))
 		}
 	case wizName:
-		lines = append(lines, title("name your agent"))
-		lines = append(lines, "")
-		lines = append(lines, wizField("slug", m.Wizard.SlugText, m.Wizard.Field == fieldSlug, wizardWidth))
-		lines = append(lines, wizField("title", m.Wizard.TitleText, m.Wizard.Field == fieldTitle, wizardWidth))
-		lines = append(lines, wizField("working dir", m.Wizard.CWDText, m.Wizard.Field == fieldCWD, wizardWidth))
+		title = titleLine("name your agent")
+		body = append(body, wizField("slug", m.Wizard.SlugText, m.Wizard.Field == fieldSlug, wizardWidth))
+		body = append(body, wizField("title", m.Wizard.TitleText, m.Wizard.Field == fieldTitle, wizardWidth))
+		body = append(body, wizField("working dir", m.Wizard.CWDText, m.Wizard.Field == fieldCWD, wizardWidth))
 	case wizConfirm:
 		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
 		model := tool.Models[m.Wizard.ModelIdx]
-		lines = append(lines, title("confirm and launch"))
-		lines = append(lines, "")
+		title = titleLine("confirm and launch")
 		summary := styleSlug.Render(tool.Name) + styleDim.Render(" · ") + styleSlug.Render(model.Name)
 		if eff := m.Wizard.currentEffort(); eff != "" {
 			summary += styleDim.Render(" · effort: ") + styleSlug.Render(eff)
 		}
-		lines = append(lines, "  "+summary)
-		lines = append(lines, "  "+styleDim.Render(m.Wizard.CWDText)+styleDim.Render("  ·  slug: ")+styleSlug.Render(m.Wizard.SlugText))
-		lines = append(lines, "")
-		lines = append(lines, "  "+styleArrow.Render("▸")+" "+styleSlug.Render("[ launch ]"))
+		body = append(body, "  "+summary)
+		body = append(body, "  "+styleDim.Render(m.Wizard.CWDText)+styleDim.Render("  ·  slug: ")+styleSlug.Render(m.Wizard.SlugText))
+		body = append(body, "")
+		body = append(body, "  "+styleArrow.Render("▸")+" "+styleSlug.Render("[ launch ]"))
 	}
 
-	lines = append(lines, "")
+	// Pad / truncate body to a fixed number of lines so the popup stays a constant size.
+	if len(body) < wizardBodyLines {
+		for len(body) < wizardBodyLines {
+			body = append(body, "")
+		}
+	} else if len(body) > wizardBodyLines {
+		body = body[:wizardBodyLines]
+	}
+
+	var footer string
 	if m.Wizard.Step == wizName {
-		lines = append(lines, styleDim.Render("tab cycles fields · enter next · b back · esc cancel"))
+		footer = styleDim.Render("tab cycles fields · enter next · b back · esc cancel")
 	} else {
-		lines = append(lines, styleDim.Render("j/k select · enter next · b back · esc cancel"))
+		footer = styleDim.Render("j/k select · enter next · b back · esc cancel")
+	}
+
+	lines := []string{title, ""}
+	lines = append(lines, body...)
+	for i := 0; i < wizardFooterPush; i++ {
+		lines = append(lines, "")
+	}
+	lines = append(lines, footer)
+
+	// Pad every line to the same width so the bordered popup keeps a constant
+	// rectangular footprint across steps regardless of content length.
+	for i, line := range lines {
+		lines[i] = padLine(line, wizardWidth)
 	}
 	return strings.Join(lines, "\n")
 }

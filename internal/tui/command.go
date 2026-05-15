@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
 )
 
@@ -32,6 +33,9 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 		return m, tea.Quit
 	case "help":
 		m.Focus = FocusHelp
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventOpen)
+		}
 		return m, nil
 	case "settings":
 		return openSettings(m)

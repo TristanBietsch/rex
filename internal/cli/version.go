@@ -3,7 +3,7 @@ package cli
 
 import "fmt"
 
-const version = "0.0.2-plan-b"
+const version = "v1"
 
 // ExitCoder is any error that carries a specific exit code.
 type ExitCoder interface {

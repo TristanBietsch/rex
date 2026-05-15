@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
 
@@ -24,18 +22,6 @@ func orderedSessions(m Model) []protocol.SessionSummary {
 			continue
 		}
 		out = append(out, s)
-	}
-	// Apply search-query filter (set by /find).
-	if q := strings.ToLower(strings.TrimSpace(m.SearchQuery)); q != "" {
-		filtered := out[:0]
-		for _, s := range out {
-			if strings.Contains(strings.ToLower(s.Slug), q) ||
-				strings.Contains(strings.ToLower(s.LastLine), q) ||
-				strings.Contains(strings.ToLower(s.Title), q) {
-				filtered = append(filtered, s)
-			}
-		}
-		out = filtered
 	}
 	return out
 }

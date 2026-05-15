@@ -61,6 +61,16 @@ func (c *Client) Subscribe(sessionID string) error {
 	return c.w.WriteIntent(protocol.IntentSubscribe, "", protocol.Subscribe{SessionID: sessionID})
 }
 
+// SubscribeReplay subscribes and also requests the recent transcript tail as a SessionOutput event.
+func (c *Client) SubscribeReplay(sessionID string) error {
+	return c.w.WriteIntent(protocol.IntentSubscribe, "", protocol.Subscribe{SessionID: sessionID, Replay: true})
+}
+
+// Resize tells the daemon to resize the session's PTY.
+func (c *Client) Resize(sessionID string, cols, rows uint16) error {
+	return c.w.WriteIntent(protocol.IntentResize, "", protocol.Resize{SessionID: sessionID, Cols: cols, Rows: rows})
+}
+
 // NewSession submits a NewSession intent.
 func (c *Client) NewSession(req protocol.NewSession) error {
 	return c.w.WriteIntent(protocol.IntentNewSession, "", req)

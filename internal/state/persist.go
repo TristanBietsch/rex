@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -12,6 +13,12 @@ import (
 // sessionDir returns ~/.local/share/rex/sessions/<id> built from a state-dir root.
 func sessionDir(root, id string) string {
 	return filepath.Join(root, "sessions", id)
+}
+
+// RemoveSessionDir deletes a session's persisted directory (transcript + meta).
+// Used on session delete so the session doesn't reappear after a daemon restart.
+func RemoveSessionDir(root, id string) error {
+	return os.RemoveAll(sessionDir(root, id))
 }
 
 // WriteMeta persists a session's metadata atomically.
@@ -97,6 +104,40 @@ func AppendTranscript(root, id string, b []byte) error {
 		return fmt.Errorf("write transcript: %w", err)
 	}
 	return nil
+}
+
+// TranscriptTail returns the last max bytes of a session's transcript.log
+// (or all of it, if smaller). Missing files return (nil, nil).
+func TranscriptTail(root, id string, max int) ([]byte, error) {
+	path := filepath.Join(sessionDir(root, id), "transcript.log")
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("open transcript: %w", err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("stat transcript: %w", err)
+	}
+	size := info.Size()
+	if int64(max) > size {
+		max = int(size)
+	}
+	if max <= 0 {
+		return nil, nil
+	}
+	if _, err := f.Seek(-int64(max), io.SeekEnd); err != nil {
+		return nil, fmt.Errorf("seek transcript: %w", err)
+	}
+	buf := make([]byte, max)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return nil, fmt.Errorf("read transcript: %w", err)
+	}
+	return buf[:n], nil
 }
 
 func fromSummary(sum protocol.SessionSummary) *Session {

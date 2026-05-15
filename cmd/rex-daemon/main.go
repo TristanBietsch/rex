@@ -15,7 +15,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/state"
 )
 
-const version = "0.0.1-plan-a"
+const version = "v1"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
