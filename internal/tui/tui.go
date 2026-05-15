@@ -2,7 +2,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/audio"
-	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/settings"
 )
 
@@ -19,57 +17,35 @@ import (
 const boardPad = 0
 
 func Run(socket string) error {
-	c, err := client.Dial(socket)
-	if err != nil {
-		return fmt.Errorf("dial daemon: %w", err)
-	}
-	defer c.Close()
-
-	snap, err := c.Hello("rex-tui")
-	if err != nil {
-		return fmt.Errorf("hello: %w", err)
-	}
-	if err := c.Subscribe(""); err != nil {
-		return fmt.Errorf("subscribe: %w", err)
-	}
-
+	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
+	// time the first step msg arrives. Best-effort; defaults on error.
 	store := settings.NewStore()
-	storePath := settings.DefaultPath()
-	_ = store.Load(storePath)
-
-	m := Model{
-		Client:    c,
-		Socket:    socket,
-		Focus:     FocusBoot, // start in splash
-		Sessions:  snap.Sessions,
-		Filter:    "all",
-		Store:     store,
-		StorePath: storePath,
-		BootStart: time.Now(),
-	}
-
-	if scheme, _ := store.Get("color_scheme").(string); scheme != "" {
-		applyTheme(scheme)
-	}
-
+	_ = store.Load(settings.DefaultPath())
 	soundEnabled, _ := store.Get("sound_enabled").(bool)
 	soundset, _ := store.Get("soundset").(string)
 	volume, _ := store.Get("master_volume").(float64)
 	if soundset == "off" {
 		soundEnabled = false
 	}
-	m.Audio = audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset})
-	// Startup chime now fires on hand-off, not here.
+	player := audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset})
 
-	if sel, filt, ok := LoadTUIState(); ok {
-		m.SelectedID = sel
-		if filt != "" {
-			m.Filter = filt
-		}
+	m := Model{
+		Socket:    socket,
+		Focus:     FocusBoot,
+		Filter:    "all",
+		Audio:     player,
+		BootStart: time.Now(),
 	}
+
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	_, err = p.Run()
-	return err
+	final, err := p.Run()
+	if err != nil {
+		return err
+	}
+	if fm, ok := final.(Model); ok && fm.BootFailed {
+		return fm.BootError
+	}
+	return nil
 }
 
 func (m Model) Init() tea.Cmd {
