@@ -17,9 +17,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "rex: TUI not built yet (lands in Plan C). Use a subcommand:")
-		fmt.Fprintln(os.Stderr, "  rex status | ls | new | attach | reply | send | log | wait | rm | rename | archive | reload | daemon | completion")
-		return nil
+		return cli.RunTUI()
 	}
 	switch args[0] {
 	case "--version", "-v", "version":
