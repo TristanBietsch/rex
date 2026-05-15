@@ -63,6 +63,9 @@ func moveSelection(m Model, delta int) Model {
 		} else {
 			m.SelectedID = rows[len(rows)-1].ID
 		}
+		if m.Audio != nil {
+			m.Audio.Play("nav")
+		}
 		return m
 	}
 	idx += delta
@@ -71,6 +74,9 @@ func moveSelection(m Model, delta int) Model {
 	}
 	if idx >= len(rows) {
 		idx = len(rows) - 1
+	}
+	if m.SelectedID != rows[idx].ID && m.Audio != nil {
+		m.Audio.Play("nav")
 	}
 	m.SelectedID = rows[idx].ID
 	return m

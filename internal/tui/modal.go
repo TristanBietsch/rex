@@ -21,6 +21,9 @@ type ModalState struct {
 
 // openModal subscribes to the session and prepares a viewport.
 func openModal(m Model, sessionID string) (Model, tea.Cmd) {
+	if m.Audio != nil {
+		m.Audio.Play("open")
+	}
 	w := m.Width
 	h := m.Height
 	if w == 0 {
@@ -54,6 +57,9 @@ func subscribeSessionCmd(c *client.Client, sessionID string) tea.Cmd {
 
 // closeModal clears modal state and re-subscribes to board-wide only.
 func closeModal(m Model) (Model, tea.Cmd) {
+	if m.Audio != nil {
+		m.Audio.Play("close")
+	}
 	m.Modal = nil
 	m.Focus = FocusBoard
 	if m.Client != nil {

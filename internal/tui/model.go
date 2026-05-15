@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
@@ -43,6 +44,7 @@ type Model struct {
 	Wizard   *WizardState
 	Settings *SettingsState
 	Slash    *SlashState
+	Audio    *audio.Player
 
 	// SearchQuery is set by `/find <query>` and filters the board.
 	SearchQuery string
@@ -57,6 +59,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var sum protocol.SessionSummary
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
 			m.Sessions = append(m.Sessions, sum)
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventCreate)
+			}
 		}
 	case protocol.EventSessionRemoved:
 		var rem protocol.SessionRemoved
@@ -68,6 +73,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 				}
 			}
 			m.Sessions = out
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventDelete)
+			}
 		}
 	case protocol.EventSessionUpdated:
 		var upd protocol.SessionUpdated
@@ -83,6 +91,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					m.BlinkUntil = make(map[string]time.Time)
 				}
 				m.BlinkUntil[upd.SessionID] = time.Now().Add(1600 * time.Millisecond)
+				if m.Audio != nil {
+					m.Audio.Play(audio.EventDone)
+				}
 			}
 		}
 	case protocol.EventSnapshot:

@@ -6,7 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
+	"github.com/tristanbietsch/rex/internal/settings"
 )
 
 // Run launches the TUI. Blocks until the user quits.
@@ -31,6 +33,19 @@ func Run(socket string) error {
 		Sessions: snap.Sessions,
 		Filter:   "all",
 	}
+
+	// Load settings to determine audio defaults; failures are non-fatal.
+	store := settings.NewStore()
+	_ = store.Load(settings.DefaultPath())
+	soundEnabled, _ := store.Get("sound_enabled").(bool)
+	soundset, _ := store.Get("soundset").(string)
+	volume, _ := store.Get("master_volume").(float64)
+	if soundset == "off" {
+		soundEnabled = false
+	}
+	m.Audio = audio.New(audio.Config{Enabled: soundEnabled, Volume: volume})
+	m.Audio.Play(audio.EventStartup)
+
 	if sel, filt, ok := LoadTUIState(); ok {
 		m.SelectedID = sel
 		if filt != "" {
