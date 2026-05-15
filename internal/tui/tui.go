@@ -90,6 +90,8 @@ func (m Model) View() string {
 	}
 
 	switch m.Focus {
+	case FocusBoot:
+		return renderSplash(m, w, h)
 	case FocusWizard:
 		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
 	case FocusHelp:
