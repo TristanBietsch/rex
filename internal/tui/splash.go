@@ -8,6 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/audio"
 )
 
 // bootLine is one rendered row in the splash log.
@@ -129,4 +131,58 @@ func padCategory(name string) string {
 		return name
 	}
 	return name + strings.Repeat(" ", bootCategoryW-w)
+}
+
+// bootSequence is populated by Stage 4 (real Cmds). Stage 3 uses a stub.
+// Stage 3 stub builds 17 fake step msgs separated by bootInterStep ticks.
+var bootSequence []stepFunc
+
+// nextStep returns a Cmd that produces bootStepMsg #BootStep, then schedules
+// the inter-step delay before the *next* step's Cmd. Returns nil when the
+// pipeline is complete.
+func nextStep(m Model) tea.Cmd {
+	if m.BootStep >= len(bootSequence) {
+		return nil
+	}
+	step := bootSequence[m.BootStep]
+	return step(m)
+}
+
+// delayThen schedules a tea.Tick of bootInterStep, then dispatches inner.
+// Used to space step messages so the splash cascades visibly.
+func delayThen(inner tea.Cmd) tea.Cmd {
+	return tea.Tick(bootInterStep, func(time.Time) tea.Msg {
+		if inner == nil {
+			return nil
+		}
+		return inner()
+	})
+}
+
+// chimeFor maps a status to the audio event name; "" for SKIP (silent).
+func chimeFor(s bootStatus) string {
+	switch s {
+	case stepOK:
+		return audio.EventBootOK
+	case stepWarn:
+		return audio.EventBootWarn
+	case stepFail:
+		return audio.EventBootFail
+	}
+	return ""
+}
+
+// handOffToBoard transitions from FocusBoot to FocusBoard, releases the boot
+// log, plays the startup chime, and starts the daemon-event listener.
+func (m Model) handOffToBoard() (Model, tea.Cmd) {
+	m.Focus = FocusBoard
+	m.BootLog = nil
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventStartup)
+	}
+	cmds := []tea.Cmd{tea.HideCursor, tickSpinner()}
+	if m.Client != nil {
+		cmds = append(cmds, listenDaemon(m.Client))
+	}
+	return m, tea.Batch(cmds...)
 }

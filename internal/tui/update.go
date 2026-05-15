@@ -67,6 +67,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Err = "attach: " + msg.err.Error()
 		}
 		return m, nil
+	case bootStepMsg:
+		m.BootLog = append(m.BootLog, bootLine{
+			Name: msg.Name, Status: msg.Status, Desc: msg.Desc, Err: msg.Err,
+		})
+		if msg.Status == stepFail {
+			m.BootFailed = true
+			m.BootError = msg.Err
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventBootFail)
+			}
+			return m, nil
+		}
+		if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil {
+			m.Audio.Play(ev)
+		}
+		m.BootStep++
+		if m.BootStep >= len(bootSequence) {
+			m.BootDone = true
+			if m.BootMinDone {
+				return m.handOffToBoard()
+			}
+			return m, nil
+		}
+		return m, delayThen(nextStep(m))
+	case bootMinElapsedMsg:
+		m.BootMinDone = true
+		if m.BootDone && !m.BootFailed {
+			return m.handOffToBoard()
+		}
+		return m, nil
 	case tea.KeyMsg:
 		return updateKey(m, msg)
 	case tea.MouseMsg:
