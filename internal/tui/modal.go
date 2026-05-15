@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -17,23 +18,50 @@ type ModalState struct {
 	SessionID string
 	Viewport  viewport.Model
 	Buffer    strings.Builder
+	CmdMode   bool   // user pressed `:` — accumulating a command
+	CmdText   string // current command text
 }
 
-// modalViewportSize returns the viewport (width, height) for a w×h terminal.
-// The modal occupies the whole screen with 2-column inset, top bar + 2 HRs + footer.
+// Popup size: a fixed inset from the terminal edges.
+const (
+	modalHInset = 8  // total horizontal inset (box ~w-8)
+	modalVInset = 6  // total vertical inset (box ~h-6)
+	modalMinW   = 60
+	modalMinH   = 16
+)
+
+func modalBoxSize(w, h int) (int, int) {
+	bw := w - modalHInset
+	bh := h - modalVInset
+	if bw < modalMinW {
+		bw = modalMinW
+	}
+	if bh < modalMinH {
+		bh = modalMinH
+	}
+	if bw > w {
+		bw = w
+	}
+	if bh > h {
+		bh = h
+	}
+	return bw, bh
+}
+
+// modalViewportSize: box dimensions minus border(2) minus padding(2) minus top/footer(4 lines).
 func modalViewportSize(w, h int) (int, int) {
-	vw := w - 4
+	bw, bh := modalBoxSize(w, h)
+	vw := bw - 4 // border(2) + padding(2)
+	vh := bh - 6 // border(2) + padding(2) + title(1) + footer(1)
 	if vw < 20 {
 		vw = 20
 	}
-	vh := h - 6 // top(1) + hr(1) + footer(1) + hr(1) + 2 padding lines
 	if vh < 4 {
 		vh = 4
 	}
 	return vw, vh
 }
 
-// openModal subscribes to the session and prepares a viewport.
 func openModal(m Model, sessionID string) (Model, tea.Cmd) {
 	if m.Audio != nil {
 		m.Audio.Play("open")
@@ -52,7 +80,6 @@ func openModal(m Model, sessionID string) (Model, tea.Cmd) {
 	return m, subscribeSessionCmd(m.Client, sessionID)
 }
 
-// resizeModal resizes the open viewport to the new terminal size.
 func resizeModal(m Model, w, h int) Model {
 	if m.Modal == nil {
 		return m
@@ -60,7 +87,7 @@ func resizeModal(m Model, w, h int) Model {
 	vw, vh := modalViewportSize(w, h)
 	m.Modal.Viewport.Width = vw
 	m.Modal.Viewport.Height = vh
-	m.Modal.Viewport.SetContent(m.Modal.Buffer.String())
+	m.Modal.Viewport.SetContent(modalDisplayText(m.Modal.Buffer.String(), vh))
 	m.Modal.Viewport.GotoBottom()
 	return m
 }
@@ -101,13 +128,38 @@ func handleModalOutput(m Model, env protocol.Envelope) Model {
 		return m
 	}
 	m.Modal.Buffer.Write(so.Bytes)
-	m.Modal.Viewport.SetContent(m.Modal.Buffer.String())
+	m.Modal.Viewport.SetContent(modalDisplayText(m.Modal.Buffer.String(), m.Modal.Viewport.Height))
 	m.Modal.Viewport.GotoBottom()
 	return m
 }
 
-// keyToBytes converts a tea.KeyMsg into the byte sequence a PTY would expect.
-// Returns nil for unsupported keys (caller drops them).
+// ANSI escape sequence regex (CSI, OSC, single-char, charset).
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[PX^_].*?\x1b\\|\x1b[()][AB012]|\x1b[78=>cMHE]`)
+
+// modalDisplayText strips ANSI escapes and returns the last `lines` non-empty lines,
+// padded with blank lines on top so content is bottom-aligned.
+func modalDisplayText(raw string, lines int) string {
+	if lines <= 0 {
+		return ""
+	}
+	clean := ansiRegex.ReplaceAllString(raw, "")
+	// Collapse CR (\r) — many TUIs use CR for cursor rewrites; treat as line reset.
+	clean = strings.ReplaceAll(clean, "\r\n", "\n")
+	all := strings.Split(clean, "\n")
+	// Drop trailing empties.
+	for len(all) > 0 && strings.TrimSpace(all[len(all)-1]) == "" {
+		all = all[:len(all)-1]
+	}
+	if len(all) > lines {
+		all = all[len(all)-lines:]
+	}
+	// Pad with empties at top so output sits at bottom of viewport.
+	for len(all) < lines {
+		all = append([]string{""}, all...)
+	}
+	return strings.Join(all, "\n")
+}
+
 func keyToBytes(k tea.KeyMsg) []byte {
 	switch k.Type {
 	case tea.KeyRunes:
@@ -187,12 +239,23 @@ func forwardKeyToModal(m Model, k tea.KeyMsg) tea.Cmd {
 	}
 }
 
-// renderModalFull renders the modal as a full-screen view (the board is replaced).
-// w×h is the full terminal size.
-func renderModalFull(m Model, w, h int) string {
+// renderModal returns the popup content (without the outer border / Place call —
+// the View function handles centering with centerOverlay).
+func renderModal(m Model) string {
 	if m.Modal == nil {
-		return strings.Repeat(padLine("", w)+"\n", h)
+		return ""
 	}
+	w, h := m.Width, m.Height
+	if w <= 0 {
+		w = 100
+	}
+	if h <= 0 {
+		h = 32
+	}
+	bw, bh := modalBoxSize(w, h)
+	innerW := bw - 4 // border + padding
+	_ = bh
+
 	var sess protocol.SessionSummary
 	for _, s := range m.Sessions {
 		if s.ID == m.Modal.SessionID {
@@ -204,41 +267,31 @@ func renderModalFull(m Model, w, h int) string {
 	title := styleSlug.Render(sess.Slug)
 	meta := styleDim.Render("  " + sess.ShortID + " · " + sess.ToolID + " · " + sess.ModelID)
 	if sess.Effort != "" {
-		meta = styleDim.Render("  " + sess.ShortID + " · " + sess.ToolID + " · " + sess.ModelID + " · " + sess.Effort)
+		meta += styleDim.Render(" · " + sess.Effort)
 	}
 	pill := stateBadge(sess.State, m.SpinnerTick)
-	left := "  " + title + meta
-	right := pill + "  "
-	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
+	left := title + meta
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(pill)
+	gap := innerW - leftW - rightW
 	if gap < 1 {
 		gap = 1
 	}
-	topBar := padLine(left+repeatRune(' ', gap)+right, w)
-	hr := renderHR(w)
+	topBar := left + strings.Repeat(" ", gap) + pill
 
-	footerHint := styleDim.Render("ctrl+] to detach · type to send input")
-	footer := padLine("  "+footerHint, w)
+	sep := styleBorderFg.Render(strings.Repeat("─", innerW))
 
 	body := m.Modal.Viewport.View()
-	bodyLines := strings.Split(body, "\n")
-	// Place body inside an indented area for visual breathing room.
-	indented := make([]string, len(bodyLines))
-	for i, ln := range bodyLines {
-		indented[i] = padLine("  "+ln, w)
-	}
-	body = strings.Join(indented, "\n")
 
-	out := strings.Join([]string{
-		padLine("", w),
-		topBar,
-		hr,
-		padLine("", w),
-		body,
-		padLine("", w),
-		hr,
-		footer,
-	}, "\n")
-	return fitHeight(out, w, h)
+	// Footer: either the modal command line, or the static hint.
+	var footer string
+	if m.Modal.CmdMode {
+		footer = styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.Modal.CmdText) + cursorBlock(m)
+	} else {
+		footer = styleDim.Render("ctrl+] detach · :q quit · type to send input")
+	}
+
+	return strings.Join([]string{topBar, sep, body, sep, footer}, "\n")
 }
 
 func stateBadge(st protocol.State, tick int) string {

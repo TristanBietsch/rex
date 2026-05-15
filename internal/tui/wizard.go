@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
@@ -321,78 +322,111 @@ func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd
 	}
 }
 
+// Wizard inner content width: fixed so columns align cleanly regardless of terminal.
+const wizardWidth = 64
+
+// renderWizard returns the wizard popup body (no border — overlay wraps it).
 func renderWizard(m Model) string {
 	if m.Wizard == nil {
 		return ""
 	}
 	totalSteps := 5
 	stepNum := int(m.Wizard.Step) + 1
-	var b strings.Builder
-	b.WriteString(styleHeaderMeta.Render(fmt.Sprintf("step %d / %d — ", stepNum, totalSteps)))
+
+	var lines []string
+	title := func(rest string) string {
+		return styleHeaderMeta.Render(fmt.Sprintf("step %d / %d — ", stepNum, totalSteps)) +
+			styleHeaderApp.Render(rest)
+	}
+
 	switch m.Wizard.Step {
 	case wizProvider:
-		b.WriteString(styleHeaderApp.Render("choose a provider\n\n"))
+		lines = append(lines, title("choose a provider"))
+		lines = append(lines, "")
 		for i, t := range m.Wizard.Tools {
-			cursor := "  "
-			if i == m.Wizard.ToolIdx {
-				cursor = styleArrow.Render("▸ ")
-			}
-			b.WriteString(cursor + styleSlug.Render(t.Name) + "  " + styleDim.Render("("+t.Category+")") + "\n")
+			lines = append(lines, wizOption(i == m.Wizard.ToolIdx, t.Name, "", t.Category, wizardWidth))
 		}
 	case wizModel:
 		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
-		b.WriteString(styleHeaderApp.Render("choose a model — " + tool.Name + "\n\n"))
+		lines = append(lines, title("choose a model — "+tool.Name))
+		lines = append(lines, "")
 		for i, mm := range tool.Models {
-			cursor := "  "
-			if i == m.Wizard.ModelIdx {
-				cursor = styleArrow.Render("▸ ")
-			}
-			b.WriteString(cursor + styleSlug.Render(mm.Name) + "\n")
+			lines = append(lines, wizOption(i == m.Wizard.ModelIdx, mm.Name, "", "", wizardWidth))
 		}
 	case wizEffort:
 		m2 := m.Wizard.currentModel()
-		b.WriteString(styleHeaderApp.Render("reasoning effort — " + m2.Name + "\n\n"))
+		lines = append(lines, title("reasoning effort — "+m2.Name))
+		lines = append(lines, "")
 		for i, opt := range m2.Effort.Options {
-			cursor := "  "
-			if i == m.Wizard.EffortIdx {
-				cursor = styleArrow.Render("▸ ")
-			}
-			b.WriteString(cursor + styleSlug.Render(opt) + "\n")
+			lines = append(lines, wizOption(i == m.Wizard.EffortIdx, opt, "", "", wizardWidth))
 		}
 	case wizName:
-		b.WriteString(styleHeaderApp.Render("name your agent\n\n"))
-		b.WriteString(renderNameField("slug", m.Wizard.SlugText, m.Wizard.Field == fieldSlug))
-		b.WriteString(renderNameField("title", m.Wizard.TitleText, m.Wizard.Field == fieldTitle))
-		b.WriteString(renderNameField("working dir", m.Wizard.CWDText, m.Wizard.Field == fieldCWD))
+		lines = append(lines, title("name your agent"))
+		lines = append(lines, "")
+		lines = append(lines, wizField("slug", m.Wizard.SlugText, m.Wizard.Field == fieldSlug, wizardWidth))
+		lines = append(lines, wizField("title", m.Wizard.TitleText, m.Wizard.Field == fieldTitle, wizardWidth))
+		lines = append(lines, wizField("working dir", m.Wizard.CWDText, m.Wizard.Field == fieldCWD, wizardWidth))
 	case wizConfirm:
 		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
 		model := tool.Models[m.Wizard.ModelIdx]
-		b.WriteString(styleHeaderApp.Render("confirm and launch\n\n"))
-		b.WriteString(styleSlug.Render(tool.Name) + " · " + styleSlug.Render(model.Name))
+		lines = append(lines, title("confirm and launch"))
+		lines = append(lines, "")
+		summary := styleSlug.Render(tool.Name) + styleDim.Render(" · ") + styleSlug.Render(model.Name)
 		if eff := m.Wizard.currentEffort(); eff != "" {
-			b.WriteString("  " + styleDim.Render("effort: ") + styleSlug.Render(eff))
+			summary += styleDim.Render(" · effort: ") + styleSlug.Render(eff)
 		}
-		b.WriteString("\n")
-		b.WriteString(styleDim.Render(m.Wizard.CWDText) + "  ·  slug: " + styleSlug.Render(m.Wizard.SlugText) + "\n\n")
-		b.WriteString(styleArrow.Render("▸ ") + styleHeaderApp.Render("[ launch ]") + "\n")
+		lines = append(lines, "  "+summary)
+		lines = append(lines, "  "+styleDim.Render(m.Wizard.CWDText)+styleDim.Render("  ·  slug: ")+styleSlug.Render(m.Wizard.SlugText))
+		lines = append(lines, "")
+		lines = append(lines, "  "+styleArrow.Render("▸")+" "+styleSlug.Render("[ launch ]"))
 	}
-	b.WriteString("\n")
+
+	lines = append(lines, "")
 	if m.Wizard.Step == wizName {
-		b.WriteString(styleDim.Render("tab cycles fields · enter next · b back · esc cancel"))
+		lines = append(lines, styleDim.Render("tab cycles fields · enter next · b back · esc cancel"))
 	} else {
-		b.WriteString(styleDim.Render("j/k select · enter next · b back · esc cancel"))
+		lines = append(lines, styleDim.Render("j/k select · enter next · b back · esc cancel"))
 	}
-	return b.String()
+	return strings.Join(lines, "\n")
 }
 
-func renderNameField(label, value string, focused bool) string {
-	lbl := styleDim.Render(fmt.Sprintf("%-12s ", label))
+// wizOption renders a single selectable row in the wizard.
+// Columns: cursor(2) + name(left-flex) + right tag (auto).
+func wizOption(selected bool, name, hint, tag string, width int) string {
+	var cursor string
+	if selected {
+		cursor = styleArrow.Render("▸") + " "
+	} else {
+		cursor = "  "
+	}
+	left := cursor + styleSlug.Render(name)
+	if hint != "" {
+		left += "  " + styleDim.Render(hint)
+	}
+	if tag == "" {
+		return left
+	}
+	rightTxt := styleDim.Render(tag)
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(rightTxt)
+	gap := width - leftW - rightW
+	if gap < 2 {
+		gap = 2
+	}
+	return left + strings.Repeat(" ", gap) + rightTxt
+}
+
+// wizField renders a name-step field row.
+func wizField(label, value string, focused bool, width int) string {
+	lbl := lipgloss.NewStyle().Foreground(colorFgDim).Width(14).Render(label)
 	val := value
 	if focused {
 		val = val + " "
-		val = styleSelected.Render(val)
+		val = lipgloss.NewStyle().Background(colorBgElev).Foreground(colorFgPrimary).Render(val)
+	} else if value == "" {
+		val = styleMuted.Render("(empty)")
 	} else {
 		val = styleSlug.Render(val)
 	}
-	return lbl + val + "\n"
+	return "  " + lbl + val
 }

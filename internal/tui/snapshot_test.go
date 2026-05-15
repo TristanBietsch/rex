@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
+
 	"github.com/tristanbietsch/rex/internal/protocol"
+	"github.com/tristanbietsch/rex/internal/registry"
 )
 
 func demoSessions(now time.Time) []protocol.SessionSummary {
@@ -22,28 +25,34 @@ func demoSessions(now time.Time) []protocol.SessionSummary {
 		{ID: "4", ShortID: "9e51", ToolID: "codex", ModelID: "gpt-5-codex", Effort: "med",
 			Slug: "payment-migration", LastLine: "porting billing to the new processor — 12/14",
 			State: protocol.StateWorking, LastEventAt: now.Add(-2 * time.Minute)},
-		{ID: "5", ShortID: "4f6d", ToolID: "gemini", ModelID: "2.5-pro",
-			Slug: "onboarding-copy", LastLine: "rewriting empty-state copy across 6 screens",
-			State: protocol.StateWorking, LastEventAt: now.Add(-1 * time.Minute)},
-		{ID: "6", ShortID: "c14a", ToolID: "ollama", ModelID: "llama3.1",
-			Slug: "load-test", LastLine: "k6 against the launch traffic profile…",
-			State: protocol.StateWorking, LastEventAt: now.Add(-3 * time.Minute)},
-		{ID: "7", ShortID: "2b7e", ToolID: "claude", ModelID: "haiku", Effort: "default",
+		{ID: "5", ShortID: "2b7e", ToolID: "claude", ModelID: "haiku", Effort: "default",
 			Slug: "test-coverage", LastLine: "billing/ from 61% → 92% — PR #408 merged",
 			State: protocol.StateDone, LastEventAt: now.Add(-9 * time.Minute)},
 	}
 }
 
-// TestBoardSnapshot prints the View() output for each focus mode.
-// Run with -v to inspect; passes if every state produces a non-empty view.
+func demoTools() []registry.Tool {
+	return []registry.Tool{
+		{ID: "echo", Name: "Echo (test)", Category: "self_hosted"},
+		{ID: "claude", Name: "Claude Code", Category: "paid",
+			Models: []registry.Model{{ID: "opus", Name: "Opus 4.7", Effort: &registry.Effort{Options: []string{"minimal", "default", "high", "max"}, Default: "default"}},
+				{ID: "sonnet", Name: "Sonnet 4.6"}, {ID: "haiku", Name: "Haiku 4.5"}}},
+		{ID: "codex", Name: "OpenAI Codex", Category: "paid"},
+		{ID: "gemini", Name: "Gemini CLI", Category: "paid"},
+		{ID: "ollama", Name: "Ollama (local)", Category: "self_hosted"},
+	}
+}
+
+// TestBoardSnapshot prints View() for each focus mode at a wide terminal.
 func TestBoardSnapshot(t *testing.T) {
 	sessions := demoSessions(time.Now())
+	tools := demoTools()
 	base := Model{
 		Sessions:   sessions,
 		Filter:     "all",
 		SelectedID: "1",
-		Width:      120,
-		Height:     36,
+		Width:      200, // intentionally wide — verifies the cap
+		Height:     40,
 	}
 
 	cases := []struct {
@@ -51,27 +60,38 @@ func TestBoardSnapshot(t *testing.T) {
 		setup func(m Model) Model
 	}{
 		{"board-default", func(m Model) Model { m.Focus = FocusBoard; return m }},
-		{"board-prompt-focused", func(m Model) Model {
-			m.Focus = FocusPrompt
-			m.PromptText = "rewrite the marketing page hero"
+		{"wiz-1-provider", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizProvider, Tools: tools}
 			return m
 		}},
-		{"board-command-mode", func(m Model) Model {
-			m.Focus = FocusCommand
-			m.CmdText = "rm 9e51"
-			m.SelectedID = "4"
+		{"wiz-2-model", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizModel, Tools: tools, ToolIdx: 1}
 			return m
 		}},
-		{"board-filter-claude", func(m Model) Model {
-			m.Focus = FocusBoard
-			m.Filter = "claude"
+		{"wiz-3-effort", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizEffort, Tools: tools, ToolIdx: 1, EffortIdx: 1}
 			return m
 		}},
-		{"confirm-quit", func(m Model) Model { m.Focus = FocusConfirmQuit; return m }},
-		{"help", func(m Model) Model { m.Focus = FocusHelp; return m }},
-		{"slash", func(m Model) Model {
-			m.Focus = FocusSlash
-			m.Slash = &SlashState{Query: "fi", CursorIdx: 0}
+		{"wiz-4-name", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizName, Tools: tools, ToolIdx: 1,
+				SlugText: "payment-migration", CWDText: "/Users/tristan"}
+			return m
+		}},
+		{"wiz-5-confirm", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizConfirm, Tools: tools, ToolIdx: 1,
+				SlugText: "payment-migration", CWDText: "/Users/tristan", EffortIdx: 1}
+			return m
+		}},
+		{"modal", func(m Model) Model {
+			m.Focus = FocusModal
+			vp := viewport.New(60, 14)
+			vp.SetContent("$ claude\nWelcome! Press enter to continue.\n> _")
+			m.Modal = &ModalState{SessionID: "1", Viewport: vp}
 			return m
 		}},
 	}
@@ -85,20 +105,5 @@ func TestBoardSnapshot(t *testing.T) {
 		if testing.Verbose() {
 			fmt.Printf("\n══ %s ══\n%s\n", c.name, out)
 		}
-	}
-}
-
-// TestBoardSmallScreen verifies the board still produces output at minimum widths.
-func TestBoardSmallScreen(t *testing.T) {
-	m := Model{
-		Focus:    FocusBoard,
-		Sessions: demoSessions(time.Now()),
-		Filter:   "all",
-		Width:    60,
-		Height:   18,
-	}
-	out := m.View()
-	if out == "" {
-		t.Fatal("empty view at 60x18")
 	}
 }

@@ -13,7 +13,10 @@ import (
 	"github.com/tristanbietsch/rex/internal/settings"
 )
 
-// Run launches the TUI. Blocks until the user quits.
+// maxContentWidth caps the inner board content; the rest of the terminal width is
+// horizontal margin so the board doesn't sprawl on ultrawide screens.
+const maxContentWidth = 110
+
 func Run(socket string) error {
 	c, err := client.Dial(socket)
 	if err != nil {
@@ -76,45 +79,53 @@ func (m Model) View() string {
 
 	switch m.Focus {
 	case FocusModal:
-		return renderModalFull(m, w, h)
+		return centerOverlay(w, h, renderModal(m), renderFullScreen(m, w, h))
 	case FocusWizard:
-		return centerOverlay(w, h, renderWizard(m))
+		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
 	case FocusHelp:
-		return centerOverlay(w, h, renderHelp())
+		return centerOverlay(w, h, renderHelp(), renderFullScreen(m, w, h))
 	case FocusSettings:
-		return centerOverlay(w, h, renderSettings(m))
+		return centerOverlay(w, h, renderSettings(m), renderFullScreen(m, w, h))
 	case FocusSlash:
-		return centerOverlay(w, h, renderSlash(m))
+		return centerOverlay(w, h, renderSlash(m), renderFullScreen(m, w, h))
 	}
 
 	return renderFullScreen(m, w, h)
 }
 
-// renderFullScreen builds the board view filling the terminal.
+// contentWidth returns the inner board content width (capped, centered).
+func contentWidth(termWidth int) int {
+	if termWidth > maxContentWidth {
+		return maxContentWidth
+	}
+	return termWidth
+}
+
 func renderFullScreen(m Model, w, h int) string {
-	header := renderHeader(m, w)
-	hr := renderHR(w)
-	helpline := renderHelpLine(m, w)
+	cw := contentWidth(w)
+
+	header := renderHeader(m, cw)
+	hr := renderHR(cw)
+	helpline := renderHelpLine(m, cw)
 
 	var bottom string
 	if m.Focus == FocusConfirmQuit {
-		bottom = hr + "\n" + renderQuitConfirm(w) + "\n" + helpline
+		bottom = hr + "\n" + renderQuitConfirm(cw) + "\n" + helpline
 	} else {
-		bottom = hr + "\n" + renderPrompt(m, w) + "\n" + helpline
+		bottom = hr + "\n" + renderPrompt(m, cw) + "\n" + helpline
 	}
 
 	headerLines := lipgloss.Height(header)
 	bottomLines := lipgloss.Height(bottom)
-	// Header(2) + blank(1) + HR(1) + blank(1) + board + bottom(3) + blank(1)
 	boardH := h - headerLines - bottomLines - 4
 	if boardH < 4 {
 		boardH = 4
 	}
 
-	board := renderBoard(m, w, boardH)
-	blank := padLine("", w)
+	board := renderBoard(m, cw, boardH)
+	blank := strings.Repeat(" ", cw)
 
-	out := strings.Join([]string{
+	inner := strings.Join([]string{
 		blank,
 		header,
 		blank,
@@ -124,26 +135,51 @@ func renderFullScreen(m Model, w, h int) string {
 		bottom,
 	}, "\n")
 
-	return fitHeight(out, w, h)
+	// Center horizontally within the terminal.
+	return horizCenter(inner, cw, w, h)
 }
 
-func fitHeight(s string, w, h int) string {
-	lines := strings.Split(s, "\n")
-	for len(lines) < h {
-		lines = append(lines, padLine("", w))
+// horizCenter centers each line of `content` (width cw) within `tw` terminal cols,
+// then pads/truncates total height to `th`.
+func horizCenter(content string, cw, tw, th int) string {
+	pad := (tw - cw) / 2
+	if pad < 0 {
+		pad = 0
 	}
-	if len(lines) > h {
-		lines = lines[:h]
+	padStr := strings.Repeat(" ", pad)
+	lines := strings.Split(content, "\n")
+	for i, ln := range lines {
+		lines[i] = padStr + ln
+	}
+	for len(lines) < th {
+		lines = append(lines, strings.Repeat(" ", tw))
+	}
+	if len(lines) > th {
+		lines = lines[:th]
 	}
 	return strings.Join(lines, "\n")
 }
 
-// centerOverlay places `content` inside a bordered box centered on a w×h field.
-func centerOverlay(w, h int, content string) string {
+// centerOverlay places `content` in a bordered popup centered on `bg` (the dimmed board).
+func centerOverlay(w, h int, content, bg string) string {
 	box := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(colorBorder).
+		Background(colorBgModal).
 		Padding(1, 2).
 		Render(content)
+	bw := lipgloss.Width(box)
+	bh := lipgloss.Height(box)
+	if bw > w {
+		bw = w
+	}
+	if bh > h {
+		bh = h
+	}
+
+	// Place the box on top of a black field (we can't actually overlay onto bg
+	// without an ANSI compositor — but the bg keeps state-related counts visible
+	// via the header rendered above).
+	_ = bg
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
 }

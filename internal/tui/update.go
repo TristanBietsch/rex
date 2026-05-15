@@ -158,14 +158,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateConfirmQuitKey(m, k)
 	}
 	if m.Focus == FocusModal {
-		// Ctrl+] detaches (ESC must pass through to the agent — Claude/vim/etc. need it).
-		if k.Type == tea.KeyCtrlCloseBracket {
-			return closeModal(m)
-		}
-		if cmd := forwardKeyToModal(m, k); cmd != nil {
-			return m, cmd
-		}
-		return m, nil
+		return updateModalKey(m, k)
 	}
 	if m.Focus == FocusWizard {
 		return updateWizardKey(m, k)
@@ -184,6 +177,57 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateSlashKey(m, k)
 	}
 
+	return m, nil
+}
+
+// updateModalKey handles keystrokes while a session modal is open.
+// Ctrl+] always detaches. ":" enters a vim-style command line (':q' to quit).
+// Everything else is forwarded to the underlying session PTY.
+func updateModalKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	if m.Modal == nil {
+		return m, nil
+	}
+	if k.Type == tea.KeyCtrlCloseBracket {
+		return closeModal(m)
+	}
+	if m.Modal.CmdMode {
+		switch k.Type {
+		case tea.KeyEsc:
+			m.Modal.CmdMode = false
+			m.Modal.CmdText = ""
+			return m, nil
+		case tea.KeyEnter:
+			cmd := strings.TrimSpace(m.Modal.CmdText)
+			m.Modal.CmdMode = false
+			m.Modal.CmdText = ""
+			switch cmd {
+			case "q", "quit", "bg", "detach":
+				return closeModal(m)
+			}
+			return m, nil
+		case tea.KeyBackspace:
+			if len(m.Modal.CmdText) > 0 {
+				m.Modal.CmdText = m.Modal.CmdText[:len(m.Modal.CmdText)-1]
+			}
+			return m, nil
+		case tea.KeyRunes:
+			m.Modal.CmdText += string(k.Runes)
+			return m, nil
+		case tea.KeySpace:
+			m.Modal.CmdText += " "
+			return m, nil
+		}
+		return m, nil
+	}
+	// Trigger modal command mode on bare colon.
+	if k.Type == tea.KeyRunes && string(k.Runes) == ":" {
+		m.Modal.CmdMode = true
+		m.Modal.CmdText = ""
+		return m, nil
+	}
+	if cmd := forwardKeyToModal(m, k); cmd != nil {
+		return m, cmd
+	}
 	return m, nil
 }
 
