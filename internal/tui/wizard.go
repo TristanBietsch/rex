@@ -207,9 +207,10 @@ func moveWizard(m Model, delta int) Model {
 }
 
 func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
-	switch k.Type {
-	case tea.KeyEsc:
+	if k.Type == tea.KeyEsc || k.String() == "esc" {
 		return closeWizard(m), nil
+	}
+	switch k.Type {
 	case tea.KeyEnter:
 		task := strings.TrimSpace(m.Wizard.TaskText)
 		tool := m.Wizard.Tools[m.Wizard.ToolIdx]

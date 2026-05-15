@@ -50,3 +50,24 @@ func TestSupervisor_RunEchoToCompletion(t *testing.T) {
 	}
 	require.Contains(t, all.String(), "hello")
 }
+
+func TestLastNonEmptyLine_SkipsSpinnerLines(t *testing.T) {
+	// Ollama renders a Braille-spinner frame as the most recent line while
+	// loading; we want the prior real line instead.
+	input := []byte("loaded model\n⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\n")
+	got := lastNonEmptyLine(input)
+	require.Equal(t, "loaded model", got)
+}
+
+func TestLastNonEmptyLine_FallsBackWhenAllSpinner(t *testing.T) {
+	input := []byte("⠋⠙⠹⠸⠼\n⠦⠧⠇⠏⠹\n")
+	got := lastNonEmptyLine(input)
+	// Falls back to the most recent line so we never return empty.
+	require.NotEmpty(t, got)
+}
+
+func TestLastNonEmptyLine_KeepsRealText(t *testing.T) {
+	input := []byte("hi\n>>> Send a message (/? for help)")
+	got := lastNonEmptyLine(input)
+	require.Equal(t, ">>> Send a message (/? for help)", got)
+}

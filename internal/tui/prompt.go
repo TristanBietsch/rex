@@ -24,6 +24,8 @@ func renderPrompt(m Model, width int) string {
 			body = cursorBlock(m) + styleDim.Render("type then enter to spawn a session — esc to cancel")
 		}
 		line = styleArrow.Render(glyph) + " " + body
+	case FocusAttach:
+		line = styleArrow.Render(glyph) + " " + styleDim.Render("attached — ^] to detach")
 	default:
 		body := m.PromptText
 		if body == "" {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"sync"
@@ -132,15 +133,19 @@ func (s *Server) Serve(ctx context.Context) error {
 		conn, err := l.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
+				slog.Info("server: shutting down, waiting for clients")
 				s.wg.Wait()
 				return nil
 			}
+			slog.Error("server: accept failed", "err", err)
 			return fmt.Errorf("accept: %w", err)
 		}
+		slog.Debug("server: client connected")
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
 			handleClient(ctx, conn, s)
+			slog.Debug("server: client disconnected")
 		}()
 	}
 }

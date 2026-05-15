@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -38,7 +39,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
 		}
 		if m.Attach != nil {
-			return m, listenAttach(m.Attach.Client, m.Attach.SessionID)
+			return m, listenAttach(m.Attach)
 		}
 		return m, nil
 	case AttachClosedMsg:
@@ -191,7 +192,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			if indexOfSelected(m) < 0 {
 				return m, nil
 			}
-			return openAttach(m, m.SelectedID)
+			return chooseAttach(m, m.SelectedID)
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""
@@ -228,8 +229,36 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusSettings {
 		return updateSettingsKey(m, k)
 	}
+	if m.Focus == FocusFail {
+		return updateFailKey(m, k)
+	}
 
 	return m, nil
+}
+
+// nativeAttachTools is the per-tool override that bypasses the in-process
+// popup and hands the user the full terminal via tea.ExecProcess. Empty by
+// default — every agent goes through the popup (which is what works reliably
+// for ollama and, with the recent fixes, the others). Re-add a tool here only
+// if its TUI provably can't be projected through vt10x.
+var nativeAttachTools = map[string]bool{}
+
+// chooseAttach picks the popup or native exec attach based on the session's
+// tool. See nativeAttachTools for the rationale.
+func chooseAttach(m Model, sessionID string) (Model, tea.Cmd) {
+	toolID := ""
+	for _, s := range m.Sessions {
+		if s.ID == sessionID {
+			toolID = s.ToolID
+			break
+		}
+	}
+	if nativeAttachTools[toolID] {
+		slog.Info("tui: attach native", "session", sessionID, "tool", toolID)
+		return attachSession(m, sessionID)
+	}
+	slog.Info("tui: attach popup", "session", sessionID, "tool", toolID)
+	return openAttach(m, sessionID)
 }
 
 // attachSession suspends the TUI and runs `rex attach <id>` as a child process so
@@ -256,11 +285,12 @@ func attachSession(m Model, sessionID string) (Model, tea.Cmd) {
 }
 
 func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
-	switch k.Type {
-	case tea.KeyEsc:
+	if k.Type == tea.KeyEsc || k.String() == "esc" {
 		m.Focus = FocusBoard
 		m.PromptText = ""
 		return m, nil
+	}
+	switch k.Type {
 	case tea.KeyEnter:
 		text := strings.TrimSpace(m.PromptText)
 		m.PromptText = ""
@@ -314,11 +344,12 @@ func deleteSessionCmd(c *client.Client, sessionID string) tea.Cmd {
 }
 
 func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
-	switch k.Type {
-	case tea.KeyEsc:
+	if k.Type == tea.KeyEsc || k.String() == "esc" {
 		m.Focus = FocusBoard
 		m.CmdText = ""
 		return m, nil
+	}
+	switch k.Type {
 	case tea.KeyEnter:
 		cmd := m.CmdText
 		m.CmdText = ""

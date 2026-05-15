@@ -23,6 +23,7 @@ const (
 	FocusConfirmDelete
 	FocusSettings
 	FocusAttach
+	FocusFail
 )
 
 // Model is the root Bubble Tea model.
@@ -45,6 +46,7 @@ type Model struct {
 	Wizard   *WizardState
 	Settings *SettingsState
 	Attach   *AttachState
+	Fail     *FailState
 	Audio    *audio.Player
 
 	// Store is the live settings store. Renderers read from it; the settings

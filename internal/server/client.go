@@ -220,6 +220,13 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 
 	cmdArgs := append([]string{}, tool.Command...)
 	cmdArgs = append(cmdArgs, model.Args...)
+	// Apply the chosen reasoning effort by interpolating model.effort.arg_template.
+	// We split the rendered template on whitespace so multi-token flags like
+	// `-c key=value` work (each becomes its own argv slot).
+	if model.Effort != nil && p.Effort != "" && model.Effort.ArgTemplate != "" {
+		rendered := strings.ReplaceAll(model.Effort.ArgTemplate, "{value}", p.Effort)
+		cmdArgs = append(cmdArgs, strings.Fields(rendered)...)
+	}
 
 	sess := &state.Session{
 		ID:        id,
@@ -249,12 +256,13 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	srv.RegisterInputChannel(sess.ID, inputCh)
 
 	sup := pty.New(pty.SupervisorConfig{
-		StateDir: cfg.StateDir,
-		Store:    cfg.Store,
-		Command:  cmdArgs,
-		CWD:      p.CWD,
-		Adapter:  ad,
-		InputCh:  inputCh,
+		StateDir:      cfg.StateDir,
+		Store:         cfg.Store,
+		Command:       cmdArgs,
+		CWD:           p.CWD,
+		Adapter:       ad,
+		InputCh:       inputCh,
+		InitialPrompt: p.InitialPrompt,
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)
 		},

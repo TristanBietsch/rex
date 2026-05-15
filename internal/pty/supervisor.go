@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os/exec"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ type SupervisorConfig struct {
 	IdleTick         time.Duration   // how often we sample idle for the adapter (default 200ms)
 	InitialCols      uint16          // initial PTY width (0 = default)
 	InitialRows      uint16          // initial PTY height (0 = default)
+	InitialPrompt    string          // optional: typed into the agent once its TUI settles
 	RegisterResize   func(resize func(cols, rows uint16) error)
 	UnregisterResize func()
 }
@@ -65,10 +67,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	}
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
 	if err != nil {
+		slog.Error("pty: start failed", "session", sess.ID, "argv", s.cfg.Command, "err", err)
 		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 		return fmt.Errorf("pty start: %w", err)
 	}
 	defer f.Close()
+	slog.Info("pty: started", "session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows, "argv", s.cfg.Command)
 
 	// Expose a resize callback to subscribers (attach clients).
 	if s.cfg.RegisterResize != nil {
@@ -102,6 +106,63 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	lastChunk := time.Now()
 	errc := make(chan error, 1)
 
+	// If the caller provided an initial prompt (from the wizard's "describe the
+	// task" step), type it into the agent once its TUI settles. We detect
+	// "settled" by waiting for at least one chunk of output and then ~800ms of
+	// quiet — that's "agent finished rendering and is parked at its prompt."
+	if s.cfg.InitialPrompt != "" {
+		go func(prompt string) {
+			deadline := time.NewTimer(30 * time.Second)
+			defer deadline.Stop()
+			poll := time.NewTicker(200 * time.Millisecond)
+			defer poll.Stop()
+			for {
+				select {
+				case <-deadline.C:
+					slog.Warn("pty: initial_prompt timed out waiting for ready", "session", sess.ID)
+					return
+				case <-ctx.Done():
+					return
+				case <-poll.C:
+					windowMu.Lock()
+					ready := len(window) > 0 && time.Since(lastChunk) > 800*time.Millisecond
+					windowMu.Unlock()
+					if !ready {
+						continue
+					}
+					// Modern agent TUIs (Claude Code, Gemini CLI, Codex) detect
+					// bracketed paste and silently drop bursts of raw text — the
+					// only reliable way to fill their input fields is to wrap the
+					// payload in DEC bracketed-paste markers (ESC[200~ … ESC[201~).
+					// Then a SEPARATE write of \r commits the input. Sending text
+					// and Enter in one chunk lets the TUI treat the whole thing as
+					// a paste and never trigger submit.
+					paste := append([]byte("\x1b[200~"), []byte(prompt)...)
+					paste = append(paste, []byte("\x1b[201~")...)
+					if _, err := f.Write(paste); err != nil {
+						slog.Warn("pty: initial_prompt paste failed", "session", sess.ID, "err", err)
+						return
+					}
+					slog.Info("pty: initial_prompt pasted", "session", sess.ID, "bytes", len(paste))
+					// Give the TUI a beat to commit the pasted text to its input
+					// state before we hit Enter; without this Claude sometimes
+					// fires Enter against an empty input box.
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(120 * time.Millisecond):
+					}
+					if _, err := f.Write([]byte{'\r'}); err != nil {
+						slog.Warn("pty: initial_prompt submit failed", "session", sess.ID, "err", err)
+					} else {
+						slog.Info("pty: initial_prompt submitted", "session", sess.ID)
+					}
+					return
+				}
+			}
+		}(s.cfg.InitialPrompt)
+	}
+
 	// Reader goroutine.
 	go func() {
 		buf := make([]byte, 4096)
@@ -116,14 +177,35 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				if s.cfg.OutputSink != nil {
 					s.cfg.OutputSink(chunk)
 				}
+				// Cursor-blink and other escape-only chunks (DECTCEM toggle,
+				// SGR resets) must NOT reset the idle timer — otherwise the
+				// heuristic adapter never sees idle ≥ idle_ms and codex/claude
+				// stay pinned at "working" forever while sitting at a prompt.
+				visible := hasVisibleText(chunk)
 				windowMu.Lock()
 				window = appendBounded(window, chunk, 8192)
-				lastChunk = time.Now()
+				if visible {
+					lastChunk = time.Now()
+				}
 				line := lastNonEmptyLine(window)
 				windowMu.Unlock()
-				// Update last_line — last non-empty line in the window.
+				if !visible {
+					slog.Debug("pty: ignored escape-only chunk for idle", "session", sess.ID, "bytes", len(chunk))
+				}
+				// Update last_line — sanitized so cursor/erase/color escapes
+				// can't escape the TUI's row cell and corrupt the screen.
 				if line != "" {
-					_ = s.cfg.Store.UpdateLastLine(sess.ID, line)
+					clean := sanitizeForDisplay(line)
+					if clean == "" {
+						slog.Debug("pty: last_line all-control, skipping update", "session", sess.ID, "raw_len", len(line))
+					} else {
+						if clean != line {
+							slog.Debug("pty: sanitized last_line", "session", sess.ID, "raw_len", len(line), "clean_len", len(clean))
+						}
+						if err := s.cfg.Store.UpdateLastLine(sess.ID, clean); err != nil {
+							slog.Warn("pty: update last_line failed", "session", sess.ID, "err", err)
+						}
+					}
 				}
 			}
 			if rerr != nil {
@@ -144,6 +226,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	for {
 		select {
 		case <-ctx.Done():
+			slog.Info("pty: ctx canceled, killing child", "session", sess.ID, "pid", cmd.Process.Pid)
 			_ = cmd.Process.Kill()
 			<-errc
 			_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
@@ -163,6 +246,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					final = protocol.StateFailed
 				}
 			}
+			slog.Info("pty: child exited", "session", sess.ID, "final_state", final, "wait_err", waitErr, "read_err", rerr)
 			// Update in-memory state first so the persisted meta reflects the terminal state.
 			sess.State = final
 			sess.LastEventAt = time.Now().UTC()
@@ -203,17 +287,52 @@ func appendBounded(buf, b []byte, cap int) []byte {
 }
 
 func lastNonEmptyLine(b []byte) string {
-	// Walk backwards to find the last newline; return the trimmed segment after it.
+	// Walk backwards across lines. Skip lines that are mostly spinner glyphs
+	// (Braille block U+2800–U+28FF, used by ollama/gemini for loading spinners) —
+	// those would otherwise clobber the board's description column with animation
+	// frames. Falls back to the last line if every recent line is spinner-y.
 	end := len(b)
-	for end > 0 && (b[end-1] == '\n' || b[end-1] == '\r') {
-		end--
+	var fallback string
+	for end > 0 {
+		for end > 0 && (b[end-1] == '\n' || b[end-1] == '\r') {
+			end--
+		}
+		start := end
+		for start > 0 && b[start-1] != '\n' && b[start-1] != '\r' {
+			start--
+		}
+		if start == end {
+			break
+		}
+		line := string(b[start:end])
+		if fallback == "" {
+			fallback = line
+		}
+		if !isSpinnerLine(line) {
+			return line
+		}
+		end = start
 	}
-	start := end
-	for start > 0 && b[start-1] != '\n' && b[start-1] != '\r' {
-		start--
+	return fallback
+}
+
+// isSpinnerLine reports whether s is overwhelmingly Braille-block glyphs
+// (the animation chars used by ollama/gemini progress spinners). We accept up
+// to a handful of stray spaces / brackets / dots so partial frames still count.
+func isSpinnerLine(s string) bool {
+	if s == "" {
+		return false
 	}
-	if start == end {
-		return ""
+	var spinner, other int
+	for _, r := range s {
+		switch {
+		case r >= 0x2800 && r <= 0x28FF:
+			spinner++
+		case r == ' ' || r == '.' || r == '·' || r == '…':
+			// neutral — don't count either way
+		default:
+			other++
+		}
 	}
-	return string(b[start:end])
+	return spinner >= 3 && spinner > other*3
 }

@@ -71,6 +71,8 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	case "new":
 		m.Focus = FocusWizard
 		return m, nil
+	case "fail", "fails", "failed":
+		return openFail(m)
 	default:
 		m.Err = "unknown command: " + verb
 	}

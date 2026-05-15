@@ -3,7 +3,9 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,6 +25,13 @@ type AttachState struct {
 	Rows      int
 	Ended     bool
 	EndedMsg  string
+
+	// outCh / errCh feed listenAttach. A background pump goroutine pulls
+	// envelopes off the daemon connection so listenAttach can drain multiple
+	// chunks per render — bursty agents like Gemini emit many small writes,
+	// and re-rendering the popup on every chunk causes visible flicker.
+	outCh chan AttachOutputMsg
+	errCh chan AttachClosedMsg
 }
 
 type AttachOutputMsg struct {
@@ -37,6 +46,26 @@ type AttachClosedMsg struct {
 
 const detachKeyByte byte = 0x1d
 
+// altScreenTools are agents whose TUI lives entirely in the alt-screen and
+// fully repaints on SIGWINCH (claude, codex, gemini, ...). For these we
+// subscribe WITHOUT replay so vt10x doesn't have to chew through the entire
+// transcript of alt-screen toggles, scroll-region resets, kitty-keyboard
+// queries, and cursor positioning — which it doesn't fully emulate and which
+// leaves duplicate / orphaned content on screen. The resize that follows
+// triggers the agent to redraw fresh into a clean buffer.
+//
+// Line-oriented agents (ollama, echo) NEED the replay because they don't
+// repaint scrollback on resize — the only way to see prior conversation is
+// to replay the bytes.
+var altScreenTools = map[string]bool{
+	"claude":   true,
+	"codex":    true,
+	"gemini":   true,
+	"grok":     true,
+	"deepseek": true,
+	"kimi":     true,
+}
+
 func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	if m.Socket == "" {
 		m.Err = "attach: socket unknown"
@@ -44,15 +73,37 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	}
 	c, err := client.Dial(m.Socket)
 	if err != nil {
+		slog.Warn("tui: attach dial failed", "session", sessionID, "err", err)
 		m.Err = "attach: " + err.Error()
 		return m, nil
 	}
 	cols, rows := attachPopupInnerSize(m.Width, m.Height)
-	_ = c.Resize(sessionID, uint16(cols), uint16(rows))
-	if err := c.SubscribeReplay(sessionID); err != nil {
+	toolID := ""
+	for _, s := range m.Sessions {
+		if s.ID == sessionID {
+			toolID = s.ToolID
+			break
+		}
+	}
+	subErr := func() error {
+		if altScreenTools[toolID] {
+			return c.Subscribe(sessionID)
+		}
+		return c.SubscribeReplay(sessionID)
+	}()
+	if subErr != nil {
+		slog.Warn("tui: attach subscribe failed", "session", sessionID, "err", subErr)
 		_ = c.Close()
-		m.Err = "attach: " + err.Error()
+		m.Err = "attach: " + subErr.Error()
 		return m, nil
+	}
+	_ = c.Resize(sessionID, uint16(cols), uint16(rows))
+	if altScreenTools[toolID] {
+		// SIGWINCH alone is a no-op if size didn't change. Nudge full-TUI
+		// agents with ^L (documented in our footer as "redraw") so they
+		// repaint cleanly into our fresh vt10x buffer. Safe here because
+		// readline-based agents (ollama) aren't in altScreenTools.
+		_ = c.SendInput(sessionID, []byte{0x0c})
 	}
 	term := vt10x.New(vt10x.WithSize(cols, rows))
 	slug := ""
@@ -62,16 +113,24 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 			break
 		}
 	}
-	m.Attach = &AttachState{SessionID: sessionID, Slug: slug, Client: c, Term: term, Cols: cols, Rows: rows}
+	slog.Info("tui: attach opened", "session", sessionID, "cols", cols, "rows", rows)
+	st := &AttachState{
+		SessionID: sessionID, Slug: slug, Client: c, Term: term, Cols: cols, Rows: rows,
+		outCh: make(chan AttachOutputMsg, 64),
+		errCh: make(chan AttachClosedMsg, 1),
+	}
+	go pumpAttach(c, sessionID, st.outCh, st.errCh)
+	m.Attach = st
 	m.Focus = FocusAttach
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventOpen)
 	}
-	return m, tea.Batch(listenAttach(c, sessionID), tea.HideCursor)
+	return m, tea.Batch(listenAttach(st), tea.HideCursor)
 }
 
 func closeAttach(m Model) Model {
 	if m.Attach != nil {
+		slog.Info("tui: attach closed", "session", m.Attach.SessionID)
 		if m.Attach.Client != nil {
 			_ = m.Attach.Client.Close()
 		}
@@ -91,9 +150,11 @@ func attachPopupInnerSize(termW, termH int) (cols, rows int) {
 	if termH <= 0 {
 		termH = 32
 	}
+	// lipgloss border+padding eats 6 cells horizontally and 4 lines vertically;
+	// renderAttach adds title+hr+hr+footer (4 more lines) on top.
 	popupW := termW - 8
 	popupH := termH - 4
-	cols = popupW - 4
+	cols = popupW - 6
 	rows = popupH - 4 - 4
 	if cols < 40 {
 		cols = 40
@@ -112,29 +173,80 @@ func resizeAttach(m Model) {
 	if cols == m.Attach.Cols && rows == m.Attach.Rows {
 		return
 	}
+	slog.Info("tui: attach resize", "session", m.Attach.SessionID, "cols", cols, "rows", rows)
 	m.Attach.Cols, m.Attach.Rows = cols, rows
 	m.Attach.Term.Resize(cols, rows)
 	_ = m.Attach.Client.Resize(m.Attach.SessionID, uint16(cols), uint16(rows))
 }
 
-func listenAttach(c *client.Client, sessionID string) tea.Cmd {
+// pumpAttach is the background reader goroutine. It blocks on the daemon
+// connection and pushes parsed messages onto the AttachState channels until the
+// connection closes. One pump per AttachState; closing the client unblocks it.
+func pumpAttach(c *client.Client, sessionID string, outCh chan<- AttachOutputMsg, errCh chan<- AttachClosedMsg) {
+	for {
+		env, err := c.NextEvent()
+		if err != nil {
+			// Non-blocking send: if nobody's listening (popup already closed)
+			// drop the error rather than leaking the goroutine.
+			select {
+			case errCh <- AttachClosedMsg{SessionID: sessionID, Err: err}:
+			default:
+			}
+			slog.Debug("tui: attach pump exit", "session", sessionID, "err", err)
+			return
+		}
+		if env.Type != protocol.EventSessionOutput {
+			continue
+		}
+		var so protocol.SessionOutput
+		if err := json.Unmarshal(env.Data, &so); err != nil {
+			slog.Warn("tui: attach decode output failed", "session", sessionID, "err", err)
+			continue
+		}
+		if so.SessionID != sessionID {
+			continue
+		}
+		// Buffered channel — if full (TUI fell behind), block briefly so we
+		// don't drop bytes. The TUI will drain on the next render.
+		outCh <- AttachOutputMsg{SessionID: so.SessionID, Bytes: so.Bytes}
+	}
+}
+
+// attachCoalesceWindow is how long we wait after the first chunk arrives
+// before flushing as a single re-render. Caps re-renders at ~33fps. Gemini's
+// "Thinking..." spinner can emit dozens of writes per second; without this
+// pause each write triggered its own lipgloss render and the popup flickered.
+const attachCoalesceWindow = 30 * time.Millisecond
+
+// listenAttach blocks for the next chunk from the pump, waits a short window
+// for more chunks to arrive, then merges everything into a single
+// AttachOutputMsg so the popup re-renders at most once per window.
+func listenAttach(st *AttachState) tea.Cmd {
+	out := st.outCh
+	errc := st.errCh
+	sessionID := st.SessionID
 	return func() tea.Msg {
-		for {
-			env, err := c.NextEvent()
-			if err != nil {
-				return AttachClosedMsg{SessionID: sessionID, Err: err}
+		select {
+		case msg := <-out:
+			merged := msg.Bytes
+			chunks := 1
+			deadline := time.After(attachCoalesceWindow)
+		coalesce:
+			for {
+				select {
+				case more := <-out:
+					merged = append(merged, more.Bytes...)
+					chunks++
+				case <-deadline:
+					break coalesce
+				}
 			}
-			if env.Type != protocol.EventSessionOutput {
-				continue
+			if chunks > 1 {
+				slog.Debug("tui: attach coalesced chunks", "session", sessionID, "chunks", chunks, "bytes", len(merged))
 			}
-			var so protocol.SessionOutput
-			if err := json.Unmarshal(env.Data, &so); err != nil {
-				continue
-			}
-			if so.SessionID != sessionID {
-				continue
-			}
-			return AttachOutputMsg{SessionID: so.SessionID, Bytes: so.Bytes}
+			return AttachOutputMsg{SessionID: sessionID, Bytes: merged}
+		case ec := <-errc:
+			return ec
 		}
 	}
 }
@@ -144,7 +256,7 @@ func updateAttachKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	if k.Type == tea.KeyCtrlCloseBracket {
-		return closeAttach(m), tea.ShowCursor
+		return closeAttach(m), nil
 	}
 	b := keyToBytes(k)
 	if len(b) == 0 {

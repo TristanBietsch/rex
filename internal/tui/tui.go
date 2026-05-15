@@ -74,7 +74,7 @@ func Run(socket string) error {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(listenDaemon(m.Client), tickSpinner())
+	return tea.Batch(tea.HideCursor, listenDaemon(m.Client), tickSpinner())
 }
 
 func (m Model) View() string {
@@ -98,6 +98,8 @@ func (m Model) View() string {
 		return centerOverlay(w, h, renderSettings(m), renderFullScreen(m, w, h))
 	case FocusAttach:
 		return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
+	case FocusFail:
+		return centerOverlay(w, h, renderFail(m), renderFullScreen(m, w, h))
 	}
 
 	return renderFullScreen(m, w, h)

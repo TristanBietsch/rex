@@ -39,22 +39,22 @@ tools:
         name: "Opus 4.7"
         args: ["--model", "opus"]
         effort:
-          options: [minimal, default, high, max]
-          default: default
+          options: [low, medium, high, xhigh, max]
+          default: medium
           arg_template: "--effort={value}"
       - id: sonnet
         name: "Sonnet 4.6"
         args: ["--model", "sonnet"]
         effort:
-          options: [minimal, default, high, max]
-          default: default
+          options: [low, medium, high, xhigh, max]
+          default: medium
           arg_template: "--effort={value}"
       - id: haiku
         name: "Haiku 4.5"
         args: ["--model", "haiku"]
         effort:
-          options: [minimal, default]
-          default: default
+          options: [low, medium]
+          default: medium
           arg_template: "--effort={value}"
 
   - id: codex
@@ -63,25 +63,46 @@ tools:
     command: ["codex"]
     detect:
       kind: heuristic
-      prompt_regex: "(?m)^❯ "
+      prompt_regex: "(?m)^› "
       idle_ms: 1200
     icon: "◇"
     color: "#10A37F"
     models:
-      - id: gpt-5
-        name: "GPT-5"
-        args: ["--model", "gpt-5"]
+      - id: gpt-5.5
+        name: "GPT-5.5"
+        args: ["--model", "gpt-5.5"]
         effort:
-          options: [low, medium, high]
+          options: [low, medium, high, xhigh]
           default: medium
-          arg_template: "--reasoning-effort={value}"
-      - id: gpt-5-codex
-        name: "GPT-5 Codex"
-        args: ["--model", "gpt-5-codex"]
+          arg_template: "-c model_reasoning_effort={value}"
+      - id: gpt-5.4
+        name: "GPT-5.4"
+        args: ["--model", "gpt-5.4"]
         effort:
-          options: [low, medium, high]
+          options: [low, medium, high, xhigh]
           default: medium
-          arg_template: "--reasoning-effort={value}"
+          arg_template: "-c model_reasoning_effort={value}"
+      - id: gpt-5.4-mini
+        name: "GPT-5.4 Mini"
+        args: ["--model", "gpt-5.4-mini"]
+        effort:
+          options: [low, medium, high, xhigh]
+          default: medium
+          arg_template: "-c model_reasoning_effort={value}"
+      - id: gpt-5.3-codex
+        name: "GPT-5.3 Codex"
+        args: ["--model", "gpt-5.3-codex"]
+        effort:
+          options: [low, medium, high, xhigh]
+          default: medium
+          arg_template: "-c model_reasoning_effort={value}"
+      - id: gpt-5.2
+        name: "GPT-5.2"
+        args: ["--model", "gpt-5.2"]
+        effort:
+          options: [low, medium, high, xhigh]
+          default: medium
+          arg_template: "-c model_reasoning_effort={value}"
 
   - id: gemini
     name: "Gemini CLI"
@@ -107,7 +128,7 @@ tools:
     command: ["ollama", "run"]
     detect:
       kind: heuristic
-      prompt_regex: "(?m)>>> $"
+      prompt_regex: "(?m)^>>> "
       idle_ms: 1500
     icon: "◉"
     color: "#B8A382"

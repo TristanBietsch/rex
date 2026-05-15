@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"golang.org/x/term"
 
@@ -17,6 +19,22 @@ import (
 // detachKey is the byte that disconnects us from the session and returns control
 // to the caller (the TUI, or the shell that invoked `rex attach`). 0x1d == Ctrl+].
 const detachKey byte = 0x1d
+
+// redrawKickTools are TUI agents that own their own screen state and won't
+// repaint just because we resized + subscribed — they only redraw on a
+// SIGWINCH that genuinely changes geometry, or on Ctrl+L. After we plumb
+// stdin/stdout we send Ctrl+L for these so the user sees the current screen
+// rather than a stale frame from the replay tail. ollama is intentionally
+// excluded — its readline-based prompt treats Ctrl+L as "clear scrollback"
+// and loses chat history.
+var redrawKickTools = map[string]bool{
+	"claude":   true,
+	"codex":    true,
+	"gemini":   true,
+	"grok":     true,
+	"deepseek": true,
+	"kimi":     true,
+}
 
 // RunAttach connects the user's terminal to a session's PTY.
 //
@@ -83,6 +101,23 @@ func RunAttach(args []string) error {
 	const exitAlt = "\x1b[?25h\x1b[?1049l"
 	_, _ = os.Stdout.WriteString(enterAlt)
 	defer func() { _, _ = os.Stdout.WriteString(exitAlt) }()
+
+	// Redraw kick: full-TUI agents (codex/claude/gemini) won't repaint on
+	// their own — replay shows a frozen frame from the transcript tail and
+	// SIGWINCH on a same-size resize is a no-op. A delayed Ctrl+L makes
+	// them redraw current screen state. Delay is tiny so the replay flush
+	// has a chance to land first; otherwise we kick before the agent even
+	// sees the resize.
+	if redrawKickTools[sess.ToolID] {
+		go func(sessID, toolID string) {
+			time.Sleep(150 * time.Millisecond)
+			if err := c.SendInput(sessID, []byte{0x0c}); err != nil {
+				slog.Warn("attach: redraw kick failed", "session", sessID, "tool", toolID, "err", err)
+				return
+			}
+			slog.Info("attach: redraw kick sent", "session", sessID, "tool", toolID)
+		}(sess.ID, sess.ToolID)
+	}
 
 	// SIGWINCH → resize the daemon's PTY.
 	winch := make(chan os.Signal, 1)

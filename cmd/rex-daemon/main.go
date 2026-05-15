@@ -5,12 +5,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
 	"github.com/tristanbietsch/rex/internal/registry"
+	"github.com/tristanbietsch/rex/internal/rexlog"
 	"github.com/tristanbietsch/rex/internal/server"
 	"github.com/tristanbietsch/rex/internal/state"
 )
@@ -40,10 +42,16 @@ func run(args []string) error {
 		return nil
 	}
 
+	rexlog.Init("daemon")
+	defer rexlog.Close()
+	slog.Info("daemon: starting", "version", version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
+
 	reg, err := registry.Load(*toolsPath)
 	if err != nil {
+		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
 		return fmt.Errorf("registry: %w", err)
 	}
+	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
 
 	if err := os.MkdirAll(*stateDir, 0o755); err != nil {
 		return fmt.Errorf("state dir: %w", err)
@@ -55,8 +63,10 @@ func run(args []string) error {
 	store := state.NewStore()
 	prior, err := state.LoadAll(*stateDir)
 	if err != nil {
+		slog.Error("daemon: load prior sessions failed", "state_dir", *stateDir, "err", err)
 		return fmt.Errorf("load prior sessions: %w", err)
 	}
+	slog.Info("daemon: prior sessions restored", "count", len(prior))
 	for _, s := range prior {
 		_ = store.Add(s)
 	}
@@ -79,7 +89,14 @@ func run(args []string) error {
 	go reloadOnHUP(ctx, srv, *toolsPath)
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version, *socketPath)
-	return srv.Serve(ctx)
+	slog.Info("daemon: listening", "socket", *socketPath)
+	err = srv.Serve(ctx)
+	if err != nil {
+		slog.Error("daemon: serve exited with error", "err", err)
+	} else {
+		slog.Info("daemon: serve exited cleanly")
+	}
+	return err
 }
 
 // reloadOnHUP listens for SIGHUP and swaps in a freshly-loaded registry.
@@ -95,10 +112,12 @@ func reloadOnHUP(ctx context.Context, srv *server.Server, toolsPath string) {
 			reg, err := registry.Load(toolsPath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "rex-daemon: reload failed: %v\n", err)
+				slog.Error("daemon: SIGHUP reload failed", "tools", toolsPath, "err", err)
 				continue
 			}
 			srv.SetRegistry(reg)
 			fmt.Fprintln(os.Stderr, "rex-daemon: registry reloaded")
+			slog.Info("daemon: SIGHUP reload ok", "tools", toolsPath, "count", len(reg.Tools))
 		}
 	}
 }
