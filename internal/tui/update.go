@@ -67,30 +67,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Err = "attach: " + msg.err.Error()
 		}
 		return m, nil
-	case bootStepMsg:
-		m.BootLog = append(m.BootLog, bootLine{
-			Name: msg.Name, Status: msg.Status, Desc: msg.Desc, Err: msg.Err,
+	case dialResultMsg:
+		if msg.Err != nil {
+			return m.appendBootStep(bootStepMsg{
+				Name: "client.dial", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
+			})
+		}
+		m.Client = msg.C
+		return m.appendBootStep(bootStepMsg{
+			Name: "client.dial", Status: stepOK,
+			Desc: fmt.Sprintf("connected · %s", msg.Dur.Truncate(time.Millisecond)),
+			Dur:  msg.Dur,
 		})
-		if msg.Status == stepFail {
-			m.BootFailed = true
-			m.BootError = msg.Err
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventBootFail)
-			}
-			return m, nil
+
+	case snapshotResultMsg:
+		if msg.Err != nil {
+			return m.appendBootStep(bootStepMsg{
+				Name: "handshake", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
+			})
 		}
-		if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil {
-			m.Audio.Play(ev)
+		m.Sessions = msg.Snap.Sessions
+		if msg.Snap.Filter != "" {
+			m.Filter = msg.Snap.Filter
 		}
-		m.BootStep++
-		if m.BootStep >= len(bootSequence) {
-			m.BootDone = true
-			if m.BootMinDone {
-				return m.handOffToBoard()
-			}
-			return m, nil
-		}
-		return m, delayThen(nextStep(m))
+		return m.appendBootStep(bootStepMsg{
+			Name: "handshake", Status: stepOK,
+			Desc: "接続 · rex-tui",
+			Dur:  msg.Dur,
+		})
+
+	case bootStepMsg:
+		return m.appendBootStep(msg)
 	case bootMinElapsedMsg:
 		m.BootMinDone = true
 		if m.BootDone && !m.BootFailed {
@@ -434,6 +441,35 @@ func updateConfirmQuitKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+// appendBootStep runs the shared "append row, chime, advance, maybe handoff"
+// logic for both bootStepMsg and the special msgs (dial/snapshot) that produce
+// a row plus carry side data into Model.
+func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
+	m.BootLog = append(m.BootLog, bootLine{
+		Name: msg.Name, Status: msg.Status, Desc: msg.Desc, Err: msg.Err,
+	})
+	if msg.Status == stepFail {
+		m.BootFailed = true
+		m.BootError = msg.Err
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventBootFail)
+		}
+		return m, nil
+	}
+	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil {
+		m.Audio.Play(ev)
+	}
+	m.BootStep++
+	if m.BootStep >= len(bootSequence) {
+		m.BootDone = true
+		if m.BootMinDone {
+			return m.handOffToBoard()
+		}
+		return m, nil
+	}
+	return m, delayThen(nextStep(m))
 }
 
 func deriveSlugFromPrompt(p string) string {
