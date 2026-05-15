@@ -87,7 +87,19 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			m.Focus = FocusPrompt
 			m.Err = ""
 			return m, nil
+		case ":":
+			m.Focus = FocusCommand
+			m.CmdText = ""
+			m.Err = ""
+			return m, nil
 		}
+	}
+
+	if m.Focus == FocusCommand {
+		return updateCommandKey(m, k)
+	}
+	if m.Focus == FocusConfirmQuit {
+		return updateConfirmQuitKey(m, k)
 	}
 
 	return m, nil
@@ -149,6 +161,44 @@ func deleteSessionCmd(c *client.Client, sessionID string) tea.Cmd {
 		}
 		return nil
 	}
+}
+
+func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	switch k.Type {
+	case tea.KeyEsc:
+		m.Focus = FocusBoard
+		m.CmdText = ""
+		return m, nil
+	case tea.KeyEnter:
+		cmd := m.CmdText
+		m.CmdText = ""
+		m.Focus = FocusBoard
+		return executeCommand(m, cmd)
+	case tea.KeyBackspace:
+		if len(m.CmdText) > 0 {
+			m.CmdText = m.CmdText[:len(m.CmdText)-1]
+		}
+		return m, nil
+	case tea.KeyRunes:
+		m.CmdText += string(k.Runes)
+		return m, nil
+	case tea.KeySpace:
+		m.CmdText += " "
+		return m, nil
+	}
+	return m, nil
+}
+
+func updateConfirmQuitKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	switch k.String() {
+	case "y", "Y", "enter":
+		m.Quitting = true
+		return m, tea.Quit
+	case "n", "N", "esc":
+		m.Focus = FocusBoard
+		return m, nil
+	}
+	return m, nil
 }
 
 func deriveSlugFromPrompt(p string) string {

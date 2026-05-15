@@ -31,6 +31,12 @@ func Run(socket string) error {
 		Sessions: snap.Sessions,
 		Filter:   "all",
 	}
+	if sel, filt, ok := LoadTUIState(); ok {
+		m.SelectedID = sel
+		if filt != "" {
+			m.Filter = filt
+		}
+	}
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err = p.Run()
 	return err
@@ -46,5 +52,9 @@ func (m Model) View() string {
 	if m.Quitting {
 		return ""
 	}
-	return renderHeader(m) + "\n\n" + renderBoard(m) + renderPrompt(m) + "\n" + renderHelpLine(m) + "\n"
+	base := renderHeader(m) + "\n\n" + renderBoard(m) + renderPrompt(m) + "\n" + renderHelpLine(m) + "\n"
+	if m.Focus == FocusConfirmQuit {
+		return base + "\n" + renderQuitConfirm()
+	}
+	return base
 }
