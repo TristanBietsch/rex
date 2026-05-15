@@ -121,10 +121,10 @@ func (p *Player) Play(event string) {
 		pl := ctx.NewPlayer(bytes.NewReader(pcm))
 		pl.SetVolume(vol)
 		pl.Play()
+		// Keep the player alive until playback finishes; oto v3.4+ auto-cleans on GC.
 		for pl.IsPlaying() {
 			time.Sleep(10 * time.Millisecond)
 		}
-		_ = pl.Close()
 	}()
 }
 
