@@ -4,6 +4,7 @@ package daemonctl
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -72,13 +73,18 @@ func Start(socket string, stderrLog *os.File) (*StartResult, error) {
 		cmd.Stderr = stderrLog
 	}
 	if err := cmd.Start(); err != nil {
+		slog.Error("daemonctl: spawn failed", "err", err)
 		return nil, fmt.Errorf("spawn rex-daemon: %w", err)
 	}
+	slog.Info("daemonctl: spawned rex-daemon", "pid", cmd.Process.Pid)
 	for i := 0; i < 100; i++ {
 		if Reachable(socket) {
-			return &StartResult{PID: cmd.Process.Pid, Elapsed: time.Since(t0)}, nil
+			elapsed := time.Since(t0)
+			slog.Info("daemonctl: socket up", "socket", socket, "elapsed", elapsed)
+			return &StartResult{PID: cmd.Process.Pid, Elapsed: elapsed}, nil
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	slog.Error("daemonctl: socket did not appear", "socket", socket, "timeout", "2s")
 	return nil, fmt.Errorf("daemon started but socket %s didn't appear within 2s", socket)
 }
