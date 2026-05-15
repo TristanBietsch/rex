@@ -67,6 +67,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Err = "attach: " + msg.err.Error()
 		}
 		return m, nil
+	case settingsResultMsg:
+		m.Store = msg.Store
+		m.StorePath = msg.Path
+		if !msg.Found {
+			return m.appendBootStep(bootStepMsg{
+				Name: "settings.load", Status: stepSkip, Desc: "no config file (defaults)", Dur: msg.Dur,
+			})
+		}
+		if msg.Err != nil {
+			return m.appendBootStep(bootStepMsg{
+				Name: "settings.load", Status: stepWarn, Desc: fmt.Sprintf("%v (defaults)", msg.Err), Err: msg.Err, Dur: msg.Dur,
+			})
+		}
+		return m.appendBootStep(bootStepMsg{
+			Name: "settings.load", Status: stepOK, Desc: msg.Path, Dur: msg.Dur,
+		})
+
 	case dialResultMsg:
 		if msg.Err != nil {
 			return m.appendBootStep(bootStepMsg{

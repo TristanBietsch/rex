@@ -77,18 +77,25 @@ func stepTTYProbe(m Model) tea.Cmd {
 	})
 }
 
+type settingsResultMsg struct {
+	Store *settings.Store
+	Path  string
+	Err   error
+	Found bool
+	Dur   time.Duration
+}
+
 func stepSettingsLoad(_ Model) tea.Cmd {
-	return emit("settings.load", func() (bootStatus, string, error) {
+	return func() tea.Msg {
+		t0 := time.Now()
 		path := settings.DefaultPath()
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return stepSkip, "no config file (defaults)", nil
-		}
 		s := settings.NewStore()
-		if err := s.Load(path); err != nil {
-			return stepWarn, fmt.Sprintf("%v (defaults)", err), err
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return settingsResultMsg{Store: s, Path: path, Found: false, Dur: time.Since(t0)}
 		}
-		return stepOK, path, nil
-	})
+		err := s.Load(path)
+		return settingsResultMsg{Store: s, Path: path, Found: true, Err: err, Dur: time.Since(t0)}
+	}
 }
 
 func stepThemeApply(m Model) tea.Cmd {
