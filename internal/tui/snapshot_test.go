@@ -63,26 +63,14 @@ func TestBoardSnapshot(t *testing.T) {
 			m.Wizard = &WizardState{Step: wizProvider, Tools: tools}
 			return m
 		}},
-		{"wiz-2-model", func(m Model) Model {
-			m.Focus = FocusWizard
-			m.Wizard = &WizardState{Step: wizModel, Tools: tools, ToolIdx: 1}
-			return m
-		}},
-		{"wiz-3-effort", func(m Model) Model {
+		{"wiz-2-effort", func(m Model) Model {
 			m.Focus = FocusWizard
 			m.Wizard = &WizardState{Step: wizEffort, Tools: tools, ToolIdx: 1, EffortIdx: 1}
 			return m
 		}},
-		{"wiz-4-name", func(m Model) Model {
+		{"wiz-3-describe", func(m Model) Model {
 			m.Focus = FocusWizard
-			m.Wizard = &WizardState{Step: wizName, Tools: tools, ToolIdx: 1,
-				SlugText: "payment-migration", CWDText: "/Users/tristan"}
-			return m
-		}},
-		{"wiz-5-confirm", func(m Model) Model {
-			m.Focus = FocusWizard
-			m.Wizard = &WizardState{Step: wizConfirm, Tools: tools, ToolIdx: 1,
-				SlugText: "payment-migration", CWDText: "/Users/tristan", EffortIdx: 1}
+			m.Wizard = &WizardState{Step: wizDescribe, Tools: tools, ToolIdx: 1, TaskText: "fix auth bug"}
 			return m
 		}},
 	}

@@ -15,22 +15,18 @@ import (
 	"github.com/tristanbietsch/rex/internal/registry"
 )
 
+// wizardStep names the three phases of the new-agent flow.
+//
+// The model selection step from the previous flow is gone — the wizard
+// auto-picks the first model defined for each tool. Slug edit and confirm
+// steps are also gone; the slug is derived from the task description and
+// pressing enter on the describe step launches the session directly.
 type wizardStep int
 
 const (
 	wizProvider wizardStep = iota
-	wizModel
 	wizEffort
-	wizName
-	wizConfirm
-)
-
-type wizardField int
-
-const (
-	fieldSlug wizardField = iota
-	fieldTitle
-	fieldCWD
+	wizDescribe
 )
 
 // WizardState lives on Model when Focus == FocusWizard.
@@ -38,12 +34,8 @@ type WizardState struct {
 	Step      wizardStep
 	Tools     []registry.Tool
 	ToolIdx   int
-	ModelIdx  int
 	EffortIdx int
-	SlugText  string
-	TitleText string
-	CWDText   string
-	Field     wizardField
+	TaskText  string
 }
 
 func openWizard(m Model) (Model, tea.Cmd) {
@@ -57,8 +49,9 @@ func openWizard(m Model) (Model, tea.Cmd) {
 		m.Err = "wizard: no tools enabled"
 		return m, nil
 	}
-	cwd, _ := os.Getwd()
-	m.Wizard = &WizardState{Step: wizProvider, Tools: visible, CWDText: cwd}
+	w := &WizardState{Step: wizProvider, Tools: visible}
+	presetEffortDefault(w)
+	m.Wizard = w
 	m.Focus = FocusWizard
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventOpen)
@@ -71,7 +64,6 @@ func toolsConfigPath() string {
 	return filepath.Join(home, ".config", "rex", "tools.yaml")
 }
 
-// hiddenInWizard lists tool IDs we don't expose in the new-agent wizard.
 var hiddenInWizard = map[string]bool{
 	"echo": true, // internal test adapter, never user-visible
 }
@@ -90,89 +82,75 @@ func visibleTools(tools []registry.Tool) []registry.Tool {
 	return out
 }
 
-// currentModel returns the model selected in step 2.
-func (w *WizardState) currentModel() registry.Model {
+// firstModel returns the auto-picked model for the selected tool — the first
+// one listed. tools.yaml is authored with the strongest/default model first.
+func (w *WizardState) firstModel() registry.Model {
 	if w.ToolIdx >= len(w.Tools) {
 		return registry.Model{}
 	}
-	tool := w.Tools[w.ToolIdx]
-	if w.ModelIdx >= len(tool.Models) {
+	t := w.Tools[w.ToolIdx]
+	if len(t.Models) == 0 {
 		return registry.Model{}
 	}
-	return tool.Models[w.ModelIdx]
+	return t.Models[0]
 }
 
-// currentEffort returns the chosen effort label, or "" if no effort applies.
 func (w *WizardState) currentEffort() string {
-	m := w.currentModel()
+	m := w.firstModel()
 	if m.Effort == nil || len(m.Effort.Options) == 0 {
 		return ""
 	}
-	if w.EffortIdx >= len(m.Effort.Options) {
+	if w.EffortIdx < 0 || w.EffortIdx >= len(m.Effort.Options) {
 		return ""
 	}
 	return m.Effort.Options[w.EffortIdx]
 }
 
-// effortApplies says whether step 3 is shown.
 func (w *WizardState) effortApplies() bool {
-	m := w.currentModel()
+	m := w.firstModel()
 	return m.Effort != nil && len(m.Effort.Options) > 0
 }
 
-// defaultSlug derives a slug from the model selection.
-func (w *WizardState) defaultSlug() string {
-	m := w.currentModel()
-	return deriveSlugFromPrompt(m.ID + "-" + fmt.Sprintf("%d", os.Getpid()))
+// presetEffortDefault snaps EffortIdx onto the model's declared default.
+func presetEffortDefault(w *WizardState) {
+	if !w.effortApplies() {
+		w.EffortIdx = 0
+		return
+	}
+	m := w.firstModel()
+	for i, opt := range m.Effort.Options {
+		if opt == m.Effort.Default {
+			w.EffortIdx = i
+			return
+		}
+	}
+	w.EffortIdx = 0
 }
 
 func nextWizardStep(w *WizardState) {
 	switch w.Step {
 	case wizProvider:
-		w.Step = wizModel
-	case wizModel:
-		// Reset effort index when re-entering the step.
-		w.EffortIdx = 0
+		presetEffortDefault(w)
 		if w.effortApplies() {
-			// Pre-select the default if known.
-			m := w.currentModel()
-			for i, opt := range m.Effort.Options {
-				if opt == m.Effort.Default {
-					w.EffortIdx = i
-					break
-				}
-			}
 			w.Step = wizEffort
 		} else {
-			w.Step = wizName
-			if w.SlugText == "" {
-				w.SlugText = w.defaultSlug()
-			}
+			w.Step = wizDescribe
 		}
 	case wizEffort:
-		w.Step = wizName
-		if w.SlugText == "" {
-			w.SlugText = w.defaultSlug()
-		}
-	case wizName:
-		w.Step = wizConfirm
+		w.Step = wizDescribe
 	}
 }
 
 func prevWizardStep(w *WizardState) {
 	switch w.Step {
-	case wizModel:
-		w.Step = wizProvider
 	case wizEffort:
-		w.Step = wizModel
-	case wizName:
+		w.Step = wizProvider
+	case wizDescribe:
 		if w.effortApplies() {
 			w.Step = wizEffort
 		} else {
-			w.Step = wizModel
+			w.Step = wizProvider
 		}
-	case wizConfirm:
-		w.Step = wizName
 	}
 }
 
@@ -180,193 +158,127 @@ func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Wizard == nil {
 		return m, nil
 	}
-
-	// Step-4 (name) has text inputs — handle differently.
-	if m.Wizard.Step == wizName {
-		return updateWizardNameStep(m, k)
+	if m.Wizard.Step == wizDescribe {
+		return updateWizardDescribeStep(m, k)
 	}
-
 	switch k.String() {
 	case "esc":
-		m.Wizard = nil
-		m.Focus = FocusBoard
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventClose)
-		}
-		return m, nil
+		return closeWizard(m), nil
 	case "b":
 		prevWizardStep(m.Wizard)
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventNav)
-		}
+		playNav(m)
 		return m, nil
 	case "j", "down":
-		moved := false
-		switch m.Wizard.Step {
-		case wizProvider:
-			if m.Wizard.ToolIdx+1 < len(m.Wizard.Tools) {
-				m.Wizard.ToolIdx++
-				m.Wizard.ModelIdx = 0
-				moved = true
-			}
-		case wizModel:
-			tool := m.Wizard.Tools[m.Wizard.ToolIdx]
-			if m.Wizard.ModelIdx+1 < len(tool.Models) {
-				m.Wizard.ModelIdx++
-				moved = true
-			}
-		case wizEffort:
-			opts := m.Wizard.currentModel().Effort.Options
-			if m.Wizard.EffortIdx+1 < len(opts) {
-				m.Wizard.EffortIdx++
-				moved = true
-			}
-		}
-		if moved && m.Audio != nil {
-			m.Audio.Play(audio.EventNav)
-		}
-		return m, nil
+		return moveWizard(m, +1), nil
 	case "k", "up":
-		moved := false
-		switch m.Wizard.Step {
-		case wizProvider:
-			if m.Wizard.ToolIdx > 0 {
-				m.Wizard.ToolIdx--
-				m.Wizard.ModelIdx = 0
-				moved = true
-			}
-		case wizModel:
-			if m.Wizard.ModelIdx > 0 {
-				m.Wizard.ModelIdx--
-				moved = true
-			}
-		case wizEffort:
-			if m.Wizard.EffortIdx > 0 {
-				m.Wizard.EffortIdx--
-				moved = true
-			}
-		}
-		if moved && m.Audio != nil {
-			m.Audio.Play(audio.EventNav)
-		}
-		return m, nil
+		return moveWizard(m, -1), nil
 	case "enter":
-		switch m.Wizard.Step {
-		case wizConfirm:
-			tool := m.Wizard.Tools[m.Wizard.ToolIdx]
-			model := tool.Models[m.Wizard.ModelIdx]
-			slug := m.Wizard.SlugText
-			if slug == "" {
-				slug = m.Wizard.defaultSlug()
-			}
-			cwd := m.Wizard.CWDText
-			if cwd == "" {
-				cwd, _ = os.Getwd()
-			}
-			cmd := wizardLaunchCmd(m.Client, tool.ID, model.ID, m.Wizard.currentEffort(), slug, m.Wizard.TitleText, cwd)
-			m.Wizard = nil
-			m.Focus = FocusBoard
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventClose)
-			}
-			return m, cmd
-		default:
-			nextWizardStep(m.Wizard)
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventNav)
-			}
-			return m, nil
-		}
+		nextWizardStep(m.Wizard)
+		playNav(m)
+		return m, nil
 	}
 	return m, nil
 }
 
-func updateWizardNameStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+func moveWizard(m Model, delta int) Model {
+	if m.Wizard == nil {
+		return m
+	}
+	moved := false
+	switch m.Wizard.Step {
+	case wizProvider:
+		next := m.Wizard.ToolIdx + delta
+		if next >= 0 && next < len(m.Wizard.Tools) {
+			m.Wizard.ToolIdx = next
+			moved = true
+		}
+	case wizEffort:
+		opts := m.Wizard.firstModel().Effort.Options
+		next := m.Wizard.EffortIdx + delta
+		if next >= 0 && next < len(opts) {
+			m.Wizard.EffortIdx = next
+			moved = true
+		}
+	}
+	if moved {
+		playNav(m)
+	}
+	return m
+}
+
+func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	switch k.Type {
 	case tea.KeyEsc:
-		m.Wizard = nil
-		m.Focus = FocusBoard
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventClose)
-		}
-		return m, nil
-	case tea.KeyTab:
-		m.Wizard.Field = (m.Wizard.Field + 1) % 3
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventNav)
-		}
-		return m, nil
-	case tea.KeyShiftTab:
-		m.Wizard.Field = (m.Wizard.Field + 2) % 3
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventNav)
-		}
-		return m, nil
+		return closeWizard(m), nil
 	case tea.KeyEnter:
-		nextWizardStep(m.Wizard)
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventNav)
-		}
-		return m, nil
+		task := strings.TrimSpace(m.Wizard.TaskText)
+		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
+		model := m.Wizard.firstModel()
+		slug := deriveAgentSlug(tool.ID, model.ID, task, existingSlugs(m))
+		cwd, _ := os.Getwd()
+		cmd := wizardLaunchCmd(m.Client,
+			tool.ID, model.ID, m.Wizard.currentEffort(),
+			slug, task, cwd, task)
+		return closeWizard(m), cmd
 	case tea.KeyBackspace:
-		s := m.Wizard.fieldValue()
-		if len(s) > 0 {
-			m.Wizard.setFieldValue(s[:len(s)-1])
+		if len(m.Wizard.TaskText) > 0 {
+			m.Wizard.TaskText = m.Wizard.TaskText[:len(m.Wizard.TaskText)-1]
 		}
 		return m, nil
 	case tea.KeyRunes:
-		m.Wizard.setFieldValue(m.Wizard.fieldValue() + string(k.Runes))
+		m.Wizard.TaskText += string(k.Runes)
 		return m, nil
 	case tea.KeySpace:
-		m.Wizard.setFieldValue(m.Wizard.fieldValue() + " ")
+		m.Wizard.TaskText += " "
 		return m, nil
 	}
-	switch k.String() {
-	case "b":
+	if k.String() == "b" && m.Wizard.TaskText == "" {
+		// Only treat 'b' as "back" when the input is empty — otherwise it's a character.
 		prevWizardStep(m.Wizard)
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventNav)
-		}
+		playNav(m)
 		return m, nil
 	}
 	return m, nil
 }
 
-func (w *WizardState) fieldValue() string {
-	switch w.Field {
-	case fieldSlug:
-		return w.SlugText
-	case fieldTitle:
-		return w.TitleText
-	case fieldCWD:
-		return w.CWDText
+func closeWizard(m Model) Model {
+	m.Wizard = nil
+	m.Focus = FocusBoard
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventClose)
 	}
-	return ""
+	return m
 }
 
-func (w *WizardState) setFieldValue(v string) {
-	switch w.Field {
-	case fieldSlug:
-		w.SlugText = v
-	case fieldTitle:
-		w.TitleText = v
-	case fieldCWD:
-		w.CWDText = v
+func playNav(m Model) {
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventNav)
 	}
 }
 
-func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd string) tea.Cmd {
+func existingSlugs(m Model) []string {
+	out := make([]string, 0, len(m.Sessions))
+	for _, s := range m.Sessions {
+		if s.Slug != "" {
+			out = append(out, s.Slug)
+		}
+	}
+	return out
+}
+
+func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd, initialPrompt string) tea.Cmd {
 	return func() tea.Msg {
 		if slug == "" {
 			slug = "session"
 		}
 		err := c.NewSession(protocol.NewSession{
-			ToolID:  toolID,
-			ModelID: modelID,
-			Effort:  effort,
-			Slug:    slug,
-			Title:   title,
-			CWD:     cwd,
+			ToolID:        toolID,
+			ModelID:       modelID,
+			Effort:        effort,
+			Slug:          slug,
+			Title:         title,
+			CWD:           cwd,
+			InitialPrompt: initialPrompt,
 		})
 		if err != nil {
 			return DaemonErrMsg{Err: err}
@@ -375,27 +287,138 @@ func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd
 	}
 }
 
-// Wizard inner content dimensions: fixed so every step renders at the same size
-// and feels roomy enough for the largest step (model list under Claude).
+// ── Slug schema ────────────────────────────────────────────────────────────
+//
+// Format: <toolShort>.<modelShort>.<taskKebab>
+//
+//	cc.opus.fix-auth-bug
+//	cx.gpt-5-codex.migrate-billing
+//	gm.2-5-pro.refactor-auth
+//	ol.llama3-1.write-readme
+//
+// Empty task → <toolShort>.<modelShort>.<hash4>, e.g. cc.opus.a3f2
+// Collision → <slug>-2, <slug>-3, … against the client's known session set.
+
+var toolShortcodes = map[string]string{
+	"claude":   "cc",
+	"codex":    "cx",
+	"gemini":   "gm",
+	"ollama":   "ol",
+	"grok":     "gk",
+	"deepseek": "ds",
+	"kimi":     "km",
+	"echo":     "ec",
+}
+
+func toolShort(id string) string {
+	if s, ok := toolShortcodes[id]; ok {
+		return s
+	}
+	if len(id) >= 2 {
+		return id[:2]
+	}
+	return id
+}
+
+// modelShort canonicalizes a model ID into a slug-safe fragment by lowercasing,
+// turning dots into dashes, and dropping anything else.
+func modelShort(id string) string {
+	s := strings.ToLower(id)
+	s = strings.ReplaceAll(s, ".", "-")
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+// kebabTask normalizes free-form task text into kebab-case, truncated to ~32
+// chars on a word boundary.
+func kebabTask(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	prevDash := false
+	for _, r := range s {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			b.WriteRune(r)
+			prevDash = false
+		default:
+			if !prevDash && b.Len() > 0 {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		}
+	}
+	out := strings.TrimRight(b.String(), "-")
+	if len(out) > 32 {
+		cut := out[:32]
+		if i := strings.LastIndexByte(cut, '-'); i > 16 {
+			cut = cut[:i]
+		}
+		out = cut
+	}
+	return out
+}
+
+// hash4 returns 4 hex characters from an FNV-1a hash of s. Used as a fallback
+// task fragment when the user gave no description.
+func hash4(s string) string {
+	var h uint32 = 2166136261
+	for i := 0; i < len(s); i++ {
+		h ^= uint32(s[i])
+		h *= 16777619
+	}
+	return fmt.Sprintf("%04x", h&0xffff)
+}
+
+// deriveAgentSlug builds the namespaced slug and disambiguates against the
+// given set of existing slugs by appending -2, -3, … on collision.
+func deriveAgentSlug(toolID, modelID, task string, existing []string) string {
+	base := toolShort(toolID)
+	if ms := modelShort(modelID); ms != "" {
+		base += "." + ms
+	}
+	taskFrag := kebabTask(task)
+	if taskFrag == "" {
+		taskFrag = hash4(fmt.Sprintf("%s|%d", modelID, os.Getpid()))
+	}
+	candidate := base + "." + taskFrag
+	if !inSlice(existing, candidate) {
+		return candidate
+	}
+	for n := 2; n < 1000; n++ {
+		c := fmt.Sprintf("%s-%d", candidate, n)
+		if !inSlice(existing, c) {
+			return c
+		}
+	}
+	return candidate
+}
+
+func inSlice(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+
+// Wizard inner content dimensions: fixed so every step renders at the same size.
 const (
-	wizardWidth      = 78
-	wizardBodyLines  = 12 // option/field area between title and footer
-	wizardFooterPush = 1  // blank line before footer
+	wizardWidth     = 78
+	wizardBodyLines = 12
+	wizardInputCols = 60
 )
 
-// renderWizard returns the wizard popup body (no border — overlay wraps it).
-// Every step pads its body to the same number of lines so the popup keeps a
-// constant footprint as the user steps through it.
 func renderWizard(m Model) string {
 	if m.Wizard == nil {
 		return ""
-	}
-	totalSteps := 5
-	stepNum := int(m.Wizard.Step) + 1
-
-	titleLine := func(rest string) string {
-		return styleHeaderMeta.Render(fmt.Sprintf("step %d / %d — ", stepNum, totalSteps)) +
-			styleHeaderApp.Render(rest)
 	}
 
 	var (
@@ -405,118 +428,96 @@ func renderWizard(m Model) string {
 
 	switch m.Wizard.Step {
 	case wizProvider:
-		title = titleLine("choose a provider")
+		title = styleSlug.Render("which provider?")
+		body = append(body, "")
 		for i, t := range m.Wizard.Tools {
-			body = append(body, wizOption(i == m.Wizard.ToolIdx, t.Name, "", t.Category, wizardWidth))
-		}
-	case wizModel:
-		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
-		title = titleLine("choose a model — " + tool.Name)
-		for i, mm := range tool.Models {
-			body = append(body, wizOption(i == m.Wizard.ModelIdx, mm.Name, "", "", wizardWidth))
+			body = append(body, wizOption(i == m.Wizard.ToolIdx, t.Icon, t.Name, t.Color))
 		}
 	case wizEffort:
-		m2 := m.Wizard.currentModel()
-		title = titleLine("reasoning effort — " + m2.Name)
-		for i, opt := range m2.Effort.Options {
-			body = append(body, wizOption(i == m.Wizard.EffortIdx, opt, "", "", wizardWidth))
-		}
-	case wizName:
-		title = titleLine("name your agent")
-		body = append(body, wizField("slug", m.Wizard.SlugText, m.Wizard.Field == fieldSlug, wizardWidth))
-		body = append(body, wizField("title", m.Wizard.TitleText, m.Wizard.Field == fieldTitle, wizardWidth))
-		body = append(body, wizField("working dir", m.Wizard.CWDText, m.Wizard.Field == fieldCWD, wizardWidth))
-	case wizConfirm:
-		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
-		model := tool.Models[m.Wizard.ModelIdx]
-		title = titleLine("confirm and launch")
-		summary := styleSlug.Render(tool.Name) + styleDim.Render(" · ") + styleSlug.Render(model.Name)
-		if eff := m.Wizard.currentEffort(); eff != "" {
-			summary += styleDim.Render(" · effort: ") + styleSlug.Render(eff)
-		}
-		body = append(body, "  "+summary)
-		body = append(body, "  "+styleDim.Render(m.Wizard.CWDText)+styleDim.Render("  ·  slug: ")+styleSlug.Render(m.Wizard.SlugText))
+		title = styleSlug.Render("reasoning effort?")
 		body = append(body, "")
-		body = append(body, "  "+styleArrow.Render("▸")+" "+styleSlug.Render("[ launch ]"))
-	}
-
-	// Pad / truncate body to a fixed number of lines so the popup stays a constant size.
-	if len(body) < wizardBodyLines {
-		for len(body) < wizardBodyLines {
-			body = append(body, "")
+		opts := m.Wizard.firstModel().Effort.Options
+		for i, opt := range opts {
+			body = append(body, wizOption(i == m.Wizard.EffortIdx, "", opt, ""))
 		}
-	} else if len(body) > wizardBodyLines {
-		body = body[:wizardBodyLines]
+	case wizDescribe:
+		title = styleSlug.Render("describe the task")
+		body = append(body, "")
+		body = append(body, wizInputBoxLines(m.Wizard.TaskText, m)...)
 	}
 
-	var footer string
-	if m.Wizard.Step == wizName {
-		footer = styleDim.Render("tab cycles fields · enter next · b back · esc cancel")
-	} else {
-		footer = styleDim.Render("j/k select · enter next · b back · esc cancel")
-	}
+	// Pad / truncate to a fixed line budget so the popup stays the same size.
+	body = padOrTrim(body, wizardBodyLines)
 
-	lines := []string{title, ""}
+	footer := wizardFooter(m.Wizard.Step)
+
+	lines := []string{title}
 	lines = append(lines, body...)
-	for i := 0; i < wizardFooterPush; i++ {
-		lines = append(lines, "")
-	}
-	lines = append(lines, footer)
+	lines = append(lines, "", footer)
 
-	// Pad every line to the same width so the bordered popup keeps a constant
-	// rectangular footprint across steps regardless of content length.
 	for i, line := range lines {
 		lines[i] = padLine(line, wizardWidth)
 	}
 	return strings.Join(lines, "\n")
 }
 
-// wizOption renders a single selectable row in the wizard.
-// Columns: cursor(2) + name(left-flex) + right tag (auto).
-func wizOption(selected bool, name, hint, tag string, width int) string {
+func wizardFooter(step wizardStep) string {
+	switch step {
+	case wizProvider:
+		return styleDim.Render("  j/k select   enter next   esc cancel")
+	case wizEffort:
+		return styleDim.Render("  j/k select   enter next   b back   esc cancel")
+	case wizDescribe:
+		return styleDim.Render("  enter launch   b back (when empty)   esc cancel")
+	}
+	return ""
+}
+
+func padOrTrim(body []string, n int) []string {
+	if len(body) < n {
+		for len(body) < n {
+			body = append(body, "")
+		}
+		return body
+	}
+	if len(body) > n {
+		return body[:n]
+	}
+	return body
+}
+
+// wizOption renders a single selectable row: cursor + optional brand glyph + name.
+func wizOption(selected bool, glyph, name, glyphColor string) string {
 	var cursor string
 	if selected {
 		cursor = styleArrow.Render("▸") + " "
 	} else {
 		cursor = "  "
 	}
-	left := cursor + styleSlug.Render(name)
-	if hint != "" {
-		left += "  " + styleDim.Render(hint)
+	var g string
+	if glyph != "" {
+		if glyphColor != "" {
+			g = lipgloss.NewStyle().Foreground(lipgloss.Color(glyphColor)).Render(glyph) + "  "
+		} else {
+			g = glyph + "  "
+		}
 	}
-	if tag == "" {
-		return left
-	}
-	rightTxt := styleDim.Render(tag)
-	leftW := lipgloss.Width(left)
-	rightW := lipgloss.Width(rightTxt)
-	gap := width - leftW - rightW
-	if gap < 2 {
-		gap = 2
-	}
-	return left + strings.Repeat(" ", gap) + rightTxt
+	return "  " + cursor + g + styleSlug.Render(name)
 }
 
-// wizField renders a name-step field row.
-func wizField(label, value string, focused bool, width int) string {
-	cursor := "  "
-	if focused {
-		cursor = styleArrow.Render("▸") + " "
+// wizInputBoxLines renders the task input box as a slice of lines (so it
+// composes cleanly into the fixed-line body).
+func wizInputBoxLines(value string, m Model) []string {
+	content := styleSlug.Render(value) + cursorBlock(m)
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorWorking).
+		Padding(0, 2).
+		Width(wizardInputCols).
+		Render(content)
+	out := strings.Split(box, "\n")
+	for i := range out {
+		out[i] = "  " + out[i]
 	}
-	lbl := lipgloss.NewStyle().Foreground(colorFgDim).Render(label)
-	// Pad label to 14 cells using plain spaces (no styling on padding).
-	lblPad := 14 - lipgloss.Width(lbl)
-	if lblPad < 1 {
-		lblPad = 1
-	}
-	var val string
-	switch {
-	case value == "" && focused:
-		val = cursorBlock(Model{SpinnerTick: 0})
-	case value == "":
-		val = styleMuted.Render("(empty)")
-	default:
-		val = styleSlug.Render(value)
-	}
-	return cursor + lbl + strings.Repeat(" ", lblPad) + val
+	return out
 }

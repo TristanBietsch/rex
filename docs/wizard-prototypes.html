@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>rex — new agent wizard</title>
+<style>
+  :root {
+    --bg-base:    #0F1115;
+    --bg-elev:    #171922;
+    --fg-primary: #E6E6E6;
+    --fg-dim:     #7A7F8C;
+    --fg-muted:   #4A4F5A;
+    --border:     #262A36;
+
+    --state-working: #5B8DEF;
+    --state-needs:   #E5B341;
+
+    --tool-claude:   #D97757;
+    --tool-codex:    #10A37F;
+    --tool-gemini:   #4285F4;
+    --tool-ollama:   #B8A382;
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #0a0c10;
+    color: var(--fg-primary);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  body { padding: 64px 24px 120px; }
+
+  .page-title {
+    color: var(--fg-dim);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 0 0 56px 4px;
+  }
+
+  .screens {
+    display: grid;
+    grid-template-columns: minmax(0, 880px);
+    gap: 32px;
+    justify-content: center;
+  }
+
+  .screen-label {
+    color: var(--fg-muted);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 0 0 10px 6px;
+  }
+
+  .screen {
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    padding: 56px 48px 44px;
+    min-height: 360px;
+  }
+
+  /* wizard */
+  .wizard h2 {
+    margin: 0 0 36px;
+    font-size: 13px;
+    color: var(--fg-primary);
+    font-weight: 700;
+  }
+
+  .wizard .opt {
+    display: grid;
+    grid-template-columns: 2ch 2ch 1fr;
+    column-gap: 14px;
+    padding: 8px 8px;
+    align-items: center;
+  }
+  .wizard .opt.selected { background: var(--bg-elev); }
+  .wizard .opt .arrow { color: var(--state-working); }
+  .wizard .opt .name  { color: var(--fg-primary); font-weight: 700; }
+  .wizard .opt .glyph.claude { color: var(--tool-claude); }
+  .wizard .opt .glyph.codex  { color: var(--tool-codex); }
+  .wizard .opt .glyph.gemini { color: var(--tool-gemini); }
+  .wizard .opt .glyph.ollama { color: var(--tool-ollama); }
+
+  .wizard .footer {
+    color: var(--fg-muted);
+    font-size: 12px;
+    margin-top: 44px;
+    padding: 0 8px;
+  }
+  .wizard .footer .key { color: var(--fg-dim); }
+
+  .wizard .input-box {
+    border: 1px solid var(--border);
+    padding: 14px 18px;
+    background: var(--bg-elev);
+    margin: 0 8px;
+    color: var(--fg-primary);
+    font-weight: 700;
+  }
+  .wizard .input-box.focused { border-color: var(--state-working); }
+  .wizard .input-box .caret { background: var(--fg-primary); color: var(--bg-base); padding: 0 1px; }
+
+  /* slug schema panel */
+  .schema-label {
+    font-family: var(--mono);
+    color: var(--state-needs);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 700;
+    border-top: 1px solid var(--border);
+    padding: 80px 4px 0;
+    margin: 0;
+  }
+  .schema-label .sub {
+    display: block;
+    color: var(--fg-dim);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    margin-top: 10px;
+    font-size: 12px;
+  }
+
+  .schema-panel { padding: 56px 48px 44px; }
+  .schema-panel h3 {
+    color: var(--fg-dim);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 28px 0 14px;
+    font-weight: 400;
+  }
+  .schema-panel h3:first-of-type { margin-top: 0; }
+  .schema-panel .row {
+    display: grid;
+    grid-template-columns: 28ch 1fr;
+    gap: 16px;
+    padding: 6px 0;
+  }
+  .schema-panel .ex { color: var(--state-needs); font-weight: 700; }
+  .schema-panel .ex .d { color: var(--fg-muted); font-weight: 400; }
+  .schema-panel .desc { color: var(--fg-dim); }
+  .schema-panel .desc code { color: var(--fg-primary); }
+  .schema-panel .note {
+    color: var(--fg-muted);
+    font-size: 12px;
+    margin-top: 28px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">rex — new agent wizard</h1>
+
+<div class="screens">
+
+<div>
+  <div class="screen-label">1 / 3 · provider</div>
+  <div class="screen">
+    <div class="wizard">
+      <h2>which provider?</h2>
+
+      <div class="opt selected"><span class="arrow">▸</span><span class="glyph claude">◆</span><span class="name">claude</span></div>
+      <div class="opt"><span></span><span class="glyph codex">◇</span><span class="name">codex</span></div>
+      <div class="opt"><span></span><span class="glyph gemini">◈</span><span class="name">gemini</span></div>
+      <div class="opt"><span></span><span class="glyph ollama">◉</span><span class="name">ollama</span></div>
+
+      <div class="footer"><span class="key">j/k</span> select &nbsp;&nbsp; <span class="key">⏎</span> next &nbsp;&nbsp; <span class="key">esc</span> cancel</div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div class="screen-label">2 / 3 · effort</div>
+  <div class="screen">
+    <div class="wizard">
+      <h2>reasoning effort?</h2>
+
+      <div class="opt selected"><span class="arrow">▸</span><span></span><span class="name">default</span></div>
+      <div class="opt"><span></span><span></span><span class="name">minimal</span></div>
+
+      <div class="footer"><span class="key">j/k</span> select &nbsp;&nbsp; <span class="key">⏎</span> next &nbsp;&nbsp; <span class="key">b</span> back</div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div class="screen-label">3 / 3 · describe (launches on enter)</div>
+  <div class="screen">
+    <div class="wizard">
+      <h2>describe the task</h2>
+
+      <div class="input-box focused">fix auth bug<span class="caret">&nbsp;</span></div>
+
+      <div class="footer"><span class="key">⏎</span> launch &nbsp;&nbsp; <span class="key">b</span> back &nbsp;&nbsp; <span class="key">esc</span> cancel</div>
+    </div>
+  </div>
+</div>
+
+
+<h2 class="schema-label">slug schema<span class="sub">derived from task. never edited. reverse-DNS-ish. greppable. lives in the board, not the wizard.</span></h2>
+
+<div>
+  <div class="screen schema-panel">
+    <h3>format</h3>
+    <div class="row">
+      <span class="ex">cc<span class="d">.</span>opus<span class="d">.</span>fix-auth-bug</span>
+      <span class="desc"><code>&lt;provider&gt;.&lt;model&gt;.&lt;task&gt;</code></span>
+    </div>
+
+    <h3>shortcodes</h3>
+    <div class="row"><span class="ex">cc</span><span class="desc">claude code</span></div>
+    <div class="row"><span class="ex">cx</span><span class="desc">openai codex</span></div>
+    <div class="row"><span class="ex">gm</span><span class="desc">gemini cli</span></div>
+    <div class="row"><span class="ex">ol</span><span class="desc">ollama</span></div>
+
+    <h3>examples</h3>
+    <div class="row"><span class="ex">cc.opus.fix-auth-bug</span><span class="desc">claude · opus · "fix auth bug"</span></div>
+    <div class="row"><span class="ex">cx.gpt5c.migrate-billing</span><span class="desc">codex · gpt-5-codex · "migrate billing"</span></div>
+    <div class="row"><span class="ex">gm.2-5-pro.refactor-auth</span><span class="desc">gemini · 2.5-pro · "refactor auth"</span></div>
+
+    <h3>edge cases</h3>
+    <div class="row"><span class="ex">cc.opus<span class="d">.</span>a3f2</span><span class="desc">empty task → 4-char hash</span></div>
+    <div class="row"><span class="ex">cc.opus.fix-auth-bug<span class="d">-2</span></span><span class="desc">collision → <code>-2</code>, <code>-3</code>, …</span></div>
+
+    <div class="note">rename later with <code>:rename &lt;sel&gt; &lt;new&gt;</code>.</div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>
