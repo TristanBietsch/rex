@@ -36,24 +36,5 @@ var (
 )
 
 // Silence unused warnings for fields referenced in later tasks.
-var _ = colorBgBase
-var _ = colorBgElev
 var _ = colorBgModal
-var _ = colorFgPrimary
-var _ = colorFgMuted
 var _ = colorBorder
-var _ = colorWorking
-var _ = colorNeeds
-var _ = colorDone
-var _ = styleHeaderApp
-var _ = styleHeaderMeta
-var _ = styleSectionTitle
-var _ = styleSlug
-var _ = styleDim
-var _ = styleMuted
-var _ = styleSelected
-var _ = styleStateWorking
-var _ = styleStateNeeds
-var _ = styleStateDone
-var _ = styleStateFailed
-var _ = styleStateCrashed

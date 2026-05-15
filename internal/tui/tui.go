@@ -41,10 +41,10 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(listenDaemon(m.Client), tickSpinner())
 }
 
-// View satisfies tea.Model — placeholder; Phase 2 lights it up.
+// View satisfies tea.Model.
 func (m Model) View() string {
 	if m.Quitting {
 		return ""
 	}
-	return "rex TUI scaffold — Phase 2 renders the board\n"
+	return renderHeader(m) + "\n\n" + renderBoard(m) + renderPrompt(m) + "\n" + renderHelpLine(m) + "\n"
 }
