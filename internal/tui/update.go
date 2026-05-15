@@ -99,7 +99,7 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 	now := time.Now()
 	if lastMouseRow == idx && now.Sub(lastMouseTime) < 350*time.Millisecond {
 		// Double-click — open modal.
-		return attachSession(m, rows[idx].ID)
+		return openAttach(m, rows[idx].ID)
 	}
 	lastMouseRow = idx
 	lastMouseTime = now
@@ -191,7 +191,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			if indexOfSelected(m) < 0 {
 				return m, nil
 			}
-			return attachSession(m, m.SelectedID)
+			return openAttach(m, m.SelectedID)
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""
