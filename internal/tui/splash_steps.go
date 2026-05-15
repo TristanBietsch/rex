@@ -171,16 +171,6 @@ func stepSocketResolve(m Model) tea.Cmd {
 	})
 }
 
-// init keeps the stub bootSequence in place for now; Task 4.5 will swap to real Cmds.
-// Stage 3's fakeStep helper is retained at the bottom for the still-stubbed steps.
-func fakeStep(name, desc string) stepFunc {
-	return func(_ Model) tea.Cmd {
-		return tea.Tick(time.Millisecond, func(time.Time) tea.Msg {
-			return bootStepMsg{Name: name, Status: stepOK, Desc: desc}
-		})
-	}
-}
-
 func init() {
 	bootSequence = []stepFunc{
 		stepLogInit,
@@ -193,14 +183,13 @@ func init() {
 		stepRegistryLoad,
 		stepKeymapBind,
 		stepSocketResolve,
-		// Remaining 7 steps still stubbed until Task 4.3:
-		fakeStep("daemon", "already running (pid 0)"),
-		fakeStep("client.dial", "connected · 0ms"),
-		fakeStep("handshake", "接続 · rex-tui"),
-		fakeStep("subscribe", "受信中 · event stream open"),
-		fakeStep("snapshot.parse", "0 sessions"),
-		fakeStep("state.restore", "first run"),
-		fakeStep("renderer.warm", "styles cached"),
+		stepDaemon,
+		stepClientDial,
+		stepHandshake,
+		stepSubscribe,
+		stepSnapshotParse,
+		stepStateRestore,
+		stepRendererWarm,
 	}
 }
 
