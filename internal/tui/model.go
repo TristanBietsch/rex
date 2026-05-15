@@ -20,6 +20,7 @@ const (
 	FocusHelp
 	FocusConfirmQuit
 	FocusSettings
+	FocusSlash
 )
 
 // Model is the root Bubble Tea model.
@@ -41,6 +42,10 @@ type Model struct {
 	Modal    *ModalState
 	Wizard   *WizardState
 	Settings *SettingsState
+	Slash    *SlashState
+
+	// SearchQuery is set by `/find <query>` and filters the board.
+	SearchQuery string
 
 	// BlinkUntil tracks done-blink expiry per session.
 	BlinkUntil map[string]time.Time

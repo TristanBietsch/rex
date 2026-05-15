@@ -128,6 +128,8 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		case "S":
 			return openSettings(m)
+		case "/":
+			return openSlash(m)
 		case "i":
 			m.Focus = FocusPrompt
 			m.Err = ""
@@ -172,6 +174,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusSettings {
 		return updateSettingsKey(m, k)
+	}
+	if m.Focus == FocusSlash {
+		return updateSlashKey(m, k)
 	}
 
 	return m, nil
