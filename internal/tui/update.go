@@ -138,6 +138,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		case "3":
 			return jumpToSection(m, protocol.StateDone), nil
 		case "t":
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventFilter)
+			}
 			return cycleFilter(m), nil
 		case "n":
 			return openWizard(m)
@@ -154,7 +157,10 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			m.Err = ""
 			return m, nil
 		case "enter":
-			if m.SelectedID == "" {
+			// Only attach when the selection points to a session that's
+			// actually on the board. A SelectedID restored from disk can
+			// reference a failed/crashed session that's no longer visible.
+			if indexOfSelected(m) < 0 {
 				return m, nil
 			}
 			return attachSession(m, m.SelectedID)

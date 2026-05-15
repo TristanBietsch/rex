@@ -29,6 +29,7 @@ const (
 	EventOpen    = "open"
 	EventClose   = "close"
 	EventCommand = "command"
+	EventFilter  = "filter"
 )
 
 // Config tunes playback.
@@ -165,6 +166,12 @@ func (p *Player) bakeAll() {
 	p.pcm[EventCommand] = bakeSequence(
 		burst{tones: []tone{{1568, 16, 10}}},
 		burst{tones: []tone{{1175, 32, 22}, {2349, 18, 10}}},
+	)
+	// Filter ("t") — upward ratchet "chip-click": a tight low tick that resolves
+	// into a higher chirp with a sparkle overtone, reading as "category steps up".
+	p.pcm[EventFilter] = bakeSequence(
+		burst{tones: []tone{{988, 10, 6}}},
+		burst{tones: []tone{{1480, 22, 14}, {2960, 10, 5}}},
 	)
 }
 

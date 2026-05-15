@@ -22,6 +22,8 @@ func run(args []string) error {
 		return cli.RunTUI()
 	}
 	switch args[0] {
+	case "--help", "-h", "help":
+		return cli.RunHelp()
 	case "--version", "-v", "version":
 		return cli.RunVersion()
 	case "status":
@@ -57,7 +59,7 @@ func run(args []string) error {
 	case "config":
 		return cli.RunConfig(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (try `rex --version`)", args[0])
+		return fmt.Errorf("unknown command %q (try `rex --help`)", args[0])
 	}
 }
 
