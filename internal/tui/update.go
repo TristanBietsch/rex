@@ -191,7 +191,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			if indexOfSelected(m) < 0 {
 				return m, nil
 			}
-			return openAttach(m, m.SelectedID)
+			return attachSession(m, m.SelectedID)
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""
