@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
 
@@ -64,6 +66,11 @@ func renderRow(m Model, s protocol.SessionSummary) string {
 	ago := styleDim.Render(fmt.Sprintf("%5s", durationAgo(s.LastEventAt)))
 
 	row := fmt.Sprintf("%s %s %s %s %s %s", marker, id, slug, desc, model, ago)
+	if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
+		if time.Now().UnixMilli()/200%2 == 0 {
+			row = lipgloss.NewStyle().Background(colorDone).Foreground(colorBgBase).Render(row)
+		}
+	}
 	if m.SelectedID == s.ID {
 		row = styleSelected.Render(row)
 	}

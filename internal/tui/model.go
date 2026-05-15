@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
@@ -38,6 +39,9 @@ type Model struct {
 
 	Modal  *ModalState
 	Wizard *WizardState
+
+	// BlinkUntil tracks done-blink expiry per session.
+	BlinkUntil map[string]time.Time
 }
 
 func (m Model) applyEvent(env protocol.Envelope) Model {
@@ -66,6 +70,12 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					applyPatch(&m.Sessions[i], upd.Patch)
 					break
 				}
+			}
+			if s, ok := upd.Patch["state"].(string); ok && protocol.State(s) == protocol.StateDone {
+				if m.BlinkUntil == nil {
+					m.BlinkUntil = make(map[string]time.Time)
+				}
+				m.BlinkUntil[upd.SessionID] = time.Now().Add(1600 * time.Millisecond)
 			}
 		}
 	case protocol.EventSnapshot:

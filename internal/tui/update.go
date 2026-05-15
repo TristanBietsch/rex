@@ -3,11 +3,17 @@ package tui
 import (
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
+)
+
+var (
+	lastMouseRow  = -1
+	lastMouseTime time.Time
 )
 
 // Update is the central Bubble Tea handler.
@@ -31,7 +37,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickSpinner()
 	case tea.KeyMsg:
 		return updateKey(m, msg)
+	case tea.MouseMsg:
+		return updateMouse(m, msg)
 	}
+	return m, nil
+}
+
+func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
+	// Plan C ships click-to-select + double-click-to-open. Exact row math
+	// requires layout coordinates; we use a header-offset heuristic.
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return m, nil
+	}
+	rows := orderedSessions(m)
+	if len(rows) == 0 {
+		return m, nil
+	}
+	// Board starts at approximately Y=3 (header) + section title rows.
+	idx := msg.Y - 4
+	if idx < 0 || idx >= len(rows) {
+		lastMouseRow = -1
+		return m, nil
+	}
+	m.SelectedID = rows[idx].ID
+	now := time.Now()
+	if lastMouseRow == idx && now.Sub(lastMouseTime) < 350*time.Millisecond {
+		// Double-click — open modal.
+		return openModal(m, rows[idx].ID)
+	}
+	lastMouseRow = idx
+	lastMouseTime = now
 	return m, nil
 }
 
