@@ -10,6 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/tristanbietsch/rex/internal/audio"
+	"github.com/tristanbietsch/rex/internal/client"
+	"github.com/tristanbietsch/rex/internal/daemonctl"
+	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/registry"
 	"github.com/tristanbietsch/rex/internal/rexlog"
 	"github.com/tristanbietsch/rex/internal/settings"
@@ -199,4 +202,110 @@ func init() {
 		fakeStep("state.restore", "first run"),
 		fakeStep("renderer.warm", "styles cached"),
 	}
+}
+
+func stepDaemon(m Model) tea.Cmd {
+	return emit("daemon", func() (bootStatus, string, error) {
+		if daemonctl.Reachable(m.Socket) {
+			return stepOK, "already running", nil
+		}
+		home, _ := os.UserHomeDir()
+		logPath := filepath.Join(home, ".local", "state", "rex", "daemon.log")
+		logf, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		res, err := daemonctl.Start(m.Socket, logf)
+		if err != nil {
+			return stepFail, err.Error(), err
+		}
+		return stepOK, fmt.Sprintf("started · pid %d · %s", res.PID, res.Elapsed.Truncate(time.Millisecond)), nil
+	})
+}
+
+// dialResultMsg carries the dialed client back into the model so later steps can use it.
+type dialResultMsg struct {
+	C   *client.Client
+	Err error
+	Dur time.Duration
+}
+
+func stepClientDial(m Model) tea.Cmd {
+	return func() tea.Msg {
+		t0 := time.Now()
+		c, err := client.Dial(m.Socket)
+		return dialResultMsg{C: c, Err: err, Dur: time.Since(t0)}
+	}
+}
+
+// snapshotResultMsg carries the snapshot back so snapshot.parse can compute counts.
+type snapshotResultMsg struct {
+	Snap *protocol.Snapshot
+	Err  error
+	Dur  time.Duration
+}
+
+func stepHandshake(m Model) tea.Cmd {
+	return func() tea.Msg {
+		if m.Client == nil {
+			return bootStepMsg{Name: "handshake", Status: stepFail, Err: fmt.Errorf("client not dialed")}
+		}
+		t0 := time.Now()
+		snap, err := m.Client.Hello("rex-tui")
+		return snapshotResultMsg{Snap: snap, Err: err, Dur: time.Since(t0)}
+	}
+}
+
+func stepSubscribe(m Model) tea.Cmd {
+	return emit("subscribe", func() (bootStatus, string, error) {
+		if m.Client == nil {
+			return stepFail, "client not dialed", fmt.Errorf("client not dialed")
+		}
+		if err := m.Client.Subscribe(""); err != nil {
+			return stepFail, err.Error(), err
+		}
+		return stepOK, "受信中 · event stream open", nil
+	})
+}
+
+func stepSnapshotParse(m Model) tea.Cmd {
+	return emit("snapshot.parse", func() (bootStatus, string, error) {
+		if len(m.Sessions) == 0 {
+			return stepSkip, "no sessions yet", nil
+		}
+		needs, work, done := 0, 0, 0
+		for _, s := range m.Sessions {
+			switch s.State {
+			case protocol.StateNeedsInput:
+				needs++
+			case protocol.StateWorking, protocol.StateQueued:
+				work++
+			case protocol.StateDone:
+				done++
+			}
+		}
+		desc := fmt.Sprintf("%d sessions · %d needs · %d work · %d done", len(m.Sessions), needs, work, done)
+		return stepOK, desc, nil
+	})
+}
+
+func stepStateRestore(_ Model) tea.Cmd {
+	return emit("state.restore", func() (bootStatus, string, error) {
+		sel, filt, ok := LoadTUIState()
+		if !ok {
+			return stepSkip, "first run", nil
+		}
+		return stepOK, fmt.Sprintf("selected=%s · filter=%s", short8(sel), filt), nil
+	})
+}
+
+func short8(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:8]
+}
+
+func stepRendererWarm(_ Model) tea.Cmd {
+	return emit("renderer.warm", func() (bootStatus, string, error) {
+		rebuildStyles()
+		return stepOK, "styles cached", nil
+	})
 }
