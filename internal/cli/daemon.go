@@ -40,7 +40,7 @@ func daemonStart(args []string) error {
 		fmt.Println("rex-daemon already running")
 		return nil
 	}
-	cmd := exec.Command("rex-daemon")
+	cmd := exec.Command(findDaemonBinary())
 	logf, lerr := os.OpenFile(daemonLogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if lerr == nil {
 		cmd.Stderr = logf
@@ -119,4 +119,20 @@ func daemonLogs(args []string) error {
 func daemonLogPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "state", "rex", "daemon.log")
+}
+
+// findDaemonBinary returns the path to rex-daemon. It checks (in order):
+// 1) the same directory as the current rex executable, 2) PATH lookup,
+// 3) the literal name "rex-daemon" (so exec gives a useful error).
+func findDaemonBinary() string {
+	if self, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(self), "rex-daemon")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	if path, err := exec.LookPath("rex-daemon"); err == nil {
+		return path
+	}
+	return "rex-daemon"
 }
