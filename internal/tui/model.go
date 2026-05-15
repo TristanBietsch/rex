@@ -19,6 +19,7 @@ const (
 	FocusWizard
 	FocusHelp
 	FocusConfirmQuit
+	FocusSettings
 )
 
 // Model is the root Bubble Tea model.
@@ -37,8 +38,9 @@ type Model struct {
 	SpinnerTick  int
 	Quitting     bool
 
-	Modal  *ModalState
-	Wizard *WizardState
+	Modal    *ModalState
+	Wizard   *WizardState
+	Settings *SettingsState
 
 	// BlinkUntil tracks done-blink expiry per session.
 	BlinkUntil map[string]time.Time

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,9 +33,10 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	case "help":
 		m.Focus = FocusHelp
 		return m, nil
+	case "settings":
+		return openSettings(m)
 	case "reload":
-		m.Err = "reload sent (daemon handler is Plan D)"
-		return m, nil
+		return m, sendDaemonSIGHUP(m)
 	case "filter":
 		if len(args) == 1 {
 			m.Filter = args[0]
@@ -69,6 +71,22 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 		m.Err = "unknown command: " + verb
 	}
 	return m, nil
+}
+
+// sendDaemonSIGHUP triggers a daemon-side tools.yaml reload by sending SIGHUP.
+func sendDaemonSIGHUP(m Model) tea.Cmd {
+	return func() tea.Msg {
+		out, err := exec.Command("pgrep", "rex-daemon").Output()
+		if err != nil {
+			return nil
+		}
+		pid := strings.TrimSpace(strings.Split(string(out), "\n")[0])
+		if pid == "" {
+			return nil
+		}
+		_ = exec.Command("kill", "-HUP", pid).Run()
+		return nil
+	}
 }
 
 func resolveLocal(m Model, sel string) string {

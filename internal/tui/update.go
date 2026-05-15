@@ -126,6 +126,8 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		case "?":
 			m.Focus = FocusHelp
 			return m, nil
+		case "S":
+			return openSettings(m)
 		case "i":
 			m.Focus = FocusPrompt
 			m.Err = ""
@@ -167,6 +169,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			m.Focus = FocusBoard
 		}
 		return m, nil
+	}
+	if m.Focus == FocusSettings {
+		return updateSettingsKey(m, k)
 	}
 
 	return m, nil
