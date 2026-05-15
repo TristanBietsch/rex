@@ -212,6 +212,9 @@ func applyLive(m *Model, id string, value any) {
 			if s, ok := value.(string); ok {
 				se, _ := m.Store.Get("sound_enabled").(bool)
 				m.Audio.SetEnabled(se && s != "off")
+				if s != "off" {
+					m.Audio.SetSoundset(s)
+				}
 			}
 		}
 	case "master_volume":

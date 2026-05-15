@@ -60,7 +60,7 @@ var Registry = []Setting{
 	{
 		ID: "soundset", Label: "Soundset", Section: SectionAudio,
 		Type: TypeEnum, Default: "factorio",
-		Options: []string{"factorio", "off"},
+		Options: []string{"factorio", "evangelion", "off"},
 		Help:    "Synthesized tone catalog.",
 	},
 	{

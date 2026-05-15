@@ -112,17 +112,11 @@ const (
 	rowIndent = 3 // " " + arrow/space + " "
 )
 
-// maxDescW keeps the description column readable on very wide terminals.
-const maxDescW = 80
-
 func rowLayout(width int) (descW int) {
 	used := rowIndent + colMarker + colGap + colID + colGap + colSlug + colGap + colGap + colModel + colGap + colTime
 	descW = width - used
 	if descW < 8 {
 		descW = 8
-	}
-	if descW > maxDescW {
-		descW = maxDescW
 	}
 	return descW
 }

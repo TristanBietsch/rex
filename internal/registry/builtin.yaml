@@ -118,6 +118,18 @@ tools:
       - id: mistral
         name: "mistral"
         args: ["mistral"]
+      - id: gemma3
+        name: "gemma3"
+        args: ["gemma3"]
+      - id: devstral
+        name: "devstral"
+        args: ["devstral"]
+      - id: qwen3
+        name: "qwen3"
+        args: ["qwen3"]
+      - id: deepseek-r1
+        name: "deepseek-r1"
+        args: ["deepseek-r1"]
 
   - id: grok
     name: "Grok (xAI)"

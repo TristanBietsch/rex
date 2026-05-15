@@ -56,7 +56,7 @@ func Run(socket string) error {
 	if soundset == "off" {
 		soundEnabled = false
 	}
-	m.Audio = audio.New(audio.Config{Enabled: soundEnabled, Volume: volume})
+	m.Audio = audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset})
 	m.Audio.Play(audio.EventStartup)
 
 	if sel, filt, ok := LoadTUIState(); ok {

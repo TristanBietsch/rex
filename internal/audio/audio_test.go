@@ -6,23 +6,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestBakeNonEmpty verifies that every catalog event renders to non-zero PCM.
-// Doesn't open an audio device (CI-safe).
+var allEvents = []string{
+	EventStartup, EventCreate, EventDone, EventDelete,
+	EventNav, EventOpen, EventClose, EventCommand, EventFilter,
+}
+
+// TestBakeNonEmpty verifies that every catalog renders non-empty PCM for every
+// event. Doesn't open an audio device (CI-safe).
 func TestBakeNonEmpty(t *testing.T) {
-	p := &Player{pcm: make(map[string][]byte)}
-	p.bakeAll()
-	for _, ev := range []string{EventStartup, EventCreate, EventDone, EventDelete, EventNav, EventOpen, EventClose} {
-		b, ok := p.pcm[ev]
-		require.True(t, ok, "no pcm for %s", ev)
-		require.Greater(t, len(b), 0, "pcm empty for %s", ev)
+	for name := range catalogs {
+		t.Run(name, func(t *testing.T) {
+			p := &Player{pcm: make(map[string][]byte)}
+			p.bake(name)
+			for _, ev := range allEvents {
+				b, ok := p.pcm[ev]
+				require.True(t, ok, "no pcm for %s in %s", ev, name)
+				require.Greater(t, len(b), 0, "pcm empty for %s in %s", ev, name)
+			}
+		})
 	}
 }
 
 // TestPlayDegradedNoop ensures Play does nothing when the player isn't enabled.
 func TestPlayDegradedNoop(t *testing.T) {
 	p := &Player{pcm: make(map[string][]byte)}
-	p.bakeAll()
-	// Player not enabled (no oto context). Should not panic.
+	p.bake(SoundsetFactorio)
 	p.Play(EventStartup)
 }
 
@@ -31,5 +39,25 @@ func TestNewDisabledIsNoop(t *testing.T) {
 	p := New(Config{Enabled: false})
 	require.NotNil(t, p)
 	require.False(t, p.enabled)
-	p.Play(EventStartup) // should not panic, not block
+	p.Play(EventStartup)
+}
+
+// TestSetSoundsetRebakes verifies that swapping the catalog replaces PCM.
+func TestSetSoundsetRebakes(t *testing.T) {
+	p := &Player{pcm: make(map[string][]byte), enabled: true}
+	p.bake(SoundsetFactorio)
+	factorioDelete := p.pcm[EventDelete]
+	p.SetSoundset(SoundsetEvangelion)
+	require.Equal(t, SoundsetEvangelion, p.soundset)
+	require.NotEqual(t, factorioDelete, p.pcm[EventDelete])
+}
+
+// TestSetSoundsetIgnoresOff confirms "off" / unknown names don't wipe state.
+func TestSetSoundsetIgnoresOff(t *testing.T) {
+	p := &Player{pcm: make(map[string][]byte), enabled: true}
+	p.bake(SoundsetFactorio)
+	p.SetSoundset(SoundsetOff)
+	require.Equal(t, SoundsetFactorio, p.soundset)
+	p.SetSoundset("does-not-exist")
+	require.Equal(t, SoundsetFactorio, p.soundset)
 }
