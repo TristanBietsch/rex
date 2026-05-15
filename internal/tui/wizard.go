@@ -67,9 +67,17 @@ func toolsConfigPath() string {
 	return filepath.Join(home, ".config", "rex", "tools.yaml")
 }
 
+// hiddenInWizard lists tool IDs we don't expose in the new-agent wizard.
+var hiddenInWizard = map[string]bool{
+	"echo": true, // internal test adapter, never user-visible
+}
+
 func visibleTools(tools []registry.Tool) []registry.Tool {
 	out := make([]registry.Tool, 0, len(tools))
 	for _, t := range tools {
+		if hiddenInWizard[t.ID] {
+			continue
+		}
 		if t.EnabledByDefault != nil && !*t.EnabledByDefault {
 			continue
 		}
@@ -418,15 +426,24 @@ func wizOption(selected bool, name, hint, tag string, width int) string {
 
 // wizField renders a name-step field row.
 func wizField(label, value string, focused bool, width int) string {
-	lbl := lipgloss.NewStyle().Foreground(colorFgDim).Width(14).Render(label)
-	val := value
+	cursor := "  "
 	if focused {
-		val = val + " "
-		val = lipgloss.NewStyle().Background(colorBgElev).Foreground(colorFgPrimary).Render(val)
-	} else if value == "" {
-		val = styleMuted.Render("(empty)")
-	} else {
-		val = styleSlug.Render(val)
+		cursor = styleArrow.Render("▸") + " "
 	}
-	return "  " + lbl + val
+	lbl := lipgloss.NewStyle().Foreground(colorFgDim).Render(label)
+	// Pad label to 14 cells using plain spaces (no styling on padding).
+	lblPad := 14 - lipgloss.Width(lbl)
+	if lblPad < 1 {
+		lblPad = 1
+	}
+	var val string
+	switch {
+	case value == "" && focused:
+		val = cursorBlock(Model{SpinnerTick: 0})
+	case value == "":
+		val = styleMuted.Render("(empty)")
+	default:
+		val = styleSlug.Render(value)
+	}
+	return cursor + lbl + strings.Repeat(" ", lblPad) + val
 }

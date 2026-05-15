@@ -51,6 +51,9 @@ type Model struct {
 
 	// BlinkUntil tracks done-blink expiry per session.
 	BlinkUntil map[string]time.Time
+
+	// ScrollOffset is how many board lines to skip from the top (for scroll).
+	ScrollOffset int
 }
 
 func (m Model) applyEvent(env protocol.Envelope) Model {

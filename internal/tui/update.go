@@ -110,13 +110,14 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			if len(rows) > 0 {
 				m.SelectedID = rows[0].ID
 			}
-			return m, nil
+			m.ScrollOffset = 0
+			return ensureVisible(m), nil
 		case "G":
 			rows := orderedSessions(m)
 			if len(rows) > 0 {
 				m.SelectedID = rows[len(rows)-1].ID
 			}
-			return m, nil
+			return ensureVisible(m), nil
 		case "1":
 			return jumpToSection(m, protocol.StateNeedsInput), nil
 		case "2":

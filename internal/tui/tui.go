@@ -160,26 +160,13 @@ func horizCenter(content string, cw, tw, th int) string {
 	return strings.Join(lines, "\n")
 }
 
-// centerOverlay places `content` in a bordered popup centered on `bg` (the dimmed board).
-func centerOverlay(w, h int, content, bg string) string {
+// centerOverlay places `content` in a bordered popup centered on a w×h field.
+// No background fill — the terminal's native bg shows around it.
+func centerOverlay(w, h int, content, _ string) string {
 	box := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(colorBorder).
-		Background(colorBgModal).
 		Padding(1, 2).
 		Render(content)
-	bw := lipgloss.Width(box)
-	bh := lipgloss.Height(box)
-	if bw > w {
-		bw = w
-	}
-	if bh > h {
-		bh = h
-	}
-
-	// Place the box on top of a black field (we can't actually overlay onto bg
-	// without an ANSI compositor — but the bg keeps state-related counts visible
-	// via the header rendered above).
-	_ = bg
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
 }

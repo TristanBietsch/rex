@@ -13,6 +13,7 @@ import (
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // renderBoard renders the three sections sized to fit `width` x `height`.
+// Long boards scroll: m.ScrollOffset skips that many lines from the top.
 func renderBoard(m Model, width, height int) string {
 	groups := []struct {
 		title string
@@ -27,11 +28,11 @@ func renderBoard(m Model, width, height int) string {
 	for i, g := range groups {
 		rows := filterByState(m.Sessions, g.state, m.Filter)
 		if i > 0 {
-			lines = append(lines, padLine("", width))
+			lines = append(lines, "")
 		}
-		lines = append(lines, padLine("  "+styleSectionTitle.Render(g.title), width))
+		lines = append(lines, "  "+styleSectionTitle.Render(g.title))
 		if len(rows) == 0 {
-			lines = append(lines, padLine("    "+styleMuted.Render("(none)"), width))
+			lines = append(lines, "    "+styleMuted.Render("(none)"))
 		} else {
 			for _, s := range rows {
 				lines = append(lines, renderRow(m, s, width))
@@ -39,16 +40,22 @@ func renderBoard(m Model, width, height int) string {
 		}
 	}
 
-	// Truncate to height with a "more" indicator if necessary.
-	if height > 0 && len(lines) > height {
-		shown := lines[:height-1]
-		extra := len(lines) - (height - 1)
-		shown = append(shown, padLine("    "+styleMuted.Render(fmt.Sprintf("… %d more", extra)), width))
-		lines = shown
+	// Apply scroll: skip the first ScrollOffset lines.
+	off := m.ScrollOffset
+	if off < 0 {
+		off = 0
 	}
+	if off > len(lines) {
+		off = len(lines)
+	}
+	lines = lines[off:]
 
+	// Show only `height` rows of board content; pad if shorter, truncate if longer.
+	if height > 0 && len(lines) > height {
+		lines = lines[:height]
+	}
 	for len(lines) < height {
-		lines = append(lines, padLine("", width))
+		lines = append(lines, "")
 	}
 
 	return strings.Join(lines, "\n")
@@ -76,7 +83,7 @@ const (
 	colModel  = 18
 	colTime   = 5
 	colGap    = 2
-	rowIndent = 2
+	rowIndent = 3 // " " + arrow/space + " "
 )
 
 // maxDescW keeps the description column readable on very wide terminals.
@@ -98,51 +105,38 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 	descW := rowLayout(width)
 	selected := m.SelectedID == s.ID
 
-	bg := lipgloss.NoColor{}
-	var rowStyle lipgloss.Style
+	// Marker is the only indicator for the selected row — no bg fill,
+	// avoids the chunky highlight artifacts.
+	var markerPrefix string
 	if selected {
-		rowStyle = lipgloss.NewStyle().Background(colorBgElev)
+		markerPrefix = styleArrow.Render("▸")
 	} else {
-		rowStyle = lipgloss.NewStyle()
-	}
-	_ = bg
-	cell := func(c lipgloss.Color, bold bool, text string, w int) string {
-		st := lipgloss.NewStyle().Foreground(c).Inherit(rowStyle)
-		if bold {
-			st = st.Bold(true)
-		}
-		return st.Width(w).MaxWidth(w).Render(truncate(text, w))
-	}
-	timeCell := func(text string, w int) string {
-		return lipgloss.NewStyle().Foreground(colorFgDim).Inherit(rowStyle).Width(w).Align(lipgloss.Right).Render(text)
+		markerPrefix = " "
 	}
 
-	marker := stateMarkerCell(s.State, m.SpinnerTick, selected)
-	id := cell(colorFgMuted, false, s.ShortID, colID)
-	slug := cell(colorFgPrimary, true, s.Slug, colSlug)
+	marker := stateMarkerCell(s.State, m.SpinnerTick, false)
+	id := lipgloss.NewStyle().Foreground(colorFgMuted).Width(colID).Render(truncate(s.ShortID, colID))
+	slugCol := colorFgPrimary
+	if !selected {
+		slugCol = colorFgPrimary
+	}
+	slug := lipgloss.NewStyle().Foreground(slugCol).Bold(true).Width(colSlug).Render(truncate(s.Slug, colSlug))
 	descColor := colorFgDim
 	if selected {
 		descColor = colorFgPrimary
 	}
-	desc := cell(descColor, false, s.LastLine, descW)
-	model := cell(colorFgDim, false, modelLabel(s), colModel)
-	t := timeCell(durationAgo(s.LastEventAt), colTime)
+	desc := lipgloss.NewStyle().Foreground(descColor).Width(descW).Render(truncate(s.LastLine, descW))
+	model := lipgloss.NewStyle().Foreground(colorFgDim).Width(colModel).Render(truncate(modelLabel(s), colModel))
+	t := lipgloss.NewStyle().Foreground(colorFgDim).Width(colTime).Align(lipgloss.Right).Render(durationAgo(s.LastEventAt))
 
-	gap := rowStyle.Render(strings.Repeat(" ", colGap))
-	indent := rowStyle.Render(strings.Repeat(" ", rowIndent))
+	gap := strings.Repeat(" ", colGap)
+	indent := " " + markerPrefix + " " // 3 chars total: marker arrow indent
 
 	row := indent + marker + gap + id + gap + slug + gap + desc + gap + model + gap + t
-	// Don't force row to full terminal width — let it be its natural size so the
-	// selection highlight only covers the content cells, not the entire line.
-	rowW := rowIndent + colMarker + colGap + colID + colGap + colSlug + colGap + descW + colGap + colModel + colGap + colTime
-	if rowW > width {
-		rowW = width
-	}
-	row = rowStyle.Width(rowW).Render(row)
 
 	if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
 		if time.Now().UnixMilli()/200%2 == 0 {
-			row = lipgloss.NewStyle().Background(colorDone).Foreground(lipgloss.Color("#0F1115")).Width(width).Render(strings.TrimRight(row, " "))
+			row = lipgloss.NewStyle().Foreground(colorDone).Render(row)
 		}
 	}
 	return row

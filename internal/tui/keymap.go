@@ -57,7 +57,6 @@ func moveSelection(m Model, delta int) Model {
 	}
 	idx := indexOfSelected(m)
 	if idx < 0 {
-		// Nothing selected — start at top or bottom based on delta sign.
 		if delta > 0 {
 			m.SelectedID = rows[0].ID
 		} else {
@@ -66,7 +65,7 @@ func moveSelection(m Model, delta int) Model {
 		if m.Audio != nil {
 			m.Audio.Play("nav")
 		}
-		return m
+		return ensureVisible(m)
 	}
 	idx += delta
 	if idx < 0 {
@@ -79,6 +78,71 @@ func moveSelection(m Model, delta int) Model {
 		m.Audio.Play("nav")
 	}
 	m.SelectedID = rows[idx].ID
+	return ensureVisible(m)
+}
+
+// selectedBoardLine returns the line index in the unscrolled board where the
+// selected session is rendered, or -1 if nothing is selected.
+func selectedBoardLine(m Model) int {
+	if m.SelectedID == "" {
+		return -1
+	}
+	groups := []protocol.State{
+		protocol.StateNeedsInput,
+		protocol.StateWorking,
+		protocol.StateDone,
+	}
+	line := 0
+	for i, st := range groups {
+		rows := filterByState(m.Sessions, st, m.Filter)
+		if i > 0 {
+			line++ // blank separator
+		}
+		line++ // section title
+		if len(rows) == 0 {
+			line++ // "(none)"
+			continue
+		}
+		for _, s := range rows {
+			if s.ID == m.SelectedID {
+				return line
+			}
+			line++
+		}
+	}
+	return -1
+}
+
+// boardHeight estimates the board's visible row count from m.Height.
+// The board sits between header (2 lines) + blank + HR + blank above and
+// HR + prompt + helpline (3 lines) below — 7 reserved lines total, plus a
+// 2-line top buffer for breathing room.
+func boardHeight(m Model) int {
+	if m.Height <= 0 {
+		return 20
+	}
+	bh := m.Height - 9
+	if bh < 4 {
+		bh = 4
+	}
+	return bh
+}
+
+// ensureVisible adjusts m.ScrollOffset so the selected row is on-screen.
+func ensureVisible(m Model) Model {
+	sel := selectedBoardLine(m)
+	if sel < 0 {
+		return m
+	}
+	bh := boardHeight(m)
+	if sel < m.ScrollOffset {
+		m.ScrollOffset = sel
+	} else if sel >= m.ScrollOffset+bh {
+		m.ScrollOffset = sel - bh + 1
+	}
+	if m.ScrollOffset < 0 {
+		m.ScrollOffset = 0
+	}
 	return m
 }
 
@@ -87,7 +151,7 @@ func jumpToSection(m Model, st protocol.State) Model {
 	if len(rows) > 0 {
 		m.SelectedID = rows[0].ID
 	}
-	return m
+	return ensureVisible(m)
 }
 
 func cycleFilter(m Model) Model {
