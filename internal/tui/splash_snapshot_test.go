@@ -48,3 +48,23 @@ func TestSplashMidBoot(t *testing.T) {
 	// No ready footer yet (BootDone=false).
 	require.NotContains(t, out, "準備完了")
 }
+
+func TestSplashAllOKShowsReady(t *testing.T) {
+	m := Model{
+		Focus:       FocusBoot,
+		Width:       80,
+		Height:      30,
+		BootStart:   time.Now().Add(-1340 * time.Millisecond),
+		BootDone:    true,
+		BootMinDone: false, // ready footer should show even before min elapsed
+		BootLog: []bootLine{
+			{Name: "log.init", Status: stepOK, Desc: "ok"},
+			{Name: "handshake", Status: stepOK, Desc: "接続 · rex-tui"},
+			{Name: "subscribe", Status: stepOK, Desc: "受信中 · stream open"},
+		},
+	}
+	out := renderSplash(m, m.Width, m.Height)
+	require.Contains(t, out, "準備完了 ready")
+	require.Contains(t, out, "接続")
+	require.Contains(t, out, "受信中")
+}
