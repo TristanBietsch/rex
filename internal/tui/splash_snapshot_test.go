@@ -26,3 +26,25 @@ func TestSplashInitialFrame(t *testing.T) {
 	// No log rows yet — the third row should be blank.
 	require.Equal(t, "", strings.TrimSpace(lines[3]))
 }
+
+func TestSplashMidBoot(t *testing.T) {
+	m := Model{
+		Focus:     FocusBoot,
+		Width:     80,
+		Height:    24,
+		BootStart: time.Now().Add(-300 * time.Millisecond),
+		BootLog: []bootLine{
+			{Name: "log.init", Status: stepOK, Desc: "~/.local/state/rex/tui.log"},
+			{Name: "paths.ensure", Status: stepOK, Desc: "config + state dirs ok"},
+			{Name: "tty.probe", Status: stepOK, Desc: "198×52 · truecolor · en_US.UTF-8"},
+		},
+	}
+	out := renderSplash(m, m.Width, m.Height)
+	require.Contains(t, out, "[")
+	require.Contains(t, out, "OK")
+	require.Contains(t, out, "log.init")
+	require.Contains(t, out, "paths.ensure")
+	require.Contains(t, out, "tty.probe")
+	// No ready footer yet (BootDone=false).
+	require.NotContains(t, out, "準備完了")
+}
