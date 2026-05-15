@@ -7,7 +7,11 @@ import (
 )
 
 func renderHelp() string {
+	bg := lipgloss.NewStyle().Background(colorBgModal)
+	title := bg.Foreground(colorFgDim).Render("HELP")
 	rows := []string{
+		title,
+		"",
 		styleSlug.Render("Navigation"),
 		"  j k           move row selection",
 		"  g G           top / bottom",
@@ -38,5 +42,5 @@ func renderHelp() string {
 		"",
 		styleDim.Render("esc to close"),
 	}
-	return lipgloss.NewStyle().Padding(1, 2).Render(strings.Join(rows, "\n"))
+	return strings.Join(rows, "\n")
 }

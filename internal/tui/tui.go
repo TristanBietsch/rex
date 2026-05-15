@@ -3,8 +3,10 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
@@ -34,7 +36,6 @@ func Run(socket string) error {
 		Filter:   "all",
 	}
 
-	// Load settings to determine audio defaults; failures are non-fatal.
 	store := settings.NewStore()
 	_ = store.Load(settings.DefaultPath())
 	soundEnabled, _ := store.Get("sound_enabled").(bool)
@@ -57,34 +58,92 @@ func Run(socket string) error {
 	return err
 }
 
-// Init satisfies tea.Model.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(listenDaemon(m.Client), tickSpinner())
 }
 
-// View satisfies tea.Model.
 func (m Model) View() string {
 	if m.Quitting {
 		return ""
 	}
-	if m.Focus == FocusModal {
-		return renderModal(m)
+	w, h := m.Width, m.Height
+	if w <= 0 {
+		w = 100
 	}
-	if m.Focus == FocusWizard {
-		return renderWizard(m)
+	if h <= 0 {
+		h = 32
 	}
-	if m.Focus == FocusHelp {
-		return renderHelp()
+
+	switch m.Focus {
+	case FocusModal:
+		return renderModalFull(m, w, h)
+	case FocusWizard:
+		return centerOverlay(w, h, renderWizard(m))
+	case FocusHelp:
+		return centerOverlay(w, h, renderHelp())
+	case FocusSettings:
+		return centerOverlay(w, h, renderSettings(m))
+	case FocusSlash:
+		return centerOverlay(w, h, renderSlash(m))
 	}
-	if m.Focus == FocusSettings {
-		return renderSettings(m)
-	}
-	if m.Focus == FocusSlash {
-		return renderSlash(m)
-	}
-	base := renderHeader(m) + "\n\n" + renderBoard(m) + renderPrompt(m) + "\n" + renderHelpLine(m) + "\n"
+
+	return renderFullScreen(m, w, h)
+}
+
+// renderFullScreen builds the board view filling the terminal.
+func renderFullScreen(m Model, w, h int) string {
+	header := renderHeader(m, w)
+	hr := renderHR(w)
+	helpline := renderHelpLine(m, w)
+
+	var bottom string
 	if m.Focus == FocusConfirmQuit {
-		return base + "\n" + renderQuitConfirm()
+		bottom = hr + "\n" + renderQuitConfirm(w) + "\n" + helpline
+	} else {
+		bottom = hr + "\n" + renderPrompt(m, w) + "\n" + helpline
 	}
-	return base
+
+	headerLines := lipgloss.Height(header)
+	bottomLines := lipgloss.Height(bottom)
+	// Header(2) + blank(1) + HR(1) + blank(1) + board + bottom(3) + blank(1)
+	boardH := h - headerLines - bottomLines - 4
+	if boardH < 4 {
+		boardH = 4
+	}
+
+	board := renderBoard(m, w, boardH)
+	blank := padLine("", w)
+
+	out := strings.Join([]string{
+		blank,
+		header,
+		blank,
+		hr,
+		blank,
+		board,
+		bottom,
+	}, "\n")
+
+	return fitHeight(out, w, h)
+}
+
+func fitHeight(s string, w, h int) string {
+	lines := strings.Split(s, "\n")
+	for len(lines) < h {
+		lines = append(lines, padLine("", w))
+	}
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// centerOverlay places `content` inside a bordered box centered on a w×h field.
+func centerOverlay(w, h int, content string) string {
+	box := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(colorBorder).
+		Padding(1, 2).
+		Render(content)
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
 }

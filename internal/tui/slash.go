@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // slashCmd is a single entry in the slash palette.
@@ -154,7 +153,7 @@ func renderSlash(m Model) string {
 		}
 	}
 	b.WriteString("\n" + styleDim.Render("j/k or ctrl+n/p select · enter run · esc close · type to filter"))
-	return lipgloss.NewStyle().Padding(1, 2).Render(b.String())
+	return b.String()
 }
 
 // --- slash command Apply funcs ---

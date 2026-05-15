@@ -12,9 +12,8 @@ import (
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-func renderBoard(m Model) string {
-	var b strings.Builder
-
+// renderBoard renders the three sections sized to fit `width` x `height`.
+func renderBoard(m Model, width, height int) string {
 	groups := []struct {
 		title string
 		state protocol.State
@@ -24,23 +23,35 @@ func renderBoard(m Model) string {
 		{"Completed", protocol.StateDone},
 	}
 
-	for _, g := range groups {
+	var lines []string
+	for i, g := range groups {
 		rows := filterByState(m.Sessions, g.state, m.Filter)
-		b.WriteString(styleSectionTitle.Render(g.title))
-		b.WriteString("\n")
+		if i > 0 {
+			lines = append(lines, padLine("", width))
+		}
+		lines = append(lines, padLine("  "+styleSectionTitle.Render(g.title), width))
 		if len(rows) == 0 {
-			b.WriteString(styleMuted.Render("  (none)"))
-			b.WriteString("\n\n")
-			continue
+			lines = append(lines, padLine("    "+styleMuted.Render("(none)"), width))
+		} else {
+			for _, s := range rows {
+				lines = append(lines, renderRow(m, s, width))
+			}
 		}
-		for _, s := range rows {
-			b.WriteString(renderRow(m, s))
-			b.WriteString("\n")
-		}
-		b.WriteString("\n")
 	}
 
-	return b.String()
+	// Truncate to height with a "more" indicator if necessary.
+	if height > 0 && len(lines) > height {
+		shown := lines[:height-1]
+		extra := len(lines) - (height - 1)
+		shown = append(shown, padLine("    "+styleMuted.Render(fmt.Sprintf("… %d more", extra)), width))
+		lines = shown
+	}
+
+	for len(lines) < height {
+		lines = append(lines, padLine("", width))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func filterByState(sessions []protocol.SessionSummary, st protocol.State, filter string) []protocol.SessionSummary {
@@ -57,40 +68,96 @@ func filterByState(sessions []protocol.SessionSummary, st protocol.State, filter
 	return out
 }
 
-func renderRow(m Model, s protocol.SessionSummary) string {
-	marker := stateMarker(s.State, m.SpinnerTick)
-	id := styleMuted.Render(fmt.Sprintf("%-4s", s.ShortID))
-	slug := styleSlug.Render(padOrTruncate(s.Slug, 22))
-	desc := styleDim.Render(padOrTruncate(s.LastLine, 40))
-	model := styleDim.Render(padOrTruncate(modelLabel(s), 18))
-	ago := styleDim.Render(fmt.Sprintf("%5s", durationAgo(s.LastEventAt)))
+// Column widths in the row grid (mockup: 1.4ch 5ch 22ch 1fr 18ch 5ch with ~1ch gaps).
+const (
+	colMarker = 1
+	colID     = 4
+	colSlug   = 22
+	colModel  = 18
+	colTime   = 5
+	colGap    = 2
+	rowIndent = 2
+)
 
-	row := fmt.Sprintf("%s %s %s %s %s %s", marker, id, slug, desc, model, ago)
+func rowLayout(width int) (descW int) {
+	used := rowIndent + colMarker + colGap + colID + colGap + colSlug + colGap + colGap + colModel + colGap + colTime
+	descW = width - used
+	if descW < 8 {
+		descW = 8
+	}
+	return descW
+}
+
+func renderRow(m Model, s protocol.SessionSummary, width int) string {
+	descW := rowLayout(width)
+	selected := m.SelectedID == s.ID
+
+	bg := lipgloss.NoColor{}
+	var rowStyle lipgloss.Style
+	if selected {
+		rowStyle = lipgloss.NewStyle().Background(colorBgElev)
+	} else {
+		rowStyle = lipgloss.NewStyle()
+	}
+	_ = bg
+	cell := func(c lipgloss.Color, bold bool, text string, w int) string {
+		st := lipgloss.NewStyle().Foreground(c).Inherit(rowStyle)
+		if bold {
+			st = st.Bold(true)
+		}
+		return st.Width(w).MaxWidth(w).Render(truncate(text, w))
+	}
+	timeCell := func(text string, w int) string {
+		return lipgloss.NewStyle().Foreground(colorFgDim).Inherit(rowStyle).Width(w).Align(lipgloss.Right).Render(text)
+	}
+
+	marker := stateMarkerCell(s.State, m.SpinnerTick, selected)
+	id := cell(colorFgMuted, false, s.ShortID, colID)
+	slug := cell(colorFgPrimary, true, s.Slug, colSlug)
+	descColor := colorFgDim
+	if selected {
+		descColor = colorFgPrimary
+	}
+	desc := cell(descColor, false, s.LastLine, descW)
+	model := cell(colorFgDim, false, modelLabel(s), colModel)
+	t := timeCell(durationAgo(s.LastEventAt), colTime)
+
+	gap := rowStyle.Render(strings.Repeat(" ", colGap))
+	indent := rowStyle.Render(strings.Repeat(" ", rowIndent))
+
+	row := indent + marker + gap + id + gap + slug + gap + desc + gap + model + gap + t
+	row = rowStyle.Width(width).Render(row)
+
 	if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
 		if time.Now().UnixMilli()/200%2 == 0 {
-			row = lipgloss.NewStyle().Background(colorDone).Foreground(colorBgBase).Render(row)
+			row = lipgloss.NewStyle().Background(colorDone).Foreground(lipgloss.Color("#0F1115")).Width(width).Render(strings.TrimRight(row, " "))
 		}
 	}
-	if m.SelectedID == s.ID {
-		row = styleSelected.Render(row)
+	return row
+}
+
+func stateMarkerCell(st protocol.State, tick int, selected bool) string {
+	style := lipgloss.NewStyle().Bold(true).Width(colMarker)
+	if selected {
+		style = style.Background(colorBgElev)
 	}
-	return "  " + row
+	switch st {
+	case protocol.StateWorking:
+		return style.Foreground(colorWorking).Render(spinnerFrames[tick%len(spinnerFrames)])
+	case protocol.StateNeedsInput:
+		return style.Foreground(colorNeeds).Render("◆")
+	case protocol.StateDone:
+		return style.Foreground(colorDone).Render("●")
+	case protocol.StateFailed:
+		return style.Foreground(colorFailed).Render("✕")
+	case protocol.StateCrashed:
+		return style.Foreground(colorCrashed).Render("○")
+	}
+	return style.Render(" ")
 }
 
 func stateMarker(st protocol.State, tick int) string {
-	switch st {
-	case protocol.StateWorking:
-		return styleStateWorking.Render(spinnerFrames[tick%len(spinnerFrames)])
-	case protocol.StateNeedsInput:
-		return styleStateNeeds.Render("◆")
-	case protocol.StateDone:
-		return styleStateDone.Render("●")
-	case protocol.StateFailed:
-		return styleStateFailed.Render("✕")
-	case protocol.StateCrashed:
-		return styleStateCrashed.Render("○")
-	}
-	return " "
+	return stateMarkerCell(st, tick, false)
 }
 
 func modelLabel(s protocol.SessionSummary) string {
@@ -98,6 +165,20 @@ func modelLabel(s protocol.SessionSummary) string {
 		return s.ModelID + " · " + s.Effort
 	}
 	return s.ModelID
+}
+
+func truncate(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	if n == 1 {
+		return string(runes[:1])
+	}
+	return string(runes[:n-1]) + "…"
 }
 
 func padOrTruncate(s string, n int) string {

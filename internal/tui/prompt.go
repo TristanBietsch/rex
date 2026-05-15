@@ -6,33 +6,46 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var styleArrow = lipgloss.NewStyle().Foreground(colorWorking)
+var (
+	styleArrow       = lipgloss.NewStyle().Foreground(colorWorking)
+	styleArrowYellow = lipgloss.NewStyle().Foreground(colorNeeds)
+)
 
-func renderPrompt(m Model) string {
+// renderPrompt builds the bottom λ prompt line, sized to width.
+func renderPrompt(m Model, width int) string {
+	var line string
 	switch m.Focus {
 	case FocusCommand:
-		return styleStateNeeds.Render(":") + " " + m.CmdText + cursorBlock(m)
+		line = styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.CmdText) + cursorBlock(m)
+	case FocusPrompt:
+		body := stylePrimary.Render(m.PromptText) + cursorBlock(m)
+		if m.PromptText == "" {
+			body = cursorBlock(m) + styleDim.Render("type then enter to spawn a session — esc to cancel")
+		}
+		line = styleArrow.Render("λ") + " " + body
 	default:
 		body := m.PromptText
-		if body == "" && m.Focus != FocusPrompt {
-			body = styleDim.Render("describe a task for a new session")
-		} else if m.Focus == FocusPrompt {
-			body = m.PromptText + cursorBlock(m)
+		if body == "" {
+			body = styleDim.Render("press i to describe a task for a new session")
+		} else {
+			body = stylePrimary.Render(body)
 		}
-		return styleArrow.Render("λ") + " " + body
+		line = styleArrow.Render("λ") + " " + body
 	}
+	return padLine("  "+line, width)
 }
 
 func cursorBlock(m Model) string {
 	if m.SpinnerTick%10 < 5 {
-		return lipgloss.NewStyle().Background(colorFgPrimary).Foreground(colorBgBase).Render(" ")
+		return lipgloss.NewStyle().Background(colorFgPrimary).Foreground(lipgloss.Color("#0F1115")).Render(" ")
 	}
-	return " "
+	return styleDim.Render(" ")
 }
 
-func renderHelpLine(m Model) string {
+// renderHelpLine builds the bottom help line, sized to width.
+func renderHelpLine(m Model, width int) string {
 	if m.Err != "" {
-		return styleStateFailed.Render("err: " + m.Err)
+		return padLine("  "+styleStateFailed.Render("err: "+m.Err), width)
 	}
 	parts := []string{
 		styleHeaderApp.Render("i") + styleDim.Render(" focus"),
@@ -40,9 +53,10 @@ func renderHelpLine(m Model) string {
 		styleHeaderApp.Render("n") + styleDim.Render(" new"),
 		styleHeaderApp.Render("t") + styleDim.Render(" filter"),
 		styleHeaderApp.Render(":") + styleDim.Render(" command"),
+		styleHeaderApp.Render("/") + styleDim.Render(" slash"),
 		styleHeaderApp.Render("dd") + styleDim.Render(" delete"),
 		styleHeaderApp.Render("?") + styleDim.Render(" help"),
 	}
 	sep := styleMuted.Render(" · ")
-	return strings.Join(parts, sep)
+	return padLine("  "+strings.Join(parts, sep), width)
 }

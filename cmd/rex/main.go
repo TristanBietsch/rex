@@ -50,6 +50,8 @@ func run(args []string) error {
 		return cli.RunDaemon(args[1:])
 	case "completion":
 		return cli.RunCompletion(args[1:])
+	case "render":
+		return cli.RunRender(args[1:])
 	case "config":
 		return cli.RunConfig(args[1:])
 	default:

@@ -22,6 +22,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+		if m.Modal != nil {
+			m = resizeModal(m, m.Width, m.Height)
+		}
 		return m, nil
 	case DaemonEventMsg:
 		m = m.applyEvent(msg.Env)
@@ -30,8 +33,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, listenDaemon(m.Client)
 	case DaemonErrMsg:
+		// Surface the error in the status line, don't take down the TUI.
 		m.Err = msg.Err.Error()
-		return m, tea.Quit
+		return m, listenDaemon(m.Client)
 	case SpinnerTickMsg:
 		m.SpinnerTick++
 		return m, tickSpinner()
@@ -154,7 +158,8 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateConfirmQuitKey(m, k)
 	}
 	if m.Focus == FocusModal {
-		if k.Type == tea.KeyEsc {
+		// Ctrl+] detaches (ESC must pass through to the agent — Claude/vim/etc. need it).
+		if k.Type == tea.KeyCtrlCloseBracket {
 			return closeModal(m)
 		}
 		if cmd := forwardKeyToModal(m, k); cmd != nil {

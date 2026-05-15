@@ -2,9 +2,9 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Palette mirrors docs/design.md.
+// Palette mirrors docs/design.md and the HTML mockup.
+// Foreground colors only; we let the terminal background show through.
 var (
-	colorBgBase    = lipgloss.Color("#0F1115")
 	colorBgElev    = lipgloss.Color("#171922")
 	colorBgModal   = lipgloss.Color("#1B1E29")
 	colorFgPrimary = lipgloss.Color("#E6E6E6")
@@ -24,8 +24,10 @@ var (
 	styleHeaderMeta   = lipgloss.NewStyle().Foreground(colorFgDim)
 	styleSectionTitle = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
 	styleSlug         = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
+	stylePrimary      = lipgloss.NewStyle().Foreground(colorFgPrimary)
 	styleDim          = lipgloss.NewStyle().Foreground(colorFgDim)
 	styleMuted        = lipgloss.NewStyle().Foreground(colorFgMuted)
+	styleBorderFg     = lipgloss.NewStyle().Foreground(colorBorder)
 	styleSelected     = lipgloss.NewStyle().Background(colorBgElev).Foreground(colorFgPrimary)
 
 	styleStateWorking = lipgloss.NewStyle().Bold(true).Foreground(colorWorking)
@@ -33,8 +35,27 @@ var (
 	styleStateDone    = lipgloss.NewStyle().Bold(true).Foreground(colorDone)
 	styleStateFailed  = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
 	styleStateCrashed = lipgloss.NewStyle().Bold(true).Foreground(colorCrashed)
+
+	styleNewBtn     = lipgloss.NewStyle().Foreground(colorFgDim)
+	styleChipActive = lipgloss.NewStyle().Foreground(colorFgPrimary)
+	styleChipDim    = lipgloss.NewStyle().Foreground(colorFgDim)
+	styleChipSep    = lipgloss.NewStyle().Foreground(colorFgMuted)
 )
 
-// Silence unused warnings for fields referenced in later tasks.
-var _ = colorBgModal
-var _ = colorBorder
+// renderHR renders a horizontal rule line of given width.
+func renderHR(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	line := ""
+	for i := 0; i < width; i++ {
+		line += "─"
+	}
+	return styleBorderFg.Render(line)
+}
+
+// padLine pads s to exactly width visible columns (right-padded with spaces).
+// No background is applied — the terminal's native bg shows through.
+func padLine(s string, width int) string {
+	return lipgloss.NewStyle().Width(width).Render(s)
+}

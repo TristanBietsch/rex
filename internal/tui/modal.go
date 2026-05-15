@@ -19,31 +19,50 @@ type ModalState struct {
 	Buffer    strings.Builder
 }
 
+// modalViewportSize returns the viewport (width, height) for a w×h terminal.
+// The modal occupies the whole screen with 2-column inset, top bar + 2 HRs + footer.
+func modalViewportSize(w, h int) (int, int) {
+	vw := w - 4
+	if vw < 20 {
+		vw = 20
+	}
+	vh := h - 6 // top(1) + hr(1) + footer(1) + hr(1) + 2 padding lines
+	if vh < 4 {
+		vh = 4
+	}
+	return vw, vh
+}
+
 // openModal subscribes to the session and prepares a viewport.
 func openModal(m Model, sessionID string) (Model, tea.Cmd) {
 	if m.Audio != nil {
 		m.Audio.Play("open")
 	}
-	w := m.Width
-	h := m.Height
-	if w == 0 {
-		w = 80
+	w, h := m.Width, m.Height
+	if w <= 0 {
+		w = 100
 	}
-	if h == 0 {
-		h = 24
+	if h <= 0 {
+		h = 32
 	}
-	mw := w - 8
-	if mw < 20 {
-		mw = 20
-	}
-	mh := h - 6
-	if mh < 10 {
-		mh = 10
-	}
-	vp := viewport.New(mw, mh)
+	vw, vh := modalViewportSize(w, h)
+	vp := viewport.New(vw, vh)
 	m.Modal = &ModalState{SessionID: sessionID, Viewport: vp}
 	m.Focus = FocusModal
 	return m, subscribeSessionCmd(m.Client, sessionID)
+}
+
+// resizeModal resizes the open viewport to the new terminal size.
+func resizeModal(m Model, w, h int) Model {
+	if m.Modal == nil {
+		return m
+	}
+	vw, vh := modalViewportSize(w, h)
+	m.Modal.Viewport.Width = vw
+	m.Modal.Viewport.Height = vh
+	m.Modal.Viewport.SetContent(m.Modal.Buffer.String())
+	m.Modal.Viewport.GotoBottom()
+	return m
 }
 
 func subscribeSessionCmd(c *client.Client, sessionID string) tea.Cmd {
@@ -55,7 +74,6 @@ func subscribeSessionCmd(c *client.Client, sessionID string) tea.Cmd {
 	}
 }
 
-// closeModal clears modal state and re-subscribes to board-wide only.
 func closeModal(m Model) (Model, tea.Cmd) {
 	if m.Audio != nil {
 		m.Audio.Play("close")
@@ -71,7 +89,6 @@ func closeModal(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleModalOutput consumes SessionOutput events targeted at the open modal.
 func handleModalOutput(m Model, env protocol.Envelope) Model {
 	if m.Modal == nil || env.Type != protocol.EventSessionOutput {
 		return m
@@ -101,6 +118,8 @@ func keyToBytes(k tea.KeyMsg) []byte {
 		return []byte{'\r'}
 	case tea.KeyTab:
 		return []byte{'\t'}
+	case tea.KeyEsc:
+		return []byte{0x1b}
 	case tea.KeyBackspace:
 		return []byte{0x7f}
 	case tea.KeyDelete:
@@ -153,7 +172,6 @@ func keyToBytes(k tea.KeyMsg) []byte {
 	return nil
 }
 
-// forwardKeyToModal converts a key event into a SendInput command.
 func forwardKeyToModal(m Model, k tea.KeyMsg) tea.Cmd {
 	if m.Modal == nil || m.Client == nil {
 		return nil
@@ -169,9 +187,11 @@ func forwardKeyToModal(m Model, k tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func renderModal(m Model) string {
+// renderModalFull renders the modal as a full-screen view (the board is replaced).
+// w×h is the full terminal size.
+func renderModalFull(m Model, w, h int) string {
 	if m.Modal == nil {
-		return ""
+		return strings.Repeat(padLine("", w)+"\n", h)
 	}
 	var sess protocol.SessionSummary
 	for _, s := range m.Sessions {
@@ -180,16 +200,59 @@ func renderModal(m Model) string {
 			break
 		}
 	}
-	header := lipgloss.NewStyle().Padding(0, 1).Render(
-		styleSlug.Render(sess.Slug) + "  " +
-			styleDim.Render(sess.ToolID+" · "+sess.ModelID) + "  " +
-			styleStateWorking.Render("["+string(sess.State)+"]"),
-	)
+
+	title := styleSlug.Render(sess.Slug)
+	meta := styleDim.Render("  " + sess.ShortID + " · " + sess.ToolID + " · " + sess.ModelID)
+	if sess.Effort != "" {
+		meta = styleDim.Render("  " + sess.ShortID + " · " + sess.ToolID + " · " + sess.ModelID + " · " + sess.Effort)
+	}
+	pill := stateBadge(sess.State, m.SpinnerTick)
+	left := "  " + title + meta
+	right := pill + "  "
+	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+	}
+	topBar := padLine(left+repeatRune(' ', gap)+right, w)
+	hr := renderHR(w)
+
+	footerHint := styleDim.Render("ctrl+] to detach · type to send input")
+	footer := padLine("  "+footerHint, w)
+
 	body := m.Modal.Viewport.View()
-	footer := styleDim.Render("esc to detach · type to send input")
-	border := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorBorder).
-		Padding(0, 1)
-	return border.Render(header + "\n" + body + "\n" + footer)
+	bodyLines := strings.Split(body, "\n")
+	// Place body inside an indented area for visual breathing room.
+	indented := make([]string, len(bodyLines))
+	for i, ln := range bodyLines {
+		indented[i] = padLine("  "+ln, w)
+	}
+	body = strings.Join(indented, "\n")
+
+	out := strings.Join([]string{
+		padLine("", w),
+		topBar,
+		hr,
+		padLine("", w),
+		body,
+		padLine("", w),
+		hr,
+		footer,
+	}, "\n")
+	return fitHeight(out, w, h)
+}
+
+func stateBadge(st protocol.State, tick int) string {
+	switch st {
+	case protocol.StateWorking:
+		return styleStateWorking.Render(spinnerFrames[tick%len(spinnerFrames)] + " working")
+	case protocol.StateNeedsInput:
+		return styleStateNeeds.Render("◆ needs input")
+	case protocol.StateDone:
+		return styleStateDone.Render("● done")
+	case protocol.StateFailed:
+		return styleStateFailed.Render("✕ failed")
+	case protocol.StateCrashed:
+		return styleStateCrashed.Render("○ crashed")
+	}
+	return styleDim.Render(string(st))
 }
