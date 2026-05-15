@@ -27,7 +27,8 @@ var Registry = []Setting{
 	{
 		ID: "prompt_glyph", Label: "Prompt glyph", Section: SectionAppearance,
 		Type: TypeString, Default: "λ",
-		Help: "One grapheme that prefixes the bottom prompt.",
+		Options: []string{"λ", "›", "❯", "▸", ">", "∷", "∴", "⛬", "⍜", "%"},
+		Help:    "Grapheme that prefixes the bottom prompt. TUI cycles built-in presets; Lua/YAML may set any single grapheme.",
 	},
 	{
 		ID: "reduce_motion", Label: "Reduce motion", Section: SectionAppearance,

@@ -141,6 +141,33 @@ func applySettingsAction(m Model, step int) Model {
 			idx = (idx + 1) % len(s.Options)
 		}
 		next = s.Options[idx]
+	case settings.TypeString:
+		if len(s.Options) == 0 {
+			return m
+		}
+		curStr := fmt.Sprintf("%v", cur)
+		idx := -1
+		for i, opt := range s.Options {
+			if opt == curStr {
+				idx = i
+				break
+			}
+		}
+		switch step {
+		case -1:
+			if idx < 0 {
+				idx = len(s.Options) - 1
+			} else {
+				idx = (idx - 1 + len(s.Options)) % len(s.Options)
+			}
+		default:
+			if idx < 0 {
+				idx = 0
+			} else {
+				idx = (idx + 1) % len(s.Options)
+			}
+		}
+		next = s.Options[idx]
 	case settings.TypeFloat:
 		f, _ := cur.(float64)
 		const fStep = 0.05

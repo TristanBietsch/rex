@@ -73,9 +73,10 @@ A setting with a single `Option` is allowed — it renders as a "locked" value i
 ### Prompt glyph
 
 - **Constraint:** exactly **one grapheme** (user-defined Unicode allowed).
-- **Built-in presets:** `>` · `%` · `❯` · `▸` · `∴` (plus default **`λ`** as the Rex default).
+- **Built-in presets (cycle in the TUI with `+` / `-`):** `λ` · `›` · `❯` · `▸` · `>` · `∷` · `∴` · `⛬` · `⍜` · `%`
 - **Not** in preset list: `»`, `➜` (dropped in favor of `%` and `▸`).
 - **Default:** `λ`
+- The TUI cycles the preset list above. Lua / YAML / `rex config set prompt_glyph X` accept any single grapheme.
 
 ### Header style
 
