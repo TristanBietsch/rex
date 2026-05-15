@@ -26,6 +26,7 @@ type Config struct {
 
 // Server owns the UDS listener and accepts clients.
 type Server struct {
+	cfgMu  sync.RWMutex
 	cfg    Config
 	sem    *semaphore.Weighted // nil = no cap
 	wg     sync.WaitGroup
@@ -37,6 +38,21 @@ type Server struct {
 
 	outputSubsMu sync.RWMutex
 	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
+}
+
+// SetRegistry atomically swaps the registry used for future spawns.
+// Existing sessions are unaffected.
+func (s *Server) SetRegistry(reg *registry.Registry) {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	s.cfg.Registry = reg
+}
+
+// Registry returns the current registry (read under lock).
+func (s *Server) Registry() *registry.Registry {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
+	return s.cfg.Registry
 }
 
 // New unlinks any stale socket and constructs a Server. It does not listen yet.

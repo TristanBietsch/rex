@@ -160,7 +160,8 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 
 func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, w *protocol.Writer) error {
 	cfg := srv.cfg
-	tool, model, ok := cfg.Registry.FindModel(p.ToolID, p.ModelID)
+	// Read the registry through the lock so SIGHUP-swapped versions take effect.
+	tool, model, ok := srv.Registry().FindModel(p.ToolID, p.ModelID)
 	if !ok {
 		return fmt.Errorf("tool %s/%s not in registry", p.ToolID, p.ModelID)
 	}

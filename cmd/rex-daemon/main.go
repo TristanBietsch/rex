@@ -75,8 +75,32 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// SIGHUP → reload tools.yaml.
+	go reloadOnHUP(ctx, srv, *toolsPath)
+
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version, *socketPath)
 	return srv.Serve(ctx)
+}
+
+// reloadOnHUP listens for SIGHUP and swaps in a freshly-loaded registry.
+func reloadOnHUP(ctx context.Context, srv *server.Server, toolsPath string) {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGHUP)
+	defer signal.Stop(sig)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sig:
+			reg, err := registry.Load(toolsPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "rex-daemon: reload failed: %v\n", err)
+				continue
+			}
+			srv.SetRegistry(reg)
+			fmt.Fprintln(os.Stderr, "rex-daemon: registry reloaded")
+		}
+	}
 }
 
 func defaultSocketPath() string {
