@@ -58,6 +58,9 @@ func (m Model) View() string {
 	if m.Focus == FocusWizard {
 		return renderWizard(m)
 	}
+	if m.Focus == FocusHelp {
+		return renderHelp()
+	}
 	base := renderHeader(m) + "\n\n" + renderBoard(m) + renderPrompt(m) + "\n" + renderHelpLine(m) + "\n"
 	if m.Focus == FocusConfirmQuit {
 		return base + "\n" + renderQuitConfirm()

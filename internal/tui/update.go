@@ -88,6 +88,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return cycleFilter(m), nil
 		case "n":
 			return openWizard(m)
+		case "?":
+			m.Focus = FocusHelp
+			return m, nil
 		case "i":
 			m.Focus = FocusPrompt
 			m.Err = ""
@@ -119,6 +122,13 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusWizard {
 		return updateWizardKey(m, k)
+	}
+	if m.Focus == FocusHelp {
+		switch k.String() {
+		case "esc", "?":
+			m.Focus = FocusBoard
+		}
+		return m, nil
 	}
 
 	return m, nil
