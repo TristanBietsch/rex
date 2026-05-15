@@ -10,7 +10,9 @@ import (
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "rex:", err)
+		if err.Error() != "" {
+			fmt.Fprintln(os.Stderr, "rex:", err)
+		}
 		os.Exit(exitCodeFor(err))
 	}
 }

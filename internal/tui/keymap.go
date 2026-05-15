@@ -164,5 +164,22 @@ func cycleFilter(m Model) Model {
 		}
 	}
 	m.Filter = tools[next]
+	// Filter change shifts visible rows — reset scroll and re-select to the top.
+	m.ScrollOffset = 0
+	rows := orderedSessions(m)
+	if len(rows) > 0 {
+		stillVisible := false
+		for _, r := range rows {
+			if r.ID == m.SelectedID {
+				stillVisible = true
+				break
+			}
+		}
+		if !stillVisible {
+			m.SelectedID = rows[0].ID
+		}
+	} else {
+		m.SelectedID = ""
+	}
 	return m
 }

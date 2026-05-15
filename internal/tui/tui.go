@@ -55,7 +55,10 @@ func Run(socket string) error {
 			m.Filter = filt
 		}
 	}
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	// Mouse motion intentionally disabled — trackpad gestures were triggering
+	// stray events that scrolled the view. Click-to-select can come back later
+	// once we have a row-coordinate-aware hit test.
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
 }
@@ -115,47 +118,27 @@ func renderFullScreen(m Model, w, h int) string {
 		bottom = hr + "\n" + renderPrompt(m, cw) + "\n" + helpline
 	}
 
-	headerLines := lipgloss.Height(header)
-	bottomLines := lipgloss.Height(bottom)
-	boardH := h - headerLines - bottomLines - 4
+	// Fixed structure: 1 blank + 2 header + 1 blank + 1 hr + 1 blank + boardH + 3 bottom = h
+	const fixedRows = 9
+	boardH := h - fixedRows
 	if boardH < 4 {
 		boardH = 4
 	}
 
 	board := renderBoard(m, cw, boardH)
-	blank := strings.Repeat(" ", cw)
 
-	inner := strings.Join([]string{
-		blank,
-		header,
-		blank,
-		hr,
-		blank,
-		board,
-		bottom,
-	}, "\n")
+	lines := []string{""}
+	lines = append(lines, strings.Split(header, "\n")...)
+	lines = append(lines, "", hr, "")
+	lines = append(lines, strings.Split(board, "\n")...)
+	lines = append(lines, strings.Split(bottom, "\n")...)
 
-	// Center horizontally within the terminal.
-	return horizCenter(inner, cw, w, h)
-}
-
-// horizCenter centers each line of `content` (width cw) within `tw` terminal cols,
-// then pads/truncates total height to `th`.
-func horizCenter(content string, cw, tw, th int) string {
-	pad := (tw - cw) / 2
-	if pad < 0 {
-		pad = 0
+	// Hard cap: never produce more than h lines (the alt-screen window).
+	if len(lines) > h {
+		lines = lines[:h]
 	}
-	padStr := strings.Repeat(" ", pad)
-	lines := strings.Split(content, "\n")
-	for i, ln := range lines {
-		lines[i] = padStr + ln
-	}
-	for len(lines) < th {
-		lines = append(lines, strings.Repeat(" ", tw))
-	}
-	if len(lines) > th {
-		lines = lines[:th]
+	for len(lines) < h {
+		lines = append(lines, "")
 	}
 	return strings.Join(lines, "\n")
 }
