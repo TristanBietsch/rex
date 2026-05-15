@@ -111,7 +111,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		m.PendingChord = ""
 
 		switch k.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			m.Quitting = true
 			return m, tea.Quit
 		case "j", "down":

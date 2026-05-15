@@ -86,7 +86,7 @@ func RunHelp() error {
 
 	var b strings.Builder
 	b.WriteString("\n")
-	b.WriteString("  " + helpAccent.Render(helpStarChar) + " " + helpBold.Render("rex") + helpDim.Render(" — agent session board") + "\n")
+	b.WriteString("  " + helpAccent.Render(helpStarChar) + " " + helpBold.Render("rex") + helpDim.Render(" — Runtime Executive for Agents") + "\n")
 	b.WriteString("  " + helpHRStyle.Render(strings.Repeat("─", 44)) + "\n\n")
 
 	b.WriteString("  " + helpSection.Render("USAGE") + "\n")

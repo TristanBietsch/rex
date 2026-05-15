@@ -27,7 +27,6 @@ func renderHelp() string {
 		styleSlug.Render("Modes"),
 		"  :             command mode",
 		"  ?             this help",
-		"  q             quit (no confirm)",
 		"",
 		styleSlug.Render("Commands"),
 		"  :q :quit      quit (confirm)",
