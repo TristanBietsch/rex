@@ -36,7 +36,8 @@ type Model struct {
 	SpinnerTick  int
 	Quitting     bool
 
-	Modal *ModalState
+	Modal  *ModalState
+	Wizard *WizardState
 }
 
 func (m Model) applyEvent(env protocol.Envelope) Model {

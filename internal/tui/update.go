@@ -86,6 +86,8 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return jumpToSection(m, protocol.StateDone), nil
 		case "t":
 			return cycleFilter(m), nil
+		case "n":
+			return openWizard(m)
 		case "i":
 			m.Focus = FocusPrompt
 			m.Err = ""
@@ -114,6 +116,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return closeModal(m)
 		}
 		return m, nil
+	}
+	if m.Focus == FocusWizard {
+		return updateWizardKey(m, k)
 	}
 
 	return m, nil
