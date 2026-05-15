@@ -24,6 +24,7 @@ const (
 	FocusSettings
 	FocusAttach
 	FocusFail
+	FocusBoot
 )
 
 // Model is the root Bubble Tea model.
@@ -62,6 +63,15 @@ type Model struct {
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
+
+	// Boot / splash state.
+	BootLog     []bootLine
+	BootStep    int
+	BootStart   time.Time
+	BootMinDone bool
+	BootDone    bool
+	BootFailed  bool
+	BootError   error
 }
 
 func (m Model) applyEvent(env protocol.Envelope) Model {
