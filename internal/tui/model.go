@@ -48,7 +48,8 @@ type Model struct {
 	Settings *SettingsState
 	Attach   *AttachState
 	Fail     *FailState
-	Audio    *audio.Player
+	// Audio is the active soundset player. Interface so tests can swap a recording fake.
+	Audio audioPlayer
 
 	// Store is the live settings store. Renderers read from it; the settings
 	// page mutates it and triggers live-apply side effects.
@@ -72,6 +73,14 @@ type Model struct {
 	BootDone    bool
 	BootFailed  bool
 	BootError   error
+}
+
+// audioPlayer is the subset of *audio.Player the TUI uses.
+type audioPlayer interface {
+	Play(event string)
+	SetVolume(v float64)
+	SetEnabled(b bool)
+	SetSoundset(name string)
 }
 
 func (m Model) applyEvent(env protocol.Envelope) Model {
