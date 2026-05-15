@@ -10,7 +10,30 @@ import (
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
 
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// spinnerFrameSets is the full catalog of spinner glyph sets. Selected at
+// render time via the `spinner` setting.
+var spinnerFrameSets = map[string][]string{
+	"braille":    {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+	"ascii_line": {"|", "/", "-", "\\"},
+	"moon":       {"◐", "◓", "◑", "◒"},
+	"pulse":      {"·", "•", "●", "•"},
+	"blocks":     {"░", "▒", "▓", "█", "▓", "▒"},
+}
+
+// spinnerFramesFor returns the active spinner frame set, honoring reduce_motion.
+func spinnerFramesFor(m Model) []string {
+	if m.Store != nil {
+		if rm, _ := m.Store.Get("reduce_motion").(bool); rm {
+			return []string{"*"}
+		}
+		if id, _ := m.Store.Get("spinner").(string); id != "" {
+			if frames, ok := spinnerFrameSets[id]; ok {
+				return frames
+			}
+		}
+	}
+	return spinnerFrameSets["braille"]
+}
 
 // renderBoard renders the three sections sized to fit `width` x `height`.
 // Long boards scroll: m.ScrollOffset skips that many lines from the top.
@@ -24,11 +47,14 @@ func renderBoard(m Model, width, height int) string {
 		{"Completed", protocol.StateDone},
 	}
 
+	gapBetween := densityGap(m)
 	var lines []string
 	for i, g := range groups {
 		rows := filterByState(m.Sessions, g.state, m.Filter)
 		if i > 0 {
-			lines = append(lines, "")
+			for j := 0; j < gapBetween; j++ {
+				lines = append(lines, "")
+			}
 		}
 		lines = append(lines, "  "+styleSectionTitle.Render(g.title))
 		if len(rows) == 0 {
@@ -114,7 +140,7 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 		markerPrefix = " "
 	}
 
-	marker := stateMarkerCell(s.State, m.SpinnerTick, false)
+	marker := stateMarkerCellFor(m, s.State, m.SpinnerTick, false)
 	id := lipgloss.NewStyle().Foreground(colorFgMuted).Width(colID).Render(truncate(s.ShortID, colID))
 	slugCol := colorFgPrimary
 	if !selected {
@@ -134,22 +160,59 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 
 	row := indent + marker + gap + id + gap + slug + gap + desc + gap + model + gap + t
 
-	if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
-		if time.Now().UnixMilli()/200%2 == 0 {
-			row = lipgloss.NewStyle().Foreground(colorDone).Render(row)
+	if blinkEnabled(m) {
+		if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
+			if time.Now().UnixMilli()/200%2 == 0 {
+				row = lipgloss.NewStyle().Foreground(colorDone).Render(row)
+			}
 		}
 	}
 	return row
 }
 
-func stateMarkerCell(st protocol.State, tick int, selected bool) string {
+// densityGap returns the number of blank lines to insert between section
+// groups based on the row_density setting.
+func densityGap(m Model) int {
+	if m.Store == nil {
+		return 1
+	}
+	switch v, _ := m.Store.Get("row_density").(string); v {
+	case "compact":
+		return 0
+	case "roomy":
+		return 2
+	default:
+		return 1
+	}
+}
+
+// blinkEnabled returns true when "done" rows should flash green. Off when the
+// blinking_enabled setting is false or reduce_motion is on.
+func blinkEnabled(m Model) bool {
+	if m.Store == nil {
+		return true
+	}
+	if rm, _ := m.Store.Get("reduce_motion").(bool); rm {
+		return false
+	}
+	b, ok := m.Store.Get("blinking_enabled").(bool)
+	if !ok {
+		return true
+	}
+	return b
+}
+
+// stateMarkerCellFor renders the marker glyph for a state, sourcing the
+// spinner from the live store on m.
+func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) string {
 	style := lipgloss.NewStyle().Bold(true).Width(colMarker)
 	if selected {
 		style = style.Background(colorBgElev)
 	}
 	switch st {
 	case protocol.StateWorking:
-		return style.Foreground(colorWorking).Render(spinnerFrames[tick%len(spinnerFrames)])
+		frames := spinnerFramesFor(m)
+		return style.Foreground(colorWorking).Render(frames[tick%len(frames)])
 	case protocol.StateNeedsInput:
 		return style.Foreground(colorNeeds).Render("◆")
 	case protocol.StateDone:
@@ -160,10 +223,6 @@ func stateMarkerCell(st protocol.State, tick int, selected bool) string {
 		return style.Foreground(colorCrashed).Render("○")
 	}
 	return style.Render(" ")
-}
-
-func stateMarker(st protocol.State, tick int) string {
-	return stateMarkerCell(st, tick, false)
 }
 
 func modelLabel(s protocol.SessionSummary) string {

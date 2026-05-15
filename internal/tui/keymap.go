@@ -4,24 +4,14 @@ import (
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
 
-// orderedSessions returns sessions in display order: Needs input → Working → Completed → others.
-// Filter is applied within each group.
+// orderedSessions returns sessions in display order: Needs input → Working → Completed.
+// Filter is applied within each group. Failed/crashed sessions aren't on the board,
+// so they're excluded — keeping selection/navigation aligned with what's visible.
 func orderedSessions(m Model) []protocol.SessionSummary {
 	groups := []protocol.State{protocol.StateNeedsInput, protocol.StateWorking, protocol.StateDone}
 	out := make([]protocol.SessionSummary, 0, len(m.Sessions))
 	for _, st := range groups {
 		out = append(out, filterByState(m.Sessions, st, m.Filter)...)
-	}
-	// Then any other (failed, crashed) at the bottom.
-	for _, s := range m.Sessions {
-		switch s.State {
-		case protocol.StateNeedsInput, protocol.StateWorking, protocol.StateDone:
-			continue
-		}
-		if m.Filter != "all" && m.Filter != "" && s.ToolID != m.Filter {
-			continue
-		}
-		out = append(out, s)
 	}
 	return out
 }

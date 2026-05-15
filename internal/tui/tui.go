@@ -32,16 +32,24 @@ func Run(socket string) error {
 		return fmt.Errorf("subscribe: %w", err)
 	}
 
+	store := settings.NewStore()
+	storePath := settings.DefaultPath()
+	_ = store.Load(storePath)
+
 	m := Model{
-		Client:   c,
-		Socket:   socket,
-		Focus:    FocusBoard,
-		Sessions: snap.Sessions,
-		Filter:   "all",
+		Client:    c,
+		Socket:    socket,
+		Focus:     FocusBoard,
+		Sessions:  snap.Sessions,
+		Filter:    "all",
+		Store:     store,
+		StorePath: storePath,
 	}
 
-	store := settings.NewStore()
-	_ = store.Load(settings.DefaultPath())
+	if scheme, _ := store.Get("color_scheme").(string); scheme != "" {
+		applyTheme(scheme)
+	}
+
 	soundEnabled, _ := store.Get("sound_enabled").(bool)
 	soundset, _ := store.Get("soundset").(string)
 	volume, _ := store.Get("master_volume").(float64)
@@ -88,6 +96,8 @@ func (m Model) View() string {
 		return centerOverlay(w, h, renderHelp(), renderFullScreen(m, w, h))
 	case FocusSettings:
 		return centerOverlay(w, h, renderSettings(m), renderFullScreen(m, w, h))
+	case FocusAttach:
+		return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
 	}
 
 	return renderFullScreen(m, w, h)
@@ -108,6 +118,12 @@ func renderFullScreen(m Model, w, h int) string {
 	header := renderHeader(m, cw)
 	hr := renderHR(cw)
 	helpline := renderHelpLine(m, cw)
+	if m.Store != nil {
+		if show, ok := m.Store.Get("show_help_bar").(bool); ok && !show {
+			// Keep the row to preserve layout, but blank it out.
+			helpline = padLine("", cw)
+		}
+	}
 
 	var bottom string
 	switch m.Focus {
@@ -149,7 +165,7 @@ func renderFullScreen(m Model, w, h int) string {
 // overlay, not a separate screen.
 func centerOverlay(w, h int, content, bg string) string {
 	box := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
+		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorBorder).
 		Padding(1, 2).
 		Render(content)

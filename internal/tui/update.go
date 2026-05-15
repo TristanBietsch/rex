@@ -31,6 +31,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+		resizeAttach(m)
+		return m, nil
+	case AttachOutputMsg:
+		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
+			_, _ = m.Attach.Term.Write(msg.Bytes)
+		}
+		if m.Attach != nil {
+			return m, listenAttach(m.Attach.Client, m.Attach.SessionID)
+		}
+		return m, nil
+	case AttachClosedMsg:
+		if m.Attach != nil && msg.SessionID == m.Attach.SessionID {
+			m.Attach.Ended = true
+			if msg.Err != nil {
+				m.Attach.EndedMsg = msg.Err.Error()
+			} else {
+				m.Attach.EndedMsg = "session ended"
+			}
+		}
 		return m, nil
 	case DaemonEventMsg:
 		m = m.applyEvent(msg.Env)
@@ -56,6 +75,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
+	if m.Store != nil {
+		if enabled, ok := m.Store.Get("mouse_enabled").(bool); ok && !enabled {
+			return m, nil
+		}
+	}
 	// Click-to-select + double-click-to-open. Exact row math requires layout
 	// coordinates; we use a header-offset heuristic.
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
@@ -83,6 +107,10 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 }
 
 func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	// Attach popup grabs every key (forwards them to the agent's PTY).
+	if m.Focus == FocusAttach {
+		return updateAttachKey(m, k)
+	}
 	// Focused prompt: characters are input.
 	if m.Focus == FocusPrompt {
 		return updatePromptKey(m, k)
@@ -163,7 +191,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			if indexOfSelected(m) < 0 {
 				return m, nil
 			}
-			return attachSession(m, m.SelectedID)
+			return openAttach(m, m.SelectedID)
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""

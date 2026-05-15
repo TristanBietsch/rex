@@ -183,6 +183,14 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			_ = json.Unmarshal(env.Data, &p)
 			// Cosmetic — silently accept.
 
+		case protocol.IntentSetMaxConcurrent:
+			var p protocol.SetMaxConcurrent
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			srv.SetMaxConcurrentSessions(p.N)
+
 		default:
 			writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 		}
@@ -198,7 +206,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	}
 
 	if !srv.TryAcquireSession() {
-		return fmt.Errorf("too many concurrent sessions (cap=%d)", cfg.MaxConcurrentSessions)
+		return fmt.Errorf("too many concurrent sessions (cap=%d)", srv.MaxConcurrentSessions())
 	}
 	// From here, must release on error.
 

@@ -9,11 +9,49 @@ import (
 	"os"
 	"sync"
 
-	"golang.org/x/sync/semaphore"
-
 	"github.com/tristanbietsch/rex/internal/registry"
 	"github.com/tristanbietsch/rex/internal/state"
 )
+
+// concurrencyGate is a live-resizable bounded counter. When max == 0, the gate
+// is uncapped. Shrinking max below the current active count is allowed:
+// existing sessions keep running, but no new acquires succeed until active
+// drops below the new cap.
+type concurrencyGate struct {
+	mu     sync.Mutex
+	active int
+	max    int
+}
+
+func (g *concurrencyGate) TryAcquire() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.max > 0 && g.active >= g.max {
+		return false
+	}
+	g.active++
+	return true
+}
+
+func (g *concurrencyGate) Release() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.active > 0 {
+		g.active--
+	}
+}
+
+func (g *concurrencyGate) SetMax(n int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.max = n
+}
+
+func (g *concurrencyGate) Max() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.max
+}
 
 // Config bundles a Server's dependencies.
 type Config struct {
@@ -28,7 +66,7 @@ type Config struct {
 type Server struct {
 	cfgMu  sync.RWMutex
 	cfg    Config
-	sem    *semaphore.Weighted // nil = no cap
+	gate   *concurrencyGate
 	wg     sync.WaitGroup
 	once   sync.Once //nolint:unused // reserved for graceful drain
 	closed bool      //nolint:unused // reserved for graceful drain
@@ -69,10 +107,7 @@ func New(cfg Config) (*Server, error) {
 	// Unlink any stale socket. If something is actually listening on it we'll
 	// fail on Listen below, which is the right outcome.
 	_ = os.Remove(cfg.Socket)
-	s := &Server{cfg: cfg}
-	if cfg.MaxConcurrentSessions > 0 {
-		s.sem = semaphore.NewWeighted(int64(cfg.MaxConcurrentSessions))
-	}
+	s := &Server{cfg: cfg, gate: &concurrencyGate{max: cfg.MaxConcurrentSessions}}
 	return s, nil
 }
 
@@ -112,18 +147,26 @@ func (s *Server) Serve(ctx context.Context) error {
 
 // TryAcquireSession reserves a session slot. Returns false if the cap is reached.
 func (s *Server) TryAcquireSession() bool {
-	if s.sem == nil {
-		return true
-	}
-	return s.sem.TryAcquire(1)
+	return s.gate.TryAcquire()
 }
 
 // ReleaseSession returns a session slot.
 func (s *Server) ReleaseSession() {
-	if s.sem == nil {
-		return
-	}
-	s.sem.Release(1)
+	s.gate.Release()
+}
+
+// SetMaxConcurrentSessions updates the live concurrency cap. Setting n <= 0
+// removes the cap. Existing sessions are not killed.
+func (s *Server) SetMaxConcurrentSessions(n int) {
+	s.gate.SetMax(n)
+	s.cfgMu.Lock()
+	s.cfg.MaxConcurrentSessions = n
+	s.cfgMu.Unlock()
+}
+
+// MaxConcurrentSessions returns the live cap (0 means uncapped).
+func (s *Server) MaxConcurrentSessions() int {
+	return s.gate.Max()
 }
 
 // RegisterInputChannel attaches a channel for forwarding raw bytes to a session.

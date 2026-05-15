@@ -101,6 +101,11 @@ func (c *Client) FocusFilter(toolID string) error {
 	return c.w.WriteIntent(protocol.IntentFocusFilter, "", protocol.FocusFilter{ToolID: toolID})
 }
 
+// SetMaxConcurrent updates the daemon's concurrent-session cap. n <= 0 means uncapped.
+func (c *Client) SetMaxConcurrent(n int) error {
+	return c.w.WriteIntent(protocol.IntentSetMaxConcurrent, "", protocol.SetMaxConcurrent{N: n})
+}
+
 // NextEvent reads one envelope from the stream.
 func (c *Client) NextEvent() (protocol.Envelope, error) {
 	return c.r.Read()

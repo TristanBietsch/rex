@@ -11,8 +11,9 @@ var (
 	styleArrowYellow = lipgloss.NewStyle().Foreground(colorNeeds)
 )
 
-// renderPrompt builds the bottom λ prompt line, sized to width.
+// renderPrompt builds the bottom prompt line, sized to width.
 func renderPrompt(m Model, width int) string {
+	glyph := promptGlyph(m)
 	var line string
 	switch m.Focus {
 	case FocusCommand:
@@ -22,7 +23,7 @@ func renderPrompt(m Model, width int) string {
 		if m.PromptText == "" {
 			body = cursorBlock(m) + styleDim.Render("type then enter to spawn a session — esc to cancel")
 		}
-		line = styleArrow.Render("λ") + " " + body
+		line = styleArrow.Render(glyph) + " " + body
 	default:
 		body := m.PromptText
 		if body == "" {
@@ -30,12 +31,28 @@ func renderPrompt(m Model, width int) string {
 		} else {
 			body = stylePrimary.Render(body)
 		}
-		line = styleArrow.Render("λ") + " " + body
+		line = styleArrow.Render(glyph) + " " + body
 	}
 	return padLine("  "+line, width)
 }
 
+// promptGlyph returns the configured prompt glyph or the λ default.
+func promptGlyph(m Model) string {
+	if m.Store != nil {
+		if g, _ := m.Store.Get("prompt_glyph").(string); g != "" {
+			return g
+		}
+	}
+	return "λ"
+}
+
 func cursorBlock(m Model) string {
+	// reduce_motion: render a steady cursor.
+	if m.Store != nil {
+		if rm, _ := m.Store.Get("reduce_motion").(bool); rm {
+			return lipgloss.NewStyle().Background(colorFgPrimary).Foreground(lipgloss.Color("#0F1115")).Render(" ")
+		}
+	}
 	if m.SpinnerTick%10 < 5 {
 		return lipgloss.NewStyle().Background(colorFgPrimary).Foreground(lipgloss.Color("#0F1115")).Render(" ")
 	}

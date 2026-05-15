@@ -28,11 +28,7 @@ func renderHeader(m Model, width int) string {
 	}
 
 	logo := styleHeaderApp.Render("∴ REX")
-	counts := styleHeaderMeta.Render(fmt.Sprintf("    %d awaiting input · %d working · %d completed",
-		needsInput, working, done))
-	if failed+crashed > 0 {
-		counts += styleStateFailed.Render(fmt.Sprintf("  · %d failed", failed+crashed))
-	}
+	counts := renderHeaderCounts(m, needsInput, working, done, failed+crashed)
 	left := logo + counts
 	right := styleNewBtn.Render("+ new agent")
 
@@ -49,6 +45,37 @@ func renderHeader(m Model, width int) string {
 	chipRow := padLine("  "+chips, width)
 
 	return padLine(topRow, width) + "\n" + chipRow
+}
+
+// renderHeaderCounts formats the counts segment of the header per header_style.
+// verbose: "  4 awaiting input · 2 working · 7 completed"
+// glyphs:  "  ◆4 ⟳2 ●7"
+// numbers: "  4·2·7"
+func renderHeaderCounts(m Model, needs, working, done, failed int) string {
+	style := "verbose"
+	if m.Store != nil {
+		if v, _ := m.Store.Get("header_style").(string); v != "" {
+			style = v
+		}
+	}
+	var s string
+	switch style {
+	case "glyphs":
+		s = fmt.Sprintf("    ◆%d  ⟳%d  ●%d", needs, working, done)
+	case "numbers":
+		s = fmt.Sprintf("    %d · %d · %d", needs, working, done)
+	default:
+		s = fmt.Sprintf("    %d awaiting input · %d working · %d completed", needs, working, done)
+	}
+	out := styleHeaderMeta.Render(s)
+	if failed > 0 {
+		if style == "verbose" {
+			out += styleStateFailed.Render(fmt.Sprintf("  · %d failed", failed))
+		} else {
+			out += styleStateFailed.Render(fmt.Sprintf("  ✕%d", failed))
+		}
+	}
+	return out
 }
 
 func renderFilterChips(m Model) string {

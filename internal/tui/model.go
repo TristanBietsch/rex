@@ -7,6 +7,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
+	"github.com/tristanbietsch/rex/internal/settings"
 )
 
 // Focus is what currently has keyboard focus.
@@ -21,6 +22,7 @@ const (
 	FocusConfirmQuit
 	FocusConfirmDelete
 	FocusSettings
+	FocusAttach
 )
 
 // Model is the root Bubble Tea model.
@@ -42,7 +44,13 @@ type Model struct {
 
 	Wizard   *WizardState
 	Settings *SettingsState
+	Attach   *AttachState
 	Audio    *audio.Player
+
+	// Store is the live settings store. Renderers read from it; the settings
+	// page mutates it and triggers live-apply side effects.
+	Store     *settings.Store
+	StorePath string
 
 	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
 	PendingDeleteID string

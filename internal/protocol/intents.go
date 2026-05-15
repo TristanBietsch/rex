@@ -11,8 +11,9 @@ const (
 	IntentRename      = "Rename"
 	IntentDelete      = "Delete"
 	IntentResize      = "Resize"
-	IntentFocusFilter = "FocusFilter"
-	IntentShutdown    = "Shutdown"
+	IntentFocusFilter      = "FocusFilter"
+	IntentShutdown         = "Shutdown"
+	IntentSetMaxConcurrent = "SetMaxConcurrent"
 )
 
 // Hello is the first message a client sends after connect.
@@ -78,4 +79,9 @@ type Delete struct {
 // FocusFilter is a cosmetic intent stored per-client.
 type FocusFilter struct {
 	ToolID string `json:"tool_id"` // "all" or a tool id
+}
+
+// SetMaxConcurrent updates the daemon's concurrent-session cap live.
+type SetMaxConcurrent struct {
+	N int `json:"n"`
 }
