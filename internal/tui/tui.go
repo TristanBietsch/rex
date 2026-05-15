@@ -4,6 +4,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -39,11 +40,12 @@ func Run(socket string) error {
 	m := Model{
 		Client:    c,
 		Socket:    socket,
-		Focus:     FocusBoard,
+		Focus:     FocusBoot, // start in splash
 		Sessions:  snap.Sessions,
 		Filter:    "all",
 		Store:     store,
 		StorePath: storePath,
+		BootStart: time.Now(),
 	}
 
 	if scheme, _ := store.Get("color_scheme").(string); scheme != "" {
@@ -57,7 +59,7 @@ func Run(socket string) error {
 		soundEnabled = false
 	}
 	m.Audio = audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset})
-	m.Audio.Play(audio.EventStartup)
+	// Startup chime now fires on hand-off, not here.
 
 	if sel, filt, ok := LoadTUIState(); ok {
 		m.SelectedID = sel
@@ -65,15 +67,16 @@ func Run(socket string) error {
 			m.Filter = filt
 		}
 	}
-	// Mouse motion intentionally disabled — trackpad gestures were triggering
-	// stray events that scrolled the view. Click-to-select can come back later
-	// once we have a row-coordinate-aware hit test.
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
 }
 
 func (m Model) Init() tea.Cmd {
+	if m.Focus == FocusBoot {
+		first := nextStep(m)
+		return tea.Batch(tea.HideCursor, bootMinTick(), delayThen(first), tickSpinner())
+	}
 	return tea.Batch(tea.HideCursor, listenDaemon(m.Client), tickSpinner())
 }
 
