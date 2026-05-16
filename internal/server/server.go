@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/registry"
 	"github.com/tristanbietsch/rex/internal/state"
 )
@@ -80,6 +81,12 @@ type Server struct {
 
 	outputSubsMu sync.RWMutex
 	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
+
+	// summarizerHealthSubs is a global fan-out for SummarizerHealth events
+	// (not tied to any single session — every connected client subscribes
+	// after Hello).
+	summarizerHealthMu   sync.RWMutex
+	summarizerHealthSubs []func(protocol.SummarizerHealth)
 
 	resizeMu    sync.RWMutex
 	resizeFuncs map[string]func(cols, rows uint16) error
@@ -229,6 +236,38 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 	for _, fn := range s.outputSubs[sessionID] {
 		if fn != nil {
 			fn(b)
+		}
+	}
+}
+
+// SubscribeSummarizerHealth registers a global callback for SummarizerHealth
+// events. Returns a cancel func. Every connected client subscribes once after
+// Hello so health flips propagate to all live TUIs.
+func (s *Server) SubscribeSummarizerHealth(fn func(protocol.SummarizerHealth)) func() {
+	s.summarizerHealthMu.Lock()
+	defer s.summarizerHealthMu.Unlock()
+	idx := len(s.summarizerHealthSubs)
+	s.summarizerHealthSubs = append(s.summarizerHealthSubs, fn)
+	return func() {
+		s.summarizerHealthMu.Lock()
+		defer s.summarizerHealthMu.Unlock()
+		if idx < len(s.summarizerHealthSubs) {
+			s.summarizerHealthSubs[idx] = nil
+		}
+	}
+}
+
+// BroadcastSummarizerHealth fans out a SummarizerHealth event to every
+// connected client. Called by the daemon when the summarizer worker's
+// health flag flips.
+func (s *Server) BroadcastSummarizerHealth(available bool, reason string) {
+	payload := protocol.SummarizerHealth{Available: available, Reason: reason}
+	s.summarizerHealthMu.RLock()
+	defer s.summarizerHealthMu.RUnlock()
+	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", len(s.summarizerHealthSubs))
+	for _, fn := range s.summarizerHealthSubs {
+		if fn != nil {
+			fn(payload)
 		}
 	}
 }

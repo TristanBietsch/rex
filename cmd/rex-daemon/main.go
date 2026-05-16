@@ -21,6 +21,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/server"
 	"github.com/tristanbietsch/rex/internal/settings"
 	"github.com/tristanbietsch/rex/internal/state"
+	"github.com/tristanbietsch/rex/internal/summarizer"
 )
 
 const version = "v1"
@@ -77,12 +78,45 @@ func run(args []string) error {
 		_ = store.Add(s)
 	}
 
+	// Load settings — same config.yaml the TUI writes to. Missing file is fine;
+	// the registry defaults apply.
+	settingsStore := settings.NewStore()
+	if err := settingsStore.Load(settings.DefaultPath()); err != nil {
+		slog.Warn("daemon: settings load failed (using defaults)", "path", settings.DefaultPath(), "err", err)
+	}
+	summaryEnabled, _ := settingsStore.Get("summary_enabled").(bool)
+	summaryModel, _ := settingsStore.Get("summary_model").(string)
+	slog.Info("daemon: summarizer config", "enabled", summaryEnabled, "model", summaryModel)
+
+	var summaryCh chan<- string
+	var summaryWorker *summarizer.Worker
+	if summaryEnabled {
+		cfg := summarizer.Defaults()
+		cfg.Model = summaryModel
+		if env := os.Getenv("OLLAMA_HOST"); env != "" {
+			if !strings.HasPrefix(env, "http") {
+				env = "http://" + env
+			}
+			cfg.BaseURL = env
+		}
+		summaryWorker = summarizer.New(cfg, store, func(id string, max int) []byte {
+			b, _ := state.TranscriptTail(*stateDir, id, max)
+			return b
+		})
+		// Direct: the worker's channel IS the channel the supervisor sends into.
+		// The worker's buffer is 64; the supervisor sends non-blocking with a
+		// `default:` skip, so a slow worker simply drops a tick (next tick retries).
+		// A pump goroutine in between would only add buffering, not real back-pressure.
+		summaryCh = summaryWorker.Channel()
+	}
+
 	srv, err := server.New(server.Config{
 		Socket:                *socketPath,
 		StateDir:              *stateDir,
 		Registry:              reg,
 		Store:                 store,
 		MaxConcurrentSessions: *maxConcurrent,
+		SummaryRequest:        summaryCh,
 	})
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
@@ -99,6 +133,20 @@ func run(args []string) error {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	// Start summarizer worker + health probe (when enabled).
+	if summaryWorker != nil {
+		summaryWorker.SetHealthCallback(func(available bool, reason string) {
+			slog.Info("daemon: summarizer health flip", "available", available, "reason", reason)
+			srv.BroadcastSummarizerHealth(available, reason)
+		})
+		go func() {
+			if err := summaryWorker.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				slog.Warn("summarizer: worker exited", "err", err)
+			}
+		}()
+		go probeOllamaHealth(ctx, summaryWorker, summaryModel)
+	}
 
 	// SIGHUP → reload tools.yaml.
 	go reloadOnHUP(ctx, srv, *toolsPath)
@@ -209,6 +257,53 @@ func luaConfigPath() string {
 		raw = filepath.Join(home, raw[2:])
 	}
 	return raw
+}
+
+// probeOllamaHealth runs the initial Ollama reachability + model-presence check,
+// then loops every 30s while the backend is marked unavailable. Each successful
+// check that finds the configured model present marks the worker available;
+// failures (unreachable / model missing) mark it unavailable with a reason.
+func probeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) {
+	cfg := summarizer.Defaults()
+	cfg.Model = model
+	if env := os.Getenv("OLLAMA_HOST"); env != "" {
+		if !strings.HasPrefix(env, "http") {
+			env = "http://" + env
+		}
+		cfg.BaseURL = env
+	}
+	client := summarizer.NewClient(cfg)
+	check := func() {
+		tCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		tags, err := client.Tags(tCtx)
+		if err != nil {
+			slog.Debug("daemon: ollama unreachable", "base_url", cfg.BaseURL, "err", err)
+			w.MarkUnavailable("ollama unreachable")
+			return
+		}
+		for _, t := range tags {
+			if t == model {
+				w.MarkAvailable()
+				return
+			}
+		}
+		slog.Debug("daemon: ollama reachable but model missing", "model", model, "tags", tags)
+		w.MarkUnavailable("model not pulled: " + model)
+	}
+	check()
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if !w.BackendAvailable() {
+				check()
+			}
+		}
+	}
 }
 
 func defaultSocketPath() string {
