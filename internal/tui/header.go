@@ -51,8 +51,14 @@ func renderHeader(m Model, width int) string {
 		if reason == "" {
 			reason = "ollama unreachable"
 		}
+		model := "gemma2:2b"
+		if m.Store != nil {
+			if v, _ := m.Store.Get("summary_model").(string); v != "" {
+				model = v
+			}
+		}
 		banner := styleDim.Render(
-			"  summary backend: " + reason + " — install: https://ollama.com  ·  pull: ollama pull gemma2:2b",
+			"  summary backend: " + reason + " — install: https://ollama.com  ·  pull: ollama pull " + model,
 		)
 		out += "\n" + padLine(banner, width)
 	}
