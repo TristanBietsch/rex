@@ -2,11 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/registry"
+	"github.com/tristanbietsch/rex/internal/settings"
 )
 
 func demoSessions(now time.Time) []protocol.SessionSummary {
@@ -84,5 +86,31 @@ func TestBoardSnapshot(t *testing.T) {
 		if testing.Verbose() {
 			fmt.Printf("\n══ %s ══\n%s\n", c.name, out)
 		}
+	}
+}
+
+func TestBoardRendersDescriptionAnimating(t *testing.T) {
+	m := Model{
+		Sessions: []protocol.SessionSummary{{
+			ID: "sess-x", ShortID: "abcd", Slug: "test", State: protocol.StateWorking,
+			Description: "running pnpm test", LastLine: "raw garbage line",
+		}},
+		Store: settings.NewStore(),
+		DescAnim: map[string]DescAnim{
+			"sess-x": {
+				From: "", To: "running pnpm test", Effect: "typewriter",
+				StartedAt: time.Now().Add(-150 * time.Millisecond),
+				Duration:  300 * time.Millisecond,
+			},
+		},
+	}
+	out := renderBoard(m, 120, 10)
+	// Halfway through typewriter on a 17-rune target → expect ~8 runes visible.
+	if !strings.Contains(out, "running p") && !strings.Contains(out, "running pn") {
+		t.Fatalf("expected partial typewriter output, got:\n%s", out)
+	}
+	// Raw LastLine must NOT appear — the renderer should prefer Description.
+	if strings.Contains(out, "raw garbage line") {
+		t.Fatalf("renderer fell back to LastLine when Description is set")
 	}
 }
