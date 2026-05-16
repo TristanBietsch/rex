@@ -120,8 +120,11 @@ func stepAudioInit(m Model) tea.Cmd {
 		soundset, _ := m.Store.Get("soundset").(string)
 		vol, _ := m.Store.Get("master_volume").(float64)
 		if !enabled || soundset == "off" {
+			m.Audio.SetEnabled(false)
 			return stepSkip, "muted", nil
 		}
+		m.Audio.SetEnabled(true)
+		m.Audio.SetVolume(vol)
 		return stepOK, fmt.Sprintf("soundset=%s · vol=%.2f", soundset, vol), nil
 	})
 }
