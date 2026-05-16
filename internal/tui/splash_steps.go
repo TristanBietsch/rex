@@ -9,7 +9,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/daemonctl"
 	"github.com/tristanbietsch/rex/internal/protocol"
@@ -137,9 +136,7 @@ func stepAudioLoad(m Model) tea.Cmd {
 			return stepSkip, "muted", nil
 		}
 		// Re-apply soundset on the live player.
-		if p, ok := m.Audio.(*audio.Player); ok {
-			p.SetSoundset(soundset)
-		}
+		m.Audio.SetSoundset(soundset)
 		return stepOK, fmt.Sprintf("%s · 起動準備", soundset), nil
 	})
 }
