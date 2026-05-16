@@ -20,6 +20,7 @@ type Detect struct {
 	Kind        string `yaml:"kind"`             // "structured" | "heuristic"
 	Format      string `yaml:"format,omitempty"` // when kind=structured
 	PromptRegex string `yaml:"prompt_regex,omitempty"`
+	DoneRegex   string `yaml:"done_regex,omitempty"` // optional; flips heuristic to StateDone after idle
 	IdleMs      int    `yaml:"idle_ms,omitempty"`
 }
 
