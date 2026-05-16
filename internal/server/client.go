@@ -40,6 +40,16 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	})
 	defer cancel()
 
+	// Global SummarizerHealth subscription — gated on the same `subscribed` flag
+	// so we don't emit events before the client has received its Snapshot.
+	healthCancel := srv.SubscribeSummarizerHealth(func(h protocol.SummarizerHealth) {
+		if !subscribed.Load() {
+			return
+		}
+		_ = w.WriteEvent(protocol.EventSummarizerHealth, "", h)
+	})
+	defer healthCancel()
+
 	for {
 		if ctx.Err() != nil {
 			return
