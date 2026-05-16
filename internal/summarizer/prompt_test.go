@@ -22,6 +22,8 @@ func TestCleanResponseStripsArtifacts(t *testing.T) {
 		{"running pnpm test.", "running pnpm test"},
 		{"  running pnpm test  ", "running pnpm test"},
 		{"Description: rewriting webhook handlers — 12 of 14", "rewriting webhook handlers — 12 of 14"},
+		{"waiting...", "waiting..."},
+		{"done..", "done.."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {

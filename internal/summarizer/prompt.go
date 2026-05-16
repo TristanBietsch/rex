@@ -50,7 +50,7 @@ func cleanResponse(s string) string {
 	}
 	// Drop a trailing period that isn't part of an ellipsis.
 	if strings.HasSuffix(s, ".") && !strings.HasSuffix(s, "..") {
-		s = strings.TrimRight(s, ".")
+		s = strings.TrimSuffix(s, ".")
 	}
 	s = strings.TrimSpace(s)
 	// Clamp to 60 runes with ellipsis.
