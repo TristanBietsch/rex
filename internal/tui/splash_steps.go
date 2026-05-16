@@ -208,6 +208,9 @@ func stepDaemon(m Model) tea.Cmd {
 		home, _ := os.UserHomeDir()
 		logPath := filepath.Join(home, ".local", "state", "rex", "daemon.log")
 		logf, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if logf != nil {
+			defer logf.Close()
+		}
 		res, err := daemonctl.Start(m.Socket, logf)
 		if err != nil {
 			return stepFail, err.Error(), err
