@@ -71,22 +71,17 @@ func TestStore_Snapshot(t *testing.T) {
 
 func TestSummaryRoundtripsDescription(t *testing.T) {
 	sess := &Session{
-		ID:            "id-1",
-		ShortID:       "abcd",
-		Slug:          "test",
-		State:         protocol.StateWorking,
-		StartedAt:     time.Now().UTC(),
-		LastEventAt:   time.Now().UTC(),
-		LastLine:      "raw line",
-		Description:   "running pnpm test",
-		DescriptionAt: time.Now().UTC(),
+		ID:          "id-1",
+		ShortID:     "abcd",
+		Slug:        "test",
+		State:       protocol.StateWorking,
+		StartedAt:   time.Now().UTC(),
+		LastEventAt: time.Now().UTC(),
+		LastLine:    "raw line",
+		Description: "running pnpm test",
 	}
 	sum := sess.Summary()
-	if sum.Description != "running pnpm test" {
-		t.Fatalf("Summary.Description: got %q want %q", sum.Description, "running pnpm test")
-	}
+	require.Equal(t, "running pnpm test", sum.Description, "Summary should expose Description")
 	back := fromSummary(sum)
-	if back.Description != "running pnpm test" {
-		t.Fatalf("fromSummary.Description: got %q want %q", back.Description, "running pnpm test")
-	}
+	require.Equal(t, "running pnpm test", back.Description, "fromSummary should restore Description")
 }
