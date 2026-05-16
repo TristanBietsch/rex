@@ -209,8 +209,6 @@ func (s *Store) UpdateLastLine(id, line string) error {
 }
 
 // UpdateDescription records the AI-generated activity summary for a session.
-// Mirrors UpdateLastLine: takes locks, updates the field, and broadcasts a
-// SessionUpdated patch.
 func (s *Store) UpdateDescription(id, desc string) error {
 	s.mu.RLock()
 	sess, ok := s.sessions[id]
