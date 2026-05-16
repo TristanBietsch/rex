@@ -27,7 +27,7 @@ type Worker struct {
 
 	mu       sync.Mutex
 	perSess  map[string]*sessionMeta
-	failures int32
+	failures atomic.Int32
 
 	// availability: 1 = healthy, 0 = backend unavailable.
 	available atomic.Int32
@@ -63,7 +63,9 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 // Channel returns the send-side of the request channel.
 func (w *Worker) Channel() chan<- string { return w.ch }
 
-// SetHealthCallback installs a callback invoked whenever the backend availability flips.
+// SetHealthCallback installs a callback invoked whenever backend availability flips.
+// Call it once before Start; it is not safe to call concurrently with Start,
+// MarkUnavailable, or MarkAvailable.
 func (w *Worker) SetHealthCallback(fn func(available bool, reason string)) {
 	w.onHealth = fn
 }
@@ -142,6 +144,8 @@ func (w *Worker) handle(ctx context.Context, id string) {
 		slog.Debug("summarizer: skipped_unchanged", "session", id)
 		return
 	}
+	// Updated before the call: a failed call still consumes MinInterval so a
+	// degraded backend doesn't get hammered per supervisor tick.
 	meta.lastSubmittedAt = time.Now()
 	w.mu.Unlock()
 
@@ -149,20 +153,22 @@ func (w *Worker) handle(ctx context.Context, id string) {
 	slog.Debug("summarizer: request", "session", id, "bytes_in", bytesIn)
 	start := time.Now()
 
+	// Single budget for both attempts; if the first call burns RequestTimeout,
+	// the retry may not have headroom — that's acceptable (it'll see ctx.Done()).
 	callCtx, cancel := context.WithTimeout(ctx, w.cfg.RequestTimeout+500*time.Millisecond)
 	defer cancel()
 
 	resp, err := w.callWithRetry(callCtx, prompt)
 	elapsed := time.Since(start)
 	if err != nil {
-		atomic.AddInt32(&w.failures, 1)
+		w.failures.Add(1)
 		slog.Warn("summarizer: error", "session", id, "err", err)
-		if atomic.LoadInt32(&w.failures) >= 3 {
+		if w.failures.Load() >= 3 {
 			w.MarkUnavailable("consecutive call failures")
 		}
 		return
 	}
-	atomic.StoreInt32(&w.failures, 0)
+	w.failures.Store(0)
 	if elapsed > 2*time.Second {
 		slog.Info("summarizer: slow_call", "session", id, "duration_ms", elapsed.Milliseconds())
 	}
