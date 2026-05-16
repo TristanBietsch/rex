@@ -106,7 +106,7 @@ func (c *Client) Tags(ctx context.Context) ([]string, error) {
 	}
 	var out tagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode: %w", err)
 	}
 	names := make([]string, 0, len(out.Models))
 	for _, m := range out.Models {

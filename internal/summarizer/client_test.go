@@ -24,6 +24,16 @@ func TestClientGenerateOK(t *testing.T) {
 		if !strings.Contains(body["prompt"].(string), "TRANSCRIPT") {
 			t.Fatalf("prompt missing transcript marker: %v", body["prompt"])
 		}
+		if body["stream"] != false {
+			t.Fatalf("stream: %v want false", body["stream"])
+		}
+		opts, _ := body["options"].(map[string]any)
+		if opts["num_predict"] != float64(30) {
+			t.Fatalf("num_predict: %v want 30", opts["num_predict"])
+		}
+		if opts["temperature"] != 0.2 {
+			t.Fatalf("temperature: %v want 0.2", opts["temperature"])
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"response":"running pnpm test"}`)
 	}))
