@@ -489,6 +489,20 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 	return m, delayThen(nextStep(m))
 }
 
+// update is the test-friendly entry point that runs the bootMinElapsedMsg
+// portion of Update's switch in isolation. Tests use this; production uses
+// the real Update.
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(bootMinElapsedMsg); ok {
+		m.BootMinDone = true
+		if m.BootDone && !m.BootFailed {
+			return m.handOffToBoard()
+		}
+		return m, nil
+	}
+	return m, nil
+}
+
 func deriveSlugFromPrompt(p string) string {
 	s := strings.ToLower(p)
 	if len(s) > 32 {
