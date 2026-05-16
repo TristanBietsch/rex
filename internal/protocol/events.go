@@ -4,12 +4,13 @@ import "time"
 
 // Event types.
 const (
-	EventSnapshot       = "Snapshot"
-	EventSessionAdded   = "SessionAdded"
-	EventSessionUpdated = "SessionUpdated"
-	EventSessionRemoved = "SessionRemoved"
-	EventSessionOutput  = "SessionOutput"
-	EventError          = "Error"
+	EventSnapshot         = "Snapshot"
+	EventSessionAdded     = "SessionAdded"
+	EventSessionUpdated   = "SessionUpdated"
+	EventSessionRemoved   = "SessionRemoved"
+	EventSessionOutput    = "SessionOutput"
+	EventSummarizerHealth = "SummarizerHealth"
+	EventError            = "Error"
 )
 
 // State is the lifecycle state of a session.
@@ -70,6 +71,12 @@ type SessionRemoved struct {
 type SessionOutput struct {
 	SessionID string `json:"session_id"`
 	Bytes     []byte `json:"bytes"`
+}
+
+// SummarizerHealth signals AI summary backend availability changes.
+type SummarizerHealth struct {
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // ErrorEvent surfaces an error correlated to an intent's id.
