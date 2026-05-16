@@ -79,6 +79,16 @@ func renderSplash(m Model, w, h int) string {
 		ready := fmt.Sprintf("準備完了 ready · %s", elapsed)
 		rows = append(rows, "", lipgloss.PlaceHorizontal(w-2, lipgloss.Right, styleBootReady.Render(ready)))
 	}
+	if m.BootFailed {
+		rows = append(rows, "")
+		if m.BootError != nil {
+			rows = append(rows, leftPad+styleDim.Render("cause: ")+styleBootCause.Render(m.BootError.Error()))
+		}
+		if hint, ok := bootFixHints[lastFailedStep(m)]; ok {
+			rows = append(rows, leftPad+styleDim.Render("fix:   ")+stylePrimary.Render(hint))
+		}
+		rows = append(rows, "", lipgloss.PlaceHorizontal(w-2, lipgloss.Right, styleDim.Render("press q · ctrl+c to quit")))
+	}
 	for len(rows) < h {
 		rows = append(rows, "")
 	}
@@ -168,6 +178,27 @@ func chimeFor(s bootStatus) string {
 		return audio.EventBootWarn
 	case stepFail:
 		return audio.EventBootFail
+	}
+	return ""
+}
+
+// bootFixHints maps a failed step name to a human-readable next step.
+var bootFixHints = map[string]string{
+	"paths.ensure":   "check that you can write to ~/.config and ~/.local/state",
+	"registry.load":  "rex's built-in YAML is corrupt — reinstall or rebuild rex",
+	"socket.resolve": "set XDG_RUNTIME_DIR or ensure HOME is set",
+	"daemon":         "ensure rex-daemon is on PATH or installed alongside rex",
+	"client.dial":    "the daemon socket disappeared — try `rex daemon start`",
+	"handshake":      "protocol mismatch — rebuild rex and rex-daemon to the same version",
+	"subscribe":      "the daemon rejected the event subscription — check daemon.log",
+}
+
+// lastFailedStep returns the name of the most recent stepFail row.
+func lastFailedStep(m Model) string {
+	for i := len(m.BootLog) - 1; i >= 0; i-- {
+		if m.BootLog[i].Status == stepFail {
+			return m.BootLog[i].Name
+		}
 	}
 	return ""
 }
