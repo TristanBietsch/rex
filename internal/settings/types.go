@@ -24,6 +24,7 @@ const (
 	SectionAudio      Section = "Audio"
 	SectionBehavior   Section = "Behavior"
 	SectionOnboarding Section = "Onboarding"
+	SectionSummary    Section = "AI summary"
 	SectionAdvanced   Section = "Advanced"
 )
 
