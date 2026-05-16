@@ -286,8 +286,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				windowMu.Unlock()
 				next := s.cfg.Adapter.Detect(windowSnap, idle)
 				if next != "" {
-					current := sess.State
-					if next != current && next != protocol.StateWorking {
+					if current, ok := s.cfg.Store.CurrentState(sess.ID); ok && next != current {
 						_ = s.cfg.Store.Transition(sess.ID, next)
 					}
 				}
