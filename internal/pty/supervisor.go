@@ -295,15 +295,16 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 
 			// Summary trigger (additive — independent of adapter).
 			if s.cfg.SummaryRequest != nil {
+				now := time.Now()
 				windowMu.Lock()
-				emit := shouldEmitSummary(dirty, lastChunk, lastSummaryAt, time.Now())
+				emit := shouldEmitSummary(dirty, lastChunk, lastSummaryAt, now)
 				windowMu.Unlock()
 				if emit {
 					select {
 					case s.cfg.SummaryRequest <- sess.ID:
 						windowMu.Lock()
 						dirty = false
-						lastSummaryAt = time.Now()
+						lastSummaryAt = now
 						windowMu.Unlock()
 						slog.Debug("pty: summary signal sent", "session", sess.ID)
 					default:
