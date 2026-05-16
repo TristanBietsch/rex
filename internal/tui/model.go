@@ -150,6 +150,16 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 				m.Filter = snap.Filter
 			}
 		}
+	case protocol.EventSummarizerHealth:
+		var h protocol.SummarizerHealth
+		if err := json.Unmarshal(env.Data, &h); err == nil {
+			m.BackendUnavailable = !h.Available
+			m.BackendUnavailableReason = h.Reason
+			slog.Info("tui: summarizer_health",
+				"available", h.Available,
+				"reason", h.Reason,
+			)
+		}
 	}
 	return m
 }

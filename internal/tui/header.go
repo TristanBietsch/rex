@@ -44,7 +44,20 @@ func renderHeader(m Model, width int) string {
 	chips := renderFilterChips(m)
 	chipRow := padLine("  "+chips, width)
 
-	return padLine(topRow, width) + "\n" + chipRow
+	out := padLine(topRow, width) + "\n" + chipRow
+
+	if m.BackendUnavailable {
+		reason := m.BackendUnavailableReason
+		if reason == "" {
+			reason = "ollama unreachable"
+		}
+		banner := styleDim.Render(
+			"  summary backend: " + reason + " — install: https://ollama.com  ·  pull: ollama pull gemma2:2b",
+		)
+		out += "\n" + padLine(banner, width)
+	}
+
+	return out
 }
 
 // renderHeaderCounts formats the counts segment of the header per header_style.

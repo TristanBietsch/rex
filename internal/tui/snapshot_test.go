@@ -89,6 +89,18 @@ func TestBoardSnapshot(t *testing.T) {
 	}
 }
 
+func TestHeaderBannerWhenBackendUnavailable(t *testing.T) {
+	m := Model{
+		Store:                    settings.NewStore(),
+		BackendUnavailable:       true,
+		BackendUnavailableReason: "ollama unreachable",
+	}
+	out := renderHeader(m, 120)
+	if !strings.Contains(out, "ollama unreachable") {
+		t.Fatalf("banner missing reason: %q", out)
+	}
+}
+
 func TestBoardRendersDescriptionAnimating(t *testing.T) {
 	m := Model{
 		Sessions: []protocol.SessionSummary{{
