@@ -56,9 +56,9 @@ func (a *ClaudeStructured) Detect(window []byte, idle time.Duration) protocol.St
 		}
 	}
 
-	// If working and we've been idle for >5s without new structured events,
+	// If working and we've been idle for >30s without new structured events,
 	// assume Claude is waiting on a permission prompt or human reply.
-	if a.last == protocol.StateWorking && idle > 0 && time.Since(a.lastSeen) > 5*time.Second {
+	if a.last == protocol.StateWorking && idle > 0 && time.Since(a.lastSeen) > 30*time.Second {
 		return protocol.StateNeedsInput
 	}
 	return a.last
