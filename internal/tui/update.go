@@ -162,6 +162,15 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 }
 
 func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	// Boot splash grabs keys to allow quit during long/failed startup.
+	if m.Focus == FocusBoot {
+		switch k.String() {
+		case "ctrl+c", "q", "esc":
+			m.Quitting = true
+			return m, tea.Quit
+		}
+		return m, nil
+	}
 	// Attach popup grabs every key (forwards them to the agent's PTY).
 	if m.Focus == FocusAttach {
 		return updateAttachKey(m, k)
