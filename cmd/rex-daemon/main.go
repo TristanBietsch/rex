@@ -86,6 +86,9 @@ func run(args []string) error {
 	}
 	summaryEnabled, _ := settingsStore.Get("summary_enabled").(bool)
 	summaryModel, _ := settingsStore.Get("summary_model").(string)
+	if summaryModel == "" {
+		summaryModel = summarizer.Defaults().Model
+	}
 	slog.Info("daemon: summarizer config", "enabled", summaryEnabled, "model", summaryModel)
 
 	var summaryCh chan<- string
@@ -93,11 +96,8 @@ func run(args []string) error {
 	if summaryEnabled {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
-		if env := os.Getenv("OLLAMA_HOST"); env != "" {
-			if !strings.HasPrefix(env, "http") {
-				env = "http://" + env
-			}
-			cfg.BaseURL = env
+		if u := ollamaBaseURL(); u != "" {
+			cfg.BaseURL = u
 		}
 		summaryWorker = summarizer.New(cfg, store, func(id string, max int) []byte {
 			b, _ := state.TranscriptTail(*stateDir, id, max)
@@ -260,17 +260,15 @@ func luaConfigPath() string {
 }
 
 // probeOllamaHealth runs the initial Ollama reachability + model-presence check,
-// then loops every 30s while the backend is marked unavailable. Each successful
+// then re-checks every 30s so the worker actively detects healthy→unhealthy
+// transitions instead of waiting for its failure threshold. Each successful
 // check that finds the configured model present marks the worker available;
 // failures (unreachable / model missing) mark it unavailable with a reason.
 func probeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) {
 	cfg := summarizer.Defaults()
 	cfg.Model = model
-	if env := os.Getenv("OLLAMA_HOST"); env != "" {
-		if !strings.HasPrefix(env, "http") {
-			env = "http://" + env
-		}
-		cfg.BaseURL = env
+	if u := ollamaBaseURL(); u != "" {
+		cfg.BaseURL = u
 	}
 	client := summarizer.NewClient(cfg)
 	check := func() {
@@ -299,9 +297,7 @@ func probeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) 
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if !w.BackendAvailable() {
-				check()
-			}
+			check()
 		}
 	}
 }
@@ -322,4 +318,17 @@ func defaultStateDir() string {
 func defaultToolsPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "rex", "tools.yaml")
+}
+
+// ollamaBaseURL returns the OLLAMA_HOST env var as a fully-qualified URL
+// (adding the http:// prefix if missing) or empty string when unset.
+func ollamaBaseURL() string {
+	env := os.Getenv("OLLAMA_HOST")
+	if env == "" {
+		return ""
+	}
+	if !strings.HasPrefix(env, "http") {
+		env = "http://" + env
+	}
+	return env
 }
