@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -67,4 +68,26 @@ func TestSplashAllOKShowsReady(t *testing.T) {
 	require.Contains(t, out, "準備完了 ready")
 	require.Contains(t, out, "接続")
 	require.Contains(t, out, "受信中")
+}
+
+func TestSplashFailed(t *testing.T) {
+	m := Model{
+		Focus:      FocusBoot,
+		Width:      100,
+		Height:     30,
+		BootStart:  time.Now().Add(-2 * time.Second),
+		BootFailed: true,
+		BootError:  errors.New(`exec: "rex-daemon": executable file not found in $PATH`),
+		BootLog: []bootLine{
+			{Name: "log.init", Status: stepOK, Desc: "ok"},
+			{Name: "daemon", Status: stepFail, Desc: "binary not found", Err: errors.New("missing")},
+		},
+	}
+	out := renderSplash(m, m.Width, m.Height)
+	require.Contains(t, out, "起動失敗")
+	require.Contains(t, out, "FAIL")
+	require.Contains(t, out, "cause:")
+	require.Contains(t, out, "rex-daemon")
+	require.Contains(t, out, "fix:")
+	require.Contains(t, out, "press q")
 }
