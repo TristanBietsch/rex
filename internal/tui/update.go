@@ -273,11 +273,11 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return ensureVisible(m), nil
 		case "1":
-			return jumpToSection(m, protocol.StateNeedsInput), nil
+			return jumpToSection(m, 0), nil
 		case "2":
-			return jumpToSection(m, protocol.StateWorking), nil
+			return jumpToSection(m, 1), nil
 		case "3":
-			return jumpToSection(m, protocol.StateDone), nil
+			return jumpToSection(m, 2), nil
 		case "t":
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventFilter)
