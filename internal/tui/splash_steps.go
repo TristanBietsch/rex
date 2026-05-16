@@ -282,14 +282,19 @@ func stepSnapshotParse(m Model) tea.Cmd {
 	})
 }
 
+type stateRestoreResultMsg struct {
+	Selection string
+	Filter    string
+	OK        bool
+	Dur       time.Duration
+}
+
 func stepStateRestore(_ Model) tea.Cmd {
-	return emit("state.restore", func() (bootStatus, string, error) {
+	return func() tea.Msg {
+		t0 := time.Now()
 		sel, filt, ok := LoadTUIState()
-		if !ok {
-			return stepSkip, "first run", nil
-		}
-		return stepOK, fmt.Sprintf("selected=%s · filter=%s", short8(sel), filt), nil
-	})
+		return stateRestoreResultMsg{Selection: sel, Filter: filt, OK: ok, Dur: time.Since(t0)}
+	}
 }
 
 func short8(s string) string {

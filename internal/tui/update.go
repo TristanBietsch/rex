@@ -84,6 +84,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Name: "settings.load", Status: stepOK, Desc: msg.Path, Dur: msg.Dur,
 		})
 
+	case stateRestoreResultMsg:
+		if !msg.OK {
+			return m.appendBootStep(bootStepMsg{
+				Name: "state.restore", Status: stepSkip, Desc: "first run", Dur: msg.Dur,
+			})
+		}
+		m.SelectedID = msg.Selection
+		if msg.Filter != "" {
+			m.Filter = msg.Filter
+		}
+		return m.appendBootStep(bootStepMsg{
+			Name: "state.restore", Status: stepOK,
+			Desc: fmt.Sprintf("selected=%s · filter=%s", short8(msg.Selection), msg.Filter),
+			Dur:  msg.Dur,
+		})
+
 	case dialResultMsg:
 		if msg.Err != nil {
 			return m.appendBootStep(bootStepMsg{
