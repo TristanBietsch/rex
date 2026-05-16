@@ -278,13 +278,14 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	srv.RegisterInputChannel(sess.ID, inputCh)
 
 	sup := pty.New(pty.SupervisorConfig{
-		StateDir:      cfg.StateDir,
-		Store:         cfg.Store,
-		Command:       cmdArgs,
-		CWD:           p.CWD,
-		Adapter:       ad,
-		InputCh:       inputCh,
-		InitialPrompt: p.InitialPrompt,
+		StateDir:       cfg.StateDir,
+		Store:          cfg.Store,
+		Command:        cmdArgs,
+		CWD:            p.CWD,
+		Adapter:        ad,
+		InputCh:        inputCh,
+		InitialPrompt:  p.InitialPrompt,
+		SummaryRequest: cfg.SummaryRequest,
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)
 		},
