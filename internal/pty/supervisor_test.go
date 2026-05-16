@@ -150,6 +150,78 @@ func TestSupervisor_NeedsInputToWorkingRegression(t *testing.T) {
 	require.True(t, sawWorkingAfterNeeds, "expected needs_input -> working regression; got %v", transitions)
 }
 
+func TestSupervisor_CompleteSignalEndsCleanlyWithStateDone(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "id1", ShortID: "id1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	completeCh := make(chan struct{}, 1)
+	sup := New(SupervisorConfig{
+		StateDir:   stateDir,
+		Store:      store,
+		Command:    []string{"sleep", "30"}, // long enough that we know we triggered it
+		CompleteCh: completeCh,
+		IdleTick:   50 * time.Millisecond,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+
+	// Let it spawn and reach StateWorking.
+	time.Sleep(100 * time.Millisecond)
+	completeCh <- struct{}{}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("supervisor did not return after complete signal")
+	}
+
+	got, _ := store.Get("id1")
+	require.Equal(t, protocol.StateDone, got.State)
+}
+
+func TestSupervisor_CtxCancelStillProducesFailed(t *testing.T) {
+	// Regression guard: existing ctx-cancel behavior must remain StateFailed.
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "id2", ShortID: "id2", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sleep", "30"},
+		IdleTick: 50 * time.Millisecond,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("supervisor did not return after ctx cancel")
+	}
+
+	got, _ := store.Get("id2")
+	require.Equal(t, protocol.StateFailed, got.State)
+}
+
 // TestSummaryTriggerFunc verifies the standalone trigger predicate used inside
 // the supervisor's ticker branch. Kept as a pure function to make the timing
 // behavior testable without spawning a child process.

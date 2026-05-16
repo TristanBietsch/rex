@@ -27,6 +27,10 @@ type SupervisorConfig struct {
 	OutputSink       func(b []byte)  // called with every chunk read from PTY; non-blocking
 	SummaryRequest   chan<- string   // optional: session IDs needing AI summary; nil disables
 	InputCh          chan []byte     // optional: stdin bytes from clients
+	// CompleteCh signals a clean shutdown — supervisor kills the child and
+	// transitions to StateDone. Distinct from ctx cancel, which means StateFailed.
+	// Buffered size 1; sender should use a non-blocking send.
+	CompleteCh chan struct{}
 	IdleTick         time.Duration   // how often we sample idle for the adapter (default 200ms)
 	InitialCols      uint16          // initial PTY width (0 = default)
 	InitialRows      uint16          // initial PTY height (0 = default)
@@ -250,6 +254,20 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			<-errc
 			_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 			return ctx.Err()
+		case <-s.cfg.CompleteCh:
+			slog.Info("pty: complete signal received, killing child cleanly",
+				"session", sess.ID, "pid", cmd.Process.Pid)
+			_ = cmd.Process.Kill()
+			<-errc          // drain the reader goroutine
+			_ = cmd.Wait()  // reap the child; mirrors the natural-exit branch
+			if err := s.cfg.Store.Transition(sess.ID, protocol.StateDone); err != nil {
+				return err
+			}
+			sess.LastEventAt = time.Now().UTC()
+			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
+				return fmt.Errorf("write final meta: %w", err)
+			}
+			return nil
 		case rerr := <-errc:
 			// Child exited.
 			waitErr := cmd.Wait()
