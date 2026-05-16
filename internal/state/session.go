@@ -24,6 +24,15 @@ type Session struct {
 	LastLine    string
 	ExitCode    *int
 
+	// OutputBytes is the raw byte count of PTY output for this session.
+	// Tokens is an approximate token count derived as OutputBytes / 4.
+	// This is a rough heuristic and should not be treated as exact.
+	OutputBytes int64
+	Tokens      int64
+
+	// Fleet optionally groups this session under a named label.
+	Fleet string
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
 }
@@ -46,5 +55,8 @@ func (s *Session) Summary() protocol.SessionSummary {
 		LastEventAt: s.LastEventAt,
 		LastLine:    s.LastLine,
 		ExitCode:    s.ExitCode,
+		Tokens:      s.Tokens,
+		OutputBytes: s.OutputBytes,
+		Fleet:       s.Fleet,
 	}
 }

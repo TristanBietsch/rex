@@ -20,6 +20,7 @@ func RunNew(args []string) error {
 	effort := fs.String("effort", "", "reasoning effort")
 	slug := fs.String("slug", "", "session slug (defaults to derived from prompt)")
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
+	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
 	noAttach := fs.Bool("no-attach", true, "spawn and exit (default)")
 	if err := fs.Parse(args); err != nil {
 		return NewExitError(ExitInvalidArgs, err.Error())
@@ -67,6 +68,7 @@ func RunNew(args []string) error {
 	req := protocol.NewSession{
 		ToolID: *tool, ModelID: *model, Effort: *effort,
 		Slug: *slug, CWD: *cwd, InitialPrompt: prompt,
+		Fleet: *fleet,
 	}
 	if err := c.NewSession(req); err != nil {
 		return NewExitError(ExitGeneric, err.Error())

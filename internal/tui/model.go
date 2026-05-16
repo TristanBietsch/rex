@@ -25,6 +25,7 @@ const (
 	FocusAttach
 	FocusFail
 	FocusBoot
+	FocusStats
 )
 
 // Model is the root Bubble Tea model.
@@ -150,5 +151,15 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["last_line"].(string); ok {
 		s.LastLine = v
+	}
+	if v, ok := patch["fleet"].(string); ok {
+		s.Fleet = v
+	}
+	// Token fields come as float64 over JSON; coerce safely.
+	if v, ok := patch["tokens"].(float64); ok {
+		s.Tokens = int64(v)
+	}
+	if v, ok := patch["output_bytes"].(float64); ok {
+		s.OutputBytes = int64(v)
 	}
 }

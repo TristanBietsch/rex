@@ -31,7 +31,7 @@ const bashCompletion = `# rex bash completion. Source this from your ~/.bashrc:
 #   source <(rex completion bash)
 _rex_complete() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
-    local verbs="status ls new attach reply send log wait rm rename archive reload daemon completion --version"
+    local verbs="status ls new attach reply send log wait rm rename archive reload daemon completion render config setup doctor update uninstall digest stats fleet --version"
     COMPREPLY=( $(compgen -W "$verbs" -- "$cur") )
 }
 complete -F _rex_complete rex
@@ -41,7 +41,7 @@ const zshCompletion = `# rex zsh completion. Source this from your ~/.zshrc:
 #   source <(rex completion zsh)
 _rex() {
     local -a verbs
-    verbs=(status ls new attach reply send log wait rm rename archive reload daemon completion --version)
+    verbs=(status ls new attach reply send log wait rm rename archive reload daemon completion render config setup doctor update uninstall digest stats fleet --version)
     _describe 'verb' verbs
 }
 compdef _rex rex
@@ -50,5 +50,5 @@ compdef _rex rex
 const fishCompletion = `# rex fish completion. Source this:
 #   rex completion fish | source
 complete -c rex -f
-complete -c rex -n "__fish_use_subcommand" -a "status ls new attach reply send log wait rm rename archive reload daemon completion --version"
+complete -c rex -n "__fish_use_subcommand" -a "status ls new attach reply send log wait rm rename archive reload daemon completion render config setup doctor update uninstall digest stats fleet --version"
 `

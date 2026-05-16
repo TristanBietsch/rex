@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"log/slog"
 	"os/exec"
 	"strings"
 
@@ -73,6 +74,16 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 		return m, nil
 	case "fail", "fails", "failed":
 		return openFail(m)
+	case "stats":
+		if m.Focus == FocusStats {
+			// Toggle off.
+			m.Focus = FocusBoard
+			slog.Debug("tui: stats overlay closed")
+		} else {
+			m.Focus = FocusStats
+			slog.Debug("tui: stats overlay opened")
+		}
+		return m, nil
 	default:
 		m.Err = "unknown command: " + verb
 	}

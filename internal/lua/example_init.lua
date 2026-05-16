@@ -1,0 +1,71 @@
+-- rex init.lua — example configuration
+--
+-- Place this file (or a version of it) at:
+--   ~/.config/rex/init.lua
+--
+-- The rex daemon loads it once at startup. The script runs in-process as the
+-- daemon user. Do NOT load untrusted scripts; the sandbox restricts standard
+-- I/O libraries but the rex.* API has real side effects.
+--
+-- ─── API reference ───────────────────────────────────────────────────────────
+--
+-- rex.on(event_name, fn)
+--   Register a handler function. fn receives one table argument (see below).
+--   Supported event names:
+--     "session_added"   – a new session was created
+--     "session_updated" – a session's state/metadata changed
+--     "session_removed" – a session was deleted
+--
+--   Session table fields (session_added / session_updated):
+--     s.id        string  full UUID
+--     s.short_id  string  short display ID
+--     s.slug      string  human-readable name
+--     s.title     string  optional title
+--     s.state     string  "queued"|"working"|"needs_input"|"done"|"failed"|"crashed"
+--     s.tool_id   string  e.g. "claude", "codex"
+--     s.model_id  string  e.g. "claude-sonnet-4-5"
+--     s.cwd       string  working directory
+--
+--   session_removed table fields:
+--     s.session_id  string  the id of the removed session
+--
+-- rex.send(session_id, text)
+--   Send text to the PTY of the given session (appends a newline via the
+--   daemon's Reply intent). Raises a Lua error if the session is unknown or
+--   the daemon returns an error.
+--
+-- rex.list()
+--   Returns an array table of session tables (same fields as above).
+--   Snapshot is taken at the time of the call; the list is not live.
+--
+-- rex.log(level, msg)
+--   Log a message through the daemon's slog logger.
+--   level: "info" | "warn" | "error"  (default: "info")
+--
+-- ─── Examples ────────────────────────────────────────────────────────────────
+
+-- Log every new session at info level.
+-- rex.on("session_added", function(s)
+--   rex.log("info", "new session: " .. s.slug .. " (" .. s.id .. ")")
+-- end)
+
+-- When a session reaches needs_input, log a reminder.
+-- rex.on("session_updated", function(s)
+--   if s.state == "needs_input" then
+--     rex.log("warn", "session needs input: " .. s.slug)
+--   end
+-- end)
+
+-- Forward a greeting to every new session.
+-- rex.on("session_added", function(s)
+--   rex.send(s.id, "Hello from rex Lua!")
+-- end)
+
+-- Print all running sessions whenever a new one is added.
+-- rex.on("session_added", function(_)
+--   local list = rex.list()
+--   for i = 1, #list do
+--     local sess = list[i]
+--     rex.log("info", i .. ": " .. sess.slug .. " [" .. sess.state .. "]")
+--   end
+-- end)

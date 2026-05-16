@@ -106,6 +106,12 @@ func (c *Client) SetMaxConcurrent(n int) error {
 	return c.w.WriteIntent(protocol.IntentSetMaxConcurrent, "", protocol.SetMaxConcurrent{N: n})
 }
 
+// SetSessionFleet updates the fleet label of an existing session.
+// An empty fleet string clears the fleet.
+func (c *Client) SetSessionFleet(sessionID, fleet string) error {
+	return c.w.WriteIntent(protocol.IntentSetSessionFleet, "", protocol.SetSessionFleet{SessionID: sessionID, Fleet: fleet})
+}
+
 // NextEvent reads one envelope from the stream.
 func (c *Client) NextEvent() (protocol.Envelope, error) {
 	return c.r.Read()

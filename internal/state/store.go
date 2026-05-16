@@ -137,6 +137,56 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 	return nil
 }
 
+// UpdateTokens increments the session's OutputBytes by deltaBytes and recomputes
+// Tokens = OutputBytes / 4 (approximate heuristic).
+// Returns the new token count, the new raw output byte count, and any error.
+// Callers should emit a SessionUpdated patch when tokens cross a threshold.
+func (s *Store) UpdateTokens(id string, deltaBytes int64) (tokens, outputBytes int64, err error) {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return 0, 0, fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	sess.OutputBytes += deltaBytes
+	sess.Tokens = sess.OutputBytes / 4
+	tokens = sess.Tokens
+	outputBytes = sess.OutputBytes
+	sess.mu.Unlock()
+	return tokens, outputBytes, nil
+}
+
+// BroadcastTokenPatch emits a SessionUpdated event for the token/output_bytes fields.
+func (s *Store) BroadcastTokenPatch(id string, tokens, outputBytes int64) {
+	s.broadcast(Event{
+		Kind:      EventUpdated,
+		SessionID: id,
+		Patch:     map[string]any{"tokens": tokens, "output_bytes": outputBytes},
+	})
+}
+
+// SetFleet updates the fleet label on a session, persists it, and broadcasts.
+func (s *Store) SetFleet(id, fleet string) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	sess.Fleet = fleet
+	sess.LastEventAt = time.Now().UTC()
+	sess.mu.Unlock()
+
+	s.broadcast(Event{
+		Kind:      EventUpdated,
+		SessionID: id,
+		Patch:     map[string]any{"fleet": fleet, "last_event_at": time.Now().UTC()},
+	})
+	return nil
+}
+
 // UpdateLastLine records a transcript-derived summary line.
 func (s *Store) UpdateLastLine(id, line string) error {
 	s.mu.RLock()

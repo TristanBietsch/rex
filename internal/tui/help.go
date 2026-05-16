@@ -38,6 +38,7 @@ func renderHelp() string {
 		"  :rename <s> <new>",
 		"  :reload       reload tools.yaml",
 		"  :fail         inspect failed sessions + daemon log",
+		"  :stats        session statistics overlay",
 		"  :help         this overlay",
 		"",
 		styleDim.Render("esc to close"),

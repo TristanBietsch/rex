@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
 
@@ -9,6 +10,33 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
+
+// fleetPalette is a small set of distinct lipgloss colors that work on both
+// dark and light terminals. The color for a fleet name is selected by:
+//
+//	fnv32(name) % len(fleetPalette)
+//
+// This ensures the same name always maps to the same color.
+var fleetPalette = []lipgloss.Color{
+	"#5B8DEF", // blue
+	"#E5B341", // amber
+	"#4ADE80", // green
+	"#EF4444", // red
+	"#A78BFA", // violet
+	"#22D3EE", // cyan
+	"#FB923C", // orange
+	"#F472B6", // pink
+	"#84CC16", // lime
+	"#14B8A6", // teal
+}
+
+// fleetColor returns a stable, deterministic color for the given fleet name.
+func fleetColor(name string) lipgloss.Color {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	idx := int(h.Sum32()) % len(fleetPalette)
+	return fleetPalette[idx]
+}
 
 // spinnerFrameSets is the full catalog of spinner glyph sets. Selected at
 // render time via the `spinner` setting.
@@ -130,6 +158,9 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 	var markerPrefix string
 	if selected {
 		markerPrefix = styleArrow.Render("▸")
+	} else if s.Fleet != "" {
+		// Fleet indicator: tinted left border using the fleet's stable color.
+		markerPrefix = lipgloss.NewStyle().Foreground(fleetColor(s.Fleet)).Render("▍")
 	} else {
 		markerPrefix = " "
 	}
@@ -220,10 +251,31 @@ func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) str
 }
 
 func modelLabel(s protocol.SessionSummary) string {
+	base := s.ModelID
 	if s.Effort != "" {
-		return s.ModelID + " · " + s.Effort
+		base = base + " · " + s.Effort
 	}
-	return s.ModelID
+	if s.Tokens > 0 {
+		base = base + " · " + formatTokens(s.Tokens)
+	}
+	return base
+}
+
+// formatTokens humanizes a token count for the board cell.
+// < 1000  → "<N> tk"
+// < 100000 → "<N.N>K tk"
+// ≥ 100000 → "<N>K tk"
+func formatTokens(n int64) string {
+	switch {
+	case n < 1000:
+		return fmt.Sprintf("%d tk", n)
+	case n < 100000:
+		k := float64(n) / 1000.0
+		return fmt.Sprintf("%.1fK tk", k)
+	default:
+		k := n / 1000
+		return fmt.Sprintf("%dK tk", k)
+	}
 }
 
 func truncate(s string, n int) string {

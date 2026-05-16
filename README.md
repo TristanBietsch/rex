@@ -41,6 +41,11 @@ Pick whichever is easiest.
 ```
 
 `install.sh --verbose` streams the build output; otherwise it spins quietly.
+Add PATH and shell completions in one shot:
+
+```sh
+./install.sh --shell-init >> ~/.zshrc
+```
 
 **Makefile** — same thing, configurable prefix:
 
@@ -63,10 +68,12 @@ All three install both binaries. Make sure the install directory is on your
 export PATH="$HOME/.local/bin:$PATH"   # if you used the defaults
 ```
 
+First time? run `rex setup` — it wires your config and launches the TUI.
+
 To remove:
 
 ```sh
-make uninstall   # or: rm ~/.local/bin/rex ~/.local/bin/rex-daemon
+rex uninstall --wipe-state   # or: make uninstall
 ```
 
 ## Quickstart
@@ -76,10 +83,14 @@ rex                                 # launch the TUI
 rex status                          # "2 awaiting · 4 working · 1 completed"
 rex ls                              # session table (--json for JSONL)
 rex new "fix flaky billing test" --tool claude --model sonnet
-rex attach 7d4f                     # full-screen PTY (ctrl+] detaches)
+rex attach 7d4f                     # full-screen PTY (ctrl+a d detaches)
 rex reply 7d4f "ship it"            # answer a needs-input session
 rex log -f 9e51                     # tail a session's transcript
 rex wait payment-migration --until done --timeout 10m
+rex digest                          # today's sessions, time, totals
+rex stats                           # lifetime usage by model/tool
+rex fleet ls                        # list fleets (named session groups)
+rex new "load test" --fleet=launch
 ```
 
 Selectors accept the **short id** (`7d4f` — first four chars of the UUID),
@@ -87,6 +98,33 @@ the **slug** (`dark-mode`), or the full UUID. The CLI is a peer of the TUI,
 not an afterthought: every TUI action has a non-interactive equivalent,
 output is pipe-friendly, and exit codes are meaningful (`2` = not found,
 `3` = ambiguous, `7` = `rex wait` timed out, etc.).
+
+## Management
+
+```sh
+rex doctor                          # diagnostic check (PATH, daemon, keys, config)
+rex setup                           # guided first-run wizard
+rex update                          # upgrade in place
+rex uninstall --wipe-state          # remove rex + data
+```
+
+## Scripting
+
+Place a Lua file at `~/.config/rex/init.lua` to hook into rex events:
+
+```lua
+-- ~/.config/rex/init.lua
+rex.on("session_added", function(s)
+  -- automatically prompt each new session
+  rex.send(s.id, "read AGENTS.md before starting\n")
+end)
+
+rex.on("session_needs_input", function(s)
+  rex.log("waiting on: " .. s.slug)
+end)
+```
+
+`rex reload` re-reads `init.lua` without restarting the daemon.
 
 ## TUI
 
@@ -116,7 +154,7 @@ The next `rex` invocation restores your selection, filter, and scroll.
 | `rex` | Launch the TUI |
 | `rex status` | One-line aggregate (exit `1` when something needs input) |
 | `rex ls [--state …] [--tool …] [--json]` | List sessions |
-| `rex new [prompt] [--tool] [--model] [--cwd]` | Spawn a session |
+| `rex new [prompt] [--tool] [--model] [--fleet]` | Spawn a session |
 | `rex attach <sel> [--read-only]` | Full-screen PTY attach |
 | `rex reply <sel> [text]` | Reply to a needs-input session |
 | `rex send <sel>` | Pipe raw stdin to a session's PTY |
@@ -125,7 +163,14 @@ The next `rex` invocation restores your selection, filter, and scroll.
 | `rex rename <sel> <slug>` | Rename a session |
 | `rex archive <sel>` | Hide a completed session |
 | `rex rm <sel>` | Delete a session |
+| `rex digest` | Daily summary: sessions, time spent, totals |
+| `rex stats` | Lifetime usage by model and tool |
+| `rex fleet {ls,set,unset,show}` | Manage named session groups |
 | `rex reload` | Re-read `tools.yaml`, `config.yaml`, `init.lua` (SIGHUP) |
+| `rex setup` | Guided first-run wizard |
+| `rex doctor` | Diagnostic check |
+| `rex update` | Upgrade in place |
+| `rex uninstall [--wipe-state]` | Remove rex and optionally all data |
 | `rex config {get,set,list,reset,edit}` | Manage settings |
 | `rex daemon {start,stop,restart,status,logs}` | Manage the supervisor directly |
 | `rex completion {bash,zsh,fish}` | Generate shell completions |
@@ -167,6 +212,7 @@ debuggable with `socat`, `jq`, and `tail`.
 
 The `docs/` directory is the source of truth for design and protocol:
 
+- [`usage.md`](docs/usage.md) — full command reference, exit codes, files, env vars
 - [`spec.md`](docs/spec.md) — v0 scope and non-goals
 - [`architecture.md`](docs/architecture.md) — two-process model, IPC, persistence
 - [`protocol.md`](docs/protocol.md) — JSONL message vocabulary

@@ -14,6 +14,7 @@ const (
 	IntentFocusFilter      = "FocusFilter"
 	IntentShutdown         = "Shutdown"
 	IntentSetMaxConcurrent = "SetMaxConcurrent"
+	IntentSetSessionFleet  = "SetSessionFleet"
 )
 
 // Hello is the first message a client sends after connect.
@@ -45,6 +46,15 @@ type NewSession struct {
 	Title         string `json:"title,omitempty"`
 	CWD           string `json:"cwd"`
 	InitialPrompt string `json:"initial_prompt,omitempty"`
+	// Fleet optionally assigns the new session to a named fleet.
+	Fleet string `json:"fleet,omitempty"`
+}
+
+// SetSessionFleet updates the fleet label of an existing session.
+type SetSessionFleet struct {
+	SessionID string `json:"session_id"`
+	// Fleet is the new fleet name. Empty string clears the fleet.
+	Fleet string `json:"fleet,omitempty"`
 }
 
 // OpenSession marks a session as the client's foreground.

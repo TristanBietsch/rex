@@ -3,17 +3,23 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 
+	"github.com/tristanbietsch/rex/internal/lua"
+	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/registry"
 	"github.com/tristanbietsch/rex/internal/rexlog"
 	"github.com/tristanbietsch/rex/internal/server"
+	"github.com/tristanbietsch/rex/internal/settings"
 	"github.com/tristanbietsch/rex/internal/state"
 )
 
@@ -82,6 +88,15 @@ func run(args []string) error {
 		return fmt.Errorf("server: %w", err)
 	}
 
+	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
+	luaRT, luaCancel := startLuaRuntime(srv, store)
+	if luaCancel != nil {
+		defer luaCancel()
+	}
+	if luaRT != nil {
+		defer luaRT.Close()
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -120,6 +135,80 @@ func reloadOnHUP(ctx context.Context, srv *server.Server, toolsPath string) {
 			slog.Info("daemon: SIGHUP reload ok", "tools", toolsPath, "count", len(reg.Tools))
 		}
 	}
+}
+
+// startLuaRuntime initializes the Lua scripting runtime and subscribes it to
+// store events. Returns (nil, nil) if Lua is disabled or fails to init —
+// daemon startup must not depend on user scripts.
+func startLuaRuntime(srv *server.Server, store *state.Store) (*lua.Runtime, func()) {
+	cfgPath := luaConfigPath()
+	if cfgPath == "" {
+		slog.Info("daemon: lua disabled (no config path)")
+		return nil, nil
+	}
+
+	rt, err := lua.New(lua.Options{
+		Sender: func(sessionID, text string) error {
+			ch := srv.InputChannel(sessionID)
+			if ch == nil {
+				return fmt.Errorf("session %q has no input channel", sessionID)
+			}
+			payload := []byte(text)
+			select {
+			case ch <- payload:
+				return nil
+			case <-time.After(2 * time.Second):
+				return errors.New("send timed out")
+			}
+		},
+		Lister: func() []protocol.SessionSummary {
+			return store.Snapshot()
+		},
+	})
+	if err != nil {
+		slog.Error("daemon: lua init failed", "err", err)
+		return nil, nil
+	}
+
+	if err := rt.LoadFile(cfgPath); err != nil {
+		slog.Error("daemon: lua load failed; runtime still active for future reloads", "path", cfgPath, "err", err)
+	}
+
+	cancel := store.Subscribe(func(e state.Event) {
+		switch e.Kind {
+		case state.EventAdded:
+			if e.Summary != nil {
+				_ = rt.OnEvent(protocol.EventSessionAdded, *e.Summary)
+			}
+		case state.EventUpdated:
+			sess, ok := store.Get(e.SessionID)
+			if !ok {
+				return
+			}
+			_ = rt.OnEvent(protocol.EventSessionUpdated, sess.Summary())
+		case state.EventRemoved:
+			_ = rt.OnEvent(protocol.EventSessionRemoved, protocol.SessionRemoved{SessionID: e.SessionID})
+		}
+	})
+
+	return rt, cancel
+}
+
+// luaConfigPath returns the resolved path to the user's init.lua, or "" if not configured.
+func luaConfigPath() string {
+	st := settings.NewStore()
+	if err := st.Load(settings.DefaultPath()); err != nil {
+		slog.Warn("daemon: settings load failed for lua path", "err", err)
+	}
+	raw := st.String("lua_config_path")
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "~/") {
+		home, _ := os.UserHomeDir()
+		raw = filepath.Join(home, raw[2:])
+	}
+	return raw
 }
 
 func defaultSocketPath() string {

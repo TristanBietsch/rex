@@ -39,6 +39,13 @@ type SessionSummary struct {
 	LastEventAt time.Time `json:"last_event_at"`
 	LastLine    string    `json:"last_line,omitempty"`
 	ExitCode    *int      `json:"exit_code,omitempty"`
+
+	// Token tracking (approximate: OutputBytes/4).
+	Tokens      int64 `json:"tokens,omitempty"`
+	OutputBytes int64 `json:"output_bytes,omitempty"`
+
+	// Fleet groups related sessions under a named label.
+	Fleet string `json:"fleet,omitempty"`
 }
 
 // Snapshot is the daemon's response to Hello: full board state.

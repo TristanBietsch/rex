@@ -58,6 +58,20 @@ func run(args []string) error {
 		return cli.RunRender(args[1:])
 	case "config":
 		return cli.RunConfig(args[1:])
+	case "setup":
+		return cli.RunSetup(args[1:])
+	case "doctor":
+		return cli.RunDoctor(args[1:])
+	case "update":
+		return cli.RunUpdate(args[1:])
+	case "uninstall":
+		return cli.RunUninstall(args[1:])
+	case "digest":
+		return cli.RunDigest(args[1:])
+	case "stats":
+		return cli.RunStats(args[1:])
+	case "fleet":
+		return cli.RunFleet(args[1:])
 	default:
 		return fmt.Errorf("unknown command %q (try `rex --help`)", args[0])
 	}

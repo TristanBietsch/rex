@@ -81,6 +81,8 @@ func (m Model) View() string {
 		return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
 	case FocusFail:
 		return centerOverlay(w, h, renderFail(m), renderFullScreen(m, w, h))
+	case FocusStats:
+		return centerOverlay(w, h, renderStatsOverlay(m), renderFullScreen(m, w, h))
 	}
 
 	return renderFullScreen(m, w, h)

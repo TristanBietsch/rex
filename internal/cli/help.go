@@ -57,6 +57,23 @@ func RunHelp() error {
 			},
 		},
 		{
+			title: "Insights",
+			rows: []helpRow{
+				{"digest", "today's sessions, time, totals"},
+				{"stats", "lifetime usage by model/tool"},
+				{"fleet", "list/set/unset session fleets"},
+			},
+		},
+		{
+			title: "Lifecycle",
+			rows: []helpRow{
+				{"setup", "guided first-run wizard"},
+				{"doctor", "diagnostic check"},
+				{"update", "upgrade rex in place"},
+				{"uninstall", "remove rex + optional state"},
+			},
+		},
+		{
 			title: "Other",
 			rows: []helpRow{
 				{"render", "render an event stream"},

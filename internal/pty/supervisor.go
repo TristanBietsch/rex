@@ -163,6 +163,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		}(s.cfg.InitialPrompt)
 	}
 
+	// tokenThreshold tracks the last token count at which we emitted a patch.
+	// We broadcast every +500 tokens to avoid event spam.
+	var lastBroadcastTokens int64
+
 	// Reader goroutine.
 	go func() {
 		buf := make([]byte, 4096)
@@ -176,6 +180,17 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				}
 				if s.cfg.OutputSink != nil {
 					s.cfg.OutputSink(chunk)
+				}
+
+				// Increment token counter and emit a patch every +500 tokens.
+				// Tokens = OutputBytes / 4 (approximate heuristic).
+				tokens, outputBytes, terr := s.cfg.Store.UpdateTokens(sess.ID, int64(n))
+				if terr == nil {
+					if tokens-lastBroadcastTokens >= 500 {
+						lastBroadcastTokens = tokens
+						s.cfg.Store.BroadcastTokenPatch(sess.ID, tokens, outputBytes)
+						slog.Debug("pty: token patch broadcast", "session", sess.ID, "tokens", tokens, "output_bytes", outputBytes)
+					}
 				}
 				// Cursor-blink and other escape-only chunks (DECTCEM toggle,
 				// SGR resets) must NOT reset the idle timer — otherwise the

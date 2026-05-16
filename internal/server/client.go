@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -178,7 +179,27 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			_ = srv.cfg.Store.UpdateLastLine(p.SessionID, sess.LastLine)
 			_ = patch
 
-		case protocol.IntentFocusFilter:
+		case protocol.IntentSetSessionFleet:
+		var p protocol.SetSessionFleet
+		if err := json.Unmarshal(env.Data, &p); err != nil {
+			writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+			continue
+		}
+		sess, ok := srv.cfg.Store.Get(p.SessionID)
+		if !ok {
+			writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+			continue
+		}
+		if err := srv.cfg.Store.SetFleet(p.SessionID, p.Fleet); err != nil {
+			writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+			continue
+		}
+		if err := state.WriteMeta(srv.cfg.StateDir, sess); err != nil {
+			slog.Warn("server: write meta after fleet update", "session", p.SessionID, "err", err)
+		}
+		slog.Info("server: fleet updated", "session", p.SessionID, "fleet", p.Fleet)
+
+	case protocol.IntentFocusFilter:
 			var p protocol.FocusFilter
 			_ = json.Unmarshal(env.Data, &p)
 			// Cosmetic — silently accept.
@@ -239,6 +260,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		CWD:       p.CWD,
 		State:     protocol.StateQueued,
 		StartedAt: time.Now().UTC(),
+		Fleet:     p.Fleet,
 	}
 	if err := cfg.Store.Add(sess); err != nil {
 		srv.ReleaseSession()

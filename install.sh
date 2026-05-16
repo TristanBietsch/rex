@@ -8,6 +8,9 @@
 #   PREFIX=/usr/local ./install.sh  # installs to /usr/local/bin (may need sudo)
 #   ./install.sh --skip-build       # just copy existing binaries (CI use)
 #   ./install.sh --verbose          # stream build/install output (no spinner)
+#   ./install.sh --shell-init       # print shell profile block and exit
+#   ./install.sh --migrate          # detect and clean up legacy install paths
+#   ./install.sh -h|--help          # show this help
 
 set -euo pipefail
 
@@ -15,6 +18,7 @@ PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="$PREFIX/bin"
 SKIP_BUILD=0
 VERBOSE=0
+MODE="install"  # install | shell-init | migrate
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   C_RESET=$'\033[0m'
@@ -30,12 +34,16 @@ else
   TTY=0
 fi
 
+# ── option parsing ────────────────────────────────────────────────────────────
+
 for arg in "$@"; do
   case "$arg" in
     --skip-build) SKIP_BUILD=1 ;;
     --verbose|-v) VERBOSE=1 ;;
+    --shell-init) MODE="shell-init" ;;
+    --migrate)    MODE="migrate" ;;
     -h|--help)
-      sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -45,29 +53,146 @@ for arg in "$@"; do
   esac
 done
 
+# ── repo root ─────────────────────────────────────────────────────────────────
+
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$REPO_ROOT"
+
+# ── --shell-init mode ─────────────────────────────────────────────────────────
+# Prints an idempotent shell profile block and exits.
+# Usage: ./install.sh --shell-init >> ~/.zshrc
+#        ./install.sh --shell-init >> ~/.bashrc
+
+if [[ "$MODE" == "shell-init" ]]; then
+  # Detect shell family; fall back to bash syntax.
+  _shell_name="$(basename "${SHELL:-bash}")"
+  cat <<'SHELLBLOCK'
+# BEGIN REX
+export PATH="$HOME/.local/bin:$PATH"
+source <(rex completion bash 2>/dev/null) || true
+# END REX
+SHELLBLOCK
+  # fish users need a different incantation — document it as a comment.
+  if [[ "$_shell_name" == "fish" ]]; then
+    printf "\n# fish users: add this to ~/.config/fish/config.fish instead:\n"
+    printf "#   set -gx PATH \"\$HOME/.local/bin\" \$PATH\n"
+    printf "#   rex completion fish | source\n"
+  fi
+  exit 0
+fi
+
+# ── --migrate mode ────────────────────────────────────────────────────────────
+
+if [[ "$MODE" == "migrate" ]]; then
+  found_any=0
+
+  # Legacy state directory.
+  if [[ -d "$HOME/.rex" ]]; then
+    found_any=1
+    printf "%s⚠%s  found legacy state at %s~/.rex/%s\n" \
+      "$C_WARN" "$C_RESET" "$C_BOLD" "$C_RESET"
+    printf "   move to ~/.local/state/rex/? [y/N] "
+    read -r _ans </dev/tty
+    case "$_ans" in
+      [yY]*)
+        mkdir -p "$HOME/.local/state/rex"
+        mv "$HOME/.rex" "$HOME/.local/state/rex"
+        printf "   %s✓%s moved ~/.rex → ~/.local/state/rex\n" "$C_OK" "$C_RESET"
+        ;;
+      *)
+        printf "   skipped\n"
+        ;;
+    esac
+  fi
+
+  # Old binary at /usr/local/bin/rex that differs from our install target.
+  _legacy_bin="/usr/local/bin/rex"
+  _install_target="$BIN_DIR/rex"
+  if [[ -x "$_legacy_bin" && "$_legacy_bin" != "$_install_target" ]]; then
+    found_any=1
+    printf "%s⚠%s  found old rex binary at %s%s%s\n" \
+      "$C_WARN" "$C_RESET" "$C_BOLD" "$_legacy_bin" "$C_RESET"
+    printf "   remove it? [y/N] "
+    read -r _ans </dev/tty
+    case "$_ans" in
+      [yY]*)
+        rm -f "$_legacy_bin"
+        printf "   %s✓%s removed %s\n" "$C_OK" "$C_RESET" "$_legacy_bin"
+        ;;
+      *)
+        printf "   skipped\n"
+        ;;
+    esac
+  fi
+
+  if [[ $found_any -eq 0 ]]; then
+    printf "  %sno legacy artifacts to migrate%s\n" "$C_MUTED" "$C_RESET"
+  fi
+  exit 0
+fi
+
+# ── OS / arch sanity check ────────────────────────────────────────────────────
+
+_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+_arch="$(uname -m)"
+
+case "$_os" in
+  darwin|linux) ;;
+  *)
+    printf "%serror:%s rex builds on darwin/linux on amd64/arm64. Detected: %s/%s. File a request at https://github.com/tristanbietsch/rex/issues.\n" \
+      "$C_ERR" "$C_RESET" "$_os" "$_arch" >&2
+    exit 1
+    ;;
+esac
+
+case "$_arch" in
+  x86_64|arm64|aarch64) ;;
+  *)
+    printf "%serror:%s rex builds on darwin/linux on amd64/arm64. Detected: %s/%s. File a request at https://github.com/tristanbietsch/rex/issues.\n" \
+      "$C_ERR" "$C_RESET" "$_os" "$_arch" >&2
+    exit 1
+    ;;
+esac
+
+# ── banner ────────────────────────────────────────────────────────────────────
+
+_version="$(git -C "$REPO_ROOT" describe --tags --always 2>/dev/null || echo "(from source)")"
+printf "\n  %s∴ rex installer%s  %s%s%s\n" \
+  "$C_BOLD" "$C_RESET" "$C_MUTED" "$_version" "$C_RESET"
+
+# ── temp files ────────────────────────────────────────────────────────────────
 
 LOG="$(mktemp -t rex-install.XXXXXX)"
 META="$LOG.meta"
 trap 'rm -f "$LOG" "$META"; printf "\033[?25h"' EXIT
 
-# work runs the install pipeline. Every fallible step is guarded with
-# `|| return 1` because `set -e` is suppressed when work() runs inside
-# an `if !` test (which is how we detect failure to swap to the error path).
+# ── install pipeline ──────────────────────────────────────────────────────────
+# work() runs every fallible step. Return codes propagate; set -e is suppressed
+# when work() is called inside an `if !` test (that's intentional).
+
 work() {
   if [[ $SKIP_BUILD -eq 0 ]]; then
-    command -v go >/dev/null 2>&1 || {
-      echo "go toolchain not found — install Go 1.22+ (https://go.dev/dl/)" >&2
+    if ! command -v go >/dev/null 2>&1; then
+      printf "%serror:%s go toolchain not found. Install Go 1.22+: https://go.dev/dl/\n" \
+        "$C_ERR" "$C_RESET" >&2
       return 1
-    }
+    fi
     echo "→ building rex"
-    go build -o rex ./cmd/rex || return 1
+    if ! go build -o rex ./cmd/rex >>"$LOG" 2>&1; then
+      printf "%serror:%s build failed. Tail of build log:\n" "$C_ERR" "$C_RESET" >&2
+      tail -20 "$LOG" >&2
+      return 1
+    fi
     echo "→ building rex-daemon"
-    go build -o rex-daemon ./cmd/rex-daemon || return 1
+    if ! go build -o rex-daemon ./cmd/rex-daemon >>"$LOG" 2>&1; then
+      printf "%serror:%s build failed. Tail of build log:\n" "$C_ERR" "$C_RESET" >&2
+      tail -20 "$LOG" >&2
+      return 1
+    fi
   else
     [[ -x ./rex && -x ./rex-daemon ]] || {
-      echo "--skip-build set but ./rex or ./rex-daemon is missing" >&2
+      printf "%serror:%s --skip-build set but ./rex or ./rex-daemon is missing\n" \
+        "$C_ERR" "$C_RESET" >&2
       return 1
     }
   fi
@@ -86,11 +211,20 @@ work() {
 
   mkdir -p "$BIN_DIR" || return 1
   echo "→ installing to $BIN_DIR"
-  install -m 0755 rex "$BIN_DIR/rex" || return 1
-  install -m 0755 rex-daemon "$BIN_DIR/rex-daemon" || return 1
+  if ! install -m 0755 rex "$BIN_DIR/rex" 2>>"$LOG"; then
+    printf "%serror:%s cannot write to %s. Use PREFIX=/usr/local with sudo, or pick another prefix.\n" \
+      "$C_ERR" "$C_RESET" "$BIN_DIR" >&2
+    return 1
+  fi
+  if ! install -m 0755 rex-daemon "$BIN_DIR/rex-daemon" 2>>"$LOG"; then
+    printf "%serror:%s cannot write to %s. Use PREFIX=/usr/local with sudo, or pick another prefix.\n" \
+      "$C_ERR" "$C_RESET" "$BIN_DIR" >&2
+    return 1
+  fi
 }
 
-# spin runs work() in the background, animating a braille spinner until done.
+# ── spinner / verbose runner ──────────────────────────────────────────────────
+
 spin() {
   local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
   local i=0
@@ -122,6 +256,8 @@ else
   spin || exit 1
 fi
 
+# ── post-install output ───────────────────────────────────────────────────────
+
 INSTALLED_VERSION="$("$BIN_DIR/rex" --version 2>/dev/null || echo "?")"
 
 DAEMON_WAS_RUNNING=0
@@ -137,13 +273,24 @@ case ":$PATH:" in
   *)
     printf "\n  %s⚠%s %s is not on \$PATH\n" "$C_WARN" "$C_RESET" "$BIN_DIR"
     printf "    %sexport PATH=\"%s:\$PATH\"%s\n" "$C_MUTED" "$BIN_DIR" "$C_RESET"
+    printf "    %sor run: ./install.sh --shell-init >> ~/.zshrc%s\n" "$C_MUTED" "$C_RESET"
     ;;
 esac
 
 if [[ ${DAEMON_WAS_RUNNING:-0} -eq 1 ]]; then
-  printf "\n  %srun%s %s%srex%s%s — daemon will restart on the new binary%s\n\n" \
+  printf "\n  %srun%s %s%srex%s%s — daemon will restart on the new binary%s\n" \
     "$C_MUTED" "$C_RESET" "$C_BOLD" "$C_ACCENT" "$C_RESET" "$C_MUTED" "$C_RESET"
+fi
+
+# ── next-step hint ────────────────────────────────────────────────────────────
+
+printf "\n"
+if [[ ! -d "$HOME/.config/rex" ]]; then
+  # First run — config directory does not exist yet.
+  printf "  %snext:%s run %s%srex setup%s to configure rex\n\n" \
+    "$C_MUTED" "$C_RESET" "$C_BOLD" "$C_ACCENT" "$C_RESET"
 else
-  printf "\n  %srun%s %s%srex%s %sto launch%s\n\n" \
-    "$C_MUTED" "$C_RESET" "$C_BOLD" "$C_ACCENT" "$C_RESET" "$C_MUTED" "$C_RESET"
+  # Upgrade — config already present.
+  printf "  %snext:%s run %s%srex%s to launch\n\n" \
+    "$C_MUTED" "$C_RESET" "$C_BOLD" "$C_ACCENT" "$C_RESET"
 fi
