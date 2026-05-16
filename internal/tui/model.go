@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/audio"
@@ -63,6 +64,16 @@ type Model struct {
 	// BlinkUntil tracks done-blink expiry per session.
 	BlinkUntil map[string]time.Time
 
+	// DescAnim is the active per-session description animation. Entries are
+	// pruned by the descTickMsg handler once the animation completes.
+	DescAnim        map[string]DescAnim
+	descTickPending bool
+
+	// BackendUnavailable mirrors the daemon's summarizer health flag, delivered
+	// via SummarizerHealth events.
+	BackendUnavailable       bool
+	BackendUnavailableReason string
+
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
 
@@ -113,7 +124,11 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		if err := json.Unmarshal(env.Data, &upd); err == nil {
 			for i := range m.Sessions {
 				if m.Sessions[i].ID == upd.SessionID {
+					prevDesc := m.Sessions[i].Description
 					applyPatch(&m.Sessions[i], upd.Patch)
+					if m.Sessions[i].Description != prevDesc {
+						m = registerDescAnim(m, m.Sessions[i].ID, prevDesc, m.Sessions[i].Description)
+					}
 					break
 				}
 			}
@@ -164,5 +179,46 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["output_bytes"].(float64); ok {
 		s.OutputBytes = int64(v)
+	}
+}
+
+// registerDescAnim records a description-change animation. Respects
+// reduce_motion and the desc_animation setting.
+func registerDescAnim(m Model, id, from, to string) Model {
+	if to == "" {
+		return m
+	}
+	var effect string
+	if m.Store != nil {
+		effect, _ = m.Store.Get("desc_animation").(string)
+		if rm, _ := m.Store.Get("reduce_motion").(bool); rm {
+			effect = "off"
+		}
+	}
+	if effect == "" || effect == "off" {
+		return m
+	}
+	if m.DescAnim == nil {
+		m.DescAnim = map[string]DescAnim{}
+	}
+	if _, replacing := m.DescAnim[id]; replacing {
+		slog.Info("desc_anim: replaced_in_flight", "session", id)
+	}
+	m.DescAnim[id] = DescAnim{
+		From: from, To: to, Effect: effect,
+		StartedAt: time.Now(),
+		Duration:  animDurationFor(effect),
+	}
+	return m
+}
+
+func animDurationFor(effect string) time.Duration {
+	switch effect {
+	case "decode":
+		return 400 * time.Millisecond
+	case "wipe":
+		return 250 * time.Millisecond
+	default:
+		return 300 * time.Millisecond
 	}
 }
