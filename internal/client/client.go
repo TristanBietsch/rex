@@ -96,6 +96,11 @@ func (c *Client) Delete(sessionID string) error {
 	return c.w.WriteIntent(protocol.IntentDelete, "", protocol.Delete{SessionID: sessionID})
 }
 
+// Complete asks the daemon to cleanly terminate a session and mark it done.
+func (c *Client) Complete(sessionID string) error {
+	return c.w.WriteIntent(protocol.IntentComplete, "", protocol.Complete{SessionID: sessionID})
+}
+
 // FocusFilter sets the cosmetic tool filter.
 func (c *Client) FocusFilter(toolID string) error {
 	return c.w.WriteIntent(protocol.IntentFocusFilter, "", protocol.FocusFilter{ToolID: toolID})
