@@ -25,6 +25,7 @@ type SupervisorConfig struct {
 	CWD              string          // working directory for the child
 	Adapter          adapter.Adapter // nil = no state classification (tests/echo tool)
 	OutputSink       func(b []byte)  // called with every chunk read from PTY; non-blocking
+	SummaryRequest   chan<- string   // optional: session IDs needing AI summary; nil disables
 	InputCh          chan []byte     // optional: stdin bytes from clients
 	IdleTick         time.Duration   // how often we sample idle for the adapter (default 200ms)
 	InitialCols      uint16          // initial PTY width (0 = default)
@@ -104,6 +105,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	var windowMu sync.Mutex
 	window := make([]byte, 0, 8192)
 	lastChunk := time.Now()
+	dirty := false
+	lastSummaryAt := time.Now()
 	errc := make(chan error, 1)
 
 	// If the caller provided an initial prompt (from the wizard's "describe the
@@ -201,6 +204,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				window = appendBounded(window, chunk, 8192)
 				if visible {
 					lastChunk = time.Now()
+					dirty = true
 				}
 				line := lastNonEmptyLine(window)
 				windowMu.Unlock()
@@ -274,23 +278,64 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			return nil
 		case <-ticker.C:
-			if s.cfg.Adapter == nil {
-				continue
+			// Adapter classification (existing).
+			if s.cfg.Adapter != nil {
+				windowMu.Lock()
+				idle := time.Since(lastChunk)
+				windowSnap := append([]byte(nil), window...)
+				windowMu.Unlock()
+				next := s.cfg.Adapter.Detect(windowSnap, idle)
+				if next != "" {
+					current := sess.State
+					if next != current && next != protocol.StateWorking {
+						_ = s.cfg.Store.Transition(sess.ID, next)
+					}
+				}
 			}
-			windowMu.Lock()
-			idle := time.Since(lastChunk)
-			windowSnap := append([]byte(nil), window...)
-			windowMu.Unlock()
-			next := s.cfg.Adapter.Detect(windowSnap, idle)
-			if next == "" {
-				continue
-			}
-			current := sess.State
-			if next != current && next != protocol.StateWorking {
-				_ = s.cfg.Store.Transition(sess.ID, next)
+
+			// Summary trigger (additive — independent of adapter).
+			if s.cfg.SummaryRequest != nil {
+				windowMu.Lock()
+				emit := shouldEmitSummary(dirty, lastChunk, lastSummaryAt, time.Now())
+				windowMu.Unlock()
+				if emit {
+					select {
+					case s.cfg.SummaryRequest <- sess.ID:
+						windowMu.Lock()
+						dirty = false
+						lastSummaryAt = time.Now()
+						windowMu.Unlock()
+						slog.Debug("pty: summary signal sent", "session", sess.ID)
+					default:
+						slog.Debug("pty: summary worker busy, will retry next tick", "session", sess.ID)
+					}
+				}
 			}
 		}
 	}
+}
+
+// summaryIdleThreshold is the quiet-period after a burst that marks the
+// "natural beat" for re-summarizing. 500ms matches a typical agent pause
+// between operations and never races the 200ms IdleTick.
+const summaryIdleThreshold = 500 * time.Millisecond
+
+// summaryCeiling is the maximum interval between summaries for a never-idle
+// (continuously chatty) session.
+const summaryCeiling = 15 * time.Second
+
+// shouldEmitSummary is the pure predicate used in the ticker branch.
+func shouldEmitSummary(dirty bool, lastChunk, lastSubmittedAt, now time.Time) bool {
+	if !dirty {
+		return false
+	}
+	if now.Sub(lastChunk) >= summaryIdleThreshold {
+		return true
+	}
+	if now.Sub(lastSubmittedAt) >= summaryCeiling {
+		return true
+	}
+	return false
 }
 
 func appendBounded(buf, b []byte, cap int) []byte {
