@@ -21,6 +21,17 @@ type attachDoneMsg struct {
 	err error
 }
 
+// descTickMsg drives description-animation rendering at ~30 FPS while any row
+// is mid-animation. It's queued by the SessionUpdated handler when an
+// animation is registered, and re-queues itself until the DescAnim map empties.
+type descTickMsg struct{}
+
+const descTickInterval = 33 * time.Millisecond
+
+func scheduleDescTick() tea.Cmd {
+	return tea.Tick(descTickInterval, func(time.Time) tea.Msg { return descTickMsg{} })
+}
+
 var (
 	lastMouseRow  = -1
 	lastMouseTime time.Time
@@ -54,7 +65,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case DaemonEventMsg:
 		m = m.applyEvent(msg.Env)
-		return m, listenDaemon(m.Client)
+		cmds := []tea.Cmd{listenDaemon(m.Client)}
+		if len(m.DescAnim) > 0 && !m.descTickPending {
+			m.descTickPending = true
+			cmds = append(cmds, scheduleDescTick())
+		}
+		return m, tea.Batch(cmds...)
+	case descTickMsg:
+		now := time.Now()
+		for id, a := range m.DescAnim {
+			if !a.Active(now) {
+				delete(m.DescAnim, id)
+			}
+		}
+		m.descTickPending = false
+		if len(m.DescAnim) > 0 {
+			m.descTickPending = true
+			return m, scheduleDescTick()
+		}
+		return m, nil
 	case DaemonErrMsg:
 		// Surface the error in the status line, don't take down the TUI.
 		m.Err = msg.Err.Error()
