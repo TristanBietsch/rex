@@ -61,6 +61,9 @@ type Config struct {
 	Registry              *registry.Registry
 	Store                 *state.Store
 	MaxConcurrentSessions int
+	// SummaryRequest is the channel into the summarizer worker; nil disables AI
+	// description generation for this server.
+	SummaryRequest chan<- string
 }
 
 // Server owns the UDS listener and accepts clients.
