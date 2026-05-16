@@ -176,7 +176,14 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 	if selected {
 		descColor = colorFgPrimary
 	}
-	desc := lipgloss.NewStyle().Foreground(descColor).Width(descW).Render(truncate(s.LastLine, descW))
+	descSource := s.Description
+	if descSource == "" {
+		descSource = s.LastLine // bootstrap fallback
+	}
+	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(time.Now()) {
+		descSource = renderAnimFrame(anim, descW, time.Now())
+	}
+	desc := lipgloss.NewStyle().Foreground(descColor).Width(descW).Render(truncate(descSource, descW))
 	model := lipgloss.NewStyle().Foreground(colorFgDim).Width(colModel).Render(truncate(modelLabel(s), colModel))
 	t := lipgloss.NewStyle().Foreground(colorFgDim).Width(colTime).Align(lipgloss.Right).Render(durationAgo(s.LastEventAt))
 
