@@ -68,3 +68,25 @@ func TestStore_Snapshot(t *testing.T) {
 	snap := s.Snapshot()
 	require.Len(t, snap, 2)
 }
+
+func TestSummaryRoundtripsDescription(t *testing.T) {
+	sess := &Session{
+		ID:            "id-1",
+		ShortID:       "abcd",
+		Slug:          "test",
+		State:         protocol.StateWorking,
+		StartedAt:     time.Now().UTC(),
+		LastEventAt:   time.Now().UTC(),
+		LastLine:      "raw line",
+		Description:   "running pnpm test",
+		DescriptionAt: time.Now().UTC(),
+	}
+	sum := sess.Summary()
+	if sum.Description != "running pnpm test" {
+		t.Fatalf("Summary.Description: got %q want %q", sum.Description, "running pnpm test")
+	}
+	back := fromSummary(sum)
+	if back.Description != "running pnpm test" {
+		t.Fatalf("fromSummary.Description: got %q want %q", back.Description, "running pnpm test")
+	}
+}
