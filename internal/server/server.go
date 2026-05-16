@@ -93,6 +93,9 @@ type Server struct {
 
 	stopMu    sync.Mutex
 	stopFuncs map[string]func()
+
+	completeMu    sync.Mutex
+	completeFuncs map[string]func()
 }
 
 // SetRegistry atomically swaps the registry used for future spawns.
@@ -334,5 +337,35 @@ func (s *Server) StopSession(sessionID string) {
 	s.stopMu.Unlock()
 	if stop != nil {
 		stop()
+	}
+}
+
+// RegisterComplete stores a complete-signal closure for a session.
+// handleNewSession registers a closure that sends to the supervisor's CompleteCh.
+func (s *Server) RegisterComplete(sessionID string, fn func()) {
+	s.completeMu.Lock()
+	defer s.completeMu.Unlock()
+	if s.completeFuncs == nil {
+		s.completeFuncs = make(map[string]func())
+	}
+	s.completeFuncs[sessionID] = fn
+}
+
+// UnregisterComplete removes the registered closure after the supervisor exits.
+func (s *Server) UnregisterComplete(sessionID string) {
+	s.completeMu.Lock()
+	defer s.completeMu.Unlock()
+	delete(s.completeFuncs, sessionID)
+}
+
+// CompleteSession invokes the registered complete closure (no-op if absent).
+// Unlike StopSession, this does NOT block on supervisor exit — the closure
+// is a non-blocking send to a buffered channel.
+func (s *Server) CompleteSession(sessionID string) {
+	s.completeMu.Lock()
+	fn := s.completeFuncs[sessionID]
+	s.completeMu.Unlock()
+	if fn != nil {
+		fn()
 	}
 }
