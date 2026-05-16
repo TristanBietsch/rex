@@ -66,6 +66,20 @@ func (s *Store) Get(id string) (*Session, bool) {
 	return sess, ok
 }
 
+// CurrentState returns the session's current state under the appropriate locks.
+// Returns ("", false) if the session doesn't exist.
+func (s *Store) CurrentState(id string) (protocol.State, bool) {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return "", false
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.State, true
+}
+
 // GetByShortID returns a session by its 4-char short id (or extended).
 func (s *Store) GetByShortID(short string) (*Session, bool) {
 	s.mu.RLock()

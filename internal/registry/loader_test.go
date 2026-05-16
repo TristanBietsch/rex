@@ -59,3 +59,29 @@ func TestLoad_OptInDefaults(t *testing.T) {
 		require.False(t, *tool.EnabledByDefault, "tool %s should be opt-in", id)
 	}
 }
+
+func TestValidate_HeuristicWithoutDoneRegex(t *testing.T) {
+	tools := []Tool{{
+		ID: "t1", Models: []Model{{ID: "m1"}},
+		Detect: Detect{Kind: "heuristic", PromptRegex: "> ", IdleMs: 100},
+	}}
+	require.NoError(t, validate(tools))
+}
+
+func TestValidate_HeuristicWithValidDoneRegex(t *testing.T) {
+	tools := []Tool{{
+		ID: "t1", Models: []Model{{ID: "m1"}},
+		Detect: Detect{Kind: "heuristic", PromptRegex: "> ", DoneRegex: "^✓ done$", IdleMs: 100},
+	}}
+	require.NoError(t, validate(tools))
+}
+
+func TestValidate_HeuristicWithInvalidDoneRegex(t *testing.T) {
+	tools := []Tool{{
+		ID: "t1", Models: []Model{{ID: "m1"}},
+		Detect: Detect{Kind: "heuristic", PromptRegex: "> ", DoneRegex: "[unclosed", IdleMs: 100},
+	}}
+	err := validate(tools)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "done_regex")
+}

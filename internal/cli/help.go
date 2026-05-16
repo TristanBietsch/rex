@@ -45,6 +45,7 @@ func RunHelp() error {
 				{"rename <sel> <slug>", "rename a session"},
 				{"rm <sel>", "delete a session"},
 				{"archive <sel>", "archive a session"},
+				{"complete <sel>", "cleanly terminate a session and mark it done"},
 				{"log <sel>", "stream session log"},
 			},
 		},

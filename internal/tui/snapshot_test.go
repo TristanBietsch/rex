@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/registry"
 	"github.com/tristanbietsch/rex/internal/settings"
@@ -125,4 +127,43 @@ func TestBoardRendersDescriptionAnimating(t *testing.T) {
 	if strings.Contains(out, "raw garbage line") {
 		t.Fatalf("renderer fell back to LastLine when Description is set")
 	}
+}
+
+func TestBoardSnapshot_FailedAndCrashedRenderUnderCompleted(t *testing.T) {
+	now := time.Now()
+	sessions := []protocol.SessionSummary{
+		{ID: "w1", ShortID: "w1", ToolID: "claude", ModelID: "opus",
+			Slug: "working-one", State: protocol.StateWorking, LastEventAt: now.Add(-1 * time.Minute)},
+		{ID: "d1", ShortID: "d1", ToolID: "claude", ModelID: "opus",
+			Slug: "done-one", State: protocol.StateDone, LastEventAt: now.Add(-2 * time.Minute)},
+		{ID: "f1", ShortID: "f1", ToolID: "claude", ModelID: "opus",
+			Slug: "failed-one", State: protocol.StateFailed, LastEventAt: now.Add(-3 * time.Minute)},
+		{ID: "c1", ShortID: "c1", ToolID: "claude", ModelID: "opus",
+			Slug: "crashed-one", State: protocol.StateCrashed, LastEventAt: now.Add(-4 * time.Minute)},
+	}
+	m := Model{
+		Sessions: sessions, Filter: "all", SelectedID: "w1",
+		Width: 120, Height: 30, Focus: FocusBoard,
+	}
+	out := m.View()
+	require.Contains(t, out, "Completed", "Completed header should render")
+	require.Contains(t, out, "done-one", "done sessions should be visible")
+	require.Contains(t, out, "failed-one", "failed sessions should appear under Completed")
+	require.Contains(t, out, "crashed-one", "crashed sessions should appear under Completed")
+}
+
+func TestOrderedSessions_IncludesFailedAndCrashed(t *testing.T) {
+	sessions := []protocol.SessionSummary{
+		{ID: "w1", State: protocol.StateWorking},
+		{ID: "f1", State: protocol.StateFailed},
+		{ID: "c1", State: protocol.StateCrashed},
+		{ID: "d1", State: protocol.StateDone},
+	}
+	m := Model{Sessions: sessions, Filter: "all"}
+	got := orderedSessions(m)
+	ids := make([]string, 0, len(got))
+	for _, s := range got {
+		ids = append(ids, s.ID)
+	}
+	require.ElementsMatch(t, []string{"w1", "f1", "c1", "d1"}, ids)
 }

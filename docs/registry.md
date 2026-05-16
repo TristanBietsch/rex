@@ -198,6 +198,7 @@ tools:
 | `detect.format` | when `kind == structured` | e.g., `claude_jsonl` |
 | `detect.prompt_regex` | when `kind == heuristic` | Anchor with `^…$` for stability |
 | `detect.idle_ms` | when `kind == heuristic` | Treat session as `needs_input` after this many ms idle, *if* output ends with `prompt_regex` |
+| `detect.done_regex` | optional (heuristic only) | When set, the adapter emits `StateDone` whenever the (idle-gated) output window matches this pattern. Useful for tools that print a recognizable completion footer (e.g., `^✓ done`). If both `done_regex` and `prompt_regex` would match the same window, `done_regex` wins. Leave empty for tools whose prompt is identical between "awaiting" and "just finished" (codex, gemini, ollama) — use `rex complete` instead. |
 | `icon` | yes | Single glyph for the wizard / modal top-strip monogram (not shown on the board) |
 | `color` | yes | Tint for the monogram **only inside the wizard and the session modal**. Board rows are monochrome. |
 | `enabled_by_default` | no | Bool, defaults to `true`. When `false`, the tool ships disabled — it won't appear in the wizard until the user enables it from *Settings → Onboarding → models*. Useful for emerging providers (Grok, DeepSeek, Kimi) so the default wizard stays focused. |

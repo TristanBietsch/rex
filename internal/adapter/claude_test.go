@@ -22,14 +22,22 @@ func TestClaudeStructured_ResultMessage(t *testing.T) {
 	require.Equal(t, protocol.StateDone, got)
 }
 
-func TestClaudeStructured_IdleFallback(t *testing.T) {
+func TestClaudeStructured_IdleFallbackAt31s(t *testing.T) {
 	a := NewClaudeStructured()
-	// Seed with an assistant message so last = working.
 	a.Detect([]byte(`{"type":"assistant"}`+"\n"), 100*time.Millisecond)
-	// Force lastSeen back so we're "idle".
-	a.lastSeen = time.Now().Add(-6 * time.Second)
+	// Force lastSeen 31s in the past — past the 30s threshold.
+	a.lastSeen = time.Now().Add(-31 * time.Second)
 	got := a.Detect(nil, time.Second)
 	require.Equal(t, protocol.StateNeedsInput, got)
+}
+
+func TestClaudeStructured_NoFallbackUnder30s(t *testing.T) {
+	a := NewClaudeStructured()
+	a.Detect([]byte(`{"type":"assistant"}`+"\n"), 100*time.Millisecond)
+	// 15s — well under threshold. Should stay working (no flap during deep thinks).
+	a.lastSeen = time.Now().Add(-15 * time.Second)
+	got := a.Detect(nil, time.Second)
+	require.Equal(t, protocol.StateWorking, got)
 }
 
 func TestClaudeStructured_PartialLineBuffered(t *testing.T) {
