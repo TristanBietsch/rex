@@ -208,6 +208,31 @@ func (s *Store) UpdateLastLine(id, line string) error {
 	return nil
 }
 
+// UpdateDescription records the AI-generated activity summary for a session.
+// Mirrors UpdateLastLine: takes locks, updates the field, and broadcasts a
+// SessionUpdated patch.
+func (s *Store) UpdateDescription(id, desc string) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	now := time.Now().UTC()
+	sess.mu.Lock()
+	sess.Description = desc
+	sess.DescriptionAt = now
+	sess.LastEventAt = now
+	sess.mu.Unlock()
+
+	s.broadcast(Event{
+		Kind:      EventUpdated,
+		SessionID: id,
+		Patch:     map[string]any{"description": desc, "last_event_at": now},
+	})
+	return nil
+}
+
 // Subscribe registers a callback for store events. Returns a cancel func.
 func (s *Store) Subscribe(fn func(Event)) func() {
 	s.subsMu.Lock()
