@@ -85,3 +85,25 @@ func TestSummaryRoundtripsDescription(t *testing.T) {
 	back := fromSummary(sum)
 	require.Equal(t, "running pnpm test", back.Description, "fromSummary should restore Description")
 }
+
+func TestUpdateDescriptionBroadcasts(t *testing.T) {
+	s := NewStore()
+	sess := &Session{ID: "id-2", ShortID: "ef01", StartedAt: time.Now().UTC()}
+	require.NoError(t, s.Add(sess))
+
+	var got string
+	var gotKind EventKind
+	s.Subscribe(func(e Event) {
+		if e.Kind == EventUpdated {
+			if v, ok := e.Patch["description"].(string); ok {
+				got = v
+				gotKind = e.Kind
+			}
+		}
+	})
+	require.NoError(t, s.UpdateDescription("id-2", "rewriting webhook handlers"))
+	require.Equal(t, "rewriting webhook handlers", got, "broadcast description")
+	require.Equal(t, EventUpdated, gotKind, "event kind")
+	require.Equal(t, "rewriting webhook handlers", sess.Description, "session field")
+	require.False(t, sess.DescriptionAt.IsZero(), "DescriptionAt should be set")
+}
