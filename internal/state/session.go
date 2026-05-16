@@ -10,19 +10,21 @@ import (
 
 // Session is the daemon's view of a live or terminated session.
 type Session struct {
-	ID          string
-	ShortID     string
-	ToolID      string
-	ModelID     string
-	Effort      string
-	Slug        string
-	Title       string
-	CWD         string
-	State       protocol.State
-	StartedAt   time.Time
-	LastEventAt time.Time
-	LastLine    string
-	ExitCode    *int
+	ID            string
+	ShortID       string
+	ToolID        string
+	ModelID       string
+	Effort        string
+	Slug          string
+	Title         string
+	CWD           string
+	State         protocol.State
+	StartedAt     time.Time
+	LastEventAt   time.Time
+	LastLine      string
+	Description   string
+	DescriptionAt time.Time
+	ExitCode      *int
 
 	// OutputBytes is the raw byte count of PTY output for this session.
 	// Tokens is an approximate token count derived as OutputBytes / 4.
@@ -54,6 +56,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		StartedAt:   s.StartedAt,
 		LastEventAt: s.LastEventAt,
 		LastLine:    s.LastLine,
+		Description: s.Description,
 		ExitCode:    s.ExitCode,
 		Tokens:      s.Tokens,
 		OutputBytes: s.OutputBytes,

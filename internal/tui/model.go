@@ -152,6 +152,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["last_line"].(string); ok {
 		s.LastLine = v
 	}
+	if v, ok := patch["description"].(string); ok {
+		s.Description = v
+	}
 	if v, ok := patch["fleet"].(string); ok {
 		s.Fleet = v
 	}

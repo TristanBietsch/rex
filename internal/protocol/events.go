@@ -38,6 +38,7 @@ type SessionSummary struct {
 	StartedAt   time.Time `json:"started_at"`
 	LastEventAt time.Time `json:"last_event_at"`
 	LastLine    string    `json:"last_line,omitempty"`
+	Description string    `json:"description,omitempty"`
 	ExitCode    *int      `json:"exit_code,omitempty"`
 
 	// Token tracking (approximate: OutputBytes/4).
