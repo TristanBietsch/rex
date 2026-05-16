@@ -48,5 +48,18 @@ func factorioCatalog() map[string][]burst {
 			{tones: []tone{{988, 10, 6}}},
 			{tones: []tone{{1480, 22, 14}, {2960, 10, 5}}},
 		},
+		// Boot OK: a single quick mechanical click (think "lever locking into place").
+		EventBootOK: {
+			{tones: []tone{{1200, 18, 10}}},
+		},
+		// Boot WARN: damped lower thunk — softer, slightly off-pitch.
+		EventBootWarn: {
+			{tones: []tone{{660, 32, 22}}},
+		},
+		// Boot FAIL: dropped-belt clatter — two-step descending pair.
+		EventBootFail: {
+			{tones: []tone{{440, 30, 18}}},
+			{tones: []tone{{220, 80, 60}, {110, 60, 40}}},
+		},
 	}
 }

@@ -67,6 +67,76 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Err = "attach: " + msg.err.Error()
 		}
 		return m, nil
+	case settingsResultMsg:
+		m.Store = msg.Store
+		m.StorePath = msg.Path
+		if !msg.Found {
+			return m.appendBootStep(bootStepMsg{
+				Name: "settings.load", Status: stepSkip, Desc: "no config file (defaults)", Dur: msg.Dur,
+			})
+		}
+		if msg.Err != nil {
+			return m.appendBootStep(bootStepMsg{
+				Name: "settings.load", Status: stepWarn, Desc: fmt.Sprintf("%v (defaults)", msg.Err), Err: msg.Err, Dur: msg.Dur,
+			})
+		}
+		return m.appendBootStep(bootStepMsg{
+			Name: "settings.load", Status: stepOK, Desc: msg.Path, Dur: msg.Dur,
+		})
+
+	case stateRestoreResultMsg:
+		if !msg.OK {
+			return m.appendBootStep(bootStepMsg{
+				Name: "state.restore", Status: stepSkip, Desc: "first run", Dur: msg.Dur,
+			})
+		}
+		m.SelectedID = msg.Selection
+		if msg.Filter != "" {
+			m.Filter = msg.Filter
+		}
+		return m.appendBootStep(bootStepMsg{
+			Name: "state.restore", Status: stepOK,
+			Desc: fmt.Sprintf("selected=%s · filter=%s", short8(msg.Selection), msg.Filter),
+			Dur:  msg.Dur,
+		})
+
+	case dialResultMsg:
+		if msg.Err != nil {
+			return m.appendBootStep(bootStepMsg{
+				Name: "client.dial", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
+			})
+		}
+		m.Client = msg.C
+		return m.appendBootStep(bootStepMsg{
+			Name: "client.dial", Status: stepOK,
+			Desc: fmt.Sprintf("connected · %s", msg.Dur.Truncate(time.Millisecond)),
+			Dur:  msg.Dur,
+		})
+
+	case snapshotResultMsg:
+		if msg.Err != nil {
+			return m.appendBootStep(bootStepMsg{
+				Name: "handshake", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
+			})
+		}
+		m.Sessions = msg.Snap.Sessions
+		if msg.Snap.Filter != "" {
+			m.Filter = msg.Snap.Filter
+		}
+		return m.appendBootStep(bootStepMsg{
+			Name: "handshake", Status: stepOK,
+			Desc: "接続 · rex-tui",
+			Dur:  msg.Dur,
+		})
+
+	case bootStepMsg:
+		return m.appendBootStep(msg)
+	case bootMinElapsedMsg:
+		m.BootMinDone = true
+		if m.BootDone && !m.BootFailed {
+			return m.handOffToBoard()
+		}
+		return m, nil
 	case tea.KeyMsg:
 		return updateKey(m, msg)
 	case tea.MouseMsg:
@@ -108,6 +178,15 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 }
 
 func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	// Boot splash grabs keys to allow quit during long/failed startup.
+	if m.Focus == FocusBoot {
+		switch k.String() {
+		case "ctrl+c", "q", "esc":
+			m.Quitting = true
+			return m, tea.Quit
+		}
+		return m, nil
+	}
 	// Attach popup grabs every key (forwards them to the agent's PTY).
 	if m.Focus == FocusAttach {
 		return updateAttachKey(m, k)
@@ -401,6 +480,49 @@ func updateConfirmQuitKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, tea.Quit
 	case "n", "N", "esc":
 		m.Focus = FocusBoard
+		return m, nil
+	}
+	return m, nil
+}
+
+// appendBootStep runs the shared "append row, chime, advance, maybe handoff"
+// logic for both bootStepMsg and the special msgs (dial/snapshot) that produce
+// a row plus carry side data into Model.
+func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
+	m.BootLog = append(m.BootLog, bootLine{
+		Name: msg.Name, Status: msg.Status, Desc: msg.Desc, Err: msg.Err,
+	})
+	if msg.Status == stepFail {
+		m.BootFailed = true
+		m.BootError = msg.Err
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventBootFail)
+		}
+		return m, nil
+	}
+	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil {
+		m.Audio.Play(ev)
+	}
+	m.BootStep++
+	if m.BootStep >= len(bootSequence) {
+		m.BootDone = true
+		if m.BootMinDone {
+			return m.handOffToBoard()
+		}
+		return m, nil
+	}
+	return m, delayThen(nextStep(m))
+}
+
+// update is the test-friendly entry point that runs the bootMinElapsedMsg
+// portion of Update's switch in isolation. Tests use this; production uses
+// the real Update.
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(bootMinElapsedMsg); ok {
+		m.BootMinDone = true
+		if m.BootDone && !m.BootFailed {
+			return m.handOffToBoard()
+		}
 		return m, nil
 	}
 	return m, nil

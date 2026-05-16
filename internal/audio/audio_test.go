@@ -9,6 +9,7 @@ import (
 var allEvents = []string{
 	EventStartup, EventCreate, EventDone, EventDelete,
 	EventNav, EventOpen, EventClose, EventCommand, EventFilter,
+	EventBootOK, EventBootWarn, EventBootFail,
 }
 
 // TestBakeNonEmpty verifies that every catalog renders non-empty PCM for every

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/tristanbietsch/rex/internal/daemonctl"
 )
 
 // RunDaemon dispatches: rex daemon start | stop | status | restart | logs
@@ -35,28 +37,17 @@ func RunDaemon(args []string) error {
 func daemonStart(args []string) error {
 	_ = args
 	socket := DefaultSocket()
-	if conn, err := net.DialTimeout("unix", socket, 100*time.Millisecond); err == nil {
-		_ = conn.Close()
+	if daemonctl.Reachable(socket) {
 		fmt.Println("rex-daemon already running")
 		return nil
 	}
-	cmd := exec.Command(findDaemonBinary())
-	logf, lerr := os.OpenFile(daemonLogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if lerr == nil {
-		cmd.Stderr = logf
+	logf, _ := os.OpenFile(daemonLogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	res, err := daemonctl.Start(socket, logf)
+	if err != nil {
+		return NewExitError(ExitGeneric, err.Error())
 	}
-	if err := cmd.Start(); err != nil {
-		return NewExitError(ExitGeneric, fmt.Sprintf("start: %v", err))
-	}
-	for i := 0; i < 100; i++ {
-		if conn, err := net.Dial("unix", socket); err == nil {
-			_ = conn.Close()
-			fmt.Printf("rex-daemon started (pid %d)\n", cmd.Process.Pid)
-			return nil
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	return NewExitError(ExitDaemonUnreachable, "daemon started but socket didn't appear")
+	fmt.Printf("rex-daemon started (pid %d)\n", res.PID)
+	return nil
 }
 
 func daemonStop(args []string) error {
@@ -121,18 +112,3 @@ func daemonLogPath() string {
 	return filepath.Join(home, ".local", "state", "rex", "daemon.log")
 }
 
-// findDaemonBinary returns the path to rex-daemon. It checks (in order):
-// 1) the same directory as the current rex executable, 2) PATH lookup,
-// 3) the literal name "rex-daemon" (so exec gives a useful error).
-func findDaemonBinary() string {
-	if self, err := os.Executable(); err == nil {
-		candidate := filepath.Join(filepath.Dir(self), "rex-daemon")
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate
-		}
-	}
-	if path, err := exec.LookPath("rex-daemon"); err == nil {
-		return path
-	}
-	return "rex-daemon"
-}

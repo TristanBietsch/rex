@@ -88,6 +88,16 @@ var (
 	styleChipActive lipgloss.Style
 	styleChipDim    lipgloss.Style
 	styleChipSep    lipgloss.Style
+
+	styleBootOK      lipgloss.Style
+	styleBootFail    lipgloss.Style
+	styleBootWarn    lipgloss.Style
+	styleBootSkip    lipgloss.Style
+	styleBootRun     lipgloss.Style
+	styleBootBracket lipgloss.Style
+	styleBootHeader  lipgloss.Style
+	styleBootReady   lipgloss.Style
+	styleBootCause   lipgloss.Style
 )
 
 func init() {
@@ -132,6 +142,16 @@ func rebuildStyles() {
 	styleChipActive = lipgloss.NewStyle().Foreground(colorFgPrimary)
 	styleChipDim = lipgloss.NewStyle().Foreground(colorFgDim)
 	styleChipSep = lipgloss.NewStyle().Foreground(colorFgMuted)
+
+	styleBootOK = lipgloss.NewStyle().Bold(true).Foreground(colorDone)
+	styleBootFail = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
+	styleBootWarn = lipgloss.NewStyle().Foreground(colorNeeds)
+	styleBootSkip = lipgloss.NewStyle().Foreground(colorFgMuted)
+	styleBootRun = lipgloss.NewStyle().Foreground(colorWorking)
+	styleBootBracket = lipgloss.NewStyle().Foreground(colorFgMuted)
+	styleBootHeader = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
+	styleBootReady = lipgloss.NewStyle().Foreground(colorDone)
+	styleBootCause = lipgloss.NewStyle().Foreground(colorFailed)
 }
 
 // renderHR renders a horizontal rule line of given width.

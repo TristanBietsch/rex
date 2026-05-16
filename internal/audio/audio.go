@@ -17,15 +17,18 @@ import (
 
 // Event names.
 const (
-	EventStartup = "startup"
-	EventCreate  = "create"
-	EventDone    = "done"
-	EventDelete  = "delete"
-	EventNav     = "nav"
-	EventOpen    = "open"
-	EventClose   = "close"
-	EventCommand = "command"
-	EventFilter  = "filter"
+	EventStartup  = "startup"
+	EventCreate   = "create"
+	EventDone     = "done"
+	EventDelete   = "delete"
+	EventNav      = "nav"
+	EventOpen     = "open"
+	EventClose    = "close"
+	EventCommand  = "command"
+	EventFilter   = "filter"
+	EventBootOK   = "boot_ok"
+	EventBootWarn = "boot_warn"
+	EventBootFail = "boot_fail"
 )
 
 // Soundset names.

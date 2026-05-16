@@ -2,15 +2,14 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/audio"
-	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/settings"
 )
 
@@ -18,62 +17,42 @@ import (
 const boardPad = 0
 
 func Run(socket string) error {
-	c, err := client.Dial(socket)
-	if err != nil {
-		return fmt.Errorf("dial daemon: %w", err)
-	}
-	defer c.Close()
-
-	snap, err := c.Hello("rex-tui")
-	if err != nil {
-		return fmt.Errorf("hello: %w", err)
-	}
-	if err := c.Subscribe(""); err != nil {
-		return fmt.Errorf("subscribe: %w", err)
-	}
-
+	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
+	// time the first step msg arrives. Best-effort; defaults on error.
 	store := settings.NewStore()
-	storePath := settings.DefaultPath()
-	_ = store.Load(storePath)
-
-	m := Model{
-		Client:    c,
-		Socket:    socket,
-		Focus:     FocusBoard,
-		Sessions:  snap.Sessions,
-		Filter:    "all",
-		Store:     store,
-		StorePath: storePath,
-	}
-
-	if scheme, _ := store.Get("color_scheme").(string); scheme != "" {
-		applyTheme(scheme)
-	}
-
+	_ = store.Load(settings.DefaultPath())
 	soundEnabled, _ := store.Get("sound_enabled").(bool)
 	soundset, _ := store.Get("soundset").(string)
 	volume, _ := store.Get("master_volume").(float64)
 	if soundset == "off" {
 		soundEnabled = false
 	}
-	m.Audio = audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset})
-	m.Audio.Play(audio.EventStartup)
+	player := audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset})
 
-	if sel, filt, ok := LoadTUIState(); ok {
-		m.SelectedID = sel
-		if filt != "" {
-			m.Filter = filt
-		}
+	m := Model{
+		Socket:    socket,
+		Focus:     FocusBoot,
+		Filter:    "all",
+		Audio:     player,
+		BootStart: time.Now(),
 	}
-	// Mouse motion intentionally disabled — trackpad gestures were triggering
-	// stray events that scrolled the view. Click-to-select can come back later
-	// once we have a row-coordinate-aware hit test.
+
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	_, err = p.Run()
-	return err
+	final, err := p.Run()
+	if err != nil {
+		return err
+	}
+	if fm, ok := final.(Model); ok && fm.BootFailed {
+		return fm.BootError
+	}
+	return nil
 }
 
 func (m Model) Init() tea.Cmd {
+	if m.Focus == FocusBoot {
+		first := nextStep(m)
+		return tea.Batch(tea.HideCursor, bootMinTick(), delayThen(first), tickSpinner())
+	}
 	return tea.Batch(tea.HideCursor, listenDaemon(m.Client), tickSpinner())
 }
 
@@ -90,6 +69,8 @@ func (m Model) View() string {
 	}
 
 	switch m.Focus {
+	case FocusBoot:
+		return renderSplash(m, w, h)
 	case FocusWizard:
 		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
 	case FocusHelp:
