@@ -90,6 +90,25 @@ var Registry = []Setting{
 		Help: "Daemon's PTY cap; takes effect on next daemon start.",
 	},
 
+	// AI summary
+	{
+		ID: "summary_enabled", Label: "Summary enabled", Section: SectionSummary,
+		Type: TypeBool, Default: true,
+		Help: "Generate AI activity descriptions via local Ollama. When off, the desc column shows the raw last line.",
+	},
+	{
+		ID: "summary_model", Label: "Summary model", Section: SectionSummary,
+		Type: TypeString, Default: "gemma2:2b",
+		Options: []string{"gemma2:2b", "llama3.2:1b", "phi3:mini", "qwen2.5:1.5b"},
+		Help:    "Ollama model used to summarize sessions. Cycles through known small models; any pulled model works via config.yaml.",
+	},
+	{
+		ID: "desc_animation", Label: "Description animation", Section: SectionSummary,
+		Type: TypeEnum, Default: "typewriter",
+		Options: []string{"typewriter", "decode", "wipe", "off"},
+		Help:    "Animation effect when the AI description changes. Reduce motion overrides this to off.",
+	},
+
 	// Advanced
 	{
 		ID: "lua_config_path", Label: "Lua config", Section: SectionAdvanced,
