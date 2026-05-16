@@ -86,6 +86,7 @@ func (w *Worker) MarkUnavailable(reason string) {
 // MarkAvailable flips the flag to true.
 func (w *Worker) MarkAvailable() {
 	if w.available.Swap(1) == 0 {
+		w.failures.Store(0)
 		slog.Info("summarizer: backend_restored")
 		if w.onHealth != nil {
 			w.onHealth(true, "")
@@ -114,8 +115,8 @@ func (w *Worker) handle(ctx context.Context, id string) {
 	if !ok {
 		return
 	}
-	st := sess.State
-	if st == protocol.StateDone || st == protocol.StateFailed || st == protocol.StateCrashed {
+	snap := sess.Summary()
+	if snap.State == protocol.StateDone || snap.State == protocol.StateFailed || snap.State == protocol.StateCrashed {
 		return
 	}
 
@@ -132,7 +133,7 @@ func (w *Worker) handle(ctx context.Context, id string) {
 	w.mu.Unlock()
 
 	tail := w.transcript(id, w.cfg.MaxBytes)
-	prompt := buildPrompt(sess.ToolID, sess.Slug, string(tail))
+	prompt := buildPrompt(snap.ToolID, snap.Slug, string(tail))
 
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(prompt))

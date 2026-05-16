@@ -75,6 +75,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		now := time.Now()
 		for id, a := range m.DescAnim {
 			if !a.Active(now) {
+				slog.Debug("desc_anim: completed",
+					"session", id,
+					"elapsed_ms", now.Sub(a.StartedAt).Milliseconds(),
+				)
 				delete(m.DescAnim, id)
 			}
 		}

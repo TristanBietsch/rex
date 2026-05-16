@@ -219,6 +219,11 @@ func registerDescAnim(m Model, id, from, to string) Model {
 		StartedAt: time.Now(),
 		Duration:  animDurationFor(effect),
 	}
+	slog.Debug("desc_anim: start",
+		"session", id,
+		"effect", effect,
+		"duration_ms", animDurationFor(effect).Milliseconds(),
+	)
 	return m
 }
 
