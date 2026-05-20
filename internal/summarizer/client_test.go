@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestClientGenerateOK(t *testing.T) {
@@ -81,4 +83,21 @@ func TestClientTagsContains(t *testing.T) {
 	if !got["gemma2:2b"] {
 		t.Fatalf("missing gemma2:2b in tags: %v", tags)
 	}
+}
+
+func TestClient_SetModelChangesGenerateRequestModel(t *testing.T) {
+	var captured string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct{ Model string `json:"model"` }
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		captured = body.Model
+		_, _ = w.Write([]byte(`{"response":"ok"}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{BaseURL: srv.URL, Model: "gemma2:2b"})
+	c.SetModel("llama3.1")
+	_, err := c.Generate(context.Background(), "hi")
+	require.NoError(t, err)
+	require.Equal(t, "llama3.1", captured)
 }

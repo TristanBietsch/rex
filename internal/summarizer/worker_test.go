@@ -195,3 +195,13 @@ func TestResolveModel_EmptyConfigured(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "llama3.1", got)
 }
+
+func TestWorker_SetModelUpdatesConfigAndClient(t *testing.T) {
+	store := state.NewStore()
+	w := New(Config{Model: "gemma2:2b", BaseURL: "http://127.0.0.1:11434"},
+		store, func(string, int) []byte { return nil })
+	require.Equal(t, "gemma2:2b", w.cfg.Model)
+	w.SetModel("llama3.1")
+	require.Equal(t, "llama3.1", w.cfg.Model)
+	require.Equal(t, "llama3.1", w.client.model)
+}

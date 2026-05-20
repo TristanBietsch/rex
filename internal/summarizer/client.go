@@ -38,6 +38,12 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
+// SetModel updates which model subsequent Generate calls will target.
+// Safe to call between Generate calls; not safe to call concurrently with one.
+func (c *Client) SetModel(model string) {
+	c.model = model
+}
+
 type generateRequest struct {
 	Model   string         `json:"model"`
 	Prompt  string         `json:"prompt"`
