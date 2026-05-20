@@ -10,18 +10,16 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
-	"time"
 
-	"github.com/tristanbietsch/rex/internal/lua"
-	"github.com/tristanbietsch/rex/internal/protocol"
-	"github.com/tristanbietsch/rex/internal/registry"
-	"github.com/tristanbietsch/rex/internal/rexlog"
-	"github.com/tristanbietsch/rex/internal/server"
-	"github.com/tristanbietsch/rex/internal/settings"
-	"github.com/tristanbietsch/rex/internal/state"
-	"github.com/tristanbietsch/rex/internal/summarizer"
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/boot"
+	"github.com/tristanbietsch/rex/internal/daemon/server"
+	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/summarizer"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 )
 
 const version = "v1"
@@ -35,9 +33,9 @@ func main() {
 
 func run(args []string) error {
 	fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
-	socketPath := fs.String("socket", defaultSocketPath(), "UDS path")
-	stateDir := fs.String("state-dir", defaultStateDir(), "state directory")
-	toolsPath := fs.String("tools", defaultToolsPath(), "path to tools.yaml override (optional)")
+	socketPath := fs.String("socket", daemonctl.DefaultSocket(), "UDS path")
+	stateDir := fs.String("state-dir", daemonctl.DefaultStateDir(), "state directory")
+	toolsPath := fs.String("tools", daemonctl.DefaultToolsPath(), "path to tools.yaml override (optional)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
 
@@ -96,7 +94,7 @@ func run(args []string) error {
 	if summaryEnabled {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
-		if u := ollamaBaseURL(); u != "" {
+		if u := boot.OllamaBaseURL(); u != "" {
 			cfg.BaseURL = u
 		}
 		summaryWorker = summarizer.New(cfg, store, func(id string, max int) []byte {
@@ -123,7 +121,7 @@ func run(args []string) error {
 	}
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
-	luaRT, luaCancel := startLuaRuntime(srv, store)
+	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)
 	if luaCancel != nil {
 		defer luaCancel()
 	}
@@ -145,11 +143,11 @@ func run(args []string) error {
 				slog.Warn("summarizer: worker exited", "err", err)
 			}
 		}()
-		go probeOllamaHealth(ctx, summaryWorker, summaryModel)
+		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
 	}
 
 	// SIGHUP → reload tools.yaml.
-	go reloadOnHUP(ctx, srv, *toolsPath)
+	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)
@@ -160,179 +158,4 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
-}
-
-// reloadOnHUP listens for SIGHUP and swaps in a freshly-loaded registry.
-func reloadOnHUP(ctx context.Context, srv *server.Server, toolsPath string) {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGHUP)
-	defer signal.Stop(sig)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-sig:
-			reg, err := registry.Load(toolsPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "rex-daemon: reload failed: %v\n", err)
-				slog.Error("daemon: SIGHUP reload failed", "tools", toolsPath, "err", err)
-				continue
-			}
-			srv.SetRegistry(reg)
-			fmt.Fprintln(os.Stderr, "rex-daemon: registry reloaded")
-			slog.Info("daemon: SIGHUP reload ok", "tools", toolsPath, "count", len(reg.Tools))
-		}
-	}
-}
-
-// startLuaRuntime initializes the Lua scripting runtime and subscribes it to
-// store events. Returns (nil, nil) if Lua is disabled or fails to init —
-// daemon startup must not depend on user scripts.
-func startLuaRuntime(srv *server.Server, store *state.Store) (*lua.Runtime, func()) {
-	cfgPath := luaConfigPath()
-	if cfgPath == "" {
-		slog.Info("daemon: lua disabled (no config path)")
-		return nil, nil
-	}
-
-	rt, err := lua.New(lua.Options{
-		Sender: func(sessionID, text string) error {
-			ch := srv.InputChannel(sessionID)
-			if ch == nil {
-				return fmt.Errorf("session %q has no input channel", sessionID)
-			}
-			payload := []byte(text)
-			select {
-			case ch <- payload:
-				return nil
-			case <-time.After(2 * time.Second):
-				return errors.New("send timed out")
-			}
-		},
-		Lister: func() []protocol.SessionSummary {
-			return store.Snapshot()
-		},
-	})
-	if err != nil {
-		slog.Error("daemon: lua init failed", "err", err)
-		return nil, nil
-	}
-
-	if err := rt.LoadFile(cfgPath); err != nil {
-		slog.Error("daemon: lua load failed; runtime still active for future reloads", "path", cfgPath, "err", err)
-	}
-
-	cancel := store.Subscribe(func(e state.Event) {
-		switch e.Kind {
-		case state.EventAdded:
-			if e.Summary != nil {
-				_ = rt.OnEvent(protocol.EventSessionAdded, *e.Summary)
-			}
-		case state.EventUpdated:
-			sess, ok := store.Get(e.SessionID)
-			if !ok {
-				return
-			}
-			_ = rt.OnEvent(protocol.EventSessionUpdated, sess.Summary())
-		case state.EventRemoved:
-			_ = rt.OnEvent(protocol.EventSessionRemoved, protocol.SessionRemoved{SessionID: e.SessionID})
-		}
-	})
-
-	return rt, cancel
-}
-
-// luaConfigPath returns the resolved path to the user's init.lua, or "" if not configured.
-func luaConfigPath() string {
-	st := settings.NewStore()
-	if err := st.Load(settings.DefaultPath()); err != nil {
-		slog.Warn("daemon: settings load failed for lua path", "err", err)
-	}
-	raw := st.String("lua_config_path")
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "~/") {
-		home, _ := os.UserHomeDir()
-		raw = filepath.Join(home, raw[2:])
-	}
-	return raw
-}
-
-// probeOllamaHealth runs the initial Ollama reachability + model-presence check,
-// then re-checks every 30s so the worker actively detects healthy→unhealthy
-// transitions instead of waiting for its failure threshold. Each successful
-// check that finds the configured model present marks the worker available;
-// failures (unreachable / model missing) mark it unavailable with a reason.
-func probeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) {
-	cfg := summarizer.Defaults()
-	cfg.Model = model
-	if u := ollamaBaseURL(); u != "" {
-		cfg.BaseURL = u
-	}
-	client := summarizer.NewClient(cfg)
-	check := func() {
-		tCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		tags, err := client.Tags(tCtx)
-		if err != nil {
-			slog.Debug("daemon: ollama unreachable", "base_url", cfg.BaseURL, "err", err)
-			w.MarkUnavailable("ollama unreachable")
-			return
-		}
-		resolved, ok := summarizer.ResolveModel(model, tags)
-		if !ok {
-			slog.Debug("daemon: ollama reachable but no compatible model", "configured", model, "tags", tags)
-			w.MarkUnavailable("no compatible summary model pulled; try `ollama pull " + model + "`")
-			return
-		}
-		if resolved != model {
-			slog.Info("summarizer: model_substituted", "from", model, "to", resolved, "reason", "configured model not pulled")
-			w.SetModel(resolved)
-			model = resolved
-		}
-		w.MarkAvailable()
-	}
-	check()
-	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			check()
-		}
-	}
-}
-
-func defaultSocketPath() string {
-	if r := os.Getenv("XDG_RUNTIME_DIR"); r != "" {
-		return filepath.Join(r, "rex.sock")
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".cache", "rex", "rex.sock")
-}
-
-func defaultStateDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "rex")
-}
-
-func defaultToolsPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex", "tools.yaml")
-}
-
-// ollamaBaseURL returns the OLLAMA_HOST env var as a fully-qualified URL
-// (adding the http:// prefix if missing) or empty string when unset.
-func ollamaBaseURL() string {
-	env := os.Getenv("OLLAMA_HOST")
-	if env == "" {
-		return ""
-	}
-	if !strings.HasPrefix(env, "http") {
-		env = "http://" + env
-	}
-	return env
 }

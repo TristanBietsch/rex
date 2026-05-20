@@ -28,6 +28,5 @@ TODO.md
 claude.md
 claude/*
 
-# agents folder 
-agents/
-agents/*
+# Local agent scratch (tracked docs live under docs/agents/)
+/agents/mockup.html

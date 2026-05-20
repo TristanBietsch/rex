@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tristanbietsch/rex/internal/cli"
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
+	"github.com/tristanbietsch/rex/internal/surface/cli/inspect"
+	"github.com/tristanbietsch/rex/internal/surface/cli/lifecycle"
+	"github.com/tristanbietsch/rex/internal/surface/cli/meta"
+	"github.com/tristanbietsch/rex/internal/surface/cli/session"
+	"github.com/tristanbietsch/rex/internal/surface/cli/setup"
 )
 
 func main() {
@@ -19,68 +24,68 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return cli.RunTUI()
+		return meta.RunTUI()
 	}
 	switch args[0] {
 	case "--help", "-h", "help":
-		return cli.RunHelp()
+		return core.RunHelp()
 	case "--version", "-v", "version":
-		return cli.RunVersion()
+		return core.RunVersion()
 	case "status":
-		return cli.RunStatus(args[1:])
+		return inspect.RunStatus(args[1:])
 	case "ls":
-		return cli.RunLs(args[1:])
+		return session.RunLs(args[1:])
 	case "new":
-		return cli.RunNew(args[1:])
+		return session.RunNew(args[1:])
 	case "attach":
-		return cli.RunAttach(args[1:])
+		return session.RunAttach(args[1:])
 	case "reply":
-		return cli.RunReply(args[1:])
+		return session.RunReply(args[1:])
 	case "send":
-		return cli.RunSend(args[1:])
+		return session.RunSend(args[1:])
 	case "log":
-		return cli.RunLog(args[1:])
+		return inspect.RunLog(args[1:])
 	case "wait":
-		return cli.RunWait(args[1:])
+		return session.RunWait(args[1:])
 	case "rm":
-		return cli.RunRm(args[1:])
+		return session.RunRm(args[1:])
 	case "rename":
-		return cli.RunRename(args[1:])
+		return session.RunRename(args[1:])
 	case "archive":
-		return cli.RunArchive(args[1:])
+		return session.RunArchive(args[1:])
 	case "complete":
-		return cli.RunComplete(args[1:])
+		return meta.RunComplete(args[1:])
 	case "reload":
-		return cli.RunReload(args[1:])
+		return lifecycle.RunReload(args[1:])
 	case "daemon":
-		return cli.RunDaemon(args[1:])
+		return lifecycle.RunDaemon(args[1:])
 	case "completion":
-		return cli.RunCompletion(args[1:])
+		return meta.RunCompletion(args[1:])
 	case "render":
-		return cli.RunRender(args[1:])
+		return inspect.RunRender(args[1:])
 	case "config":
-		return cli.RunConfig(args[1:])
+		return setup.RunConfig(args[1:])
 	case "setup":
-		return cli.RunSetup(args[1:])
+		return setup.RunSetup(args[1:])
 	case "doctor":
-		return cli.RunDoctor(args[1:])
+		return setup.RunDoctor(args[1:])
 	case "update":
-		return cli.RunUpdate(args[1:])
+		return setup.RunUpdate(args[1:])
 	case "uninstall":
-		return cli.RunUninstall(args[1:])
+		return setup.RunUninstall(args[1:])
 	case "digest":
-		return cli.RunDigest(args[1:])
+		return inspect.RunDigest(args[1:])
 	case "stats":
-		return cli.RunStats(args[1:])
+		return inspect.RunStats(args[1:])
 	case "fleet":
-		return cli.RunFleet(args[1:])
+		return inspect.RunFleet(args[1:])
 	default:
 		return fmt.Errorf("unknown command %q (try `rex --help`)", args[0])
 	}
 }
 
 func exitCodeFor(err error) int {
-	if e, ok := err.(cli.ExitCoder); ok {
+	if e, ok := err.(core.ExitCoder); ok {
 		return e.ExitCode()
 	}
 	return 1

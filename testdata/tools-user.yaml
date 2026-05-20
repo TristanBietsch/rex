@@ -1,0 +1,21 @@
+# User registry overlay for registry.Load merge tests.
+tools:
+  - id: echo
+    models:
+      - id: extra
+        name: "User extra model"
+        args: ["echo 'user extra'; echo 'done'"]
+  - id: usertool
+    name: "User Tool"
+    category: self_hosted
+    command: ["bash", "-c"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^> "
+      idle_ms: 500
+    icon: "★"
+    color: "#FF00FF"
+    models:
+      - id: default
+        name: "Default"
+        args: ["echo done"]

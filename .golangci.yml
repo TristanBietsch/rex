@@ -12,6 +12,9 @@ linters:
     - unused
     - gofmt
     - goimports
+    - misspell
+    - unparam
+    - whitespace
 
 linters-settings:
   revive:
@@ -21,3 +24,14 @@ linters-settings:
       - name: error-naming
       - name: unused-parameter
         disabled: true
+
+issues:
+  exclude-rules:
+    # Test helpers often keep parameters for documentation or future assertions.
+    - path: _test\.go
+      linters:
+        - unparam
+    # Bubble Tea Update handlers and wizard render steps use uniform signatures by design.
+    - path: internal/surface/tui/
+      linters:
+        - unparam
