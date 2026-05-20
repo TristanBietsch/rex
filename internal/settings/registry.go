@@ -61,7 +61,7 @@ var Registry = []Setting{
 	{
 		ID: "soundset", Label: "Soundset", Section: SectionAudio,
 		Type: TypeEnum, Default: "factorio",
-		Options: []string{"factorio", "evangelion", "off"},
+		Options: []string{"factorio", "evangelion", "bell", "chiptune", "off"},
 		Help:    "Synthesized tone catalog.",
 	},
 	{
@@ -94,19 +94,36 @@ var Registry = []Setting{
 	{
 		ID: "summary_enabled", Label: "Summary enabled", Section: SectionSummary,
 		Type: TypeBool, Default: true,
-		Help: "Generate AI activity descriptions via local Ollama. When off, the desc column shows the raw last line.",
+		Help: "Generate AI activity descriptions via local model.",
 	},
 	{
 		ID: "summary_model", Label: "Summary model", Section: SectionSummary,
 		Type: TypeString, Default: "gemma2:2b",
 		Options: []string{"gemma2:2b", "llama3.2:1b", "phi3:mini", "qwen2.5:1.5b"},
-		Help:    "Ollama model used to summarize sessions. Cycles through known small models; any pulled model works via config.yaml.",
+		Help:    "Model used to summarize sessions.",
 	},
 	{
 		ID: "desc_animation", Label: "Description animation", Section: SectionSummary,
 		Type: TypeEnum, Default: "typewriter",
 		Options: []string{"typewriter", "decode", "wipe", "off"},
-		Help:    "Animation effect when the AI description changes. Reduce motion overrides this to off.",
+		Help:    "Animation effect when the AI description changes.",
+	},
+
+	// Spawn
+	{
+		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,
+		Type: TypeString, Default: "claude",
+		Help: "Tool ID used when pressing 'i' in the TUI. Must match an entry in tools.yaml.",
+	},
+	{
+		ID: "default_spawn_model", Label: "Quick-spawn model", Section: SectionSpawn,
+		Type: TypeString, Default: "opus",
+		Help: "Model ID used when pressing 'i'. Must be a model offered by the selected tool.",
+	},
+	{
+		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn,
+		Type: TypeString, Default: "max",
+		Help: "Effort tier used when pressing 'i'. Ignored for tools without an effort axis.",
 	},
 
 	// Advanced
