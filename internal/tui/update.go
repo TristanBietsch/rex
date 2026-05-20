@@ -598,25 +598,3 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-
-func deriveSlugFromPrompt(p string) string {
-	s := strings.ToLower(p)
-	if len(s) > 32 {
-		s = s[:32]
-	}
-	var b strings.Builder
-	prevDash := false
-	for _, r := range s {
-		switch {
-		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
-			b.WriteRune(r)
-			prevDash = false
-		default:
-			if !prevDash && b.Len() > 0 {
-				b.WriteByte('-')
-				prevDash = true
-			}
-		}
-	}
-	return strings.TrimRight(b.String(), "-")
-}
