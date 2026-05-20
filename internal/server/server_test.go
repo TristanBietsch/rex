@@ -55,3 +55,25 @@ func TestServer_AcceptsConnection(t *testing.T) {
 	require.Equal(t, protocol.KindEvent, env.Kind)
 	require.Equal(t, protocol.EventSnapshot, env.Type)
 }
+
+func TestServer_RegisterAndCompleteSession(t *testing.T) {
+	s := &Server{}
+	called := 0
+	s.RegisterComplete("id1", func() { called++ })
+	s.CompleteSession("id1")
+	require.Equal(t, 1, called)
+}
+
+func TestServer_CompleteSessionUnknownIsNoop(t *testing.T) {
+	s := &Server{}
+	require.NotPanics(t, func() { s.CompleteSession("missing") })
+}
+
+func TestServer_UnregisterCompleteSilencesFurtherCalls(t *testing.T) {
+	s := &Server{}
+	called := 0
+	s.RegisterComplete("id1", func() { called++ })
+	s.UnregisterComplete("id1")
+	s.CompleteSession("id1")
+	require.Equal(t, 0, called)
+}

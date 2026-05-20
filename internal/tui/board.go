@@ -11,6 +11,40 @@ import (
 	"github.com/tristanbietsch/rex/internal/protocol"
 )
 
+// boardGroup defines one section of the kanban. All board grouping (rendering,
+// navigation, jump-to-section) reads from boardGroups so the three views stay
+// in sync. Adding a new state means updating exactly one place.
+type boardGroup struct {
+	Title string
+	Match func(protocol.State) bool
+}
+
+// boardGroups is the canonical kanban layout. Completed includes all terminal
+// states (done/failed/crashed); distinct markers (●/✕/○) preserve the
+// at-a-glance distinction within the column.
+var boardGroups = []boardGroup{
+	{"Needs input", func(s protocol.State) bool { return s == protocol.StateNeedsInput }},
+	{"Working", func(s protocol.State) bool { return s == protocol.StateWorking }},
+	{"Completed", func(s protocol.State) bool {
+		return s == protocol.StateDone || s == protocol.StateFailed || s == protocol.StateCrashed
+	}},
+}
+
+// filterByGroup applies the group predicate plus the active tool filter.
+func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter string) []protocol.SessionSummary {
+	out := make([]protocol.SessionSummary, 0, len(sessions))
+	for _, s := range sessions {
+		if !g.Match(s.State) {
+			continue
+		}
+		if filter != "all" && filter != "" && s.ToolID != filter {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 // fleetPalette is a small set of distinct lipgloss colors that work on both
 // dark and light terminals. The color for a fleet name is selected by:
 //
@@ -66,25 +100,16 @@ func spinnerFramesFor(m Model) []string {
 // renderBoard renders the three sections sized to fit `width` x `height`.
 // Long boards scroll: m.ScrollOffset skips that many lines from the top.
 func renderBoard(m Model, width, height int) string {
-	groups := []struct {
-		title string
-		state protocol.State
-	}{
-		{"Needs input", protocol.StateNeedsInput},
-		{"Working", protocol.StateWorking},
-		{"Completed", protocol.StateDone},
-	}
-
 	gapBetween := densityGap(m)
 	var lines []string
-	for i, g := range groups {
-		rows := filterByState(m.Sessions, g.state, m.Filter)
+	for i, g := range boardGroups {
+		rows := filterByGroup(m.Sessions, g, m.Filter)
 		if i > 0 {
 			for j := 0; j < gapBetween; j++ {
 				lines = append(lines, "")
 			}
 		}
-		lines = append(lines, "  "+styleSectionTitle.Render(g.title))
+		lines = append(lines, "  "+styleSectionTitle.Render(g.Title))
 		if len(rows) == 0 {
 			lines = append(lines, "    "+styleMuted.Render("(none)"))
 		} else {
@@ -113,20 +138,6 @@ func renderBoard(m Model, width, height int) string {
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-func filterByState(sessions []protocol.SessionSummary, st protocol.State, filter string) []protocol.SessionSummary {
-	out := make([]protocol.SessionSummary, 0, len(sessions))
-	for _, s := range sessions {
-		if s.State != st {
-			continue
-		}
-		if filter != "all" && filter != "" && s.ToolID != filter {
-			continue
-		}
-		out = append(out, s)
-	}
-	return out
 }
 
 // Column widths in the row grid (mockup: 1.4ch 5ch 22ch 1fr 18ch 5ch with ~1ch gaps).

@@ -74,7 +74,7 @@ func TestLastNonEmptyLine_KeepsRealText(t *testing.T) {
 }
 
 // stubAdapter is a programmable Adapter for testing the supervisor's
-// per-tick state classification and readiness signaling.
+// per-tick state classification AND its IsReadyForInput readiness gate.
 type stubAdapter struct {
 	mu       sync.Mutex
 	sequence []protocol.State
@@ -108,11 +108,138 @@ func (s *stubAdapter) setReady(b bool) {
 	s.ready = b
 }
 
-func TestSupervisor_InitialPromptWaitsForIsReadyForInput(t *testing.T) {
+func TestSupervisor_NeedsInputToWorkingRegression(t *testing.T) {
 	stateDir := t.TempDir()
 	store := state.NewStore()
 	sess := &state.Session{
 		ID: "id1", ShortID: "id1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	var (
+		mu          sync.Mutex
+		transitions []protocol.State
+	)
+	store.Subscribe(func(e state.Event) {
+		if e.NewState != nil {
+			mu.Lock()
+			transitions = append(transitions, *e.NewState)
+			mu.Unlock()
+		}
+	})
+
+	stub := &stubAdapter{sequence: []protocol.State{
+		protocol.StateWorking,    // same as initial — no transition expected
+		protocol.StateNeedsInput, // working -> needs_input
+		protocol.StateNeedsInput, // no transition (deduped)
+		protocol.StateWorking,    // the regression — needs_input -> working
+		protocol.StateWorking,
+	}}
+
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sleep", "0.5"},
+		Adapter:  stub,
+		IdleTick: 10 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = sup.Run(ctx, sess)
+
+	mu.Lock()
+	defer mu.Unlock()
+	sawNeeds, sawWorkingAfterNeeds := false, false
+	for _, st := range transitions {
+		if st == protocol.StateNeedsInput {
+			sawNeeds = true
+			continue
+		}
+		if sawNeeds && st == protocol.StateWorking {
+			sawWorkingAfterNeeds = true
+		}
+	}
+	require.True(t, sawNeeds, "expected needs_input transition; got %v", transitions)
+	require.True(t, sawWorkingAfterNeeds, "expected needs_input -> working regression; got %v", transitions)
+}
+
+func TestSupervisor_CompleteSignalEndsCleanlyWithStateDone(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "id1", ShortID: "id1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	completeCh := make(chan struct{}, 1)
+	sup := New(SupervisorConfig{
+		StateDir:   stateDir,
+		Store:      store,
+		Command:    []string{"sleep", "30"}, // long enough that we know we triggered it
+		CompleteCh: completeCh,
+		IdleTick:   50 * time.Millisecond,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+
+	// Let it spawn and reach StateWorking.
+	time.Sleep(100 * time.Millisecond)
+	completeCh <- struct{}{}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("supervisor did not return after complete signal")
+	}
+
+	got, _ := store.Get("id1")
+	require.Equal(t, protocol.StateDone, got.State)
+}
+
+func TestSupervisor_CtxCancelStillProducesFailed(t *testing.T) {
+	// Regression guard: existing ctx-cancel behavior must remain StateFailed.
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "id2", ShortID: "id2", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sleep", "30"},
+		IdleTick: 50 * time.Millisecond,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("supervisor did not return after ctx cancel")
+	}
+
+	got, _ := store.Get("id2")
+	require.Equal(t, protocol.StateFailed, got.State)
+}
+
+func TestSupervisor_InitialPromptWaitsForIsReadyForInput(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "ready1", ShortID: "ready1", ToolID: "echo", Slug: "test",
 		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
 	}
 	require.NoError(t, store.Add(sess))
@@ -153,7 +280,7 @@ func TestSupervisor_InitialPromptNilAdapterIsNoop(t *testing.T) {
 	stateDir := t.TempDir()
 	store := state.NewStore()
 	sess := &state.Session{
-		ID: "id2", ShortID: "id2", ToolID: "echo", Slug: "test",
+		ID: "nil1", ShortID: "nil1", ToolID: "echo", Slug: "test",
 		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
 	}
 	require.NoError(t, store.Add(sess))

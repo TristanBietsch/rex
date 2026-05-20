@@ -5,13 +5,12 @@ import (
 )
 
 // orderedSessions returns sessions in display order: Needs input → Working → Completed.
-// Filter is applied within each group. Failed/crashed sessions aren't on the board,
-// so they're excluded — keeping selection/navigation aligned with what's visible.
+// Filter is applied within each group. All terminal states (done/failed/crashed)
+// are included so j/k navigation matches what the user sees on the board.
 func orderedSessions(m Model) []protocol.SessionSummary {
-	groups := []protocol.State{protocol.StateNeedsInput, protocol.StateWorking, protocol.StateDone}
 	out := make([]protocol.SessionSummary, 0, len(m.Sessions))
-	for _, st := range groups {
-		out = append(out, filterByState(m.Sessions, st, m.Filter)...)
+	for _, g := range boardGroups {
+		out = append(out, filterByGroup(m.Sessions, g, m.Filter)...)
 	}
 	return out
 }
@@ -58,19 +57,14 @@ func moveSelection(m Model, delta int) Model {
 }
 
 // selectedBoardLine returns the line index in the unscrolled board where the
-// selected session is rendered, or -1 if nothing is selected.
+// selected session is rendered, or -1 if nothing is selected or visible.
 func selectedBoardLine(m Model) int {
 	if m.SelectedID == "" {
 		return -1
 	}
-	groups := []protocol.State{
-		protocol.StateNeedsInput,
-		protocol.StateWorking,
-		protocol.StateDone,
-	}
 	line := 0
-	for i, st := range groups {
-		rows := filterByState(m.Sessions, st, m.Filter)
+	for i, g := range boardGroups {
+		rows := filterByGroup(m.Sessions, g, m.Filter)
 		if i > 0 {
 			line++ // blank separator
 		}
@@ -122,8 +116,13 @@ func ensureVisible(m Model) Model {
 	return m
 }
 
-func jumpToSection(m Model, st protocol.State) Model {
-	rows := filterByState(m.Sessions, st, m.Filter)
+// jumpToSection moves selection to the first row of the group at the given index
+// (0=Needs input, 1=Working, 2=Completed). No-op if the group is empty.
+func jumpToSection(m Model, groupIdx int) Model {
+	if groupIdx < 0 || groupIdx >= len(boardGroups) {
+		return m
+	}
+	rows := filterByGroup(m.Sessions, boardGroups[groupIdx], m.Filter)
 	if len(rows) > 0 {
 		m.SelectedID = rows[0].ID
 	}

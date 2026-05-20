@@ -48,6 +48,8 @@ func run(args []string) error {
 		return cli.RunRename(args[1:])
 	case "archive":
 		return cli.RunArchive(args[1:])
+	case "complete":
+		return cli.RunComplete(args[1:])
 	case "reload":
 		return cli.RunReload(args[1:])
 	case "daemon":

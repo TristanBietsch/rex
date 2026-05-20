@@ -25,6 +25,7 @@ JSON-lines over a Unix domain socket. Each line is one message. The schema is in
 | `Reply` | `{ "session_id", "text" }` | Convenience for inline replies; daemon appends a trailing newline. |
 | `Rename` | `{ "session_id", "slug"?, "title"? }` | |
 | `Delete` | `{ "session_id" }` | Terminates the PTY and removes the session directory unless `soft_trash` is enabled in `config.yaml` (when enabled, the session dir is moved to `~/.local/share/rex/trash/<id>/` instead of unlinked). |
+| `Complete` | `{ "session_id" }` | Daemon kills the session's PTY cleanly and transitions it to `done`. No-op if the session is already terminal. Distinct from `Delete` (which removes the session entirely). |
 | `FocusFilter` | `{ "tool_id": "..." \| "all" }` | Persisted server-side so reconnects restore the filter; cosmetic only. |
 | `Shutdown` | `{}` | Daemon stops accepting new sessions, flushes, and exits. |
 

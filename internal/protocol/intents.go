@@ -15,6 +15,7 @@ const (
 	IntentShutdown         = "Shutdown"
 	IntentSetMaxConcurrent = "SetMaxConcurrent"
 	IntentSetSessionFleet  = "SetSessionFleet"
+	IntentComplete         = "Complete"
 )
 
 // Hello is the first message a client sends after connect.
@@ -94,4 +95,10 @@ type FocusFilter struct {
 // SetMaxConcurrent updates the daemon's concurrent-session cap live.
 type SetMaxConcurrent struct {
 	N int `json:"n"`
+}
+
+// Complete asks the daemon to cleanly terminate a running session and mark it done.
+// Distinct from Delete (which removes the session entirely) and Subscribe (read-only).
+type Complete struct {
+	SessionID string `json:"session_id"`
 }

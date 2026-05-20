@@ -3,6 +3,7 @@ package registry
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -153,6 +154,11 @@ func validate(tools []Tool) error {
 		case "heuristic":
 			if t.Detect.PromptRegex == "" || t.Detect.IdleMs <= 0 {
 				return fmt.Errorf("tool %q: heuristic detect needs prompt_regex and idle_ms", t.ID)
+			}
+			if t.Detect.DoneRegex != "" {
+				if _, err := regexp.Compile("(?m)" + t.Detect.DoneRegex); err != nil {
+					return fmt.Errorf("tool %q: done_regex compile failed: %w", t.ID, err)
+				}
 			}
 		default:
 			return fmt.Errorf("tool %q: unknown detect.kind %q", t.ID, t.Detect.Kind)
