@@ -1,6 +1,12 @@
 # TODO
 TODO.md
 
+# Benchmark artifacts
+/bench/profiles/*
+!/bench/profiles/.gitkeep
+/bench/results/*
+!/bench/results/.gitkeep
+
 # Binaries
 /rex-daemon
 /rex
@@ -30,3 +36,19 @@ claude/*
 
 # Local agent scratch (tracked docs live under docs/agents/)
 /agents/mockup.html
+
+# test files
+/test/
+test/* 
+state.test
+rex.test
+persist.test
+store.test
+store_test.go
+persist_test.go
+store_test.go
+protocol.test
+
+# dev
+dev/
+dev/*

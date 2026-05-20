@@ -62,4 +62,4 @@ Codec returns decode errors; server maps handler failures to `EventError` with s
 - `data/schemas.md` — field-level wire shapes.
 - `modules/client.md` — typed intent helpers.
 - `modules/server.md` — handler switch.
-- Human reference: `docs/protocol.md` (may drift; code wins).
+- Human reference: [../../protocol.md](../../protocol.md).

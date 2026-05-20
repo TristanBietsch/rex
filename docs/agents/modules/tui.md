@@ -77,4 +77,4 @@ Snapshot tests for board/header/splash; spawn slug derivation; setup shell block
 
 - `modules/cli.md` — `RunTUI`, `RunRender`, `RunSetup`.
 - `modules/client.md`
-- Human reference: `docs/tui.md`, `docs/slash.md`.
+- Human reference: [../../tui.md](../../tui.md), [../../slash.md](../../slash.md).

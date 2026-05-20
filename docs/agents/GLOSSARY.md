@@ -32,7 +32,7 @@ Merged tool catalog (`registry.Load`, `builtin.yaml` + `tools.yaml`). Origin: `i
 
 ## selector
 
-CLI/TUI session reference: short id, slug, or `@state` alias. Origin: `internal/surface/cli/selector.go`.
+CLI/TUI session reference: full UUID, exact slug, or hex short-id prefix. Origin: `internal/surface/cli/selector.go`. (`@state` aliases appear in help text but are not implemented.)
 
 ## session
 

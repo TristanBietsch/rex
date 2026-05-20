@@ -102,7 +102,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, listenDaemon(m.Client)
 	case SpinnerTickMsg:
 		m.SpinnerTick++
-		return m, tickSpinner()
+		if m.hasWorkingSessions() {
+			return m, tickSpinner()
+		}
+		return m, nil
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()

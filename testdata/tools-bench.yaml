@@ -1,0 +1,8 @@
+# Bench-only registry overlay (merged via registry.Load in integration benches).
+tools:
+  - id: echo
+    models:
+      - id: flood
+        name: "1 MiB stdout flood"
+        args:
+          - "i=0; while [ $((i*32)) -lt 1048576 ]; do printf 'flood-%08d-abcdefghijklmnopqrst\\n' $i; i=$((i+1)); done; echo done"

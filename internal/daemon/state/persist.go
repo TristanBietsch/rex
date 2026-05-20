@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -89,21 +90,55 @@ func LoadAll(root string) ([]*Session, error) {
 	return out, nil
 }
 
-// AppendTranscript appends bytes to the session's transcript.log, creating dirs as needed.
-func AppendTranscript(root, id string, b []byte) error {
+// TranscriptFile is a kept-open transcript handle for the lifetime of one PTY session.
+// Reuse avoids open/close syscalls on every PTY read chunk.
+type TranscriptFile struct {
+	f *os.File
+	w *bufio.Writer
+}
+
+// OpenTranscript opens (or creates) transcript.log for repeated appends.
+func OpenTranscript(root, id string) (*TranscriptFile, error) {
 	dir := sessionDir(root, id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", dir, err)
+		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return fmt.Errorf("open transcript: %w", err)
+		return nil, fmt.Errorf("open transcript: %w", err)
 	}
-	defer f.Close()
-	if _, err := f.Write(b); err != nil {
+	return &TranscriptFile{f: f, w: bufio.NewWriterSize(f, 64*1024)}, nil
+}
+
+// Write appends bytes to the transcript.
+func (t *TranscriptFile) Write(b []byte) error {
+	if _, err := t.w.Write(b); err != nil {
 		return fmt.Errorf("write transcript: %w", err)
 	}
 	return nil
+}
+
+// Close flushes buffered data and closes the file.
+func (t *TranscriptFile) Close() error {
+	if err := t.w.Flush(); err != nil {
+		_ = t.f.Close()
+		return fmt.Errorf("flush transcript: %w", err)
+	}
+	if err := t.f.Close(); err != nil {
+		return fmt.Errorf("close transcript: %w", err)
+	}
+	return nil
+}
+
+// AppendTranscript appends bytes to the session's transcript.log, creating dirs as needed.
+// For a long-lived PTY session prefer OpenTranscript and TranscriptFile.Write.
+func AppendTranscript(root, id string, b []byte) error {
+	tf, err := OpenTranscript(root, id)
+	if err != nil {
+		return err
+	}
+	defer tf.Close()
+	return tf.Write(b)
 }
 
 // TranscriptTail returns the last max bytes of a session's transcript.log

@@ -57,12 +57,18 @@ func (w *Writer) WriteEvent(typ, id string, payload any) error {
 }
 
 func (w *Writer) write(kind Kind, typ, id string, payload any) error {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal payload: %w", err)
+	// Single JSON encode: embedding payload as a typed field avoids a second
+	// full marshal pass over the payload bytes.
+	type wireLine struct {
+		V    int    `json:"v"`
+		Kind Kind   `json:"kind"`
+		Type string `json:"type"`
+		ID   string `json:"id,omitempty"`
+		Data any    `json:"data"`
 	}
-	env := Envelope{V: ProtocolVersion, Kind: kind, Type: typ, ID: id, Data: data}
-	b, err := json.Marshal(env)
+	b, err := json.Marshal(wireLine{
+		V: ProtocolVersion, Kind: kind, Type: typ, ID: id, Data: payload,
+	})
 	if err != nil {
 		return fmt.Errorf("marshal envelope: %w", err)
 	}

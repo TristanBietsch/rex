@@ -1,5 +1,7 @@
 # settings
 
+Human reference: **[../../settings.md](../../settings.md)** — keys, defaults, YAML shape.
+
 **Path:** `internal/catalog/settings`
 **Depends on:** (none) | external: `gopkg.in/yaml.v3`, standard library
 **Depended on by:** `cmd/rex-daemon`, `internal/surface/cli`, `internal/surface/tui`
@@ -40,7 +42,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 
 ## Invariants
 
-Unknown keys in YAML are preserved in store map but only `Registry` IDs are exposed via typed getters. Defaults apply when key absent.
+Unknown keys in YAML are ignored on load. Only `Registry` IDs are stored. Defaults apply when key absent.
 
 ## Side effects
 
@@ -62,4 +64,4 @@ Registry completeness; store round-trip; type coercion.
 
 - `interfaces/config.md` — paths and env vars.
 - `modules/tui.md` — settings overlay.
-- Human reference: `docs/settings.md`, `docs/feature-settings.md`.
+- Human reference: [../../settings.md](../../settings.md).

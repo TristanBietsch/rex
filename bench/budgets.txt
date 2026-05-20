@@ -1,0 +1,23 @@
+# Performance budgets (post-optimization, May 2026).
+# CI/compare: run `make bench` then `benchstat` against these baselines.
+# Fail review if a benchmark regresses >10% on ns/op or allocs/op.
+
+# S1 proxy (internal/daemon/state)
+BenchmarkTranscriptFile_4KiB     1500 ns/op    0 allocs/op
+BenchmarkTranscriptFile_1MiB   500000 ns/op   15 allocs/op
+
+# S3 (internal/surface/tui)
+BenchmarkRenderBoard_10        180000 ns/op  850 allocs/op
+BenchmarkRenderBoard_50        850000 ns/op 4200 allocs/op
+BenchmarkRenderBoard_200      3200000 ns/op 17000 allocs/op
+
+# S4 (internal/wire/protocol)
+BenchmarkCodec_SessionUpdatedRoundTrip  11000 ns/op  30 allocs/op
+BenchmarkCodec_SnapshotRoundTrip       300000 ns/op 130 allocs/op
+
+# S5 (internal/daemon/state)
+BenchmarkLoadAll_50           1800000 ns/op  1300 allocs/op
+BenchmarkLoadAll_200          8000000 ns/op  5000 allocs/op
+
+# S1 integration (bench/integration, -tags=integration)
+BenchmarkS1_PTYFlood       600000000 ns/op

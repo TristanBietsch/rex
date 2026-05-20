@@ -146,10 +146,12 @@ Build: `make build` → `./rex`, `./rex-daemon` at repo root.
 
 | Path | Audience |
 |------|----------|
-| `docs/STRUCTURE.md` | Humans + agents (layout contract) |
-| `docs/agents/` | Agent-oriented module map (update paths when moving packages) |
+| [docs/index.md](index.md) | Humans — documentation map |
+| [docs/STRUCTURE.md](STRUCTURE.md) | Humans + agents — layout contract (this file) |
+| [docs/cli.md](cli.md), [docs/tui.md](tui.md), … | Humans — reference and guides |
+| [docs/agents/](agents/) | Agents — module map; links to human reference |
 
-Legacy human specs under repo `docs/*.md` on git HEAD may be stale; prefer source + `docs/agents/`.
+Go source wins on conflict. See [UNDOCUMENTED.md](UNDOCUMENTED.md) for known gaps.
 
 ## Verification
 

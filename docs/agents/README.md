@@ -63,4 +63,16 @@ rex
 | [interfaces/config.md](interfaces/config.md) | Paths, env, settings keys |
 | [data/schemas.md](data/schemas.md) | Wire and disk JSON shapes |
 
-Human-oriented specs live in repo root `docs/` (not this tree).
+## Human documentation
+
+| File | Contents |
+|------|----------|
+| [../index.md](../index.md) | Documentation map |
+| [../cli.md](../cli.md) | CLI reference |
+| [../tui.md](../tui.md), [../slash.md](../slash.md) | TUI and command palette |
+| [../settings.md](../settings.md), [../registry.md](../registry.md) | User YAML |
+| [../protocol.md](../protocol.md), [../daemon.md](../daemon.md) | Wire and supervisor |
+| [../architecture.md](../architecture.md) | System design |
+| [../quickstart.md](../quickstart.md) | First session |
+
+Go source wins on conflict.

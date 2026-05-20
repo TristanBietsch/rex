@@ -81,4 +81,4 @@ daemonctl → (stdlib)
 
 ## Human docs
 
-Repo `docs/` holds design specs (`docs/protocol.md`, `docs/tui.md`, etc.). When they disagree with code, code wins — see `AGENTS.md`.
+Human design notes: [../architecture.md](../architecture.md), [../protocol.md](../protocol.md). When they disagree with code, code wins — see `AGENTS.md`.

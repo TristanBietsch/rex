@@ -103,6 +103,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		return err
 	}
 
+	transcript, err := state.OpenTranscript(s.cfg.StateDir, sess.ID)
+	if err != nil {
+		return err
+	}
+	defer transcript.Close()
+
 	// Track the most recent output window and last-chunk time for adapter classification.
 	// windowMu guards window and lastChunk accessed from both the reader goroutine and
 	// the ticker select case.
@@ -187,13 +193,15 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		for {
 			n, rerr := f.Read(buf)
 			if n > 0 {
-				chunk := append([]byte(nil), buf[:n]...)
-				if err := state.AppendTranscript(s.cfg.StateDir, sess.ID, chunk); err != nil {
+				chunk := buf[:n]
+				if err := transcript.Write(chunk); err != nil {
 					errc <- fmt.Errorf("persist transcript: %w", err)
 					return
 				}
 				if s.cfg.OutputSink != nil {
-					s.cfg.OutputSink(chunk)
+					// Subscribers may retain the slice; copy only when forwarding.
+					out := append([]byte(nil), chunk...)
+					s.cfg.OutputSink(out)
 				}
 
 				// Increment token counter and emit a patch every +500 tokens.

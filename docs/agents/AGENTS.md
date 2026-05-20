@@ -32,7 +32,7 @@ If human `docs/protocol.md` (etc.) disagrees with `internal/wire/protocol`, trus
 | `internal/surface/cli/*.go`, `internal/surface/tui/*.go` | `internal/wire/protocol` — breaking wire changes |
 | `internal/catalog/settings/registry.go` (add settings) | `internal/catalog/registry/builtin.yaml` — affects all installs |
 | `internal/catalog/registry/builtin.yaml` (new tools) | `go.mod` version bumps |
-| Tests alongside changes | `.gitignore` (currently ignores `docs/agents/`) |
+| Tests alongside changes | Agent scratch under `/agents/` (see `.gitignore`) |
 
 No generated Go in repo. No vendored tree. `install.sh` and `Makefile` affect user installs.
 
@@ -53,4 +53,4 @@ No `CONTRIBUTING.md` in repo. Commit history uses short imperative subjects (`Ad
 
 - `IntentOpenSession`, `IntentShutdown` documented as unimplemented in server.
 - `TestLoad_UserExtends` failing in `internal/catalog/registry` at time of doc write.
-- `docs/agents/` directory is gitignored; these docs may not be tracked unless `.gitignore` changes.
+- Human reference lives under `docs/*.md`; keep agent docs as navigation, not duplicate tables.

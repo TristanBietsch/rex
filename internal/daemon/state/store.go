@@ -46,14 +46,15 @@ func NewStore() *Store {
 // Add inserts a session. Errors if the ID is taken.
 func (s *Store) Add(sess *Session) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if _, exists := s.sessions[sess.ID]; exists {
+		s.mu.Unlock()
 		return fmt.Errorf("session %s already exists", sess.ID)
 	}
 	s.sessions[sess.ID] = sess
 	s.byShortID[sess.ShortID] = sess.ID
-
 	sum := sess.Summary()
+	s.mu.Unlock()
+
 	s.broadcast(Event{Kind: EventAdded, SessionID: sess.ID, Summary: &sum})
 	return nil
 }
@@ -89,6 +90,17 @@ func (s *Store) GetByShortID(short string) (*Session, bool) {
 		return nil, false
 	}
 	return s.sessions[id], true
+}
+
+// TakenShortIDs returns a copy of short ids currently in use (for disambiguation on spawn).
+func (s *Store) TakenShortIDs() map[string]struct{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	taken := make(map[string]struct{}, len(s.byShortID))
+	for short := range s.byShortID {
+		taken[short] = struct{}{}
+	}
+	return taken
 }
 
 // All returns a snapshot of every session (pointer values; do not mutate without locking).

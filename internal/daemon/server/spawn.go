@@ -30,12 +30,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// From here, must release on error.
 
 	id := ids.NewSessionID()
-	// Disambiguate against the live set.
-	taken := make(map[string]struct{})
-	for _, s := range cfg.Store.All() {
-		taken[s.ShortID] = struct{}{}
-	}
-	short := ids.ExtendShortID(id, taken)
+	short := ids.ExtendShortID(id, cfg.Store.TakenShortIDs())
 
 	cmdArgs := append([]string{}, tool.Command...)
 	cmdArgs = append(cmdArgs, model.Args...)

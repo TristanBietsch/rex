@@ -32,6 +32,18 @@ func TestAppendTranscript(t *testing.T) {
 	require.Equal(t, "line1\nline2\n", string(b))
 }
 
+func TestTranscriptFile(t *testing.T) {
+	dir := t.TempDir()
+	tf, err := OpenTranscript(dir, "id1")
+	require.NoError(t, err)
+	require.NoError(t, tf.Write([]byte("a")))
+	require.NoError(t, tf.Write([]byte("b")))
+	require.NoError(t, tf.Close())
+	b, err := os.ReadFile(filepath.Join(dir, "sessions", "id1", "transcript.log"))
+	require.NoError(t, err)
+	require.Equal(t, "ab", string(b))
+}
+
 func TestTranscriptTail(t *testing.T) {
 	dir := t.TempDir()
 

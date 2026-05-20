@@ -90,7 +90,7 @@ Root: `tools:` array of `registry.Tool` (see `internal/catalog/registry/types.go
 
 ## config.yaml
 
-Flat or nested YAML keys matching `settings.Registry` IDs. Path: `settings.DefaultPath()` → `~/.config/rex/config.yaml`.
+Flat top-level keys matching `settings.Registry` IDs. Unknown keys ignored on load. Path: `settings.DefaultPath()` → `~/.config/rex/config.yaml`. Human reference: [../../settings.md](../../settings.md).
 
 ## tui-state.json
 

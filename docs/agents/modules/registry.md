@@ -1,5 +1,7 @@
 # registry
 
+Human reference: **[../../registry.md](../../registry.md)** — YAML schema and merge rules.
+
 **Path:** `internal/catalog/registry`
 **Depends on:** (none) | external: `gopkg.in/yaml.v3`, standard library (`embed`)
 **Depended on by:** `internal/daemon/adapter`, `internal/daemon/server`, `cmd/rex-daemon`, `internal/surface/tui`
@@ -59,4 +61,4 @@ Default user path: `~/.config/rex/tools.yaml` (`rex-daemon -tools`). `SIGHUP` to
 
 - `modules/adapter.md` — `Detect` → adapter.
 - `interfaces/config.md` — `tools.yaml` path.
-- Human reference: `docs/registry.md`.
+- Human reference: [../../registry.md](../../registry.md).

@@ -34,7 +34,7 @@ One file per command area: `new.go`, `attach.go`, `ls.go`, `status.go`, `daemon.
 
 ## Invariants
 
-Most commands dial `DefaultSocket()` (same as `daemonctl.DefaultSocket`). Selectors resolve by short id, slug, or `@state` aliases (`@needs`, `@working`, `@done` per help text).
+Most commands dial `DefaultSocket()`. Selectors: UUID, slug, short-id prefix only. Human reference: [../../cli.md](../../cli.md).
 
 `RunStatus` exits `1` when any session is `needs_input` (for shell prompts).
 

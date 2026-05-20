@@ -45,6 +45,26 @@ func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter stri
 	return out
 }
 
+// partitionSessions buckets sessions into board columns in one pass (O(n) vs 3× scan).
+func partitionSessions(sessions []protocol.SessionSummary, filter string) [][]protocol.SessionSummary {
+	out := make([][]protocol.SessionSummary, len(boardGroups))
+	for i := range out {
+		out[i] = make([]protocol.SessionSummary, 0, len(sessions)/len(boardGroups)+1)
+	}
+	for _, s := range sessions {
+		if filter != "all" && filter != "" && s.ToolID != filter {
+			continue
+		}
+		for i, g := range boardGroups {
+			if g.Match(s.State) {
+				out[i] = append(out[i], s)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // fleetPalette is a small set of distinct lipgloss colors that work on both
 // dark and light terminals. The color for a fleet name is selected by:
 //
@@ -97,13 +117,23 @@ func spinnerFramesFor(m Model) []string {
 	return spinnerFrameSets["braille"]
 }
 
+func (m Model) hasWorkingSessions() bool {
+	for _, s := range m.Sessions {
+		if s.State == protocol.StateWorking {
+			return true
+		}
+	}
+	return false
+}
+
 // renderBoard renders the three sections sized to fit `width` x `height`.
 // Long boards scroll: m.ScrollOffset skips that many lines from the top.
 func renderBoard(m Model, width, height int) string {
 	gapBetween := densityGap(m)
+	partitions := partitionSessions(m.Sessions, m.Filter)
 	var lines []string
 	for i, g := range boardGroups {
-		rows := filterByGroup(m.Sessions, g, m.Filter)
+		rows := partitions[i]
 		if i > 0 {
 			for j := 0; j < gapBetween; j++ {
 				lines = append(lines, "")

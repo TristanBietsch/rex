@@ -1,6 +1,7 @@
 package adapter
 
 import (
+	"bytes"
 	"encoding/json"
 	"sync"
 	"time"
@@ -35,7 +36,7 @@ func (a *ClaudeStructured) Detect(window []byte, idle time.Duration) protocol.St
 
 	// Parse every complete line in the buffer.
 	for {
-		nl := indexNewline(a.buffer)
+		nl := bytes.IndexByte(a.buffer, '\n')
 		if nl < 0 {
 			break
 		}
@@ -75,13 +76,4 @@ func (a *ClaudeStructured) IsReadyForInput(_ []byte, _ time.Duration) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.firstEvent
-}
-
-func indexNewline(b []byte) int {
-	for i, c := range b {
-		if c == '\n' {
-			return i
-		}
-	}
-	return -1
 }

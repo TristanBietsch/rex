@@ -57,17 +57,21 @@ func NewHeuristic(promptRegex, doneRegex string, idle time.Duration) (*Heuristic
 //	       and the `^>>> ` anchor never matches).
 var cursorPositionRe = regexp.MustCompile(`\x1b\[\d*(?:;\d+)?[HfEFJdG]`)
 
-// Detect implements Adapter. Precedence after the idle gate: done > prompt > working.
-func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State {
-	if idle < h.idle {
-		return protocol.StateWorking
-	}
+func (h *HeuristicCLI) cleanTail(window []byte) string {
 	tail := window
 	if len(tail) > 4096 {
 		tail = tail[len(tail)-4096:]
 	}
 	withLineBreaks := cursorPositionRe.ReplaceAllString(string(tail), "\n")
-	clean := ansi.Strip(withLineBreaks)
+	return ansi.Strip(withLineBreaks)
+}
+
+// Detect implements Adapter. Precedence after the idle gate: done > prompt > working.
+func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State {
+	if idle < h.idle {
+		return protocol.StateWorking
+	}
+	clean := h.cleanTail(window)
 	if h.done != nil && h.done.MatchString(clean) {
 		return protocol.StateDone
 	}
@@ -82,11 +86,5 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 // gate is applied — the idle parameter is part of the Adapter contract but
 // ignored here.
 func (h *HeuristicCLI) IsReadyForInput(window []byte, _ time.Duration) bool {
-	tail := window
-	if len(tail) > 4096 {
-		tail = tail[len(tail)-4096:]
-	}
-	withLineBreaks := cursorPositionRe.ReplaceAllString(string(tail), "\n")
-	clean := ansi.Strip(withLineBreaks)
-	return h.prompt.MatchString(clean)
+	return h.prompt.MatchString(h.cleanTail(window))
 }
