@@ -160,38 +160,38 @@ func transcriptStub(s string) TranscriptReader {
 }
 
 func TestResolveModel_ConfiguredPulledIsKept(t *testing.T) {
-	got, ok := resolveModel("gemma2:2b", []string{"gemma2:2b", "llama3.1"})
+	got, ok := ResolveModel("gemma2:2b", []string{"gemma2:2b", "llama3.1"})
 	require.True(t, ok)
 	require.Equal(t, "gemma2:2b", got)
 }
 
 func TestResolveModel_FallsThroughPreferenceList(t *testing.T) {
-	got, ok := resolveModel("gemma2:2b", []string{"llama3.1", "phi3:mini"})
+	got, ok := ResolveModel("gemma2:2b", []string{"llama3.1", "phi3:mini"})
 	require.True(t, ok)
 	require.Equal(t, "phi3:mini", got)
 }
 
 func TestResolveModel_PreferenceListWinsOverArbitraryFirst(t *testing.T) {
-	got, ok := resolveModel("gemma2:2b", []string{"llama3.1", "phi3:mini"})
+	got, ok := ResolveModel("gemma2:2b", []string{"llama3.1", "phi3:mini"})
 	require.True(t, ok)
 	require.Equal(t, "phi3:mini", got)
 }
 
 func TestResolveModel_AnyPulledWhenPreferenceListMissing(t *testing.T) {
-	got, ok := resolveModel("gemma2:2b", []string{"llama3.1"})
+	got, ok := ResolveModel("gemma2:2b", []string{"llama3.1"})
 	require.True(t, ok)
 	require.Equal(t, "llama3.1", got)
 }
 
 func TestResolveModel_NoneAvailable(t *testing.T) {
-	_, ok := resolveModel("gemma2:2b", nil)
+	_, ok := ResolveModel("gemma2:2b", nil)
 	require.False(t, ok)
-	_, ok = resolveModel("gemma2:2b", []string{})
+	_, ok = ResolveModel("gemma2:2b", []string{})
 	require.False(t, ok)
 }
 
 func TestResolveModel_EmptyConfigured(t *testing.T) {
-	got, ok := resolveModel("", []string{"llama3.1"})
+	got, ok := ResolveModel("", []string{"llama3.1"})
 	require.True(t, ok)
 	require.Equal(t, "llama3.1", got)
 }

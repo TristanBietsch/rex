@@ -41,7 +41,7 @@ type sessionMeta struct {
 
 var preferredFallbacks = []string{"gemma2:2b", "llama3.2:1b", "phi3:mini", "qwen2.5:1.5b"}
 
-func resolveModel(configured string, pulled []string) (string, bool) {
+func ResolveModel(configured string, pulled []string) (string, bool) {
 	if configured != "" {
 		for _, p := range pulled {
 			if p == configured {
