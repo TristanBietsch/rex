@@ -65,3 +65,31 @@ func TestHeuristic_CodexPromptViaCursorPositioning(t *testing.T) {
 	got := h.Detect([]byte(raw), 2*time.Second)
 	require.Equal(t, protocol.StateNeedsInput, got)
 }
+
+func TestHeuristic_IsReadyForInput_MatchesPromptRegex(t *testing.T) {
+	h, err := NewHeuristic("^>>> ", 100*time.Millisecond)
+	require.NoError(t, err)
+	require.True(t, h.IsReadyForInput([]byte("hi there\n>>> Send a message"), 0))
+}
+
+func TestHeuristic_IsReadyForInput_NoMatch(t *testing.T) {
+	h, err := NewHeuristic("^>>> ", 100*time.Millisecond)
+	require.NoError(t, err)
+	require.False(t, h.IsReadyForInput([]byte("loading model..."), 0))
+}
+
+func TestHeuristic_IsReadyForInput_IgnoresIdle(t *testing.T) {
+	h, err := NewHeuristic("^>>> ", 100*time.Millisecond)
+	require.NoError(t, err)
+	got1 := h.IsReadyForInput([]byte(">>> "), 1*time.Millisecond)
+	got2 := h.IsReadyForInput([]byte(">>> "), 60*time.Second)
+	require.True(t, got1)
+	require.True(t, got2)
+}
+
+func TestHeuristic_IsReadyForInput_AnsiAndCursorScrubbed(t *testing.T) {
+	h, err := NewHeuristic("^› ", 100*time.Millisecond)
+	require.NoError(t, err)
+	raw := "\x1b[2J\x1b[H• Test received.\x1b[5;1H\x1b[K\x1b[36m› \x1b[mtype here"
+	require.True(t, h.IsReadyForInput([]byte(raw), 0))
+}

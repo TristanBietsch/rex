@@ -52,3 +52,17 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 	}
 	return protocol.StateWorking
 }
+
+// IsReadyForInput returns true when the agent's prompt regex matches the
+// cleaned output window. The visible prompt IS the ready signal, so no idle
+// gate is applied — the idle parameter is part of the Adapter contract but
+// ignored here.
+func (h *HeuristicCLI) IsReadyForInput(window []byte, _ time.Duration) bool {
+	tail := window
+	if len(tail) > 4096 {
+		tail = tail[len(tail)-4096:]
+	}
+	withLineBreaks := cursorPositionRe.ReplaceAllString(string(tail), "\n")
+	clean := ansi.Strip(withLineBreaks)
+	return h.prompt.MatchString(clean)
+}

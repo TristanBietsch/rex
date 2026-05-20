@@ -9,9 +9,15 @@ import (
 	"github.com/tristanbietsch/rex/internal/registry"
 )
 
-// Adapter classifies output chunks into states.
+// Adapter classifies output chunks into states and also reports when the agent
+// is ready to receive its first user input.
 type Adapter interface {
 	Detect(window []byte, idle time.Duration) protocol.State
+	// IsReadyForInput reports whether the agent's CLI is currently parked at
+	// its input prompt (or otherwise able to accept typed/pasted input).
+	// Used by the supervisor's initial-prompt goroutine to decide WHEN to
+	// paste the wizard's "describe the task" text.
+	IsReadyForInput(window []byte, idle time.Duration) bool
 }
 
 // For builds an adapter for a tool's detection config.

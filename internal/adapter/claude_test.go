@@ -41,3 +41,22 @@ func TestClaudeStructured_PartialLineBuffered(t *testing.T) {
 	got = a.Detect([]byte(`,"subtype":"success"}`+"\n"), 10*time.Millisecond)
 	require.Equal(t, protocol.StateDone, got)
 }
+
+func TestClaudeStructured_IsReadyForInput_FalseBeforeAnyEvent(t *testing.T) {
+	a := NewClaudeStructured()
+	require.False(t, a.IsReadyForInput(nil, 0))
+}
+
+func TestClaudeStructured_IsReadyForInput_TrueAfterFirstEvent(t *testing.T) {
+	a := NewClaudeStructured()
+	a.Detect([]byte(`{"type":"system","subtype":"init"}`+"\n"), 100*time.Millisecond)
+	require.True(t, a.IsReadyForInput(nil, 0))
+}
+
+func TestClaudeStructured_IsReadyForInput_RemainsTrueAfterMoreEvents(t *testing.T) {
+	a := NewClaudeStructured()
+	a.Detect([]byte(`{"type":"system","subtype":"init"}`+"\n"), 100*time.Millisecond)
+	a.Detect([]byte(`{"type":"assistant"}`+"\n"), 100*time.Millisecond)
+	a.Detect([]byte(`{"type":"result","subtype":"success"}`+"\n"), 100*time.Millisecond)
+	require.True(t, a.IsReadyForInput(nil, 0))
+}
