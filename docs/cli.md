@@ -264,6 +264,21 @@ rex archive 2b7e
 
 ---
 
+## `rex complete <selector>`
+
+Cleanly terminate a session and mark it `done`. The daemon kills the PTY and transitions the session to the terminal `done` state. Exit `0` on success, `2` if the selector isn't found, `3` if ambiguous. No-op if the session is already terminal.
+
+Use this for tools whose prompt is identical between "awaiting" and "just finished" (codex, gemini, ollama) — when the heuristic adapter can't tell completion apart from `needs_input`, `rex complete` is the explicit signal.
+
+```
+rex complete 7d4f
+rex complete payment-migration
+```
+
+Distinct from `rex rm` (which deletes the session entirely) and `rex archive` (which only hides an already-`done` session).
+
+---
+
 ## `rex rm <selector>`
 
 Delete a session. Terminates its PTY (if alive), removes its session directory (or moves to `trash/` when `soft_trash` is enabled in `config.yaml`).

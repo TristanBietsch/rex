@@ -95,6 +95,17 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			}
 			// Disk cleanup is best-effort — the session is already gone from memory.
 			_ = state.RemoveSessionDir(cfg.StateDir, p.SessionID)
+		case protocol.IntentComplete:
+			var p protocol.Complete
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			if _, ok := cfg.Store.Get(p.SessionID); !ok {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				continue
+			}
+			srv.CompleteSession(p.SessionID)
 		case protocol.IntentSubscribe:
 			var p protocol.Subscribe
 			if err := json.Unmarshal(env.Data, &p); err != nil {
@@ -287,6 +298,8 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	inputCh := make(chan []byte, 16)
 	srv.RegisterInputChannel(sess.ID, inputCh)
 
+	completeCh := make(chan struct{}, 1)
+
 	sup := pty.New(pty.SupervisorConfig{
 		StateDir:       cfg.StateDir,
 		Store:          cfg.Store,
@@ -294,6 +307,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		CWD:            p.CWD,
 		Adapter:        ad,
 		InputCh:        inputCh,
+		CompleteCh:     completeCh,
 		InitialPrompt:  p.InitialPrompt,
 		SummaryRequest: cfg.SummaryRequest,
 		OutputSink: func(b []byte) {
@@ -314,11 +328,19 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		cancel()
 		<-done
 	})
+	srv.RegisterComplete(sess.ID, func() {
+		select {
+		case completeCh <- struct{}{}:
+		default:
+			// already pending; further signals are no-ops
+		}
+	})
 
 	// Run in a background goroutine; the store events drive the wire.
 	go func() {
 		defer close(done)
 		defer srv.UnregisterStop(sess.ID)
+		defer srv.UnregisterComplete(sess.ID)
 		defer srv.UnregisterInputChannel(sess.ID)
 		defer srv.ReleaseSession()
 		_ = sup.Run(sessCtx, sess)

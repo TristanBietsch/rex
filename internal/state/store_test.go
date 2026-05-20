@@ -1,6 +1,7 @@
 package state
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -106,4 +107,31 @@ func TestUpdateDescriptionBroadcasts(t *testing.T) {
 	require.Equal(t, EventUpdated, gotKind, "event kind")
 	require.Equal(t, "rewriting webhook handlers", sess.Description, "session field")
 	require.False(t, sess.DescriptionAt.IsZero(), "DescriptionAt should be set")
+}
+
+func TestStore_CurrentState(t *testing.T) {
+	s := NewStore()
+	sess := &Session{ID: "id1", ShortID: "id1", State: protocol.StateWorking}
+	require.NoError(t, s.Add(sess))
+
+	got, ok := s.CurrentState("id1")
+	require.True(t, ok)
+	require.Equal(t, protocol.StateWorking, got)
+
+	_, ok = s.CurrentState("missing")
+	require.False(t, ok)
+}
+
+func TestStore_CurrentStateConcurrentWithTransition(t *testing.T) {
+	s := NewStore()
+	sess := &Session{ID: "id1", ShortID: "id1", State: protocol.StateWorking}
+	require.NoError(t, s.Add(sess))
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(2)
+		go func() { defer wg.Done(); _, _ = s.CurrentState("id1") }()
+		go func() { defer wg.Done(); _ = s.Transition("id1", protocol.StateNeedsInput) }()
+	}
+	wg.Wait()
 }

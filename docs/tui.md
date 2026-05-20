@@ -60,6 +60,7 @@ State is the only color on the board. Slug, description, model, and time are typ
 | `r` | Rename selected session (inline) |
 | `a` | Archive selected (only valid in Completed) |
 | `d d` | Delete (vim-style — press `d` twice) |
+| `c` | Complete: cleanly terminate the selected session and mark it done |
 | `i` | Focus bottom prompt (λ — new-session text) |
 | `:` | Enter command mode (Neovim-style; only valid from board focus) |
 | `S` | Open the settings page (capital S to leave lowercase `s` free) |
@@ -266,6 +267,7 @@ The `q` keybind (single-key quit) also skips the confirm — it's the muscle-mem
 │    r                   rename                     │
 │    a                   archive                    │
 │    d d                 delete                     │
+│    c                   complete (terminate, done)  │
 │    z                   zoom modal fullscreen      │
 │    i                   focus λ prompt             │
 │                                                  │

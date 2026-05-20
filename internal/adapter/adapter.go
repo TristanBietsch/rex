@@ -18,7 +18,7 @@ type Adapter interface {
 func For(t registry.Tool) (Adapter, error) {
 	switch t.Detect.Kind {
 	case "heuristic":
-		return NewHeuristic(t.Detect.PromptRegex, time.Duration(t.Detect.IdleMs)*time.Millisecond)
+		return NewHeuristic(t.Detect.PromptRegex, t.Detect.DoneRegex, time.Duration(t.Detect.IdleMs)*time.Millisecond)
 	case "structured":
 		switch t.Detect.Format {
 		case "claude_jsonl":

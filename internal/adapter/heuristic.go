@@ -16,16 +16,26 @@ var ErrUnknownDetect = errors.New("unknown detect kind")
 // HeuristicCLI is a regex+idle adapter for CLIs without structured output.
 type HeuristicCLI struct {
 	prompt *regexp.Regexp
+	done   *regexp.Regexp // nil = no auto-done; manual completion or process exit only
 	idle   time.Duration
 }
 
-// NewHeuristic builds a HeuristicCLI. Returns an error if the regex is invalid.
-func NewHeuristic(promptRegex string, idle time.Duration) (*HeuristicCLI, error) {
-	re, err := regexp.Compile("(?m)" + promptRegex)
+// NewHeuristic builds a HeuristicCLI. promptRegex is required; doneRegex is optional
+// (empty string disables auto-done). Returns an error if either regex is invalid.
+func NewHeuristic(promptRegex, doneRegex string, idle time.Duration) (*HeuristicCLI, error) {
+	prompt, err := regexp.Compile("(?m)" + promptRegex)
 	if err != nil {
 		return nil, fmt.Errorf("compile prompt regex %q: %w", promptRegex, err)
 	}
-	return &HeuristicCLI{prompt: re, idle: idle}, nil
+	h := &HeuristicCLI{prompt: prompt, idle: idle}
+	if doneRegex != "" {
+		done, err := regexp.Compile("(?m)" + doneRegex)
+		if err != nil {
+			return nil, fmt.Errorf("compile done regex %q: %w", doneRegex, err)
+		}
+		h.done = done
+	}
+	return h, nil
 }
 
 // cursorPositionRe matches CSI sequences that reposition the cursor or clear
@@ -36,7 +46,7 @@ func NewHeuristic(promptRegex string, idle time.Duration) (*HeuristicCLI, error)
 // the user sees on screen.
 var cursorPositionRe = regexp.MustCompile(`\x1b\[\d*(?:;\d+)?[HfEFJd]`)
 
-// Detect implements Adapter.
+// Detect implements Adapter. Precedence after the idle gate: done > prompt > working.
 func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State {
 	if idle < h.idle {
 		return protocol.StateWorking
@@ -47,6 +57,9 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 	}
 	withLineBreaks := cursorPositionRe.ReplaceAllString(string(tail), "\n")
 	clean := ansi.Strip(withLineBreaks)
+	if h.done != nil && h.done.MatchString(clean) {
+		return protocol.StateDone
+	}
 	if h.prompt.MatchString(clean) {
 		return protocol.StateNeedsInput
 	}

@@ -272,12 +272,22 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 				m.SelectedID = rows[len(rows)-1].ID
 			}
 			return ensureVisible(m), nil
+		case "c":
+			if m.SelectedID == "" {
+				slog.Debug("tui: 'c' pressed with no selection — no-op")
+				return m, nil
+			}
+			slog.Info("tui: 'c' pressed — sending Complete", "session", m.SelectedID)
+			if m.Audio != nil {
+				m.Audio.Play(audio.EventClose)
+			}
+			return m, completeSessionCmd(m.Client, m.SelectedID)
 		case "1":
-			return jumpToSection(m, protocol.StateNeedsInput), nil
+			return jumpToSection(m, 0), nil
 		case "2":
-			return jumpToSection(m, protocol.StateWorking), nil
+			return jumpToSection(m, 1), nil
 		case "3":
-			return jumpToSection(m, protocol.StateDone), nil
+			return jumpToSection(m, 2), nil
 		case "t":
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventFilter)
@@ -457,6 +467,17 @@ func spawnSessionCmd(c *client.Client, prompt string) tea.Cmd {
 func deleteSessionCmd(c *client.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {
 		if err := c.Delete(sessionID); err != nil {
+			return DaemonErrMsg{Err: err}
+		}
+		return nil
+	}
+}
+
+func completeSessionCmd(c *client.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		slog.Info("tui: complete intent sent", "session", sessionID)
+		if err := c.Complete(sessionID); err != nil {
+			slog.Error("tui: complete intent failed", "session", sessionID, "err", err)
 			return DaemonErrMsg{Err: err}
 		}
 		return nil
