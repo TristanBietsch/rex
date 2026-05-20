@@ -39,6 +39,29 @@ type sessionMeta struct {
 	lastHash        uint64
 }
 
+var preferredFallbacks = []string{"gemma2:2b", "llama3.2:1b", "phi3:mini", "qwen2.5:1.5b"}
+
+func resolveModel(configured string, pulled []string) (string, bool) {
+	if configured != "" {
+		for _, p := range pulled {
+			if p == configured {
+				return configured, true
+			}
+		}
+	}
+	for _, pref := range preferredFallbacks {
+		for _, p := range pulled {
+			if p == pref {
+				return pref, true
+			}
+		}
+	}
+	if len(pulled) > 0 {
+		return pulled[0], true
+	}
+	return "", false
+}
+
 // New builds a Worker. transcript is the function the worker uses to read the
 // sanitized transcript tail from disk (usually state.TranscriptTail).
 func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
