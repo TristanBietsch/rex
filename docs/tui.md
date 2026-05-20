@@ -60,7 +60,7 @@ State is the only color on the board. Slug, description, model, and time are typ
 | `r` | Rename selected session (inline) |
 | `a` | Archive selected (only valid in Completed) |
 | `d d` | Delete (vim-style — press `d` twice) |
-| `i` | Focus bottom prompt (λ — new-session text) |
+| `i` | Quick-spawn: focus the λ prompt; typing a task and pressing `enter` spawns a session with the configured default tool/model/effort (out of the box: Claude Opus, max effort). Change via `default_spawn_tool` / `default_spawn_model` / `default_spawn_effort` in Settings → Spawn. |
 | `:` | Enter command mode (Neovim-style; only valid from board focus) |
 | `S` | Open the settings page (capital S to leave lowercase `s` free) |
 | `H` | Toggle the bottom help bar |
@@ -188,9 +188,9 @@ Always visible. Has two modes:
 
 ### λ mode (default, new-session text)
 
-The prompt line shows `λ` at the left and accepts a free-form prompt. Typed text registers only when focused (`i` or click). `enter` submits a new session with the currently filtered tool's default model, slug derived from the first 32 characters of the prompt, initial prompt set to the typed text.
+The prompt line shows `λ` at the left and accepts a free-form prompt. Typed text registers only when focused (`i` or click). `enter` submits a new session using the configured quick-spawn defaults (`default_spawn_tool` / `default_spawn_model` / `default_spawn_effort` — see `settings.md`), with slug derived from the first 32 characters of the prompt and the initial prompt set to the typed text. Out of the box this resolves to Claude Opus at max effort.
 
-The wizard is preferred for first-time use; the λ prompt is for power users with a default tool already configured.
+The wizard is preferred when you want to override the defaults; the `i`-then-λ flow is for power users who've already configured their preferred default tool.
 
 ### `:` command mode (Neovim-style)
 
@@ -267,7 +267,7 @@ The `q` keybind (single-key quit) also skips the confirm — it's the muscle-mem
 │    a                   archive                    │
 │    d d                 delete                     │
 │    z                   zoom modal fullscreen      │
-│    i                   focus λ prompt             │
+│    i                   quick-spawn (default tool) │
 │                                                  │
 │  Modes                                           │
 │    :                   command mode               │

@@ -117,6 +117,16 @@ Failed and crashed totals are appended in red only when non-zero, regardless of 
 | `mouse_enabled` | `true` | When off, the TUI ignores mouse events; keyboard alone drives everything. |
 | `max_concurrent_sessions` | `16` | Daemon's PTY cap (1–64). Adjust with `-` / `+`. Above this, `NewSession` returns `ErrTooManySessions`. |
 
+## Spawn
+
+Defaults used by the `i` quick-spawn keybind (see `tui.md`). All three are stored as plain strings; out of the box they resolve to **Claude Opus, max effort**.
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `default_spawn_tool` | `claude` | Tool ID used when pressing `i` in the TUI. Must match an entry in `tools.yaml`. |
+| `default_spawn_model` | `opus` | Model ID for `i`-spawn. Must be a model offered by the configured tool. |
+| `default_spawn_effort` | `max` | Effort tier for `i`-spawn. Ignored for tools without an effort axis. |
+
 ## Onboarding
 
 - **add / rm models** — opens sub-page (mockup screen 14): per-model visibility toggles, paid/local hints.
