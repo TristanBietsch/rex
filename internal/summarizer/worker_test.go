@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tristanbietsch/rex/internal/protocol"
 	"github.com/tristanbietsch/rex/internal/state"
 )
@@ -156,4 +157,51 @@ func TestWorkerMinIntervalGate(t *testing.T) {
 // same bytes regardless of session/max.
 func transcriptStub(s string) TranscriptReader {
 	return func(_ string, _ int) []byte { return []byte(s) }
+}
+
+func TestResolveModel_ConfiguredPulledIsKept(t *testing.T) {
+	got, ok := ResolveModel("gemma2:2b", []string{"gemma2:2b", "llama3.1"})
+	require.True(t, ok)
+	require.Equal(t, "gemma2:2b", got)
+}
+
+func TestResolveModel_FallsThroughPreferenceList(t *testing.T) {
+	got, ok := ResolveModel("gemma2:2b", []string{"llama3.1", "phi3:mini"})
+	require.True(t, ok)
+	require.Equal(t, "phi3:mini", got)
+}
+
+func TestResolveModel_PreferenceListWinsOverArbitraryFirst(t *testing.T) {
+	got, ok := ResolveModel("gemma2:2b", []string{"llama3.1", "phi3:mini"})
+	require.True(t, ok)
+	require.Equal(t, "phi3:mini", got)
+}
+
+func TestResolveModel_AnyPulledWhenPreferenceListMissing(t *testing.T) {
+	got, ok := ResolveModel("gemma2:2b", []string{"llama3.1"})
+	require.True(t, ok)
+	require.Equal(t, "llama3.1", got)
+}
+
+func TestResolveModel_NoneAvailable(t *testing.T) {
+	_, ok := ResolveModel("gemma2:2b", nil)
+	require.False(t, ok)
+	_, ok = ResolveModel("gemma2:2b", []string{})
+	require.False(t, ok)
+}
+
+func TestResolveModel_EmptyConfigured(t *testing.T) {
+	got, ok := ResolveModel("", []string{"llama3.1"})
+	require.True(t, ok)
+	require.Equal(t, "llama3.1", got)
+}
+
+func TestWorker_SetModelUpdatesConfigAndClient(t *testing.T) {
+	store := state.NewStore()
+	w := New(Config{Model: "gemma2:2b", BaseURL: "http://127.0.0.1:11434"},
+		store, func(string, int) []byte { return nil })
+	require.Equal(t, "gemma2:2b", w.cfg.Model)
+	w.SetModel("llama3.1")
+	require.Equal(t, "llama3.1", w.cfg.Model)
+	require.Equal(t, "llama3.1", w.client.model)
 }

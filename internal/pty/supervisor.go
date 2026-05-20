@@ -114,60 +114,67 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	errc := make(chan error, 1)
 
 	// If the caller provided an initial prompt (from the wizard's "describe the
-	// task" step), type it into the agent once its TUI settles. We detect
-	// "settled" by waiting for at least one chunk of output and then ~800ms of
-	// quiet — that's "agent finished rendering and is parked at its prompt."
+	// task" step), type it into the agent once its TUI is parked at its input
+	// field. Readiness is detected by the per-tool Adapter via IsReadyForInput
+	// — each agent has its own signal (Claude/Codex/Gemini's input box ready,
+	// Ollama's `>>>` prompt, etc.). Without an adapter we have no reliable
+	// signal so the paste is skipped entirely.
 	if s.cfg.InitialPrompt != "" {
-		go func(prompt string) {
-			deadline := time.NewTimer(30 * time.Second)
-			defer deadline.Stop()
-			poll := time.NewTicker(200 * time.Millisecond)
-			defer poll.Stop()
-			for {
-				select {
-				case <-deadline.C:
-					slog.Warn("pty: initial_prompt timed out waiting for ready", "session", sess.ID)
-					return
-				case <-ctx.Done():
-					return
-				case <-poll.C:
-					windowMu.Lock()
-					ready := len(window) > 0 && time.Since(lastChunk) > 800*time.Millisecond
-					windowMu.Unlock()
-					if !ready {
-						continue
-					}
-					// Modern agent TUIs (Claude Code, Gemini CLI, Codex) detect
-					// bracketed paste and silently drop bursts of raw text — the
-					// only reliable way to fill their input fields is to wrap the
-					// payload in DEC bracketed-paste markers (ESC[200~ … ESC[201~).
-					// Then a SEPARATE write of \r commits the input. Sending text
-					// and Enter in one chunk lets the TUI treat the whole thing as
-					// a paste and never trigger submit.
-					paste := append([]byte("\x1b[200~"), []byte(prompt)...)
-					paste = append(paste, []byte("\x1b[201~")...)
-					if _, err := f.Write(paste); err != nil {
-						slog.Warn("pty: initial_prompt paste failed", "session", sess.ID, "err", err)
-						return
-					}
-					slog.Info("pty: initial_prompt pasted", "session", sess.ID, "bytes", len(paste))
-					// Give the TUI a beat to commit the pasted text to its input
-					// state before we hit Enter; without this Claude sometimes
-					// fires Enter against an empty input box.
+		if s.cfg.Adapter == nil {
+			slog.Warn("pty: initial_prompt set but no adapter; cannot detect readiness", "session", sess.ID)
+		} else {
+			go func(prompt string) {
+				deadline := time.NewTimer(30 * time.Second)
+				defer deadline.Stop()
+				poll := time.NewTicker(200 * time.Millisecond)
+				defer poll.Stop()
+				for {
 					select {
+					case <-deadline.C:
+						slog.Warn("pty: initial_prompt timed out waiting for ready", "session", sess.ID)
+						return
 					case <-ctx.Done():
 						return
-					case <-time.After(120 * time.Millisecond):
+					case <-poll.C:
+						windowMu.Lock()
+						idle := time.Since(lastChunk)
+						snap := append([]byte(nil), window...)
+						windowMu.Unlock()
+						if !s.cfg.Adapter.IsReadyForInput(snap, idle) {
+							continue
+						}
+						// Modern agent TUIs (Claude Code, Gemini CLI, Codex) detect
+						// bracketed paste and silently drop bursts of raw text — the
+						// only reliable way to fill their input fields is to wrap the
+						// payload in DEC bracketed-paste markers (ESC[200~ … ESC[201~).
+						// Then a SEPARATE write of \r commits the input. Sending text
+						// and Enter in one chunk lets the TUI treat the whole thing as
+						// a paste and never trigger submit.
+						paste := append([]byte("\x1b[200~"), []byte(prompt)...)
+						paste = append(paste, []byte("\x1b[201~")...)
+						if _, err := f.Write(paste); err != nil {
+							slog.Warn("pty: initial_prompt paste failed", "session", sess.ID, "err", err)
+							return
+						}
+						slog.Info("pty: initial_prompt pasted", "session", sess.ID, "bytes", len(paste))
+						// Give the TUI a beat to commit the pasted text to its input
+						// state before we hit Enter; without this Claude sometimes
+						// fires Enter against an empty input box.
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(120 * time.Millisecond):
+						}
+						if _, err := f.Write([]byte{'\r'}); err != nil {
+							slog.Warn("pty: initial_prompt submit failed", "session", sess.ID, "err", err)
+						} else {
+							slog.Info("pty: initial_prompt submitted", "session", sess.ID)
+						}
+						return
 					}
-					if _, err := f.Write([]byte{'\r'}); err != nil {
-						slog.Warn("pty: initial_prompt submit failed", "session", sess.ID, "err", err)
-					} else {
-						slog.Info("pty: initial_prompt submitted", "session", sess.ID)
-					}
-					return
 				}
-			}
-		}(s.cfg.InitialPrompt)
+			}(s.cfg.InitialPrompt)
+		}
 	}
 
 	// tokenThreshold tracks the last token count at which we emitted a patch.

@@ -25,6 +25,7 @@ const (
 	SectionBehavior   Section = "Behavior"
 	SectionOnboarding Section = "Onboarding"
 	SectionSummary    Section = "AI summary"
+	SectionSpawn      Section = "Spawn"
 	SectionAdvanced   Section = "Advanced"
 )
 

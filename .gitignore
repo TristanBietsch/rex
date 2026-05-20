@@ -27,3 +27,7 @@ TODO.md
 .claude
 claude.md
 claude/*
+
+# agents folder 
+agents/
+agents/*

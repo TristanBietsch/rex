@@ -39,12 +39,22 @@ func NewHeuristic(promptRegex, doneRegex string, idle time.Duration) (*Heuristic
 }
 
 // cursorPositionRe matches CSI sequences that reposition the cursor or clear
-// the display. Full-TUI agents (codex, gemini) emit dozens of these between
-// visible text, and if we just strip them everything becomes one long line —
-// the `^` anchor in the prompt regex can't catch the prompt char anymore. By
-// replacing each with `\n` before stripping, we preserve the line structure
-// the user sees on screen.
-var cursorPositionRe = regexp.MustCompile(`\x1b\[\d*(?:;\d+)?[HfEFJd]`)
+// the display. Full-TUI agents (codex, gemini, ollama) emit dozens of these
+// between visible text, and if we just strip them everything becomes one long
+// line — the `^` anchor in the prompt regex can't catch the prompt char
+// anymore. By replacing each with `\n` before stripping, we preserve the line
+// structure the user sees on screen.
+//
+// Codes matched:
+//   H, f — cursor absolute position
+//   E, F — cursor next/previous line
+//   J    — erase display
+//   d    — line position absolute
+//   G    — cursor column position (ollama and gemini use `[1G` to return to
+//          column 1 before writing the next prompt — without this, the prompt
+//          text lands on the same logical line as the prior animation frames
+//          and the `^>>> ` anchor never matches).
+var cursorPositionRe = regexp.MustCompile(`\x1b\[\d*(?:;\d+)?[HfEFJdG]`)
 
 // Detect implements Adapter. Precedence after the idle gate: done > prompt > working.
 func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State {
@@ -64,4 +74,18 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 		return protocol.StateNeedsInput
 	}
 	return protocol.StateWorking
+}
+
+// IsReadyForInput returns true when the agent's prompt regex matches the
+// cleaned output window. The visible prompt IS the ready signal, so no idle
+// gate is applied — the idle parameter is part of the Adapter contract but
+// ignored here.
+func (h *HeuristicCLI) IsReadyForInput(window []byte, _ time.Duration) bool {
+	tail := window
+	if len(tail) > 4096 {
+		tail = tail[len(tail)-4096:]
+	}
+	withLineBreaks := cursorPositionRe.ReplaceAllString(string(tail), "\n")
+	clean := ansi.Strip(withLineBreaks)
+	return h.prompt.MatchString(clean)
 }

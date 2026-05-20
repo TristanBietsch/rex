@@ -11,10 +11,11 @@ import (
 // ClaudeStructured parses claude-code's stream-json output line-by-line and
 // classifies session state from message types.
 type ClaudeStructured struct {
-	mu       sync.Mutex
-	last     protocol.State
-	buffer   []byte
-	lastSeen time.Time
+	mu         sync.Mutex
+	last       protocol.State
+	buffer     []byte
+	lastSeen   time.Time
+	firstEvent bool
 }
 
 // NewClaudeStructured returns a fresh adapter.
@@ -48,6 +49,7 @@ func (a *ClaudeStructured) Detect(window []byte, idle time.Duration) protocol.St
 			continue
 		}
 		a.lastSeen = time.Now()
+		a.firstEvent = true
 		switch obj["type"] {
 		case "assistant", "user":
 			a.last = protocol.StateWorking
@@ -62,6 +64,17 @@ func (a *ClaudeStructured) Detect(window []byte, idle time.Duration) protocol.St
 		return protocol.StateNeedsInput
 	}
 	return a.last
+}
+
+// IsReadyForInput returns true once at least one JSON event has been parsed.
+// Claude Code emits a `system` init event within ~300-800ms of spawn — well
+// before the input field initializes — so this is the earliest reliable
+// "agent CLI is alive" signal. Window and idle are unused but kept for
+// interface consistency.
+func (a *ClaudeStructured) IsReadyForInput(_ []byte, _ time.Duration) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.firstEvent
 }
 
 func indexNewline(b []byte) int {

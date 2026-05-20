@@ -66,6 +66,47 @@ func TestHeuristic_CodexPromptViaCursorPositioning(t *testing.T) {
 	require.Equal(t, protocol.StateNeedsInput, got)
 }
 
+func TestHeuristic_IsReadyForInput_MatchesPromptRegex(t *testing.T) {
+	h, err := NewHeuristic("^>>> ", "", 100*time.Millisecond)
+	require.NoError(t, err)
+	require.True(t, h.IsReadyForInput([]byte("hi there\n>>> Send a message"), 0))
+}
+
+// Ollama renders its prompt via cursor positioning rather than newlines:
+// `\x1b[2K\x1b[1G\x1b[?2004h>>> Send a message`. Without recognizing `[1G`
+// as a logical line break, the `^>>> ` anchor never matches and the
+// initial-prompt goroutine times out. Real captured output from a live ollama
+// session; this is the regression that broke ollama prompt delivery.
+func TestHeuristic_IsReadyForInput_OllamaCursorPositioning(t *testing.T) {
+	h, err := NewHeuristic("^>>> ", "", 100*time.Millisecond)
+	require.NoError(t, err)
+	raw := "\x1b[?2026h\x1b[?25l\x1b[1G⠙ \x1b[K\x1b[?25h\x1b[?2026l\x1b[2K\x1b[1G\x1b[?25h\x1b[?2004h>>> \x1b[38;5;245mSend a message (/? for help)\x1b[28D\x1b[0m"
+	require.True(t, h.IsReadyForInput([]byte(raw), 0),
+		"prompt regex should match after cursor-position-to-newline replacement")
+}
+
+func TestHeuristic_IsReadyForInput_NoMatch(t *testing.T) {
+	h, err := NewHeuristic("^>>> ", "", 100*time.Millisecond)
+	require.NoError(t, err)
+	require.False(t, h.IsReadyForInput([]byte("loading model..."), 0))
+}
+
+func TestHeuristic_IsReadyForInput_IgnoresIdle(t *testing.T) {
+	h, err := NewHeuristic("^>>> ", "", 100*time.Millisecond)
+	require.NoError(t, err)
+	got1 := h.IsReadyForInput([]byte(">>> "), 1*time.Millisecond)
+	got2 := h.IsReadyForInput([]byte(">>> "), 60*time.Second)
+	require.True(t, got1)
+	require.True(t, got2)
+}
+
+func TestHeuristic_IsReadyForInput_AnsiAndCursorScrubbed(t *testing.T) {
+	h, err := NewHeuristic("^› ", "", 100*time.Millisecond)
+	require.NoError(t, err)
+	raw := "\x1b[2J\x1b[H• Test received.\x1b[5;1H\x1b[K\x1b[36m› \x1b[mtype here"
+	require.True(t, h.IsReadyForInput([]byte(raw), 0))
+}
+
 func TestHeuristic_DoneRegexMatchesReturnsDone(t *testing.T) {
 	h, err := NewHeuristic("^> ", "^✓ session complete$", 100*time.Millisecond)
 	require.NoError(t, err)

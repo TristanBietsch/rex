@@ -13,7 +13,15 @@ import (
 	"github.com/tristanbietsch/rex/internal/audio"
 	"github.com/tristanbietsch/rex/internal/client"
 	"github.com/tristanbietsch/rex/internal/protocol"
+	"github.com/tristanbietsch/rex/internal/settings"
 )
+
+// sessionSpawner is the narrow surface spawnSessionCmd needs from the daemon
+// client. Defined as an interface so tests can inject a recorder without
+// constructing a real *client.Client. *client.Client satisfies it.
+type sessionSpawner interface {
+	NewSession(protocol.NewSession) error
+}
 
 // attachDoneMsg signals that a child `rex attach` process exited and we should
 // resume the TUI. We surface any error in the status line.
@@ -428,7 +436,11 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		if text == "" {
 			return m, nil
 		}
-		return m, spawnSessionCmd(m.Client, text)
+		if m.Store == nil {
+			slog.Warn("tui: quick-spawn aborted, settings store not initialized")
+			return m, nil
+		}
+		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text)
 	case tea.KeyBackspace:
 		if len(m.PromptText) > 0 {
 			m.PromptText = m.PromptText[:len(m.PromptText)-1]
@@ -444,20 +456,38 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func spawnSessionCmd(c *client.Client, prompt string) tea.Cmd {
+// spawnSessionCmd is invoked from `i`-keybind quick-spawn. It reads the
+// configured default tool/model/effort from the settings store and uses the
+// wizard's existing slug helpers so a quick-spawned session is indistinguishable
+// from one created via the full wizard. Daemon-side validation surfaces errors
+// for unknown tool/model IDs via the existing DaemonErrMsg path.
+func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string) tea.Cmd {
 	return func() tea.Msg {
-		slug := deriveSlugFromPrompt(prompt)
-		if slug == "" {
-			slug = "session"
+		toolID, _ := store.Get("default_spawn_tool").(string)
+		modelID, _ := store.Get("default_spawn_model").(string)
+		effort, _ := store.Get("default_spawn_effort").(string)
+
+		existing := make([]string, 0, len(sessions))
+		for _, s := range sessions {
+			if s.Slug != "" {
+				existing = append(existing, s.Slug)
+			}
 		}
+		slug := deriveAgentSlug(toolID, modelID, prompt, existing)
+
 		cwd, _ := os.Getwd()
+		slog.Info("tui: quick-spawn",
+			"tool", toolID, "model", modelID, "effort", effort,
+			"slug", slug, "cwd", cwd, "prompt_len", len(prompt))
 		if err := c.NewSession(protocol.NewSession{
-			ToolID:        "echo",
-			ModelID:       "short",
+			ToolID:        toolID,
+			ModelID:       modelID,
+			Effort:        effort,
 			Slug:          slug,
 			CWD:           cwd,
 			InitialPrompt: prompt,
 		}); err != nil {
+			slog.Warn("tui: quick-spawn NewSession failed", "err", err, "slug", slug)
 			return DaemonErrMsg{Err: err}
 		}
 		return nil
@@ -588,26 +618,4 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
-}
-
-func deriveSlugFromPrompt(p string) string {
-	s := strings.ToLower(p)
-	if len(s) > 32 {
-		s = s[:32]
-	}
-	var b strings.Builder
-	prevDash := false
-	for _, r := range s {
-		switch {
-		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
-			b.WriteRune(r)
-			prevDash = false
-		default:
-			if !prevDash && b.Len() > 0 {
-				b.WriteByte('-')
-				prevDash = true
-			}
-		}
-	}
-	return strings.TrimRight(b.String(), "-")
 }

@@ -39,6 +39,29 @@ type sessionMeta struct {
 	lastHash        uint64
 }
 
+var preferredFallbacks = []string{"gemma2:2b", "llama3.2:1b", "phi3:mini", "qwen2.5:1.5b"}
+
+func ResolveModel(configured string, pulled []string) (string, bool) {
+	if configured != "" {
+		for _, p := range pulled {
+			if p == configured {
+				return configured, true
+			}
+		}
+	}
+	for _, pref := range preferredFallbacks {
+		for _, p := range pulled {
+			if p == pref {
+				return pref, true
+			}
+		}
+	}
+	if len(pulled) > 0 {
+		return pulled[0], true
+	}
+	return "", false
+}
+
 // New builds a Worker. transcript is the function the worker uses to read the
 // sanitized transcript tail from disk (usually state.TranscriptTail).
 func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
@@ -92,6 +115,15 @@ func (w *Worker) MarkAvailable() {
 			w.onHealth(true, "")
 		}
 	}
+}
+
+// SetModel updates both the config record and the underlying client so
+// subsequent Generate calls use the new model. Intended for use by the
+// daemon's health probe after substituting a fallback when the configured
+// model isn't pulled. Not safe to call concurrently with Generate.
+func (w *Worker) SetModel(model string) {
+	w.cfg.Model = model
+	w.client.SetModel(model)
 }
 
 // Start launches the worker goroutine. Returns when ctx is canceled.

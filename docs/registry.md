@@ -204,6 +204,14 @@ tools:
 | `enabled_by_default` | no | Bool, defaults to `true`. When `false`, the tool ships disabled — it won't appear in the wizard until the user enables it from *Settings → Onboarding → models*. Useful for emerging providers (Grok, DeepSeek, Kimi) so the default wizard stays focused. |
 | `models` | yes | At least one entry |
 
+> The `prompt_regex` is used for two purposes: classifying the session state
+> (a match means `needs_input`) AND deciding when the agent is ready to receive
+> its initial prompt from the wizard. A correctly-tuned regex makes both
+> behaviors work without extra config. For tools whose visible prompt looks the
+> same between "awaiting" and "just finished" (codex, gemini, ollama), this is
+> fine — the readiness signal fires once at first prompt appearance, then the
+> state machine takes over.
+
 ## Model entry schema
 
 | Field | Required | Notes |

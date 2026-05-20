@@ -280,14 +280,18 @@ func probeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) 
 			w.MarkUnavailable("ollama unreachable")
 			return
 		}
-		for _, t := range tags {
-			if t == model {
-				w.MarkAvailable()
-				return
-			}
+		resolved, ok := summarizer.ResolveModel(model, tags)
+		if !ok {
+			slog.Debug("daemon: ollama reachable but no compatible model", "configured", model, "tags", tags)
+			w.MarkUnavailable("no compatible summary model pulled; try `ollama pull " + model + "`")
+			return
 		}
-		slog.Debug("daemon: ollama reachable but model missing", "model", model, "tags", tags)
-		w.MarkUnavailable("model not pulled: " + model)
+		if resolved != model {
+			slog.Info("summarizer: model_substituted", "from", model, "to", resolved, "reason", "configured model not pulled")
+			w.SetModel(resolved)
+			model = resolved
+		}
+		w.MarkAvailable()
 	}
 	check()
 	t := time.NewTicker(30 * time.Second)
