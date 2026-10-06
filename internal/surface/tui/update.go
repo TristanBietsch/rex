@@ -100,6 +100,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Surface the error in the status line, don't take down the TUI.
 		m.Err = msg.Err.Error()
 		return m, listenDaemon(m.Client)
+	case CmdErrMsg:
+		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
+		m.Err = msg.Op + ": " + msg.Err.Error()
+		return m, nil
 	case SpinnerTickMsg:
 		m.SpinnerTick++
 		if m.hasWorkingSessions() {
@@ -443,11 +447,10 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			slog.Warn("tui: quick-spawn aborted, settings store not initialized")
 			return m, nil
 		}
+		m.PendingSelectSlug = quickSpawnSlug(m.Store, m.Sessions, text)
 		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text)
 	case tea.KeyBackspace:
-		if len(m.PromptText) > 0 {
-			m.PromptText = m.PromptText[:len(m.PromptText)-1]
-		}
+		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
 	case tea.KeyRunes:
 		m.PromptText += string(k.Runes)
@@ -469,14 +472,7 @@ func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protoco
 		toolID, _ := store.Get("default_spawn_tool").(string)
 		modelID, _ := store.Get("default_spawn_model").(string)
 		effort, _ := store.Get("default_spawn_effort").(string)
-
-		existing := make([]string, 0, len(sessions))
-		for _, s := range sessions {
-			if s.Slug != "" {
-				existing = append(existing, s.Slug)
-			}
-		}
-		slug := deriveAgentSlug(toolID, modelID, prompt, existing)
+		slug := quickSpawnSlug(store, sessions, prompt)
 
 		cwd, _ := os.Getwd()
 		slog.Info("tui: quick-spawn",
@@ -492,16 +488,30 @@ func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protoco
 			InitialPrompt: prompt,
 		}); err != nil {
 			slog.Warn("tui: quick-spawn NewSession failed", "err", err, "slug", slug)
-			return DaemonErrMsg{Err: err}
+			return CmdErrMsg{Op: "spawn", Err: err}
 		}
 		return nil
 	}
 }
 
+// quickSpawnSlug derives the slug a quick-spawn of prompt will get, so the
+// board can select the session when its SessionAdded arrives.
+func quickSpawnSlug(store *settings.Store, sessions []protocol.SessionSummary, prompt string) string {
+	toolID, _ := store.Get("default_spawn_tool").(string)
+	modelID, _ := store.Get("default_spawn_model").(string)
+	existing := make([]string, 0, len(sessions))
+	for _, s := range sessions {
+		if s.Slug != "" {
+			existing = append(existing, s.Slug)
+		}
+	}
+	return deriveAgentSlug(toolID, modelID, prompt, existing)
+}
+
 func deleteSessionCmd(c *client.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {
 		if err := c.Delete(sessionID); err != nil {
-			return DaemonErrMsg{Err: err}
+			return CmdErrMsg{Op: "delete", Err: err}
 		}
 		return nil
 	}
@@ -512,7 +522,7 @@ func completeSessionCmd(c *client.Client, sessionID string) tea.Cmd {
 		slog.Info("tui: complete intent sent", "session", sessionID)
 		if err := c.Complete(sessionID); err != nil {
 			slog.Error("tui: complete intent failed", "session", sessionID, "err", err)
-			return DaemonErrMsg{Err: err}
+			return CmdErrMsg{Op: "complete", Err: err}
 		}
 		return nil
 	}
@@ -532,7 +542,7 @@ func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return executeCommand(m, cmd)
 	case tea.KeyBackspace:
 		if len(m.CmdText) > 0 {
-			m.CmdText = m.CmdText[:len(m.CmdText)-1]
+			m.CmdText = dropLastRune(m.CmdText)
 		}
 		return m, nil
 	case tea.KeyRunes:

@@ -71,6 +71,8 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
 
+In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
+
 ### Advanced
 
 | ID | Type | Default | Notes |

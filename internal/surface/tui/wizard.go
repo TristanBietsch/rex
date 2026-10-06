@@ -220,10 +220,11 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		cmd := wizardLaunchCmd(m.Client,
 			tool.ID, model.ID, m.Wizard.currentEffort(),
 			slug, task, cwd, task)
+		m.PendingSelectSlug = slug
 		return closeWizard(m), cmd
 	case tea.KeyBackspace:
 		if len(m.Wizard.TaskText) > 0 {
-			m.Wizard.TaskText = m.Wizard.TaskText[:len(m.Wizard.TaskText)-1]
+			m.Wizard.TaskText = dropLastRune(m.Wizard.TaskText)
 		}
 		return m, nil
 	case tea.KeyRunes:
@@ -282,7 +283,7 @@ func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd
 			InitialPrompt: initialPrompt,
 		})
 		if err != nil {
-			return DaemonErrMsg{Err: err}
+			return CmdErrMsg{Op: "spawn", Err: err}
 		}
 		return nil
 	}

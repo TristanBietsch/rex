@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,6 +26,10 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	tool, model, ok := srv.Registry().FindModel(p.ToolID, p.ModelID)
 	if !ok {
 		return fmt.Errorf("tool %s/%s not in registry", p.ToolID, p.ModelID)
+	}
+	if p.Effort != "" && model.Effort != nil && !slices.Contains(model.Effort.Options, p.Effort) {
+		return fmt.Errorf("effort %q not offered by %s/%s (options: %s)",
+			p.Effort, p.ToolID, p.ModelID, strings.Join(model.Effort.Options, ", "))
 	}
 
 	if !srv.TryAcquireSession() {

@@ -2,11 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 )
@@ -14,6 +16,9 @@ import (
 // SettingsState lives on Model when Focus == FocusSettings.
 type SettingsState struct {
 	CursorID string
+	// Tools backs the quick-spawn tool/model/effort pickers so they only
+	// offer combinations the daemon will accept.
+	Tools []registry.Tool
 }
 
 func openSettings(m Model) (Model, tea.Cmd) {
@@ -23,6 +28,11 @@ func openSettings(m Model) (Model, tea.Cmd) {
 		_ = m.Store.Load(m.StorePath)
 	}
 	st := &SettingsState{}
+	if reg, err := registry.Load(toolsConfigPath()); err == nil {
+		st.Tools = visibleTools(reg.Tools)
+	} else {
+		slog.Warn("tui: settings could not load tool registry; spawn pickers disabled", "err", err)
+	}
 	if len(settings.Registry) > 0 {
 		st.CursorID = settings.Registry[0].ID
 	}
@@ -110,6 +120,12 @@ func applySettingsAction(m Model, step int) Model {
 		return m
 	}
 	cur := m.Store.Get(s.ID)
+	if opts, ok := spawnPickerOptions(m, s.ID); ok {
+		if len(opts) == 0 {
+			return m
+		}
+		return setSpawnDefault(m, s.ID, cycleOption(opts, fmt.Sprintf("%v", cur), step))
+	}
 	var next any
 	switch s.Type {
 	case settings.TypeBool:
@@ -218,6 +234,145 @@ func applySettingsAction(m Model, step int) Model {
 	return m
 }
 
+// cycleOption returns the option step positions from cur (wrapping); an
+// unknown cur starts at the first (forward) or last (backward) option.
+func cycleOption(opts []string, cur string, step int) string {
+	idx := -1
+	for i, o := range opts {
+		if o == cur {
+			idx = i
+			break
+		}
+	}
+	switch {
+	case idx < 0 && step < 0:
+		return opts[len(opts)-1]
+	case idx < 0:
+		return opts[0]
+	case step < 0:
+		return opts[(idx-1+len(opts))%len(opts)]
+	default:
+		return opts[(idx+1)%len(opts)]
+	}
+}
+
+// spawnPickerOptions returns the registry-backed choices for the quick-spawn
+// settings; ok is false for every other setting.
+func spawnPickerOptions(m Model, id string) ([]string, bool) {
+	switch id {
+	case "default_spawn_tool", "default_spawn_model", "default_spawn_effort":
+	default:
+		return nil, false
+	}
+	if m.Settings == nil || len(m.Settings.Tools) == 0 {
+		return nil, true
+	}
+	tool, model, _ := currentSpawnChoice(m)
+	var out []string
+	switch id {
+	case "default_spawn_tool":
+		for _, t := range m.Settings.Tools {
+			out = append(out, t.ID)
+		}
+	case "default_spawn_model":
+		for _, md := range tool.Models {
+			out = append(out, md.ID)
+		}
+	case "default_spawn_effort":
+		if model.Effort != nil {
+			out = append(out, model.Effort.Options...)
+		}
+	}
+	return out, true
+}
+
+// currentSpawnChoice resolves the stored quick-spawn tool/model against the
+// registry, falling back to the first tool / first model.
+func currentSpawnChoice(m Model) (registry.Tool, registry.Model, bool) {
+	toolID, _ := m.Store.Get("default_spawn_tool").(string)
+	modelID, _ := m.Store.Get("default_spawn_model").(string)
+	tools := m.Settings.Tools
+	tool := tools[0]
+	found := false
+	for _, t := range tools {
+		if t.ID == toolID {
+			tool, found = t, true
+			break
+		}
+	}
+	model := tool.Models[0]
+	for _, md := range tool.Models {
+		if md.ID == modelID {
+			model = md
+			break
+		}
+	}
+	return tool, model, found
+}
+
+// setSpawnDefault stores one quick-spawn setting and repairs the dependent
+// ones: a new tool resets model + effort, a new model resets an effort the
+// model doesn't offer.
+func setSpawnDefault(m Model, id, value string) Model {
+	if err := m.Store.Set(id, value); err != nil {
+		m.Err = "settings: " + err.Error()
+		return m
+	}
+	_, model, _ := currentSpawnChoice(m)
+	if id == "default_spawn_tool" {
+		_ = m.Store.Set("default_spawn_model", model.ID)
+	}
+	effort, _ := m.Store.Get("default_spawn_effort").(string)
+	switch {
+	case model.Effort == nil:
+		_ = m.Store.Set("default_spawn_effort", "")
+	case !containsString(model.Effort.Options, effort):
+		_ = m.Store.Set("default_spawn_effort", model.Effort.Default)
+	}
+	slog.Info("tui: quick-spawn default changed", "setting", id, "value", value,
+		"model", m.Store.Get("default_spawn_model"), "effort", m.Store.Get("default_spawn_effort"))
+	_ = m.Store.Save(m.StorePath)
+	return m
+}
+
+func containsString(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// overlayChrome is the border + padding centerOverlay adds around content.
+const overlayChrome = 4
+
+// windowLines keeps at most max lines of lines, positioned so focus stays
+// visible, with ↑/↓ markers where content is cut.
+func windowLines(lines []string, focus, max int) []string {
+	if max <= 0 || len(lines) <= max {
+		return lines
+	}
+	if max < 3 {
+		max = 3
+	}
+	start := focus - max/2
+	if start < 0 {
+		start = 0
+	}
+	if start+max > len(lines) {
+		start = len(lines) - max
+	}
+	out := append([]string{}, lines[start:start+max]...)
+	if start > 0 {
+		out[0] = styleDim.Render("  ↑ more")
+	}
+	if start+max < len(lines) {
+		out[len(out)-1] = styleDim.Render("  ↓ more")
+	}
+	return out
+}
+
 // applyLive performs the side effect for a setting change. Renderers read the
 // store live, so display-only settings (spinner, glyph, etc.) don't need a
 // hook here — they're picked up on the next View().
@@ -265,17 +420,15 @@ func renderSettings(m Model) string {
 	if m.Settings == nil {
 		return ""
 	}
-	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Foreground(colorFgDim).Render("settings"))
-	b.WriteString("\n\n")
-
+	var lines []string
+	focus := 0
 	curSection := ""
 	for _, s := range settings.Registry {
 		if string(s.Section) != curSection {
 			if curSection != "" {
-				b.WriteString("\n")
+				lines = append(lines, "")
 			}
-			b.WriteString(styleSlug.Render(string(s.Section)) + "\n")
+			lines = append(lines, styleSlug.Render(string(s.Section)))
 			curSection = string(s.Section)
 		}
 		cursor := "  "
@@ -284,15 +437,30 @@ func renderSettings(m Model) string {
 		}
 		label := s.Label
 		value := m.Store.String(s.ID)
+		if value == "" {
+			value = styleDim.Render("—")
+		}
 		row := cursor + fmt.Sprintf("%-26s %s", label, value)
 		if s.ID == m.Settings.CursorID {
-			row = styleSelected.Render(row)
+			focus = len(lines)
+			lines = append(lines, styleSelected.Render(row))
 			if s.Help != "" {
-				row += "\n      " + styleDim.Render(s.Help)
+				lines = append(lines, "      "+styleDim.Render(s.Help))
 			}
+			continue
 		}
-		b.WriteString(row + "\n")
+		lines = append(lines, row)
 	}
-	b.WriteString("\n" + styleDim.Render("j/k select · enter toggle/cycle · +/- adjust · r reset · esc close"))
+
+	// Title (2 lines) + footer (2 lines) + overlay border/padding must fit.
+	maxRows := 0
+	if m.Height > 0 {
+		maxRows = m.Height - overlayChrome - 4
+	}
+	var b strings.Builder
+	b.WriteString(lipgloss.NewStyle().Foreground(colorFgDim).Render("settings"))
+	b.WriteString("\n\n")
+	b.WriteString(strings.Join(windowLines(lines, focus, maxRows), "\n"))
+	b.WriteString("\n\n" + styleDim.Render("j/k select · enter toggle/cycle · +/- adjust · r reset · esc close"))
 	return b.String()
 }

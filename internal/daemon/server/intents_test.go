@@ -110,3 +110,26 @@ func TestIntentNewSession_RejectsMissingFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, protocol.EventError, env.Type)
 }
+
+// An effort the model doesn't offer is rejected before anything spawns, so the
+// agent CLI never sees an invalid --effort flag.
+func TestIntentNewSession_RejectsUnknownEffort(t *testing.T) {
+	sock, _, cancel := startServer(t)
+	defer cancel()
+	conn, err := net.Dial("unix", sock)
+	require.NoError(t, err)
+	defer conn.Close()
+	w, r := helloOnConn(t, conn)
+
+	require.NoError(t, w.WriteIntent(protocol.IntentNewSession, "n", protocol.NewSession{
+		ToolID: "claude", ModelID: "haiku", Effort: "max", Slug: "x", CWD: "/tmp",
+	}))
+
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	env, err := r.Read()
+	require.NoError(t, err)
+	require.Equal(t, protocol.EventError, env.Type)
+	var ee protocol.ErrorEvent
+	require.NoError(t, json.Unmarshal(env.Data, &ee))
+	require.Contains(t, ee.Message, `effort "max" not offered`)
+}

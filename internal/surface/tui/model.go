@@ -31,20 +31,23 @@ const (
 
 // Model is the root Bubble Tea model.
 type Model struct {
-	Client       *client.Client
-	Socket       string // path to daemon UDS, forwarded to child `rex attach`
-	Focus        Focus
-	Width        int
-	Height       int
-	Sessions     []protocol.SessionSummary
-	SelectedID   string
-	Filter       string
-	PromptText   string
-	CmdText      string
-	PendingChord string
-	Err          string
-	SpinnerTick  int
-	Quitting     bool
+	Client     *client.Client
+	Socket     string // path to daemon UDS, forwarded to child `rex attach`
+	Focus      Focus
+	Width      int
+	Height     int
+	Sessions   []protocol.SessionSummary
+	SelectedID string
+	// PendingSelectSlug is the slug of a session this TUI just asked the
+	// daemon to spawn; its SessionAdded selects it.
+	PendingSelectSlug string
+	Filter            string
+	PromptText        string
+	CmdText           string
+	PendingChord      string
+	Err               string
+	SpinnerTick       int
+	Quitting          bool
 
 	Wizard   *WizardState
 	Settings *SettingsState
@@ -101,6 +104,10 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var sum protocol.SessionSummary
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
 			m.Sessions = append(m.Sessions, sum)
+			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
+				m.SelectedID = sum.ID
+				m.PendingSelectSlug = ""
+			}
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventCreate)
 			}
@@ -149,6 +156,14 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			if snap.Filter != "" {
 				m.Filter = snap.Filter
 			}
+		}
+	case protocol.EventError:
+		var ee protocol.ErrorEvent
+		if err := json.Unmarshal(env.Data, &ee); err == nil {
+			slog.Warn("tui: daemon error event", "code", ee.Code, "message", ee.Message)
+			m.Err = "daemon: " + ee.Message
+			// A rejected spawn will never produce SessionAdded.
+			m.PendingSelectSlug = ""
 		}
 	case protocol.EventSummarizerHealth:
 		var h protocol.SummarizerHealth

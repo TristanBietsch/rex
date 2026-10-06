@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -67,4 +69,37 @@ func TestSpawnSessionCmd_DisambiguatesAgainstExistingSlugs(t *testing.T) {
 
 	require.NotNil(t, fake.last)
 	require.Equal(t, "cc.opus.fix-auth-bug-2", fake.last.Slug)
+}
+
+// A spawn rejected by the daemon arrives as EventError; it must reach the
+// status line instead of vanishing.
+func TestApplyEvent_ErrorEventSurfaces(t *testing.T) {
+	data, _ := json.Marshal(protocol.ErrorEvent{Code: "invalid", Message: "too many concurrent sessions (cap=1)"})
+	m := Model{PendingSelectSlug: "cc.opus.x"}
+	m = m.applyEvent(protocol.Envelope{Type: protocol.EventError, Data: data})
+	require.Equal(t, "daemon: too many concurrent sessions (cap=1)", m.Err)
+	require.Empty(t, m.PendingSelectSlug)
+}
+
+// Command failures must not start a second daemon listener.
+func TestUpdate_CmdErrMsgDoesNotRearmListener(t *testing.T) {
+	m := Model{}
+	out, cmd := m.Update(CmdErrMsg{Op: "spawn", Err: errors.New("boom")})
+	require.Nil(t, cmd)
+	require.Equal(t, "spawn: boom", out.(Model).Err)
+}
+
+func TestApplyEvent_SessionAddedSelectsPendingSpawn(t *testing.T) {
+	data, _ := json.Marshal(protocol.SessionSummary{ID: "new-id", Slug: "cc.opus.fix-auth-bug"})
+	m := Model{SelectedID: "old", PendingSelectSlug: "cc.opus.fix-auth-bug"}
+	m = m.applyEvent(protocol.Envelope{Type: protocol.EventSessionAdded, Data: data})
+	require.Equal(t, "new-id", m.SelectedID)
+	require.Empty(t, m.PendingSelectSlug)
+}
+
+func TestDropLastRune(t *testing.T) {
+	require.Equal(t, "caf", dropLastRune("café"))
+	require.Equal(t, "fix —", dropLastRune("fix —x"))
+	require.Equal(t, "fix ", dropLastRune("fix —"))
+	require.Equal(t, "", dropLastRune(""))
 }

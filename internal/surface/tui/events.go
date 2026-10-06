@@ -19,6 +19,23 @@ type DaemonErrMsg struct {
 	Err error
 }
 
+// CmdErrMsg reports a failed one-shot daemon request (spawn, delete, rename…).
+// Unlike DaemonErrMsg it must not re-arm the event listener: the listener is
+// still running, and a second one would race it for events.
+type CmdErrMsg struct {
+	Op  string
+	Err error
+}
+
+// dropLastRune removes the final character (not byte) of s.
+func dropLastRune(s string) string {
+	r := []rune(s)
+	if len(r) == 0 {
+		return s
+	}
+	return string(r[:len(r)-1])
+}
+
 // SpinnerTickMsg fires periodically to drive the working-state spinner.
 type SpinnerTickMsg struct{}
 

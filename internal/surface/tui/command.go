@@ -110,7 +110,7 @@ func resolveLocal(m Model, sel string) string {
 func renameCmd(c *client.Client, id, slug string) tea.Cmd {
 	return func() tea.Msg {
 		if err := c.Rename(id, slug, ""); err != nil {
-			return DaemonErrMsg{Err: err}
+			return CmdErrMsg{Op: "rename", Err: err}
 		}
 		return nil
 	}

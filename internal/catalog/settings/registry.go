@@ -99,7 +99,7 @@ var Registry = []Setting{
 	{
 		ID: "summary_model", Label: "Summary model", Section: SectionSummary,
 		Type: TypeString, Default: "gemma2:2b",
-		Options: []string{"gemma2:2b", "llama3.2:1b", "phi3:mini", "qwen2.5:1.5b"},
+		Options: []string{"gemma2:2b", "llama3.2:3b", "llama3.2:1b", "gemma3:1b", "qwen2.5:3b", "phi3:mini"},
 		Help:    "Model used to summarize sessions.",
 	},
 	{
@@ -113,17 +113,17 @@ var Registry = []Setting{
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,
 		Type: TypeString, Default: "claude",
-		Help: "Tool ID used when pressing 'i' in the TUI. Must match an entry in tools.yaml.",
+		Help: "Tool used when pressing 'i'. Cycle with +/-; changing it resets model and effort.",
 	},
 	{
 		ID: "default_spawn_model", Label: "Quick-spawn model", Section: SectionSpawn,
 		Type: TypeString, Default: "opus",
-		Help: "Model ID used when pressing 'i'. Must be a model offered by the selected tool.",
+		Help: "Model used when pressing 'i'. Cycles through the selected tool's models.",
 	},
 	{
 		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn,
 		Type: TypeString, Default: "max",
-		Help: "Effort tier used when pressing 'i'. Ignored for tools without an effort axis.",
+		Help: "Effort used when pressing 'i'. Cycles through the model's effort options.",
 	},
 
 	// Advanced
