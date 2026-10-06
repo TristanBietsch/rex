@@ -4,7 +4,7 @@ Observed from the codebase (not aspirational).
 
 ## Module layout
 
-- Go module: `github.com/tristanbietsch/rex`, Go `1.26.3`.
+- Go module: `github.com/tristanbietsch/rex`, Go `1.26.8` (patch floor for stdlib security fixes; `make vuln` enforces it).
 - Binaries under `cmd/<name>/main.go` only.
 - Libraries under `internal/<package>/`.
 - One package per directory; tests as `*_test.go` in the same package.
