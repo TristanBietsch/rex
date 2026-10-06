@@ -62,7 +62,22 @@ Duplicate tool or model ids are rejected at load time.
 | `kind` | Required fields | Behavior |
 |--------|-----------------|----------|
 | `heuristic` | `prompt_regex`, `idle_ms` (>0) | Regex on sanitized output; optional `done_regex` |
-| `structured` | `format` | Parsed stream; only `claude_jsonl` is implemented |
+| `hooks` | `format` | Agent hooks report state; only `claude` is implemented |
+
+`hooks` / `claude`: at spawn the daemon adds `--settings <json>` with Claude Code hooks and sets `REX_HOOK_FILE` in the child env. Each hook appends a state word to `sessions/<id>/hooks.log`:
+
+| Hook | State |
+|------|-------|
+| `SessionStart`, `Notification`, `Stop` | `needs_input` |
+| `UserPromptSubmit`, `PreToolUse`, `PostToolUse` | `working` |
+
+A `working` state with no visible PTY output for 15s becomes `needs_input` (an Esc-interrupted turn fires no `Stop`).
+
+State semantics for all kinds: a finished agent turn is `needs_input` (waiting on you). `done` comes from process exit (code 0), the `Complete` intent, or a heuristic `done_regex` match; once `done`, later output can't move the session back.
+
+### Initial prompt delivery
+
+The wizard / quick-spawn task reaches the agent on argv where the CLI supports it: `claude … -- <prompt>`, `codex … -- <prompt>`, `gemini … --prompt-interactive=<prompt>`. Other tools (ollama, custom) get it pasted into the PTY once `prompt_regex` matches.
 
 ## Model fields
 

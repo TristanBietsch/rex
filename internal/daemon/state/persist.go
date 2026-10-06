@@ -11,6 +11,11 @@ import (
 )
 
 // sessionDir returns ~/.local/share/rex/sessions/<id> built from a state-dir root.
+// HookFile is the per-session file agent hooks append state words to.
+func HookFile(root, id string) string {
+	return filepath.Join(sessionDir(root, id), "hooks.log")
+}
+
 func sessionDir(root, id string) string {
 	return filepath.Join(root, "sessions", id)
 }

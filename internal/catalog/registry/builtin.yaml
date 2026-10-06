@@ -28,10 +28,12 @@ tools:
   - id: claude
     name: "Claude Code"
     category: paid
-    command: ["claude", "--output-format=stream-json", "--verbose"]
+    command: ["claude"]
+    # State comes from Claude Code hooks injected with --settings at spawn
+    # (stream-json output only exists with --print, never in the TUI).
     detect:
-      kind: structured
-      format: claude_jsonl
+      kind: hooks
+      format: claude
     icon: "◆"
     color: "#D97757"
     models:

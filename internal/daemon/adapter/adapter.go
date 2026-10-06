@@ -20,17 +20,18 @@ type Adapter interface {
 	IsReadyForInput(window []byte, idle time.Duration) bool
 }
 
-// For builds an adapter for a tool's detection config.
-func For(t registry.Tool) (Adapter, error) {
+// For builds an adapter for a tool's detection config. hookFile is the
+// per-session file hook-based adapters read (ignored by heuristic tools).
+func For(t registry.Tool, hookFile string) (Adapter, error) {
 	switch t.Detect.Kind {
 	case "heuristic":
 		return NewHeuristic(t.Detect.PromptRegex, t.Detect.DoneRegex, time.Duration(t.Detect.IdleMs)*time.Millisecond)
-	case "structured":
+	case "hooks":
 		switch t.Detect.Format {
-		case "claude_jsonl":
-			return NewClaudeStructured(), nil
+		case "claude":
+			return NewClaudeHooks(hookFile), nil
 		default:
-			return nil, fmt.Errorf("unsupported structured format %q", t.Detect.Format)
+			return nil, fmt.Errorf("unsupported hooks format %q", t.Detect.Format)
 		}
 	default:
 		return nil, fmt.Errorf("%w: %q", ErrUnknownDetect, t.Detect.Kind)

@@ -397,3 +397,96 @@ func TestSupervisor_InitialPromptWaitsForReadySettle(t *testing.T) {
 	tail, _ := state.TranscriptTail(stateDir, sess.ID, 8192)
 	require.NotContains(t, string(tail), "never-quiet")
 }
+
+// An adapter-reported done (done_regex) is terminal while the child lives.
+func TestSupervisor_AdapterDoneIsSticky(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "done1", ShortID: "done1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	var (
+		mu          sync.Mutex
+		transitions []protocol.State
+	)
+	store.Subscribe(func(e state.Event) {
+		if e.NewState != nil {
+			mu.Lock()
+			transitions = append(transitions, *e.NewState)
+			mu.Unlock()
+		}
+	})
+	stub := &stubAdapter{sequence: []protocol.State{protocol.StateDone, protocol.StateWorking}}
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sleep", "0.3"},
+		Adapter:  stub,
+		IdleTick: 10 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = sup.Run(ctx, sess)
+
+	mu.Lock()
+	defer mu.Unlock()
+	sawDone := false
+	for _, st := range transitions {
+		if st == protocol.StateDone {
+			sawDone = true
+			continue
+		}
+		require.False(t, sawDone && st == protocol.StateWorking, "left done: %v", transitions)
+	}
+	require.True(t, sawDone, "transitions: %v", transitions)
+}
+
+// meta.json exists while the session is live so a daemon crash can reload it
+// as crashed.
+func TestSupervisor_WritesMetaWhileLive(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "live1", ShortID: "live1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sleep", "5"},
+		IdleTick: 10 * time.Millisecond,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = sup.Run(ctx, sess); close(done) }()
+	require.Eventually(t, func() bool {
+		m, err := state.LoadMeta(stateDir, "live1")
+		return err == nil && m.State == protocol.StateWorking
+	}, 2*time.Second, 20*time.Millisecond)
+	cancel()
+	<-done
+}
+
+// Env entries reach the child (hook-based adapters rely on REX_HOOK_FILE).
+func TestSupervisor_PassesEnvToChild(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "env1", ShortID: "env1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sh", "-c", `printf 'env=%s\n' "$REX_TEST_VAR"`},
+		Env:      []string{"REX_TEST_VAR=hello-env"},
+		IdleTick: 10 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+	tail, _ := state.TranscriptTail(stateDir, "env1", 1024)
+	require.Contains(t, string(tail), "env=hello-env")
+}

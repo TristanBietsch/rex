@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ type SupervisorConfig struct {
 	Store          *state.Store    // central store for state transitions
 	Command        []string        // argv to spawn (command + args resolved from registry+model)
 	CWD            string          // working directory for the child
+	Env            []string        // extra KEY=VALUE entries added to the child's environment
 	Adapter        adapter.Adapter // nil = no state classification (tests/echo tool)
 	OutputSink     func(b []byte)  // called with every chunk read from PTY; non-blocking
 	SummaryRequest chan<- string   // optional: session IDs needing AI summary; nil disables
@@ -66,6 +68,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	cmd := exec.CommandContext(ctx, s.cfg.Command[0], s.cfg.Command[1:]...)
 	if s.cfg.CWD != "" {
 		cmd.Dir = s.cfg.CWD
+	}
+	if len(s.cfg.Env) > 0 {
+		cmd.Env = append(os.Environ(), s.cfg.Env...)
 	}
 	cols := s.cfg.InitialCols
 	rows := s.cfg.InitialRows
@@ -114,6 +119,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if err := s.cfg.Store.Transition(sess.ID, protocol.StateWorking); err != nil {
 		return err
 	}
+	// Persist meta for live sessions too, so a daemon crash reloads them as
+	// crashed instead of silently dropping them.
+	s.persistMeta(sess)
 
 	transcript, err := state.OpenTranscript(s.cfg.StateDir, sess.ID)
 	if err != nil {
@@ -329,10 +337,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				windowSnap := append([]byte(nil), window...)
 				windowMu.Unlock()
 				next := s.cfg.Adapter.Detect(windowSnap, idle)
-				if next != "" {
-					if current, ok := s.cfg.Store.CurrentState(sess.ID); ok && next != current {
-						_ = s.cfg.Store.Transition(sess.ID, next)
-					}
+				current, ok := s.cfg.Store.CurrentState(sess.ID)
+				// done is terminal: once the adapter reports it (done_regex),
+				// later frames can't pull the session back to working.
+				if next != "" && ok && next != current && current != protocol.StateDone {
+					slog.Info("pty: state transition", "session", sess.ID, "from", current, "to", next, "idle_ms", idle.Milliseconds())
+					_ = s.cfg.Store.Transition(sess.ID, next)
+					s.persistMeta(sess)
 				}
 			}
 
@@ -398,6 +409,13 @@ func appendBounded(buf, b []byte, cap int) []byte {
 		out = out[len(out)-cap:]
 	}
 	return out
+}
+
+// persistMeta writes meta.json for a live session; failures are logged only.
+func (s *Supervisor) persistMeta(sess *state.Session) {
+	if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
+		slog.Warn("pty: write meta failed", "session", sess.ID, "err", err)
+	}
 }
 
 // screenTailBytes caps the screen text kept for the summarizer.

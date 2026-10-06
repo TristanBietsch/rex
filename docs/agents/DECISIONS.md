@@ -12,7 +12,7 @@ Non-obvious choices an agent might undo without context.
 
 ## Session state from adapters, not agent APIs
 
-**Chosen:** Classify `working` / `needs_input` / `done` from PTY output via regex or structured parse (`internal/daemon/adapter`).
+**Chosen:** Classify `working` / `needs_input` / `done` from PTY output via regex, or from agent hooks where the CLI has them (Claude Code: hooks injected with `--settings`, state appended to `hooks.log`) (`internal/daemon/adapter`). Claude's `--output-format=stream-json` only works with `--print`, so the interactive TUI can't be parsed as JSON.
 
 **Rejected:** Polling proprietary agent HTTP APIs per vendor.
 

@@ -17,8 +17,8 @@ type Tool struct {
 
 // Detect describes how the adapter decides session state.
 type Detect struct {
-	Kind        string `yaml:"kind"`             // "structured" | "heuristic"
-	Format      string `yaml:"format,omitempty"` // when kind=structured
+	Kind        string `yaml:"kind"`             // "hooks" | "heuristic"
+	Format      string `yaml:"format,omitempty"` // when kind=hooks (e.g. "claude")
 	PromptRegex string `yaml:"prompt_regex,omitempty"`
 	DoneRegex   string `yaml:"done_regex,omitempty"` // optional; flips heuristic to StateDone after idle
 	IdleMs      int    `yaml:"idle_ms,omitempty"`

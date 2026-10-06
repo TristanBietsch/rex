@@ -147,9 +147,9 @@ func validate(tools []Tool) error {
 			return fmt.Errorf("tool %q has no models", t.ID)
 		}
 		switch t.Detect.Kind {
-		case "structured":
+		case "hooks":
 			if t.Detect.Format == "" {
-				return fmt.Errorf("tool %q: structured detect needs format", t.ID)
+				return fmt.Errorf("tool %q: hooks detect needs format", t.ID)
 			}
 		case "heuristic":
 			if t.Detect.PromptRegex == "" || t.Detect.IdleMs <= 0 {

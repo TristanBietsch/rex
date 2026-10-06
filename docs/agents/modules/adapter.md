@@ -3,7 +3,7 @@
 **Path:** `internal/daemon/adapter`
 **Depends on:** `internal/wire/protocol`, `internal/catalog/registry` | external: `github.com/charmbracelet/x/ansi`, standard library
 **Depended on by:** `internal/daemon/server`, `internal/daemon/pty`
-**Entry points:** `For`, `Adapter`, `NewHeuristic`, `NewClaudeStructured`
+**Entry points:** `For`, `Adapter`, `NewHeuristic`, `NewClaudeHooks`, `ClaudeHookArgs`
 
 ## Purpose
 
@@ -15,7 +15,7 @@ Classifies PTY output into `protocol.State` values and detects when an agent CLI
 
 - `Adapter` interface — `Detect(window []byte, idle time.Duration) protocol.State`; `IsReadyForInput(window []byte, idle time.Duration) bool`.
 - `HeuristicCLI` — regex + idle adapter for unstructured CLIs.
-- `ClaudeStructured` — line-by-line JSON parser for `claude-code` stream output.
+- `ClaudeHooks` — reads the per-session hook state file written by Claude Code hooks (`ClaudeHookArgs`).
 
 ### Variables
 
@@ -23,20 +23,22 @@ Classifies PTY output into `protocol.State` values and detects when an agent CLI
 
 ### Functions
 
-- `For(t registry.Tool) (Adapter, error)` — builds adapter from tool `Detect` config.
+- `For(t registry.Tool, hookFile string) (Adapter, error)` — builds adapter from tool `Detect` config.
 - `NewHeuristic(promptRegex, doneRegex string, idle time.Duration) (*HeuristicCLI, error)` — `promptRegex` required; invalid regex returns error.
-- `NewClaudeStructured() *ClaudeStructured`
+- `NewClaudeHooks(path string) *ClaudeHooks`
+- `ClaudeHookArgs() []string` — `--settings <json>` argv injecting the state hooks
+- `HookFileEnv` — `REX_HOOK_FILE`
 
 ### Methods
 
 - `(*HeuristicCLI) Detect`, `IsReadyForInput`
-- `(*ClaudeStructured) Detect`, `IsReadyForInput`
+- `(*ClaudeHooks) Detect`, `IsReadyForInput` (always false; Claude gets its prompt on argv)
 
 ## Internal structure
 
 - `adapter.go` — `Adapter` interface and `For`.
 - `heuristic.go` — regex detection; precedence after idle gate: done > prompt > working.
-- `claude.go` — structured JSON events; ready when at least one JSON event parsed.
+- `claude_hooks.go` — hook-file state; stale `working` (15s silent) → `needs_input`.
 - `claude_test.go`, `heuristic_test.go` — detection fixtures.
 
 ## Invariants

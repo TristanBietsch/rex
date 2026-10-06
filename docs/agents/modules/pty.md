@@ -44,7 +44,9 @@ Spawn and PTY errors fail `Run`. Context cancel marks failed state (distinct fro
 
 ## Gotchas
 
-Initial prompt goroutine waits for `Adapter.IsReadyForInput` before pasting `InitialPrompt`. Idle sampling defaults to 200ms if `IdleTick` zero.
+Initial prompt goroutine waits for `Adapter.IsReadyForInput` before pasting `InitialPrompt`. Idle sampling defaults to 200ms if `IdleTick` zero. `ReadySettle` additionally requires that much output silence; `PlainPaste` skips bracketed-paste markers (line REPLs like ollama). Tools that take the prompt on argv (claude/codex/gemini) never use the paste path.
+
+A vt10x screen mirrors the child's output (resized with the PTY). Each tick with new visible output derives `last_line` and the summarizer's screen text (`Store.SetScreen`) from it via `internal/daemon/termtext`. Adapter-reported `done` is sticky. `meta.json` is written at start and on every state transition. `Env` entries are appended to the child environment (`REX_HOOK_FILE`, `REX_SESSION_ID`).
 
 ## See also
 

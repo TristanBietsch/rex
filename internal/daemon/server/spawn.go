@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,6 +45,24 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		cmdArgs = append(cmdArgs, strings.Fields(rendered)...)
 	}
 
+	// Hook-detected tools report state by appending to a per-session file
+	// named in the child's env. Flags must precede the `--` prompt separator.
+	var childEnv []string
+	hookFile := state.HookFile(cfg.StateDir, id)
+	if tool.Detect.Kind == "hooks" {
+		if err := os.MkdirAll(filepath.Dir(hookFile), 0o755); err != nil {
+			srv.ReleaseSession()
+			return fmt.Errorf("hook dir: %w", err)
+		}
+		switch tool.Detect.Format {
+		case "claude":
+			cmdArgs = append(cmdArgs, adapter.ClaudeHookArgs()...)
+		}
+		childEnv = append(childEnv, adapter.HookFileEnv+"="+hookFile)
+		slog.Info("spawn: hook state detection", "tool", p.ToolID, "hook_file", hookFile)
+	}
+	childEnv = append(childEnv, "REX_SESSION_ID="+id)
+
 	ptyPrompt := p.InitialPrompt
 	delivery := initialPromptDelivery(p.ToolID, cmdArgs, p.InitialPrompt)
 	if delivery.argv != nil {
@@ -71,7 +91,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		return err
 	}
 
-	ad, err := adapter.For(tool)
+	ad, err := adapter.For(tool, hookFile)
 	if err != nil {
 		srv.ReleaseSession()
 		_ = cfg.Store.Remove(sess.ID)
@@ -88,6 +108,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		Store:          cfg.Store,
 		Command:        cmdArgs,
 		CWD:            p.CWD,
+		Env:            childEnv,
 		Adapter:        ad,
 		InputCh:        inputCh,
 		CompleteCh:     completeCh,
