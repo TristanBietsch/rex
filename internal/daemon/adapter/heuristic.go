@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -23,19 +24,26 @@ type HeuristicCLI struct {
 // NewHeuristic builds a HeuristicCLI. promptRegex is required; doneRegex is optional
 // (empty string disables auto-done). Returns an error if either regex is invalid.
 func NewHeuristic(promptRegex, doneRegex string, idle time.Duration) (*HeuristicCLI, error) {
-	prompt, err := regexp.Compile("(?m)" + promptRegex)
+	prompt, err := compileMultilineRegex(promptRegex)
 	if err != nil {
 		return nil, fmt.Errorf("compile prompt regex %q: %w", promptRegex, err)
 	}
 	h := &HeuristicCLI{prompt: prompt, idle: idle}
 	if doneRegex != "" {
-		done, err := regexp.Compile("(?m)" + doneRegex)
+		done, err := compileMultilineRegex(doneRegex)
 		if err != nil {
 			return nil, fmt.Errorf("compile done regex %q: %w", doneRegex, err)
 		}
 		h.done = done
 	}
 	return h, nil
+}
+
+// compileMultilineRegex wraps a registry pattern with (?m). YAML entries often
+// include their own (?m) prefix; strip one so we don't end up with (?m)(?m).
+func compileMultilineRegex(regex string) (*regexp.Regexp, error) {
+	r := strings.TrimPrefix(regex, "(?m)")
+	return regexp.Compile("(?m)" + r)
 }
 
 // cursorPositionRe matches CSI sequences that reposition the cursor or clear

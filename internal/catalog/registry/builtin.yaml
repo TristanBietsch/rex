@@ -63,7 +63,9 @@ tools:
     command: ["codex"]
     detect:
       kind: heuristic
-      prompt_regex: "(?m)^› "
+      # Full-screen TUI draws the prompt with leading whitespace; bare "^› "
+      # never matches (see live gemini/codex transcripts).
+      prompt_regex: "(?m)^[ \\t]*›"
       idle_ms: 1200
     icon: "◇"
     color: "#10A37F"
@@ -110,7 +112,8 @@ tools:
     command: ["gemini"]
     detect:
       kind: heuristic
-      prompt_regex: "(?m)^> "
+      # [ \t] not \s: \s matches newlines and lets ">" span lines.
+      prompt_regex: "(?m)^[ \\t]*>[ \\t]"
       idle_ms: 1200
     icon: "◈"
     color: "#4285F4"
@@ -128,7 +131,8 @@ tools:
     command: ["ollama", "run"]
     detect:
       kind: heuristic
-      prompt_regex: "(?m)^>>> "
+      # Wait for the full placeholder line, not a transient spinner frame with ">>>".
+      prompt_regex: "(?m)^>>> Send a message"
       idle_ms: 1500
     icon: "◉"
     color: "#B8A382"

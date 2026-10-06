@@ -52,3 +52,4 @@ protocol.test
 # dev
 dev/
 dev/*
+.cursor/

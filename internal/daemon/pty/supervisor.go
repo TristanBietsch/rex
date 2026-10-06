@@ -35,6 +35,8 @@ type SupervisorConfig struct {
 	InitialCols      uint16        // initial PTY width (0 = default)
 	InitialRows      uint16        // initial PTY height (0 = default)
 	InitialPrompt    string        // optional: typed into the agent once its TUI settles
+	PlainPaste       bool          // paste InitialPrompt without bracketed-paste markers (line REPLs)
+	ReadySettle      time.Duration // output must be quiet this long before pasting InitialPrompt
 	RegisterResize   func(resize func(cols, rows uint16) error)
 	UnregisterResize func()
 }
@@ -137,7 +139,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				for {
 					select {
 					case <-deadline.C:
-						slog.Warn("pty: initial_prompt timed out waiting for ready", "session", sess.ID)
+						windowMu.Lock()
+						tailLen := len(window)
+						windowMu.Unlock()
+						slog.Warn("pty: initial_prompt timed out waiting for ready", "session", sess.ID, "window_bytes", tailLen)
 						return
 					case <-ctx.Done():
 						return
@@ -149,6 +154,11 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						if !s.cfg.Adapter.IsReadyForInput(snap, idle) {
 							continue
 						}
+						// Some REPLs flash their prompt mid-redraw (ollama's spinner);
+						// wait for a quiet beat so the paste lands on a settled screen.
+						if idle < s.cfg.ReadySettle {
+							continue
+						}
 						// Modern agent TUIs (Claude Code, Gemini CLI, Codex) detect
 						// bracketed paste and silently drop bursts of raw text — the
 						// only reliable way to fill their input fields is to wrap the
@@ -156,13 +166,16 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						// Then a SEPARATE write of \r commits the input. Sending text
 						// and Enter in one chunk lets the TUI treat the whole thing as
 						// a paste and never trigger submit.
-						paste := append([]byte("\x1b[200~"), []byte(prompt)...)
-						paste = append(paste, []byte("\x1b[201~")...)
+						paste := []byte(prompt)
+						if !s.cfg.PlainPaste {
+							paste = append([]byte("\x1b[200~"), paste...)
+							paste = append(paste, []byte("\x1b[201~")...)
+						}
 						if _, err := f.Write(paste); err != nil {
 							slog.Warn("pty: initial_prompt paste failed", "session", sess.ID, "err", err)
 							return
 						}
-						slog.Info("pty: initial_prompt pasted", "session", sess.ID, "bytes", len(paste))
+						slog.Info("pty: initial_prompt pasted", "session", sess.ID, "bytes", len(paste), "plain", s.cfg.PlainPaste, "idle_ms", idle.Milliseconds())
 						// Give the TUI a beat to commit the pasted text to its input
 						// state before we hit Enter; without this Claude sometimes
 						// fires Enter against an empty input box.

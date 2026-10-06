@@ -332,3 +332,60 @@ func TestSummaryTriggerFunc(t *testing.T) {
 		})
 	}
 }
+
+// Line REPLs (ollama) read the raw bytes; bracketed-paste markers would end up
+// inside the prompt text.
+func TestSupervisor_InitialPromptPlainPasteHasNoMarkers(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "plain1", ShortID: "plain1", ToolID: "ollama", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	sup := New(SupervisorConfig{
+		StateDir:      stateDir,
+		Store:         store,
+		Command:       []string{"bash", "-c", `stty -echo; read -r line; printf 'got:[%s]\n' "$line"; sleep 1`},
+		Adapter:       &stubAdapter{ready: true},
+		InitialPrompt: "ping",
+		PlainPaste:    true,
+		IdleTick:      50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+
+	tail, err := state.TranscriptTail(stateDir, sess.ID, 8192)
+	require.NoError(t, err)
+	require.Contains(t, string(tail), "got:[ping]")
+}
+
+// ReadySettle holds the paste until output has been quiet long enough.
+func TestSupervisor_InitialPromptWaitsForReadySettle(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "settle1", ShortID: "settle1", ToolID: "ollama", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	sup := New(SupervisorConfig{
+		StateDir:      stateDir,
+		Store:         store,
+		Command:       []string{"bash", "-c", "while :; do echo tick; sleep 0.1; done"},
+		Adapter:       &stubAdapter{ready: true},
+		InitialPrompt: "never-quiet",
+		PlainPaste:    true,
+		ReadySettle:   time.Second,
+		IdleTick:      50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Millisecond)
+	defer cancel()
+	_ = sup.Run(ctx, sess)
+
+	tail, _ := state.TranscriptTail(stateDir, sess.ID, 8192)
+	require.NotContains(t, string(tail), "never-quiet")
+}

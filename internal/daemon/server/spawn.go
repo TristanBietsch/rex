@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -40,6 +41,16 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	if model.Effort != nil && p.Effort != "" && model.Effort.ArgTemplate != "" {
 		rendered := strings.ReplaceAll(model.Effort.ArgTemplate, "{value}", p.Effort)
 		cmdArgs = append(cmdArgs, strings.Fields(rendered)...)
+	}
+
+	ptyPrompt := p.InitialPrompt
+	delivery := initialPromptDelivery(p.ToolID, cmdArgs, p.InitialPrompt)
+	if delivery.argv != nil {
+		cmdArgs = delivery.argv
+		ptyPrompt = ""
+		slog.Info("spawn: initial_prompt via argv", "tool", p.ToolID, "bytes", len(p.InitialPrompt))
+	} else if ptyPrompt != "" {
+		slog.Info("spawn: initial_prompt via pty paste", "tool", p.ToolID, "bytes", len(ptyPrompt), "plain", delivery.plainPaste)
 	}
 
 	sess := &state.Session{
@@ -80,7 +91,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		Adapter:        ad,
 		InputCh:        inputCh,
 		CompleteCh:     completeCh,
-		InitialPrompt:  p.InitialPrompt,
+		InitialPrompt:  ptyPrompt,
+		PlainPaste:     delivery.plainPaste,
+		ReadySettle:    delivery.readySettle,
 		SummaryRequest: cfg.SummaryRequest,
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)

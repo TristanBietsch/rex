@@ -39,7 +39,7 @@ func TestNewHeuristic_RejectsBadRegex(t *testing.T) {
 // `>>> Send a message (/? for help)`. The line never ends with `>>> `, so
 // the old `(?m)>>> $` pattern never matched. `(?m)^>>> ` should.
 func TestHeuristic_OllamaPromptWithPlaceholder(t *testing.T) {
-	h, err := NewHeuristic("^>>> ", "", 100*time.Millisecond)
+	h, err := NewHeuristic("^>>> Send a message", "", 100*time.Millisecond)
 	require.NoError(t, err)
 	got := h.Detect([]byte("hi there\n>>> Send a message (/? for help)"), 2*time.Second)
 	require.Equal(t, protocol.StateNeedsInput, got)
@@ -48,7 +48,7 @@ func TestHeuristic_OllamaPromptWithPlaceholder(t *testing.T) {
 // Codex (v0.130.0) emits its prompt wrapped in cyan ANSI; the visible char
 // is `›` (U+203A). Without ANSI stripping the `^` anchor fails.
 func TestHeuristic_CodexPromptWithAnsi(t *testing.T) {
-	h, err := NewHeuristic("^› ", "", 100*time.Millisecond)
+	h, err := NewHeuristic(`^[ \t]*›`, "", 100*time.Millisecond)
 	require.NoError(t, err)
 	got := h.Detect([]byte("response done\n\x1b[36m› \x1b[mthis is a test"), 2*time.Second)
 	require.Equal(t, protocol.StateNeedsInput, got)
@@ -59,7 +59,7 @@ func TestHeuristic_CodexPromptWithAnsi(t *testing.T) {
 // rather than `\n`. Without translating those to newlines, `^›` lands in the
 // middle of one giant joined string and never matches.
 func TestHeuristic_CodexPromptViaCursorPositioning(t *testing.T) {
-	h, err := NewHeuristic("^› ", "", 100*time.Millisecond)
+	h, err := NewHeuristic(`^[ \t]*›`, "", 100*time.Millisecond)
 	require.NoError(t, err)
 	raw := "\x1b[2J\x1b[H• Test received.\x1b[5;1H\x1b[K› Implement {feature}\x1b[10;1Hgpt-5.5 low · ~/dev/rex"
 	got := h.Detect([]byte(raw), 2*time.Second)
@@ -101,7 +101,7 @@ func TestHeuristic_IsReadyForInput_IgnoresIdle(t *testing.T) {
 }
 
 func TestHeuristic_IsReadyForInput_AnsiAndCursorScrubbed(t *testing.T) {
-	h, err := NewHeuristic("^› ", "", 100*time.Millisecond)
+	h, err := NewHeuristic(`^[ \t]*›`, "", 100*time.Millisecond)
 	require.NoError(t, err)
 	raw := "\x1b[2J\x1b[H• Test received.\x1b[5;1H\x1b[K\x1b[36m› \x1b[mtype here"
 	require.True(t, h.IsReadyForInput([]byte(raw), 0))
@@ -141,4 +141,15 @@ func TestNewHeuristic_RejectsBadDoneRegex(t *testing.T) {
 	_, err := NewHeuristic("^> ", "[unclosed", 100*time.Millisecond)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "compile done regex")
+}
+
+// Gemini draws its input box indented; `\s` in the old regex also let the
+// match span a newline onto unrelated output.
+func TestHeuristic_GeminiPromptIndentedSameLineOnly(t *testing.T) {
+	h, err := NewHeuristic(`^[ \t]*>[ \t]`, "", 100*time.Millisecond)
+	require.NoError(t, err)
+	require.True(t, h.IsReadyForInput([]byte("│  > Type your message"), 0) ||
+		h.IsReadyForInput([]byte("   > Type your message"), 0))
+	require.False(t, h.IsReadyForInput([]byte("result>\nnext line"), 0))
+	require.False(t, h.IsReadyForInput([]byte(">\nnext"), 0))
 }
