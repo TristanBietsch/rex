@@ -5,25 +5,16 @@ Rex splits terminal UI from PTY supervision. The client renders; the daemon owns
 ## Processes
 
 ```mermaid
+%%{init: {'flowchart': {'rankSpacing': 60, 'nodeSpacing': 30, 'curve': 'linear'}, 'themeVariables': {'fontFamily': 'monospace', 'primaryColor': '#fff', 'primaryBorderColor': '#000', 'lineColor': '#000'}}}%%
 flowchart LR
-  subgraph client [rex]
-    CLI[CLI subcommands]
-    TUI[Bubble Tea board]
-  end
-  subgraph daemon [rex-daemon]
-    Server[UDS server]
-    Store[state.Store]
-    PTY[PTY supervisors]
-  end
-  subgraph agents [Agent CLIs]
-    Claude[claude]
-    Others[codex gemini ...]
-  end
-  client -->|JSONL UDS| Server
-  Server --> Store
-  Server --> PTY
-  PTY --> agents
-  Store --> Disk[(meta.json transcript.log)]
+  CLI["rex&nbsp;CLI / TUI"] -- "JSONL / UDS" --> SRV["daemon: server"]
+  SRV --> STORE["store"]
+  SRV --> PTY["pty sup."]
+  PTY -- "fork+exec" --> AG["claude · codex · ..."]
+  STORE --> DISK[("meta.json&nbsp;·&nbsp;transcript.log")]
+
+  classDef box fill:#fff,stroke:#000,stroke-width:1px,color:#000,rx:0,ry:0;
+  class CLI,SRV,STORE,PTY,AG,DISK box;
 ```
 
 | Component | Path | Role |
