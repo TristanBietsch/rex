@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -126,43 +127,85 @@ func (m Model) hasWorkingSessions() bool {
 	return false
 }
 
+// slotKind tags one line of the unscrolled board.
+type slotKind int
+
+const (
+	slotGap slotKind = iota
+	slotTitle
+	slotNone
+	slotRow
+)
+
+// boardSlot is one line of the unscrolled board. renderBoard, scrolling
+// (selectedBoardLine) and mouse hit-testing all walk the same slots, so their
+// line math can't drift apart (e.g. row_density gaps).
+type boardSlot struct {
+	kind  slotKind
+	group int
+	sess  protocol.SessionSummary
+}
+
+func boardSlots(m Model) []boardSlot {
+	gapBetween := densityGap(m)
+	partitions := partitionSessions(m.Sessions, m.Filter)
+	var slots []boardSlot
+	for i := range boardGroups {
+		if i > 0 {
+			for j := 0; j < gapBetween; j++ {
+				slots = append(slots, boardSlot{kind: slotGap, group: i})
+			}
+		}
+		slots = append(slots, boardSlot{kind: slotTitle, group: i})
+		if len(partitions[i]) == 0 {
+			slots = append(slots, boardSlot{kind: slotNone, group: i})
+			continue
+		}
+		for _, s := range partitions[i] {
+			slots = append(slots, boardSlot{kind: slotRow, group: i, sess: s})
+		}
+	}
+	return slots
+}
+
+// clampScroll bounds offset to [0, total-height] so the board never scrolls
+// past its last line.
+func clampScroll(offset, total, height int) int {
+	if max := total - height; offset > max {
+		offset = max
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return offset
+}
+
 // renderBoard renders the three sections sized to fit `width` x `height`.
 // Long boards scroll: m.ScrollOffset skips that many lines from the top.
 func renderBoard(m Model, width, height int) string {
-	gapBetween := densityGap(m)
-	partitions := partitionSessions(m.Sessions, m.Filter)
-	var lines []string
-	for i, g := range boardGroups {
-		rows := partitions[i]
-		if i > 0 {
-			for j := 0; j < gapBetween; j++ {
-				lines = append(lines, "")
-			}
-		}
-		lines = append(lines, "  "+styleSectionTitle.Render(g.Title))
-		if len(rows) == 0 {
+	slots := boardSlots(m)
+	off := clampScroll(m.ScrollOffset, len(slots), height)
+	if height <= 0 {
+		height = len(slots) - off
+	}
+	end := off + height
+	if end > len(slots) {
+		end = len(slots)
+	}
+	lines := make([]string, 0, height)
+	for _, sl := range slots[off:end] {
+		switch sl.kind {
+		case slotGap:
+			lines = append(lines, "")
+		case slotTitle:
+			lines = append(lines, "  "+styleSectionTitle.Render(boardGroups[sl.group].Title))
+		case slotNone:
 			lines = append(lines, "    "+styleMuted.Render("(none)"))
-		} else {
-			for _, s := range rows {
-				lines = append(lines, renderRow(m, s, width))
-			}
+		case slotRow:
+			lines = append(lines, renderRow(m, sl.sess, width))
 		}
 	}
 
-	// Apply scroll: skip the first ScrollOffset lines.
-	off := m.ScrollOffset
-	if off < 0 {
-		off = 0
-	}
-	if off > len(lines) {
-		off = len(lines)
-	}
-	lines = lines[off:]
-
-	// Show only `height` rows of board content; pad if shorter, truncate if longer.
-	if height > 0 && len(lines) > height {
-		lines = lines[:height]
-	}
 	for len(lines) < height {
 		lines = append(lines, "")
 	}
@@ -323,18 +366,17 @@ func formatTokens(n int64) string {
 	}
 }
 
+// truncate cuts s to at most n terminal columns (wide runes count double),
+// ending in "…" when cut. Counting runes instead of columns let CJK / emoji
+// text overflow its cell, and lipgloss then wrapped the row onto two lines.
 func truncate(s string, n int) string {
 	if n <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= n {
+	if ansi.StringWidth(s) <= n {
 		return s
 	}
-	if n == 1 {
-		return string(runes[:1])
-	}
-	return string(runes[:n-1]) + "…"
+	return ansi.Truncate(s, n, "…")
 }
 
 func durationAgo(t time.Time) string {

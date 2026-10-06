@@ -62,57 +62,66 @@ func selectedBoardLine(m Model) int {
 	if m.SelectedID == "" {
 		return -1
 	}
-	line := 0
-	for i, g := range boardGroups {
-		rows := filterByGroup(m.Sessions, g, m.Filter)
-		if i > 0 {
-			line++ // blank separator
-		}
-		line++ // section title
-		if len(rows) == 0 {
-			line++ // "(none)"
-			continue
-		}
-		for _, s := range rows {
-			if s.ID == m.SelectedID {
-				return line
-			}
-			line++
+	for i, sl := range boardSlots(m) {
+		if sl.kind == slotRow && sl.sess.ID == m.SelectedID {
+			return i
 		}
 	}
 	return -1
 }
 
-// boardHeight estimates the board's visible row count from m.Height.
-// The board sits between header (2 lines) + blank + HR + blank above and
-// HR + prompt + helpline (3 lines) below — 7 reserved lines total, plus a
-// 2-line top buffer for breathing room.
-func boardHeight(m Model) int {
-	if m.Height <= 0 {
-		return 20
+// Screen layout around the board (see renderFullScreen):
+//
+//	1 blank · header (2 lines, +1 with the summarizer banner) · blank · HR · blank
+//	board
+//	HR · prompt · helpline
+const (
+	boardBottomRows = 3
+	minBoardHeight  = 4
+)
+
+// headerHeight is the number of lines renderHeader produces.
+func headerHeight(m Model) int {
+	if m.BackendUnavailable {
+		return 3
 	}
-	bh := m.Height - 9
-	if bh < 4 {
-		bh = 4
+	return 2
+}
+
+// boardTop is the screen row (0-based) of the first board line.
+func boardTop(m Model) int {
+	return 1 + headerHeight(m) + 3
+}
+
+// boardHeightFor is the board's visible line count on an h-row screen.
+func boardHeightFor(m Model, h int) int {
+	bh := h - boardTop(m) - boardBottomRows
+	if bh < minBoardHeight {
+		bh = minBoardHeight
 	}
 	return bh
 }
 
-// ensureVisible adjusts m.ScrollOffset so the selected row is on-screen.
+// boardHeight is the board's visible line count for the current window.
+func boardHeight(m Model) int {
+	if m.Height <= 0 {
+		return 20
+	}
+	return boardHeightFor(m, m.Height)
+}
+
+// ensureVisible adjusts m.ScrollOffset so the selected row is on-screen and
+// the board never scrolls past its end.
 func ensureVisible(m Model) Model {
-	sel := selectedBoardLine(m)
-	if sel < 0 {
-		return m
-	}
 	bh := boardHeight(m)
-	if sel < m.ScrollOffset {
-		m.ScrollOffset = sel
-	} else if sel >= m.ScrollOffset+bh {
-		m.ScrollOffset = sel - bh + 1
+	if sel := selectedBoardLine(m); sel >= 0 {
+		if sel < m.ScrollOffset {
+			m.ScrollOffset = sel
+		} else if sel >= m.ScrollOffset+bh {
+			m.ScrollOffset = sel - bh + 1
+		}
 	}
-	if m.ScrollOffset < 0 {
-		m.ScrollOffset = 0
-	}
+	m.ScrollOffset = clampScroll(m.ScrollOffset, len(boardSlots(m)), bh)
 	return m
 }
 
@@ -156,5 +165,5 @@ func cycleFilter(m Model) Model {
 	} else {
 		m.SelectedID = ""
 	}
-	return m
+	return ensureVisible(m)
 }

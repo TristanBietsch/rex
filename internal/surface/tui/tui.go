@@ -120,12 +120,8 @@ func renderFullScreen(m Model, w, h int) string {
 		bottom = hr + "\n" + renderPrompt(m, cw) + "\n" + helpline
 	}
 
-	// Fixed structure: 1 blank + 2 header + 1 blank + 1 hr + 1 blank + boardH + 3 bottom = h
-	const fixedRows = 9
-	boardH := h - fixedRows
-	if boardH < 4 {
-		boardH = 4
-	}
+	// 1 blank + header + blank + hr + blank + board + 3 bottom = h (boardTop/boardHeightFor).
+	boardH := boardHeightFor(m, h)
 
 	board := renderBoard(m, cw, boardH)
 

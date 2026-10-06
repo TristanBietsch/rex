@@ -41,7 +41,7 @@ func scheduleDescTick() tea.Cmd {
 }
 
 var (
-	lastMouseRow  = -1
+	lastMouseID   string
 	lastMouseTime time.Time
 )
 
@@ -52,7 +52,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		m.Height = msg.Height
 		resizeAttach(m)
-		return m, nil
+		return ensureVisible(m), nil
 	case AttachOutputMsg:
 		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
@@ -72,7 +72,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case DaemonEventMsg:
-		m = m.applyEvent(msg.Env)
+		// Rows move between sections and appear/disappear above the
+		// selection; keep the selected row on screen.
+		m = ensureVisible(m.applyEvent(msg.Env))
 		cmds := []tea.Cmd{listenDaemon(m.Client)}
 		if len(m.DescAnim) > 0 && !m.descTickPending {
 			m.descTickPending = true
@@ -142,6 +144,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Filter != "" {
 			m.Filter = msg.Filter
 		}
+		m = ensureVisible(m)
 		return m.appendBootStep(bootStepMsg{
 			Name: "state.restore", Status: stepOK,
 			Desc: fmt.Sprintf("selected=%s · filter=%s", short8(msg.Selection), msg.Filter),
@@ -199,30 +202,41 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	// Click-to-select + double-click-to-open. Exact row math requires layout
-	// coordinates; we use a header-offset heuristic.
+	// Click-to-select + double-click-to-open.
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return m, nil
 	}
-	rows := orderedSessions(m)
-	if len(rows) == 0 {
+	id := sessionAtScreenRow(m, msg.Y)
+	if id == "" {
+		lastMouseID = ""
 		return m, nil
 	}
-	// Board starts at approximately Y=3 (header) + section title rows.
-	idx := msg.Y - 4
-	if idx < 0 || idx >= len(rows) {
-		lastMouseRow = -1
-		return m, nil
-	}
-	m.SelectedID = rows[idx].ID
+	m.SelectedID = id
+	m = ensureVisible(m)
 	now := time.Now()
-	if lastMouseRow == idx && now.Sub(lastMouseTime) < 350*time.Millisecond {
+	if lastMouseID == id && now.Sub(lastMouseTime) < 350*time.Millisecond {
 		// Double-click — open modal.
-		return openAttach(m, rows[idx].ID)
+		return openAttach(m, id)
 	}
-	lastMouseRow = idx
+	lastMouseID = id
 	lastMouseTime = now
 	return m, nil
+}
+
+// sessionAtScreenRow maps a screen row to the session rendered there, using
+// the same slot layout and scroll offset as renderBoard. "" for non-rows.
+func sessionAtScreenRow(m Model, y int) string {
+	bh := boardHeight(m)
+	rel := y - boardTop(m)
+	if rel < 0 || rel >= bh {
+		return ""
+	}
+	slots := boardSlots(m)
+	line := clampScroll(m.ScrollOffset, len(slots), bh) + rel
+	if line >= len(slots) || slots[line].kind != slotRow {
+		return ""
+	}
+	return slots[line].sess.ID
 }
 
 func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
