@@ -71,7 +71,7 @@ Duplicate tool or model ids are rejected at load time.
 | `SessionStart`, `Notification`, `Stop` | `needs_input` |
 | `UserPromptSubmit`, `PreToolUse`, `PostToolUse` | `working` |
 
-A `working` state with no visible PTY output for 15s becomes `needs_input` (an Esc-interrupted turn fires no `Stop`).
+A `working` state with no visible PTY output for 15s becomes `needs_input` (an Esc-interrupted turn fires no `Stop`). Heuristic tools apply the same rule when `prompt_regex` doesn't match: a screen frozen for 15s (auth, trust or menu dialog) is waiting on you; working agents always stream output or animate a spinner.
 
 State semantics for all kinds: a finished agent turn is `needs_input` (waiting on you). `done` comes from process exit (code 0), the `Complete` intent, or a heuristic `done_regex` match; once `done`, later output can't move the session back.
 

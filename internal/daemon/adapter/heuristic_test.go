@@ -153,3 +153,13 @@ func TestHeuristic_GeminiPromptIndentedSameLineOnly(t *testing.T) {
 	require.False(t, h.IsReadyForInput([]byte("result>\nnext line"), 0))
 	require.False(t, h.IsReadyForInput([]byte(">\nnext"), 0))
 }
+
+// A frozen screen with no prompt match (auth / trust dialog) is waiting on the
+// user, not working.
+func TestHeuristic_StaleSilenceIsNeedsInput(t *testing.T) {
+	h, err := NewHeuristic(`^[ \t]*>[ \t]`, "", 1200*time.Millisecond)
+	require.NoError(t, err)
+	dialog := []byte("│ ● 1. Sign in with Google\n│   2. Use Gemini API Key\n")
+	require.Equal(t, protocol.StateWorking, h.Detect(dialog, 2*time.Second))
+	require.Equal(t, protocol.StateNeedsInput, h.Detect(dialog, staleWorking))
+}

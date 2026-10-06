@@ -51,7 +51,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet` |
 | `Subscribe` | yes | `session_id`, `replay` |
 | `SendInput` | yes | `session_id`, `bytes` (base64) |
-| `Reply` | yes | `session_id`, `text` (daemon appends newline) |
+| `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
 | `Rename` | yes | `session_id`, `slug`, `title` |
 | `Delete` | yes | `session_id` |
 | `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored) |

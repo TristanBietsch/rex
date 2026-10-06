@@ -7,10 +7,16 @@ import (
 	"net"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
+
+// replySubmitDelay separates a Reply's text from its Enter keystroke so TUIs
+// commit the text to their input box before submitting (matches the initial
+// prompt paste path in pty.Supervisor).
+const replySubmitDelay = 120 * time.Millisecond
 
 func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	cfg := srv.cfg
@@ -184,8 +190,20 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not running")
 				continue
 			}
+			// Text, then Enter as a separate write. Terminals send Enter as
+			// \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
+			// Claude Code insert a newline on \n instead of submitting, and
+			// treat text+\r in one burst as a paste.
 			select {
-			case ch <- []byte(p.Text + "\n"):
+			case ch <- []byte(p.Text):
+			default:
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+				continue
+			}
+			time.Sleep(replySubmitDelay)
+			select {
+			case ch <- []byte{'\r'}:
+				slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
 			default:
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
 			}

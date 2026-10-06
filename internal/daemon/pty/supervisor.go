@@ -424,7 +424,7 @@ const screenTailBytes = 2048
 // refreshScreenText derives last_line and the summarizer's screen text from
 // the virtual screen, dropping UI chrome (spinners, borders, key hints).
 func (s *Supervisor) refreshScreenText(id string, screen vt10x.Terminal) {
-	lines := termtext.Lines([]byte(screen.String()))
+	lines := termtext.ScreenLines(screen.String())
 	if len(lines) == 0 {
 		return
 	}

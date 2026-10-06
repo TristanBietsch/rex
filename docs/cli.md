@@ -105,7 +105,7 @@ Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` 
 
 ## rex reply
 
-Send text to a session. Appends a newline.
+Send text to a session, then press Enter (`\r`, sent as a separate write so full-screen TUIs submit instead of inserting a newline).
 
 ```sh
 rex reply <sel> [text] [-socket path] [-raw]

@@ -1,6 +1,7 @@
 package termtext
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,8 @@ func TestIsChrome(t *testing.T) {
 		"⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
 		"113 tokens · thinking with high effort)",
 		"⠋⠙⠹⠸⠼",
+		"✳ Unfurling… (5s · thought for 4s)",
+		"✻ Cooked for 2s · done 3:55 PM",
 		">>> Send a message (/? for help)",
 	} {
 		require.True(t, IsChrome(l), l)
@@ -46,4 +49,35 @@ func TestTail_CutsOnLineBoundary(t *testing.T) {
 
 func TestLastLine_Empty(t *testing.T) {
 	require.Equal(t, "", LastLine([]byte("✶\n──\n")))
+}
+
+// Rendered screens from live claude / codex sessions: the last content line is
+// the agent's reply, not the input box or status bars below it.
+func TestScreenLines_CutsInputBoxAndStatusBars(t *testing.T) {
+	claude := strings.Join([]string{
+		"❯ do not use any tools; just say hi then ask me one short question",
+		"⏺ Hi.",
+		"  What're you working on?",
+		"✻ Cooked for 2s · done 3:55 PM",
+		"────────────────────────────────────",
+		"❯ ",
+		"────────────────────────────────────",
+		"  ⚠ Transcript saving is off",
+		"  [CAVEMAN]",
+		"  ⏸ manual mode on",
+	}, "\n")
+	lines := ScreenLines(claude)
+	require.Equal(t, "What're you working on?", lines[len(lines)-1])
+
+	codex := strings.Join([]string{
+		"› do not use any tools; just say hi then ask me one short question",
+		"• Hi. What are we working on?",
+		"› Improve documentation in @filename",
+		"  gpt-5.5 low · ~/Documents/personal/dev/rex",
+	}, "\n")
+	lines = ScreenLines(codex)
+	require.Equal(t, "• Hi. What are we working on?", lines[len(lines)-1])
+
+	plain := "hello there\nsecond line"
+	require.Equal(t, []string{"hello there", "second line"}, ScreenLines(plain))
 }

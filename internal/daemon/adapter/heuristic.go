@@ -55,7 +55,14 @@ func (h *HeuristicCLI) cleanTail(window []byte) string {
 	return termtext.Normalize(tail)
 }
 
-// Detect implements Adapter. Precedence after the idle gate: done > prompt > working.
+// staleWorking is how long a full silence counts as "waiting on the user"
+// even without a prompt match. Working agents stream output or animate a
+// spinner/timer; a frozen screen is a dialog (auth, trust, menu) or an idle
+// REPL whose prompt the regex doesn't know.
+const staleWorking = 15 * time.Second
+
+// Detect implements Adapter. Precedence after the idle gate: done > prompt >
+// stale silence > working.
 func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State {
 	if idle < h.idle {
 		return protocol.StateWorking
@@ -65,6 +72,9 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 		return protocol.StateDone
 	}
 	if h.prompt.MatchString(clean) {
+		return protocol.StateNeedsInput
+	}
+	if idle >= staleWorking {
 		return protocol.StateNeedsInput
 	}
 	return protocol.StateWorking

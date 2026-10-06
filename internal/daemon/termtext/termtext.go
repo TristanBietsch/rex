@@ -69,6 +69,28 @@ func Tail(b []byte, max int) string {
 	return s
 }
 
+// inputMarkers start the row where full-screen agents draw their input box
+// (claude ❯, codex ›) or a selection cursor in a dialog.
+var inputMarkers = []string{"❯", "›"}
+
+// ScreenLines returns the readable content of a rendered screen (rows joined
+// by '\n', e.g. vt10x String()). Everything from the agent's input row down —
+// the prompt box, mode toggles, model/cwd status bars — is UI, not output, so
+// it is cut before chrome filtering.
+func ScreenLines(screen string) []string {
+	rows := strings.Split(screen, "\n")
+	for i := len(rows) - 1; i >= 0; i-- {
+		row := strings.TrimSpace(rows[i])
+		for _, mk := range inputMarkers {
+			if strings.HasPrefix(row, mk) {
+				rows = rows[:i]
+				return Lines([]byte(strings.Join(rows, "\n")))
+			}
+		}
+	}
+	return Lines([]byte(screen))
+}
+
 // LastLine returns the last readable line of b, or "" when none.
 func LastLine(b []byte) string {
 	lines := Lines(b)
@@ -102,6 +124,11 @@ var chromeHints = []string{
 	"← for agents",
 }
 
+// turnDoneRe matches Claude's turn timers: the spinner verb while working
+// ("✳ Unfurling… (5s · thought for 4s)") and the end-of-turn line
+// ("✻ Cooked for 2s · done").
+var turnDoneRe = regexp.MustCompile(`^\S+ \p{L}+(?:…| for \d+(?:\.\d+)?[smh]\b)`)
+
 // IsChrome reports whether line is UI furniture rather than content: spinner
 // frames, box borders, counters, key hints, or fragments with too few letters
 // to carry meaning.
@@ -111,6 +138,9 @@ func IsChrome(line string) bool {
 		if strings.Contains(lower, h) {
 			return true
 		}
+	}
+	if turnDoneRe.MatchString(line) || strings.HasPrefix(line, "⚠") {
+		return true
 	}
 	letters := 0
 	for _, r := range line {
