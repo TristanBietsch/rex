@@ -111,7 +111,7 @@ Send text to a session, then press Enter (`\r`, sent as a separate write so full
 rex reply <sel> [text] [-socket path] [-raw]
 ```
 
-Text from argument or stdin. `-raw` sends bytes without an added newline.
+Text from argument or stdin. `-raw` sends the bytes as-is, without pressing Enter.
 
 ---
 
