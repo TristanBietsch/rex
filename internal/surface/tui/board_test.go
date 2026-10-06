@@ -64,3 +64,11 @@ func TestFleetColor_Distinct(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, len(seen), 4, "expected at least 4 distinct fleet colors")
 }
+
+func TestRowDescription_SummaryThenTitleNeverLastLine(t *testing.T) {
+	s := protocol.SessionSummary{Title: "fix auth bug", LastLine: "✶ esc to interrupt"}
+	require.Equal(t, "fix auth bug", rowDescription(s))
+	s.Description = "editing auth middleware"
+	require.Equal(t, "editing auth middleware", rowDescription(s))
+	require.Equal(t, "", rowDescription(protocol.SessionSummary{LastLine: "✶"}))
+}

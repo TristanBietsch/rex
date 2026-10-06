@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,10 +90,11 @@ func LoadAll(root string) ([]*Session, error) {
 }
 
 // TranscriptFile is a kept-open transcript handle for the lifetime of one PTY session.
-// Reuse avoids open/close syscalls on every PTY read chunk.
+// Reuse avoids open/close syscalls on every PTY read chunk. Writes are
+// unbuffered: the summarizer and attach replay read the file while the session
+// is live, so bytes must hit disk on every chunk.
 type TranscriptFile struct {
 	f *os.File
-	w *bufio.Writer
 }
 
 // OpenTranscript opens (or creates) transcript.log for repeated appends.
@@ -107,23 +107,19 @@ func OpenTranscript(root, id string) (*TranscriptFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open transcript: %w", err)
 	}
-	return &TranscriptFile{f: f, w: bufio.NewWriterSize(f, 64*1024)}, nil
+	return &TranscriptFile{f: f}, nil
 }
 
 // Write appends bytes to the transcript.
 func (t *TranscriptFile) Write(b []byte) error {
-	if _, err := t.w.Write(b); err != nil {
+	if _, err := t.f.Write(b); err != nil {
 		return fmt.Errorf("write transcript: %w", err)
 	}
 	return nil
 }
 
-// Close flushes buffered data and closes the file.
+// Close closes the file.
 func (t *TranscriptFile) Close() error {
-	if err := t.w.Flush(); err != nil {
-		_ = t.f.Close()
-		return fmt.Errorf("flush transcript: %w", err)
-	}
 	if err := t.f.Close(); err != nil {
 		return fmt.Errorf("close transcript: %w", err)
 	}

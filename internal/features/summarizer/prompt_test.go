@@ -3,11 +3,18 @@ package summarizer
 import "testing"
 
 func TestBuildPromptIncludesContext(t *testing.T) {
-	p := buildPrompt("codex", "payment-migration", "running pnpm test:billing\n")
-	for _, s := range []string{"codex", "payment-migration", "running pnpm test:billing"} {
+	p := buildPrompt("codex", "payment-migration", "port billing to the new processor", "running pnpm test:billing\n")
+	for _, s := range []string{"codex", "port billing to the new processor", "running pnpm test:billing"} {
 		if !contains(p, s) {
 			t.Fatalf("prompt missing %q. full:\n%s", s, p)
 		}
+	}
+}
+
+func TestBuildPromptFallsBackToSlugWithoutTask(t *testing.T) {
+	p := buildPrompt("codex", "payment-migration", "", "x")
+	if !contains(p, "payment-migration") {
+		t.Fatalf("prompt missing slug fallback:\n%s", p)
 	}
 }
 

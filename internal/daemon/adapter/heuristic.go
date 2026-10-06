@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
+	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -46,32 +46,13 @@ func compileMultilineRegex(regex string) (*regexp.Regexp, error) {
 	return regexp.Compile("(?m)" + r)
 }
 
-// cursorPositionRe matches CSI sequences that reposition the cursor or clear
-// the display. Full-TUI agents (codex, gemini, ollama) emit dozens of these
-// between visible text, and if we just strip them everything becomes one long
-// line — the `^` anchor in the prompt regex can't catch the prompt char
-// anymore. By replacing each with `\n` before stripping, we preserve the line
-// structure the user sees on screen.
-//
-// Codes matched:
-//
-//	H, f — cursor absolute position
-//	E, F — cursor next/previous line
-//	J    — erase display
-//	d    — line position absolute
-//	G    — cursor column position (ollama and gemini use `[1G` to return to
-//	       column 1 before writing the next prompt — without this, the prompt
-//	       text lands on the same logical line as the prior animation frames
-//	       and the `^>>> ` anchor never matches).
-var cursorPositionRe = regexp.MustCompile(`\x1b\[\d*(?:;\d+)?[HfEFJdG]`)
-
 func (h *HeuristicCLI) cleanTail(window []byte) string {
 	tail := window
 	if len(tail) > 4096 {
 		tail = tail[len(tail)-4096:]
 	}
-	withLineBreaks := cursorPositionRe.ReplaceAllString(string(tail), "\n")
-	return ansi.Strip(withLineBreaks)
+	// Cursor moves → line breaks so `^` anchors land where the user sees a row start.
+	return termtext.Normalize(tail)
 }
 
 // Detect implements Adapter. Precedence after the idle gate: done > prompt > working.

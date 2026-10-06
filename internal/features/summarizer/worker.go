@@ -1,6 +1,7 @@
 package summarizer
 
 import (
+	"bytes"
 	"context"
 	"hash/fnv"
 	"log/slog"
@@ -39,25 +40,33 @@ type sessionMeta struct {
 	lastHash        uint64
 }
 
-var preferredFallbacks = []string{"gemma2:2b", "llama3.2:1b", "phi3:mini", "qwen2.5:1.5b"}
+// preferredFallbacks are small, fast, non-"thinking" models suited to a
+// one-line summary. A pulled model outside this list is never picked: big
+// models (llama3.1 8B, qwen3 30B) blow the request timeout on cold load.
+var preferredFallbacks = []string{
+	"gemma2:2b", "llama3.2:3b", "llama3.2:latest", "llama3.2:1b",
+	"gemma3:1b", "gemma3:4b", "qwen2.5:3b", "qwen2.5:1.5b", "phi3:mini",
+}
 
 func ResolveModel(configured string, pulled []string) (string, bool) {
-	if configured != "" {
+	has := func(name string) (string, bool) {
 		for _, p := range pulled {
-			if p == configured {
-				return configured, true
+			// Ollama lists untagged pulls as "name:latest".
+			if p == name || p == name+":latest" {
+				return p, true
 			}
+		}
+		return "", false
+	}
+	if configured != "" {
+		if p, ok := has(configured); ok {
+			return p, true
 		}
 	}
 	for _, pref := range preferredFallbacks {
-		for _, p := range pulled {
-			if p == pref {
-				return pref, true
-			}
+		if p, ok := has(pref); ok {
+			return p, true
 		}
-	}
-	if len(pulled) > 0 {
-		return pulled[0], true
 	}
 	return "", false
 }
@@ -165,7 +174,13 @@ func (w *Worker) handle(ctx context.Context, id string) {
 	w.mu.Unlock()
 
 	tail := w.transcript(id, w.cfg.MaxBytes)
-	prompt := buildPrompt(snap.ToolID, snap.Slug, string(tail))
+	if len(bytes.TrimSpace(tail)) == 0 {
+		// Nothing readable yet: a prompt with only the slug makes the model
+		// invent an activity. The board shows the title meanwhile.
+		slog.Debug("summarizer: skipped_empty_screen", "session", id)
+		return
+	}
+	prompt := buildPrompt(snap.ToolID, snap.Slug, snap.Title, string(tail))
 
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(prompt))

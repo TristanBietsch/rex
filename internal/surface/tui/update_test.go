@@ -49,6 +49,7 @@ func TestSpawnSessionCmd_UsesSettingsDefaults(t *testing.T) {
 	require.Equal(t, "max", fake.last.Effort)
 	require.Equal(t, "cc.opus.fix-auth-bug", fake.last.Slug)
 	require.Equal(t, "fix auth bug", fake.last.InitialPrompt)
+	require.Equal(t, "fix auth bug", fake.last.Title, "board shows Title until a summary exists")
 }
 
 func TestSpawnSessionCmd_DisambiguatesAgainstExistingSlugs(t *testing.T) {

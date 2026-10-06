@@ -58,10 +58,10 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | ID | Type | Default | Options |
 |----|------|---------|---------|
 | `summary_enabled` | bool | `true` | |
-| `summary_model` | string | `gemma2:2b` | Suggested: `gemma2:2b`, `llama3.2:1b`, `phi3:mini`, `qwen2.5:1.5b` |
+| `summary_model` | string | `gemma2:2b` | Use a small model: `gemma2:2b`, `llama3.2:3b`, `llama3.2:1b`, `gemma3:1b`, `qwen2.5:3b`, `phi3:mini` |
 | `desc_animation` | enum | `typewriter` | `typewriter`, `decode`, `wipe`, `off` |
 
-Requires a running Ollama instance when enabled. See `OLLAMA_HOST` in [paths.md](paths.md).
+Requires a running Ollama instance when enabled. If `summary_model` is not pulled, the daemon substitutes the first pulled model from that small-model list; it never falls back to an arbitrary (large) model. The board shows the session's task (`title`) until the first summary arrives. See `OLLAMA_HOST` in [paths.md](paths.md).
 
 ### Spawn
 

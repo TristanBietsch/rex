@@ -10,18 +10,24 @@ import (
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
 )
 
+// warmupTimeout bounds the probe's load-the-model generate call. Cold loads
+// of a small model take a few seconds; anything slower is unusable anyway.
+const warmupTimeout = 60 * time.Second
+
 // ProbeOllamaHealth runs the initial Ollama reachability + model-presence check,
 // then re-checks every 30s so the worker actively detects healthy→unhealthy
-// transitions instead of waiting for its failure threshold. Each successful
-// check that finds the configured model present marks the worker available;
-// failures (unreachable / model missing) mark it unavailable with a reason.
+// transitions instead of waiting for its failure threshold. A worker is only
+// marked available after a real generate succeeds (which also loads the model
+// into memory), so /api/tags alone can't flip it back on after call failures.
 func ProbeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) {
 	cfg := summarizer.Defaults()
 	cfg.Model = model
+	cfg.RequestTimeout = warmupTimeout
 	if u := OllamaBaseURL(); u != "" {
 		cfg.BaseURL = u
 	}
 	client := summarizer.NewClient(cfg)
+	warmed := ""
 	check := func() {
 		tCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
@@ -41,6 +47,19 @@ func ProbeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) 
 			slog.Info("summarizer: model_substituted", "from", model, "to", resolved, "reason", "configured model not pulled")
 			w.SetModel(resolved)
 			model = resolved
+		}
+		client.SetModel(model)
+		if warmed != model || !w.BackendAvailable() {
+			gCtx, gCancel := context.WithTimeout(ctx, warmupTimeout)
+			defer gCancel()
+			start := time.Now()
+			if _, err := client.Generate(gCtx, "Reply with the single word: ok"); err != nil {
+				slog.Warn("summarizer: warmup failed", "model", model, "err", err)
+				w.MarkUnavailable("warm-up generate failed: " + err.Error())
+				return
+			}
+			slog.Info("summarizer: warmup ok", "model", model, "duration_ms", time.Since(start).Milliseconds())
+			warmed = model
 		}
 		w.MarkAvailable()
 	}

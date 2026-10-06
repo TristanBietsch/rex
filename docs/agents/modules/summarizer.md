@@ -46,7 +46,7 @@ HTTP fakes in `client_test.go`, `worker_test.go`, `prompt_test.go`; e2e in `cmd/
 
 ## Gotchas
 
-Daemon probes Ollama at startup and may substitute fallback model via `ResolveModel`. Transcript passed to model is sanitized tail, max bytes from config. Settings `summary_enabled` / `summary_model` read in daemon main, not inside this package.
+Daemon probes Ollama at startup and every 30s; it may substitute a small fallback model via `ResolveModel` (never an arbitrary pulled model). The probe only marks the backend available after a warm-up `/api/generate` succeeds, which also loads the model (`keep_alive` 30m). Input is the supervisor's emulated-screen text (`state.Store.Screen`, chrome filtered by `internal/daemon/termtext`), falling back to the cleaned transcript tail; empty input skips the call. Prompt includes the session `Title` (the task). Settings `summary_enabled` / `summary_model` read in daemon main, not inside this package.
 
 ## See also
 

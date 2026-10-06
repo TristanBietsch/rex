@@ -487,6 +487,7 @@ func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protoco
 			ModelID:       modelID,
 			Effort:        effort,
 			Slug:          slug,
+			Title:         prompt,
 			CWD:           cwd,
 			InitialPrompt: prompt,
 		}); err != nil {

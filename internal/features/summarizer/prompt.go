@@ -8,9 +8,13 @@ import (
 const maxDescription = 60
 
 // buildPrompt assembles the few-shot prompt for the Ollama call.
-func buildPrompt(tool, slug, transcript string) string {
-	return fmt.Sprintf(`You are watching a CLI coding agent named %s working on a task slugged "%s".
-Below is the recent terminal output from the agent (ANSI stripped).
+func buildPrompt(tool, slug, task, transcript string) string {
+	if task == "" {
+		task = slug
+	}
+	return fmt.Sprintf(`You are watching a CLI coding agent named %s.
+Its task: %q
+Below is the agent's current terminal screen (UI chrome removed).
 In ONE line of at most 60 characters, describe what the agent is doing RIGHT NOW.
 Use simple verbs. No quotes, no preface, no trailing period.
 
@@ -21,7 +25,7 @@ Examples:
 
 Transcript:
 %s
-`, tool, slug, transcript)
+`, tool, task, transcript)
 }
 
 // cleanResponse normalizes whatever the model produced into the form that

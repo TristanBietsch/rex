@@ -177,10 +177,22 @@ func TestResolveModel_PreferenceListWinsOverArbitraryFirst(t *testing.T) {
 	require.Equal(t, "phi3:mini", got)
 }
 
-func TestResolveModel_AnyPulledWhenPreferenceListMissing(t *testing.T) {
-	got, ok := ResolveModel("gemma2:2b", []string{"llama3.1"})
+// Large models time out on cold load; never pick one just because it's pulled.
+func TestResolveModel_NeverPicksArbitraryLargeModel(t *testing.T) {
+	_, ok := ResolveModel("gemma2:2b", []string{"qwen3:30b-a3b", "llama3.1:latest"})
+	require.False(t, ok)
+}
+
+func TestResolveModel_PrefersSmallPulledModel(t *testing.T) {
+	got, ok := ResolveModel("gemma2:2b", []string{"qwen3:30b-a3b", "llama3.1:latest", "llama3.2:3b"})
 	require.True(t, ok)
-	require.Equal(t, "llama3.1", got)
+	require.Equal(t, "llama3.2:3b", got)
+}
+
+func TestResolveModel_MatchesLatestTag(t *testing.T) {
+	got, ok := ResolveModel("llama3.2", []string{"llama3.2:latest"})
+	require.True(t, ok)
+	require.Equal(t, "llama3.2:latest", got)
 }
 
 func TestResolveModel_NoneAvailable(t *testing.T) {
@@ -191,9 +203,9 @@ func TestResolveModel_NoneAvailable(t *testing.T) {
 }
 
 func TestResolveModel_EmptyConfigured(t *testing.T) {
-	got, ok := ResolveModel("", []string{"llama3.1"})
+	got, ok := ResolveModel("", []string{"llama3.1", "gemma3:1b"})
 	require.True(t, ok)
-	require.Equal(t, "llama3.1", got)
+	require.Equal(t, "gemma3:1b", got)
 }
 
 func TestWorker_SetModelUpdatesConfigAndClient(t *testing.T) {
@@ -204,4 +216,27 @@ func TestWorker_SetModelUpdatesConfigAndClient(t *testing.T) {
 	w.SetModel("llama3.1")
 	require.Equal(t, "llama3.1", w.cfg.Model)
 	require.Equal(t, "llama3.1", w.client.model)
+}
+
+// With nothing readable on screen, a prompt built from the slug alone makes
+// the model invent an activity; the worker must not call Ollama at all.
+func TestWorkerSkipsEmptyScreen(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		_, _ = io.WriteString(w, `{"response":"made up"}`)
+	}))
+	defer srv.Close()
+	st, _ := newTestStoreWithSession("sess-empty")
+
+	cfg := Defaults()
+	cfg.BaseURL = srv.URL
+	cfg.MinInterval = 0
+	w := New(cfg, st, transcriptStub("  \n "))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = w.Start(ctx) }()
+	w.Channel() <- "sess-empty"
+	time.Sleep(200 * time.Millisecond)
+	require.Equal(t, int32(0), atomic.LoadInt32(&calls))
 }

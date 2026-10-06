@@ -37,6 +37,9 @@ type Session struct {
 
 	// Internal — not serialized to summary.
 	mu sync.Mutex
+	// screen is the readable text of the agent's current virtual terminal
+	// screen (chrome filtered). Feeds the summarizer; never persisted.
+	screen string
 }
 
 // Summary copies the session into a wire-friendly SessionSummary.

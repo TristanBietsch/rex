@@ -8,12 +8,15 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/hinshun/vt10x"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -81,9 +84,16 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	defer f.Close()
 	slog.Info("pty: started", "session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows, "argv", s.cfg.Command)
 
+	// Virtual screen mirroring what the child has drawn. Full-screen TUIs
+	// (Claude Code especially) repaint only changed cells with cursor jumps, so
+	// readable text (last_line, summarizer input) must come from an emulated
+	// screen, not from escape-stripped bytes.
+	screen := vt10x.New(vt10x.WithSize(int(cols), int(rows)))
+
 	// Expose a resize callback to subscribers (attach clients).
 	if s.cfg.RegisterResize != nil {
 		s.cfg.RegisterResize(func(c, r uint16) error {
+			screen.Resize(int(c), int(r))
 			return pty.Setsize(f, &pty.Winsize{Cols: c, Rows: r})
 		})
 		if s.cfg.UnregisterResize != nil {
@@ -118,6 +128,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	window := make([]byte, 0, 8192)
 	lastChunk := time.Now()
 	dirty := false
+	screenDirty := false
 	lastSummaryAt := time.Now()
 	errc := make(chan error, 1)
 
@@ -232,31 +243,17 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				// heuristic adapter never sees idle ≥ idle_ms and codex/claude
 				// stay pinned at "working" forever while sitting at a prompt.
 				visible := hasVisibleText(chunk)
+				_, _ = screen.Write(chunk)
 				windowMu.Lock()
 				window = appendBounded(window, chunk, 8192)
 				if visible {
 					lastChunk = time.Now()
 					dirty = true
+					screenDirty = true
 				}
-				line := lastNonEmptyLine(window)
 				windowMu.Unlock()
 				if !visible {
 					slog.Debug("pty: ignored escape-only chunk for idle", "session", sess.ID, "bytes", len(chunk))
-				}
-				// Update last_line — sanitized so cursor/erase/color escapes
-				// can't escape the TUI's row cell and corrupt the screen.
-				if line != "" {
-					clean := sanitizeForDisplay(line)
-					if clean == "" {
-						slog.Debug("pty: last_line all-control, skipping update", "session", sess.ID, "raw_len", len(line))
-					} else {
-						if clean != line {
-							slog.Debug("pty: sanitized last_line", "session", sess.ID, "raw_len", len(line), "clean_len", len(clean))
-						}
-						if err := s.cfg.Store.UpdateLastLine(sess.ID, clean); err != nil {
-							slog.Warn("pty: update last_line failed", "session", sess.ID, "err", err)
-						}
-					}
 				}
 			}
 			if rerr != nil {
@@ -298,6 +295,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			return nil
 		case rerr := <-errc:
 			// Child exited.
+			s.refreshScreenText(sess.ID, screen)
 			waitErr := cmd.Wait()
 			final := protocol.StateDone
 			if waitErr != nil {
@@ -336,6 +334,16 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						_ = s.cfg.Store.Transition(sess.ID, next)
 					}
 				}
+			}
+
+			// Readable screen → last_line + summarizer input. Sampled on the
+			// tick (not per chunk) so spinner repaints don't flood patches.
+			windowMu.Lock()
+			refresh := screenDirty
+			screenDirty = false
+			windowMu.Unlock()
+			if refresh {
+				s.refreshScreenText(sess.ID, screen)
 			}
 
 			// Summary trigger (additive — independent of adapter).
@@ -392,53 +400,22 @@ func appendBounded(buf, b []byte, cap int) []byte {
 	return out
 }
 
-func lastNonEmptyLine(b []byte) string {
-	// Walk backwards across lines. Skip lines that are mostly spinner glyphs
-	// (Braille block U+2800–U+28FF, used by ollama/gemini for loading spinners) —
-	// those would otherwise clobber the board's description column with animation
-	// frames. Falls back to the last line if every recent line is spinner-y.
-	end := len(b)
-	var fallback string
-	for end > 0 {
-		for end > 0 && (b[end-1] == '\n' || b[end-1] == '\r') {
-			end--
-		}
-		start := end
-		for start > 0 && b[start-1] != '\n' && b[start-1] != '\r' {
-			start--
-		}
-		if start == end {
-			break
-		}
-		line := string(b[start:end])
-		if fallback == "" {
-			fallback = line
-		}
-		if !isSpinnerLine(line) {
-			return line
-		}
-		end = start
-	}
-	return fallback
-}
+// screenTailBytes caps the screen text kept for the summarizer.
+const screenTailBytes = 2048
 
-// isSpinnerLine reports whether s is overwhelmingly Braille-block glyphs
-// (the animation chars used by ollama/gemini progress spinners). We accept up
-// to a handful of stray spaces / brackets / dots so partial frames still count.
-func isSpinnerLine(s string) bool {
-	if s == "" {
-		return false
+// refreshScreenText derives last_line and the summarizer's screen text from
+// the virtual screen, dropping UI chrome (spinners, borders, key hints).
+func (s *Supervisor) refreshScreenText(id string, screen vt10x.Terminal) {
+	lines := termtext.Lines([]byte(screen.String()))
+	if len(lines) == 0 {
+		return
 	}
-	var spinner, other int
-	for _, r := range s {
-		switch {
-		case r >= 0x2800 && r <= 0x28FF:
-			spinner++
-		case r == ' ' || r == '.' || r == '·' || r == '…':
-			// neutral — don't count either way
-		default:
-			other++
-		}
+	s.cfg.Store.SetScreen(id, termtext.Tail([]byte(strings.Join(lines, "\n")), screenTailBytes))
+	last := sanitizeForDisplay(lines[len(lines)-1])
+	if last == "" {
+		return
 	}
-	return spinner >= 3 && spinner > other*3
+	if err := s.cfg.Store.UpdateLastLine(id, last); err != nil {
+		slog.Warn("pty: update last_line failed", "session", id, "err", err)
+	}
 }

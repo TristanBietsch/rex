@@ -52,25 +52,33 @@ func TestSupervisor_RunEchoToCompletion(t *testing.T) {
 	require.Contains(t, all.String(), "hello")
 }
 
-func TestLastNonEmptyLine_SkipsSpinnerLines(t *testing.T) {
-	// Ollama renders a Braille-spinner frame as the most recent line while
-	// loading; we want the prior real line instead.
-	input := []byte("loaded model\n⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\n")
-	got := lastNonEmptyLine(input)
-	require.Equal(t, "loaded model", got)
-}
+// last_line comes from the emulated screen: a cell-level repaint (cursor jump
+// into the middle of a row) must yield the corrected text, and trailing
+// spinner / key-hint chrome must not replace the real output line.
+func TestSupervisor_LastLineFromVirtualScreen(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "scr1", ShortID: "scr1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
 
-func TestLastNonEmptyLine_FallsBackWhenAllSpinner(t *testing.T) {
-	input := []byte("⠋⠙⠹⠸⠼\n⠦⠧⠇⠏⠹\n")
-	got := lastNonEmptyLine(input)
-	// Falls back to the most recent line so we never return empty.
-	require.NotEmpty(t, got)
-}
+	script := `printf 'hello wurld\r\033[8Go\n'; printf '\342\234\266 12\n'; printf 'esc to interrupt\n'; sleep 0.5`
+	sup := New(SupervisorConfig{
+		StateDir: stateDir,
+		Store:    store,
+		Command:  []string{"bash", "-c", script},
+		IdleTick: 50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
 
-func TestLastNonEmptyLine_KeepsRealText(t *testing.T) {
-	input := []byte("hi\n>>> Send a message (/? for help)")
-	got := lastNonEmptyLine(input)
-	require.Equal(t, ">>> Send a message (/? for help)", got)
+	got, _ := store.Get("scr1")
+	require.Equal(t, "hello world", got.LastLine)
+	require.Contains(t, store.Screen("scr1"), "hello world")
+	require.NotContains(t, store.Screen("scr1"), "esc to interrupt")
 }
 
 // stubAdapter is a programmable Adapter for testing the supervisor's

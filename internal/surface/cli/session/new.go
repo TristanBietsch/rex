@@ -68,7 +68,7 @@ func RunNew(args []string) error {
 
 	req := protocol.NewSession{
 		ToolID: *tool, ModelID: *model, Effort: *effort,
-		Slug: *slug, CWD: *cwd, InitialPrompt: prompt,
+		Slug: *slug, Title: prompt, CWD: *cwd, InitialPrompt: prompt,
 		Fleet: *fleet,
 	}
 	if err := c.NewSession(req); err != nil {

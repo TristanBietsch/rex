@@ -217,10 +217,7 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 	if selected {
 		descColor = colorFgPrimary
 	}
-	descSource := s.Description
-	if descSource == "" {
-		descSource = s.LastLine // bootstrap fallback
-	}
+	descSource := rowDescription(s)
 	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(time.Now()) {
 		descSource = renderAnimFrame(anim, descW, time.Now())
 	}
@@ -355,4 +352,14 @@ func durationAgo(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dd", int(d.Hours())/24)
 	}
+}
+
+// rowDescription is the desc column text: the AI summary once one exists,
+// else the task the session was started with. Raw last_line is never shown —
+// for TUI agents it is spinner frames and key hints, not activity.
+func rowDescription(s protocol.SessionSummary) string {
+	if s.Description != "" {
+		return s.Description
+	}
+	return s.Title
 }

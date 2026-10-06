@@ -79,3 +79,16 @@ func TestLoadAllRecoversCrashed(t *testing.T) {
 	require.Equal(t, protocol.StateCrashed, loaded[0].State,
 		"previously-working sessions must reload as crashed")
 }
+
+// The summarizer reads the tail of a live session; bytes written through an
+// open TranscriptFile must be visible before Close.
+func TestTranscriptFile_TailVisibleBeforeClose(t *testing.T) {
+	dir := t.TempDir()
+	tf, err := OpenTranscript(dir, "live")
+	require.NoError(t, err)
+	defer tf.Close()
+	require.NoError(t, tf.Write([]byte("still running")))
+	b, err := TranscriptTail(dir, "live", 1024)
+	require.NoError(t, err)
+	require.Equal(t, "still running", string(b))
+}

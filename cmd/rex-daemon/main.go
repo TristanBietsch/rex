@@ -17,6 +17,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
@@ -98,8 +99,13 @@ func run(args []string) error {
 			cfg.BaseURL = u
 		}
 		summaryWorker = summarizer.New(cfg, store, func(id string, max int) []byte {
-			b, _ := state.TranscriptTail(*stateDir, id, max)
-			return b
+			// The supervisor's emulated screen is the readable view of TUIs;
+			// fall back to the cleaned transcript for line-oriented tools.
+			if scr := store.Screen(id); scr != "" {
+				return []byte(scr)
+			}
+			b, _ := state.TranscriptTail(*stateDir, id, 4*max)
+			return []byte(termtext.Tail(b, max))
 		})
 		// Direct: the worker's channel IS the channel the supervisor sends into.
 		// The worker's buffer is 64; the supervisor sends non-blocking with a

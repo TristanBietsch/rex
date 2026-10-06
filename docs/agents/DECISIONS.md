@@ -24,7 +24,7 @@ Non-obvious choices an agent might undo without context.
 
 **Rejected:** Structured message log only.
 
-**Why:** Attach/replay and debugging need faithful PTY stream; summarizer reads sanitized tail.
+**Why:** Attach/replay and debugging need faithful PTY stream. Readable text (board `last_line`, summarizer input) comes from a per-session vt10x screen in the supervisor, because full-screen TUIs repaint changed cells only and escape-stripping can't recover their text.
 
 ## Crash sessions on daemon restart
 

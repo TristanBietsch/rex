@@ -251,6 +251,10 @@ func (s *Store) UpdateLastLine(id, line string) error {
 		return fmt.Errorf("session %s not found", id)
 	}
 	sess.mu.Lock()
+	if sess.LastLine == line {
+		sess.mu.Unlock()
+		return nil
+	}
 	sess.LastLine = line
 	sess.LastEventAt = time.Now().UTC()
 	sess.mu.Unlock()
@@ -261,6 +265,33 @@ func (s *Store) UpdateLastLine(id, line string) error {
 		Patch:     map[string]any{"last_line": line, "last_event_at": time.Now().UTC()},
 	})
 	return nil
+}
+
+// SetScreen records the readable text of the session's current terminal
+// screen. Not broadcast: only the summarizer reads it, via Screen.
+func (s *Store) SetScreen(id, text string) {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return
+	}
+	sess.mu.Lock()
+	sess.screen = text
+	sess.mu.Unlock()
+}
+
+// Screen returns the text last recorded by SetScreen ("" when unknown).
+func (s *Store) Screen(id string) string {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return ""
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.screen
 }
 
 // UpdateDescription records the AI-generated activity summary for a session.

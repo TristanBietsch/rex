@@ -23,7 +23,7 @@ func NewClient(cfg Config) *Client {
 		cfg.BaseURL = "http://127.0.0.1:11434"
 	}
 	if cfg.RequestTimeout == 0 {
-		cfg.RequestTimeout = 4 * time.Second
+		cfg.RequestTimeout = 15 * time.Second
 	}
 	return &Client{
 		baseURL: cfg.BaseURL,
@@ -49,6 +49,9 @@ type generateRequest struct {
 	Prompt  string         `json:"prompt"`
 	Stream  bool           `json:"stream"`
 	Options map[string]any `json:"options,omitempty"`
+	// KeepAlive keeps the model resident between calls so only the first
+	// call pays the cold-load cost.
+	KeepAlive string `json:"keep_alive,omitempty"`
 }
 
 type generateResponse struct {
@@ -58,9 +61,10 @@ type generateResponse struct {
 // Generate calls /api/generate with the configured model and returns the response text.
 func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 	body := generateRequest{
-		Model:  c.model,
-		Prompt: prompt,
-		Stream: false,
+		Model:     c.model,
+		Prompt:    prompt,
+		Stream:    false,
+		KeepAlive: "30m",
 		Options: map[string]any{
 			"num_predict": 30,
 			"temperature": 0.2,
