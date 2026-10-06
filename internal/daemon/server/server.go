@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -69,12 +70,13 @@ type Config struct {
 
 // Server owns the UDS listener and accepts clients.
 type Server struct {
-	cfgMu  sync.RWMutex
-	cfg    Config
-	gate   *concurrencyGate
-	wg     sync.WaitGroup
-	once   sync.Once //nolint:unused // reserved for graceful drain
-	closed bool      //nolint:unused // reserved for graceful drain
+	// cfg is immutable after New: handlers copy it without locking. Live
+	// settings live elsewhere — the concurrency cap in gate, the SIGHUP-swapped
+	// registry in reg.
+	cfg  Config
+	reg  atomic.Pointer[registry.Registry]
+	gate *concurrencyGate
+	wg   sync.WaitGroup
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
@@ -101,16 +103,12 @@ type Server struct {
 // SetRegistry atomically swaps the registry used for future spawns.
 // Existing sessions are unaffected.
 func (s *Server) SetRegistry(reg *registry.Registry) {
-	s.cfgMu.Lock()
-	defer s.cfgMu.Unlock()
-	s.cfg.Registry = reg
+	s.reg.Store(reg)
 }
 
-// Registry returns the current registry (read under lock).
+// Registry returns the current registry.
 func (s *Server) Registry() *registry.Registry {
-	s.cfgMu.RLock()
-	defer s.cfgMu.RUnlock()
-	return s.cfg.Registry
+	return s.reg.Load()
 }
 
 // New unlinks any stale socket and constructs a Server. It does not listen yet.
@@ -122,6 +120,10 @@ func New(cfg Config) (*Server, error) {
 	// fail on Listen below, which is the right outcome.
 	_ = os.Remove(cfg.Socket)
 	s := &Server{cfg: cfg, gate: &concurrencyGate{max: cfg.MaxConcurrentSessions}}
+	s.reg.Store(cfg.Registry)
+	// Registry and MaxConcurrentSessions are seeds only; read them through
+	// Registry() / MaxConcurrentSessions() so nobody uses a stale copy.
+	s.cfg.Registry = nil
 	return s, nil
 }
 
@@ -177,9 +179,7 @@ func (s *Server) ReleaseSession() {
 // removes the cap. Existing sessions are not killed.
 func (s *Server) SetMaxConcurrentSessions(n int) {
 	s.gate.SetMax(n)
-	s.cfgMu.Lock()
-	s.cfg.MaxConcurrentSessions = n
-	s.cfgMu.Unlock()
+	slog.Info("server: max concurrent sessions set", "max", n)
 }
 
 // MaxConcurrentSessions returns the live cap (0 means uncapped).
@@ -305,8 +305,6 @@ func (s *Server) Resize(sessionID string, cols, rows uint16) error {
 
 // TranscriptDir returns the directory backing transcripts (state root + sessions/<id>).
 func (s *Server) TranscriptDir() string {
-	s.cfgMu.RLock()
-	defer s.cfgMu.RUnlock()
 	return s.cfg.StateDir
 }
 

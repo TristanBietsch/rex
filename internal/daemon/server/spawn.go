@@ -150,6 +150,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// Run in a background goroutine; the store events drive the wire.
 	go func() {
 		defer close(done)
+		// Release sessCtx on natural exit too; an uncanceled child context
+		// stays registered with the server ctx for the daemon's lifetime.
+		defer cancel()
 		defer srv.UnregisterStop(sess.ID)
 		defer srv.UnregisterComplete(sess.ID)
 		defer srv.UnregisterInputChannel(sess.ID)

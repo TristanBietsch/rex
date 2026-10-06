@@ -260,9 +260,10 @@ func printDoctorTable(checks []checkResult, verbose bool) error {
 
 	var fails, warns int
 	for _, c := range checks {
-		if c.Status == checkFail {
+		switch c.Status {
+		case checkFail:
 			fails++
-		} else if c.Status == checkWarn {
+		case checkWarn:
 			warns++
 		}
 	}
@@ -273,12 +274,12 @@ func printDoctorTable(checks []checkResult, verbose bool) error {
 		}
 		sym, styled := renderStatus(c.Status)
 		pad := strings.Repeat(" ", nameWidth-lipgloss.Width(c.Name))
-		b.WriteString(fmt.Sprintf("  %s %s%s%s\n",
+		fmt.Fprintf(&b, "  %s %s%s%s\n",
 			styled,
 			core.HelpCmd.Render(c.Name),
 			pad,
 			core.HelpDim.Render(c.Detail),
-		))
+		)
 		_ = sym
 	}
 

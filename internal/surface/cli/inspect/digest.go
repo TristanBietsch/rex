@@ -482,13 +482,13 @@ func writeDigestTable(w io.Writer, out digestOutput, daemonDown bool, dr digestR
 		active := formatDuration(sessionActiveDuration(s))
 		stateStr := digestStateColor(s.State).Render(string(s.State))
 
-		b.WriteString(fmt.Sprintf("    %s  %-20s  %-18s  %-8s  %s\n",
+		fmt.Fprintf(&b, "    %s  %-20s  %-18s  %-8s  %s\n",
 			digestDim.Render(shortID),
 			digestNeutral.Render(core.Truncate(slug, 20)),
 			digestDim.Render(core.Truncate(toolModel, 18)),
 			digestDim.Render(active),
 			stateStr,
-		))
+		)
 	}
 
 	b.WriteString("\n")

@@ -1,6 +1,6 @@
 # Workflows
 
-Exact commands as defined in `Makefile` and verified in this repo (May 2026). `make test` currently fails one test in `internal/catalog/registry` (`TestLoad_UserExtends`); all other packages pass.
+Exact commands as defined in `Makefile` and verified in this repo (October 2026). All packages pass `make check`.
 
 ## Build
 
@@ -31,7 +31,15 @@ Runs `go test ./...`.
 make lint
 ```
 
-Runs `golangci-lint run` (see `.golangci.yml`: errcheck, govet, staticcheck, revive, ineffassign, unused, gofmt, goimports).
+Runs golangci-lint v2 (pinned, via `go run`, so it is built with the repo's Go toolchain) with `.golangci.yml`: errcheck, govet, staticcheck, revive, ineffassign, misspell, unparam, unused, whitespace; gofmt + goimports formatters.
+
+## Pre-release gate
+
+```sh
+make check
+```
+
+Runs `go vet`, `go test -race ./...`, `make lint`, and govulncheck (pinned). CI (`.github/workflows/ci.yml`) runs `make build` and `make check` on Linux and macOS for every push to `master` and every pull request.
 
 ## Install (local prefix)
 

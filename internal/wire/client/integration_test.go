@@ -53,7 +53,7 @@ func TestClient_NewSessionEchoCompletes(t *testing.T) {
 	gotDone := false
 	deadline := time.Now().Add(12 * time.Second)
 	for !gotDone && time.Now().Before(deadline) {
-		_ = c.SetReadDeadline(time.Now().Add(deadline.Sub(time.Now())))
+		_ = c.SetReadDeadline(time.Now().Add(time.Until(deadline)))
 		env, err := c.NextEvent()
 		require.NoError(t, err)
 		if env.Type != protocol.EventSessionUpdated {

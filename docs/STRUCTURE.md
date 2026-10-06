@@ -159,6 +159,7 @@ Go source wins on conflict. See [UNDOCUMENTED.md](UNDOCUMENTED.md) for known gap
 make build
 make test
 make lint
+make check   # vet + race tests + lint + govulncheck (what CI runs)
 ```
 
 Smoke: `rex` (TUI), `rex status`, `rex-daemon -version`.

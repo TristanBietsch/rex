@@ -107,10 +107,20 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	}
 
 	if s.cfg.InputCh != nil {
+		// InputCh is never closed (the server only unregisters it), so the
+		// forwarder must stop with Run or it leaks one goroutine per session.
+		inputDone := make(chan struct{})
+		defer close(inputDone)
 		go func() {
-			for b := range s.cfg.InputCh {
-				if _, err := f.Write(b); err != nil {
+			for {
+				select {
+				case <-inputDone:
 					return
+				case b := <-s.cfg.InputCh:
+					if _, err := f.Write(b); err != nil {
+						slog.Debug("pty: input write failed; forwarder exiting", "session", sess.ID, "err", err)
+						return
+					}
 				}
 			}
 		}()

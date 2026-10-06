@@ -1,7 +1,13 @@
-.PHONY: build build-all test lint clean install uninstall bench bench-integration bench-profile bench-check
+.PHONY: build build-all test test-race vet lint vuln check clean install uninstall bench bench-integration bench-profile bench-check
 
 # PREFIX is where binaries are installed (override with `make install PREFIX=...`).
 PREFIX ?= $(HOME)/.local
+
+# Lint tools run via `go run` at pinned versions so they're built with the
+# repo's Go toolchain (a golangci-lint built with an older Go can't read this
+# toolchain's export data).
+GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
 build: build-all
 
@@ -27,8 +33,20 @@ uninstall:
 test:
 	go test ./...
 
+test-race:
+	go test -race ./...
+
+vet:
+	go vet ./...
+
 lint:
-	golangci-lint run
+	$(GOLANGCI_LINT) run ./...
+
+vuln:
+	$(GOVULNCHECK) ./...
+
+# check is the pre-release gate: vet, race-enabled tests, lint, known vulns.
+check: vet test-race lint vuln
 
 clean:
 	rm -f rex-daemon rex

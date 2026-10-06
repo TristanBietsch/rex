@@ -168,7 +168,7 @@ func renderHistogram(labels []string, counts []int) string {
 		n := counts[i]
 		filled := n * barWidth / maxCount
 		bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-		sb.WriteString(fmt.Sprintf("  %-8s %s %d\n", label, styleDim.Render(bar), n))
+		fmt.Fprintf(&sb, "  %-8s %s %d\n", label, styleDim.Render(bar), n)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

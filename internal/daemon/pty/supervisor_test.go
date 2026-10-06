@@ -490,3 +490,30 @@ func TestSupervisor_PassesEnvToChild(t *testing.T) {
 	tail, _ := state.TranscriptTail(stateDir, "env1", 1024)
 	require.Contains(t, string(tail), "env=hello-env")
 }
+
+// The input forwarder must stop with Run: InputCh is never closed, so a
+// forwarder that outlives its session leaks a goroutine per session.
+func TestSupervisor_InputForwarderStopsWithRun(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "in1", ShortID: "in1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+	in := make(chan []byte, 1)
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sh", "-c", "exit 0"},
+		InputCh:  in,
+		IdleTick: 10 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+
+	time.Sleep(50 * time.Millisecond) // let the forwarder observe shutdown
+	in <- []byte("late")
+	time.Sleep(100 * time.Millisecond)
+	require.Len(t, in, 1, "a live forwarder consumed input after Run returned")
+}

@@ -1,37 +1,49 @@
-run:
-  timeout: 5m
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
     - govet
-    - staticcheck
-    - revive
     - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - unparam
     - unused
+    - whitespace
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: error-return
+        - name: error-naming
+        - name: unused-parameter
+          disabled: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - unparam
+        path: _test\.go
+      - linters:
+          - unparam
+        path: internal/surface/tui/
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
     - gofmt
     - goimports
-    - misspell
-    - unparam
-    - whitespace
-
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-      - name: error-return
-      - name: error-naming
-      - name: unused-parameter
-        disabled: true
-
-issues:
-  exclude-rules:
-    # Test helpers often keep parameters for documentation or future assertions.
-    - path: _test\.go
-      linters:
-        - unparam
-    # Bubble Tea Update handlers and wizard render steps use uniform signatures by design.
-    - path: internal/surface/tui/
-      linters:
-        - unparam
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
