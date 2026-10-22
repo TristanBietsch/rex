@@ -347,16 +347,3 @@ func TestBoardMouse_FilterChipClick(t *testing.T) {
 		require.Equal(t, m.Filter, got.Filter)
 	}
 }
-
-func TestBoardMouse_NewAgentClickOpensWizard(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // no tools.yaml: openWizard reports it
-	m := scrollModel(t, 3, "normal", 30)
-	x := headerX(t, m, 1, "+ new agent")
-	got, _ := updateMouse(m, click(x+3, 1))
-	require.True(t, got.Focus == FocusWizard || strings.HasPrefix(got.Err, "wizard:"), "focus %v err %q", got.Focus, got.Err)
-
-	// Elsewhere on the top row does nothing.
-	got, _ = updateMouse(m, click(x-2, 1))
-	require.Equal(t, FocusBoard, got.Focus)
-	require.Empty(t, got.Err)
-}

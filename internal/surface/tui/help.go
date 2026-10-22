@@ -19,7 +19,7 @@ func renderHelp() string {
 		"  t             cycle tool filter",
 		"",
 		styleSlug.Render("Mouse (mouse_enabled)"),
-		"  click         select row · filter chip · + new agent",
+		"  click         select row · filter chip",
 		"  double-click  attach to row",
 		"  wheel         move row selection",
 		"  hold ⌥ / ⇧    select text natively (iTerm2 · Ghostty/kitty)",

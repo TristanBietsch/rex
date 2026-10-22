@@ -89,7 +89,6 @@ var (
 
 	styleStateFailed lipgloss.Style
 
-	styleNewBtn     lipgloss.Style
 	styleChipActive lipgloss.Style
 	styleChipDim    lipgloss.Style
 	styleChipSep    lipgloss.Style
@@ -143,7 +142,6 @@ func rebuildStyles() {
 
 	styleStateFailed = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
 
-	styleNewBtn = lipgloss.NewStyle().Foreground(colorFgDim)
 	styleChipActive = lipgloss.NewStyle().Foreground(colorFgPrimary)
 	styleChipDim = lipgloss.NewStyle().Foreground(colorFgDim)
 	styleChipSep = lipgloss.NewStyle().Foreground(colorFgMuted)

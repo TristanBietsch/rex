@@ -79,7 +79,6 @@ With `mouse_enabled` on (the default) rex captures the mouse once the board is u
 | Double-click a row | Attach (same as `enter`) |
 | Wheel up / down | Move the selection (same as `k` / `j`); the board scrolls with it |
 | Click a filter chip | Set that tool filter |
-| Click `+ new agent` | New-session wizard |
 
 Overlays (help, settings, stats, wizard, failures) and bottom-bar prompts swallow mouse events, so a click never changes the selection behind them; in settings the wheel moves the cursor.
 

@@ -11,8 +11,7 @@ import (
 
 // Board mouse support. While mouse_enabled is on, rex captures the mouse from
 // the board handoff onward: a click selects a row, a double-click opens it, the
-// wheel moves the selection, and clicks on the filter chips / "+ new agent"
-// act like t / n. The attach popup shares the same capture (attach_mouse.go).
+// wheel moves the selection, and clicks on the filter chips act like t. The attach popup shares the same capture (attach_mouse.go).
 // Capturing means the terminal no longer does native text selection; users
 // hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) to bypass it.
 
@@ -93,14 +92,9 @@ func updateBoardMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 		return clickRow(m, id)
 	}
 	m.lastClickID = ""
-	filter, newAgent := headerHitAt(m, msg.X, msg.Y)
-	switch {
-	case filter != "":
+	if filter := headerHitAt(m, msg.X, msg.Y); filter != "" {
 		slog.Debug("tui: mouse click on filter chip", "filter", filter)
 		return setFilter(m, filter), nil
-	case newAgent:
-		slog.Debug("tui: mouse click on new agent")
-		return openWizard(m)
 	}
 	return m, nil
 }
@@ -154,13 +148,13 @@ func sessionAtScreenRow(m Model, y int) string {
 	return slots[line].sess.ID
 }
 
-// headerHitAt hit-tests the header (screen rows 1–2, see renderFullScreen):
-// a filter chip returns its tool id, the "+ new agent" button newAgent. It
-// searches the rendered header text, so it can't drift from the layout.
-func headerHitAt(m Model, x, y int) (filter string, newAgent bool) {
+// headerHitAt hit-tests the header chip row (screen row 2, see
+// renderFullScreen): a filter chip returns its tool id. It searches the
+// rendered header text, so it can't drift from the layout.
+func headerHitAt(m Model, x, y int) string {
 	row := y - 1
-	if row < 0 || row > 1 {
-		return "", false
+	if row != 1 {
+		return ""
 	}
 	w := m.Width
 	if w <= 0 {
@@ -168,25 +162,21 @@ func headerHitAt(m Model, x, y int) (filter string, newAgent bool) {
 	}
 	lines := strings.Split(renderHeader(m, contentWidth(w)), "\n")
 	if row >= len(lines) {
-		return "", false
+		return ""
 	}
 	line := ansi.Strip(lines[row])
-	if row == 0 {
-		lo, hi, _, ok := cellSpan(line, "+ new agent", 0)
-		return "", ok && x >= lo && x < hi
-	}
 	from := 0
 	for _, t := range filterTools {
 		lo, hi, next, ok := cellSpan(line, t, from)
 		if !ok {
-			return "", false
+			return ""
 		}
 		if x >= lo && x < hi {
-			return t, false
+			return t
 		}
 		from = next
 	}
-	return "", false
+	return ""
 }
 
 // cellSpan finds needle in line at or after byte offset from and returns its

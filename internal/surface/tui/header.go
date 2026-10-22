@@ -3,12 +3,10 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss"
-
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// renderHeader renders the two-line header (logo+counts+button row, chips row),
+// renderHeader renders the two-line header (logo+counts row, chips row),
 // padded to `width` columns.
 func renderHeader(m Model, width int) string {
 	var working, needsInput, done, failed, crashed int
@@ -39,17 +37,7 @@ func renderHeader(m Model, width int) string {
 	if marked > 0 {
 		counts += styleDim.Render(fmt.Sprintf("  · ✓%d marked done", marked))
 	}
-	left := logo + counts
-	right := styleNewBtn.Render("+ new agent")
-
-	leftW := lipgloss.Width(left)
-	rightW := lipgloss.Width(right)
-	gap := width - leftW - rightW - 4
-	if gap < 1 {
-		gap = 1
-	}
-	spacer := repeatRune(' ', gap)
-	topRow := "  " + left + spacer + right
+	topRow := "  " + logo + counts
 
 	chips := renderFilterChips(m)
 	chipRow := padLine("  "+chips, width)
@@ -120,15 +108,4 @@ func renderFilterChips(m Model) string {
 		}
 	}
 	return out
-}
-
-func repeatRune(r rune, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = r
-	}
-	return string(b)
 }
