@@ -58,6 +58,11 @@ type SessionSummary struct {
 	// marked. Orthogonal to State: a retiring session can still be working.
 	RetireAt time.Time `json:"retire_at,omitzero"`
 
+	// RetiredAt is when the user marked the session done. Zero when not
+	// marked, or when the mark predates this field (older persisted state);
+	// clients then show the mark without a time.
+	RetiredAt time.Time `json:"retired_at,omitzero"`
+
 	// WorkingSince is when the current uninterrupted working stretch began.
 	// Zero unless State is working. Drives the long-running badge.
 	WorkingSince time.Time `json:"working_since,omitzero"`

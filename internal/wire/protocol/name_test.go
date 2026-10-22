@@ -57,12 +57,13 @@ func TestSessionSummary_NewFieldsOmittedWhenZero(t *testing.T) {
 	require.NotContains(t, s, `"name"`)
 
 	at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	b, err = json.Marshal(SessionSummary{ID: "x", Name: "n", RetireAt: at})
+	b, err = json.Marshal(SessionSummary{ID: "x", Name: "n", RetireAt: at, RetiredAt: at})
 	require.NoError(t, err)
 	var back SessionSummary
 	require.NoError(t, json.Unmarshal(b, &back))
 	require.Equal(t, "n", back.Name)
 	require.True(t, at.Equal(back.RetireAt))
+	require.True(t, at.Equal(back.RetiredAt))
 }
 
 func TestSetSessionName_ClearIsExplicit(t *testing.T) {

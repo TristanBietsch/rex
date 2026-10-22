@@ -88,11 +88,11 @@ Store broadcasts are gated until `Hello` completes on that connection.
 
 ### SessionSummary fields
 
-`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `working_since` (start of the current working stretch; omitted unless working).
+`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `retired_at` (RFC 3339; when the session was marked done; omitted when not marked and for marks persisted before the field existed), `working_since` (start of the current working stretch; omitted unless working).
 
 `last_event_at` is the last real activity — a state change, a new screen line, or the child's exit; stats and digest treat it as a finished session's end. Metadata edits (`rename`, fleet, `name`, retire, AI `description`) leave it unchanged and their patches omit it.
 
-Patches for `name` always carry the key (`""` = cleared). Patches for `retire_at` and `working_since` send `null` to clear.
+Patches for `name` always carry the key (`""` = cleared). Patches for `retire_at`, `retired_at` and `working_since` send `null` to clear; a mark patches `retire_at` and `retired_at` together.
 
 On disk the same shape is stored in `meta.json`. See [paths.md](paths.md).
 

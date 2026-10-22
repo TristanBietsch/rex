@@ -32,7 +32,7 @@ Small row column (`▴42m`) on sessions that have been `working` without a break
 
 ## mark done
 
-User action (`c`, `rex done`) that schedules a session to be cleared after `retire_after_hours` without stopping it. Called **retire** on the wire (`Retire` / `retire_at`) to keep it distinct from the `done` state. Typing into the session cancels it.
+User action (`c`, `rex done`) that schedules a session to be cleared after `retire_after_hours` without stopping it. Called **retire** on the wire (`Retire` / `retire_at`) to keep it distinct from the `done` state. Typing into the session cancels it. The board moves a marked session to Completed with a `done <time>` badge (`retired_at` on the wire).
 
 ## name
 

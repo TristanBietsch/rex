@@ -14,7 +14,7 @@ rex
 
 ## DESCRIPTION
 
-Three columns group sessions: **Needs input**, **Working**, and **Completed** (includes `done`, `failed`, `crashed`). A header shows aggregate counts. A tool filter chip cycles with `t`. The bottom prompt (`λ` by default) accepts quick-spawn text.
+Three columns group sessions: **Needs input**, **Working**, and **Completed** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). A header shows aggregate counts. A tool filter chip cycles with `t`. The bottom prompt (`λ` by default) accepts quick-spawn text.
 
 The daemon auto-starts if the socket is unreachable (boot splash).
 
@@ -31,7 +31,7 @@ Each session row, left to right:
 - The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
 - **last event** is right-aligned against the edge; `-` means no event yet.
 - The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
-- On narrow terminals, columns give way in this order until the description has 20 columns: tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, badge is hidden. After that the description shrinks, then the name.
+- On narrow terminals, columns give way in this order until the description has 20 columns: tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), done badge is hidden, model is hidden, long-run badge is hidden. After that the description shrinks, then the name.
 
 ## FOCUS MODES
 
@@ -135,11 +135,12 @@ Line-oriented agents (ollama, echo) are attached with transcript replay, so thei
 
 ## MARK DONE
 
-`c` marks the selected session done **without stopping it**. The row dims and shows `✓ clears in 6d`; the header shows `✓N marked done`. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
+`c` marks the selected session done **without stopping it**. The row dims, moves to **Completed** whatever its live state, and shows a **done badge** with the time it was marked (`done 14:32` today, `done Oct 21` otherwise; plain `done` for marks made before the daemon recorded the time). The header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
 - `c` again undoes the mark.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.
-- A session still **working** at the deadline is not cleared; the row reads `✓ clears when idle` and it is cleared as soon as it settles.
+- A session still **working** at the deadline is not cleared; it is cleared as soon as it settles (the attach footer reads `clears when idle`).
+- `c` again moves the row back to the column its live state belongs to.
 - The deadline is stored by the daemon, so it survives TUI exit and daemon restarts. A deadline that passed while the daemon was down is cleared on the next start.
 - `C` (or `:complete`) is the old immediate behavior: kill now, keep the row as done.
 

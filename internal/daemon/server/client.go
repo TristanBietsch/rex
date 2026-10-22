@@ -316,7 +316,8 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
-			changed, err := srv.cfg.Store.SetRetire(p.SessionID, at)
+			markedAt := srv.now().Round(0).UTC()
+			changed, err := srv.cfg.Store.SetRetire(p.SessionID, at, markedAt)
 			if err != nil {
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
@@ -325,10 +326,10 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				slog.Debug("retire: already marked; no-op", "session", p.SessionID)
 				continue
 			}
-			srv.commit(sess, map[string]any{"retire_at": at})
+			srv.commit(sess, map[string]any{"retire_at": at, "retired_at": markedAt})
 			sum := sess.Summary()
 			slog.Info("retire: marked", "session", p.SessionID, "slug", sum.Slug, "state", sum.State,
-				"ttl_s", int64(ttl.Seconds()), "retire_at", at)
+				"ttl_s", int64(ttl.Seconds()), "retire_at", at, "retired_at", markedAt)
 
 		case protocol.IntentUnretire:
 			var p protocol.Unretire
@@ -357,7 +358,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				continue
 			}
 			if changed {
-				srv.commit(sess, map[string]any{"retire_at": nil})
+				srv.commit(sess, map[string]any{"retire_at": nil, "retired_at": nil})
 				slog.Info("retire: unmarked", "session", p.SessionID, "cause", "user", "remaining_s", int64(remaining.Seconds()))
 			}
 

@@ -209,5 +209,8 @@ func summaryToTable(L *lua.LState, s protocol.SessionSummary) *lua.LTable {
 	if !s.RetireAt.IsZero() {
 		L.SetField(t, "retire_at", lua.LNumber(s.RetireAt.Unix()))
 	}
+	if !s.RetiredAt.IsZero() {
+		L.SetField(t, "retired_at", lua.LNumber(s.RetiredAt.Unix()))
+	}
 	return t
 }

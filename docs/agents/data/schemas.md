@@ -33,6 +33,8 @@ Codec: `internal/wire/protocol/codec.go`.
 | Description | `description` | string | optional; from summarizer |
 | ExitCode | `exit_code` | int | optional pointer |
 | Tokens | `tokens` | int64 | optional; heuristic |
+| RetireAt | `retire_at` | RFC3339 time | optional; when a marked-done session gets cleared |
+| RetiredAt | `retired_at` | RFC3339 time | optional; when the session was marked done (absent on legacy marks); drives the board `done <time>` badge |
 | OutputBytes | `output_bytes` | int64 | optional | |
 | Fleet | `fleet` | string | optional |
 

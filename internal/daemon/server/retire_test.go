@@ -154,7 +154,7 @@ func TestSweep_WorkingSessionWaitsUntilSettled(t *testing.T) {
 	s.State = protocol.StateNeedsInput
 	e := startRetireServer(t, s)
 	require.NoError(t, e.store.Transition("busy", protocol.StateWorking))
-	_, err := e.store.SetRetire("busy", e.clock.Now().Add(-time.Minute))
+	_, err := e.store.SetRetire("busy", e.clock.Now().Add(-time.Minute), time.Time{})
 	require.NoError(t, err)
 
 	e.srv.sweepRetired()
@@ -191,12 +191,13 @@ func TestRetire_DefaultTTLAndPersisted(t *testing.T) {
 	meta, err := state.LoadMeta(e.dir, "a")
 	require.NoError(t, err)
 	require.True(t, e.clock.Now().Add(DefaultRetireTTL).Equal(meta.RetireAt))
+	require.True(t, e.clock.Now().Equal(meta.RetiredAt), "mark time persisted")
 }
 
 func TestUnretire_AfterClaim_BadState(t *testing.T) {
 	e := startRetireServer(t, doneSession("a"))
 	conn, w, r := e.dial(t)
-	_, err := e.store.SetRetire("a", e.clock.Now().Add(-time.Second))
+	_, err := e.store.SetRetire("a", e.clock.Now().Add(-time.Second), time.Time{})
 	require.NoError(t, err)
 	claimed, _ := e.store.ClaimExpired(e.clock.Now())
 	require.Len(t, claimed, 1)
@@ -251,7 +252,7 @@ func TestSweep_LiveSession_KilledWithoutFailedPatch(t *testing.T) {
 	},
 		5*time.Second, 50*time.Millisecond, "echo/prompt should settle to needs_input")
 
-	_, err := e.store.SetRetire(id, e.clock.Now().Add(-time.Second))
+	_, err := e.store.SetRetire(id, e.clock.Now().Add(-time.Second), time.Time{})
 	require.NoError(t, err)
 	e.srv.sweepRetired()
 

@@ -162,7 +162,7 @@ func (s *Server) cancelRetireOnInput(id, via string) {
 		return
 	}
 	slog.Info("retire: unmarked", "session", id, "cause", "input", "via", via)
-	s.commit(sess, map[string]any{"retire_at": nil})
+	s.commit(sess, map[string]any{"retire_at": nil, "retired_at": nil})
 }
 
 // commit persists a session's meta and then broadcasts patch, so a client

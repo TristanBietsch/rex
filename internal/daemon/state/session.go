@@ -41,6 +41,10 @@ type Session struct {
 	// RetireAt is when a marked-done session gets cleared (zero = not marked).
 	RetireAt time.Time
 
+	// RetiredAt is when the user marked it done (zero = not marked, or a
+	// legacy mark persisted before this field existed).
+	RetiredAt time.Time
+
 	// WorkingSince is when the current working stretch began (zero unless
 	// State is working). Maintained by Store.Transition.
 	WorkingSince time.Time
@@ -85,6 +89,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		Fleet:        s.Fleet,
 		Name:         s.Name,
 		RetireAt:     s.RetireAt,
+		RetiredAt:    s.RetiredAt,
 		WorkingSince: s.WorkingSince,
 	}
 }

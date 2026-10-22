@@ -17,17 +17,27 @@ import (
 // in sync. Adding a new state means updating exactly one place.
 type boardGroup struct {
 	Title string
-	Match func(protocol.State) bool
+	Match func(protocol.SessionSummary) bool
 }
 
+// isMarkedDone reports whether the user marked the session done (it then
+// lives in Completed whatever its live state).
+func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() }
+
 // boardGroups is the canonical kanban layout. Completed includes all terminal
-// states (done/failed/crashed); distinct markers (●/✕/○) preserve the
-// at-a-glance distinction within the column.
+// states (done/failed/crashed) plus every session the user marked done,
+// whatever its live state; distinct markers (●/✕/○) preserve the at-a-glance
+// distinction within the column.
 var boardGroups = []boardGroup{
-	{"Needs input", func(s protocol.State) bool { return s == protocol.StateNeedsInput }},
-	{"Working", func(s protocol.State) bool { return s == protocol.StateWorking }},
-	{"Completed", func(s protocol.State) bool {
-		return s == protocol.StateDone || s == protocol.StateFailed || s == protocol.StateCrashed
+	{"Needs input", func(s protocol.SessionSummary) bool {
+		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
+	}},
+	{"Working", func(s protocol.SessionSummary) bool {
+		return !isMarkedDone(s) && s.State == protocol.StateWorking
+	}},
+	{"Completed", func(s protocol.SessionSummary) bool {
+		return isMarkedDone(s) || s.State == protocol.StateDone ||
+			s.State == protocol.StateFailed || s.State == protocol.StateCrashed
 	}},
 }
 
@@ -35,7 +45,7 @@ var boardGroups = []boardGroup{
 func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter string) []protocol.SessionSummary {
 	out := make([]protocol.SessionSummary, 0, len(sessions))
 	for _, s := range sessions {
-		if !g.Match(s.State) {
+		if !g.Match(s) {
 			continue
 		}
 		if filter != "all" && filter != "" && s.ToolID != filter {
@@ -57,7 +67,7 @@ func partitionSessions(sessions []protocol.SessionSummary, filter string) [][]pr
 			continue
 		}
 		for i, g := range boardGroups {
-			if g.Match(s.State) {
+			if g.Match(s) {
 				out[i] = append(out[i], s)
 				break
 			}
@@ -226,11 +236,11 @@ func renderBoard(m Model, width, height int) string {
 
 // Row grid. Left to right:
 //
-//	indent marker  id  name  description  model·effort  tokens  badge  time
+//	indent marker  id  name  description  model·effort  tokens  run-badge  done-badge  time
 //
 // indent, marker, id and time are fixed. name, model and tokens are sized to
-// the widest value among the rendered rows (capped), the long-run badge
-// column only exists while some row has a badge, and the description takes
+// the widest value among the rendered rows (capped), the long-run and
+// done badge columns only exist while some row has such a badge, and the description takes
 // whatever is left. Every row is exactly the board width.
 const (
 	colMarker = 1
@@ -252,13 +262,13 @@ const (
 // rowCols holds the per-frame column widths. 0 hides model, tokens and run
 // (no cell, no gap).
 type rowCols struct {
-	slug, desc, model, tokens, run int
+	slug, desc, model, tokens, run, done int
 }
 
 // used is the row width of everything except the description cell.
 func (c rowCols) used() int {
 	w := rowIndent + colMarker + colGap + colID + colGap + c.slug + colGap + colGap + colTime
-	for _, x := range []int{c.model, c.tokens, c.run} {
+	for _, x := range []int{c.model, c.tokens, c.run, c.done} {
 		if x > 0 {
 			w += colGap + x
 		}
@@ -284,7 +294,8 @@ func layoutSlots(slots []boardSlot, now time.Time, width int) rowCols {
 
 // layoutRows sizes columns to content, then degrades for narrow widths in a
 // fixed order until the description gets descMin: drop tokens, shrink model
-// (to modelMin), shrink name (to slugMin), drop model, drop badge. Below that
+// (to modelMin), shrink name (to slugMin), drop done badge, drop model, drop long-run
+// badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
 func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCols {
 	var c rowCols
@@ -296,6 +307,9 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCol
 		}
 		if longRunTier(now, s) >= 0 {
 			c.run = colRun
+		}
+		if isMarkedDone(s) {
+			c.done = max(c.done, ansi.StringWidth(doneBadgeText(now, s))+2) // +2: badge padding
 		}
 	}
 	c.slug = min(c.slug, colSlug)
@@ -313,6 +327,7 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCol
 		func() { c.tokens = 0 },
 		func() { shrink(&c.model, modelMin) },
 		func() { shrink(&c.slug, slugMin) },
+		func() { c.done = 0 },
 		func() { c.model = 0 },
 		func() { c.run = 0 },
 	}
@@ -354,7 +369,7 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	dim := lipgloss.NewStyle().Foreground(colorFgDim)
 	marker := stateMarkerCellFor(m, s.State, m.SpinnerTick, false)
 	id := cell(lipgloss.NewStyle().Foreground(colorFgMuted), s.ShortID, colID)
-	// A marked-done row recedes: muted name, countdown ahead of the desc.
+	// A marked-done row recedes: muted name and description.
 	slugStyle := lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
 	if retiring && !selected {
 		slugStyle = dim
@@ -369,9 +384,6 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	descSource := rowDescription(s)
 	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
 		descSource = renderAnimFrame(anim, c.desc, now)
-	}
-	if lbl := retireLabel(now, s); lbl != "" {
-		descSource = lbl + " · " + descSource
 	}
 	desc := cell(lipgloss.NewStyle().Foreground(descColor), descSource, c.desc)
 
@@ -392,6 +404,9 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	}
 	if c.run > 0 {
 		b.WriteString(gap + cell(lipgloss.NewStyle(), longRunBadge(now, s), c.run))
+	}
+	if c.done > 0 {
+		b.WriteString(gap + cell(lipgloss.NewStyle(), doneBadge(now, s), c.done))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
 	row := b.String()

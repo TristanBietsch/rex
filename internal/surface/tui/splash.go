@@ -221,9 +221,6 @@ func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	if m, c = armSpinner(m); c != nil {
 		cmds = append(cmds, c)
 	}
-	if m, c = armRetireTick(m); c != nil {
-		cmds = append(cmds, c)
-	}
 	if m.Client != nil {
 		cmds = append(cmds, listenDaemon(m.Client))
 	}

@@ -278,10 +278,11 @@ func (s *Store) SetName(id, name string) (changed bool, err error) {
 	return changed, nil
 }
 
-// SetRetire marks a session to be cleared at at. If it is already marked the
-// original deadline is kept and changed is false. Like SetName it does not
-// broadcast; the caller persists then broadcasts {"retire_at": at}.
-func (s *Store) SetRetire(id string, at time.Time) (changed bool, err error) {
+// SetRetire marks a session done at markedAt, to be cleared at at. If it is
+// already marked the original deadline is kept and changed is false. Like
+// SetName it does not broadcast; the caller persists then broadcasts
+// {"retire_at": at, "retired_at": markedAt}.
+func (s *Store) SetRetire(id string, at, markedAt time.Time) (changed bool, err error) {
 	sess, ok := s.Get(id)
 	if !ok {
 		return false, fmt.Errorf("session %s not found", id)
@@ -292,13 +293,14 @@ func (s *Store) SetRetire(id string, at time.Time) (changed bool, err error) {
 		return false, nil
 	}
 	sess.RetireAt = at
+	sess.RetiredAt = markedAt
 	sess.mu.Unlock()
 	return true, nil
 }
 
 // ClearRetire cancels a pending retire. Returns ErrReaping when the sweep has
 // already claimed the session, and changed=false when it wasn't marked. The
-// caller persists then broadcasts {"retire_at": nil}.
+// caller persists then broadcasts {"retire_at": nil, "retired_at": nil}.
 func (s *Store) ClearRetire(id string) (changed bool, err error) {
 	sess, ok := s.Get(id)
 	if !ok {
@@ -314,6 +316,7 @@ func (s *Store) ClearRetire(id string) (changed bool, err error) {
 		return false, nil
 	}
 	sess.RetireAt = time.Time{}
+	sess.RetiredAt = time.Time{}
 	sess.mu.Unlock()
 	return true, nil
 }

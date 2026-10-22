@@ -254,7 +254,7 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 		State: sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
 		LastLine: sum.LastLine, Description: sum.Description, ExitCode: sum.ExitCode,
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
-		Fleet: sum.Fleet, Name: sum.Name, RetireAt: sum.RetireAt,
+		Fleet: sum.Fleet, Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
 		WorkingSince: sum.WorkingSince,
 	}
 }

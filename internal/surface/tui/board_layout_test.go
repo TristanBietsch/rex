@@ -31,7 +31,7 @@ func layoutSessions(now time.Time) []protocol.SessionSummary {
 			State: protocol.StateWorking, WorkingSince: now.Add(-7 * time.Hour), LastEventAt: now.Add(-2 * time.Hour)},
 		{ID: "5", ShortID: "2b7e", ToolID: "claude", ModelID: "haiku",
 			Slug: "test-coverage", Description: "billing/ from 61% → 92% — PR #408 merged",
-			State: protocol.StateDone, RetireAt: now.Add(4 * time.Minute), LastEventAt: now.Add(-9 * 24 * time.Hour)},
+			State: protocol.StateDone, RetireAt: now.Add(4 * time.Minute), RetiredAt: now.Add(-3 * time.Hour), LastEventAt: now.Add(-9 * 24 * time.Hour)},
 		{ID: "6", ShortID: "aa01", ToolID: "claude", Slug: "no-model", Title: "boot", State: protocol.StateFailed},
 	}
 }
@@ -131,7 +131,8 @@ func TestBoardLayout_WideShowsEverything(t *testing.T) {
 	require.Contains(t, rows["2"], "11m")
 	require.Contains(t, rows["3"], "日本語")
 	require.Contains(t, rows["4"], "▴7h")
-	require.Contains(t, rows["5"], "✓ clears in 4m")
+	require.Contains(t, rows["5"], "done 09:00")
+	require.NotContains(t, rows["5"], "clears")
 	require.True(t, strings.HasSuffix(rows["6"], "-"), "zero time renders as -")
 }
 

@@ -84,7 +84,8 @@ func retireToggleCmd(r sessionRetirer, id string, retiring bool, ttl time.Durati
 	}
 }
 
-// retireLabel is the countdown shown on a marked row.
+// retireLabel is the clear countdown shown in the attach footer (the board
+// row shows the done badge instead).
 func retireLabel(now time.Time, s protocol.SessionSummary) string {
 	if s.RetireAt.IsZero() {
 		return ""
@@ -92,11 +93,35 @@ func retireLabel(now time.Time, s protocol.SessionSummary) string {
 	left := s.RetireAt.Sub(now)
 	if left <= 0 {
 		if s.State == protocol.StateWorking || s.State == protocol.StateQueued {
-			return "✓ clears when idle"
+			return "marked done · clears when idle"
 		}
-		return "✓ clearing…"
+		return "marked done · clearing…"
 	}
-	return "✓ clears in " + shortDuration(left)
+	return "marked done · clears in " + shortDuration(left)
+}
+
+// doneBadgeText is the unpadded badge label for a marked-done session: the
+// clock time when marked today, else a short date. Marks that predate the
+// RetiredAt field have no time and read just "done".
+func doneBadgeText(now time.Time, s protocol.SessionSummary) string {
+	if s.RetiredAt.IsZero() {
+		return "done"
+	}
+	t := s.RetiredAt.In(now.Location())
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return "done " + t.Format("15:04")
+	}
+	return "done " + t.Format("Jan 2")
+}
+
+// doneBadge renders the marked-done badge: padded text on an elevated
+// background, in the done color. Empty for unmarked sessions.
+func doneBadge(now time.Time, s protocol.SessionSummary) string {
+	if !isMarkedDone(s) {
+		return ""
+	}
+	return lipgloss.NewStyle().Foreground(colorDone).Background(colorBgElev).
+		Render(" " + doneBadgeText(now, s) + " ")
 }
 
 // shortDuration renders d with one unit: 45s, 12m, 5h, 6d.
@@ -149,31 +174,6 @@ func longRunBadge(now time.Time, s protocol.SessionSummary) string {
 		return ""
 	}
 	return longRunTiers[tier].style().Render("▴" + shortDuration(now.Sub(s.WorkingSince)))
-}
-
-// retireTickMsg re-renders countdowns once a second while any row is marked.
-type retireTickMsg struct{}
-
-func scheduleRetireTick() tea.Cmd {
-	return tea.Tick(time.Second, func(time.Time) tea.Msg { return retireTickMsg{} })
-}
-
-func (m Model) hasRetiringSessions() bool {
-	for _, s := range m.Sessions {
-		if !s.RetireAt.IsZero() {
-			return true
-		}
-	}
-	return false
-}
-
-// armRetireTick starts the countdown tick if needed and not already running.
-func armRetireTick(m Model) (Model, tea.Cmd) {
-	if m.retireTickPending || !m.hasRetiringSessions() {
-		return m, nil
-	}
-	m.retireTickPending = true
-	return m, scheduleRetireTick()
 }
 
 // displayName is the name column text: the user's label, else the slug.

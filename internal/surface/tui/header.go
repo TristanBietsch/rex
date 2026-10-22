@@ -11,6 +11,10 @@ import (
 func renderHeader(m Model, width int) string {
 	var working, needsInput, done, failed, crashed int
 	for _, s := range m.Sessions {
+		if isMarkedDone(s) { // lives in Completed whatever its state
+			done++
+			continue
+		}
 		switch s.State {
 		case protocol.StateWorking:
 			working++
@@ -35,7 +39,7 @@ func renderHeader(m Model, width int) string {
 	logo := styleHeaderApp.Render("∴ REX")
 	counts := renderHeaderCounts(m, needsInput, working, done, failed+crashed)
 	if marked > 0 {
-		counts += styleDim.Render(fmt.Sprintf("  · ✓%d marked done", marked))
+		counts += styleDim.Render(fmt.Sprintf("  · %d marked done", marked))
 	}
 	topRow := "  " + logo + counts
 

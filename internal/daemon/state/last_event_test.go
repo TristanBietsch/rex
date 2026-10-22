@@ -37,7 +37,10 @@ func TestStore_MetadataEditsLeaveLastEventAt(t *testing.T) {
 		{"clear fleet", func(s *Store, id string) error { return s.SetFleet(id, "") }},
 		{"description", func(s *Store, id string) error { return s.UpdateDescription(id, "wrapped up the refactor") }},
 		{"name", func(s *Store, id string) error { _, err := s.SetName(id, "api"); return err }},
-		{"retire", func(s *Store, id string) error { _, err := s.SetRetire(id, time.Now().Add(time.Hour)); return err }},
+		{"retire", func(s *Store, id string) error {
+			_, err := s.SetRetire(id, time.Now().Add(time.Hour), time.Time{})
+			return err
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -44,27 +44,29 @@ func TestStore_SetRetire_BroadcastsOnce_KeepsOriginalDeadline(t *testing.T) {
 	defer cancel()
 
 	first := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	changed, err := s.SetRetire("a", first)
+	changed, err := s.SetRetire("a", first, first.Add(-time.Hour))
 	require.NoError(t, err)
 	require.True(t, changed)
-	changed, err = s.SetRetire("a", first.Add(time.Hour))
+	changed, err = s.SetRetire("a", first.Add(time.Hour), time.Time{})
 	require.NoError(t, err)
 	require.False(t, changed)
 
 	sess, _ := s.Get("a")
 	require.True(t, first.Equal(sess.Summary().RetireAt))
+	require.True(t, first.Add(-time.Hour).Equal(sess.Summary().RetiredAt))
 	require.Empty(t, events(), "callers persist then broadcast")
 }
 
 func TestStore_ClearRetire(t *testing.T) {
 	s := NewStore()
 	sess := addSession(t, s, "a", protocol.StateDone)
-	_, _ = s.SetRetire("a", time.Now().Add(time.Hour))
+	_, _ = s.SetRetire("a", time.Now().Add(time.Hour), time.Time{})
 
 	changed, err := s.ClearRetire("a")
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.True(t, sess.Summary().RetireAt.IsZero())
+	require.True(t, sess.Summary().RetiredAt.IsZero())
 
 	changed, err = s.ClearRetire("a")
 	require.NoError(t, err)
@@ -78,9 +80,9 @@ func TestStore_ClaimExpired_BoundaryOnceAndBusyWaits(t *testing.T) {
 	addSession(t, s, "future", protocol.StateDone)
 	addSession(t, s, "busy", protocol.StateNeedsInput)
 	addSession(t, s, "unmarked", protocol.StateDone)
-	_, _ = s.SetRetire("due", now) // deadline == now counts as expired
-	_, _ = s.SetRetire("future", now.Add(time.Second))
-	_, _ = s.SetRetire("busy", now.Add(-time.Hour))
+	_, _ = s.SetRetire("due", now, time.Time{}) // deadline == now counts as expired
+	_, _ = s.SetRetire("future", now.Add(time.Second), time.Time{})
+	_, _ = s.SetRetire("busy", now.Add(-time.Hour), time.Time{})
 	require.NoError(t, s.Transition("busy", protocol.StateWorking))
 
 	claimed, waiting := s.ClaimExpired(now)
@@ -104,7 +106,7 @@ func TestStore_ClearRetireAfterClaim_ErrReaping(t *testing.T) {
 	s := NewStore()
 	now := time.Now()
 	addSession(t, s, "a", protocol.StateDone)
-	_, _ = s.SetRetire("a", now.Add(-time.Second))
+	_, _ = s.SetRetire("a", now.Add(-time.Second), time.Time{})
 	claimed, _ := s.ClaimExpired(now)
 	require.Len(t, claimed, 1)
 	_, err := s.ClearRetire("a")
@@ -116,7 +118,7 @@ func TestStore_ClaimVsClear_ExactlyOneWins(t *testing.T) {
 		s := NewStore()
 		now := time.Now()
 		addSession(t, s, "a", protocol.StateDone)
-		_, _ = s.SetRetire("a", now.Add(-time.Second))
+		_, _ = s.SetRetire("a", now.Add(-time.Second), time.Time{})
 		var claimedN, clearedN atomic.Int32
 		var wg sync.WaitGroup
 		wg.Add(2)

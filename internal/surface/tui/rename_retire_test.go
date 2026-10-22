@@ -168,16 +168,18 @@ func TestRetireToggle_MarkAndUndo(t *testing.T) {
 func TestApplyPatch_TimesSetAndClear(t *testing.T) {
 	s := protocol.SessionSummary{}
 	at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	raw, _ := json.Marshal(map[string]any{"retire_at": at, "working_since": at, "name": "n"})
+	raw, _ := json.Marshal(map[string]any{"retire_at": at, "retired_at": at, "working_since": at, "name": "n"})
 	var patch map[string]any
 	require.NoError(t, json.Unmarshal(raw, &patch))
 	applyPatch(&s, patch)
 	require.True(t, at.Equal(s.RetireAt))
+	require.True(t, at.Equal(s.RetiredAt))
 	require.True(t, at.Equal(s.WorkingSince))
 	require.Equal(t, "n", s.Name)
 
-	applyPatch(&s, map[string]any{"retire_at": nil, "working_since": nil, "name": ""})
+	applyPatch(&s, map[string]any{"retire_at": nil, "retired_at": nil, "working_since": nil, "name": ""})
 	require.True(t, s.RetireAt.IsZero())
+	require.True(t, s.RetiredAt.IsZero())
 	require.True(t, s.WorkingSince.IsZero())
 	require.Equal(t, "", s.Name)
 
@@ -191,11 +193,43 @@ func TestRetireLabel(t *testing.T) {
 		return protocol.SessionSummary{State: st, RetireAt: now.Add(d)}
 	}
 	require.Equal(t, "", retireLabel(now, protocol.SessionSummary{}))
-	require.Equal(t, "✓ clears in 6d", retireLabel(now, mk(6*24*time.Hour+time.Hour, protocol.StateDone)))
-	require.Equal(t, "✓ clears in 30h", retireLabel(now, mk(30*time.Hour, protocol.StateDone)))
-	require.Equal(t, "✓ clears in 4m", retireLabel(now, mk(4*time.Minute+5*time.Second, protocol.StateDone)))
-	require.Equal(t, "✓ clearing…", retireLabel(now, mk(-time.Second, protocol.StateDone)))
-	require.Equal(t, "✓ clears when idle", retireLabel(now, mk(-time.Second, protocol.StateWorking)))
+	require.Equal(t, "marked done · clears in 6d", retireLabel(now, mk(6*24*time.Hour+time.Hour, protocol.StateDone)))
+	require.Equal(t, "marked done · clears in 30h", retireLabel(now, mk(30*time.Hour, protocol.StateDone)))
+	require.Equal(t, "marked done · clears in 4m", retireLabel(now, mk(4*time.Minute+5*time.Second, protocol.StateDone)))
+	require.Equal(t, "marked done · clearing…", retireLabel(now, mk(-time.Second, protocol.StateDone)))
+	require.Equal(t, "marked done · clears when idle", retireLabel(now, mk(-time.Second, protocol.StateWorking)))
+}
+
+func TestDoneBadgeText(t *testing.T) {
+	now := time.Date(2026, 10, 22, 18, 0, 0, 0, time.UTC)
+	mk := func(at time.Time) protocol.SessionSummary {
+		return protocol.SessionSummary{RetireAt: now.Add(time.Hour), RetiredAt: at}
+	}
+	require.Equal(t, "done 14:32", doneBadgeText(now, mk(time.Date(2026, 10, 22, 14, 32, 0, 0, time.UTC))))
+	require.Equal(t, "done Oct 21", doneBadgeText(now, mk(time.Date(2026, 10, 21, 23, 59, 0, 0, time.UTC))))
+	require.Equal(t, "done Oct 22", doneBadgeText(now, mk(time.Date(2025, 10, 22, 9, 0, 0, 0, time.UTC))), "other year is not today")
+	require.Equal(t, "done", doneBadgeText(now, protocol.SessionSummary{RetireAt: now.Add(time.Hour)}), "legacy mark has no time")
+	require.Equal(t, "", doneBadge(now, protocol.SessionSummary{}))
+}
+
+func TestMarkedDone_MovesToCompleted(t *testing.T) {
+	now := time.Now()
+	m := boardModel(
+		protocol.SessionSummary{ID: "n", Slug: "n", State: protocol.StateNeedsInput},
+		protocol.SessionSummary{ID: "w", Slug: "w", State: protocol.StateWorking, RetireAt: now.Add(time.Hour), RetiredAt: now},
+		protocol.SessionSummary{ID: "d", Slug: "d", State: protocol.StateDone},
+	)
+	parts := partitionSessions(m.Sessions, "all")
+	require.Len(t, parts[0], 1)
+	require.Len(t, parts[1], 0, "marked working session leaves Working")
+	require.Len(t, parts[2], 2)
+	var ids []string
+	for _, s := range orderedSessions(m) {
+		ids = append(ids, s.ID)
+	}
+	require.Equal(t, []string{"n", "w", "d"}, ids)
+	m.Sessions[1].RetireAt = time.Time{}
+	require.Len(t, partitionSessions(m.Sessions, "all")[1], 1, "unmarking returns it to Working")
 }
 
 func TestLongRunTiers(t *testing.T) {
@@ -233,7 +267,8 @@ func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
 	cols := boardLayout(m, 160)
 	row := ansi.Strip(renderRow(m, m.Sessions[0], cols))
 	require.Contains(t, row, "日本語")
-	require.Contains(t, row, "clears when idle")
+	require.Contains(t, row, "done", "legacy mark without time shows bare badge")
+	require.NotContains(t, row, "clears")
 	require.Contains(t, row, "▴3h")
 	require.Contains(t, ansi.Strip(renderRow(m, m.Sessions[1], cols)), "plain")
 }

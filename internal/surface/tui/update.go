@@ -93,14 +93,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.descTickPending = true
 			cmds = append(cmds, scheduleDescTick())
 		}
-		var c tea.Cmd
-		if m, c = armRetireTick(m); c != nil {
-			cmds = append(cmds, c)
-		}
 		return m, tea.Batch(cmds...)
-	case retireTickMsg:
-		m.retireTickPending = false
-		return armRetireTick(m)
 	case attachColonTimeoutMsg:
 		return flushAttachColon(m, msg)
 	case attachWheelFlushMsg:

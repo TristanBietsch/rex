@@ -88,8 +88,6 @@ type Model struct {
 	DescAnim        map[string]DescAnim
 	descTickPending bool
 
-	// retireTickPending guards the 1s countdown tick for marked-done rows.
-	retireTickPending bool
 	// spinnerGen / spinnerRunning track the single live spinner tick chain.
 	spinnerGen     int
 	spinnerRunning bool
@@ -271,6 +269,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if t, ok := patchTime(patch, "retire_at"); ok {
 		s.RetireAt = t
+	}
+	if t, ok := patchTime(patch, "retired_at"); ok {
+		s.RetiredAt = t
 	}
 	if t, ok := patchTime(patch, "working_since"); ok {
 		s.WorkingSince = t
