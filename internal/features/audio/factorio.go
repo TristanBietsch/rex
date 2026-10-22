@@ -61,5 +61,16 @@ func factorioCatalog() map[string][]burst {
 			{tones: []tone{{440, 30, 18}}},
 			{tones: []tone{{220, 80, 60}, {110, 60, 40}}},
 		},
+		// Attention: rising two-step alarm chirp, the loudest-reading cue in
+		// the set so a blocked agent is heard over nav/open clicks.
+		EventAttention: {
+			{tones: []tone{{740, 40, 28}, {1480, 20, 10}}},
+			{tones: []tone{{988, 70, 50}, {1976, 30, 14}}},
+		},
+		// Resume: light upward ratchet tick — belt starts moving again.
+		EventResume: {
+			{tones: []tone{{660, 20, 12}}},
+			{tones: []tone{{880, 28, 18}}},
+		},
 	}
 }

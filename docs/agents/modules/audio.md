@@ -13,7 +13,7 @@ Synthesizes UI event sounds (PCM via oto) from named catalogs (Factorio, Evangel
 
 ### Constants
 
-Events: `EventStartup`, `EventCreate`, `EventDone`, `EventDelete`, `EventNav`, `EventOpen`, `EventClose`, `EventCommand`, `EventFilter`, `EventBootOK`, `EventBootWarn`, `EventBootFail`.
+Events: `EventStartup`, `EventCreate`, `EventDone`, `EventDelete`, `EventNav`, `EventOpen`, `EventClose`, `EventCommand`, `EventFilter`, `EventBootOK`, `EventBootWarn`, `EventBootFail`, `EventAttention` (working → needs_input), `EventResume` (needs_input → working).
 
 Soundsets: `SoundsetFactorio`, `SoundsetEvangelion`, `SoundsetBell`, `SoundsetChiptune`, `SoundsetOff`.
 
@@ -47,7 +47,7 @@ Init failure degrades to silent no-op; no error returned from `New`.
 
 ## Gotchas
 
-TUI maps settings `sound_enabled`, `soundset`, `master_volume` into `Config`. Headless CI typically gets no-op player.
+TUI maps settings `sound_enabled`, `soundset`, `master_volume` into `Config`. `notify_on_state_change` is read by the TUI (`internal/surface/tui/notify.go`), not the Player: it gates `EventAttention`/`EventResume` and debounces them per session (1.5 s). Every catalog must define every event; `TestBakeNonEmpty` enforces it. Headless CI typically gets no-op player.
 
 ## See also
 

@@ -33,12 +33,25 @@ func (d *Daemon) Close() {
 // StartDaemon boots server.Serve on a temp unix socket and waits until dial succeeds.
 func StartDaemon(t *testing.T) *Daemon {
 	t.Helper()
+	return StartDaemonWithTools(t, "")
+}
+
+// StartDaemonWithTools is StartDaemon with toolsYAML overlaid on the builtin
+// tool registry (as ~/.config/rex/tools.yaml would be), so a test can
+// register a fake agent program. Empty toolsYAML means builtins only.
+func StartDaemonWithTools(t *testing.T, toolsYAML string) *Daemon {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "rex-test")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 
 	sock := filepath.Join(dir, "rex.sock")
-	reg, err := registry.Load("")
+	toolsPath := ""
+	if toolsYAML != "" {
+		toolsPath = filepath.Join(dir, "tools.yaml")
+		require.NoError(t, os.WriteFile(toolsPath, []byte(toolsYAML), 0o644))
+	}
+	reg, err := registry.Load(toolsPath)
 	require.NoError(t, err)
 	srv, err := server.New(server.Config{
 		Socket:   sock,

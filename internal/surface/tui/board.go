@@ -118,6 +118,14 @@ func spinnerFramesFor(m Model) []string {
 	return spinnerFrameSets["braille"]
 }
 
+// now is the render clock; tests pin it via Model.Clock.
+func (m Model) now() time.Time {
+	if m.Clock != nil {
+		return m.Clock()
+	}
+	return time.Now()
+}
+
 func (m Model) hasWorkingSessions() bool {
 	for _, s := range m.Sessions {
 		if s.State == protocol.StateWorking {
@@ -192,6 +200,9 @@ func renderBoard(m Model, width, height int) string {
 	if end > len(slots) {
 		end = len(slots)
 	}
+	cols := layoutSlots(slots, m.now(), width)
+	// "(none)" starts where row content does: the ID column.
+	noneIndent := strings.Repeat(" ", rowIndent+colMarker+colGap)
 	lines := make([]string, 0, height)
 	for _, sl := range slots[off:end] {
 		switch sl.kind {
@@ -200,9 +211,9 @@ func renderBoard(m Model, width, height int) string {
 		case slotTitle:
 			lines = append(lines, "  "+styleSectionTitle.Render(boardGroups[sl.group].Title))
 		case slotNone:
-			lines = append(lines, "    "+styleMuted.Render("(none)"))
+			lines = append(lines, noneIndent+styleMuted.Render("(none)"))
 		case slotRow:
-			lines = append(lines, renderRow(m, sl.sess, width))
+			lines = append(lines, renderRow(m, sl.sess, cols))
 		}
 	}
 
@@ -213,28 +224,117 @@ func renderBoard(m Model, width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-// Column widths in the row grid (mockup: 1.4ch 5ch 22ch 1fr 18ch 5ch with ~1ch gaps).
+// Row grid. Left to right:
+//
+//	indent marker  id  name  description  model·effort  tokens  badge  time
+//
+// indent, marker, id and time are fixed. name, model and tokens are sized to
+// the widest value among the rendered rows (capped), the long-run badge
+// column only exists while some row has a badge, and the description takes
+// whatever is left. Every row is exactly the board width.
 const (
 	colMarker = 1
 	colID     = 4
-	colSlug   = 22
-	colModel  = 18
-	colTime   = 5
+	colSlug   = 22 // name column cap
+	colModel  = 24 // model · effort column cap
+	colTokens = 8  // "99.9M tk"
+	colRun    = 4  // long-running badge: "▴42m"
+	colTime   = 4  // "59m", "23h", "12d"
 	colGap    = 2
 	rowIndent = 3 // " " + arrow/space + " "
+
+	descMin       = 20 // desc width kept before info columns start shrinking
+	descMinNarrow = 8  // desc floor once every info column is gone
+	modelMin      = 12 // model column floor before it is dropped
+	slugMin       = 12 // name column floor while desc is above descMinNarrow
 )
 
-func rowLayout(width int) (descW int) {
-	used := rowIndent + colMarker + colGap + colID + colGap + colSlug + colGap + colGap + colModel + colGap + colTime
-	descW = width - used
-	if descW < 8 {
-		descW = 8
-	}
-	return descW
+// rowCols holds the per-frame column widths. 0 hides model, tokens and run
+// (no cell, no gap).
+type rowCols struct {
+	slug, desc, model, tokens, run int
 }
 
-func renderRow(m Model, s protocol.SessionSummary, width int) string {
-	descW := rowLayout(width)
+// used is the row width of everything except the description cell.
+func (c rowCols) used() int {
+	w := rowIndent + colMarker + colGap + colID + colGap + c.slug + colGap + colGap + colTime
+	for _, x := range []int{c.model, c.tokens, c.run} {
+		if x > 0 {
+			w += colGap + x
+		}
+	}
+	return w
+}
+
+// boardLayout sizes the columns for every row the board renders (all
+// sections, not just the scrolled window, so scrolling never shifts columns).
+func boardLayout(m Model, width int) rowCols {
+	return layoutSlots(boardSlots(m), m.now(), width)
+}
+
+func layoutSlots(slots []boardSlot, now time.Time, width int) rowCols {
+	rows := make([]protocol.SessionSummary, 0, len(slots))
+	for _, sl := range slots {
+		if sl.kind == slotRow {
+			rows = append(rows, sl.sess)
+		}
+	}
+	return layoutRows(rows, now, width)
+}
+
+// layoutRows sizes columns to content, then degrades for narrow widths in a
+// fixed order until the description gets descMin: drop tokens, shrink model
+// (to modelMin), shrink name (to slugMin), drop model, drop badge. Below that
+// the description shrinks to descMinNarrow, then the name gives way.
+func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCols {
+	var c rowCols
+	for _, s := range rows {
+		c.slug = max(c.slug, ansi.StringWidth(displayName(s)))
+		c.model = max(c.model, ansi.StringWidth(modelEffortLabel(s)))
+		if s.Tokens > 0 {
+			c.tokens = max(c.tokens, ansi.StringWidth(formatTokens(s.Tokens)))
+		}
+		if longRunTier(now, s) >= 0 {
+			c.run = colRun
+		}
+	}
+	c.slug = min(c.slug, colSlug)
+	c.model = min(c.model, colModel)
+	c.tokens = min(c.tokens, colTokens)
+
+	// shrink narrows *x by what the description is short of descMin, but not
+	// below floor (a column already under floor is left alone).
+	shrink := func(x *int, floor int) {
+		if short := descMin - (width - c.used()); short > 0 && *x > floor {
+			*x = max(*x-short, floor)
+		}
+	}
+	steps := []func(){
+		func() { c.tokens = 0 },
+		func() { shrink(&c.model, modelMin) },
+		func() { shrink(&c.slug, slugMin) },
+		func() { c.model = 0 },
+		func() { c.run = 0 },
+	}
+	for _, step := range steps {
+		if width-c.used() >= descMin {
+			break
+		}
+		step()
+	}
+	if short := descMinNarrow - (width - c.used()); short > 0 {
+		c.slug = max(c.slug-short, 0)
+	}
+	c.desc = max(width-c.used(), 0)
+	return c
+}
+
+// cell renders s truncated and padded to exactly w columns.
+func cell(style lipgloss.Style, s string, w int) string {
+	return style.Width(w).Render(truncate(s, w))
+}
+
+func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	selected := m.SelectedID == s.ID
 
 	// Marker is the only indicator for the selected row — no bg fill,
@@ -249,29 +349,52 @@ func renderRow(m Model, s protocol.SessionSummary, width int) string {
 		markerPrefix = " "
 	}
 
+	now := m.now()
+	retiring := !s.RetireAt.IsZero()
+	dim := lipgloss.NewStyle().Foreground(colorFgDim)
 	marker := stateMarkerCellFor(m, s.State, m.SpinnerTick, false)
-	id := lipgloss.NewStyle().Foreground(colorFgMuted).Width(colID).Render(truncate(s.ShortID, colID))
-	slugCol := colorFgPrimary
-	if !selected {
-		slugCol = colorFgPrimary
+	id := cell(lipgloss.NewStyle().Foreground(colorFgMuted), s.ShortID, colID)
+	// A marked-done row recedes: muted name, countdown ahead of the desc.
+	slugStyle := lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
+	if retiring && !selected {
+		slugStyle = dim
 	}
-	slug := lipgloss.NewStyle().Foreground(slugCol).Bold(true).Width(colSlug).Render(truncate(s.Slug, colSlug))
+	slug := cell(slugStyle, displayName(s), c.slug)
 	descColor := colorFgDim
 	if selected {
 		descColor = colorFgPrimary
+	} else if retiring {
+		descColor = colorFgMuted
 	}
 	descSource := rowDescription(s)
-	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(time.Now()) {
-		descSource = renderAnimFrame(anim, descW, time.Now())
+	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
+		descSource = renderAnimFrame(anim, c.desc, now)
 	}
-	desc := lipgloss.NewStyle().Foreground(descColor).Width(descW).Render(truncate(descSource, descW))
-	model := lipgloss.NewStyle().Foreground(colorFgDim).Width(colModel).Render(truncate(modelLabel(s), colModel))
-	t := lipgloss.NewStyle().Foreground(colorFgDim).Width(colTime).Align(lipgloss.Right).Render(durationAgo(s.LastEventAt))
+	if lbl := retireLabel(now, s); lbl != "" {
+		descSource = lbl + " · " + descSource
+	}
+	desc := cell(lipgloss.NewStyle().Foreground(descColor), descSource, c.desc)
 
 	gap := strings.Repeat(" ", colGap)
 	indent := " " + markerPrefix + " " // 3 chars total: marker arrow indent
 
-	row := indent + marker + gap + id + gap + slug + gap + desc + gap + model + gap + t
+	var b strings.Builder
+	b.WriteString(indent + marker + gap + id + gap + slug + gap + desc)
+	if c.model > 0 {
+		b.WriteString(gap + cell(dim, modelEffortLabel(s), c.model))
+	}
+	if c.tokens > 0 {
+		tk := ""
+		if s.Tokens > 0 {
+			tk = formatTokens(s.Tokens)
+		}
+		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
+	}
+	if c.run > 0 {
+		b.WriteString(gap + cell(lipgloss.NewStyle(), longRunBadge(now, s), c.run))
+	}
+	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
+	row := b.String()
 
 	if blinkEnabled(m) {
 		if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
@@ -338,31 +461,42 @@ func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) str
 	return style.Render(" ")
 }
 
+// modelLabel is "model · effort · tokens" for one-line contexts (attach
+// header). The board splits tokens into their own column.
 func modelLabel(s protocol.SessionSummary) string {
-	base := s.ModelID
-	if s.Effort != "" {
-		base = base + " · " + s.Effort
-	}
+	base := modelEffortLabel(s)
 	if s.Tokens > 0 {
 		base = base + " · " + formatTokens(s.Tokens)
 	}
 	return base
 }
 
-// formatTokens humanizes a token count for the board cell.
-// < 1000  → "<N> tk"
-// < 100000 → "<N.N>K tk"
-// ≥ 100000 → "<N>K tk"
+// modelEffortLabel is the board's model column: "model · effort".
+func modelEffortLabel(s protocol.SessionSummary) string {
+	if s.Effort != "" {
+		return s.ModelID + " · " + s.Effort
+	}
+	return s.ModelID
+}
+
+// formatTokens humanizes a token count; at most 8 columns ("99.9M tk").
+// < 1000   → "<N> tk"
+// < 99.95K → "<N.N>K tk"
+// < 999.5K → "<N>K tk"
+// < 99.95M → "<N.N>M tk"
+// else     → "<N>M tk"
 func formatTokens(n int64) string {
 	switch {
 	case n < 1000:
 		return fmt.Sprintf("%d tk", n)
-	case n < 100000:
-		k := float64(n) / 1000.0
-		return fmt.Sprintf("%.1fK tk", k)
+	case n < 99_950:
+		return fmt.Sprintf("%.1fK tk", float64(n)/1e3)
+	case n < 999_500:
+		return fmt.Sprintf("%dK tk", (n+500)/1000)
+	case n < 99_950_000:
+		return fmt.Sprintf("%.1fM tk", float64(n)/1e6)
 	default:
-		k := n / 1000
-		return fmt.Sprintf("%dK tk", k)
+		return fmt.Sprintf("%dM tk", (n+500_000)/1_000_000)
 	}
 }
 
@@ -380,10 +514,16 @@ func truncate(s string, n int) string {
 }
 
 func durationAgo(t time.Time) string {
+	return durationAgoAt(time.Now(), t)
+}
+
+// durationAgoAt renders now-t in one unit ("7s", "4m", "2h", "9d"), "-" when
+// t is unset. A future t (clock skew) reads as "0s".
+func durationAgoAt(now, t time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}
-	d := time.Since(t)
+	d := max(now.Sub(t), 0)
 	switch {
 	case d < time.Minute:
 		return fmt.Sprintf("%ds", int(d.Seconds()))

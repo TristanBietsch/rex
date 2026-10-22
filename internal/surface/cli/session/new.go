@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -49,12 +51,18 @@ func RunNew(args []string) error {
 		}
 	}
 
-	if *slug == "" {
+	// An explicit -slug is sent as-is (the daemon rejects one already in
+	// use); a derived one is made unique against the snapshot below.
+	derived := *slug == ""
+	if derived {
 		if prompt != "" {
 			*slug = deriveSlug(prompt)
-		} else {
+		}
+		if *slug == "" {
 			*slug = "session"
 		}
+	} else if err := protocol.ValidateSlug(*slug); err != nil {
+		return core.NewExitError(core.ExitInvalidArgs, "new: "+err.Error())
 	}
 
 	c, err := client.Dial(*socket)
@@ -62,8 +70,12 @@ func RunNew(args []string) error {
 		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
 	}
 	defer c.Close()
-	if _, err := c.Hello("rex-cli"); err != nil {
+	snap, err := c.Hello("rex-cli")
+	if err != nil {
 		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+	}
+	if derived {
+		*slug = uniqueSlug(*slug, snap.Sessions)
 	}
 
 	req := protocol.NewSession{
@@ -97,7 +109,30 @@ func RunNew(args []string) error {
 		case protocol.EventError:
 			var ee protocol.ErrorEvent
 			_ = json.Unmarshal(env.Data, &ee)
-			return core.NewExitError(core.ExitGeneric, "spawn failed: "+ee.Message)
+			slog.Debug("cli: new rejected", "slug", *slug, "code", ee.Code, "message", ee.Message)
+			code := core.ExitGeneric
+			if ee.Code == protocol.ErrCodeBadIntent {
+				code = core.ExitInvalidArgs
+			}
+			return core.NewExitError(code, "spawn failed: "+ee.Message)
+		}
+	}
+}
+
+// uniqueSlug returns base, or base-2, base-3, … — the first not already
+// used by a session in the snapshot.
+func uniqueSlug(base string, sessions []protocol.SessionSummary) string {
+	taken := make(map[string]struct{}, len(sessions))
+	for _, s := range sessions {
+		taken[s.Slug] = struct{}{}
+	}
+	if _, ok := taken[base]; !ok {
+		return base
+	}
+	for n := 2; ; n++ {
+		c := base + "-" + strconv.Itoa(n)
+		if _, ok := taken[c]; !ok {
+			return c
 		}
 	}
 }

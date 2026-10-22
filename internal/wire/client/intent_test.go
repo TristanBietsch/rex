@@ -104,7 +104,7 @@ func TestClient_RenameDeleteResizeFleetMaxConcurrent(t *testing.T) {
 		decode(data)
 	}
 
-	go func() { require.NoError(t, c.Rename("id", "slug", "title")) }()
+	go func() { require.NoError(t, c.Rename("id", "slug", "title", "")) }()
 	check(protocol.IntentRename, func(b []byte) {
 		var p protocol.Rename
 		require.NoError(t, json.Unmarshal(b, &p))
@@ -146,6 +146,19 @@ func TestClient_RenameDeleteResizeFleetMaxConcurrent(t *testing.T) {
 		require.NoError(t, json.Unmarshal(b, &p))
 		require.Equal(t, "claude", p.ToolID)
 	})
+}
+
+func TestClient_RenameCarriesRequestID(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+
+	go func() { require.NoError(t, c.Rename("id", "new", "", "cli-rename-abcd")) }()
+	env, err := protocol.NewReader(serverConn).Read()
+	require.NoError(t, err)
+	require.Equal(t, protocol.IntentRename, env.Type)
+	require.Equal(t, "cli-rename-abcd", env.ID)
 }
 
 func TestClient_DrainStopsWhenHandlerReturnsFalse(t *testing.T) {

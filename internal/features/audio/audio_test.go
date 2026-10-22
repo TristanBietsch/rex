@@ -10,6 +10,7 @@ var allEvents = []string{
 	EventStartup, EventCreate, EventDone, EventDelete,
 	EventNav, EventOpen, EventClose, EventCommand, EventFilter,
 	EventBootOK, EventBootWarn, EventBootFail,
+	EventAttention, EventResume,
 }
 
 // TestBakeNonEmpty verifies that every catalog renders non-empty PCM for every
@@ -24,6 +25,24 @@ func TestBakeNonEmpty(t *testing.T) {
 				require.True(t, ok, "no pcm for %s in %s", ev, name)
 				require.Greater(t, len(b), 0, "pcm empty for %s in %s", ev, name)
 			}
+		})
+	}
+}
+
+// TestStateChangeEventsDistinct verifies the session state-change sounds exist
+// in every soundset and don't alias each other or EventDone — they must be
+// tellable apart by ear.
+func TestStateChangeEventsDistinct(t *testing.T) {
+	for name := range catalogs {
+		t.Run(name, func(t *testing.T) {
+			p := &Player{pcm: make(map[string][]byte)}
+			p.bake(name)
+			attention, resume, done := p.pcm[EventAttention], p.pcm[EventResume], p.pcm[EventDone]
+			require.NotEmpty(t, attention)
+			require.NotEmpty(t, resume)
+			require.NotEqual(t, attention, resume)
+			require.NotEqual(t, attention, done)
+			require.NotEqual(t, resume, done)
 		})
 	}
 }

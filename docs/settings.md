@@ -42,14 +42,24 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | `sound_enabled` | bool | `true` | |
 | `soundset` | enum | `factorio` | `factorio`, `evangelion`, `bell`, `chiptune`, `off` |
 | `master_volume` | float | `0.80` | `0.0`–`1.0` |
+| `notify_on_state_change` | bool | `true` | |
+
+`notify_on_state_change` plays a chime when a session goes `working` → `needs_input` (the agent is waiting on you) or `needs_input` → `working` (it picked back up, e.g. after you answered). Each soundset has its own tone for both. A transition into `done`, including `needs_input` → `done`, plays only the done sound; that sound ignores this setting. Rules:
+
+- At most one state-change chime per session every 1.5 s, so a heuristic adapter flickering between `needs_input` and `working` chimes once.
+- No sound for states delivered in the initial snapshot or on reconnect, or for a session the TUI hasn't seen yet. Only live transitions chime.
+- `sound_enabled`, `soundset: off`, and `master_volume` still apply.
+- Changes take effect immediately from the settings page.
 
 ### Behavior
 
 | ID | Type | Default | Range | Notes |
 |----|------|---------|-------|-------|
 | `keybind_preset` | enum | `default` | `default` only | |
-| `mouse_enabled` | bool | `true` | | |
+| `mouse_enabled` | bool | `true` | | Board and attach-popup mouse: click selects, double-click attaches, wheel moves the selection. Capturing the mouse disables the terminal's native text selection; hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) to select anyway, or turn this off. Applies live |
 | `max_concurrent_sessions` | int | `16` | 1–64 | See below |
+| `attach_scrollback_lines` | int | `5000` | 0–50000 | Lines the attach popup keeps after they scroll off a primary-screen agent (see [tui.md](tui.md#scrollback)). `0` disables. Also capped at 8 MiB per popup. Read when a popup opens |
+| `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`c`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, so changes apply immediately; the daemon reads it at startup as its default |
 
 `max_concurrent_sessions` in YAML does **not** set the daemon cap at startup. The daemon uses `-max-concurrent-sessions` (default 16). The TUI can apply a new cap live via the settings UI (`SetMaxConcurrent` intent). Restart the daemon to pick up a YAML change for startup behavior.
 

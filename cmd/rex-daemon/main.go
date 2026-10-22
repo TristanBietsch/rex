@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -76,6 +77,12 @@ func run(args []string) error {
 	for _, s := range prior {
 		_ = store.Add(s)
 	}
+	// Older daemons allowed duplicate slugs. Keep the sessions (selectors
+	// report them as ambiguous) but say so; renaming one resolves it.
+	for slug, shorts := range store.DuplicateSlugs() {
+		slog.Warn("daemon: duplicate slug in restored sessions (select by short id or rename)",
+			"slug", slug, "short_ids", shorts)
+	}
 
 	// Load settings — same config.yaml the TUI writes to. Missing file is fine;
 	// the registry defaults apply.
@@ -89,6 +96,11 @@ func run(args []string) error {
 		summaryModel = summarizer.Defaults().Model
 	}
 	slog.Info("daemon: summarizer config", "enabled", summaryEnabled, "model", summaryModel)
+	retireTTL := server.DefaultRetireTTL
+	if h, ok := settingsStore.Get("retire_after_hours").(int); ok && h > 0 {
+		retireTTL = time.Duration(h) * time.Hour
+	}
+	slog.Info("daemon: retire config", "default_ttl", retireTTL)
 
 	var summaryCh chan<- string
 	var summaryWorker *summarizer.Worker
@@ -121,6 +133,7 @@ func run(args []string) error {
 		Store:                 store,
 		MaxConcurrentSessions: *maxConcurrent,
 		SummaryRequest:        summaryCh,
+		RetireDefaultTTL:      retireTTL,
 	})
 	if err != nil {
 		return fmt.Errorf("server: %w", err)

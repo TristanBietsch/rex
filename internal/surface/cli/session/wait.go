@@ -57,6 +57,13 @@ func RunWait(args []string) error {
 			}
 			return core.NewExitError(core.ExitGeneric, err.Error())
 		}
+		if env.Type == protocol.EventSessionRemoved {
+			var rm protocol.SessionRemoved
+			if json.Unmarshal(env.Data, &rm) == nil && rm.SessionID == sess.ID {
+				return core.NewExitError(core.ExitSelectorNotFound, "session removed")
+			}
+			continue
+		}
 		if env.Type != protocol.EventSessionUpdated {
 			continue
 		}

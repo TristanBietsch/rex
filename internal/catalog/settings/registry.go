@@ -70,6 +70,11 @@ var Registry = []Setting{
 		Min: 0.0, Max: 1.0,
 		Help: "Linear scale applied to every event PCM at playback.",
 	},
+	{
+		ID: "notify_on_state_change", Label: "State-change sounds", Section: SectionAudio,
+		Type: TypeBool, Default: true,
+		Help: "Chime when an agent needs input (working → needs input) or resumes (needs input → working). Done keeps its own sound.",
+	},
 
 	// Behavior
 	{
@@ -81,13 +86,25 @@ var Registry = []Setting{
 	{
 		ID: "mouse_enabled", Label: "Mouse enabled", Section: SectionBehavior,
 		Type: TypeBool, Default: true,
-		Help: "When off, the TUI ignores mouse events.",
+		Help: "Click/wheel on board + popup. To select text hold Option (iTerm2) / Shift (Ghostty, kitty), or turn off.",
 	},
 	{
 		ID: "max_concurrent_sessions", Label: "Max concurrent sessions", Section: SectionBehavior,
 		Type: TypeInt, Default: 16,
 		Min: 1, Max: 64,
 		Help: "Daemon's PTY cap; takes effect on next daemon start.",
+	},
+	{
+		ID: "retire_after_hours", Label: "Clear marked-done after (h)", Section: SectionBehavior,
+		Type: TypeInt, Default: 168,
+		Min: 1, Max: 8760,
+		Help: "Hours a session marked done (c) lingers before rex kills it and deletes its transcript. Typing into it cancels; a working session waits until it settles.",
+	},
+	{
+		ID: "attach_scrollback_lines", Label: "Attach scrollback lines", Section: SectionBehavior,
+		Type: TypeInt, Default: 5000,
+		Min: 0, Max: 50000,
+		Help: "Lines the attach popup keeps after they scroll off a primary-screen agent (ctrl+pgup / wheel to view). 0 disables. Capped at 8 MiB per popup; applies on next attach.",
 	},
 
 	// AI summary

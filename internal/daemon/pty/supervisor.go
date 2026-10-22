@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/creack/pty"
@@ -20,6 +21,17 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
+
+// ErrSessionDeleted is the context cause the server uses when it tears a
+// session down for deletion (user Delete or retire sweep). The supervisor
+// then skips the StateFailed transition: the session is going away, and a
+// transient "failed" patch would mislead clients and Lua hooks.
+var ErrSessionDeleted = errors.New("session deleted")
+
+// defaultStopDrainTimeout bounds how long Run waits for the PTY reader after
+// killing the child. A grandchild that inherited the PTY can keep it open
+// past the kill; without a bound, Delete (and the retire sweep) would hang.
+const defaultStopDrainTimeout = 5 * time.Second
 
 // SupervisorConfig configures a per-session supervisor.
 type SupervisorConfig struct {
@@ -44,6 +56,12 @@ type SupervisorConfig struct {
 	ReadySettle      time.Duration // output must be quiet this long before pasting InitialPrompt
 	RegisterResize   func(resize func(cols, rows uint16) error)
 	UnregisterResize func()
+	// RegisterModePreamble exposes the child's current terminal modes as an
+	// escape-sequence preamble (see ModePreamble) to attach clients.
+	RegisterModePreamble   func(preamble func() []byte)
+	UnregisterModePreamble func()
+	// StopDrainTimeout bounds the reader drain after a kill (0 = 5s).
+	StopDrainTimeout time.Duration
 }
 
 // Supervisor runs one PTY session to completion.
@@ -55,6 +73,9 @@ type Supervisor struct {
 func New(cfg SupervisorConfig) *Supervisor {
 	if cfg.IdleTick == 0 {
 		cfg.IdleTick = 200 * time.Millisecond
+	}
+	if cfg.StopDrainTimeout == 0 {
+		cfg.StopDrainTimeout = defaultStopDrainTimeout
 	}
 	return &Supervisor{cfg: cfg}
 }
@@ -103,6 +124,17 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		})
 		if s.cfg.UnregisterResize != nil {
 			defer s.cfg.UnregisterResize()
+		}
+	}
+
+	if s.cfg.RegisterModePreamble != nil {
+		s.cfg.RegisterModePreamble(func() []byte {
+			screen.Lock()
+			defer screen.Unlock()
+			return ModePreamble(screen.Mode())
+		})
+		if s.cfg.UnregisterModePreamble != nil {
+			defer s.cfg.UnregisterModePreamble()
 		}
 	}
 
@@ -292,21 +324,22 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("pty: ctx canceled, killing child", "session", sess.ID, "pid", cmd.Process.Pid)
-			_ = cmd.Process.Kill()
-			<-errc
+			cause := context.Cause(ctx)
+			slog.Info("pty: ctx canceled, killing child", "session", sess.ID, "pid", cmd.Process.Pid, "cause", cause)
+			s.killAndReap(sess.ID, cmd, errc)
+			if errors.Is(cause, ErrSessionDeleted) {
+				slog.Info("pty: session deleted; skipping failed transition", "session", sess.ID)
+				return ctx.Err()
+			}
 			_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 			return ctx.Err()
 		case <-s.cfg.CompleteCh:
 			slog.Info("pty: complete signal received, killing child cleanly",
 				"session", sess.ID, "pid", cmd.Process.Pid)
-			_ = cmd.Process.Kill()
-			<-errc         // drain the reader goroutine
-			_ = cmd.Wait() // reap the child; mirrors the natural-exit branch
+			s.killAndReap(sess.ID, cmd, errc)
 			if err := s.cfg.Store.Transition(sess.ID, protocol.StateDone); err != nil {
 				return err
 			}
-			sess.LastEventAt = time.Now().UTC()
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
 			}
@@ -316,10 +349,11 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			s.refreshScreenText(sess.ID, screen)
 			waitErr := cmd.Wait()
 			final := protocol.StateDone
+			var exitCode *int
 			if waitErr != nil {
 				if ee := new(exec.ExitError); errors.As(waitErr, &ee) {
 					code := ee.ExitCode()
-					sess.ExitCode = &code
+					exitCode = &code
 					if code != 0 {
 						final = protocol.StateFailed
 					}
@@ -328,9 +362,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				}
 			}
 			slog.Info("pty: child exited", "session", sess.ID, "final_state", final, "wait_err", waitErr, "read_err", rerr)
-			// Update in-memory state first so the persisted meta reflects the terminal state.
-			sess.State = final
-			sess.LastEventAt = time.Now().UTC()
+			// Update in-memory state first (under the session lock) so the
+			// persisted meta reflects the terminal state.
+			sess.SetExit(final, exitCode)
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
 			}
@@ -419,6 +453,37 @@ func appendBounded(buf, b []byte, cap int) []byte {
 		out = out[len(out)-cap:]
 	}
 	return out
+}
+
+// killAndReap SIGKILLs the child's whole process group (creack/pty starts it
+// with Setsid, so pgid == pid) — agents spawn MCP servers and tool shells that
+// inherit the PTY and would otherwise keep the reader from seeing EOF. The
+// reader drain and the reap are both bounded by StopDrainTimeout; on timeout
+// Run returns anyway and the deferred PTY close unblocks the reader.
+func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, errc <-chan error) {
+	pid := cmd.Process.Pid
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		slog.Warn("pty: kill process group failed; killing pid", "session", id, "pid", pid, "err", err)
+		_ = cmd.Process.Kill()
+	}
+	timeout := time.NewTimer(s.cfg.StopDrainTimeout)
+	defer timeout.Stop()
+	select {
+	case <-errc:
+	case <-timeout.C:
+		slog.Error("pty: stop drain timed out; PTY still held open", "session", id, "pid", pid, "timeout", s.cfg.StopDrainTimeout)
+		return
+	}
+	waited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(waited)
+	}()
+	select {
+	case <-waited:
+	case <-timeout.C:
+		slog.Error("pty: reap timed out", "session", id, "pid", pid)
+	}
 }
 
 // persistMeta writes meta.json for a live session; failures are logged only.

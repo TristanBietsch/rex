@@ -44,7 +44,7 @@ Four-character (or extended) display id derived from session UUID. Origin: `inte
 
 ## slug
 
-Human-readable session identifier (kebab-case task name). Origin: `SessionSummary.slug`, wizard.
+Human-readable session identifier (kebab-case task name). Unique per daemon store: `Store.AddUnique` / `Store.UpdateRename` reject a slug held by another session (`state.SlugTakenError` → `bad_intent`). Origin: `SessionSummary.slug`, wizard.
 
 ## snapshot
 

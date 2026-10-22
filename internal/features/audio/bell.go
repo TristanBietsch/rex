@@ -43,5 +43,13 @@ func bellCatalog() map[string][]burst {
 			{tones: []tone{{440, 28, 20}}},
 			{tones: []tone{{330, 40, 30}}},
 		},
+		// Attention: double ding, the classic "come look" bell.
+		EventAttention: {
+			{tones: []tone{{1175, 24, 16}}},
+			{tones: []tone{{1175, 30, 22}}},
+		},
+		EventResume: {
+			{tones: []tone{{659, 10, 6}}},
+		},
 	}
 }

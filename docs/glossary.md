@@ -26,6 +26,18 @@ Named label on a session. Groups related work. Set with `rex fleet set` or at sp
 
 Client message sent to the daemon over the socket. JSON envelope with `kind: "Intent"`.
 
+## long-running badge
+
+Small row column (`▴42m`) on sessions that have been `working` without a break for 10+ minutes; color tiers escalate at 30 min, 2 h, 6 h. Driven by `working_since`.
+
+## mark done
+
+User action (`c`, `rex done`) that schedules a session to be cleared after `retire_after_hours` without stopping it. Called **retire** on the wire (`Retire` / `retire_at`) to keep it distinct from the `done` state. Typing into the session cancels it.
+
+## name
+
+User-chosen display label shown instead of the slug on the board. Free text, max 64 characters; never a selector.
+
 ## registry
 
 Merged tool catalog: embedded `builtin.yaml` plus optional `~/.config/rex/tools.yaml`.
@@ -44,7 +56,7 @@ Display id derived from the session UUID (typically four hex characters).
 
 ## slug
 
-Human-readable session name (kebab-case). Unique among active sessions.
+Human-readable session handle (kebab-case) used as a selector. Unique across every session the daemon holds (any state, until removed): `NewSession` and `Rename` to a slug another session uses are rejected with `bad_intent` (`slug "x" already in use by <short_id>`). No whitespace or control characters. Sessions restored from an older daemon may still share a slug; selectors then report ambiguity (use the short id, or rename one). For a free-text label use **name**.
 
 ## snapshot
 

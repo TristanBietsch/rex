@@ -16,6 +16,9 @@ const (
 	IntentSetMaxConcurrent = "SetMaxConcurrent"
 	IntentSetSessionFleet  = "SetSessionFleet"
 	IntentComplete         = "Complete"
+	IntentSetSessionName   = "SetSessionName"
+	IntentRetire           = "Retire"
+	IntentUnretire         = "Unretire"
 )
 
 // Hello is the first message a client sends after connect.
@@ -29,6 +32,10 @@ type Hello struct {
 type Subscribe struct {
 	SessionID string `json:"session_id,omitempty"`
 	Replay    bool   `json:"replay,omitempty"`
+	// ModeSync (without Replay) asks the daemon to first send the child's
+	// current terminal modes (alt screen, mouse tracking, ...) as escape
+	// sequences, so the client's emulator agrees with the child's.
+	ModeSync bool `json:"mode_sync,omitempty"`
 }
 
 // Resize asks the daemon to resize a running session's PTY.
@@ -67,6 +74,10 @@ type OpenSession struct {
 type SendInput struct {
 	SessionID string `json:"session_id"`
 	Bytes     []byte `json:"bytes"` // base64-encoded by encoding/json
+	// Synthetic marks bytes the client sent on its own (e.g. the ^L redraw
+	// nudge on attach) rather than user keystrokes. Synthetic input does not
+	// cancel a pending retire.
+	Synthetic bool `json:"synthetic,omitempty"`
 }
 
 // Reply is a convenience for inline text replies. Daemon appends a newline.
@@ -100,5 +111,27 @@ type SetMaxConcurrent struct {
 // Complete asks the daemon to cleanly terminate a running session and mark it done.
 // Distinct from Delete (which removes the session entirely) and Subscribe (read-only).
 type Complete struct {
+	SessionID string `json:"session_id"`
+}
+
+// SetSessionName sets a session's user-facing display name. Name is sent
+// without omitempty so an explicit "" clears it (falls back to the slug).
+type SetSessionName struct {
+	SessionID string `json:"session_id"`
+	Name      string `json:"name"`
+}
+
+// Retire marks a session done: it keeps running and stays usable until
+// TTLSeconds elapse, then the daemon kills it (once it is no longer working),
+// removes it from the board and deletes its on-disk state. TTLSeconds == 0
+// means the daemon's default. Marking an already-marked session is a no-op.
+type Retire struct {
+	SessionID  string `json:"session_id"`
+	TTLSeconds int64  `json:"ttl_seconds,omitempty"`
+}
+
+// Unretire cancels a pending Retire. Fails with bad_state once the daemon has
+// started clearing the session.
+type Unretire struct {
 	SessionID string `json:"session_id"`
 }

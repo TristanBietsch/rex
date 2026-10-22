@@ -2,10 +2,13 @@ package state
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -20,30 +23,90 @@ func sessionDir(root, id string) string {
 	return filepath.Join(root, "sessions", id)
 }
 
-// RemoveSessionDir deletes a session's persisted directory (transcript + meta).
-// Used on session delete so the session doesn't reappear after a daemon restart.
-func RemoveSessionDir(root, id string) error {
-	return os.RemoveAll(sessionDir(root, id))
+// ErrUnsafeSessionID is returned when a session id would not resolve to a
+// single directory directly under <root>/sessions.
+var ErrUnsafeSessionID = errors.New("unsafe session id")
+
+// safeSessionDir is sessionDir for destructive operations. It refuses ids
+// that are empty, ".", "..", contain a separator, or otherwise escape
+// <root>/sessions — an empty id would otherwise RemoveAll every session.
+func safeSessionDir(root, id string) (string, error) {
+	if id == "" || id == "." || id == ".." || !filepath.IsLocal(id) || filepath.Base(id) != id {
+		return "", fmt.Errorf("%w: %q", ErrUnsafeSessionID, id)
+	}
+	base := filepath.Join(root, "sessions")
+	dir := filepath.Join(base, id)
+	if filepath.Dir(dir) != base {
+		return "", fmt.Errorf("%w: %q", ErrUnsafeSessionID, id)
+	}
+	return dir, nil
 }
 
-// WriteMeta persists a session's metadata atomically.
+// RemoveSessionDir deletes a session's persisted directory (transcript + meta).
+// Used on session delete so the session doesn't reappear after a daemon restart.
+// Prefer RemoveSession when the *Session is at hand: it also fences off
+// concurrent WriteMeta calls.
+func RemoveSessionDir(root, id string) error {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		slog.Error("state: refusing unsafe session dir", "id", id, "err", err)
+		return err
+	}
+	return os.RemoveAll(dir)
+}
+
+// RemoveSession deletes a removed session's directory while holding its meta
+// lock, so an in-flight WriteMeta finishes first and later ones see removed
+// and skip. Call after Store.Remove.
+func RemoveSession(root string, s *Session) error {
+	s.metaMu.Lock()
+	defer s.metaMu.Unlock()
+	return RemoveSessionDir(root, s.ID)
+}
+
+// WriteMeta persists a session's metadata atomically. Writers are serialized
+// per session and each uses its own temp file; a session already removed from
+// the store is skipped so a late write can't recreate its directory.
 func WriteMeta(root string, s *Session) error {
-	dir := sessionDir(root, s.ID)
+	s.metaMu.Lock()
+	defer s.metaMu.Unlock()
+	if s.isRemoved() {
+		slog.Debug("state: write_meta skipped (removed)", "session", s.ID)
+		return nil
+	}
+	dir, err := safeSessionDir(root, s.ID)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	final := filepath.Join(dir, "meta.json")
-	tmp := final + ".tmp"
 
+	// Snapshot under metaMu: whichever writer takes the lock last also takes
+	// the newest snapshot, so the file on disk never regresses.
 	sum := s.Summary()
 	b, err := json.MarshalIndent(sum, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal meta: %w", err)
 	}
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return fmt.Errorf("write tmp meta: %w", err)
+	tmp, err := os.CreateTemp(dir, "meta-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create tmp meta: %w", err)
 	}
-	if err := os.Rename(tmp, final); err != nil {
+	tmpName := tmp.Name()
+	_, werr := tmp.Write(b)
+	cerr := tmp.Close()
+	if werr != nil || cerr != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("write tmp meta: %w", errors.Join(werr, cerr))
+	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("chmod tmp meta: %w", err)
+	}
+	if err := os.Rename(tmpName, final); err != nil {
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("rename meta: %w", err)
 	}
 	return nil
@@ -83,12 +146,20 @@ func LoadAll(root string) ([]*Session, error) {
 		sess, err := LoadMeta(root, e.Name())
 		if err != nil {
 			// Skip unreadable sessions rather than fail the whole daemon.
+			slog.Warn("state: skipping unreadable session meta", "dir", e.Name(), "err", err)
+			continue
+		}
+		// The id inside meta.json drives later deletes; it must name this
+		// directory or a corrupt file could point RemoveAll somewhere else.
+		if sess.ID != e.Name() {
+			slog.Warn("state: meta id/dir mismatch; skipped", "dir", e.Name(), "id", sess.ID)
 			continue
 		}
 		switch sess.State {
 		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
 			sess.State = protocol.StateCrashed
 		}
+		sess.WorkingSince = time.Time{}
 		out = append(out, sess)
 	}
 	return out, nil
@@ -183,6 +254,7 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 		State: sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
 		LastLine: sum.LastLine, Description: sum.Description, ExitCode: sum.ExitCode,
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
-		Fleet: sum.Fleet,
+		Fleet: sum.Fleet, Name: sum.Name, RetireAt: sum.RetireAt,
+		WorkingSince: sum.WorkingSince,
 	}
 }

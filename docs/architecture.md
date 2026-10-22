@@ -68,7 +68,7 @@ Detail: [agents/DECISIONS.md](agents/DECISIONS.md).
 5. Daemon restart remaps `queued` / `working` / `needs_input` to `crashed`.
 6. Concurrency cap acquired at spawn; released on session end.
 7. SIGHUP reloads the tool registry only; running PTYs unchanged.
-8. `Delete` stops and removes; `Complete` signals done without removal.
+8. `Delete` stops and removes; `Complete` signals done without removal; `Retire` (mark done) schedules a removal that the daemon's reaper performs at the deadline, once the session is not working. Delete and the reaper share one teardown path (process-group kill, bounded drain, no transient `failed`).
 
 ## Extension points
 
@@ -77,9 +77,9 @@ Detail: [agents/DECISIONS.md](agents/DECISIONS.md).
 | New agent CLI | `tools.yaml` + adapter `detect` block |
 | User settings | `internal/catalog/settings/registry.go` |
 | Daemon hooks | `~/.config/rex/init.lua` (in-process; trusted) |
-| Wire protocol | Bump `ProtocolVersion` and coordinate client + server |
+| Wire protocol | Additive: new optional fields / new intents; breaking: bump `ProtocolVersion` |
 
-Do not extend the wire protocol without a version bump. `OpenSession` and `Shutdown` intents exist in constants but are not implemented.
+Additive changes (new optional fields, new intents, new patch keys) do not bump `ProtocolVersion`: both sides ignore unknown JSON fields, and an old daemon answers an unknown intent with `bad_intent "intent not implemented"`, which clients surface as "run `rex daemon restart`". Changing or removing an existing field's meaning requires a bump (the reader rejects any other version, so a bump breaks every mixed-version pair). `OpenSession` and `Shutdown` intents exist in constants but are not implemented.
 
 ## See also
 

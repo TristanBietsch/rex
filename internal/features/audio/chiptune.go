@@ -59,5 +59,16 @@ func chiptuneCatalog() map[string][]burst {
 			{tones: []tone{{494, 24, 16}}},
 			{tones: []tone{{392, 60, 45}, {196, 50, 38}}},
 		},
+		// Attention: "!" alert — two quick hits and a bright octave hold.
+		EventAttention: {
+			{tones: []tone{{1319, 20, 12}}},
+			{tones: []tone{{1319, 20, 12}}},
+			{tones: []tone{{1760, 40, 28}, {3520, 20, 10}}},
+		},
+		// Resume: press-start blip, rising fourth.
+		EventResume: {
+			{tones: []tone{{784, 14, 9}}},
+			{tones: []tone{{1047, 20, 12}}},
+		},
 	}
 }

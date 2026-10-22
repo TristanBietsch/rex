@@ -27,8 +27,18 @@ func renderHeader(m Model, width int) string {
 		}
 	}
 
+	marked := 0
+	for _, s := range m.Sessions {
+		if !s.RetireAt.IsZero() {
+			marked++
+		}
+	}
+
 	logo := styleHeaderApp.Render("∴ REX")
 	counts := renderHeaderCounts(m, needsInput, working, done, failed+crashed)
+	if marked > 0 {
+		counts += styleDim.Render(fmt.Sprintf("  · ✓%d marked done", marked))
+	}
 	left := logo + counts
 	right := styleNewBtn.Render("+ new agent")
 
@@ -98,9 +108,8 @@ func renderHeaderCounts(m Model, needs, working, done, failed int) string {
 }
 
 func renderFilterChips(m Model) string {
-	tools := []string{"all", "claude", "codex", "gemini", "ollama"}
 	out := ""
-	for i, t := range tools {
+	for i, t := range filterTools {
 		if i > 0 {
 			out += styleChipSep.Render(" · ")
 		}

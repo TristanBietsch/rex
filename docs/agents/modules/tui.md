@@ -1,7 +1,7 @@
 # tui
 
 **Path:** `internal/surface/tui`
-**Depends on:** `internal/features/audio`, `internal/wire/client`, `internal/wire/protocol`, `internal/catalog/settings`, `internal/catalog/registry`, `internal/runtime/daemonctl`, `internal/runtime/rexlog` | external: `github.com/charmbracelet/bubbletea`, `github.com/charmbracelet/lipgloss`, `github.com/charmbracelet/x/ansi`, `github.com/hinshun/vt10x`
+**Depends on:** `internal/features/audio`, `internal/wire/client`, `internal/wire/protocol`, `internal/catalog/settings`, `internal/catalog/registry`, `internal/runtime/daemonctl`, `internal/runtime/rexlog` | external: `github.com/charmbracelet/bubbletea`, `github.com/charmbracelet/lipgloss`, `github.com/charmbracelet/x/ansi`, `github.com/hinshun/vt10x` (forked in `third_party/vt10x` via `replace`)
 **Depended on by:** `internal/surface/cli`
 **Entry points:** `Run`, `Model` (Bubble Tea), `RunSetupWizard`, setup helpers
 
@@ -39,6 +39,9 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `command.go` | `/` command palette |
 | `wizard.go` | New-session wizard |
 | `attach.go` | Full-screen attach (vt10x) |
+| `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |
+| `attach_scroll.go` | Popup scrollback ring + scroll mode (primary-screen agents) |
+| `attach_cmd.go` | `::` command bar inside the popup |
 | `settings.go` | Settings overlay |
 | `setup_wizard.go` | First-run wizard |
 | `splash.go`, `splash_steps.go` | Boot splash + daemon start |

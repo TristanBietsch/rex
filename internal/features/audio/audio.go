@@ -29,6 +29,10 @@ const (
 	EventBootOK   = "boot_ok"
 	EventBootWarn = "boot_warn"
 	EventBootFail = "boot_fail"
+	// EventAttention: a session went working → needs_input (agent needs you).
+	EventAttention = "attention"
+	// EventResume: a session went needs_input → working (agent picked back up).
+	EventResume = "resume"
 )
 
 // Soundset names.

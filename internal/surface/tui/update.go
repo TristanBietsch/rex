@@ -40,13 +40,25 @@ func scheduleDescTick() tea.Cmd {
 	return tea.Tick(descTickInterval, func(time.Time) tea.Msg { return descTickMsg{} })
 }
 
-var (
-	lastMouseID   string
-	lastMouseTime time.Time
-)
-
-// Update is the central Bubble Tea handler.
+// Update is the central Bubble Tea handler. After every message it re-arms
+// the spinner tick chain if something started animating (a session began
+// working, an input bar opened, a done row started flashing) — arming at one
+// choke point means no branch can forget it and freeze the animation.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.dispatch(msg)
+	nm, ok := next.(Model)
+	if !ok {
+		return next, cmd
+	}
+	var arm tea.Cmd
+	if nm, arm = armSpinner(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
+	return nm, cmd
+}
+
+// dispatch routes one message to its handler.
+func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
@@ -56,6 +68,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AttachOutputMsg:
 		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
+			afterAttachOutput(m.Attach)
 		}
 		if m.Attach != nil {
 			return m, listenAttach(m.Attach)
@@ -80,7 +93,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.descTickPending = true
 			cmds = append(cmds, scheduleDescTick())
 		}
+		var c tea.Cmd
+		if m, c = armRetireTick(m); c != nil {
+			cmds = append(cmds, c)
+		}
 		return m, tea.Batch(cmds...)
+	case retireTickMsg:
+		m.retireTickPending = false
+		return armRetireTick(m)
+	case attachColonTimeoutMsg:
+		return flushAttachColon(m, msg)
+	case attachWheelFlushMsg:
+		return flushAttachWheel(m, msg)
 	case descTickMsg:
 		now := time.Now()
 		for id, a := range m.DescAnim {
@@ -107,16 +131,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Err = msg.Op + ": " + msg.Err.Error()
 		return m, nil
 	case SpinnerTickMsg:
-		m.SpinnerTick++
-		if m.hasWorkingSessions() {
-			return m, tickSpinner()
+		if msg.Gen != m.spinnerGen {
+			return m, nil // stale chain
 		}
+		m.SpinnerTick++
+		m = pruneDoneBlinks(m, time.Now())
+		if m.wantsSpinnerTick() {
+			m.spinnerRunning = true
+			return m, tickSpinner(m.spinnerGen)
+		}
+		m.spinnerRunning = false
+		slog.Debug("tui: spinner idle", "gen", m.spinnerGen, "tick", m.SpinnerTick)
 		return m, nil
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()
 		}
-		return m, nil
+		// tea.ExecProcess released the terminal (which turned mouse
+		// reporting off) and does not turn it back on.
+		m.mouseOn = false
+		return syncMouse(m, "exec-return")
 	case settingsResultMsg:
 		m.Store = msg.Store
 		m.StorePath = msg.Path
@@ -196,49 +230,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
-	if m.Store != nil {
-		if enabled, ok := m.Store.Get("mouse_enabled").(bool); ok && !enabled {
-			return m, nil
-		}
-	}
-	// Click-to-select + double-click-to-open.
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
-		return m, nil
-	}
-	id := sessionAtScreenRow(m, msg.Y)
-	if id == "" {
-		lastMouseID = ""
-		return m, nil
-	}
-	m.SelectedID = id
-	m = ensureVisible(m)
-	now := time.Now()
-	if lastMouseID == id && now.Sub(lastMouseTime) < 350*time.Millisecond {
-		// Double-click — open modal.
-		return openAttach(m, id)
-	}
-	lastMouseID = id
-	lastMouseTime = now
-	return m, nil
-}
-
-// sessionAtScreenRow maps a screen row to the session rendered there, using
-// the same slot layout and scroll offset as renderBoard. "" for non-rows.
-func sessionAtScreenRow(m Model, y int) string {
-	bh := boardHeight(m)
-	rel := y - boardTop(m)
-	if rel < 0 || rel >= bh {
-		return ""
-	}
-	slots := boardSlots(m)
-	line := clampScroll(m.ScrollOffset, len(slots), bh) + rel
-	if line >= len(slots) || slots[line].kind != slotRow {
-		return ""
-	}
-	return slots[line].sess.ID
-}
-
 func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	// Boot splash grabs keys to allow quit during long/failed startup.
 	if m.Focus == FocusBoot {
@@ -252,6 +243,13 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	// Attach popup grabs every key (forwards them to the agent's PTY).
 	if m.Focus == FocusAttach {
 		return updateAttachKey(m, k)
+	}
+	// Command bar opened from inside the attach popup with "::".
+	if m.Focus == FocusCommand && m.Attach != nil {
+		return updateAttachCommandKey(m, k)
+	}
+	if m.Focus == FocusRename {
+		return updateRenameKey(m, k)
 	}
 	// Focused prompt: characters are input.
 	if m.Focus == FocusPrompt {
@@ -277,8 +275,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			m.PendingChord = "d"
 			return m, nil
 		}
-		// Any other key clears the pending chord.
+		// Any other key clears the pending chord and the transient notice.
 		m.PendingChord = ""
+		m.Notice = ""
 
 		switch k.String() {
 		case "ctrl+c":
@@ -302,15 +301,26 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return ensureVisible(m), nil
 		case "c":
-			if m.SelectedID == "" {
+			// Soft "mark done": the session keeps running and is cleared
+			// after retire_after_hours; pressing c again undoes it.
+			if m.SelectedID == "" || indexOfSelected(m) < 0 {
 				slog.Debug("tui: 'c' pressed with no selection — no-op")
 				return m, nil
 			}
-			slog.Info("tui: 'c' pressed — sending Complete", "session", m.SelectedID)
+			return toggleRetire(m, m.SelectedID)
+		case "C":
+			// Hard complete: kill the agent now and mark it done.
+			if m.SelectedID == "" || indexOfSelected(m) < 0 {
+				slog.Debug("tui: 'C' pressed with no selection — no-op")
+				return m, nil
+			}
+			slog.Info("tui: 'C' pressed — sending Complete", "session", m.SelectedID)
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventClose)
 			}
 			return m, completeSessionCmd(m.Client, m.SelectedID)
+		case "r":
+			return openRename(m)
 		case "1":
 			return jumpToSection(m, 0), nil
 		case "2":

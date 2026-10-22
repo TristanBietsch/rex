@@ -2,7 +2,9 @@ package core
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
+	"strings"
 
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -32,8 +34,13 @@ func ResolveInSnapshot(sessions []protocol.SessionSummary, sel string) (protocol
 	case 1:
 		return matches[0], nil
 	default:
+		shorts := make([]string, len(matches))
+		for i, m := range matches {
+			shorts[i] = m.ShortID
+		}
+		slog.Debug("cli: ambiguous selector", "selector", sel, "matches", shorts)
 		return protocol.SessionSummary{}, NewExitError(ExitAmbiguousSelector,
-			fmt.Sprintf("selector %q matches %d sessions; be more specific", sel, len(matches)))
+			fmt.Sprintf("selector %q matches %d sessions (%s); use a short id", sel, len(matches), strings.Join(shorts, ", ")))
 	}
 }
 
@@ -46,12 +53,18 @@ func matchAll(sessions []protocol.SessionSummary, sel string) []protocol.Session
 		}
 		return nil
 	}
+	// Exact slug wins over short-id prefixes. The daemon keeps slugs unique,
+	// but sessions restored from an older daemon may share one: return every
+	// holder so the caller reports ambiguity instead of picking the first.
+	var out []protocol.SessionSummary
 	for _, s := range sessions {
 		if s.Slug == sel {
-			return []protocol.SessionSummary{s}
+			out = append(out, s)
 		}
 	}
-	var out []protocol.SessionSummary
+	if len(out) > 0 {
+		return out
+	}
 	if hexShortID.MatchString(sel) {
 		for _, s := range sessions {
 			if s.ShortID == sel || (len(s.ID) >= len(sel) && s.ID[:len(sel)] == sel) {

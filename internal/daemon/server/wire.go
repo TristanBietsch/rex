@@ -24,7 +24,7 @@ func emitEvent(w *protocol.Writer, e state.Event) {
 		})
 	case state.EventRemoved:
 		writeEvent(w, protocol.EventSessionRemoved, "", protocol.SessionRemoved{
-			SessionID: e.SessionID,
+			SessionID: e.SessionID, Reason: e.Reason,
 		})
 	}
 }

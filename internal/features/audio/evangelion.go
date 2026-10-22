@@ -68,5 +68,16 @@ func evangelionCatalog() map[string][]burst {
 			{tones: []tone{{880, 30, 18}, {1318, 18, 10}}},
 			{tones: []tone{{440, 90, 70}, {220, 60, 45}}},
 		},
+		// Attention: incoming-transmission ping — high/low/high with shimmer.
+		EventAttention: {
+			{tones: []tone{{2093, 24, 14}, {4186, 12, 6}}},
+			{tones: []tone{{1568, 24, 14}}},
+			{tones: []tone{{2093, 50, 35}, {4186, 24, 12}}},
+		},
+		// Resume: sync re-established — quick rising fifth blip.
+		EventResume: {
+			{tones: []tone{{1760, 14, 9}}},
+			{tones: []tone{{2637, 20, 12}, {5274, 10, 5}}},
+		},
 	}
 }

@@ -16,8 +16,9 @@ func WriteSessionsTable(w io.Writer, sessions []protocol.SessionSummary) error {
 		_, err := fmt.Fprintln(w, "(no sessions)")
 		return err
 	}
-	hdr := fmt.Sprintf("%-5s  %-12s  %-9s  %-20s  %-24s  %s",
-		"ID", "STATE", "TOOL", "MODEL", "SLUG", "LAST EVENT")
+	// NAME is last so scripts cutting the earlier columns keep working.
+	hdr := fmt.Sprintf("%-5s  %-12s  %-9s  %-20s  %-24s  %-10s  %s",
+		"ID", "STATE", "TOOL", "MODEL", "SLUG", "LAST EVENT", "NAME")
 	if _, err := fmt.Fprintln(w, hdr); err != nil {
 		return err
 	}
@@ -27,8 +28,12 @@ func WriteSessionsTable(w io.Writer, sessions []protocol.SessionSummary) error {
 		if s.Effort != "" {
 			model = model + " · " + s.Effort
 		}
-		row := fmt.Sprintf("%-5s  %-12s  %-9s  %-20s  %-24s  %s",
-			s.ShortID, s.State, s.ToolID, Truncate(model, 20), Truncate(s.Slug, 24), ago)
+		name := s.Name
+		if !s.RetireAt.IsZero() {
+			name = strings.TrimSpace(name + " ✓done")
+		}
+		row := fmt.Sprintf("%-5s  %-12s  %-9s  %-20s  %-24s  %-10s  %s",
+			s.ShortID, s.State, s.ToolID, Truncate(model, 20), Truncate(s.Slug, 24), ago, name)
 		if _, err := fmt.Fprintln(w, row); err != nil {
 			return err
 		}

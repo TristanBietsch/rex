@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/hinshun/vt10x"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
@@ -32,6 +33,25 @@ type AttachState struct {
 	// and re-rendering the popup on every chunk causes visible flicker.
 	outCh chan AttachOutputMsg
 	errCh chan AttachClosedMsg
+
+	// colonPending holds a lone ':' while waiting to see if a second one
+	// follows ("::" opens rex's command bar). colonSeq invalidates stale
+	// flush timers.
+	colonPending bool
+	colonSeq     int
+
+	// Batched wheel input awaiting its flush tick (see attach_mouse.go).
+	wheelBuf          []byte
+	wheelNotches      int
+	wheelFlushPending bool
+	wheelSeq          int
+
+	// Local scrollback (see attach_scroll.go). ScrollOff > 0 is scroll mode:
+	// the view sits that many lines above live output. scrollNew counts lines
+	// that arrived while scrolled up.
+	sb        *attachScrollback
+	ScrollOff int
+	scrollNew int
 }
 
 type AttachOutputMsg struct {
@@ -83,12 +103,9 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 			break
 		}
 	}
-	subErr := func() error {
-		if altScreenTools[toolID] {
-			return c.Subscribe(sessionID)
-		}
-		return c.SubscribeReplay(sessionID)
-	}()
+	// Alt-screen agents skip replay; mode sync tells our emulator which
+	// terminal modes (mouse tracking, alt screen) they already switched on.
+	subErr := c.SubscribeOpts(sessionID, !altScreenTools[toolID], true)
 	if subErr != nil {
 		slog.Warn("tui: attach subscribe failed", "session", sessionID, "err", subErr)
 		_ = c.Close()
@@ -101,9 +118,8 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		// agents with ^L (documented in our footer as "redraw") so they
 		// repaint cleanly into our fresh vt10x buffer. Safe here because
 		// readline-based agents (ollama) aren't in altScreenTools.
-		_ = c.SendInput(sessionID, []byte{0x0c})
+		_ = c.SendRedraw(sessionID)
 	}
-	term := vt10x.New(vt10x.WithSize(cols, rows))
 	slug := ""
 	for _, s := range m.Sessions {
 		if s.ID == sessionID {
@@ -111,24 +127,34 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 			break
 		}
 	}
-	slog.Info("tui: attach opened", "session", sessionID, "cols", cols, "rows", rows)
+	mouse := mouseEnabled(m)
+	scrollback := attachScrollbackLimit(m)
+	slog.Info("tui: attach opened", "session", sessionID, "cols", cols, "rows", rows, "mouse", mouse, "mode_sync", true,
+		"scrollback_lines", scrollback)
 	st := &AttachState{
-		SessionID: sessionID, Slug: slug, Client: c, Term: term, Cols: cols, Rows: rows,
+		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows,
 		outCh: make(chan AttachOutputMsg, 64),
 		errCh: make(chan AttachClosedMsg, 1),
 	}
+	st.Term = newAttachTerm(st, cols, rows, scrollback)
 	go pumpAttach(c, sessionID, st.outCh, st.errCh)
 	m.Attach = st
 	m.Focus = FocusAttach
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventOpen)
 	}
-	return m, tea.Batch(listenAttach(st), tea.HideCursor)
+	// The popup shares the board's mouse capture; this only enables it if
+	// the board somehow doesn't hold it already.
+	m, mc := syncMouse(m, "attach")
+	return m, tea.Batch(listenAttach(st), tea.HideCursor, mc)
 }
 
+// closeAttach tears the popup down. Key handlers use detach, which also
+// re-syncs mouse capture for the board.
 func closeAttach(m Model) Model {
 	if m.Attach != nil {
 		slog.Info("tui: attach closed", "session", m.Attach.SessionID)
+		logAttachScrollbackTotals(m.Attach)
 		if m.Attach.Client != nil {
 			_ = m.Attach.Client.Close()
 		}
@@ -174,6 +200,8 @@ func resizeAttach(m Model) {
 	slog.Info("tui: attach resize", "session", m.Attach.SessionID, "cols", cols, "rows", rows)
 	m.Attach.Cols, m.Attach.Rows = cols, rows
 	m.Attach.Term.Resize(cols, rows)
+	// A shrink can push rows into scrollback; keep the offset in range.
+	m.Attach.ScrollOff = min(m.Attach.ScrollOff, m.Attach.sb.Len())
 	_ = m.Attach.Client.Resize(m.Attach.SessionID, uint16(cols), uint16(rows))
 }
 
@@ -254,9 +282,20 @@ func updateAttachKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	if k.Type == tea.KeyCtrlCloseBracket {
-		return closeAttach(m), nil
+		return detach(m)
 	}
-	b := keyToBytes(k)
+	if m.Attach.Scrolling() {
+		return updateAttachScrollKey(m, k)
+	}
+	if k.Type == tea.KeyCtrlPgUp && m.Attach.sb.Len() > 0 && m.Attach.onPrimaryScreen() {
+		scrollAttach(m.Attach, max(1, m.Attach.Rows-1), "ctrl+pgup")
+		return m, nil
+	}
+	m, cmd, handled, prefix := interceptAttachColon(m, k)
+	if handled {
+		return m, cmd
+	}
+	b := append(prefix, keyToBytes(k)...)
 	if len(b) == 0 {
 		return m, nil
 	}
@@ -369,47 +408,25 @@ func renderAttach(m Model) string {
 	cur := a.Term.Cursor()
 	cursorVisible := a.Term.CursorVisible()
 	lines := make([]string, 0, rows+4)
-	lines = append(lines, attachTitleBar(m, a, cols))
+	// Chrome lines are clipped to the terminal width: a wider line would
+	// widen the popup and shift it off the geometry mouse hit-testing assumes.
+	lines = append(lines, ansi.Truncate(attachTitleBar(m, a, cols), cols, "…"))
 	lines = append(lines, styleBorderFg.Render(strings.Repeat("─", cols)))
 	for y := 0; y < rows; y++ {
-		var row strings.Builder
-		var run strings.Builder
-		var runStyle lipgloss.Style
-		var haveStyle bool
-		flush := func() {
-			if run.Len() == 0 {
-				return
-			}
-			if haveStyle {
-				row.WriteString(runStyle.Render(run.String()))
-			} else {
-				row.WriteString(run.String())
-			}
-			run.Reset()
+		cx := -1
+		if cursorVisible && cur.Y == y {
+			cx = cur.X
 		}
-		for x := 0; x < cols; x++ {
-			g := a.Term.Cell(x, y)
-			r := g.Char
-			if r == 0 || r == ' ' {
-				r = ' '
-			}
-			isCursor := cursorVisible && cur.X == x && cur.Y == y
-			style := glyphStyle(g)
-			if isCursor {
-				style = style.Reverse(true)
-			}
-			if !haveStyle || !styleEq(style, runStyle) {
-				flush()
-				runStyle = style
-				haveStyle = true
-			}
-			run.WriteRune(r)
-		}
-		flush()
-		lines = append(lines, row.String())
+		lines = append(lines, attachViewRow(a, y, cols, cx))
 	}
 	lines = append(lines, styleBorderFg.Render(strings.Repeat("─", cols)))
-	lines = append(lines, attachFooter(a, cols))
+	if m.Focus == FocusCommand {
+		lines = append(lines, ansi.Truncate(renderAttachCommandBar(m, cols), cols, "…"))
+	} else if a.Scrolling() {
+		lines = append(lines, ansi.Truncate(attachScrollFooter(a, cols), cols, "…"))
+	} else {
+		lines = append(lines, ansi.Truncate(attachFooter(m, a, cols), cols, "…"))
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -423,12 +440,22 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	} else {
 		stateChip = styleDim.Render("· unknown")
 	}
-	slug := styleHeaderApp.Render(a.Slug)
+	title := a.Slug
+	if haveSum {
+		title = displayName(sum)
+		if sum.Name != "" {
+			title += styleDim.Render(" · " + sum.Slug)
+		}
+	}
+	slug := styleHeaderApp.Render(title)
 	var meta string
 	if haveSum {
 		meta = styleDim.Render(sum.ToolID + " · " + modelLabel(sum))
 	}
 	geom := styleMuted.Render(fmt.Sprintf("%d×%d", a.Cols, a.Rows))
+	if a.Scrolling() {
+		geom = attachScrollChip(a)
+	}
 	left := stateChip + "  " + slug
 	right := geom
 	if meta != "" {
@@ -460,12 +487,21 @@ func attachStateChip(m Model, st protocol.State) string {
 	return styleDim.Render("· " + string(st))
 }
 
-func attachFooter(a *AttachState, width int) string {
+func attachFooter(m Model, a *AttachState, width int) string {
 	sep := styleMuted.Render("  ·  ")
 	left := kbdChip("^]") + styleDim.Render(" detach") + sep +
+		kbdChip("::") + styleDim.Render(" command") + sep +
 		kbdChip("^L") + styleDim.Render(" redraw") + sep +
 		kbdChip("^C") + styleDim.Render(" interrupt")
+	if a.sb.Len() > 0 {
+		left += sep + kbdChip("^PgUp") + styleDim.Render(" scroll")
+	}
 	var right string
+	if sum, ok := findSession(m.Sessions, a.SessionID); ok && !a.Ended {
+		if lbl := retireLabel(time.Now(), sum); lbl != "" {
+			right = styleDim.Render(lbl)
+		}
+	}
 	if a.Ended {
 		msg := a.EndedMsg
 		if msg == "" {
@@ -526,4 +562,10 @@ func styleEq(a, b lipgloss.Style) bool {
 
 func lipglossWidth(s string) int {
 	return lipgloss.Width(s)
+}
+
+// detach closes the popup and re-syncs mouse capture for the board: it stays
+// on when the board wants it (mouse_enabled) and is released otherwise.
+func detach(m Model) (Model, tea.Cmd) {
+	return syncMouse(closeAttach(m), "detach")
 }

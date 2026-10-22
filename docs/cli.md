@@ -26,10 +26,10 @@ Many commands take `<sel>`: one session reference.
 | Form | Rule |
 |------|------|
 | Full UUID | Exact match on `id` |
-| Slug | Exact match on `slug` |
+| Slug | Exact match on `slug` (checked before short id) |
 | Short id | Four or more hex digits; prefix match on `id` |
 
-Exit **2** if no match. Exit **3** if multiple match.
+Exit **2** if no match. Exit **3** if multiple match — including a slug shared by several sessions restored from an older daemon (the error lists their short ids).
 
 The interactive help text mentions `@needs`, `@working`, and `@done`. Those aliases are **not** implemented. Use `rex ls` and a concrete id or slug.
 
@@ -72,6 +72,8 @@ rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-sho
 
 `-show-archived` and `-short` are accepted but have no effect today.
 
+The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working.
+
 ---
 
 ## rex new
@@ -86,6 +88,8 @@ rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
 Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. Prompt from arguments or stdin when stdin is not a TTY.
 
 Prints `short_id` and `slug` tab-separated on success.
+
+Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
 
 `-no-attach` is accepted but has no effect.
 
@@ -165,15 +169,44 @@ rex rm <sel> [-socket path] [-force]
 
 ## rex rename
 
+Change a session's **slug** (the selector handle). Waits for the daemon to confirm and prints `<old>: renamed to <new>`.
+
 ```sh
 rex rename <sel> <new-slug> [-socket path]
 ```
+
+Slugs are unique: a slug held by another session (any state) is rejected — `slug "x" already in use by <short_id>`, exit 5. A slug with whitespace or control characters is rejected before contacting the daemon (exit 5). Renaming a session to its current slug succeeds.
+
+---
+
+## rex name
+
+Set, clear, or print a session's **display name** — free text (max 64 characters) shown on the board instead of the slug. The slug is unchanged and stays the selector. Waits for the daemon to confirm.
+
+```sh
+rex name <sel> <text…> [-socket path]   # set
+rex name -clear <sel>                   # clear (board shows slug)
+rex name <sel>                          # print
+```
+
+---
+
+## rex done / rex undone
+
+Mark a session done **without stopping it**. It stays usable; after `-after` (default `retire_after_hours`, 168 h) the daemon kills it, removes it, and deletes its directory under `sessions/`. Typing into it first (`rex reply`, `rex send`, attach) cancels the mark. A session still working at the deadline is cleared once it settles. `rex undone` cancels. Aliases: `retire`, `unretire`.
+
+```sh
+rex done <sel> [-after 72h] [-socket path]
+rex undone <sel> [-socket path]
+```
+
+`rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 3 ("session removed") when the session disappears.
 
 ---
 
 ## rex archive
 
-Archive a completed session (title prefix).
+Archive a completed session (title prefix). Like any rename or fleet change, it leaves `last_event_at` alone, so the session's duration in `rex stats` / `rex digest` and its "ago" time don't change.
 
 ```sh
 rex archive <sel> [-socket path]
@@ -183,7 +216,7 @@ rex archive <sel> [-socket path]
 
 ## rex complete
 
-Mark a running session done.
+Kill a running session now and mark it done (the row stays). For the non-destructive version see `rex done`.
 
 ```sh
 rex complete <sel> [-socket path]

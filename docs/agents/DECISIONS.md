@@ -71,3 +71,11 @@ Non-obvious choices an agent might undo without context.
 **Chosen:** Constants exist in `protocol` but `server` handler has no cases.
 
 **Why:** Dead protocol surface or future work — clients must not rely on them until implemented.
+
+## vt10x forked in-tree for scrollback
+
+**Chosen:** Copy `github.com/hinshun/vt10x` into `third_party/vt10x` (MIT, own `go.mod`) and `replace` the import path to it. The fork adds `WithScrollback`, a hook for primary-screen lines lost off the top (scrolls with region top 0, rows dropped by resize). The attach popup keeps them in a bounded ring (`attach_scrollback_lines`, 8 MiB cap) for its scroll mode.
+
+**Rejected:** Reconstructing history in the TUI from the raw byte stream / replay; switching emulators.
+
+**Why:** Upstream is unmaintained and clears scrolled-off lines in place; only the emulator knows when a line leaves the screen. A hook is a small, testable diff (`third_party/vt10x/scrollback_test.go`, run by `make test`); a new emulator would be a much larger change to attach and the daemon's screen mirror.

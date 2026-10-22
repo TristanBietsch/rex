@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -27,6 +28,7 @@ const (
 	FocusFail
 	FocusBoot
 	FocusStats
+	FocusRename
 )
 
 // Model is the root Bubble Tea model.
@@ -46,15 +48,25 @@ type Model struct {
 	CmdText           string
 	PendingChord      string
 	Err               string
-	SpinnerTick       int
-	Quitting          bool
+	// Notice is a transient, non-error status line message (cleared on the
+	// next board key).
+	Notice      string
+	SpinnerTick int
+	Quitting    bool
 
 	Wizard   *WizardState
 	Settings *SettingsState
 	Attach   *AttachState
 	Fail     *FailState
+	Rename   *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
+
+	// Clock overrides time.Now for rendering (tests). nil = wall clock.
+	Clock func() time.Time
+	// namer / retirer override Client for those intents (tests).
+	namer   sessionNamer
+	retirer sessionRetirer
 
 	// Store is the live settings store. Renderers read from it; the settings
 	// page mutates it and triggers live-apply side effects.
@@ -67,10 +79,20 @@ type Model struct {
 	// BlinkUntil tracks done-blink expiry per session.
 	BlinkUntil map[string]time.Time
 
+	// lastNotify is when each session last played a state-change sound
+	// (debounce; see notify.go). Pruned on SessionRemoved.
+	lastNotify map[string]time.Time
+
 	// DescAnim is the active per-session description animation. Entries are
 	// pruned by the descTickMsg handler once the animation completes.
 	DescAnim        map[string]DescAnim
 	descTickPending bool
+
+	// retireTickPending guards the 1s countdown tick for marked-done rows.
+	retireTickPending bool
+	// spinnerGen / spinnerRunning track the single live spinner tick chain.
+	spinnerGen     int
+	spinnerRunning bool
 
 	// BackendUnavailable mirrors the daemon's summarizer health flag, delivered
 	// via SummarizerHealth events.
@@ -79,6 +101,12 @@ type Model struct {
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
+
+	// mouseOn is whether rex last told the terminal to report mouse events
+	// (see syncMouse). lastClickID / lastClickAt detect board double-clicks.
+	mouseOn     bool
+	lastClickID string
+	lastClickAt time.Time
 
 	// Boot / splash state.
 	BootLog     []bootLine
@@ -115,6 +143,28 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionRemoved:
 		var rem protocol.SessionRemoved
 		if err := json.Unmarshal(env.Data, &rem); err == nil {
+			if m.Attach != nil && m.Attach.SessionID == rem.SessionID {
+				m.Attach.Ended = true
+				m.Attach.EndedMsg = "session deleted"
+				if rem.Reason == protocol.RemovedRetired {
+					m.Attach.EndedMsg = "session cleared (marked done)"
+				}
+				slog.Info("tui: session removed while attached", "session", rem.SessionID, "reason", rem.Reason)
+			}
+			if m.Rename != nil && m.Rename.SessionID == rem.SessionID {
+				m.Rename = nil
+				m.Focus = FocusBoard
+				m.Err = "rename: session removed"
+				slog.Info("tui: rename target removed", "session", rem.SessionID)
+			}
+			if rem.Reason == protocol.RemovedRetired {
+				if sum, ok := findSession(m.Sessions, rem.SessionID); ok {
+					m.Notice = "cleared " + displayName(sum) + " (marked done)"
+				}
+			}
+			if m.SelectedID == rem.SessionID {
+				m.SelectedID = neighborOf(m, rem.SessionID)
+			}
 			out := m.Sessions[:0]
 			for _, s := range m.Sessions {
 				if s.ID != rem.SessionID {
@@ -122,6 +172,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 				}
 			}
 			m.Sessions = out
+			delete(m.lastNotify, rem.SessionID)
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventDelete)
 			}
@@ -129,8 +180,14 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionUpdated:
 		var upd protocol.SessionUpdated
 		if err := json.Unmarshal(env.Data, &upd); err == nil {
+			// prevState is the state before this patch; known is false for a
+			// session this TUI never saw (no live transition to announce).
+			var prevState protocol.State
+			known := false
 			for i := range m.Sessions {
 				if m.Sessions[i].ID == upd.SessionID {
+					known = true
+					prevState = m.Sessions[i].State
 					prevDesc := m.Sessions[i].Description
 					applyPatch(&m.Sessions[i], upd.Patch)
 					if m.Sessions[i].Description != prevDesc {
@@ -139,14 +196,21 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					break
 				}
 			}
-			if s, ok := upd.Patch["state"].(string); ok && protocol.State(s) == protocol.StateDone {
+			s, hasState := upd.Patch["state"].(string)
+			next := protocol.State(s)
+			// A repeated done patch is not a new completion; stay silent.
+			if hasState && next == protocol.StateDone && (!known || prevState != protocol.StateDone) {
 				if m.BlinkUntil == nil {
 					m.BlinkUntil = make(map[string]time.Time)
 				}
 				m.BlinkUntil[upd.SessionID] = time.Now().Add(1600 * time.Millisecond)
+				// Covers needs_input → done too: one transition, one sound.
 				if m.Audio != nil {
 					m.Audio.Play(audio.EventDone)
 				}
+			}
+			if hasState {
+				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
 			}
 		}
 	case protocol.EventSnapshot:
@@ -160,8 +224,8 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventError:
 		var ee protocol.ErrorEvent
 		if err := json.Unmarshal(env.Data, &ee); err == nil {
-			slog.Warn("tui: daemon error event", "code", ee.Code, "message", ee.Message)
-			m.Err = "daemon: " + ee.Message
+			slog.Warn("tui: daemon error event", "code", ee.Code, "message", ee.Message, "id", ee.ID)
+			m.Err = "daemon: " + friendlyDaemonError(ee)
 			// A rejected spawn will never produce SessionAdded.
 			m.PendingSelectSlug = ""
 		}
@@ -198,6 +262,18 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["fleet"].(string); ok {
 		s.Fleet = v
 	}
+	if v, ok := patch["name"].(string); ok {
+		s.Name = v
+	}
+	if t, ok := patchTime(patch, "last_event_at"); ok && !t.IsZero() {
+		s.LastEventAt = t
+	}
+	if t, ok := patchTime(patch, "retire_at"); ok {
+		s.RetireAt = t
+	}
+	if t, ok := patchTime(patch, "working_since"); ok {
+		s.WorkingSince = t
+	}
 	// Token fields come as float64 over JSON; coerce safely.
 	if v, ok := patch["tokens"].(float64); ok {
 		s.Tokens = int64(v)
@@ -205,6 +281,59 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["output_bytes"].(float64); ok {
 		s.OutputBytes = int64(v)
 	}
+}
+
+// patchTime reads an optional timestamp patch key: an RFC3339 string sets
+// it, null clears it (zero time). ok is false when the key is absent or
+// unparseable.
+func patchTime(patch map[string]any, key string) (time.Time, bool) {
+	v, present := patch[key]
+	if !present {
+		return time.Time{}, false
+	}
+	if v == nil {
+		return time.Time{}, true
+	}
+	str, isStr := v.(string)
+	if !isStr {
+		slog.Warn("tui: patch time not a string", "key", key)
+		return time.Time{}, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, str)
+	if err != nil {
+		slog.Warn("tui: patch time parse failed", "key", key, "err", err)
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+// friendlyDaemonError maps protocol errors to actionable status text.
+func friendlyDaemonError(ee protocol.ErrorEvent) string {
+	switch {
+	case ee.Code == protocol.ErrCodeBadIntent && ee.Message == "intent not implemented":
+		return "daemon is older than rex — run 'rex daemon restart'"
+	case ee.Code == protocol.ErrCodeBadState && strings.HasPrefix(ee.ID, "unretire-"):
+		return "too late — session is already being cleared"
+	}
+	return ee.Message
+}
+
+// neighborOf picks the row to select after id leaves the board: the next row
+// in board order, else the previous one, else none.
+func neighborOf(m Model, id string) string {
+	rows := orderedSessions(m)
+	for i, s := range rows {
+		if s.ID != id {
+			continue
+		}
+		if i+1 < len(rows) {
+			return rows[i+1].ID
+		}
+		if i > 0 {
+			return rows[i-1].ID
+		}
+	}
+	return ""
 }
 
 // registerDescAnim records a description-change animation. Respects

@@ -30,7 +30,7 @@ Go SDK for `rex-daemon` Unix-domain-socket protocol: dial, send intents, read ev
 - `SendInput(sessionID string, b []byte) error`
 - `Reply(sessionID, text string) error`
 - `Resize(sessionID string, cols, rows uint16) error`
-- `Rename(sessionID, slug, title string) error`
+- `Rename(sessionID, slug, title, reqID string) error` (reqID echoed on Error, e.g. slug in use)
 - `Delete(sessionID string) error`
 - `Complete(sessionID string) error`
 - `FocusFilter(toolID string) error`

@@ -48,6 +48,19 @@ type SessionSummary struct {
 
 	// Fleet groups related sessions under a named label.
 	Fleet string `json:"fleet,omitempty"`
+
+	// Name is a user-chosen display label. Empty means "show the slug".
+	// Unlike Slug it is free text and never used as a selector.
+	Name string `json:"name,omitempty"`
+
+	// RetireAt is when a session the user marked done gets cleared (process
+	// killed, removed from the board, on-disk state deleted). Zero means not
+	// marked. Orthogonal to State: a retiring session can still be working.
+	RetireAt time.Time `json:"retire_at,omitzero"`
+
+	// WorkingSince is when the current uninterrupted working stretch began.
+	// Zero unless State is working. Drives the long-running badge.
+	WorkingSince time.Time `json:"working_since,omitzero"`
 }
 
 // Snapshot is the daemon's response to Hello: full board state.
@@ -65,7 +78,16 @@ type SessionUpdated struct {
 // SessionRemoved indicates the session is gone.
 type SessionRemoved struct {
 	SessionID string `json:"session_id"`
+	// Reason is why it went away: RemovedByUser (Delete) or RemovedRetired
+	// (a marked-done session's timer expired). Empty from older daemons.
+	Reason string `json:"reason,omitempty"`
 }
+
+// SessionRemoved reasons.
+const (
+	RemovedByUser  = "user"
+	RemovedRetired = "retired"
+)
 
 // SessionOutput is incremental PTY output for a subscribed session.
 type SessionOutput struct {

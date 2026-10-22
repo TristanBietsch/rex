@@ -205,5 +205,9 @@ func summaryToTable(L *lua.LState, s protocol.SessionSummary) *lua.LTable {
 	L.SetField(t, "tool_id", lua.LString(s.ToolID))
 	L.SetField(t, "model_id", lua.LString(s.ModelID))
 	L.SetField(t, "cwd", lua.LString(s.CWD))
+	L.SetField(t, "name", lua.LString(s.Name))
+	if !s.RetireAt.IsZero() {
+		L.SetField(t, "retire_at", lua.LNumber(s.RetireAt.Unix()))
+	}
 	return t
 }

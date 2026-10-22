@@ -51,9 +51,9 @@ func Run(socket string) error {
 func (m Model) Init() tea.Cmd {
 	if m.Focus == FocusBoot {
 		first := nextStep(m)
-		return tea.Batch(tea.HideCursor, bootMinTick(), delayThen(first), tickSpinner())
+		return tea.Batch(tea.HideCursor, bootMinTick(), delayThen(first), tickSpinner(m.spinnerGen))
 	}
-	return tea.Batch(tea.HideCursor, listenDaemon(m.Client), tickSpinner())
+	return tea.Batch(tea.HideCursor, listenDaemon(m.Client), tickSpinner(m.spinnerGen))
 }
 
 func (m Model) View() string {
@@ -83,6 +83,12 @@ func (m Model) View() string {
 		return centerOverlay(w, h, renderFail(m), renderFullScreen(m, w, h))
 	case FocusStats:
 		return centerOverlay(w, h, renderStatsOverlay(m), renderFullScreen(m, w, h))
+	case FocusCommand:
+		// A command bar opened from inside the attach popup (::) keeps the
+		// popup on screen; the bar renders in its footer.
+		if m.Attach != nil {
+			return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
+		}
 	}
 
 	return renderFullScreen(m, w, h)
@@ -116,6 +122,8 @@ func renderFullScreen(m Model, w, h int) string {
 		bottom = hr + "\n" + renderQuitConfirm(cw) + "\n" + helpline
 	case FocusConfirmDelete:
 		bottom = hr + "\n" + renderDeleteConfirm(m, cw) + "\n" + helpline
+	case FocusRename:
+		bottom = hr + "\n" + renderRenamePrompt(m, cw) + "\n" + helpline
 	default:
 		bottom = hr + "\n" + renderPrompt(m, cw) + "\n" + helpline
 	}

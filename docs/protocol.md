@@ -49,15 +49,18 @@ Store broadcasts are gated until `Hello` completes on that connection.
 |------|-------------|-----------------|
 | `Hello` | yes | `client_version` |
 | `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet` |
-| `Subscribe` | yes | `session_id`, `replay` |
-| `SendInput` | yes | `session_id`, `bytes` (base64) |
+| `Subscribe` | yes | `session_id`, `replay`, `mode_sync` |
+| `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
-| `Rename` | yes | `session_id`, `slug`, `title` |
+| `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Confirmed by `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
 | `Delete` | yes | `session_id` |
 | `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored) |
 | `SetSessionFleet` | yes | `session_id`, `fleet` |
 | `SetMaxConcurrent` | yes | `n` (`n <= 0` uncaps) |
 | `Complete` | yes | `session_id` |
+| `SetSessionName` | yes | `session_id`, `name` (always sent; `""` clears; normalized, max 64 runes) |
+| `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
+| `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
 | `FocusFilter` | no-op | Accepted; not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | **no** | `bad_intent` "intent not implemented" |
@@ -69,6 +72,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
 | `effort`, `title`, `initial_prompt`, `fleet` | no |
 
+`slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
+
 ## Events (daemon → client)
 
 | Type | Payload summary |
@@ -76,14 +81,18 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`) |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
-| `SessionRemoved` | `session_id` |
+| `SessionRemoved` | `session_id`, `reason` (`user` \| `retired`; empty from older daemons) |
 | `SessionOutput` | `session_id`, `bytes` (base64) |
 | `SummarizerHealth` | `available`, `reason` |
 | `Error` | `id`, `code`, `message` |
 
 ### SessionSummary fields
 
-`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`.
+`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `working_since` (start of the current working stretch; omitted unless working).
+
+`last_event_at` is the last real activity — a state change, a new screen line, or the child's exit; stats and digest treat it as a finished session's end. Metadata edits (`rename`, fleet, `name`, retire, AI `description`) leave it unchanged and their patches omit it.
+
+Patches for `name` always carry the key (`""` = cleared). Patches for `retire_at` and `working_since` send `null` to clear.
 
 On disk the same shape is stored in `meta.json`. See [paths.md](paths.md).
 
@@ -91,17 +100,25 @@ On disk the same shape is stored in `meta.json`. See [paths.md](paths.md).
 
 When `replay` is true, the daemon sends up to **256 KiB** of transcript tail as `SessionOutput` events before live output.
 
+### Subscribe mode_sync
+
+When `mode_sync` is true and `replay` is false, the daemon first sends one `SessionOutput` holding escape sequences that re-create the child's current terminal modes (alternate screen `?1049h`, mouse tracking `?9/1000/1002/1003h`, SGR mouse `?1006h`, application cursor keys `?1h`). A client emulator that never saw the child's startup bytes then agrees with it about how to deliver mouse input.
+
+### Compatibility
+
+Additive changes (new optional fields, new intents, new patch keys) keep `v: 1`; both sides ignore unknown fields. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
+
 ## Error codes
 
 | Code | Emitted when |
 |------|----------------|
-| `bad_intent` | Wrong kind, parse error, unimplemented intent |
+| `bad_intent` | Wrong kind, parse error, unimplemented intent, invalid/missing fields (incl. `NewSession`), slug already in use (`NewSession`, `Rename`) |
 | `unknown_session` | No such session (or input buffer full) |
-| `spawn_failed` | `NewSession` failed |
+| `spawn_failed` | `NewSession` failed after validation (unknown tool/model, effort, PTY start) |
 | `too_many_sessions` | Concurrency cap |
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
-| `bad_state` | Defined; not emitted by current server |
+| `bad_state` | `Unretire` after the reaper started clearing the session |
 
 ## EXAMPLES
 

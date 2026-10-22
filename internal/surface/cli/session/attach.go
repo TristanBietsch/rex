@@ -99,7 +99,9 @@ func RunAttach(args []string) error {
 	// Switch to the alt-screen so we don't trample the caller's scrollback,
 	// hide the cursor until the agent draws its own, then restore on exit.
 	const enterAlt = "\x1b[?1049h\x1b[?25l"
-	const exitAlt = "\x1b[?25h\x1b[?1049l"
+	// exitAlt also turns off mouse tracking / bracketed paste the agent may
+	// have enabled (Claude fullscreen does), or the shell is left in mouse mode.
+	const exitAlt = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l\x1b[?25h\x1b[?1049l"
 	_, _ = os.Stdout.WriteString(enterAlt)
 	defer func() { _, _ = os.Stdout.WriteString(exitAlt) }()
 
@@ -112,7 +114,7 @@ func RunAttach(args []string) error {
 	if redrawKickTools[sess.ToolID] {
 		go func(sessID, toolID string) {
 			time.Sleep(150 * time.Millisecond)
-			if err := c.SendInput(sessID, []byte{0x0c}); err != nil {
+			if err := c.SendRedraw(sessID); err != nil {
 				slog.Warn("attach: redraw kick failed", "session", sessID, "tool", toolID, "err", err)
 				return
 			}
@@ -163,10 +165,21 @@ func RunAttach(args []string) error {
 		if err != nil {
 			return nil
 		}
-		if env.Type == protocol.EventSessionOutput {
+		switch env.Type {
+		case protocol.EventSessionOutput:
 			var so protocol.SessionOutput
 			if jerr := json.Unmarshal(env.Data, &so); jerr == nil && so.SessionID == sess.ID {
 				_, _ = os.Stdout.Write(so.Bytes)
+			}
+		case protocol.EventSessionRemoved:
+			var rm protocol.SessionRemoved
+			if jerr := json.Unmarshal(env.Data, &rm); jerr == nil && rm.SessionID == sess.ID {
+				slog.Info("attach: session removed", "session", sess.ID, "reason", rm.Reason)
+				msg := "session deleted"
+				if rm.Reason == protocol.RemovedRetired {
+					msg = "session cleared (marked done)"
+				}
+				return core.NewExitError(core.ExitGeneric, msg)
 			}
 		}
 	}

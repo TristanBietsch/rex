@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,7 +20,8 @@ import (
 
 func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, w *protocol.Writer) error {
 	if err := validateNewSession(p); err != nil {
-		return err
+		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
+		return badIntent(err)
 	}
 	cfg := srv.cfg
 	// Read the registry through the lock so SIGHUP-swapped versions take effect.
@@ -91,8 +93,13 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		StartedAt: time.Now().UTC(),
 		Fleet:     p.Fleet,
 	}
-	if err := cfg.Store.Add(sess); err != nil {
+	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
+		var taken *state.SlugTakenError
+		if errors.As(err, &taken) {
+			slog.Warn("spawn: rejected, slug taken", "req_id", intentID, "slug", p.Slug, "holder", taken.ShortID)
+			return badIntent(err)
+		}
 		return err
 	}
 
@@ -130,13 +137,21 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		UnregisterResize: func() {
 			srv.UnregisterResize(sess.ID)
 		},
+		RegisterModePreamble: func(fn func() []byte) {
+			srv.RegisterModePreamble(sess.ID, fn)
+		},
+		UnregisterModePreamble: func() {
+			srv.UnregisterModePreamble(sess.ID)
+		},
 	})
 
 	// Per-session ctx + done so IntentDelete can synchronously tear the PTY down.
-	sessCtx, cancel := context.WithCancel(ctx)
+	// The stop cause tells the supervisor this is a delete, not a failure.
+	sessCtx, cancelCause := context.WithCancelCause(ctx)
+	cancel := func() { cancelCause(nil) }
 	done := make(chan struct{})
 	srv.RegisterStop(sess.ID, func() {
-		cancel()
+		cancelCause(pty.ErrSessionDeleted)
 		<-done
 	})
 	srv.RegisterComplete(sess.ID, func() {

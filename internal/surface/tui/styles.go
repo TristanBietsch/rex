@@ -1,6 +1,11 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+)
 
 // palette is one named color scheme. All renderers read from the package-level
 // theme/style vars below, which are rebuilt on applyTheme().
@@ -167,7 +172,22 @@ func renderHR(width int) string {
 }
 
 // padLine pads s to exactly width visible columns (right-padded with spaces).
-// No background is applied — the terminal's native bg shows through.
+// No background is applied — the terminal's native bg shows through. Lines
+// wider than width are truncated with "…", never wrapped: a wrapped header or
+// status line pushes the board down a row and breaks the fixed line math
+// (boardTop, mouse hit-testing).
 func padLine(s string, width int) string {
-	return lipgloss.NewStyle().Width(width).Render(s)
+	if width <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		w := ansi.StringWidth(l)
+		if w > width {
+			l = ansi.Truncate(l, width, "…")
+			w = ansi.StringWidth(l)
+		}
+		lines[i] = l + strings.Repeat(" ", width-w)
+	}
+	return strings.Join(lines, "\n")
 }

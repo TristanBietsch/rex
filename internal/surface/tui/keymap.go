@@ -25,6 +25,12 @@ func indexOfSelected(m Model) int {
 }
 
 func moveSelection(m Model, delta int) Model {
+	return stepSelection(m, delta, true)
+}
+
+// stepSelection moves the selection delta rows; sound plays the nav cue
+// (the mouse wheel moves silently — a trackpad flick is dozens of steps).
+func stepSelection(m Model, delta int, sound bool) Model {
 	rows := orderedSessions(m)
 	if len(rows) == 0 {
 		m.SelectedID = ""
@@ -37,7 +43,7 @@ func moveSelection(m Model, delta int) Model {
 		} else {
 			m.SelectedID = rows[len(rows)-1].ID
 		}
-		if m.Audio != nil {
+		if sound && m.Audio != nil {
 			m.Audio.Play("nav")
 		}
 		return ensureVisible(m)
@@ -49,7 +55,7 @@ func moveSelection(m Model, delta int) Model {
 	if idx >= len(rows) {
 		idx = len(rows) - 1
 	}
-	if m.SelectedID != rows[idx].ID && m.Audio != nil {
+	if sound && m.SelectedID != rows[idx].ID && m.Audio != nil {
 		m.Audio.Play("nav")
 	}
 	m.SelectedID = rows[idx].ID
@@ -138,16 +144,23 @@ func jumpToSection(m Model, groupIdx int) Model {
 	return ensureVisible(m)
 }
 
+// filterTools is the filter chip order (header chips and the t cycle).
+var filterTools = []string{"all", "claude", "codex", "gemini", "ollama"}
+
 func cycleFilter(m Model) Model {
-	tools := []string{"all", "claude", "codex", "gemini", "ollama"}
 	next := 0
-	for i, t := range tools {
+	for i, t := range filterTools {
 		if t == m.Filter {
-			next = (i + 1) % len(tools)
+			next = (i + 1) % len(filterTools)
 			break
 		}
 	}
-	m.Filter = tools[next]
+	return setFilter(m, filterTools[next])
+}
+
+// setFilter switches the tool filter, keeping a still-visible selection.
+func setFilter(m Model, filter string) Model {
+	m.Filter = filter
 	// Filter change shifts visible rows — reset scroll and re-select to the top.
 	m.ScrollOffset = 0
 	rows := orderedSessions(m)

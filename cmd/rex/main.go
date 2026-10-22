@@ -51,6 +51,12 @@ func run(args []string) error {
 		return session.RunRm(args[1:])
 	case "rename":
 		return session.RunRename(args[1:])
+	case "name":
+		return session.RunName(args[1:])
+	case "done", "retire":
+		return session.RunDone(args[1:])
+	case "undone", "unretire":
+		return session.RunUndone(args[1:])
 	case "archive":
 		return session.RunArchive(args[1:])
 	case "complete":

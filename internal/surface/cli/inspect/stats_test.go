@@ -4,6 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -140,4 +143,37 @@ func TestSessionDurationLive(t *testing.T) {
 	if d < 4*time.Minute || d > 6*time.Minute {
 		t.Errorf("expected ~5m live duration, got %v", d)
 	}
+}
+
+// Regression: renaming (incl. `rex archive`), re-fleeting or a late AI
+// description on a finished session must not stretch its measured duration
+// or move it into a later digest day (LastEventAt is its end time).
+func TestDoneSessionDurationSurvivesMetadataEdits(t *testing.T) {
+	store := state.NewStore()
+	end := time.Now().Add(-3 * time.Hour).UTC()
+	start := end.Add(-45 * time.Minute)
+	sess := &state.Session{
+		ID: "full-id", ShortID: "abcd", ToolID: "claude", ModelID: "sonnet",
+		Slug: "s", Title: "t", State: protocol.StateDone,
+		StartedAt: start, LastEventAt: end,
+	}
+	require.NoError(t, store.Add(sess))
+	want := 45 * time.Minute
+	require.Equal(t, want, sessionDuration(sess.Summary()), "baseline")
+
+	require.NoError(t, store.UpdateRename(sess.ID, "renamed", "[archived] t"))
+	require.NoError(t, store.SetFleet(sess.ID, "backend"))
+	require.NoError(t, store.UpdateDescription(sess.ID, "finished the migration"))
+
+	sum := sess.Summary()
+	require.Equal(t, want, sessionDuration(sum), "stats duration")
+	require.Equal(t, want, sessionActiveDuration(sum), "digest duration")
+	agg := aggregateSessions([]protocol.SessionSummary{sum})
+	require.Len(t, agg.byModel, 1)
+	require.Equal(t, want.Milliseconds(), agg.byModel[0].DurationMs, "aggregate duration")
+
+	// Edited now, ended 3h ago: a window covering only the last hour must
+	// not pick it up.
+	recent := digestRange{start: time.Now().Add(-time.Hour), end: time.Now().Add(time.Minute)}
+	require.False(t, recent.contains(sum), "metadata edit pulled session into a later window")
 }

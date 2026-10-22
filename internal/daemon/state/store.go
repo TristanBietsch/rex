@@ -1,6 +1,7 @@
 package state
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -24,7 +25,12 @@ type Event struct {
 	NewState  *protocol.State          // set on Updated when state changed
 	Patch     map[string]any           // set on Updated for arbitrary field changes
 	Summary   *protocol.SessionSummary // set on Added
+	Reason    string                   // set on Removed (protocol.Removed*)
 }
+
+// ErrReaping is returned by ClearRetire once the retire sweep has claimed the
+// session: the undo lost the race and the session is being cleared.
+var ErrReaping = errors.New("session is already being cleared")
 
 // Store is the central session table.
 type Store struct {
@@ -43,7 +49,39 @@ func NewStore() *Store {
 	}
 }
 
-// Add inserts a session. Errors if the ID is taken.
+// SlugTakenError reports a slug already held by another session in the store.
+// Slugs are selectors, so every session in the store (any state) holds its
+// slug until it is removed.
+type SlugTakenError struct {
+	Slug    string
+	ID      string // holder's full id
+	ShortID string // holder's short id
+}
+
+func (e *SlugTakenError) Error() string {
+	return fmt.Sprintf("slug %q already in use by %s", e.Slug, e.ShortID)
+}
+
+// slugHolderLocked returns the first session other than exceptID whose slug
+// is slug. Caller holds s.mu (read or write); lock order is s.mu -> sess.mu.
+func (s *Store) slugHolderLocked(slug, exceptID string) *Session {
+	for id, other := range s.sessions {
+		if id == exceptID {
+			continue
+		}
+		other.mu.Lock()
+		held := other.Slug == slug
+		other.mu.Unlock()
+		if held {
+			return other
+		}
+	}
+	return nil
+}
+
+// Add inserts a session. Errors if the ID is taken. It does not check slug
+// uniqueness: the daemon uses it to restore sessions from disk, where older
+// versions may have left duplicate slugs. New sessions go through AddUnique.
 func (s *Store) Add(sess *Session) error {
 	s.mu.Lock()
 	if _, exists := s.sessions[sess.ID]; exists {
@@ -57,6 +95,47 @@ func (s *Store) Add(sess *Session) error {
 
 	s.broadcast(Event{Kind: EventAdded, SessionID: sess.ID, Summary: &sum})
 	return nil
+}
+
+// AddUnique inserts a session like Add but rejects (with *SlugTakenError) a
+// slug any session in the store already uses. The check and the insert happen
+// under one lock, so concurrent spawns cannot both claim a slug.
+func (s *Store) AddUnique(sess *Session) error {
+	s.mu.Lock()
+	if _, exists := s.sessions[sess.ID]; exists {
+		s.mu.Unlock()
+		return fmt.Errorf("session %s already exists", sess.ID)
+	}
+	if holder := s.slugHolderLocked(sess.Slug, sess.ID); holder != nil {
+		s.mu.Unlock()
+		return &SlugTakenError{Slug: sess.Slug, ID: holder.ID, ShortID: holder.ShortID}
+	}
+	s.sessions[sess.ID] = sess
+	s.byShortID[sess.ShortID] = sess.ID
+	sum := sess.Summary()
+	s.mu.Unlock()
+
+	s.broadcast(Event{Kind: EventAdded, SessionID: sess.ID, Summary: &sum})
+	return nil
+}
+
+// DuplicateSlugs maps each slug held by more than one session to the short
+// ids holding it. Only sessions restored from disk can produce duplicates.
+func (s *Store) DuplicateSlugs() map[string][]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	holders := make(map[string][]string)
+	for _, sess := range s.sessions {
+		sess.mu.Lock()
+		holders[sess.Slug] = append(holders[sess.Slug], sess.ShortID)
+		sess.mu.Unlock()
+	}
+	for slug, shorts := range holders {
+		if len(shorts) < 2 {
+			delete(holders, slug)
+		}
+	}
+	return holders
 }
 
 // Get returns a session by full id.
@@ -124,8 +203,14 @@ func (s *Store) Snapshot() []protocol.SessionSummary {
 	return out
 }
 
-// Remove deletes a session and emits.
+// Remove deletes a session (reason "user") and emits.
 func (s *Store) Remove(id string) error {
+	return s.RemoveWithReason(id, protocol.RemovedByUser)
+}
+
+// RemoveWithReason deletes a session, marks it removed so later WriteMeta
+// calls skip it, and emits a Removed event carrying reason.
+func (s *Store) RemoveWithReason(id, reason string) error {
 	s.mu.Lock()
 	sess, ok := s.sessions[id]
 	if !ok {
@@ -134,9 +219,12 @@ func (s *Store) Remove(id string) error {
 	}
 	delete(s.sessions, id)
 	delete(s.byShortID, sess.ShortID)
+	sess.mu.Lock()
+	sess.removed = true
+	sess.mu.Unlock()
 	s.mu.Unlock()
 
-	s.broadcast(Event{Kind: EventRemoved, SessionID: id})
+	s.broadcast(Event{Kind: EventRemoved, SessionID: id, Reason: reason})
 	return nil
 }
 
@@ -148,9 +236,19 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 	if !ok {
 		return fmt.Errorf("session %s not found", id)
 	}
+	now := time.Now().UTC()
+	patch := map[string]any{"state": newState, "last_event_at": now}
 	sess.mu.Lock()
+	switch {
+	case newState == protocol.StateWorking && sess.WorkingSince.IsZero():
+		sess.WorkingSince = now
+		patch["working_since"] = now
+	case newState != protocol.StateWorking && !sess.WorkingSince.IsZero():
+		sess.WorkingSince = time.Time{}
+		patch["working_since"] = nil
+	}
 	sess.State = newState
-	sess.LastEventAt = time.Now().UTC()
+	sess.LastEventAt = now
 	sess.mu.Unlock()
 
 	ns := newState
@@ -158,9 +256,105 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 		Kind:      EventUpdated,
 		SessionID: id,
 		NewState:  &ns,
-		Patch:     map[string]any{"state": newState, "last_event_at": time.Now().UTC()},
+		Patch:     patch,
 	})
 	return nil
+}
+
+// SetName sets the user display name ("" clears it). It does not touch
+// LastEventAt: a label edit is not session activity. Returns whether the
+// value changed. It does not broadcast: the caller persists meta first and
+// then calls BroadcastPatch, so a client reacting to the event reads the new
+// value from disk.
+func (s *Store) SetName(id, name string) (changed bool, err error) {
+	sess, ok := s.Get(id)
+	if !ok {
+		return false, fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	changed = sess.Name != name
+	sess.Name = name
+	sess.mu.Unlock()
+	return changed, nil
+}
+
+// SetRetire marks a session to be cleared at at. If it is already marked the
+// original deadline is kept and changed is false. Like SetName it does not
+// broadcast; the caller persists then broadcasts {"retire_at": at}.
+func (s *Store) SetRetire(id string, at time.Time) (changed bool, err error) {
+	sess, ok := s.Get(id)
+	if !ok {
+		return false, fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if !sess.RetireAt.IsZero() {
+		sess.mu.Unlock()
+		return false, nil
+	}
+	sess.RetireAt = at
+	sess.mu.Unlock()
+	return true, nil
+}
+
+// ClearRetire cancels a pending retire. Returns ErrReaping when the sweep has
+// already claimed the session, and changed=false when it wasn't marked. The
+// caller persists then broadcasts {"retire_at": nil}.
+func (s *Store) ClearRetire(id string) (changed bool, err error) {
+	sess, ok := s.Get(id)
+	if !ok {
+		return false, fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.reaping {
+		sess.mu.Unlock()
+		return false, ErrReaping
+	}
+	if sess.RetireAt.IsZero() {
+		sess.mu.Unlock()
+		return false, nil
+	}
+	sess.RetireAt = time.Time{}
+	sess.mu.Unlock()
+	return true, nil
+}
+
+// RetireCandidate is a marked session whose deadline has passed.
+type RetireCandidate struct {
+	ID       string
+	State    protocol.State
+	RetireAt time.Time
+}
+
+// ClaimExpired claims every marked session whose deadline is at or before
+// now and which is not busy (working or queued — those wait until they
+// settle). Claiming is atomic with ClearRetire under the session lock, so an
+// undo either wins before the claim or fails with ErrReaping after it. Each
+// session is claimed at most once. Busy-but-expired sessions are returned in
+// waiting so the caller can log them.
+func (s *Store) ClaimExpired(now time.Time) (claimed []RetireCandidate, waiting []RetireCandidate) {
+	for _, sess := range s.All() {
+		sess.mu.Lock()
+		if sess.reaping || sess.RetireAt.IsZero() || sess.RetireAt.After(now) {
+			sess.mu.Unlock()
+			continue
+		}
+		c := RetireCandidate{ID: sess.ID, State: sess.State, RetireAt: sess.RetireAt}
+		if sess.State == protocol.StateWorking || sess.State == protocol.StateQueued {
+			sess.mu.Unlock()
+			waiting = append(waiting, c)
+			continue
+		}
+		sess.reaping = true
+		sess.mu.Unlock()
+		claimed = append(claimed, c)
+	}
+	return claimed, waiting
+}
+
+// BroadcastPatch emits a SessionUpdated event with an arbitrary patch. The
+// caller is responsible for having applied the change to the session first.
+func (s *Store) BroadcastPatch(id string, patch map[string]any) {
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: patch})
 }
 
 // UpdateTokens increments the session's OutputBytes by deltaBytes and recomputes
@@ -185,14 +379,17 @@ func (s *Store) UpdateTokens(id string, deltaBytes int64) (tokens, outputBytes i
 
 // BroadcastTokenPatch emits a SessionUpdated event for the token/output_bytes fields.
 func (s *Store) BroadcastTokenPatch(id string, tokens, outputBytes int64) {
-	s.broadcast(Event{
-		Kind:      EventUpdated,
-		SessionID: id,
-		Patch:     map[string]any{"tokens": tokens, "output_bytes": outputBytes},
-	})
+	s.BroadcastPatch(id, map[string]any{"tokens": tokens, "output_bytes": outputBytes})
 }
 
-// SetFleet updates the fleet label on a session, persists it, and broadcasts.
+// LastEventAt is the session's last real activity: a state transition, a new
+// screen line from the child, or its exit. Stats and digest use it as a
+// finished session's end time and the board as "time ago", so metadata
+// writers (SetFleet, UpdateRename, UpdateDescription, SetName, SetRetire,
+// ClearRetire) must leave it alone and keep last_event_at out of their patch.
+
+// SetFleet updates the fleet label on a session and broadcasts. It does not
+// touch LastEventAt (a label edit is not session activity).
 func (s *Store) SetFleet(id, fleet string) error {
 	s.mu.RLock()
 	sess, ok := s.sessions[id]
@@ -202,27 +399,36 @@ func (s *Store) SetFleet(id, fleet string) error {
 	}
 	sess.mu.Lock()
 	sess.Fleet = fleet
-	sess.LastEventAt = time.Now().UTC()
 	sess.mu.Unlock()
 
 	s.broadcast(Event{
 		Kind:      EventUpdated,
 		SessionID: id,
-		Patch:     map[string]any{"fleet": fleet, "last_event_at": time.Now().UTC()},
+		Patch:     map[string]any{"fleet": fleet},
 	})
 	return nil
 }
 
-// UpdateRename changes slug and/or title and broadcasts a sparse SessionUpdated patch.
+// UpdateRename changes slug and/or title and broadcasts a sparse SessionUpdated
+// patch. It does not touch LastEventAt, so renaming or archiving a finished
+// session leaves its duration and recency alone. A slug held by a different
+// session is rejected with *SlugTakenError; the check and the write happen
+// under s.mu so two renames cannot both claim it. Renaming a session to its
+// own slug succeeds (and still broadcasts).
 func (s *Store) UpdateRename(id, slug, title string) error {
-	s.mu.RLock()
+	s.mu.Lock()
 	sess, ok := s.sessions[id]
-	s.mu.RUnlock()
 	if !ok {
+		s.mu.Unlock()
 		return fmt.Errorf("session %s not found", id)
 	}
+	if slug != "" {
+		if holder := s.slugHolderLocked(slug, id); holder != nil {
+			s.mu.Unlock()
+			return &SlugTakenError{Slug: slug, ID: holder.ID, ShortID: holder.ShortID}
+		}
+	}
 	patch := map[string]any{}
-	now := time.Now().UTC()
 	sess.mu.Lock()
 	if slug != "" {
 		sess.Slug = slug
@@ -232,17 +438,17 @@ func (s *Store) UpdateRename(id, slug, title string) error {
 		sess.Title = title
 		patch["title"] = title
 	}
-	sess.LastEventAt = now
 	sess.mu.Unlock()
+	s.mu.Unlock()
 	if len(patch) == 0 {
 		return nil
 	}
-	patch["last_event_at"] = now
 	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: patch})
 	return nil
 }
 
-// UpdateLastLine records a transcript-derived summary line.
+// UpdateLastLine records a screen-derived summary line. A changed line is new
+// output from the child, so it counts as activity and bumps LastEventAt.
 func (s *Store) UpdateLastLine(id, line string) error {
 	s.mu.RLock()
 	sess, ok := s.sessions[id]
@@ -255,14 +461,15 @@ func (s *Store) UpdateLastLine(id, line string) error {
 		sess.mu.Unlock()
 		return nil
 	}
+	now := time.Now().UTC()
 	sess.LastLine = line
-	sess.LastEventAt = time.Now().UTC()
+	sess.LastEventAt = now
 	sess.mu.Unlock()
 
 	s.broadcast(Event{
 		Kind:      EventUpdated,
 		SessionID: id,
-		Patch:     map[string]any{"last_line": line, "last_event_at": time.Now().UTC()},
+		Patch:     map[string]any{"last_line": line, "last_event_at": now},
 	})
 	return nil
 }
@@ -295,6 +502,10 @@ func (s *Store) Screen(id string) string {
 }
 
 // UpdateDescription records the AI-generated activity summary for a session.
+// It sets DescriptionAt but not LastEventAt: the summary is derived from
+// screen text whose arrival already bumped LastEventAt (UpdateLastLine), and
+// it lands after model latency — possibly after the session finished — so
+// counting it as activity would stretch a done session's duration.
 func (s *Store) UpdateDescription(id, desc string) error {
 	s.mu.RLock()
 	sess, ok := s.sessions[id]
@@ -306,13 +517,12 @@ func (s *Store) UpdateDescription(id, desc string) error {
 	sess.mu.Lock()
 	sess.Description = desc
 	sess.DescriptionAt = now
-	sess.LastEventAt = now
 	sess.mu.Unlock()
 
 	s.broadcast(Event{
 		Kind:      EventUpdated,
 		SessionID: id,
-		Patch:     map[string]any{"description": desc, "last_event_at": now},
+		Patch:     map[string]any{"description": desc},
 	})
 	return nil
 }

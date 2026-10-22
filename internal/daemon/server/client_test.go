@@ -17,6 +17,13 @@ import (
 
 func startServer(t *testing.T) (string, string, context.CancelFunc) {
 	t.Helper()
+	return startServerWithStore(t, state.NewStore())
+}
+
+// startServerWithStore is startServer over a caller-owned store, so tests can
+// seed sessions (no PTY) before connecting.
+func startServerWithStore(t *testing.T, store *state.Store) (string, string, context.CancelFunc) {
+	t.Helper()
 	// Use os.MkdirTemp with a short prefix so the unix socket path stays within
 	// macOS's 104-byte sockaddr_un.sun_path limit (103 usable chars + null).
 	dir, err := os.MkdirTemp("", "rex-srv")
@@ -25,7 +32,7 @@ func startServer(t *testing.T) (string, string, context.CancelFunc) {
 	sock := filepath.Join(dir, "rex.sock")
 	reg, err := registry.Load("")
 	require.NoError(t, err)
-	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore()})
+	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: store})
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

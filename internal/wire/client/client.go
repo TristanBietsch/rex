@@ -66,6 +66,11 @@ func (c *Client) SubscribeReplay(sessionID string) error {
 	return c.w.WriteIntent(protocol.IntentSubscribe, "", protocol.Subscribe{SessionID: sessionID, Replay: true})
 }
 
+// SubscribeOpts subscribes with explicit replay / mode-sync options.
+func (c *Client) SubscribeOpts(sessionID string, replay, modeSync bool) error {
+	return c.w.WriteIntent(protocol.IntentSubscribe, "", protocol.Subscribe{SessionID: sessionID, Replay: replay, ModeSync: modeSync})
+}
+
 // Resize tells the daemon to resize the session's PTY.
 func (c *Client) Resize(sessionID string, cols, rows uint16) error {
 	return c.w.WriteIntent(protocol.IntentResize, "", protocol.Resize{SessionID: sessionID, Cols: cols, Rows: rows})
@@ -81,14 +86,38 @@ func (c *Client) SendInput(sessionID string, b []byte) error {
 	return c.w.WriteIntent(protocol.IntentSendInput, "", protocol.SendInput{SessionID: sessionID, Bytes: b})
 }
 
+// SendRedraw sends a ^L redraw nudge flagged synthetic, so it doesn't count
+// as user input (it must not cancel a pending retire).
+func (c *Client) SendRedraw(sessionID string) error {
+	return c.w.WriteIntent(protocol.IntentSendInput, "", protocol.SendInput{SessionID: sessionID, Bytes: []byte{0x0c}, Synthetic: true})
+}
+
 // Reply sends an inline text reply.
 func (c *Client) Reply(sessionID, text string) error {
 	return c.w.WriteIntent(protocol.IntentReply, "", protocol.Reply{SessionID: sessionID, Text: text})
 }
 
-// Rename changes a session's slug or title.
-func (c *Client) Rename(sessionID, slug, title string) error {
-	return c.w.WriteIntent(protocol.IntentRename, "", protocol.Rename{SessionID: sessionID, Slug: slug, Title: title})
+// Rename changes a session's slug or title. reqID is echoed on any Error
+// event (e.g. slug already in use) so callers can correlate the rejection.
+func (c *Client) Rename(sessionID, slug, title, reqID string) error {
+	return c.w.WriteIntent(protocol.IntentRename, reqID, protocol.Rename{SessionID: sessionID, Slug: slug, Title: title})
+}
+
+// SetSessionName sets (or, with name == "", clears) a session's display
+// name. reqID is echoed on any Error event so callers can correlate it.
+func (c *Client) SetSessionName(sessionID, name, reqID string) error {
+	return c.w.WriteIntent(protocol.IntentSetSessionName, reqID, protocol.SetSessionName{SessionID: sessionID, Name: name})
+}
+
+// Retire marks a session done: it is cleared after ttl (0 = daemon default)
+// unless unmarked or typed into first.
+func (c *Client) Retire(sessionID string, ttl time.Duration, reqID string) error {
+	return c.w.WriteIntent(protocol.IntentRetire, reqID, protocol.Retire{SessionID: sessionID, TTLSeconds: int64(ttl / time.Second)})
+}
+
+// Unretire cancels a pending Retire.
+func (c *Client) Unretire(sessionID, reqID string) error {
+	return c.w.WriteIntent(protocol.IntentUnretire, reqID, protocol.Unretire{SessionID: sessionID})
 }
 
 // Delete removes a session.

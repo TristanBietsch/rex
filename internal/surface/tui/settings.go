@@ -57,6 +57,13 @@ func closeSettings(m Model) Model {
 }
 
 func updateSettingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	m, cmd := settingsKey(m, k)
+	// mouse_enabled applies live: capture follows the store on every edit.
+	m, mc := syncMouse(m, "setting")
+	return m, tea.Batch(cmd, mc)
+}
+
+func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Settings == nil {
 		return m, nil
 	}

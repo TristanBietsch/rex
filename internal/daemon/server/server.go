@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -66,6 +67,12 @@ type Config struct {
 	// SummaryRequest is the channel into the summarizer worker; nil disables AI
 	// description generation for this server.
 	SummaryRequest chan<- string
+	// Now is the clock for retire deadlines (nil = time.Now). Tests inject it.
+	Now func() time.Time
+	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
+	RetireDefaultTTL time.Duration
+	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
+	RetireSweepInterval time.Duration
 }
 
 // Server owns the UDS listener and accepts clients.
@@ -93,11 +100,18 @@ type Server struct {
 	resizeMu    sync.RWMutex
 	resizeFuncs map[string]func(cols, rows uint16) error
 
+	modeMu       sync.RWMutex
+	modePreamble map[string]func() []byte
+
 	stopMu    sync.Mutex
 	stopFuncs map[string]func()
 
 	completeMu    sync.Mutex
 	completeFuncs map[string]func()
+
+	// retireWaitLogged dedups the "expired but busy" log line per session.
+	retireWaitMu     sync.Mutex
+	retireWaitLogged map[string]bool
 }
 
 // SetRegistry atomically swaps the registry used for future spawns.
@@ -119,6 +133,15 @@ func New(cfg Config) (*Server, error) {
 	// Unlink any stale socket. If something is actually listening on it we'll
 	// fail on Listen below, which is the right outcome.
 	_ = os.Remove(cfg.Socket)
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
+	if cfg.RetireDefaultTTL <= 0 {
+		cfg.RetireDefaultTTL = DefaultRetireTTL
+	}
+	if cfg.RetireSweepInterval <= 0 {
+		cfg.RetireSweepInterval = defaultRetireSweepInterval
+	}
 	s := &Server{cfg: cfg, gate: &concurrencyGate{max: cfg.MaxConcurrentSessions}}
 	s.reg.Store(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
@@ -142,6 +165,14 @@ func (s *Server) Serve(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		_ = l.Close()
+	}()
+
+	// Retire reaper: clears marked-done sessions once their deadline passes.
+	// Tracked by wg so shutdown proves it has exited.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.runRetireReaper(ctx)
 	}()
 
 	for {
@@ -303,6 +334,36 @@ func (s *Server) Resize(sessionID string, cols, rows uint16) error {
 	return fn(cols, rows)
 }
 
+// RegisterModePreamble stores a session's mode-preamble builder. Called by
+// the supervisor at PTY start.
+func (s *Server) RegisterModePreamble(sessionID string, fn func() []byte) {
+	s.modeMu.Lock()
+	defer s.modeMu.Unlock()
+	if s.modePreamble == nil {
+		s.modePreamble = make(map[string]func() []byte)
+	}
+	s.modePreamble[sessionID] = fn
+}
+
+// UnregisterModePreamble removes it after the session exits.
+func (s *Server) UnregisterModePreamble(sessionID string) {
+	s.modeMu.Lock()
+	defer s.modeMu.Unlock()
+	delete(s.modePreamble, sessionID)
+}
+
+// ModePreamble returns the escape sequences re-creating the session's current
+// terminal modes, or nil when the session isn't running.
+func (s *Server) ModePreamble(sessionID string) []byte {
+	s.modeMu.RLock()
+	fn := s.modePreamble[sessionID]
+	s.modeMu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+	return fn()
+}
+
 // TranscriptDir returns the directory backing transcripts (state root + sessions/<id>).
 func (s *Server) TranscriptDir() string {
 	return s.cfg.StateDir
@@ -325,6 +386,20 @@ func (s *Server) UnregisterStop(sessionID string) {
 	s.stopMu.Lock()
 	defer s.stopMu.Unlock()
 	delete(s.stopFuncs, sessionID)
+}
+
+// hasStop reports whether a session has a live supervisor.
+func (s *Server) hasStop(sessionID string) bool {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	return s.stopFuncs[sessionID] != nil
+}
+
+// dropOutputSubs forgets a deleted session's output subscribers.
+func (s *Server) dropOutputSubs(sessionID string) {
+	s.outputSubsMu.Lock()
+	delete(s.outputSubs, sessionID)
+	s.outputSubsMu.Unlock()
 }
 
 // StopSession invokes the registered stop func (no-op if the session isn't running).

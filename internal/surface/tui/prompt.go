@@ -17,6 +17,10 @@ func renderPrompt(m Model, width int) string {
 	var line string
 	switch m.Focus {
 	case FocusCommand:
+		if m.Attach != nil {
+			line = styleArrow.Render(glyph) + " " + styleDim.Render("attached — command bar open in popup")
+			break
+		}
 		line = styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.CmdText) + cursorBlock(m)
 	case FocusPrompt:
 		body := stylePrimary.Render(m.PromptText) + cursorBlock(m)
@@ -66,10 +70,25 @@ func renderHelpLine(m Model, width int) string {
 	if m.Err != "" {
 		return padLine("  "+styleStateFailed.Render("err: "+m.Err), width)
 	}
+	if m.Focus == FocusRename {
+		parts := []string{
+			styleHeaderApp.Render("enter") + styleDim.Render(" save"),
+			styleHeaderApp.Render("esc") + styleDim.Render(" cancel"),
+			styleHeaderApp.Render("ctrl+u") + styleDim.Render(" clear"),
+			styleHeaderApp.Render("ctrl+w") + styleDim.Render(" delete word"),
+			styleDim.Render("empty = show slug"),
+		}
+		return padLine("  "+strings.Join(parts, styleMuted.Render(" · ")), width)
+	}
+	if m.Notice != "" {
+		return padLine("  "+styleBootReady.Render(truncate(m.Notice, width-2)), width)
+	}
 	parts := []string{
 		styleHeaderApp.Render("i") + styleDim.Render(" focus"),
 		styleHeaderApp.Render("enter") + styleDim.Render(" open"),
 		styleHeaderApp.Render("n") + styleDim.Render(" new"),
+		styleHeaderApp.Render("r") + styleDim.Render(" rename"),
+		styleHeaderApp.Render("c") + styleDim.Render(" done/undo"),
 		styleHeaderApp.Render("t") + styleDim.Render(" filter"),
 		styleHeaderApp.Render(":") + styleDim.Render(" command"),
 		styleHeaderApp.Render("dd") + styleDim.Render(" delete"),

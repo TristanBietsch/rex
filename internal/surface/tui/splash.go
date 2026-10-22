@@ -211,7 +211,17 @@ func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventStartup)
 	}
-	cmds := []tea.Cmd{tea.HideCursor, tickSpinner()}
+	cmds := []tea.Cmd{tea.HideCursor}
+	var c tea.Cmd
+	if m, c = syncMouse(m, "board"); c != nil {
+		cmds = append(cmds, c)
+	}
+	if m, c = armSpinner(m); c != nil {
+		cmds = append(cmds, c)
+	}
+	if m, c = armRetireTick(m); c != nil {
+		cmds = append(cmds, c)
+	}
 	if m.Client != nil {
 		cmds = append(cmds, listenDaemon(m.Client))
 	}

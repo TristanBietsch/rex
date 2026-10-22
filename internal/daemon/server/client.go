@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"strings"
@@ -71,7 +72,10 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			}
 			if err := handleNewSession(ctx, env.ID, p, srv, w); err != nil {
 				code := protocol.ErrCodeSpawn
-				if strings.Contains(err.Error(), "too many concurrent sessions") {
+				switch {
+				case isBadIntent(err):
+					code = protocol.ErrCodeBadIntent
+				case strings.Contains(err.Error(), "too many concurrent sessions"):
 					code = protocol.ErrCodeTooManySessions
 				}
 				writeError(w, env.ID, code, err.Error())
@@ -86,15 +90,12 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			// Tear down a running supervisor first so its goroutines don't race with
-			// the on-disk cleanup below.
-			srv.StopSession(p.SessionID)
-			if err := cfg.Store.Remove(p.SessionID); err != nil {
+			// Stops a running supervisor first so its goroutines don't race with
+			// the on-disk cleanup; disk cleanup is best-effort.
+			if err := srv.deleteSession(p.SessionID, protocol.RemovedByUser); err != nil {
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
-			// Disk cleanup is best-effort — the session is already gone from memory.
-			_ = state.RemoveSessionDir(cfg.StateDir, p.SessionID)
 		case protocol.IntentComplete:
 			var p protocol.Complete
 			if err := json.Unmarshal(env.Data, &p); err != nil {
@@ -121,13 +122,25 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 					writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
 					continue
 				}
+				var preambleBytes int
 				if p.Replay {
 					if tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax); err == nil && len(tail) > 0 {
 						writeEvent(w, protocol.EventSessionOutput, "", protocol.SessionOutput{
 							SessionID: p.SessionID, Bytes: tail,
 						})
 					}
+				} else if p.ModeSync {
+					// The replay already carries the child's mode switches;
+					// without one, send them as a preamble.
+					if pre := srv.ModePreamble(p.SessionID); len(pre) > 0 {
+						preambleBytes = len(pre)
+						writeEvent(w, protocol.EventSessionOutput, "", protocol.SessionOutput{
+							SessionID: p.SessionID, Bytes: pre,
+						})
+					}
 				}
+				slog.Info("server: subscribe", "session", p.SessionID, "replay", p.Replay,
+					"mode_sync", p.ModeSync, "preamble_bytes", preambleBytes)
 				// Register an output sink for this session for the rest of the connection.
 				outCancel := srv.SubscribeSessionOutput(p.SessionID, func(b []byte) {
 					writeEvent(w, protocol.EventSessionOutput, "", protocol.SessionOutput{
@@ -171,6 +184,9 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			}
 			select {
 			case ch <- p.Bytes:
+				if !p.Synthetic {
+					srv.cancelRetireOnInput(p.SessionID, "SendInput")
+				}
 			default:
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
 			}
@@ -204,6 +220,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			select {
 			case ch <- []byte{'\r'}:
 				slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
+				srv.cancelRetireOnInput(p.SessionID, "Reply")
 			default:
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
 			}
@@ -218,17 +235,130 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
+			if err := validateRename(p); err != nil {
+				slog.Warn("server: rename rejected", "session", p.SessionID, "slug", p.Slug, "reason", err, "req_id", env.ID)
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
 			sess, ok := srv.cfg.Store.Get(p.SessionID)
 			if !ok {
+				slog.Warn("server: rename rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
 			if err := srv.cfg.Store.UpdateRename(p.SessionID, p.Slug, p.Title); err != nil {
+				var taken *state.SlugTakenError
+				if errors.As(err, &taken) {
+					slog.Warn("server: rename rejected, slug taken", "session", p.SessionID,
+						"slug", p.Slug, "holder", taken.ShortID, "req_id", env.ID)
+					writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+					continue
+				}
+				slog.Warn("server: rename failed", "session", p.SessionID, "err", err, "req_id", env.ID)
 				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
 			if err := state.WriteMeta(srv.cfg.StateDir, sess); err != nil {
 				slog.Warn("server: write meta after rename", "session", p.SessionID, "err", err)
+			}
+			slog.Info("server: rename", "session", p.SessionID, "slug", p.Slug, "title_len", len(p.Title), "req_id", env.ID)
+
+		case protocol.IntentSetSessionName:
+			var p protocol.SetSessionName
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			if err := requireSessionID(p.SessionID); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			name, err := protocol.NormalizeSessionName(p.Name)
+			if err != nil {
+				slog.Warn("server: set_name rejected", "session", p.SessionID, "reason", err, "req_id", env.ID)
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			sess, ok := srv.cfg.Store.Get(p.SessionID)
+			if !ok {
+				slog.Warn("server: set_name rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				continue
+			}
+			changed, err := srv.cfg.Store.SetName(p.SessionID, name)
+			if err != nil {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				continue
+			}
+			// Broadcast even when unchanged: it is the confirmation clients wait on.
+			srv.commit(sess, map[string]any{"name": name})
+			slog.Info("server: set_name", "session", p.SessionID, "cleared", name == "",
+				"runes", len([]rune(name)), "changed", changed, "req_id", env.ID)
+
+		case protocol.IntentRetire:
+			var p protocol.Retire
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			if err := requireSessionID(p.SessionID); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			at, ttl, err := srv.retireDeadline(p.TTLSeconds)
+			if err != nil {
+				slog.Warn("retire: invalid ttl", "session", p.SessionID, "ttl_s", p.TTLSeconds, "err", err)
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			sess, ok := srv.cfg.Store.Get(p.SessionID)
+			if !ok {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				continue
+			}
+			changed, err := srv.cfg.Store.SetRetire(p.SessionID, at)
+			if err != nil {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				continue
+			}
+			if !changed {
+				slog.Debug("retire: already marked; no-op", "session", p.SessionID)
+				continue
+			}
+			srv.commit(sess, map[string]any{"retire_at": at})
+			sum := sess.Summary()
+			slog.Info("retire: marked", "session", p.SessionID, "slug", sum.Slug, "state", sum.State,
+				"ttl_s", int64(ttl.Seconds()), "retire_at", at)
+
+		case protocol.IntentUnretire:
+			var p protocol.Unretire
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			if err := requireSessionID(p.SessionID); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			sess, ok := srv.cfg.Store.Get(p.SessionID)
+			if !ok {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				continue
+			}
+			remaining := time.Until(sess.Summary().RetireAt)
+			changed, err := srv.cfg.Store.ClearRetire(p.SessionID)
+			if errors.Is(err, state.ErrReaping) {
+				slog.Warn("retire: unmark rejected; clearing", "session", p.SessionID)
+				writeError(w, env.ID, protocol.ErrCodeBadState, err.Error())
+				continue
+			}
+			if err != nil {
+				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				continue
+			}
+			if changed {
+				srv.commit(sess, map[string]any{"retire_at": nil})
+				slog.Info("retire: unmarked", "session", p.SessionID, "cause", "user", "remaining_s", int64(remaining.Seconds()))
 			}
 
 		case protocol.IntentSetSessionFleet:

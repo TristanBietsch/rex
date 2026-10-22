@@ -28,7 +28,7 @@ Codec: `internal/wire/protocol/codec.go`.
 | CWD | `cwd` | string | |
 | State | `state` | string | `queued`, `working`, `needs_input`, `done`, `failed`, `crashed` |
 | StartedAt | `started_at` | RFC3339 time | |
-| LastEventAt | `last_event_at` | RFC3339 time | |
+| LastEventAt | `last_event_at` | RFC3339 time | last real activity (state change, screen line, exit); not bumped by rename/fleet/name/retire/description |
 | LastLine | `last_line` | string | optional |
 | Description | `description` | string | optional; from summarizer |
 | ExitCode | `exit_code` | int | optional pointer |

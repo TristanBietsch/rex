@@ -31,7 +31,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 
 ### Setting IDs (from `registry.go`)
 
-`color_scheme`, `spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `sound_enabled`, `soundset`, `master_volume`, `keybind_preset`, `mouse_enabled`, `max_concurrent_sessions`, `summary_enabled`, `summary_model`, `desc_animation`, `default_spawn_tool`, `default_spawn_model`, `default_spawn_effort`, `lua_config_path` (read-only in registry).
+`color_scheme`, `spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `sound_enabled`, `soundset`, `master_volume`, `notify_on_state_change`, `keybind_preset`, `mouse_enabled`, `max_concurrent_sessions`, `summary_enabled`, `summary_model`, `desc_animation`, `default_spawn_tool`, `default_spawn_model`, `default_spawn_effort`, `lua_config_path` (read-only in registry).
 
 ## Internal structure
 
