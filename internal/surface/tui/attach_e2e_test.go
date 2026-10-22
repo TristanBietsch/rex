@@ -51,6 +51,59 @@ func nextAttachMsg(st *AttachState, timeout time.Duration) tea.Msg {
 // against a temp daemon: the wheel over a mouse-tracking agent must arrive
 // at the child's PTY as an SGR report, byte for byte.
 func TestAttachE2E_WheelReachesTrackingAgent(t *testing.T) {
+	m, sum := startEchoAttach(t)
+
+	// Feed output until the emulator sees the agent's mouse tracking (the
+	// mode-sync preamble or the replayed escapes, whichever lands first).
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		msg := nextAttachMsg(m.Attach, time.Until(deadline))
+		require.NotNil(t, msg, "agent never enabled mouse tracking")
+		out, _ := m.Update(msg)
+		m = out.(Model)
+		m.Attach.Term.Lock()
+		mode := m.Attach.Term.Mode()
+		m.Attach.Term.Unlock()
+		if mode&vt10x.ModeMouseSgr != 0 && mode&vt10x.ModeMouseButton != 0 {
+			break
+		}
+	}
+
+	ox, oy := attachInnerOrigin(m)
+	wheel := tea.MouseMsg{X: ox + 4, Y: oy + 2, Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress}
+	m, cmd := updateMouse(m, wheel)
+	require.NotNil(t, cmd)
+	m, _ = updateMouse(m, wheel)
+	m, _ = flushAttachWheel(m, attachWheelFlushMsg{SessionID: sum.ID, Seq: m.Attach.wheelSeq})
+	require.Empty(t, m.Err)
+
+	waitEcho(t, m, []byte(strings.Repeat("\x1b[<64;5;3M", 2)))
+}
+
+// TestAttachE2E_HeldRunesReachAgent: a held 'q' or ':' that isn't followed
+// by its twin still reaches the agent, in order; "qq" detaches.
+func TestAttachE2E_HeldRunesReachAgent(t *testing.T) {
+	m, _ := startEchoAttach(t)
+	for _, k := range []string{"q", "x", ":", "q", "y"} {
+		out, _ := m.Update(key(k))
+		m = out.(Model)
+	}
+	require.Empty(t, m.Err)
+	require.Zero(t, m.Attach.held)
+	waitEcho(t, m, []byte("qx:qy"))
+
+	for _, k := range []string{"q", "q"} {
+		out, _ := m.Update(key(k))
+		m = out.(Model)
+	}
+	require.Nil(t, m.Attach, "qq detaches")
+	require.Equal(t, FocusBoard, m.Focus)
+}
+
+// startEchoAttach spawns the hex-echo agent in a temp daemon and opens the
+// attach popup on it.
+func startEchoAttach(t *testing.T) (Model, protocol.SessionSummary) {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("spawns a daemon and a PTY child")
 	}
@@ -78,39 +131,22 @@ func TestAttachE2E_WheelReachesTrackingAgent(t *testing.T) {
 	m.Width, m.Height = 120, 40
 	m, _ = openAttach(m, sum.ID)
 	require.NotNil(t, m.Attach, "attach failed: %s", m.Err)
-	t.Cleanup(func() { closeAttach(m) })
+	st := m.Attach
+	t.Cleanup(func() { _ = st.Client.Close() }) // a qq detach may have closed it already
+	return m, sum
+}
 
-	// Feed output until the emulator sees the agent's mouse tracking (the
-	// mode-sync preamble or the replayed escapes, whichever lands first).
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		msg := nextAttachMsg(m.Attach, time.Until(deadline))
-		require.NotNil(t, msg, "agent never enabled mouse tracking")
-		out, _ := m.Update(msg)
-		m = out.(Model)
-		m.Attach.Term.Lock()
-		mode := m.Attach.Term.Mode()
-		m.Attach.Term.Unlock()
-		if mode&vt10x.ModeMouseSgr != 0 && mode&vt10x.ModeMouseButton != 0 {
-			break
-		}
-	}
-
-	ox, oy := attachInnerOrigin(m)
-	wheel := tea.MouseMsg{X: ox + 4, Y: oy + 2, Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress}
-	m, cmd := updateMouse(m, wheel)
-	require.NotNil(t, cmd)
-	m, _ = updateMouse(m, wheel)
-	m, _ = flushAttachWheel(m, attachWheelFlushMsg{SessionID: sum.ID, Seq: m.Attach.wheelSeq})
-	require.Empty(t, m.Err)
-
-	want := hexEcho([]byte(strings.Repeat("\x1b[<64;5;3M", 2)))
+// waitEcho reads popup output until the agent has echoed b.
+func waitEcho(t *testing.T, m Model, b []byte) {
+	t.Helper()
+	want := hexEcho(b)
 	var seen strings.Builder
-	deadline = time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for !strings.Contains(seen.String(), want) {
 		msg := nextAttachMsg(m.Attach, time.Until(deadline))
-		o, ok := msg.(AttachOutputMsg)
-		require.True(t, ok, "agent echoed %q, want it to contain %q (last msg %+v)", seen.String(), want, msg)
-		seen.Write(o.Bytes)
+		require.NotNil(t, msg, "agent echoed %q, want it to contain %q", seen.String(), want)
+		if o, ok := msg.(AttachOutputMsg); ok {
+			seen.Write(o.Bytes)
+		}
 	}
 }

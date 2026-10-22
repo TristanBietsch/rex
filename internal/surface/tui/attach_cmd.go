@@ -11,63 +11,83 @@ import (
 	"github.com/tristanbietsch/rex/internal/features/audio"
 )
 
-// attachColonWindow is how long a lone ':' typed in the attach popup waits
-// for a second ':' (which opens rex's command bar) before it is forwarded to
-// the agent. Pastes arrive as one multi-rune key and are never intercepted.
-const attachColonWindow = 400 * time.Millisecond
+// attachHoldWindow is how long a lone escape rune (':' or 'q') typed in the
+// attach popup waits for its twin before it is forwarded to the agent: "::"
+// opens rex's command bar, "qq" detaches. Pastes arrive as one multi-rune key
+// and are never intercepted.
+const attachHoldWindow = 400 * time.Millisecond
 
-// attachColonTimeoutMsg flushes a held ':' once the window passes.
-type attachColonTimeoutMsg struct {
+// attachHoldTimeoutMsg flushes a held rune once the window passes.
+type attachHoldTimeoutMsg struct {
 	SessionID string
 	Seq       int
 }
 
+// loneRune reports the single typed (not pasted) rune of k, if any.
+func loneRune(k tea.KeyMsg) (rune, bool) {
+	if k.Type != tea.KeyRunes || k.Paste || len(k.Runes) != 1 {
+		return 0, false
+	}
+	return k.Runes[0], true
+}
+
 func isLoneColon(k tea.KeyMsg) bool {
-	return k.Type == tea.KeyRunes && !k.Paste && len(k.Runes) == 1 && k.Runes[0] == ':'
+	r, ok := loneRune(k)
+	return ok && r == ':'
 }
 
-// interceptAttachColon implements the "::" escape. It returns handled=true
-// when the key was consumed; prefix carries a held ':' that must be sent
-// ahead of the current key's bytes.
-func interceptAttachColon(m Model, k tea.KeyMsg) (out Model, cmd tea.Cmd, handled bool, prefix []byte) {
+// interceptAttachHold implements the "::" and "qq" escapes. It returns
+// handled=true when the key was consumed; prefix carries a held rune that
+// must be sent ahead of the current key's bytes (or on its own when the key
+// was consumed to start a new hold). allowQ is false in scroll mode, where a
+// lone 'q' already means "leave scroll mode".
+func interceptAttachHold(m Model, k tea.KeyMsg, allowQ bool) (out Model, cmd tea.Cmd, handled bool, prefix []byte) {
 	a := m.Attach
-	if isLoneColon(k) {
-		if a.colonPending {
-			a.colonPending = false
-			m.Focus = FocusCommand
-			m.CmdText = ""
-			m.Err = ""
-			slog.Info("tui: attach command bar opened", "session", a.SessionID)
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventCommand)
-			}
-			return m, nil, true, nil
+	r, ok := loneRune(k)
+	holdable := ok && (r == ':' || (allowQ && r == 'q'))
+	if holdable && a.held == r {
+		a.held = 0
+		if r == 'q' {
+			slog.Info("tui: attach qq detach", "session", a.SessionID)
+			out, cmd = detach(m)
+			return out, cmd, true, nil
 		}
-		a.colonPending = true
-		a.colonSeq++
-		seq, id := a.colonSeq, a.SessionID
-		return m, tea.Tick(attachColonWindow, func(time.Time) tea.Msg {
-			return attachColonTimeoutMsg{SessionID: id, Seq: seq}
-		}), true, nil
+		m.Focus = FocusCommand
+		m.CmdText = ""
+		m.Err = ""
+		slog.Info("tui: attach command bar opened", "session", a.SessionID)
+		if m.Audio != nil {
+			m.Audio.Play(audio.EventCommand)
+		}
+		return m, nil, true, nil
 	}
-	if a.colonPending {
-		a.colonPending = false
-		return m, nil, false, []byte{':'}
+	if a.held != 0 {
+		prefix = []byte(string(a.held))
+		a.held = 0
 	}
-	return m, nil, false, nil
+	if holdable {
+		a.held = r
+		a.holdSeq++
+		seq, id := a.holdSeq, a.SessionID
+		return m, tea.Tick(attachHoldWindow, func(time.Time) tea.Msg {
+			return attachHoldTimeoutMsg{SessionID: id, Seq: seq}
+		}), true, prefix
+	}
+	return m, nil, false, prefix
 }
 
-// flushAttachColon forwards a held ':' whose window expired untouched.
-func flushAttachColon(m Model, msg attachColonTimeoutMsg) (Model, tea.Cmd) {
+// flushAttachHold forwards a held rune whose window expired untouched.
+func flushAttachHold(m Model, msg attachHoldTimeoutMsg) (Model, tea.Cmd) {
 	a := m.Attach
-	if a == nil || !a.colonPending || a.SessionID != msg.SessionID || a.colonSeq != msg.Seq {
+	if a == nil || a.held == 0 || a.SessionID != msg.SessionID || a.holdSeq != msg.Seq {
 		return m, nil
 	}
-	a.colonPending = false
+	held := a.held
+	a.held = 0
 	if a.Ended || a.Scrolling() {
 		return m, nil // scroll mode never forwards keys
 	}
-	if err := a.Client.SendInput(a.SessionID, []byte{':'}); err != nil {
+	if err := a.Client.SendInput(a.SessionID, []byte(string(held))); err != nil {
 		m.Err = "attach: " + err.Error()
 	}
 	return m, nil
@@ -146,7 +166,7 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 
 // renderAttachCommandBar replaces the attach footer while "::" is open.
 func renderAttachCommandBar(m Model, width int) string {
-	hint := styleMuted.Render("  q detach · done · kill · name <text> · ::: types \"::\" · esc back")
+	hint := styleMuted.Render("  q detach (or qq while attached) · done · kill · name <text> · ::: types \"::\" · esc back")
 	line := styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.CmdText) + cursorBlock(m)
 	pad := width - lipgloss.Width(line) - lipgloss.Width(hint)
 	if pad < 1 {

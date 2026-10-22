@@ -20,12 +20,12 @@ func TestAttach_DoubleColonOpensCommandBar(t *testing.T) {
 	m := attachedModel()
 	m, cmd := updateKey(m, key(":"))
 	require.NotNil(t, cmd, "first ':' is held with a flush timer")
-	require.True(t, m.Attach.colonPending)
+	require.Equal(t, ':', m.Attach.held)
 	require.Equal(t, FocusAttach, m.Focus)
 
 	m, _ = updateKey(m, key(":"))
 	require.Equal(t, FocusCommand, m.Focus)
-	require.False(t, m.Attach.colonPending)
+	require.Zero(t, m.Attach.held)
 
 	m, _ = updateKey(m, key("esc"))
 	require.Equal(t, FocusAttach, m.Focus)
@@ -68,18 +68,37 @@ func TestAttach_CommandBarUnknownVerbFallsBackToBoard(t *testing.T) {
 func TestAttach_ColonFlushIgnoresStaleOrEnded(t *testing.T) {
 	m := attachedModel()
 	m, _ = updateKey(m, key(":"))
-	seq := m.Attach.colonSeq
+	seq := m.Attach.holdSeq
 
-	m, _ = flushAttachColon(m, attachColonTimeoutMsg{SessionID: "a", Seq: seq - 1})
-	require.True(t, m.Attach.colonPending, "stale timer must not flush")
+	m, _ = flushAttachHold(m, attachHoldTimeoutMsg{SessionID: "a", Seq: seq - 1})
+	require.Equal(t, ':', m.Attach.held, "stale timer must not flush")
 
 	m.Attach.Ended = true // nothing can be sent to an ended session
-	m, _ = flushAttachColon(m, attachColonTimeoutMsg{SessionID: "a", Seq: seq})
-	require.False(t, m.Attach.colonPending)
+	m, _ = flushAttachHold(m, attachHoldTimeoutMsg{SessionID: "a", Seq: seq})
+	require.Zero(t, m.Attach.held)
 }
 
 func TestAttach_PastedColonsPassThrough(t *testing.T) {
 	require.False(t, isLoneColon(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("::"), Paste: true}))
 	require.False(t, isLoneColon(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":"), Paste: true}))
 	require.True(t, isLoneColon(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")}))
+}
+
+func TestAttach_DoubleQDetaches(t *testing.T) {
+	m := attachedModel()
+	m, cmd := updateKey(m, key("q"))
+	require.NotNil(t, cmd, "first 'q' is held with a flush timer")
+	require.Equal(t, 'q', m.Attach.held)
+	require.Equal(t, FocusAttach, m.Focus)
+
+	m, _ = updateKey(m, key("q"))
+	require.Nil(t, m.Attach)
+	require.Equal(t, FocusBoard, m.Focus)
+}
+
+func TestAttach_PastedQQPassesThrough(t *testing.T) {
+	_, ok := loneRune(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("qq"), Paste: true})
+	require.False(t, ok)
+	_, ok = loneRune(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q"), Paste: true})
+	require.False(t, ok)
 }

@@ -25,7 +25,7 @@ func renderHelp() string {
 		"  hold ⌥ / ⇧    select text natively (iTerm2 · Ghostty/kitty)",
 		"",
 		styleSlug.Render("Actions"),
-		"  enter         attach to selected session (ctrl+] or ::q to detach)",
+		"  enter         attach to selected session (qq, ctrl+] or ::q to detach)",
 		"  n             new-agent wizard",
 		"  r             rename selected (display name; empty = slug)",
 		"  cc            mark done / undo (clears after retire_after_hours)",

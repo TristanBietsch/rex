@@ -177,8 +177,9 @@ func afterAttachOutput(a *AttachState) {
 // reaches the agent; "::" still opens the command bar.
 func updateAttachScrollKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	a := m.Attach
-	// A held ':' never reaches the agent from scroll mode.
-	m, cmd, handled, _ := interceptAttachColon(m, k)
+	// A held ':' never reaches the agent from scroll mode; 'q' keeps its
+	// scroll meaning here, so only "::" is intercepted.
+	m, cmd, handled, _ := interceptAttachHold(m, k, false)
 	if handled {
 		return m, cmd
 	}

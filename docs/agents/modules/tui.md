@@ -41,7 +41,7 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `attach.go` | Full-screen attach (vt10x) |
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |
 | `attach_scroll.go` | Popup scrollback ring + scroll mode (primary-screen agents) |
-| `attach_cmd.go` | `::` command bar inside the popup |
+| `attach_cmd.go` | `::` command bar and `qq` detach inside the popup |
 | `settings.go` | Settings overlay |
 | `setup_wizard.go` | First-run wizard |
 | `splash.go`, `splash_steps.go` | Boot splash + daemon start |

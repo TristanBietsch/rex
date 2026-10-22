@@ -199,11 +199,11 @@ func TestAttachScroll_CommandBarAndColons(t *testing.T) {
 	m = pressAttach(t, m, key(":"))
 	m = pressAttach(t, m, key("k"))
 	require.Equal(t, off+1, m.Attach.ScrollOff)
-	m, _ = flushAttachColon(m, attachColonTimeoutMsg{SessionID: "a", Seq: m.Attach.colonSeq})
+	m, _ = flushAttachHold(m, attachHoldTimeoutMsg{SessionID: "a", Seq: m.Attach.holdSeq})
 
 	m = pressAttach(t, m, key(":"))
-	m, _ = flushAttachColon(m, attachColonTimeoutMsg{SessionID: "a", Seq: m.Attach.colonSeq})
-	require.False(t, m.Attach.colonPending, "expired colon dropped while scrolling")
+	m, _ = flushAttachHold(m, attachHoldTimeoutMsg{SessionID: "a", Seq: m.Attach.holdSeq})
+	require.Zero(t, m.Attach.held, "expired colon dropped while scrolling")
 
 	m = pressAttach(t, m, key(":"))
 	m = pressAttach(t, m, key(":"))

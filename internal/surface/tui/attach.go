@@ -34,11 +34,11 @@ type AttachState struct {
 	outCh chan AttachOutputMsg
 	errCh chan AttachClosedMsg
 
-	// colonPending holds a lone ':' while waiting to see if a second one
-	// follows ("::" opens rex's command bar). colonSeq invalidates stale
-	// flush timers.
-	colonPending bool
-	colonSeq     int
+	// held is a lone ':' or 'q' waiting to see if its twin follows ("::"
+	// opens rex's command bar, "qq" detaches); 0 when nothing is held.
+	// holdSeq invalidates stale flush timers.
+	held    rune
+	holdSeq int
 
 	// Batched wheel input awaiting its flush tick (see attach_mouse.go).
 	wheelBuf          []byte
@@ -291,8 +291,13 @@ func updateAttachKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		scrollAttach(m.Attach, max(1, m.Attach.Rows-1), "ctrl+pgup")
 		return m, nil
 	}
-	m, cmd, handled, prefix := interceptAttachColon(m, k)
+	m, cmd, handled, prefix := interceptAttachHold(m, k, true)
 	if handled {
+		if len(prefix) > 0 && m.Attach != nil {
+			if err := m.Attach.Client.SendInput(m.Attach.SessionID, prefix); err != nil {
+				m.Err = "attach: " + err.Error()
+			}
+		}
 		return m, cmd
 	}
 	b := append(prefix, keyToBytes(k)...)
@@ -489,7 +494,7 @@ func attachStateChip(m Model, st protocol.State) string {
 
 func attachFooter(m Model, a *AttachState, width int) string {
 	sep := styleMuted.Render("  ·  ")
-	left := kbdChip("^]") + styleDim.Render(" detach") + sep +
+	left := kbdChip("qq") + styleDim.Render(" detach") + sep +
 		kbdChip("::") + styleDim.Render(" command") + sep +
 		kbdChip("^L") + styleDim.Render(" redraw") + sep +
 		kbdChip("^C") + styleDim.Render(" interrupt")

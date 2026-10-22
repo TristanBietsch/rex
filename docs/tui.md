@@ -41,7 +41,7 @@ Each session row, left to right:
 | Prompt | `i` | `esc` |
 | Command | `:` (board) or `::` (inside attach) | `esc` after command |
 | Rename | `r` | `enter` saves, `esc` cancels |
-| Attach | `enter` on selected row | `ctrl+]` or `::q` |
+| Attach | `enter` on selected row | `qq`, `ctrl+]` or `::q` |
 | Wizard | `n` or `:new` | wizard flow |
 | Settings | `S` or `:settings` | `esc` |
 | Help | `?` or `:help` | `esc`, `?` |
@@ -88,7 +88,7 @@ Capturing the mouse turns off the terminal's own text selection. Hold Option (iT
 
 `enter` opens an in-TUI attach view. Output streams from the daemon; keyboard input goes to the session PTY.
 
-Detach with **Ctrl+]** (ASCII 0x1d) or `::q`. The session keeps running.
+Detach with `qq` (two quick `q`s), **Ctrl+]** (ASCII 0x1d) or `::q`. The session keeps running. Like `::`, a lone `q` is held for 400 ms and forwarded to the agent if no second `q` follows (or as soon as another key arrives); pasted text is never intercepted. In scroll mode `q` keeps its own meaning (back to live output).
 
 `rex attach <sel>` from a shell uses the same detach key.
 
