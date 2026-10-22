@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,7 +126,10 @@ func stepAudioInit(m Model) tea.Cmd {
 		}
 		m.Audio.SetEnabled(true)
 		m.Audio.SetVolume(vol)
-		return stepOK, fmt.Sprintf("soundset=%s · vol=%.2f", soundset, vol), nil
+		voice, _ := m.Store.Get("boot_voice").(bool)
+		m.Audio.SetBootVoice(voice)
+		slog.Info("tui: audio init", "soundset", soundset, "volume", vol, "boot_voice", voice)
+		return stepOK, fmt.Sprintf("soundset=%s · vol=%.2f · voice=%t", soundset, vol, voice), nil
 	})
 }
 

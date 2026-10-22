@@ -124,6 +124,7 @@ type audioPlayer interface {
 	SetVolume(v float64)
 	SetEnabled(b bool)
 	SetSoundset(name string)
+	SetBootVoice(b bool)
 }
 
 func (m Model) applyEvent(env protocol.Envelope) Model {

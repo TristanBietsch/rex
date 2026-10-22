@@ -210,6 +210,8 @@ func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	m.BootLog = nil
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventStartup)
+		// Voice self-schedules after the startup tone and no-ops when boot_voice is off.
+		m.Audio.Play(audio.EventBootVoice)
 	}
 	cmds := []tea.Cmd{tea.HideCursor}
 	var c tea.Cmd

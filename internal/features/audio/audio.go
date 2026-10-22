@@ -9,6 +9,7 @@ package audio
 
 import (
 	"bytes"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -58,6 +59,8 @@ type Config struct {
 	Enabled  bool
 	Volume   float64 // 0.0 – 1.0
 	Soundset string  // catalog name; empty defaults to factorio
+	// BootVoice enables the spoken boot announcement (EventBootVoice).
+	BootVoice bool
 }
 
 // Player synthesizes and plays event sounds. Safe for concurrent calls.
@@ -90,12 +93,14 @@ func New(cfg Config) *Player {
 	}
 	ctx, ready, err := oto.NewContext(op)
 	if err != nil {
+		slog.Warn("audio: device init failed; running muted", "err", err)
 		return p
 	}
 	<-ready
 	p.ctx = ctx
 	p.enabled = true
 	p.bake(cfg.Soundset)
+	slog.Info("audio: player ready", "soundset", cfg.Soundset, "volume", cfg.Volume, "boot_voice", cfg.BootVoice)
 	return p
 }
 
@@ -138,12 +143,23 @@ func (p *Player) SetSoundset(name string) {
 
 // Play kicks off an asynchronous render of the named event.
 func (p *Player) Play(event string) {
+	if event == EventBootVoice {
+		p.playBootVoice()
+		return
+	}
+	p.mu.Lock()
+	pcm := p.pcm[event]
+	p.mu.Unlock()
+	p.playPCM(event, pcm)
+}
+
+// playPCM plays pcm if the player is enabled; volume is read at call time.
+func (p *Player) playPCM(event string, pcm []byte) {
 	p.mu.Lock()
 	if !p.enabled || !p.cfg.Enabled {
 		p.mu.Unlock()
 		return
 	}
-	pcm := p.pcm[event]
 	vol := p.cfg.Volume
 	ctx := p.ctx
 	p.mu.Unlock()
@@ -158,6 +174,7 @@ func (p *Player) Play(event string) {
 		for pl.IsPlaying() {
 			time.Sleep(10 * time.Millisecond)
 		}
+		slog.Debug("audio: playback finished", "event", event)
 	}()
 }
 

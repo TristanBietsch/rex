@@ -406,6 +406,12 @@ func applyLive(m *Model, id string, value any) {
 				}
 			}
 		}
+	case "boot_voice":
+		if m.Audio != nil {
+			if b, ok := value.(bool); ok {
+				m.Audio.SetBootVoice(b)
+			}
+		}
 	case "master_volume":
 		if m.Audio != nil {
 			if v, ok := value.(float64); ok {

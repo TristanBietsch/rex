@@ -24,10 +24,11 @@ func Run(socket string) error {
 	soundEnabled, _ := store.Get("sound_enabled").(bool)
 	soundset, _ := store.Get("soundset").(string)
 	volume, _ := store.Get("master_volume").(float64)
+	bootVoice, _ := store.Get("boot_voice").(bool)
 	if soundset == "off" {
 		soundEnabled = false
 	}
-	player := audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset})
+	player := audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset, BootVoice: bootVoice})
 
 	m := Model{
 		Socket:    socket,

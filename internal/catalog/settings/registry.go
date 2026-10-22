@@ -75,6 +75,11 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "Chime when an agent needs input (working → needs input) or resumes (needs input → working). Done keeps its own sound.",
 	},
+	{
+		ID: "boot_voice", Label: "Boot voice", Section: SectionAudio,
+		Type: TypeBool, Default: true,
+		Help: "Spoken \"rex\" announcement after the startup tone (needs sound enabled).",
+	},
 
 	// Behavior
 	{

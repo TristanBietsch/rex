@@ -16,6 +16,7 @@ func (r *recordingAudio) Play(e string)        { r.Events = append(r.Events, e) 
 func (r *recordingAudio) SetVolume(_ float64)  {}
 func (r *recordingAudio) SetEnabled(_ bool)    {}
 func (r *recordingAudio) SetSoundset(_ string) {}
+func (r *recordingAudio) SetBootVoice(_ bool)  {}
 
 func newBootModelWithSeq(steps int) Model {
 	bootSequence = make([]stepFunc, steps)
