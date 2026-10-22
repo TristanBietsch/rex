@@ -48,7 +48,7 @@ func toggleRetire(m Model, id string) (Model, tea.Cmd) {
 	if retiring {
 		m.Notice = "unmarked " + label
 	} else {
-		m.Notice = "marked done: " + label + " clears in " + shortDuration(ttl) + " (c to undo)"
+		m.Notice = "marked done: " + label + " clears in " + shortDuration(ttl) + " (cc to undo)"
 	}
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventClose)

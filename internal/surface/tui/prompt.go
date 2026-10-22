@@ -88,7 +88,7 @@ func renderHelpLine(m Model, width int) string {
 		styleHeaderApp.Render("enter") + styleDim.Render(" open"),
 		styleHeaderApp.Render("n") + styleDim.Render(" new"),
 		styleHeaderApp.Render("r") + styleDim.Render(" rename"),
-		styleHeaderApp.Render("c") + styleDim.Render(" done/undo"),
+		styleHeaderApp.Render("cc") + styleDim.Render(" done/undo"),
 		styleHeaderApp.Render("t") + styleDim.Render(" filter"),
 		styleHeaderApp.Render(":") + styleDim.Render(" command"),
 		styleHeaderApp.Render("dd") + styleDim.Render(" delete"),

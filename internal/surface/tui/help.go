@@ -28,7 +28,7 @@ func renderHelp() string {
 		"  enter         attach to selected session (ctrl+] or ::q to detach)",
 		"  n             new-agent wizard",
 		"  r             rename selected (display name; empty = slug)",
-		"  c             mark done / undo (clears after retire_after_hours)",
+		"  cc            mark done / undo (clears after retire_after_hours)",
 		"  C             complete now (kill agent, mark done)",
 		"  dd            delete selected",
 		"  i             focus λ prompt (new-session text)",

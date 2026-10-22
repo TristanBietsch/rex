@@ -249,7 +249,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updatePromptKey(m, k)
 	}
 
-	// Board focus: navigation, mode switches, single-key actions, and 'd' chord.
+	// Board focus: navigation, mode switches, single-key actions, and 'dd'/'cc' chords.
 	if m.Focus == FocusBoard {
 		// Chord handling — only the first 'd' arms the chord; second 'd' opens
 		// the delete confirmation prompt.
@@ -266,6 +266,20 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 			m.PendingChord = "d"
+			return m, nil
+		}
+		// 'cc' is the soft "mark done": the session keeps running, moves to
+		// Completed, and is cleared after retire_after_hours; 'cc' again undoes it.
+		if k.String() == "c" {
+			if m.PendingChord == "c" {
+				m.PendingChord = ""
+				if m.SelectedID == "" || indexOfSelected(m) < 0 {
+					slog.Debug("tui: 'cc' pressed with no selection — no-op")
+					return m, nil
+				}
+				return toggleRetire(m, m.SelectedID)
+			}
+			m.PendingChord = "c"
 			return m, nil
 		}
 		// Any other key clears the pending chord and the transient notice.
@@ -293,14 +307,6 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 				m.SelectedID = rows[len(rows)-1].ID
 			}
 			return ensureVisible(m), nil
-		case "c":
-			// Soft "mark done": the session keeps running and is cleared
-			// after retire_after_hours; pressing c again undoes it.
-			if m.SelectedID == "" || indexOfSelected(m) < 0 {
-				slog.Debug("tui: 'c' pressed with no selection — no-op")
-				return m, nil
-			}
-			return toggleRetire(m, m.SelectedID)
 		case "C":
 			// Hard complete: kill the agent now and mark it done.
 			if m.SelectedID == "" || indexOfSelected(m) < 0 {

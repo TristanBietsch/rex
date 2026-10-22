@@ -154,15 +154,31 @@ func TestRetireToggle_MarkAndUndo(t *testing.T) {
 	m.Store = store
 
 	m, cmd := updateKey(m, key("c"))
+	require.Nil(t, cmd, "single c only arms the chord")
+	require.Empty(t, fr.retired)
+	m, cmd = updateKey(m, key("c"))
 	runCmd(cmd)
 	require.Equal(t, []string{"a"}, fr.retired)
 	require.Equal(t, 2*time.Hour, fr.ttl)
 	require.Contains(t, m.Notice, "clears in 2h")
 
 	m.Sessions[0].RetireAt = time.Now().Add(time.Hour)
+	m, _ = updateKey(m, key("c"))
 	_, cmd = updateKey(m, key("c"))
 	runCmd(cmd)
 	require.Equal(t, []string{"a"}, fr.unretired)
+}
+
+func TestRetireChord_InterruptedByOtherKey(t *testing.T) {
+	fr := &fakeRetirer{}
+	m := boardModel(protocol.SessionSummary{ID: "a", Slug: "s", State: protocol.StateNeedsInput})
+	m.retirer = fr
+
+	m, _ = updateKey(m, key("c"))
+	m, _ = updateKey(m, key("j"))
+	_, cmd := updateKey(m, key("c"))
+	runCmd(cmd)
+	require.Empty(t, fr.retired, "c j c must not mark done")
 }
 
 func TestApplyPatch_TimesSetAndClear(t *testing.T) {

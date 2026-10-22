@@ -61,7 +61,7 @@ Each session row, left to right:
 | `n` | New-session wizard |
 | `i` | Focus bottom prompt (quick-spawn) |
 | `r` | Rename selected (display name; empty resets to slug) |
-| `c` | Mark selected done / undo (see MARK DONE) |
+| `cc` | Mark selected done / undo (see MARK DONE) |
 | `C` | Complete now: kill the agent and mark it done |
 | `dd` | Delete selected (confirm) |
 | `:` | Command mode |
@@ -135,12 +135,12 @@ Line-oriented agents (ollama, echo) are attached with transcript replay, so thei
 
 ## MARK DONE
 
-`c` marks the selected session done **without stopping it**. The row dims, moves to **Completed** whatever its live state, and shows a **done badge** with the time it was marked (`done 14:32` today, `done Oct 21` otherwise; plain `done` for marks made before the daemon recorded the time). The header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
+`cc` marks the selected session done **without stopping it**. The row dims, moves to **Completed** whatever its live state, and shows a **done badge** with the time it was marked (`done 14:32` today, `done Oct 21` otherwise; plain `done` for marks made before the daemon recorded the time). The header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
-- `c` again undoes the mark.
+- `cc` again undoes the mark.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.
 - A session still **working** at the deadline is not cleared; it is cleared as soon as it settles (the attach footer reads `clears when idle`).
-- `c` again moves the row back to the column its live state belongs to.
+- `cc` again moves the row back to the column its live state belongs to.
 - The deadline is stored by the daemon, so it survives TUI exit and daemon restarts. A deadline that passed while the daemon was down is cleared on the next start.
 - `C` (or `:complete`) is the old immediate behavior: kill now, keep the row as done.
 
