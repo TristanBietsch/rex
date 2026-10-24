@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestBootVoiceAsset checks the embedded VOX asset is whole s16le frames and a
+// TestBootVoiceAsset checks the embedded voice asset is whole s16le frames and a
 // sane length.
 func TestBootVoiceAsset(t *testing.T) {
 	require.NotEmpty(t, bootVoicePCM)

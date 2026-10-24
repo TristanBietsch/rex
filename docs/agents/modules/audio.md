@@ -13,7 +13,7 @@ Synthesizes UI event sounds (PCM via oto) from named catalogs (Factorio, Evangel
 
 ### Constants
 
-Events: `EventStartup`, `EventCreate`, `EventDone`, `EventDelete`, `EventNav`, `EventOpen`, `EventClose`, `EventCommand`, `EventFilter`, `EventBootOK`, `EventBootWarn`, `EventBootFail`, `EventAttention` (working → needs_input), `EventResume` (needs_input → working), `EventBootVoice` (embedded spoken "rex"; scheduled after the startup tone, gated by `boot_voice`, not part of any catalog — see `voice.go`, regenerate asset with `voice/gen.sh`).
+Events: `EventStartup`, `EventCreate`, `EventDone`, `EventDelete`, `EventNav`, `EventOpen`, `EventClose`, `EventCommand`, `EventFilter`, `EventBootOK`, `EventBootWarn`, `EventBootFail`, `EventAttention` (working → needs_input), `EventResume` (needs_input → working), `EventBootVoice` (embedded spoken "rex", lifeOS boot-voice recipe; scheduled after the startup tone, gated by `boot_voice`, not part of any catalog — see `voice.go`, regenerate asset with `voice/gen.sh`).
 
 Soundsets: `SoundsetFactorio`, `SoundsetEvangelion`, `SoundsetBell`, `SoundsetChiptune`, `SoundsetOff`.
 
