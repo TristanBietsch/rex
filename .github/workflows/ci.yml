@@ -58,7 +58,7 @@ jobs:
           $rex = "$env:RUNNER_TEMP\rex\bin\rex.exe"
           & $rex daemon start
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          & $rex new "smoke" --tool echo --model short --slug smoke
+          & $rex new --tool echo --model short --slug smoke "smoke"
           Start-Sleep -Seconds 5
           & $rex ls
           & $rex daemon stop

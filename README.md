@@ -2,7 +2,7 @@
 
 Rex is a terminal kanban for parallel AI coding-agent sessions. Two binaries: `rex` (CLI and TUI) and `rex-daemon` (PTY supervisor). You run many agent CLIs at once; Rex tracks state, transcripts, and input prompts.
 
-Requires Go 1.26+ to build from source. Targets macOS and Linux.
+Requires Go 1.26.10+ to build from source. Targets macOS, Linux, and Windows 10 1809+ / 11.
 
 ## Install
 
@@ -21,6 +21,15 @@ make install PREFIX=$HOME/.local
 export PATH="$HOME/.local/bin:$PATH"
 rex setup
 ```
+
+On Windows (PowerShell, from a checkout):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1   # installs to ~\.local\bin, adds it to your user PATH
+rex setup
+```
+
+Agents run on ConPTY. Claude Code's state hooks need Git for Windows (Claude runs hooks in Git Bash), and the `echo` test tool needs `bash` on PATH.
 
 Or without a clone:
 

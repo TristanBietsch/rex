@@ -57,7 +57,7 @@ func daemonStop(args []string) error {
 	if err := daemonctl.Stop(); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	fmt.Printf("sent SIGTERM to pid %s\n", pid)
+	fmt.Printf("stopped rex-daemon (pid %s)\n", pid)
 	return nil
 }
 
