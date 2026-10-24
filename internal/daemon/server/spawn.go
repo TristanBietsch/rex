@@ -65,7 +65,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		case "claude":
 			cmdArgs = append(cmdArgs, adapter.ClaudeHookArgs()...)
 		}
-		childEnv = append(childEnv, adapter.HookFileEnv+"="+hookFile)
+		// ToSlash: on Windows, Claude runs hooks in Git Bash, which reads
+		// C:/... paths without backslash escapes. Go opens either form.
+		childEnv = append(childEnv, adapter.HookFileEnv+"="+filepath.ToSlash(hookFile))
 		slog.Info("spawn: hook state detection", "tool", p.ToolID, "hook_file", hookFile)
 	}
 	childEnv = append(childEnv, "REX_SESSION_ID="+id)

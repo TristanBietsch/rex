@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -254,6 +255,9 @@ func upgradeFromSource(dir string, verbose bool) error {
 		return err
 	}
 
+	if runtime.GOOS == "windows" {
+		return runSourceStep(dir, verbose, "install.ps1", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(dir, "install.ps1"))
+	}
 	script := filepath.Join(dir, "install.sh")
 	return runSourceStep(dir, verbose, "./install.sh", script)
 }

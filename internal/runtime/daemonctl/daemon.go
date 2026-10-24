@@ -49,7 +49,7 @@ func FindBinary() string {
 
 // findBinaryIn is FindBinary's first probe, exposed for tests.
 func findBinaryIn(dir string) string {
-	candidate := filepath.Join(dir, "rex-daemon")
+	candidate := filepath.Join(dir, "rex-daemon"+exeSuffix)
 	info, err := os.Stat(candidate)
 	if err == nil && !info.IsDir() {
 		return candidate
@@ -69,6 +69,7 @@ type StartResult struct {
 func Start(socket string, stderrLog *os.File) (*StartResult, error) {
 	t0 := time.Now()
 	cmd := exec.Command(FindBinary())
+	cmd.SysProcAttr = detachAttr()
 	if stderrLog != nil {
 		cmd.Stderr = stderrLog
 	}

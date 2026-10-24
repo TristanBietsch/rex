@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"golang.org/x/term"
@@ -102,6 +100,8 @@ func RunAttach(args []string) error {
 	// exitAlt also turns off mouse tracking / bracketed paste the agent may
 	// have enabled (Claude fullscreen does), or the shell is left in mouse mode.
 	const exitAlt = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l\x1b[?25h\x1b[?1049l"
+	restoreVT := enableVT(os.Stdout)
+	defer restoreVT()
 	_, _ = os.Stdout.WriteString(enterAlt)
 	defer func() { _, _ = os.Stdout.WriteString(exitAlt) }()
 
@@ -122,17 +122,13 @@ func RunAttach(args []string) error {
 		}(sess.ID, sess.ToolID)
 	}
 
-	// SIGWINCH → resize the daemon's PTY.
-	winch := make(chan os.Signal, 1)
-	signal.Notify(winch, syscall.SIGWINCH)
-	defer signal.Stop(winch)
-	go func() {
-		for range winch {
-			if w, h, gerr := term.GetSize(stdoutFd); gerr == nil && w > 0 && h > 0 {
-				_ = c.Resize(sess.ID, uint16(w), uint16(h))
-			}
+	// Terminal resize → resize the daemon's PTY.
+	stopResize := onResize(func() {
+		if w, h, gerr := term.GetSize(stdoutFd); gerr == nil && w > 0 && h > 0 {
+			_ = c.Resize(sess.ID, uint16(w), uint16(h))
 		}
-	}()
+	})
+	defer stopResize()
 
 	// stdin → daemon, watching for Ctrl+] to detach.
 	if !*readOnly {

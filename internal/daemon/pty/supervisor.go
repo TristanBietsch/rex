@@ -11,10 +11,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/hinshun/vt10x"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -101,7 +99,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if rows == 0 {
 		rows = 32
 	}
-	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
+	f, err := startConsole(cmd, cols, rows)
 	if err != nil {
 		slog.Error("pty: start failed", "session", sess.ID, "argv", s.cfg.Command, "err", err)
 		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
@@ -120,7 +118,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if s.cfg.RegisterResize != nil {
 		s.cfg.RegisterResize(func(c, r uint16) error {
 			screen.Resize(int(c), int(r))
-			return pty.Setsize(f, &pty.Winsize{Cols: c, Rows: r})
+			return f.Resize(c, r)
 		})
 		if s.cfg.UnregisterResize != nil {
 			defer s.cfg.UnregisterResize()
@@ -326,7 +324,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		case <-ctx.Done():
 			cause := context.Cause(ctx)
 			slog.Info("pty: ctx canceled, killing child", "session", sess.ID, "pid", cmd.Process.Pid, "cause", cause)
-			s.killAndReap(sess.ID, cmd, errc)
+			s.killAndReap(sess.ID, cmd, f, errc)
 			if errors.Is(cause, ErrSessionDeleted) {
 				slog.Info("pty: session deleted; skipping failed transition", "session", sess.ID)
 				return ctx.Err()
@@ -336,7 +334,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		case <-s.cfg.CompleteCh:
 			slog.Info("pty: complete signal received, killing child cleanly",
 				"session", sess.ID, "pid", cmd.Process.Pid)
-			s.killAndReap(sess.ID, cmd, errc)
+			s.killAndReap(sess.ID, cmd, f, errc)
 			if err := s.cfg.Store.Transition(sess.ID, protocol.StateDone); err != nil {
 				return err
 			}
@@ -347,7 +345,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		case rerr := <-errc:
 			// Child exited.
 			s.refreshScreenText(sess.ID, screen)
-			waitErr := cmd.Wait()
+			waitErr := f.Wait()
 			final := protocol.StateDone
 			var exitCode *int
 			if waitErr != nil {
@@ -455,15 +453,15 @@ func appendBounded(buf, b []byte, cap int) []byte {
 	return out
 }
 
-// killAndReap SIGKILLs the child's whole process group (creack/pty starts it
-// with Setsid, so pgid == pid) — agents spawn MCP servers and tool shells that
-// inherit the PTY and would otherwise keep the reader from seeing EOF. The
-// reader drain and the reap are both bounded by StopDrainTimeout; on timeout
-// Run returns anyway and the deferred PTY close unblocks the reader.
-func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, errc <-chan error) {
+// killAndReap kills the child's whole process tree (console.KillTree) —
+// agents spawn MCP servers and tool shells that inherit the PTY and would
+// otherwise keep the reader from seeing EOF. The reader drain and the reap are
+// both bounded by StopDrainTimeout; on timeout Run returns anyway and the
+// deferred PTY close unblocks the reader.
+func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, f console, errc <-chan error) {
 	pid := cmd.Process.Pid
-	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
-		slog.Warn("pty: kill process group failed; killing pid", "session", id, "pid", pid, "err", err)
+	if err := f.KillTree(); err != nil {
+		slog.Warn("pty: kill process tree failed; killing pid", "session", id, "pid", pid, "err", err)
 		_ = cmd.Process.Kill()
 	}
 	timeout := time.NewTimer(s.cfg.StopDrainTimeout)
@@ -476,7 +474,7 @@ func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, errc <-chan error) {
 	}
 	waited := make(chan struct{})
 	go func() {
-		_ = cmd.Wait()
+		_ = f.Wait()
 		close(waited)
 	}()
 	select {

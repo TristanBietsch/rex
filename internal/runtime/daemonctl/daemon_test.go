@@ -40,7 +40,7 @@ func TestReachable_StaleSocketFile(t *testing.T) {
 
 func TestFindBinary_NextToSelf(t *testing.T) {
 	dir := t.TempDir()
-	candidate := filepath.Join(dir, "rex-daemon")
+	candidate := filepath.Join(dir, "rex-daemon"+exeSuffix)
 	require.NoError(t, os.WriteFile(candidate, []byte("#!/bin/sh\nexit 0\n"), 0o755))
 	// Simulate "rex" living in dir by passing dir explicitly.
 	got := findBinaryIn(dir)

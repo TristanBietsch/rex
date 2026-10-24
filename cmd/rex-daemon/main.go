@@ -126,7 +126,11 @@ func run(args []string) error {
 		summaryCh = summaryWorker.Channel()
 	}
 
-	srv, err := server.New(server.Config{
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	var srv *server.Server
+	srv, err = server.New(server.Config{
 		Socket:                *socketPath,
 		StateDir:              *stateDir,
 		Registry:              reg,
@@ -134,6 +138,8 @@ func run(args []string) error {
 		MaxConcurrentSessions: *maxConcurrent,
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
+		OnShutdown:            cancel,
+		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
 	})
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
@@ -147,9 +153,6 @@ func run(args []string) error {
 	if luaRT != nil {
 		defer luaRT.Close()
 	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	// Start summarizer worker + health probe (when enabled).
 	if summaryWorker != nil {

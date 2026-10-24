@@ -130,6 +130,16 @@ func (c *Client) Complete(sessionID string) error {
 	return c.w.WriteIntent(protocol.IntentComplete, "", protocol.Complete{SessionID: sessionID})
 }
 
+// Shutdown asks the daemon to stop (the socket form of SIGTERM).
+func (c *Client) Shutdown() error {
+	return c.w.WriteIntent(protocol.IntentShutdown, "", struct{}{})
+}
+
+// Reload asks the daemon to re-read tools.yaml (the socket form of SIGHUP).
+func (c *Client) Reload() error {
+	return c.w.WriteIntent(protocol.IntentReload, "", struct{}{})
+}
+
 // FocusFilter sets the cosmetic tool filter.
 func (c *Client) FocusFilter(toolID string) error {
 	return c.w.WriteIntent(protocol.IntentFocusFilter, "", protocol.FocusFilter{ToolID: toolID})

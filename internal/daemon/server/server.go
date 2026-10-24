@@ -73,6 +73,12 @@ type Config struct {
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
 	RetireSweepInterval time.Duration
+	// OnShutdown handles a Shutdown intent (nil = intent rejected). The daemon
+	// cancels its serve context, same as SIGTERM.
+	OnShutdown func()
+	// OnReload handles a Reload intent (nil = intent rejected): re-read
+	// tools.yaml and swap the registry, same as SIGHUP.
+	OnReload func() error
 }
 
 // Server owns the UDS listener and accepts clients.

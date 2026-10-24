@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -151,6 +152,9 @@ func configEdit(args []string) error {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		editor = "vi"
+		if runtime.GOOS == "windows" {
+			editor = "notepad"
+		}
 	}
 	cmd := exec.Command(editor, path)
 	cmd.Stdin = os.Stdin

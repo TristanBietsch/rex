@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
@@ -89,14 +88,8 @@ func daemonLogs(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
-	path := daemonctl.LogPath()
-	var cmd *exec.Cmd
-	if *follow {
-		cmd = exec.Command("tail", "-f", path)
-	} else {
-		cmd = exec.Command("tail", "-n", "200", path)
+	if err := tailFile(os.Stdout, daemonctl.LogPath(), logTailLines, *follow); err != nil {
+		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return nil
 }

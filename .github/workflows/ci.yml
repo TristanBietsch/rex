@@ -32,3 +32,37 @@ jobs:
 
       - name: Check (vet, race tests, lint, govulncheck)
         run: make check
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Install (install.ps1)
+        shell: pwsh
+        run: ./install.ps1 -Prefix "$env:RUNNER_TEMP\rex" -NoPath
+
+      - name: Smoke (daemon start, echo session, stop)
+        shell: pwsh
+        run: |
+          $rex = "$env:RUNNER_TEMP\rex\bin\rex.exe"
+          & $rex daemon start
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & $rex new "smoke" --tool echo --model short --slug smoke
+          Start-Sleep -Seconds 5
+          & $rex ls
+          & $rex daemon stop
+          Start-Sleep -Seconds 2
+          & $rex daemon status
+          if ($LASTEXITCODE -eq 0) { Write-Error 'daemon still running after stop'; exit 1 }
+          exit 0

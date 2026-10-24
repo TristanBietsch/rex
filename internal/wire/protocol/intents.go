@@ -19,6 +19,7 @@ const (
 	IntentSetSessionName   = "SetSessionName"
 	IntentRetire           = "Retire"
 	IntentUnretire         = "Unretire"
+	IntentReload           = "Reload"
 )
 
 // Hello is the first message a client sends after connect.

@@ -63,7 +63,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
 | `FocusFilter` | no-op | Accepted; not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
-| `Shutdown` | **no** | `bad_intent` "intent not implemented" |
+| `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM |
+| `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP; `bad_intent` with the load error on failure |
 
 ### NewSession fields
 

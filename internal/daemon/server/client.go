@@ -399,6 +399,25 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			}
 			srv.SetMaxConcurrentSessions(p.N)
 
+		// Shutdown and Reload are the socket forms of SIGTERM and SIGHUP, for
+		// platforms (Windows) that cannot signal the daemon.
+		case protocol.IntentShutdown:
+			if cfg.OnShutdown == nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
+				continue
+			}
+			slog.Info("server: shutdown requested by client")
+			cfg.OnShutdown()
+
+		case protocol.IntentReload:
+			if cfg.OnReload == nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
+				continue
+			}
+			if err := cfg.OnReload(); err != nil {
+				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+			}
+
 		default:
 			writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 		}
