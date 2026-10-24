@@ -10,6 +10,7 @@ import (
 func TestDefaultPaths_UnderHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 
 	require.Equal(t, filepath.Join(home, ".local", "share", "rex"), DefaultStateDir())
 	require.Equal(t, filepath.Join(home, ".config", "rex", "tools.yaml"), DefaultToolsPath())

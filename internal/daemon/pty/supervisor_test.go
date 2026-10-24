@@ -2,6 +2,7 @@ package pty
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -244,6 +245,12 @@ func TestSupervisor_CtxCancelStillProducesFailed(t *testing.T) {
 }
 
 func TestSupervisor_InitialPromptWaitsForIsReadyForInput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The assertion reads the paste back from the transcript, which needs
+		// the Unix tty line discipline to echo input. ConPTY only echoes for a
+		// child reading in cooked mode; this child never reads.
+		t.Skip("relies on Unix PTY input echo")
+	}
 	stateDir := t.TempDir()
 	store := state.NewStore()
 	sess := &state.Session{

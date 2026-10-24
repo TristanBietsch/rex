@@ -217,8 +217,12 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 		Focus: FocusBoot, Filter: "all", BootStart: time.Now(),
 		Store: store, StorePath: filepath.Join(t.TempDir(), "settings.toml"),
 	}
+	// An idle pipe, not WithInput(nil): bubbletea's Windows input loop reads
+	// a nil input and panics.
+	in, inW := io.Pipe()
+	defer inW.Close()
 	p := tea.NewProgram(probeModel{inner: m, rec: rec},
-		tea.WithInput(nil), tea.WithOutput(io.Discard),
+		tea.WithInput(in), tea.WithOutput(io.Discard),
 		tea.WithoutRenderer(), tea.WithoutSignalHandler())
 	done := make(chan error, 1)
 	go func() { _, err := p.Run(); done <- err }()
