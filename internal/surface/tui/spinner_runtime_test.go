@@ -63,6 +63,26 @@ func (r *viewRecorder) last() frameRec {
 	return r.frames[len(r.frames)-1]
 }
 
+// idleInput is a keyboard that never types. Not WithInput(nil): bubbletea's
+// Windows input loop reads a nil input and panics. Not a pipe either: on
+// Windows, toggling mouse mode restarts the input reader, and a pipe read
+// cannot be canceled, so the event loop would stall 500ms each time. Waking
+// every few ms lets a canceled read return at once.
+type idleInput struct{ done chan struct{} }
+
+func newIdleInput() *idleInput { return &idleInput{done: make(chan struct{})} }
+
+func (r *idleInput) Read([]byte) (int, error) {
+	select {
+	case <-r.done:
+		return 0, io.EOF
+	case <-time.After(5 * time.Millisecond):
+		return 0, nil
+	}
+}
+
+func (r *idleInput) Close() error { close(r.done); return nil }
+
 // mutateMsg lets the test poke state the headless program can't reach via
 // input (e.g. an attach popup without a daemon connection).
 type mutateMsg struct{ fn func(Model) Model }
@@ -217,10 +237,8 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 		Focus: FocusBoot, Filter: "all", BootStart: time.Now(),
 		Store: store, StorePath: filepath.Join(t.TempDir(), "settings.toml"),
 	}
-	// An idle pipe, not WithInput(nil): bubbletea's Windows input loop reads
-	// a nil input and panics.
-	in, inW := io.Pipe()
-	defer inW.Close()
+	in := newIdleInput()
+	defer in.Close()
 	p := tea.NewProgram(probeModel{inner: m, rec: rec},
 		tea.WithInput(in), tea.WithOutput(io.Discard),
 		tea.WithoutRenderer(), tea.WithoutSignalHandler())
