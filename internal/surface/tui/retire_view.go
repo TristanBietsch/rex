@@ -100,30 +100,6 @@ func retireLabel(now time.Time, s protocol.SessionSummary) string {
 	return "marked done · clears in " + shortDuration(left)
 }
 
-// doneBadgeText is the unpadded badge label for a marked-done session: the
-// clock time when marked today, else a short date. Marks that predate the
-// RetiredAt field have no time and read just "done".
-func doneBadgeText(now time.Time, s protocol.SessionSummary) string {
-	if s.RetiredAt.IsZero() {
-		return "done"
-	}
-	t := s.RetiredAt.In(now.Location())
-	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
-		return "done " + t.Format("15:04")
-	}
-	return "done " + t.Format("Jan 2")
-}
-
-// doneBadge renders the marked-done badge: padded text on an elevated
-// background, in the done color. Empty for unmarked sessions.
-func doneBadge(now time.Time, s protocol.SessionSummary) string {
-	if !isMarkedDone(s) {
-		return ""
-	}
-	return lipgloss.NewStyle().Foreground(colorDone).Background(colorBgElev).
-		Render(" " + doneBadgeText(now, s) + " ")
-}
-
 // shortDuration renders d with one unit: 45s, 12m, 5h, 6d.
 func shortDuration(d time.Duration) string {
 	switch {

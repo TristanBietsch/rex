@@ -236,11 +236,11 @@ func renderBoard(m Model, width, height int) string {
 
 // Row grid. Left to right:
 //
-//	indent marker  id  name  description  model·effort  tokens  run-badge  done-badge  time
+//	indent marker  id  name  description  model·effort  tokens  run-badge  time
 //
 // indent, marker, id and time are fixed. name, model and tokens are sized to
-// the widest value among the rendered rows (capped), the long-run and
-// done badge columns only exist while some row has such a badge, and the description takes
+// the widest value among the rendered rows (capped), the long-run
+// badge column only exists while some row has such a badge, and the description takes
 // whatever is left. Every row is exactly the board width.
 const (
 	colMarker = 1
@@ -262,13 +262,13 @@ const (
 // rowCols holds the per-frame column widths. 0 hides model, tokens and run
 // (no cell, no gap).
 type rowCols struct {
-	slug, desc, model, tokens, run, done int
+	slug, desc, model, tokens, run int
 }
 
 // used is the row width of everything except the description cell.
 func (c rowCols) used() int {
 	w := rowIndent + colMarker + colGap + colID + colGap + c.slug + colGap + colGap + colTime
-	for _, x := range []int{c.model, c.tokens, c.run, c.done} {
+	for _, x := range []int{c.model, c.tokens, c.run} {
 		if x > 0 {
 			w += colGap + x
 		}
@@ -294,7 +294,7 @@ func layoutSlots(slots []boardSlot, now time.Time, width int) rowCols {
 
 // layoutRows sizes columns to content, then degrades for narrow widths in a
 // fixed order until the description gets descMin: drop tokens, shrink model
-// (to modelMin), shrink name (to slugMin), drop done badge, drop model, drop long-run
+// (to modelMin), shrink name (to slugMin), drop model, drop long-run
 // badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
 func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCols {
@@ -307,9 +307,6 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCol
 		}
 		if longRunTier(now, s) >= 0 {
 			c.run = colRun
-		}
-		if isMarkedDone(s) {
-			c.done = max(c.done, ansi.StringWidth(doneBadgeText(now, s))+2) // +2: badge padding
 		}
 	}
 	c.slug = min(c.slug, colSlug)
@@ -327,7 +324,6 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCol
 		func() { c.tokens = 0 },
 		func() { shrink(&c.model, modelMin) },
 		func() { shrink(&c.slug, slugMin) },
-		func() { c.done = 0 },
 		func() { c.model = 0 },
 		func() { c.run = 0 },
 	}
@@ -367,7 +363,11 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	now := m.now()
 	retiring := !s.RetireAt.IsZero()
 	dim := lipgloss.NewStyle().Foreground(colorFgDim)
-	marker := stateMarkerCellFor(m, s.State, m.SpinnerTick, false)
+	state := s.State
+	if retiring {
+		state = protocol.StateDone // marked done reads green whatever the live state
+	}
+	marker := stateMarkerCellFor(m, state, m.SpinnerTick, false)
 	id := cell(lipgloss.NewStyle().Foreground(colorFgMuted), s.ShortID, colID)
 	// A marked-done row recedes: muted name and description.
 	slugStyle := lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
@@ -404,9 +404,6 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	}
 	if c.run > 0 {
 		b.WriteString(gap + cell(lipgloss.NewStyle(), longRunBadge(now, s), c.run))
-	}
-	if c.done > 0 {
-		b.WriteString(gap + cell(lipgloss.NewStyle(), doneBadge(now, s), c.done))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
 	row := b.String()

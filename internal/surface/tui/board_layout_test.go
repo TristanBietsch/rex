@@ -131,7 +131,7 @@ func TestBoardLayout_WideShowsEverything(t *testing.T) {
 	require.Contains(t, rows["2"], "11m")
 	require.Contains(t, rows["3"], "日本語")
 	require.Contains(t, rows["4"], "▴7h")
-	require.Contains(t, rows["5"], "done 09:00")
+	require.NotContains(t, rows["5"], "done")
 	require.NotContains(t, rows["5"], "clears")
 	require.True(t, strings.HasSuffix(rows["6"], "-"), "zero time renders as -")
 }

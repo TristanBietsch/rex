@@ -216,18 +216,6 @@ func TestRetireLabel(t *testing.T) {
 	require.Equal(t, "marked done · clears when idle", retireLabel(now, mk(-time.Second, protocol.StateWorking)))
 }
 
-func TestDoneBadgeText(t *testing.T) {
-	now := time.Date(2026, 10, 22, 18, 0, 0, 0, time.UTC)
-	mk := func(at time.Time) protocol.SessionSummary {
-		return protocol.SessionSummary{RetireAt: now.Add(time.Hour), RetiredAt: at}
-	}
-	require.Equal(t, "done 14:32", doneBadgeText(now, mk(time.Date(2026, 10, 22, 14, 32, 0, 0, time.UTC))))
-	require.Equal(t, "done Oct 21", doneBadgeText(now, mk(time.Date(2026, 10, 21, 23, 59, 0, 0, time.UTC))))
-	require.Equal(t, "done Oct 22", doneBadgeText(now, mk(time.Date(2025, 10, 22, 9, 0, 0, 0, time.UTC))), "other year is not today")
-	require.Equal(t, "done", doneBadgeText(now, protocol.SessionSummary{RetireAt: now.Add(time.Hour)}), "legacy mark has no time")
-	require.Equal(t, "", doneBadge(now, protocol.SessionSummary{}))
-}
-
 func TestMarkedDone_MovesToCompleted(t *testing.T) {
 	now := time.Now()
 	m := boardModel(
@@ -283,7 +271,7 @@ func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
 	cols := boardLayout(m, 160)
 	row := ansi.Strip(renderRow(m, m.Sessions[0], cols))
 	require.Contains(t, row, "日本語")
-	require.Contains(t, row, "done", "legacy mark without time shows bare badge")
+	require.NotContains(t, row, "done", "marked-done rows carry no badge")
 	require.NotContains(t, row, "clears")
 	require.Contains(t, row, "▴3h")
 	require.Contains(t, ansi.Strip(renderRow(m, m.Sessions[1], cols)), "plain")
