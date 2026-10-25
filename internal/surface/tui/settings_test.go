@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
@@ -134,4 +135,47 @@ func TestWindowLines_KeepsFocusVisible(t *testing.T) {
 	require.Contains(t, strings.Join(got, "\n"), "row 35")
 	require.Contains(t, got[0], "more")
 	require.Equal(t, lines, windowLines(lines, 3, 0), "no height: unchanged")
+}
+
+func settingsLayoutModel(t *testing.T, w, h int) Model {
+	t.Helper()
+	m := Model{
+		Store:     settings.NewStore(),
+		StorePath: filepath.Join(t.TempDir(), "config.yaml"),
+		Width:     w,
+		Height:    h,
+		Settings:  &SettingsState{CursorID: settings.Registry[0].ID},
+	}
+	return m
+}
+
+func TestRenderSettings_Layout(t *testing.T) {
+	groups := []string{"Appearance", "Behavior", "Spawn", "AI summary", "Audio", "Advanced"}
+	for _, w := range []int{120, 80, 50, 30} {
+		m := settingsLayoutModel(t, w, 0)
+		out := renderSettings(m, w)
+		for _, g := range groups {
+			require.Contains(t, out, g, "width %d", w)
+		}
+		require.Contains(t, out, "SETTINGS")
+		require.Contains(t, out, "▸ ")
+		for _, l := range strings.Split(out, "\n") {
+			require.LessOrEqual(t, ansi.StringWidth(l), w, "width %d line %q", w, l)
+		}
+		if w >= 40 {
+			require.Contains(t, out, "┌")
+			require.NotContains(t, out, "╭")
+		}
+	}
+}
+
+func TestRenderSettings_WindowingKeepsSelectedVisible(t *testing.T) {
+	for _, h := range []int{12, 16, 20, 30} {
+		for _, s := range settings.Registry {
+			m := settingsLayoutModel(t, 100, h)
+			m.Settings.CursorID = s.ID
+			out := renderSettings(m, 100)
+			require.Contains(t, out, "▸ "+s.Label, "h=%d id=%s", h, s.ID)
+		}
+	}
 }

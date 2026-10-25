@@ -557,7 +557,7 @@ func TestScreensaverSettingsPage(t *testing.T) {
 	require.Equal(t, false, m.Store.Get("screensaver_keep_awake"))
 
 	m.Height = 60
-	page := ansi.Strip(renderSettings(m))
+	page := ansi.Strip(renderSettings(m, 100))
 	for _, label := range []string{"Screensaver ", "Screensaver after (min)", "Screensaver keep awake"} {
 		require.Contains(t, page, label)
 	}

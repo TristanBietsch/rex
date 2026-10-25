@@ -54,35 +54,6 @@ var Registry = []Setting{
 		Help:    "Change the header style for the aggregate counts at the top.",
 	},
 
-	// Audio
-	{
-		ID: "sound_enabled", Label: "Sound enabled", Section: SectionAudio,
-		Type: TypeBool, Default: true,
-		Help: "Master on/off; suppresses BEL fallback too.",
-	},
-	{
-		ID: "soundset", Label: "Soundset", Section: SectionAudio,
-		Type: TypeEnum, Default: "factorio",
-		Options: []string{"factorio", "evangelion", "bell", "chiptune", "off"},
-		Help:    "Synthesized tone catalog.",
-	},
-	{
-		ID: "master_volume", Label: "Master volume", Section: SectionAudio,
-		Type: TypeFloat, Default: 0.80,
-		Min: 0.0, Max: 1.0,
-		Help: "Linear scale applied to every event PCM at playback.",
-	},
-	{
-		ID: "notify_on_state_change", Label: "State-change sounds", Section: SectionAudio,
-		Type: TypeBool, Default: true,
-		Help: "Chime when an agent needs input (working → needs input) or resumes (needs input → working). Done keeps its own sound.",
-	},
-	{
-		ID: "boot_voice", Label: "Boot voice", Section: SectionAudio,
-		Type: TypeBool, Default: true,
-		Help: "Spoken \"rex\" announcement after the startup tone (needs sound enabled).",
-	},
-
 	// Behavior
 	{
 		ID: "keybind_preset", Label: "Keybind preset", Section: SectionBehavior,
@@ -130,6 +101,23 @@ var Registry = []Setting{
 		Help: "macOS: keep the display from sleeping while the screensaver shows (caffeinate -d). Does nothing on other systems.",
 	},
 
+	// Spawn
+	{
+		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,
+		Type: TypeString, Default: "claude",
+		Help: "Tool used when pressing 'i'. Cycle with +/-; changing it resets model and effort.",
+	},
+	{
+		ID: "default_spawn_model", Label: "Quick-spawn model", Section: SectionSpawn,
+		Type: TypeString, Default: "opus",
+		Help: "Model used when pressing 'i'. Cycles through the selected tool's models.",
+	},
+	{
+		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn,
+		Type: TypeString, Default: "max",
+		Help: "Effort used when pressing 'i'. Cycles through the model's effort options.",
+	},
+
 	// AI summary
 	{
 		ID: "summary_enabled", Label: "Summary enabled", Section: SectionSummary,
@@ -149,21 +137,33 @@ var Registry = []Setting{
 		Help:    "Animation effect when the AI description changes.",
 	},
 
-	// Spawn
+	// Audio
 	{
-		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,
-		Type: TypeString, Default: "claude",
-		Help: "Tool used when pressing 'i'. Cycle with +/-; changing it resets model and effort.",
+		ID: "sound_enabled", Label: "Sound enabled", Section: SectionAudio,
+		Type: TypeBool, Default: true,
+		Help: "Master on/off; suppresses BEL fallback too.",
 	},
 	{
-		ID: "default_spawn_model", Label: "Quick-spawn model", Section: SectionSpawn,
-		Type: TypeString, Default: "opus",
-		Help: "Model used when pressing 'i'. Cycles through the selected tool's models.",
+		ID: "soundset", Label: "Soundset", Section: SectionAudio,
+		Type: TypeEnum, Default: "factorio",
+		Options: []string{"factorio", "evangelion", "bell", "chiptune", "off"},
+		Help:    "Synthesized tone catalog.",
 	},
 	{
-		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn,
-		Type: TypeString, Default: "max",
-		Help: "Effort used when pressing 'i'. Cycles through the model's effort options.",
+		ID: "master_volume", Label: "Master volume", Section: SectionAudio,
+		Type: TypeFloat, Default: 0.80,
+		Min: 0.0, Max: 1.0,
+		Help: "Linear scale applied to every event PCM at playback.",
+	},
+	{
+		ID: "notify_on_state_change", Label: "State-change sounds", Section: SectionAudio,
+		Type: TypeBool, Default: true,
+		Help: "Chime when an agent needs input (working → needs input) or resumes (needs input → working). Done keeps its own sound.",
+	},
+	{
+		ID: "boot_voice", Label: "Boot voice", Section: SectionAudio,
+		Type: TypeBool, Default: true,
+		Help: "Spoken \"rex\" announcement after the startup tone (needs sound enabled).",
 	},
 	{
 		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn,

@@ -90,9 +90,9 @@ func (m Model) View() string {
 	case FocusWizard:
 		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
 	case FocusHelp:
-		return centerOverlay(w, h, renderHelp(), renderFullScreen(m, w, h))
+		return centerOverlayBox(w, h, renderHelp(w, h), renderFullScreen(m, w, h))
 	case FocusSettings:
-		return centerOverlay(w, h, renderSettings(m), renderFullScreen(m, w, h))
+		return centerOverlayBox(w, h, renderSettings(m, w), renderFullScreen(m, w, h))
 	case FocusAttach:
 		return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
 	case FocusFail:
@@ -172,7 +172,21 @@ func renderFullScreen(m Model, w, h int) string {
 // overlay, not a separate screen.
 func centerOverlay(w, h int, content, bg string) string {
 	popupLines, popupW := overlayBox(content)
+	return compositeOverlay(w, h, popupLines, popupW, bg)
+}
 
+// centerOverlayBox composites an already-rendered box centered over bg.
+func centerOverlayBox(w, h int, box, bg string) string {
+	popupLines := strings.Split(box, "\n")
+	popupW := 0
+	for _, l := range popupLines {
+		popupW = max(popupW, ansi.StringWidth(l))
+	}
+	return compositeOverlay(w, h, popupLines, popupW, bg)
+}
+
+// compositeOverlay draws popupLines (each popupW wide) centered over bg.
+func compositeOverlay(w, h int, popupLines []string, popupW int, bg string) string {
 	bgLines := strings.Split(bg, "\n")
 	for len(bgLines) < h {
 		bgLines = append(bgLines, "")

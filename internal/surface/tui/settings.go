@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -355,9 +356,6 @@ func containsString(xs []string, s string) bool {
 	return false
 }
 
-// overlayChrome is the border + padding centerOverlay adds around content.
-const overlayChrome = 4
-
 // windowLines keeps at most max lines of lines, positioned so focus stays
 // visible, with ↑/↓ markers where content is cut.
 func windowLines(lines []string, focus, max int) []string {
@@ -433,51 +431,241 @@ func applyLive(m *Model, id string, value any) {
 	}
 }
 
-func renderSettings(m Model) string {
-	if m.Settings == nil {
+// settingsHints are the footer key hints, in display order.
+var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "r reset", "esc close"}
+
+// wrapHints packs hints (3-space separated) into lines of at most width cells.
+func wrapHints(hints []string, width int) []string {
+	const sep = "   "
+	var lines []string
+	cur := ""
+	for _, h := range hints {
+		switch {
+		case cur == "":
+			cur = h
+		case ansi.StringWidth(cur)+len(sep)+ansi.StringWidth(h) <= width:
+			cur += sep + h
+		default:
+			lines = append(lines, cur)
+			cur = h
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	for i, l := range lines {
+		lines[i] = styleDim.Render(ansi.Truncate(l, width, "…"))
+	}
+	return lines
+}
+
+// settingAdjustable reports whether left/right changes the setting.
+func settingAdjustable(m Model, s settings.Setting) bool {
+	if s.ReadOnly {
+		return false
+	}
+	if _, ok := spawnPickerOptions(m, s.ID); ok {
+		return true
+	}
+	switch s.Type {
+	case settings.TypeEnum, settings.TypeFloat, settings.TypeInt:
+		return true
+	case settings.TypeString:
+		return len(s.Options) > 0
+	}
+	return false
+}
+
+// settingValueText is the plain (unstyled) display value.
+func settingValueText(m Model, s settings.Setting) string {
+	v := m.Store.String(s.ID)
+	if s.Type == settings.TypeBool {
+		if b, _ := m.Store.Get(s.ID).(bool); b {
+			return "on"
+		}
+		return "off"
+	}
+	if v == "" {
+		return "—"
+	}
+	return strings.ReplaceAll(v, "\n", " ")
+}
+
+// padCells right-pads plain/styled s with spaces to exactly w cells.
+func padCells(s string, w int) string {
+	if d := w - ansi.StringWidth(s); d > 0 {
+		return s + strings.Repeat(" ", d)
+	}
+	return s
+}
+
+// renderSettings returns the finished settings box for a termW-wide terminal.
+func renderSettings(m Model, termW int) string {
+	if m.Settings == nil || m.Store == nil {
 		return ""
 	}
+	if termW <= 0 {
+		termW = 100
+	}
+
+	var (
+		width, padH, padV int
+		bordered          = termW >= 40
+	)
+	padV = 1
+	if m.Height > 0 && m.Height < 24 {
+		padV = 0
+	}
+	switch {
+	case termW < 40:
+		width, padH, padV = termW, 0, 0
+	case termW < 60:
+		width, padH = termW-2, 1
+	default:
+		width, padH = termW-8, 3
+		if width < 56 {
+			width = 56
+		}
+		if width > 88 {
+			width = 88
+		}
+	}
+	inner := width
+	if bordered {
+		inner = width - 2 - 2*padH
+	}
+	labelW := 30
+	if lim := inner * 40 / 100; lim < labelW {
+		labelW = lim
+	}
+	if termW < 60 {
+		labelW = inner / 2
+	}
+	ownLine := inner < 40
+	selStyle := styleSelected
+	selBold := styleSelected.Bold(true)
+
 	var lines []string
 	focus := 0
 	curSection := ""
-	for _, s := range settings.Registry {
+	cursorIdx, total := 0, len(settings.Registry)
+	var sel settings.Setting
+	for i, s := range settings.Registry {
 		if string(s.Section) != curSection {
 			if curSection != "" {
 				lines = append(lines, "")
 			}
-			lines = append(lines, styleSlug.Render(string(s.Section)))
+			lines = append(lines, sectionHeader(string(s.Section), inner))
 			curSection = string(s.Section)
 		}
-		cursor := "  "
-		if s.ID == m.Settings.CursorID {
-			cursor = styleArrow.Render("▸ ")
+		isSel := s.ID == m.Settings.CursorID
+		adjustable := settingAdjustable(m, s)
+		val := settingValueText(m, s)
+		empty := val == "—"
+		label := ansi.Truncate(s.Label, labelW, "…")
+
+		valAvail := inner - 2 - labelW - 1
+		if ownLine {
+			valAvail = inner - 4
 		}
-		label := s.Label
-		value := m.Store.String(s.ID)
-		if value == "" {
-			value = styleDim.Render("—")
+		arrows := isSel && adjustable && !empty
+		if arrows {
+			valAvail -= 4
 		}
-		row := cursor + fmt.Sprintf("%-26s %s", label, value)
-		if s.ID == m.Settings.CursorID {
-			focus = len(lines)
-			lines = append(lines, styleSelected.Render(row))
-			if s.Help != "" {
-				lines = append(lines, "      "+styleDim.Render(s.Help))
+		if valAvail < 1 {
+			valAvail = 1
+		}
+		val = ansi.Truncate(val, valAvail, "…")
+		valCell := val
+		if arrows {
+			valCell = "◂ " + val + " ▸"
+		}
+
+		if !isSel {
+			vs := styleDim
+			if !s.ReadOnly && !empty {
+				vs = lipgloss.NewStyle().Foreground(colorFgPrimary)
+			}
+			if ownLine {
+				lines = append(lines, "  "+styleDim.Render(label), "    "+vs.Render(valCell))
+			} else {
+				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+vs.Render(valCell))
 			}
 			continue
 		}
-		lines = append(lines, row)
+
+		cursorIdx = i + 1
+		sel = s
+		focus = len(lines)
+		marker := styleArrow.Render("▸ ")
+		if ownLine {
+			first := marker + selBold.Render(label)
+			lines = append(lines, first+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(first)))))
+			vs := selStyle
+			if s.ReadOnly || empty {
+				vs = selStyle.Foreground(colorFgDim)
+			}
+			second := selStyle.Render("    ") + vs.Render(valCell)
+			lines = append(lines, second+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(second)))))
+			continue
+		}
+		vs := selStyle
+		if s.ReadOnly || empty {
+			vs = selStyle.Foreground(colorFgDim)
+		}
+		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" ") + vs.Render(valCell)
+		lines = append(lines, row+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(row)))))
 	}
 
-	// Title (2 lines) + footer (2 lines) + overlay border/padding must fit.
+	// Header: SETTINGS left, "n of N" right.
+	title := lipgloss.NewStyle().Bold(true).Render("SETTINGS")
+	pos := styleDim.Render(fmt.Sprintf("%d of %d", cursorIdx, total))
+	gap := inner - ansi.StringWidth(title) - ansi.StringWidth(pos)
+	header := title + strings.Repeat(" ", max(1, gap)) + pos
+	if gap < 1 {
+		header = ansi.Truncate(title, inner, "")
+	}
+
+	// Fixed 2-line help area so the layout never jumps.
+	help := []string{"", ""}
+	if sel.Help != "" {
+		wrapped := strings.Split(ansi.Wordwrap(sel.Help, inner, ""), "\n")
+		for i := 0; i < 2 && i < len(wrapped); i++ {
+			help[i] = wrapped[i]
+		}
+		if len(wrapped) > 2 {
+			help[1] = ansi.Truncate(help[1]+"…", inner, "…")
+		}
+	}
+	for i, h := range help {
+		help[i] = styleDim.Render(ansi.Truncate(h, inner, "…"))
+	}
+	footer := wrapHints(settingsHints, inner)
+
+	// Non-body rows: header, blank, blank, help(2), blank, footer, plus box chrome.
+	chrome := 1 + 1 + 1 + 2 + 1 + len(footer) + 2*padV
+	if bordered {
+		chrome += 2
+	}
 	maxRows := 0
 	if m.Height > 0 {
-		maxRows = m.Height - overlayChrome - 4
+		maxRows = m.Height - chrome
+		if maxRows < 3 {
+			maxRows = 3
+		}
 	}
-	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Foreground(colorFgDim).Render("settings"))
-	b.WriteString("\n\n")
-	b.WriteString(strings.Join(windowLines(lines, focus, maxRows), "\n"))
-	b.WriteString("\n\n" + styleDim.Render("j/k select · enter toggle/cycle · +/- adjust · r reset · esc close"))
-	return b.String()
+
+	var out []string
+	out = append(out, header, "")
+	out = append(out, windowLines(lines, focus, maxRows)...)
+	out = append(out, "")
+	out = append(out, help...)
+	out = append(out, "")
+	out = append(out, footer...)
+	content := strings.Join(out, "\n")
+
+	if !bordered {
+		return content
+	}
+	return panelStyle(width).Padding(padV, padH).Render(content)
 }

@@ -16,7 +16,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 ### Types
 
 - `Type` — `TypeEnum`, `TypeBool`, `TypeInt`, `TypeFloat`, `TypeString`.
-- `Section` constants — `SectionAppearance`, `SectionAudio`, `SectionBehavior`, `SectionSummary`, `SectionSpawn`, `SectionAdvanced`.
+- `Section` constants — `SectionAppearance`, `SectionBehavior`, `SectionSpawn`, `SectionSummary`, `SectionAudio`, `SectionAdvanced`.
 - `Setting` — `ID`, `Label`, `Section`, `Type`, `Default`, `Options`, `Min`, `Max`, `Help`, `ReadOnly`.
 - `Store` — `NewStore`, `Load`, `Save`, `Get`, `String`, `Set`, `Reset`, `Snapshot`.
 

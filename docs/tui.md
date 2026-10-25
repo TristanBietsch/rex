@@ -63,6 +63,10 @@ The **text** is the task you gave the session. A session that needs you shows th
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
+### Help overlay
+
+`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`). At 96+ columns it is two columns: Navigation, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
+
 ## KEYS (board focus)
 
 | Key | Action |

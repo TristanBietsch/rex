@@ -12,61 +12,65 @@ import (
 type palette struct {
 	BgElev, BgModal              lipgloss.Color
 	FgPrimary, FgDim, FgMuted    lipgloss.Color
-	Border                       lipgloss.Color
+	Border, BorderStrong         lipgloss.Color
 	Working, Needs, Done, Failed lipgloss.Color
 	Crashed                      lipgloss.Color
 }
 
 var palettes = map[string]palette{
 	"default": {
-		BgElev:    "#171922",
-		BgModal:   "#1B1E29",
-		FgPrimary: "#E6E6E6",
-		FgDim:     "#7A7F8C",
-		FgMuted:   "#4A4F5A",
-		Border:    "#262A36",
-		Working:   "#5B8DEF",
-		Needs:     "#E5B341",
-		Done:      "#4ADE80",
-		Failed:    "#EF4444",
-		Crashed:   "#7A7F8C",
+		BgElev:       "#171922",
+		BgModal:      "#1B1E29",
+		FgPrimary:    "#E6E6E6",
+		FgDim:        "#7A7F8C",
+		FgMuted:      "#4A4F5A",
+		Border:       "#262A36",
+		BorderStrong: "#FFFFFF",
+		Working:      "#5B8DEF",
+		Needs:        "#E5B341",
+		Done:         "#4ADE80",
+		Failed:       "#EF4444",
+		Crashed:      "#7A7F8C",
 	},
 	"noir": {
-		BgElev:    "#0A0D14",
-		BgModal:   "#05080F",
-		FgPrimary: "#D8DDE6",
-		FgDim:     "#6A7280",
-		FgMuted:   "#3A4150",
-		Border:    "#1A1E28",
-		Working:   "#7AA6F0",
-		Needs:     "#D4B574",
-		Done:      "#5BC487",
-		Failed:    "#D85A5A",
-		Crashed:   "#6A7280",
+		BgElev:       "#0A0D14",
+		BgModal:      "#05080F",
+		FgPrimary:    "#D8DDE6",
+		FgDim:        "#6A7280",
+		FgMuted:      "#3A4150",
+		Border:       "#1A1E28",
+		BorderStrong: "#FFFFFF",
+		Working:      "#7AA6F0",
+		Needs:        "#D4B574",
+		Done:         "#5BC487",
+		Failed:       "#D85A5A",
+		Crashed:      "#6A7280",
 	},
 	"paper": {
-		BgElev:    "#F2F0EA",
-		BgModal:   "#FFFFFF",
-		FgPrimary: "#1A1A1A",
-		FgDim:     "#5C5C5C",
-		FgMuted:   "#999999",
-		Border:    "#D0CFC9",
-		Working:   "#2D5BB8",
-		Needs:     "#B58800",
-		Done:      "#2C7A48",
-		Failed:    "#B83333",
-		Crashed:   "#999999",
+		BgElev:       "#F2F0EA",
+		BgModal:      "#FFFFFF",
+		FgPrimary:    "#1A1A1A",
+		FgDim:        "#5C5C5C",
+		FgMuted:      "#999999",
+		Border:       "#D0CFC9",
+		BorderStrong: "#1A1A1A",
+		Working:      "#2D5BB8",
+		Needs:        "#B58800",
+		Done:         "#2C7A48",
+		Failed:       "#B83333",
+		Crashed:      "#999999",
 	},
 }
 
 // Live palette. Mutated by applyTheme.
 var (
-	colorBgElev    lipgloss.Color
-	colorBgModal   lipgloss.Color
-	colorFgPrimary lipgloss.Color
-	colorFgDim     lipgloss.Color
-	colorFgMuted   lipgloss.Color
-	colorBorder    lipgloss.Color
+	colorBgElev       lipgloss.Color
+	colorBgModal      lipgloss.Color
+	colorFgPrimary    lipgloss.Color
+	colorFgDim        lipgloss.Color
+	colorFgMuted      lipgloss.Color
+	colorBorder       lipgloss.Color
+	colorBorderStrong lipgloss.Color
 
 	colorWorking lipgloss.Color
 	colorNeeds   lipgloss.Color
@@ -121,6 +125,7 @@ func applyTheme(name string) {
 	colorFgDim = p.FgDim
 	colorFgMuted = p.FgMuted
 	colorBorder = p.Border
+	colorBorderStrong = p.BorderStrong
 	colorWorking = p.Working
 	colorNeeds = p.Needs
 	colorDone = p.Done
