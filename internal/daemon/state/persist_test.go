@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -117,6 +118,45 @@ func TestTranscriptTail_SafeBoundary(t *testing.T) {
 			require.Equal(t, tc.want, string(b))
 		})
 	}
+}
+
+// transcript.log is capped with one rotation; the tail still reads as one
+// stream across the rotation.
+func TestTranscriptFile_RotatesAtCap(t *testing.T) {
+	prev := transcriptRotateBytes
+	transcriptRotateBytes = 16
+	t.Cleanup(func() { transcriptRotateBytes = prev })
+
+	dir := t.TempDir()
+	tf, err := OpenTranscript(dir, "rot")
+	require.NoError(t, err)
+	var all strings.Builder
+	for i := 0; i < 10; i++ {
+		line := fmt.Sprintf("line%d\n", i) // 6 bytes
+		all.WriteString(line)
+		require.NoError(t, tf.Write([]byte(line)))
+	}
+	require.NoError(t, tf.Close())
+
+	sessDir := filepath.Join(dir, "sessions", "rot")
+	for _, name := range []string{"transcript.log", "transcript.log.1"} {
+		info, err := os.Stat(filepath.Join(sessDir, name))
+		require.NoError(t, err)
+		require.LessOrEqual(t, info.Size(), int64(16), name)
+	}
+
+	// Whole retained history: the rotated file, then the current one.
+	cur, err := os.ReadFile(filepath.Join(sessDir, "transcript.log"))
+	require.NoError(t, err)
+	old, err := os.ReadFile(filepath.Join(sessDir, "transcript.log.1"))
+	require.NoError(t, err)
+	require.True(t, strings.HasSuffix(all.String(), string(old)+string(cur)))
+
+	// A tail longer than the current file ("line8\nline9\n") continues into
+	// the rotated one, from a line boundary.
+	b, err := TranscriptTail(dir, "rot", 20)
+	require.NoError(t, err)
+	require.Equal(t, "line7\nline8\nline9\n", string(b))
 }
 
 func TestTranscriptTail_RejectsUnsafeID(t *testing.T) {

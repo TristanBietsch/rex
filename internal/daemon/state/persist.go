@@ -253,12 +253,22 @@ func removeStaleMetaTemps(dir string) {
 	}
 }
 
+// transcriptRotateBytes caps transcript.log. A write that would cross it
+// first renames the file to transcript.log.1 (replacing the previous one), so
+// a session keeps at most about twice this on disk. A var for tests.
+var transcriptRotateBytes int64 = 64 << 20
+
 // TranscriptFile is a kept-open transcript handle for the lifetime of one PTY session.
 // Reuse avoids open/close syscalls on every PTY read chunk. Writes are
 // unbuffered: the summarizer and attach replay read the file while the session
 // is live, so bytes must hit disk on every chunk.
 type TranscriptFile struct {
-	f *os.File
+	f    *os.File
+	path string
+	size int64
+	// rotateAt is the size at which Write rotates. A failed rotation pushes
+	// it out so the rename isn't retried on every chunk.
+	rotateAt int64
 }
 
 // OpenTranscript opens (or creates) transcript.log for repeated appends.
@@ -270,18 +280,52 @@ func OpenTranscript(root, id string) (*TranscriptFile, error) {
 	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm)
+	path := filepath.Join(dir, "transcript.log")
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, fmt.Errorf("open transcript: %w", err)
 	}
-	return &TranscriptFile{f: f}, nil
+	info, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("stat transcript: %w", err)
+	}
+	return &TranscriptFile{f: f, path: path, size: info.Size(), rotateAt: transcriptRotateBytes}, nil
 }
 
-// Write appends bytes to the transcript.
+// Write appends bytes to the transcript, rotating it first at the size cap.
 func (t *TranscriptFile) Write(b []byte) error {
-	if _, err := t.f.Write(b); err != nil {
+	if t.size > 0 && t.size+int64(len(b)) > t.rotateAt {
+		if err := t.rotate(); err != nil {
+			return err
+		}
+	}
+	n, err := t.f.Write(b)
+	t.size += int64(n)
+	if err != nil {
 		return fmt.Errorf("write transcript: %w", err)
 	}
+	return nil
+}
+
+// rotate moves transcript.log to transcript.log.1 and starts a new one. The
+// file is closed first because Windows can't rename an open file. A failed
+// rename (a reader holding the file open on Windows) is logged and retried
+// later; only failing to reopen the transcript is an error.
+func (t *TranscriptFile) rotate() error {
+	_ = t.f.Close()
+	if err := os.Rename(t.path, t.path+".1"); err != nil {
+		slog.Warn("state: transcript rotate failed; retrying later", "path", t.path, "err", err)
+		t.rotateAt = t.size + transcriptRotateBytes/16
+	} else {
+		t.size = 0
+		t.rotateAt = transcriptRotateBytes
+	}
+	f, err := os.OpenFile(t.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm)
+	if err != nil {
+		return fmt.Errorf("reopen transcript: %w", err)
+	}
+	t.f = f
 	return nil
 }
 
@@ -304,49 +348,68 @@ func AppendTranscript(root, id string, b []byte) error {
 	return tf.Write(b)
 }
 
-// TranscriptTail returns the last max bytes of a session's transcript.log
-// (or all of it, if smaller). Missing files return (nil, nil). A tail cut
-// from the middle starts at a safe boundary (see replayStart), so it can be
-// up to max bytes shorter; attach replays it into a terminal emulator.
+// TranscriptTail returns the last max bytes of a session's transcript (or all
+// of it, if smaller), continuing into transcript.log.1 when the current file
+// was rotated recently. Missing files return (nil, nil). A tail cut from the
+// middle starts at a safe boundary (see replayStart), so it can be up to max
+// bytes shorter; attach replays it into a terminal emulator.
 func TranscriptTail(root, id string, max int) ([]byte, error) {
 	dir, err := safeSessionDir(root, id)
 	if err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, "transcript.log")
+	buf, cut, err := readTail(path, max)
+	if err != nil {
+		return nil, err
+	}
+	if !cut && len(buf) < max {
+		prev, prevCut, err := readTail(path+".1", max-len(buf))
+		if err != nil {
+			return nil, err
+		}
+		if len(prev) > 0 {
+			buf, cut = append(prev, buf...), prevCut
+		}
+	}
+	if cut {
+		buf = buf[replayStart(buf):]
+	}
+	if len(buf) == 0 {
+		return nil, nil
+	}
+	return buf, nil
+}
+
+// readTail returns the last max bytes of path and whether the file holds
+// more than that. A missing file reads as empty.
+func readTail(path string, max int) ([]byte, bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, false, nil
 		}
-		return nil, fmt.Errorf("open transcript: %w", err)
+		return nil, false, fmt.Errorf("open transcript: %w", err)
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("stat transcript: %w", err)
+		return nil, false, fmt.Errorf("stat transcript: %w", err)
 	}
 	size := info.Size()
-	cut := int64(max) < size
-	if int64(max) > size {
-		max = int(size)
+	n := min(int64(max), size)
+	if n <= 0 {
+		return nil, size > 0, nil
 	}
-	if max <= 0 {
-		return nil, nil
+	if _, err := f.Seek(-n, io.SeekEnd); err != nil {
+		return nil, false, fmt.Errorf("seek transcript: %w", err)
 	}
-	if _, err := f.Seek(-int64(max), io.SeekEnd); err != nil {
-		return nil, fmt.Errorf("seek transcript: %w", err)
-	}
-	buf := make([]byte, max)
-	n, err := io.ReadFull(f, buf)
+	buf := make([]byte, n)
+	read, err := io.ReadFull(f, buf)
 	if err != nil && err != io.ErrUnexpectedEOF {
-		return nil, fmt.Errorf("read transcript: %w", err)
+		return nil, false, fmt.Errorf("read transcript: %w", err)
 	}
-	buf = buf[:n]
-	if cut {
-		buf = buf[replayStart(buf):]
-	}
-	return buf, nil
+	return buf[:read], size > n, nil
 }
 
 // replayStart returns where a tail cut from the middle of a transcript can
