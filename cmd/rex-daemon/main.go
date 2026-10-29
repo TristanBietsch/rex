@@ -48,10 +48,16 @@ func run(args []string) error {
 		fmt.Println(version)
 		return nil
 	}
+	maxConcurrentSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "max-concurrent-sessions" {
+			maxConcurrentSet = true
+		}
+	})
 
 	rexlog.Init("daemon")
 	defer rexlog.Close()
-	slog.Info("daemon: starting", "version", version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
+	slog.Info("daemon: starting", "version", version, "socket", *socketPath, "state_dir", *stateDir)
 
 	if err := daemonctl.CheckSocketPath(*socketPath); err != nil {
 		slog.Error("daemon: socket path too long", "socket", *socketPath, "err", err)
@@ -113,6 +119,8 @@ func run(args []string) error {
 		retireTTL = time.Duration(h) * time.Hour
 	}
 	slog.Info("daemon: retire config", "default_ttl", retireTTL)
+	capN := maxConcurrentSessions(maxConcurrentSet, *maxConcurrent, settingsStore)
+	slog.Info("daemon: concurrency cap", "max_concurrent", capN, "from_flag", maxConcurrentSet)
 
 	var summaryCh chan<- string
 	var summaryWorker *summarizer.Worker
@@ -147,7 +155,7 @@ func run(args []string) error {
 		StateDir:              *stateDir,
 		Registry:              reg,
 		Store:                 store,
-		MaxConcurrentSessions: *maxConcurrent,
+		MaxConcurrentSessions: capN,
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
 		OnShutdown:            cancel,
@@ -192,6 +200,20 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
+}
+
+// maxConcurrentSessions picks the live-PTY cap: an explicit
+// -max-concurrent-sessions wins, else max_concurrent_sessions from
+// config.yaml (the TUI setting; clients start the daemon without flags),
+// else the flag's default.
+func maxConcurrentSessions(flagSet bool, flagVal int, st *settings.Store) int {
+	if flagSet {
+		return flagVal
+	}
+	if n, ok := st.Get("max_concurrent_sessions").(int); ok && n > 0 {
+		return n
+	}
+	return flagVal
 }
 
 // ownerOnlyDir creates dir (and missing parents) with mode 0700. An existing

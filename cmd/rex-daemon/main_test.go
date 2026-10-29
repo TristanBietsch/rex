@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
 
 // A socket path over the sun_path limit fails up front with the path and
@@ -23,6 +25,16 @@ func TestRun_SocketPathTooLong(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), sock)
 	require.Contains(t, err.Error(), "allows at most")
+}
+
+// Clients start the daemon without flags, so the TUI's
+// max_concurrent_sessions setting must apply unless the flag is explicit.
+func TestMaxConcurrentSessions(t *testing.T) {
+	st := settings.NewStore()
+	require.NoError(t, st.Set("max_concurrent_sessions", 4))
+	require.Equal(t, 4, maxConcurrentSessions(false, 16, st))
+	require.Equal(t, 9, maxConcurrentSessions(true, 9, st))
+	require.Equal(t, 16, maxConcurrentSessions(false, 16, settings.NewStore()))
 }
 
 // New dirs are owner-only; an existing one is tightened only when it is
