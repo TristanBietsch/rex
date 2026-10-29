@@ -3,6 +3,7 @@ package setup
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -157,11 +158,16 @@ func RunUninstall(args []string) error {
 		stopDaemonQuietly()
 	}
 
+	// Each failure is reported as it happens; any failure makes the exit
+	// status non-zero.
+	failures := 0
+
 	// ── Remove binaries ───────────────────────────────────────────────────────
 	if *binaries {
 		removed := false
 		if err := removeFile(rexBin); err != nil {
 			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", rexBin, err)
+			failures++
 		} else {
 			removed = true
 			slog.Info("uninstall: removed binary", "path", rexBin)
@@ -169,6 +175,7 @@ func RunUninstall(args []string) error {
 		if rexDaemonBin != "" {
 			if err := removeFile(rexDaemonBin); err != nil {
 				fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", rexDaemonBin, err)
+				failures++
 			} else {
 				removed = true
 				slog.Info("uninstall: removed binary", "path", rexDaemonBin)
@@ -183,12 +190,14 @@ func RunUninstall(args []string) error {
 	if *wipeState {
 		if err := removeDir(stateDir); err != nil {
 			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", stateDir, err)
+			failures++
 		} else {
 			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("state removed"))
 			slog.Info("uninstall: removed state dir", "path", stateDir)
 		}
 		if err := removeDir(sessionsDir); err != nil {
 			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", sessionsDir, err)
+			failures++
 		} else {
 			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("sessions removed"))
 			slog.Info("uninstall: removed sessions dir", "path", sessionsDir)
@@ -199,6 +208,7 @@ func RunUninstall(args []string) error {
 	if *purgeConfig {
 		if err := removeDir(configDir); err != nil {
 			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", configDir, err)
+			failures++
 		} else {
 			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("config removed"))
 			slog.Info("uninstall: removed config dir", "path", configDir)
@@ -211,6 +221,7 @@ func RunUninstall(args []string) error {
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "  error stripping profile: %v\n", e)
 		}
+		failures += len(errs)
 		if count > 0 {
 			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render(fmt.Sprintf("profile blocks removed (%d file(s) modified)", count)))
 			slog.Info("uninstall: stripped profile blocks", "files_modified", count)
@@ -224,6 +235,9 @@ func RunUninstall(args []string) error {
 	fmt.Println("  " + uninstallBullet.Render(core.HelpBullet) + " " + core.HelpDim.Render("run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure"))
 	fmt.Println()
 
+	if failures > 0 {
+		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("uninstall: %d removal(s) failed (see above)", failures))
+	}
 	return nil
 }
 
@@ -325,6 +339,8 @@ func stripProfileBlocks(paths []string) (int, []error) {
 
 // stripBlockFromFile removes BEGIN REX … END REX blocks from a single file
 // using an atomic temp-file + rename. Returns true if the file was modified.
+// A BEGIN without a matching END is an error and leaves the file unchanged:
+// stripping to EOF would delete the rest of the user's rc file.
 func stripBlockFromFile(path string) (modified bool, err error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -355,6 +371,9 @@ func stripBlockFromFile(path string) (modified bool, err error) {
 	}
 	if err := scanner.Err(); err != nil {
 		return false, err
+	}
+	if inBlock {
+		return false, errors.New("# BEGIN REX without # END REX; file left unchanged, remove the block by hand")
 	}
 	if !modified {
 		return false, nil
