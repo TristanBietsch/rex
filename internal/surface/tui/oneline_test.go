@@ -146,6 +146,15 @@ func TestInputSites_PasteFlattensToOneLine(t *testing.T) {
 	}
 }
 
+func TestRenderDeleteConfirm_OneRow(t *testing.T) {
+	m := Model{PendingDeleteID: "1",
+		Sessions: []protocol.SessionSummary{{ID: "1", Slug: "a\nb\tc\x1b[2J‮"}}}
+	got := renderDeleteConfirm(m, 200)
+	requireOneRow(t, got, 200)
+	require.NotContains(t, got, "‮")
+	require.Contains(t, ansi.Strip(got), "delete session a b c[2J?")
+}
+
 func TestTruncate_SanitizesToOneRow(t *testing.T) {
 	require.Equal(t, "a b c[2J", truncate("a\nb\tc\x1b[2J", 20))
 	require.Equal(t, "日本…", truncate("日本語\nテキスト", 6))
