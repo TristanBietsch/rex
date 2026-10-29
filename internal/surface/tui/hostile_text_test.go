@@ -20,7 +20,7 @@ import (
 // must keep its shape.
 
 var hostileTexts = map[string]string{
-	"controls":  "a\nb\tc\x1b[2J\r\x07d‮e",
+	"controls":  "a\nb\tc\x1b[2J\r\x07d\u202ee",
 	"prompt":    multilinePrompt,
 	"cjk":       strings.Repeat("日本語のテキストとても長い説明文です。", 8),
 	"emoji":     "🚀 deploy 👩‍💻 fix 🎉🎉🎉 " + strings.Repeat("😀", 60),

@@ -166,7 +166,7 @@ func TestPromptInputs_PasteKeepsLineBreaks(t *testing.T) {
 		require.Equal(t, multilinePrompt, site.text(m), site.name)
 
 		m = site.open(inputModel())
-		m, _ = updateKey(m, pasteKey("a\r\nb\tc\x1b[2J\x00\rd‮\u009be\xff"))
+		m, _ = updateKey(m, pasteKey("a\r\nb\tc\x1b[2J\x00\rd\u202e\u009be\xff"))
 		require.Equal(t, "a\nb\tc[2J\nde", site.text(m), site.name)
 
 		m = site.open(inputModel())
@@ -210,10 +210,10 @@ func TestPromptInputs_MultilineReachesInitialPrompt(t *testing.T) {
 
 func TestRenderDeleteConfirm_OneRow(t *testing.T) {
 	m := Model{PendingDeleteID: "1",
-		Sessions: []protocol.SessionSummary{{ID: "1", Slug: "a\nb\tc\x1b[2J‮"}}}
+		Sessions: []protocol.SessionSummary{{ID: "1", Slug: "a\nb\tc\x1b[2J\u202e"}}}
 	got := renderDeleteConfirm(m, 200)
 	requireOneRow(t, got, 200)
-	require.NotContains(t, got, "‮")
+	require.NotContains(t, got, "\u202e")
 	require.Contains(t, ansi.Strip(got), "delete session a b c[2J?")
 }
 

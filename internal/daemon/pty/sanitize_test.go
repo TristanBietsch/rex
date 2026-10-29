@@ -22,7 +22,7 @@ func TestSanitizeForDisplay(t *testing.T) {
 		{"drops_c1_csi", "a\u009b2Jb", "a2Jb"},
 		{"drops_c1_controls", "x\u0080y\u0099z\u009dw", "xyzw"},
 		{"c1_next_line_is_a_break", "x\u0085y", "x y"},
-		{"drops_bidi_overrides", "‮gnp.exe‬ ok⁦", "gnp.exe ok"},
+		{"drops_bidi_overrides", "\u202egnp.exe\u202c ok\u2066", "gnp.exe ok"},
 		{"drops_invalid_utf8", "a\xffb\xc0c", "abc"},
 		{"trims_leading_space", "  \x1b[2K  data", "data"},
 	}
