@@ -165,7 +165,10 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	})
 
 	// Run in a background goroutine; the store events drive the wire.
+	// Tracked by srv.sups so Serve waits for the kill-and-reap on shutdown.
+	srv.sups.Add(1)
 	go func() {
+		defer srv.sups.Done()
 		defer close(done)
 		// Release sessCtx on natural exit too; an uncanceled child context
 		// stays registered with the server ctx for the daemon's lifetime.
@@ -174,7 +177,14 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		defer srv.UnregisterComplete(sess.ID)
 		defer srv.UnregisterInputChannel(sess.ID)
 		defer srv.ReleaseSession()
-		_ = sup.Run(sessCtx, sess)
+		switch err := sup.Run(sessCtx, sess); {
+		case err == nil:
+		case errors.Is(err, context.Canceled):
+			// Delete or shutdown stopped it; the supervisor logged why.
+			slog.Debug("spawn: supervisor stopped", "session", sess.ID, "cause", context.Cause(sessCtx))
+		default:
+			slog.Warn("spawn: supervisor exited with error", "session", sess.ID, "err", err)
+		}
 	}()
 	return nil
 }

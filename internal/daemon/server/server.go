@@ -90,7 +90,8 @@ type Server struct {
 	cfg  Config
 	reg  atomic.Pointer[registry.Registry]
 	gate *concurrencyGate
-	wg   sync.WaitGroup
+	wg   sync.WaitGroup // client handlers and the retire reaper
+	sups sync.WaitGroup // session supervisors
 
 	// conns are the open client connections, closed on shutdown.
 	connsMu     sync.Mutex
@@ -252,8 +253,22 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 	slog.Info("server: shutting down, waiting for clients")
 	s.wg.Wait()
+	// Handlers are gone, so no new supervisors. The live ones saw ctx end
+	// and are killing their agents; let them finish (bounded) so the
+	// daemon doesn't exit mid-reap and leave final state unwritten.
+	sups := make(chan struct{})
+	go func() { s.sups.Wait(); close(sups) }()
+	select {
+	case <-sups:
+	case <-time.After(supervisorStopTimeout):
+		slog.Warn("server: supervisors still stopping; exiting anyway", "timeout", supervisorStopTimeout)
+	}
 	return serveErr
 }
+
+// supervisorStopTimeout bounds how long Serve waits on shutdown for session
+// supervisors to kill and reap their agents.
+const supervisorStopTimeout = 5 * time.Second
 
 // trackConn records a client connection so shutdown can close it. It returns
 // false once shutdown has begun.
