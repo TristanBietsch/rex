@@ -47,8 +47,21 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test ./...
+      # -race needs cgo, and cgo on Windows needs gcc: the runner image ships
+      # MinGW-w64 on PATH. One command per step, because pwsh only fails a
+      # step on the last native command's exit code.
+      - name: Check gcc (race detector)
+        run: gcc --version
+
+      - name: Test (race)
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race ./...
+
+      - name: Test third_party/vt10x (race)
+        env:
+          CGO_ENABLED: '1'
+        run: go -C third_party/vt10x test -race ./...
 
       - name: Install (install.ps1)
         shell: pwsh
