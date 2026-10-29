@@ -66,13 +66,13 @@ Non-obvious choices an agent might undo without context.
 
 **Why:** Wire protocol version is `protocol.ProtocolVersion`; daemon banner version is independent (do not conflate when debugging).
 
-## IntentOpenSession undefined in server
+## Dead protocol surface removed, obsolete intents tolerated
 
-**Chosen:** Constant exists in `protocol` but `server` handler has no case; the server answers `bad_intent`.
+**Chosen:** `IntentOpenSession` (never sent or handled) and `ErrCodeAmbiguousID` (never emitted) were removed. `IntentFocusFilter` stays as a constant documented obsolete; the daemon accepts and ignores it.
 
-**Why:** Dead protocol surface or future work — clients must not rely on it until implemented.
+**Why:** Dead constants misled readers into thinking the features existed. Keeping `FocusFilter` accepted means older clients that still send it get no new error; an `OpenSession` from anywhere still gets `bad_intent` "intent not implemented" from the default case.
 
-`IntentShutdown` and `IntentReload` started out the same way; both are now handled as the socket forms of SIGTERM and SIGHUP, because Windows cannot signal the daemon.
+`IntentShutdown` and `IntentReload` started out unimplemented too; both are now handled as the socket forms of SIGTERM and SIGHUP, because Windows cannot signal the daemon.
 
 ## vt10x forked in-tree for scrollback
 

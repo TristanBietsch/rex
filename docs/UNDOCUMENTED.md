@@ -2,15 +2,6 @@
 
 Facts not fully specified in code comments or stable APIs. Listed for maintainers and doc readers.
 
-## Protocol
-
-| Item | Location | Notes |
-|------|----------|-------|
-| `IntentOpenSession` | `internal/wire/protocol/intents.go` | Constant exists; server returns `bad_intent` |
-| `FocusFilter` | `server/client.go` | Accepted, no-op; board filter is client-side |
-| `ErrCodeAmbiguousID` | `protocol/events.go` | Defined, never emitted |
-| `ErrCodeRegistry` (`registry_invalid`) | same | Defined, never emitted |
-
 ## CLI
 
 | Item | Location | Notes |

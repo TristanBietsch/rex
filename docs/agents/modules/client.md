@@ -33,8 +33,9 @@ Go SDK for `rex-daemon` Unix-domain-socket protocol: dial, send intents, read ev
 - `Rename(sessionID, slug, title, reqID string) error` (reqID echoed on Error, e.g. slug in use)
 - `Delete(sessionID string) error`
 - `Complete(sessionID string) error`
-- `FocusFilter(toolID string) error`
-- `SetMaxConcurrent(n int) error` — `n <= 0` means uncapped.
+- `SetSessionName(sessionID, name, reqID string) error`, `Retire(sessionID string, ttl time.Duration, reqID string) error`, `Unretire(sessionID, reqID string) error`
+- `Shutdown() error`, `Reload() error`
+- `SetMaxConcurrent(n int) error` — the daemon clamps `n` to 1–64.
 - `SetSessionFleet(sessionID, fleet string) error`
 - `NextEvent() (protocol.Envelope, error)`
 - `Drain(handler func(protocol.Envelope) bool) error`
@@ -46,7 +47,7 @@ Go SDK for `rex-daemon` Unix-domain-socket protocol: dial, send intents, read ev
 
 ## Invariants
 
-Caller must send `Hello` before other intents (server enforces). One goroutine should call `NextEvent` unless externally synchronized.
+Send `Hello` first: the daemon sends no board events before it (intents sent earlier are still handled), and none are lost between the `Snapshot` and the live stream. One goroutine should call `NextEvent` unless externally synchronized.
 
 ## Side effects
 
@@ -62,7 +63,7 @@ Integration-style tests with `internal/daemon/server` test harness.
 
 ## Gotchas
 
-`FocusFilter` does not change daemon-global filter for other clients. `Drain` stops when handler returns false or EOF.
+There is no `FocusFilter` helper: the intent is obsolete and filtering is client-side. The client reads with the unlimited `protocol.NewReader`; the daemon caps lines it reads at 1 MiB. A client that stops reading is disconnected by the daemon once 2048 events queue up or a write stalls 10 s. `Drain` stops when handler returns false or EOF.
 
 ## See also
 

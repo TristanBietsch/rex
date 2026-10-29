@@ -122,7 +122,7 @@ Send text to a session, then press Enter (`\r`, sent as a separate write so full
 rex reply <sel> [text] [-socket path] [-raw]
 ```
 
-Text from the arguments (joined with spaces) or stdin. Text starting with `-` goes after `--`. `-raw` sends the bytes as-is, without pressing Enter.
+Text from the arguments (joined with spaces) or stdin. Text starting with `-` goes after `--`. The daemon drops control characters other than newline and tab (so no escape sequences or early carriage return) before typing it. `-raw` sends the bytes as-is, without pressing Enter.
 
 ---
 

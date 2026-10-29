@@ -51,6 +51,5 @@ No `CONTRIBUTING.md` in repo. Commit history uses short imperative subjects (`Ad
 
 ## Known doc gaps (this pass)
 
-- `IntentOpenSession` documented as unimplemented in server.
 - `TestLoad_UserExtends` failing in `internal/catalog/registry` at time of doc write.
 - Human reference lives under `docs/*.md`; keep agent docs as navigation, not duplicate tables.

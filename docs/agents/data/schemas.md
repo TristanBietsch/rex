@@ -23,8 +23,8 @@ Codec: `internal/wire/protocol/codec.go`.
 | ToolID | `tool_id` | string | registry id |
 | ModelID | `model_id` | string | |
 | Effort | `effort` | string | optional |
-| Slug | `slug` | string | |
-| Title | `title` | string | optional; archived sessions use title prefix (CLI) |
+| Slug | `slug` | string | ≤64 runes, no whitespace or control characters, unique |
+| Title | `title` | string | optional; one line, ≤512 runes (daemon flattens and truncates); archived sessions use title prefix (CLI) |
 | CWD | `cwd` | string | |
 | State | `state` | string | `queued`, `working`, `needs_input`, `done`, `failed`, `crashed` |
 | StartedAt | `started_at` | RFC3339 time | |
@@ -36,7 +36,7 @@ Codec: `internal/wire/protocol/codec.go`.
 | RetireAt | `retire_at` | RFC3339 time | optional; when a marked-done session gets cleared |
 | RetiredAt | `retired_at` | RFC3339 time | optional; when the session was marked done (absent on legacy marks); drives the board `done <time>` badge |
 | OutputBytes | `output_bytes` | int64 | optional | |
-| Fleet | `fleet` | string | optional |
+| Fleet | `fleet` | string | optional; one line, ≤64 runes |
 
 Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `internal/daemon/state/persist.go` writes same shape to `meta.json`.
 
@@ -45,7 +45,7 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | Field | JSON | Type |
 |-------|------|------|
 | Sessions | `sessions` | `SessionSummary[]` |
-| Filter | `filter` | string | cosmetic per-client |
+| Filter | `filter` | string | always `"all"`; filtering is client-side |
 
 ## SessionUpdated patch
 
@@ -70,7 +70,7 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | effort | string | no |
 | slug | string | yes |
 | title | string | no |
-| cwd | string | yes |
+| cwd | string | yes (existing directory) |
 | initial_prompt | string | no |
 | fleet | string | no |
 

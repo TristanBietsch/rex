@@ -16,7 +16,7 @@ In-memory session table with pub/sub events and persistence under `<state-dir>/s
 - `EventKind` — `EventAdded`, `EventUpdated`, `EventRemoved`.
 - `Event` — `Kind`, `SessionID`, `NewState`, `Patch`, `Summary`.
 - `Session` — fields mirror `protocol.SessionSummary` plus internal mutex.
-- `Store` — `NewStore`, `Add`, `Get`, `GetByShortID`, `Remove`, `All`, `Snapshot`, `CurrentState`, `SetFleet`, `BroadcastTokenPatch`, `Subscribe` / unsubscribe pattern (see `store.go`).
+- `Store` — `NewStore`, `Add`, `AddUnique`, `Get`, `Remove`, `All`, `Snapshot`, `CurrentState`, `SetFleet`, `BroadcastTokenPatch`, `Subscribe` / unsubscribe pattern (see `store.go`).
 - `(*Session) Summary() protocol.SessionSummary`
 
 ### Functions

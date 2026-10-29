@@ -15,16 +15,18 @@ Defines the newline-delimited JSON wire format between `rex` clients and `rex-da
 
 - `ProtocolVersion = 1`
 - `KindIntent`, `KindEvent` (`Kind` type)
-- Intent types: `IntentHello`, `IntentSubscribe`, `IntentNewSession`, `IntentOpenSession`, `IntentSendInput`, `IntentReply`, `IntentRename`, `IntentDelete`, `IntentResize`, `IntentFocusFilter`, `IntentShutdown`, `IntentSetMaxConcurrent`, `IntentSetSessionFleet`, `IntentComplete`, `IntentSetSessionName`, `IntentRetire`, `IntentUnretire`, `IntentReload`
+- Intent types: `IntentHello`, `IntentSubscribe`, `IntentNewSession`, `IntentSendInput`, `IntentReply`, `IntentRename`, `IntentDelete`, `IntentResize`, `IntentShutdown`, `IntentSetMaxConcurrent`, `IntentSetSessionFleet`, `IntentComplete`, `IntentSetSessionName`, `IntentRetire`, `IntentUnretire`, `IntentReload`, `IntentFocusFilter` (obsolete; accepted and ignored)
+- `MaxIntentLineBytes` (1 MiB) — daemon-side line cap; `MaxSlugRunes` (64)
 - Event types: `EventSnapshot`, `EventSessionAdded`, `EventSessionUpdated`, `EventSessionRemoved`, `EventSessionOutput`, `EventSummarizerHealth`, `EventError`
 - States: `StateQueued`, `StateWorking`, `StateNeedsInput`, `StateDone`, `StateFailed`, `StateCrashed`
-- Error codes: `ErrCodeBadIntent`, `ErrCodeUnknownSession`, `ErrCodeAmbiguousID`, `ErrCodeRegistry`, `ErrCodeSpawn`, `ErrCodeTooManySessions`, `ErrCodeBadState`
+- Error codes: `ErrCodeBadIntent`, `ErrCodeUnknownSession`, `ErrCodeRegistry`, `ErrCodeSpawn`, `ErrCodeTooManySessions`, `ErrCodeBadState`, `ErrCodeBusy`
 
 ### Types
 
 - `Envelope` — `V`, `Kind`, `Type`, `ID`, `Data json.RawMessage`
-- `Hello`, `Subscribe`, `NewSession`, `OpenSession`, `SendInput`, `Reply`, `Rename`, `Delete`, `Resize`, `FocusFilter`, `SetSessionFleet`, `Complete`, `SessionSummary`, `Snapshot`, `SessionUpdated`, `SessionRemoved`, `SessionOutput`, `SummarizerHealth`, `ErrorEvent`
-- `Reader` / `NewReader` / `Read` — newline-delimited decode
+- `Hello`, `Subscribe`, `NewSession`, `SendInput`, `Reply`, `Rename`, `Delete`, `Resize`, `SetSessionFleet`, `SetMaxConcurrent`, `Complete`, `SetSessionName`, `Retire`, `Unretire`, `SessionSummary`, `Snapshot`, `SessionUpdated`, `SessionRemoved`, `SessionOutput`, `SummarizerHealth`, `ErrorEvent`
+- `Reader` / `NewReader` / `NewLimitedReader` / `Read` — newline-delimited decode; typed errors `ErrBadEnvelope`, `ErrUnsupportedVersion`, `ErrLineTooLong`
+- `ValidateSlug`, `SingleLine`, `NormalizeSessionName` — shared input rules
 - `Writer` / `NewWriter` / `WriteIntent`, `WriteEvent`
 
 ## Internal structure
@@ -55,7 +57,7 @@ Codec returns decode errors; server maps handler failures to `EventError` with s
 
 ## Gotchas
 
-`IntentOpenSession` exists in `intents.go` but `internal/daemon/server/client.go` does not handle it (the server answers `bad_intent` "intent not implemented"). `IntentShutdown` and `IntentReload` are handled (socket forms of SIGTERM / SIGHUP). `ErrCodeAmbiguousID` and `ErrCodeRegistry` are defined but never emitted; `ErrCodeBadState` is sent for `Unretire` once the reaper has claimed the session. `IntentFocusFilter` is cosmetic per-client state.
+`IntentShutdown` and `IntentReload` are handled (socket forms of SIGTERM / SIGHUP); a failed reload is `ErrCodeRegistry`. `ErrCodeBadState` means the session exists but can't take the intent (`SendInput` / `Reply` / `Complete` after exit, `Unretire` once the reaper claimed it); `ErrCodeBusy` is a full input buffer. `IntentFocusFilter` is obsolete: the daemon accepts and ignores it. The daemon reads with `NewLimitedReader(conn, MaxIntentLineBytes)`; clients use the unlimited `NewReader` (a `Snapshot` grows with the board). Unknown intent types, including the removed `OpenSession`, get `bad_intent` "intent not implemented".
 
 ## See also
 

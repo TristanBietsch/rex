@@ -20,7 +20,7 @@ rex — JSONL control protocol (version 1)
 | `id` | string | no | Correlation id; echoed on errors |
 | `data` | object | yes | Payload for `type` |
 
-Reader rejects lines where `v` ≠ `1`. Maximum line buffer: 64 KiB.
+The daemon reads intent lines of at most 1 MiB (`MaxIntentLineBytes`). A line that is too long, is not a JSON envelope, or has `v` ≠ `1` gets an `Error` event (`bad_intent`, empty `id`, the reason as `message`) and then the daemon closes the connection. Lines from the daemon have no length limit: a `Snapshot` grows with the board.
 
 ## Handshake
 
@@ -30,7 +30,11 @@ Reader rejects lines where `v` ≠ `1`. Maximum line buffer: 64 KiB.
 4. Daemon may send live events (`SessionAdded`, `SessionUpdated`, …).
 5. Further intents on the same connection.
 
-Store broadcasts are gated until `Hello` completes on that connection.
+Board events (store changes, `SummarizerHealth`) are not sent before `Hello`. Events that happen while the daemon takes the snapshot are held and sent right after `Snapshot`, so none are lost. A held patch may repeat what the snapshot already shows, so apply patches idempotently; a held `SessionAdded` for a session already in the snapshot is skipped.
+
+### Slow clients
+
+Each connection has an outbound queue of 2048 events, drained by its own writer. A client whose queue fills, or that accepts no bytes for 10 s, is disconnected (and logged), so one stalled client never blocks the daemon or other clients.
 
 ## Session states
 
@@ -49,22 +53,21 @@ Store broadcasts are gated until `Hello` completes on that connection.
 |------|-------------|-----------------|
 | `Hello` | yes | `client_version` |
 | `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet` |
-| `Subscribe` | yes | `session_id`, `replay`, `mode_sync` |
-| `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
-| `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
-| `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Confirmed by `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
+| `Subscribe` | yes | `session_id` (`""` = board events only), `replay`, `mode_sync`. `unknown_session` for an id the daemon does not know. A repeat `Subscribe` for the same session replaces its output stream |
+| `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire). `bad_state` if the session's process has exited, `busy` if its input buffer is full |
+| `Reply` | yes | `session_id`, `text`. The daemon drops control characters from `text` except newline and tab (C0 incl. ESC and CR, DEL, C1), types it, then sends `\r` as Enter ~120 ms later on a timer, so the connection keeps reading. Input from any client waits for that Enter. `bad_state` / `busy` as for `SendInput` |
+| `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Same slug and title rules as `NewSession`. Confirmed by `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
 | `Delete` | yes | `session_id` |
 | `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored) |
-| `SetSessionFleet` | yes | `session_id`, `fleet` |
-| `SetMaxConcurrent` | yes | `n` (`n <= 0` uncaps) |
-| `Complete` | yes | `session_id` |
+| `SetSessionFleet` | yes | `session_id`, `fleet` (flattened to one line; over 64 runes is `bad_intent`; `""` clears) |
+| `SetMaxConcurrent` | yes | `n`, clamped to 1–64 |
+| `Complete` | yes | `session_id`. `bad_state` if the session's process has already exited |
 | `SetSessionName` | yes | `session_id`, `name` (always sent; `""` clears; normalized, max 64 runes) |
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
-| `FocusFilter` | no-op | Accepted; not stored |
-| `OpenSession` | **no** | `bad_intent` "intent not implemented" |
+| `FocusFilter` | obsolete | Accepted and ignored, so older clients get no error. Filtering is client-side |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM |
-| `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP; `bad_intent` with the load error on failure |
+| `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP; `registry_invalid` with the load error on failure |
 
 ### NewSession fields
 
@@ -73,13 +76,13 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
 | `effort`, `title`, `initial_prompt`, `fleet` | no |
 
-`slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
+`slug` must be at most 64 runes, valid UTF-8, free of whitespace and control characters, and unique among all sessions in the daemon (any state). `cwd` must be an existing directory. `fleet` is flattened to one line and must be at most 64 runes. Any of these failing is `bad_intent`. `title` is flattened to one line (escapes and control characters dropped) and cut to 512 runes; `initial_prompt` reaches the agent unchanged. The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
 
 ## Events (daemon → client)
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`) |
+| `Snapshot` | `sessions[]`, `filter` (always `"all"`; kept for clients that read it) |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
 | `SessionRemoved` | `session_id`, `reason` (`user` \| `retired`; empty from older daemons) |
@@ -113,13 +116,13 @@ Additive changes (new optional fields, new intents, new patch keys) keep `v: 1`;
 
 | Code | Emitted when |
 |------|----------------|
-| `bad_intent` | Wrong kind, parse error, unimplemented intent, invalid/missing fields (incl. `NewSession`), slug already in use (`NewSession`, `Rename`) |
-| `unknown_session` | No such session (or input buffer full) |
+| `bad_intent` | Wrong kind, parse error, unimplemented intent, invalid/missing fields (incl. `NewSession` slug, `cwd`, `fleet`), slug already in use (`NewSession`, `Rename`); also an unreadable line (too long, bad JSON, wrong `v`) just before the daemon closes the connection |
+| `unknown_session` | No such session (including `Subscribe` to an unknown id) |
+| `busy` | Transient: the session's input buffer is full (`SendInput`, `Reply`); retry |
 | `spawn_failed` | `NewSession` failed after validation (unknown tool/model, effort, PTY start) |
 | `too_many_sessions` | Concurrency cap |
-| `ambiguous_id` | Defined; not emitted by current server |
-| `registry_invalid` | Defined; not emitted by current server |
-| `bad_state` | `Unretire` after the reaper started clearing the session |
+| `registry_invalid` | `Reload` could not load `tools.yaml` |
+| `bad_state` | The session exists but can't take the intent now: `SendInput`, `Reply`, or `Complete` after its process exited; `Unretire` after the reaper started clearing it |
 
 ## EXAMPLES
 
@@ -155,4 +158,4 @@ Paste one intent line; read one event line per response phase.
 
 ## BUGS
 
-`FocusFilter` is documented in protocol comments as per-client filter state; the server accepts and ignores it. Board filtering is client-side (TUI).
+None known. `OpenSession` was never implemented and is gone from the protocol; a daemon still answers it, like any unknown intent, with `bad_intent "intent not implemented"`.
