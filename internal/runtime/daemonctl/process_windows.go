@@ -4,10 +4,8 @@ package daemonctl
 
 import (
 	"encoding/csv"
-	"fmt"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/tristanbietsch/rex/internal/wire/client"
 )
@@ -41,33 +39,19 @@ func parseTasklistPID(out string) (string, error) {
 
 // Reload asks the running rex-daemon to re-read tools.yaml.
 func Reload() error {
-	return sendIntent(func(c *client.Client) error { return c.Reload() })
+	return sendIntent(DefaultSocket(), (*client.Client).Reload)
 }
 
 // Stop asks the running rex-daemon to shut down and waits up to
 // StartTimeout for its socket to go away, so a restart can start a new one.
 func Stop() error {
-	if err := sendIntent(func(c *client.Client) error { return c.Shutdown() }); err != nil {
+	socket := DefaultSocket()
+	if err := sendIntent(socket, (*client.Client).Shutdown); err != nil {
 		return err
 	}
-	socket := DefaultSocket()
-	for i := 0; i < StartPollAttempts && Reachable(socket); i++ {
-		time.Sleep(StartPollInterval)
-	}
+	waitSocketGone(socket)
 	return nil
 }
 
 // StopQuietly stops a running daemon; ignores errors.
 func StopQuietly() { _ = Stop() }
-
-func sendIntent(send func(*client.Client) error) error {
-	c, err := client.Dial(DefaultSocket())
-	if err != nil {
-		return ErrNotRunning
-	}
-	defer c.Close()
-	if err := send(c); err != nil {
-		return fmt.Errorf("send to rex-daemon: %w", err)
-	}
-	return nil
-}
