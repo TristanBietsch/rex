@@ -104,11 +104,12 @@ Typing `:` twice quickly (within 400 ms) inside the popup opens rex's command ba
 
 | Command | Effect |
 |---------|--------|
-| `q`, `quit`, `detach` | Close the popup (session keeps running) |
-| `done` | Mark this session done / undo |
+| `q`, `q!`, `quit`, `detach`, `close` | Close the popup (session keeps running) |
+| `done`, `undone` | Mark this session done / undo |
 | `kill`, `complete` | Kill the agent now and mark it done |
 | `name <text>` | Set this session's display name (`name` alone clears it) |
-| anything else | Close the popup and run it as a board `:` command |
+| `rename <slug>` | Change this session's slug, like the board's `:rename`; the popup stays open |
+| anything else | Close the popup and run it as a board `:` command (e.g. `rename <sel> <slug>`) |
 
 ### Mouse
 
