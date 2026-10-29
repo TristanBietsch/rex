@@ -37,18 +37,28 @@ function Ok($msg)   { Write-Host "  $([char]0x2713) $msg" -ForegroundColor Green
 function Step($msg) { Write-Host "  -> $msg" -ForegroundColor DarkGray }
 function Fail($msg) { Write-Host "  error: $msg" -ForegroundColor Red; exit 1 }
 
+# NativeOutput runs a native command and returns its first stdout line, or
+# $null if it fails. stderr is discarded. The preference is relaxed in this
+# scope only: under 'Stop', Windows PowerShell 5.1 turns any redirected
+# stderr line (git's "fatal: not a git repository", go's "downloading
+# go1.x") into a terminating error.
+function NativeOutput([scriptblock]$Command) {
+  $ErrorActionPreference = 'Continue'
+  try { $out = & $Command 2>$null } catch { return $null }
+  if ($LASTEXITCODE -ne 0 -or -not $out) { return $null }
+  return [string]($out | Select-Object -First 1)
+}
+
 # ConPTY (pseudo consoles) landed in Windows 10 1809, build 17763.
 $build = [Environment]::OSVersion.Version.Build
 if ($build -lt 17763) {
   Fail "rex needs Windows 10 1809 (build 17763) or newer for ConPTY; this is build $build."
 }
 
-# git is optional (e.g. a source zip). Outside a checkout git writes to
-# stderr, which Windows PowerShell 5.1 turns into a terminating error under
-# ErrorActionPreference 'Stop', hence the try.
+# git is optional (e.g. a source zip, or not installed).
 $gitVersion = $null
 if (Get-Command git -ErrorAction SilentlyContinue) {
-  try { $gitVersion = (git -C $RepoRoot describe --tags --always --dirty 2>$null) } catch { $gitVersion = $null }
+  $gitVersion = NativeOutput { git -C $RepoRoot describe --tags --always --dirty }
 }
 $version = if ($gitVersion) { $gitVersion } else { '(from source)' }
 # Stamp `rex --version`; without git the binary keeps its built-in version.
@@ -73,8 +83,8 @@ if (-not $SkipBuild) {
   # GOVERSION is the toolchain go builds with here: under the default
   # GOTOOLCHAIN=auto an older go switches to (and may download) go.mod's.
   # Forms: go1.26.10, go1.27rc1, "devel go1.28-abc... ...".
-  $have = ''
-  try { $have = [string](go env GOVERSION 2>$null) } catch { $have = '' }
+  $have = NativeOutput { go env GOVERSION }
+  if (-not $have) { $have = '' }
   $have = ($have -replace '^devel ', '' -replace '^go', '') -replace '[^0-9.].*$', ''
   if ($need) {
     $goOk = $false
