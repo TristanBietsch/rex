@@ -404,12 +404,26 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateWizardKey(m, k)
 	}
 	if m.Focus == FocusHelp {
+		page := max(1, helpRows(m)-1)
 		switch k.String() {
 		case "esc", "?":
 			m.Focus = FocusBoard
+			helpScroll = 0
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventClose)
 			}
+		case "j", "down":
+			scrollHelp(m, 1)
+		case "k", "up":
+			scrollHelp(m, -1)
+		case "pgdown", "ctrl+d", " ":
+			scrollHelp(m, page)
+		case "pgup", "ctrl+u":
+			scrollHelp(m, -page)
+		case "g", "home":
+			scrollHelp(m, -len(helpLines()))
+		case "G", "end":
+			scrollHelp(m, len(helpLines()))
 		}
 		return m, nil
 	}

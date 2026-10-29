@@ -6,12 +6,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func renderHelp() string {
-	bg := lipgloss.NewStyle().Background(colorBgModal)
-	title := bg.Foreground(colorFgDim).Render("HELP")
-	rows := []string{
-		title,
-		"",
+// helpScroll is how many help lines the popup is scrolled past (j/k,
+// pgup/pgdn). Bubble Tea runs Update and View on one goroutine; the popup
+// resets it when it closes.
+var helpScroll int
+
+// helpLines is the help text between the title and the footer.
+func helpLines() []string {
+	return []string{
 		styleSlug.Render("Navigation"),
 		"  j k           move row selection",
 		"  g G           top / bottom",
@@ -54,15 +56,51 @@ func renderHelp() string {
 		"  :help         this overlay",
 		"",
 		styleSlug.Render("Inside an attached session"),
-		"  ::            open command bar (q detach · done · kill · name <t>)",
+		"  ::            open command bar (q detach · done · kill · name <text>)",
 		"  :::           type a literal \"::\" into the agent",
 		"  ctrl+pgup     scroll back (primary-screen agents; also wheel up)",
 		"                k/j line · pgup/pgdn · ^U/^D half · g top · G/esc live",
 		"",
 		styleSlug.Render("Long-running badge"),
 		"  ▴12m dim · ▴45m amber · ▴3h red · ▴7h red inverse (time working)",
-		"",
-		styleDim.Render("esc to close"),
 	}
-	return strings.Join(rows, "\n")
+}
+
+// helpRows is how many help lines fit on screen: the popup adds the title
+// and footer (2 lines each) and the overlay border/padding. 0 = all.
+func helpRows(m Model) int {
+	_, h := screenSize(m)
+	rows := h - overlayChrome - 4
+	if rows >= len(helpLines()) {
+		return 0
+	}
+	return max(rows, 3) // windowLines' minimum
+}
+
+// scrollHelp moves the help popup delta lines, kept in range for the
+// current screen height.
+func scrollHelp(m Model, delta int) {
+	rows := helpRows(m)
+	if rows == 0 {
+		helpScroll = 0
+		return
+	}
+	helpScroll = max(0, min(helpScroll+delta, len(helpLines())-rows))
+}
+
+// renderHelp renders the help popup. Taller than the screen it shows a
+// scrolled window, so the footer and the popup's bottom border stay on
+// screen; centerOverlay used to cut them off below ~61 rows.
+func renderHelp(m Model) string {
+	bg := lipgloss.NewStyle().Background(colorBgModal)
+	title := bg.Foreground(colorFgDim).Render("HELP")
+	lines := helpLines()
+	footer := styleDim.Render("esc to close")
+	if rows := helpRows(m); rows > 0 {
+		off := max(0, min(helpScroll, len(lines)-rows))
+		// windowLines centers on the focus line; aim it at the window's middle.
+		lines = windowLines(lines, off+rows/2, rows)
+		footer = styleDim.Render("j/k scroll · pgup/pgdn page · esc to close")
+	}
+	return title + "\n\n" + strings.Join(lines, "\n") + "\n\n" + footer
 }

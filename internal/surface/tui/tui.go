@@ -69,7 +69,7 @@ func (m Model) View() string {
 	case FocusWizard:
 		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
 	case FocusHelp:
-		return centerOverlay(w, h, renderHelp(), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, renderHelp(m), renderFullScreen(m, w, h))
 	case FocusSettings:
 		return centerOverlay(w, h, renderSettings(m), renderFullScreen(m, w, h))
 	case FocusAttach:
