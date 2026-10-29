@@ -177,7 +177,10 @@ func TestSubscribe_ReplaysTranscript(t *testing.T) {
 	sock := filepath.Join(dir, "rex.sock")
 	reg, err := registry.Load("")
 	require.NoError(t, err)
-	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore()})
+	// A finished session (no PTY) with a transcript on disk.
+	store := state.NewStore()
+	require.NoError(t, store.Add(&state.Session{ID: "fake-sess", ShortID: "fake", Slug: "fake", State: protocol.StateDone}))
+	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: store})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -185,7 +188,6 @@ func TestSubscribe_ReplaysTranscript(t *testing.T) {
 
 	require.Eventually(t, func() bool { return socketLive(sock) }, 2*time.Second, 20*time.Millisecond)
 
-	// Pre-seed transcript for a fake session id; the daemon doesn't need to be running it.
 	require.NoError(t, state.AppendTranscript(dir, "fake-sess", []byte("PRIOR OUTPUT\n")))
 
 	conn, err := net.Dial("unix", sock)

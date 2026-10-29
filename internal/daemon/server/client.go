@@ -35,6 +35,14 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	})
 	defer healthCancel()
 
+	// outputs holds this connection's PTY output streams by session id.
+	outputs := make(map[string]func())
+	defer func() {
+		for _, stop := range outputs {
+			stop()
+		}
+	}()
+
 	for {
 		if ctx.Err() != nil {
 			return
@@ -105,38 +113,25 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			if p.SessionID != "" {
-				if err := requireSessionID(p.SessionID); err != nil {
-					c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-					continue
-				}
-				var preambleBytes int
-				if p.Replay {
-					if tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax); err == nil && len(tail) > 0 {
-						c.send(protocol.EventSessionOutput, "", protocol.SessionOutput{
-							SessionID: p.SessionID, Bytes: tail,
-						})
-					}
-				} else if p.ModeSync {
-					// The replay already carries the child's mode switches;
-					// without one, send them as a preamble.
-					if pre := srv.ModePreamble(p.SessionID); len(pre) > 0 {
-						preambleBytes = len(pre)
-						c.send(protocol.EventSessionOutput, "", protocol.SessionOutput{
-							SessionID: p.SessionID, Bytes: pre,
-						})
-					}
-				}
-				slog.Info("server: subscribe", "session", p.SessionID, "replay", p.Replay,
-					"mode_sync", p.ModeSync, "preamble_bytes", preambleBytes)
-				// Register an output sink for this session for the rest of the connection.
-				outCancel := srv.SubscribeSessionOutput(p.SessionID, func(b []byte) {
-					c.send(protocol.EventSessionOutput, "", protocol.SessionOutput{
-						SessionID: p.SessionID, Bytes: b,
-					})
-				})
-				defer outCancel()
+			if p.SessionID == "" {
+				continue // board-wide updates only: nothing to add
 			}
+			if err := requireSessionID(p.SessionID); err != nil {
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			// Only sessions the store knows: the id names a transcript on
+			// disk and an output subscription that lives as long as the
+			// connection.
+			if _, ok := cfg.Store.Get(p.SessionID); !ok {
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				continue
+			}
+			// A repeat Subscribe replaces the stream instead of doubling it.
+			if stop := outputs[p.SessionID]; stop != nil {
+				stop()
+			}
+			outputs[p.SessionID] = srv.streamOutput(c, p)
 
 		case protocol.IntentResize:
 			var p protocol.Resize
