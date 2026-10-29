@@ -47,9 +47,16 @@ if ($build -lt 17763) {
 # ErrorActionPreference 'Stop', hence the try.
 $gitVersion = $null
 if (Get-Command git -ErrorAction SilentlyContinue) {
-  try { $gitVersion = (git -C $RepoRoot describe --tags --always 2>$null) } catch { $gitVersion = $null }
+  try { $gitVersion = (git -C $RepoRoot describe --tags --always --dirty 2>$null) } catch { $gitVersion = $null }
 }
 $version = if ($gitVersion) { $gitVersion } else { '(from source)' }
+# Stamp `rex --version`; without git the binary keeps its built-in version.
+# An args array, not an empty -ldflags '': Windows PowerShell 5.1 drops empty
+# arguments to native commands.
+$ldflagArgs = @()
+if ($gitVersion) {
+  $ldflagArgs = @('-ldflags', "-X github.com/tristanbietsch/rex/internal/surface/cli/core.Version=$gitVersion")
+}
 Write-Host ""
 Write-Host "  rex installer  $version"
 Write-Host ""
@@ -62,10 +69,10 @@ if (-not $SkipBuild) {
   # oto (TUI sounds) is pure Go on Windows; no cgo toolchain needed.
   $env:CGO_ENABLED = '0'
   Step 'building rex'
-  go build -o rex.exe ./cmd/rex
+  go build @ldflagArgs -o rex.exe ./cmd/rex
   if ($LASTEXITCODE -ne 0) { Fail 'build of rex failed (see output above)' }
   Step 'building rex-daemon'
-  go build -o rex-daemon.exe ./cmd/rex-daemon
+  go build @ldflagArgs -o rex-daemon.exe ./cmd/rex-daemon
   if ($LASTEXITCODE -ne 0) { Fail 'build of rex-daemon failed (see output above)' }
 } elseif (-not ((Test-Path .\rex.exe) -and (Test-Path .\rex-daemon.exe))) {
   Fail '-SkipBuild set but .\rex.exe or .\rex-daemon.exe is missing'

@@ -9,11 +9,17 @@ PREFIX ?= $(HOME)/.local
 GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
+# VERSION is stamped into `rex --version` (override with `make VERSION=...`).
+# Without git or tags the -X flag is left out and the binary falls back to
+# its built-in version.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null)
+LDFLAGS := $(if $(VERSION),-X github.com/tristanbietsch/rex/internal/surface/cli/core.Version=$(VERSION))
+
 build: build-all
 
 build-all:
-	go build -o rex-daemon ./cmd/rex-daemon
-	go build -o rex ./cmd/rex
+	go build -ldflags "$(LDFLAGS)" -o rex-daemon ./cmd/rex-daemon
+	go build -ldflags "$(LDFLAGS)" -o rex ./cmd/rex
 
 # install drops the rex and rex-daemon binaries into $(PREFIX)/bin.
 # Default PREFIX is ~/.local — make sure ~/.local/bin is on your PATH.

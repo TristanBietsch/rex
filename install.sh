@@ -156,9 +156,14 @@ esac
 
 # ── banner ────────────────────────────────────────────────────────────────────
 
-_version="$(git -C "$REPO_ROOT" describe --tags --always 2>/dev/null || echo "(from source)")"
+GIT_VERSION="$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || true)"
+# Stamp `rex --version`; without git the binary keeps its built-in version.
+LDFLAGS=""
+if [[ -n "$GIT_VERSION" ]]; then
+  LDFLAGS="-X github.com/tristanbietsch/rex/internal/surface/cli/core.Version=$GIT_VERSION"
+fi
 printf "\n  %s∴ rex installer%s  %s%s%s\n" \
-  "$C_BOLD" "$C_RESET" "$C_MUTED" "$_version" "$C_RESET"
+  "$C_BOLD" "$C_RESET" "$C_MUTED" "${GIT_VERSION:-(from source)}" "$C_RESET"
 
 # ── temp files ────────────────────────────────────────────────────────────────
 
@@ -178,13 +183,13 @@ work() {
       return 1
     fi
     echo "→ building rex"
-    if ! go build -o rex ./cmd/rex >>"$LOG" 2>&1; then
+    if ! go build -ldflags "$LDFLAGS" -o rex ./cmd/rex >>"$LOG" 2>&1; then
       printf "%serror:%s build failed. Tail of build log:\n" "$C_ERR" "$C_RESET" >&2
       tail -20 "$LOG" >&2
       return 1
     fi
     echo "→ building rex-daemon"
-    if ! go build -o rex-daemon ./cmd/rex-daemon >>"$LOG" 2>&1; then
+    if ! go build -ldflags "$LDFLAGS" -o rex-daemon ./cmd/rex-daemon >>"$LOG" 2>&1; then
       printf "%serror:%s build failed. Tail of build log:\n" "$C_ERR" "$C_RESET" >&2
       tail -20 "$LOG" >&2
       return 1
