@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,7 +167,11 @@ const (
 // LoadMeta loads one session's metadata. Display fields are re-sanitized:
 // meta.json may predate intake sanitizing, or have been edited by hand.
 func LoadMeta(root, id string) (*Session, error) {
-	path := filepath.Join(sessionDir(root, id), "meta.json")
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, "meta.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read meta %s: %w", path, err)
@@ -258,7 +263,10 @@ type TranscriptFile struct {
 
 // OpenTranscript opens (or creates) transcript.log for repeated appends.
 func OpenTranscript(root, id string) (*TranscriptFile, error) {
-	dir := sessionDir(root, id)
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
@@ -297,9 +305,15 @@ func AppendTranscript(root, id string, b []byte) error {
 }
 
 // TranscriptTail returns the last max bytes of a session's transcript.log
-// (or all of it, if smaller). Missing files return (nil, nil).
+// (or all of it, if smaller). Missing files return (nil, nil). A tail cut
+// from the middle starts at a safe boundary (see replayStart), so it can be
+// up to max bytes shorter; attach replays it into a terminal emulator.
 func TranscriptTail(root, id string, max int) ([]byte, error) {
-	path := filepath.Join(sessionDir(root, id), "transcript.log")
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, "transcript.log")
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -313,6 +327,7 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 		return nil, fmt.Errorf("stat transcript: %w", err)
 	}
 	size := info.Size()
+	cut := int64(max) < size
 	if int64(max) > size {
 		max = int(size)
 	}
@@ -327,7 +342,35 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 	if err != nil && err != io.ErrUnexpectedEOF {
 		return nil, fmt.Errorf("read transcript: %w", err)
 	}
-	return buf[:n], nil
+	buf = buf[:n]
+	if cut {
+		buf = buf[replayStart(buf):]
+	}
+	return buf, nil
+}
+
+// replayStart returns where a tail cut from the middle of a transcript can
+// begin without starting inside an escape sequence or a UTF-8 rune: just
+// after the first newline or at the first ESC, whichever comes first, else
+// at the first rune start. Replaying from mid-sequence would feed the
+// emulator a broken escape and garble the screen.
+func replayStart(b []byte) int {
+	start := -1
+	if i := bytes.IndexByte(b, '\n'); i >= 0 {
+		start = i + 1
+	}
+	if i := bytes.IndexByte(b, 0x1b); i >= 0 && (start < 0 || i < start) {
+		start = i
+	}
+	if start >= 0 {
+		return start
+	}
+	for i := 0; i < len(b) && i < utf8.UTFMax; i++ {
+		if utf8.RuneStart(b[i]) {
+			return i
+		}
+	}
+	return 0
 }
 
 func fromSummary(sum protocol.SessionSummary) *Session {

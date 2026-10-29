@@ -95,6 +95,38 @@ func TestTranscriptTail(t *testing.T) {
 	require.Equal(t, "mnop", string(b))
 }
 
+// A tail cut from the middle of the transcript is replayed into a terminal
+// emulator on attach: it must not start inside an escape or a rune.
+func TestTranscriptTail_SafeBoundary(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		name, content string
+		max           int
+		want          string
+	}{
+		{"mid_escape", "AAAA\x1b[31mred\x1b[0m\r\nnext", 17, "\x1b[0m\r\nnext"},
+		{"after_newline", "abc\ndef", 5, "def"},
+		{"mid_rune", "ééé", 5, "éé"},
+		{"whole_file_untouched", "\x1b[31mred", 64, "\x1b[31mred"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, AppendTranscript(dir, tc.name, []byte(tc.content)))
+			b, err := TranscriptTail(dir, tc.name, tc.max)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, string(b))
+		})
+	}
+}
+
+func TestTranscriptTail_RejectsUnsafeID(t *testing.T) {
+	dir := t.TempDir()
+	for _, id := range []string{"", "..", "../escape", "a/b"} {
+		_, err := TranscriptTail(dir, id, 1024)
+		require.ErrorIs(t, err, ErrUnsafeSessionID, "id %q", id)
+	}
+}
+
 func TestLoadAllRecoversCrashed(t *testing.T) {
 	dir := t.TempDir()
 	sess := &Session{
