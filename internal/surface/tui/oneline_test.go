@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -43,6 +44,47 @@ func TestRenderRow_MultilineTextStaysOneRow(t *testing.T) {
 	}
 	row := ansi.Strip(renderRow(m, m.Sessions[0], layoutSlots(boardSlots(m), now, 225)))
 	require.Contains(t, row, "Prompt I am new This repo is a copy")
+}
+
+// eventEnv wraps v as a daemon event of type typ.
+func eventEnv(t *testing.T, typ string, v any) protocol.Envelope {
+	t.Helper()
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	return protocol.Envelope{Kind: protocol.KindEvent, Type: typ, Data: data}
+}
+
+func TestApplyEvent_TextFieldsIngestedAsOneRow(t *testing.T) {
+	hostile := "a\nb\tc\x1b[2J"
+	const clean = "a b c[2J"
+	sum := protocol.SessionSummary{ID: "1", Slug: hostile, Title: hostile, LastLine: hostile,
+		Description: hostile, Fleet: hostile, Name: hostile}
+	check := func(s protocol.SessionSummary, from string) {
+		t.Helper()
+		for field, v := range map[string]string{"slug": s.Slug, "title": s.Title, "last_line": s.LastLine,
+			"description": s.Description, "fleet": s.Fleet, "name": s.Name} {
+			require.Equal(t, clean, v, "%s via %s", field, from)
+		}
+	}
+
+	var m Model
+	m = m.applyEvent(eventEnv(t, protocol.EventSnapshot, protocol.Snapshot{Sessions: []protocol.SessionSummary{sum}}))
+	check(m.Sessions[0], "snapshot")
+
+	m = Model{}.applyEvent(eventEnv(t, protocol.EventSessionAdded, sum))
+	check(m.Sessions[0], "session_added")
+
+	m = Model{Sessions: []protocol.SessionSummary{{ID: "1"}}}
+	m = m.applyEvent(eventEnv(t, protocol.EventSessionUpdated, protocol.SessionUpdated{SessionID: "1",
+		Patch: map[string]any{"slug": hostile, "title": hostile, "last_line": hostile,
+			"description": hostile, "fleet": hostile, "name": hostile}}))
+	check(m.Sessions[0], "patch")
+
+	m = m.applyEvent(eventEnv(t, protocol.EventError, protocol.ErrorEvent{Code: "x", Message: hostile}))
+	require.Equal(t, "daemon: "+clean, m.Err)
+
+	m = m.applyEvent(eventEnv(t, protocol.EventSummarizerHealth, protocol.SummarizerHealth{Reason: "500\n{\"error\":\"x\"}"}))
+	require.Equal(t, `500 {"error":"x"}`, m.BackendUnavailableReason)
 }
 
 func TestTruncate_SanitizesToOneRow(t *testing.T) {

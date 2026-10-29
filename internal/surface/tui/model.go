@@ -130,6 +130,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionAdded:
 		var sum protocol.SessionSummary
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
+			sum = oneLineSummary(sum)
 			m.Sessions = append(m.Sessions, sum)
 			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
 				m.SelectedID = sum.ID
@@ -217,6 +218,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSnapshot:
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
+			for i := range snap.Sessions {
+				snap.Sessions[i] = oneLineSummary(snap.Sessions[i])
+			}
 			m.Sessions = snap.Sessions
 			if snap.Filter != "" {
 				m.Filter = snap.Filter
@@ -226,7 +230,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var ee protocol.ErrorEvent
 		if err := json.Unmarshal(env.Data, &ee); err == nil {
 			slog.Warn("tui: daemon error event", "code", ee.Code, "message", ee.Message, "id", ee.ID)
-			m.Err = "daemon: " + friendlyDaemonError(ee)
+			m.Err = "daemon: " + protocol.SingleLine(friendlyDaemonError(ee))
 			// A rejected spawn will never produce SessionAdded.
 			m.PendingSelectSlug = ""
 		}
@@ -234,7 +238,8 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var h protocol.SummarizerHealth
 		if err := json.Unmarshal(env.Data, &h); err == nil {
 			m.BackendUnavailable = !h.Available
-			m.BackendUnavailableReason = h.Reason
+			// Often a raw HTTP error body; the header banner is one row.
+			m.BackendUnavailableReason = protocol.SingleLine(h.Reason)
 			slog.Info("tui: summarizer_health",
 				"available", h.Available,
 				"reason", h.Reason,
@@ -249,22 +254,22 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 		s.State = protocol.State(v)
 	}
 	if v, ok := patch["slug"].(string); ok {
-		s.Slug = v
+		s.Slug = protocol.SingleLine(v)
 	}
 	if v, ok := patch["title"].(string); ok {
-		s.Title = v
+		s.Title = protocol.SingleLine(v)
 	}
 	if v, ok := patch["last_line"].(string); ok {
-		s.LastLine = v
+		s.LastLine = protocol.SingleLine(v)
 	}
 	if v, ok := patch["description"].(string); ok {
-		s.Description = v
+		s.Description = protocol.SingleLine(v)
 	}
 	if v, ok := patch["fleet"].(string); ok {
-		s.Fleet = v
+		s.Fleet = protocol.SingleLine(v)
 	}
 	if v, ok := patch["name"].(string); ok {
-		s.Name = v
+		s.Name = protocol.SingleLine(v)
 	}
 	if t, ok := patchTime(patch, "last_event_at"); ok && !t.IsZero() {
 		s.LastEventAt = t
@@ -285,6 +290,19 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["output_bytes"].(float64); ok {
 		s.OutputBytes = int64(v)
 	}
+}
+
+// oneLineSummary makes s's free-text fields one terminal row
+// (protocol.SingleLine). The daemon relays them verbatim: a multi-line
+// prompt as Title, agent output as LastLine, model output as Description.
+func oneLineSummary(s protocol.SessionSummary) protocol.SessionSummary {
+	s.Slug = protocol.SingleLine(s.Slug)
+	s.Title = protocol.SingleLine(s.Title)
+	s.LastLine = protocol.SingleLine(s.LastLine)
+	s.Description = protocol.SingleLine(s.Description)
+	s.Fleet = protocol.SingleLine(s.Fleet)
+	s.Name = protocol.SingleLine(s.Name)
+	return s
 }
 
 // patchTime reads an optional timestamp patch key: an RFC3339 string sets
