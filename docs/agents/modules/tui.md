@@ -74,7 +74,7 @@ Snapshot tests for board/header/splash; spawn slug derivation; setup shell block
 
 ## Gotchas
 
-`cli.RunRender` constructs `Model` without running full `Run`. Keymap details live in `keymap.go` — not duplicated here; human doc `docs/tui.md` may list keys. Fleet colors and archived title prefix logic in `board.go`. Quick-spawn (`i`) reads `default_spawn_*` settings.
+`cli.RunRender` constructs `Model` without running full `Run`. Keymap details live in `keymap.go` — not duplicated here; human doc `docs/tui.md` may list keys. Fleet colors in `board.go`. The board does not hide archived sessions; only `rex ls` does (`cli/session/archive.go`). Quick-spawn (`i`) reads `default_spawn_*` settings.
 
 ## See also
 

@@ -15,8 +15,6 @@ Facts not fully specified in code comments or stable APIs. Listed for maintainer
 
 | Item | Location | Notes |
 |------|----------|-------|
-| `-short` on `rex ls` | `session/ls.go` | Flag parsed, no effect |
-| `-no-attach` on `rex new` | `session/new.go` | Flag parsed, no effect |
 | `enabled_by_default` merge | `registry/loader.go` | User YAML cannot override builtin opt-in flag |
 
 ## Settings
@@ -37,4 +35,3 @@ Facts not fully specified in code comments or stable APIs. Listed for maintainer
 - `docs/bench.md` for Makefile bench targets
 - Packaged man pages (`rex(1)`)
 - Third-party client SDK beyond in-repo `wire/client`
-- Whether to implement or remove dead flags and selector aliases

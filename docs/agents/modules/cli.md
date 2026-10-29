@@ -52,7 +52,7 @@ See inventory in Pass 1: attach indexing, complete validation, digest ranges, do
 
 ## Gotchas
 
-`RunNew` default `--no-attach true` (spawn and exit). `DefaultSocket` in `socket.go` delegates to `daemonctl`. Per-command flags are local `flag.FlagSet`s — see `interfaces/cli.md`. `RunRender` builds headless `tui.Model` for screenshots.
+`RunNew` spawns and exits; it never attaches. `DefaultSocket` in `socket.go` delegates to `daemonctl`. Per-command flags are local `flag.FlagSet`s — see `interfaces/cli.md`. `RunRender` builds headless `tui.Model` for screenshots.
 
 ## See also
 

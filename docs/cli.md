@@ -72,12 +72,12 @@ Exits **1** when at least one session is `needs_input` (even with no other error
 List sessions.
 
 ```sh
-rex ls [-socket path] [-state state] [-tool id] [-model id] [-show-archived] [-short] [-json]
+rex ls [-socket path] [-state state] [-tool id] [-model id] [-show-archived] [-json]
 ```
 
 `-state`, `-tool`, and `-model` keep only sessions whose value matches exactly. States: `queued`, `working`, `needs_input`, `done`, `failed`, `crashed`.
 
-`-show-archived` and `-short` are accepted but have no effect today.
+Archived sessions (`rex archive`) are hidden; `-show-archived` lists them too.
 
 The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working.
 
@@ -89,7 +89,7 @@ Spawn a session.
 
 ```sh
 rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
-           [-slug name] [-cwd dir] [-fleet name] [-no-attach]
+           [-slug name] [-cwd dir] [-fleet name]
 ```
 
 Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. Prompt from arguments or stdin when stdin is not a TTY.
@@ -97,8 +97,6 @@ Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. Prompt from arguments or 
 Prints `short_id` and `slug` tab-separated on success.
 
 Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
-
-`-no-attach` is accepted but has no effect.
 
 ---
 
@@ -213,7 +211,7 @@ rex undone <sel> [-socket path]
 
 ## rex archive
 
-Archive a completed session (title prefix). Like any rename or fleet change, it leaves `last_event_at` alone, so the session's duration in `rex stats` / `rex digest` and its "ago" time don't change.
+Archive a completed session: its title gets the prefix `[archived] `, and `rex ls` hides it unless `-show-archived`. The TUI board still shows it. Like any rename or fleet change, it leaves `last_event_at` alone, so the session's duration in `rex stats` / `rex digest` and its "ago" time don't change.
 
 ```sh
 rex archive <sel> [-socket path]
@@ -387,4 +385,4 @@ See [paths.md](paths.md).
 
 ## BUGS
 
-`rex ls -short` and `rex new -no-attach` are no-ops.
+`rex log` strips only CSI sequences (colors, cursor movement). Other escapes, such as OSC window titles, pass through to the terminal; `-bytes` passes everything.
