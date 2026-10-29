@@ -51,7 +51,7 @@ Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWai
 
 ## Gotchas
 
-- `rex reload` → SIGHUP → tools.yaml only (`lifecycle/reload.go`).
+- `rex reload` → `daemonctl.Reload`: `Reload` intent, SIGHUP fallback on Unix → tools.yaml only (`lifecycle/reload.go`). `rex daemon stop` → `daemonctl.Stop`: `Shutdown` intent, SIGTERM fallback.
 - `rex attach` detach: Ctrl+] (`session/attach.go`).
 - `config edit` → the `lua_config_path` setting (default `~/.config/rex/init.lua`, `~/` expanded like the daemon does); `$EDITOR` is split on spaces so it may carry arguments (`setup/config.go`).
 - `rex ls` hides sessions whose title starts with `[archived] ` (set by `rex archive`) unless `-show-archived` (`session/archive.go`).

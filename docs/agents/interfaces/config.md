@@ -19,7 +19,7 @@ Human reference: **[../../paths.md](../../paths.md)** (paths, env, daemon flags)
 
 ## Reload scope
 
-- SIGHUP / `rex reload`: registry (`tools.yaml`) only.
+- `Reload` intent / SIGHUP / `rex reload`: registry (`tools.yaml`) only.
 - `config.yaml` and Lua: require daemon restart to re-read at startup.
 
 ## See also

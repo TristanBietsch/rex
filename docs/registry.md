@@ -112,7 +112,7 @@ Edit `tools.yaml`, then:
 rex reload
 ```
 
-SIGHUP reloads the registry in a running daemon. Running sessions keep their original command and adapter.
+`rex reload` (the `Reload` intent, or `SIGHUP`) reloads the registry in a running daemon; an invalid `tools.yaml` is reported and the old registry stays. Running sessions keep their original command and adapter.
 
 ## EXAMPLES
 

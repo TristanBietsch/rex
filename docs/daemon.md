@@ -54,7 +54,7 @@ The socket is created with mode `0600`. Its path must fit the OS limit for a Uni
 | `SIGINT`, `SIGTERM` | Shut down (see [Shutdown](#shutdown)) |
 | `SIGHUP` | Reload `tools.yaml` into the running registry; PTYs unchanged |
 
-`rex reload` sends `SIGHUP` to the running daemon process. Windows has no such signals: there `rex reload` and `rex daemon stop` send the `Reload` and `Shutdown` intents over the socket (see [protocol.md](protocol.md)).
+`rex reload` and `rex daemon stop` send the `Reload` and `Shutdown` intents over the default socket (see [protocol.md](protocol.md)), so a failed reload is reported back. On macOS and Linux they fall back to `SIGHUP` / `SIGTERM` when nothing answers, the daemon predates the intent, or (for stop) it is still up after 2 s; the signal goes only to this user's process named exactly `rex-daemon` (`pgrep -u <uid> -x`). Windows has no such signals and uses the intents only.
 
 Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config.
 
@@ -79,7 +79,7 @@ Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reloa
 ## CLI wrapper
 
 ```sh
-rex daemon start      # background; stderr → daemon.log
+rex daemon start      # background, -socket <default>; stderr → daemon.log
 rex daemon stop
 rex daemon status     # exit 4 if not running
 rex daemon restart
@@ -100,7 +100,7 @@ rex-daemon -state-dir /tmp/rex-test -socket /tmp/rex-test.sock
 ```
 
 ```sh
-rex reload            # SIGHUP → reload tools.yaml
+rex reload            # Reload intent (SIGHUP fallback) → reload tools.yaml
 ```
 
 ## SEE ALSO

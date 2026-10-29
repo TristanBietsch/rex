@@ -68,7 +68,7 @@ daemonctl → (stdlib)
 
 ## Reload
 
-`SIGHUP` on daemon reloads `tools.yaml` into `server.SetRegistry` without restarting PTYs. `rex reload` sends SIGHUP via CLI.
+`SIGHUP` on daemon reloads `tools.yaml` into `server.SetRegistry` without restarting PTYs. `rex reload` sends the `Reload` intent (same effect; SIGHUP is its Unix fallback).
 
 ## External systems
 

@@ -233,11 +233,13 @@ rex complete <sel> [-socket path]
 
 ## rex reload
 
-Send SIGHUP to the daemon. Reloads **tools.yaml** only.
+Ask the daemon to re-read **tools.yaml** only.
 
 ```sh
 rex reload
 ```
+
+Sends the `Reload` intent over the default socket; a failed reload (an invalid `tools.yaml`) is printed and exits **1**. On macOS and Linux, if nothing answers on the socket or the daemon predates the intent, it falls back to `SIGHUP` for this user's `rex-daemon` (`pgrep -u <uid> -x rex-daemon`). No daemon found exits **4**.
 
 Does not reload `config.yaml` or `init.lua`.
 
@@ -252,6 +254,10 @@ rex daemon status    # exit 4 if not running
 rex daemon restart
 rex daemon logs [-f]
 ```
+
+`start` runs `rex-daemon -socket <default socket>` (the `rex-daemon` next to `rex`, else on `PATH`) with stderr appended to `daemon.log`, and waits up to 2 s for the socket. If the daemon exits first, the error quotes the last line it wrote to `daemon.log`.
+
+`stop` sends the `Shutdown` intent and waits up to 2 s for the socket to go away; on macOS and Linux it falls back to `SIGTERM` for this user's `rex-daemon`. Exit **4** if no daemon process is found.
 
 `logs` reads `~/.local/state/rex/daemon.log`.
 
