@@ -345,6 +345,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		case rerr := <-errc:
 			// Child exited.
 			s.refreshScreenText(sess.ID, screen)
+			// Background jobs and MCP servers the agent left behind are still
+			// in its process group. Kill them before the reap: until then the
+			// zombie holds the group id, so the signal can't hit a reused pid.
+			if err := f.KillTree(); err != nil {
+				slog.Warn("pty: kill leftover process tree failed", "session", sess.ID, "pid", cmd.Process.Pid, "err", err)
+			}
 			waitErr := f.Wait()
 			final := protocol.StateDone
 			var exitCode *int

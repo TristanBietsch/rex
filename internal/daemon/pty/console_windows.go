@@ -75,8 +75,15 @@ func (c *winConsole) Wait() error {
 }
 
 // KillTree has taskkill walk the process tree; Windows has no process group
-// to signal here.
+// to signal here. Once the child is reaped it is a no-op: its pid may already
+// belong to an unrelated process, and taskkill can't walk the tree of a
+// parent that is gone.
 func (c *winConsole) KillTree() error {
+	select {
+	case <-c.exited:
+		return nil
+	default:
+	}
 	pid := strconv.Itoa(c.cmd.Process.Pid)
 	if err := exec.Command("taskkill", "/T", "/F", "/PID", pid).Run(); err != nil {
 		return fmt.Errorf("taskkill /T /F /PID %s: %w", pid, err)
