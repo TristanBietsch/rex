@@ -375,6 +375,9 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	if retiring && !selected {
 		slugStyle = dim
 	}
+	if doneFlashOn(m, s.ID, now) {
+		slugStyle = slugStyle.Foreground(colorDone)
+	}
 	slug := cell(slugStyle, displayName(s), c.slug)
 	descColor := colorFgDim
 	if selected {
@@ -412,16 +415,16 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		b.WriteString(gap + padLine(longRunBadge(now, s), c.run))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
-	row := b.String()
+	return b.String()
+}
 
-	if blinkEnabled(m) {
-		if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
-			if time.Now().UnixMilli()/200%2 == 0 {
-				row = lipgloss.NewStyle().Foreground(colorDone).Render(row)
-			}
-		}
-	}
-	return row
+// doneFlashOn reports whether a just-finished session's name is in the lit
+// phase of its done flash (200 ms on, 200 ms off until BlinkUntil). It used
+// to wrap the whole styled row in a green foreground, which the cells' own
+// colors overrode, so the flash never showed.
+func doneFlashOn(m Model, id string, now time.Time) bool {
+	until, ok := m.BlinkUntil[id]
+	return ok && now.Before(until) && blinkEnabled(m) && now.UnixMilli()/200%2 == 0
 }
 
 // densityGap returns the number of blank lines to insert between section
