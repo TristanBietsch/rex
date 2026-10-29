@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -46,6 +47,36 @@ func TestOpenLogFile_CreatesFile(t *testing.T) {
 	info, err := os.Stat(filepath.Join(dir, "testbin.log"))
 	require.NoError(t, err)
 	require.False(t, info.IsDir())
+}
+
+// Logs record session ids, paths and errors: owner-only, including a log an
+// older build left world-readable.
+func TestOpenLogFile_OwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits")
+	}
+	dir := filepath.Join(t.TempDir(), "logs")
+	t.Setenv("REX_LOG_DIR", dir)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "old.log"), nil, 0o644))
+
+	for _, name := range []string{"new", "old"} {
+		f, err := openLogFile(name)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		info, err := os.Stat(filepath.Join(dir, name+".log"))
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0o600), info.Mode().Perm(), name)
+	}
+
+	fresh := filepath.Join(t.TempDir(), "fresh")
+	t.Setenv("REX_LOG_DIR", fresh)
+	f, err := openLogFile("x")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	info, err := os.Stat(fresh)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
 }
 
 func TestInit_WritesToConfiguredDir(t *testing.T) {

@@ -47,16 +47,29 @@ func Close() {
 	}
 }
 
+// openLogFile opens <dir>/<name>.log owner-only: logs record session ids,
+// paths and errors. The default dir is rex's own, so an existing one (and an
+// existing log, both 0755/0644 from older builds) is tightened too; a
+// REX_LOG_DIR the user picked is left as it is. Tightening is best-effort:
+// failing it must not cost the log.
 func openLogFile(name string) (*os.File, error) {
 	dir := stateDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return os.OpenFile(
+	if os.Getenv("REX_LOG_DIR") == "" {
+		_ = os.Chmod(dir, 0o700)
+	}
+	f, err := os.OpenFile(
 		filepath.Join(dir, name+".log"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
-		0o644,
+		0o600,
 	)
+	if err != nil {
+		return nil, err
+	}
+	_ = f.Chmod(0o600)
+	return f, nil
 }
 
 func stateDir() string {

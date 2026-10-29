@@ -60,10 +60,17 @@ func run(args []string) error {
 	}
 	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
 
-	if err := os.MkdirAll(*stateDir, 0o755); err != nil {
+	if err := ownerOnlyDir(*stateDir, *stateDir == daemonctl.DefaultStateDir()); err != nil {
 		return fmt.Errorf("state dir: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(*socketPath), 0o755); err != nil {
+	if err := state.SecureSessionsDir(*stateDir); err != nil {
+		return fmt.Errorf("sessions dir: %w", err)
+	}
+	// ~/.cache/rex is rex's own; $XDG_RUNTIME_DIR belongs to the system and
+	// is already 0700.
+	socketDir := filepath.Dir(*socketPath)
+	ownSocketDir := os.Getenv("XDG_RUNTIME_DIR") == "" && socketDir == filepath.Dir(daemonctl.DefaultSocket())
+	if err := ownerOnlyDir(socketDir, ownSocketDir); err != nil {
 		return fmt.Errorf("socket dir: %w", err)
 	}
 
@@ -180,4 +187,18 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
+}
+
+// ownerOnlyDir creates dir (and missing parents) with mode 0700. An existing
+// dir is tightened only when tighten is set — rex's default dirs, which older
+// builds created 0755 — never a path the user passed that may be shared
+// (-state-dir /tmp).
+func ownerOnlyDir(dir string, tighten bool) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	if tighten {
+		return os.Chmod(dir, 0o700)
+	}
+	return nil
 }

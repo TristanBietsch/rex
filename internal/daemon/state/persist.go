@@ -13,6 +13,27 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
+// Session state is owner-only: a transcript holds everything an agent
+// printed, meta.json the session's title and working directory.
+const (
+	dirPerm  os.FileMode = 0o700
+	filePerm os.FileMode = 0o600
+)
+
+// SecureSessionsDir creates <root>/sessions owner-only, and tightens it when
+// an older daemon created it world-readable. Other local users then can't
+// reach any session file, whatever its own mode.
+func SecureSessionsDir(root string) error {
+	dir := filepath.Join(root, "sessions")
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	if err := os.Chmod(dir, dirPerm); err != nil {
+		return fmt.Errorf("chmod %s: %w", dir, err)
+	}
+	return nil
+}
+
 // sessionDir returns ~/.local/share/rex/sessions/<id> built from a state-dir root.
 // HookFile is the per-session file agent hooks append state words to.
 func HookFile(root, id string) string {
@@ -78,7 +99,7 @@ func WriteMeta(root string, s *Session) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	final := filepath.Join(dir, "meta.json")
@@ -90,6 +111,7 @@ func WriteMeta(root string, s *Session) error {
 	if err != nil {
 		return fmt.Errorf("marshal meta: %w", err)
 	}
+	// CreateTemp makes the file 0600, which is what meta.json should be.
 	tmp, err := os.CreateTemp(dir, "meta-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create tmp meta: %w", err)
@@ -100,10 +122,6 @@ func WriteMeta(root string, s *Session) error {
 	if werr != nil || cerr != nil {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("write tmp meta: %w", errors.Join(werr, cerr))
-	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
-		_ = os.Remove(tmpName)
-		return fmt.Errorf("chmod tmp meta: %w", err)
 	}
 	if err := os.Rename(tmpName, final); err != nil {
 		_ = os.Remove(tmpName)
@@ -176,10 +194,10 @@ type TranscriptFile struct {
 // OpenTranscript opens (or creates) transcript.log for repeated appends.
 func OpenTranscript(root, id string) (*TranscriptFile, error) {
 	dir := sessionDir(root, id)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, fmt.Errorf("open transcript: %w", err)
 	}

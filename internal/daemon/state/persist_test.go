@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -21,6 +22,34 @@ func TestWriteAndLoadMeta(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, sess.ID, got.ID)
 	require.Equal(t, protocol.StateDone, got.State)
+}
+
+// Transcripts and meta are private to the user, and SecureSessionsDir
+// tightens a sessions dir an older daemon left world-readable.
+func TestPersist_OwnerOnlyPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits")
+	}
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "sessions"), 0o755))
+	require.NoError(t, SecureSessionsDir(root))
+
+	sess := &Session{ID: "p1", ShortID: "p1", State: protocol.StateDone, StartedAt: time.Now().UTC()}
+	require.NoError(t, WriteMeta(root, sess))
+	tf, err := OpenTranscript(root, "p1")
+	require.NoError(t, err)
+	require.NoError(t, tf.Close())
+
+	for path, want := range map[string]os.FileMode{
+		filepath.Join(root, "sessions"):                         0o700,
+		filepath.Join(root, "sessions", "p1"):                   0o700,
+		filepath.Join(root, "sessions", "p1", "meta.json"):      0o600,
+		filepath.Join(root, "sessions", "p1", "transcript.log"): 0o600,
+	} {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, want, info.Mode().Perm(), path)
+	}
 }
 
 func TestAppendTranscript(t *testing.T) {
