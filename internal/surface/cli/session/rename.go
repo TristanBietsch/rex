@@ -41,7 +41,7 @@ func RunRename(args []string) error {
 	if err := c.Rename(sess.ID, newSlug, "", reqID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	if err := awaitPatch(c, sess.ID, reqID, "slug"); err != nil {
+	if err := core.AwaitPatch(c, sess.ID, reqID, "slug"); err != nil {
 		return err
 	}
 	fmt.Printf("%s: renamed to %s\n", sess.Slug, newSlug)

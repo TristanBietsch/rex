@@ -35,7 +35,7 @@ func RunArchive(args []string) error {
 	if err := c.Rename(sess.ID, "", newTitle, reqID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	if err := awaitPatch(c, sess.ID, reqID, "title"); err != nil {
+	if err := core.AwaitPatch(c, sess.ID, reqID, "title"); err != nil {
 		return err
 	}
 	fmt.Printf("%s: archived\n", sess.Slug)

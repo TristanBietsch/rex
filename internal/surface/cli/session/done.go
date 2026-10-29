@@ -3,6 +3,7 @@ package session
 import (
 	"flag"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -61,7 +62,7 @@ func RunDone(args []string) error {
 	if err := c.Retire(sess.ID, ttl, reqID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	if err := awaitPatch(c, sess.ID, reqID, "retire_at"); err != nil {
+	if err := core.AwaitPatch(c, sess.ID, reqID, "retire_at"); err != nil {
 		return err
 	}
 	fmt.Printf("%s: marked done — clears in %s (rex undone %s to cancel)\n", sess.Slug, shortDuration(ttl), sess.ShortID)
@@ -96,9 +97,23 @@ func RunUndone(args []string) error {
 	if err := c.Unretire(sess.ID, reqID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	if err := awaitPatch(c, sess.ID, reqID, "retire_at"); err != nil {
+	if err := core.AwaitPatch(c, sess.ID, reqID, "retire_at"); err != nil {
 		return err
 	}
 	fmt.Printf("%s: unmarked\n", sess.Slug)
 	return nil
+}
+
+// shortDuration renders d with one unit: 45s, 12m, 5h, 6d.
+func shortDuration(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return strconv.Itoa(int(d.Seconds())) + "s"
+	case d < time.Hour:
+		return strconv.Itoa(int(d.Minutes())) + "m"
+	case d < 48*time.Hour:
+		return strconv.Itoa(int(d.Hours())) + "h"
+	default:
+		return strconv.Itoa(int(d.Hours())/24) + "d"
+	}
 }

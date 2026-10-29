@@ -46,7 +46,7 @@ func RunFleet(args []string) error {
 		if err := core.CheckArgs(sub, 2, 2, "rex fleet unset <sel> [-socket path]"); err != nil {
 			return err
 		}
-		return runFleetUnset(*socket, sub[1])
+		return runFleetSet(*socket, sub[1], "")
 	case "show":
 		if err := core.CheckArgs(sub, 2, 2, "rex fleet show <fleet> [-socket path]"); err != nil {
 			return err
@@ -98,6 +98,8 @@ func runFleetLS(socket string, w io.Writer) error {
 	return nil
 }
 
+// runFleetSet assigns the session to fleet ("" clears it) and waits for the
+// daemon to confirm, so a rejection (e.g. unknown session) reaches the user.
 func runFleetSet(socket, selector, fleet string) error {
 	c, err := client.Dial(socket)
 	if err != nil {
@@ -108,48 +110,19 @@ func runFleetSet(socket, selector, fleet string) error {
 	if err != nil {
 		return err
 	}
-
-	// Reconnect — ResolveSelector consumed Hello.
-	c2, err := client.Dial(socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c2.Close()
-	if _, err := c2.Hello("rex-cli"); err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	if err := c2.SetSessionFleet(sess.ID, fleet); err != nil {
+	if err := c.SetSessionFleet(sess.ID, fleet); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	slog.Info("fleet: set", "session", sess.ID, "fleet", fleet)
-	_, _ = fmt.Fprintf(os.Stdout, "set fleet %q on session %s (%s)\n", fleet, sess.ShortID, sess.Slug)
-	return nil
-}
-
-func runFleetUnset(socket, selector string) error {
-	c, err := client.Dial(socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, selector)
-	if err != nil {
+	// SetSessionFleet carries no request id, so a rejection echoes "".
+	if err := core.AwaitPatch(c, sess.ID, "", "fleet"); err != nil {
 		return err
 	}
-
-	c2, err := client.Dial(socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+	slog.Info("fleet: set", "session", sess.ID, "fleet", fleet)
+	if fleet == "" {
+		_, _ = fmt.Fprintf(os.Stdout, "cleared fleet on session %s (%s)\n", sess.ShortID, sess.Slug)
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "set fleet %q on session %s (%s)\n", fleet, sess.ShortID, sess.Slug)
 	}
-	defer c2.Close()
-	if _, err := c2.Hello("rex-cli"); err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	if err := c2.SetSessionFleet(sess.ID, ""); err != nil {
-		return core.NewExitError(core.ExitGeneric, err.Error())
-	}
-	slog.Info("fleet: unset", "session", sess.ID, "fleet", "")
-	_, _ = fmt.Fprintf(os.Stdout, "cleared fleet on session %s (%s)\n", sess.ShortID, sess.Slug)
 	return nil
 }
 

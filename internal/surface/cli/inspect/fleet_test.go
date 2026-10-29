@@ -2,7 +2,11 @@ package inspect
 
 import (
 	"bytes"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,6 +60,73 @@ func TestRunFleet_TrailingSocketFlag(t *testing.T) {
 		require.Equal(t, core.ExitDaemonUnreachable, ee.Code, "args=%v", args)
 		require.Contains(t, ee.Msg, dead, "args=%v", args)
 	}
+}
+
+// fleetDaemon serves Hello with one session ("beta") and answers
+// SetSessionFleet via reply. It accepts any number of connections and
+// reports how many it saw.
+func fleetDaemon(t *testing.T, reply func(w *protocol.Writer, env protocol.Envelope)) (string, *atomic.Int32) {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "rexfleet")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "d.sock")
+	ln, err := net.Listen("unix", sock)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	var conns atomic.Int32
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			conns.Add(1)
+			go func() {
+				defer conn.Close()
+				r, w := protocol.NewReader(conn), protocol.NewWriter(conn)
+				for {
+					env, err := r.Read()
+					if err != nil {
+						return
+					}
+					switch env.Type {
+					case protocol.IntentHello:
+						_ = w.WriteEvent(protocol.EventSnapshot, env.ID, protocol.Snapshot{Sessions: []protocol.SessionSummary{
+							{ID: "b203a999-1234-4abc-89ab-cdefabcdef02", ShortID: "b203", Slug: "beta"},
+						}})
+					case protocol.IntentSetSessionFleet:
+						reply(w, env)
+					}
+				}
+			}()
+		}
+	}()
+	return sock, &conns
+}
+
+// fleet set used a second connection and never read the answer, so a
+// daemon rejection was silently dropped.
+func TestRunFleetSet_ReportsRejection(t *testing.T) {
+	sock, conns := fleetDaemon(t, func(w *protocol.Writer, env protocol.Envelope) {
+		_ = w.WriteEvent(protocol.EventError, env.ID, protocol.ErrorEvent{ID: env.ID, Code: protocol.ErrCodeUnknownSession, Message: "session not found"})
+	})
+	err := RunFleet([]string{"set", "beta", "red", "-socket", sock})
+	var ee core.ExitError
+	require.ErrorAs(t, err, &ee)
+	require.Equal(t, "session not found", ee.Msg)
+	require.Equal(t, int32(1), conns.Load(), "one connection")
+}
+
+func TestRunFleetUnset_WaitsForConfirmation(t *testing.T) {
+	sock, conns := fleetDaemon(t, func(w *protocol.Writer, env protocol.Envelope) {
+		_ = w.WriteEvent(protocol.EventSessionUpdated, "", protocol.SessionUpdated{
+			SessionID: "b203a999-1234-4abc-89ab-cdefabcdef02", Patch: map[string]any{"fleet": ""},
+		})
+	})
+	require.NoError(t, RunFleet([]string{"unset", "beta", "-socket", sock}))
+	require.Equal(t, int32(1), conns.Load())
 }
 
 // TestFleetLS_Output verifies runFleetLS formats output correctly given a snapshot.

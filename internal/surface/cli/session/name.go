@@ -80,7 +80,7 @@ func RunName(args []string) error {
 	if err := c.SetSessionName(sess.ID, a.name, reqID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	if err := awaitPatch(c, sess.ID, reqID, "name"); err != nil {
+	if err := core.AwaitPatch(c, sess.ID, reqID, "name"); err != nil {
 		return err
 	}
 	if a.clear {
