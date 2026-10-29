@@ -118,6 +118,10 @@ type Server struct {
 	// retireWaitLogged dedups the "expired but busy" log line per session.
 	retireWaitMu     sync.Mutex
 	retireWaitLogged map[string]bool
+
+	// stateLock is the exclusive lock on <state-dir>/daemon.lock taken by New
+	// and released when Serve returns.
+	stateLock *os.File
 }
 
 // SetRegistry atomically swaps the registry used for future spawns.
@@ -131,14 +135,18 @@ func (s *Server) Registry() *registry.Registry {
 	return s.reg.Load()
 }
 
-// New unlinks any stale socket and constructs a Server. It does not listen yet.
+// New constructs a Server. It refuses (ErrAlreadyRunning) when a daemon
+// answers on the socket or holds the state dir's lock, then takes that lock
+// and unlinks any stale socket file. It does not listen yet; Serve releases
+// the lock when it returns.
 func New(cfg Config) (*Server, error) {
 	if cfg.Socket == "" {
 		return nil, errors.New("server: empty socket path")
 	}
-	// Unlink any stale socket. If something is actually listening on it we'll
-	// fail on Listen below, which is the right outcome.
-	_ = os.Remove(cfg.Socket)
+	lock, err := claimDaemon(cfg)
+	if err != nil {
+		return nil, err
+	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
@@ -148,7 +156,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.RetireSweepInterval <= 0 {
 		cfg.RetireSweepInterval = defaultRetireSweepInterval
 	}
-	s := &Server{cfg: cfg, gate: &concurrencyGate{max: cfg.MaxConcurrentSessions}}
+	s := &Server{cfg: cfg, gate: &concurrencyGate{max: cfg.MaxConcurrentSessions}, stateLock: lock}
 	s.reg.Store(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
 	// Registry() / MaxConcurrentSessions() so nobody uses a stale copy.
@@ -156,15 +164,26 @@ func New(cfg Config) (*Server, error) {
 	return s, nil
 }
 
-// Serve listens until ctx is canceled. The socket is unlinked on return.
+// Serve listens until ctx is canceled. On return the socket is unlinked (if
+// it is still ours) and the state-dir lock released.
 func (s *Server) Serve(ctx context.Context) error {
+	defer releaseStateLock(s.stateLock)
 	l, err := net.Listen("unix", s.cfg.Socket)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", s.cfg.Socket, err)
 	}
+	// The listener must not unlink the path on Close: by then a newer daemon
+	// may own it. removeOwnSocket checks before unlinking.
+	if ul, ok := l.(*net.UnixListener); ok {
+		ul.SetUnlinkOnClose(false)
+	}
+	ours, err := os.Lstat(s.cfg.Socket)
+	if err != nil {
+		slog.Warn("server: stat own socket failed; it will not be unlinked on exit", "socket", s.cfg.Socket, "err", err)
+	}
 	defer func() {
 		_ = l.Close()
-		_ = os.Remove(s.cfg.Socket)
+		removeOwnSocket(s.cfg.Socket, ours)
 	}()
 
 	// Close the listener when ctx is canceled to unblock Accept.
