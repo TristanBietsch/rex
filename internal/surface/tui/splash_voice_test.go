@@ -17,7 +17,7 @@ func TestSplashHandOffRequestsBootVoice(t *testing.T) {
 
 	mi, _ := m.appendBootStep(bootStepMsg{Name: "x", Status: stepOK})
 	m = mi.(Model)
-	_, _ = m.update(bootMinElapsedMsg{})
+	_, _ = m.Update(bootMinElapsedMsg{})
 
 	require.Equal(t, []string{audio.EventBootOK, audio.EventStartup, audio.EventBootVoice}, rec.Events,
 		"voice is requested right after the startup tone")

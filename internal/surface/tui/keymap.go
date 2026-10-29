@@ -9,8 +9,8 @@ import (
 // are included so j/k navigation matches what the user sees on the board.
 func orderedSessions(m Model) []protocol.SessionSummary {
 	out := make([]protocol.SessionSummary, 0, len(m.Sessions))
-	for _, g := range boardGroups {
-		out = append(out, filterByGroup(m.Sessions, g, m.Filter)...)
+	for _, col := range partitionSessions(m.Sessions, m.Filter) {
+		out = append(out, col...)
 	}
 	return out
 }
@@ -137,7 +137,7 @@ func jumpToSection(m Model, groupIdx int) Model {
 	if groupIdx < 0 || groupIdx >= len(boardGroups) {
 		return m
 	}
-	rows := filterByGroup(m.Sessions, boardGroups[groupIdx], m.Filter)
+	rows := partitionSessions(m.Sessions, m.Filter)[groupIdx]
 	if len(rows) > 0 {
 		m.SelectedID = rows[0].ID
 	}

@@ -147,7 +147,7 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	slog.Info("setup: wizard initialising", "config_path", configPath, "socket", socket)
 
 	// tools
-	reg, _ := registry.Load(toolsConfigPath())
+	reg, _ := registry.Load(daemonctl.DefaultToolsPath())
 	visible := visibleTools(reg.Tools)
 
 	// settings options from registry

@@ -42,7 +42,7 @@ func TestSplashHandOffPlaysStartup(t *testing.T) {
 
 	mi, _ := m.appendBootStep(bootStepMsg{Name: "x", Status: stepOK})
 	m = mi.(Model)
-	mi, _ = m.update(bootMinElapsedMsg{})
+	mi, _ = m.Update(bootMinElapsedMsg{})
 	m = mi.(Model)
 
 	require.Equal(t, FocusBoard, m.Focus)

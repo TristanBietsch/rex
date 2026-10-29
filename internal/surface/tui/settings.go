@@ -11,6 +11,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
@@ -29,7 +30,7 @@ func openSettings(m Model) (Model, tea.Cmd) {
 		_ = m.Store.Load(m.StorePath)
 	}
 	st := &SettingsState{}
-	if reg, err := registry.Load(toolsConfigPath()); err == nil {
+	if reg, err := registry.Load(daemonctl.DefaultToolsPath()); err == nil {
 		st.Tools = visibleTools(reg.Tools)
 	} else {
 		slog.Warn("tui: settings could not load tool registry; spawn pickers disabled", "err", err)

@@ -8,10 +8,9 @@ import (
 )
 
 type persistedState struct {
-	Selection    string    `json:"selection"`
-	Filter       string    `json:"filter"`
-	ScrollOffset int       `json:"scroll_offset"`
-	SavedAt      time.Time `json:"saved_at"`
+	Selection string    `json:"selection"`
+	Filter    string    `json:"filter"`
+	SavedAt   time.Time `json:"saved_at"`
 }
 
 func statePath() string {

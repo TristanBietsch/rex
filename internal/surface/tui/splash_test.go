@@ -56,7 +56,7 @@ func TestBootHandOffWaitsForMin(t *testing.T) {
 	require.False(t, m.BootMinDone)
 	require.Equal(t, FocusBoot, m.Focus, "no handoff before min")
 
-	mi2, cmd := m.update(bootMinElapsedMsg{})
+	mi2, cmd := m.Update(bootMinElapsedMsg{})
 	m = mi2.(Model)
 	require.True(t, m.BootMinDone)
 	require.Equal(t, FocusBoard, m.Focus)
@@ -65,7 +65,7 @@ func TestBootHandOffWaitsForMin(t *testing.T) {
 
 func TestBootHandOffWaitsForLastStep(t *testing.T) {
 	m := newBootModelWithSeq(2)
-	mi, _ := m.update(bootMinElapsedMsg{})
+	mi, _ := m.Update(bootMinElapsedMsg{})
 	m = mi.(Model)
 	require.True(t, m.BootMinDone)
 	require.Equal(t, FocusBoot, m.Focus, "no handoff while pipeline running")
@@ -87,7 +87,7 @@ func TestBootFailureBlocksHandOff(t *testing.T) {
 	require.True(t, m.BootFailed)
 	require.Equal(t, failErr, m.BootError)
 
-	mi2, _ := m.update(bootMinElapsedMsg{})
+	mi2, _ := m.Update(bootMinElapsedMsg{})
 	m = mi2.(Model)
 	require.True(t, m.BootMinDone)
 	require.Equal(t, FocusBoot, m.Focus, "still on splash after fail+min")
@@ -97,7 +97,7 @@ func TestBootHandOffClearsLog(t *testing.T) {
 	m := newBootModelWithSeq(1)
 	mi, _ := m.appendBootStep(bootStepMsg{Name: "only", Status: stepOK})
 	m = mi.(Model)
-	mi, _ = m.update(bootMinElapsedMsg{})
+	mi, _ = m.Update(bootMinElapsedMsg{})
 	m = mi.(Model)
 	require.Equal(t, FocusBoard, m.Focus)
 	require.Nil(t, m.BootLog)

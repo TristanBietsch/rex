@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -39,7 +39,7 @@ type WizardState struct {
 }
 
 func openWizard(m Model) (Model, tea.Cmd) {
-	reg, err := registry.Load(toolsConfigPath())
+	reg, err := registry.Load(daemonctl.DefaultToolsPath())
 	if err != nil {
 		m.Err = "wizard: " + err.Error()
 		return m, nil
@@ -57,11 +57,6 @@ func openWizard(m Model) (Model, tea.Cmd) {
 		m.Audio.Play(audio.EventOpen)
 	}
 	return m, nil
-}
-
-func toolsConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex", "tools.yaml")
 }
 
 var hiddenInWizard = map[string]bool{
