@@ -556,12 +556,12 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		req := quickSpawnRequest(m, text)
 		m.PendingSelectSlug = req.Slug
-		return m, spawnSessionCmd(m.Client, req)
+		return m, spawnSessionCmd(spawnerOf(m), req)
 	case tea.KeyBackspace:
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
 	case tea.KeyRunes:
-		m.PromptText += typedText(k.Runes)
+		m.PromptText += typedPromptText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.PromptText += " "
@@ -597,6 +597,9 @@ func quickSpawnRequest(m Model, prompt string) protocol.NewSession {
 // which lands on the status line.
 func spawnSessionCmd(c sessionSpawner, req protocol.NewSession) tea.Cmd {
 	return func() tea.Msg {
+		if c == nil {
+			return nil
+		}
 		slog.Info("tui: quick-spawn",
 			"tool", req.ToolID, "model", req.ModelID, "effort", req.Effort,
 			"slug", req.Slug, "cwd", req.CWD, "prompt_len", len(req.InitialPrompt))
@@ -606,6 +609,17 @@ func spawnSessionCmd(c sessionSpawner, req protocol.NewSession) tea.Cmd {
 		}
 		return nil
 	}
+}
+
+// spawnerOf mirrors namerOf for the NewSession intent.
+func spawnerOf(m Model) sessionSpawner {
+	if m.spawner != nil {
+		return m.spawner
+	}
+	if m.Client == nil {
+		return nil
+	}
+	return m.Client
 }
 
 func deleteSessionCmd(c *client.Client, sessionID string) tea.Cmd {

@@ -129,7 +129,13 @@ func TestHostileText_InputSitesKeepFrameShape(t *testing.T) {
 				m := site.open(hostileModel(sz.w, sz.h))
 				m, _ = updateKey(m, pasteKey(text))
 				label := fmt.Sprintf("%dx%d %s=%s", sz.w, sz.h, site.name, name)
-				require.NotContains(t, site.text(m), "\n", label)
+				if site.multiline {
+					// Line breaks stay for the agent; escapes never do.
+					require.NotContains(t, site.text(m), "\x1b", label)
+					require.NotContains(t, site.text(m), "\r", label)
+				} else {
+					require.NotContains(t, site.text(m), "\n", label)
+				}
 				requireFrame(t, m, label)
 				if m.Attach != nil {
 					// The attach popup is title + HR + rows + HR + footer.

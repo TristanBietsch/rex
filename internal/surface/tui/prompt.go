@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -25,7 +26,8 @@ func renderPrompt(m Model, width int) string {
 		}
 		line = styleArrowYellow.Render(":") + " " + stylePrimary.Render(tailFit(m.CmdText, width-5)) + cursorBlock(m)
 	case FocusPrompt:
-		body := stylePrimary.Render(tailFit(m.PromptText, room)) + cursorBlock(m)
+		// PromptText keeps pasted line breaks; the bar is one row.
+		body := stylePrimary.Render(tailFit(inputRow(m.PromptText), room)) + cursorBlock(m)
 		if m.PromptText == "" {
 			body = cursorBlock(m) + styleDim.Render("type then enter to spawn a session — esc to cancel")
 		}
@@ -54,17 +56,54 @@ func tailFit(s string, n int) string {
 // flattens them, and one space is kept where the paste began or ended with
 // whitespace so pasting "foo " then typing "bar" still reads "foo bar".
 func typedText(rs []rune) string {
-	out := protocol.SingleLine(string(rs))
-	if len(rs) == 0 {
+	return inputRow(string(rs))
+}
+
+// inputRow flattens input text s to one row with protocol.SingleLine,
+// keeping one space where s begins or ends with whitespace (a line break
+// included), so the cursor drawn after it sits where the next character
+// goes.
+func inputRow(s string) string {
+	out := protocol.SingleLine(s)
+	if s == "" {
 		return out
 	}
-	if unicode.IsSpace(rs[0]) {
+	if first, _ := utf8.DecodeRuneInString(s); unicode.IsSpace(first) {
 		out = " " + out
 	}
-	if unicode.IsSpace(rs[len(rs)-1]) && out != " " {
+	if last, _ := utf8.DecodeLastRuneInString(s); unicode.IsSpace(last) && out != " " {
 		out += " "
 	}
 	return out
+}
+
+// typedPromptText is what a key event's runes add to the λ prompt or the
+// wizard's task text. Those become the agent's initial prompt, so a pasted
+// list or code block keeps its line breaks and tabs ("\r\n" and "\r" become
+// "\n"); ESC and every other C0/C1 control, bidi overrides and invalid
+// UTF-8 are dropped. Draw the result with inputRow, which flattens it.
+func typedPromptText(rs []rune) string {
+	var b strings.Builder
+	for i := 0; i < len(rs); i++ {
+		r := rs[i]
+		switch {
+		case r == '\r':
+			b.WriteByte('\n')
+			if i+1 < len(rs) && rs[i+1] == '\n' {
+				i++
+			}
+		case r == '\n' || r == '\t' || r == ' ':
+			b.WriteRune(r)
+		case r == utf8.RuneError || !utf8.ValidRune(r):
+		case unicode.IsSpace(r):
+			b.WriteByte(' ')
+		case protocol.SingleLine(string(r)) == "":
+			// A control or bidi override: what SingleLine drops.
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // promptGlyph returns the configured prompt glyph or the λ default.

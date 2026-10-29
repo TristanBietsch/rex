@@ -64,9 +64,10 @@ type Model struct {
 
 	// Clock overrides time.Now for rendering (tests). nil = wall clock.
 	Clock func() time.Time
-	// namer / retirer override Client for those intents (tests).
+	// namer / retirer / spawner override Client for those intents (tests).
 	namer   sessionNamer
 	retirer sessionRetirer
+	spawner sessionSpawner
 
 	// Store is the live settings store. Renderers read from it; the settings
 	// page mutates it and triggers live-apply side effects.

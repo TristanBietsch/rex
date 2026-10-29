@@ -11,7 +11,6 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -214,7 +213,7 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		model := m.Wizard.firstModel()
 		slug := deriveAgentSlug(tool.ID, model.ID, task, existingSlugs(m))
 		cwd, _ := os.Getwd()
-		cmd := wizardLaunchCmd(m.Client,
+		cmd := wizardLaunchCmd(spawnerOf(m),
 			tool.ID, model.ID, m.Wizard.currentEffort(),
 			slug, task, cwd, task)
 		m.PendingSelectSlug = slug
@@ -225,7 +224,7 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyRunes:
-		m.Wizard.TaskText += typedText(k.Runes)
+		m.Wizard.TaskText += typedPromptText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.Wizard.TaskText += " "
@@ -265,8 +264,11 @@ func existingSlugs(m Model) []string {
 	return out
 }
 
-func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd, initialPrompt string) tea.Cmd {
+func wizardLaunchCmd(c sessionSpawner, toolID, modelID, effort, slug, title, cwd, initialPrompt string) tea.Cmd {
 	return func() tea.Msg {
+		if c == nil {
+			return nil
+		}
 		if slug == "" {
 			slug = "session"
 		}
@@ -442,7 +444,8 @@ func renderWizard(m Model) string {
 	case wizDescribe:
 		title = styleSlug.Render("describe the task")
 		body = append(body, "")
-		body = append(body, wizInputBoxLines(m.Wizard.TaskText, m)...)
+		// TaskText keeps pasted line breaks for the agent; draw it flat.
+		body = append(body, wizInputBoxLines(inputRow(m.Wizard.TaskText), m)...)
 	}
 
 	// Pad / truncate to a fixed line budget so the popup stays the same size.

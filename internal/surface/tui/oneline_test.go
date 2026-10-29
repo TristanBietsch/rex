@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,25 +94,28 @@ func TestApplyEvent_TextFieldsIngestedAsOneRow(t *testing.T) {
 	require.Equal(t, `500 {"error":"x"}`, m.BackendUnavailableReason)
 }
 
-// inputSites are the one-line text inputs: each opens its bar on a fresh
-// model, and reads back what was typed.
+// inputSites are the text inputs drawn on one row: each opens its bar on a
+// fresh model, and reads back what was typed. The prompt and wizard texts
+// become the agent's initial prompt, so they keep pasted line breaks
+// (multiline) and only their drawing is flattened.
 var inputSites = []struct {
-	name string
-	open func(Model) Model
-	text func(Model) string
+	name      string
+	multiline bool
+	open      func(Model) Model
+	text      func(Model) string
 }{
-	{"prompt", func(m Model) Model { m.Focus = FocusPrompt; return m },
+	{"prompt", true, func(m Model) Model { m.Focus = FocusPrompt; return m },
 		func(m Model) string { return m.PromptText }},
-	{"command", func(m Model) Model { m.Focus = FocusCommand; return m },
+	{"command", false, func(m Model) Model { m.Focus = FocusCommand; return m },
 		func(m Model) string { return m.CmdText }},
-	{"rename", func(m Model) Model { m, _ = openRename(m); return m },
+	{"rename", false, func(m Model) Model { m, _ = openRename(m); return m },
 		func(m Model) string { return m.Rename.Draft }},
-	{"wizard", func(m Model) Model {
+	{"wizard", true, func(m Model) Model {
 		m.Focus = FocusWizard
 		m.Wizard = &WizardState{Step: wizDescribe, Tools: demoTools()}
 		return m
 	}, func(m Model) string { return m.Wizard.TaskText }},
-	{"attach command", func(m Model) Model {
+	{"attach command", false, func(m Model) Model {
 		m.Focus = FocusCommand
 		m.Attach = &AttachState{SessionID: m.SelectedID, Term: vt10x.New(vt10x.WithSize(40, 8)), Cols: 40, Rows: 8}
 		return m
@@ -131,6 +135,9 @@ func pasteKey(s string) tea.KeyMsg {
 
 func TestInputSites_PasteFlattensToOneLine(t *testing.T) {
 	for _, site := range inputSites {
+		if site.multiline {
+			continue
+		}
 		m := site.open(inputModel())
 		m, _ = updateKey(m, pasteKey(multilinePrompt))
 		require.Equal(t, "Prompt I am new This repo is a copy", site.text(m), site.name)
@@ -143,6 +150,61 @@ func TestInputSites_PasteFlattensToOneLine(t *testing.T) {
 		m, _ = updateKey(m, pasteKey("foo\n"))
 		m, _ = updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("bar")})
 		require.Equal(t, "foo bar", site.text(m), site.name)
+	}
+}
+
+// The λ prompt and the wizard's task text keep a paste's line breaks and
+// tabs, so a list or code block reaches the agent intact; escapes and other
+// controls still go. They are drawn on one row.
+func TestPromptInputs_PasteKeepsLineBreaks(t *testing.T) {
+	for _, site := range inputSites {
+		if !site.multiline {
+			continue
+		}
+		m := site.open(inputModel())
+		m, _ = updateKey(m, pasteKey(multilinePrompt))
+		require.Equal(t, multilinePrompt, site.text(m), site.name)
+
+		m = site.open(inputModel())
+		m, _ = updateKey(m, pasteKey("a\r\nb\tc\x1b[2J\x00\rd‮\u009be\xff"))
+		require.Equal(t, "a\nb\tc[2J\nde", site.text(m), site.name)
+
+		m = site.open(inputModel())
+		m, _ = updateKey(m, pasteKey("- one\n- two\n"))
+		m, _ = updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+		require.Equal(t, "- one\n- two\nx", site.text(m), site.name)
+
+		lines := strings.Split(m.View(), "\n")
+		require.Len(t, lines, m.Height, site.name)
+		require.Equal(t, ansi.Strip(firstLine(renderHelpLine(m, m.Width))), ansi.Strip(lines[m.Height-1]),
+			"%s: help bar last", site.name)
+		require.Contains(t, ansi.Strip(m.View()), "- one - two x", site.name)
+	}
+}
+
+// A pasted multi-line prompt reaches NewSession's InitialPrompt intact from
+// both the quick-spawn prompt and the wizard.
+func TestPromptInputs_MultilineReachesInitialPrompt(t *testing.T) {
+	const pasted = "Fix these:\n\n- a\n- b\n\n```go\nfunc f() {}\n```"
+	store := settings.NewStore()
+	require.NoError(t, store.Set("default_spawn_tool", "claude"))
+	require.NoError(t, store.Set("default_spawn_model", "opus"))
+	for _, site := range inputSites {
+		if !site.multiline {
+			continue
+		}
+		rec := &recordingClient{}
+		m := site.open(inputModel())
+		m.Store, m.spawner = store, rec
+		m, _ = updateKey(m, pasteKey(pasted))
+		m, cmd := updateKey(m, key("enter"))
+		require.Equal(t, FocusBoard, m.Focus, site.name)
+		require.NotNil(t, cmd, site.name)
+		require.Nil(t, cmd(), site.name)
+		require.NotNil(t, rec.last, site.name)
+		require.Equal(t, pasted, rec.last.InitialPrompt, site.name)
+		require.Equal(t, m.PendingSelectSlug, rec.last.Slug, site.name)
+		require.NotContains(t, rec.last.Slug, "\n", site.name)
 	}
 }
 
