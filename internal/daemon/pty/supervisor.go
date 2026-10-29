@@ -160,6 +160,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	}
 
 	if err := s.cfg.Store.Transition(sess.ID, protocol.StateWorking); err != nil {
+		s.killAndReap(sess.ID, cmd, f, nil)
+		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 		return err
 	}
 	// Persist meta for live sessions too, so a daemon crash reloads them as
@@ -168,6 +170,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 
 	transcript, err := state.OpenTranscript(s.cfg.StateDir, sess.ID)
 	if err != nil {
+		// Nothing would read the child's output; stop it rather than leave it
+		// running unsupervised with the session stuck in working.
+		s.killAndReap(sess.ID, cmd, f, nil)
+		sess.SetExit(protocol.StateFailed, nil)
+		s.persistMeta(sess)
+		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 		return err
 	}
 	defer transcript.Close()
@@ -470,7 +478,8 @@ func appendBounded(buf, b []byte, cap int) []byte {
 // agents spawn MCP servers and tool shells that inherit the PTY and would
 // otherwise keep the reader from seeing EOF. The reader drain and the reap are
 // both bounded by StopDrainTimeout; on timeout Run returns anyway and the
-// deferred PTY close unblocks the reader.
+// deferred PTY close unblocks the reader. A nil errc (no reader started yet)
+// skips the drain.
 func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, f console, errc <-chan error) {
 	pid := cmd.Process.Pid
 	if err := f.KillTree(); err != nil {
@@ -479,11 +488,13 @@ func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, f console, errc <-cha
 	}
 	timeout := time.NewTimer(s.cfg.StopDrainTimeout)
 	defer timeout.Stop()
-	select {
-	case <-errc:
-	case <-timeout.C:
-		slog.Error("pty: stop drain timed out; PTY still held open", "session", id, "pid", pid, "timeout", s.cfg.StopDrainTimeout)
-		return
+	if errc != nil {
+		select {
+		case <-errc:
+		case <-timeout.C:
+			slog.Error("pty: stop drain timed out; PTY still held open", "session", id, "pid", pid, "timeout", s.cfg.StopDrainTimeout)
+			return
+		}
 	}
 	waited := make(chan struct{})
 	go func() {

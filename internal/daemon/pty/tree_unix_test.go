@@ -5,8 +5,11 @@ package pty
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -66,6 +69,41 @@ func TestSupervisor_NaturalExitKillsProcessGroup(t *testing.T) {
 	defer cancel()
 	require.NoError(t, sup.Run(ctx, sess))
 	requireGone(t, bgPID(t, stateDir, "orph1"))
+}
+
+// A setup failure after the child started must neither leave the agent
+// running unsupervised nor leave the session stuck in working.
+func TestSupervisor_SetupFailureStopsChild(t *testing.T) {
+	stateDir := t.TempDir()
+	// A directory in place of transcript.log makes OpenTranscript fail.
+	require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "sessions", "setup1", "transcript.log"), 0o700))
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	store := state.NewStore()
+	sess := &state.Session{ID: "setup1", ShortID: "setup1", ToolID: "echo", Slug: "t",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	// Ignoring SIGHUP keeps the child alive past the PTY close in Run.
+	sup := New(SupervisorConfig{StateDir: stateDir, Store: store,
+		Command: []string{"sh", "-c", `trap '' HUP; echo "$$" > "$0"; exec sleep 30`, pidFile}})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.Error(t, sup.Run(ctx, sess))
+
+	st, _ := store.CurrentState("setup1")
+	require.Equal(t, protocol.StateFailed, st)
+	m, err := state.LoadMeta(stateDir, "setup1")
+	require.NoError(t, err)
+	require.Equal(t, protocol.StateFailed, m.State)
+
+	// The kill may land before the child records its pid; if it got that
+	// far, it must be gone.
+	time.Sleep(200 * time.Millisecond)
+	if b, err := os.ReadFile(pidFile); err == nil {
+		pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		require.NoError(t, err)
+		requireGone(t, pid)
+	}
 }
 
 // Stopping a session (daemon shutdown, Delete) kills background jobs too, not
