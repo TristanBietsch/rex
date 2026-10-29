@@ -14,6 +14,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 )
 
 // shortTempDir returns a temp dir short enough for a unix socket path
@@ -218,4 +219,11 @@ func TestServe_OnListeningNotCalledWhenListenFails(t *testing.T) {
 	err = srv.Serve(context.Background())
 	require.ErrorContains(t, err, "listen")
 	require.False(t, called, "OnListening ran although bind failed")
+}
+
+// rex daemon restart starts the new daemon while the old one may still hold
+// the state lock: daemonctl.Start must outwait New's lock wait, with room
+// for startup, or it reports a failed start of a daemon that comes up fine.
+func TestStateLockWait_FitsDaemonctlStartTimeout(t *testing.T) {
+	require.Less(t, stateLockWait+time.Second, daemonctl.StartTimeout)
 }

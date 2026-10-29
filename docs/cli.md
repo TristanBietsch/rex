@@ -255,9 +255,9 @@ rex daemon restart
 rex daemon logs [-f]
 ```
 
-`start` runs `rex-daemon -socket <default socket>` (the `rex-daemon` next to `rex`, else on `PATH`) with stderr appended to `daemon.log`, and waits up to 2 s for the socket. If the daemon exits first, the error quotes the last line it wrote to `daemon.log`.
+`start` runs `rex-daemon -socket <default socket>` (the `rex-daemon` next to `rex`, else on `PATH`) with stderr appended to `daemon.log`, and waits up to 8 s for the socket, long enough for a restarted daemon to get `daemon.lock` from the old one. If the daemon exits first, the error quotes the last line it wrote to `daemon.log`.
 
-`stop` sends the `Shutdown` intent and waits up to 2 s for the socket to go away; on macOS and Linux it falls back to `SIGTERM` for this user's `rex-daemon`. Exit **4** if no daemon process is found.
+`stop` sends the `Shutdown` intent and waits up to 8 s for the socket to go away; on macOS and Linux it falls back to `SIGTERM` for this user's `rex-daemon`. Exit **4** if no daemon process is found.
 
 `logs` reads `~/.local/state/rex/daemon.log`.
 

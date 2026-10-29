@@ -14,7 +14,7 @@ Spawns, stops, and reloads `rex-daemon`, resolves its binary path, and checks Un
 ### Types
 
 - `StartResult` — `PID int`, `Elapsed time.Duration`.
-- `Start(socket string, stderrLog *os.File) (*StartResult, error)` — checks the socket path, execs `rex-daemon -socket <socket>`, polls up to `StartTimeout` (2 s) for the socket.
+- `Start(socket string, stderrLog *os.File) (*StartResult, error)` — checks the socket path, execs `rex-daemon -socket <socket>`, polls up to `StartTimeout` (8 s: covers the server's 6 s `stateLockWait` on restart) for the socket.
 
 ### Functions
 
@@ -46,7 +46,7 @@ Spawns, stops, and reloads `rex-daemon`, resolves its binary path, and checks Un
 
 ## Error handling
 
-`Start` returns an error if the socket path is too long, exec fails, the daemon exits before its socket comes up (the error carries the last line it wrote to `stderrLog`, its fatal error, or names the log), or the socket never answers within 2 s.
+`Start` returns an error if the socket path is too long, exec fails, the daemon exits before its socket comes up (the error carries the last line it wrote to `stderrLog`, its fatal error, or names the log), or the socket never answers within 8 s.
 
 ## Tests
 

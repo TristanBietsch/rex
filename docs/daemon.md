@@ -25,7 +25,7 @@ When an agent exits on its own, the daemon kills whatever is left in its process
 
 ### Single instance
 
-One daemon runs per state dir. A second `rex-daemon` refuses to start (exit 1, `rex-daemon is already running`) when a daemon already listens on the socket or holds `<state-dir>/daemon.lock`.
+One daemon runs per state dir. A second `rex-daemon` refuses to start (exit 1, `rex-daemon is already running`) when a daemon already listens on the socket or holds `<state-dir>/daemon.lock`. A daemon that is shutting down keeps the lock while it stops its sessions, so a new one waits up to 6 s for it first; `rex daemon start` and `restart` wait up to 8 s for the new socket to cover that.
 
 ### Shutdown
 
@@ -54,7 +54,7 @@ The socket is created with mode `0600`. Only once it is bound does the daemon pr
 | `SIGINT`, `SIGTERM` | Shut down (see [Shutdown](#shutdown)) |
 | `SIGHUP` | Reload `tools.yaml` into the running registry; PTYs unchanged |
 
-`rex reload` and `rex daemon stop` send the `Reload` and `Shutdown` intents over the default socket (see [protocol.md](protocol.md)), so a failed reload is reported back. On macOS and Linux they fall back to `SIGHUP` / `SIGTERM` when nothing answers, the daemon predates the intent, or (for stop) it is still up after 2 s; the signal goes only to this user's process named exactly `rex-daemon` (`pgrep -u <uid> -x`). Windows has no such signals and uses the intents only.
+`rex reload` and `rex daemon stop` send the `Reload` and `Shutdown` intents over the default socket (see [protocol.md](protocol.md)), so a failed reload is reported back. On macOS and Linux they fall back to `SIGHUP` / `SIGTERM` when nothing answers, the daemon predates the intent, or (for stop) it is still up after 8 s; the signal goes only to this user's process named exactly `rex-daemon` (`pgrep -u <uid> -x`). Windows has no such signals and uses the intents only.
 
 Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config.
 
