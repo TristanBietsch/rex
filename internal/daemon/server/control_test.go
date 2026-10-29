@@ -84,6 +84,8 @@ func TestIntentReload_CallsHookAndReportsError(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, protocol.EventError, env.Type)
 	require.Equal(t, "r2", env.ID)
+	// A tools.yaml that fails to load is a registry problem, not a bad intent.
+	require.Equal(t, protocol.ErrCodeRegistry, decodeError(t, env).Code)
 }
 
 func TestIntentShutdown_RejectedWithoutHook(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -73,7 +72,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				switch {
 				case isBadIntent(err):
 					code = protocol.ErrCodeBadIntent
-				case strings.Contains(err.Error(), "too many concurrent sessions"):
+				case errors.Is(err, errTooManySessions):
 					code = protocol.ErrCodeTooManySessions
 				}
 				c.sendError(env.ID, code, err.Error())
@@ -104,11 +103,9 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			if _, ok := cfg.Store.Get(p.SessionID); !ok {
-				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-				continue
+			if !srv.CompleteSession(p.SessionID) {
+				c.sendNotRunning(srv, env.ID, p.SessionID)
 			}
-			srv.CompleteSession(p.SessionID)
 		case protocol.IntentSubscribe:
 			var p protocol.Subscribe
 			if err := json.Unmarshal(env.Data, &p); err != nil {
@@ -164,14 +161,14 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			}
 			in := srv.input(p.SessionID)
 			if in == nil {
-				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
+				c.sendNotRunning(srv, env.ID, p.SessionID)
 				continue
 			}
 			in.lock()
 			sent := in.trySend(p.Bytes)
 			in.mu.Unlock()
 			if !sent {
-				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+				c.sendError(env.ID, protocol.ErrCodeBusy, "input buffer full")
 				continue
 			}
 			if !p.Synthetic {
@@ -190,7 +187,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			}
 			in := srv.input(p.SessionID)
 			if in == nil {
-				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
+				c.sendNotRunning(srv, env.ID, p.SessionID)
 				continue
 			}
 			// Reply is text to type, not raw keys: no escapes, no early
@@ -199,14 +196,14 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			id, reqID := p.SessionID, env.ID
 			queued := in.reply(text, func(ok bool) {
 				if !ok {
-					c.sendError(reqID, protocol.ErrCodeUnknownSession, "input buffer full")
+					c.sendError(reqID, protocol.ErrCodeBusy, "input buffer full")
 					return
 				}
 				slog.Debug("server: reply submitted", "session", id, "bytes", len(text))
 				srv.cancelRetireOnInput(id, "Reply")
 			})
 			if !queued {
-				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+				c.sendError(env.ID, protocol.ErrCodeBusy, "input buffer full")
 			}
 
 		case protocol.IntentRename:
@@ -388,7 +385,13 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			srv.SetMaxConcurrentSessions(p.N)
+			// The settings page offers 1..64; out-of-range values (n <= 0
+			// would remove the cap) are clamped.
+			n := min(max(p.N, minMaxConcurrent), maxMaxConcurrent)
+			if n != p.N {
+				slog.Warn("server: max concurrent sessions clamped", "requested", p.N, "applied", n)
+			}
+			srv.SetMaxConcurrentSessions(n)
 
 		// Shutdown and Reload are the socket forms of SIGTERM and SIGHUP, for
 		// platforms (Windows) that cannot signal the daemon.
@@ -406,11 +409,28 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				continue
 			}
 			if err := cfg.OnReload(); err != nil {
-				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeRegistry, err.Error())
 			}
 
 		default:
 			c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 		}
 	}
+}
+
+// Bounds for the SetMaxConcurrent intent (the settings page's range).
+const (
+	minMaxConcurrent = 1
+	maxMaxConcurrent = 64
+)
+
+// sendNotRunning answers an intent that needs a live PTY: unknown_session
+// when the store has no such session, bad_state when it exists but its
+// process has exited.
+func (c *client) sendNotRunning(srv *Server, reqID, sessionID string) {
+	if _, ok := srv.cfg.Store.Get(sessionID); !ok {
+		c.sendError(reqID, protocol.ErrCodeUnknownSession, "session not found")
+		return
+	}
+	c.sendError(reqID, protocol.ErrCodeBadState, "session not running")
 }

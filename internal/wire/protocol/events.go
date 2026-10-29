@@ -121,5 +121,9 @@ const (
 	ErrCodeRegistry        = "registry_invalid"
 	ErrCodeSpawn           = "spawn_failed"
 	ErrCodeTooManySessions = "too_many_sessions"
-	ErrCodeBadState        = "bad_state"
+	// ErrCodeBadState: the session exists but can't take the intent now
+	// (not running, or already being cleared).
+	ErrCodeBadState = "bad_state"
+	// ErrCodeBusy: transient, e.g. the session's input buffer is full; retry.
+	ErrCodeBusy = "busy"
 )

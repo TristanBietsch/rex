@@ -18,6 +18,10 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
+// errTooManySessions is the spawn error when the concurrency cap is reached
+// (reported as too_many_sessions).
+var errTooManySessions = errors.New("too many concurrent sessions")
+
 func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) error {
 	if err := validateNewSession(p); err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
@@ -45,7 +49,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	}
 
 	if !srv.TryAcquireSession() {
-		return fmt.Errorf("too many concurrent sessions (cap=%d)", srv.MaxConcurrentSessions())
+		return fmt.Errorf("%w (cap=%d)", errTooManySessions, srv.MaxConcurrentSessions())
 	}
 	// From here, must release on error.
 

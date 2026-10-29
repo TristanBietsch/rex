@@ -545,14 +545,17 @@ func (s *Server) UnregisterComplete(sessionID string) {
 	delete(s.completeFuncs, sessionID)
 }
 
-// CompleteSession invokes the registered complete closure (no-op if absent).
-// Unlike StopSession, this does NOT block on supervisor exit — the closure
-// is a non-blocking send to a buffered channel.
-func (s *Server) CompleteSession(sessionID string) {
+// CompleteSession invokes the registered complete closure and reports
+// whether there was one (false: the session isn't running). Unlike
+// StopSession, this does NOT block on supervisor exit — the closure is a
+// non-blocking send to a buffered channel.
+func (s *Server) CompleteSession(sessionID string) bool {
 	s.completeMu.Lock()
 	fn := s.completeFuncs[sessionID]
 	s.completeMu.Unlock()
-	if fn != nil {
-		fn()
+	if fn == nil {
+		return false
 	}
+	fn()
+	return true
 }

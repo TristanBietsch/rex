@@ -43,7 +43,9 @@ func (s *Server) retireDeadline(ttlSeconds int64) (time.Time, time.Duration, err
 // deleteSession is the single teardown path for Delete and the retire sweep:
 // stop the supervisor (blocks until it exits), drop the session from the
 // store (broadcasts SessionRemoved with reason), delete its directory. A
-// session that is already gone counts as success so racing deletes are safe.
+// session that is already gone returns errSessionNotFound without side
+// effects, so racing deletes are safe: the sweep ignores it, Delete reports
+// unknown_session.
 func (s *Server) deleteSession(id, reason string) error {
 	start := time.Now()
 	sess, ok := s.cfg.Store.Get(id)
