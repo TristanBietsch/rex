@@ -14,10 +14,10 @@ The TUI settings page (`S`), `rex config`, and the daemon read the same registry
 
 ```sh
 rex config list
-rex config get <id>...
-rex config set <id> <value>...
-rex config reset <id>...
-rex config edit          # opens init.lua in $EDITOR, not config.yaml
+rex config get <id>
+rex config set <id> <value>
+rex config reset <id>
+rex config edit          # opens lua_config_path (init.lua) in $EDITOR, not config.yaml
 ```
 
 ## Keys

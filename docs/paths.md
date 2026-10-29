@@ -51,7 +51,7 @@ The full path must fit the OS limit for a Unix socket path: 104 bytes on macOS, 
 | `REX_LOG_LEVEL` | `rexlog` | `debug`, `info`, `warn`, `error` (default `info`) |
 | `REX_LOG_DIR` | `rexlog` | Override log directory under state |
 | `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer |
-| `EDITOR` | `rex config edit` | Program to edit `init.lua` |
+| `EDITOR` | `rex config edit` | Program (arguments allowed, e.g. `code -w`) to edit the `lua_config_path` file; default `vi`, `notepad` on Windows |
 | `GOPATH` | `rex update` | Module install path resolution |
 | `SHELL` | `rex setup` | Shell profile target for PATH block |
 

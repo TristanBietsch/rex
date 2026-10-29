@@ -53,7 +53,7 @@ Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWai
 
 - `rex reload` → SIGHUP → tools.yaml only (`lifecycle/reload.go`).
 - `rex attach` detach: Ctrl+] (`session/attach.go`).
-- `config edit` → `init.lua` (`setup/config.go`).
+- `config edit` → the `lua_config_path` setting (default `~/.config/rex/init.lua`, `~/` expanded like the daemon does); `$EDITOR` is split on spaces so it may carry arguments (`setup/config.go`).
 - `rex ls` hides sessions whose title starts with `[archived] ` (set by `rex archive`) unless `-show-archived` (`session/archive.go`).
 - Arguments go through the shared `core.ParseArgs`: flags before or after positionals, `--` ends flags, a positional the command does not take exits 5.
 - `core.Version` is a `var` (default `dev`) stamped by `-ldflags "-X github.com/tristanbietsch/rex/internal/surface/cli/core.Version=…"` in `Makefile`, `install.sh` and `install.ps1`; unstamped builds fall back to the module build info.

@@ -269,7 +269,7 @@ rex config edit
 
 `get` and `reset` take exactly one setting id, `set` exactly one id and one value (quote a value with spaces); anything else exits **5**.
 
-`edit` opens `init.lua` in `$EDITOR`, not `config.yaml`. Keys: [settings.md](settings.md).
+`edit` opens the Lua config at `lua_config_path` (default `~/.config/rex/init.lua`, the file the daemon loads) in `$EDITOR`, not `config.yaml`. It creates the file's directory if needed. `$EDITOR` may carry arguments (`code -w`); unset, it is `vi` (`notepad` on Windows). Keys: [settings.md](settings.md).
 
 ---
 
