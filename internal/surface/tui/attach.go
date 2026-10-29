@@ -634,15 +634,6 @@ func vtColor(c vt10x.Color) (lipgloss.Color, bool) {
 	}
 }
 
-func styleEq(a, b lipgloss.Style) bool {
-	return a.GetForeground() == b.GetForeground() &&
-		a.GetBackground() == b.GetBackground() &&
-		a.GetReverse() == b.GetReverse() &&
-		a.GetBold() == b.GetBold() &&
-		a.GetItalic() == b.GetItalic() &&
-		a.GetUnderline() == b.GetUnderline()
-}
-
 func lipglossWidth(s string) int {
 	return lipgloss.Width(s)
 }

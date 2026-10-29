@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/hinshun/vt10x"
+	"github.com/muesli/termenv"
 )
 
 // Local scrollback for the attach popup. Agents on the primary screen (codex
@@ -232,21 +234,11 @@ func updateAttachScrollKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 // column leave it empty) and skipped; text written right after the rune
 // shifts right instead, and the row is cut at cols.
 func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string {
+	profile := lipgloss.ColorProfile()
 	var row strings.Builder
-	var run strings.Builder
-	var runStyle lipgloss.Style
-	var haveStyle bool
-	flush := func() {
-		if run.Len() == 0 {
-			return
-		}
-		if haveStyle {
-			row.WriteString(runStyle.Render(run.String()))
-		} else {
-			row.WriteString(run.String())
-		}
-		run.Reset()
-	}
+	row.Grow(cols + 32)
+	var key glyphKey
+	open := false  // an SGR run is open and needs a reset
 	width := 0     // columns drawn so far
 	simple := true // every rune drawn is one column wide
 	for x := 0; x < cols; x++ {
@@ -260,23 +252,27 @@ func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string 
 			break // a wide rune straddling the right edge
 		}
 		simple = simple && w == 1
-		style := glyphStyle(g)
-		if x == cursorX {
-			// Block cursor: invert the cell, as a terminal does.
-			style = style.Reverse(!style.GetReverse())
+		// Runs break on the raw cell attributes; the style is built once
+		// per distinct key, not per cell.
+		k := glyphKey{fg: g.FG, bg: g.BG, mode: g.Mode & glyphAttrs, cursor: x == cursorX}
+		if x == 0 || k != key {
+			if open {
+				row.WriteString(sgrReset)
+			}
+			sgr := glyphSGR(profile, k)
+			row.WriteString(sgr)
+			open = sgr != ""
+			key = k
 		}
-		if !haveStyle || !styleEq(style, runStyle) {
-			flush()
-			runStyle = style
-			haveStyle = true
-		}
-		run.WriteRune(r)
+		row.WriteRune(r)
 		width += w
 		if w == 2 && x+1 < cols && x+1 != cursorX && isBlankGlyph(cell(x+1)) {
 			x++
 		}
 	}
-	flush()
+	if open {
+		row.WriteString(sgrReset)
+	}
 	out := row.String()
 	if !simple {
 		// Per-rune widths can undercount a grapheme cluster split over
@@ -287,6 +283,53 @@ func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string 
 		}
 	}
 	return out + strings.Repeat(" ", cols-width)
+}
+
+// glyphKey is everything besides the rune that decides how a cell looks.
+type glyphKey struct {
+	fg, bg vt10x.Color
+	mode   int16 // the glyphAttrs bits
+	cursor bool
+}
+
+// glyphAttrs are the Glyph.Mode bits glyphStyle renders.
+const glyphAttrs = vt10x.AttrReverse | vt10x.AttrBold | vt10x.AttrItalic | vt10x.AttrUnderline
+
+const sgrReset = "\x1b[0m"
+
+// sgrCache memoizes the SGR sequence that opens a run of each glyphKey for
+// one color profile. Building a lipgloss style and color strings per cell
+// made one colorful frame cost ~10 ms and 125k allocations.
+var sgrCache struct {
+	sync.Mutex
+	profile termenv.Profile
+	seqs    map[glyphKey]string
+}
+
+// sgrCacheMax bounds the cache (a 24-bit gradient has endless keys).
+const sgrCacheMax = 4096
+
+// glyphSGR returns the escape sequence that starts a run of cells with key
+// k under profile p, "" when the run needs none. lipgloss renders a run as
+// SGR + text + reset, so the sequence is what precedes the text.
+func glyphSGR(p termenv.Profile, k glyphKey) string {
+	sgrCache.Lock()
+	defer sgrCache.Unlock()
+	if sgrCache.seqs == nil || sgrCache.profile != p || len(sgrCache.seqs) >= sgrCacheMax {
+		sgrCache.seqs = make(map[glyphKey]string)
+		sgrCache.profile = p
+	}
+	if s, ok := sgrCache.seqs[k]; ok {
+		return s
+	}
+	st := glyphStyle(vt10x.Glyph{FG: k.fg, BG: k.bg, Mode: k.mode})
+	if k.cursor {
+		// Block cursor: invert the cell, as a terminal does.
+		st = st.Reverse(!st.GetReverse())
+	}
+	s, _, _ := strings.Cut(st.Render("x"), "x")
+	sgrCache.seqs[k] = s
+	return s
 }
 
 // runeCols is the number of terminal columns r takes: 1 below U+0300 (no
