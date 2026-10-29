@@ -10,11 +10,6 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-var (
-	styleArrow       = lipgloss.NewStyle().Foreground(colorWorking)
-	styleArrowYellow = lipgloss.NewStyle().Foreground(colorNeeds)
-)
-
 // renderPrompt builds the bottom prompt line, sized to width.
 func renderPrompt(m Model, width int) string {
 	glyph := promptGlyph(m)

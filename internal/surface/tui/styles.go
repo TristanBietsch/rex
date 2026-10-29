@@ -93,6 +93,10 @@ var (
 	styleChipDim    lipgloss.Style
 	styleChipSep    lipgloss.Style
 
+	// Prompt glyphs (▸ λ : ✎) and the selected-row arrow.
+	styleArrow       lipgloss.Style
+	styleArrowYellow lipgloss.Style
+
 	styleBootOK      lipgloss.Style
 	styleBootFail    lipgloss.Style
 	styleBootWarn    lipgloss.Style
@@ -145,6 +149,9 @@ func rebuildStyles() {
 	styleChipActive = lipgloss.NewStyle().Foreground(colorFgPrimary)
 	styleChipDim = lipgloss.NewStyle().Foreground(colorFgDim)
 	styleChipSep = lipgloss.NewStyle().Foreground(colorFgMuted)
+
+	styleArrow = lipgloss.NewStyle().Foreground(colorWorking)
+	styleArrowYellow = lipgloss.NewStyle().Foreground(colorNeeds)
 
 	styleBootOK = lipgloss.NewStyle().Bold(true).Foreground(colorDone)
 	styleBootFail = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
