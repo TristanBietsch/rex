@@ -203,6 +203,10 @@ func TestBoardLayout_NoneAlignsWithIDColumn(t *testing.T) {
 			rowLine = line
 		}
 	}
-	x := func(line, needle string) int { return ansi.StringWidth(line[:strings.Index(line, needle)]) }
+	x := func(line, needle string) int {
+		i := strings.Index(line, needle)
+		require.GreaterOrEqual(t, i, 0, "%q not found in %q", needle, line)
+		return ansi.StringWidth(line[:i])
+	}
 	require.Equal(t, x(rowLine, "7d4f"), x(noneLine, "(none)"))
 }

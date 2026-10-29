@@ -58,7 +58,11 @@ func TestWriteSessionsTable_Sanitized(t *testing.T) {
 	require.NotContains(t, buf.String(), "\x1b")
 	require.Contains(t, lines[1], "line one line two")
 	// LAST EVENT starts at the same cell on both rows.
-	col := func(line string) int { return ansi.StringWidth(line[:strings.Index(line, "-  ")]) }
+	col := func(line string) int {
+		i := strings.Index(line, "-  ")
+		require.GreaterOrEqual(t, i, 0, "no LAST EVENT cell in %q", line)
+		return ansi.StringWidth(line[:i])
+	}
 	require.Equal(t, col(lines[2]), col(lines[1]))
 }
 
