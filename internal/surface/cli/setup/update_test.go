@@ -17,6 +17,7 @@ import (
 func TestRunUpdate_BinarySwapRefusesBeforeStoppingDaemon(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	// The test binary is not under GOPATH/bin, so this is a binary-swap install.
 	t.Setenv("GOPATH", filepath.Join(home, "go"))
 	// Short dir: unix socket paths cap at 104 bytes on macOS.

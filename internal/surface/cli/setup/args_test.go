@@ -17,6 +17,7 @@ import (
 func TestSetupCommandArity(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir on Windows
 	t.Setenv("XDG_RUNTIME_DIR", dir)
 	cases := []struct {
 		name string
@@ -45,6 +46,7 @@ func TestSetupCommandArity(t *testing.T) {
 func TestRunSetup_YAlias(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir on Windows
 	t.Setenv("XDG_RUNTIME_DIR", dir)
 	cfg := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(cfg, []byte("theme: dark\n"), 0o644))

@@ -20,6 +20,7 @@ func isolateDefaults(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir on Windows
 	t.Setenv("XDG_RUNTIME_DIR", dir)
 }
 

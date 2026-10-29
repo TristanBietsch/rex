@@ -13,6 +13,7 @@ import (
 func TestLifecycleCommandArity(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir on Windows
 	t.Setenv("XDG_RUNTIME_DIR", dir)
 	cases := []struct {
 		name string

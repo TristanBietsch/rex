@@ -105,6 +105,7 @@ func TestRunUninstall_RemovalFailureExitsNonZero(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("XDG_RUNTIME_DIR", home)
 	stateDir := filepath.Join(home, ".local", "state", "rex")
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
