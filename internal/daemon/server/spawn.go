@@ -71,7 +71,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	var childEnv []string
 	hookFile := state.HookFile(cfg.StateDir, id)
 	if tool.Detect.Kind == "hooks" {
-		if err := os.MkdirAll(filepath.Dir(hookFile), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(hookFile), 0o700); err != nil {
 			srv.ReleaseSession()
 			return fmt.Errorf("hook dir: %w", err)
 		}

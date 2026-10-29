@@ -140,6 +140,26 @@ func TestServe_SocketIsOwnerOnly(t *testing.T) {
 	require.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
 }
 
+// A state dir New creates is owner-only, like the daemon's own, and so is
+// the lock file in it.
+func TestNew_StateDirAndLockAreOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permission bits")
+	}
+	dir := shortTempDir(t)
+	stateDir := filepath.Join(dir, "state")
+	_, err := newTestServer(t, filepath.Join(dir, "rex.sock"), stateDir)
+	require.NoError(t, err)
+	for path, want := range map[string]os.FileMode{
+		stateDir:                               0o700,
+		filepath.Join(stateDir, stateLockName): 0o600,
+	} {
+		fi, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, want, fi.Mode().Perm(), path)
+	}
+}
+
 // The common case: a daemon removes its own socket on exit.
 func TestServe_RemovesOwnSocket(t *testing.T) {
 	dir := shortTempDir(t)

@@ -65,11 +65,11 @@ func socketLive(path string) bool {
 // acquireStateLock takes the exclusive lock on <dir>/daemon.lock, waiting up
 // to stateLockWait for a previous daemon to let go of it.
 func acquireStateLock(dir string) (*os.File, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("state dir: %w", err)
 	}
 	path := filepath.Join(dir, stateLockName)
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
