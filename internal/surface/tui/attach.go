@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -609,27 +610,28 @@ func glyphStyle(g vt10x.Glyph) lipgloss.Style {
 		Bold(g.Mode&vt10x.AttrBold != 0).
 		Italic(g.Mode&vt10x.AttrItalic != 0).
 		Underline(g.Mode&vt10x.AttrUnderline != 0)
-	if c, ok := vtFGColor(fg); ok {
+	if c, ok := vtColor(fg); ok {
 		s = s.Foreground(c)
 	}
-	if c, ok := vtBGColor(bg); ok {
+	if c, ok := vtColor(bg); ok {
 		s = s.Background(c)
 	}
 	return s
 }
 
-func vtFGColor(c vt10x.Color) (lipgloss.Color, bool) {
-	if c == vt10x.DefaultFG || c == vt10x.DefaultBG || c == vt10x.DefaultCursor {
+// vtColor maps an emulator color to lipgloss; ok is false for the terminal
+// defaults. vt10x keeps 256-color indexes as is and 24-bit colors as
+// r<<16|g<<8|b, which as a number lipgloss would take for a (bogus) 256-color
+// index, so those become "#rrggbb".
+func vtColor(c vt10x.Color) (lipgloss.Color, bool) {
+	switch {
+	case c == vt10x.DefaultFG || c == vt10x.DefaultBG || c == vt10x.DefaultCursor:
 		return "", false
+	case c < 256:
+		return lipgloss.Color(strconv.Itoa(int(c))), true
+	default:
+		return lipgloss.Color(fmt.Sprintf("#%06x", uint32(c))), true
 	}
-	return lipgloss.Color(fmt.Sprintf("%d", uint32(c))), true
-}
-
-func vtBGColor(c vt10x.Color) (lipgloss.Color, bool) {
-	if c == vt10x.DefaultFG || c == vt10x.DefaultBG || c == vt10x.DefaultCursor {
-		return "", false
-	}
-	return lipgloss.Color(fmt.Sprintf("%d", uint32(c))), true
 }
 
 func styleEq(a, b lipgloss.Style) bool {
