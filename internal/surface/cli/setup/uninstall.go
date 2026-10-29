@@ -67,9 +67,9 @@ func RunUninstall(args []string) error {
 	rexDaemonBin := daemonBinary()
 
 	// State / share / config dirs.
-	stateDir := filepath.Join(home, ".local", "state", "rex")
-	sessionsDir := filepath.Join(home, ".local", "share", "rex", "sessions")
-	configDir := filepath.Join(home, ".config", "rex")
+	stateDir := stateDirPath()
+	sessionsDir := shareDirPath()
+	configDir := configDirPath()
 
 	// Profile files to scan for strip-profile.
 	profileFiles := []string{

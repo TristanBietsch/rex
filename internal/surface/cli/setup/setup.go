@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -26,7 +27,7 @@ func RunSetup(args []string) error {
 	model := fs.String("model", "", "override default model id")
 	effort := fs.String("effort", "", "override default effort")
 	noShell := fs.Bool("no-shell", false, "skip shell integration")
-	configPath := fs.String("config", defaultConfigPath(), "path to config.yaml")
+	configPath := fs.String("config", settings.DefaultPath(), "path to config.yaml")
 	socket := fs.String("socket", core.DefaultSocket(), "daemon socket path")
 	force := fs.Bool("force", false, "overwrite existing config without prompting")
 
@@ -71,11 +72,6 @@ func RunSetup(args []string) error {
 	}
 
 	return tui.RunSetupWizard(*configPath, *socket)
-}
-
-func defaultConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex", "config.yaml")
 }
 
 // ── Preview renderer (cli-side, uses cli lipgloss palette) ───────────────────

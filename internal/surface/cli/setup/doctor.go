@@ -209,23 +209,14 @@ func checkGoVersion() checkResult {
 	return checkResult{"go version", checkInfo, runtime.Version()}
 }
 
-// configDirPath returns ~/.config/rex/.
-func configDirPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex")
-}
+// configDirPath returns ~/.config/rex/, which holds config.yaml.
+func configDirPath() string { return filepath.Dir(settings.DefaultPath()) }
 
-// stateDirPath returns ~/.local/state/rex/.
-func stateDirPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "state", "rex")
-}
+// stateDirPath returns ~/.local/state/rex/, which holds the daemon log.
+func stateDirPath() string { return filepath.Dir(daemonctl.LogPath()) }
 
-// shareDirPath returns ~/.local/share/rex/sessions/.
-func shareDirPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "rex", "sessions")
-}
+// shareDirPath returns ~/.local/share/rex/sessions/ (per-session data).
+func shareDirPath() string { return filepath.Join(daemonctl.DefaultStateDir(), "sessions") }
 
 // printDoctorJSON prints all checks as a single JSON line.
 func printDoctorJSON(checks []checkResult) error {

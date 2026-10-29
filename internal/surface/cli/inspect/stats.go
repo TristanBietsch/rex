@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -59,7 +59,7 @@ func loadSessionsForStats(socket string) ([]protocol.SessionSummary, bool) {
 		slog.Debug("stats: daemon unreachable, falling back to disk", "err", err)
 	}
 
-	root := defaultShareDir()
+	root := daemonctl.DefaultStateDir()
 	sessions, err := state.LoadAll(root)
 	if err != nil {
 		slog.Warn("stats: LoadAll failed", "root", root, "err", err)
@@ -70,11 +70,6 @@ func loadSessionsForStats(socket string) ([]protocol.SessionSummary, bool) {
 		summaries = append(summaries, s.Summary())
 	}
 	return summaries, false
-}
-
-func defaultShareDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "rex")
 }
 
 // statsModelRow holds per-model aggregated data.
