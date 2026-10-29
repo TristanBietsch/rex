@@ -686,9 +686,7 @@ func (m SetupWizardModel) checkDaemonCmd() tea.Cmd {
 
 func startDaemonCmd(socket string) tea.Cmd {
 	return func() tea.Msg {
-		home, _ := os.UserHomeDir()
-		logPath := filepath.Join(home, ".local", "state", "rex", "daemon.log")
-		logf, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		logf, _ := os.OpenFile(daemonctl.LogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		if logf != nil {
 			defer logf.Close()
 		}

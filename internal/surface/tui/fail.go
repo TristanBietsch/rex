@@ -1,10 +1,10 @@
 package tui
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -80,28 +81,48 @@ func updateFailKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// failLogTailBytes bounds how much of daemon.log tailDaemonLog reads: the
+// last failLogTail lines fit easily, and a log of any size costs the same.
+const failLogTailBytes = 64 * 1024
+
+// tailDaemonLog returns the last n lines of daemon.log, reading only its
+// final failLogTailBytes rather than scanning the whole file.
 func tailDaemonLog(n int) []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return []string{"(could not resolve $HOME)"}
-	}
-	path := filepath.Join(home, ".local", "state", "rex", "daemon.log")
+	path := daemonctl.LogPath()
 	f, err := os.Open(path)
 	if err != nil {
 		return []string{fmt.Sprintf("(no log at %s)", path)}
 	}
 	defer f.Close()
-	// Ring buffer of last n lines.
-	ring := make([]string, 0, n+1)
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for sc.Scan() {
-		ring = append(ring, sc.Text())
-		if len(ring) > n {
-			ring = ring[1:]
+	size, err := f.Seek(0, io.SeekEnd)
+	if err == nil {
+		_, err = f.Seek(max(size-failLogTailBytes, 0), io.SeekStart)
+	}
+	var b []byte
+	if err == nil {
+		b, err = io.ReadAll(io.LimitReader(f, failLogTailBytes))
+	}
+	if err != nil {
+		return []string{fmt.Sprintf("(read %s: %v)", path, err)}
+	}
+	if size > failLogTailBytes {
+		// The window starts mid-line; drop the fragment.
+		if i := bytes.IndexByte(b, '\n'); i >= 0 {
+			b = b[i+1:]
 		}
 	}
-	return ring
+	text := strings.TrimRight(string(b), "\r\n")
+	if text == "" {
+		return nil
+	}
+	lines := strings.Split(text, "\n")
+	for i, ln := range lines {
+		lines[i] = strings.TrimSuffix(ln, "\r")
+	}
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return lines
 }
 
 func renderFail(m Model) string {
