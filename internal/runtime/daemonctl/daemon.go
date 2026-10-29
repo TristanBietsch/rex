@@ -67,7 +67,7 @@ type StartResult struct {
 	Elapsed time.Duration
 }
 
-// Start spawns rex-daemon and waits up to ~2 s for the socket to appear.
+// Start spawns rex-daemon and waits up to StartTimeout for the socket to appear.
 // Returns nil StartResult on failure. The caller chooses the log file (pass nil
 // to discard stderr). If the daemon exits before its socket comes up, the
 // error carries the last line it wrote to stderrLog (its fatal error).
