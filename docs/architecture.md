@@ -79,7 +79,7 @@ Detail: [agents/DECISIONS.md](agents/DECISIONS.md).
 | Daemon hooks | `~/.config/rex/init.lua` (in-process; trusted) |
 | Wire protocol | Additive: new optional fields / new intents; breaking: bump `ProtocolVersion` |
 
-Additive changes (new optional fields, new intents, new patch keys) do not bump `ProtocolVersion`: both sides ignore unknown JSON fields, and an old daemon answers an unknown intent with `bad_intent "intent not implemented"`, which clients surface as "run `rex daemon restart`". Changing or removing an existing field's meaning requires a bump (the reader rejects any other version, so a bump breaks every mixed-version pair). `OpenSession` and `Shutdown` intents exist in constants but are not implemented.
+Additive changes (new optional fields, new intents, new patch keys) do not bump `ProtocolVersion`: both sides ignore unknown JSON fields, and an old daemon answers an unknown intent with `bad_intent "intent not implemented"`, which clients surface as "run `rex daemon restart`". Changing or removing an existing field's meaning requires a bump (the reader rejects any other version, so a bump breaks every mixed-version pair). The `OpenSession` intent exists in constants but is not implemented. `Shutdown` and `Reload` are the socket forms of SIGTERM and SIGHUP; Windows `rex daemon stop` uses `Shutdown`.
 
 ## See also
 

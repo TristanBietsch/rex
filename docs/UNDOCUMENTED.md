@@ -7,11 +7,9 @@ Facts not fully specified in code comments or stable APIs. Listed for maintainer
 | Item | Location | Notes |
 |------|----------|-------|
 | `IntentOpenSession` | `internal/wire/protocol/intents.go` | Constant exists; server returns `bad_intent` |
-| `IntentShutdown` | same | Not implemented |
 | `FocusFilter` | `server/client.go` | Accepted, no-op; board filter is client-side |
 | `ErrCodeAmbiguousID` | `protocol/events.go` | Defined, never emitted |
-| `ErrCodeRegistryInvalid` | same | Defined, never emitted |
-| `ErrCodeBadState` | same | Defined, never emitted |
+| `ErrCodeRegistry` (`registry_invalid`) | same | Defined, never emitted |
 
 ## CLI
 
@@ -27,7 +25,7 @@ Facts not fully specified in code comments or stable APIs. Listed for maintainer
 | Item | Location | Notes |
 |------|----------|-------|
 | `SectionOnboarding` | `settings/types.go` | No settings use this section |
-| `max_concurrent_sessions` help text | `registry.go` | Says "next daemon start"; TUI can live-update cap |
+| `max_concurrent_sessions` help text | `registry.go` | Says "next daemon start"; the TUI settings screen also applies the cap live (`SetMaxConcurrent`) |
 
 ## TUI
 

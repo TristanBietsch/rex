@@ -66,11 +66,13 @@ Non-obvious choices an agent might undo without context.
 
 **Why:** Wire protocol version is `protocol.ProtocolVersion`; daemon banner version is independent (do not conflate when debugging).
 
-## IntentOpenSession / IntentShutdown undefined in server
+## IntentOpenSession undefined in server
 
-**Chosen:** Constants exist in `protocol` but `server` handler has no cases.
+**Chosen:** Constant exists in `protocol` but `server` handler has no case; the server answers `bad_intent`.
 
-**Why:** Dead protocol surface or future work — clients must not rely on them until implemented.
+**Why:** Dead protocol surface or future work — clients must not rely on it until implemented.
+
+`IntentShutdown` and `IntentReload` started out the same way; both are now handled as the socket forms of SIGTERM and SIGHUP, because Windows cannot signal the daemon.
 
 ## vt10x forked in-tree for scrollback
 

@@ -11,6 +11,8 @@ Human reference: **[../../cli.md](../../cli.md)** — commands, flags, selectors
 | Command | Package | Handler |
 |---------|---------|---------|
 | *(none)* | `meta` | `RunTUI` |
+| `--help`, `-h`, `help` | `core` | `RunHelp` |
+| `--version`, `-v`, `version` | `core` | `RunVersion` |
 | `status` | `inspect` | `RunStatus` |
 | `ls` | `session` | `RunLs` |
 | `new` | `session` | `RunNew` |
@@ -21,6 +23,9 @@ Human reference: **[../../cli.md](../../cli.md)** — commands, flags, selectors
 | `wait` | `session` | `RunWait` |
 | `rm` | `session` | `RunRm` |
 | `rename` | `session` | `RunRename` |
+| `name` | `session` | `RunName` |
+| `done`, `retire` | `session` | `RunDone` |
+| `undone`, `unretire` | `session` | `RunUndone` |
 | `archive` | `session` | `RunArchive` |
 | `complete` | `meta` | `RunComplete` |
 | `reload` | `lifecycle` | `RunReload` |
@@ -38,7 +43,7 @@ Human reference: **[../../cli.md](../../cli.md)** — commands, flags, selectors
 
 ## Exit codes
 
-Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWaitTimedOut` (7). `status` exits 1 on `needs_input` without always using `ExitCoder`.
+Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWaitTimedOut` (7). Handlers return `core.ExitError`; any other error exits 1 (`cmd/rex/main.go` `exitCodeFor`). `status` returns `ExitGeneric` (1) with an empty message on `needs_input`, so nothing is printed.
 
 ## Selectors
 
@@ -50,3 +55,5 @@ Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWai
 - `rex attach` detach: Ctrl+] (`session/attach.go`).
 - `config edit` → `init.lua` (`setup/config.go`).
 - `ls -short`, `new -no-attach`: flags parsed, no effect.
+- Arguments go through the shared `core.ParseArgs`: flags before or after positionals, `--` ends flags, a positional the command does not take exits 5.
+- `core.Version` is a `var` (default `dev`) stamped by `-ldflags "-X github.com/tristanbietsch/rex/internal/surface/cli/core.Version=…"` in `Makefile`, `install.sh` and `install.ps1`; unstamped builds fall back to the module build info.

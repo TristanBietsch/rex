@@ -15,7 +15,7 @@ Defines the newline-delimited JSON wire format between `rex` clients and `rex-da
 
 - `ProtocolVersion = 1`
 - `KindIntent`, `KindEvent` (`Kind` type)
-- Intent types: `IntentHello`, `IntentSubscribe`, `IntentNewSession`, `IntentOpenSession`, `IntentSendInput`, `IntentReply`, `IntentRename`, `IntentDelete`, `IntentResize`, `IntentFocusFilter`, `IntentShutdown`, `IntentSetMaxConcurrent`, `IntentSetSessionFleet`, `IntentComplete`
+- Intent types: `IntentHello`, `IntentSubscribe`, `IntentNewSession`, `IntentOpenSession`, `IntentSendInput`, `IntentReply`, `IntentRename`, `IntentDelete`, `IntentResize`, `IntentFocusFilter`, `IntentShutdown`, `IntentSetMaxConcurrent`, `IntentSetSessionFleet`, `IntentComplete`, `IntentSetSessionName`, `IntentRetire`, `IntentUnretire`, `IntentReload`
 - Event types: `EventSnapshot`, `EventSessionAdded`, `EventSessionUpdated`, `EventSessionRemoved`, `EventSessionOutput`, `EventSummarizerHealth`, `EventError`
 - States: `StateQueued`, `StateWorking`, `StateNeedsInput`, `StateDone`, `StateFailed`, `StateCrashed`
 - Error codes: `ErrCodeBadIntent`, `ErrCodeUnknownSession`, `ErrCodeAmbiguousID`, `ErrCodeRegistry`, `ErrCodeSpawn`, `ErrCodeTooManySessions`, `ErrCodeBadState`
@@ -55,7 +55,7 @@ Codec returns decode errors; server maps handler failures to `EventError` with s
 
 ## Gotchas
 
-`IntentOpenSession` and `IntentShutdown` exist in `intents.go` but `internal/daemon/server/client.go` does not handle them (would return not-implemented style error if sent). `IntentFocusFilter` is cosmetic per-client state.
+`IntentOpenSession` exists in `intents.go` but `internal/daemon/server/client.go` does not handle it (the server answers `bad_intent` "intent not implemented"). `IntentShutdown` and `IntentReload` are handled (socket forms of SIGTERM / SIGHUP). `ErrCodeAmbiguousID` and `ErrCodeRegistry` are defined but never emitted; `ErrCodeBadState` is sent for `Unretire` once the reaper has claimed the session. `IntentFocusFilter` is cosmetic per-client state.
 
 ## See also
 

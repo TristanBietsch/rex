@@ -54,7 +54,7 @@ Broad coverage: `server_test.go`, `client_test.go`, `streaming_test.go`, `concur
 
 ## Gotchas
 
-`IntentOpenSession` / `IntentShutdown` not implemented in handler switch. `FocusFilter` stored per connection only. `StopSession` blocks until supervisor exits; `CompleteSession` non-blocking signal.
+`IntentOpenSession` not implemented in handler switch. `IntentShutdown` / `IntentReload` call `Config.OnShutdown` / `OnReload` (nil = `bad_intent`); the daemon wires them so Windows can stop and reload without signals. `FocusFilter` stored per connection only. `StopSession` blocks until supervisor exits; `CompleteSession` non-blocking signal.
 
 ## See also
 
