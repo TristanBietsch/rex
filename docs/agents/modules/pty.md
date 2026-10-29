@@ -20,15 +20,17 @@ Package also exports sanitize helpers used internally (see `sanitize.go`; not al
 
 ## Internal structure
 
-- `supervisor.go` — main loop: spawn, read PTY, adapter ticks, persist, exit handling.
-- `sanitize.go` — ANSI stripping for classification and summarizer input.
-- `supervisor_test.go`, `sanitize_test.go`
+- `supervisor.go` — main loop: spawn, read PTY, adapter ticks, persist, exit handling, `killAndReap`.
+- `console.go`, `console_unix.go`, `console_windows.go` — PTY / ConPTY wrapper; `KillTree` (Unix: SIGKILL the process group, the child runs under `Setsid`; Windows: `taskkill /T /F`, a no-op once the child has exited).
+- `modes.go` — terminal-mode tracking for `mode_sync`.
+- `sanitize.go` — ANSI stripping for classification and display; `sanitizePaste` for the initial prompt.
+- `supervisor_test.go`, `sanitize_test.go`, `modes_test.go`, `stop_test.go`, `tree_unix_test.go`
 
 ## Invariants
 
 `Run` blocks until child exit, context cancel (`StateFailed`), or `CompleteCh` (`StateDone`). `Adapter` nil skips state classification.
 
-`OutputSink` must be non-blocking (server uses buffered fan-out).
+`OutputSink` runs on the PTY reader goroutine and must not block; the supervisor does not make it non-blocking (the server's sink enqueues into each client's bounded queue).
 
 ## Side effects
 
@@ -36,7 +38,7 @@ Spawns child process with PTY. Writes the transcript through a kept-open `state.
 
 ## Error handling
 
-Spawn and PTY errors fail `Run`. Context cancel marks failed state (distinct from `CompleteCh`).
+Spawn and PTY errors fail `Run`; a setup failure after the child started (working transition, `OpenTranscript`) kills and reaps it and marks the session failed. Context cancel kills the tree, marks failed and writes `meta.json` (so a clean daemon shutdown doesn't reload it as crashed), except for a delete (`ErrSessionDeleted`). When the child exits on its own the supervisor kills its leftover process group before reaping.
 
 ## Tests
 

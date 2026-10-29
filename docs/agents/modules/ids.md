@@ -3,7 +3,7 @@
 **Path:** `internal/runtime/ids`
 **Depends on:** (none) | external: standard library (`crypto/rand`, `fmt`)
 **Depended on by:** `internal/daemon/server`
-**Entry points:** `NewSessionID`, `ShortID`, `ExtendShortID`
+**Entry points:** `NewSessionID`, `ExtendShortID`
 
 ## Purpose
 
@@ -14,7 +14,6 @@ Generates RFC 4122 v4 session UUIDs and derives 4-character `short_id` prefixes 
 ### Functions
 
 - `NewSessionID() string` — random UUID string.
-- `ShortID(id string) string` — first four hex characters of `id`.
 - `ExtendShortID(id string, taken map[string]struct{}) string` — shortest prefix of `id` (minimum 4 chars) not present in `taken`.
 
 ## Internal structure
@@ -24,8 +23,7 @@ Generates RFC 4122 v4 session UUIDs and derives 4-character `short_id` prefixes 
 
 ## Invariants
 
-- `ShortID` assumes `id` is at least four characters (callers pass full UUIDs).
-- `ExtendShortID` never returns a prefix shorter than four characters.
+- `ExtendShortID` never returns a prefix shorter than four characters. There is no separate `ShortID` helper (removed; it was test-only): a short id is always `ExtendShortID` against the store's `TakenShortIDs()`.
 
 ## Side effects
 
@@ -37,7 +35,7 @@ None.
 
 ## Tests
 
-`ids_test.go` covers `ShortID` and `ExtendShortID` disambiguation.
+`ids_test.go` covers `NewSessionID` and `ExtendShortID` disambiguation.
 
 ## Gotchas
 
