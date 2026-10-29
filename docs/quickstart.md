@@ -4,7 +4,7 @@ Goal: install Rex, spawn one test session, and read its status from the shell.
 
 End state: `rex-daemon` running, one `echo` session on the board, and a `rex status` line you can parse.
 
-Requires: macOS or Linux, Go 1.26+ if you build from source, network not required after build.
+Requires: macOS, Linux, or Windows 10 1809+ / 11; Go 1.26.10+ if you build from source (the installers check); network not required after build.
 
 ## 1. Build and install
 
@@ -20,6 +20,12 @@ Or build in place:
 ```sh
 make build
 export PATH="$PWD:$PATH"
+```
+
+On Windows (PowerShell), `install.ps1` installs to `~\.local\bin` and adds it to your user PATH; open a new terminal afterwards. The `echo` test tool used below needs `bash` on PATH (Git for Windows provides it).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 ## 2. First-time config

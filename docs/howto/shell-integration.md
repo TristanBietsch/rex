@@ -14,18 +14,24 @@ After `./install.sh`:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Or append the block from:
+Or append the block `--shell-init` prints for your login shell (`$SHELL`). It puts the install's bin directory on `PATH` and loads completions:
 
 ```sh
-./install.sh --shell-init >> ~/.zshrc
+./install.sh --shell-init >> ~/.zshrc                      # zsh
+./install.sh --shell-init >> ~/.bashrc                     # bash
+./install.sh --shell-init >> ~/.config/fish/config.fish    # fish
 ```
+
+For a shell other than `$SHELL`, set it: `SHELL=bash ./install.sh --shell-init`. The zsh block loads completion only when `compinit` has already run, so append it after `compinit` (or after your framework's init, such as oh-my-zsh).
 
 ## Completions
 
+To load completions without the block:
+
 ```sh
-rex completion zsh  >> ~/.zshrc
-rex completion bash >> ~/.bashrc
-rex completion fish >> ~/.config/fish/completions/rex.fish
+source <(rex completion zsh)                              # in ~/.zshrc, after compinit
+eval "$(rex completion bash)"                             # in ~/.bashrc
+rex completion fish > ~/.config/fish/completions/rex.fish
 ```
 
 Restart the shell.
