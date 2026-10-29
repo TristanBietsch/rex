@@ -41,21 +41,6 @@ var boardGroups = []boardGroup{
 	}},
 }
 
-// filterByGroup applies the group predicate plus the active tool filter.
-func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter string) []protocol.SessionSummary {
-	out := make([]protocol.SessionSummary, 0, len(sessions))
-	for _, s := range sessions {
-		if !g.Match(s) {
-			continue
-		}
-		if filter != "all" && filter != "" && s.ToolID != filter {
-			continue
-		}
-		out = append(out, s)
-	}
-	return out
-}
-
 // partitionSessions buckets sessions into board columns in one pass (O(n) vs 3× scan).
 func partitionSessions(sessions []protocol.SessionSummary, filter string) [][]protocol.SessionSummary {
 	out := make([][]protocol.SessionSummary, len(boardGroups))
