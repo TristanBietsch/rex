@@ -3,6 +3,10 @@ package tui
 import (
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // DescAnim is the active animation for a single session's description cell.
@@ -22,7 +26,8 @@ func (a DescAnim) Active(now time.Time) bool {
 }
 
 // renderAnimFrame returns a width-padded rendering of the animation at `now`.
-// Output is always exactly `width` runes wide.
+// Output is one row (the texts go through protocol.SingleLine) exactly
+// `width` terminal columns wide; wide runes count double.
 func renderAnimFrame(a DescAnim, width int, now time.Time) string {
 	if width <= 0 {
 		return ""
@@ -34,18 +39,22 @@ func renderAnimFrame(a DescAnim, width int, now time.Time) string {
 	if p > 1 {
 		p = 1
 	}
-	to := padOrTruncateRunes(a.To, width)
-	from := padOrTruncateRunes(a.From, width)
+	to := []rune(fitColumns(protocol.SingleLine(a.To), width))
+	from := []rune(fitColumns(protocol.SingleLine(a.From), width))
+	var frame string
 	switch a.Effect {
 	case "decode":
-		return decodeFrame(to, p, now)
+		frame = decodeFrame(to, p, now)
 	case "wipe":
-		return wipeFrame(to, from, p, width)
+		frame = wipeFrame(to, from, p, width)
 	case "typewriter":
 		fallthrough
 	default:
-		return typewriterFrame(to, p, width)
+		frame = typewriterFrame(to, p, width)
 	}
+	// The effects index runes, so with wide runes a frame can be a column
+	// short or long mid-effect.
+	return fitColumns(frame, width)
 }
 
 func typewriterFrame(to []rune, p float64, width int) string {
@@ -103,17 +112,14 @@ func wipeFrame(to, from []rune, p float64, width int) string {
 	return b.String()
 }
 
-func padOrTruncateRunes(s string, width int) []rune {
-	rs := []rune(s)
-	if len(rs) >= width {
-		return rs[:width]
+// fitColumns cuts s to at most width terminal columns and pads it with
+// spaces to exactly width. A wide rune straddling the edge is dropped.
+func fitColumns(s string, width int) string {
+	s = ansi.Truncate(s, width, "")
+	if w := ansi.StringWidth(s); w < width {
+		s += strings.Repeat(" ", width-w)
 	}
-	out := make([]rune, width)
-	copy(out, rs)
-	for i := len(rs); i < width; i++ {
-		out[i] = ' '
-	}
-	return out
+	return s
 }
 
 func safeAt(r []rune, i int) rune {

@@ -340,7 +340,8 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCol
 	return c
 }
 
-// cell renders s truncated and padded to exactly w columns.
+// cell renders untrusted text s as one row, truncated and padded to exactly
+// w columns.
 func cell(style lipgloss.Style, s string, w int) string {
 	return style.Width(w).Render(truncate(s, w))
 }
@@ -381,11 +382,15 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	} else if retiring {
 		descColor = colorFgMuted
 	}
-	descSource := rowDescription(s)
+	descStyle := lipgloss.NewStyle().Foreground(descColor)
+	var desc string
 	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
-		descSource = renderAnimFrame(anim, c.desc, now)
+		// Frames are sanitized and exactly c.desc wide already; cell would
+		// collapse the wipe effect's space padding.
+		desc = descStyle.Render(renderAnimFrame(anim, c.desc, now))
+	} else {
+		desc = cell(descStyle, rowDescription(s), c.desc)
 	}
-	desc := cell(lipgloss.NewStyle().Foreground(descColor), descSource, c.desc)
 
 	gap := strings.Repeat(" ", colGap)
 	indent := " " + markerPrefix + " " // 3 chars total: marker arrow indent
@@ -403,7 +408,8 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
 	}
 	if c.run > 0 {
-		b.WriteString(gap + cell(lipgloss.NewStyle(), longRunBadge(now, s), c.run))
+		// The badge is rex's own styled text: cell would strip its escapes.
+		b.WriteString(gap + padLine(longRunBadge(now, s), c.run))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
 	row := b.String()
@@ -512,13 +518,17 @@ func formatTokens(n int64) string {
 	}
 }
 
-// truncate cuts s to at most n terminal columns (wide runes count double),
-// ending in "…" when cut. Counting runes instead of columns let CJK / emoji
-// text overflow its cell, and lipgloss then wrapped the row onto two lines.
+// truncate makes untrusted text s one terminal row (protocol.SingleLine: a
+// newline in a multi-line prompt spilled its board row over several screen
+// lines; an escape could repaint the screen) and cuts it to at most n columns
+// (wide runes count double), ending in "…" when cut. Counting runes instead
+// of columns let CJK / emoji text overflow its cell, and lipgloss then
+// wrapped the row onto two lines.
 func truncate(s string, n int) string {
 	if n <= 0 {
 		return ""
 	}
+	s = protocol.SingleLine(s)
 	if ansi.StringWidth(s) <= n {
 		return s
 	}
