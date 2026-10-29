@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/hinshun/vt10x"
 	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
@@ -45,6 +47,36 @@ func TestGlyphStyle_SGRAttributes(t *testing.T) {
 	require.Regexp(t, `\x1b\[(\d+;)*7(;\d+)*mR`, row)
 	require.Regexp(t, `\x1b\[(\d+;)*1(;\d+)*mB`, row)
 	require.Regexp(t, `\x1b\[(\d+;)*4(;\d+)*mU`, row)
+}
+
+func TestAttachGlyphRow_WideRunesFitCols(t *testing.T) {
+	cases := []struct {
+		name, out, want string
+	}{
+		{"written in sequence", "你好世界abc", "你好世界abc"},
+		{"placed by column", "你\x1b[1;3H好\x1b[1;5Hx", "你好x"},
+		{"wider than the row", strings.Repeat("日", 20), strings.Repeat("日", 10)},
+		{"straddles the edge", "a" + strings.Repeat("日", 10), "a" + strings.Repeat("日", 9)},
+		{"emoji with selector", "❤️ ok", "❤️ ok"},
+	}
+	for _, c := range cases {
+		_, row := termRow(t, 20, c.out)
+		require.Equal(t, 20, ansi.StringWidth(row), c.name)
+		require.Equal(t, c.want, strings.TrimRight(ansi.Strip(row), " "), c.name)
+	}
+}
+
+func TestAttachGlyphRow_CursorAfterWideRuneStaysVisible(t *testing.T) {
+	withTrueColor(t)
+	term := vt10x.New(vt10x.WithSize(6, 1))
+	_, _ = term.Write([]byte("你"))
+	term.Lock()
+	defer term.Unlock()
+	cur := term.Cursor()
+	require.Equal(t, 1, cur.X)
+	row := attachGlyphRow(6, func(x int) vt10x.Glyph { return term.Cell(x, 0) }, cur.X)
+	require.Contains(t, row, "\x1b[7m ", "cursor cell drawn")
+	require.Equal(t, 6, ansi.StringWidth(row))
 }
 
 func TestAttachGlyphRow_CursorInvertsReversedCell(t *testing.T) {

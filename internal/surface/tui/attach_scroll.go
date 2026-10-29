@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/hinshun/vt10x"
 )
 
@@ -220,8 +221,16 @@ func updateAttachScrollKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// attachGlyphRow renders one row of cols cells; cursorX < 0 draws no cursor.
-// Callers reading live cells must hold the term lock.
+// attachGlyphRow renders one row of cols cells as exactly cols terminal
+// columns; cursorX < 0 draws no cursor. Callers reading live cells must hold
+// the term lock.
+//
+// vt10x gives every rune one cell, but the terminal draws a wide (CJK,
+// emoji) rune over two columns, so a row with wide runes came out wider than
+// the popup, which then re-centered and threw off mouse hit-testing. A blank
+// cell after a wide rune is taken as its right half (apps that place text by
+// column leave it empty) and skipped; text written right after the rune
+// shifts right instead, and the row is cut at cols.
 func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string {
 	var row strings.Builder
 	var run strings.Builder
@@ -238,12 +247,19 @@ func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string 
 		}
 		run.Reset()
 	}
+	width := 0     // columns drawn so far
+	simple := true // every rune drawn is one column wide
 	for x := 0; x < cols; x++ {
 		g := cell(x)
 		r := g.Char
 		if r == 0 || r == ' ' {
 			r = ' '
 		}
+		w := runeCols(r)
+		if width+w > cols {
+			break // a wide rune straddling the right edge
+		}
+		simple = simple && w == 1
 		style := glyphStyle(g)
 		if x == cursorX {
 			// Block cursor: invert the cell, as a terminal does.
@@ -255,9 +271,38 @@ func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string 
 			haveStyle = true
 		}
 		run.WriteRune(r)
+		width += w
+		if w == 2 && x+1 < cols && x+1 != cursorX && isBlankGlyph(cell(x+1)) {
+			x++
+		}
 	}
 	flush()
-	return row.String()
+	out := row.String()
+	if !simple {
+		// Per-rune widths can undercount a grapheme cluster split over
+		// cells (emoji + variation selector): measure the real thing.
+		if width = ansi.StringWidth(out); width > cols {
+			out = ansi.Truncate(out, cols, "")
+			width = ansi.StringWidth(out)
+		}
+	}
+	return out + strings.Repeat(" ", cols-width)
+}
+
+// runeCols is the number of terminal columns r takes: 1 below U+0300 (no
+// wide or combining runes there), else per ansi.StringWidth.
+func runeCols(r rune) int {
+	if r < 0x300 {
+		return 1
+	}
+	return ansi.StringWidth(string(r))
+}
+
+// isBlankGlyph reports whether g draws nothing: an empty or space cell on
+// the default background, not reversed or underlined.
+func isBlankGlyph(g vt10x.Glyph) bool {
+	return (g.Char == 0 || g.Char == ' ') && g.BG == vt10x.DefaultBG &&
+		g.Mode&(vt10x.AttrReverse|vt10x.AttrUnderline) == 0
 }
 
 var blankGlyph = vt10x.Glyph{Char: ' ', FG: vt10x.DefaultFG, BG: vt10x.DefaultBG}
