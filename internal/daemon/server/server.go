@@ -99,7 +99,7 @@ type Server struct {
 	connsClosed bool
 
 	inputMu       sync.Mutex
-	inputChannels map[string]chan []byte
+	inputChannels map[string]*sessionInput
 
 	// subSeq numbers output and health subscriptions so cancel can remove
 	// exactly its own entry.
@@ -329,9 +329,9 @@ func (s *Server) RegisterInputChannel(sessionID string, ch chan []byte) {
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	if s.inputChannels == nil {
-		s.inputChannels = make(map[string]chan []byte)
+		s.inputChannels = make(map[string]*sessionInput)
 	}
-	s.inputChannels[sessionID] = ch
+	s.inputChannels[sessionID] = &sessionInput{ch: ch}
 }
 
 // UnregisterInputChannel removes the channel after the session exits.
@@ -343,6 +343,14 @@ func (s *Server) UnregisterInputChannel(sessionID string) {
 
 // InputChannel returns the channel for a session, or nil if none registered.
 func (s *Server) InputChannel(sessionID string) chan []byte {
+	if in := s.input(sessionID); in != nil {
+		return in.ch
+	}
+	return nil
+}
+
+// input returns a running session's input, or nil.
+func (s *Server) input(sessionID string) *sessionInput {
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	return s.inputChannels[sessionID]

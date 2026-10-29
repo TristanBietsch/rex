@@ -81,7 +81,10 @@ type SendInput struct {
 	Synthetic bool `json:"synthetic,omitempty"`
 }
 
-// Reply is a convenience for inline text replies. Daemon appends a newline.
+// Reply is a convenience for inline text replies. The daemon drops control
+// characters and escapes from Text (keeping newline and tab), types it, then
+// presses Enter (\r) as a separate write ~120ms later. Use SendInput for raw
+// keys.
 type Reply struct {
 	SessionID string `json:"session_id"`
 	Text      string `json:"text"`

@@ -13,11 +13,6 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// replySubmitDelay separates a Reply's text from its Enter keystroke so TUIs
-// commit the text to their input box before submitting (matches the initial
-// prompt paste path in pty.Supervisor).
-const replySubmitDelay = 120 * time.Millisecond
-
 func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	cfg := srv.cfg
 	// Every event to this client goes through c's queue: store broadcasts and
@@ -167,18 +162,20 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			ch := srv.InputChannel(p.SessionID)
-			if ch == nil {
+			in := srv.input(p.SessionID)
+			if in == nil {
 				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
 				continue
 			}
-			select {
-			case ch <- p.Bytes:
-				if !p.Synthetic {
-					srv.cancelRetireOnInput(p.SessionID, "SendInput")
-				}
-			default:
+			in.lock()
+			sent := in.trySend(p.Bytes)
+			in.mu.Unlock()
+			if !sent {
 				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+				continue
+			}
+			if !p.Synthetic {
+				srv.cancelRetireOnInput(p.SessionID, "SendInput")
 			}
 
 		case protocol.IntentReply:
@@ -191,27 +188,24 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			ch := srv.InputChannel(p.SessionID)
-			if ch == nil {
+			in := srv.input(p.SessionID)
+			if in == nil {
 				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
 				continue
 			}
-			// Text, then Enter as a separate write. Terminals send Enter as
-			// \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
-			// Claude Code insert a newline on \n instead of submitting, and
-			// treat text+\r in one burst as a paste.
-			select {
-			case ch <- []byte(p.Text):
-			default:
-				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
-				continue
-			}
-			time.Sleep(replySubmitDelay)
-			select {
-			case ch <- []byte{'\r'}:
-				slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
-				srv.cancelRetireOnInput(p.SessionID, "Reply")
-			default:
+			// Reply is text to type, not raw keys: no escapes, no early
+			// submit. The Enter follows on a timer, so the read loop goes on.
+			text := sanitizeReplyText(p.Text)
+			id, reqID := p.SessionID, env.ID
+			queued := in.reply(text, func(ok bool) {
+				if !ok {
+					c.sendError(reqID, protocol.ErrCodeUnknownSession, "input buffer full")
+					return
+				}
+				slog.Debug("server: reply submitted", "session", id, "bytes", len(text))
+				srv.cancelRetireOnInput(id, "Reply")
+			})
+			if !queued {
 				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
 			}
 
