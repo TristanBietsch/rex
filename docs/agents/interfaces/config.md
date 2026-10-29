@@ -14,7 +14,7 @@ Human reference: **[../../paths.md](../../paths.md)** (paths, env, daemon flags)
 
 ## Settings vs daemon cap
 
-- `max_concurrent_sessions` in YAML does not set daemon startup cap (`-max-concurrent-sessions` flag does).
+- `max_concurrent_sessions` in YAML is read once at daemon start.
 - TUI settings UI can call `SetMaxConcurrent` live (`internal/surface/tui/settings.go`).
 
 ## Reload scope

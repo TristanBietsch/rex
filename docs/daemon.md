@@ -21,6 +21,14 @@ The daemon loads the tool registry, restores persisted sessions from disk, accep
 
 On startup, sessions that were `queued`, `working`, or `needs_input` are remapped to `crashed` because child processes do not survive daemon exit.
 
+### Single instance
+
+One daemon runs per state dir. A second `rex-daemon` refuses to start (exit 1) when a daemon already listens on the socket or holds `<state-dir>/daemon.lock`.
+
+### Socket
+
+The socket is created with mode `0600`. Its path must fit the OS limit for a Unix socket path: 104 bytes on macOS, 108 on Linux. A longer `-socket` (or default derived from `XDG_RUNTIME_DIR` / the home directory) fails at startup with an error that names the limit; choose a shorter path. State and log directories are `0700`, their files `0600` (see [paths.md](paths.md#permissions)).
+
 ## OPTIONS
 
 | Flag | Default | Description |
@@ -40,7 +48,7 @@ On startup, sessions that were `queued`, `working`, or `needs_input` are remappe
 | `SIGINT`, `SIGTERM` | Shut down; unlink socket |
 | `SIGHUP` | Reload `tools.yaml` into the running registry; PTYs unchanged |
 
-`rex reload` sends `SIGHUP` to the running daemon process.
+`rex reload` sends `SIGHUP` to the running daemon process. Windows has no such signals: there `rex reload` and `rex daemon stop` send the `Reload` and `Shutdown` intents over the socket (see [protocol.md](protocol.md)).
 
 Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config.
 
@@ -50,6 +58,7 @@ Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reloa
 |------|------|
 | `<state-dir>/sessions/<id>/meta.json` | Session metadata |
 | `<state-dir>/sessions/<id>/transcript.log` | Raw PTY output |
+| `<state-dir>/daemon.lock` | Single-instance lock |
 | Socket path | See [paths.md](paths.md) |
 | `~/.local/state/rex/daemon.log` | Stderr when started via `rex daemon start` |
 

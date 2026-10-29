@@ -58,7 +58,7 @@ Registry completeness; store round-trip; type coercion.
 
 ## Gotchas
 
-`max_concurrent_sessions` documents "next daemon start" — live cap is `rex-daemon -max-concurrent-sessions` / `SetMaxConcurrent` intent. `lua_config_path` is read-only in UI. Adding a setting requires one `Setting` literal in `registry.go` only (comment in file).
+`max_concurrent_sessions` documents "next daemon start": the daemon reads it from `config.yaml` at startup; the TUI also pushes changes live via the `SetMaxConcurrent` intent. `lua_config_path` is read-only in UI. Adding a setting requires one `Setting` literal in `registry.go` only (comment in file).
 
 ## See also
 

@@ -23,9 +23,14 @@ Canonical list of files and directories Rex uses. See [glossary.md](glossary.md)
 | `~/.config/rex/config.yaml` | `rex setup`, TUI settings, `rex config` | User settings (flat keys) |
 | `~/.config/rex/tools.yaml` | User | Tool registry overlay |
 | `~/.config/rex/init.lua` | User | Optional Lua hooks |
+| `~/.local/share/rex/daemon.lock` | `rex-daemon` | Single-instance lock (`<state-dir>/daemon.lock`); see [daemon.md](daemon.md#single-instance) |
 | `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection and filter; read once on next launch, then deleted |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
 | `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`) |
+
+## Permissions
+
+On macOS and Linux, rex creates the state and log directories (`~/.local/share/rex/`, its `sessions/<id>/` subdirectories, and `~/.local/state/rex/`) with mode `0700` and the files in them with `0600`. The daemon sets the socket to `0600`. Other local users can neither read transcripts nor connect to the daemon.
 
 ## Socket
 
@@ -35,6 +40,8 @@ Default Unix domain socket path:
 2. Otherwise `~/.cache/rex/rex.sock`
 
 Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial the daemon.
+
+The full path must fit the OS limit for a Unix socket path: 104 bytes on macOS, 108 on Linux. A longer path (for example under a deep `XDG_RUNTIME_DIR` or home directory) makes the daemon exit with an error; pass a shorter `-socket`.
 
 ## Environment variables
 
