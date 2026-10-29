@@ -34,6 +34,25 @@ func TestNormalizeSessionName(t *testing.T) {
 	}
 }
 
+func TestSingleLine(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+	}{
+		{"multi-line prompt", "Prompt\n\nI am new\n\nThis repo", "Prompt I am new This repo"},
+		{"crlf and tabs", "a\r\n\tb", "a b"},
+		{"esc stripped", "x\x1b[2Jy", "x[2Jy"},
+		{"c1 stripped", "a\u009bb", "ab"},
+		{"bidi stripped", "a‮b", "ab"},
+		{"no length cap", strings.Repeat("a", 500), strings.Repeat("a", 500)},
+		{"empty", "\n\t ", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			require.Equal(t, c.want, SingleLine(c.in))
+		})
+	}
+}
+
 func TestNormalizeSessionName_Limit(t *testing.T) {
 	ok := strings.Repeat("界", MaxSessionNameRunes)
 	got, err := NormalizeSessionName(ok)
