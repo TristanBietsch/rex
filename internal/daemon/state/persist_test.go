@@ -109,6 +109,21 @@ func TestLoadAllRecoversCrashed(t *testing.T) {
 		"previously-working sessions must reload as crashed")
 }
 
+// A WriteMeta interrupted between create and rename leaves a temp file; the
+// next startup removes it and still loads the session.
+func TestLoadAll_RemovesStaleMetaTemps(t *testing.T) {
+	dir := t.TempDir()
+	sess := &Session{ID: "id1", ShortID: "id1", State: protocol.StateDone, StartedAt: time.Now().UTC()}
+	require.NoError(t, WriteMeta(dir, sess))
+	stale := filepath.Join(dir, "sessions", "id1", "meta-123.tmp")
+	require.NoError(t, os.WriteFile(stale, []byte(`{"id":`), 0o600))
+
+	loaded, err := LoadAll(dir)
+	require.NoError(t, err)
+	require.Len(t, loaded, 1)
+	require.NoFileExists(t, stale)
+}
+
 // The summarizer reads the tail of a live session; bytes written through an
 // open TranscriptFile must be visible before Close.
 func TestTranscriptFile_TailVisibleBeforeClose(t *testing.T) {

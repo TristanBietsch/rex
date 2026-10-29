@@ -169,6 +169,8 @@ func LoadMeta(root, id string) (*Session, error) {
 // LoadAll loads every session under root/sessions/. Any session whose persisted
 // state was "working", "queued", or "needs_input" gets reloaded as "crashed"
 // because the live PTY didn't survive whatever caused the daemon to stop.
+// It also deletes temp files a crashed WriteMeta left behind, so call it at
+// startup, before any supervisor writes meta.
 func LoadAll(root string) ([]*Session, error) {
 	dir := filepath.Join(root, "sessions")
 	entries, err := os.ReadDir(dir)
@@ -183,6 +185,7 @@ func LoadAll(root string) ([]*Session, error) {
 		if !e.IsDir() {
 			continue
 		}
+		removeStaleMetaTemps(filepath.Join(dir, e.Name()))
 		sess, err := LoadMeta(root, e.Name())
 		if err != nil {
 			// Skip unreadable sessions rather than fail the whole daemon.
@@ -203,6 +206,19 @@ func LoadAll(root string) ([]*Session, error) {
 		out = append(out, sess)
 	}
 	return out, nil
+}
+
+// removeStaleMetaTemps deletes meta-*.tmp files that a WriteMeta interrupted
+// between create and rename left in a session dir.
+func removeStaleMetaTemps(dir string) {
+	tmps, _ := filepath.Glob(filepath.Join(dir, "meta-*.tmp"))
+	for _, p := range tmps {
+		if err := os.Remove(p); err != nil {
+			slog.Warn("state: remove stale meta temp failed", "path", p, "err", err)
+			continue
+		}
+		slog.Info("state: removed stale meta temp", "path", p)
+	}
 }
 
 // TranscriptFile is a kept-open transcript handle for the lifetime of one PTY session.
