@@ -76,7 +76,9 @@ func Start(socket string, stderrLog *os.File) (*StartResult, error) {
 		return nil, err
 	}
 	t0 := time.Now()
-	cmd := exec.Command(FindBinary())
+	// Pass the socket Start waits for: a client run with -socket would
+	// otherwise start a daemon on the default path and time out.
+	cmd := exec.Command(FindBinary(), "-socket", socket)
 	cmd.SysProcAttr = detachAttr()
 	logStart := int64(-1)
 	if stderrLog != nil {

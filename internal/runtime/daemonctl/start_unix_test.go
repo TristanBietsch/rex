@@ -52,6 +52,18 @@ exit 1`)
 	require.NotContains(t, err.Error(), "stale")
 }
 
+// The daemon must listen on the socket Start polls, not its own default.
+func TestStart_PassesSocket(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	fakeDaemon(t, `echo "$@" > '`+argsFile+`'; exit 1`)
+	sock := shortSocket(t)
+	_, err := Start(sock, nil)
+	require.Error(t, err)
+	b, err := os.ReadFile(argsFile)
+	require.NoError(t, err)
+	require.Equal(t, "-socket "+sock+"\n", string(b))
+}
+
 func TestStart_EarlyExitWithoutLog(t *testing.T) {
 	fakeDaemon(t, "exit 3")
 	_, err := Start(shortSocket(t), nil)
