@@ -478,6 +478,11 @@ func TestSupervisor_InitialPromptPlainPasteHasNoMarkers(t *testing.T) {
 // A paste-end marker inside the prompt must not close the bracketed paste:
 // whatever followed it would reach the agent as typed keystrokes.
 func TestSupervisor_InitialPromptCannotEndPasteEarly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// ConPTY parses input escape sequences itself; the child would not
+		// see the paste markers as bytes.
+		t.Skip("relies on Unix PTY passing input bytes through")
+	}
 	stateDir := t.TempDir()
 	store := state.NewStore()
 	sess := &state.Session{
