@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -86,13 +87,16 @@ func run(args []string) error {
 	case "fleet":
 		return inspect.RunFleet(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (try `rex --help`)", args[0])
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("unknown command %q (try `rex --help`)", args[0]))
 	}
 }
 
+// exitCodeFor finds an ExitCoder anywhere in err's chain, so a wrapped
+// ExitError keeps its code.
 func exitCodeFor(err error) int {
-	if e, ok := err.(core.ExitCoder); ok {
+	var e core.ExitCoder
+	if errors.As(err, &e) {
 		return e.ExitCode()
 	}
-	return 1
+	return core.ExitGeneric
 }

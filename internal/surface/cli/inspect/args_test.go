@@ -34,6 +34,9 @@ func TestInspectCommandArity(t *testing.T) {
 		{"stats stray", RunStats, []string{"x", "-json"}, core.ExitInvalidArgs},
 		{"digest stray", RunDigest, []string{"x", "-json"}, core.ExitInvalidArgs},
 		{"render stray", RunRender, []string{"x", "-socket", dead}, core.ExitInvalidArgs},
+		{"render bad width", RunRender, []string{"-w", "abc", "-socket", dead}, core.ExitInvalidArgs},
+		{"render zero height", RunRender, []string{"-h", "0", "-socket", dead}, core.ExitInvalidArgs},
+		{"render dial", RunRender, []string{"-w", "80", "-socket", dead}, core.ExitDaemonUnreachable},
 		{"log flags after sel", RunLog, []string{"demo", "-f", "-n", "5", "-socket", dead}, core.ExitDaemonUnreachable},
 		{"log extra", RunLog, []string{"demo", "x", "-socket", dead}, core.ExitInvalidArgs},
 	}

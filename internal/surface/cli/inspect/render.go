@@ -3,7 +3,6 @@ package inspect
 import (
 	"flag"
 	"fmt"
-	"strconv"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
@@ -16,8 +15,8 @@ import (
 func RunRender(args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	widthFlag := fs.String("w", "120", "render width")
-	heightFlag := fs.String("h", "30", "render height")
+	w := fs.Int("w", 120, "render width")
+	h := fs.Int("h", 30, "render height")
 	pos, err := core.ParseArgs(fs, args)
 	if err != nil {
 		return err
@@ -25,24 +24,25 @@ func RunRender(args []string) error {
 	if err := core.CheckArgs(pos, 0, 0, "rex render [-w cols] [-h rows] [-socket path]"); err != nil {
 		return err
 	}
-	w, _ := strconv.Atoi(*widthFlag)
-	h, _ := strconv.Atoi(*heightFlag)
+	if *w <= 0 || *h <= 0 {
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("render: -w and -h must be positive (got %dx%d)", *w, *h))
+	}
 
 	c, err := client.Dial(*socket)
 	if err != nil {
-		return fmt.Errorf("dial daemon: %w", err)
+		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
 	}
 	defer c.Close()
 	snap, err := c.Hello("rex-render")
 	if err != nil {
-		return fmt.Errorf("hello: %w", err)
+		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
 	}
 
 	m := tui.Model{
 		Sessions: snap.Sessions,
 		Filter:   "all",
-		Width:    w,
-		Height:   h,
+		Width:    *w,
+		Height:   *h,
 	}
 	if len(snap.Sessions) > 0 {
 		m.SelectedID = snap.Sessions[0].ID
