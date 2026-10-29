@@ -16,18 +16,15 @@ func RunLs(args []string) error {
 	stateFilter := fs.String("state", "", "filter by state")
 	toolFilter := fs.String("tool", "", "filter by tool id")
 	modelFilter := fs.String("model", "", "filter by model id")
-	showArchived := fs.Bool("show-archived", false, "include archived sessions")
-	short := fs.Bool("short", false, "compact mode (reserved)")
+	showArchived := fs.Bool("show-archived", false, "include archived sessions (rex archive)")
 	asJSON := fs.Bool("json", false, "output JSONL")
 	pos, err := core.ParseArgs(fs, args)
 	if err != nil {
 		return err
 	}
-	if err := core.CheckArgs(pos, 0, 0, "rex ls [-state s] [-tool id] [-model id] [-show-archived] [-short] [-json] [-socket path]"); err != nil {
+	if err := core.CheckArgs(pos, 0, 0, "rex ls [-state s] [-tool id] [-model id] [-show-archived] [-json] [-socket path]"); err != nil {
 		return err
 	}
-	_ = showArchived
-	_ = short
 
 	c, err := client.Dial(*socket)
 	if err != nil {
@@ -48,6 +45,9 @@ func RunLs(args []string) error {
 			continue
 		}
 		if *modelFilter != "" && s.ModelID != *modelFilter {
+			continue
+		}
+		if !*showArchived && isArchived(s) {
 			continue
 		}
 		filtered = append(filtered, s)

@@ -3,10 +3,20 @@ package session
 import (
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/client"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
+
+// archivedPrefix marks an archived session's Title; rex ls hides those
+// unless -show-archived.
+const archivedPrefix = "[archived] "
+
+func isArchived(s protocol.SessionSummary) bool {
+	return strings.HasPrefix(s.Title, archivedPrefix)
+}
 
 // RunArchive marks a completed session as archived by prefixing its Title.
 func RunArchive(args []string) error {
@@ -30,7 +40,11 @@ func RunArchive(args []string) error {
 	if err != nil {
 		return err
 	}
-	newTitle := "[archived] " + sess.Title
+	if isArchived(sess) {
+		fmt.Printf("%s: already archived\n", sess.Slug)
+		return nil
+	}
+	newTitle := archivedPrefix + sess.Title
 	reqID := "cli-archive-" + sess.ShortID
 	if err := c.Rename(sess.ID, "", newTitle, reqID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())

@@ -28,6 +28,12 @@ func isolateDefaults(t *testing.T) {
 // to reply (when non-nil).
 func recordingDaemon(t *testing.T, reply func(w *protocol.Writer, env protocol.Envelope)) (string, <-chan protocol.Envelope) {
 	t.Helper()
+	return snapshotDaemon(t, renameFixture, reply)
+}
+
+// snapshotDaemon is recordingDaemon serving sessions.
+func snapshotDaemon(t *testing.T, sessions []protocol.SessionSummary, reply func(w *protocol.Writer, env protocol.Envelope)) (string, <-chan protocol.Envelope) {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "rexcli")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
@@ -50,7 +56,7 @@ func recordingDaemon(t *testing.T, reply func(w *protocol.Writer, env protocol.E
 				return
 			}
 			if env.Type == protocol.IntentHello {
-				_ = w.WriteEvent(protocol.EventSnapshot, env.ID, protocol.Snapshot{Sessions: renameFixture})
+				_ = w.WriteEvent(protocol.EventSnapshot, env.ID, protocol.Snapshot{Sessions: sessions})
 				continue
 			}
 			seen <- env

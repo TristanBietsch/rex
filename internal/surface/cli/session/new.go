@@ -24,12 +24,10 @@ func RunNew(args []string) error {
 	slug := fs.String("slug", "", "session slug (defaults to derived from prompt)")
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
-	noAttach := fs.Bool("no-attach", true, "spawn and exit (default)")
 	pos, err := core.ParseArgs(fs, args)
 	if err != nil {
 		return err
 	}
-	_ = noAttach
 
 	if *cwd == "" {
 		wd, err := os.Getwd()
