@@ -3,6 +3,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -162,7 +163,7 @@ func (c *Client) Drain(handler func(protocol.Envelope) bool) error {
 	for {
 		env, err := c.r.Read()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return err

@@ -183,15 +183,15 @@ func TestServe_OnListeningAfterBind(t *testing.T) {
 	fired := make(chan error, 1)
 	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore(),
 		OnListening: func() {
-			if runtime.GOOS != "windows" {
-				if fi, err := os.Stat(sock); err != nil || fi.Mode().Perm() != 0o600 {
-					fired <- fmt.Errorf("socket not owner-only yet: %v %v", fi, err)
-					return
-				}
+			fi, err := os.Stat(sock)
+			if err == nil && runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
+				err = fmt.Errorf("socket mode %v, want 0600", fi.Mode().Perm())
 			}
-			c, err := net.DialTimeout("unix", sock, time.Second)
 			if err == nil {
-				_ = c.Close()
+				var c net.Conn
+				if c, err = net.DialTimeout("unix", sock, time.Second); err == nil {
+					_ = c.Close()
+				}
 			}
 			fired <- err
 		}})

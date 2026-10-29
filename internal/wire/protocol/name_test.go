@@ -42,7 +42,7 @@ func TestSingleLine(t *testing.T) {
 		{"crlf and tabs", "a\r\n\tb", "a b"},
 		{"esc stripped", "x\x1b[2Jy", "x[2Jy"},
 		{"c1 stripped", "a\u009bb", "ab"},
-		{"bidi stripped", "a‮b", "ab"},
+		{"bidi stripped", "a\u202eb", "ab"},
 		{"no length cap", strings.Repeat("a", 500), strings.Repeat("a", 500)},
 		{"empty", "\n\t ", ""},
 	}

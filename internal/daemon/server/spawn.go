@@ -75,8 +75,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 			srv.ReleaseSession()
 			return fmt.Errorf("hook dir: %w", err)
 		}
-		switch tool.Detect.Format {
-		case "claude":
+		if tool.Detect.Format == "claude" {
 			cmdArgs = append(cmdArgs, adapter.ClaudeHookArgs()...)
 		}
 		// ToSlash: on Windows, Claude runs hooks in Git Bash, which reads

@@ -45,10 +45,10 @@ func (r *Reader) Read() (Envelope, error) {
 	if errors.Is(err, ErrLineTooLong) {
 		return Envelope{}, err
 	}
-	if err == io.EOF && len(line) == 0 {
+	if errors.Is(err, io.EOF) && len(line) == 0 {
 		return Envelope{}, io.EOF
 	}
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return Envelope{}, fmt.Errorf("read line: %w", err)
 	}
 	var e Envelope
@@ -72,7 +72,7 @@ func (r *Reader) readLine() ([]byte, error) {
 			return nil, fmt.Errorf("%w (max %d bytes)", ErrLineTooLong, r.max)
 		}
 		line = append(line, frag...)
-		if err != bufio.ErrBufferFull {
+		if !errors.Is(err, bufio.ErrBufferFull) {
 			return line, err
 		}
 	}
