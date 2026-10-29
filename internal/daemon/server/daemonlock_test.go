@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -121,6 +122,21 @@ func TestServe_LeavesSocketItNoLongerOwns(t *testing.T) {
 	stopA()
 	_, err = os.Stat(sock)
 	require.NoError(t, err, "exiting daemon unlinked a socket it doesn't own")
+}
+
+// The socket drives every agent, so only its owner may connect.
+func TestServe_SocketIsOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permission bits")
+	}
+	dir := shortTempDir(t)
+	sock := filepath.Join(dir, "rex.sock")
+	srv, err := newTestServer(t, sock, dir)
+	require.NoError(t, err)
+	serveUntilCleanup(t, srv)
+	fi, err := os.Stat(sock)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
 }
 
 // The common case: a daemon removes its own socket on exit.

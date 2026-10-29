@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -176,6 +177,14 @@ func (s *Server) Serve(ctx context.Context) error {
 	// may own it. removeOwnSocket checks before unlinking.
 	if ul, ok := l.(*net.UnixListener); ok {
 		ul.SetUnlinkOnClose(false)
+	}
+	// Any process that can connect can drive every agent: owner only.
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(s.cfg.Socket, 0o600); err != nil {
+			_ = l.Close()
+			_ = os.Remove(s.cfg.Socket)
+			return fmt.Errorf("chmod %s: %w", s.cfg.Socket, err)
+		}
 	}
 	ours, err := os.Lstat(s.cfg.Socket)
 	if err != nil {
