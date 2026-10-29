@@ -39,7 +39,7 @@ func TestSpawnSessionCmd_UsesSettingsDefaults(t *testing.T) {
 	require.NoError(t, store.Set("default_spawn_effort", "max"))
 
 	fake := &recordingClient{}
-	cmd := spawnSessionCmd(fake, store, nil, "fix auth bug")
+	cmd := spawnSessionCmd(fake, quickSpawnRequest(Model{Store: store}, "fix auth bug"))
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -64,7 +64,7 @@ func TestSpawnSessionCmd_DisambiguatesAgainstExistingSlugs(t *testing.T) {
 	}
 
 	fake := &recordingClient{}
-	cmd := spawnSessionCmd(fake, store, existing, "fix auth bug")
+	cmd := spawnSessionCmd(fake, quickSpawnRequest(Model{Store: store, Sessions: existing}, "fix auth bug"))
 	_ = cmd()
 
 	require.NotNil(t, fake.last)

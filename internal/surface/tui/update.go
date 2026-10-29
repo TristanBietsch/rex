@@ -10,7 +10,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -526,8 +525,9 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			slog.Warn("tui: quick-spawn aborted, settings store not initialized")
 			return m, nil
 		}
-		m.PendingSelectSlug = quickSpawnSlug(m.Store, m.Sessions, text)
-		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text)
+		req := quickSpawnRequest(m, text)
+		m.PendingSelectSlug = req.Slug
+		return m, spawnSessionCmd(m.Client, req)
 	case tea.KeyBackspace:
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
@@ -541,50 +541,42 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// spawnSessionCmd is invoked from `i`-keybind quick-spawn. It reads the
-// configured default tool/model/effort from the settings store and uses the
-// wizard's existing slug helpers so a quick-spawned session is indistinguishable
-// from one created via the full wizard. Daemon-side validation surfaces errors
-// for unknown tool/model IDs via the existing DaemonErrMsg path.
-func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string) tea.Cmd {
-	return func() tea.Msg {
-		toolID, _ := store.Get("default_spawn_tool").(string)
-		modelID, _ := store.Get("default_spawn_model").(string)
-		effort, _ := store.Get("default_spawn_effort").(string)
-		slug := quickSpawnSlug(store, sessions, prompt)
+// quickSpawnRequest builds the `i`-keybind quick-spawn of prompt from the
+// configured default tool/model/effort, using the wizard's slug helpers so a
+// quick-spawned session is indistinguishable from one created via the full
+// wizard. It runs in Update: the settings store and m.Sessions are mutated
+// there and must not be read from a Cmd goroutine. The slug is computed once
+// so the board selects exactly the session it asked for.
+func quickSpawnRequest(m Model, prompt string) protocol.NewSession {
+	toolID, _ := m.Store.Get("default_spawn_tool").(string)
+	modelID, _ := m.Store.Get("default_spawn_model").(string)
+	effort, _ := m.Store.Get("default_spawn_effort").(string)
+	cwd, _ := os.Getwd()
+	return protocol.NewSession{
+		ToolID:        toolID,
+		ModelID:       modelID,
+		Effort:        effort,
+		Slug:          deriveAgentSlug(toolID, modelID, prompt, existingSlugs(m)),
+		Title:         prompt,
+		CWD:           cwd,
+		InitialPrompt: prompt,
+	}
+}
 
-		cwd, _ := os.Getwd()
+// spawnSessionCmd sends a quick-spawn request built by quickSpawnRequest.
+// Daemon-side validation rejects unknown tool/model IDs with an Error event,
+// which lands on the status line.
+func spawnSessionCmd(c sessionSpawner, req protocol.NewSession) tea.Cmd {
+	return func() tea.Msg {
 		slog.Info("tui: quick-spawn",
-			"tool", toolID, "model", modelID, "effort", effort,
-			"slug", slug, "cwd", cwd, "prompt_len", len(prompt))
-		if err := c.NewSession(protocol.NewSession{
-			ToolID:        toolID,
-			ModelID:       modelID,
-			Effort:        effort,
-			Slug:          slug,
-			Title:         prompt,
-			CWD:           cwd,
-			InitialPrompt: prompt,
-		}); err != nil {
-			slog.Warn("tui: quick-spawn NewSession failed", "err", err, "slug", slug)
+			"tool", req.ToolID, "model", req.ModelID, "effort", req.Effort,
+			"slug", req.Slug, "cwd", req.CWD, "prompt_len", len(req.InitialPrompt))
+		if err := c.NewSession(req); err != nil {
+			slog.Warn("tui: quick-spawn NewSession failed", "err", err, "slug", req.Slug)
 			return CmdErrMsg{Op: "spawn", Err: err}
 		}
 		return nil
 	}
-}
-
-// quickSpawnSlug derives the slug a quick-spawn of prompt will get, so the
-// board can select the session when its SessionAdded arrives.
-func quickSpawnSlug(store *settings.Store, sessions []protocol.SessionSummary, prompt string) string {
-	toolID, _ := store.Get("default_spawn_tool").(string)
-	modelID, _ := store.Get("default_spawn_model").(string)
-	existing := make([]string, 0, len(sessions))
-	for _, s := range sessions {
-		if s.Slug != "" {
-			existing = append(existing, s.Slug)
-		}
-	}
-	return deriveAgentSlug(toolID, modelID, prompt, existing)
 }
 
 func deleteSessionCmd(c *client.Client, sessionID string) tea.Cmd {
