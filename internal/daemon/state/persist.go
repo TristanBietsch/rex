@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -117,17 +118,38 @@ func WriteMeta(root string, s *Session) error {
 		return fmt.Errorf("create tmp meta: %w", err)
 	}
 	tmpName := tmp.Name()
+	// Sync before the rename: otherwise a crash can leave meta.json renamed
+	// into place but empty, and LoadAll would drop the session.
 	_, werr := tmp.Write(b)
+	serr := tmp.Sync()
 	cerr := tmp.Close()
-	if werr != nil || cerr != nil {
+	if werr != nil || serr != nil || cerr != nil {
 		_ = os.Remove(tmpName)
-		return fmt.Errorf("write tmp meta: %w", errors.Join(werr, cerr))
+		return fmt.Errorf("write tmp meta: %w", errors.Join(werr, serr, cerr))
 	}
 	if err := os.Rename(tmpName, final); err != nil {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("rename meta: %w", err)
 	}
+	syncDir(dir)
 	return nil
+}
+
+// syncDir makes a rename in dir durable. The new meta.json is already in
+// place, so a failure (some filesystems refuse to sync a directory) is only
+// logged. Windows can't sync a directory handle, and NTFS journals renames.
+func syncDir(dir string) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	d, err := os.Open(dir)
+	if err == nil {
+		err = d.Sync()
+		_ = d.Close()
+	}
+	if err != nil {
+		slog.Debug("state: sync dir failed", "dir", dir, "err", err)
+	}
 }
 
 // LoadMeta loads one session's metadata.
