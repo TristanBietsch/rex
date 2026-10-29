@@ -42,8 +42,14 @@ if ($build -lt 17763) {
   Fail "rex needs Windows 10 1809 (build 17763) or newer for ConPTY; this is build $build."
 }
 
-$version = (git -C $RepoRoot describe --tags --always 2>$null)
-if (-not $version) { $version = '(from source)' }
+# git is optional (e.g. a source zip). Outside a checkout git writes to
+# stderr, which Windows PowerShell 5.1 turns into a terminating error under
+# ErrorActionPreference 'Stop', hence the try.
+$gitVersion = $null
+if (Get-Command git -ErrorAction SilentlyContinue) {
+  try { $gitVersion = (git -C $RepoRoot describe --tags --always 2>$null) } catch { $gitVersion = $null }
+}
+$version = if ($gitVersion) { $gitVersion } else { '(from source)' }
 Write-Host ""
 Write-Host "  rex installer  $version"
 Write-Host ""
