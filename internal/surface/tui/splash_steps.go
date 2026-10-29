@@ -200,7 +200,7 @@ func stepDaemon(m Model) tea.Cmd {
 		if daemonctl.Reachable(m.Socket) {
 			return stepOK, "already running", nil
 		}
-		logf, _ := os.OpenFile(daemonctl.LogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		logf, _ := daemonctl.OpenLog()
 		if logf != nil {
 			defer logf.Close()
 		}

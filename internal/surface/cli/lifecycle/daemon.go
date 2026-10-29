@@ -40,7 +40,11 @@ func daemonStart(args []string) error {
 		fmt.Println("rex-daemon already running")
 		return nil
 	}
-	logf, _ := os.OpenFile(daemonctl.LogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	// Without a log (nil) Start still runs; an early exit then lacks its cause.
+	logf, _ := daemonctl.OpenLog()
+	if logf != nil {
+		defer logf.Close()
+	}
 	res, err := daemonctl.Start(socket, logf)
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())

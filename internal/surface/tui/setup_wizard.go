@@ -679,7 +679,7 @@ func (m SetupWizardModel) checkDaemonCmd() tea.Cmd {
 
 func startDaemonCmd(socket string) tea.Cmd {
 	return func() tea.Msg {
-		logf, _ := os.OpenFile(daemonctl.LogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		logf, _ := daemonctl.OpenLog()
 		if logf != nil {
 			defer logf.Close()
 		}
