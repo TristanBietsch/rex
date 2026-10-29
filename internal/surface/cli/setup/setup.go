@@ -22,7 +22,7 @@ func RunSetup(args []string) error {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	preview := fs.Bool("preview", false, "print plan only, no writes")
 	yes := fs.Bool("yes", false, "apply defaults non-interactively")
-	fs.Bool("y", false, "alias for --yes") // parsed below via shorthand
+	fs.BoolVar(yes, "y", false, "alias for -yes")
 	tool := fs.String("tool", "", "override default tool id")
 	model := fs.String("model", "", "override default model id")
 	effort := fs.String("effort", "", "override default effort")
@@ -39,14 +39,7 @@ func RunSetup(args []string) error {
 		return err
 	}
 
-	// -y is an alias
-	shortY := false
-	for _, a := range args {
-		if a == "-y" || a == "--y" {
-			shortY = true
-		}
-	}
-	doYes := *yes || shortY
+	doYes := *yes
 
 	rexlog.Init("setup")
 	defer rexlog.Close()

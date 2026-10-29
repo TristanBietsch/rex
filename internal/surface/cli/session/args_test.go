@@ -130,6 +130,14 @@ func TestSessionCommandArity(t *testing.T) {
 	}
 }
 
+func TestRunWait_TimesOut(t *testing.T) {
+	sock, _ := recordingDaemon(t, nil)
+	start := time.Now()
+	err := RunWait([]string{"beta", "-timeout", "150ms", "-socket", sock})
+	require.Equal(t, core.ExitWaitTimedOut, exitCode(t, err))
+	require.Less(t, time.Since(start), 2*time.Second)
+}
+
 func TestRunReply_FlagsAfterText(t *testing.T) {
 	sock, seen := recordingDaemon(t, nil)
 	require.NoError(t, RunReply([]string{"beta", "hi", "-raw", "-socket", sock}))

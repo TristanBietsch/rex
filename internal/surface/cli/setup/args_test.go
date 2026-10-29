@@ -1,6 +1,8 @@
 package setup
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,4 +38,20 @@ func TestSetupCommandArity(t *testing.T) {
 			require.Contains(t, ee.Msg, `unexpected argument "x"`)
 		})
 	}
+}
+
+// -y is a real alias of -yes, wherever it appears: with an existing config
+// it hits the same overwrite guard instead of starting the wizard.
+func TestRunSetup_YAlias(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_RUNTIME_DIR", dir)
+	cfg := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(cfg, []byte("theme: dark\n"), 0o644))
+
+	err := RunSetup([]string{"-config", cfg, "-y"})
+	var ee core.ExitError
+	require.ErrorAs(t, err, &ee)
+	require.Equal(t, core.ExitInvalidArgs, ee.Code)
+	require.Contains(t, ee.Msg, "--force")
 }

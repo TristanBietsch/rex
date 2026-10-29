@@ -3,7 +3,6 @@ package lifecycle
 import (
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"time"
 
@@ -70,8 +69,7 @@ func daemonStatus(args []string) error {
 		return err
 	}
 	socket := core.DefaultSocket()
-	if conn, err := net.DialTimeout("unix", socket, daemonctl.SocketDialTimeout); err == nil {
-		_ = conn.Close()
+	if daemonctl.Reachable(socket) {
 		pid, _ := daemonctl.FindPID()
 		fmt.Printf("running · socket=%s · pid=%s\n", socket, pid)
 		return nil

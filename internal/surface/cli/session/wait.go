@@ -2,8 +2,10 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -64,7 +66,7 @@ func RunWait(args []string) error {
 		}
 		env, err := c.NextEvent()
 		if err != nil {
-			if strings.Contains(err.Error(), "deadline") || strings.Contains(err.Error(), "i/o timeout") {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
 				return core.NewExitError(core.ExitWaitTimedOut, "wait timed out")
 			}
 			return core.NewExitError(core.ExitGeneric, err.Error())

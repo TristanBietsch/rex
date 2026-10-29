@@ -2,8 +2,9 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
-	"strings"
+	"os"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/wire/client"
@@ -24,7 +25,7 @@ func AwaitPatch(c *client.Client, sessionID, reqID, patchKey string) error {
 	for {
 		env, err := c.NextEvent()
 		if err != nil {
-			if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline") {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
 				return NewExitError(ExitGeneric, "daemon did not confirm (is it running a current version? try 'rex daemon restart')")
 			}
 			return NewExitError(ExitGeneric, err.Error())
