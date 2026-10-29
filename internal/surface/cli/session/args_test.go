@@ -102,6 +102,9 @@ func TestSessionCommandArity(t *testing.T) {
 		{"send extra", RunSend, []string{"demo", "text", "-socket", dead}, core.ExitInvalidArgs},
 		{"wait flags after sel", RunWait, []string{"demo", "-until", "any", "-timeout", "1s", "-socket", dead}, core.ExitDaemonUnreachable},
 		{"wait extra", RunWait, []string{"demo", "x", "-socket", dead}, core.ExitInvalidArgs},
+		// A typo would never match and block forever; reject it before dialing.
+		{"wait bad until", RunWait, []string{"demo", "-until", "dnoe", "-socket", dead}, core.ExitInvalidArgs},
+		{"wait until crashed", RunWait, []string{"demo", "-until", "crashed", "-socket", dead}, core.ExitDaemonUnreachable},
 		{"rm flags after sel", RunRm, []string{"demo", "-force", "-socket", dead}, core.ExitDaemonUnreachable},
 		{"rm extra", RunRm, []string{"demo", "x", "-force", "-socket", dead}, core.ExitInvalidArgs},
 		{"rename flags after", RunRename, []string{"demo", "new-slug", "-socket", dead}, core.ExitDaemonUnreachable},

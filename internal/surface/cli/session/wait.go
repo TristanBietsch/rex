@@ -3,6 +3,8 @@ package session
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,11 +13,15 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
+// waitTargets are the accepted -until values. "any" matches any terminal
+// state (done, failed, crashed).
+var waitTargets = []string{"working", "needs_input", "done", "failed", "crashed", "any"}
+
 // RunWait blocks until a session reaches a target state.
 func RunWait(args []string) error {
 	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	until := fs.String("until", "done", "target state: working | needs_input | done | failed | any")
+	until := fs.String("until", "done", "target state: "+strings.Join(waitTargets, " | ")+" (any = done, failed, or crashed)")
 	timeout := fs.Duration("timeout", 0, "max wait duration (0 = no timeout)")
 	pos, err := core.ParseArgs(fs, args)
 	if err != nil {
@@ -25,6 +31,11 @@ func RunWait(args []string) error {
 		return err
 	}
 	sel := pos[0]
+	// A typo would never match, blocking forever with the default timeout.
+	if !slices.Contains(waitTargets, *until) {
+		return core.NewExitError(core.ExitInvalidArgs,
+			fmt.Sprintf("wait: unknown -until %q (want %s)", *until, strings.Join(waitTargets, ", ")))
+	}
 
 	c, err := client.Dial(*socket)
 	if err != nil {
