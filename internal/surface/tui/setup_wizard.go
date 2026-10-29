@@ -1129,9 +1129,6 @@ func setupInputInline(value string) string {
 		Render(stylePrimary.Render(value))
 }
 
-// styleArrow is already defined in wizard.go but not exported — replicate the
-// inline usage instead.  (Both files are in the same package so we just use it.)
-
 // ── Shell block logic ─────────────────────────────────────────────────────────
 
 const (
@@ -1325,4 +1322,4 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 	return nil
 }
 
-// styleArrow is declared in prompt.go and shared across the tui package.
+// styleArrow is a package-level style shared across the tui package.

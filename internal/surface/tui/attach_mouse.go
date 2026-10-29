@@ -41,7 +41,7 @@ func mouseEnabled(m Model) bool {
 	return true
 }
 
-// attachPopupGeometry mirrors centerOverlay's placement of renderAttach:
+// attachInnerOrigin mirrors centerOverlay's placement of renderAttach:
 // border (1) + padding (2 cols / 1 row), then a title bar and a rule above
 // the terminal rows. Returns the 0-based screen cell of the terminal's
 // top-left cell.
