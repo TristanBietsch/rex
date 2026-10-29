@@ -92,6 +92,11 @@ type Server struct {
 	gate *concurrencyGate
 	wg   sync.WaitGroup
 
+	// conns are the open client connections, closed on shutdown.
+	connsMu     sync.Mutex
+	conns       map[net.Conn]struct{}
+	connsClosed bool
+
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
 
@@ -195,11 +200,18 @@ func (s *Server) Serve(ctx context.Context) error {
 		removeOwnSocket(s.cfg.Socket, ours)
 	}()
 
-	// Close the listener when ctx is canceled to unblock Accept.
-	go func() {
-		<-ctx.Done()
+	// Everything Serve starts stops when it returns, whatever the reason.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// On cancel, close the listener to unblock Accept and every client
+	// connection to unblock its handler's Read; otherwise one idle client
+	// would keep shutdown waiting forever.
+	stopClose := context.AfterFunc(ctx, func() {
 		_ = l.Close()
-	}()
+		s.closeConns()
+	})
+	defer stopClose()
 
 	// Retire reaper: clears marked-done sessions once their deadline passes.
 	// Tracked by wg so shutdown proves it has exited.
@@ -209,24 +221,64 @@ func (s *Server) Serve(ctx context.Context) error {
 		s.runRetireReaper(ctx)
 	}()
 
+	var serveErr error
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			if ctx.Err() != nil {
-				slog.Info("server: shutting down, waiting for clients")
-				s.wg.Wait()
-				return nil
+			if ctx.Err() == nil {
+				slog.Error("server: accept failed", "err", err)
+				serveErr = fmt.Errorf("accept: %w", err)
+				cancel()
 			}
-			slog.Error("server: accept failed", "err", err)
-			return fmt.Errorf("accept: %w", err)
+			break
+		}
+		if !s.trackConn(conn) {
+			// Accepted just as shutdown began.
+			_ = conn.Close()
+			continue
 		}
 		slog.Debug("server: client connected")
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
+			defer s.untrackConn(conn)
 			handleClient(ctx, conn, s)
 			slog.Debug("server: client disconnected")
 		}()
+	}
+	slog.Info("server: shutting down, waiting for clients")
+	s.wg.Wait()
+	return serveErr
+}
+
+// trackConn records a client connection so shutdown can close it. It returns
+// false once shutdown has begun.
+func (s *Server) trackConn(c net.Conn) bool {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	if s.connsClosed {
+		return false
+	}
+	if s.conns == nil {
+		s.conns = make(map[net.Conn]struct{})
+	}
+	s.conns[c] = struct{}{}
+	return true
+}
+
+func (s *Server) untrackConn(c net.Conn) {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	delete(s.conns, c)
+}
+
+// closeConns closes every client connection and refuses new ones.
+func (s *Server) closeConns() {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	s.connsClosed = true
+	for c := range s.conns {
+		_ = c.Close()
 	}
 }
 
