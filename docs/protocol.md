@@ -76,7 +76,7 @@ Each connection has an outbound queue of 2048 events, drained by its own writer.
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
 | `effort`, `title`, `initial_prompt`, `fleet` | no |
 
-`slug` must be at most 64 runes, valid UTF-8, free of whitespace and control characters, and unique among all sessions in the daemon (any state). `cwd` must be an existing directory. `fleet` is flattened to one line and must be at most 64 runes. Any of these failing is `bad_intent`. `title` is flattened to one line (escapes and control characters dropped) and cut to 512 runes; `initial_prompt` reaches the agent unchanged. The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
+`slug` must be at most 64 runes, valid UTF-8, free of whitespace and control characters, and unique among all sessions in the daemon (any state). `cwd` must be an existing directory. `fleet` is flattened to one line and must be at most 64 runes. Any of these failing is `bad_intent`. `title` is flattened to one line (escapes and control characters dropped) and cut to 512 runes; `initial_prompt` is not cut: `claude`, `codex`, and `gemini` get it on their command line; other tools get it pasted into the PTY once ready, with escapes and control characters other than newline and tab removed. The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
 
 ## Events (daemon → client)
 

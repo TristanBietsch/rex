@@ -19,11 +19,17 @@ Clients normally start the daemon indirectly (`rex`, boot splash, or `rex daemon
 
 The daemon loads the tool registry, restores persisted sessions from disk, accepts JSONL clients on a Unix socket, and runs one PTY supervisor per live session. Session metadata and transcripts persist under `-state-dir`.
 
-On startup, sessions that were `queued`, `working`, or `needs_input` are remapped to `crashed` because child processes do not survive daemon exit.
+On startup, sessions whose `meta.json` still says `queued`, `working`, or `needs_input` are remapped to `crashed` because child processes do not survive daemon exit. After a clean shutdown (below) live sessions were already saved as `failed`, so `crashed` marks a daemon that died or whose sessions did not stop in time.
+
+When an agent exits on its own, the daemon kills whatever is left in its process group (background jobs, MCP servers, tool shells) before reaping it, so nothing is orphaned. On Windows the tree is killed only when rex stops a session; an agent that exits by itself is just reaped.
 
 ### Single instance
 
-One daemon runs per state dir. A second `rex-daemon` refuses to start (exit 1) when a daemon already listens on the socket or holds `<state-dir>/daemon.lock`.
+One daemon runs per state dir. A second `rex-daemon` refuses to start (exit 1, `rex-daemon is already running`) when a daemon already listens on the socket or holds `<state-dir>/daemon.lock`.
+
+### Shutdown
+
+On `SIGINT`, `SIGTERM`, or the `Shutdown` intent the daemon stops accepting clients and closes every client connection, so an open TUI does not hold it up. Each live session's agent and its process tree are killed and the session is saved as `failed`; the daemon waits up to 5 s for that, then exits anyway. It unlinks the socket only if the path is still the one it bound, and releases `daemon.lock`.
 
 ### Socket
 
@@ -45,7 +51,7 @@ The socket is created with mode `0600`. Its path must fit the OS limit for a Uni
 
 | Signal | Effect |
 |--------|--------|
-| `SIGINT`, `SIGTERM` | Shut down; unlink socket |
+| `SIGINT`, `SIGTERM` | Shut down (see [Shutdown](#shutdown)) |
 | `SIGHUP` | Reload `tools.yaml` into the running registry; PTYs unchanged |
 
 `rex reload` sends `SIGHUP` to the running daemon process. Windows has no such signals: there `rex reload` and `rex daemon stop` send the `Reload` and `Shutdown` intents over the socket (see [protocol.md](protocol.md)).
