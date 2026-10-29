@@ -225,7 +225,7 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyRunes:
-		m.Wizard.TaskText += string(k.Runes)
+		m.Wizard.TaskText += typedText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.Wizard.TaskText += " "

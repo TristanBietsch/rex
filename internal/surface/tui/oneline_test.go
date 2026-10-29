@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/hinshun/vt10x"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -85,6 +87,59 @@ func TestApplyEvent_TextFieldsIngestedAsOneRow(t *testing.T) {
 
 	m = m.applyEvent(eventEnv(t, protocol.EventSummarizerHealth, protocol.SummarizerHealth{Reason: "500\n{\"error\":\"x\"}"}))
 	require.Equal(t, `500 {"error":"x"}`, m.BackendUnavailableReason)
+}
+
+// inputSites are the one-line text inputs: each opens its bar on a fresh
+// model, and reads back what was typed.
+var inputSites = []struct {
+	name string
+	open func(Model) Model
+	text func(Model) string
+}{
+	{"prompt", func(m Model) Model { m.Focus = FocusPrompt; return m },
+		func(m Model) string { return m.PromptText }},
+	{"command", func(m Model) Model { m.Focus = FocusCommand; return m },
+		func(m Model) string { return m.CmdText }},
+	{"rename", func(m Model) Model { m, _ = openRename(m); return m },
+		func(m Model) string { return m.Rename.Draft }},
+	{"wizard", func(m Model) Model {
+		m.Focus = FocusWizard
+		m.Wizard = &WizardState{Step: wizDescribe, Tools: demoTools()}
+		return m
+	}, func(m Model) string { return m.Wizard.TaskText }},
+	{"attach command", func(m Model) Model {
+		m.Focus = FocusCommand
+		m.Attach = &AttachState{SessionID: m.SelectedID, Term: vt10x.New(vt10x.WithSize(40, 8)), Cols: 40, Rows: 8}
+		return m
+	}, func(m Model) string { return m.CmdText }},
+}
+
+func inputModel() Model {
+	m := Model{Filter: "all", Focus: FocusBoard, Width: 80, Height: 24, Store: settings.NewStore(),
+		Sessions: []protocol.SessionSummary{{ID: "1", ShortID: "aaaa", Slug: "one", State: protocol.StateWorking}}}
+	m.SelectedID = "1"
+	return m
+}
+
+func pasteKey(s string) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s), Paste: true}
+}
+
+func TestInputSites_PasteFlattensToOneLine(t *testing.T) {
+	for _, site := range inputSites {
+		m := site.open(inputModel())
+		m, _ = updateKey(m, pasteKey(multilinePrompt))
+		require.Equal(t, "Prompt I am new This repo is a copy", site.text(m), site.name)
+
+		m = site.open(inputModel())
+		m, _ = updateKey(m, pasteKey("a\r\nb\tc\x1b[2J\x00"))
+		require.Equal(t, "a b c[2J", site.text(m), site.name)
+
+		m = site.open(inputModel())
+		m, _ = updateKey(m, pasteKey("foo\n"))
+		m, _ = updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("bar")})
+		require.Equal(t, "foo bar", site.text(m), site.name)
+	}
 }
 
 func TestTruncate_SanitizesToOneRow(t *testing.T) {

@@ -86,7 +86,7 @@ func updateRenameKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeySpace:
 		r.Draft = appendCapped(r.Draft, " ")
 	case tea.KeyRunes:
-		r.Draft = appendCapped(r.Draft, string(k.Runes))
+		r.Draft = appendCapped(r.Draft, typedText(k.Runes))
 	}
 	return m, nil
 }

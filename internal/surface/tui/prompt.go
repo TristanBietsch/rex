@@ -2,8 +2,11 @@ package tui
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 var (
@@ -40,6 +43,24 @@ func renderPrompt(m Model, width int) string {
 		line = styleArrow.Render(glyph) + " " + body
 	}
 	return padLine("  "+line, width)
+}
+
+// typedText is what a key event's runes add to a one-line input. A bracketed
+// paste delivers newlines, tabs and escapes verbatim; protocol.SingleLine
+// flattens them, and one space is kept where the paste began or ended with
+// whitespace so pasting "foo " then typing "bar" still reads "foo bar".
+func typedText(rs []rune) string {
+	out := protocol.SingleLine(string(rs))
+	if len(rs) == 0 {
+		return out
+	}
+	if unicode.IsSpace(rs[0]) {
+		out = " " + out
+	}
+	if unicode.IsSpace(rs[len(rs)-1]) && out != " " {
+		out += " "
+	}
+	return out
 }
 
 // promptGlyph returns the configured prompt glyph or the λ default.

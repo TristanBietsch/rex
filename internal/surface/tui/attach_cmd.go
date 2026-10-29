@@ -128,7 +128,7 @@ func updateAttachCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		m.CmdText += string(k.Runes)
+		m.CmdText += typedText(k.Runes)
 		return m, nil
 	}
 	return m, nil

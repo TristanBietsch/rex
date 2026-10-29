@@ -540,7 +540,7 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
 	case tea.KeyRunes:
-		m.PromptText += string(k.Runes)
+		m.PromptText += typedText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.PromptText += " "
@@ -625,7 +625,7 @@ func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyRunes:
-		m.CmdText += string(k.Runes)
+		m.CmdText += typedText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.CmdText += " "
