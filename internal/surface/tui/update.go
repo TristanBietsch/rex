@@ -245,6 +245,12 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusAttach {
 		return updateAttachKey(m, k)
 	}
+	// Everywhere else ctrl+c is the escape hatch: it backs out to the board
+	// without consulting the focused overlay's own handler, so a broken
+	// overlay can't trap the user. On the board it quits (below).
+	if k.String() == "ctrl+c" && m.Focus != FocusBoard {
+		return escapeToBoard(m)
+	}
 	// Command bar opened from inside the attach popup with "::".
 	if m.Focus == FocusCommand && m.Attach != nil {
 		return updateAttachCommandKey(m, k)
@@ -409,6 +415,41 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	return m, nil
+}
+
+// escapeToBoard is ctrl+c outside the board and attach popup: it drops the
+// focused overlay or input bar (a "::" bar returns to its popup) and, at the
+// quit confirmation, quits.
+func escapeToBoard(m Model) (Model, tea.Cmd) {
+	slog.Debug("tui: ctrl+c escape", "focus", m.Focus)
+	switch m.Focus {
+	case FocusConfirmQuit:
+		m.Quitting = true
+		return m, tea.Quit
+	case FocusWizard:
+		return closeWizard(m), nil
+	case FocusSettings:
+		return closeSettings(m), nil
+	case FocusFail:
+		return closeFail(m), nil
+	case FocusCommand:
+		m.CmdText = ""
+		if m.Attach != nil {
+			m.Focus = FocusAttach
+			return m, nil
+		}
+	case FocusPrompt:
+		m.PromptText = ""
+	case FocusRename:
+		m.Rename = nil
+	case FocusConfirmDelete:
+		m.PendingDeleteID = ""
+	}
+	m.Focus = FocusBoard
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventClose)
+	}
 	return m, nil
 }
 

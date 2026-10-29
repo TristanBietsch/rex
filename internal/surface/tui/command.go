@@ -99,8 +99,7 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 		}
 		return m, completeSessionCmd(m.Client, id)
 	case "new":
-		m.Focus = FocusWizard
-		return m, nil
+		return openWizard(m)
 	case "fail", "fails", "failed":
 		return openFail(m)
 	case "stats":

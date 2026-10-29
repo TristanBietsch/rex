@@ -156,6 +156,8 @@ func prevWizardStep(w *WizardState) {
 
 func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Wizard == nil {
+		// Nothing to drive; don't leave the user stuck in a dead overlay.
+		m.Focus = FocusBoard
 		return m, nil
 	}
 	if m.Wizard.Step == wizDescribe {
