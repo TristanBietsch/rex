@@ -2,6 +2,7 @@ package tui
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,10 +45,13 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	case "reload":
 		return m, sendDaemonSIGHUP(m)
 	case "filter":
-		if len(args) == 1 {
-			m.Filter = args[0]
+		// Only the header's filter chips: any other value would hide rows
+		// behind a filter no chip shows.
+		if len(args) != 1 || !slices.Contains(filterTools, args[0]) {
+			m.Err = "filter: one of " + strings.Join(filterTools, ", ")
+			return m, nil
 		}
-		return m, nil
+		return setFilter(m, args[0]), nil
 	case "rm":
 		if len(args) == 1 {
 			id, msg := resolveLocal(m, args[0])

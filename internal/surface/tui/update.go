@@ -276,7 +276,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		if k.String() == "d" {
 			if m.PendingChord == "d" {
 				m.PendingChord = ""
-				if m.SelectedID != "" {
+				// Like C/r/cc: never confirm a delete for a row the board
+				// doesn't show (filtered out, or a stale restored id).
+				if m.SelectedID != "" && indexOfSelected(m) >= 0 {
 					m.PendingDeleteID = m.SelectedID
 					m.Focus = FocusConfirmDelete
 					if m.Audio != nil {

@@ -93,3 +93,45 @@ func TestCtrlC_AttachCommandBarReturnsToPopup(t *testing.T) {
 	require.NotNil(t, m.Attach)
 	require.Empty(t, m.CmdText)
 }
+
+// ":filter <t>" used to assign any string without setFilter: a bogus value
+// hid every row while the selection stayed on a hidden one.
+func TestCommandFilter_RejectsUnknownTool(t *testing.T) {
+	m := boardModel(protocol.SessionSummary{ID: "a", ToolID: "claude", State: protocol.StateNeedsInput})
+	m, _ = executeCommand(m, "filter bogus")
+	require.Equal(t, "all", m.Filter)
+	require.Contains(t, m.Err, "filter: one of all, claude")
+
+	m.Err = ""
+	m, _ = executeCommand(m, "filter")
+	require.Equal(t, "all", m.Filter)
+	require.NotEmpty(t, m.Err)
+}
+
+func TestCommandFilter_ReselectsVisibleRow(t *testing.T) {
+	m := boardModel(
+		protocol.SessionSummary{ID: "a", ToolID: "claude", State: protocol.StateNeedsInput},
+		protocol.SessionSummary{ID: "b", ToolID: "codex", State: protocol.StateNeedsInput},
+	)
+	require.Equal(t, "a", m.SelectedID)
+	m, _ = executeCommand(m, "filter codex")
+	require.Equal(t, "codex", m.Filter)
+	require.Equal(t, "b", m.SelectedID, "selection moves off the hidden row")
+	require.Empty(t, m.Err)
+}
+
+// "dd" must not open a delete confirmation for a session the board hides.
+func TestDD_IgnoresHiddenSelection(t *testing.T) {
+	m := boardModel(protocol.SessionSummary{ID: "a", ToolID: "claude", State: protocol.StateNeedsInput})
+	m.Filter = "codex" // e.g. restored from disk; row a is filtered out
+	m, _ = updateKey(m, key("d"))
+	m, _ = updateKey(m, key("d"))
+	require.Equal(t, FocusBoard, m.Focus)
+	require.Empty(t, m.PendingDeleteID)
+
+	m.Filter = "all"
+	m, _ = updateKey(m, key("d"))
+	m, _ = updateKey(m, key("d"))
+	require.Equal(t, FocusConfirmDelete, m.Focus)
+	require.Equal(t, "a", m.PendingDeleteID)
+}
