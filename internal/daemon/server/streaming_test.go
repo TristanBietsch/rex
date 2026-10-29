@@ -31,12 +31,7 @@ func TestSubscribe_StreamsSessionOutput(t *testing.T) {
 	defer cancel()
 	go func() { _ = srv.Serve(ctx) }()
 
-	for i := 0; i < 100; i++ {
-		if _, err := net.Dial("unix", sock); err == nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	require.Eventually(t, func() bool { return socketLive(sock) }, 2*time.Second, 20*time.Millisecond)
 
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
@@ -108,12 +103,7 @@ func TestDelete_RemovesSessionDir(t *testing.T) {
 	defer cancel()
 	go func() { _ = srv.Serve(ctx) }()
 
-	for i := 0; i < 100; i++ {
-		if _, err := net.Dial("unix", sock); err == nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	require.Eventually(t, func() bool { return socketLive(sock) }, 2*time.Second, 20*time.Millisecond)
 
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
@@ -193,12 +183,7 @@ func TestSubscribe_ReplaysTranscript(t *testing.T) {
 	defer cancel()
 	go func() { _ = srv.Serve(ctx) }()
 
-	for i := 0; i < 100; i++ {
-		if _, err := net.Dial("unix", sock); err == nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	require.Eventually(t, func() bool { return socketLive(sock) }, 2*time.Second, 20*time.Millisecond)
 
 	// Pre-seed transcript for a fake session id; the daemon doesn't need to be running it.
 	require.NoError(t, state.AppendTranscript(dir, "fake-sess", []byte("PRIOR OUTPUT\n")))

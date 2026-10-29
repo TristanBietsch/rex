@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,13 +22,21 @@ type Daemon struct {
 	Socket   string
 	StateDir string
 	cancel   context.CancelFunc
+	served   chan struct{}
+	once     sync.Once
 }
 
-// Close stops the daemon and removes temp state when the test used MkdirTemp.
+// Close stops the daemon and waits (bounded) for Serve to return. Safe to
+// call more than once; the test's cleanup calls it too. The temp state dir
+// is removed by the test cleanup.
 func (d *Daemon) Close() {
-	if d.cancel != nil {
+	d.once.Do(func() {
 		d.cancel()
-	}
+		select {
+		case <-d.served:
+		case <-time.After(5 * time.Second):
+		}
+	})
 }
 
 // StartDaemon boots server.Serve on a temp unix socket and waits until dial succeeds.
@@ -62,18 +71,13 @@ func StartDaemonWithTools(t *testing.T, toolsYAML string) *Daemon {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() { _ = srv.Serve(ctx) }()
+	d := &Daemon{Socket: sock, StateDir: dir, cancel: cancel, served: make(chan struct{})}
+	go func() { _ = srv.Serve(ctx); close(d.served) }()
+	// Registered after the RemoveAll above, so it runs first.
+	t.Cleanup(d.Close)
 
-	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("unix", sock, 50*time.Millisecond)
-		if err != nil {
-			return false
-		}
-		_ = conn.Close()
-		return true
-	}, 2*time.Second, 20*time.Millisecond)
-
-	return &Daemon{Socket: sock, StateDir: dir, cancel: cancel}
+	require.True(t, WaitForSocket(sock, 2*time.Second), "daemon socket did not come up")
+	return d
 }
 
 // WaitForSocket dials until the unix socket accepts or the timeout elapses.

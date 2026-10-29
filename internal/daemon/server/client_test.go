@@ -36,15 +36,19 @@ func startServerWithStore(t *testing.T, store *state.Store) (string, string, con
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() { _ = srv.Serve(ctx) }()
+	served := make(chan struct{})
+	go func() { _ = srv.Serve(ctx); close(served) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-served:
+		case <-time.After(5 * time.Second):
+			t.Error("Serve did not return")
+		}
+	})
 
 	// Wait for socket.
-	for i := 0; i < 100; i++ {
-		if _, err := net.Dial("unix", sock); err == nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	require.Eventually(t, func() bool { return socketLive(sock) }, 2*time.Second, 20*time.Millisecond)
 	return sock, dir, cancel
 }
 

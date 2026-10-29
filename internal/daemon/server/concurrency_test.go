@@ -35,12 +35,7 @@ func TestMaxConcurrentSessions_RejectsOverflow(t *testing.T) {
 	defer cancel()
 	go func() { _ = srv.Serve(ctx) }()
 
-	for i := 0; i < 100; i++ {
-		if _, err := net.Dial("unix", sock); err == nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	require.Eventually(t, func() bool { return socketLive(sock) }, 2*time.Second, 20*time.Millisecond)
 
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
