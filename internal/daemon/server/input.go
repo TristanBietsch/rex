@@ -49,6 +49,29 @@ func (in *sessionInput) trySend(b []byte) bool {
 	}
 }
 
+// sendRetryInterval is how often send retries while the buffer is full.
+const sendRetryInterval = 10 * time.Millisecond
+
+// send writes b like a client SendInput, after any pending Enter, but
+// retries a full buffer until timeout instead of failing at once. The gate
+// is not held between tries, so clients' input to the session isn't stalled.
+// False means b never fit.
+func (in *sessionInput) send(b []byte, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		in.lock()
+		ok := in.trySend(b)
+		in.mu.Unlock()
+		if ok {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(sendRetryInterval)
+	}
+}
+
 // reply types text, then presses Enter after replySubmitDelay without
 // blocking the caller. Terminals send Enter as \r (the PTY maps it to \n for
 // line REPLs); full-screen TUIs like Claude Code insert a newline on \n

@@ -121,6 +121,33 @@ func TestIntentReply_LaterInputWaitsForEnter(t *testing.T) {
 	require.Equal(t, []byte{'\r'}, next[iy+1])
 }
 
+// In-process input (Lua rex.send) goes through the same gate: it follows a
+// pending Reply's Enter, waits for room in a full buffer up to its timeout,
+// and fails for a session that isn't running.
+func TestServerSendInput(t *testing.T) {
+	setReplyDelay(t, 50*time.Millisecond)
+	s := &Server{}
+	ch := make(chan []byte, 3)
+	s.RegisterInputChannel("sess-1", ch)
+
+	require.True(t, s.input("sess-1").reply("blue", func(bool) {}))
+	require.NoError(t, s.SendInput("sess-1", []byte("x"), time.Second))
+	require.Equal(t, [][]byte{[]byte("blue"), {'\r'}, []byte("x")}, [][]byte{<-ch, <-ch, <-ch})
+
+	// Full buffer: room that frees up within the timeout is used...
+	for range cap(ch) {
+		ch <- []byte("fill")
+	}
+	time.AfterFunc(30*time.Millisecond, func() { <-ch })
+	require.NoError(t, s.SendInput("sess-1", []byte("y"), time.Second))
+	// ...and a buffer that stays full times out.
+	start := time.Now()
+	require.ErrorContains(t, s.SendInput("sess-1", []byte("z"), 50*time.Millisecond), "input buffer full")
+	require.GreaterOrEqual(t, time.Since(start), 50*time.Millisecond)
+
+	require.ErrorContains(t, s.SendInput("nope", []byte("x"), time.Second), "not running")
+}
+
 // Reply text is typed, not interpreted: no escapes, no early submit.
 func TestSanitizeReplyText(t *testing.T) {
 	require.Equal(t, "a[31mb\nc\td", sanitizeReplyText("a\x1b[31mb\r\nc\x00\td"))

@@ -1,14 +1,11 @@
 package boot
 
 import (
-	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
@@ -31,19 +28,7 @@ func StartLuaRuntime(srv *server.Server, store *state.Store) (stop func()) {
 	}
 
 	rt, err := lua.New(lua.Options{
-		Sender: func(sessionID, text string) error {
-			ch := srv.InputChannel(sessionID)
-			if ch == nil {
-				return fmt.Errorf("session %q has no input channel", sessionID)
-			}
-			payload := []byte(text)
-			select {
-			case ch <- payload:
-				return nil
-			case <-time.After(lua.DefaultSendTimeout):
-				return errors.New("send timed out")
-			}
-		},
+		Sender: luaSender(srv),
 		Lister: func() []protocol.SessionSummary {
 			return store.Snapshot()
 		},
@@ -59,6 +44,15 @@ func StartLuaRuntime(srv *server.Server, store *state.Store) (stop func()) {
 	}
 
 	return dispatchLua(rt, store, luaQueueSize)
+}
+
+// luaSender is rex.send: it types text into a running session through the
+// server's input gate, so it can't land between a client Reply's text and
+// that Reply's delayed Enter.
+func luaSender(srv *server.Server) func(sessionID, text string) error {
+	return func(sessionID, text string) error {
+		return srv.SendInput(sessionID, []byte(text), lua.DefaultSendTimeout)
+	}
 }
 
 // luaEvent is one store event, converted for Lua at broadcast time.

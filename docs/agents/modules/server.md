@@ -19,7 +19,7 @@ Unix domain socket listener: one goroutine per client, intent dispatch, PTY sess
 Session lifecycle / IO registration (used by `client.go` handlers and supervisor):
 
 - `TryAcquireSession`, `ReleaseSession`, `SetMaxConcurrentSessions`, `MaxConcurrentSessions`
-- `RegisterInputChannel`, `UnregisterInputChannel`, `InputChannel`
+- `RegisterInputChannel`, `UnregisterInputChannel`, `InputChannel`, `SendInput` (in-process input through the `Reply` gate; Lua `rex.send`)
 - `SubscribeSessionOutput`, `SubscribeSummarizerHealth`, `BroadcastSummarizerHealth`
 - `RegisterResize`, `UnregisterResize`, `Resize`
 - `RegisterStop`, `UnregisterStop`, `StopSession`

@@ -1,6 +1,7 @@
 package boot
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sync"
@@ -9,8 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/lua"
+	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -68,4 +72,44 @@ func TestDispatchLua_DeliversEvents(t *testing.T) {
 		defer mu.Unlock()
 		return len(got) == 1 && got[0] == "s1"
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+// rex.send must not land between a client Reply's text and its delayed
+// Enter: the agent would submit the reply with the script's text glued on.
+func TestLuaSender_WaitsForReplyEnter(t *testing.T) {
+	dir, err := os.MkdirTemp("", "rex-b")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "rex.sock")
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	srv, err := server.New(server.Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore()})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan struct{})
+	go func() { _ = srv.Serve(ctx); close(served) }()
+	t.Cleanup(func() { cancel(); <-served })
+
+	ch := make(chan []byte, 8)
+	srv.RegisterInputChannel("sess-1", ch)
+	var c *client.Client
+	require.Eventually(t, func() bool { c, err = client.Dial(sock); return err == nil }, 2*time.Second, 10*time.Millisecond)
+	defer c.Close()
+	_, err = c.Hello("test")
+	require.NoError(t, err)
+	require.NoError(t, c.Reply("sess-1", "blue"))
+
+	recv := func() string {
+		select {
+		case b := <-ch:
+			return string(b)
+		case <-time.After(2 * time.Second):
+			t.Fatal("no input delivered")
+			return ""
+		}
+	}
+	require.Equal(t, "blue", recv())
+	require.NoError(t, luaSender(srv)("sess-1", "x"))
+	require.Equal(t, "\r", recv(), "rex.send overtook the Reply's Enter")
+	require.Equal(t, "x", recv())
 }

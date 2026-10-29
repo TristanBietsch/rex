@@ -356,6 +356,22 @@ func (s *Server) InputChannel(sessionID string) chan []byte {
 	return nil
 }
 
+// SendInput writes b to a running session's PTY in order with client input:
+// it waits out a pending Reply's Enter, so b never lands between that
+// Reply's text and its submit. While the input buffer is full it retries for
+// up to timeout. In-process senders (Lua rex.send) use it rather than
+// writing to InputChannel.
+func (s *Server) SendInput(sessionID string, b []byte, timeout time.Duration) error {
+	in := s.input(sessionID)
+	if in == nil {
+		return fmt.Errorf("session %q is not running", sessionID)
+	}
+	if !in.send(b, timeout) {
+		return fmt.Errorf("send to session %q timed out: input buffer full", sessionID)
+	}
+	return nil
+}
+
 // input returns a running session's input, or nil.
 func (s *Server) input(sessionID string) *sessionInput {
 	s.inputMu.Lock()

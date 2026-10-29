@@ -43,7 +43,7 @@ Lua syntax/runtime errors from `LoadFile` propagate. `OnEvent` catches handler e
 
 ## Gotchas
 
-Standard Lua `os`/`io` libraries are not loaded; script is still trusted code in-process. Path from setting `lua_config_path` (default `~/.config/rex/init.lua`). A load error at startup is logged and handlers registered before it stay active. The daemon feeds handlers from `internal/daemon/boot/lua.go` (`dispatchLua`): store events go through a queue of 256 (`luaQueueSize`; dropped and logged while full) to one goroutine, never run inside `Store.broadcast`. `LoadFile` and every handler call are bounded by `Options.CallTimeout` (default `DefaultCallTimeout`, 5 s); `rex.send` waits at most `DefaultSendTimeout` (2 s).
+Standard Lua `os`/`io` libraries are not loaded; script is still trusted code in-process. Path from setting `lua_config_path` (default `~/.config/rex/init.lua`). A load error at startup is logged and handlers registered before it stay active. The daemon feeds handlers from `internal/daemon/boot/lua.go` (`dispatchLua`): store events go through a queue of 256 (`luaQueueSize`; dropped and logged while full) to one goroutine, never run inside `Store.broadcast`. `LoadFile` and every handler call are bounded by `Options.CallTimeout` (default `DefaultCallTimeout`, 5 s); `rex.send` goes through `Server.SendInput`, so it waits out a pending `Reply`'s Enter, and waits at most `DefaultSendTimeout` (2 s) for room in the input buffer.
 
 ## See also
 
