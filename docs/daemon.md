@@ -33,7 +33,7 @@ On `SIGINT`, `SIGTERM`, or the `Shutdown` intent the daemon stops accepting clie
 
 ### Socket
 
-The socket is created with mode `0600`. Its path must fit the OS limit for a Unix socket path: 104 bytes on macOS, 108 on Linux. A longer `-socket` (or default derived from `XDG_RUNTIME_DIR` / the home directory) fails at startup with an error that names the limit; choose a shorter path. State and log directories are `0700`, their files `0600` (see [paths.md](paths.md#permissions)).
+The socket is created with mode `0600`. Its path must fit the OS limit for a Unix socket path: at most 103 bytes on macOS, 107 on Linux and Windows. A longer `-socket` (or default derived from `XDG_RUNTIME_DIR` / the home directory) fails at startup, before the state dir is touched, with an error that names the limit; `rex daemon start` and the TUI check it before spawning. Choose a shorter path. State and log directories are `0700`, session files and logs `0600`; existing directories are tightened only at the default paths (see [paths.md](paths.md#permissions)).
 
 ## OPTIONS
 
