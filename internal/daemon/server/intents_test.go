@@ -33,14 +33,39 @@ func TestIntentSetMaxConcurrent_Accepted(t *testing.T) {
 	require.NoError(t, w.WriteIntent(protocol.IntentSetMaxConcurrent, "", protocol.SetMaxConcurrent{N: 2}))
 }
 
+// FocusFilter is obsolete but older clients still send it: no error back.
 func TestIntentFocusFilter_AcceptedSilently(t *testing.T) {
 	sock, _, cancel := startServer(t)
 	defer cancel()
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
 	defer conn.Close()
-	w, _ := helloOnConn(t, conn)
-	require.NoError(t, w.WriteIntent(protocol.IntentFocusFilter, "", protocol.FocusFilter{ToolID: "echo"}))
+	w, r := helloOnConn(t, conn)
+	require.NoError(t, w.WriteIntent(protocol.IntentFocusFilter, "ff", map[string]string{"tool_id": "echo"}))
+	// The next intent's error is the first event back: nothing for "ff".
+	require.NoError(t, w.WriteIntent(protocol.IntentComplete, "sync", protocol.Complete{SessionID: "nope"}))
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	env, err := r.Read()
+	require.NoError(t, err)
+	require.Equal(t, "sync", env.ID)
+}
+
+// OpenSession was never implemented; it stays an unknown intent.
+func TestIntentOpenSession_NotImplemented(t *testing.T) {
+	sock, _, cancel := startServer(t)
+	defer cancel()
+	conn, err := net.Dial("unix", sock)
+	require.NoError(t, err)
+	defer conn.Close()
+	w, r := helloOnConn(t, conn)
+	require.NoError(t, w.WriteIntent("OpenSession", "o", map[string]string{"session_id": "x"}))
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	env, err := r.Read()
+	require.NoError(t, err)
+	ee := decodeError(t, env)
+	require.Equal(t, "o", ee.ID)
+	require.Equal(t, protocol.ErrCodeBadIntent, ee.Code)
+	require.Equal(t, "intent not implemented", ee.Message)
 }
 
 func TestIntentRename_TriggersSessionUpdated(t *testing.T) {

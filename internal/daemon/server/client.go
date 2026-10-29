@@ -379,9 +379,8 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			slog.Info("server: fleet updated", "session", p.SessionID, "fleet", p.Fleet)
 
 		case protocol.IntentFocusFilter:
-			var p protocol.FocusFilter
-			_ = json.Unmarshal(env.Data, &p)
-			// Cosmetic — silently accept.
+			// Obsolete (filtering is client-side); accepted silently so older
+			// clients that still send it get no error.
 
 		case protocol.IntentSetMaxConcurrent:
 			var p protocol.SetMaxConcurrent

@@ -170,17 +170,6 @@ func (s *Store) CurrentState(id string) (protocol.State, bool) {
 	return sess.State, true
 }
 
-// GetByShortID returns a session by its 4-char short id (or extended).
-func (s *Store) GetByShortID(short string) (*Session, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	id, ok := s.byShortID[short]
-	if !ok {
-		return nil, false
-	}
-	return s.sessions[id], true
-}
-
 // TakenShortIDs returns a copy of short ids currently in use (for disambiguation on spawn).
 func (s *Store) TakenShortIDs() map[string]struct{} {
 	s.mu.RLock()

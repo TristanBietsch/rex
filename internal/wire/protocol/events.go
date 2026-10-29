@@ -71,7 +71,9 @@ type SessionSummary struct {
 // Snapshot is the daemon's response to Hello: full board state.
 type Snapshot struct {
 	Sessions []SessionSummary `json:"sessions"`
-	Filter   string           `json:"filter"`
+	// Filter is always "all": the daemon keeps no filter (board filtering
+	// is client-side). Kept on the wire for clients that read it.
+	Filter string `json:"filter"`
 }
 
 // SessionUpdated carries a sparse merge-patch over the summary.
@@ -117,7 +119,6 @@ type ErrorEvent struct {
 const (
 	ErrCodeBadIntent       = "bad_intent"
 	ErrCodeUnknownSession  = "unknown_session"
-	ErrCodeAmbiguousID     = "ambiguous_id"
 	ErrCodeRegistry        = "registry_invalid"
 	ErrCodeSpawn           = "spawn_failed"
 	ErrCodeTooManySessions = "too_many_sessions"

@@ -139,13 +139,6 @@ func TestClient_RenameDeleteResizeFleetMaxConcurrent(t *testing.T) {
 		require.NoError(t, json.Unmarshal(b, &p))
 		require.Equal(t, 8, p.N)
 	})
-
-	go func() { require.NoError(t, c.FocusFilter("claude")) }()
-	check(protocol.IntentFocusFilter, func(b []byte) {
-		var p protocol.FocusFilter
-		require.NoError(t, json.Unmarshal(b, &p))
-		require.Equal(t, "claude", p.ToolID)
-	})
 }
 
 func TestClient_RenameCarriesRequestID(t *testing.T) {

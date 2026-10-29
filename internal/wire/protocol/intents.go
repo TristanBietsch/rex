@@ -5,13 +5,11 @@ const (
 	IntentHello            = "Hello"
 	IntentSubscribe        = "Subscribe"
 	IntentNewSession       = "NewSession"
-	IntentOpenSession      = "OpenSession"
 	IntentSendInput        = "SendInput"
 	IntentReply            = "Reply"
 	IntentRename           = "Rename"
 	IntentDelete           = "Delete"
 	IntentResize           = "Resize"
-	IntentFocusFilter      = "FocusFilter"
 	IntentShutdown         = "Shutdown"
 	IntentSetMaxConcurrent = "SetMaxConcurrent"
 	IntentSetSessionFleet  = "SetSessionFleet"
@@ -20,6 +18,11 @@ const (
 	IntentRetire           = "Retire"
 	IntentUnretire         = "Unretire"
 	IntentReload           = "Reload"
+
+	// IntentFocusFilter is obsolete: board filtering is client-side. The
+	// daemon still accepts it, ignoring the payload, so older clients that
+	// send it get no error.
+	IntentFocusFilter = "FocusFilter"
 )
 
 // Hello is the first message a client sends after connect.
@@ -66,11 +69,6 @@ type SetSessionFleet struct {
 	Fleet string `json:"fleet,omitempty"`
 }
 
-// OpenSession marks a session as the client's foreground.
-type OpenSession struct {
-	SessionID string `json:"session_id"`
-}
-
 // SendInput forwards raw bytes to the session's PTY.
 type SendInput struct {
 	SessionID string `json:"session_id"`
@@ -100,11 +98,6 @@ type Rename struct {
 // Delete removes a session.
 type Delete struct {
 	SessionID string `json:"session_id"`
-}
-
-// FocusFilter is a cosmetic intent stored per-client.
-type FocusFilter struct {
-	ToolID string `json:"tool_id"` // "all" or a tool id
 }
 
 // SetMaxConcurrent updates the daemon's concurrent-session cap live.

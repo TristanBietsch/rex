@@ -140,12 +140,8 @@ func (c *Client) Reload() error {
 	return c.w.WriteIntent(protocol.IntentReload, "", struct{}{})
 }
 
-// FocusFilter sets the cosmetic tool filter.
-func (c *Client) FocusFilter(toolID string) error {
-	return c.w.WriteIntent(protocol.IntentFocusFilter, "", protocol.FocusFilter{ToolID: toolID})
-}
-
-// SetMaxConcurrent updates the daemon's concurrent-session cap. n <= 0 means uncapped.
+// SetMaxConcurrent updates the daemon's concurrent-session cap. The daemon
+// clamps n to 1..64.
 func (c *Client) SetMaxConcurrent(n int) error {
 	return c.w.WriteIntent(protocol.IntentSetMaxConcurrent, "", protocol.SetMaxConcurrent{N: n})
 }

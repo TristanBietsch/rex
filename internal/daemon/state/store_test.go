@@ -20,10 +20,7 @@ func TestStore_AddAndGet(t *testing.T) {
 	got, ok := s.Get(sess.ID)
 	require.True(t, ok)
 	require.Equal(t, sess.ID, got.ID)
-
-	got2, ok := s.GetByShortID(sess.ShortID)
-	require.True(t, ok)
-	require.Equal(t, sess.ID, got2.ID)
+	require.Contains(t, s.TakenShortIDs(), sess.ShortID)
 }
 
 func TestStore_AddDuplicateIDFails(t *testing.T) {
