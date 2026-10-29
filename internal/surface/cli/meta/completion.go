@@ -10,13 +10,14 @@ import (
 // RunCompletion prints a shell completion script.
 func RunCompletion(args []string) error {
 	fs := flag.NewFlagSet("completion", flag.ContinueOnError)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "completion: shell required (bash|zsh|fish)")
+	if err := core.CheckArgs(pos, 1, 1, "rex completion bash|zsh|fish"); err != nil {
+		return err
 	}
-	switch fs.Arg(0) {
+	switch pos[0] {
 	case "bash":
 		fmt.Print(bashCompletion)
 	case "zsh":

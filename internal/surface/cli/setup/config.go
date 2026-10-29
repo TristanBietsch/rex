@@ -47,8 +47,12 @@ func loadStore() (*settings.Store, string, error) {
 func configList(args []string) error {
 	fs := flag.NewFlagSet("config list", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "JSON output")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex config list [-json]"); err != nil {
+		return err
 	}
 	store, _, err := loadStore()
 	if err != nil {

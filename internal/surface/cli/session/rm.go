@@ -14,13 +14,14 @@ func RunRm(args []string) error {
 	fs := flag.NewFlagSet("rm", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	force := fs.Bool("force", false, "skip confirmation when stdin is a TTY")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "rm: exactly one selector required")
+	if err := core.CheckArgs(pos, 1, 1, "rex rm <sel> [-force] [-socket path]"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
+	sel := pos[0]
 
 	c, err := client.Dial(*socket)
 	if err != nil {

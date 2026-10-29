@@ -19,8 +19,12 @@ func RunLs(args []string) error {
 	showArchived := fs.Bool("show-archived", false, "include archived sessions")
 	short := fs.Bool("short", false, "compact mode (reserved)")
 	asJSON := fs.Bool("json", false, "output JSONL")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex ls [-state s] [-tool id] [-model id] [-show-archived] [-short] [-json] [-socket path]"); err != nil {
+		return err
 	}
 	_ = showArchived
 	_ = short

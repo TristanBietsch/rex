@@ -22,13 +22,14 @@ func RunLog(args []string) error {
 	follow := fs.Bool("f", false, "follow the transcript (like tail -f)")
 	tailN := fs.Int("n", 0, "show only the last N lines (0 = all)")
 	asBytes := fs.Bool("bytes", false, "print raw bytes (including ANSI)")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "log: exactly one selector required")
+	if err := core.CheckArgs(pos, 1, 1, "rex log <sel> [-f] [-n lines] [-bytes] [-state-dir dir] [-socket path]"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
+	sel := pos[0]
 
 	c, err := client.Dial(*socket)
 	if err != nil {

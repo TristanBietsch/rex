@@ -24,8 +24,12 @@ func RunStats(args []string) error {
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	asJSON := fs.Bool("json", false, "output JSON")
 	showAll := fs.Bool("all", false, "include zero-usage models")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex stats [-json] [-all] [-socket path]"); err != nil {
+		return err
 	}
 
 	sessions, fromDaemon := loadSessionsForStats(*socket)

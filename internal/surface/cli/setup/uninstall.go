@@ -34,8 +34,12 @@ func RunUninstall(args []string) error {
 	all := fs_.Bool("all", false, "equivalent to all flags above")
 	dryRun := fs_.Bool("dry-run", false, "print what would be removed without touching anything")
 
-	if err := fs_.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs_, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex uninstall [-yes] [-binaries] [-wipe-state] [-purge-config] [-strip-profile] [-all] [-dry-run]"); err != nil {
+		return err
 	}
 
 	if *all {

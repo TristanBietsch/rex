@@ -13,13 +13,14 @@ import (
 func RunSend(args []string) error {
 	fs := flag.NewFlagSet("send", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "send: exactly one selector required")
+	if err := core.CheckArgs(pos, 1, 1, "rex send <sel> [-socket path] < input"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
+	sel := pos[0]
 
 	c, err := client.Dial(*socket)
 	if err != nil {

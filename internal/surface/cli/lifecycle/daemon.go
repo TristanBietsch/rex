@@ -33,7 +33,9 @@ func RunDaemon(args []string) error {
 }
 
 func daemonStart(args []string) error {
-	_ = args
+	if err := core.CheckArgs(args, 0, 0, "rex daemon start"); err != nil {
+		return err
+	}
 	socket := core.DefaultSocket()
 	if daemonctl.Reachable(socket) {
 		fmt.Println("rex-daemon already running")
@@ -49,7 +51,9 @@ func daemonStart(args []string) error {
 }
 
 func daemonStop(args []string) error {
-	_ = args
+	if err := core.CheckArgs(args, 0, 0, "rex daemon stop"); err != nil {
+		return err
+	}
 	pid, err := daemonctl.FindPID()
 	if err != nil {
 		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
@@ -62,7 +66,9 @@ func daemonStop(args []string) error {
 }
 
 func daemonStatus(args []string) error {
-	_ = args
+	if err := core.CheckArgs(args, 0, 0, "rex daemon status"); err != nil {
+		return err
+	}
 	socket := core.DefaultSocket()
 	if conn, err := net.DialTimeout("unix", socket, daemonctl.SocketDialTimeout); err == nil {
 		_ = conn.Close()
@@ -75,6 +81,9 @@ func daemonStatus(args []string) error {
 }
 
 func daemonRestart(args []string) error {
+	if err := core.CheckArgs(args, 0, 0, "rex daemon restart"); err != nil {
+		return err
+	}
 	if err := daemonStop(args); err != nil {
 		fmt.Fprintln(os.Stderr, "stop:", err)
 	}
@@ -85,8 +94,12 @@ func daemonRestart(args []string) error {
 func daemonLogs(args []string) error {
 	fs := flag.NewFlagSet("daemon logs", flag.ContinueOnError)
 	follow := fs.Bool("f", false, "follow")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex daemon logs [-f]"); err != nil {
+		return err
 	}
 	if err := tailFile(os.Stdout, daemonctl.LogPath(), logTailLines, *follow); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())

@@ -15,17 +15,18 @@ func RunReply(args []string) error {
 	fs := flag.NewFlagSet("reply", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	raw := fs.Bool("raw", false, "do not append newline")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() < 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "reply: selector required")
+	if err := core.CheckArgs(pos, 1, -1, "rex reply <sel> [text…] [-raw] [-socket path] (text starting with - goes after --)"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
+	sel := pos[0]
 
 	var text string
-	if fs.NArg() > 1 {
-		text = strings.Join(fs.Args()[1:], " ")
+	if len(pos) > 1 {
+		text = strings.Join(pos[1:], " ")
 	} else {
 		b, err := io.ReadAll(os.Stdin)
 		if err != nil {

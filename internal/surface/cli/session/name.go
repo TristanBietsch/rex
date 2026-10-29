@@ -24,14 +24,15 @@ func parseNameArgs(args []string) (nameArgs, error) {
 	fs := flag.NewFlagSet("name", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	clear := fs.Bool("clear", false, "clear the name (board shows the slug)")
-	if err := fs.Parse(args); err != nil {
-		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return nameArgs{}, err
 	}
-	if fs.NArg() < 1 {
-		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, "name: <selector> [text…] | -clear <selector>")
+	if err := core.CheckArgs(pos, 1, -1, "rex name <sel> [text…] | rex name <sel> -clear (text starting with - goes after --)"); err != nil {
+		return nameArgs{}, err
 	}
-	a := nameArgs{socket: *socket, sel: fs.Arg(0), clear: *clear}
-	text := strings.Join(fs.Args()[1:], " ")
+	a := nameArgs{socket: *socket, sel: pos[0], clear: *clear}
+	text := strings.Join(pos[1:], " ")
 	switch {
 	case a.clear && text != "":
 		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, "name: -clear takes no text")

@@ -23,6 +23,19 @@ func TestParseNameArgs(t *testing.T) {
 	require.True(t, a.clear)
 	require.Equal(t, "", a.name)
 
+	// Flags may follow the selector; "--" passes dash-leading text.
+	a, err = parseNameArgs([]string{"ab12", "-clear"})
+	require.NoError(t, err)
+	require.True(t, a.clear)
+	a, err = parseNameArgs([]string{"ab12", "fix", "-socket", "/x.sock"})
+	require.NoError(t, err)
+	require.Equal(t, "fix", a.name)
+	require.Equal(t, "/x.sock", a.socket)
+	a, err = parseNameArgs([]string{"ab12", "--", "-clear"})
+	require.NoError(t, err)
+	require.False(t, a.clear)
+	require.Equal(t, "-clear", a.name)
+
 	_, err = parseNameArgs([]string{"-clear", "ab12", "x"})
 	require.Error(t, err)
 	_, err = parseNameArgs(nil)

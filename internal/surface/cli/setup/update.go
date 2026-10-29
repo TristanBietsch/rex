@@ -34,8 +34,12 @@ func RunUpdate(args []string) error {
 	yShort := fs.Bool("y", false, "skip confirmation prompt (shorthand)")
 	source := fs.String("source", "", "explicit source checkout path; run git pull + ./install.sh")
 	verbose := fs.Bool("verbose", false, "stream go install output instead of spinning")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex update [-check] [-yes] [-source dir] [-verbose]"); err != nil {
+		return err
 	}
 
 	skipConfirm := *yes || *yShort

@@ -45,13 +45,14 @@ func RunAttach(args []string) error {
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	readOnly := fs.Bool("read-only", false, "attach as observer (no input forwarding)")
 	noReplay := fs.Bool("no-replay", false, "skip transcript backlog on attach")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "attach: exactly one selector required")
+	if err := core.CheckArgs(pos, 1, 1, "rex attach <sel> [-read-only] [-no-replay] [-socket path]"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
+	sel := pos[0]
 
 	c, err := client.Dial(*socket)
 	if err != nil {

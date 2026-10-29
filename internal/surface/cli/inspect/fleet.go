@@ -23,30 +23,33 @@ import (
 func RunFleet(args []string) error {
 	fs := flag.NewFlagSet("fleet", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	sub, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	sub := fs.Args()
 	if len(sub) == 0 {
 		return core.NewExitError(core.ExitInvalidArgs, "fleet: subcommand required (ls|set|unset|show)")
 	}
 
 	switch sub[0] {
 	case "ls":
+		if err := core.CheckArgs(sub, 1, 1, "rex fleet ls [-socket path]"); err != nil {
+			return err
+		}
 		return runFleetLS(*socket, os.Stdout)
 	case "set":
-		if len(sub) < 3 {
-			return core.NewExitError(core.ExitInvalidArgs, "fleet set: usage: fleet set <selector> <fleet>")
+		if err := core.CheckArgs(sub, 3, 3, "rex fleet set <sel> <fleet> [-socket path]"); err != nil {
+			return err
 		}
 		return runFleetSet(*socket, sub[1], sub[2])
 	case "unset":
-		if len(sub) < 2 {
-			return core.NewExitError(core.ExitInvalidArgs, "fleet unset: usage: fleet unset <selector>")
+		if err := core.CheckArgs(sub, 2, 2, "rex fleet unset <sel> [-socket path]"); err != nil {
+			return err
 		}
 		return runFleetUnset(*socket, sub[1])
 	case "show":
-		if len(sub) < 2 {
-			return core.NewExitError(core.ExitInvalidArgs, "fleet show: usage: fleet show <fleet>")
+		if err := core.CheckArgs(sub, 2, 2, "rex fleet show <fleet> [-socket path]"); err != nil {
+			return err
 		}
 		return runFleetShow(*socket, sub[1], os.Stdout)
 	default:

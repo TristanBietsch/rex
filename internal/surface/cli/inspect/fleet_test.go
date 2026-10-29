@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/cli/session"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -24,14 +25,36 @@ func TestRunFleetRouting(t *testing.T) {
 	}{
 		{[]string{}, "subcommand required"},
 		{[]string{"unknown"}, "unknown subcommand"},
-		{[]string{"set"}, "fleet set: usage"},
-		{[]string{"unset"}, "fleet unset: usage"},
-		{[]string{"show"}, "fleet show: usage"},
+		{[]string{"set"}, "usage: rex fleet set"},
+		{[]string{"unset"}, "usage: rex fleet unset"},
+		{[]string{"show"}, "usage: rex fleet show"},
+		{[]string{"ls", "x"}, `unexpected argument "x"`},
+		{[]string{"set", "a", "b", "c"}, `unexpected argument "c"`},
+		{[]string{"unset", "a", "b"}, `unexpected argument "b"`},
+		{[]string{"show", "a", "b"}, `unexpected argument "b"`},
 	}
 	for _, c := range cases {
 		err := RunFleet(c.args)
 		require.Error(t, err, "args=%v", c.args)
 		require.Contains(t, err.Error(), c.wantErr, "args=%v", c.args)
+	}
+}
+
+// A trailing -socket is honored, not left as an ignored positional.
+func TestRunFleet_TrailingSocketFlag(t *testing.T) {
+	isolateDefaults(t)
+	dead := t.TempDir() + "/none.sock"
+	for _, args := range [][]string{
+		{"ls", "--socket", dead},
+		{"set", "a", "b", "--socket", dead},
+		{"unset", "a", "--socket", dead},
+		{"show", "a", "--socket", dead},
+	} {
+		err := RunFleet(args)
+		var ee core.ExitError
+		require.ErrorAs(t, err, &ee, "args=%v", args)
+		require.Equal(t, core.ExitDaemonUnreachable, ee.Code, "args=%v", args)
+		require.Contains(t, ee.Msg, dead, "args=%v", args)
 	}
 }
 

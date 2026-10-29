@@ -75,8 +75,12 @@ func RunDoctor(args []string) error {
 	asJSON := fs.Bool("json", false, "output JSON")
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	verbose := fs.Bool("verbose", false, "include INFO-level rows")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex doctor [-json] [-verbose] [-socket path]"); err != nil {
+		return err
 	}
 
 	checks := runAllChecks(*socket)

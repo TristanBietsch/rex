@@ -40,8 +40,8 @@ func RunHelp() error {
 				{"ls", "list sessions"},
 				{"new", "create a new session (wizard)"},
 				{"attach <sel>", "attach to a session (ctrl+] to detach)"},
-				{"reply <sel> <text>", "reply to a needs-input session"},
-				{"send <sel> <text>", "send raw input"},
+				{"reply <sel> [text…]", "reply to a needs-input session (stdin if no text)"},
+				{"send <sel> < input", "send raw stdin bytes"},
 				{"wait <sel>", "block until session state changes"},
 				{"rename <sel> <slug>", "change a session's slug (selector)"},
 				{"name <sel> [text]", "set/show display name (-clear resets to slug)"},
@@ -125,6 +125,7 @@ func RunHelp() error {
 	}
 
 	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("selectors: short id, slug, ") + HelpCmd.Render("@needs") + HelpDim.Render(", ") + HelpCmd.Render("@working") + HelpDim.Render(", ") + HelpCmd.Render("@done") + "\n")
+	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("flags may follow arguments; put text starting with - after ") + HelpCmd.Render("--") + "\n")
 	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("inside the TUI press ") + HelpCmd.Render("?") + HelpDim.Render(" for keybindings") + "\n")
 	b.WriteString("\n")
 

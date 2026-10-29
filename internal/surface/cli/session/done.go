@@ -30,11 +30,12 @@ func RunDone(args []string) error {
 	fs := flag.NewFlagSet("done", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	after := fs.Duration("after", 0, "clear after this long (e.g. 2h, 72h); default retire_after_hours")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "done: <selector> [-after 72h]")
+	if err := core.CheckArgs(pos, 1, 1, "rex done <sel> [-after 72h] [-socket path]"); err != nil {
+		return err
 	}
 	ttl := *after
 	if ttl == 0 {
@@ -48,7 +49,7 @@ func RunDone(args []string) error {
 		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
 	}
 	defer c.Close()
-	sess, err := core.ResolveSelector(c, fs.Arg(0))
+	sess, err := core.ResolveSelector(c, pos[0])
 	if err != nil {
 		return err
 	}
@@ -71,18 +72,19 @@ func RunDone(args []string) error {
 func RunUndone(args []string) error {
 	fs := flag.NewFlagSet("undone", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "undone: <selector>")
+	if err := core.CheckArgs(pos, 1, 1, "rex undone <sel> [-socket path]"); err != nil {
+		return err
 	}
 	c, err := client.Dial(*socket)
 	if err != nil {
 		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
 	}
 	defer c.Close()
-	sess, err := core.ResolveSelector(c, fs.Arg(0))
+	sess, err := core.ResolveSelector(c, pos[0])
 	if err != nil {
 		return err
 	}

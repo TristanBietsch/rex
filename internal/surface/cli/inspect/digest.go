@@ -301,8 +301,12 @@ func RunDigest(args []string) error {
 	dateFlag := fs.String("date", "", "specific day: YYYY-MM-DD or 'yesterday'")
 	sinceFlag := fs.String("since", "", "relative window: 7d or 24h")
 	asJSON := fs.Bool("json", false, "emit JSON")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex digest [-date YYYY-MM-DD|yesterday] [-since 7d|24h] [-json] [-socket path]"); err != nil {
+		return err
 	}
 
 	slog.Debug("digest: starting", "date", *dateFlag, "since", *sinceFlag, "json", *asJSON)

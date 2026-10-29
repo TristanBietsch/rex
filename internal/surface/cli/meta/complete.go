@@ -12,13 +12,14 @@ import (
 func RunComplete(args []string) error {
 	fs := flag.NewFlagSet("complete", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "complete: exactly one selector required")
+	if err := core.CheckArgs(pos, 1, 1, "rex complete <sel> [-socket path]"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
+	sel := pos[0]
 
 	c, err := client.Dial(*socket)
 	if err != nil {

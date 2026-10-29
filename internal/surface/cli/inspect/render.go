@@ -18,7 +18,11 @@ func RunRender(args []string) error {
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	widthFlag := fs.String("w", "120", "render width")
 	heightFlag := fs.String("h", "30", "render height")
-	if err := fs.Parse(args); err != nil {
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex render [-w cols] [-h rows] [-socket path]"); err != nil {
 		return err
 	}
 	w, _ := strconv.Atoi(*widthFlag)

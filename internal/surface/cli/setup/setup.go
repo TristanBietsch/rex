@@ -30,8 +30,12 @@ func RunSetup(args []string) error {
 	socket := fs.String("socket", core.DefaultSocket(), "daemon socket path")
 	force := fs.Bool("force", false, "overwrite existing config without prompting")
 
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex setup [-preview] [-yes] [-tool id] [-model id] [-effort e] [-no-shell] [-config path] [-force] [-socket path]"); err != nil {
+		return err
 	}
 
 	// -y is an alias

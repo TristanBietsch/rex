@@ -15,14 +15,14 @@ import (
 func RunRename(args []string) error {
 	fs := flag.NewFlagSet("rename", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 2 {
-		return core.NewExitError(core.ExitInvalidArgs, "rename: <selector> <new-slug>")
+	if err := core.CheckArgs(pos, 2, 2, "rex rename <sel> <new-slug> [-socket path]"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
-	newSlug := fs.Arg(1)
+	sel, newSlug := pos[0], pos[1]
 	if err := protocol.ValidateSlug(newSlug); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, "rename: "+err.Error())
 	}

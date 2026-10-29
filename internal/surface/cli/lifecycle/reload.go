@@ -12,8 +12,12 @@ import (
 // trigger a config re-read.
 func RunReload(args []string) error {
 	fs := flag.NewFlagSet("reload", flag.ContinueOnError)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex reload"); err != nil {
+		return err
 	}
 	if err := daemonctl.Reload(); err != nil {
 		if errors.Is(err, daemonctl.ErrNotRunning) {

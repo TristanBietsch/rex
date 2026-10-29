@@ -17,13 +17,14 @@ func RunWait(args []string) error {
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	until := fs.String("until", "done", "target state: working | needs_input | done | failed | any")
 	timeout := fs.Duration("timeout", 0, "max wait duration (0 = no timeout)")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
-		return core.NewExitError(core.ExitInvalidArgs, "wait: exactly one selector required")
+	if err := core.CheckArgs(pos, 1, 1, "rex wait <sel> [-until state] [-timeout duration] [-socket path]"); err != nil {
+		return err
 	}
-	sel := fs.Arg(0)
+	sel := pos[0]
 
 	c, err := client.Dial(*socket)
 	if err != nil {

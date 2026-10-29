@@ -17,8 +17,12 @@ func RunStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
 	asJSON := fs.Bool("json", false, "output JSON")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	pos, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := core.CheckArgs(pos, 0, 0, "rex status [-json] [-socket path]"); err != nil {
+		return err
 	}
 
 	c, err := client.Dial(*socket)
