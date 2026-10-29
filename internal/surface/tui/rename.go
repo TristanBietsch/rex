@@ -147,15 +147,8 @@ func renderRenamePrompt(m Model, width int) string {
 	}
 	head := styleArrowYellow.Render("✎ rename") + " " + styleDim.Render(truncate(r.Slug, 24)) + styleMuted.Render(" › ")
 	count := styleMuted.Render(" " + strconv.Itoa(utf8.RuneCountInString(r.Draft)) + "/" + strconv.Itoa(protocol.MaxSessionNameRunes))
-	room := width - 2 - ansi.StringWidth(head) - ansi.StringWidth(count) - 1
-	draft := r.Draft
-	if room < 1 {
-		room = 1
-	}
-	if ansi.StringWidth(draft) > room {
-		draft = ansi.TruncateLeft(draft, ansi.StringWidth(draft)-room+1, "…")
-	}
-	body := stylePrimary.Render(draft) + cursorBlock(m)
+	room := max(width-2-ansi.StringWidth(head)-ansi.StringWidth(count)-1, 1)
+	body := stylePrimary.Render(tailFit(r.Draft, room)) + cursorBlock(m)
 	if r.Draft == "" {
 		body = cursorBlock(m) + styleDim.Render(truncate("empty = show slug", room))
 	}

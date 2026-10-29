@@ -117,37 +117,65 @@ func renderFullScreen(m Model, w, h int) string {
 		}
 	}
 
-	var bottom string
+	var prompt string
 	switch m.Focus {
 	case FocusConfirmQuit:
-		bottom = hr + "\n" + renderQuitConfirm(cw) + "\n" + helpline
+		prompt = renderQuitConfirm(cw)
 	case FocusConfirmDelete:
-		bottom = hr + "\n" + renderDeleteConfirm(m, cw) + "\n" + helpline
+		prompt = renderDeleteConfirm(m, cw)
 	case FocusRename:
-		bottom = hr + "\n" + renderRenamePrompt(m, cw) + "\n" + helpline
+		prompt = renderRenamePrompt(m, cw)
 	default:
-		bottom = hr + "\n" + renderPrompt(m, cw) + "\n" + helpline
+		prompt = renderPrompt(m, cw)
 	}
+	// The bottom rows always render, one line each: they used to be cut
+	// first whenever anything above overflowed the screen.
+	bottom := []string{hr, firstLine(prompt), firstLine(helpline)}
 
-	// 1 blank + header + blank + hr + blank + board + 3 bottom = h (boardTop/boardHeightFor).
-	boardH := boardHeightFor(m, h)
-
-	board := renderBoard(m, cw, boardH)
-
-	lines := []string{""}
-	lines = append(lines, strings.Split(header, "\n")...)
+	// 1 blank + header + blank + hr + blank (boardTop rows) + board + 3 bottom
+	// = h. The header keeps exactly headerHeight lines so mouse hit-testing
+	// (boardTop) matches what is drawn.
+	lines := make([]string, 0, h+len(bottom))
+	lines = append(lines, "")
+	headerLines := strings.Split(header, "\n")
+	for i := range headerHeight(m) {
+		if i < len(headerLines) {
+			lines = append(lines, headerLines[i])
+		} else {
+			lines = append(lines, "")
+		}
+	}
 	lines = append(lines, "", hr, "")
-	lines = append(lines, strings.Split(board, "\n")...)
-	lines = append(lines, strings.Split(bottom, "\n")...)
-
-	// Hard cap: never produce more than h lines (the alt-screen window).
-	if len(lines) > h {
-		lines = lines[:h]
+	// The board absorbs any shortfall, down to no rows on a tiny screen.
+	if boardH := boardHeightFor(m, h); boardH > 0 {
+		lines = append(lines, strings.Split(renderBoard(m, cw, boardH), "\n")...)
 	}
-	for len(lines) < h {
-		lines = append(lines, "")
+	// Too short even for the header: cut the top from below so the header
+	// rows that do show stay where hit-testing expects them.
+	if room := max(h-len(bottom), 0); len(lines) > room {
+		lines = lines[:room]
+	}
+	lines = append(lines, bottom...)
+	if len(lines) > h {
+		lines = lines[len(lines)-h:]
+	}
+	// A line wider than the terminal wraps and pushes everything below it
+	// down a row (rows narrower than the fixed columns on a tiny screen).
+	for i, l := range lines {
+		if ansi.StringWidth(l) > w {
+			lines[i] = ansi.Truncate(l, w, "")
+		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// firstLine is s up to its first newline: a bottom bar row stays one row
+// even if a renderer lets a newline through.
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // centerOverlay composites `content` as a bordered popup centered over `bg`.

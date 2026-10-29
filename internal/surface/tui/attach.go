@@ -503,17 +503,19 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	} else {
 		stateChip = styleDim.Render("· unknown")
 	}
-	title := a.Slug
+	// Session text is untrusted: one row, or the popup grows and shifts off
+	// the geometry mouse hit-testing assumes.
+	title := protocol.SingleLine(a.Slug)
 	if haveSum {
-		title = displayName(sum)
+		title = protocol.SingleLine(displayName(sum))
 		if sum.Name != "" {
-			title += styleDim.Render(" · " + sum.Slug)
+			title += styleDim.Render(" · " + protocol.SingleLine(sum.Slug))
 		}
 	}
 	slug := styleHeaderApp.Render(title)
 	var meta string
 	if haveSum {
-		meta = styleDim.Render(sum.ToolID + " · " + modelLabel(sum))
+		meta = styleDim.Render(protocol.SingleLine(sum.ToolID + " · " + modelLabel(sum)))
 	}
 	geom := styleMuted.Render(fmt.Sprintf("%d×%d", a.Cols, a.Rows))
 	if a.Scrolling() {
@@ -566,7 +568,7 @@ func attachFooter(m Model, a *AttachState, width int) string {
 		}
 	}
 	if a.Ended {
-		msg := a.EndedMsg
+		msg := protocol.SingleLine(a.EndedMsg) // may wrap a multi-line error
 		if msg == "" {
 			msg = "session ended"
 		}

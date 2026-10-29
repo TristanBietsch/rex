@@ -182,9 +182,10 @@ func renderFailEntry(s protocol.SessionSummary) string {
 	if s.ExitCode != nil {
 		exit = fmt.Sprintf("%d", *s.ExitCode)
 	}
-	id := lipgloss.NewStyle().Foreground(colorFgDim).Render(s.ShortID)
-	slug := styleSlug.Render(s.Slug)
-	meta := styleDim.Render(fmt.Sprintf("%s · %s · exit=%s · %s ago", s.ToolID, s.ModelID, exit, when))
+	// Session text is untrusted: one row each (truncate sanitizes LastLine).
+	id := lipgloss.NewStyle().Foreground(colorFgDim).Render(protocol.SingleLine(s.ShortID))
+	slug := styleSlug.Render(protocol.SingleLine(s.Slug))
+	meta := styleDim.Render(protocol.SingleLine(fmt.Sprintf("%s · %s · exit=%s · %s ago", s.ToolID, s.ModelID, exit, when)))
 	line1 := fmt.Sprintf("  %s  %s    %s", id, slug, meta)
 	if s.LastLine == "" {
 		return line1

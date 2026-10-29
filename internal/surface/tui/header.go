@@ -49,14 +49,16 @@ func renderHeader(m Model, width int) string {
 	out := padLine(topRow, width) + "\n" + chipRow
 
 	if m.BackendUnavailable {
-		reason := m.BackendUnavailableReason
+		// One row whatever the reason (often an HTTP error body) holds:
+		// headerHeight and mouse hit-testing count on it.
+		reason := protocol.SingleLine(m.BackendUnavailableReason)
 		if reason == "" {
 			reason = "ollama unreachable"
 		}
 		model := "gemma2:2b"
 		if m.Store != nil {
 			if v, _ := m.Store.Get("summary_model").(string); v != "" {
-				model = v
+				model = protocol.SingleLine(v)
 			}
 		}
 		banner := styleDim.Render(

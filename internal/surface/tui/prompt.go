@@ -5,6 +5,7 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -18,15 +19,18 @@ var (
 func renderPrompt(m Model, width int) string {
 	glyph := promptGlyph(m)
 	var line string
+	// Input text keeps its tail (and the cursor after it) on screen:
+	// "  " + glyph + " " + text + cursor.
+	room := width - 4 - ansi.StringWidth(glyph)
 	switch m.Focus {
 	case FocusCommand:
 		if m.Attach != nil {
 			line = styleArrow.Render(glyph) + " " + styleDim.Render("attached — command bar open in popup")
 			break
 		}
-		line = styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.CmdText) + cursorBlock(m)
+		line = styleArrowYellow.Render(":") + " " + stylePrimary.Render(tailFit(m.CmdText, width-5)) + cursorBlock(m)
 	case FocusPrompt:
-		body := stylePrimary.Render(m.PromptText) + cursorBlock(m)
+		body := stylePrimary.Render(tailFit(m.PromptText, room)) + cursorBlock(m)
 		if m.PromptText == "" {
 			body = cursorBlock(m) + styleDim.Render("type then enter to spawn a session — esc to cancel")
 		}
@@ -43,6 +47,16 @@ func renderPrompt(m Model, width int) string {
 		line = styleArrow.Render(glyph) + " " + body
 	}
 	return padLine("  "+line, width)
+}
+
+// tailFit keeps the end of input text s within n columns, cutting the front
+// to "…", so the cursor after it stays on screen as the text grows.
+func tailFit(s string, n int) string {
+	n = max(n, 1)
+	if w := ansi.StringWidth(s); w > n {
+		return ansi.TruncateLeft(s, w-n+1, "…")
+	}
+	return s
 }
 
 // typedText is what a key event's runes add to a one-line input. A bracketed
@@ -66,7 +80,9 @@ func typedText(rs []rune) string {
 // promptGlyph returns the configured prompt glyph or the λ default.
 func promptGlyph(m Model) string {
 	if m.Store != nil {
-		if g, _ := m.Store.Get("prompt_glyph").(string); g != "" {
+		// Free text in config.yaml: keep it to one row.
+		g, _ := m.Store.Get("prompt_glyph").(string)
+		if g = protocol.SingleLine(g); g != "" {
 			return g
 		}
 	}
@@ -89,7 +105,8 @@ func cursorBlock(m Model) string {
 // renderHelpLine builds the bottom help line, sized to width.
 func renderHelpLine(m Model, width int) string {
 	if m.Err != "" {
-		return padLine("  "+styleStateFailed.Render("err: "+m.Err), width)
+		// Errors wrap daemon and OS messages that can span lines.
+		return padLine("  "+styleStateFailed.Render("err: "+protocol.SingleLine(m.Err)), width)
 	}
 	if m.Focus == FocusRename {
 		parts := []string{
