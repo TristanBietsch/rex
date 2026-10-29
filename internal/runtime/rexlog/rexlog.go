@@ -28,12 +28,12 @@ func Init(name string) {
 		path, err := openLogFile(name)
 		if err != nil {
 			// Fall back to stderr so we never lose logs entirely.
-			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, handlerOpts())))
+			slog.SetDefault(newLogger(os.Stderr))
 			slog.Warn("rexlog: file open failed, logging to stderr", "err", err)
 			return
 		}
 		logFile = path
-		slog.SetDefault(slog.New(slog.NewTextHandler(io.Writer(path), handlerOpts())))
+		slog.SetDefault(newLogger(path))
 		slog.Info("rexlog: initialized", "path", path.Name(), "binary", name)
 	})
 }
@@ -78,6 +78,13 @@ func stateDir() string {
 	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "state", "rex")
+}
+
+// newLogger builds the logger Init installs. Every record carries the process
+// id: several TUIs can append to one tui.log, and without it their lines read
+// as duplicate events.
+func newLogger(w io.Writer) *slog.Logger {
+	return slog.New(slog.NewTextHandler(w, handlerOpts())).With("pid", os.Getpid())
 }
 
 func handlerOpts() *slog.HandlerOptions {

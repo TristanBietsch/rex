@@ -1,10 +1,12 @@
 package rexlog
 
 import (
+	"bytes"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -89,4 +91,13 @@ func TestInit_WritesToConfiguredDir(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(dir, "once-test.log"))
 	require.NoError(t, err)
 	require.True(t, strings.Contains(string(data), "rexlog: initialized"))
+	require.Contains(t, string(data), "pid="+strconv.Itoa(os.Getpid()))
+}
+
+// Processes sharing a log file (two TUIs on tui.log) are told apart by pid.
+func TestNewLogger_TagsPID(t *testing.T) {
+	var buf bytes.Buffer
+	newLogger(&buf).Info("hello", "k", "v")
+	require.Contains(t, buf.String(), "pid="+strconv.Itoa(os.Getpid()))
+	require.Contains(t, buf.String(), "k=v")
 }
