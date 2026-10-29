@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Actions are pinned by commit SHA; Dependabot bumps the SHA and its
+  # version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Root module only. third_party/vt10x is a vendored fork with its own
+  # go.mod and is updated by hand.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
