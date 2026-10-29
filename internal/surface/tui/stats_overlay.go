@@ -148,7 +148,7 @@ func renderStatsOverlay(m Model) string {
 	lines = append(lines, renderHistogram(durLabels, durBuckets))
 	lines = append(lines, "")
 
-	lines = append(lines, styleMuted.Render("  esc or :stats to close"))
+	lines = append(lines, styleMuted.Render("  esc to close"))
 
 	return strings.Join(lines, "\n")
 }

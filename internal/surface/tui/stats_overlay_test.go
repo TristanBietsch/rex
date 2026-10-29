@@ -79,13 +79,27 @@ func TestStatsOverlay_OpenClose(t *testing.T) {
 	m2, _ := executeCommand(m, "stats")
 	require.Equal(t, FocusStats, m2.Focus)
 
-	// :stats again closes it.
-	m3, _ := executeCommand(m2, "stats")
-	require.Equal(t, FocusBoard, m3.Focus)
-
 	// Esc closes the overlay.
 	m4, _ := updateKey(m2, tea.KeyMsg{Type: tea.KeyEsc})
 	require.Equal(t, FocusBoard, m4.Focus)
+}
+
+// Typing ":stats" over the overlay used to close it on ':' and then run
+// "stats" as board keys ('t' cycled the filter). Keys other than esc are
+// now swallowed.
+func TestStatsOverlay_SwallowsOtherKeys(t *testing.T) {
+	m := boardModel(protocol.SessionSummary{ID: "a", ToolID: "claude", State: protocol.StateNeedsInput})
+	m, _ = executeCommand(m, "stats")
+	for _, k := range []string{":", "s", "t", "a", "t", "s", "enter", "d", "d"} {
+		m, _ = updateKey(m, key(k))
+	}
+	require.Equal(t, FocusStats, m.Focus)
+	require.Equal(t, "all", m.Filter)
+	require.Empty(t, m.PendingDeleteID)
+	require.NotContains(t, renderStatsOverlay(m), ":stats")
+
+	m, _ = updateKey(m, key("esc"))
+	require.Equal(t, FocusBoard, m.Focus)
 }
 
 func TestStatsOverlay_Render(t *testing.T) {

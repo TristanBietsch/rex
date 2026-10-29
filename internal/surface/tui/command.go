@@ -103,14 +103,8 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	case "fail", "fails", "failed":
 		return openFail(m)
 	case "stats":
-		if m.Focus == FocusStats {
-			// Toggle off.
-			m.Focus = FocusBoard
-			slog.Debug("tui: stats overlay closed")
-		} else {
-			m.Focus = FocusStats
-			slog.Debug("tui: stats overlay opened")
-		}
+		m.Focus = FocusStats
+		slog.Debug("tui: stats overlay opened")
 		return m, nil
 	default:
 		m.Err = "unknown command: " + verb
