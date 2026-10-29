@@ -2,10 +2,13 @@ package tui
 
 import (
 	"errors"
+	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,24 +73,47 @@ func TestSplashAllOKShowsReady(t *testing.T) {
 	require.Contains(t, out, "受信中")
 }
 
-func TestSplashFailed(t *testing.T) {
-	m := Model{
+// daemonFailModel is the splash after the daemon step failed with err.
+func daemonFailModel(err error) Model {
+	return Model{
 		Focus:      FocusBoot,
 		Width:      100,
 		Height:     30,
 		BootStart:  time.Now().Add(-2 * time.Second),
 		BootFailed: true,
-		BootError:  errors.New(`exec: "rex-daemon": executable file not found in $PATH`),
+		BootError:  err,
 		BootLog: []bootLine{
 			{Name: "log.init", Status: stepOK, Desc: "ok"},
-			{Name: "daemon", Status: stepFail, Desc: "binary not found", Err: errors.New("missing")},
+			{Name: "daemon", Status: stepFail, Desc: err.Error(), Err: err},
 		},
 	}
+}
+
+func TestSplashFailed(t *testing.T) {
+	// What daemonctl.Start returns when rex-daemon is nowhere to be found.
+	notFound := fmt.Errorf("spawn rex-daemon: %w", &exec.Error{Name: "rex-daemon", Err: exec.ErrNotFound})
+	m := daemonFailModel(notFound)
 	out := renderSplash(m, m.Width, m.Height)
 	require.Contains(t, out, "起動失敗")
 	require.Contains(t, out, "FAIL")
 	require.Contains(t, out, "cause:")
 	require.Contains(t, out, "rex-daemon")
 	require.Contains(t, out, "fix:")
+	require.Contains(t, out, "ensure rex-daemon is on PATH")
 	require.Contains(t, out, "press q")
+}
+
+// A daemon that started and died has a cause in its log, not a PATH
+// problem.
+func TestSplashFailed_DaemonExitPointsAtLog(t *testing.T) {
+	for _, err := range []error{
+		errors.New("rex-daemon exited during startup (exit status 1): listen /x: bind: address already in use"),
+		errors.New("rex-daemon (pid 42) is running but socket /x did not come up within 2s"),
+	} {
+		m := daemonFailModel(err)
+		out := ansi.Strip(renderSplash(m, m.Width, m.Height))
+		require.Contains(t, out, "cause: "+err.Error())
+		require.Contains(t, out, "fix:   see daemon.log (rex daemon logs)")
+		require.NotContains(t, out, "PATH")
+	}
 }

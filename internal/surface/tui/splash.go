@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -84,7 +87,7 @@ func renderSplash(m Model, w, h int) string {
 		if m.BootError != nil {
 			rows = append(rows, leftPad+styleDim.Render("cause: ")+styleBootCause.Render(m.BootError.Error()))
 		}
-		if hint, ok := bootFixHints[lastFailedStep(m)]; ok {
+		if hint, ok := bootFixHint(m); ok {
 			rows = append(rows, leftPad+styleDim.Render("fix:   ")+stylePrimary.Render(hint))
 		}
 		rows = append(rows, "", lipgloss.PlaceHorizontal(w-2, lipgloss.Right, styleDim.Render("press q · ctrl+c to quit")))
@@ -191,6 +194,24 @@ var bootFixHints = map[string]string{
 	"client.dial":    "the daemon socket disappeared — try `rex daemon start`",
 	"handshake":      "protocol mismatch — rebuild rex and rex-daemon to the same version",
 	"subscribe":      "the daemon rejected the event subscription — check daemon.log",
+}
+
+// bootFixHint returns the next step for the most recent failed step. The
+// PATH hint fits a daemon start failure only when there was no binary to
+// run; otherwise the daemon ran and died or hung, and its log says why.
+func bootFixHint(m Model) (string, bool) {
+	step := lastFailedStep(m)
+	if step == "daemon" && !daemonBinaryMissing(m.BootError) {
+		return "see daemon.log (rex daemon logs)", true
+	}
+	hint, ok := bootFixHints[step]
+	return hint, ok
+}
+
+// daemonBinaryMissing reports whether a daemonctl.Start error means the
+// rex-daemon executable wasn't found.
+func daemonBinaryMissing(err error) bool {
+	return errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist)
 }
 
 // lastFailedStep returns the name of the most recent stepFail row.
