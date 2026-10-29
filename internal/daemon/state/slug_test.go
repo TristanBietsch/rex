@@ -62,9 +62,9 @@ func TestStore_UpdateRenameRejectsSlugOfOtherSession(t *testing.T) {
 	require.Equal(t, "beta", b.Slug, "slug unchanged on rejection")
 	require.Zero(t, patches, "no broadcast on rejection")
 
-	// Renaming to its own slug is a confirmed no-op, not a collision.
+	// Renaming to its own slug is a no-op, not a collision.
 	require.NoError(t, store.UpdateRename("id-a", "alpha", ""))
-	require.Equal(t, 1, patches)
+	require.Zero(t, patches, "the caller broadcasts after persisting")
 	// Title-only renames skip the slug check entirely.
 	require.NoError(t, store.UpdateRename("id-b", "", "new title"))
 }

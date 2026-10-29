@@ -240,9 +240,15 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
-			if err := state.WriteMeta(srv.cfg.StateDir, sess); err != nil {
-				slog.Warn("server: write meta after rename", "session", p.SessionID, "err", err)
+			patch := map[string]any{}
+			if p.Slug != "" {
+				patch["slug"] = p.Slug
 			}
+			if p.Title != "" {
+				patch["title"] = p.Title
+			}
+			// Broadcast even when unchanged: it is the confirmation clients wait on.
+			srv.commit(sess, patch)
 			slog.Info("server: rename", "session", p.SessionID, "slug", p.Slug, "title_len", len(p.Title), "req_id", env.ID)
 
 		case protocol.IntentSetSessionName:
@@ -369,9 +375,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
-			if err := state.WriteMeta(srv.cfg.StateDir, sess); err != nil {
-				slog.Warn("server: write meta after fleet update", "session", p.SessionID, "err", err)
-			}
+			srv.commit(sess, map[string]any{"fleet": p.Fleet})
 			slog.Info("server: fleet updated", "session", p.SessionID, "fleet", p.Fleet)
 
 		case protocol.IntentFocusFilter:

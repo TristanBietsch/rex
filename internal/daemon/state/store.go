@@ -401,8 +401,9 @@ func (s *Store) BroadcastTokenPatch(id string, tokens, outputBytes int64) {
 // writers (SetFleet, UpdateRename, UpdateDescription, SetName, SetRetire,
 // ClearRetire) must leave it alone and keep last_event_at out of their patch.
 
-// SetFleet updates the fleet label on a session and broadcasts. It does not
-// touch LastEventAt (a label edit is not session activity).
+// SetFleet updates the fleet label on a session. It does not touch
+// LastEventAt (a label edit is not session activity). Like SetName it does
+// not broadcast: the caller persists meta, then broadcasts {"fleet": fleet}.
 func (s *Store) SetFleet(id, fleet string) error {
 	s.mu.RLock()
 	sess, ok := s.sessions[id]
@@ -413,21 +414,16 @@ func (s *Store) SetFleet(id, fleet string) error {
 	sess.mu.Lock()
 	sess.Fleet = fleet
 	sess.mu.Unlock()
-
-	s.broadcast(Event{
-		Kind:      EventUpdated,
-		SessionID: id,
-		Patch:     map[string]any{"fleet": fleet},
-	})
 	return nil
 }
 
-// UpdateRename changes slug and/or title and broadcasts a sparse SessionUpdated
-// patch. It does not touch LastEventAt, so renaming or archiving a finished
-// session leaves its duration and recency alone. A slug held by a different
-// session is rejected with *SlugTakenError; the check and the write happen
-// under s.mu so two renames cannot both claim it. Renaming a session to its
-// own slug succeeds (and still broadcasts).
+// UpdateRename changes slug and/or title ("" leaves a field alone). It does
+// not touch LastEventAt, so renaming or archiving a finished session leaves
+// its duration and recency alone. A slug held by a different session is
+// rejected with *SlugTakenError; the check and the write happen under s.mu
+// so two renames cannot both claim it. Renaming a session to its own slug
+// succeeds. Like SetName it does not broadcast: the caller persists meta,
+// then broadcasts the sparse patch of the fields it set.
 func (s *Store) UpdateRename(id, slug, title string) error {
 	s.mu.Lock()
 	sess, ok := s.sessions[id]
@@ -441,22 +437,15 @@ func (s *Store) UpdateRename(id, slug, title string) error {
 			return &SlugTakenError{Slug: slug, ID: holder.ID, ShortID: holder.ShortID}
 		}
 	}
-	patch := map[string]any{}
 	sess.mu.Lock()
 	if slug != "" {
 		sess.Slug = slug
-		patch["slug"] = slug
 	}
 	if title != "" {
 		sess.Title = title
-		patch["title"] = title
 	}
 	sess.mu.Unlock()
 	s.mu.Unlock()
-	if len(patch) == 0 {
-		return nil
-	}
-	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: patch})
 	return nil
 }
 

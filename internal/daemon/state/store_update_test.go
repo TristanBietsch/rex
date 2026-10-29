@@ -8,7 +8,10 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-func TestStore_UpdateRenameBroadcastsSlugAndTitle(t *testing.T) {
+// UpdateRename and SetFleet only set fields: the server writes meta.json
+// first and then broadcasts, so a client reacting to the event finds the
+// change on disk.
+func TestStore_UpdateRenameAndSetFleetDoNotBroadcast(t *testing.T) {
 	store := NewStore()
 	sess := &Session{
 		ID: "full-id", ShortID: "abcd", ToolID: "echo", ModelID: "short",
@@ -16,17 +19,21 @@ func TestStore_UpdateRenameBroadcastsSlugAndTitle(t *testing.T) {
 	}
 	require.NoError(t, store.Add(sess))
 
-	var got Event
-	cancel := store.Subscribe(func(e Event) {
-		if e.Kind == EventUpdated && e.Patch["slug"] != nil {
-			got = e
-		}
-	})
+	var events int
+	cancel := store.Subscribe(func(Event) { events++ })
 	defer cancel()
 
 	require.NoError(t, store.UpdateRename(sess.ID, "new-slug", "new title"))
-	require.Equal(t, "new-slug", got.Patch["slug"])
-	require.Equal(t, "new title", got.Patch["title"])
+	require.NoError(t, store.SetFleet(sess.ID, "backend"))
+	sum := sess.Summary()
+	require.Equal(t, "new-slug", sum.Slug)
+	require.Equal(t, "new title", sum.Title)
+	require.Equal(t, "backend", sum.Fleet)
+	require.Zero(t, events)
+
+	// Empty fields are left alone.
+	require.NoError(t, store.UpdateRename(sess.ID, "", "t2"))
+	require.Equal(t, "new-slug", sess.Summary().Slug)
 }
 
 func TestStore_UpdateLastLineBroadcastsPatch(t *testing.T) {
