@@ -1,7 +1,9 @@
 package pty
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
@@ -128,6 +130,54 @@ func TestIncompleteRuneTail(t *testing.T) {
 	for _, tc := range cases {
 		require.Equal(t, tc.want, incompleteRuneTail([]byte(tc.in)), "%q", tc.in)
 	}
+}
+
+// lockedBuffer is a bytes.Buffer safe for the supervisor's logging goroutines.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// argv can carry the user's prompt and hook settings JSON; the start log must
+// describe the command without recording it.
+func TestSupervisor_StartLogOmitsArgv(t *testing.T) {
+	var logs lockedBuffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "log1", ShortID: "log1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+	sup := New(SupervisorConfig{
+		StateDir: t.TempDir(),
+		Store:    store,
+		Command:  []string{"sh", "-c", "exit 0", "secret-prompt-text"},
+		IdleTick: 10 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+
+	out := logs.String()
+	require.Contains(t, out, "pty: started")
+	require.Contains(t, out, "tool=sh argc=3")
+	require.NotContains(t, out, "secret-prompt-text")
 }
 
 // stubAdapter is a programmable Adapter for testing the supervisor's

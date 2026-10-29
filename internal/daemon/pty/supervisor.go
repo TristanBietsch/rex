@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -103,14 +104,18 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if rows == 0 {
 		rows = 32
 	}
+	// Log the command's shape, never argv itself: it can carry the user's
+	// prompt and hook settings JSON.
+	tool, argc, promptBytes := filepath.Base(s.cfg.Command[0]), len(s.cfg.Command)-1, len(s.cfg.InitialPrompt)
 	f, err := startConsole(cmd, cols, rows)
 	if err != nil {
-		slog.Error("pty: start failed", "session", sess.ID, "argv", s.cfg.Command, "err", err)
+		slog.Error("pty: start failed", "session", sess.ID, "tool", tool, "argc", argc, "err", err)
 		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 		return fmt.Errorf("pty start: %w", err)
 	}
 	defer f.Close()
-	slog.Info("pty: started", "session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows, "argv", s.cfg.Command)
+	slog.Info("pty: started", "session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows,
+		"tool", tool, "argc", argc, "initial_prompt_bytes", promptBytes)
 
 	// Virtual screen mirroring what the child has drawn. Full-screen TUIs
 	// (Claude Code especially) repaint only changed cells with cursor jumps, so
