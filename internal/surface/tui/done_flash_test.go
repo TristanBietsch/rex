@@ -12,6 +12,24 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
+// The flash deadline is set and pruned by the model clock, the same clock
+// renderRow reads, so an injected clock drives the whole flash.
+func TestDoneFlash_UsesModelClock(t *testing.T) {
+	at := time.Date(2020, 1, 1, 12, 0, 0, 0, time.UTC)
+	m := Model{Filter: "all", Clock: func() time.Time { return at },
+		Sessions: []protocol.SessionSummary{{ID: "a", State: protocol.StateWorking}}}
+	m = m.applyEvent(eventEnv(t, protocol.EventSessionUpdated, protocol.SessionUpdated{SessionID: "a",
+		Patch: map[string]any{"state": string(protocol.StateDone)}}))
+	require.Equal(t, at.Add(1600*time.Millisecond), m.BlinkUntil["a"])
+
+	next, _ := m.Update(SpinnerTickMsg{})
+	require.Contains(t, next.(Model).BlinkUntil, "a", "still running by the model clock")
+
+	at = at.Add(2 * time.Second)
+	next, _ = m.Update(SpinnerTickMsg{})
+	require.Empty(t, next.(Model).BlinkUntil, "expired by the model clock")
+}
+
 func TestRenderRow_DoneFlashColorsName(t *testing.T) {
 	withTrueColor(t)
 	lit := time.UnixMilli(1_000_000_000_000) // UnixMilli/200 even: lit phase

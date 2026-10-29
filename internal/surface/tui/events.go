@@ -188,7 +188,7 @@ func (m Model) wantsSpinnerTick() bool {
 	if m.cursorBlinking() {
 		return true
 	}
-	return m.doneBlinkActive(time.Now())
+	return m.doneBlinkActive(m.now())
 }
 
 // cursorBlinking is true while an input bar showing cursorBlock is focused.

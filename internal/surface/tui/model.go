@@ -205,7 +205,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 				if m.BlinkUntil == nil {
 					m.BlinkUntil = make(map[string]time.Time)
 				}
-				m.BlinkUntil[upd.SessionID] = time.Now().Add(1600 * time.Millisecond)
+				m.BlinkUntil[upd.SessionID] = m.now().Add(1600 * time.Millisecond)
 				// Covers needs_input → done too: one transition, one sound.
 				if m.Audio != nil {
 					m.Audio.Play(audio.EventDone)

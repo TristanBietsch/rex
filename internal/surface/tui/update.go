@@ -140,7 +140,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil // stale chain
 		}
 		m.SpinnerTick++
-		m = pruneDoneBlinks(m, time.Now())
+		m = pruneDoneBlinks(m, m.now())
 		if m.wantsSpinnerTick() {
 			m.spinnerRunning = true
 			return m, tickSpinner(m.spinnerGen)
