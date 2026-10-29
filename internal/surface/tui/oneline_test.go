@@ -73,6 +73,10 @@ func TestApplyEvent_TextFieldsIngestedAsOneRow(t *testing.T) {
 	m = m.applyEvent(eventEnv(t, protocol.EventSnapshot, protocol.Snapshot{Sessions: []protocol.SessionSummary{sum}}))
 	check(m.Sessions[0], "snapshot")
 
+	// The boot handshake's snapshot arrives as a message, not an event.
+	booted, _ := Model{Focus: FocusBoot}.Update(snapshotResultMsg{Snap: &protocol.Snapshot{Sessions: []protocol.SessionSummary{sum}}})
+	check(booted.(Model).Sessions[0], "boot snapshot")
+
 	m = Model{}.applyEvent(eventEnv(t, protocol.EventSessionAdded, sum))
 	check(m.Sessions[0], "session_added")
 

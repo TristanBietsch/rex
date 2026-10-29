@@ -216,6 +216,9 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "handshake", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
 			})
 		}
+		for i := range msg.Snap.Sessions {
+			msg.Snap.Sessions[i] = oneLineSummary(msg.Snap.Sessions[i])
+		}
 		m.Sessions = msg.Snap.Sessions
 		if msg.Snap.Filter != "" {
 			m.Filter = msg.Snap.Filter
