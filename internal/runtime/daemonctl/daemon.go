@@ -102,23 +102,44 @@ func Start(socket string, stderrLog *os.File) (*StartResult, error) {
 	defer deadline.Stop()
 	poll := time.NewTicker(StartPollInterval)
 	defer poll.Stop()
+	up := func() *StartResult {
+		elapsed := time.Since(t0)
+		slog.Info("daemonctl: socket up", "socket", socket, "elapsed", elapsed)
+		return &StartResult{PID: pid, Elapsed: elapsed}
+	}
 	for {
 		if Reachable(socket) {
-			elapsed := time.Since(t0)
-			slog.Info("daemonctl: socket up", "socket", socket, "elapsed", elapsed)
-			return &StartResult{PID: pid, Elapsed: elapsed}, nil
+			return up(), nil
 		}
 		select {
 		case werr := <-exited:
-			err := startExitError(werr, stderrLog, logStart)
-			slog.Error("daemonctl: rex-daemon exited during startup", "pid", pid, "err", err)
-			return nil, err
+			return nil, startExited(pid, werr, stderrLog, logStart)
 		case <-deadline.C:
+			// select picks at random among ready cases, and the socket or
+			// the exit may have landed since the last poll: check both once
+			// more so a late success or a real exit cause is not reported
+			// as a timeout.
+			if Reachable(socket) {
+				return up(), nil
+			}
+			select {
+			case werr := <-exited:
+				return nil, startExited(pid, werr, stderrLog, logStart)
+			default:
+			}
 			slog.Error("daemonctl: socket did not appear", "socket", socket, "timeout", StartTimeout.String())
 			return nil, fmt.Errorf("rex-daemon (pid %d) is running but socket %s did not come up within %s", pid, socket, StartTimeout)
 		case <-poll.C:
 		}
 	}
+}
+
+// startExited logs and returns the error for a daemon that exited before
+// its socket came up.
+func startExited(pid int, werr error, stderrLog *os.File, logStart int64) error {
+	err := startExitError(werr, stderrLog, logStart)
+	slog.Error("daemonctl: rex-daemon exited during startup", "pid", pid, "err", err)
+	return err
 }
 
 // startExitError describes a daemon that exited before its socket came up,

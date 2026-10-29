@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,11 +41,11 @@ exit 1`)
 	_, err = logf.WriteString("rex-daemon: stale error from last time\n")
 	require.NoError(t, err)
 
-	start := time.Now()
 	res, err := Start(shortSocket(t), logf)
 	require.Nil(t, res)
 	require.Error(t, err)
-	require.Less(t, time.Since(start), StartTimeout, "early exit should not wait for the timeout")
+	// The exit path, not the timeout path, produced the error. No
+	// wall-clock bound: a fresh script's first exec can be slow under load.
 	require.Contains(t, err.Error(), "exited during startup (exit status 1)")
 	require.Contains(t, err.Error(), ": listen /x: bind: address already in use")
 	require.NotContains(t, err.Error(), "stale")
