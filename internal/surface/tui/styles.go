@@ -169,11 +169,7 @@ func renderHR(width int) string {
 	if width <= 0 {
 		return ""
 	}
-	line := ""
-	for i := 0; i < width; i++ {
-		line += "─"
-	}
-	return styleBorderFg.Render(line)
+	return styleBorderFg.Render(strings.Repeat("─", width))
 }
 
 // padLine pads s to exactly width visible columns (right-padded with spaces).

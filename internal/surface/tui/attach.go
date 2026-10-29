@@ -527,7 +527,7 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	if meta != "" {
 		right = meta + "   " + geom
 	}
-	pad := width - lipglossWidth(left) - lipglossWidth(right)
+	pad := width - lipgloss.Width(left) - lipgloss.Width(right)
 	if pad < 1 {
 		pad = 1
 	}
@@ -575,7 +575,7 @@ func attachFooter(m Model, a *AttachState, width int) string {
 		}
 		right = lipgloss.NewStyle().Foreground(colorFailed).Render("✕ " + msg)
 	}
-	pad := width - lipglossWidth(left) - lipglossWidth(right)
+	pad := width - lipgloss.Width(left) - lipgloss.Width(right)
 	if pad < 1 {
 		pad = 1
 	}
@@ -632,10 +632,6 @@ func vtColor(c vt10x.Color) (lipgloss.Color, bool) {
 	default:
 		return lipgloss.Color(fmt.Sprintf("#%06x", uint32(c))), true
 	}
-}
-
-func lipglossWidth(s string) int {
-	return lipgloss.Width(s)
 }
 
 // detach closes the popup and re-syncs mouse capture for the board: it stays

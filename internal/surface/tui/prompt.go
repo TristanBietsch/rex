@@ -33,13 +33,8 @@ func renderPrompt(m Model, width int) string {
 	case FocusAttach:
 		line = styleArrow.Render(glyph) + " " + styleDim.Render("attached — ^] to detach")
 	default:
-		body := m.PromptText
-		if body == "" {
-			body = styleDim.Render("press i to describe a task for a new session")
-		} else {
-			body = stylePrimary.Render(body)
-		}
-		line = styleArrow.Render(glyph) + " " + body
+		// PromptText is cleared whenever the prompt loses focus.
+		line = styleArrow.Render(glyph) + " " + styleDim.Render("press i to describe a task for a new session")
 	}
 	return padLine("  "+line, width)
 }

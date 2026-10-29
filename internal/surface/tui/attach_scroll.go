@@ -392,7 +392,7 @@ func attachScrollFooter(a *AttachState, width int) string {
 		right = lipgloss.NewStyle().Foreground(colorNeeds).
 			Render(fmt.Sprintf("↓ %d new · G/esc to resume", a.scrollNew))
 	}
-	pad := width - lipglossWidth(left) - lipglossWidth(right)
+	pad := width - lipgloss.Width(left) - lipgloss.Width(right)
 	if pad < 1 {
 		pad = 1
 	}

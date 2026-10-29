@@ -13,9 +13,6 @@ import (
 	"github.com/tristanbietsch/rex/internal/features/audio"
 )
 
-// boardPad is the side margin we leave so content isn't flush against the terminal edges.
-const boardPad = 0
-
 func Run(socket string) error {
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
@@ -89,38 +86,31 @@ func (m Model) View() string {
 	return renderFullScreen(m, w, h)
 }
 
-// contentWidth returns the inner board content width (full terminal width).
-func contentWidth(termWidth int) int {
-	w := termWidth - 2*boardPad
-	if w < 40 {
-		return termWidth
-	}
-	return w
-}
+// contentWidth is the board content width: the whole terminal (the board
+// has no side margin).
+func contentWidth(termWidth int) int { return termWidth }
 
 func renderFullScreen(m Model, w, h int) string {
-	cw := contentWidth(w)
-
-	header := renderHeader(m, cw)
-	hr := renderHR(cw)
-	helpline := renderHelpLine(m, cw)
+	header := renderHeader(m, w)
+	hr := renderHR(w)
+	helpline := renderHelpLine(m, w)
 	if m.Store != nil {
 		if show, ok := m.Store.Get("show_help_bar").(bool); ok && !show {
 			// Keep the row to preserve layout, but blank it out.
-			helpline = padLine("", cw)
+			helpline = padLine("", w)
 		}
 	}
 
 	var prompt string
 	switch m.Focus {
 	case FocusConfirmQuit:
-		prompt = renderQuitConfirm(cw)
+		prompt = renderQuitConfirm(w)
 	case FocusConfirmDelete:
-		prompt = renderDeleteConfirm(m, cw)
+		prompt = renderDeleteConfirm(m, w)
 	case FocusRename:
-		prompt = renderRenamePrompt(m, cw)
+		prompt = renderRenamePrompt(m, w)
 	default:
-		prompt = renderPrompt(m, cw)
+		prompt = renderPrompt(m, w)
 	}
 	// The bottom rows always render, one line each: they used to be cut
 	// first whenever anything above overflowed the screen.
@@ -142,7 +132,7 @@ func renderFullScreen(m Model, w, h int) string {
 	lines = append(lines, "", hr, "")
 	// The board absorbs any shortfall, down to no rows on a tiny screen.
 	if boardH := boardHeightFor(m, h); boardH > 0 {
-		lines = append(lines, strings.Split(renderBoard(m, cw, boardH), "\n")...)
+		lines = append(lines, strings.Split(renderBoard(m, w, boardH), "\n")...)
 	}
 	// Too short even for the header: cut the top from below so the header
 	// rows that do show stay where hit-testing expects them.

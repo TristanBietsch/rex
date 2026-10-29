@@ -276,12 +276,9 @@ func (c rowCols) used() int {
 	return w
 }
 
-// boardLayout sizes the columns for every row the board renders (all
-// sections, not just the scrolled window, so scrolling never shifts columns).
-func boardLayout(m Model, width int) rowCols {
-	return layoutSlots(boardSlots(m), m.now(), width)
-}
-
+// layoutSlots sizes the columns for every row in slots: renderBoard passes
+// all sections, not just the scrolled window, so scrolling never shifts
+// columns.
 func layoutSlots(slots []boardSlot, now time.Time, width int) rowCols {
 	rows := make([]protocol.SessionSummary, 0, len(slots))
 	for _, sl := range slots {
