@@ -43,7 +43,7 @@ Per-connection handling lives in unexported `client.go` (`handleClient`, intent 
 
 ## Invariants
 
-`New` refuses with `ErrAlreadyRunning` when a daemon answers on the socket or holds `<state-dir>/daemon.lock`; otherwise it takes that lock and unlinks a stale socket file. `Serve` chmods the socket `0600`, and on return unlinks it only if the path is still the one it bound. After `Hello`, client receives `EventSnapshot`, then the board events held while the snapshot was taken, then live ones (`conn.go` `hello`). Every event to a client goes through its bounded queue (`clientQueueLen` 2048) and writer goroutine (`clientWriteTimeout` 10 s); overflow or a stalled write disconnects that client. On shutdown `Serve` closes every client connection and waits up to 5 s (`supervisorStopTimeout`) for supervisors to stop.
+`New` refuses with `ErrAlreadyRunning` when a daemon answers on the socket or holds `<state-dir>/daemon.lock`; otherwise it takes that lock and unlinks a stale socket file. `Serve` chmods the socket `0600`, then calls `Config.OnListening` (where the daemon prints its banner; never called when the bind fails), and on return unlinks it only if the path is still the one it bound. After `Hello`, client receives `EventSnapshot`, then the board events held while the snapshot was taken, then live ones (`conn.go` `hello`). Every event to a client goes through its bounded queue (`clientQueueLen` 2048) and writer goroutine (`clientWriteTimeout` 10 s); overflow or a stalled write disconnects that client. On shutdown `Serve` closes every client connection and waits up to 5 s (`supervisorStopTimeout`) for supervisors to stop.
 
 Concurrent session cap enforced at spawn via `TryAcquireSession`.
 

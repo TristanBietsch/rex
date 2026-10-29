@@ -80,6 +80,10 @@ type Config struct {
 	// OnReload handles a Reload intent (nil = intent rejected): re-read
 	// tools.yaml and swap the registry, same as SIGHUP.
 	OnReload func() error
+	// OnListening, when set, runs once Serve has bound the socket and made it
+	// owner-only, just before it accepts clients: from then on the socket
+	// answers. It never runs when Serve fails to bind. It must not block.
+	OnListening func()
 }
 
 // Server owns the UDS listener and accepts clients.
@@ -204,6 +208,9 @@ func (s *Server) Serve(ctx context.Context) error {
 		_ = l.Close()
 		removeOwnSocket(s.cfg.Socket, ours)
 	}()
+	if s.cfg.OnListening != nil {
+		s.cfg.OnListening()
+	}
 
 	// Everything Serve starts stops when it returns, whatever the reason.
 	ctx, cancel := context.WithCancel(ctx)

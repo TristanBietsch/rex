@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -149,4 +150,52 @@ func TestServe_RemovesOwnSocket(t *testing.T) {
 	stop()
 	_, err = os.Stat(sock)
 	require.True(t, os.IsNotExist(err), "socket should be unlinked: %v", err)
+}
+
+// OnListening is what the daemon's "listening" banner hangs off: it must
+// fire once the socket answers (and is already owner-only), never before.
+func TestServe_OnListeningAfterBind(t *testing.T) {
+	dir := shortTempDir(t)
+	sock := filepath.Join(dir, "rex.sock")
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	fired := make(chan error, 1)
+	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore(),
+		OnListening: func() {
+			if runtime.GOOS != "windows" {
+				if fi, err := os.Stat(sock); err != nil || fi.Mode().Perm() != 0o600 {
+					fired <- fmt.Errorf("socket not owner-only yet: %v %v", fi, err)
+					return
+				}
+			}
+			c, err := net.DialTimeout("unix", sock, time.Second)
+			if err == nil {
+				_ = c.Close()
+			}
+			fired <- err
+		}})
+	require.NoError(t, err)
+	serveUntilCleanup(t, srv)
+	select {
+	case err := <-fired:
+		require.NoError(t, err, "OnListening ran before the socket answered")
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnListening never ran")
+	}
+}
+
+// A Serve that cannot bind reports the error and never claims to listen.
+func TestServe_OnListeningNotCalledWhenListenFails(t *testing.T) {
+	dir := shortTempDir(t)
+	// The socket's directory doesn't exist, so bind fails.
+	sock := filepath.Join(dir, "missing", "rex.sock")
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	called := false
+	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore(),
+		OnListening: func() { called = true }})
+	require.NoError(t, err)
+	err = srv.Serve(context.Background())
+	require.ErrorContains(t, err, "listen")
+	require.False(t, called, "OnListening ran although bind failed")
 }

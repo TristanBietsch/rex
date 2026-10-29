@@ -160,6 +160,12 @@ func run(args []string) error {
 		RetireDefaultTTL:      retireTTL,
 		OnShutdown:            cancel,
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
+		// Only once the socket is bound: a bind failure must not follow a
+		// success line.
+		OnListening: func() {
+			fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version, *socketPath)
+			slog.Info("daemon: listening", "socket", *socketPath)
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
@@ -186,8 +192,6 @@ func run(args []string) error {
 	// SIGHUP → reload tools.yaml.
 	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
 
-	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version, *socketPath)
-	slog.Info("daemon: listening", "socket", *socketPath)
 	err = srv.Serve(ctx)
 	if err != nil {
 		slog.Error("daemon: serve exited with error", "err", err)
