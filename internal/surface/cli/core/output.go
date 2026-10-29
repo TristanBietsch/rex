@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -24,16 +26,18 @@ func WriteSessionsTable(w io.Writer, sessions []protocol.SessionSummary) error {
 	}
 	for _, s := range sessions {
 		ago := durationAgo(s.LastEventAt)
-		model := s.ModelID
+		// Session text comes from the daemon (and other clients): flatten
+		// it so a newline or escape cannot break the table.
+		model := protocol.SingleLine(s.ModelID)
 		if s.Effort != "" {
-			model = model + " · " + s.Effort
+			model = model + " · " + protocol.SingleLine(s.Effort)
 		}
-		name := s.Name
+		name := protocol.SingleLine(s.Name)
 		if !s.RetireAt.IsZero() {
 			name = strings.TrimSpace(name + " ✓done")
 		}
-		row := fmt.Sprintf("%-5s  %-12s  %-9s  %-20s  %-24s  %-10s  %s",
-			s.ShortID, s.State, s.ToolID, Truncate(model, 20), Truncate(s.Slug, 24), ago, name)
+		row := fmt.Sprintf("%-5s  %-12s  %-9s  %s  %s  %-10s  %s",
+			s.ShortID, s.State, protocol.SingleLine(s.ToolID), cell(model, 20), cell(protocol.SingleLine(s.Slug), 24), ago, name)
 		if _, err := fmt.Fprintln(w, row); err != nil {
 			return err
 		}
@@ -111,15 +115,20 @@ func WriteAggregateJSON(w io.Writer, sessions []protocol.SessionSummary) error {
 	return err
 }
 
-// Truncate shortens s to at most n runes, appending "…" when clipped.
+// Truncate shortens s to at most n terminal cells, appending "…" when
+// clipped. Wide runes count as two cells and are never split.
 func Truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
+	return ansi.Truncate(s, n, "…")
+}
+
+// cell fits s to exactly n terminal cells: truncated, then space-padded.
+// fmt's %-Ns pads by runes, which misaligns wide characters.
+func cell(s string, n int) string {
+	s = Truncate(s, n)
+	if w := ansi.StringWidth(s); w < n {
+		s += strings.Repeat(" ", n-w)
 	}
-	if n <= 1 {
-		return s[:n]
-	}
-	return s[:n-1] + "…"
+	return s
 }
 
 func durationAgo(t time.Time) string {

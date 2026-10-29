@@ -1,7 +1,6 @@
 package inspect
 
 import (
-	"errors"
 	"flag"
 	"io"
 	"os"
@@ -42,78 +41,50 @@ func RunLog(args []string) error {
 	}
 
 	path := filepath.Join(*stateDir, "sessions", sess.ID, "transcript.log")
-	if err := streamFile(path, os.Stdout, *follow, *tailN, *asBytes); err != nil {
+	if err := streamFile(path, os.Stdout, *follow, *tailN, *asBytes, nil); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	return nil
 }
 
-func streamFile(path string, out io.Writer, follow bool, tailN int, raw bool) error {
+// logPollInterval is how often `rex log -f` checks for new transcript bytes.
+const logPollInterval = 100 * time.Millisecond
+
+// streamFile writes the transcript at path to w: all of it, or its last
+// tailN lines; with follow it then keeps writing what is appended until stop
+// closes (nil: never). Unless raw, CSI escapes are stripped from all of it.
+func streamFile(path string, w io.Writer, follow bool, tailN int, raw bool, stop <-chan struct{}) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	out := w
+	if !raw {
+		out = &ansiStripper{w: w}
+	}
 	if tailN > 0 {
-		if err := emitTail(f, out, tailN, raw); err != nil {
+		data, err := io.ReadAll(f)
+		if err != nil {
 			return err
 		}
-	} else {
-		if err := emitAll(f, out, raw); err != nil {
+		if _, err := out.Write(splitLastN(data, tailN)); err != nil {
 			return err
 		}
+	} else if _, err := io.Copy(out, f); err != nil {
+		return err
 	}
 	if !follow {
 		return nil
 	}
-	// Follow mode: poll for new bytes every 100ms.
 	for {
-		_, err := io.Copy(out, f)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return err
+		select {
+		case <-stop:
+			return nil
+		case <-time.After(logPollInterval):
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-func emitAll(r io.Reader, w io.Writer, raw bool) error {
-	if raw {
-		_, err := io.Copy(w, r)
-		return err
-	}
-	return copyStripped(r, w)
-}
-
-func emitTail(f *os.File, w io.Writer, n int, raw bool) error {
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return err
-	}
-	lines := splitLastN(data, n)
-	if raw {
-		_, err := w.Write(lines)
-		return err
-	}
-	cleaned := stripANSI(lines)
-	_, err = w.Write(cleaned)
-	return err
-}
-
-func copyStripped(r io.Reader, w io.Writer) error {
-	buf := make([]byte, 4096)
-	for {
-		n, err := r.Read(buf)
-		if n > 0 {
-			cleaned := stripANSI(buf[:n])
-			if _, werr := w.Write(cleaned); werr != nil {
-				return werr
-			}
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
+		if _, err := io.Copy(out, f); err != nil {
 			return err
 		}
 	}
@@ -135,24 +106,50 @@ func splitLastN(b []byte, n int) []byte {
 	return b
 }
 
-// stripANSI removes CSI escape sequences (color and cursor codes).
-func stripANSI(b []byte) []byte {
-	out := make([]byte, 0, len(b))
-	i := 0
-	for i < len(b) {
-		if b[i] == 0x1b && i+1 < len(b) && b[i+1] == '[' {
-			j := i + 2
-			for j < len(b) && (b[j] < 0x40 || b[j] > 0x7e) {
-				j++
+// ansiStripper writes to w with CSI escape sequences (color and cursor
+// codes) removed. It keeps its parse state between writes, so a sequence
+// split across two reads is still removed. An ESC that does not start a CSI
+// passes through.
+type ansiStripper struct {
+	w     io.Writer
+	state stripState
+}
+
+type stripState int
+
+const (
+	stripText stripState = iota
+	stripEsc             // saw ESC; held until the next byte shows whether it starts a CSI
+	stripCSI             // inside ESC [ … up to the final byte 0x40–0x7e
+)
+
+// Write implements io.Writer; it reports len(p) on success.
+func (s *ansiStripper) Write(p []byte) (int, error) {
+	out := make([]byte, 0, len(p)+1)
+	for _, b := range p {
+		switch s.state {
+		case stripEsc:
+			if b == '[' {
+				s.state = stripCSI
+				continue
 			}
-			if j < len(b) {
-				j++
+			out = append(out, 0x1b)
+			s.state = stripText
+			fallthrough
+		case stripText:
+			if b == 0x1b {
+				s.state = stripEsc
+				continue
 			}
-			i = j
-			continue
+			out = append(out, b)
+		case stripCSI:
+			if b >= 0x40 && b <= 0x7e {
+				s.state = stripText
+			}
 		}
-		out = append(out, b[i])
-		i++
 	}
-	return out
+	if _, err := s.w.Write(out); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
