@@ -3,7 +3,7 @@
 **Path:** `internal/daemon/state`
 **Depends on:** `internal/wire/protocol` | external: standard library
 **Depended on by:** `internal/daemon/server`, `internal/daemon/pty`, `internal/features/summarizer`, `cmd/rex-daemon`, `internal/surface/cli`
-**Entry points:** `Store`, `Session`, `LoadAll`, `WriteMeta`, `AppendTranscript`
+**Entry points:** `Store`, `Session`, `LoadAll`, `WriteMeta`, `OpenTranscript`
 
 ## Purpose
 
@@ -24,8 +24,11 @@ In-memory session table with pub/sub events and persistence under `<state-dir>/s
 - `LoadAll(root string) ([]*Session, error)` — reloads `meta.json` per session; live states `queued`/`working`/`needs_input` become `crashed`.
 - `LoadMeta(root, id string) (*Session, error)`
 - `WriteMeta(root string, s *Session) error` — atomic write via temp file + rename.
-- `AppendTranscript(root, id string, b []byte) error` — append `transcript.log`.
-- `TranscriptTail(root, id string, max int) ([]byte, error)` — last `max` bytes; missing file → `(nil, nil)`.
+- `OpenTranscript(root, id string) (*TranscriptFile, error)` — kept-open `transcript.log` handle (`0600`) the PTY supervisor writes through; `Write` renames the file to `transcript.log.1` (replacing it) before it would cross 64 MiB (`transcriptRotateBytes`). `AppendTranscript` is the open-write-close convenience.
+- `TranscriptTail(root, id string, max int) ([]byte, error)` — last `max` bytes, continuing into `transcript.log.1` after a recent rotation; missing file → `(nil, nil)`.
+- `SecureSessionsDir(root string) error` — creates and tightens `<root>/sessions` to `0700`.
+- Session ids that would escape `<root>/sessions` (empty, `..`, separators) are refused with `ErrUnsafeSessionID`.
+- `HookFile(root, id string) string` — path of the session's `hooks.log`.
 - `RemoveSessionDir(root, id string) error`
 
 ## Internal structure
@@ -41,7 +44,7 @@ In-memory session table with pub/sub events and persistence under `<state-dir>/s
 
 ## Side effects
 
-Filesystem: `meta.json`, `transcript.log` under `<stateDir>/sessions/<id>/`.
+Filesystem: `meta.json`, `transcript.log` (+ `transcript.log.1`) under `<stateDir>/sessions/<id>/`; dirs `0700`, files `0600`.
 
 ## Error handling
 
