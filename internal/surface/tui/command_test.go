@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -8,6 +9,23 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
+
+// ":reload" used to drop the reload error, so a missing daemon looked like
+// success.
+func TestCommandReload_SurfacesError(t *testing.T) {
+	prev := reloadDaemon
+	t.Cleanup(func() { reloadDaemon = prev })
+	reloadDaemon = func() error { return errors.New("rex-daemon not running") }
+
+	m, cmd := executeCommand(boardModel(), "reload")
+	require.NotNil(t, cmd)
+	out, _ := m.Update(cmd())
+	require.Equal(t, "reload: rex-daemon not running", out.(Model).Err)
+
+	reloadDaemon = func() error { return nil }
+	_, cmd = executeCommand(boardModel(), "reload")
+	require.Nil(t, cmd())
+}
 
 // isolateHome points the home directory at a temp dir so code that reads
 // ~/.config/rex (the wizard's tools.yaml) never sees the real one.

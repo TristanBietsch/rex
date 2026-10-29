@@ -43,7 +43,7 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	case "settings":
 		return openSettings(m)
 	case "reload":
-		return m, sendDaemonSIGHUP(m)
+		return m, sendDaemonSIGHUP()
 	case "filter":
 		// Only the header's filter chips: any other value would hide rows
 		// behind a filter no chip shows.
@@ -116,10 +116,18 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// sendDaemonSIGHUP triggers a daemon-side tools.yaml reload by sending SIGHUP.
-func sendDaemonSIGHUP(m Model) tea.Cmd {
+// reloadDaemon is daemonctl.Reload; a var so tests never signal a real daemon.
+var reloadDaemon = daemonctl.Reload
+
+// sendDaemonSIGHUP triggers a daemon-side tools.yaml reload by sending
+// SIGHUP. A failure (no daemon running, signal refused) reaches the status
+// line.
+func sendDaemonSIGHUP() tea.Cmd {
 	return func() tea.Msg {
-		_ = daemonctl.Reload()
+		if err := reloadDaemon(); err != nil {
+			slog.Warn("tui: daemon reload failed", "err", err)
+			return CmdErrMsg{Op: "reload", Err: err}
+		}
 		return nil
 	}
 }
