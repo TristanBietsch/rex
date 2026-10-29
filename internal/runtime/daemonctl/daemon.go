@@ -98,7 +98,7 @@ func Start(socket string, stderrLog *os.File) (*StartResult, error) {
 	exited := make(chan error, 1)
 	go func() { exited <- cmd.Wait() }()
 
-	deadline := time.NewTimer(StartTimeout)
+	deadline := time.NewTimer(startTimeout)
 	defer deadline.Stop()
 	poll := time.NewTicker(StartPollInterval)
 	defer poll.Stop()
@@ -127,8 +127,8 @@ func Start(socket string, stderrLog *os.File) (*StartResult, error) {
 				return nil, startExited(pid, werr, stderrLog, logStart)
 			default:
 			}
-			slog.Error("daemonctl: socket did not appear", "socket", socket, "timeout", StartTimeout.String())
-			return nil, fmt.Errorf("rex-daemon (pid %d) is running but socket %s did not come up within %s", pid, socket, StartTimeout)
+			slog.Error("daemonctl: socket did not appear", "socket", socket, "timeout", startTimeout.String())
+			return nil, fmt.Errorf("rex-daemon (pid %d) is running but socket %s did not come up within %s", pid, socket, startTimeout)
 		case <-poll.C:
 		}
 	}

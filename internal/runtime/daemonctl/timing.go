@@ -11,3 +11,7 @@ const (
 
 // StartTimeout is the maximum wait for the UDS socket after spawning rex-daemon.
 const StartTimeout = StartPollAttempts * StartPollInterval
+
+// startTimeout is the wait Start uses: StartTimeout, in a var so tests of
+// the early-exit path can widen it past a slow first exec under load.
+var startTimeout = StartTimeout

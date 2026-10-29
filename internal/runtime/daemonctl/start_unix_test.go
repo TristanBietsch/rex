@@ -6,16 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-// fakeDaemon puts an executable rex-daemon shell script alone on PATH.
+// fakeDaemon puts an executable rex-daemon shell script alone on PATH. The
+// script exits by itself, so Start's timeout is widened: the first exec of
+// a fresh script on macOS can take over 2s under load, and that must not
+// turn the exit into a socket timeout.
 func fakeDaemon(t *testing.T, script string) {
 	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex-daemon"), []byte("#!/bin/sh\n"+script+"\n"), 0o755))
 	t.Setenv("PATH", dir)
+	prev := startTimeout
+	startTimeout = time.Minute
+	t.Cleanup(func() { startTimeout = prev })
 }
 
 // shortSocket returns a socket path well under the sun_path limit (t.TempDir
