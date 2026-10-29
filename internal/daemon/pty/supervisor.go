@@ -40,7 +40,7 @@ type SupervisorConfig struct {
 	CWD            string          // working directory for the child
 	Env            []string        // extra KEY=VALUE entries added to the child's environment
 	Adapter        adapter.Adapter // nil = no state classification (tests/echo tool)
-	OutputSink     func(b []byte)  // called with every chunk read from PTY; non-blocking
+	OutputSink     func(b []byte)  // called with every chunk read from PTY; must not block (it runs on the reader goroutine)
 	SummaryRequest chan<- string   // optional: session IDs needing AI summary; nil disables
 	InputCh        chan []byte     // optional: stdin bytes from clients
 	// CompleteCh signals a clean shutdown — supervisor kills the child and
@@ -236,8 +236,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						// payload in DEC bracketed-paste markers (ESC[200~ … ESC[201~).
 						// Then a SEPARATE write of \r commits the input. Sending text
 						// and Enter in one chunk lets the TUI treat the whole thing as
-						// a paste and never trigger submit.
-						paste := []byte(prompt)
+						// a paste and never trigger submit. The prompt itself must not
+						// carry escapes or controls (see sanitizePaste).
+						paste := []byte(sanitizePaste(prompt))
 						if !s.cfg.PlainPaste {
 							paste = append([]byte("\x1b[200~"), paste...)
 							paste = append(paste, []byte("\x1b[201~")...)

@@ -3,6 +3,7 @@ package pty
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -30,6 +31,29 @@ func hasVisibleText(b []byte) bool {
 		return true
 	}
 	return false
+}
+
+// sanitizePaste makes an initial prompt safe to paste into an agent's input
+// box. It drops ESC, so an "\x1b[201~" in the prompt can't end the bracketed
+// paste early and have the rest typed as keystrokes, and every other control
+// that a terminal would act on: C0 except \n and \t, DEL, C1, and invalid
+// UTF-8 (whose bytes could read as 8-bit C1).
+func sanitizePaste(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for len(s) > 0 {
+		r, size := utf8.DecodeRuneInString(s)
+		s = s[size:]
+		switch {
+		case r == utf8.RuneError && size <= 1:
+		case r == '\n' || r == '\t':
+			b.WriteRune(r)
+		case r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f):
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // sanitizeForDisplay strips ANSI escape sequences and bare control bytes from a

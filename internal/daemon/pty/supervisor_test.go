@@ -425,6 +425,34 @@ func TestSupervisor_InitialPromptPlainPasteHasNoMarkers(t *testing.T) {
 	require.Contains(t, string(tail), "got:[ping]")
 }
 
+// A paste-end marker inside the prompt must not close the bracketed paste:
+// whatever followed it would reach the agent as typed keystrokes.
+func TestSupervisor_InitialPromptCannotEndPasteEarly(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "inj1", ShortID: "inj1", ToolID: "claude", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	sup := New(SupervisorConfig{
+		StateDir:      stateDir,
+		Store:         store,
+		Command:       []string{"bash", "-c", `stty -echo; read -r line; printf 'got:[%s]\n' "${line//$'\e'/<ESC>}"; sleep 1`},
+		Adapter:       &stubAdapter{ready: true},
+		InitialPrompt: "a\x1b[201~b",
+		IdleTick:      50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+
+	tail, err := state.TranscriptTail(stateDir, sess.ID, 8192)
+	require.NoError(t, err)
+	require.Contains(t, string(tail), "got:[<ESC>[200~a[201~b<ESC>[201~]")
+}
+
 // ReadySettle holds the paste until output has been quiet long enough.
 func TestSupervisor_InitialPromptWaitsForReadySettle(t *testing.T) {
 	stateDir := t.TempDir()

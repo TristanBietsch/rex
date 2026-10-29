@@ -30,6 +30,30 @@ func TestSanitizeForDisplay(t *testing.T) {
 	}
 }
 
+func TestSanitizePaste(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain", "fix the build", "fix the build"},
+		{"keeps_newline_and_tab", "a\n\tb", "a\n\tb"},
+		{"paste_end_marker", "a\x1b[201~rm -rf /\r", "a[201~rm -rf /"},
+		{"crlf", "one\r\ntwo", "one\ntwo"},
+		{"c0_and_del", "x\x03y\x04z\x7f", "xyz"},
+		{"c1_csi", "a\u009b31mb", "a31mb"},
+		{"invalid_utf8", "a\x9bb\xff", "ab"},
+		{"keeps_unicode", "héllo ✓ 漢字", "héllo ✓ 漢字"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := sanitizePaste(c.in); got != c.want {
+				t.Fatalf("sanitizePaste(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
 func TestHasVisibleText(t *testing.T) {
 	cases := []struct {
 		name string
