@@ -177,4 +177,4 @@ A small column before the time column flags sessions that have been **working** 
 
 ## BUGS
 
-Help text in `rex --help` may mention selector forms the TUI does not implement. TUI local resolution accepts session id, `slug`, or `short_id` only; a duplicate slug is reported as ambiguous.
+`:` command selectors resolve against the board: full session id, `slug`, or exact `short_id`. The CLI's `@needs` / `@working` / `@done` aliases and id prefixes are not accepted there. A duplicate slug is reported as ambiguous.

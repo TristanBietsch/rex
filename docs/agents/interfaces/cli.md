@@ -47,7 +47,7 @@ Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWai
 
 ## Selectors
 
-`internal/surface/cli/core/selector.go`: UUID, slug, hex short-id prefix. **`@needs` / `@working` / `@done` in `RunHelp` are not implemented.**
+`internal/surface/cli/core/selector.go`, in order: full UUID, exact slug, `@needs` / `@working` / `@done` (every session in that state), hex short-id prefix (4+ digits). A real slug spelled like an alias wins. More than one match is `ExitAmbiguousSelector` (3), none is `ExitSelectorNotFound` (2). The TUI's `resolveLocal` (`tui/command.go`) is separate: id, slug, exact short id — no aliases, no prefixes.
 
 ## Gotchas
 

@@ -30,12 +30,13 @@ Many commands take `<sel>`: one session reference.
 | Form | Rule |
 |------|------|
 | Full UUID | Exact match on `id` |
-| Slug | Exact match on `slug` (checked before short id) |
+| Slug | Exact match on `slug` (checked before the aliases and short id) |
+| `@needs`, `@working`, `@done` | Every session in state `needs_input`, `working`, or `done` |
 | Short id | Four or more hex digits; prefix match on `id` |
 
-Exit **2** if no match. Exit **3** if multiple match — including a slug shared by several sessions restored from an older daemon (the error lists their short ids).
+Exit **2** if no match. Exit **3** if multiple match — including a slug shared by several sessions restored from an older daemon, and an alias when more than one session is in that state (the error lists their short ids).
 
-The interactive help text mentions `@needs`, `@working`, and `@done`. Those aliases are **not** implemented. Use `rex ls` and a concrete id or slug.
+A session whose slug is literally `@needs` (or `@working`, `@done`) wins over the alias.
 
 ## GLOBAL EXIT STATUS
 
@@ -386,4 +387,4 @@ See [paths.md](paths.md).
 
 ## BUGS
 
-`rex ls -short` and `rex new -no-attach` are no-ops. `rex --help` lists `@` selector aliases that the implementation does not support.
+`rex ls -short` and `rex new -no-attach` are no-ops.

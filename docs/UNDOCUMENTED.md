@@ -15,7 +15,6 @@ Facts not fully specified in code comments or stable APIs. Listed for maintainer
 
 | Item | Location | Notes |
 |------|----------|-------|
-| `@needs`, `@working`, `@done` | `cli/core/help.go` | Documented in help; not in `selector.go` |
 | `-short` on `rex ls` | `session/ls.go` | Flag parsed, no effect |
 | `-no-attach` on `rex new` | `session/new.go` | Flag parsed, no effect |
 | `enabled_by_default` merge | `registry/loader.go` | User YAML cannot override builtin opt-in flag |
