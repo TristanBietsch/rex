@@ -20,8 +20,17 @@ import (
 // captured at open so the popup is stable while the user scrolls.
 type FailState struct {
 	Sessions []protocol.SessionSummary
-	LogLines []string
-	Scroll   int
+	// LogLines is the daemon.log tail. It is read off the event loop and
+	// arrives in a failLogMsg; logPending is true until then.
+	LogLines   []string
+	logPending bool
+	Scroll     int
+}
+
+// failLogMsg carries the daemon.log tail read for the popup fail.
+type failLogMsg struct {
+	fail  *FailState
+	lines []string
 }
 
 const (
@@ -36,15 +45,27 @@ func openFail(m Model) (Model, tea.Cmd) {
 			failed = append(failed, s)
 		}
 	}
-	m.Fail = &FailState{
-		Sessions: failed,
-		LogLines: tailDaemonLog(failLogTail),
-	}
+	fail := &FailState{Sessions: failed, logPending: true}
+	m.Fail = fail
 	m.Focus = FocusFail
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventOpen)
 	}
-	return m, nil
+	// File I/O stays out of Update: a slow disk must not freeze the TUI.
+	return m, func() tea.Msg {
+		return failLogMsg{fail: fail, lines: tailDaemonLog(failLogTail)}
+	}
+}
+
+// failLogLoaded fills in the log tail, unless the popup it was read for
+// has since closed or been reopened.
+func failLogLoaded(m Model, msg failLogMsg) Model {
+	if m.Fail == nil || m.Fail != msg.fail {
+		return m
+	}
+	m.Fail.LogLines = msg.lines
+	m.Fail.logPending = false
+	return m
 }
 
 func closeFail(m Model) Model {
@@ -149,6 +170,9 @@ func renderFail(m Model) string {
 	b.WriteString("\n\n")
 
 	lines := m.Fail.LogLines
+	if m.Fail.logPending {
+		lines = []string{"(reading daemon.log…)"}
+	}
 	// Show a windowed view of the log. Keep the popup body bounded so the
 	// surrounding frame stays the same size; user scrolls via j/k.
 	const logBodyHeight = 22

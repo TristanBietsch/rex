@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
@@ -63,4 +64,28 @@ func TestTailDaemonLog_ShortAndMissing(t *testing.T) {
 	got := tailDaemonLog(60)
 	require.Len(t, got, 1)
 	require.Contains(t, got[0], "no log at")
+}
+
+// openFail reads daemon.log in a Cmd, not in Update; the result fills only
+// the popup it was read for.
+func TestOpenFail_ReadsLogOffTheEventLoop(t *testing.T) {
+	writeDaemonLog(t, "a\nb\n")
+	m, cmd := openFail(Model{Focus: FocusBoard})
+	require.Equal(t, FocusFail, m.Focus)
+	require.Nil(t, m.Fail.LogLines, "no file I/O in Update")
+	require.Contains(t, ansi.Strip(renderFail(m)), "(reading daemon.log…)")
+	require.NotNil(t, cmd)
+	msg := cmd()
+
+	next, _ := m.Update(msg)
+	got := next.(Model)
+	require.Equal(t, []string{"a", "b"}, got.Fail.LogLines)
+	require.NotContains(t, ansi.Strip(renderFail(got)), "reading daemon.log")
+
+	// Closed, or closed and reopened, before the read finished: dropped.
+	next, _ = closeFail(m).Update(msg)
+	require.Nil(t, next.(Model).Fail)
+	reopened, _ := openFail(closeFail(m))
+	next, _ = reopened.Update(msg)
+	require.Nil(t, next.(Model).Fail.LogLines)
 }

@@ -102,6 +102,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return flushAttachHold(m, msg)
 	case attachWheelFlushMsg:
 		return flushAttachWheel(m, msg)
+	case failLogMsg:
+		return failLogLoaded(m, msg), nil
 	case descTickMsg:
 		now := time.Now()
 		for id, a := range m.DescAnim {
