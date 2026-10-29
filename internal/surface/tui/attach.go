@@ -594,12 +594,25 @@ func findSession(sessions []protocol.SessionSummary, id string) (protocol.Sessio
 	return protocol.SessionSummary{}, false
 }
 
+// glyphStyle maps an emulator cell to a style. vt10x applies SGR 7 by
+// swapping the cell's FG and BG, which is a no-op on default colors (both
+// "default"), so reverse video vanished: undo the swap and let the terminal
+// reverse instead.
 func glyphStyle(g vt10x.Glyph) lipgloss.Style {
-	s := lipgloss.NewStyle()
-	if c, ok := vtFGColor(g.FG); ok {
+	fg, bg := g.FG, g.BG
+	reverse := g.Mode&vt10x.AttrReverse != 0
+	if reverse {
+		fg, bg = bg, fg
+	}
+	s := lipgloss.NewStyle().
+		Reverse(reverse).
+		Bold(g.Mode&vt10x.AttrBold != 0).
+		Italic(g.Mode&vt10x.AttrItalic != 0).
+		Underline(g.Mode&vt10x.AttrUnderline != 0)
+	if c, ok := vtFGColor(fg); ok {
 		s = s.Foreground(c)
 	}
-	if c, ok := vtBGColor(g.BG); ok {
+	if c, ok := vtBGColor(bg); ok {
 		s = s.Background(c)
 	}
 	return s
@@ -622,7 +635,10 @@ func vtBGColor(c vt10x.Color) (lipgloss.Color, bool) {
 func styleEq(a, b lipgloss.Style) bool {
 	return a.GetForeground() == b.GetForeground() &&
 		a.GetBackground() == b.GetBackground() &&
-		a.GetReverse() == b.GetReverse()
+		a.GetReverse() == b.GetReverse() &&
+		a.GetBold() == b.GetBold() &&
+		a.GetItalic() == b.GetItalic() &&
+		a.GetUnderline() == b.GetUnderline()
 }
 
 func lipglossWidth(s string) int {

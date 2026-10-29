@@ -20,6 +20,16 @@ const (
 	attrWrap
 )
 
+// Glyph.Mode attribute bits (SGR), exported so renderers can reproduce
+// them. For AttrReverse the cell's FG and BG are already swapped.
+const (
+	AttrReverse   = attrReverse
+	AttrUnderline = attrUnderline
+	AttrBold      = attrBold
+	AttrItalic    = attrItalic
+	AttrBlink     = attrBlink
+)
+
 const (
 	cursorDefault = 1 << iota
 	cursorWrapNext

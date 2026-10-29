@@ -19,6 +19,8 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
   dropped by a resize that shrinks the screen above the cursor. Not called on
   the alternate screen, for regions starting below the top, or for CSI M
   (delete lines). See `scrollback_test.go`.
+- `AttrReverse`, `AttrUnderline`, `AttrBold`, `AttrItalic`, `AttrBlink`:
+  exported `Glyph.Mode` bits so the attach popup can render SGR attributes.
 - `gofmt` added `//go:build` lines.
 
 Tests here are a separate module: `go -C third_party/vt10x test ./...`

@@ -246,7 +246,8 @@ func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string 
 		}
 		style := glyphStyle(g)
 		if x == cursorX {
-			style = style.Reverse(true)
+			// Block cursor: invert the cell, as a terminal does.
+			style = style.Reverse(!style.GetReverse())
 		}
 		if !haveStyle || !styleEq(style, runStyle) {
 			flush()
