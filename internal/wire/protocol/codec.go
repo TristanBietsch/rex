@@ -3,23 +3,48 @@ package protocol
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 )
 
+// MaxIntentLineBytes caps one line the daemon reads from a client. Intents
+// are small; the largest are pastes and initial prompts.
+const MaxIntentLineBytes = 1 << 20
+
+// Errors from Reader.Read for a line that arrived but can't be used. The
+// sender is still listening, so a daemon can say why before hanging up.
+var (
+	ErrBadEnvelope        = errors.New("decode envelope")
+	ErrUnsupportedVersion = errors.New("unsupported protocol version")
+	ErrLineTooLong        = errors.New("line too long")
+)
+
 // Reader reads newline-delimited Envelopes from an io.Reader.
 type Reader struct {
-	br *bufio.Reader
+	br  *bufio.Reader
+	max int // max line length in bytes; 0 = unlimited
 }
 
-// NewReader wraps r.
+// NewReader wraps r. Lines may be any length (daemon events such as a
+// Snapshot grow with the board).
 func NewReader(r io.Reader) *Reader {
 	return &Reader{br: bufio.NewReaderSize(r, 64*1024)}
 }
 
+// NewLimitedReader is NewReader with lines capped at max bytes: a longer
+// line fails with ErrLineTooLong after reading at most max bytes of it, and
+// the stream is no longer in sync.
+func NewLimitedReader(r io.Reader, max int) *Reader {
+	return &Reader{br: bufio.NewReaderSize(r, 64*1024), max: max}
+}
+
 // Read returns the next envelope or io.EOF.
 func (r *Reader) Read() (Envelope, error) {
-	line, err := r.br.ReadBytes('\n')
+	line, err := r.readLine()
+	if errors.Is(err, ErrLineTooLong) {
+		return Envelope{}, err
+	}
 	if err == io.EOF && len(line) == 0 {
 		return Envelope{}, io.EOF
 	}
@@ -28,12 +53,29 @@ func (r *Reader) Read() (Envelope, error) {
 	}
 	var e Envelope
 	if err := json.Unmarshal(line, &e); err != nil {
-		return Envelope{}, fmt.Errorf("decode envelope: %w", err)
+		return Envelope{}, fmt.Errorf("%w: %w", ErrBadEnvelope, err)
 	}
 	if e.V != ProtocolVersion {
-		return Envelope{}, fmt.Errorf("unsupported protocol version %d (want %d)", e.V, ProtocolVersion)
+		return Envelope{}, fmt.Errorf("%w %d (want %d)", ErrUnsupportedVersion, e.V, ProtocolVersion)
 	}
 	return e, nil
+}
+
+func (r *Reader) readLine() ([]byte, error) {
+	if r.max <= 0 {
+		return r.br.ReadBytes('\n')
+	}
+	var line []byte
+	for {
+		frag, err := r.br.ReadSlice('\n')
+		if len(line)+len(frag) > r.max {
+			return nil, fmt.Errorf("%w (max %d bytes)", ErrLineTooLong, r.max)
+		}
+		line = append(line, frag...)
+		if err != bufio.ErrBufferFull {
+			return line, err
+		}
+	}
 }
 
 // Writer writes Envelopes as JSONL.

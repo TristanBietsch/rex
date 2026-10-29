@@ -24,7 +24,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	// PTY output never block on this socket.
 	c := newClient(conn)
 	defer c.finish()
-	r := protocol.NewReader(conn)
+	r := protocol.NewLimitedReader(conn, protocol.MaxIntentLineBytes)
 
 	// Board events: store changes and summarizer health. Subscribed for the
 	// whole connection; c gates them on Hello (see client.hello).
@@ -49,6 +49,13 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		}
 		env, err := r.Read()
 		if err != nil {
+			// A line that arrived but can't be used ends the connection
+			// (after an oversize one the stream is out of sync); say why.
+			if errors.Is(err, protocol.ErrBadEnvelope) || errors.Is(err, protocol.ErrUnsupportedVersion) ||
+				errors.Is(err, protocol.ErrLineTooLong) {
+				slog.Warn("server: closing connection after unreadable line", "err", err)
+				c.sendError("", protocol.ErrCodeBadIntent, err.Error())
+			}
 			return
 		}
 		if env.Kind != protocol.KindIntent {
