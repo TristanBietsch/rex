@@ -58,12 +58,21 @@ jobs:
         shell: pwsh
         run: |
           $rex = "$env:RUNNER_TEMP\rex\bin\rex.exe"
+          # Native commands do not throw on a non-zero exit; check each one.
+          function Check($what) {
+            if ($LASTEXITCODE -ne 0) { Write-Host "::error::$what exited $LASTEXITCODE"; exit 1 }
+          }
           & $rex daemon start
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Check 'rex daemon start'
           & $rex new --tool echo --model short --slug smoke "smoke"
-          Start-Sleep -Seconds 5
+          Check 'rex new'
+          # Blocks until the echo session ends (done, failed or crashed).
+          & $rex wait -until any -timeout 30s smoke
+          Check 'rex wait'
           & $rex ls
+          Check 'rex ls'
           & $rex daemon stop
+          Check 'rex daemon stop'
           Start-Sleep -Seconds 2
           & $rex daemon status
           if ($LASTEXITCODE -eq 0) { Write-Error 'daemon still running after stop'; exit 1 }
