@@ -53,6 +53,11 @@ func run(args []string) error {
 	defer rexlog.Close()
 	slog.Info("daemon: starting", "version", version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
 
+	if err := daemonctl.CheckSocketPath(*socketPath); err != nil {
+		slog.Error("daemon: socket path too long", "socket", *socketPath, "err", err)
+		return err
+	}
+
 	reg, err := registry.Load(*toolsPath)
 	if err != nil {
 		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)

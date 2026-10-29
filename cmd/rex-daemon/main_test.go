@@ -4,10 +4,26 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// A socket path over the sun_path limit fails up front with the path and
+// the limit, not with a bare "invalid argument" from bind.
+func TestRun_SocketPathTooLong(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("REX_LOG_DIR", filepath.Join(home, "logs"))
+	sock := filepath.Join(home, strings.Repeat("s", 120), "rex.sock")
+
+	err := run([]string{"-socket", sock, "-state-dir", filepath.Join(home, "state")})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), sock)
+	require.Contains(t, err.Error(), "allows at most")
+}
 
 // New dirs are owner-only; an existing one is tightened only when it is
 // rex's own, never a user-supplied path that may be shared.
