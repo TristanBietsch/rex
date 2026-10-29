@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -152,7 +154,17 @@ func syncDir(dir string) {
 	}
 }
 
-// LoadMeta loads one session's metadata.
+// Caps for display fields loaded from disk. They match what the daemon
+// accepts at intake; older daemons stored these fields unchecked.
+const (
+	maxLoadedTitleRunes       = 512
+	maxLoadedFleetRunes       = 64
+	maxLoadedDescriptionRunes = 200
+	maxLoadedLastLineRunes    = 512
+)
+
+// LoadMeta loads one session's metadata. Display fields are re-sanitized:
+// meta.json may predate intake sanitizing, or have been edited by hand.
 func LoadMeta(root, id string) (*Session, error) {
 	path := filepath.Join(sessionDir(root, id), "meta.json")
 	b, err := os.ReadFile(path)
@@ -163,7 +175,22 @@ func LoadMeta(root, id string) (*Session, error) {
 	if err := json.Unmarshal(b, &sum); err != nil {
 		return nil, fmt.Errorf("parse meta %s: %w", path, err)
 	}
+	sum.Title = displayField(sum.Title, maxLoadedTitleRunes)
+	sum.Fleet = displayField(sum.Fleet, maxLoadedFleetRunes)
+	sum.Name = displayField(sum.Name, protocol.MaxSessionNameRunes)
+	sum.Description = displayField(sum.Description, maxLoadedDescriptionRunes)
+	sum.LastLine = displayField(sum.LastLine, maxLoadedLastLineRunes)
 	return fromSummary(sum), nil
+}
+
+// displayField makes a persisted string safe for one board row
+// (protocol.SingleLine) and cuts it to at most max runes.
+func displayField(s string, max int) string {
+	s = protocol.SingleLine(s)
+	if utf8.RuneCountInString(s) <= max {
+		return s
+	}
+	return strings.TrimRight(string([]rune(s)[:max]), " ")
 }
 
 // LoadAll loads every session under root/sessions/. Any session whose persisted

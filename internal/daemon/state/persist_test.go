@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,6 +108,32 @@ func TestLoadAllRecoversCrashed(t *testing.T) {
 	require.Len(t, loaded, 1)
 	require.Equal(t, protocol.StateCrashed, loaded[0].State,
 		"previously-working sessions must reload as crashed")
+}
+
+// meta.json written by an older daemon (or by hand) can hold escapes and
+// newlines in display fields; they must not reach the board.
+func TestLoadMeta_SanitizesDisplayFields(t *testing.T) {
+	dir := t.TempDir()
+	sess := &Session{
+		ID: "id1", ShortID: "id1", Slug: "ok", State: protocol.StateDone, StartedAt: time.Now().UTC(),
+		Title:       "fix\x1b[2J the\nbuild‮",
+		Fleet:       strings.Repeat("f", 100),
+		Name:        "my\tname\x07",
+		Description: "line one\r\nline two",
+		LastLine:    "\x1b]0;pwned\x07done",
+		CWD:         "/tmp/x",
+	}
+	require.NoError(t, WriteMeta(dir, sess))
+
+	got, err := LoadMeta(dir, "id1")
+	require.NoError(t, err)
+	require.Equal(t, "fix[2J the build", got.Title)
+	require.Equal(t, strings.Repeat("f", 64), got.Fleet)
+	require.Equal(t, "my name", got.Name)
+	require.Equal(t, "line one line two", got.Description)
+	require.Equal(t, "]0;pwneddone", got.LastLine)
+	require.Equal(t, "ok", got.Slug)
+	require.Equal(t, "/tmp/x", got.CWD)
 }
 
 // A WriteMeta interrupted between create and rename leaves a temp file; the
