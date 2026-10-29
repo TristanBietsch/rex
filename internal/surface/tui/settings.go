@@ -11,6 +11,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // SettingsState lives on Model when Focus == FocusSettings.
@@ -77,21 +78,30 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, -1)
 		return m, nil
 	case "enter", " ":
-		return applySettingsAction(m, 0), nil
+		return settingsStep(m, 0)
 	case "+", "=", "l", "right":
-		return applySettingsAction(m, +1), nil
+		return settingsStep(m, +1)
 	case "-", "_", "h", "left":
-		return applySettingsAction(m, -1), nil
+		return settingsStep(m, -1)
 	case "r":
 		s, ok := settings.Find(m.Settings.CursorID)
 		if ok {
 			_ = m.Store.Reset(m.Settings.CursorID)
 			applyLive(&m, s.ID, m.Store.Get(s.ID))
 			_ = m.Store.Save(m.StorePath)
+			return m, daemonLiveCmd(m.Client, s.ID, m.Store.Get(s.ID))
 		}
 		return m, nil
 	}
 	return m, nil
+}
+
+// settingsStep edits the cursor row, then pushes the value to the daemon if
+// the daemon enforces that setting.
+func settingsStep(m Model, step int) (Model, tea.Cmd) {
+	m = applySettingsAction(m, step)
+	id := m.Settings.CursorID
+	return m, daemonLiveCmd(m.Client, id, m.Store.Get(id))
 }
 
 // settingsAfter returns the id N positions after current in the visible registry order.
@@ -418,14 +428,22 @@ func applyLive(m *Model, id string, value any) {
 				m.Audio.SetVolume(v)
 			}
 		}
-	case "max_concurrent_sessions":
-		if m.Client != nil {
-			if n, ok := value.(int); ok {
-				if err := m.Client.SetMaxConcurrent(n); err != nil {
-					m.Err = "set max concurrent: " + err.Error()
-				}
-			}
+	}
+}
+
+// daemonLiveCmd pushes a setting the daemon enforces to it. The write runs
+// as a Cmd so a slow daemon can't stall the settings page; nil for settings
+// the daemon doesn't care about.
+func daemonLiveCmd(c *client.Client, id string, value any) tea.Cmd {
+	n, ok := value.(int)
+	if c == nil || id != "max_concurrent_sessions" || !ok {
+		return nil
+	}
+	return func() tea.Msg {
+		if err := c.SetMaxConcurrent(n); err != nil {
+			return CmdErrMsg{Op: "set max concurrent", Err: err}
 		}
+		return nil
 	}
 }
 

@@ -97,48 +97,73 @@ var altScreenTools = map[string]bool{
 	"kimi":     true,
 }
 
+// attachDialedMsg carries a popup connection opened by attachDialCmd: dialed,
+// subscribed and sized, or the error that stopped it.
+type attachDialedMsg struct {
+	SessionID  string
+	C          *client.Client
+	Cols, Rows int
+	Err        error
+}
+
+// openAttach starts opening the popup for sessionID. The daemon round trips
+// (dial, subscribe, resize, redraw) run in attachDialCmd, off the event loop,
+// so a slow daemon can't freeze input; attachOpened installs the popup.
 func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	if m.Socket == "" {
 		m.Err = "attach: socket unknown"
 		return m, nil
 	}
-	c, err := client.Dial(m.Socket)
-	if err != nil {
-		slog.Warn("tui: attach dial failed", "session", sessionID, "err", err)
-		m.Err = "attach: " + err.Error()
-		return m, nil
-	}
 	cols, rows := attachPopupInnerSize(m.Width, m.Height)
 	toolID := ""
-	for _, s := range m.Sessions {
-		if s.ID == sessionID {
-			toolID = s.ToolID
-			break
-		}
+	if s, ok := findSession(m.Sessions, sessionID); ok {
+		toolID = s.ToolID
 	}
-	// Alt-screen agents skip replay; mode sync tells our emulator which
-	// terminal modes (mouse tracking, alt screen) they already switched on.
-	subErr := c.SubscribeOpts(sessionID, !altScreenTools[toolID], true)
-	if subErr != nil {
-		slog.Warn("tui: attach subscribe failed", "session", sessionID, "err", subErr)
-		_ = c.Close()
-		m.Err = "attach: " + subErr.Error()
+	return m, attachDialCmd(m.Socket, sessionID, cols, rows, altScreenTools[toolID])
+}
+
+func attachDialCmd(socket, sessionID string, cols, rows int, altScreen bool) tea.Cmd {
+	return func() tea.Msg {
+		c, err := client.Dial(socket)
+		if err != nil {
+			slog.Warn("tui: attach dial failed", "session", sessionID, "err", err)
+			return attachDialedMsg{SessionID: sessionID, Err: err}
+		}
+		// Alt-screen agents skip replay; mode sync tells our emulator which
+		// terminal modes (mouse tracking, alt screen) they already switched on.
+		if err := c.SubscribeOpts(sessionID, !altScreen, true); err != nil {
+			slog.Warn("tui: attach subscribe failed", "session", sessionID, "err", err)
+			_ = c.Close()
+			return attachDialedMsg{SessionID: sessionID, Err: err}
+		}
+		_ = c.Resize(sessionID, uint16(cols), uint16(rows))
+		if altScreen {
+			// SIGWINCH alone is a no-op if size didn't change. Nudge full-TUI
+			// agents with ^L (documented in our footer as "redraw") so they
+			// repaint cleanly into our fresh vt10x buffer. Safe here because
+			// readline-based agents (ollama) aren't in altScreenTools.
+			_ = c.SendRedraw(sessionID)
+		}
+		return attachDialedMsg{SessionID: sessionID, C: c, Cols: cols, Rows: rows}
+	}
+}
+
+// attachOpened installs the popup once its connection is ready. If the user
+// moved on meanwhile (another popup, an overlay) the connection is dropped.
+func attachOpened(m Model, msg attachDialedMsg) (Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.Err = "attach: " + msg.Err.Error()
 		return m, nil
 	}
-	_ = c.Resize(sessionID, uint16(cols), uint16(rows))
-	if altScreenTools[toolID] {
-		// SIGWINCH alone is a no-op if size didn't change. Nudge full-TUI
-		// agents with ^L (documented in our footer as "redraw") so they
-		// repaint cleanly into our fresh vt10x buffer. Safe here because
-		// readline-based agents (ollama) aren't in altScreenTools.
-		_ = c.SendRedraw(sessionID)
+	if m.Attach != nil || m.Focus != FocusBoard || m.Quitting {
+		slog.Info("tui: attach dropped, focus moved on", "session", msg.SessionID, "focus", m.Focus)
+		_ = msg.C.Close()
+		return m, nil
 	}
+	sessionID, c, cols, rows := msg.SessionID, msg.C, msg.Cols, msg.Rows
 	slug := ""
-	for _, s := range m.Sessions {
-		if s.ID == sessionID {
-			slug = s.Slug
-			break
-		}
+	if s, ok := findSession(m.Sessions, sessionID); ok {
+		slug = s.Slug
 	}
 	mouse := mouseEnabled(m)
 	scrollback := attachScrollbackLimit(m)
@@ -154,6 +179,8 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	go pumpAttach(c, sessionID, st.outCh, st.errCh, st.done)
 	m.Attach = st
 	m.Focus = FocusAttach
+	// The window may have been resized while the dial was in flight.
+	resizeAttach(m)
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventOpen)
 	}

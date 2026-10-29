@@ -109,3 +109,37 @@ func TestAttachOutput_StaleListenerDoesNotRearm(t *testing.T) {
 	_, cmd = m.Update(AttachOutputMsg{SessionID: "a", Bytes: []byte("new"), from: cur})
 	require.NotNil(t, cmd, "the current popup's listener re-arms")
 }
+
+// openAttach used to dial, subscribe, resize and redraw inside Update, so a
+// slow daemon froze input. The socket work now happens in the returned Cmd.
+func TestOpenAttach_DialsOffTheEventLoop(t *testing.T) {
+	m := boardModel(protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateNeedsInput})
+	m.Socket = filepath.Join(t.TempDir(), "none.sock")
+
+	m, cmd := openAttach(m, "a")
+	require.NotNil(t, cmd)
+	require.Empty(t, m.Err, "nothing dialed yet")
+	require.Nil(t, m.Attach)
+
+	msg, ok := cmd().(attachDialedMsg)
+	require.True(t, ok)
+	require.Error(t, msg.Err)
+	out, _ := m.Update(msg)
+	m = out.(Model)
+	require.Contains(t, m.Err, "attach: ")
+	require.Equal(t, FocusBoard, m.Focus)
+}
+
+func TestAttachOpened_DropsWhenFocusMovedOn(t *testing.T) {
+	d := startFakeBoardDaemon(t)
+	c, err := client.Dial(d.Socket)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
+
+	m := boardModel(protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateNeedsInput})
+	m.Focus = FocusHelp // opened while the dial was in flight
+	m, _ = attachOpened(m, attachDialedMsg{SessionID: "a", C: c, Cols: 80, Rows: 24})
+	require.Nil(t, m.Attach)
+	require.Equal(t, FocusHelp, m.Focus)
+	require.Error(t, c.SendInput("a", []byte("x")), "the unused connection is closed")
+}

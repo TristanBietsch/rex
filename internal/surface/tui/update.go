@@ -76,6 +76,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			afterAttachOutput(m.Attach)
 		}
 		return m, listenAttach(m.Attach)
+	case attachDialedMsg:
+		return attachOpened(m, msg)
 	case AttachClosedMsg:
 		if attachMsgCurrent(m, msg.SessionID, msg.from) {
 			m.Attach.Ended = true

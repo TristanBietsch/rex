@@ -129,7 +129,9 @@ func startEchoAttach(t *testing.T) (Model, protocol.SessionSummary) {
 	m := boardModel(sum)
 	m.Socket = d.Socket
 	m.Width, m.Height = 120, 40
-	m, _ = openAttach(m, sum.ID)
+	m, cmd := openAttach(m, sum.ID)
+	require.NotNil(t, cmd)
+	m, _ = attachOpened(m, cmd().(attachDialedMsg))
 	require.NotNil(t, m.Attach, "attach failed: %s", m.Err)
 	st := m.Attach
 	t.Cleanup(func() { _ = st.Client.Close() }) // a qq detach may have closed it already
