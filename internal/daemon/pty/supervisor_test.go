@@ -82,6 +82,54 @@ func TestSupervisor_LastLineFromVirtualScreen(t *testing.T) {
 	require.NotContains(t, store.Screen("scr1"), "esc to interrupt")
 }
 
+// A multi-byte rune split across PTY reads must reach the screen whole, not
+// be dropped by the emulator.
+func TestSupervisor_RuneSplitAcrossReads(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "utf1", ShortID: "utf1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	// The sleep makes the reader see "h\xc3" and "\xa9llo world" separately.
+	script := `printf 'h\303'; sleep 0.3; printf '\251llo world\n'; sleep 0.3`
+	sup := New(SupervisorConfig{
+		StateDir: stateDir,
+		Store:    store,
+		Command:  []string{"bash", "-c", script},
+		IdleTick: 50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+
+	got, _ := store.Get("utf1")
+	require.Equal(t, "héllo world", got.LastLine)
+}
+
+func TestIncompleteRuneTail(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{"", 0},
+		{"abc", 0},
+		{"h\xc3", 1},
+		{"h\xc3\xa9", 0},
+		{"box \xe2\x94", 2},
+		{"box \xe2\x94\x80", 0},
+		{"\xf0\x9f\x98", 3},
+		{"\xf0\x9f\x98\x80", 0},
+		{"bad \xff", 0},
+		{"stray \x80\x80\x80", 0},
+	}
+	for _, tc := range cases {
+		require.Equal(t, tc.want, incompleteRuneTail([]byte(tc.in)), "%q", tc.in)
+	}
+}
+
 // stubAdapter is a programmable Adapter for testing the supervisor's
 // per-tick state classification AND its IsReadyForInput readiness gate.
 type stubAdapter struct {

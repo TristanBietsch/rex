@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hinshun/vt10x"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
@@ -273,6 +274,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// Reader goroutine.
 	go func() {
 		buf := make([]byte, 4096)
+		// partial holds a UTF-8 sequence split across reads. vt10x drops
+		// the bytes of a rune cut off at the end of a Write, so they wait
+		// here for the rest of the rune.
+		var partial []byte
 		for {
 			n, rerr := f.Read(buf)
 			if n > 0 {
@@ -302,7 +307,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				// heuristic adapter never sees idle ≥ idle_ms and codex/claude
 				// stay pinned at "working" forever while sitting at a prompt.
 				visible := hasVisibleText(chunk)
-				_, _ = screen.Write(chunk)
+				text := chunk
+				if len(partial) > 0 {
+					text = append(partial, chunk...)
+				}
+				keep := incompleteRuneTail(text)
+				_, _ = screen.Write(text[:len(text)-keep])
+				partial = append([]byte(nil), text[len(text)-keep:]...)
 				windowMu.Lock()
 				window = appendBounded(window, chunk, 8192)
 				if visible {
@@ -464,6 +475,21 @@ func shouldEmitSummary(dirty bool, lastChunk, lastSubmittedAt, now time.Time) bo
 		return true
 	}
 	return false
+}
+
+// incompleteRuneTail returns how many trailing bytes of b start a UTF-8
+// sequence that a later read will complete (0 when b ends on a rune
+// boundary). Invalid bytes count as complete, so nothing is held forever.
+func incompleteRuneTail(b []byte) int {
+	for i := len(b) - 1; i >= 0 && i > len(b)-utf8.UTFMax; i-- {
+		if utf8.RuneStart(b[i]) {
+			if utf8.FullRune(b[i:]) {
+				return 0
+			}
+			return len(b) - i
+		}
+	}
+	return 0
 }
 
 func appendBounded(buf, b []byte, cap int) []byte {
