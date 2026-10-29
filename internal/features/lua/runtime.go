@@ -9,7 +9,8 @@
 // Threading model: *lua.LState is not goroutine-safe. All entry points
 // (LoadFile, OnEvent) are serialized via an internal mutex. Injected callbacks
 // (Sender, Lister) are invoked while the mutex is held; they must not call
-// back into the Runtime.
+// back into the Runtime. Each script load and handler call is cut off after
+// Options.CallTimeout.
 //
 // Security: the script runs in-process as the daemon user. Do not load
 // untrusted scripts. The standard Lua os/io/file libraries are not loaded,
@@ -17,11 +18,13 @@
 package lua
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	lua "github.com/yuin/gopher-lua"
 
@@ -40,6 +43,9 @@ type Options struct {
 	// Lister is called when Lua code invokes rex.list().
 	// It is invoked with the Runtime mutex held; it must not re-enter the Runtime.
 	Lister func() []protocol.SessionSummary
+
+	// CallTimeout bounds LoadFile and each handler call (0 = DefaultCallTimeout).
+	CallTimeout time.Duration
 }
 
 // Runtime wraps a gopher-lua LState and exposes the rex Lua API.
@@ -65,6 +71,9 @@ func New(opts Options) (*Runtime, error) {
 	log := opts.Logger
 	if log == nil {
 		log = slog.Default()
+	}
+	if opts.CallTimeout <= 0 {
+		opts.CallTimeout = DefaultCallTimeout
 	}
 
 	// Open only the safe standard libraries; omit os/io to reduce attack surface.
@@ -121,7 +130,10 @@ func (r *Runtime) LoadFile(path string) error {
 	}
 
 	slog.Debug("lua: loading config file", "path", path)
-	if err := r.L.DoFile(path); err != nil {
+	stop := r.limit()
+	err := r.L.DoFile(path)
+	stop()
+	if err != nil {
 		r.log.Error("lua: error loading config file", "path", path, "err", err)
 		return fmt.Errorf("lua: LoadFile %q: %w", path, err)
 	}
@@ -166,17 +178,33 @@ func (r *Runtime) OnEvent(eventType string, data any) error {
 
 	for i, fn := range fns {
 		r.log.Debug("lua: invoking handler", "event", key, "handler_index", i)
-		if err := r.L.CallByParam(lua.P{
+		stop := r.limit()
+		err := r.L.CallByParam(lua.P{
 			Fn:      fn,
 			NRet:    0,
 			Protect: true,
-		}, arg); err != nil {
+		}, arg)
+		stop()
+		if err != nil {
 			r.log.Error("lua: handler error", "event", key, "handler_index", i, "err", err)
 			// Continue calling remaining handlers.
 		}
 	}
 
 	return nil
+}
+
+// limit arms the per-call timeout on r.L and returns the func that disarms
+// it. gopher-lua checks the context between instructions, so an endless loop
+// fails with a context error instead of holding the Runtime forever. Must be
+// called with r.mu held.
+func (r *Runtime) limit() (stop func()) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.opts.CallTimeout)
+	r.L.SetContext(ctx)
+	return func() {
+		r.L.RemoveContext()
+		cancel()
+	}
 }
 
 // dataToLua converts a supported Go value to a Lua value suitable for passing

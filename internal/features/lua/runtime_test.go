@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,6 +136,43 @@ func TestSyntaxErrorReturned(t *testing.T) {
 
 	err := r.LoadFile(tmpFile)
 	assert.Error(t, err)
+}
+
+// A handler stuck in an endless loop is cut off at CallTimeout, and the
+// runtime keeps serving later events.
+func TestHandlerTimeout(t *testing.T) {
+	fs := &fakeSender{}
+	r, err := New(Options{Sender: fs.Send, Lister: defaultLister, CallTimeout: 100 * time.Millisecond})
+	require.NoError(t, err)
+	t.Cleanup(r.Close)
+
+	script := `
+rex.on("session_added", function(s)
+  if s.id == "spin" then
+    while true do end
+  end
+  rex.send(s.id, "ok")
+end)
+`
+	require.NoError(t, r.LoadFile(writeTempLua(t, script)))
+
+	start := time.Now()
+	require.NoError(t, r.OnEvent("session_added", protocol.SessionSummary{ID: "spin"}))
+	require.Less(t, time.Since(start), 2*time.Second)
+
+	require.NoError(t, r.OnEvent("session_added", protocol.SessionSummary{ID: "next"}))
+	require.Len(t, fs.calls, 1)
+	assert.Equal(t, "next", fs.calls[0].sessionID)
+}
+
+// An endless loop at the top level of init.lua must not hang daemon start.
+func TestLoadFileTimeout(t *testing.T) {
+	r, err := New(Options{Sender: (&fakeSender{}).Send, Lister: defaultLister, CallTimeout: 100 * time.Millisecond})
+	require.NoError(t, err)
+	t.Cleanup(r.Close)
+	start := time.Now()
+	require.Error(t, r.LoadFile(writeTempLua(t, `while true do end`)))
+	require.Less(t, time.Since(start), 2*time.Second)
 }
 
 // writeTempLua writes content to a temporary .lua file and returns its path.

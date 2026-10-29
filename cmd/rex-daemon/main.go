@@ -166,13 +166,8 @@ func run(args []string) error {
 	}
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
-	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)
-	if luaCancel != nil {
-		defer luaCancel()
-	}
-	if luaRT != nil {
-		defer luaRT.Close()
-	}
+	stopLua := boot.StartLuaRuntime(srv, store)
+	defer stopLua()
 
 	// Start summarizer worker + health probe (when enabled).
 	if summaryWorker != nil {

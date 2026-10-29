@@ -31,6 +31,8 @@ The daemon loads `~/.config/rex/init.lua` (path configured via `lua_config_path`
 
 `*lua.LState` is not goroutine-safe. All entry points (`LoadFile`, `OnEvent`) are serialized via an internal mutex. Injected Go callbacks (`Sender`, `Lister`) are invoked while the mutex is held — they must not call back into the `Runtime`.
 
+The daemon never runs handlers inside the store broadcast: events go through a bounded queue to one dispatcher goroutine, and are dropped (with a log line) while the queue is full.
+
 ## Standard libraries loaded
 
 `base`, `table`, `string`, `math`, `package`. The `os`, `io`, `coroutine`, and `debug` libraries are **not** loaded to limit the attack surface.
@@ -40,7 +42,7 @@ The daemon loads `~/.config/rex/init.lua` (path configured via `lua_config_path`
 - The script runs **in-process** as the daemon user with full access to the `rex.*` Go callbacks.
 - `rex.send` can inject arbitrary text into any session's PTY.
 - Do **not** load untrusted scripts. The restricted stdlib reduces but does not eliminate risk.
-- There is no resource limit on CPU or memory within the Lua state.
+- Loading the script and each handler call are cut off after `CallTimeout` (default 5s). There is no memory limit.
 
 ## Wiring (daemon integration)
 
