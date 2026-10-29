@@ -8,7 +8,6 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // defaultRetireAfter reads retire_after_hours from config.yaml (the same
@@ -45,15 +44,11 @@ func RunDone(args []string) error {
 	if ttl < 10*time.Second {
 		return core.NewExitError(core.ExitInvalidArgs, "done: -after must be at least 10s")
 	}
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, pos[0])
+	c, sess, err := core.Connect(*socket, pos[0])
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 	if !sess.RetireAt.IsZero() {
 		fmt.Printf("%s: already marked done — clears in %s (rex undone to cancel)\n", sess.Slug, shortDuration(time.Until(sess.RetireAt)))
 		return nil
@@ -80,15 +75,11 @@ func RunUndone(args []string) error {
 	if err := core.CheckArgs(pos, 1, 1, "rex undone <sel> [-socket path]"); err != nil {
 		return err
 	}
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, pos[0])
+	c, sess, err := core.Connect(*socket, pos[0])
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 	if sess.RetireAt.IsZero() {
 		fmt.Printf("%s: not marked done\n", sess.Slug)
 		return nil

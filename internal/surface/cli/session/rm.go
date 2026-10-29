@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunRm deletes a session.
@@ -23,15 +22,11 @@ func RunRm(args []string) error {
 	}
 	sel := pos[0]
 
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, sel)
+	c, sess, err := core.Connect(*socket, sel)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 
 	fi, _ := os.Stdin.Stat()
 	if !*force && (fi.Mode()&os.ModeCharDevice) != 0 {

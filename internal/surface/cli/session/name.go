@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -59,15 +58,11 @@ func RunName(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := client.Dial(a.socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, a.sel)
+	c, sess, err := core.Connect(a.socket, a.sel)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 	if a.show {
 		if sess.Name == "" {
 			fmt.Printf("(no name — board shows slug %s)\n", sess.Slug)

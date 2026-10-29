@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -25,15 +24,11 @@ func RunStatus(args []string) error {
 		return err
 	}
 
-	c, err := client.Dial(*socket)
+	c, snap, err := core.Dial(*socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
-	snap, err := c.Hello("rex-cli")
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
 
 	if *asJSON {
 		if err := core.WriteAggregateJSON(os.Stdout, snap.Sessions); err != nil {

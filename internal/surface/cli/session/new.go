@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -64,15 +63,11 @@ func RunNew(args []string) error {
 		return core.NewExitError(core.ExitInvalidArgs, "new: "+err.Error())
 	}
 
-	c, err := client.Dial(*socket)
+	c, snap, err := core.Dial(*socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
-	snap, err := c.Hello("rex-cli")
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
 	if derived {
 		*slug = uniqueSlug(*slug, snap.Sessions)
 	}

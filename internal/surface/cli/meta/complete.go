@@ -4,7 +4,6 @@ import (
 	"flag"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunComplete cleanly terminates a running session and marks it done.
@@ -21,15 +20,11 @@ func RunComplete(args []string) error {
 	}
 	sel := pos[0]
 
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, sel)
+	c, sess, err := core.Connect(*socket, sel)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 	if err := c.Complete(sess.ID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunReply sends a one-shot text reply (newline-terminated) to a session.
@@ -35,15 +34,11 @@ func RunReply(args []string) error {
 		text = string(b)
 	}
 
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, sel)
+	c, sess, err := core.Connect(*socket, sel)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 
 	if *raw {
 		return c.SendInput(sess.ID, []byte(text))

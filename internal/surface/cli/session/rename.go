@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -27,15 +26,11 @@ func RunRename(args []string) error {
 		return core.NewExitError(core.ExitInvalidArgs, "rename: "+err.Error())
 	}
 
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, sel)
+	c, sess, err := core.Connect(*socket, sel)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 	reqID := "cli-rename-" + sess.ShortID
 	slog.Debug("cli: rename", "session", sess.ID, "from", sess.Slug, "to", newSlug, "req_id", reqID)
 	if err := c.Rename(sess.ID, newSlug, "", reqID); err != nil {

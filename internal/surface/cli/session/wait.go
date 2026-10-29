@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -39,15 +38,11 @@ func RunWait(args []string) error {
 			fmt.Sprintf("wait: unknown -until %q (want %s)", *until, strings.Join(waitTargets, ", ")))
 	}
 
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, sel)
+	c, sess, err := core.Connect(*socket, sel)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 
 	if matchesState(sess.State, *until) {
 		return nil

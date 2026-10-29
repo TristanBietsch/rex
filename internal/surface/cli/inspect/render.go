@@ -6,7 +6,6 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunRender connects to the daemon, fetches a snapshot, and prints the
@@ -28,15 +27,11 @@ func RunRender(args []string) error {
 		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("render: -w and -h must be positive (got %dx%d)", *w, *h))
 	}
 
-	c, err := client.Dial(*socket)
+	c, snap, err := core.Dial(*socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
-	snap, err := c.Hello("rex-render")
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
 
 	m := tui.Model{
 		Sessions: snap.Sessions,

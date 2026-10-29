@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunFleet dispatches rex fleet subcommands.
@@ -58,15 +57,11 @@ func RunFleet(args []string) error {
 }
 
 func runFleetLS(socket string, w io.Writer) error {
-	c, err := client.Dial(socket)
+	c, snap, err := core.Dial(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
-	snap, err := c.Hello("rex-cli")
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
 
 	// Count sessions per fleet; "(none)" for unassigned.
 	counts := map[string]int{}
@@ -101,15 +96,11 @@ func runFleetLS(socket string, w io.Writer) error {
 // runFleetSet assigns the session to fleet ("" clears it) and waits for the
 // daemon to confirm, so a rejection (e.g. unknown session) reaches the user.
 func runFleetSet(socket, selector, fleet string) error {
-	c, err := client.Dial(socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, selector)
+	c, sess, err := core.Connect(socket, selector)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 	if err := c.SetSessionFleet(sess.ID, fleet); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
@@ -127,15 +118,11 @@ func runFleetSet(socket, selector, fleet string) error {
 }
 
 func runFleetShow(socket, fleet string, w io.Writer) error {
-	c, err := client.Dial(socket)
+	c, snap, err := core.Dial(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
-	snap, err := c.Hello("rex-cli")
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
 
 	result := snap.Sessions[:0:len(snap.Sessions)]
 	for _, s := range snap.Sessions {

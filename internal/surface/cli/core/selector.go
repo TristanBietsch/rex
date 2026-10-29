@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -21,17 +20,8 @@ var stateAliases = map[string]protocol.State{
 	"@done":    protocol.StateDone,
 }
 
-// ResolveSelector finds a session by id, slug, short_id, or @state alias
-// from the daemon's snapshot.
-func ResolveSelector(c *client.Client, sel string) (protocol.SessionSummary, error) {
-	snap, err := c.Hello("rex-cli")
-	if err != nil {
-		return protocol.SessionSummary{}, err
-	}
-	return ResolveInSnapshot(snap.Sessions, sel)
-}
-
-// ResolveInSnapshot is the testable core.
+// ResolveInSnapshot finds the one session in sessions matching sel: a full
+// id, slug, short id (or id prefix), or @state alias.
 func ResolveInSnapshot(sessions []protocol.SessionSummary, sel string) (protocol.SessionSummary, error) {
 	if sel == "" {
 		return protocol.SessionSummary{}, NewExitError(ExitInvalidArgs, "empty selector")

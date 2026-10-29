@@ -12,7 +12,6 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -55,15 +54,11 @@ func RunAttach(args []string) error {
 	}
 	sel := pos[0]
 
-	c, err := client.Dial(*socket)
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
-	}
-	defer c.Close()
-	sess, err := core.ResolveSelector(c, sel)
+	c, sess, err := core.Connect(*socket, sel)
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 
 	stdoutFd := int(os.Stdout.Fd())
 	stdinFd := int(os.Stdin.Fd())
