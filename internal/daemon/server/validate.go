@@ -3,7 +3,9 @@ package server
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -27,6 +29,53 @@ func validateNewSession(p protocol.NewSession) error {
 	}
 	if strings.TrimSpace(p.CWD) == "" {
 		return fmt.Errorf("cwd required")
+	}
+	return nil
+}
+
+// Caps on free text from clients, in runes. A title is display text (the
+// CLI sends the whole prompt as one), so a long one is truncated; a fleet is
+// a label the user typed, so a long one is rejected.
+const (
+	maxTitleRunes = 512
+	maxFleetRunes = 64
+)
+
+// normalizeTitle makes a session title safe for one board row and caps it.
+// The agent never sees it: the prompt travels separately (InitialPrompt).
+func normalizeTitle(s string) string {
+	return truncateRunes(protocol.SingleLine(s), maxTitleRunes)
+}
+
+// normalizeFleet makes a fleet label safe for one row. "" clears it.
+func normalizeFleet(s string) (string, error) {
+	out := protocol.SingleLine(s)
+	if utf8.RuneCountInString(out) > maxFleetRunes {
+		return "", fmt.Errorf("fleet exceeds %d characters", maxFleetRunes)
+	}
+	return out, nil
+}
+
+func truncateRunes(s string, n int) string {
+	count := 0
+	for i := range s {
+		if count == n {
+			return s[:i]
+		}
+		count++
+	}
+	return s
+}
+
+// validateCWD checks that the spawn directory exists, so a bad path fails
+// the NewSession instead of surfacing later as a failed session.
+func validateCWD(dir string) error {
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("cwd: %w", err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("cwd %s: not a directory", dir)
 	}
 	return nil
 }

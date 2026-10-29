@@ -225,6 +225,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
+			p.Title = normalizeTitle(p.Title)
 			if err := validateRename(p); err != nil {
 				slog.Warn("server: rename rejected", "session", p.SessionID, "slug", p.Slug, "reason", err, "req_id", env.ID)
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
@@ -362,6 +363,12 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
+			fleet, err := normalizeFleet(p.Fleet)
+			if err != nil {
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
+				continue
+			}
+			p.Fleet = fleet
 			sess, ok := srv.cfg.Store.Get(p.SessionID)
 			if !ok {
 				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")

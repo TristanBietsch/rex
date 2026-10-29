@@ -33,6 +33,16 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		return fmt.Errorf("effort %q not offered by %s/%s (options: %s)",
 			p.Effort, p.ToolID, p.ModelID, strings.Join(model.Effort.Options, ", "))
 	}
+	if err := validateCWD(p.CWD); err != nil {
+		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
+		return badIntent(err)
+	}
+	// Title and fleet are shown on every client's board; store them safe.
+	title := normalizeTitle(p.Title)
+	fleet, err := normalizeFleet(p.Fleet)
+	if err != nil {
+		return badIntent(err)
+	}
 
 	if !srv.TryAcquireSession() {
 		return fmt.Errorf("too many concurrent sessions (cap=%d)", srv.MaxConcurrentSessions())
@@ -89,11 +99,11 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		ModelID:   p.ModelID,
 		Effort:    p.Effort,
 		Slug:      p.Slug,
-		Title:     p.Title,
+		Title:     title,
 		CWD:       p.CWD,
 		State:     protocol.StateQueued,
 		StartedAt: time.Now().UTC(),
-		Fleet:     p.Fleet,
+		Fleet:     fleet,
 	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
