@@ -47,13 +47,15 @@ const logPollInterval = 100 * time.Millisecond
 
 // streamFile writes the transcript at path to w: all of it, or its last
 // tailN lines; with follow it then keeps writing what is appended until stop
-// closes (nil: never). Unless raw, CSI escapes are stripped from all of it.
+// closes (nil: never), across the daemon's rotations. Unless raw, CSI
+// escapes are stripped from all of it.
 func streamFile(path string, w io.Writer, follow bool, tailN int, raw bool, stop <-chan struct{}) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	// f changes when the transcript rotates; close whichever is open last.
+	defer func() { _ = f.Close() }()
 
 	out := w
 	if !raw {
@@ -82,7 +84,46 @@ func streamFile(path string, w io.Writer, follow bool, tailN int, raw bool, stop
 		if _, err := io.Copy(out, f); err != nil {
 			return err
 		}
+		if f, err = followRotation(path, f, out); err != nil {
+			return err
+		}
 	}
+}
+
+// followRotation returns the file to keep following once f is drained. The
+// daemon rotates a transcript by closing it, renaming it to
+// transcript.log.1 and starting a new file at path: when path no longer
+// names f, what is left in f is copied to out and the new file is opened,
+// to be read from its start. A file truncated in place is read again from
+// its start.
+func followRotation(path string, f *os.File, out io.Writer) (*os.File, error) {
+	cur, err := f.Stat()
+	if err != nil {
+		return f, err
+	}
+	next, statErr := os.Stat(path)
+	if statErr == nil && os.SameFile(cur, next) {
+		if off, err := f.Seek(0, io.SeekCurrent); err == nil && next.Size() < off {
+			_, err = f.Seek(0, io.SeekStart)
+			return f, err
+		}
+		return f, nil
+	}
+	if statErr == nil {
+		if nf, err := os.Open(path); err == nil {
+			// The daemon closed f before the rename: this read gets the
+			// last bytes it wrote there.
+			if _, err := io.Copy(out, f); err != nil {
+				_ = nf.Close()
+				return f, err
+			}
+			_ = f.Close()
+			return nf, nil
+		}
+	}
+	// path is missing mid-rotation (or not yet openable): keep f, and the
+	// next poll looks again.
+	return f, nil
 }
 
 func splitLastN(b []byte, n int) []byte {

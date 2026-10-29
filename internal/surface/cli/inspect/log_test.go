@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -85,4 +86,60 @@ func TestStreamFile_TailAndRaw(t *testing.T) {
 	out.Reset()
 	require.NoError(t, streamFile(path, &out, false, 0, true, nil))
 	require.Equal(t, "a\n\x1b[1mb\x1b[0m\nc\n", out.String())
+}
+
+// followUntil runs streamFile -f on path in the background; the returned
+// func waits until out contains want, stops the follow and returns out.
+func followUntil(t *testing.T, path string) func(want string) string {
+	t.Helper()
+	var out syncBuffer
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	go func() { done <- streamFile(path, &out, true, 0, true, stop) }()
+	return func(want string) string {
+		t.Helper()
+		require.Eventually(t, func() bool { return strings.Contains(out.String(), want) },
+			3*time.Second, 10*time.Millisecond, "got %q", out.String())
+		close(stop)
+		require.NoError(t, <-done)
+		return out.String()
+	}
+}
+
+// The daemon rotates transcript.log to transcript.log.1 at its size cap;
+// -f used to keep reading the renamed file and go silent.
+func TestStreamFile_FollowsRotation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows can't rename a file another handle has open")
+	}
+	path := filepath.Join(t.TempDir(), "transcript.log")
+	require.NoError(t, os.WriteFile(path, []byte("one\n"), 0o600))
+	wait := followUntil(t, path)
+
+	// Like TranscriptFile.rotate: last write, close, rename, new file.
+	w, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	require.NoError(t, err)
+	time.Sleep(3 * logPollInterval) // the follow loop is past the first dump
+	_, err = w.WriteString("two\n")
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	require.NoError(t, os.Rename(path, path+".1"))
+	require.NoError(t, os.WriteFile(path, []byte("three\n"), 0o600))
+	time.Sleep(3 * logPollInterval)
+	w, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	require.NoError(t, err)
+	_, err = w.WriteString("four\n")
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	require.Equal(t, "one\ntwo\nthree\nfour\n", wait("four"))
+}
+
+func TestStreamFile_FollowsTruncation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "transcript.log")
+	require.NoError(t, os.WriteFile(path, []byte("long line\n"), 0o600))
+	wait := followUntil(t, path)
+	time.Sleep(3 * logPollInterval)
+	require.NoError(t, os.WriteFile(path, []byte("new\n"), 0o600))
+	require.Equal(t, "long line\nnew\n", wait("new"))
 }
