@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"time"
@@ -39,7 +40,7 @@ var redrawKickTools = map[string]bool{
 //
 // The daemon owns the agent process; we plumb stdin/stdout and the terminal size
 // so the agent's TUI renders natively in the caller's terminal. Press Ctrl+] to
-// detach. Read-only mode skips stdin forwarding.
+// detach. Read-only mode reads stdin only to catch Ctrl+]; nothing is sent.
 func RunAttach(args []string) error {
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
@@ -111,8 +112,8 @@ func RunAttach(args []string) error {
 	// SIGWINCH on a same-size resize is a no-op. A delayed Ctrl+L makes
 	// them redraw current screen state. Delay is tiny so the replay flush
 	// has a chance to land first; otherwise we kick before the agent even
-	// sees the resize.
-	if redrawKickTools[sess.ToolID] {
+	// sees the resize. The kick is PTY input, so read-only never sends it.
+	if redrawKickTools[sess.ToolID] && !*readOnly {
 		go func(sessID, toolID string) {
 			time.Sleep(150 * time.Millisecond)
 			if err := c.SendRedraw(sessID); err != nil {
@@ -131,30 +132,11 @@ func RunAttach(args []string) error {
 	})
 	defer stopResize()
 
-	// stdin → daemon, watching for Ctrl+] to detach.
-	if !*readOnly {
-		go func() {
-			buf := make([]byte, 4096)
-			for {
-				n, rerr := os.Stdin.Read(buf)
-				if n > 0 {
-					chunk := buf[:n]
-					if idx := indexByte(chunk, detachKey); idx >= 0 {
-						if idx > 0 {
-							_ = c.SendInput(sess.ID, chunk[:idx])
-						}
-						_ = c.Close() // unblock the event loop
-						return
-					}
-					_ = c.SendInput(sess.ID, chunk)
-				}
-				if rerr != nil {
-					_ = c.Close()
-					return
-				}
-			}
-		}()
-	}
+	// stdin → daemon, watching for Ctrl+] to detach. Read-only still reads:
+	// in raw mode the terminal sends Ctrl+] only to us.
+	go pumpInput(os.Stdin, *readOnly, func(b []byte) { _ = c.SendInput(sess.ID, b) }, func() {
+		_ = c.Close() // unblock the event loop
+	})
 
 	// daemon → stdout.
 	for {
@@ -178,6 +160,36 @@ func RunAttach(args []string) error {
 				}
 				return core.NewExitError(core.ExitGeneric, msg)
 			}
+		}
+	}
+}
+
+// pumpInput reads r until detachKey or a read error, then calls detach.
+// Bytes before the key go to send unless readOnly, which discards them. A
+// read-only observer whose stdin ends (e.g. </dev/null) stays attached.
+func pumpInput(r io.Reader, readOnly bool, send func([]byte), detach func()) {
+	buf := make([]byte, 4096)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+			idx := indexByte(chunk, detachKey)
+			if idx >= 0 {
+				chunk = chunk[:idx]
+			}
+			if len(chunk) > 0 && !readOnly {
+				send(chunk)
+			}
+			if idx >= 0 {
+				detach()
+				return
+			}
+		}
+		if err != nil {
+			if !readOnly {
+				detach()
+			}
+			return
 		}
 	}
 }
