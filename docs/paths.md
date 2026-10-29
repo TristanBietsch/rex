@@ -30,7 +30,7 @@ Canonical list of files and directories Rex uses. See [glossary.md](glossary.md)
 
 ## Permissions
 
-On macOS and Linux, rex creates the state and log directories (`~/.local/share/rex/`, its `sessions/` and `sessions/<id>/` subdirectories, `~/.local/state/rex/`, and `~/.cache/rex/` for the socket) with mode `0700`. Session files, `daemon.lock` and the structured logs are `0600`; `daemon.log` and `tui-state.json` are created `0644` but sit inside the `0700` directory. The daemon sets the socket to `0600`. Other local users can neither read transcripts nor connect to the daemon.
+On macOS and Linux, rex creates the state and log directories (`~/.local/share/rex/`, its `sessions/` and `sessions/<id>/` subdirectories, `~/.local/state/rex/`, and `~/.cache/rex/` for the socket) with mode `0700`. Session files, `daemon.lock`, `tui-state.json` and the structured logs are `0600`; `daemon.log` is created `0644` but sits inside the `0700` directory. The daemon sets the socket to `0600`. Other local users can neither read transcripts nor connect to the daemon.
 
 Directories left `0755` by older builds are tightened to `0700` only at rex's default paths. A `-state-dir` or `REX_LOG_DIR` you chose (say under `/tmp`) is created `0700` if missing but otherwise left as it is; its `sessions/` subdirectory is still tightened.
 

@@ -21,7 +21,7 @@ func statePath() string {
 // SaveTUIState writes selection + filter to ~/.local/state/rex/tui-state.json.
 func SaveTUIState(m Model) error {
 	path := statePath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(persistedState{
@@ -32,7 +32,7 @@ func SaveTUIState(m Model) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o600)
 }
 
 // LoadTUIState reads + deletes the persisted state. Returns ok=false when the file doesn't exist.
