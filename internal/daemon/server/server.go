@@ -100,14 +100,18 @@ type Server struct {
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
 
+	// subSeq numbers output and health subscriptions so cancel can remove
+	// exactly its own entry.
+	subSeq atomic.Uint64
+
 	outputSubsMu sync.RWMutex
-	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
+	outputSubs   map[string]map[uint64]func([]byte) // sessionID -> subscription id -> callback
 
 	// summarizerHealthSubs is a global fan-out for SummarizerHealth events
 	// (not tied to any single session — every connected client subscribes
 	// after Hello).
 	summarizerHealthMu   sync.RWMutex
-	summarizerHealthSubs []func(protocol.SummarizerHealth)
+	summarizerHealthSubs map[uint64]func(protocol.SummarizerHealth)
 
 	resizeMu    sync.RWMutex
 	resizeFuncs map[string]func(cols, rows uint16) error
@@ -329,22 +333,26 @@ func (s *Server) InputChannel(sessionID string) chan []byte {
 	return s.inputChannels[sessionID]
 }
 
-// SubscribeSessionOutput registers a per-session output callback. Returns a cancel func.
+// SubscribeSessionOutput registers a per-session output callback. Returns a
+// cancel func that removes it. fn runs on the PTY reader and must not block.
 func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func() {
 	s.outputSubsMu.Lock()
 	defer s.outputSubsMu.Unlock()
 	if s.outputSubs == nil {
-		s.outputSubs = make(map[string][]func([]byte))
+		s.outputSubs = make(map[string]map[uint64]func([]byte))
 	}
-	idx := len(s.outputSubs[sessionID])
-	s.outputSubs[sessionID] = append(s.outputSubs[sessionID], fn)
+	id := s.subSeq.Add(1)
+	if s.outputSubs[sessionID] == nil {
+		s.outputSubs[sessionID] = make(map[uint64]func([]byte))
+	}
+	s.outputSubs[sessionID][id] = fn
 	return func() {
 		s.outputSubsMu.Lock()
 		defer s.outputSubsMu.Unlock()
-		list := s.outputSubs[sessionID]
-		if idx < len(list) {
-			list[idx] = nil
-			s.outputSubs[sessionID] = list
+		subs := s.outputSubs[sessionID]
+		delete(subs, id)
+		if len(subs) == 0 {
+			delete(s.outputSubs, sessionID)
 		}
 	}
 }
@@ -354,26 +362,25 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 	s.outputSubsMu.RLock()
 	defer s.outputSubsMu.RUnlock()
 	for _, fn := range s.outputSubs[sessionID] {
-		if fn != nil {
-			fn(b)
-		}
+		fn(b)
 	}
 }
 
 // SubscribeSummarizerHealth registers a global callback for SummarizerHealth
-// events. Returns a cancel func. Every connected client subscribes once after
-// Hello so health flips propagate to all live TUIs.
+// events. Returns a cancel func that removes it. Every connected client
+// subscribes once so health flips propagate to all live TUIs.
 func (s *Server) SubscribeSummarizerHealth(fn func(protocol.SummarizerHealth)) func() {
 	s.summarizerHealthMu.Lock()
 	defer s.summarizerHealthMu.Unlock()
-	idx := len(s.summarizerHealthSubs)
-	s.summarizerHealthSubs = append(s.summarizerHealthSubs, fn)
+	if s.summarizerHealthSubs == nil {
+		s.summarizerHealthSubs = make(map[uint64]func(protocol.SummarizerHealth))
+	}
+	id := s.subSeq.Add(1)
+	s.summarizerHealthSubs[id] = fn
 	return func() {
 		s.summarizerHealthMu.Lock()
 		defer s.summarizerHealthMu.Unlock()
-		if idx < len(s.summarizerHealthSubs) {
-			s.summarizerHealthSubs[idx] = nil
-		}
+		delete(s.summarizerHealthSubs, id)
 	}
 }
 
@@ -386,9 +393,7 @@ func (s *Server) BroadcastSummarizerHealth(available bool, reason string) {
 	defer s.summarizerHealthMu.RUnlock()
 	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", len(s.summarizerHealthSubs))
 	for _, fn := range s.summarizerHealthSubs {
-		if fn != nil {
-			fn(payload)
-		}
+		fn(payload)
 	}
 }
 

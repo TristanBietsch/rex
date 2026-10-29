@@ -3,6 +3,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,11 +35,20 @@ var ErrReaping = errors.New("session is already being cleared")
 
 // Store is the central session table.
 type Store struct {
-	mu          sync.RWMutex
-	sessions    map[string]*Session
-	byShortID   map[string]string // short_id -> id
-	subscribers []func(Event)
-	subsMu      sync.RWMutex
+	mu        sync.RWMutex
+	sessions  map[string]*Session
+	byShortID map[string]string // short_id -> id
+
+	subsMu sync.Mutex
+	// subscribers is replaced, never mutated in place, so broadcast can
+	// iterate a snapshot without holding subsMu.
+	subscribers []subscriber
+	nextSubID   uint64
+}
+
+type subscriber struct {
+	id uint64
+	fn func(Event)
 }
 
 // NewStore returns an empty store.
@@ -530,27 +540,31 @@ func (s *Store) UpdateDescription(id, desc string) error {
 	return nil
 }
 
-// Subscribe registers a callback for store events. Returns a cancel func.
+// Subscribe registers a callback for store events and returns a cancel func
+// that removes it. Callbacks run synchronously on the mutating goroutine
+// (supervisor, PTY reader, client handler), so they must not block. A
+// broadcast already in flight when cancel returns may still call fn once.
 func (s *Store) Subscribe(fn func(Event)) func() {
 	s.subsMu.Lock()
 	defer s.subsMu.Unlock()
-	s.subscribers = append(s.subscribers, fn)
-	idx := len(s.subscribers) - 1
+	s.nextSubID++
+	id := s.nextSubID
+	// Copy on write: broadcast iterates a list nobody mutates.
+	s.subscribers = append(slices.Clip(s.subscribers), subscriber{id: id, fn: fn})
 	return func() {
 		s.subsMu.Lock()
 		defer s.subsMu.Unlock()
-		if idx < len(s.subscribers) {
-			s.subscribers[idx] = nil
-		}
+		s.subscribers = slices.DeleteFunc(slices.Clone(s.subscribers), func(sub subscriber) bool { return sub.id == id })
 	}
 }
 
 func (s *Store) broadcast(e Event) {
-	s.subsMu.RLock()
-	defer s.subsMu.RUnlock()
-	for _, fn := range s.subscribers {
-		if fn != nil {
-			fn(e)
-		}
+	// Dispatch outside the lock so a slow subscriber can't hold up
+	// Subscribe/cancel (client connects and disconnects).
+	s.subsMu.Lock()
+	subs := s.subscribers
+	s.subsMu.Unlock()
+	for _, sub := range subs {
+		sub.fn(e)
 	}
 }

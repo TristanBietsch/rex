@@ -135,3 +135,23 @@ func TestStore_CurrentStateConcurrentWithTransition(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// Every client connection subscribes and cancels; canceled subscribers must
+// be removed, not left as dead slots that grow for the daemon's lifetime.
+func TestStore_SubscribeCancelRemovesSubscriber(t *testing.T) {
+	s := NewStore()
+	var kept int
+	keep := s.Subscribe(func(Event) { kept++ })
+	defer keep()
+	for i := 0; i < 1000; i++ {
+		cancel := s.Subscribe(func(Event) { t.Error("canceled subscriber called") })
+		cancel()
+	}
+	s.subsMu.Lock()
+	n := len(s.subscribers)
+	s.subsMu.Unlock()
+	require.Equal(t, 1, n)
+
+	require.NoError(t, s.Add(&Session{ID: "id1", ShortID: "id1"}))
+	require.Equal(t, 1, kept)
+}
