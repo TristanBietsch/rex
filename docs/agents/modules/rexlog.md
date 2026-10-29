@@ -13,7 +13,7 @@ Redirects `slog` default logger to a per-binary log file under `~/.local/state/r
 
 ### Functions
 
-- `Init(name string)` — opens `~/.local/state/rex/<name>.log` (or `REX_LOG_DIR/<name>.log`), installs slog default. Idempotent (first call wins).
+- `Init(name string)` — opens `~/.local/state/rex/<name>.log` (or `REX_LOG_DIR/<name>.log`) owner-only (`0700` dir, `0600` file; the default dir and an existing log are tightened), installs a text-handler slog default whose every record carries `pid=<process id>` (several TUIs can append to one `tui.log`). Idempotent (first call wins).
 - `Close()` — flushes and closes the log file.
 
 Environment (read in `rexlog.go`, not exported):
@@ -23,7 +23,7 @@ Environment (read in `rexlog.go`, not exported):
 
 ## Internal structure
 
-- `rexlog.go` — single file, no tests.
+- `rexlog.go`; `rexlog_test.go`.
 
 ## Invariants
 
@@ -39,11 +39,11 @@ Open failures fall back to stderr-only logging (implementation detail in source)
 
 ## Tests
 
-None in package.
+`rexlog_test.go`.
 
 ## Gotchas
 
-No `rexlog` calls in `internal/daemon/server` or PTY path; daemon logs via `Init("daemon")`, TUI via `Init("tui")` from `internal/surface/cli/tui.go`.
+No `rexlog` calls in `internal/daemon/server` or PTY path; daemon logs via `Init("daemon")`, TUI via `Init("tui")` from `internal/surface/cli/meta/tui.go` (and the boot splash), `rex setup` via `Init("setup")`.
 
 ## See also
 

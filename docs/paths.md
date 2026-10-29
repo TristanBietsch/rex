@@ -26,7 +26,7 @@ Canonical list of files and directories Rex uses. See [glossary.md](glossary.md)
 | `~/.local/share/rex/daemon.lock` | `rex-daemon` | Single-instance lock (`<state-dir>/daemon.lock`); see [daemon.md](daemon.md#single-instance) |
 | `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection and filter; read once on next launch, then deleted |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
-| `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`) |
+| `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`); every line carries `pid=` so processes sharing a file can be told apart |
 
 ## Permissions
 

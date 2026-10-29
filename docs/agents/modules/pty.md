@@ -32,7 +32,7 @@ Package also exports sanitize helpers used internally (see `sanitize.go`; not al
 
 ## Side effects
 
-Spawns child process with PTY. Appends to transcript via `state.AppendTranscript`. May send on `SummaryRequest` channel. Invokes `RegisterResize` callback.
+Spawns child process with PTY. Writes the transcript through a kept-open `state.OpenTranscript` handle (rotated at 64 MiB). Logs `pty: started` with the command's shape only (`tool`, `argc`, `initial_prompt_bytes`), never the argv, which can hold the prompt and Claude's `--settings` hook JSON. May send on `SummaryRequest` channel. Invokes `RegisterResize` callback.
 
 ## Error handling
 
