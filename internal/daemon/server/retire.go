@@ -54,7 +54,7 @@ func (s *Server) deleteSession(id, reason string) error {
 		return errSessionNotFound
 	}
 	live := s.hasStop(id)
-	slog.Info("session: delete", "session", id, "slug", sess.Slug, "reason", reason, "live", live)
+	slog.Info("session: delete", "session", id, "slug", sess.Summary().Slug, "reason", reason, "live", live)
 	s.StopSession(id)
 	if err := s.cfg.Store.RemoveWithReason(id, reason); err != nil {
 		slog.Debug("session: delete raced; already removed", "session", id, "reason", reason)

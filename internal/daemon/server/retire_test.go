@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -322,4 +323,21 @@ func TestDeleteSession_Idempotent(t *testing.T) {
 	e := startRetireServer(t, doneSession("a"))
 	require.NoError(t, e.srv.deleteSession("a", protocol.RemovedByUser))
 	require.ErrorIs(t, e.srv.deleteSession("a", protocol.RemovedRetired), errSessionNotFound)
+}
+
+// deleteSession (the retire sweep's path) must read session fields under
+// the session lock: a rename can land at the same time. Run with -race.
+func TestDeleteSession_RacesRename(t *testing.T) {
+	e := startRetireServer(t)
+	for i := range 50 {
+		id := fmt.Sprintf("s%d", i)
+		require.NoError(t, e.store.Add(doneSession(id)))
+		renamed := make(chan struct{})
+		go func() {
+			defer close(renamed)
+			_ = e.store.UpdateRename(id, id+"-renamed", "")
+		}()
+		_ = e.srv.deleteSession(id, protocol.RemovedRetired)
+		<-renamed
+	}
 }
