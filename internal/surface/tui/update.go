@@ -117,8 +117,16 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case DaemonErrMsg:
 		// Surface the error in the status line, don't take down the TUI.
+		if daemonConnDead(msg.Err) {
+			return daemonLost(m, msg.Err)
+		}
+		// One undecodable line; the stream itself is still alive.
 		m.Err = msg.Err.Error()
 		return m, listenDaemon(m.Client)
+	case daemonRedialMsg:
+		return m, redialDaemonCmd(m.Socket, msg.Attempt)
+	case daemonRedialResultMsg:
+		return daemonRedialed(m, msg)
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
 		m.Err = msg.Op + ": " + msg.Err.Error()
