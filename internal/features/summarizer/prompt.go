@@ -3,6 +3,8 @@ package summarizer
 import (
 	"fmt"
 	"strings"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 const maxDescription = 60
@@ -29,10 +31,22 @@ Transcript:
 }
 
 // cleanResponse normalizes whatever the model produced into the form that
-// belongs in the desc column: at most 60 runes, no surrounding quotes, no
-// "Output:" / "Description:" / "- " preface, no trailing period.
+// belongs in the desc column: the first line with content, safe for one
+// terminal row (protocol.SingleLine), at most 60 runes, no surrounding
+// quotes, no "Output:" / "Description:" / "- " preface, no trailing period.
+// The model's text is untrusted: it echoes the agent's screen.
 func cleanResponse(s string) string {
-	s = strings.TrimSpace(s)
+	for _, line := range strings.Split(strings.ReplaceAll(s, "\r", "\n"), "\n") {
+		if out := cleanLine(line); out != "" {
+			return out
+		}
+	}
+	return ""
+}
+
+// cleanLine applies cleanResponse to a single line.
+func cleanLine(s string) string {
+	s = protocol.SingleLine(s)
 	// Strip common prefixes the model adds.
 	for _, p := range []string{"Output:", "Description:", "Activity:", "Status:"} {
 		if strings.HasPrefix(strings.ToLower(s), strings.ToLower(p)) {

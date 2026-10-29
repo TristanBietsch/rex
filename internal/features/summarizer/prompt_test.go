@@ -31,6 +31,14 @@ func TestCleanResponseStripsArtifacts(t *testing.T) {
 		{"Description: rewriting webhook handlers — 12 of 14", "rewriting webhook handlers — 12 of 14"},
 		{"waiting...", "waiting..."},
 		{"done..", "done.."},
+		// Only the first line with content reaches the one-row desc column.
+		{"running pnpm test\nsecond line", "running pnpm test"},
+		{"\n\n  editing main.go  \r\nmore", "editing main.go"},
+		{"Output:\nrunning pnpm test", "running pnpm test"},
+		// Controls from the echoed screen never reach the board.
+		{"edit\x1b[2Jing\x07 main.go‮", "edit[2Jing main.go"},
+		{"tab\tseparated", "tab separated"},
+		{"\x1b\x07\n", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
