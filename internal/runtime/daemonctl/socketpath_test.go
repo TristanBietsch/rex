@@ -18,6 +18,12 @@ func TestCheckSocketPath(t *testing.T) {
 	require.Contains(t, err.Error(), "allows at most")
 }
 
+// Start refuses an unbindable socket path before spawning anything.
+func TestStart_RejectsLongSocket(t *testing.T) {
+	_, err := Start(strings.Repeat("a", sunPathLen), nil)
+	require.ErrorContains(t, err, "allows at most")
+}
+
 // The limit must match what the OS actually binds: the longest accepted
 // path binds, one byte more doesn't.
 func TestCheckSocketPath_MatchesBind(t *testing.T) {

@@ -3,13 +3,17 @@
 package daemonctl
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // Reachable returns true when a unix socket connect succeeds quickly.
@@ -65,27 +69,108 @@ type StartResult struct {
 
 // Start spawns rex-daemon and waits up to ~2 s for the socket to appear.
 // Returns nil StartResult on failure. The caller chooses the log file (pass nil
-// to discard stderr).
+// to discard stderr). If the daemon exits before its socket comes up, the
+// error carries the last line it wrote to stderrLog (its fatal error).
 func Start(socket string, stderrLog *os.File) (*StartResult, error) {
+	if err := CheckSocketPath(socket); err != nil {
+		return nil, err
+	}
 	t0 := time.Now()
 	cmd := exec.Command(FindBinary())
 	cmd.SysProcAttr = detachAttr()
+	logStart := int64(-1)
 	if stderrLog != nil {
 		cmd.Stderr = stderrLog
+		if info, err := stderrLog.Stat(); err == nil {
+			logStart = info.Size()
+		}
 	}
 	if err := cmd.Start(); err != nil {
 		slog.Error("daemonctl: spawn failed", "err", err)
 		return nil, fmt.Errorf("spawn rex-daemon: %w", err)
 	}
-	slog.Info("daemonctl: spawned rex-daemon", "pid", cmd.Process.Pid)
-	for i := 0; i < StartPollAttempts; i++ {
+	pid := cmd.Process.Pid
+	slog.Info("daemonctl: spawned rex-daemon", "pid", pid)
+	// Wait also reaps the daemon if it dies while this process (the TUI)
+	// lives; otherwise this goroutine lasts as long as the daemon.
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+
+	deadline := time.NewTimer(StartTimeout)
+	defer deadline.Stop()
+	poll := time.NewTicker(StartPollInterval)
+	defer poll.Stop()
+	for {
 		if Reachable(socket) {
 			elapsed := time.Since(t0)
 			slog.Info("daemonctl: socket up", "socket", socket, "elapsed", elapsed)
-			return &StartResult{PID: cmd.Process.Pid, Elapsed: elapsed}, nil
+			return &StartResult{PID: pid, Elapsed: elapsed}, nil
 		}
-		time.Sleep(StartPollInterval)
+		select {
+		case werr := <-exited:
+			err := startExitError(werr, stderrLog, logStart)
+			slog.Error("daemonctl: rex-daemon exited during startup", "pid", pid, "err", err)
+			return nil, err
+		case <-deadline.C:
+			slog.Error("daemonctl: socket did not appear", "socket", socket, "timeout", StartTimeout.String())
+			return nil, fmt.Errorf("rex-daemon (pid %d) is running but socket %s did not come up within %s", pid, socket, StartTimeout)
+		case <-poll.C:
+		}
 	}
-	slog.Error("daemonctl: socket did not appear", "socket", socket, "timeout", StartTimeout.String())
-	return nil, fmt.Errorf("daemon started but socket %s didn't appear within %s", socket, StartTimeout)
+}
+
+// startExitError describes a daemon that exited before its socket came up,
+// with the cause from its stderr log when there is one.
+func startExitError(werr error, stderrLog *os.File, logStart int64) error {
+	msg := "rex-daemon exited during startup"
+	if werr != nil {
+		msg += " (" + werr.Error() + ")"
+	}
+	if stderrLog == nil || logStart < 0 {
+		return errors.New(msg)
+	}
+	if line := lastLogLine(stderrLog.Name(), logStart); line != "" {
+		return fmt.Errorf("%s: %s", msg, line)
+	}
+	return fmt.Errorf("%s; see %s", msg, stderrLog.Name())
+}
+
+// maxCauseRunes caps the stderr line quoted in a start error; it ends up on
+// one row of the boot splash.
+const maxCauseRunes = 200
+
+// lastLogLine returns the daemon's fatal error from what was written to path
+// at or after offset from (at most the last 4 KiB): the last line main
+// printed ("rex-daemon: <err>", prefix dropped), else the last non-empty
+// line. The result is made safe for one terminal row.
+func lastLogLine(path string, from int64) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || info.Size() <= from {
+		return ""
+	}
+	from = max(from, info.Size()-4096)
+	buf := make([]byte, info.Size()-from)
+	n, _ := f.ReadAt(buf, from)
+	lines := strings.Split(string(buf[:n]), "\n")
+	last := ""
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if rest, ok := strings.CutPrefix(line, "rex-daemon: "); ok {
+			last = rest
+			break
+		}
+		if last == "" {
+			last = line
+		}
+	}
+	last = protocol.SingleLine(last)
+	if r := []rune(last); len(r) > maxCauseRunes {
+		last = string(r[:maxCauseRunes-1]) + "…"
+	}
+	return last
 }
