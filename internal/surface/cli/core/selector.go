@@ -13,7 +13,16 @@ import (
 var hexShortID = regexp.MustCompile(`^[0-9a-f]{4,}$`)
 var fullUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
-// ResolveSelector finds a session by id, slug, or short_id from the daemon's snapshot.
+// stateAliases are selectors naming every session in a state. Resolving one
+// that matches several sessions is ambiguous, like any other selector.
+var stateAliases = map[string]protocol.State{
+	"@needs":   protocol.StateNeedsInput,
+	"@working": protocol.StateWorking,
+	"@done":    protocol.StateDone,
+}
+
+// ResolveSelector finds a session by id, slug, short_id, or @state alias
+// from the daemon's snapshot.
 func ResolveSelector(c *client.Client, sel string) (protocol.SessionSummary, error) {
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
@@ -53,7 +62,7 @@ func matchAll(sessions []protocol.SessionSummary, sel string) []protocol.Session
 		}
 		return nil
 	}
-	// Exact slug wins over short-id prefixes. The daemon keeps slugs unique,
+	// Exact slug wins over @state aliases and short-id prefixes. The daemon keeps slugs unique,
 	// but sessions restored from an older daemon may share one: return every
 	// holder so the caller reports ambiguity instead of picking the first.
 	var out []protocol.SessionSummary
@@ -63,6 +72,14 @@ func matchAll(sessions []protocol.SessionSummary, sel string) []protocol.Session
 		}
 	}
 	if len(out) > 0 {
+		return out
+	}
+	if state, ok := stateAliases[sel]; ok {
+		for _, s := range sessions {
+			if s.State == state {
+				out = append(out, s)
+			}
+		}
 		return out
 	}
 	if hexShortID.MatchString(sel) {

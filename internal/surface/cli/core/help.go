@@ -38,26 +38,26 @@ func RunHelp() error {
 			title: "Session",
 			rows: []helpRow{
 				{"ls", "list sessions"},
-				{"new", "create a new session (wizard)"},
+				{"new [prompt…]", "spawn a session (prompt from args or stdin)"},
 				{"attach <sel>", "attach to a session (ctrl+] to detach)"},
 				{"reply <sel> [text…]", "reply to a needs-input session (stdin if no text)"},
 				{"send <sel> < input", "send raw stdin bytes"},
-				{"wait <sel>", "block until session state changes"},
+				{"wait <sel>", "block until a session reaches -until (default done)"},
 				{"rename <sel> <slug>", "change a session's slug (selector)"},
-				{"name <sel> [text]", "set/show display name (-clear resets to slug)"},
+				{"name <sel> [text…]", "set/show display name (-clear resets to slug)"},
 				{"done <sel>", "mark done: cleared after retire_after_hours (-after 72h)"},
 				{"undone <sel>", "cancel a pending done"},
 				{"rm <sel>", "delete a session"},
 				{"archive <sel>", "archive a session"},
 				{"complete <sel>", "cleanly terminate a session and mark it done"},
-				{"log <sel>", "stream session log"},
+				{"log <sel>", "print the transcript (-f to follow)"},
 			},
 		},
 		{
 			title: "Daemon",
 			rows: []helpRow{
 				{"status", "aggregate one-liner (pipe-friendly)"},
-				{"daemon", "run daemon in foreground"},
+				{"daemon <cmd>", "start | stop | status | restart | logs"},
 				{"reload", "reload tools.yaml"},
 			},
 		},
@@ -66,7 +66,7 @@ func RunHelp() error {
 			rows: []helpRow{
 				{"digest", "today's sessions, time, totals"},
 				{"stats", "lifetime usage by model/tool"},
-				{"fleet", "list/set/unset session fleets"},
+				{"fleet <cmd>", "ls | set | unset | show session fleets"},
 			},
 		},
 		{
@@ -81,8 +81,8 @@ func RunHelp() error {
 		{
 			title: "Other",
 			rows: []helpRow{
-				{"render", "render an event stream"},
-				{"config", "view config"},
+				{"render", "print a board snapshot (-w cols -h rows)"},
+				{"config <cmd>", "list | get | set | reset | edit"},
 				{"completion <shell>", "generate shell completions"},
 				{"version", "print version"},
 			},
