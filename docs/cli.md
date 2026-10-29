@@ -403,4 +403,4 @@ See [paths.md](paths.md).
 
 `rex log` strips only CSI sequences (colors, cursor movement). Other escapes, such as OSC window titles, pass through to the terminal; `-bytes` passes everything.
 
-`rex log` reads only `transcript.log`. Once the daemon rotates it at 64 MiB, earlier output is in `transcript.log.1` next to it, and a running `rex log -f` keeps reading the renamed file, so it shows nothing new; start it again.
+`rex log` reads only `transcript.log`. Once the daemon rotates it at 64 MiB, earlier output is in `transcript.log.1` next to it. A running `rex log -f` follows the rotation and keeps streaming from the new file. On Windows an open `rex log -f` holds the file, so rotation waits until it exits.
