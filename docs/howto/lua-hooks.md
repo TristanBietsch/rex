@@ -47,6 +47,10 @@ rex daemon logs -f
 
 Events: `session_added`, `session_updated`, `session_removed`.
 
+Handlers run on a goroutine of their own, never inside the daemon's event broadcast, so a slow script cannot stall sessions or clients. Events wait in a queue of 256; while it is full, new events are dropped and logged. Loading the file and each handler call are cut off after 5 s. `rex.send` gives up after 2 s if the session's input buffer stays full.
+
+If the file fails to load, the error is logged and handlers registered before the error stay active; fix the script and run `rex daemon restart`.
+
 The script runs in-process as the daemon user. Load only trusted code.
 
 ## See also
