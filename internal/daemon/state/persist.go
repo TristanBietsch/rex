@@ -406,7 +406,7 @@ func readTail(path string, max int) ([]byte, bool, error) {
 	}
 	buf := make([]byte, n)
 	read, err := io.ReadFull(f, buf)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return nil, false, fmt.Errorf("read transcript: %w", err)
 	}
 	return buf[:read], size > n, nil
