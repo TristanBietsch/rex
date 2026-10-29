@@ -61,13 +61,7 @@ func (m Model) View() string {
 	if m.Quitting {
 		return ""
 	}
-	w, h := m.Width, m.Height
-	if w <= 0 {
-		w = 100
-	}
-	if h <= 0 {
-		h = 32
-	}
+	w, h := screenSize(m)
 
 	switch m.Focus {
 	case FocusBoot:

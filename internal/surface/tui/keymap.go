@@ -106,10 +106,22 @@ func boardHeightFor(m Model, h int) int {
 
 // boardHeight is the board's visible line count for the current window.
 func boardHeight(m Model) int {
-	if m.Height <= 0 {
-		return 20
+	_, h := screenSize(m)
+	return boardHeightFor(m, h)
+}
+
+// screenSize is the terminal size, 100x32 until the first WindowSizeMsg.
+// Rendering, scrolling and hit-testing must all use it: boardHeight used to
+// assume 20 rows while View drew 23, so clicks on the last rows missed.
+func screenSize(m Model) (w, h int) {
+	w, h = m.Width, m.Height
+	if w <= 0 {
+		w = 100
 	}
-	return boardHeightFor(m, m.Height)
+	if h <= 0 {
+		h = 32
+	}
+	return w, h
 }
 
 // ensureVisible adjusts m.ScrollOffset so the selected row is on-screen and
