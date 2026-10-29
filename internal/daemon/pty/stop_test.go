@@ -40,6 +40,36 @@ func TestSupervisor_DeletedCause_NoFailedTransition(t *testing.T) {
 	require.Equal(t, protocol.StateWorking, st, "delete must not flash a failed state")
 }
 
+// A daemon shutdown cancels every supervisor. meta.json must record the final
+// state, or the next daemon reloads the session as crashed.
+func TestSupervisor_CancelPersistsFinalMeta(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{ID: "fin1", ShortID: "fin1", ToolID: "echo", Slug: "t",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	sup := New(SupervisorConfig{StateDir: stateDir, Store: store, Command: []string{"sleep", "30"},
+		IdleTick: 50 * time.Millisecond, StopDrainTimeout: 2 * time.Second})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+	require.Eventually(t, func() bool {
+		m, err := state.LoadMeta(stateDir, "fin1")
+		return err == nil && m.State == protocol.StateWorking
+	}, 2*time.Second, 20*time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("supervisor did not return after cancel")
+	}
+
+	m, err := state.LoadMeta(stateDir, "fin1")
+	require.NoError(t, err)
+	require.Equal(t, protocol.StateFailed, m.State)
+}
+
 func TestSupervisor_KillsProcessGroup(t *testing.T) {
 	// The background grandchild inherits the PTY; killing only the shell
 	// would leave the reader blocked until the drain timeout.

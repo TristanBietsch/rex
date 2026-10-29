@@ -67,3 +67,31 @@ func TestSupervisor_NaturalExitKillsProcessGroup(t *testing.T) {
 	require.NoError(t, sup.Run(ctx, sess))
 	requireGone(t, bgPID(t, stateDir, "orph1"))
 }
+
+// Stopping a session (daemon shutdown, Delete) kills background jobs too, not
+// just the direct child.
+func TestSupervisor_CancelKillsBackgroundJobs(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{ID: "orph2", ShortID: "orph2", ToolID: "echo", Slug: "t",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	sup := New(SupervisorConfig{StateDir: stateDir, Store: store,
+		Command:  []string{"sh", "-c", orphanScript + "; wait"},
+		IdleTick: 10 * time.Millisecond, StopDrainTimeout: 2 * time.Second})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+	require.Eventually(t, func() bool {
+		tail, _ := state.TranscriptTail(stateDir, "orph2", 4096)
+		return bgPIDRe.Match(tail)
+	}, 2*time.Second, 20*time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("supervisor did not return after cancel")
+	}
+	requireGone(t, bgPID(t, stateDir, "orph2"))
+}

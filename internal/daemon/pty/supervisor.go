@@ -84,7 +84,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		return errors.New("supervisor: empty command")
 	}
 
-	cmd := exec.CommandContext(ctx, s.cfg.Command[0], s.cfg.Command[1:]...)
+	// Not CommandContext: on cancel it kills only the direct child, and the
+	// reader's EOF then races the ctx.Done branch below. Every stop goes
+	// through killAndReap, which kills the whole tree.
+	cmd := exec.Command(s.cfg.Command[0], s.cfg.Command[1:]...)
 	if s.cfg.CWD != "" {
 		cmd.Dir = s.cfg.CWD
 	}
@@ -329,6 +332,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				slog.Info("pty: session deleted; skipping failed transition", "session", sess.ID)
 				return ctx.Err()
 			}
+			// Persist the final state as well: meta.json still says working,
+			// so a daemon shutdown would reload the session as crashed.
+			sess.SetExit(protocol.StateFailed, nil)
+			s.persistMeta(sess)
 			_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 			return ctx.Err()
 		case <-s.cfg.CompleteCh:
