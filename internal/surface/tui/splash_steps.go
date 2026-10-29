@@ -98,18 +98,17 @@ func stepSettingsLoad(_ Model) tea.Cmd {
 	}
 }
 
+// themeApplyMsg asks Update to apply the configured color scheme. applyTheme
+// rewrites the package-level palette and styles that View reads, so it must
+// run on the event loop, never in a step's goroutine.
+type themeApplyMsg struct{ Scheme string }
+
 func stepThemeApply(m Model) tea.Cmd {
-	return emit("theme.apply", func() (bootStatus, string, error) {
-		if m.Store == nil {
-			return stepSkip, "default", nil
-		}
-		scheme, _ := m.Store.Get("color_scheme").(string)
-		if scheme == "" {
-			return stepSkip, "default", nil
-		}
-		applyTheme(scheme)
-		return stepOK, scheme, nil
-	})
+	scheme := ""
+	if m.Store != nil {
+		scheme, _ = m.Store.Get("color_scheme").(string)
+	}
+	return func() tea.Msg { return themeApplyMsg{Scheme: scheme} }
 }
 
 func stepAudioInit(m Model) tea.Cmd {
@@ -167,12 +166,6 @@ func stepRegistryLoad(_ Model) tea.Cmd {
 	})
 }
 
-func stepKeymapBind(_ Model) tea.Cmd {
-	return emit("keymap.bind", func() (bootStatus, string, error) {
-		return stepOK, "global + board + wizard bindings ready", nil
-	})
-}
-
 func stepSocketResolve(m Model) tea.Cmd {
 	return emit("socket.resolve", func() (bootStatus, string, error) {
 		if m.Socket == "" {
@@ -192,7 +185,6 @@ func init() {
 		stepAudioInit,
 		stepAudioLoad,
 		stepRegistryLoad,
-		stepKeymapBind,
 		stepSocketResolve,
 		stepDaemon,
 		stepClientDial,
@@ -200,7 +192,6 @@ func init() {
 		stepSubscribe,
 		stepSnapshotParse,
 		stepStateRestore,
-		stepRendererWarm,
 	}
 }
 
@@ -309,11 +300,4 @@ func short8(s string) string {
 		return s
 	}
 	return s[:8]
-}
-
-func stepRendererWarm(_ Model) tea.Cmd {
-	return emit("renderer.warm", func() (bootStatus, string, error) {
-		rebuildStyles()
-		return stepOK, "styles cached", nil
-	})
 }

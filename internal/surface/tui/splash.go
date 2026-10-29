@@ -143,8 +143,8 @@ func padCategory(name string) string {
 	return name + strings.Repeat(" ", bootCategoryW-w)
 }
 
-// bootSequence is populated by Stage 4 (real Cmds). Stage 3 uses a stub.
-// Stage 3 stub builds 17 fake step msgs separated by bootInterStep ticks.
+// bootSequence is the ordered boot pipeline, set by splash_steps.go's init.
+// Steps run one at a time, separated by bootInterStep ticks.
 var bootSequence []stepFunc
 
 // nextStep returns a Cmd that produces bootStepMsg #BootStep, then schedules

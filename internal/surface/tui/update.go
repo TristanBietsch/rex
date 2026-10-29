@@ -169,6 +169,13 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Name: "settings.load", Status: stepOK, Desc: msg.Path, Dur: msg.Dur,
 		})
 
+	case themeApplyMsg:
+		if msg.Scheme == "" {
+			return m.appendBootStep(bootStepMsg{Name: "theme.apply", Status: stepSkip, Desc: "default"})
+		}
+		applyTheme(msg.Scheme)
+		return m.appendBootStep(bootStepMsg{Name: "theme.apply", Status: stepOK, Desc: msg.Scheme})
+
 	case stateRestoreResultMsg:
 		if !msg.OK {
 			return m.appendBootStep(bootStepMsg{
