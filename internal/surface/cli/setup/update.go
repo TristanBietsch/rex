@@ -57,6 +57,14 @@ func RunUpdate(args []string) error {
 		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: could not determine install mode: %v", err))
 	}
 
+	// A binary-swap install cannot upgrade itself. Refuse before the prompt
+	// and before stopping the daemon, which would otherwise be left down.
+	if *source == "" && mode == installModeBinarySwap {
+		printBinarySwapRefusal(exePath)
+		slog.Info("update: binary-swap mode, cannot self-upgrade", "exe", exePath)
+		return core.NewExitError(core.ExitOperationRefused, "re-run your install script to upgrade (see above)")
+	}
+
 	// Daemon state.
 	socket := core.DefaultSocket()
 	daemonRunning := daemonctl.Reachable(socket)
@@ -92,7 +100,7 @@ func RunUpdate(args []string) error {
 	// Stop daemon if running.
 	if daemonRunning {
 		slog.Info("update: stopping daemon before upgrade")
-		if err := stopDaemonForUpdate(); err != nil {
+		if err := stopDaemon(); err != nil {
 			// Non-fatal: warn but continue — binary swap is still safe.
 			fmt.Fprintf(os.Stderr, "  %s  warning: could not stop daemon: %v\n", updateErr.Render("!"), err)
 			slog.Info("update: daemon stop warning", "err", err)
@@ -109,30 +117,9 @@ func RunUpdate(args []string) error {
 			slog.Info("update: source upgrade failed", "err", err)
 			return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: %v", err))
 		}
-	} else {
-		switch mode {
-		case installModeGoInstall:
-			if err := upgradeGoInstall(*verbose); err != nil {
-				slog.Info("update: go install failed", "err", err)
-				return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: %v", err))
-			}
-		case installModeBinarySwap:
-			// Cannot self-upgrade; print actionable message.
-			repoHint := guessSourceDir(exePath)
-			if repoHint != "" {
-				fmt.Printf("\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
-				fmt.Printf("  your rex binary is at: %s\n", updateKey.Render(exePath))
-				fmt.Printf("  re-run the checkout's install script to upgrade:\n\n")
-				fmt.Printf("    %s\n\n", updateKey.Render(fmt.Sprintf("cd %s && ./install.sh", repoHint)))
-			} else {
-				fmt.Printf("\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
-				fmt.Printf("  your rex binary is at: %s\n", updateKey.Render(exePath))
-				fmt.Printf("  re-run your original install script (e.g. %s) to upgrade.\n\n",
-					updateKey.Render("./install.sh"))
-			}
-			slog.Info("update: binary-swap mode, cannot self-upgrade", "exe", exePath)
-			return core.NewExitError(core.ExitOperationRefused, "re-run your install script to upgrade (see above)")
-		}
+	} else if err := upgradeGoInstall(*verbose); err != nil {
+		slog.Info("update: go install failed", "err", err)
+		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: %v", err))
 	}
 
 	// Print new version.
@@ -196,9 +183,27 @@ func modeLabel(m installMode) string {
 	}
 }
 
+// printBinarySwapRefusal tells the user how to upgrade an install that
+// rex update cannot replace itself.
+func printBinarySwapRefusal(exePath string) {
+	fmt.Printf("\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
+	fmt.Printf("  your rex binary is at: %s\n", updateKey.Render(exePath))
+	if repoHint := guessSourceDir(exePath); repoHint != "" {
+		fmt.Printf("  re-run the checkout's install script to upgrade:\n\n")
+		fmt.Printf("    %s\n\n", updateKey.Render(fmt.Sprintf("cd %s && ./install.sh", repoHint)))
+	} else {
+		fmt.Printf("  re-run your original install script (e.g. %s) to upgrade.\n\n",
+			updateKey.Render("./install.sh"))
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Daemon stop (mirrors daemonStop in daemon.go)
 // ---------------------------------------------------------------------------
+
+// stopDaemon is stopDaemonForUpdate; tests replace it so they never signal
+// a real daemon.
+var stopDaemon = stopDaemonForUpdate
 
 func stopDaemonForUpdate() error {
 	pid, err := daemonctl.FindPID()
