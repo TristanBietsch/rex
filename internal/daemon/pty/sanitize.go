@@ -6,6 +6,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // hasVisibleText reports whether b contains any printable (non-whitespace,
@@ -67,35 +69,20 @@ func sanitizePaste(s string) string {
 //  1. Strip CSI/OSC sequences via charmbracelet/x/ansi.Strip.
 //  2. Replace remaining C0 control bytes (\r \t \v \b BEL …) with a single
 //     space so they can't reposition the cursor or ring the terminal.
-//  3. Collapse repeated whitespace and trim, since stripped output often
-//     leaves runs of spaces where escapes used to be.
+//  3. Finish with protocol.SingleLine: it drops C1 controls, bidi overrides
+//     and invalid UTF-8, collapses repeated whitespace and trims, since
+//     stripped output often leaves runs of spaces where escapes used to be.
 func sanitizeForDisplay(line string) string {
 	if line == "" {
 		return ""
 	}
-	stripped := ansi.Strip(line)
-
-	var b strings.Builder
-	b.Grow(len(stripped))
-	prevSpace := false
-	for _, r := range stripped {
-		// Replace C0 controls and DEL with a space — never let them through.
-		if r < 0x20 || r == 0x7f {
-			if !prevSpace && b.Len() > 0 {
-				b.WriteByte(' ')
-				prevSpace = true
-			}
-			continue
+	// Byte-wise is safe: ASCII bytes never occur inside a multi-byte UTF-8
+	// sequence, and invalid bytes are left for SingleLine to drop.
+	b := []byte(ansi.Strip(line))
+	for i, c := range b {
+		if c < 0x20 || c == 0x7f {
+			b[i] = ' '
 		}
-		if r == ' ' {
-			if !prevSpace && b.Len() > 0 {
-				b.WriteByte(' ')
-				prevSpace = true
-			}
-			continue
-		}
-		b.WriteRune(r)
-		prevSpace = false
 	}
-	return strings.TrimRight(b.String(), " ")
+	return protocol.SingleLine(string(b))
 }

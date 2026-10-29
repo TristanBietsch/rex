@@ -19,6 +19,12 @@ func TestSanitizeForDisplay(t *testing.T) {
 		{"strips_osc_set_title", "\x1b]0;title\x07payload", "payload"},
 		{"keeps_unicode", "ok ✓ done", "ok ✓ done"},
 		{"trims_trailing_space_after_strip", "data\x1b[K   ", "data"},
+		{"drops_c1_csi", "a\u009b2Jb", "a2Jb"},
+		{"drops_c1_controls", "x\u0080y\u0099z\u009dw", "xyzw"},
+		{"c1_next_line_is_a_break", "x\u0085y", "x y"},
+		{"drops_bidi_overrides", "‮gnp.exe‬ ok⁦", "gnp.exe ok"},
+		{"drops_invalid_utf8", "a\xffb\xc0c", "abc"},
+		{"trims_leading_space", "  \x1b[2K  data", "data"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
