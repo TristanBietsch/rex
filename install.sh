@@ -208,11 +208,36 @@ trap 'rm -f "$LOG" "$META"; printf "\033[?25h"' EXIT
 # redirects them into $LOG (spinner). Writing to $LOG from inside work() would
 # race the caller's redirect and clobber the log.
 
+# version_ge A B: true when dotted version A >= B (missing parts count as 0).
+version_ge() {
+  local a b i
+  IFS=. read -r -a a <<<"$1"
+  IFS=. read -r -a b <<<"$2"
+  for i in 0 1 2; do
+    if (( 10#${a[i]:-0} > 10#${b[i]:-0} )); then return 0; fi
+    if (( 10#${a[i]:-0} < 10#${b[i]:-0} )); then return 1; fi
+  done
+  return 0
+}
+
 work() {
   if [[ $SKIP_BUILD -eq 0 ]]; then
+    local need have
+    need="$(sed -n 's/^go \([0-9][0-9.]*\)$/\1/p' go.mod)"
     if ! command -v go >/dev/null 2>&1; then
-      printf "%serror:%s go toolchain not found. Install Go 1.22+: https://go.dev/dl/\n" \
-        "$C_ERR" "$C_RESET" >&2
+      printf "%serror:%s go toolchain not found. Install Go %s+: https://go.dev/dl/\n" \
+        "$C_ERR" "$C_RESET" "$need" >&2
+      return 1
+    fi
+    # GOVERSION is the toolchain go builds with here: under the default
+    # GOTOOLCHAIN=auto an older go switches to (and may download) go.mod's.
+    # Forms: go1.26.10, go1.27rc1, "devel go1.28-abc… …".
+    have="$(go env GOVERSION 2>/dev/null || true)"
+    have="${have#devel }"; have="${have%% *}"; have="${have#go}"
+    have="${have%%[!0-9.]*}"
+    if [[ -z "$have" ]] || ! version_ge "$have" "$need"; then
+      printf "%serror:%s rex needs Go %s+ (found %s). Install it: https://go.dev/dl/\n" \
+        "$C_ERR" "$C_RESET" "$need" "${have:-unknown}" >&2
       return 1
     fi
     echo "→ building rex"

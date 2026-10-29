@@ -9,7 +9,8 @@
   starts it again on the new binary. The bin directory is added to the user
   PATH unless -NoPath is given.
 
-  Requires Windows 10 1809+ (ConPTY and AF_UNIX sockets) and Go 1.26+.
+  Requires Windows 10 1809+ (ConPTY and AF_UNIX sockets) and Go 1.26.10+
+  (the go line in go.mod; checked before building).
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\install.ps1
@@ -63,8 +64,25 @@ Write-Host ""
 
 # ---- build ------------------------------------------------------------------
 if (-not $SkipBuild) {
+  $need = ''
+  $goLine = Select-String -Path (Join-Path $RepoRoot 'go.mod') -Pattern '^go (\d+(\.\d+)+)\s*$' | Select-Object -First 1
+  if ($goLine) { $need = $goLine.Matches[0].Groups[1].Value }
   if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-    Fail "go toolchain not found. Install Go 1.26+: https://go.dev/dl/"
+    Fail "go toolchain not found. Install Go $need+: https://go.dev/dl/"
+  }
+  # GOVERSION is the toolchain go builds with here: under the default
+  # GOTOOLCHAIN=auto an older go switches to (and may download) go.mod's.
+  # Forms: go1.26.10, go1.27rc1, "devel go1.28-abc... ...".
+  $have = ''
+  try { $have = [string](go env GOVERSION 2>$null) } catch { $have = '' }
+  $have = ($have -replace '^devel ', '' -replace '^go', '') -replace '[^0-9.].*$', ''
+  if ($need) {
+    $goOk = $false
+    try { $goOk = ([version]$have -ge [version]$need) } catch { $goOk = $false }
+    if (-not $goOk) {
+      $found = if ($have) { $have } else { 'unknown' }
+      Fail "rex needs Go $need+ (found $found). Install it: https://go.dev/dl/"
+    }
   }
   # oto (TUI sounds) is pure Go on Windows; no cgo toolchain needed.
   $env:CGO_ENABLED = '0'
