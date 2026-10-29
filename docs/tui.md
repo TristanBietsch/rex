@@ -18,6 +18,8 @@ Three columns group sessions: **Needs input**, **Working**, and **Completed** (i
 
 The daemon auto-starts if the socket is unreachable (boot splash).
 
+If the connection to the daemon drops later, the status line shows `daemon disconnected · reconnecting…` and the TUI redials with backoff: 250 ms, doubling up to 5 s between attempts. Redialing does not start a daemon; run `rex daemon start` if it stopped. Requests made meanwhile fail with an error on the status line. Once reconnected, the board reloads from a fresh snapshot (the tool filter is kept) and shows `reconnected to daemon`.
+
 ## ROW COLUMNS
 
 Each session row, left to right:
@@ -45,9 +47,13 @@ Each session row, left to right:
 | Wizard | `n` or `:new` | wizard flow |
 | Settings | `S` or `:settings` | `esc` |
 | Help | `?` or `:help` | `esc`, `?` |
-| Stats | `:stats` | `esc`, `:` |
+| Stats | `:stats` | `esc` (other keys are ignored) |
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
+
+`ctrl+c` backs out of any overlay, prompt, or bar to the board without going through that mode's own keys; from the `::` bar it returns to the attach popup, and at the quit confirmation it quits. Inside the attach popup itself `ctrl+c` goes to the agent.
+
+When the help overlay is taller than the screen it scrolls: `j` / `k` (`↓` / `↑`) one line, `pgdown` / `pgup` (`space`, `ctrl+d` / `ctrl+u`) a page, `g` / `G` (`home` / `end`) to the top or bottom. `↑ more` / `↓ more` mark hidden lines.
 
 ## KEYS (board focus)
 
@@ -67,7 +73,7 @@ Each session row, left to right:
 | `:` | Command mode |
 | `?` | Help overlay |
 | `S` | Settings |
-| `ctrl+c`, `q` | Quit (confirm with `:q`) |
+| `ctrl+c` | Quit at once (`:q` asks first) |
 
 ### Mouse
 

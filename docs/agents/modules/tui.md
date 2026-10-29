@@ -66,7 +66,7 @@ UDS to daemon; audio `Play`; writes `tui-state.json` on exit; setup wizard write
 
 ## Error handling
 
-`DaemonErrMsg` surfaces connection loss. Boot failure → `FocusFail` with log lines.
+`DaemonErrMsg` surfaces read errors. A dead connection (`daemonConnDead`: EOF, closed, reset) stops the listener and starts a redial chain in `events.go` (`daemonLost` → `scheduleRedial`, 250 ms doubling to 5 s; dial, `Hello`, `Subscribe` off the event loop); the status line reads `daemon disconnected · reconnecting…` until it succeeds. `ctrl+c` outside the board and attach popup goes through `escapeToBoard` (`update.go`) before any overlay handler. Boot failure → `FocusFail` with log lines.
 
 ## Tests
 
