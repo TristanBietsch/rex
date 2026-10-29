@@ -64,7 +64,7 @@ rex config edit          # opens lua_config_path (init.lua) in $EDITOR, not conf
 | `attach_scrollback_lines` | int | `5000` | 0–50000 | Lines the attach popup keeps after they scroll off a primary-screen agent (see [tui.md](tui.md#scrollback)). `0` disables. Also capped at 8 MiB per popup. Read when a popup opens |
 | `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`cc`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, so changes apply immediately; the daemon reads it at startup as its default |
 
-The daemon reads `max_concurrent_sessions` from `config.yaml` when it starts, so a change made with `rex config set` or by editing the file applies after `rex daemon restart`. A change on the TUI settings page also applies to the running daemon at once (`SetMaxConcurrent` intent).
+The daemon reads `max_concurrent_sessions` from `config.yaml` when it starts, so a change made with `rex config set` or by editing the file applies after `rex daemon restart`. An explicit `rex-daemon -max-concurrent-sessions N` wins over the file; `rex daemon start` and the TUI never pass it. A change on the TUI settings page also applies to the running daemon at once (`SetMaxConcurrent` intent).
 
 ### AI summary
 

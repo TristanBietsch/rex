@@ -42,7 +42,7 @@ The socket is created with mode `0600`. Its path must fit the OS limit for a Uni
 | `-socket` | See [paths.md](paths.md) | Unix socket path |
 | `-state-dir` | `~/.local/share/rex` | Session persistence root |
 | `-tools` | `~/.config/rex/tools.yaml` | Registry overlay; missing file is OK |
-| `-max-concurrent-sessions` | `16` | Live PTY cap; `0` means uncapped after `SetMaxConcurrent` |
+| `-max-concurrent-sessions` | `max_concurrent_sessions` from `config.yaml`, else `16` | Live PTY cap. Set explicitly, it wins over `config.yaml`; `0` means uncapped. The `SetMaxConcurrent` intent changes it live, clamped to 1–64 |
 | `-version` | — | Print `v1` and exit |
 
 `-version` prints the daemon build label. It is not the wire protocol version. Wire version is `1` in every envelope (`v` field). See [protocol.md](protocol.md).

@@ -14,8 +14,8 @@ Human reference: **[../../paths.md](../../paths.md)** (paths, env, daemon flags)
 
 ## Settings vs daemon cap
 
-- `max_concurrent_sessions` in YAML is read once at daemon start.
-- TUI settings UI can call `SetMaxConcurrent` live (`internal/surface/tui/settings.go`).
+- `max_concurrent_sessions` in YAML is read once at daemon start (`maxConcurrentSessions` in `cmd/rex-daemon/main.go`), unless `-max-concurrent-sessions` was passed explicitly (detected with `flag.Visit`); then the flag wins. Neither set: 16.
+- TUI settings UI can call `SetMaxConcurrent` live (`internal/surface/tui/settings.go`); the daemon clamps it to 1–64.
 
 ## Reload scope
 
