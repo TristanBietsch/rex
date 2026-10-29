@@ -88,7 +88,8 @@ func RunNew(args []string) error {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 
-	// Wait for SessionAdded to surface the new id.
+	// Wait for our SessionAdded to surface the new id. It is broadcast, so
+	// skip sessions other clients spawn meanwhile; slugs are unique.
 	if err := c.SetReadDeadline(core.DeadlineSeconds(5)); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
@@ -102,6 +103,9 @@ func RunNew(args []string) error {
 			var sum protocol.SessionSummary
 			if err := json.Unmarshal(env.Data, &sum); err != nil {
 				return core.NewExitError(core.ExitGeneric, err.Error())
+			}
+			if sum.Slug != *slug {
+				continue
 			}
 			if _, err := os.Stdout.WriteString(sum.ShortID + "\t" + sum.Slug + "\n"); err != nil {
 				return core.NewExitError(core.ExitGeneric, err.Error())
