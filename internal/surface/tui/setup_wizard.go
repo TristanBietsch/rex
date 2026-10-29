@@ -864,7 +864,7 @@ func (m SetupWizardModel) renderDaemon() (string, []string, string) {
 	case m.daemonStartErr != nil:
 		body = append(body, "  "+styleBootFail.Render("✗")+" failed to start: "+m.daemonStartErr.Error())
 		body = append(body, "")
-		body = append(body, "  You can start it manually with: "+styleSlug.Render("rex daemon"))
+		body = append(body, "  You can start it manually with: "+styleSlug.Render("rex daemon start"))
 	default:
 		body = append(body, "  "+styleBootWarn.Render("!")+" daemon not running at "+styleDim.Render(m.daemonSocket))
 		body = append(body, "")
