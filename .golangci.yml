@@ -2,23 +2,31 @@ version: "2"
 linters:
   default: none
   enable:
+    - copyloopvar
     - errcheck
+    - errorlint
+    - gocritic
     - govet
     - ineffassign
     - misspell
+    - nilerr
     - revive
     - staticcheck
     - unparam
     - unused
     - whitespace
   settings:
+    gocritic:
+      disabled-checks:
+        # gopher-lua's own API names the state parameter `L *lua.LState`.
+        - captLocal
+    # An explicit rules list runs only the rules named here. `exported` is left
+    # out on purpose: the `comments` exclusion preset below suppresses the
+    # doc-comment reports that make up most of what it finds.
     revive:
       rules:
-        - name: exported
         - name: error-return
         - name: error-naming
-        - name: unused-parameter
-          disabled: true
   exclusions:
     generated: lax
     presets:
