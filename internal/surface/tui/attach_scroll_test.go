@@ -20,7 +20,7 @@ func attachWithScrollback(t *testing.T, limit int) Model {
 	t.Helper()
 	m := boardModel(protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateNeedsInput})
 	m.Width, m.Height = 120, 40
-	cols, rows := attachPopupInnerSize(m.Width, m.Height)
+	cols, rows := attachPopupInnerSize(screenSize(m))
 	st := &AttachState{SessionID: "a", Cols: cols, Rows: rows}
 	st.Term = newAttachTerm(st, cols, rows, limit)
 	m.Attach = st

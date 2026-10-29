@@ -156,11 +156,8 @@ func headerHitAt(m Model, x, y int) string {
 	if row != 1 {
 		return ""
 	}
-	w := m.Width
-	if w <= 0 {
-		w = 100
-	}
-	lines := strings.Split(renderHeader(m, contentWidth(w)), "\n")
+	w, _ := screenSize(m)
+	lines := strings.Split(renderHeader(m, w), "\n")
 	if row >= len(lines) {
 		return ""
 	}

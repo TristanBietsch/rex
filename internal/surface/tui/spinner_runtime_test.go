@@ -311,7 +311,7 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 
 	// 7. Attach popup: the title-bar state chip spins.
 	send(mutateMsg{fn: func(m Model) Model {
-		cols, rows := attachPopupInnerSize(m.Width, m.Height)
+		cols, rows := attachPopupInnerSize(screenSize(m))
 		m.Attach = &AttachState{SessionID: "s1", Slug: "alpha", Term: vt10x.New(vt10x.WithSize(cols, rows)), Cols: cols, Rows: rows}
 		m.Focus = FocusAttach
 		return m

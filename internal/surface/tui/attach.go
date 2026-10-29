@@ -116,7 +116,7 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		m.Err = "attach: socket unknown"
 		return m, nil
 	}
-	cols, rows := attachPopupInnerSize(m.Width, m.Height)
+	cols, rows := attachPopupInnerSize(screenSize(m))
 	toolID := ""
 	if s, ok := findSession(m.Sessions, sessionID); ok {
 		toolID = s.ToolID
@@ -213,13 +213,10 @@ func closeAttach(m Model) Model {
 	return m
 }
 
+// attachPopupInnerSize is the agent terminal size inside the attach popup
+// for a termW×termH screen; callers pass screenSize(m), the size View
+// renders at.
 func attachPopupInnerSize(termW, termH int) (cols, rows int) {
-	if termW <= 0 {
-		termW = 100
-	}
-	if termH <= 0 {
-		termH = 32
-	}
 	// lipgloss border+padding eats 6 cells horizontally and 4 lines vertically;
 	// renderAttach adds title+hr+hr+footer (4 more lines) on top.
 	popupW := termW - 8
@@ -239,7 +236,7 @@ func resizeAttach(m Model) {
 	if m.Attach == nil {
 		return
 	}
-	cols, rows := attachPopupInnerSize(m.Width, m.Height)
+	cols, rows := attachPopupInnerSize(screenSize(m))
 	if cols == m.Attach.Cols && rows == m.Attach.Rows {
 		return
 	}

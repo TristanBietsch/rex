@@ -86,10 +86,6 @@ func (m Model) View() string {
 	return renderFullScreen(m, w, h)
 }
 
-// contentWidth is the board content width: the whole terminal (the board
-// has no side margin).
-func contentWidth(termWidth int) int { return termWidth }
-
 func renderFullScreen(m Model, w, h int) string {
 	header := renderHeader(m, w)
 	hr := renderHR(w)
