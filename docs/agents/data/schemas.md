@@ -80,8 +80,10 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 <state-dir>/
   sessions/
     <session-id>/
-      meta.json      # SessionSummary JSON
-      transcript.log # raw PTY bytes (append-only)
+      meta.json        # SessionSummary JSON
+      transcript.log   # raw PTY bytes (append-only; rotated at 64 MiB)
+      transcript.log.1 # previous transcript after a rotation
+      hooks.log        # state words written by agent hooks
 ```
 
 Default `<state-dir>`: `~/.local/share/rex` (`rex-daemon -state-dir`).

@@ -63,7 +63,8 @@ Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reloa
 | Path | Role |
 |------|------|
 | `<state-dir>/sessions/<id>/meta.json` | Session metadata |
-| `<state-dir>/sessions/<id>/transcript.log` | Raw PTY output |
+| `<state-dir>/sessions/<id>/transcript.log` | Raw PTY output, capped at 64 MiB: a write that would cross the cap first renames it to `transcript.log.1` (replacing the previous one), so a session keeps at most about 128 MiB |
+| `<state-dir>/sessions/<id>/transcript.log.1` | The previous 64 MiB of output; attach replay reads into it after a recent rotation |
 | `<state-dir>/daemon.lock` | Single-instance lock |
 | Socket path | See [paths.md](paths.md) |
 | `~/.local/state/rex/daemon.log` | Stderr when started via `rex daemon start` |

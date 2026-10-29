@@ -396,3 +396,5 @@ See [paths.md](paths.md).
 ## BUGS
 
 `rex log` strips only CSI sequences (colors, cursor movement). Other escapes, such as OSC window titles, pass through to the terminal; `-bytes` passes everything.
+
+`rex log` reads only `transcript.log`. Once the daemon rotates it at 64 MiB, earlier output is in `transcript.log.1` next to it, and a running `rex log -f` keeps reading the renamed file, so it shows nothing new; start it again.

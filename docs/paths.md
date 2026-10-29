@@ -8,7 +8,7 @@ Canonical list of files and directories Rex uses. See [glossary.md](glossary.md)
 |------|----------|
 | `~/.config/rex/` | User configuration |
 | `~/.local/share/rex/` | Session state (default `-state-dir`) |
-| `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json` and `transcript.log` |
+| `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json`, `transcript.log` (capped at 64 MiB; the previous 64 MiB in `transcript.log.1`), `hooks.log` |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |
 | `$XDG_RUNTIME_DIR/rex.sock` | Socket when `XDG_RUNTIME_DIR` is set |
