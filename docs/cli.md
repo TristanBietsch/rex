@@ -43,15 +43,15 @@ A session whose slug is literally `@needs` (or `@working`, `@done`) wins over th
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
-| 1 | Generic error; also `rex status` when any session is `needs_input`; `rex doctor` when any check fails |
+| 1 | Generic error; also `rex status` when any session is `needs_input`; `rex doctor` when any check fails; `rex uninstall` when a removal fails |
 | 2 | Selector not found |
 | 3 | Ambiguous selector |
-| 4 | Daemon unreachable |
+| 4 | Daemon unreachable (connect or `Hello` handshake failed) |
 | 5 | Invalid arguments |
 | 6 | Operation refused |
 | 7 | `rex wait` timed out |
 
-Unknown commands print to stderr and exit **1**.
+Unknown commands print to stderr and exit **5**.
 
 ---
 
@@ -94,7 +94,7 @@ rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
 
 Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. Prompt from arguments or stdin when stdin is not a TTY.
 
-Prints `short_id` and `slug` tab-separated on success.
+Prints the new session's `short_id` and `slug`, tab-separated. It waits up to 5 s for the daemon to announce a session with the slug it asked for; sessions other clients spawn meanwhile are skipped.
 
 Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
 
@@ -108,7 +108,9 @@ Attach terminal to a session PTY.
 rex attach <sel> [-socket path] [-read-only] [-no-replay]
 ```
 
-Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail.
+Detach with **Ctrl+]**, also with `-read-only`. `-read-only` sends nothing to the session: no keyboard input, and no redraw kick (the Ctrl+L sent 150 ms after attaching to `claude`, `codex`, `gemini`, `grok`, `deepseek`, or `kimi` so they repaint). A read-only attach stays attached if its stdin ends. `-no-replay` skips the transcript tail.
+
+If the session is deleted or cleared while attached, `rex attach` exits **1** ("session deleted" or "session cleared (marked done)").
 
 ---
 
@@ -120,7 +122,7 @@ Send text to a session, then press Enter (`\r`, sent as a separate write so full
 rex reply <sel> [text] [-socket path] [-raw]
 ```
 
-Text from argument or stdin. `-raw` sends the bytes as-is, without pressing Enter.
+Text from the arguments (joined with spaces) or stdin. Text starting with `-` goes after `--`. `-raw` sends the bytes as-is, without pressing Enter.
 
 ---
 
@@ -144,7 +146,7 @@ Read transcript file.
 rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes]
 ```
 
-`-f` follows the file. `-n` shows only the last N lines (default all). Output has ANSI escapes stripped; `-bytes` prints the raw bytes instead. Default state dir: `~/.local/share/rex`.
+`-f` follows the file. `-n` shows only the last N lines (default all). Output has CSI escape sequences (colors, cursor movement) stripped, while following too; `-bytes` (a switch, takes no value) prints the raw bytes instead. Default state dir: `~/.local/share/rex`.
 
 ---
 
@@ -156,7 +158,7 @@ Block until a session reaches a state.
 rex wait <sel> [-socket path] [-until state] [-timeout duration]
 ```
 
-`-until`: `working`, `needs_input`, `done`, `failed`, or `any` (`done`, `failed`, or `crashed`). Default `done`. Any other value exits **5**.
+`-until`: `working`, `needs_input`, `done`, `failed`, `crashed`, or `any` (`done`, `failed`, or `crashed`). Default `done`. Any other value exits **5** before contacting the daemon.
 
 `-timeout` uses Go duration syntax (`30s`, `10m`). Exit **7** on timeout. Exit **2** if the session is removed while waiting.
 
@@ -290,6 +292,8 @@ Diagnostics. Exit **1** if any check fails.
 rex doctor [-json] [-socket path] [-verbose]
 ```
 
+Checks: `rex` on `PATH`; `rex-daemon` where `rex daemon start` looks for it (next to `rex` first, then `PATH`); the daemon socket; the config, state, and sessions directories; `config.yaml` parsing; agent CLIs on `PATH`. It only looks and never creates anything: a missing directory is an INFO row (rex creates it on first use). INFO rows show with `-verbose` or `-json`.
+
 ---
 
 ## rex update
@@ -297,6 +301,8 @@ rex doctor [-json] [-socket path] [-verbose]
 ```sh
 rex update [-check] [-yes|-y] [-source path] [-verbose]
 ```
+
+Without `-source`, `rex update` runs `go install`, so it only upgrades a `rex` installed under `$GOPATH/bin` or `~/go/bin`. Any other install (`install.sh`, `make install`) is refused with exit **6** before the prompt and before a running daemon is stopped; re-run the install script instead. Declining the prompt also exits **6**.
 
 `-source` names a source checkout: runs `git pull` there, then its `install.sh` (`install.ps1` on Windows).
 
@@ -310,6 +316,8 @@ rex uninstall [-yes|-y] [-binaries] [-wipe-state] [-purge-config]
 ```
 
 `-all` enables `-wipe-state`, `-purge-config`, and `-strip-profile`. `make uninstall` removes binaries only.
+
+Each failed removal is printed and the command exits **1** after trying the rest. `-strip-profile` leaves a file whose `# BEGIN REX` block has no `# END REX` unchanged (remove the block by hand); that counts as a failure. Declining the confirmation exits **1**. `-binaries` for a `rex` or `rex-daemon` outside your home directory is refused (exit **6**).
 
 ---
 
@@ -339,10 +347,12 @@ rex stats [-socket path] [-json] [-all]
 
 ```sh
 rex fleet ls [-socket path]
-rex fleet set <sel> <fleet>
-rex fleet unset <sel>
-rex fleet show <fleet>
+rex fleet set <sel> <fleet> [-socket path]
+rex fleet unset <sel> [-socket path]
+rex fleet show <fleet> [-socket path]
 ```
+
+`set` and `unset` wait up to 3 s for the daemon to confirm. A rejection is printed: exit **5** for a bad request, **1** otherwise or when no confirmation arrives.
 
 ---
 
@@ -354,7 +364,7 @@ Print a static board view (no TUI).
 rex render [-socket path] [-w cols] [-h rows]
 ```
 
-Dial or protocol errors exit **1** (not always `ExitCoder`).
+Default size 120×30. `-w` and `-h` must be positive (exit **5**). Exit **4** if the daemon is unreachable.
 
 ---
 

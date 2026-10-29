@@ -43,7 +43,7 @@ Human reference: **[../../cli.md](../../cli.md)** — commands, flags, selectors
 
 ## Exit codes
 
-Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWaitTimedOut` (7). Handlers return `core.ExitError`; any other error exits 1 (`cmd/rex/main.go` `exitCodeFor`). `status` returns `ExitGeneric` (1) with an empty message on `needs_input`, so nothing is printed.
+Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWaitTimedOut` (7). Handlers return `core.ExitError`; `cmd/rex/main.go` `exitCodeFor` finds it with `errors.As`, so a wrapped `ExitError` keeps its code, and any other error exits 1. An unknown command is `ExitInvalidArgs` (5). `core.Dial` / `core.Connect` turn a failed dial or `Hello` into `ExitDaemonUnreachable` (4). `status` returns `ExitGeneric` (1) with an empty message on `needs_input`, so nothing is printed.
 
 ## Selectors
 
