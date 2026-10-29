@@ -7,7 +7,7 @@
 
 ## Purpose
 
-Background worker calls local Ollama HTTP API to generate one-line `description` fields for active sessions; patches `state.Store` and emits health events.
+Background worker calls local Ollama HTTP API to generate one-line `description` fields (first non-empty line of the reply, `protocol.SingleLine`, ≤60 runes; see `cleanResponse`) for active sessions; patches `state.Store` and emits health events.
 
 ## Public surface
 

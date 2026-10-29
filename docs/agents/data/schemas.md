@@ -30,7 +30,7 @@ Codec: `internal/wire/protocol/codec.go`.
 | StartedAt | `started_at` | RFC3339 time | |
 | LastEventAt | `last_event_at` | RFC3339 time | last real activity (state change, screen line, exit); not bumped by rename/fleet/name/retire/description |
 | LastLine | `last_line` | string | optional |
-| Description | `description` | string | optional; from summarizer |
+| Description | `description` | string | optional; from summarizer; one sanitized line, ≤60 runes |
 | ExitCode | `exit_code` | int | optional pointer |
 | Tokens | `tokens` | int64 | optional; heuristic |
 | RetireAt | `retire_at` | RFC3339 time | optional; when a marked-done session gets cleared |

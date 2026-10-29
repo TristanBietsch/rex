@@ -16,7 +16,7 @@ The `rex-daemon` process. Owns the Unix socket, session store, and one PTY super
 
 ## description
 
-One-line activity summary on a session row. Optional. Produced by the local summarizer (Ollama) when enabled.
+One-line activity summary on a session row, at most 60 characters. Optional. Produced by the local summarizer (Ollama) when enabled; the model's reply is untrusted (it echoes the agent's screen), so rex keeps its first non-empty line and strips escapes and control characters.
 
 ## fleet
 

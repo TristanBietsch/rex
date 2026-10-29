@@ -16,7 +16,7 @@ TUI kanban view of sessions grouped by state. Origin: `internal/surface/tui/boar
 
 ## description
 
-AI-generated one-line activity summary on a session (`SessionSummary.description`). Origin: `internal/features/summarizer`, `protocol.SessionSummary`.
+AI-generated one-line activity summary on a session (`SessionSummary.description`): first non-empty line of the model reply, through `protocol.SingleLine`, clamped to 60 runes (`cleanResponse` in `summarizer/prompt.go`). Origin: `internal/features/summarizer`, `protocol.SessionSummary`.
 
 ## fleet
 
