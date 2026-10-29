@@ -65,16 +65,19 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		resizeAttach(m)
 		return ensureVisible(m), nil
 	case AttachOutputMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
+		// A late message from an earlier popup's listener ends that chain;
+		// re-arming here would start a second listener on this popup and
+		// split its chunks between the two.
+		if !attachMsgCurrent(m, msg.SessionID, msg.from) {
+			return m, nil
+		}
+		if len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
 			afterAttachOutput(m.Attach)
 		}
-		if m.Attach != nil {
-			return m, listenAttach(m.Attach)
-		}
-		return m, nil
+		return m, listenAttach(m.Attach)
 	case AttachClosedMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID {
+		if attachMsgCurrent(m, msg.SessionID, msg.from) {
 			m.Attach.Ended = true
 			if msg.Err != nil {
 				m.Attach.EndedMsg = msg.Err.Error()

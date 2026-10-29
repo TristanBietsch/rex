@@ -87,3 +87,25 @@ func TestListenAttach_EndsWhenPopupCloses(t *testing.T) {
 		t.Fatal("listener goroutine leaked after the popup closed")
 	}
 }
+
+// A late message from an earlier popup's listener used to re-arm
+// listenAttach on the current popup, leaving two listeners that split and
+// reorder its output. Only the current popup's own messages re-arm.
+func TestAttachOutput_StaleListenerDoesNotRearm(t *testing.T) {
+	m := attachWithScrollback(t, 0) // popup on session "a"
+	cur := m.Attach
+
+	_, cmd := m.Update(AttachOutputMsg{SessionID: "b", Bytes: []byte("old"), from: &AttachState{SessionID: "b"}})
+	require.Nil(t, cmd, "message from a popup on another session")
+
+	// Detach and reattach the same session: the old listener's message
+	// carries the right session id but the wrong popup.
+	out, cmd := m.Update(AttachOutputMsg{SessionID: "a", Bytes: []byte("old"), from: &AttachState{SessionID: "a"}})
+	require.Nil(t, cmd, "message from an earlier popup on the same session")
+	require.NotContains(t, cur.Term.String(), "old")
+	out, _ = out.(Model).Update(AttachClosedMsg{SessionID: "a", Err: net.ErrClosed, from: &AttachState{SessionID: "a"}})
+	require.False(t, out.(Model).Attach.Ended, "an old popup's close must not end this one")
+
+	_, cmd = m.Update(AttachOutputMsg{SessionID: "a", Bytes: []byte("new"), from: cur})
+	require.NotNil(t, cmd, "the current popup's listener re-arms")
+}

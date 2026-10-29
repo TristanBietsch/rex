@@ -60,11 +60,21 @@ type AttachState struct {
 type AttachOutputMsg struct {
 	SessionID string
 	Bytes     []byte
+	// from is the popup whose listener produced the message (nil when built
+	// elsewhere); a reopened popup on the same session is a different one.
+	from *AttachState
 }
 
 type AttachClosedMsg struct {
 	SessionID string
 	Err       error
+	from      *AttachState
+}
+
+// attachMsgCurrent reports whether a listener message belongs to the open
+// popup m.Attach rather than to one closed earlier.
+func attachMsgCurrent(m Model, sessionID string, from *AttachState) bool {
+	return m.Attach != nil && sessionID == m.Attach.SessionID && (from == nil || from == m.Attach)
 }
 
 // altScreenTools are agents whose TUI lives entirely in the alt-screen and
@@ -288,8 +298,9 @@ func listenAttach(st *AttachState) tea.Cmd {
 			if chunks > 1 {
 				slog.Debug("tui: attach coalesced chunks", "session", sessionID, "chunks", chunks, "bytes", len(merged))
 			}
-			return AttachOutputMsg{SessionID: sessionID, Bytes: merged}
+			return AttachOutputMsg{SessionID: sessionID, Bytes: merged, from: st}
 		case ec := <-errc:
+			ec.from = st
 			return ec
 		case <-done:
 			return nil
