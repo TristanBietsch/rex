@@ -8,7 +8,7 @@
 #   PREFIX=/usr/local ./install.sh  # installs to /usr/local/bin (may need sudo)
 #   ./install.sh --skip-build       # just copy existing binaries (CI use)
 #   ./install.sh --verbose          # stream build/install output (no spinner)
-#   ./install.sh --shell-init       # print shell profile block and exit
+#   ./install.sh --shell-init       # print PATH + completion block for $SHELL
 #   ./install.sh --migrate          # detect and clean up legacy install paths
 #   ./install.sh -h|--help          # show this help
 
@@ -53,31 +53,58 @@ for arg in "$@"; do
   esac
 done
 
+# Login shell family (zsh, bash, fish); anything else gets bash syntax.
+USER_SHELL="$(basename "${SHELL:-bash}")"
+
 # ── repo root ─────────────────────────────────────────────────────────────────
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$REPO_ROOT"
 
 # ── --shell-init mode ─────────────────────────────────────────────────────────
-# Prints an idempotent shell profile block and exits.
+# Prints a shell profile block for $SHELL, delimited by BEGIN/END REX markers,
+# and exits. Pick another shell with e.g. SHELL=bash ./install.sh --shell-init.
 # Usage: ./install.sh --shell-init >> ~/.zshrc
 #        ./install.sh --shell-init >> ~/.bashrc
+#        ./install.sh --shell-init >> ~/.config/fish/config.fish
 
 if [[ "$MODE" == "shell-init" ]]; then
-  # Detect shell family; fall back to bash syntax.
-  _shell_name="$(basename "${SHELL:-bash}")"
-  cat <<'SHELLBLOCK'
+  # Write $HOME literally when the bin dir is under it.
+  _bin="${BIN_DIR/#"$HOME"/\$HOME}"
+  case "$USER_SHELL" in
+    zsh)
+      # compdef exists only after compinit; skip completion rather than
+      # erroring on every shell start when compinit has not run.
+      cat <<SHELLBLOCK
 # BEGIN REX
-export PATH="$HOME/.local/bin:$PATH"
-source <(rex completion bash 2>/dev/null) || true
+export PATH="$_bin:\$PATH"
+if (( \$+functions[compdef] )) && command -v rex >/dev/null 2>&1; then
+  source <(rex completion zsh)
+fi
 # END REX
 SHELLBLOCK
-  # fish users need a different incantation — document it as a comment.
-  if [[ "$_shell_name" == "fish" ]]; then
-    printf "\n# fish users: add this to ~/.config/fish/config.fish instead:\n"
-    printf "#   set -gx PATH \"\$HOME/.local/bin\" \$PATH\n"
-    printf "#   rex completion fish | source\n"
-  fi
+      ;;
+    fish)
+      cat <<SHELLBLOCK
+# BEGIN REX
+contains -- "$_bin" \$PATH; or set -gx PATH "$_bin" \$PATH
+type -q rex; and rex completion fish | source
+# END REX
+SHELLBLOCK
+      ;;
+    *)
+      # eval, not source <(...): bash 3.2 (macOS /bin/bash) cannot source a
+      # process substitution.
+      cat <<SHELLBLOCK
+# BEGIN REX
+export PATH="$_bin:\$PATH"
+if command -v rex >/dev/null 2>&1; then
+  eval "\$(rex completion bash)"
+fi
+# END REX
+SHELLBLOCK
+      ;;
+  esac
   exit 0
 fi
 
@@ -276,9 +303,20 @@ printf "  %s→%s %s\n" "$C_MUTED" "$C_RESET" "$BIN_DIR/rex-daemon"
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
   *)
+    # Displayed, not expanded.
+    # shellcheck disable=SC2088
+    case "$USER_SHELL" in
+      zsh)  _rc="~/.zshrc" ;;
+      fish) _rc="~/.config/fish/config.fish" ;;
+      *)    _rc="~/.bashrc" ;;
+    esac
     printf "\n  %s⚠%s %s is not on \$PATH\n" "$C_WARN" "$C_RESET" "$BIN_DIR"
-    printf "    %sexport PATH=\"%s:\$PATH\"%s\n" "$C_MUTED" "$BIN_DIR" "$C_RESET"
-    printf "    %sor run: ./install.sh --shell-init >> ~/.zshrc%s\n" "$C_MUTED" "$C_RESET"
+    if [[ "$USER_SHELL" == "fish" ]]; then
+      printf "    %sset -gx PATH \"%s\" \$PATH%s\n" "$C_MUTED" "$BIN_DIR" "$C_RESET"
+    else
+      printf "    %sexport PATH=\"%s:\$PATH\"%s\n" "$C_MUTED" "$BIN_DIR" "$C_RESET"
+    fi
+    printf "    %sor run: ./install.sh --shell-init >> %s%s\n" "$C_MUTED" "$_rc" "$C_RESET"
     ;;
 esac
 
