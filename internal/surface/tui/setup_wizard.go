@@ -856,15 +856,16 @@ func (m SetupWizardModel) renderDaemon() (string, []string, string) {
 		return "daemon", body, "  checking …"
 	}
 
-	if m.daemonReach {
+	switch {
+	case m.daemonReach:
 		body = append(body, "  "+styleBootOK.Render("✓")+" daemon is reachable at "+styleDim.Render(m.daemonSocket))
-	} else if m.daemonStarting {
+	case m.daemonStarting:
 		body = append(body, "  "+styleBootRun.Render("starting daemon …"))
-	} else if m.daemonStartErr != nil {
+	case m.daemonStartErr != nil:
 		body = append(body, "  "+styleBootFail.Render("✗")+" failed to start: "+m.daemonStartErr.Error())
 		body = append(body, "")
 		body = append(body, "  You can start it manually with: "+styleSlug.Render("rex daemon"))
-	} else {
+	default:
 		body = append(body, "  "+styleBootWarn.Render("!")+" daemon not running at "+styleDim.Render(m.daemonSocket))
 		body = append(body, "")
 		body = append(body, "  Start daemon now? "+styleSlug.Render("[Y/n]"))
