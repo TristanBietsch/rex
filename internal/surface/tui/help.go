@@ -6,11 +6,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// helpScroll is how many help lines the popup is scrolled past (j/k,
-// pgup/pgdn). Bubble Tea runs Update and View on one goroutine; the popup
-// resets it when it closes.
-var helpScroll int
-
 // helpLines is the help text between the title and the footer.
 func helpLines() []string {
 	return []string{
@@ -79,13 +74,14 @@ func helpRows(m Model) int {
 
 // scrollHelp moves the help popup delta lines, kept in range for the
 // current screen height.
-func scrollHelp(m Model, delta int) {
+func scrollHelp(m Model, delta int) Model {
 	rows := helpRows(m)
 	if rows == 0 {
-		helpScroll = 0
-		return
+		m.HelpScroll = 0
+		return m
 	}
-	helpScroll = max(0, min(helpScroll+delta, len(helpLines())-rows))
+	m.HelpScroll = max(0, min(m.HelpScroll+delta, len(helpLines())-rows))
+	return m
 }
 
 // renderHelp renders the help popup. Taller than the screen it shows a
@@ -97,7 +93,7 @@ func renderHelp(m Model) string {
 	lines := helpLines()
 	footer := styleDim.Render("esc to close")
 	if rows := helpRows(m); rows > 0 {
-		off := max(0, min(helpScroll, len(lines)-rows))
+		off := max(0, min(m.HelpScroll, len(lines)-rows))
 		// windowLines centers on the focus line; aim it at the window's middle.
 		lines = windowLines(lines, off+rows/2, rows)
 		footer = styleDim.Render("j/k scroll · pgup/pgdn page · esc to close")

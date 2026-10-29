@@ -100,6 +100,10 @@ type Model struct {
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
 
+	// HelpScroll is how many help lines the help popup is scrolled past
+	// (j/k, pgup/pgdn). The popup resets it when it closes.
+	HelpScroll int
+
 	// mouseOn is whether rex last told the terminal to report mouse events
 	// (see syncMouse). lastClickID / lastClickAt detect board double-clicks.
 	mouseOn     bool

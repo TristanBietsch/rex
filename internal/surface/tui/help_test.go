@@ -17,7 +17,6 @@ func helpView(t *testing.T, m Model) string {
 }
 
 func TestHelp_ShortScreenScrollsWithFooterVisible(t *testing.T) {
-	t.Cleanup(func() { helpScroll = 0 })
 	for _, h := range []int{24, 40} {
 		m := hostileModel(100, h)
 		m.Focus = FocusHelp
@@ -40,8 +39,20 @@ func TestHelp_ShortScreenScrollsWithFooterVisible(t *testing.T) {
 
 		m, _ = updateKey(m, tea.KeyMsg{Type: tea.KeyEsc})
 		require.Equal(t, FocusBoard, m.Focus)
-		require.Zero(t, helpScroll, "closing resets the scroll")
+		require.Zero(t, m.HelpScroll, "closing resets the scroll")
 	}
+}
+
+// ctrl+c backs out of help without its key handler; the next open still
+// starts at the top.
+func TestHelp_CtrlCResetsScroll(t *testing.T) {
+	m := hostileModel(100, 24)
+	m.Focus = FocusHelp
+	m, _ = updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("G")})
+	require.Positive(t, m.HelpScroll)
+	m, _ = updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlC})
+	require.Equal(t, FocusBoard, m.Focus)
+	require.Zero(t, m.HelpScroll)
 }
 
 func TestHelp_TallScreenShowsEverything(t *testing.T) {

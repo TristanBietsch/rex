@@ -411,22 +411,22 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		switch k.String() {
 		case "esc", "?":
 			m.Focus = FocusBoard
-			helpScroll = 0
+			m.HelpScroll = 0
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventClose)
 			}
 		case "j", "down":
-			scrollHelp(m, 1)
+			m = scrollHelp(m, 1)
 		case "k", "up":
-			scrollHelp(m, -1)
+			m = scrollHelp(m, -1)
 		case "pgdown", "ctrl+d", " ":
-			scrollHelp(m, page)
+			m = scrollHelp(m, page)
 		case "pgup", "ctrl+u":
-			scrollHelp(m, -page)
+			m = scrollHelp(m, -page)
 		case "g", "home":
-			scrollHelp(m, -len(helpLines()))
+			m = scrollHelp(m, -len(helpLines()))
 		case "G", "end":
-			scrollHelp(m, len(helpLines()))
+			m = scrollHelp(m, len(helpLines()))
 		}
 		return m, nil
 	}
@@ -472,6 +472,8 @@ func escapeToBoard(m Model) (Model, tea.Cmd) {
 		}
 	case FocusPrompt:
 		m.PromptText = ""
+	case FocusHelp:
+		m.HelpScroll = 0
 	case FocusRename:
 		m.Rename = nil
 	case FocusConfirmDelete:
