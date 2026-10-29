@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -146,23 +147,52 @@ func configReset(args []string) error {
 	return nil
 }
 
+// configEdit opens the Lua config (lua_config_path, the file the daemon
+// loads) in $EDITOR.
 func configEdit(args []string) error {
-	_ = args
-	home, _ := os.UserHomeDir()
-	path := filepath.Join(home, ".config", "rex", "init.lua")
+	if err := core.CheckArgs(args, 0, 0, "rex config edit"); err != nil {
+		return err
+	}
+	store, _, err := loadStore()
+	if err != nil {
+		// Defaults still name a usable path; say which one is opened.
+		fmt.Fprintf(os.Stderr, "rex: %v (using the default lua_config_path)\n", err)
+		store = settings.NewStore()
+	}
+	path := luaConfigPath(store)
+	if path == "" {
+		return core.NewExitError(core.ExitInvalidArgs, "config edit: lua_config_path is empty")
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "vi"
-		if runtime.GOOS == "windows" {
-			editor = "notepad"
-		}
-	}
-	cmd := exec.Command(editor, path)
+	cmd := editorCommand(os.Getenv("EDITOR"), path)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// luaConfigPath resolves lua_config_path the way the daemon does: a leading
+// "~/" is the home directory.
+func luaConfigPath(store *settings.Store) string {
+	p := store.String("lua_config_path")
+	if strings.HasPrefix(p, "~/") {
+		home, _ := os.UserHomeDir()
+		p = filepath.Join(home, p[2:])
+	}
+	return p
+}
+
+// editorCommand runs editor on path. editor may carry arguments
+// ("code -w"); empty means vi (notepad on Windows).
+func editorCommand(editor, path string) *exec.Cmd {
+	argv := strings.Fields(editor)
+	if len(argv) == 0 {
+		argv = []string{"vi"}
+		if runtime.GOOS == "windows" {
+			argv = []string{"notepad"}
+		}
+	}
+	return exec.Command(argv[0], append(argv[1:], path)...)
 }
