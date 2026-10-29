@@ -36,7 +36,7 @@ func TestCleanResponseStripsArtifacts(t *testing.T) {
 		{"\n\n  editing main.go  \r\nmore", "editing main.go"},
 		{"Output:\nrunning pnpm test", "running pnpm test"},
 		// Controls from the echoed screen never reach the board.
-		{"edit\x1b[2Jing\x07 main.go‮", "edit[2Jing main.go"},
+		{"edit\x1b[2Jing\x07 main.go\u202e", "edit[2Jing main.go"},
 		{"tab\tseparated", "tab separated"},
 		{"\x1b\x07\n", ""},
 	}

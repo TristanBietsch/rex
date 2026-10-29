@@ -188,7 +188,7 @@ func TestLoadMeta_SanitizesDisplayFields(t *testing.T) {
 	dir := t.TempDir()
 	sess := &Session{
 		ID: "id1", ShortID: "id1", Slug: "ok", State: protocol.StateDone, StartedAt: time.Now().UTC(),
-		Title:       "fix\x1b[2J the\nbuild‮",
+		Title:       "fix\x1b[2J the\nbuild\u202e",
 		Fleet:       strings.Repeat("f", 100),
 		Name:        "my\tname\x07",
 		Description: "line one\r\nline two",
