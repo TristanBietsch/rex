@@ -279,13 +279,14 @@ func dirSummary(dir string) string {
 	var count int
 	var totalBytes int64
 	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
+		if err == nil && !d.IsDir() {
+			count++
+			if info, e := d.Info(); e == nil {
+				totalBytes += info.Size()
+			}
 		}
-		count++
-		if info, e := d.Info(); e == nil {
-			totalBytes += info.Size()
-		}
+		// Best effort: an entry that can't be read is left out of the
+		// count and the walk goes on; the summary is only informational.
 		return nil
 	})
 	if count == 0 {

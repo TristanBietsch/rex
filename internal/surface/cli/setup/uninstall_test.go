@@ -171,3 +171,33 @@ func runStrip(t *testing.T, input string) (bool, string) {
 	}
 	return modified, strings.ReplaceAll(string(data), "\r\n", "\n")
 }
+
+// dirSummary is best effort: an unreadable subdirectory is left out of the
+// count instead of ending the walk.
+func TestDirSummary_SkipsUnreadable(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs a directory the user cannot read")
+	}
+	dir := t.TempDir()
+	locked := filepath.Join(dir, "a-locked")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(locked, "hidden"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b-file"), make([]byte, 2048), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	if got := dirSummary(dir); got != "(1 files, 2 KB)" {
+		t.Fatalf("dirSummary = %q", got)
+	}
+	if got := dirSummary(filepath.Join(dir, "missing")); got != "(empty or not found)" {
+		t.Fatalf("missing dir: dirSummary = %q", got)
+	}
+}
