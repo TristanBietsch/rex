@@ -33,6 +33,9 @@ type AttachState struct {
 	// and re-rendering the popup on every chunk causes visible flicker.
 	outCh chan AttachOutputMsg
 	errCh chan AttachClosedMsg
+	// done is closed by closeAttach so a pump blocked on a full outCh
+	// (nobody drains it after detach) exits instead of leaking.
+	done chan struct{}
 
 	// held is a lone ':' or 'q' waiting to see if its twin follows ("::"
 	// opens rex's command bar, "qq" detaches); 0 when nothing is held.
@@ -135,9 +138,10 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows,
 		outCh: make(chan AttachOutputMsg, 64),
 		errCh: make(chan AttachClosedMsg, 1),
+		done:  make(chan struct{}),
 	}
 	st.Term = newAttachTerm(st, cols, rows, scrollback)
-	go pumpAttach(c, sessionID, st.outCh, st.errCh)
+	go pumpAttach(c, sessionID, st.outCh, st.errCh, st.done)
 	m.Attach = st
 	m.Focus = FocusAttach
 	if m.Audio != nil {
@@ -155,6 +159,9 @@ func closeAttach(m Model) Model {
 	if m.Attach != nil {
 		slog.Info("tui: attach closed", "session", m.Attach.SessionID)
 		logAttachScrollbackTotals(m.Attach)
+		if m.Attach.done != nil {
+			close(m.Attach.done)
+		}
 		if m.Attach.Client != nil {
 			_ = m.Attach.Client.Close()
 		}
@@ -207,8 +214,9 @@ func resizeAttach(m Model) {
 
 // pumpAttach is the background reader goroutine. It blocks on the daemon
 // connection and pushes parsed messages onto the AttachState channels until the
-// connection closes. One pump per AttachState; closing the client unblocks it.
-func pumpAttach(c *client.Client, sessionID string, outCh chan<- AttachOutputMsg, errCh chan<- AttachClosedMsg) {
+// connection closes or done is closed. One pump per AttachState; closeAttach
+// closes done and the client, which unblocks it wherever it waits.
+func pumpAttach(c *client.Client, sessionID string, outCh chan<- AttachOutputMsg, errCh chan<- AttachClosedMsg, done <-chan struct{}) {
 	for {
 		env, err := c.NextEvent()
 		if err != nil {
@@ -233,8 +241,14 @@ func pumpAttach(c *client.Client, sessionID string, outCh chan<- AttachOutputMsg
 			continue
 		}
 		// Buffered channel — if full (TUI fell behind), block briefly so we
-		// don't drop bytes. The TUI will drain on the next render.
-		outCh <- AttachOutputMsg{SessionID: so.SessionID, Bytes: so.Bytes}
+		// don't drop bytes. The TUI will drain on the next render; after a
+		// detach nobody will, so done ends the wait.
+		select {
+		case outCh <- AttachOutputMsg{SessionID: so.SessionID, Bytes: so.Bytes}:
+		case <-done:
+			slog.Debug("tui: attach pump cancelled", "session", sessionID)
+			return
+		}
 	}
 }
 
@@ -246,10 +260,12 @@ const attachCoalesceWindow = 30 * time.Millisecond
 
 // listenAttach blocks for the next chunk from the pump, waits a short window
 // for more chunks to arrive, then merges everything into a single
-// AttachOutputMsg so the popup re-renders at most once per window.
+// AttachOutputMsg so the popup re-renders at most once per window. Once the
+// popup closes (done) it returns nil, ending the chain.
 func listenAttach(st *AttachState) tea.Cmd {
 	out := st.outCh
 	errc := st.errCh
+	done := st.done
 	sessionID := st.SessionID
 	return func() tea.Msg {
 		select {
@@ -265,6 +281,8 @@ func listenAttach(st *AttachState) tea.Cmd {
 					chunks++
 				case <-deadline:
 					break coalesce
+				case <-done:
+					return nil
 				}
 			}
 			if chunks > 1 {
@@ -273,6 +291,8 @@ func listenAttach(st *AttachState) tea.Cmd {
 			return AttachOutputMsg{SessionID: sessionID, Bytes: merged}
 		case ec := <-errc:
 			return ec
+		case <-done:
+			return nil
 		}
 	}
 }
