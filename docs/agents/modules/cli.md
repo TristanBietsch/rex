@@ -18,19 +18,24 @@ Implements every `rex` subcommand: daemon control, session CRUD, scripting outpu
 ### Types
 
 - `ExitCoder` interface — `ExitCode() int`
-- `ExitError` — `NewExitError(code int, err error)`
+- `ExitError` — `NewExitError(code int, msg string)`
 
 ### Functions (commands)
 
 `RunTUI`, `RunHelp`, `RunVersion`, `RunStatus`, `RunLs`, `RunNew`, `RunAttach`, `RunReply`, `RunSend`, `RunLog`, `RunWait`, `RunRm`, `RunRename`, `RunArchive`, `RunComplete`, `RunReload`, `RunDaemon`, `RunCompletion`, `RunRender`, `RunConfig`, `RunSetup`, `RunDoctor`, `RunUpdate`, `RunUninstall`, `RunDigest`, `RunStats`, `RunFleet`
 
-### Utilities
+### Utilities (`core`)
 
-`DefaultSocket()`, `ResolveSelector`, `ResolveInSnapshot`, `WriteSessionsTable`, `WriteSessionsJSONL`, `WriteAggregateLine`, `WriteAggregateJSON`
+- `ParseArgs(fs, args)` — parses flags anywhere among the positionals (`--` ends flags) and returns the positionals; flag errors are `ExitInvalidArgs`.
+- `CheckArgs(pos, min, max, usage)` — enforces positional arity (`max < 0`: unbounded); extra or missing positionals are `ExitInvalidArgs`.
+- `Dial(socket)` — dial plus `Hello`; returns the client and snapshot. Failures are `ExitDaemonUnreachable`.
+- `Connect(socket, sel)` — `Dial` plus `ResolveInSnapshot`; selector errors keep their own codes.
+- `AwaitPatch(c, sessionID, reqID, patchKey)` — waits up to 3 s for a `SessionUpdated` carrying `patchKey` (success) or an `Error` echoing `reqID` (`bad_intent` → `ExitInvalidArgs`, else `ExitGeneric`). Used by `rename`, `name`, `done`/`undone`, `archive`, `fleet set`/`unset`.
+- `DefaultSocket()`, `ResolveInSnapshot`, `WriteSessionsTable`, `WriteSessionsJSONL`, `WriteAggregateLine`, `WriteAggregateJSON`, `Version`.
 
 ## Internal structure
 
-One file per command area: `new.go`, `attach.go`, `ls.go`, `status.go`, `daemon.go`, `config.go`, `setup.go`, `doctor.go`, `fleet.go`, `digest.go`, `stats.go`, `selector.go`, `output.go`, `socket.go` (forwards to `daemonctl`), `help.go`, `tui.go`, etc. `*_test.go` for digest, doctor, fleet, output, selector, stats, attach, complete, uninstall.
+Subpackages of `internal/surface/cli`: `core` (exit codes, `ParseArgs`/`CheckArgs`, `Dial`/`Connect`/`AwaitPatch`, selectors, output, help, version), `session` (`ls`, `new`, `attach`, `reply`, `send`, `wait`, `rm`, `rename`, `name`, `done`, `archive`), `inspect` (`status`, `log`, `render`, `digest`, `stats`, `fleet`), `lifecycle` (`daemon`, `reload`), `meta` (TUI entry, `complete`, `completion`), `setup` (`config`, `setup`, `doctor`, `update`, `uninstall`). Commands parse with `core.ParseArgs`, check arity with `core.CheckArgs` (exceptions: `new` joins any number of prompt words; `config get`/`set`/`reset` check `len(args)` themselves), and reach the daemon through `core.Dial` or `core.Connect`.
 
 ## Invariants
 
@@ -44,7 +49,7 @@ Network (UDS), filesystem (log, config, uninstall), subprocess (`rex-daemon`, `g
 
 ## Error handling
 
-Returns `ExitError` with specific codes where documented. Other errors → exit `1` from `cmd/rex/main.go`.
+Returns `ExitError` with specific codes where documented. `cmd/rex/main.go` finds it with `errors.As`, so wrapping keeps the code; other errors → exit `1`.
 
 ## Tests
 
