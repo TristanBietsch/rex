@@ -19,6 +19,10 @@ rex <command> [flags] [args...]
 
 Commands dial the default socket unless `-socket` is set. See [paths.md](paths.md) for the default path.
 
+Flags may come before or after positional arguments, with one dash or two (`rex new "fix the bug" --tool claude` = `rex new -tool claude "fix the bug"`). `--` ends flags: everything after it is positional, even text starting with `-` (`rex reply api -- "-v is broken"`). A positional argument a command does not take exits **5**.
+
+`rex --version` prints the version stamped at build time by `make` and the install scripts (`git describe --tags --always --dirty`), else the Go module version, else `dev`.
+
 ## SELECTORS
 
 Many commands take `<sel>`: one session reference.
@@ -67,8 +71,10 @@ Exits **1** when at least one session is `needs_input` (even with no other error
 List sessions.
 
 ```sh
-rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-short] [-json]
+rex ls [-socket path] [-state state] [-tool id] [-model id] [-show-archived] [-short] [-json]
 ```
+
+`-state`, `-tool`, and `-model` keep only sessions whose value matches exactly. States: `queued`, `working`, `needs_input`, `done`, `failed`, `crashed`.
 
 `-show-archived` and `-short` are accepted but have no effect today.
 
@@ -136,10 +142,10 @@ Reads stdin until EOF. No positional text argument.
 Read transcript file.
 
 ```sh
-rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes N]
+rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes]
 ```
 
-`-f` follows the file. Default state dir: `~/.local/share/rex`.
+`-f` follows the file. `-n` shows only the last N lines (default all). Output has ANSI escapes stripped; `-bytes` prints the raw bytes instead. Default state dir: `~/.local/share/rex`.
 
 ---
 
@@ -151,9 +157,9 @@ Block until a session reaches a state.
 rex wait <sel> [-socket path] [-until state] [-timeout duration]
 ```
 
-`-until`: `working`, `needs_input`, `done`, `failed`, or `any` (terminal states). Default `done`.
+`-until`: `working`, `needs_input`, `done`, `failed`, or `any` (`done`, `failed`, or `crashed`). Default `done`. Any other value exits **5**.
 
-`-timeout` uses Go duration syntax (`30s`, `10m`). Exit **7** on timeout.
+`-timeout` uses Go duration syntax (`30s`, `10m`). Exit **7** on timeout. Exit **2** if the session is removed while waiting.
 
 ---
 
@@ -200,7 +206,7 @@ rex done <sel> [-after 72h] [-socket path]
 rex undone <sel> [-socket path]
 ```
 
-`rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 3 ("session removed") when the session disappears.
+`rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 2 ("session removed") when the session disappears.
 
 ---
 
@@ -254,11 +260,13 @@ rex daemon logs [-f]
 
 ```sh
 rex config list [-json]
-rex config get <id>...
-rex config set <id> <value>...
-rex config reset <id>...
+rex config get <id>
+rex config set <id> <value>
+rex config reset <id>
 rex config edit
 ```
+
+`get` and `reset` take exactly one setting id, `set` exactly one id and one value (quote a value with spaces); anything else exits **5**.
 
 `edit` opens `init.lua` in `$EDITOR`, not `config.yaml`. Keys: [settings.md](settings.md).
 
@@ -288,8 +296,10 @@ rex doctor [-json] [-socket path] [-verbose]
 ## rex update
 
 ```sh
-rex update [-check] [-yes|-y] [-source module|binary] [-verbose]
+rex update [-check] [-yes|-y] [-source path] [-verbose]
 ```
+
+`-source` names a source checkout: runs `git pull` there, then its `install.sh` (`install.ps1` on Windows).
 
 ---
 
@@ -309,8 +319,10 @@ rex uninstall [-yes|-y] [-binaries] [-wipe-state] [-purge-config]
 Daily session summary.
 
 ```sh
-rex digest [-socket path] [-date YYYY-MM-DD] [-since duration] [-json]
+rex digest [-socket path] [-date YYYY-MM-DD|yesterday] [-since Nd|Nh] [-json]
 ```
+
+Default: today. `-since` takes whole days or hours only: `7d` covers today and the 6 days before it, `24h` the last 24 hours; other units exit **5**. `-date` and `-since` are mutually exclusive (exit **5**).
 
 ---
 
