@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -27,25 +26,12 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	defer c.finish()
 	r := protocol.NewReader(conn)
 
-	// Per-client subscription that forwards store events back to this client.
-	// Use atomic so the subscriber goroutine and the handler goroutine can read/write
-	// the flag safely under the race detector.
-	var subscribed atomic.Bool
-	cancel := cfg.Store.Subscribe(func(e state.Event) {
-		if !subscribed.Load() {
-			return
-		}
-		c.sendStoreEvent(e)
-	})
+	// Board events: store changes and summarizer health. Subscribed for the
+	// whole connection; c gates them on Hello (see client.hello).
+	cancel := cfg.Store.Subscribe(c.sendStoreEvent)
 	defer cancel()
-
-	// Global SummarizerHealth subscription — gated on the same `subscribed` flag
-	// so we don't emit events before the client has received its Snapshot.
 	healthCancel := srv.SubscribeSummarizerHealth(func(h protocol.SummarizerHealth) {
-		if !subscribed.Load() {
-			return
-		}
-		c.send(protocol.EventSummarizerHealth, "", h)
+		c.sendBoard(protocol.EventSummarizerHealth, h, "")
 	})
 	defer healthCancel()
 
@@ -63,9 +49,9 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		}
 		switch env.Type {
 		case protocol.IntentHello:
-			snap := protocol.Snapshot{Sessions: cfg.Store.Snapshot(), Filter: "all"}
-			c.send(protocol.EventSnapshot, env.ID, snap)
-			subscribed.Store(true)
+			c.hello(env.ID, func() protocol.Snapshot {
+				return protocol.Snapshot{Sessions: cfg.Store.Snapshot(), Filter: "all"}
+			})
 		case protocol.IntentNewSession:
 			var p protocol.NewSession
 			if err := json.Unmarshal(env.Data, &p); err != nil {

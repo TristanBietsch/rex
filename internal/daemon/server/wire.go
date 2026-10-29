@@ -10,20 +10,21 @@ import (
 // (~64×400) without flooding the wire.
 const transcriptReplayMax = 256 * 1024
 
-// sendStoreEvent queues a store event in its wire form.
+// sendStoreEvent forwards a store event to the client in its wire form,
+// gated on Hello like every board event.
 func (c *client) sendStoreEvent(e state.Event) {
 	switch e.Kind {
 	case state.EventAdded:
 		if e.Summary != nil {
-			c.send(protocol.EventSessionAdded, "", *e.Summary)
+			c.sendBoard(protocol.EventSessionAdded, *e.Summary, e.SessionID)
 		}
 	case state.EventUpdated:
-		c.send(protocol.EventSessionUpdated, "", protocol.SessionUpdated{
+		c.sendBoard(protocol.EventSessionUpdated, protocol.SessionUpdated{
 			SessionID: e.SessionID, Patch: e.Patch,
-		})
+		}, "")
 	case state.EventRemoved:
-		c.send(protocol.EventSessionRemoved, "", protocol.SessionRemoved{
+		c.sendBoard(protocol.EventSessionRemoved, protocol.SessionRemoved{
 			SessionID: e.SessionID, Reason: e.Reason,
-		})
+		}, "")
 	}
 }

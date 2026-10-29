@@ -35,6 +35,29 @@ type client struct {
 	mu sync.Mutex
 	// closed stops further sends: the client was dropped or is finishing.
 	closed bool
+	// phase gates board events on Hello; held keeps the ones that arrive
+	// while Hello takes its Snapshot.
+	phase helloPhase
+	held  []heldEvent
+}
+
+// helloPhase is where a client is in the Hello handshake. Board events
+// (store changes, summarizer health) reach a client only after its Snapshot.
+type helloPhase int
+
+const (
+	helloPending  helloPhase = iota // no Hello yet: board events are dropped
+	helloSnapshot                   // taking the Snapshot: board events are held
+	helloDone                       // board events are sent as they happen
+)
+
+// heldEvent is a board event waiting for the Snapshot to go out first.
+type heldEvent struct {
+	typ  string
+	data any
+	// addedID is the session id of a SessionAdded, so one the Snapshot
+	// already contains can be skipped.
+	addedID string
 }
 
 func newClient(conn net.Conn) *client {
@@ -57,6 +80,65 @@ func (c *client) send(eventType, id string, data any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.enqueueLocked(line)
+}
+
+// sendBoard queues a board event once the client has its Snapshot. Before
+// Hello it is dropped (the Snapshot will reflect it); during Hello it is held.
+func (c *client) sendBoard(eventType string, data any, addedID string) {
+	c.mu.Lock()
+	switch c.phase {
+	case helloPending:
+		c.mu.Unlock()
+		return
+	case helloSnapshot:
+		if len(c.held) >= clientQueueLen {
+			slog.Warn("server: client fell behind during hello, disconnecting", "held", len(c.held))
+			c.dropLocked()
+		} else {
+			c.held = append(c.held, heldEvent{typ: eventType, data: data, addedID: addedID})
+		}
+		c.mu.Unlock()
+		return
+	}
+	c.mu.Unlock()
+	c.send(eventType, "", data)
+}
+
+// hello answers a Hello: the Snapshot, then every board event that arrived
+// while it was taken, so none are lost in the gap or sent ahead of it. Board
+// events are held from before snapshot runs, so a change lands in the
+// Snapshot, in a held event, or both — a duplicate patch is harmless, and a
+// SessionAdded for a session the Snapshot already holds is skipped.
+func (c *client) hello(id string, snapshot func() protocol.Snapshot) {
+	c.mu.Lock()
+	c.phase = helloSnapshot
+	c.mu.Unlock()
+
+	snap := snapshot()
+	inSnap := make(map[string]bool, len(snap.Sessions))
+	for _, s := range snap.Sessions {
+		inSnap[s.ID] = true
+	}
+	line, err := protocol.EncodeEvent(protocol.EventSnapshot, id, snap)
+	if err != nil {
+		slog.Error("server: encode snapshot failed", "err", err)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if line != nil {
+		c.enqueueLocked(line)
+	}
+	for _, h := range c.held {
+		if h.addedID != "" && inSnap[h.addedID] {
+			continue
+		}
+		if b, err := protocol.EncodeEvent(h.typ, "", h.data); err == nil {
+			c.enqueueLocked(b)
+		}
+	}
+	c.held = nil
+	c.phase = helloDone
 }
 
 // sendError queues an Error event correlated to intent id.
