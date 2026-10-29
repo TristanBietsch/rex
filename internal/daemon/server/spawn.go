@@ -18,7 +18,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, w *protocol.Writer) error {
+func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) error {
 	if err := validateNewSession(p); err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
 		return badIntent(err)
@@ -176,7 +176,5 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		defer srv.ReleaseSession()
 		_ = sup.Run(sessCtx, sess)
 	}()
-	_ = intentID
-	_ = w
 	return nil
 }

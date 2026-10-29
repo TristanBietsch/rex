@@ -57,6 +57,23 @@ func (w *Writer) WriteEvent(typ, id string, payload any) error {
 }
 
 func (w *Writer) write(kind Kind, typ, id string, payload any) error {
+	b, err := encode(kind, typ, id, payload)
+	if err != nil {
+		return err
+	}
+	if _, err := w.w.Write(b); err != nil {
+		return fmt.Errorf("write envelope: %w", err)
+	}
+	return nil
+}
+
+// EncodeEvent returns an Event envelope as one wire line (newline included),
+// for senders that queue lines instead of writing them directly.
+func EncodeEvent(typ, id string, payload any) ([]byte, error) {
+	return encode(KindEvent, typ, id, payload)
+}
+
+func encode(kind Kind, typ, id string, payload any) ([]byte, error) {
 	// Single JSON encode: embedding payload as a typed field avoids a second
 	// full marshal pass over the payload bytes.
 	type wireLine struct {
@@ -70,11 +87,7 @@ func (w *Writer) write(kind Kind, typ, id string, payload any) error {
 		V: ProtocolVersion, Kind: kind, Type: typ, ID: id, Data: payload,
 	})
 	if err != nil {
-		return fmt.Errorf("marshal envelope: %w", err)
+		return nil, fmt.Errorf("marshal envelope: %w", err)
 	}
-	b = append(b, '\n')
-	if _, err := w.w.Write(b); err != nil {
-		return fmt.Errorf("write envelope: %w", err)
-	}
-	return nil
+	return append(b, '\n'), nil
 }

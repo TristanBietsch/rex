@@ -21,9 +21,11 @@ const replySubmitDelay = 120 * time.Millisecond
 
 func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	cfg := srv.cfg
-	defer conn.Close()
+	// Every event to this client goes through c's queue: store broadcasts and
+	// PTY output never block on this socket.
+	c := newClient(conn)
+	defer c.finish()
 	r := protocol.NewReader(conn)
-	w := protocol.NewWriter(conn)
 
 	// Per-client subscription that forwards store events back to this client.
 	// Use atomic so the subscriber goroutine and the handler goroutine can read/write
@@ -33,7 +35,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		if !subscribed.Load() {
 			return
 		}
-		emitEvent(w, e)
+		c.sendStoreEvent(e)
 	})
 	defer cancel()
 
@@ -43,7 +45,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		if !subscribed.Load() {
 			return
 		}
-		writeEvent(w, protocol.EventSummarizerHealth, "", h)
+		c.send(protocol.EventSummarizerHealth, "", h)
 	})
 	defer healthCancel()
 
@@ -56,21 +58,21 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			return
 		}
 		if env.Kind != protocol.KindIntent {
-			writeError(w, env.ID, protocol.ErrCodeBadIntent, "expected an Intent")
+			c.sendError(env.ID, protocol.ErrCodeBadIntent, "expected an Intent")
 			continue
 		}
 		switch env.Type {
 		case protocol.IntentHello:
 			snap := protocol.Snapshot{Sessions: cfg.Store.Snapshot(), Filter: "all"}
-			writeEvent(w, protocol.EventSnapshot, env.ID, snap)
+			c.send(protocol.EventSnapshot, env.ID, snap)
 			subscribed.Store(true)
 		case protocol.IntentNewSession:
 			var p protocol.NewSession
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
-			if err := handleNewSession(ctx, env.ID, p, srv, w); err != nil {
+			if err := handleNewSession(ctx, env.ID, p, srv); err != nil {
 				code := protocol.ErrCodeSpawn
 				switch {
 				case isBadIntent(err):
@@ -78,54 +80,54 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				case strings.Contains(err.Error(), "too many concurrent sessions"):
 					code = protocol.ErrCodeTooManySessions
 				}
-				writeError(w, env.ID, code, err.Error())
+				c.sendError(env.ID, code, err.Error())
 			}
 		case protocol.IntentDelete:
 			var p protocol.Delete
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			// Stops a running supervisor first so its goroutines don't race with
 			// the on-disk cleanup; disk cleanup is best-effort.
 			if err := srv.deleteSession(p.SessionID, protocol.RemovedByUser); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
 		case protocol.IntentComplete:
 			var p protocol.Complete
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if _, ok := cfg.Store.Get(p.SessionID); !ok {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
 			srv.CompleteSession(p.SessionID)
 		case protocol.IntentSubscribe:
 			var p protocol.Subscribe
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if p.SessionID != "" {
 				if err := requireSessionID(p.SessionID); err != nil {
-					writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+					c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 					continue
 				}
 				var preambleBytes int
 				if p.Replay {
 					if tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax); err == nil && len(tail) > 0 {
-						writeEvent(w, protocol.EventSessionOutput, "", protocol.SessionOutput{
+						c.send(protocol.EventSessionOutput, "", protocol.SessionOutput{
 							SessionID: p.SessionID, Bytes: tail,
 						})
 					}
@@ -134,7 +136,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 					// without one, send them as a preamble.
 					if pre := srv.ModePreamble(p.SessionID); len(pre) > 0 {
 						preambleBytes = len(pre)
-						writeEvent(w, protocol.EventSessionOutput, "", protocol.SessionOutput{
+						c.send(protocol.EventSessionOutput, "", protocol.SessionOutput{
 							SessionID: p.SessionID, Bytes: pre,
 						})
 					}
@@ -143,7 +145,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 					"mode_sync", p.ModeSync, "preamble_bytes", preambleBytes)
 				// Register an output sink for this session for the rest of the connection.
 				outCancel := srv.SubscribeSessionOutput(p.SessionID, func(b []byte) {
-					writeEvent(w, protocol.EventSessionOutput, "", protocol.SessionOutput{
+					c.send(protocol.EventSessionOutput, "", protocol.SessionOutput{
 						SessionID: p.SessionID, Bytes: b,
 					})
 				})
@@ -153,33 +155,33 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		case protocol.IntentResize:
 			var p protocol.Resize
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if p.Cols == 0 || p.Rows == 0 {
 				continue
 			}
 			if err := srv.Resize(p.SessionID, p.Cols, p.Rows); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 			}
 
 		case protocol.IntentSendInput:
 			var p protocol.SendInput
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			ch := srv.InputChannel(p.SessionID)
 			if ch == nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not running")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
 				continue
 			}
 			select {
@@ -188,22 +190,22 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 					srv.cancelRetireOnInput(p.SessionID, "SendInput")
 				}
 			default:
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
 			}
 
 		case protocol.IntentReply:
 			var p protocol.Reply
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			ch := srv.InputChannel(p.SessionID)
 			if ch == nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not running")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
 				continue
 			}
 			// Text, then Enter as a separate write. Terminals send Enter as
@@ -213,7 +215,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			select {
 			case ch <- []byte(p.Text):
 			default:
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
 				continue
 			}
 			time.Sleep(replySubmitDelay)
@@ -222,28 +224,28 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
 				srv.cancelRetireOnInput(p.SessionID, "Reply")
 			default:
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
 			}
 
 		case protocol.IntentRename:
 			var p protocol.Rename
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := validateRename(p); err != nil {
 				slog.Warn("server: rename rejected", "session", p.SessionID, "slug", p.Slug, "reason", err, "req_id", env.ID)
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			sess, ok := srv.cfg.Store.Get(p.SessionID)
 			if !ok {
 				slog.Warn("server: rename rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
 			if err := srv.cfg.Store.UpdateRename(p.SessionID, p.Slug, p.Title); err != nil {
@@ -251,11 +253,11 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 				if errors.As(err, &taken) {
 					slog.Warn("server: rename rejected, slug taken", "session", p.SessionID,
 						"slug", p.Slug, "holder", taken.ShortID, "req_id", env.ID)
-					writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+					c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 					continue
 				}
 				slog.Warn("server: rename failed", "session", p.SessionID, "err", err, "req_id", env.ID)
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
 			if err := state.WriteMeta(srv.cfg.StateDir, sess); err != nil {
@@ -266,28 +268,28 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		case protocol.IntentSetSessionName:
 			var p protocol.SetSessionName
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			name, err := protocol.NormalizeSessionName(p.Name)
 			if err != nil {
 				slog.Warn("server: set_name rejected", "session", p.SessionID, "reason", err, "req_id", env.ID)
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			sess, ok := srv.cfg.Store.Get(p.SessionID)
 			if !ok {
 				slog.Warn("server: set_name rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
 			changed, err := srv.cfg.Store.SetName(p.SessionID, name)
 			if err != nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
 			// Broadcast even when unchanged: it is the confirmation clients wait on.
@@ -298,28 +300,28 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		case protocol.IntentRetire:
 			var p protocol.Retire
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			at, ttl, err := srv.retireDeadline(p.TTLSeconds)
 			if err != nil {
 				slog.Warn("retire: invalid ttl", "session", p.SessionID, "ttl_s", p.TTLSeconds, "err", err)
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			sess, ok := srv.cfg.Store.Get(p.SessionID)
 			if !ok {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
 			markedAt := srv.now().Round(0).UTC()
 			changed, err := srv.cfg.Store.SetRetire(p.SessionID, at, markedAt)
 			if err != nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
 			if !changed {
@@ -334,27 +336,27 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		case protocol.IntentUnretire:
 			var p protocol.Unretire
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			sess, ok := srv.cfg.Store.Get(p.SessionID)
 			if !ok {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
 			remaining := time.Until(sess.Summary().RetireAt)
 			changed, err := srv.cfg.Store.ClearRetire(p.SessionID)
 			if errors.Is(err, state.ErrReaping) {
 				slog.Warn("retire: unmark rejected; clearing", "session", p.SessionID)
-				writeError(w, env.ID, protocol.ErrCodeBadState, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadState, err.Error())
 				continue
 			}
 			if err != nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
 			if changed {
@@ -365,20 +367,20 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		case protocol.IntentSetSessionFleet:
 			var p protocol.SetSessionFleet
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			if err := requireSessionID(p.SessionID); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			sess, ok := srv.cfg.Store.Get(p.SessionID)
 			if !ok {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, "session not found")
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
 				continue
 			}
 			if err := srv.cfg.Store.SetFleet(p.SessionID, p.Fleet); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeUnknownSession, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
 				continue
 			}
 			if err := state.WriteMeta(srv.cfg.StateDir, sess); err != nil {
@@ -394,7 +396,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		case protocol.IntentSetMaxConcurrent:
 			var p protocol.SetMaxConcurrent
 			if err := json.Unmarshal(env.Data, &p); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 				continue
 			}
 			srv.SetMaxConcurrentSessions(p.N)
@@ -403,7 +405,7 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 		// platforms (Windows) that cannot signal the daemon.
 		case protocol.IntentShutdown:
 			if cfg.OnShutdown == nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 				continue
 			}
 			slog.Info("server: shutdown requested by client")
@@ -411,15 +413,15 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 
 		case protocol.IntentReload:
 			if cfg.OnReload == nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 				continue
 			}
 			if err := cfg.OnReload(); err != nil {
-				writeError(w, env.ID, protocol.ErrCodeBadIntent, err.Error())
+				c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 			}
 
 		default:
-			writeError(w, env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
+			c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 		}
 	}
 }
