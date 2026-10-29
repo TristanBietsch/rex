@@ -101,6 +101,13 @@ func acquireStateLock(dir string) (*os.File, error) {
 	return f, nil
 }
 
+// Abort releases what New claimed (the state-dir lock) for a Server that will
+// not Serve, e.g. when startup fails after New.
+func (s *Server) Abort() {
+	releaseStateLock(s.stateLock)
+	s.stateLock = nil
+}
+
 // releaseStateLock drops the lock (closing the file releases it).
 func releaseStateLock(f *os.File) {
 	if f != nil {

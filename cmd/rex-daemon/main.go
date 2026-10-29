@@ -85,22 +85,8 @@ func run(args []string) error {
 		return fmt.Errorf("socket dir: %w", err)
 	}
 
+	// Filled from disk once server.New holds the state-dir lock (below).
 	store := state.NewStore()
-	prior, err := state.LoadAll(*stateDir)
-	if err != nil {
-		slog.Error("daemon: load prior sessions failed", "state_dir", *stateDir, "err", err)
-		return fmt.Errorf("load prior sessions: %w", err)
-	}
-	slog.Info("daemon: prior sessions restored", "count", len(prior))
-	for _, s := range prior {
-		_ = store.Add(s)
-	}
-	// Older daemons allowed duplicate slugs. Keep the sessions (selectors
-	// report them as ambiguous) but say so; renaming one resolves it.
-	for slug, shorts := range store.DuplicateSlugs() {
-		slog.Warn("daemon: duplicate slug in restored sessions (select by short id or rename)",
-			"slug", slug, "short_ids", shorts)
-	}
 
 	// Load settings — same config.yaml the TUI writes to. Missing file is fine;
 	// the registry defaults apply.
@@ -169,6 +155,26 @@ func run(args []string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
+	}
+
+	// Load prior sessions only now that New holds the state-dir lock: during
+	// a restart the old daemon may still be saving its sessions, and LoadAll
+	// deletes meta temp files it would be mid-way through renaming.
+	prior, err := state.LoadAll(*stateDir)
+	if err != nil {
+		srv.Abort()
+		slog.Error("daemon: load prior sessions failed", "state_dir", *stateDir, "err", err)
+		return fmt.Errorf("load prior sessions: %w", err)
+	}
+	slog.Info("daemon: prior sessions restored", "count", len(prior))
+	for _, s := range prior {
+		_ = store.Add(s)
+	}
+	// Older daemons allowed duplicate slugs. Keep the sessions (selectors
+	// report them as ambiguous) but say so; renaming one resolves it.
+	for slug, shorts := range store.DuplicateSlugs() {
+		slog.Warn("daemon: duplicate slug in restored sessions (select by short id or rename)",
+			"slug", slug, "short_ids", shorts)
 	}
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
@@ -147,6 +148,44 @@ func TestRun_ListeningBannerOnceSocketAnswers(t *testing.T) {
 		require.NoError(t, err)
 	case <-time.After(10 * time.Second):
 		t.Fatal("daemon did not shut down")
+	}
+}
+
+// A second daemon must be refused before it touches the state dir: loading
+// sessions deletes meta temp files the running daemon may be renaming.
+func TestRun_SecondDaemonLeavesStateAlone(t *testing.T) {
+	dir := daemonEnv(t)
+	sock := filepath.Join(dir, "rex.sock")
+	first := runDaemon(dir, sock)
+	require.Eventually(t, func() bool {
+		c, err := client.Dial(sock)
+		if err == nil {
+			_ = c.Close()
+		}
+		return err == nil
+	}, 10*time.Second, 20*time.Millisecond, "first daemon never listened")
+
+	tmp := filepath.Join(dir, "state", "sessions", "s1", "meta-1.tmp")
+	require.NoError(t, os.MkdirAll(filepath.Dir(tmp), 0o700))
+	require.NoError(t, os.WriteFile(tmp, []byte("{}"), 0o600))
+
+	select {
+	case err := <-runDaemon(dir, sock):
+		require.ErrorIs(t, err, server.ErrAlreadyRunning)
+	case <-time.After(10 * time.Second):
+		t.Fatal("second daemon did not return")
+	}
+	require.FileExists(t, tmp, "refused daemon deleted the running daemon's temp file")
+
+	c, err := client.Dial(sock)
+	require.NoError(t, err)
+	require.NoError(t, c.Shutdown())
+	_ = c.Close()
+	select {
+	case err := <-first:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("first daemon did not shut down")
 	}
 }
 
