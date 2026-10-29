@@ -2,6 +2,9 @@ package setup
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -72,11 +75,60 @@ func TestRenderStatus_Symbols(t *testing.T) {
 	}
 }
 
-func TestCheckDir_Writable(t *testing.T) {
+func TestCheckDir_Exists(t *testing.T) {
 	dir := t.TempDir()
 	r := checkDir("test dir", dir)
 	if r.Status != checkPass {
-		t.Errorf("expected PASS for writable dir, got %v: %s", r.Status, r.Detail)
+		t.Errorf("expected PASS for existing dir, got %v: %s", r.Status, r.Detail)
+	}
+}
+
+// Diagnosis must not create anything: a missing dir is reported, not made.
+func TestCheckDir_MissingIsNotCreated(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "absent")
+	r := checkDir("test dir", dir)
+	if r.Status != checkInfo {
+		t.Errorf("expected INFO for missing dir, got %v: %s", r.Status, r.Detail)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("checkDir created %s (stat err %v)", dir, err)
+	}
+}
+
+func TestCheckDir_FileIsFail(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(f, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := checkDir("test dir", f); r.Status != checkFail {
+		t.Errorf("expected FAIL for a file, got %v: %s", r.Status, r.Detail)
+	}
+}
+
+// rex daemon start runs the rex-daemon next to rex even when PATH has none,
+// so doctor must not report it missing.
+func TestCheckDaemonBinary_NextToRex(t *testing.T) {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "rex-daemon"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	sibling := filepath.Join(filepath.Dir(self), name)
+	if _, err := os.Stat(sibling); err == nil {
+		t.Skip("a rex-daemon already sits next to the test binary")
+	}
+	if err := os.WriteFile(sibling, []byte("x"), 0o755); err != nil {
+		t.Skipf("cannot write next to the test binary: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(sibling) })
+	t.Setenv("PATH", t.TempDir())
+
+	r := checkDaemonBinary()
+	if r.Status != checkPass || r.Detail != sibling {
+		t.Fatalf("got %v %q, want PASS %q", r.Status, r.Detail, sibling)
 	}
 }
 

@@ -136,13 +136,24 @@ func checkRexBinary() checkResult {
 	return checkResult{"rex binary", checkWarn, fmt.Sprintf("PATH has %s but running %s", pathBin, self)}
 }
 
-// checkDaemonBinary checks that rex-daemon is on PATH.
+// checkDaemonBinary checks that rex-daemon can be found the way `rex daemon
+// start` looks for it: next to rex first, then on PATH.
 func checkDaemonBinary() checkResult {
-	path, err := exec.LookPath("rex-daemon")
-	if err != nil {
-		return checkResult{"rex-daemon binary", checkFail, "not found on PATH"}
+	path := daemonBinary()
+	if path == "" {
+		return checkResult{"rex-daemon binary", checkFail, "not found next to rex or on PATH"}
 	}
 	return checkResult{"rex-daemon binary", checkPass, path}
+}
+
+// daemonBinary is the rex-daemon that `rex daemon start` would run, or ""
+// when there is none. daemonctl.FindBinary falls back to the bare name
+// (so exec reports the error); every path it actually finds is absolute.
+func daemonBinary() string {
+	if path := daemonctl.FindBinary(); filepath.IsAbs(path) {
+		return path
+	}
+	return ""
 }
 
 // checkDaemonReachable checks that the daemon socket is answering.
@@ -153,20 +164,19 @@ func checkDaemonReachable(socket string) checkResult {
 	return checkResult{"daemon reachable", checkWarn, fmt.Sprintf("socket not responding — run: rex daemon start  (socket=%s)", socket)}
 }
 
-// checkDir verifies that a directory exists and is writable.
+// checkDir verifies that a directory exists. It only looks: diagnosing must
+// not create anything. A missing dir is INFO, since rex creates it on first
+// use.
 func checkDir(name, dir string) checkResult {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return checkResult{name, checkFail, fmt.Sprintf("cannot create %s: %v", dir, err)}
+	info, err := os.Stat(dir)
+	switch {
+	case os.IsNotExist(err):
+		return checkResult{name, checkInfo, fmt.Sprintf("not created yet: %s", dir)}
+	case err != nil:
+		return checkResult{name, checkFail, fmt.Sprintf("cannot stat %s: %v", dir, err)}
+	case !info.IsDir():
+		return checkResult{name, checkFail, fmt.Sprintf("not a directory: %s", dir)}
 	}
-
-	// Write-test via a temp file.
-	tmp, err := os.CreateTemp(dir, ".rex-doctor-*")
-	if err != nil {
-		return checkResult{name, checkFail, fmt.Sprintf("not writable (%s): %v", dir, err)}
-	}
-	_ = tmp.Close()
-	_ = os.Remove(tmp.Name())
-
 	return checkResult{name, checkPass, dir}
 }
 

@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -65,7 +64,7 @@ func RunUninstall(args []string) error {
 		return core.NewExitError(core.ExitGeneric, "cannot resolve rex symlink: "+err.Error())
 	}
 
-	rexDaemonBin, _ := exec.LookPath("rex-daemon")
+	rexDaemonBin := daemonBinary()
 
 	// State / share / config dirs.
 	stateDir := filepath.Join(home, ".local", "state", "rex")
@@ -91,7 +90,7 @@ func RunUninstall(args []string) error {
 			if rexDaemonBin != "" {
 				fmt.Println("                 " + core.HelpCmd.Render(rexDaemonBin))
 			} else {
-				fmt.Println("                 " + core.HelpDim.Render("rex-daemon  (not found on PATH)"))
+				fmt.Println("                 " + core.HelpDim.Render("rex-daemon  (not found next to rex or on PATH)"))
 			}
 		}
 	}
