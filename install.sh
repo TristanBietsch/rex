@@ -194,13 +194,19 @@ printf "\n  %s∴ rex installer%s  %s%s%s\n" \
 
 # ── temp files ────────────────────────────────────────────────────────────────
 
+# LOG captures work()'s output in spinner mode and is shown on failure.
+# META carries KEY=1 flags out of the backgrounded work(); it is read with
+# grep, never sourced.
 LOG="$(mktemp -t rex-install.XXXXXX)"
-META="$LOG.meta"
+META="$(mktemp -t rex-install-meta.XXXXXX)"
 trap 'rm -f "$LOG" "$META"; printf "\033[?25h"' EXIT
 
 # ── install pipeline ──────────────────────────────────────────────────────────
 # work() runs every fallible step. Return codes propagate; set -e is suppressed
 # when work() is called inside an `if !` test (that's intentional).
+# Steps write to stdout/stderr only: the caller streams them (--verbose) or
+# redirects them into $LOG (spinner). Writing to $LOG from inside work() would
+# race the caller's redirect and clobber the log.
 
 work() {
   if [[ $SKIP_BUILD -eq 0 ]]; then
@@ -210,15 +216,13 @@ work() {
       return 1
     fi
     echo "→ building rex"
-    if ! go build -ldflags "$LDFLAGS" -o rex ./cmd/rex >>"$LOG" 2>&1; then
-      printf "%serror:%s build failed. Tail of build log:\n" "$C_ERR" "$C_RESET" >&2
-      tail -20 "$LOG" >&2
+    if ! go build -ldflags "$LDFLAGS" -o rex ./cmd/rex; then
+      printf "%serror:%s build of rex failed\n" "$C_ERR" "$C_RESET" >&2
       return 1
     fi
     echo "→ building rex-daemon"
-    if ! go build -ldflags "$LDFLAGS" -o rex-daemon ./cmd/rex-daemon >>"$LOG" 2>&1; then
-      printf "%serror:%s build failed. Tail of build log:\n" "$C_ERR" "$C_RESET" >&2
-      tail -20 "$LOG" >&2
+    if ! go build -ldflags "$LDFLAGS" -o rex-daemon ./cmd/rex-daemon; then
+      printf "%serror:%s build of rex-daemon failed\n" "$C_ERR" "$C_RESET" >&2
       return 1
     fi
   else
@@ -238,17 +242,17 @@ work() {
   if [[ -n "$rex_for_stop" ]] && "$rex_for_stop" daemon status >/dev/null 2>&1; then
     echo "→ stopping running daemon"
     "$rex_for_stop" daemon stop >/dev/null 2>&1 || true
-    echo "DAEMON_WAS_RUNNING=1" >> "$META"
+    echo "DAEMON_WAS_RUNNING=1" >>"$META"
   fi
 
   mkdir -p "$BIN_DIR" || return 1
   echo "→ installing to $BIN_DIR"
-  if ! install -m 0755 rex "$BIN_DIR/rex" 2>>"$LOG"; then
+  if ! install -m 0755 rex "$BIN_DIR/rex"; then
     printf "%serror:%s cannot write to %s. Use PREFIX=/usr/local with sudo, or pick another prefix.\n" \
       "$C_ERR" "$C_RESET" "$BIN_DIR" >&2
     return 1
   fi
-  if ! install -m 0755 rex-daemon "$BIN_DIR/rex-daemon" 2>>"$LOG"; then
+  if ! install -m 0755 rex-daemon "$BIN_DIR/rex-daemon"; then
     printf "%serror:%s cannot write to %s. Use PREFIX=/usr/local with sudo, or pick another prefix.\n" \
       "$C_ERR" "$C_RESET" "$BIN_DIR" >&2
     return 1
@@ -293,7 +297,9 @@ fi
 INSTALLED_VERSION="$("$BIN_DIR/rex" --version 2>/dev/null || echo "?")"
 
 DAEMON_WAS_RUNNING=0
-[[ -f "$META" ]] && source "$META"
+if grep -qx 'DAEMON_WAS_RUNNING=1' "$META" 2>/dev/null; then
+  DAEMON_WAS_RUNNING=1
+fi
 
 printf "  %s✓%s %srex %s%s installed%s\n" \
   "$C_OK" "$C_RESET" "$C_BOLD" "$INSTALLED_VERSION" "$C_RESET" "$C_RESET"
@@ -320,7 +326,7 @@ case ":$PATH:" in
     ;;
 esac
 
-if [[ ${DAEMON_WAS_RUNNING:-0} -eq 1 ]]; then
+if [[ $DAEMON_WAS_RUNNING -eq 1 ]]; then
   printf "\n  %srun%s %s%srex%s%s — daemon will restart on the new binary%s\n" \
     "$C_MUTED" "$C_RESET" "$C_BOLD" "$C_ACCENT" "$C_RESET" "$C_MUTED" "$C_RESET"
 fi
