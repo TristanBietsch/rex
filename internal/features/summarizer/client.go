@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -13,8 +14,12 @@ import (
 // connection so we don't repeatedly handshake against the local daemon.
 type Client struct {
 	baseURL string
-	model   string
 	http    *http.Client
+
+	// mu guards model: the daemon's health probe swaps it while the worker
+	// may be inside Generate.
+	mu    sync.Mutex
+	model string
 }
 
 // NewClient builds a Client. Falls back to library defaults when fields are zero.
@@ -38,10 +43,19 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
-// SetModel updates which model subsequent Generate calls will target.
-// Safe to call between Generate calls; not safe to call concurrently with one.
+// SetModel updates which model subsequent Generate calls will target. Safe to
+// call concurrently with Generate; a call already in flight keeps its model.
 func (c *Client) SetModel(model string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.model = model
+}
+
+// Model returns the model Generate currently targets.
+func (c *Client) Model() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.model
 }
 
 type generateRequest struct {
@@ -61,7 +75,7 @@ type generateResponse struct {
 // Generate calls /api/generate with the configured model and returns the response text.
 func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 	body := generateRequest{
-		Model:     c.model,
+		Model:     c.Model(),
 		Prompt:    prompt,
 		Stream:    false,
 		KeepAlive: "30m",

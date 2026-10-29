@@ -208,14 +208,39 @@ func TestResolveModel_EmptyConfigured(t *testing.T) {
 	require.Equal(t, "gemma3:1b", got)
 }
 
-func TestWorker_SetModelUpdatesConfigAndClient(t *testing.T) {
+func TestWorker_SetModelUpdatesClient(t *testing.T) {
 	store := state.NewStore()
 	w := New(Config{Model: "gemma2:2b", BaseURL: "http://127.0.0.1:11434"},
 		store, func(string, int) []byte { return nil })
-	require.Equal(t, "gemma2:2b", w.cfg.Model)
+	require.Equal(t, "gemma2:2b", w.client.Model())
 	w.SetModel("llama3.1")
-	require.Equal(t, "llama3.1", w.cfg.Model)
-	require.Equal(t, "llama3.1", w.client.model)
+	require.Equal(t, "llama3.1", w.client.Model())
+}
+
+// The daemon's health probe swaps the model from its own goroutine while the
+// worker may be inside Generate. Run with -race.
+func TestWorker_SetModelDuringGenerate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"response":"ok"}`)
+	}))
+	defer srv.Close()
+	cfg := Defaults()
+	cfg.BaseURL = srv.URL
+	w := New(cfg, state.NewStore(), func(string, int) []byte { return nil })
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 20; i++ {
+			w.SetModel("gemma3:1b")
+			w.SetModel("gemma2:2b")
+		}
+	}()
+	for i := 0; i < 20; i++ {
+		_, err := w.client.Generate(context.Background(), "hi")
+		require.NoError(t, err)
+	}
+	<-done
 }
 
 // With nothing readable on screen, a prompt built from the slug alone makes
