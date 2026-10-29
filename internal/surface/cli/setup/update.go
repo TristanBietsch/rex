@@ -312,7 +312,7 @@ func runUpdateCheck() error {
 }
 
 // readInstalledVersion runs `rex --version` on the current executable to get
-// the post-upgrade version string. Falls back to core.Version constant on error
+// the post-upgrade version string. Falls back to core.Version on error
 // (go install replaces the binary, so os.Executable() may now be new).
 func readInstalledVersion() string {
 	exe, err := os.Executable()

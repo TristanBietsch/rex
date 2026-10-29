@@ -1,10 +1,33 @@
-// Package cli implements the rex CLI subcommands.
+// Package core holds what the rex CLI subcommands share: exit codes,
+// argument parsing, selectors, output formatting, and help.
 package core
 
-import "fmt"
+import (
+	"fmt"
+	"runtime/debug"
+)
 
-// Version is the rex CLI release label.
-const Version = "v1"
+// Version is the rex release label. Release builds set it with
+//
+//	-ldflags "-X github.com/tristanbietsch/rex/internal/surface/cli/core.Version=v1.2.3"
+//
+// Otherwise it is the module version from the build info (set by
+// `go install …@v1.2.3`), or "dev".
+var Version = "dev"
+
+func init() { Version = resolveVersion(Version, debug.ReadBuildInfo) }
+
+// resolveVersion keeps an ldflags-set v, else falls back to the main
+// module's version from readBuildInfo, else "dev".
+func resolveVersion(v string, readBuildInfo func() (*debug.BuildInfo, bool)) string {
+	if v != "" && v != "dev" {
+		return v
+	}
+	if bi, ok := readBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return "dev"
+}
 
 // ExitCoder is any error that carries a specific exit code.
 type ExitCoder interface {
