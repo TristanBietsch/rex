@@ -172,6 +172,9 @@ func centerOverlay(w, h int, content, bg string) string {
 			popupW = pw
 		}
 	}
+	// A popup wider than the screen is clipped: a line past the right edge
+	// wraps and shifts every row below it.
+	popupW = min(popupW, w)
 	popupH := len(popupLines)
 
 	x := (w - popupW) / 2
@@ -189,18 +192,26 @@ func centerOverlay(w, h int, content, bg string) string {
 			break
 		}
 		bgLine := bgLines[row]
-		bgW := ansi.StringWidth(bgLine)
-		if bgW < x+popupW {
-			bgLine += strings.Repeat(" ", x+popupW-bgW)
-		}
-		left := ansi.Truncate(bgLine, x, "")
-		right := ansi.TruncateLeft(bgLine, x+popupW, "")
-		plW := ansi.StringWidth(pl)
-		if plW < popupW {
-			pl += strings.Repeat(" ", popupW-plW)
-		}
-		bgLines[row] = left + pl + right
+		// Exact columns on both sides: a wide rune of the board straddling
+		// an edge used to shift the popup row (left cut) or widen the line
+		// (right cut) by one column.
+		bgLines[row] = fitColumns(bgLine, x) + fitColumns(pl, popupW) + cutLeft(bgLine, x+popupW)
 	}
 
 	return strings.Join(bgLines, "\n")
+}
+
+// cutLeft drops the first n columns of s and keeps exactly the width that
+// remains; a wide rune straddling column n becomes a space (ansi.TruncateLeft
+// keeps it, one column too many).
+func cutLeft(s string, n int) string {
+	want := ansi.StringWidth(s) - n
+	if want <= 0 {
+		return ""
+	}
+	r := ansi.TruncateLeft(s, n, "")
+	if ansi.StringWidth(r) > want {
+		r = " " + ansi.TruncateLeft(s, n+1, "")
+	}
+	return r
 }
