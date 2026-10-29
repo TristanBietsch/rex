@@ -19,17 +19,17 @@ func TestNewSessionID_FormatAndUniqueness(t *testing.T) {
 	}
 }
 
-func TestShortID_FirstFourHex(t *testing.T) {
+func TestExtendShortID_FirstFourHex(t *testing.T) {
 	id := "7d4f3c8a-1234-4abc-89ab-cdefabcdef01"
-	require.Equal(t, "7d4f", ShortID(id))
+	require.Equal(t, "7d4f", ExtendShortID(id, nil))
 }
 
 func TestExtendShortID_GrowsOnCollision(t *testing.T) {
 	a := "7d4f3c8a-1234-4abc-89ab-cdefabcdef01"
 	b := "7d4f9999-1234-4abc-89ab-cdefabcdef02" // shares first 4 hex with a
-	taken := map[string]struct{}{ShortID(a): {}}
+	taken := map[string]struct{}{a[:4]: {}}
 	// ExtendShortID(b, taken) must return at least 5 chars
 	got := ExtendShortID(b, taken)
 	require.GreaterOrEqual(t, len(got), 5)
-	require.NotEqual(t, ShortID(a), got)
+	require.NotEqual(t, a[:4], got)
 }

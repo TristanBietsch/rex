@@ -47,8 +47,8 @@ func TestTail_CutsOnLineBoundary(t *testing.T) {
 	require.Equal(t, "first line here\nsecond line here\nthird line here", Tail(raw, 0))
 }
 
-func TestLastLine_Empty(t *testing.T) {
-	require.Equal(t, "", LastLine([]byte("✶\n──\n")))
+func TestLines_ChromeOnlyIsEmpty(t *testing.T) {
+	require.Empty(t, Lines([]byte("✶\n──\n")))
 }
 
 // Rendered screens from live claude / codex sessions: the last content line is

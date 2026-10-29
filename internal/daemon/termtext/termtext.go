@@ -91,15 +91,6 @@ func ScreenLines(screen string) []string {
 	return Lines([]byte(screen))
 }
 
-// LastLine returns the last readable line of b, or "" when none.
-func LastLine(b []byte) string {
-	lines := Lines(b)
-	if len(lines) == 0 {
-		return ""
-	}
-	return lines[len(lines)-1]
-}
-
 // chromeHints are status-bar / key-hint fragments agent TUIs redraw
 // constantly. A line containing one is UI furniture, not agent output.
 var chromeHints = []string{

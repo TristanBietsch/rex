@@ -18,14 +18,6 @@ func NewSessionID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
-// ShortID returns the first 4 hex chars of an id.
-func ShortID(id string) string {
-	if len(id) < 4 {
-		return id
-	}
-	return id[:4]
-}
-
 // ExtendShortID returns the smallest prefix of id (>=4 chars) not present in taken.
 // Used to disambiguate when two sessions happen to share the first four hex.
 func ExtendShortID(id string, taken map[string]struct{}) string {
