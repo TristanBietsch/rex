@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // attachHoldWindow is how long a lone escape rune (':' or 'q') typed in the
@@ -156,8 +157,22 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, completeSessionCmd(m.Client, a.SessionID)
-	case "name", "rename":
+	case "name":
 		return m, setNameCmd(namerOf(m), a.SessionID, rest)
+	case "rename":
+		// The board's ":rename" (it changes the slug, not the display
+		// name), aimed at the attached session: "::rename <new-slug>".
+		// The full "<sel> <new-slug>" form runs as the board command.
+		if len(parts) == 2 {
+			if err := protocol.ValidateSlug(parts[1]); err != nil {
+				m.Err = "rename: " + err.Error()
+				return m, nil
+			}
+			if m.Client == nil {
+				return m, nil
+			}
+			return m, renameCmd(m.Client, a.SessionID, parts[1])
+		}
 	}
 	m, off := detach(m)
 	m, cmd := executeCommand(m, line)
