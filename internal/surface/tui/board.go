@@ -349,12 +349,13 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	// Marker is the only indicator for the selected row — no bg fill,
 	// avoids the chunky highlight artifacts.
 	var markerPrefix string
-	if selected {
+	switch {
+	case selected:
 		markerPrefix = styleArrow.Render("▸")
-	} else if s.Fleet != "" {
+	case s.Fleet != "":
 		// Fleet indicator: tinted left border using the fleet's stable color.
 		markerPrefix = lipgloss.NewStyle().Foreground(fleetColor(s.Fleet)).Render("▍")
-	} else {
+	default:
 		markerPrefix = " "
 	}
 

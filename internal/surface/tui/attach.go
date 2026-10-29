@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -359,7 +360,7 @@ func updateAttachKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, cmd
 	}
-	b := append(prefix, keyToBytes(k)...)
+	b := slices.Concat(prefix, keyToBytes(k))
 	if len(b) == 0 {
 		return m, nil
 	}
@@ -484,11 +485,12 @@ func renderAttach(m Model) string {
 		lines = append(lines, attachViewRow(a, y, cols, cx))
 	}
 	lines = append(lines, styleBorderFg.Render(strings.Repeat("─", cols)))
-	if m.Focus == FocusCommand {
+	switch {
+	case m.Focus == FocusCommand:
 		lines = append(lines, ansi.Truncate(renderAttachCommandBar(m, cols), cols, "…"))
-	} else if a.Scrolling() {
+	case a.Scrolling():
 		lines = append(lines, ansi.Truncate(attachScrollFooter(a, cols), cols, "…"))
-	} else {
+	default:
 		lines = append(lines, ansi.Truncate(attachFooter(m, a, cols), cols, "…"))
 	}
 	return strings.Join(lines, "\n")
@@ -497,11 +499,12 @@ func renderAttach(m Model) string {
 func attachTitleBar(m Model, a *AttachState, width int) string {
 	sum, haveSum := findSession(m.Sessions, a.SessionID)
 	var stateChip string
-	if a.Ended {
+	switch {
+	case a.Ended:
 		stateChip = lipgloss.NewStyle().Bold(true).Foreground(colorFailed).Render("✕ ended")
-	} else if haveSum {
+	case haveSum:
 		stateChip = attachStateChip(m, sum.State)
-	} else {
+	default:
 		stateChip = styleDim.Render("· unknown")
 	}
 	// Session text is untrusted: one row, or the popup grows and shifts off

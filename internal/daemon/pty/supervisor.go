@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -315,7 +316,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				visible := hasVisibleText(chunk)
 				text := chunk
 				if len(partial) > 0 {
-					text = append(partial, chunk...)
+					text = slices.Concat(partial, chunk)
 				}
 				keep := incompleteRuneTail(text)
 				_, _ = screen.Write(text[:len(text)-keep])
@@ -499,11 +500,11 @@ func incompleteRuneTail(b []byte) int {
 }
 
 func appendBounded(buf, b []byte, cap int) []byte {
-	out := append(buf, b...)
-	if len(out) > cap {
-		out = out[len(out)-cap:]
+	buf = append(buf, b...)
+	if len(buf) > cap {
+		buf = buf[len(buf)-cap:]
 	}
-	return out
+	return buf
 }
 
 // killAndReap kills the child's whole process tree (console.KillTree) —
