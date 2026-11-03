@@ -84,6 +84,9 @@ type SetupWizardModel struct {
 	daemonSocket   string
 
 	// step: defaults
+	// toolsErr is why ~/.config/rex/tools.yaml couldn't be used; tools then
+	// holds the built-in registry and the welcome and defaults steps say so.
+	toolsErr      error
 	tools         []registry.Tool
 	toolIdx       int
 	defaultModel  string // free text
@@ -146,9 +149,20 @@ type writeResult struct {
 func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	slog.Info("setup: wizard initialising", "config_path", configPath, "socket", socket)
 
-	// tools
-	reg, _ := registry.Load(toolsConfigPath())
-	visible := visibleTools(reg.Tools)
+	// tools: a broken user tools.yaml falls back to the built-ins (shown to
+	// the user via toolsErr) instead of a nil registry.
+	toolsPath := toolsConfigPath()
+	var all []registry.Tool
+	reg, toolsErr, err := loadToolsOrBuiltin(toolsPath)
+	if toolsErr != nil {
+		slog.Warn("setup: tools.yaml unusable; offering built-in tools", "path", toolsPath, "err", toolsErr)
+	}
+	if err != nil {
+		slog.Error("setup: built-in tool registry failed to load", "err", err)
+	} else {
+		all = reg.Tools
+	}
+	visible := visibleTools(all)
 
 	// settings options from registry
 	colorSchemeOpts := enumOptions("color_scheme")
@@ -195,6 +209,7 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 
 		daemonSocket: socket,
 
+		toolsErr:      toolsErr,
 		tools:         visible,
 		toolIdx:       0,
 		defaultModel:  defaultModel,
@@ -821,6 +836,10 @@ func (m SetupWizardModel) View() string {
 	body = padOrTrim(body, setupBodyLines)
 
 	lines := []string{styleSlug.Render(title)}
+	if m.step == setupStepWelcome || m.step == setupStepDefaults {
+		// Above the fixed-height body so the steps' own lines aren't clipped.
+		lines = append(lines, m.toolsWarningLines()...)
+	}
 	lines = append(lines, body...)
 	lines = append(lines, "", styleDim.Render(footer))
 
@@ -834,6 +853,24 @@ const (
 	setupWidth     = 78
 	setupBodyLines = 14
 )
+
+// toolsWarningLines explains a tools.yaml fallback: a headline plus the load
+// error wrapped to the popup (at most three lines) so the user can fix the
+// file. Nil when tools.yaml loaded fine.
+func (m SetupWizardModel) toolsWarningLines() []string {
+	if m.toolsErr == nil {
+		return nil
+	}
+	out := []string{"  " + styleBootWarn.Render("!") + " tools.yaml ignored — using the built-in tools"}
+	wrapped := lipgloss.NewStyle().Width(setupWidth - 4).Render(m.toolsErr.Error())
+	for i, l := range strings.Split(wrapped, "\n") {
+		if i == 3 {
+			break
+		}
+		out = append(out, "    "+styleDim.Render(l))
+	}
+	return out
+}
 
 func (m SetupWizardModel) renderOverlay(title string, body []string) string {
 	body = padOrTrim(body, setupBodyLines)
