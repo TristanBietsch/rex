@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -14,7 +15,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
@@ -26,9 +26,47 @@ var (
 	updateErr    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E05C5C"))
 )
 
+// updateDeps are RunUpdate's side effects. Tests replace them so the
+// ordering of detect, stop and upgrade can be checked without touching a
+// real daemon, binary or network.
+type updateDeps struct {
+	out, errOut      io.Writer
+	stdin            io.Reader
+	detectMode       func() (installMode, string, error)
+	daemon           daemonControl
+	goInstall        func(verbose bool) error
+	fromSource       func(dir string, verbose bool) error
+	installedVersion func() string
+}
+
+// defaultUpdateDeps wires RunUpdate to the real system.
+func defaultUpdateDeps() updateDeps {
+	return updateDeps{
+		out:              os.Stdout,
+		errOut:           os.Stderr,
+		stdin:            os.Stdin,
+		detectMode:       detectInstallMode,
+		daemon:           defaultDaemonControl(),
+		goInstall:        upgradeGoInstall,
+		fromSource:       upgradeFromSource,
+		installedVersion: readInstalledVersion,
+	}
+}
+
 // RunUpdate upgrades the rex and rex-daemon binaries in place.
+//
+// Ordering invariant: everything that can refuse (install-mode detection,
+// the binary-swap refusal, the confirmation prompt) runs before the daemon
+// is stopped, so a refused or cancelled update never kills the user's
+// sessions. The daemon is stopped, and its socket confirmed closed, only
+// right before the upgrade itself.
 func RunUpdate(args []string) error {
+	return runUpdate(args, defaultUpdateDeps())
+}
+
+func runUpdate(args []string, d updateDeps) error {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	fs.SetOutput(d.errOut)
 	check := fs.Bool("check", false, "print version info and exit without upgrading")
 	yes := fs.Bool("yes", false, "skip confirmation prompt")
 	yShort := fs.Bool("y", false, "skip confirmation prompt (shorthand)")
@@ -38,109 +76,121 @@ func RunUpdate(args []string) error {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
 
-	skipConfirm := *yes || *yShort
-
 	slog.Info("update: starting", "check", *check, "source", *source, "verbose", *verbose)
 
 	// --check: print version and bail.
 	if *check {
-		return runUpdateCheck()
+		return runUpdateCheck(d.out)
 	}
 
-	// Detect install mode.
-	mode, exePath, err := detectInstallMode()
+	mode, exePath, err := d.detectMode()
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: could not determine install mode: %v", err))
 	}
-
-	// Daemon state.
-	socket := core.DefaultSocket()
-	daemonRunning := daemonctl.Reachable(socket)
-
-	// Print plan.
-	fmt.Println()
-	printKV("current", core.Version)
-	printKV("binary", exePath)
-	if *source != "" {
-		printKV("mode", "source checkout (--source)")
-		printKV("source", *source)
-	} else {
-		printKV("mode", modeLabel(mode))
-	}
-	if daemonRunning {
-		printKV("daemon", "running (will stop, then restart on next `rex`)")
-	} else {
-		printKV("daemon", "not running")
-	}
-	fmt.Println()
-
-	if !skipConfirm {
-		fmt.Print("  upgrade now? [Y/n] ")
-		reader := bufio.NewReader(os.Stdin)
-		answer, _ := reader.ReadString('\n')
-		answer = strings.TrimSpace(strings.ToLower(answer))
-		if answer != "" && answer != "y" && answer != "yes" {
-			slog.Info("update: user declined")
-			return core.NewExitError(core.ExitOperationRefused, "upgrade cancelled")
-		}
+	if *source == "" && mode == installModeBinarySwap {
+		return refuseBinarySwap(d.out, exePath)
 	}
 
-	// Stop daemon if running.
-	if daemonRunning {
-		slog.Info("update: stopping daemon before upgrade")
-		if err := stopDaemonForUpdate(); err != nil {
-			// Non-fatal: warn but continue — binary swap is still safe.
-			fmt.Fprintf(os.Stderr, "  %s  warning: could not stop daemon: %v\n", updateErr.Render("!"), err)
-			slog.Info("update: daemon stop warning", "err", err)
-		} else {
-			slog.Info("update: daemon stopped")
-			// Brief pause so the socket releases.
-			time.Sleep(300 * time.Millisecond)
-		}
-	}
+	daemonRunning := d.daemon.running()
+	printUpdatePlan(d.out, exePath, *source, mode, daemonRunning)
 
-	// Run the upgrade.
-	if *source != "" {
-		if err := upgradeFromSource(*source, *verbose); err != nil {
-			slog.Info("update: source upgrade failed", "err", err)
-			return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: %v", err))
-		}
-	} else {
-		switch mode {
-		case installModeGoInstall:
-			if err := upgradeGoInstall(*verbose); err != nil {
-				slog.Info("update: go install failed", "err", err)
-				return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: %v", err))
-			}
-		case installModeBinarySwap:
-			// Cannot self-upgrade; print actionable message.
-			repoHint := guessSourceDir(exePath)
-			if repoHint != "" {
-				fmt.Printf("\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
-				fmt.Printf("  your rex binary is at: %s\n", updateKey.Render(exePath))
-				fmt.Printf("  re-run the checkout's install script to upgrade:\n\n")
-				fmt.Printf("    %s\n\n", updateKey.Render(fmt.Sprintf("cd %s && ./install.sh", repoHint)))
-			} else {
-				fmt.Printf("\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
-				fmt.Printf("  your rex binary is at: %s\n", updateKey.Render(exePath))
-				fmt.Printf("  re-run your original install script (e.g. %s) to upgrade.\n\n",
-					updateKey.Render("./install.sh"))
-			}
-			slog.Info("update: binary-swap mode, cannot self-upgrade", "exe", exePath)
-			return core.NewExitError(core.ExitOperationRefused, "re-run your install script to upgrade (see above)")
-		}
+	skipConfirm := *yes || *yShort
+	if !skipConfirm && !confirmUpdate(d) {
+		slog.Info("update: user declined")
+		return core.NewExitError(core.ExitOperationRefused, "upgrade cancelled")
 	}
-
-	// Print new version.
-	newVer := readInstalledVersion()
-	fmt.Printf("\n  %s %s\n", updateOK.Render("✓"), updateKey.Render(fmt.Sprintf("rex %s → %s", core.Version, newVer)))
 
 	if daemonRunning {
-		fmt.Printf("  %s %s\n", updateBullet.Render("·"), updateVal.Render("daemon will restart on next `rex`"))
+		stopDaemonForUpdate(d)
 	}
-	fmt.Println()
+
+	if err := runUpgrade(d, *source, *verbose); err != nil {
+		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: %v", err))
+	}
+
+	newVer := d.installedVersion()
+	fmt.Fprintf(d.out, "\n  %s %s\n", updateOK.Render("✓"), updateKey.Render(fmt.Sprintf("rex %s → %s", core.Version, newVer)))
+	if daemonRunning {
+		fmt.Fprintf(d.out, "  %s %s\n", updateBullet.Render("·"), updateVal.Render("daemon will restart on next `rex`"))
+	}
+	fmt.Fprintln(d.out)
 
 	slog.Info("update: complete", "old_version", core.Version, "new_version", newVer)
+	return nil
+}
+
+// printUpdatePlan shows what the upgrade will do before asking.
+func printUpdatePlan(w io.Writer, exePath, source string, mode installMode, daemonRunning bool) {
+	fmt.Fprintln(w)
+	printKV(w, "current", core.Version)
+	printKV(w, "binary", exePath)
+	if source != "" {
+		printKV(w, "mode", "source checkout (--source)")
+		printKV(w, "source", source)
+	} else {
+		printKV(w, "mode", modeLabel(mode))
+	}
+	if daemonRunning {
+		printKV(w, "daemon", "running (will stop, then restart on next `rex`)")
+	} else {
+		printKV(w, "daemon", "not running")
+	}
+	fmt.Fprintln(w)
+}
+
+// confirmUpdate asks "upgrade now? [Y/n]"; an empty answer means yes.
+func confirmUpdate(d updateDeps) bool {
+	fmt.Fprint(d.out, "  upgrade now? [Y/n] ")
+	answer, _ := bufio.NewReader(d.stdin).ReadString('\n')
+	answer = strings.TrimSpace(strings.ToLower(answer))
+	return answer == "" || answer == "y" || answer == "yes"
+}
+
+// refuseBinarySwap explains that a binary-swap install (anything not under
+// a Go bin dir, e.g. install.sh's ~/.local/bin) can't upgrade itself, and
+// returns the refusal. It runs before anything is stopped.
+func refuseBinarySwap(w io.Writer, exePath string) error {
+	fmt.Fprintf(w, "\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
+	fmt.Fprintf(w, "  your rex binary is at: %s\n", updateKey.Render(exePath))
+	if repoHint := guessSourceDir(exePath); repoHint != "" {
+		fmt.Fprintf(w, "  re-run the checkout's install script to upgrade:\n\n")
+		fmt.Fprintf(w, "    %s\n\n", updateKey.Render(fmt.Sprintf("cd %s && ./install.sh", repoHint)))
+	} else {
+		fmt.Fprintf(w, "  re-run your original install script (e.g. %s) to upgrade.\n\n",
+			updateKey.Render("./install.sh"))
+	}
+	slog.Info("update: binary-swap mode, cannot self-upgrade", "exe", exePath)
+	return core.NewExitError(core.ExitOperationRefused, "re-run your install script to upgrade (see above)")
+}
+
+// stopDaemonForUpdate stops the daemon and waits for its socket to close,
+// so the next `rex` starts the new daemon binary. Failure is only a
+// warning: replacing the binaries under a running daemon is still safe on
+// Unix, and the old daemon keeps serving until it is restarted.
+func stopDaemonForUpdate(d updateDeps) {
+	slog.Info("update: stopping daemon before upgrade")
+	if err := d.daemon.stopAndWait(); err != nil {
+		fmt.Fprintf(d.errOut, "  %s  warning: could not stop daemon: %v\n", updateErr.Render("!"), err)
+		slog.Info("update: daemon stop warning", "err", err)
+		return
+	}
+	slog.Info("update: daemon stopped")
+}
+
+// runUpgrade runs the source-checkout upgrade when source is set, else go
+// install. Binary-swap installs never get here (refuseBinarySwap).
+func runUpgrade(d updateDeps, source string, verbose bool) error {
+	if source != "" {
+		if err := d.fromSource(source, verbose); err != nil {
+			slog.Info("update: source upgrade failed", "err", err)
+			return err
+		}
+		return nil
+	}
+	if err := d.goInstall(verbose); err != nil {
+		slog.Info("update: go install failed", "err", err)
+		return err
+	}
 	return nil
 }
 
@@ -155,6 +205,8 @@ const (
 	installModeBinarySwap installMode = iota
 )
 
+// detectInstallMode classifies the running rex binary and returns its
+// symlink-resolved path.
 func detectInstallMode() (installMode, string, error) {
 	exe, err := os.Executable()
 	if err != nil {
@@ -165,22 +217,22 @@ func detectInstallMode() (installMode, string, error) {
 	if err != nil {
 		real = exe
 	}
-
 	home, _ := os.UserHomeDir()
-	gopath := os.Getenv("GOPATH")
+	return classifyInstall(real, home, os.Getenv("GOPATH")), real, nil
+}
+
+// classifyInstall reports go-install mode when exe is under $GOPATH/bin
+// (default ~/go/bin) or ~/go/bin, and binary-swap mode otherwise.
+func classifyInstall(exe, home, gopath string) installMode {
 	if gopath == "" {
 		gopath = filepath.Join(home, "go")
 	}
-
-	gopathBin := filepath.Join(gopath, "bin")
-	homeGoBin := filepath.Join(home, "go", "bin")
-
-	for _, prefix := range []string{gopathBin, homeGoBin} {
-		if strings.HasPrefix(real, prefix+string(os.PathSeparator)) || real == filepath.Join(prefix, "rex") {
-			return installModeGoInstall, real, nil
+	for _, binDir := range []string{filepath.Join(gopath, "bin"), filepath.Join(home, "go", "bin")} {
+		if strings.HasPrefix(exe, binDir+string(os.PathSeparator)) {
+			return installModeGoInstall
 		}
 	}
-	return installModeBinarySwap, real, nil
+	return installModeBinarySwap
 }
 
 func modeLabel(m installMode) string {
@@ -190,22 +242,6 @@ func modeLabel(m installMode) string {
 	default:
 		return "binary swap (manual install)"
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Daemon stop (mirrors daemonStop in daemon.go)
-// ---------------------------------------------------------------------------
-
-func stopDaemonForUpdate() error {
-	pid, err := daemonctl.FindPID()
-	if err != nil {
-		return err
-	}
-	if err := daemonctl.Stop(); err != nil {
-		return err
-	}
-	slog.Info("update: sent SIGTERM to daemon", "pid", pid)
-	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -293,11 +329,11 @@ func runSourceStep(dir string, verbose bool, label string, name string, extraArg
 // Helpers
 // ---------------------------------------------------------------------------
 
-func runUpdateCheck() error {
-	fmt.Println()
-	printKV("version", core.Version)
-	printKV("remote", "(version check not yet wired — no remote lookup performed)")
-	fmt.Println()
+func runUpdateCheck(w io.Writer) error {
+	fmt.Fprintln(w)
+	printKV(w, "version", core.Version)
+	printKV(w, "remote", "(version check not yet wired — no remote lookup performed)")
+	fmt.Fprintln(w)
 	slog.Info("update: --check mode, printed version", "version", core.Version)
 	return nil
 }
@@ -342,7 +378,7 @@ func guessSourceDir(exePath string) string {
 	return ""
 }
 
-func printKV(key, val string) {
+func printKV(w io.Writer, key, val string) {
 	k := fmt.Sprintf("  %-10s", key)
-	fmt.Printf("%s %s\n", updateKey.Render(k), updateVal.Render(val))
+	fmt.Fprintf(w, "%s %s\n", updateKey.Render(k), updateVal.Render(val))
 }
