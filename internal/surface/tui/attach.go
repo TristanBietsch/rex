@@ -480,6 +480,8 @@ func attachStateChip(m Model, st protocol.State) string {
 		frames := spinnerFramesFor(m)
 		g := frames[m.SpinnerTick%len(frames)]
 		return bold.Foreground(colorWorking).Render(g + " working")
+	case protocol.StateQueued:
+		return bold.Foreground(colorWorking).Render(queuedGlyph + " queued")
 	case protocol.StateNeedsInput:
 		return bold.Foreground(colorNeeds).Render("◆ needs input")
 	case protocol.StateDone:

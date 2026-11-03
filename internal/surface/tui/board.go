@@ -27,13 +27,15 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 // boardGroups is the canonical kanban layout. Completed includes all terminal
 // states (done/failed/crashed) plus every session the user marked done,
 // whatever its live state; distinct markers (●/✕/○) preserve the at-a-glance
-// distinction within the column.
+// distinction within the column. Working also holds queued sessions (spawned,
+// agent not started yet; marker ◌): every state must land in some group, or
+// the session is invisible and unreachable by keyboard.
 var boardGroups = []boardGroup{
 	{"Needs input", func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
 	}},
 	{"Working", func(s protocol.SessionSummary) bool {
-		return !isMarkedDone(s) && s.State == protocol.StateWorking
+		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued)
 	}},
 	{"Completed", func(s protocol.SessionSummary) bool {
 		return isMarkedDone(s) || s.State == protocol.StateDone ||
@@ -450,6 +452,11 @@ func blinkEnabled(m Model) bool {
 	return b
 }
 
+// queuedGlyph marks a session that is spawned but whose agent hasn't
+// started yet. It sits in the Working column, so it must read as "not
+// running yet" next to the spinner without looking like crashed (○).
+const queuedGlyph = "◌"
+
 // stateMarkerCellFor renders the marker glyph for a state, sourcing the
 // spinner from the live store on m.
 func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) string {
@@ -461,6 +468,8 @@ func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) str
 	case protocol.StateWorking:
 		frames := spinnerFramesFor(m)
 		return style.Foreground(colorWorking).Render(frames[tick%len(frames)])
+	case protocol.StateQueued:
+		return style.Foreground(colorWorking).Render(queuedGlyph)
 	case protocol.StateNeedsInput:
 		return style.Foreground(colorNeeds).Render("◆")
 	case protocol.StateDone:
