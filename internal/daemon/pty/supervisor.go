@@ -101,12 +101,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	}
 	f, err := startConsole(cmd, cols, rows)
 	if err != nil {
-		slog.Error("pty: start failed", "session", sess.ID, "argv", s.cfg.Command, "err", err)
+		slog.Error("pty: start failed", append([]any{"session", sess.ID, "err", err}, argvLogAttrs(sess, s.cfg.Command)...)...)
 		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 		return fmt.Errorf("pty start: %w", err)
 	}
 	defer f.Close()
-	slog.Info("pty: started", "session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows, "argv", s.cfg.Command)
+	slog.Info("pty: started", append([]any{"session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows},
+		argvLogAttrs(sess, s.cfg.Command)...)...)
 
 	// Virtual screen mirroring what the child has drawn. Full-screen TUIs
 	// (Claude Code especially) repaint only changed cells with cursor jumps, so
