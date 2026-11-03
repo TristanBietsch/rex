@@ -1,0 +1,47 @@
+# Spawn echo sessions, then read them back with ls and status.
+
+daemon-start
+
+# BUG: flags after the prompt are ignored (flag parsing stops at the first
+# positional), so this spawns the default echo/short with a slug derived from
+# the whole line instead of s1; flip when fixed.
+exec rex new x --tool echo --model short --slug s1
+stdout '^[0-9a-f]{4}\tx-tool-echo-model-short-sl$'
+
+exec rex new --tool echo --model short --slug s1 x
+stdout '^[0-9a-f]{4}\ts1$'
+
+# An explicit slug that is taken is rejected by the daemon.
+exitcode 5 rex new --tool echo --model short --slug s1 again
+stderr '^rex: spawn failed: slug "s1" already in use by [0-9a-f]{4}$'
+
+exec rex ls
+stdout '^ID +STATE +TOOL +MODEL +SLUG +LAST EVENT +NAME$'
+stdout '^[0-9a-f]{4} +\w+ +echo +short +s1 '
+# The table cuts slugs to 24 columns.
+stdout ' x-tool-echo-model-short… '
+
+exec rex ls -json
+stdout '"slug":"s1"'
+stdout '"tool_id":"echo"'
+stdout '"model_id":"short"'
+
+exec rex wait -until done -timeout 20s s1
+exec rex wait -until done -timeout 20s x-tool-echo-model-short-sl
+
+exec rex status
+stdout '^0 awaiting input · 0 working · 2 completed$'
+
+exec rex status -json
+stdout '"completed":2'
+stdout '"working":0'
+
+exec rex ls -state done
+stdout ' s1 '
+exec rex ls -state working
+stdout '^\(no sessions\)$'
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false

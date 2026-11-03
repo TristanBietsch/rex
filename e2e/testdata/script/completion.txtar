@@ -1,0 +1,20 @@
+# Shell completion scripts print to stdout and need no daemon.
+
+exec rex completion zsh
+stdout '^_rex\(\) \{$'
+stdout '^compdef _rex rex$'
+stdout 'verbs=\(status ls new '
+! stderr .
+
+exec rex completion bash
+stdout '^_rex_complete\(\) \{$'
+stdout '^complete -F _rex_complete rex$'
+! stderr .
+
+exec rex completion fish
+stdout '^complete -c rex -f$'
+
+exitcode 5 rex completion
+stderr '^rex: completion: shell required \(bash\|zsh\|fish\)$'
+exitcode 5 rex completion tcsh
+stderr '^rex: supported shells: bash, zsh, fish$'

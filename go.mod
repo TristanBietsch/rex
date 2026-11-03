@@ -11,6 +11,7 @@ require (
 	github.com/ebitengine/oto/v3 v3.4.0
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/muesli/termenv v0.16.0
+	github.com/rogpeppe/go-internal v1.16.0
 	github.com/stretchr/testify v1.11.1
 	github.com/yuin/gopher-lua v1.1.2
 	go.uber.org/goleak v1.3.0
@@ -43,6 +44,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 )
 
 replace github.com/hinshun/vt10x => ./third_party/vt10x
