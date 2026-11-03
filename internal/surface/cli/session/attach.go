@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"time"
@@ -39,11 +40,11 @@ var redrawKickTools = map[string]bool{
 //
 // The daemon owns the agent process; we plumb stdin/stdout and the terminal size
 // so the agent's TUI renders natively in the caller's terminal. Press Ctrl+] to
-// detach. Read-only mode skips stdin forwarding.
+// detach. Read-only mode forwards no input, but Ctrl+] still detaches.
 func RunAttach(args []string) error {
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
 	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	readOnly := fs.Bool("read-only", false, "attach as observer (no input forwarding)")
+	readOnly := fs.Bool("read-only", false, "attach as observer (no input forwarding; Ctrl+] detaches)")
 	noReplay := fs.Bool("no-replay", false, "skip transcript backlog on attach")
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
@@ -131,26 +132,11 @@ func RunAttach(args []string) error {
 	defer stopResize()
 
 	// stdin → daemon, watching for Ctrl+] to detach.
-	if !*readOnly {
+	if keepReadingStdin(*readOnly, oldState != nil) {
 		go func() {
-			buf := make([]byte, 4096)
-			for {
-				n, rerr := os.Stdin.Read(buf)
-				if n > 0 {
-					chunk := buf[:n]
-					if idx := indexByte(chunk, detachKey); idx >= 0 {
-						if idx > 0 {
-							_ = c.SendInput(sess.ID, chunk[:idx])
-						}
-						_ = c.Close() // unblock the event loop
-						return
-					}
-					_ = c.SendInput(sess.ID, chunk)
-				}
-				if rerr != nil {
-					_ = c.Close()
-					return
-				}
+			detached := pumpInput(os.Stdin, *readOnly, func(b []byte) { _ = c.SendInput(sess.ID, b) })
+			if closeAfterInput(*readOnly, detached) {
+				_ = c.Close() // unblock the event loop
 			}
 		}()
 	}
@@ -177,6 +163,50 @@ func RunAttach(args []string) error {
 				}
 				return core.NewExitError(core.ExitGeneric, msg)
 			}
+		}
+	}
+}
+
+// keepReadingStdin reports whether attach must run the stdin reader.
+// Interactive attach always does. Read-only attach does when the terminal
+// is in raw mode: raw mode turns off Ctrl+C's SIGINT, so the reader's
+// detach-key check is the only way out (P0-10). Without a tty the normal
+// signals still work and stdin is left alone.
+func keepReadingStdin(readOnly, rawMode bool) bool {
+	return !readOnly || rawMode
+}
+
+// closeAfterInput reports whether attach should end once pumpInput
+// returns. A detach always ends it. Closed stdin ends an interactive
+// attach (there is no more input to forward) but not an observer, which
+// keeps watching until the session ends or the user detaches.
+func closeAfterInput(readOnly, detached bool) bool {
+	return detached || !readOnly
+}
+
+// pumpInput reads terminal input from r until the detach key (Ctrl+]) or a
+// read error, and reports whether the user detached. Bytes before the
+// detach key are passed to send; bytes after it are dropped. In readOnly
+// mode nothing is sent, but the detach key is still honored.
+func pumpInput(r io.Reader, readOnly bool, send func([]byte)) (detached bool) {
+	buf := make([]byte, 4096)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+			idx := indexByte(chunk, detachKey)
+			if idx >= 0 {
+				chunk = chunk[:idx]
+			}
+			if !readOnly && len(chunk) > 0 {
+				send(chunk)
+			}
+			if idx >= 0 {
+				return true
+			}
+		}
+		if err != nil {
+			return false
 		}
 	}
 }
