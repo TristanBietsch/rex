@@ -51,7 +51,7 @@ func startConsole(cmd *exec.Cmd, cols, rows uint16) (console, error) {
 		c.waitErr = xpty.WaitProcess(context.Background(), cmd)
 		close(c.exited)
 		time.Sleep(conptyFlushDelay)
-		_ = c.ConPty.Close()
+		_ = c.ConPty.Close() //nolint:staticcheck // QF1008: name ConPty so this keeps closing the pseudo console even if winConsole gains a Close.
 	}()
 	return c, nil
 }

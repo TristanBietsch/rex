@@ -158,6 +158,8 @@ func LoadAll(root string) ([]*Session, error) {
 		switch sess.State {
 		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
 			sess.State = protocol.StateCrashed
+		case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
+			// Terminal states survive a daemon restart unchanged.
 		}
 		sess.WorkingSince = time.Time{}
 		out = append(out, sess)
@@ -241,7 +243,7 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 	}
 	buf := make([]byte, max)
 	n, err := io.ReadFull(f, buf)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return nil, fmt.Errorf("read transcript: %w", err)
 	}
 	return buf[:n], nil

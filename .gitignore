@@ -7,16 +7,21 @@ TODO.md
 /bench/results/*
 !/bench/results/.gitkeep
 
-# Binaries
+# Binaries and build output
 /rex-daemon
 /rex
+/dist/
 *.test
 *.out
+
+# Coverage (`make cover`)
+coverage.out
 
 # Editor / OS
 .DS_Store
 .idea/
 .vscode/
+.cursor/
 
 # Local runtime artifacts (the user's actual state dir is XDG, but if anyone runs from cwd…)
 /sessions/
@@ -37,19 +42,5 @@ claude/*
 # Local agent scratch (tracked docs live under docs/agents/)
 /agents/mockup.html
 
-# test files
-/test/
-test/* 
-state.test
-rex.test
-persist.test
-store.test
-store_test.go
-persist_test.go
-store_test.go
-protocol.test
-
 # dev
 dev/
-dev/*
-.cursor/

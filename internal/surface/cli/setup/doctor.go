@@ -265,6 +265,8 @@ func printDoctorTable(checks []checkResult, verbose bool) error {
 			fails++
 		case checkWarn:
 			warns++
+		case checkPass, checkInfo:
+			// Not tallied: the summary line reports only fails and warns.
 		}
 	}
 

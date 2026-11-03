@@ -282,6 +282,8 @@ func stepSnapshotParse(m Model) tea.Cmd {
 				work++
 			case protocol.StateDone:
 				done++
+			case protocol.StateFailed, protocol.StateCrashed:
+				// Not counted: the snapshot line reports needs, work and done.
 			}
 		}
 		desc := fmt.Sprintf("%d sessions · %d needs · %d work · %d done", len(m.Sessions), needs, work, done)

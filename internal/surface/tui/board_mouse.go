@@ -58,6 +58,8 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 		return updateBoardMouse(m, msg)
 	case FocusSettings:
 		return updateSettingsMouse(m, msg), nil
+	default:
+		// Overlays and prompts own input; handled below.
 	}
 	// Overlays (help, wizard, stats, fail) and bottom-bar prompts (command,
 	// quick-spawn, rename, confirms) own input: drop the event so a click

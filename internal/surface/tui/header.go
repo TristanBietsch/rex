@@ -26,6 +26,8 @@ func renderHeader(m Model, width int) string {
 			failed++
 		case protocol.StateCrashed:
 			crashed++
+		case protocol.StateQueued:
+			// Not counted: the header has no queued bucket.
 		}
 	}
 

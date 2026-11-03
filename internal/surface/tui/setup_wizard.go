@@ -458,6 +458,8 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.effortIdx+1 < len(m.effortOptions) {
 				m.effortIdx++
 			}
+		case defaultsModel:
+			// Free-text field: no list to move through.
 		}
 	case "k", "up":
 		m.moved()
@@ -475,6 +477,8 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.effortIdx > 0 {
 				m.effortIdx--
 			}
+		case defaultsModel:
+			// Free-text field: no list to move through.
 		}
 	default:
 		if m.defaultsField == defaultsModel {
@@ -1222,7 +1226,7 @@ func installShellBlock(rcPath string) error {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 	tmp := rcPath + ".rextmp"
-	if err := os.WriteFile(tmp, []byte(newContent), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte(newContent), 0o644); err != nil { //nolint:gosec // G703: rcPath is the user's own shell profile under $HOME, chosen from $SHELL.
 		return fmt.Errorf("write tmp: %w", err)
 	}
 	if err := os.Rename(tmp, rcPath); err != nil {

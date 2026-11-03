@@ -156,7 +156,7 @@ func configEdit(args []string) error {
 			editor = "notepad"
 		}
 	}
-	cmd := exec.Command(editor, path)
+	cmd := exec.Command(editor, path) //nolint:gosec,noctx // G702: $EDITOR is the user's own program; noctx: the editor runs until the user quits it.
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

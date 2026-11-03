@@ -125,7 +125,7 @@ func TestStore_ClaimVsClear_ExactlyOneWins(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			c, _ := s.ClaimExpired(now)
-			claimedN.Add(int32(len(c)))
+			claimedN.Add(int32(len(c))) //nolint:gosec // G115: at most one session is claimed here.
 		}()
 		go func() {
 			defer wg.Done()

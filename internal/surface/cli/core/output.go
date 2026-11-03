@@ -70,6 +70,8 @@ func WriteAggregateLine(w io.Writer, sessions []protocol.SessionSummary) error {
 			failed++
 		case protocol.StateCrashed:
 			crashed++
+		case protocol.StateQueued:
+			// Not counted: the aggregate line has no queued bucket.
 		}
 	}
 	parts := []string{
@@ -101,6 +103,8 @@ func WriteAggregateJSON(w io.Writer, sessions []protocol.SessionSummary) error {
 			counts["failed"]++
 		case protocol.StateCrashed:
 			counts["crashed"]++
+		case protocol.StateQueued:
+			// Not counted: the aggregate object has no queued key.
 		}
 	}
 	b, err := json.Marshal(counts)

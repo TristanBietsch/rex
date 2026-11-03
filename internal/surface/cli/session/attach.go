@@ -70,7 +70,7 @@ func RunAttach(args []string) error {
 	// first redraw lands at the right geometry.
 	if term.IsTerminal(stdoutFd) {
 		if w, h, gerr := term.GetSize(stdoutFd); gerr == nil && w > 0 && h > 0 {
-			_ = c.Resize(sess.ID, uint16(w), uint16(h))
+			_ = c.Resize(sess.ID, uint16(w), uint16(h)) //nolint:gosec // G115: w, h > 0 and terminal sizes are far below 65536.
 		}
 	}
 
@@ -125,7 +125,7 @@ func RunAttach(args []string) error {
 	// Terminal resize → resize the daemon's PTY.
 	stopResize := onResize(func() {
 		if w, h, gerr := term.GetSize(stdoutFd); gerr == nil && w > 0 && h > 0 {
-			_ = c.Resize(sess.ID, uint16(w), uint16(h))
+			_ = c.Resize(sess.ID, uint16(w), uint16(h)) //nolint:gosec // G115: w, h > 0 and terminal sizes are far below 65536.
 		}
 	})
 	defer stopResize()

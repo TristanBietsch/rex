@@ -178,8 +178,9 @@ func chimeFor(s bootStatus) string {
 		return audio.EventBootWarn
 	case stepFail:
 		return audio.EventBootFail
+	default: // stepSkip is silent.
+		return ""
 	}
-	return ""
 }
 
 // bootFixHints maps a failed step name to a human-readable next step.

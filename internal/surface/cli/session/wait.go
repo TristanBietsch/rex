@@ -89,6 +89,8 @@ func matchesState(actual protocol.State, target string) bool {
 		switch actual {
 		case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
 			return true
+		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
+			return false
 		}
 		return false
 	}

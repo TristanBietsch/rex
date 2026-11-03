@@ -469,8 +469,9 @@ func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) str
 		return style.Foreground(colorFailed).Render("✕")
 	case protocol.StateCrashed:
 		return style.Foreground(colorCrashed).Render("○")
+	default:
+		return style.Render(" ")
 	}
-	return style.Render(" ")
 }
 
 // modelLabel is "model · effort · tokens" for one-line contexts (attach
