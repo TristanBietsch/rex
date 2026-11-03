@@ -1,0 +1,30 @@
+# Coverage floors for tools/coverage/check.sh (`make cover-check`).
+# One line per package: <import path> <min int percent>.
+# Each floor is the measured coverage rounded down. Raise a floor when
+# coverage goes up. Lower one only with a reason in the commit message.
+github.com/tristanbietsch/rex/cmd/rex 0
+github.com/tristanbietsch/rex/cmd/rex-daemon 0
+github.com/tristanbietsch/rex/internal/catalog/registry 67
+github.com/tristanbietsch/rex/internal/catalog/settings 61
+github.com/tristanbietsch/rex/internal/daemon/adapter 97
+github.com/tristanbietsch/rex/internal/daemon/boot 0
+github.com/tristanbietsch/rex/internal/daemon/pty 75
+github.com/tristanbietsch/rex/internal/daemon/server 74
+github.com/tristanbietsch/rex/internal/daemon/state 82
+github.com/tristanbietsch/rex/internal/daemon/termtext 98
+github.com/tristanbietsch/rex/internal/features/audio 65
+github.com/tristanbietsch/rex/internal/features/lua 74
+github.com/tristanbietsch/rex/internal/features/summarizer 77
+github.com/tristanbietsch/rex/internal/runtime/daemonctl 34
+github.com/tristanbietsch/rex/internal/runtime/ids 75
+github.com/tristanbietsch/rex/internal/runtime/rexlog 77
+github.com/tristanbietsch/rex/internal/surface/cli/core 44
+github.com/tristanbietsch/rex/internal/surface/cli/inspect 27
+github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 20
+github.com/tristanbietsch/rex/internal/surface/cli/meta 24
+github.com/tristanbietsch/rex/internal/surface/cli/session 14
+github.com/tristanbietsch/rex/internal/surface/cli/setup 10
+github.com/tristanbietsch/rex/internal/surface/tui 56
+github.com/tristanbietsch/rex/internal/testutil 0
+github.com/tristanbietsch/rex/internal/wire/client 66
+github.com/tristanbietsch/rex/internal/wire/protocol 92
