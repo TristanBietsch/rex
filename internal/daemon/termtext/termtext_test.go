@@ -3,6 +3,7 @@ package termtext
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 )
@@ -12,6 +13,22 @@ func TestNormalize_CursorMovesBecomeLineBreaks(t *testing.T) {
 	got := Normalize([]byte(raw))
 	require.Contains(t, got, "\n› type here")
 	require.Contains(t, got, "\n next\ndown")
+}
+
+// F-01: ansi.Strip passes escapes that follow an invalid UTF-8 lead byte, so
+// a stray byte in child output must not smuggle a CSI through Normalize.
+func TestNormalize_StripsEscapesAfterInvalidUTF8(t *testing.T) {
+	for _, raw := range []string{
+		"\xc9\x1b[31mred",
+		"\xc9\x1b[31m",
+		"ok \xff\x1b]0;title\x07after",
+		"\xe2\x82\x1b[2Kline",
+	} {
+		got := Normalize([]byte(raw))
+		require.NotContains(t, got, "\x1b", "escape survived Normalize(%q)", raw)
+		require.True(t, utf8.ValidString(got), "Normalize(%q) = %q is not valid UTF-8", raw, got)
+	}
+	require.Equal(t, "red", Normalize([]byte("\xc9\x1b[31mred")))
 }
 
 func TestIsChrome(t *testing.T) {
