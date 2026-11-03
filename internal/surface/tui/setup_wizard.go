@@ -1226,7 +1226,7 @@ func installShellBlock(rcPath string) error {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 	tmp := rcPath + ".rextmp"
-	if err := os.WriteFile(tmp, []byte(newContent), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte(newContent), 0o644); err != nil { //nolint:gosec // G703: rcPath is the user's own shell profile under $HOME, chosen from $SHELL.
 		return fmt.Errorf("write tmp: %w", err)
 	}
 	if err := os.Rename(tmp, rcPath); err != nil {

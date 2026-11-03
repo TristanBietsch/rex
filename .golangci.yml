@@ -2,16 +2,48 @@ version: "2"
 linters:
   default: none
   enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - durationcheck
     - errcheck
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
     - govet
     - ineffassign
     - misspell
+    - nilerr
+    - noctx
     - revive
     - staticcheck
     - unparam
     - unused
     - whitespace
   settings:
+    exhaustive:
+      # A `default:` arm is an explicit "everything else" decision, so it
+      # counts as exhaustive.
+      default-signifies-exhaustive: true
+      # bubbletea's KeyType and MouseButton are input-event enums with ~100
+      # members. Key and mouse dispatch switches handle a subset on purpose
+      # and drop the rest; listing every key would bury the real cases.
+      ignore-enum-types: ^github\.com/charmbracelet/bubbletea\.(KeyType|MouseButton)$
+    gosec:
+      excludes:
+        # G304 (file inclusion via variable): rex reads user config, the tool
+        # registry, init.lua and per-session state from paths built at
+        # runtime. Reading user-chosen files is the product.
+        - G304
+        # G204 (subprocess launched with variable): rex spawns the agent CLI
+        # named in the registry with user-supplied args. Spawning those
+        # commands is the product.
+        - G204
+        # G301/G302/G306 (dir/file permissions): re-enabled in phase 1 (backlog S-01).
+        - G301
+        - G302
+        - G306
     revive:
       rules:
         - name: exported
@@ -33,6 +65,66 @@ linters:
       - linters:
           - unparam
         path: internal/surface/tui/
+      # gopher-lua's API convention names the interpreter state `L`
+      # (func(L *lua.LState) int); renaming it would fight every upstream
+      # example and doc.
+      - linters:
+          - gocritic
+        path: internal/features/lua/
+        text: "captLocal: `L' should not be capitalized"
+      # Style only. The TUI is split into subpackages in a later phase; the
+      # if/else chains get rewritten then rather than churned twice.
+      - linters:
+          - gocritic
+        path: internal/surface/tui/
+        text: "ifElseChain:"
+      # The switch on tool.Detect.Format is the extension point for further
+      # hook formats; collapsing it to an if would just be reverted.
+      - linters:
+          - gocritic
+        path: internal/daemon/server/spawn\.go
+        text: "singleCaseSwitch:"
+      # On Windows, startConsole's exit waiter uses context.Background on
+      # purpose: it must reap the child and close the pseudo console even
+      # after Run's ctx is canceled (CommandContext already does the kill).
+      - linters:
+          - contextcheck
+        path: internal/daemon/pty/supervisor\.go
+        text: startConsole
+      # Tests and the shared test daemon are bounded by `go test -timeout`
+      # and testify deadlines; per-call contexts add noise, not safety.
+      - linters:
+          - noctx
+        path: (_test\.go|internal/testutil/)
+      # Client dials have no deadline yet. Contexts get plumbed through with
+      # the wire/client Do(ctx) request/response API in a later phase. The
+      # daemon spawn in daemonctl/daemon.go must outlive any caller context.
+      - linters:
+          - noctx
+        path: internal/(wire/client/client|runtime/daemonctl/daemon|surface/cli/lifecycle/daemon)\.go
+      # pgrep/kill/tasklist lookups are replaced by socket intents on every
+      # platform in a later phase (backlog S-08).
+      - linters:
+          - noctx
+        path: internal/runtime/daemonctl/process_(unix|windows)\.go
+      # server.New takes no context; socket setup is reworked with the
+      # daemon lock and safe unlink in a later phase (backlog P0-03).
+      - linters:
+          - noctx
+        path: internal/daemon/server/server\.go
+        text: net\.Listen must not be called
+      # taskkill is replaced by a Job Object with KILL_ON_JOB_CLOSE in a
+      # later phase; until then KillTree must run even after ctx is done.
+      - linters:
+          - noctx
+        path: internal/daemon/pty/console_windows\.go
+        text: os/exec\.Command must not be called
+      # tea.ExecProcess owns the attach child's lifetime; Update has no
+      # context to bind it to.
+      - linters:
+          - noctx
+        path: internal/surface/tui/update\.go
+        text: os/exec\.Command must not be called
     paths:
       - third_party$
       - builtin$

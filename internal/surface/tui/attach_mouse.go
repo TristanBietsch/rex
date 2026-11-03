@@ -231,5 +231,5 @@ func encodeMouse(msg tea.MouseMsg, cx, cy int, mode vt10x.ModeFlag) []byte {
 	if x > 223 || y > 223 {
 		return nil
 	}
-	return []byte{0x1b, '[', 'M', byte(32 + b), byte(32 + x), byte(32 + y)}
+	return []byte{0x1b, '[', 'M', byte(32 + b), byte(32 + x), byte(32 + y)} //nolint:gosec // G115: b <= 125 and x, y <= 223, so every value fits a byte.
 }

@@ -243,7 +243,7 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 	}
 	buf := make([]byte, max)
 	n, err := io.ReadFull(f, buf)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return nil, fmt.Errorf("read transcript: %w", err)
 	}
 	return buf[:n], nil

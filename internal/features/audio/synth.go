@@ -55,8 +55,8 @@ func renderBurst(b burst) []byte {
 	for i, v := range mixed {
 		// Soft clip via tanh; -0.5 headroom so multi-tone overlays don't saturate.
 		s := int16(math.Tanh(v) * 32767 * 0.5)
-		pcm[i*2] = byte(s)
-		pcm[i*2+1] = byte(s >> 8)
+		pcm[i*2] = byte(s)        //nolint:gosec // G115: deliberate truncation, low byte of little-endian int16 PCM.
+		pcm[i*2+1] = byte(s >> 8) //nolint:gosec // G115: deliberate truncation, high byte of little-endian int16 PCM.
 	}
 	return pcm
 }

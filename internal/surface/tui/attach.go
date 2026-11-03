@@ -112,7 +112,7 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		m.Err = "attach: " + subErr.Error()
 		return m, nil
 	}
-	_ = c.Resize(sessionID, uint16(cols), uint16(rows))
+	_ = c.Resize(sessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
 	if altScreenTools[toolID] {
 		// SIGWINCH alone is a no-op if size didn't change. Nudge full-TUI
 		// agents with ^L (documented in our footer as "redraw") so they
@@ -202,7 +202,7 @@ func resizeAttach(m Model) {
 	m.Attach.Term.Resize(cols, rows)
 	// A shrink can push rows into scrollback; keep the offset in range.
 	m.Attach.ScrollOff = min(m.Attach.ScrollOff, m.Attach.sb.Len())
-	_ = m.Attach.Client.Resize(m.Attach.SessionID, uint16(cols), uint16(rows))
+	_ = m.Attach.Client.Resize(m.Attach.SessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
 }
 
 // pumpAttach is the background reader goroutine. It blocks on the daemon
@@ -300,7 +300,7 @@ func updateAttachKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, cmd
 	}
-	b := append(prefix, keyToBytes(k)...)
+	b := append(prefix, keyToBytes(k)...) //nolint:gocritic // appendAssign false positive: prefix is a fresh copy and is not read again.
 	if len(b) == 0 {
 		return m, nil
 	}

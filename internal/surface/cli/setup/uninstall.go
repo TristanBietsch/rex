@@ -263,7 +263,7 @@ func dirSummary(dir string) string {
 	var totalBytes int64
 	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
-			return nil
+			return nil //nolint:nilerr // best-effort size summary: unreadable entries are skipped, not fatal.
 		}
 		count++
 		if info, e := d.Info(); e == nil {

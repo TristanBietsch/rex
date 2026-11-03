@@ -446,7 +446,7 @@ func shouldEmitSummary(dirty bool, lastChunk, lastSubmittedAt, now time.Time) bo
 }
 
 func appendBounded(buf, b []byte, cap int) []byte {
-	out := append(buf, b...)
+	out := append(buf, b...) //nolint:gocritic // appendAssign false positive: the only caller reassigns buf from the result.
 	if len(out) > cap {
 		out = out[len(out)-cap:]
 	}
