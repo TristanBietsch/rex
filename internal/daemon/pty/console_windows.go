@@ -65,6 +65,10 @@ func (c *winConsole) Read(b []byte) (int, error) {
 	return n, err
 }
 
+// isHangup reports whether a read error means the pseudo console closed.
+// Read already maps those errors to io.EOF, so nothing else qualifies.
+func isHangup(error) bool { return false }
+
 func (c *winConsole) Resize(cols, rows uint16) error {
 	return c.ConPty.Resize(int(cols), int(rows))
 }

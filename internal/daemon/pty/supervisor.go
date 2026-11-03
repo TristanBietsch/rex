@@ -62,9 +62,19 @@ type SupervisorConfig struct {
 	StopDrainTimeout time.Duration
 }
 
+// transcriptWriter persists the raw PTY output (*state.TranscriptFile in
+// production).
+type transcriptWriter interface {
+	Write(b []byte) error
+	Close() error
+}
+
 // Supervisor runs one PTY session to completion.
 type Supervisor struct {
 	cfg SupervisorConfig
+	// openTranscript opens the session's transcript. Tests swap it to inject
+	// open and write failures (a full disk).
+	openTranscript func(root, id string) (transcriptWriter, error)
 }
 
 // New constructs a Supervisor.
@@ -75,7 +85,16 @@ func New(cfg SupervisorConfig) *Supervisor {
 	if cfg.StopDrainTimeout == 0 {
 		cfg.StopDrainTimeout = defaultStopDrainTimeout
 	}
-	return &Supervisor{cfg: cfg}
+	return &Supervisor{cfg: cfg, openTranscript: openStateTranscript}
+}
+
+// openStateTranscript adapts state.OpenTranscript to transcriptWriter.
+func openStateTranscript(root, id string) (transcriptWriter, error) {
+	tf, err := state.OpenTranscript(root, id)
+	if err != nil {
+		return nil, fmt.Errorf("open transcript: %w", err)
+	}
+	return tf, nil
 }
 
 // Run starts the child process and blocks until it exits, ctx is canceled, or an error occurs.
@@ -108,6 +127,16 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	defer f.Close()
 	slog.Info("pty: started", append([]any{"session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows},
 		argvLogAttrs(sess, s.cfg.Command)...)...)
+
+	// Until the main loop owns the child (owned is set just before the reader
+	// starts), an early return must not orphan it: kill and reap it on the
+	// way out. Registered after f.Close so it runs before the PTY closes.
+	owned := false
+	defer func() {
+		if !owned {
+			_ = s.killAndReapNow(sess.ID, cmd, f)
+		}
+	}()
 
 	// Virtual screen mirroring what the child has drawn. Full-screen TUIs
 	// (Claude Code especially) repaint only changed cells with cursor jumps, so
@@ -164,7 +193,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// crashed instead of silently dropping them.
 	s.persistMeta(sess)
 
-	transcript, err := state.OpenTranscript(s.cfg.StateDir, sess.ID)
+	transcript, err := s.openTranscript(s.cfg.StateDir, sess.ID)
 	if err != nil {
 		return err
 	}
@@ -260,7 +289,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// We broadcast every +500 tokens to avoid event spam.
 	var lastBroadcastTokens int64
 
-	// Reader goroutine.
+	// From here every exit of the main loop kills or reaps the child.
+	owned = true
+
+	// Reader goroutine. It sends exactly one value on errc and returns: nil
+	// when the child hung up the PTY, otherwise the read or transcript
+	// write error, after which the child is still running.
 	go func() {
 		buf := make([]byte, 4096)
 		for {
@@ -306,7 +340,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				}
 			}
 			if rerr != nil {
-				if errors.Is(rerr, io.EOF) {
+				if errors.Is(rerr, io.EOF) || isHangup(rerr) {
 					errc <- nil
 				} else {
 					errc <- fmt.Errorf("pty read: %w", rerr)
@@ -344,22 +378,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			return nil
 		case rerr := <-errc:
-			// Child exited.
+			// The reader stopped: the child exited, or reading/persisting
+			// failed and the child is still running.
 			s.refreshScreenText(sess.ID, screen)
-			waitErr := f.Wait()
-			final := protocol.StateDone
-			var exitCode *int
-			if waitErr != nil {
-				if ee := new(exec.ExitError); errors.As(waitErr, &ee) {
-					code := ee.ExitCode()
-					exitCode = &code
-					if code != 0 {
-						final = protocol.StateFailed
-					}
-				} else if rerr != nil {
-					final = protocol.StateFailed
-				}
-			}
+			final, exitCode, waitErr := s.collectExit(sess.ID, cmd, f, rerr)
 			slog.Info("pty: child exited", "session", sess.ID, "final_state", final, "wait_err", waitErr, "read_err", rerr)
 			// Update in-memory state first (under the session lock) so the
 			// persisted meta reflects the terminal state.
@@ -370,6 +392,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			// Now broadcast — subscribers can safely read meta.json after this fires.
 			if err := s.cfg.Store.Transition(sess.ID, final); err != nil {
 				return err
+			}
+			if rerr != nil {
+				return fmt.Errorf("pty reader: %w", rerr)
 			}
 			return nil
 		case <-ticker.C:
@@ -454,6 +479,45 @@ func appendBounded(buf, b []byte, cap int) []byte {
 	return out
 }
 
+// errReapTimeout is reported when the child has not exited StopDrainTimeout
+// after it was killed.
+var errReapTimeout = errors.New("pty: reap timed out")
+
+// collectExit reaps the child once the reader has stopped and classifies the
+// exit. rerr is the reader's result: nil means the child hung up the PTY, so
+// an unbounded Wait returns promptly. A non-nil rerr (a read error, or a
+// transcript write error such as a full disk) means the child is still
+// running: it is killed and reaped within StopDrainTimeout, and the session
+// fails. Without the kill, Wait would block until the child chose to exit and
+// Delete would hang behind it.
+func (s *Supervisor) collectExit(id string, cmd *exec.Cmd, f console, rerr error) (final protocol.State, exitCode *int, waitErr error) {
+	if rerr != nil {
+		slog.Error("pty: reader failed; killing child", "session", id, "pid", cmd.Process.Pid, "err", rerr)
+		return protocol.StateFailed, nil, s.killAndReapNow(id, cmd, f)
+	}
+	waitErr = f.Wait()
+	if waitErr == nil {
+		return protocol.StateDone, nil, nil
+	}
+	if ee := new(exec.ExitError); errors.As(waitErr, &ee) {
+		code := ee.ExitCode()
+		if code != 0 {
+			return protocol.StateFailed, &code, waitErr
+		}
+		return protocol.StateDone, &code, waitErr
+	}
+	return protocol.StateDone, nil, waitErr
+}
+
+// killTree kills the child's whole process tree (console.KillTree) and falls
+// back to the leader alone when that fails.
+func (s *Supervisor) killTree(id string, cmd *exec.Cmd, f console) {
+	if err := f.KillTree(); err != nil {
+		slog.Warn("pty: kill process tree failed; killing pid", "session", id, "pid", cmd.Process.Pid, "err", err)
+		_ = cmd.Process.Kill()
+	}
+}
+
 // killAndReap kills the child's whole process tree (console.KillTree) —
 // agents spawn MCP servers and tool shells that inherit the PTY and would
 // otherwise keep the reader from seeing EOF. The reader drain and the reap are
@@ -461,10 +525,7 @@ func appendBounded(buf, b []byte, cap int) []byte {
 // deferred PTY close unblocks the reader.
 func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, f console, errc <-chan error) {
 	pid := cmd.Process.Pid
-	if err := f.KillTree(); err != nil {
-		slog.Warn("pty: kill process tree failed; killing pid", "session", id, "pid", pid, "err", err)
-		_ = cmd.Process.Kill()
-	}
+	s.killTree(id, cmd, f)
 	timeout := time.NewTimer(s.cfg.StopDrainTimeout)
 	defer timeout.Stop()
 	select {
@@ -473,15 +534,38 @@ func (s *Supervisor) killAndReap(id string, cmd *exec.Cmd, f console, errc <-cha
 		slog.Error("pty: stop drain timed out; PTY still held open", "session", id, "pid", pid, "timeout", s.cfg.StopDrainTimeout)
 		return
 	}
-	waited := make(chan struct{})
-	go func() {
-		_ = f.Wait()
-		close(waited)
-	}()
+	_ = s.reap(id, pid, f, timeout.C)
+}
+
+// killAndReapNow is killAndReap for when no reader is running (it never
+// started, or it already stopped on an error). It returns the child's wait
+// error, or errReapTimeout.
+//
+// Something must still read the PTY: on macOS a killed process blocks in
+// its terminal close until unread output drains, so without a reader the
+// reap times out on any child that printed. The drain goroutine discards
+// output and ends at EOF/hangup, or when Run's deferred f.Close fails its
+// Read.
+func (s *Supervisor) killAndReapNow(id string, cmd *exec.Cmd, f console) error {
+	go func() { _, _ = io.Copy(io.Discard, f) }()
+	s.killTree(id, cmd, f)
+	timeout := time.NewTimer(s.cfg.StopDrainTimeout)
+	defer timeout.Stop()
+	return s.reap(id, cmd.Process.Pid, f, timeout.C)
+}
+
+// reap waits for the child until timeout fires. On timeout the waiting
+// goroutine stays parked in Wait until the child finally exits; its result
+// channel is buffered so it never blocks after that.
+func (s *Supervisor) reap(id string, pid int, f console, timeout <-chan time.Time) error {
+	waited := make(chan error, 1)
+	go func() { waited <- f.Wait() }()
 	select {
-	case <-waited:
-	case <-timeout.C:
+	case err := <-waited:
+		return err
+	case <-timeout:
 		slog.Error("pty: reap timed out", "session", id, "pid", pid)
+		return errReapTimeout
 	}
 }
 
