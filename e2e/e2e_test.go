@@ -1,12 +1,13 @@
 // Package e2e drives the real rex and rex-daemon binaries through testscript
 // scripts in testdata/script. Each script gets its own HOME, XDG dirs, log
-// dir and socket, so it can never reach the user's real daemon or state.
+// dir, socket and copy of the binaries, so it can never reach the user's
+// real daemon or state, and every daemon it causes can be found and stopped.
 package e2e
 
 import (
 	"errors"
 	"fmt"
-	"net"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,35 +15,18 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
-	"time"
 
 	"github.com/rogpeppe/go-internal/testscript"
-
-	"github.com/tristanbietsch/rex/internal/catalog/settings"
-	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-const (
-	// socketWait bounds how long daemon-start waits for the socket to accept.
-	socketWait = 10 * time.Second
-	// stopWait bounds how long daemon-stop and cleanup wait after SIGTERM
-	// before falling back to SIGKILL.
-	stopWait = 10 * time.Second
-	// dialTimeout keeps each socket probe short so a wedged daemon cannot
-	// stall the harness.
-	dialTimeout = 200 * time.Millisecond
-)
-
-// binDir holds the rex and rex-daemon binaries TestMain builds once for all
-// scripts. rex looks for rex-daemon next to its own executable, so both must
-// live in the same directory.
+// binDir holds the rex and rex-daemon binaries TestMain builds once. Each
+// script links them into its own $WORK/bin before use.
 var binDir string
 
-// systemPath is the PATH tail scripts see after binDir. It deliberately
-// omits the caller's PATH so a script can never pick up an installed rex or
-// rex-daemon (for example ~/.local/bin) if the build output is missing.
+// systemPath is the PATH tail scripts see after their bin dir. It
+// deliberately omits the caller's PATH so a script can never pick up an
+// installed rex or rex-daemon (for example from ~/.local/bin).
 const systemPath = "/usr/bin:/bin:/usr/sbin:/sbin"
 
 func TestMain(m *testing.M) {
@@ -94,26 +78,44 @@ func TestScripts(t *testing.T) {
 // Keys for values Setup hands to the custom commands through Env.Values.
 type (
 	envKeysKey struct{}
-	daemonKey  struct{}
+	harnessKey struct{}
 )
 
-// scriptDaemon is the one rex-daemon a script started with daemon-start.
-type scriptDaemon struct {
-	cmd    *exec.Cmd
-	done   chan struct{} // closed once cmd.Wait returns
-	err    error         // cmd.Wait result, valid after done is closed
-	stderr string        // path of the file capturing the daemon's stderr
+// scriptHarness is the per-script state the custom commands share with the
+// cleanup Setup registers.
+type scriptHarness struct {
+	// daemonBin is this script's private rex-daemon. Its path is unique to
+	// the script, which is what lets cleanup find daemons rex auto-starts.
+	daemonBin string
+	// socket is the script's isolated rex.sock.
+	socket string
+	// daemon is the daemon daemon-start launched; nil when none is running.
+	daemon *scriptDaemon
 }
 
-// setupScriptEnv isolates one script: every path rex derives from HOME, the
-// XDG variables, REX_LOG_DIR and XDG_RUNTIME_DIR points under the script's
-// own temp dirs, OLLAMA_HOST is unset, and PATH is binDir plus the system
-// dirs. Its deferred cleanup stops the script's daemon, then fails the script
-// if anything else still answers on the socket.
+// setupScriptEnv isolates one script:
+//   - HOME, the XDG variables and REX_LOG_DIR point under $WORK, and
+//     XDG_RUNTIME_DIR at a short private dir in /tmp;
+//   - OLLAMA_HOST is unset;
+//   - PATH is $WORK/bin (hard links to the built binaries) plus system dirs.
+//
+// rex starts rex-daemon from its own directory, so any daemon the script
+// causes runs as $WORK/bin/rex-daemon. The registered cleanup stops the
+// daemon-start daemon, then reaps any other process running that path, and
+// fails the script if it had to.
 func setupScriptEnv(env *testscript.Env) error {
 	home := filepath.Join(env.WorkDir, "home")
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		return err
+	}
+	scriptBin := filepath.Join(env.WorkDir, "bin")
+	if err := os.MkdirAll(scriptBin, 0o700); err != nil {
+		return err
+	}
+	for _, name := range []string{"rex", "rex-daemon"} {
+		if err := linkOrCopy(filepath.Join(binDir, name), filepath.Join(scriptBin, name)); err != nil {
+			return err
+		}
 	}
 	// macOS caps sun_path at 104 bytes and $WORK under /var/folders is
 	// longer than that, so the socket dir must be short and live in /tmp.
@@ -121,13 +123,17 @@ func setupScriptEnv(env *testscript.Env) error {
 	if err != nil {
 		return err
 	}
-	// Registered first so it runs last: after any daemon is gone.
+	// Registered first so it runs last: after every daemon is gone.
 	env.Defer(func() { _ = os.RemoveAll(runtimeDir) })
 
 	env.Vars = slices.DeleteFunc(env.Vars, func(kv string) bool {
 		return strings.HasPrefix(kv, "OLLAMA_HOST=")
 	})
-	env.Setenv("PATH", binDir+string(os.PathListSeparator)+systemPath)
+	h := &scriptHarness{
+		daemonBin: filepath.Join(scriptBin, "rex-daemon"),
+		socket:    filepath.Join(runtimeDir, "rex.sock"),
+	}
+	env.Setenv("PATH", scriptBin+string(os.PathListSeparator)+systemPath)
 	env.Setenv("HOME", home)
 	env.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	env.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
@@ -135,7 +141,7 @@ func setupScriptEnv(env *testscript.Env) error {
 	env.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
 	env.Setenv("XDG_RUNTIME_DIR", runtimeDir)
 	env.Setenv("REX_LOG_DIR", filepath.Join(env.WorkDir, "logs"))
-	env.Setenv("SOCKET", filepath.Join(runtimeDir, "rex.sock"))
+	env.Setenv("SOCKET", h.socket)
 
 	keys := make([]string, 0, len(env.Vars))
 	for _, kv := range env.Vars {
@@ -144,25 +150,47 @@ func setupScriptEnv(env *testscript.Env) error {
 		}
 	}
 	env.Values[envKeysKey{}] = keys
-	daemon := new(*scriptDaemon)
-	env.Values[daemonKey{}] = daemon
+	env.Values[harnessKey{}] = h
 
 	t, _ := env.T().(testing.TB)
-	sock := filepath.Join(runtimeDir, "rex.sock")
 	env.Defer(func() {
-		stopDaemon(*daemon)
-		// Anything still answering on this script's socket was started
-		// behind the harness's back (e.g. rex auto-starting the daemon).
-		// The socket is unique to this script, so shutting down whatever
-		// listens on it cannot touch any other daemon.
-		if dialable(sock) {
-			shutdownViaSocket(sock)
+		stopDaemon(h.daemon)
+		if reaped := reapStrayDaemons(h.daemonBin); len(reaped) > 0 && t != nil {
+			t.Errorf("reaped rex-daemon pids %v that daemon-start did not launch; start daemons with daemon-start", reaped)
+		}
+		// Last line of defence: the socket is private to this script, so
+		// whatever still answers on it is ours to shut down.
+		if dialable(h.socket) {
+			shutdownViaSocket(h.socket)
 			if t != nil {
-				t.Errorf("untracked rex-daemon was answering on %s; start daemons with daemon-start", sock)
+				t.Errorf("a rex-daemon was still answering on %s after cleanup", h.socket)
 			}
 		}
 	})
 	return nil
+}
+
+// linkOrCopy hard-links src to dst, copying when a link is not possible
+// (e.g. across file systems). A hard link, unlike a symlink, keeps dst as
+// the path os.Executable reports, so rex looks for rex-daemon next to dst.
+func linkOrCopy(src, dst string) error {
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 // scriptEnv rebuilds the script's environment for processes the harness
@@ -174,117 +202,6 @@ func scriptEnv(ts *testscript.TestScript) []string {
 		out = append(out, k+"="+ts.Getenv(k))
 	}
 	return out
-}
-
-// cmdDaemonStart execs rex-daemon on the script's isolated socket and state
-// dir and waits until the socket accepts connections.
-//
-//	daemon-start [extra rex-daemon flags...]
-//
-// It refuses to start with the summarizer enabled, because the daemon would
-// then call whatever Ollama listens on localhost.
-func cmdDaemonStart(ts *testscript.TestScript, neg bool, args []string) {
-	if neg {
-		ts.Fatalf("unsupported: ! daemon-start")
-	}
-	slot, _ := ts.Value(daemonKey{}).(**scriptDaemon)
-	if *slot != nil {
-		ts.Fatalf("daemon-start: daemon already running (pid %d)", (*slot).cmd.Process.Pid)
-	}
-	home := ts.Getenv("HOME")
-	cfg := settings.NewStore()
-	ts.Check(cfg.Load(filepath.Join(home, ".config", "rex", "config.yaml")))
-	if on, _ := cfg.Get("summary_enabled").(bool); on {
-		ts.Fatalf("daemon-start: summary_enabled is on; add home/.config/rex/config.yaml with `summary_enabled: false` to the script")
-	}
-
-	sock := ts.Getenv("SOCKET")
-	stderrPath := ts.MkAbs("daemon.stderr")
-	stderr, err := os.Create(stderrPath)
-	ts.Check(err)
-	defer stderr.Close()
-
-	flags := append([]string{
-		"-socket", sock,
-		"-state-dir", filepath.Join(home, ".local", "share", "rex"),
-		"-tools", filepath.Join(home, ".config", "rex", "tools.yaml"),
-	}, args...)
-	cmd := exec.Command(filepath.Join(binDir, "rex-daemon"), flags...)
-	cmd.Dir = ts.MkAbs(".")
-	cmd.Env = scriptEnv(ts)
-	cmd.Stdout = stderr
-	cmd.Stderr = stderr
-	ts.Check(cmd.Start())
-
-	d := &scriptDaemon{cmd: cmd, done: make(chan struct{}), stderr: stderrPath}
-	go func() {
-		d.err = cmd.Wait()
-		close(d.done)
-	}()
-	// From here on Setup's deferred cleanup stops d if the script fails or
-	// never calls daemon-stop. It only ever signals this PID.
-	*slot = d
-
-	deadline := time.Now().Add(socketWait)
-	for !dialable(sock) {
-		select {
-		case <-d.done:
-			ts.Fatalf("daemon-start: rex-daemon exited early (%v):\n%s", d.err, ts.ReadFile(stderrPath))
-		default:
-		}
-		if time.Now().After(deadline) {
-			ts.Fatalf("daemon-start: socket %s not dialable after %s:\n%s", sock, socketWait, ts.ReadFile(stderrPath))
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	ts.Logf("daemon-start: rex-daemon pid %d on %s", cmd.Process.Pid, sock)
-}
-
-// cmdDaemonStop sends SIGTERM to the daemon daemon-start launched and waits
-// for it to exit cleanly.
-//
-//	daemon-stop
-func cmdDaemonStop(ts *testscript.TestScript, neg bool, args []string) {
-	if neg || len(args) != 0 {
-		ts.Fatalf("usage: daemon-stop")
-	}
-	slot, _ := ts.Value(daemonKey{}).(**scriptDaemon)
-	d := *slot
-	if d == nil {
-		ts.Fatalf("daemon-stop: no daemon started")
-	}
-	*slot = nil
-	ts.Check(d.cmd.Process.Signal(syscall.SIGTERM))
-	select {
-	case <-d.done:
-	case <-time.After(stopWait):
-		_ = d.cmd.Process.Kill()
-		<-d.done
-		ts.Fatalf("daemon-stop: rex-daemon ignored SIGTERM for %s:\n%s", stopWait, ts.ReadFile(d.stderr))
-	}
-	if d.err != nil {
-		ts.Fatalf("daemon-stop: rex-daemon exited with %v:\n%s", d.err, ts.ReadFile(d.stderr))
-	}
-}
-
-// stopDaemon terminates d if it is still running: SIGTERM, then SIGKILL
-// after stopWait. It is a no-op for nil or already-exited daemons.
-func stopDaemon(d *scriptDaemon) {
-	if d == nil {
-		return
-	}
-	select {
-	case <-d.done:
-		return
-	default:
-	}
-	_ = d.cmd.Process.Signal(syscall.SIGTERM)
-	select {
-	case <-d.done:
-	case <-time.After(stopWait):
-		_ = d.cmd.Process.Kill()
-		<-d.done
-	}
 }
 
 // cmdExitCode runs a program and asserts its exact exit status, which plain
@@ -310,36 +227,5 @@ func cmdExitCode(ts *testscript.TestScript, neg bool, args []string) {
 	}
 	if got != want {
 		ts.Fatalf("exitcode: %s exited %d, want %d", args[1], got, want)
-	}
-}
-
-// dialable reports whether something accepts connections on sock.
-func dialable(sock string) bool {
-	conn, err := net.DialTimeout("unix", sock, dialTimeout)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
-}
-
-// shutdownViaSocket asks the daemon on sock to exit with the Shutdown intent
-// and waits for the socket to stop answering. Used only for daemons the
-// harness has no PID for.
-func shutdownViaSocket(sock string) {
-	conn, err := net.DialTimeout("unix", sock, dialTimeout)
-	if err != nil {
-		return
-	}
-	_ = conn.SetDeadline(time.Now().Add(time.Second))
-	w := protocol.NewWriter(conn)
-	_ = w.WriteIntent(protocol.IntentHello, "h", protocol.Hello{ClientVersion: "rex-e2e"})
-	_ = w.WriteIntent(protocol.IntentShutdown, "", struct{}{})
-	// Close before waiting: the daemon does not finish shutting down while
-	// a client is still connected.
-	_ = conn.Close()
-	deadline := time.Now().Add(stopWait)
-	for dialable(sock) && time.Now().Before(deadline) {
-		time.Sleep(50 * time.Millisecond)
 	}
 }
