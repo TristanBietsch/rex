@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -91,7 +92,8 @@ func run(args []string) error {
 }
 
 func exitCodeFor(err error) int {
-	if e, ok := err.(core.ExitCoder); ok {
+	var e core.ExitCoder
+	if errors.As(err, &e) {
 		return e.ExitCode()
 	}
 	return 1
