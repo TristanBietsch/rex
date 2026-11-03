@@ -19,7 +19,7 @@ func renderDeleteConfirm(m Model, width int) string {
 	}
 	line := styleArrowYellow.Render("?") + " " +
 		stylePrimary.Render("delete session ") +
-		styleSlug.Render(slug) +
+		styleSlug.Render(sanitizeText(slug)) +
 		stylePrimary.Render("? this kills any running process and removes the transcript — ") +
 		styleDim.Render("y / N")
 	return padLine(" "+line, width)

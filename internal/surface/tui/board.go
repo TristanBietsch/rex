@@ -342,7 +342,9 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int) rowCol
 	return c
 }
 
-// cell renders s truncated and padded to exactly w columns.
+// cell renders s truncated and padded to exactly w columns. It is the board
+// row's choke point for session strings: truncate sanitizes s, so a cell is
+// always one line of printable text.
 func cell(style lipgloss.Style, s string, w int) string {
 	return style.Width(w).Render(truncate(s, w))
 }
@@ -405,7 +407,7 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
 	}
 	if c.run > 0 {
-		b.WriteString(gap + cell(lipgloss.NewStyle(), longRunBadge(now, s), c.run))
+		b.WriteString(gap + longRunCell(now, s, c.run))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
 	row := b.String()
@@ -418,6 +420,13 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		}
 	}
 	return row
+}
+
+// longRunCell renders the long-run badge column. The badge is rex-made and
+// already styled by tier, so it skips cell()'s sanitizer, which would strip
+// its color.
+func longRunCell(now time.Time, s protocol.SessionSummary, w int) string {
+	return lipgloss.NewStyle().Width(w).Render(ansi.Truncate(longRunBadge(now, s), w, "…"))
 }
 
 // densityGap returns the number of blank lines to insert between section
@@ -525,10 +534,14 @@ func formatTokens(n int64) string {
 // truncate cuts s to at most n terminal columns (wide runes count double),
 // ending in "…" when cut. Counting runes instead of columns let CJK / emoji
 // text overflow its cell, and lipgloss then wrapped the row onto two lines.
+// s is untrusted text, so it is sanitized first (sanitizeText): a newline
+// would wrap the row and an escape sequence would reach the terminal. Never
+// pass lipgloss-styled text; its styling would be stripped.
 func truncate(s string, n int) string {
 	if n <= 0 {
 		return ""
 	}
+	s = sanitizeText(s)
 	if ansi.StringWidth(s) <= n {
 		return s
 	}
@@ -560,10 +573,12 @@ func durationAgoAt(now, t time.Time) string {
 
 // rowDescription is the desc column text: the AI summary once one exists,
 // else the task the session was started with. Raw last_line is never shown —
-// for TUI agents it is spinner frames and key hints, not activity.
+// for TUI agents it is spinner frames and key hints, not activity. The
+// result is sanitized (see sanitizeText) so column sizing measures what
+// renders.
 func rowDescription(s protocol.SessionSummary) string {
 	if s.Description != "" {
-		return s.Description
+		return sanitizeText(s.Description)
 	}
-	return s.Title
+	return sanitizeText(s.Title)
 }

@@ -68,7 +68,8 @@ func cursorBlock(m Model) string {
 // renderHelpLine builds the bottom help line, sized to width.
 func renderHelpLine(m Model, width int) string {
 	if m.Err != "" {
-		return padLine("  "+styleStateFailed.Render("err: "+m.Err), width)
+		// Errors echo daemon messages and session strings: sanitize.
+		return padLine("  "+styleStateFailed.Render("err: "+sanitizeText(m.Err)), width)
 	}
 	if m.Focus == FocusRename {
 		parts := []string{

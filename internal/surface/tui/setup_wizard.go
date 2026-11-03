@@ -862,7 +862,8 @@ func (m SetupWizardModel) toolsWarningLines() []string {
 		return nil
 	}
 	out := []string{"  " + styleBootWarn.Render("!") + " tools.yaml ignored — using the built-in tools"}
-	wrapped := lipgloss.NewStyle().Width(setupWidth - 4).Render(m.toolsErr.Error())
+	// YAML errors can quote the file's content: sanitize before wrapping.
+	wrapped := lipgloss.NewStyle().Width(setupWidth - 4).Render(sanitizeText(m.toolsErr.Error()))
 	for i, l := range strings.Split(wrapped, "\n") {
 		if i == 3 {
 			break
