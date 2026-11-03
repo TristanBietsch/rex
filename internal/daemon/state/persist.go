@@ -158,6 +158,8 @@ func LoadAll(root string) ([]*Session, error) {
 		switch sess.State {
 		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
 			sess.State = protocol.StateCrashed
+		case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
+			// Terminal states survive a daemon restart unchanged.
 		}
 		sess.WorkingSince = time.Time{}
 		out = append(out, sess)

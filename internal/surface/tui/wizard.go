@@ -138,6 +138,8 @@ func nextWizardStep(w *WizardState) {
 		}
 	case wizEffort:
 		w.Step = wizDescribe
+	case wizDescribe:
+		// Last step: updateWizardDescribeStep owns enter here.
 	}
 }
 
@@ -151,6 +153,8 @@ func prevWizardStep(w *WizardState) {
 		} else {
 			w.Step = wizProvider
 		}
+	case wizProvider:
+		// First step: nothing to go back to.
 	}
 }
 
@@ -199,6 +203,8 @@ func moveWizard(m Model, delta int) Model {
 			m.Wizard.EffortIdx = next
 			moved = true
 		}
+	case wizDescribe:
+		// Free-text step: updateWizardDescribeStep owns the keys.
 	}
 	if moved {
 		playNav(m)

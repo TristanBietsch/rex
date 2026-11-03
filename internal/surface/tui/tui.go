@@ -90,6 +90,8 @@ func (m Model) View() string {
 		if m.Attach != nil {
 			return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
 		}
+	default:
+		// The board and its bottom-bar prompts render on the full screen.
 	}
 
 	return renderFullScreen(m, w, h)

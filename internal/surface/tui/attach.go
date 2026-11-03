@@ -488,8 +488,9 @@ func attachStateChip(m Model, st protocol.State) string {
 		return bold.Foreground(colorFailed).Render("✕ failed")
 	case protocol.StateCrashed:
 		return bold.Foreground(colorCrashed).Render("○ crashed")
+	default:
+		return styleDim.Render("· " + string(st))
 	}
-	return styleDim.Render("· " + string(st))
 }
 
 func attachFooter(m Model, a *AttachState, width int) string {

@@ -458,6 +458,8 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.effortIdx+1 < len(m.effortOptions) {
 				m.effortIdx++
 			}
+		case defaultsModel:
+			// Free-text field: no list to move through.
 		}
 	case "k", "up":
 		m.moved()
@@ -475,6 +477,8 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.effortIdx > 0 {
 				m.effortIdx--
 			}
+		case defaultsModel:
+			// Free-text field: no list to move through.
 		}
 	default:
 		if m.defaultsField == defaultsModel {
