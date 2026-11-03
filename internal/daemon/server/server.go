@@ -91,6 +91,10 @@ type Server struct {
 	gate *concurrencyGate
 	wg   sync.WaitGroup
 
+	// handlers maps intent types to their handlers. Built in New and
+	// read-only once Serve starts; tests may swap entries before Serve.
+	handlers map[string]intentHandler
+
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
 
@@ -148,7 +152,11 @@ func New(cfg Config) (*Server, error) {
 	if cfg.RetireSweepInterval <= 0 {
 		cfg.RetireSweepInterval = defaultRetireSweepInterval
 	}
-	s := &Server{cfg: cfg, gate: &concurrencyGate{max: cfg.MaxConcurrentSessions}}
+	s := &Server{
+		cfg:      cfg,
+		gate:     &concurrencyGate{max: cfg.MaxConcurrentSessions},
+		handlers: defaultHandlers(),
+	}
 	s.reg.Store(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
 	// Registry() / MaxConcurrentSessions() so nobody uses a stale copy.
