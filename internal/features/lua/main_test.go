@@ -3,10 +3,12 @@ package lua
 import (
 	"testing"
 
-	"go.uber.org/goleak"
+	"github.com/tristanbietsch/rex/internal/testutil/testenv"
 )
 
-// TestMain fails the package when a goroutine started by a test outlives it.
+// TestMain runs the package's tests against a throwaway HOME (never the
+// developer's real rex config, state or daemon) and fails the package when a
+// goroutine started by a test outlives it.
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testenv.RunLeakChecked(m)
 }
