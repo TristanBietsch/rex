@@ -1,4 +1,7 @@
-.PHONY: build build-all test test-race vet lint vuln check clean install uninstall bench bench-integration bench-profile bench-check
+.PHONY: build build-all install uninstall \
+	test test-race test-e2e vet lint lint-windows vuln \
+	cover cover-check fuzz check clean \
+	bench bench-integration bench-profile bench-check bench-compare
 
 # PREFIX is where binaries are installed (override with `make install PREFIX=...`).
 PREFIX ?= $(HOME)/.local
@@ -6,8 +9,16 @@ PREFIX ?= $(HOME)/.local
 # Lint tools run via `go run` at pinned versions so they're built with the
 # repo's Go toolchain (a golangci-lint built with an older Go can't read this
 # toolchain's export data).
-GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+GOLANGCI_LINT_PKG := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+GOLANGCI_LINT ?= go run $(GOLANGCI_LINT_PKG)
+# lint-windows type-checks the Windows build. GOOS must reach the linter but
+# not the `go run` build of it, so it goes through -exec. With a prebuilt
+# binary: make lint-windows GOLANGCI_LINT_WINDOWS='env GOOS=windows golangci-lint'
+GOLANGCI_LINT_WINDOWS ?= go run -exec 'env GOOS=windows' $(GOLANGCI_LINT_PKG)
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+# FUZZTIME is how long `make fuzz` runs each fuzz target.
+FUZZTIME ?= 30s
 
 build: build-all
 
@@ -38,20 +49,57 @@ test-race:
 	go test -race ./...
 	go -C third_party/vt10x test -race ./...
 
+# test-e2e runs the end-to-end suite under e2e/. It is a no-op until that
+# directory exists.
+test-e2e:
+	@if [ -d e2e ]; then \
+		go test ./e2e/...; \
+	else \
+		echo "test-e2e: no e2e/ directory; skipping"; \
+	fi
+
 vet:
 	go vet ./...
 
 lint:
 	$(GOLANGCI_LINT) run ./...
 
+lint-windows:
+	$(GOLANGCI_LINT_WINDOWS) run ./...
+
 vuln:
 	$(GOVULNCHECK) ./...
 
-# check is the pre-release gate: vet, race-enabled tests, lint, known vulns.
-check: vet test-race lint vuln
+# cover writes a merged profile to coverage.out. go test prints the
+# per-package summary; the last line is the total.
+cover:
+	go test -coverprofile=coverage.out ./...
+	@go tool cover -func=coverage.out | tail -n 1
+
+# cover-check fails when a package drops below its floor in
+# tools/coverage/baseline.txt.
+cover-check:
+	@sh tools/coverage/check.sh
+
+# fuzz runs every Fuzz* target in every package for FUZZTIME each. go test
+# takes -fuzz for one package and one target at a time, so targets are
+# discovered with -list first. Packages without fuzz targets are skipped.
+fuzz:
+	@set -e; \
+	for pkg in $$(go list ./...); do \
+		list=$$(go test -list '^Fuzz' "$$pkg"); \
+		for fn in $$(printf '%s\n' "$$list" | grep '^Fuzz' || true); do \
+			echo "==> $$pkg $$fn ($(FUZZTIME))"; \
+			go test -run='^$$' -fuzz="^$$fn\$$" -fuzztime=$(FUZZTIME) "$$pkg"; \
+		done; \
+	done
+
+# check is the pre-release gate: vet, race-enabled tests, lint (host and
+# Windows), coverage floors, known vulns.
+check: vet test-race lint lint-windows cover-check vuln
 
 clean:
-	rm -f rex-daemon rex
+	rm -f rex-daemon rex coverage.out
 
 # Unit benchmarks (S3–S5 + persist). Excludes integration-tagged package.
 bench:
