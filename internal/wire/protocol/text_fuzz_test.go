@@ -34,6 +34,39 @@ func FuzzValidateSlug(f *testing.F) {
 	})
 }
 
+// FuzzSanitizeDisplayText checks SanitizeDisplayText's documented promise:
+// the result is valid UTF-8, one trimmed line, free of control, C1 and bidi
+// runes (so no escape sequence survives), within the rune cap, never longer
+// than the input, and sanitizing it again changes nothing.
+func FuzzSanitizeDisplayText(f *testing.F) {
+	for _, s := range []string{
+		"plain text", "  padded  ", "line1\nline2", "\n\nlate start", "a\rb",
+		"\x1b[31mred\x1b[0m", "\x1b]0;title\x07rest", "\x1b]8;;http://x\x1b\\link\x1b]8;;\x1b\\",
+		"\x1bPq\x1b\\", "\x1b", "a\x1b\x1b[A[", "\u009b31m", "\u009d0;t\u009c", "a\u0085b",
+		"a\u2028b", "abc\u202edef", "a\xffb", "\x9b31m", "日本語 🐛", "a\tb",
+	} {
+		f.Add(s, 0)
+		f.Add(s, 4)
+	}
+
+	f.Fuzz(func(t *testing.T, s string, maxRunes int) {
+		maxRunes %= 512
+		out := SanitizeDisplayText(s, maxRunes)
+		require.True(t, utf8.ValidString(out), "invalid UTF-8 in %q", out)
+		require.Equal(t, strings.TrimSpace(out), out, "untrimmed result %q", out)
+		require.LessOrEqual(t, len(out), len(s), "result longer than input")
+		if maxRunes > 0 {
+			require.LessOrEqual(t, utf8.RuneCountInString(out), maxRunes)
+		}
+		for _, r := range out {
+			require.False(t, unicode.IsControl(r), "control rune %U kept in %q", r, out)
+			require.False(t, isBidiControl(r), "bidi control %U kept in %q", r, out)
+			require.False(t, r == '\u2028' || r == '\u2029', "line separator %U kept in %q", r, out)
+		}
+		require.Equal(t, out, SanitizeDisplayText(out, maxRunes), "not idempotent")
+	})
+}
+
 // FuzzNormalizeSessionName checks NormalizeSessionName's documented promise:
 // the result is a single trimmed line with whitespace runs collapsed to one
 // space, no control or bidi runes, valid UTF-8, at most MaxSessionNameRunes,
