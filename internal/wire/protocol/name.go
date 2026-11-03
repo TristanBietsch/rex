@@ -51,6 +51,6 @@ func NormalizeSessionName(s string) (string, error) {
 }
 
 func isBidiControl(r rune) bool {
-	return (r >= '‪' && r <= '‮') || (r >= '⁦' && r <= '⁩') ||
-		r == '‎' || r == '‏' || r == '؜'
+	return (r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069') ||
+		r == '\u200e' || r == '\u200f' || r == '\u061c'
 }
