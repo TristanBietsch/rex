@@ -1,0 +1,43 @@
+name: fuzz
+
+# Runs every Fuzz* target (see `make fuzz`) for two minutes each.
+on:
+  schedule:
+    - cron: "41 4 * * 1" # weekly, Monday 04:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # oto (TUI sounds) links ALSA via cgo on Linux; target discovery
+      # builds every package's test binary.
+      - name: Install ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Fuzz
+        run: make fuzz FUZZTIME=2m
+
+      # A failing input is written under the package's testdata/fuzz/.
+      # Keep it so the crash can be reproduced and committed as a seed.
+      - name: Upload failing inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-failures
+          path: "**/testdata/fuzz/**"
+          if-no-files-found: ignore

@@ -8,13 +8,26 @@ on:
 permissions:
   contents: read
 
+# A new push to a PR supersedes the run in flight. Runs on master are
+# never cancelled, so every merged commit keeps its own result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   check:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          # Linux runs the full gate, including the GOOS=windows lint and
+          # the coverage floors.
+          - os: ubuntu-latest
+            targets: check
+          - os: macos-latest
+            targets: vet test-race lint vuln
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -30,11 +43,12 @@ jobs:
       - name: Build
         run: make build
 
-      - name: Check (vet, race tests, lint, govulncheck)
-        run: make check
+      - name: Check (${{ matrix.targets }})
+        run: make ${{ matrix.targets }}
 
   windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
