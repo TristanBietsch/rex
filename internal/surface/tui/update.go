@@ -43,13 +43,16 @@ func scheduleDescTick() tea.Cmd {
 // Update is the central Bubble Tea handler. After every message it re-arms
 // the spinner tick chain if something started animating (a session began
 // working, an input bar opened, a done row started flashing) — arming at one
-// choke point means no branch can forget it and freeze the animation.
+// choke point means no branch can forget it and freeze the animation. The
+// same choke point enforces the focus invariant (normalizeFocus), so no
+// branch can leave the TUI focused on a component that doesn't exist.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.dispatch(msg)
 	nm, ok := next.(Model)
 	if !ok {
 		return next, cmd
 	}
+	nm = normalizeFocus(nm)
 	var arm tea.Cmd
 	if nm, arm = armSpinner(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
@@ -223,7 +226,43 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// focusStateMissing reports whether the focused component has no state to
+// drive it. Each of these handlers no-ops on nil state, so such a focus
+// would swallow every key, esc included.
+func (m Model) focusStateMissing() bool {
+	switch m.Focus {
+	case FocusWizard:
+		return m.Wizard == nil
+	case FocusSettings:
+		return m.Settings == nil
+	case FocusAttach:
+		return m.Attach == nil
+	case FocusFail:
+		return m.Fail == nil
+	case FocusRename:
+		return m.Rename == nil
+	default:
+		return false // stateless foci (help, stats, prompts, confirms)
+	}
+}
+
+// normalizeFocus enforces the focus invariant: a component-backed focus
+// always has its component. A violation is a bug (it soft-locked the TUI
+// via `:new`, P0-07), so it is logged and the board takes focus back rather
+// than leaving the user stuck.
+func normalizeFocus(m Model) Model {
+	if !m.focusStateMissing() {
+		return m
+	}
+	slog.Warn("tui: focus without component state; returning to board", "focus", m.Focus)
+	m.Focus = FocusBoard
+	return m
+}
+
 func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	// A key aimed at a focus with no component goes to the board instead of
+	// being dropped.
+	m = normalizeFocus(m)
 	// Boot splash grabs keys to allow quit during long/failed startup.
 	if m.Focus == FocusBoot {
 		switch k.String() {
