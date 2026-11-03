@@ -1,8 +1,6 @@
 package setup
 
 import (
-	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -11,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
@@ -68,12 +67,7 @@ func RunUninstall(args []string) error {
 	configDir := filepath.Join(home, ".config", "rex")
 
 	// Profile files to scan for strip-profile.
-	profileFiles := []string{
-		filepath.Join(home, ".bashrc"),
-		filepath.Join(home, ".bash_profile"),
-		filepath.Join(home, ".zshrc"),
-		filepath.Join(home, ".config", "fish", "config.fish"),
-	}
+	profileFiles := profileFiles(home)
 
 	// ── Preview ──────────────────────────────────────────────────────────────
 	fmt.Println()
@@ -203,14 +197,15 @@ func RunUninstall(args []string) error {
 
 	// ── Strip profile blocks ──────────────────────────────────────────────────
 	if *stripProfile {
-		count, errs := stripProfileBlocks(profileFiles)
+		stripped, errs := stripProfileBlocks(profileFiles, time.Now())
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "  error stripping profile: %v\n", e)
 		}
-		if count > 0 {
-			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render(fmt.Sprintf("profile blocks removed (%d file(s) modified)", count)))
-			slog.Info("uninstall: stripped profile blocks", "files_modified", count)
-		} else if len(errs) == 0 {
+		for _, s := range stripped {
+			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("profile block removed from "+s.Path) +
+				core.HelpDim.Render("  (backup: "+s.Backup+")"))
+		}
+		if len(stripped) == 0 && len(errs) == 0 {
 			fmt.Println("  " + uninstallBullet.Render(core.HelpBullet) + " " + core.HelpDim.Render("no profile blocks found"))
 		}
 	}
@@ -276,114 +271,4 @@ func dirSummary(dir string) string {
 	}
 	kb := totalBytes / 1024
 	return fmt.Sprintf("(%d files, %d KB)", count, kb)
-}
-
-// profileFilesWithBlock returns only the files that contain a BEGIN REX block.
-func profileFilesWithBlock(files []string) []string {
-	var found []string
-	for _, f := range files {
-		if hasProfileBlock(f) {
-			found = append(found, f)
-		}
-	}
-	return found
-}
-
-// hasProfileBlock reports whether a file contains a # BEGIN REX marker.
-func hasProfileBlock(path string) bool {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	lower := strings.ToLower(string(data))
-	return strings.Contains(lower, "# begin rex")
-}
-
-// stripProfileBlocks rewrites each file in paths, removing lines bracketed by
-// # BEGIN REX … # END REX (case-insensitive, inclusive). Returns count of
-// modified files and any errors encountered.
-func stripProfileBlocks(paths []string) (int, []error) {
-	var modified int
-	var errs []error
-	for _, p := range paths {
-		ok, err := stripBlockFromFile(p)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", p, err))
-			continue
-		}
-		if ok {
-			modified++
-			slog.Info("uninstall: stripped profile block", "file", p)
-		}
-	}
-	return modified, errs
-}
-
-// stripBlockFromFile removes BEGIN REX … END REX blocks from a single file
-// using an atomic temp-file + rename. Returns true if the file was modified.
-func stripBlockFromFile(path string) (modified bool, err error) {
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	var out bytes.Buffer
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	inBlock := false
-	for scanner.Scan() {
-		line := scanner.Text()
-		lower := strings.ToLower(strings.TrimSpace(line))
-		if !inBlock && lower == "# begin rex" {
-			inBlock = true
-			modified = true
-			continue
-		}
-		if inBlock {
-			if lower == "# end rex" {
-				inBlock = false
-			}
-			continue
-		}
-		out.WriteString(line + "\n")
-	}
-	if err := scanner.Err(); err != nil {
-		return false, err
-	}
-	if !modified {
-		return false, nil
-	}
-
-	// Atomic write: temp file in same dir, then rename.
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".rex-uninstall-*")
-	if err != nil {
-		return false, err
-	}
-	tmpName := tmp.Name()
-	defer func() {
-		if err != nil {
-			_ = os.Remove(tmpName)
-		}
-	}()
-
-	if _, err = tmp.Write(out.Bytes()); err != nil {
-		_ = tmp.Close()
-		return false, err
-	}
-	if err = tmp.Close(); err != nil {
-		return false, err
-	}
-
-	// Preserve original permissions.
-	if info, statErr := os.Stat(path); statErr == nil {
-		_ = os.Chmod(tmpName, info.Mode())
-	}
-
-	if err = os.Rename(tmpName, path); err != nil {
-		return false, err
-	}
-	return true, nil
 }
