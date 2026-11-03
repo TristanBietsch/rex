@@ -1,0 +1,35 @@
+# Top-level help and version need no daemon and exit 0.
+
+exec rex help
+stdout 'USAGE'
+stdout 'rex <command> \[flags\]'
+stdout 'completion <shell>'
+! stderr .
+
+exec rex --help
+stdout 'USAGE'
+
+exec rex -h
+stdout 'USAGE'
+
+exec rex version
+stdout '^v1$'
+! stderr .
+
+exec rex --version
+stdout '^v1$'
+
+exec rex -v
+stdout '^v1$'
+
+exec rex-daemon -version
+stdout '^v1$'
+
+# An unknown verb is a generic failure, not invalid args.
+exitcode 1 rex frobnicate
+stderr '^rex: unknown command "frobnicate" \(try `rex --help`\)$'
+
+# BUG: subcommand -h is reported as invalid args and exits 5; flip to 0 when fixed.
+exitcode 5 rex ls -h
+stderr 'Usage of ls:'
+stderr '^rex: flag: help requested$'

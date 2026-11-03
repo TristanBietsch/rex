@@ -1,0 +1,77 @@
+# rename, name, done/undone, archive and rm on a finished echo session.
+
+daemon-start
+exec rex new --tool echo --model short --slug m1 meta task
+exec rex wait -until done -timeout 20s m1
+exec rex new --tool echo --model short --slug other other task
+
+# rename
+exec rex rename m1 m2
+stdout '^m1: renamed to m2$'
+exitcode 2 rex rename m1 m3
+stderr '^rex: no session matches "m1"$'
+exitcode 5 rex rename m2 'bad slug'
+stderr 'slug must not contain whitespace'
+exitcode 5 rex rename m2 other
+stderr '^rex: slug "other" already in use by [0-9a-f]{4}$'
+
+# name
+exec rex name m2
+stdout '^\(no name — board shows slug m2\)$'
+exec rex name m2 My   Task
+stdout '^m2: named "My Task" \(7/64\)$'
+exec rex name m2
+stdout '^My Task$'
+exec rex ls
+stdout ' m2 .*My Task$'
+# BUG: flags after the selector are ignored, so -clear becomes the name; flip when fixed.
+exec rex name m2 -clear
+stdout '^m2: named "-clear" \(6/64\)$'
+exec rex name -clear m2
+stdout '^m2: name cleared$'
+exitcode 5 rex name -clear m2 extra
+stderr 'name: -clear takes no text'
+
+# done / undone
+exec rex done -after 1h m2
+stdout '^m2: marked done — clears in 1h \(rex undone [0-9a-f]{4} to cancel\)$'
+exec rex ls
+stdout ' m2 .*✓done$'
+exec rex done -after 1h m2
+stdout '^m2: already marked done — clears in \d+m \(rex undone to cancel\)$'
+exec rex undone m2
+stdout '^m2: unmarked$'
+exec rex undone m2
+stdout '^m2: not marked done$'
+# BUG: the documented `rex done <sel> -after 72h` is rejected because flags
+# after the selector are ignored; flip when fixed.
+exitcode 5 rex done m2 -after 72h
+stderr '^rex: done: <selector> \[-after 72h\]$'
+exitcode 5 rex done -after 5s m2
+stderr '^rex: done: -after must be at least 10s$'
+
+# archive
+exec rex archive m2
+stdout '^m2: archived$'
+exec rex ls -json
+stdout '"title":"\[archived\] meta task"'
+# BUG: archiving twice stacks the prefix; flip when fixed.
+exec rex archive m2
+exec rex ls -json
+stdout '"title":"\[archived\] \[archived\] meta task"'
+# BUG: -show-archived is ignored, so archived sessions are listed by default; flip when fixed.
+exec rex ls
+stdout ' m2 '
+
+# rm (stdin is not a TTY, so no confirmation prompt)
+exec rex rm m2
+! stdout .
+exec rex ls
+! stdout ' m2 '
+stdout ' other '
+exitcode 2 rex rm m2
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false

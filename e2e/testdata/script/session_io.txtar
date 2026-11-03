@@ -1,0 +1,49 @@
+# wait (with timeouts), reply, send and log against echo/prompt sessions,
+# which print "awaiting input:" and then read one line from the PTY.
+
+daemon-start
+
+# No prompt argument and empty stdin, so nothing is pasted into the session
+# and its `read` is still waiting for us.
+exec rex new --tool echo --model prompt --slug p1
+exec rex wait -until needs_input -timeout 20s p1
+
+exitcode 7 rex wait -until done -timeout 300ms p1
+stderr '^rex: wait timed out$'
+# BUG: flags after the selector are ignored, so this is three positionals; flip when fixed.
+exitcode 5 rex wait p1 -until done -timeout 300ms
+stderr '^rex: wait: exactly one selector required$'
+
+# Already in the target state: returns at once.
+exec rex wait -until needs_input -timeout 1s p1
+
+exec rex reply p1 hello rex
+! stdout .
+exec rex wait -until done -timeout 20s p1
+
+exec rex log p1
+stdout 'awaiting input:'
+stdout 'got: hello rex'
+exec rex log -n 1 p1
+stdout '^done'
+! stdout 'awaiting input:'
+
+# send forwards stdin bytes verbatim.
+exec rex new --tool echo --model prompt --slug p2
+exec rex wait -until needs_input -timeout 20s p2
+stdin input.txt
+exec rex send p2
+! stdout .
+exec rex wait -until done -timeout 20s p2
+exec rex log p2
+stdout 'got: raw bytes'
+
+exec rex status
+stdout '^0 awaiting input · 0 working · 2 completed$'
+
+daemon-stop
+
+-- input.txt --
+raw bytes
+-- home/.config/rex/config.yaml --
+summary_enabled: false

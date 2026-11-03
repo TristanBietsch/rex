@@ -1,0 +1,52 @@
+# config list/get/set/reset read and write $HOME/.config/rex/config.yaml,
+# which the harness points at $WORK/home. No daemon is needed.
+
+! exists home/.config/rex/config.yaml
+
+exec rex config list
+stdout '^# Appearance$'
+stdout '^  spinner +braille$'
+stdout '^  summary_enabled +true$'
+exec rex config list -json
+stdout '^\{"id":"spinner","section":"Appearance","value":"braille","default":"braille"\}$'
+
+exec rex config get spinner
+stdout '^braille$'
+# Reading never creates the file.
+! exists home/.config/rex/config.yaml
+
+exec rex config set spinner moon
+! stdout .
+exists home/.config/rex/config.yaml
+grep '^spinner: moon$' home/.config/rex/config.yaml
+# BUG: Save writes every default into the file, pinning them; flip when fixed.
+grep '^color_scheme: default$' home/.config/rex/config.yaml
+exec rex config get spinner
+stdout '^moon$'
+
+exec rex config set mouse_enabled false
+exec rex config get mouse_enabled
+stdout '^false$'
+
+exec rex config reset spinner
+exec rex config get spinner
+stdout '^braille$'
+
+# Validation failures exit 5 and leave the file alone.
+exitcode 5 rex config set spinner spiral
+stderr 'not in options'
+exitcode 5 rex config set master_volume 1.5
+stderr 'out of range'
+exitcode 5 rex config set lua_config_path /tmp/x
+stderr 'read-only'
+exitcode 5 rex config get nope
+stderr '^rex: unknown setting "nope"$'
+exitcode 5 rex config
+stderr 'config: subcommand required'
+exitcode 5 rex config bogus
+stderr '^rex: config: unknown subcommand "bogus"$'
+
+# BUG: master_volume accepts NaN although its range is [0, 1]; flip when fixed.
+exec rex config set master_volume NaN
+exec rex config get master_volume
+stdout '^NaN$'

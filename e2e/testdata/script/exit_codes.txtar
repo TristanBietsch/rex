@@ -1,0 +1,44 @@
+# Documented exit codes: 2 selector not found, 4 daemon unreachable,
+# 5 invalid args. Ambiguous selectors (3) need colliding random IDs and are
+# covered by unit tests instead.
+
+exitcode 4 rex ls
+
+daemon-start
+
+# Unknown selector.
+exitcode 2 rex wait nope
+stderr '^rex: no session matches "nope"$'
+exitcode 2 rex log nope
+exitcode 2 rex name nope
+exitcode 2 rex done nope
+exitcode 2 rex undone nope
+exitcode 2 rex archive nope
+exitcode 2 rex rename nope fresh
+exitcode 2 rex rm nope
+exitcode 2 rex reply nope hi
+
+# Invalid arguments.
+exitcode 5 rex wait ''
+stderr '^rex: empty selector$'
+exitcode 5 rex wait
+stderr '^rex: wait: exactly one selector required$'
+exitcode 5 rex rename onlyone
+stderr '^rex: rename: <selector> <new-slug>$'
+exitcode 5 rex ls -bogus
+stderr 'flag provided but not defined: -bogus'
+exitcode 5 rex new -slug 'a b' x
+stderr '^rex: new: slug must not contain whitespace$'
+exitcode 5 rex daemon
+stderr 'daemon: subcommand required'
+exitcode 5 rex daemon bogus
+stderr '^rex: daemon: unknown subcommand "bogus"$'
+
+daemon-stop
+
+# The daemon removed its socket on a clean exit.
+! exists $SOCKET
+exitcode 4 rex ls
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false
