@@ -95,6 +95,12 @@ type Server struct {
 	// read-only once Serve starts; tests may swap entries before Serve.
 	handlers map[string]intentHandler
 
+	// Per-connection outbound limits (0 = defaultClientQueueLen /
+	// defaultClientWriteTimeout). Set before Serve; tests shrink them.
+	clientQueueLen     int
+	clientWriteTimeout time.Duration
+	nextConnID         atomic.Uint64
+
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
 
@@ -257,7 +263,15 @@ func (s *Server) InputChannel(sessionID string) chan []byte {
 	return s.inputChannels[sessionID]
 }
 
-// SubscribeSessionOutput registers a per-session output callback. Returns a cancel func.
+// SubscribeSessionOutput registers a per-session output callback. Returns a
+// cancel func.
+//
+// Callback contract: fn runs on the session's PTY reader goroutine (the
+// supervisor's OutputSink) with outputSubsMu read-held, so a slow fn stalls
+// that session's output and its transcript. fn must not block or do I/O
+// (client connections encode and enqueue), must not retain b past the call
+// unless it copies it, and must not call SubscribeSessionOutput or a cancel
+// func. Once the cancel func returns, fn is never called again.
 func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func() {
 	s.outputSubsMu.Lock()
 	defer s.outputSubsMu.Unlock()
@@ -290,7 +304,9 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 
 // SubscribeSummarizerHealth registers a global callback for SummarizerHealth
 // events. Returns a cancel func. Every connected client subscribes once after
-// Hello so health flips propagate to all live TUIs.
+// Hello so health flips propagate to all live TUIs. fn runs with
+// summarizerHealthMu read-held and follows the SubscribeSessionOutput
+// contract: no blocking, no I/O, no (un)subscribing from inside it.
 func (s *Server) SubscribeSummarizerHealth(fn func(protocol.SummarizerHealth)) func() {
 	s.summarizerHealthMu.Lock()
 	defer s.summarizerHealthMu.Unlock()

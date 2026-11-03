@@ -18,7 +18,7 @@ type client struct {
 	// ctx is the server's serve context. Sessions spawned over this
 	// connection derive from it, so they outlive the connection.
 	ctx context.Context
-	w   *protocol.Writer
+	out *clientConn
 	// subscribed gates store and health events until the Hello snapshot has
 	// been sent. Read by broadcast callbacks, so atomic.
 	subscribed atomic.Bool
@@ -32,8 +32,12 @@ type client struct {
 type intentHandler func(c *client, env protocol.Envelope)
 
 func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
-	defer conn.Close()
-	c := &client{srv: srv, ctx: ctx, w: protocol.NewWriter(conn)}
+	out := newClientConn(conn, srv.nextConnID.Add(1), srv.clientQueueLen, srv.clientWriteTimeout)
+	c := &client{srv: srv, ctx: ctx, out: out}
+	// Deferred calls run in reverse: subscriptions are canceled first, so no
+	// broadcast can enqueue any more, then queued lines are flushed and the
+	// socket closes.
+	defer out.finish()
 	defer c.runCleanups()
 	c.subscribeBoard()
 
@@ -88,8 +92,10 @@ func (c *client) dispatch(env protocol.Envelope) {
 	h(c, env)
 }
 
+// sendEvent queues an event for this client. Safe from any goroutine and
+// never blocks (see clientConn).
 func (c *client) sendEvent(typ, id string, payload any) {
-	writeEvent(c.w, typ, id, payload)
+	c.out.sendEvent(typ, id, payload)
 }
 
 func (c *client) sendError(id, code, msg string) {

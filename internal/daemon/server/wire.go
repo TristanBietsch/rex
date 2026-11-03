@@ -1,8 +1,6 @@
 package server
 
 import (
-	"log/slog"
-
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -27,12 +25,5 @@ func (c *client) emitStoreEvent(e state.Event) {
 		c.sendEvent(protocol.EventSessionRemoved, "", protocol.SessionRemoved{
 			SessionID: e.SessionID, Reason: e.Reason,
 		})
-	}
-}
-
-// writeEvent logs at debug when the client connection is gone (common on disconnect).
-func writeEvent(w *protocol.Writer, eventType, id string, data any) {
-	if err := w.WriteEvent(eventType, id, data); err != nil {
-		slog.Debug("server: write event failed", "type", eventType, "id", id, "err", err)
 	}
 }

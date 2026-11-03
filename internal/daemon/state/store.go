@@ -531,6 +531,15 @@ func (s *Store) UpdateDescription(id, desc string) error {
 }
 
 // Subscribe registers a callback for store events. Returns a cancel func.
+//
+// Callback contract: fn runs synchronously on whichever goroutine changed the
+// store (a PTY reader, a client handler, the retire reaper), with the
+// subscriber lock read-held and possibly concurrently with other callbacks.
+// It must therefore not block and must not do I/O: hand the event off (the
+// daemon's client connections enqueue it and return). It must not call
+// Subscribe or a cancel func, which take the lock exclusively and would
+// deadlock. Once the cancel func returns, fn is not running and is never
+// called again.
 func (s *Store) Subscribe(fn func(Event)) func() {
 	s.subsMu.Lock()
 	defer s.subsMu.Unlock()
