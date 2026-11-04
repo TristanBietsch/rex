@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"runtime/debug"
 	"sync/atomic"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -58,7 +59,9 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 			c.readFailed(err)
 			return
 		}
-		c.dispatch(env)
+		if !c.dispatch(env) {
+			return
+		}
 	}
 }
 
@@ -114,18 +117,36 @@ func (c *client) runCleanups() {
 	c.cleanups = nil
 }
 
-// dispatch routes one envelope to its intent handler.
-func (c *client) dispatch(env protocol.Envelope) {
+// dispatch routes one envelope to its intent handler and reports whether
+// the connection should stay open.
+//
+// A panicking handler must not take the daemon, and every session it
+// supervises, down with it. dispatch recovers, logs the stack, answers the
+// intent with internal_error (the panic value stays in the log) and returns
+// false so the connection closes: the handler may have left this
+// connection's state half-updated. Shared state is not repaired; handlers
+// release locks with defer so a panic cannot leave one held.
+func (c *client) dispatch(env protocol.Envelope) (keepOpen bool) {
+	defer func() {
+		if p := recover(); p != nil {
+			slog.Error("server: intent handler panicked; closing connection",
+				"conn", c.out.id, "type", env.Type, "req_id", env.ID,
+				"panic", p, "stack", string(debug.Stack()))
+			c.sendError(env.ID, protocol.ErrCodeInternal, "internal error handling the intent; closing connection")
+			keepOpen = false
+		}
+	}()
 	if env.Kind != protocol.KindIntent {
 		c.sendError(env.ID, protocol.ErrCodeBadIntent, "expected an Intent")
-		return
+		return true
 	}
 	h := c.srv.handlers[env.Type]
 	if h == nil {
 		c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
-		return
+		return true
 	}
 	h(c, env)
+	return true
 }
 
 // sendEvent queues an event for this client. Safe from any goroutine and
