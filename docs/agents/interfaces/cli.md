@@ -46,7 +46,7 @@ Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWai
 
 ## Gotchas
 
-- `rex reload` → SIGHUP → tools.yaml only (`lifecycle/reload.go`).
+- `rex reload` → `Reload` intent over the socket → tools.yaml only (`lifecycle/reload.go`). `rex daemon stop|status|restart` gate on the socket, never on `daemonctl.FindPID` (display only) (`lifecycle/daemon.go`).
 - `rex attach` detach: Ctrl+] (`session/attach.go`).
 - `config edit` → `init.lua` (`setup/config.go`).
 - `ls -short`, `new -no-attach`: flags parsed, no effect.

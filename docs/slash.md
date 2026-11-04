@@ -14,7 +14,7 @@ rex TUI — command palette
 
 ## DESCRIPTION
 
-Commands run in the TUI process. Some call the daemon; `:reload` sends SIGHUP to reload `tools.yaml` only.
+Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload` request over the TUI's socket to reload `tools.yaml` only; a failed request shows in the status line.
 
 ## COMMANDS
 
@@ -25,7 +25,7 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends SIGHUP to
 | `bg`, `detach` | — | Save TUI state and exit |
 | `help` | — | Help overlay |
 | `settings` | — | Settings page |
-| `reload` | — | SIGHUP daemon (reload tools.yaml) |
+| `reload` | — | Ask the daemon to reload tools.yaml (over the socket) |
 | `filter` | `<tool>` | Set filter chip (`all` or tool id) |
 | `new` | — | New-session wizard |
 | `rm` | `<sel>` | Delete session |

@@ -40,7 +40,7 @@ On startup, sessions that were `queued`, `working`, or `needs_input` are remappe
 | `SIGINT`, `SIGTERM` | Shut down; unlink socket |
 | `SIGHUP` | Reload `tools.yaml` into the running registry; PTYs unchanged |
 
-`rex reload` sends `SIGHUP` to the running daemon process.
+`rex reload`, the TUI's `:reload` and `rex daemon stop` do not signal the process. They send `Reload` and `Shutdown` requests over the socket, so they reach exactly the daemon on that socket.
 
 Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config.
 
@@ -84,7 +84,7 @@ rex-daemon -state-dir /tmp/rex-test -socket /tmp/rex-test.sock
 ```
 
 ```sh
-rex reload            # SIGHUP → reload tools.yaml
+rex reload            # Reload request over the socket: re-read tools.yaml
 ```
 
 ## SEE ALSO

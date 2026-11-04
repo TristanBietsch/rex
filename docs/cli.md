@@ -226,7 +226,7 @@ rex complete <sel> [-socket path]
 
 ## rex reload
 
-Send SIGHUP to the daemon. Reloads **tools.yaml** only.
+Send a `Reload` request to the daemon over its socket. Reloads **tools.yaml** only. Exits 4 when no daemon answers on the socket.
 
 ```sh
 rex reload
@@ -245,6 +245,8 @@ rex daemon status    # exit 4 if not running
 rex daemon restart
 rex daemon logs [-f]
 ```
+
+`stop`, `status` and `restart` act on whatever daemon answers on the socket. `stop` sends it a `Shutdown` request and returns once the daemon has removed its socket; no process is looked up by name or signaled. The PID shown is for information only and reads `unknown` when it cannot be determined (for example, two daemons on different sockets). `restart` does not start a second daemon if the first one will not stop.
 
 `logs` reads `~/.local/state/rex/daemon.log`.
 
