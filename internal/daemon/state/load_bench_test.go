@@ -13,14 +13,14 @@ import (
 func writeBenchSessions(b *testing.B, root string, n int) {
 	b.Helper()
 	sessions := filepath.Join(root, "sessions")
-	if err := os.MkdirAll(sessions, 0o755); err != nil {
+	if err := os.MkdirAll(sessions, 0o700); err != nil {
 		b.Fatal(err)
 	}
 	now := time.Now().UTC()
 	for i := 0; i < n; i++ {
 		id := formatBenchID(i)
 		dir := filepath.Join(sessions, id)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			b.Fatal(err)
 		}
 		sum := protocol.SessionSummary{
@@ -32,7 +32,7 @@ func writeBenchSessions(b *testing.B, root string, n int) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "meta.json"), raw, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "meta.json"), raw, 0o600); err != nil {
 			b.Fatal(err)
 		}
 	}

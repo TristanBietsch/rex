@@ -219,9 +219,9 @@ func TestStripProfileBlocks_reportsPerFile(t *testing.T) {
 	good := filepath.Join(dir, ".zshrc")
 	bad := filepath.Join(dir, ".bashrc")
 	clean := filepath.Join(dir, ".profile")
-	require.NoError(t, os.WriteFile(good, []byte("# BEGIN REX\nx\n# END REX\n"), 0o644))
-	require.NoError(t, os.WriteFile(bad, []byte("# BEGIN REX\nx\n"), 0o644))
-	require.NoError(t, os.WriteFile(clean, []byte("plain\n"), 0o644))
+	require.NoError(t, os.WriteFile(good, []byte("# BEGIN REX\nx\n# END REX\n"), 0o600))
+	require.NoError(t, os.WriteFile(bad, []byte("# BEGIN REX\nx\n"), 0o600))
+	require.NoError(t, os.WriteFile(clean, []byte("plain\n"), 0o600))
 
 	stripped, errs := stripProfileBlocks([]string{good, bad, clean, filepath.Join(dir, "missing")}, testStamp)
 	require.Equal(t, []strippedProfile{{Path: good, Backup: good + ".rex-backup-1700000000"}}, stripped)
@@ -233,15 +233,15 @@ func TestStripProfileBlocks_reportsPerFile(t *testing.T) {
 func TestHasProfileBlock(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, ".zshrc")
-	_ = os.WriteFile(f, []byte("# BEGIN REX\nfoo\n# END REX\n"), 0o644)
+	_ = os.WriteFile(f, []byte("# BEGIN REX\nfoo\n# END REX\n"), 0o600)
 	if !hasProfileBlock(f) {
 		t.Fatal("expected block to be detected")
 	}
-	_ = os.WriteFile(f, []byte("no block\n"), 0o644)
+	_ = os.WriteFile(f, []byte("no block\n"), 0o600)
 	if hasProfileBlock(f) {
 		t.Fatal("expected no block detected")
 	}
-	_ = os.WriteFile(f, []byte("echo '# BEGIN REX'\n"), 0o644)
+	_ = os.WriteFile(f, []byte("echo '# BEGIN REX'\n"), 0o600)
 	require.False(t, hasProfileBlock(f), "a marker inside another line is not a block")
 }
 

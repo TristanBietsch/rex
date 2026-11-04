@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 // S-01: daemon.log lives 0600 in a 0700 dir; files older versions created
@@ -20,10 +22,8 @@ func TestOpenLog_PrivateModes(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	dir := filepath.Dir(LogPath())
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.Chmod(dir, 0o755))
-	require.NoError(t, os.WriteFile(LogPath(), []byte("old\n"), 0o644))
-	require.NoError(t, os.Chmod(LogPath(), 0o644))
+	testperm.MkdirAll(t, dir, 0o755)
+	testperm.WriteFile(t, LogPath(), []byte("old\n"), 0o644)
 
 	f, err := OpenLog()
 	require.NoError(t, err)

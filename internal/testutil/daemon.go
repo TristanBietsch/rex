@@ -49,7 +49,7 @@ func StartDaemonWithTools(t *testing.T, toolsYAML string) *Daemon {
 	toolsPath := ""
 	if toolsYAML != "" {
 		toolsPath = filepath.Join(dir, "tools.yaml")
-		require.NoError(t, os.WriteFile(toolsPath, []byte(toolsYAML), 0o644))
+		require.NoError(t, os.WriteFile(toolsPath, []byte(toolsYAML), 0o600))
 	}
 	reg, err := registry.Load(toolsPath)
 	require.NoError(t, err)

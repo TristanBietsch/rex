@@ -40,10 +40,10 @@ linters:
         # named in the registry with user-supplied args. Spawning those
         # commands is the product.
         - G204
-        # G301/G302/G306 (dir/file permissions): re-enabled in phase 1 (backlog S-01).
-        - G301
-        - G302
-        - G306
+        # G104 (unhandled errors) duplicates errcheck, which is enabled and
+        # honors explicit `_ =` discards. It was hidden by the `legacy`
+        # exclusion preset, dropped because that preset also hid G301/G302.
+        - G104
     revive:
       rules:
         - name: exported
@@ -56,7 +56,6 @@ linters:
     presets:
       - comments
       - common-false-positives
-      - legacy
       - std-error-handling
     rules:
       - linters:
@@ -101,18 +100,7 @@ linters:
       # daemon spawn in daemonctl/daemon.go must outlive any caller context.
       - linters:
           - noctx
-        path: internal/(wire/client/client|runtime/daemonctl/daemon|surface/cli/lifecycle/daemon)\.go
-      # pgrep/kill/tasklist lookups are replaced by socket intents on every
-      # platform in a later phase (backlog S-08).
-      - linters:
-          - noctx
-        path: internal/runtime/daemonctl/process_(unix|windows)\.go
-      # server.New takes no context; socket setup is reworked with the
-      # daemon lock and safe unlink in a later phase (backlog P0-03).
-      - linters:
-          - noctx
-        path: internal/daemon/server/server\.go
-        text: net\.Listen must not be called
+        path: internal/(wire/client/client|runtime/daemonctl/daemon)\.go
       # taskkill is replaced by a Job Object with KILL_ON_JOB_CLOSE in a
       # later phase; until then KillTree must run even after ctx is done.
       - linters:
@@ -125,17 +113,9 @@ linters:
           - noctx
         path: internal/surface/tui/update\.go
         text: os/exec\.Command must not be called
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
 formatters:
   enable:
     - gofmt
     - goimports
   exclusions:
     generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$

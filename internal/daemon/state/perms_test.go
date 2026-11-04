@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -64,18 +65,16 @@ func TestCreateHookFile_OwnerOnly(t *testing.T) {
 func TestTightenPerms(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "rex")
 	dir := filepath.Join(root, "sessions", "old")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.Chmod(root, 0o755))
-	require.NoError(t, os.Chmod(filepath.Join(root, "sessions"), 0o755))
+	testperm.MkdirAll(t, dir, 0o755)
+	testperm.Loosen(t, root, 0o755)
+	testperm.Loosen(t, filepath.Join(root, "sessions"), 0o755)
 	for _, name := range []string{"meta.json", "transcript.log", "hooks.log"} {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644))
-		require.NoError(t, os.Chmod(filepath.Join(dir, name), 0o644))
+		testperm.WriteFile(t, filepath.Join(dir, name), []byte("x"), 0o644)
 	}
 	outside := filepath.Join(t.TempDir(), "outside")
-	require.NoError(t, os.WriteFile(outside, []byte("x"), 0o644))
-	require.NoError(t, os.Chmod(outside, 0o644))
+	testperm.WriteFile(t, outside, []byte("x"), 0o644)
 	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "link")))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "sessions", "stray-file"), []byte("x"), 0o644))
+	testperm.WriteFile(t, filepath.Join(root, "sessions", "stray-file"), []byte("x"), 0o644)
 
 	require.NoError(t, TightenPerms(root))
 
@@ -111,7 +110,7 @@ func TestPersist_RootIsAFile(t *testing.T) {
 
 func TestTightenPerms_NoSessionsDir(t *testing.T) {
 	root := t.TempDir()
-	require.NoError(t, os.Chmod(root, 0o755))
+	testperm.Loosen(t, root, 0o755)
 	require.NoError(t, TightenPerms(root))
 	requireMode(t, root, 0o700)
 }

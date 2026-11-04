@@ -35,7 +35,7 @@ func TestLoad_UserExtends(t *testing.T) {
 
 func TestLoad_BadYAMLFails(t *testing.T) {
 	tmp := filepath.Join(t.TempDir(), "bad.yaml")
-	require.NoError(t, os.WriteFile(tmp, []byte("tools: [oops"), 0o644))
+	require.NoError(t, os.WriteFile(tmp, []byte("tools: [oops"), 0o600))
 	_, err := Load(tmp)
 	require.Error(t, err)
 }

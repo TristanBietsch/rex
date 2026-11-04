@@ -18,7 +18,7 @@ func TestLastLines(t *testing.T) {
 
 func TestTailFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "daemon.log")
-	require.NoError(t, os.WriteFile(path, []byte("one\ntwo\nthree\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("one\ntwo\nthree\n"), 0o600))
 	var out bytes.Buffer
 	require.NoError(t, tailFile(&out, path, 2, false))
 	require.Equal(t, "two\nthree\n", out.String())

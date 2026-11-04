@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 // startFake runs Start's spawn path with this test binary as the daemon.
@@ -45,7 +47,9 @@ func TestStart_PassesSocketFlag(t *testing.T) {
 // its exit status and the end of its log, not after the full StartTimeout.
 func TestStart_ReportsEarlyExit(t *testing.T) {
 	logPath := filepath.Join(shortTempDir(t), "daemon.log")
-	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	// World-readable, like logs older callers opened: Start must tighten it.
+	testperm.WriteFile(t, logPath, nil, 0o644)
+	logf, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0)
 	require.NoError(t, err)
 	defer logf.Close()
 

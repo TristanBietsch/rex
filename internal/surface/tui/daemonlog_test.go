@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 // fakeStart replaces startDaemon for one test and records the log file
@@ -46,10 +47,8 @@ func requirePrivateLog(t *testing.T, path string) {
 // also tightens a log an older version left world-readable.
 func TestDaemonSpawns_usePrivateLog(t *testing.T) {
 	logPath := daemonctl.LogPath()
-	require.NoError(t, os.MkdirAll(filepath.Dir(logPath), 0o700))
-	require.NoError(t, os.WriteFile(logPath, []byte("old\n"), 0o600))
-	require.NoError(t, os.Chmod(logPath, 0o644))
-	require.NoError(t, os.Chmod(filepath.Dir(logPath), 0o755))
+	testperm.MkdirAll(t, filepath.Dir(logPath), 0o755)
+	testperm.WriteFile(t, logPath, []byte("old\n"), 0o644)
 	logs := fakeStart(t)
 	sock := filepath.Join(t.TempDir(), "rex.sock")
 
@@ -57,7 +56,7 @@ func TestDaemonSpawns_usePrivateLog(t *testing.T) {
 	require.Equal(t, stepOK, msg.Status, msg.Desc)
 	requirePrivateLog(t, (*logs)[0])
 
-	require.NoError(t, os.Chmod(logPath, 0o644))
+	testperm.Loosen(t, logPath, 0o644)
 	start, ok := startDaemonCmd(sock)().(setupDaemonStartMsg)
 	require.True(t, ok)
 	require.NoError(t, start.err)

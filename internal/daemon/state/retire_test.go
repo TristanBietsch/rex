@@ -188,7 +188,7 @@ func TestStore_SetName_NoActivityBump(t *testing.T) {
 func TestRemoveSessionDir_RejectsUnsafeIDs(t *testing.T) {
 	root := t.TempDir()
 	keep := filepath.Join(root, "sessions", "keep")
-	require.NoError(t, os.MkdirAll(keep, 0o755))
+	require.NoError(t, os.MkdirAll(keep, 0o700))
 	for _, id := range []string{"", ".", "..", "../x", "a/b", "/abs", "a/../.."} {
 		require.ErrorIs(t, RemoveSessionDir(root, id), ErrUnsafeSessionID, "id %q", id)
 	}
@@ -199,9 +199,9 @@ func TestRemoveSessionDir_RejectsUnsafeIDs(t *testing.T) {
 func TestLoadAll_SkipsIDDirMismatch(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "sessions", "real")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.MkdirAll(dir, 0o700))
 	b, _ := json.Marshal(protocol.SessionSummary{ID: "", Slug: "evil"})
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "meta.json"), b, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "meta.json"), b, 0o600))
 
 	got, err := LoadAll(root)
 	require.NoError(t, err)

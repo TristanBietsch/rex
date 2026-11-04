@@ -15,7 +15,7 @@ import (
 
 func appendLine(t *testing.T, path, line string) {
 	t.Helper()
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	require.NoError(t, err)
 	_, err = f.WriteString(line + "\n")
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestClaudeHookArgs_CommandsWriteStateFile(t *testing.T) {
 	require.Equal(t, "*", cfg.Hooks["PreToolUse"][0].Matcher)
 
 	path := filepath.Join(t.TempDir(), "with space", "hooks.log")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	run := func(event string) {
 		cmd := exec.Command("sh", "-c", cfg.Hooks[event][0].Hooks[0].Command)
 		cmd.Env = append(os.Environ(), HookFileEnv+"="+path)

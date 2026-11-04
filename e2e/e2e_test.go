@@ -188,7 +188,7 @@ func copyBinary(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700) //nolint:gosec // G302: an executable needs its exec bit; 0700 is still owner-only.
 	if err != nil {
 		return err
 	}

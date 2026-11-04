@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 // Each script must run its own copy of rex and rex-daemon, never a hard
@@ -18,8 +20,7 @@ import (
 // killed)` under the parallel -race run.
 func TestCopyBinary_PrivateInode(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "rex-daemon")
-	require.NoError(t, os.WriteFile(src, []byte("#!/bin/sh\nexit 0\n"), 0o600))
-	require.NoError(t, os.Chmod(src, 0o700))
+	testperm.WriteFile(t, src, []byte("#!/bin/sh\nexit 0\n"), 0o700)
 	dst := filepath.Join(t.TempDir(), "rex-daemon")
 
 	require.NoError(t, copyBinary(src, dst))

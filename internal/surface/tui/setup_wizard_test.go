@@ -69,7 +69,7 @@ func TestInstallShellBlockIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	rc := filepath.Join(dir, ".zshrc")
 	// seed with some pre-existing content
-	if err := os.WriteFile(rc, []byte("export SEED=1\n"), 0o644); err != nil {
+	if err := os.WriteFile(rc, []byte("export SEED=1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -106,7 +106,7 @@ func TestHasShellBlock(t *testing.T) {
 		t.Error("expected false for non-existent file")
 	}
 
-	if err := os.WriteFile(rc, []byte("export FOO=bar\n"), 0o644); err != nil {
+	if err := os.WriteFile(rc, []byte("export FOO=bar\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if hasShellBlock(rc) {
@@ -115,7 +115,7 @@ func TestHasShellBlock(t *testing.T) {
 
 	block := ShellProfileBlock("bash")
 	content := rewriteShellBlock("export FOO=bar\n", block)
-	if err := os.WriteFile(rc, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(rc, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if !hasShellBlock(rc) {

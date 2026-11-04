@@ -13,6 +13,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 // S-01: the daemon log was opened 0644 (after umask) with the error dropped.
@@ -41,8 +42,7 @@ func TestOpenDaemonLog_tightensExistingFile(t *testing.T) {
 		t.Skip("Unix permission bits")
 	}
 	path := filepath.Join(t.TempDir(), "daemon.log")
-	require.NoError(t, os.WriteFile(path, []byte("old\n"), 0o644))
-	require.NoError(t, os.Chmod(path, 0o644))
+	testperm.WriteFile(t, path, []byte("old\n"), 0o644)
 
 	f, err := openDaemonLog(path)
 	require.NoError(t, err)

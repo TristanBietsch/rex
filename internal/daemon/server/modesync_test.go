@@ -30,7 +30,7 @@ func TestSubscribe_ModeSyncSendsPreamble(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(dir) })
 	toolsPath := filepath.Join(dir, "tools.yaml")
-	require.NoError(t, os.WriteFile(toolsPath, []byte(modesTools), 0o644))
+	require.NoError(t, os.WriteFile(toolsPath, []byte(modesTools), 0o600))
 	reg, err := registry.Load(toolsPath)
 	require.NoError(t, err)
 	sock := filepath.Join(dir, "rex.sock")

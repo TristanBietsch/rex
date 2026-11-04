@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 func requireMode(t *testing.T, path string, want fs.FileMode) {
@@ -40,11 +42,9 @@ func TestOpenLogFile_TightensExistingDefaultDirAndFile(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("REX_LOG_DIR", "")
 	dir := filepath.Join(home, ".local", "state", "rex")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.Chmod(dir, 0o755))
+	testperm.MkdirAll(t, dir, 0o755)
 	log := filepath.Join(dir, "perm.log")
-	require.NoError(t, os.WriteFile(log, []byte("old\n"), 0o644))
-	require.NoError(t, os.Chmod(log, 0o644))
+	testperm.WriteFile(t, log, []byte("old\n"), 0o644)
 
 	f, err := openLogFile("perm")
 	require.NoError(t, err)
@@ -59,8 +59,7 @@ func TestOpenLogFile_TightensExistingDefaultDirAndFile(t *testing.T) {
 // always private.
 func TestOpenLogFile_CustomDirIsNotChmodded(t *testing.T) {
 	custom := filepath.Join(t.TempDir(), "shared")
-	require.NoError(t, os.Mkdir(custom, 0o755))
-	require.NoError(t, os.Chmod(custom, 0o755))
+	testperm.MkdirAll(t, custom, 0o755)
 	t.Setenv("REX_LOG_DIR", custom)
 
 	f, err := openLogFile("perm")
@@ -84,8 +83,7 @@ func TestOpenPrivate_TightensAndAppends(t *testing.T) {
 	requireMode(t, dir, 0o700)
 
 	path := filepath.Join(dir, "daemon.log")
-	require.NoError(t, os.WriteFile(path, []byte("one\n"), 0o644))
-	require.NoError(t, os.Chmod(path, 0o644))
+	testperm.WriteFile(t, path, []byte("one\n"), 0o644)
 	f, err := OpenPrivate(path)
 	require.NoError(t, err)
 	_, err = f.WriteString("two\n")

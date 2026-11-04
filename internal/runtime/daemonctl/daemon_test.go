@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 func TestReachable_NoSocket(t *testing.T) {
@@ -34,14 +36,14 @@ func TestReachable_LiveSocket(t *testing.T) {
 
 func TestReachable_StaleSocketFile(t *testing.T) {
 	sock := filepath.Join(t.TempDir(), "stale.sock")
-	require.NoError(t, os.WriteFile(sock, []byte{}, 0o644))
+	require.NoError(t, os.WriteFile(sock, []byte{}, 0o600))
 	require.False(t, Reachable(sock))
 }
 
 func TestFindBinary_NextToSelf(t *testing.T) {
 	dir := t.TempDir()
 	candidate := filepath.Join(dir, "rex-daemon"+exeSuffix)
-	require.NoError(t, os.WriteFile(candidate, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	testperm.WriteFile(t, candidate, []byte("#!/bin/sh\nexit 0\n"), 0o700)
 	// Simulate "rex" living in dir by passing dir explicitly.
 	got := findBinaryIn(dir)
 	require.Equal(t, candidate, got)
