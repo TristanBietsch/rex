@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 
@@ -42,7 +43,7 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	case "settings":
 		return openSettings(m)
 	case "reload":
-		return m, sendDaemonSIGHUP(m)
+		return m, reloadDaemonCmd(m)
 	case "filter":
 		if len(args) == 1 {
 			m.Filter = args[0]
@@ -120,10 +121,22 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// sendDaemonSIGHUP triggers a daemon-side tools.yaml reload by sending SIGHUP.
-func sendDaemonSIGHUP(m Model) tea.Cmd {
+// reloadDaemonCmd asks the daemon on the TUI's socket to re-read
+// tools.yaml with a Reload intent. It reaches the daemon only through that
+// socket, never by signaling a process, and reports a failed request (no
+// daemon answering, a write error) as a CmdErrMsg. A tools.yaml the daemon
+// cannot load is not acknowledged (backlog FU-13); it shows in the daemon
+// log.
+func reloadDaemonCmd(m Model) tea.Cmd {
+	reload := m.reloader
+	if reload == nil {
+		reload = daemonctl.ReloadDaemon
+	}
+	socket := m.Socket
 	return func() tea.Msg {
-		_ = daemonctl.Reload()
+		if err := reload(context.Background(), socket); err != nil {
+			return CmdErrMsg{Op: "reload", Err: err}
+		}
 		return nil
 	}
 }

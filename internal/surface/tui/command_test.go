@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -8,12 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // commandModel is a board with two sessions and a throwaway settings file,
 // ready to take `:` commands. Returned commands are never run: :reload's
-// would signal a real daemon.
+// would reach a real daemon unless the test sets m.reloader.
 func commandModel(t *testing.T) Model {
 	t.Helper()
 	m := boardModel(
@@ -114,4 +116,28 @@ func TestUpdateKey_MissingFocusStateFallsBackToBoard(t *testing.T) {
 			require.Equal(t, "id-beta", m.SelectedID, "j reached the board")
 		})
 	}
+}
+
+// FU-01/FU-11: :reload sends a Reload intent to the daemon on the TUI's own
+// socket (not the default one, and never a signal to a process found by
+// name), and a failure shows on the board instead of vanishing.
+func TestCommand_ReloadUsesTheTUISocket(t *testing.T) {
+	m := commandModel(t)
+	m.Socket = "/tmp/rex-test/custom.sock"
+	var got []string
+	m.reloader = func(_ context.Context, socket string) error {
+		got = append(got, socket)
+		return nil
+	}
+	_, cmd := executeCommand(m, "reload")
+	require.NotNil(t, cmd)
+	require.Nil(t, cmd())
+	require.Equal(t, []string{"/tmp/rex-test/custom.sock"}, got)
+
+	m.reloader = func(context.Context, string) error { return daemonctl.ErrNotRunning }
+	_, cmd = executeCommand(m, "reload")
+	msg, ok := cmd().(CmdErrMsg)
+	require.True(t, ok, "a failed reload must be reported")
+	require.Equal(t, "reload", msg.Op)
+	require.ErrorIs(t, msg.Err, daemonctl.ErrNotRunning)
 }

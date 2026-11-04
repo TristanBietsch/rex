@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"strings"
@@ -67,6 +68,10 @@ type Model struct {
 	// namer / retirer override Client for those intents (tests).
 	namer   sessionNamer
 	retirer sessionRetirer
+	// reloader sends :reload's Reload intent to the daemon on a socket.
+	// nil means daemonctl.ReloadDaemon; tests swap it so no real daemon is
+	// reached.
+	reloader func(ctx context.Context, socket string) error
 
 	// Store is the live settings store. Renderers read from it; the settings
 	// page mutates it and triggers live-apply side effects.
