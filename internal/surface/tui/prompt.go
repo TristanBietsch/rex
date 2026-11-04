@@ -67,6 +67,11 @@ func cursorBlock(m Model) string {
 
 // renderHelpLine builds the bottom help line, sized to width.
 func renderHelpLine(m Model, width int) string {
+	if m.reconnect != nil {
+		// Outranks m.Err: intents fail while disconnected, and their errors
+		// would hide why.
+		return padLine("  "+styleStateFailed.Render(reconnectStatus), width)
+	}
 	if m.Err != "" {
 		// Errors echo daemon messages and session strings: sanitize.
 		return padLine("  "+styleStateFailed.Render("err: "+sanitizeText(m.Err)), width)

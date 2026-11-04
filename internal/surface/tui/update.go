@@ -119,9 +119,22 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case DaemonErrMsg:
-		// Surface the error in the status line, don't take down the TUI.
+		if m.reconnect != nil {
+			return m, nil // a stray from the dead chain; the loop is running
+		}
+		if isConnClosed(msg.Err) {
+			// Re-arming listenDaemon here spun at 100% CPU: Read on a dead
+			// connection returns EOF at once (P0-06). Redial instead.
+			return startReconnect(m, msg.Err)
+		}
+		// A transient error (one undecodable line) on a live stream: surface
+		// it in the status line, don't take down the TUI, keep listening.
 		m.Err = msg.Err.Error()
 		return m, listenDaemon(m.Client)
+	case reconnectTickMsg:
+		return handleReconnectTick(m, msg)
+	case reconnectResultMsg:
+		return handleReconnectResult(m, msg)
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
 		m.Err = msg.Op + ": " + msg.Err.Error()

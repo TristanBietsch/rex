@@ -92,6 +92,12 @@ type Model struct {
 	spinnerGen     int
 	spinnerRunning bool
 
+	// reconnect is non-nil while the daemon connection is down and the TUI
+	// is redialing it (see reconnect.go). dialDaemon overrides the redial's
+	// handshakeDaemon (tests).
+	reconnect  *reconnectState
+	dialDaemon daemonDialer
+
 	// BackendUnavailable mirrors the daemon's summarizer health flag, delivered
 	// via SummarizerHealth events.
 	BackendUnavailable       bool
