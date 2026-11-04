@@ -1,10 +1,15 @@
-// Package cli implements the rex CLI subcommands.
+// Package core holds what every rex CLI subcommand shares: exit codes,
+// output helpers and session selectors.
 package core
 
-import "fmt"
+import (
+	"fmt"
 
-// Version is the rex CLI release label.
-const Version = "v1"
+	"github.com/tristanbietsch/rex/internal/version"
+)
+
+// Version is the rex CLI release label (see package version).
+const Version = version.Version
 
 // ExitCoder is any error that carries a specific exit code.
 type ExitCoder interface {

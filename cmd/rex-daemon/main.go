@@ -22,9 +22,8 @@ import (
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
+	"github.com/tristanbietsch/rex/internal/version"
 )
-
-const version = "v1"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -45,13 +44,13 @@ func run(args []string) error {
 		return err
 	}
 	if *printVersion {
-		fmt.Println(version)
+		fmt.Println(version.Version)
 		return nil
 	}
 
 	rexlog.Init("daemon")
 	defer rexlog.Close()
-	slog.Info("daemon: starting", "version", version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
+	slog.Info("daemon: starting", "version", version.Version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
 
 	reg, err := registry.Load(*toolsPath)
 	if err != nil {
@@ -193,7 +192,7 @@ func run(args []string) error {
 	// SIGHUP → reload tools.yaml.
 	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
 
-	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version, *socketPath)
+	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version.Version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)
 	err = srv.Serve(ctx)
 	if err != nil {
