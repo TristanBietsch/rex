@@ -1,7 +1,7 @@
 package inspect
 
 import (
-	"errors"
+	"context"
 	"flag"
 	"io"
 	"os"
@@ -41,79 +41,67 @@ func RunLog(args []string) error {
 	}
 
 	path := filepath.Join(*stateDir, "sessions", sess.ID, "transcript.log")
-	if err := streamFile(path, os.Stdout, *follow, *tailN, *asBytes); err != nil {
+	// -f runs until the process is interrupted; the default SIGINT handler
+	// ends it, so no cancellation is wired here.
+	if err := streamFile(context.Background(), path, os.Stdout, *follow, *tailN, *asBytes); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	return nil
 }
 
-func streamFile(path string, out io.Writer, follow bool, tailN int, raw bool) error {
+// followInterval is how often `rex log -f` polls the transcript for growth.
+const followInterval = 100 * time.Millisecond
+
+// streamFile prints the transcript at path to out: the last tailN lines
+// (all when tailN <= 0), then, with follow, everything appended until ctx
+// is done. Unless raw, escape sequences are stripped by one stateful
+// stripper for the whole stream, so a sequence split between the initial
+// read and a later append (or between two appends) is still removed.
+func streamFile(ctx context.Context, path string, out io.Writer, follow bool, tailN int, raw bool) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	dst := out
+	if !raw {
+		dst = newStripWriter(out)
+	}
 	if tailN > 0 {
-		if err := emitTail(f, out, tailN, raw); err != nil {
-			return err
-		}
+		err = emitTail(f, dst, tailN)
 	} else {
-		if err := emitAll(f, out, raw); err != nil {
-			return err
-		}
+		_, err = io.Copy(dst, f)
 	}
-	if !follow {
-		return nil
-	}
-	// Follow mode: poll for new bytes every 100ms.
-	for {
-		_, err := io.Copy(out, f)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return err
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-func emitAll(r io.Reader, w io.Writer, raw bool) error {
-	if raw {
-		_, err := io.Copy(w, r)
+	if err != nil || !follow {
 		return err
 	}
-	return copyStripped(r, w)
+	return followFile(ctx, f, dst, followInterval)
 }
 
-func emitTail(f *os.File, w io.Writer, n int, raw bool) error {
-	data, err := io.ReadAll(f)
+// emitTail writes the last n lines of r to w.
+func emitTail(r io.Reader, w io.Writer, n int) error {
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}
-	lines := splitLastN(data, n)
-	if raw {
-		_, err := w.Write(lines)
-		return err
-	}
-	cleaned := stripANSI(lines)
-	_, err = w.Write(cleaned)
+	_, err = w.Write(splitLastN(data, n))
 	return err
 }
 
-func copyStripped(r io.Reader, w io.Writer) error {
-	buf := make([]byte, 4096)
+// followFile copies whatever is appended to f into w, polling every
+// interval, until ctx is done.
+func followFile(ctx context.Context, f io.Reader, w io.Writer, interval time.Duration) error {
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
 	for {
-		n, err := r.Read(buf)
-		if n > 0 {
-			cleaned := stripANSI(buf[:n])
-			if _, werr := w.Write(cleaned); werr != nil {
-				return werr
-			}
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
+		if _, err := io.Copy(w, f); err != nil {
 			return err
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-tick.C:
 		}
 	}
 }
@@ -132,26 +120,4 @@ func splitLastN(b []byte, n int) []byte {
 		}
 	}
 	return b
-}
-
-// stripANSI removes CSI escape sequences (color and cursor codes).
-func stripANSI(b []byte) []byte {
-	out := make([]byte, 0, len(b))
-	i := 0
-	for i < len(b) {
-		if b[i] == 0x1b && i+1 < len(b) && b[i+1] == '[' {
-			j := i + 2
-			for j < len(b) && (b[j] < 0x40 || b[j] > 0x7e) {
-				j++
-			}
-			if j < len(b) {
-				j++
-			}
-			i = j
-			continue
-		}
-		out = append(out, b[i])
-		i++
-	}
-	return out
 }

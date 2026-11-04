@@ -1,19 +1,18 @@
 package setup
 
 import (
-	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
@@ -22,214 +21,312 @@ var (
 	uninstallBullet = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
 )
 
-// RunUninstall removes rex artifacts with user confirmation per section.
+// uninstallOpts are the parsed `rex uninstall` flags.
+type uninstallOpts struct {
+	yes, all, dryRun, force                        bool
+	binaries, wipeState, purgeConfig, stripProfile bool
+}
+
+// uninstallDeps are RunUninstall's side effects. Tests replace them to run
+// the whole flow against a temp HOME and a fake daemon.
+type uninstallDeps struct {
+	out, errOut io.Writer
+	stdin       io.Reader
+	home        func() (string, error)
+	executable  func() (string, error) // the running rex binary
+	lookDaemon  func() string          // rex-daemon on PATH, or ""
+	daemon      daemonControl
+	now         func() time.Time // names profile backups
+}
+
+// defaultUninstallDeps wires RunUninstall to the real system.
+func defaultUninstallDeps() uninstallDeps {
+	return uninstallDeps{
+		out:        os.Stdout,
+		errOut:     os.Stderr,
+		stdin:      os.Stdin,
+		home:       os.UserHomeDir,
+		executable: os.Executable,
+		lookDaemon: func() string { p, _ := exec.LookPath("rex-daemon"); return p },
+		daemon:     defaultDaemonControl(),
+		now:        time.Now,
+	}
+}
+
+// uninstallPlan is everything one uninstall run may remove.
+type uninstallPlan struct {
+	opts        uninstallOpts
+	home        string
+	rexBin      string // symlink-resolved; "" unless opts.binaries
+	daemonBin   string // "" when not removing binaries or not on PATH
+	stateDir    string
+	sessionsDir string
+	configDir   string
+	profiles    []string
+}
+
+// RunUninstall removes rex artifacts after one confirmation.
+//
+// Order matters: nothing is removed until the daemon is confirmed stopped
+// (its socket no longer answers), because a live daemon keeps writing
+// session state and would recreate what -wipe-state deletes. If the daemon
+// will not stop, uninstall refuses unless -force is given.
 func RunUninstall(args []string) error {
-	fs_ := flag.NewFlagSet("uninstall", flag.ContinueOnError)
-	yes := fs_.Bool("yes", false, "skip confirmations")
-	fs_.BoolVar(yes, "y", false, "skip confirmations (shorthand)")
-	binaries := fs_.Bool("binaries", true, "remove rex and rex-daemon binaries")
-	wipeState := fs_.Bool("wipe-state", false, "remove ~/.local/state/rex/ and ~/.local/share/rex/sessions/")
-	purgeConfig := fs_.Bool("purge-config", false, "remove ~/.config/rex/")
-	stripProfile := fs_.Bool("strip-profile", false, "remove # BEGIN REX … # END REX blocks from shell profiles")
-	all := fs_.Bool("all", false, "equivalent to all flags above")
-	dryRun := fs_.Bool("dry-run", false, "print what would be removed without touching anything")
+	return runUninstall(args, defaultUninstallDeps())
+}
 
-	if err := fs_.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
-	}
-
-	if *all {
-		*binaries = true
-		*wipeState = true
-		*purgeConfig = true
-		*stripProfile = true
-	}
-
-	home, err := os.UserHomeDir()
+func runUninstall(args []string, d uninstallDeps) error {
+	opts, err := parseUninstallFlags(args, d.errOut)
 	if err != nil {
-		return core.NewExitError(core.ExitGeneric, "cannot determine home directory: "+err.Error())
+		return err
 	}
-
-	// Resolve binary paths.
-	rexBin, err := os.Executable()
+	plan, err := newUninstallPlan(opts, d)
 	if err != nil {
-		return core.NewExitError(core.ExitGeneric, "cannot resolve rex executable: "+err.Error())
-	}
-	rexBin, err = filepath.EvalSymlinks(rexBin)
-	if err != nil {
-		return core.NewExitError(core.ExitGeneric, "cannot resolve rex symlink: "+err.Error())
+		return err
 	}
 
-	rexDaemonBin, _ := exec.LookPath("rex-daemon")
-
-	// State / share / config dirs.
-	stateDir := filepath.Join(home, ".local", "state", "rex")
-	sessionsDir := filepath.Join(home, ".local", "share", "rex", "sessions")
-	configDir := filepath.Join(home, ".config", "rex")
-
-	// Profile files to scan for strip-profile.
-	profileFiles := []string{
-		filepath.Join(home, ".bashrc"),
-		filepath.Join(home, ".bash_profile"),
-		filepath.Join(home, ".zshrc"),
-		filepath.Join(home, ".config", "fish", "config.fish"),
-	}
-
-	// ── Preview ──────────────────────────────────────────────────────────────
-	fmt.Println()
-	fmt.Println("  " + core.HelpHRStyle.Render(strings.Repeat("─", 44)))
-	fmt.Println("  " + core.HelpBold.Render("Will remove:"))
-
-	if *binaries {
-		if *binaries {
-			fmt.Println("    " + core.HelpSection.Render("binaries") + "     " + core.HelpCmd.Render(rexBin))
-			if rexDaemonBin != "" {
-				fmt.Println("                 " + core.HelpCmd.Render(rexDaemonBin))
-			} else {
-				fmt.Println("                 " + core.HelpDim.Render("rex-daemon  (not found on PATH)"))
-			}
-		}
-	}
-
-	if *wipeState {
-		stateInfo := dirSummary(stateDir)
-		sessInfo := dirSummary(sessionsDir)
-		fmt.Println("    " + core.HelpSection.Render("state") + "        " + core.HelpCmd.Render(stateDir+"/") + core.HelpDim.Render("  "+stateInfo))
-		fmt.Println("    " + core.HelpSection.Render("sessions") + "     " + core.HelpCmd.Render(sessionsDir+"/") + core.HelpDim.Render("  "+sessInfo))
-	}
-
-	if *purgeConfig {
-		fmt.Println("    " + core.HelpSection.Render("config") + "       " + core.HelpCmd.Render(configDir+"/"))
-	}
-
-	if *stripProfile {
-		found := profileFilesWithBlock(profileFiles)
-		if len(found) > 0 {
-			for _, p := range found {
-				fmt.Println("    " + core.HelpSection.Render("profile") + "      " + core.HelpCmd.Render(p))
-			}
-		} else {
-			fmt.Println("    " + core.HelpSection.Render("profile") + "      " + core.HelpDim.Render("(no # BEGIN REX blocks found)"))
-		}
-	}
-
-	if *dryRun {
-		fmt.Println()
-		fmt.Println("  " + uninstallBullet.Render(core.HelpBullet) + " " + core.HelpDim.Render("dry-run: nothing removed"))
-		fmt.Println()
+	plan.preview(d.out)
+	if opts.dryRun {
+		fmt.Fprintln(d.out)
+		fmt.Fprintln(d.out, "  "+uninstallBullet.Render(core.HelpBullet)+" "+core.HelpDim.Render("dry-run: nothing removed"))
+		fmt.Fprintln(d.out)
 		return nil
 	}
+	fmt.Fprintln(d.out)
 
-	fmt.Println()
-
-	// ── Guard: system-location binaries ──────────────────────────────────────
-	if *binaries {
-		if !strings.HasPrefix(rexBin, home) {
-			return core.NewExitError(core.ExitOperationRefused,
-				fmt.Sprintf("rex is installed in a system location; remove manually with `sudo rm %s`", rexBin))
-		}
-		if rexDaemonBin != "" && !strings.HasPrefix(rexDaemonBin, home) {
-			return core.NewExitError(core.ExitOperationRefused,
-				fmt.Sprintf("rex-daemon is installed in a system location; remove manually with `sudo rm %s`", rexDaemonBin))
+	if err := plan.checkBinaryLocations(); err != nil {
+		return err
+	}
+	if !confirmUninstall(opts, d) {
+		return core.NewExitError(core.ExitGeneric, "aborted")
+	}
+	if plan.needsDaemonStopped() {
+		if err := stopDaemonForUninstall(d, opts.force); err != nil {
+			return err
 		}
 	}
+	plan.execute(d)
 
-	// ── Confirmation ─────────────────────────────────────────────────────────
-	confirmAll := *yes || *all
-
-	if !confirmAll {
-		if !confirm("  proceed with all removals? [y/N] ") {
-			return core.NewExitError(core.ExitGeneric, "aborted")
-		}
-	} else if !*yes {
-		// --all was set but not --yes; single confirmation.
-		if !confirm("  proceed? [y/N] ") {
-			return core.NewExitError(core.ExitGeneric, "aborted")
-		}
-	}
-
-	// ── Stop daemon before removing binaries ─────────────────────────────────
-	if *binaries {
-		stopDaemonQuietly()
-	}
-
-	// ── Remove binaries ───────────────────────────────────────────────────────
-	if *binaries {
-		removed := false
-		if err := removeFile(rexBin); err != nil {
-			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", rexBin, err)
-		} else {
-			removed = true
-			slog.Info("uninstall: removed binary", "path", rexBin)
-		}
-		if rexDaemonBin != "" {
-			if err := removeFile(rexDaemonBin); err != nil {
-				fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", rexDaemonBin, err)
-			} else {
-				removed = true
-				slog.Info("uninstall: removed binary", "path", rexDaemonBin)
-			}
-		}
-		if removed {
-			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("binaries removed"))
-		}
-	}
-
-	// ── Remove state + sessions ───────────────────────────────────────────────
-	if *wipeState {
-		if err := removeDir(stateDir); err != nil {
-			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", stateDir, err)
-		} else {
-			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("state removed"))
-			slog.Info("uninstall: removed state dir", "path", stateDir)
-		}
-		if err := removeDir(sessionsDir); err != nil {
-			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", sessionsDir, err)
-		} else {
-			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("sessions removed"))
-			slog.Info("uninstall: removed sessions dir", "path", sessionsDir)
-		}
-	}
-
-	// ── Remove config ─────────────────────────────────────────────────────────
-	if *purgeConfig {
-		if err := removeDir(configDir); err != nil {
-			fmt.Fprintf(os.Stderr, "  error removing %s: %v\n", configDir, err)
-		} else {
-			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render("config removed"))
-			slog.Info("uninstall: removed config dir", "path", configDir)
-		}
-	}
-
-	// ── Strip profile blocks ──────────────────────────────────────────────────
-	if *stripProfile {
-		count, errs := stripProfileBlocks(profileFiles)
-		for _, e := range errs {
-			fmt.Fprintf(os.Stderr, "  error stripping profile: %v\n", e)
-		}
-		if count > 0 {
-			fmt.Println("  " + uninstallOK.Render("✓") + " " + core.HelpCmd.Render(fmt.Sprintf("profile blocks removed (%d file(s) modified)", count)))
-			slog.Info("uninstall: stripped profile blocks", "files_modified", count)
-		} else if len(errs) == 0 {
-			fmt.Println("  " + uninstallBullet.Render(core.HelpBullet) + " " + core.HelpDim.Render("no profile blocks found"))
-		}
-	}
-
-	// ── Hint ──────────────────────────────────────────────────────────────────
-	fmt.Println()
-	fmt.Println("  " + uninstallBullet.Render(core.HelpBullet) + " " + core.HelpDim.Render("run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure"))
-	fmt.Println()
-
+	fmt.Fprintln(d.out)
+	fmt.Fprintln(d.out, "  "+uninstallBullet.Render(core.HelpBullet)+" "+core.HelpDim.Render("run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure"))
+	fmt.Fprintln(d.out)
 	return nil
+}
+
+// parseUninstallFlags parses args; -all turns on every removal.
+func parseUninstallFlags(args []string, errOut io.Writer) (uninstallOpts, error) {
+	var o uninstallOpts
+	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	fs.BoolVar(&o.yes, "yes", false, "skip confirmations")
+	fs.BoolVar(&o.yes, "y", false, "skip confirmations (shorthand)")
+	fs.BoolVar(&o.binaries, "binaries", true, "remove rex and rex-daemon binaries")
+	fs.BoolVar(&o.wipeState, "wipe-state", false, "remove ~/.local/state/rex/ and ~/.local/share/rex/sessions/")
+	fs.BoolVar(&o.purgeConfig, "purge-config", false, "remove ~/.config/rex/")
+	fs.BoolVar(&o.stripProfile, "strip-profile", false, "remove # BEGIN REX … # END REX blocks from shell profiles (backups are kept)")
+	fs.BoolVar(&o.all, "all", false, "equivalent to all flags above")
+	fs.BoolVar(&o.dryRun, "dry-run", false, "print what would be removed without touching anything")
+	fs.BoolVar(&o.force, "force", false, "remove files even if rex-daemon is still running after the stop request")
+	if err := fs.Parse(args); err != nil {
+		return o, core.NewExitError(core.ExitInvalidArgs, err.Error())
+	}
+	if o.all {
+		o.binaries, o.wipeState, o.purgeConfig, o.stripProfile = true, true, true, true
+	}
+	return o, nil
+}
+
+// newUninstallPlan resolves every path the run may touch. Binary paths are
+// only resolved when binaries are being removed.
+func newUninstallPlan(opts uninstallOpts, d uninstallDeps) (*uninstallPlan, error) {
+	home, err := d.home()
+	if err != nil {
+		return nil, core.NewExitError(core.ExitGeneric, "cannot determine home directory: "+err.Error())
+	}
+	p := &uninstallPlan{
+		opts:        opts,
+		home:        home,
+		stateDir:    filepath.Join(home, ".local", "state", "rex"),
+		sessionsDir: filepath.Join(home, ".local", "share", "rex", "sessions"),
+		configDir:   filepath.Join(home, ".config", "rex"),
+		profiles:    profileFiles(home),
+	}
+	if !opts.binaries {
+		return p, nil
+	}
+	rexBin, err := d.executable()
+	if err != nil {
+		return nil, core.NewExitError(core.ExitGeneric, "cannot resolve rex executable: "+err.Error())
+	}
+	if resolved, err := filepath.EvalSymlinks(rexBin); err == nil {
+		rexBin = resolved
+	} else if !os.IsNotExist(err) {
+		return nil, core.NewExitError(core.ExitGeneric, "cannot resolve rex symlink: "+err.Error())
+	}
+	p.rexBin = rexBin
+	p.daemonBin = d.lookDaemon()
+	return p, nil
+}
+
+// preview prints what the run would remove.
+func (p *uninstallPlan) preview(w io.Writer) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "  "+core.HelpHRStyle.Render(strings.Repeat("─", 44)))
+	fmt.Fprintln(w, "  "+core.HelpBold.Render("Will remove:"))
+	o := p.opts
+	if o.binaries {
+		fmt.Fprintln(w, "    "+core.HelpSection.Render("binaries")+"     "+core.HelpCmd.Render(p.rexBin))
+		if p.daemonBin != "" {
+			fmt.Fprintln(w, "                 "+core.HelpCmd.Render(p.daemonBin))
+		} else {
+			fmt.Fprintln(w, "                 "+core.HelpDim.Render("rex-daemon  (not found on PATH)"))
+		}
+	}
+	if o.wipeState {
+		fmt.Fprintln(w, "    "+core.HelpSection.Render("state")+"        "+core.HelpCmd.Render(p.stateDir+"/")+core.HelpDim.Render("  "+dirSummary(p.stateDir)))
+		fmt.Fprintln(w, "    "+core.HelpSection.Render("sessions")+"     "+core.HelpCmd.Render(p.sessionsDir+"/")+core.HelpDim.Render("  "+dirSummary(p.sessionsDir)))
+	}
+	if o.purgeConfig {
+		fmt.Fprintln(w, "    "+core.HelpSection.Render("config")+"       "+core.HelpCmd.Render(p.configDir+"/"))
+	}
+	if o.stripProfile {
+		found := profileFilesWithBlock(p.profiles)
+		for _, f := range found {
+			fmt.Fprintln(w, "    "+core.HelpSection.Render("profile")+"      "+core.HelpCmd.Render(f))
+		}
+		if len(found) == 0 {
+			fmt.Fprintln(w, "    "+core.HelpSection.Render("profile")+"      "+core.HelpDim.Render("(no # BEGIN REX blocks found)"))
+		}
+	}
+}
+
+// checkBinaryLocations refuses to delete binaries outside the user's home
+// (e.g. /usr/local/bin): those need sudo and a deliberate manual step.
+func (p *uninstallPlan) checkBinaryLocations() error {
+	if !p.opts.binaries {
+		return nil
+	}
+	home := p.home
+	if resolved, err := filepath.EvalSymlinks(home); err == nil {
+		home = resolved
+	}
+	for _, b := range []struct{ name, path string }{{"rex", p.rexBin}, {"rex-daemon", p.daemonBin}} {
+		if b.path != "" && !isUnder(b.path, home) && !isUnder(b.path, p.home) {
+			return core.NewExitError(core.ExitOperationRefused,
+				fmt.Sprintf("%s is installed in a system location; remove manually with `sudo rm %s`", b.name, b.path))
+		}
+	}
+	return nil
+}
+
+// needsDaemonStopped reports whether the run removes anything a running
+// daemon uses or rewrites. Stripping profile lines alone leaves the daemon
+// (and the user's live sessions) running.
+func (p *uninstallPlan) needsDaemonStopped() bool {
+	return p.opts.binaries || p.opts.wipeState || p.opts.purgeConfig
+}
+
+// execute performs the removals. Each failure is reported and the rest
+// still run, so one locked file does not block the others.
+func (p *uninstallPlan) execute(d uninstallDeps) {
+	if p.opts.binaries {
+		p.removeBinaries(d)
+	}
+	if p.opts.wipeState {
+		removeDirReported(d, p.stateDir, "state removed")
+		removeDirReported(d, p.sessionsDir, "sessions removed")
+	}
+	if p.opts.purgeConfig {
+		removeDirReported(d, p.configDir, "config removed")
+	}
+	if p.opts.stripProfile {
+		p.stripProfiles(d)
+	}
+}
+
+func (p *uninstallPlan) removeBinaries(d uninstallDeps) {
+	removed := false
+	for _, path := range []string{p.rexBin, p.daemonBin} {
+		if path == "" {
+			continue
+		}
+		if err := removeFile(path); err != nil {
+			fmt.Fprintf(d.errOut, "  error removing %s: %v\n", path, err)
+			continue
+		}
+		removed = true
+		slog.Info("uninstall: removed binary", "path", path)
+	}
+	if removed {
+		fmt.Fprintln(d.out, "  "+uninstallOK.Render("✓")+" "+core.HelpCmd.Render("binaries removed"))
+	}
+}
+
+func (p *uninstallPlan) stripProfiles(d uninstallDeps) {
+	stripped, errs := stripProfileBlocks(p.profiles, d.now())
+	for _, e := range errs {
+		fmt.Fprintf(d.errOut, "  error stripping profile: %v\n", e)
+	}
+	for _, s := range stripped {
+		fmt.Fprintln(d.out, "  "+uninstallOK.Render("✓")+" "+core.HelpCmd.Render("profile block removed from "+s.Path)+
+			core.HelpDim.Render("  (backup: "+s.Backup+")"))
+	}
+	if len(stripped) == 0 && len(errs) == 0 {
+		fmt.Fprintln(d.out, "  "+uninstallBullet.Render(core.HelpBullet)+" "+core.HelpDim.Render("no profile blocks found"))
+	}
+}
+
+// confirmUninstall asks once unless -yes was given.
+func confirmUninstall(o uninstallOpts, d uninstallDeps) bool {
+	switch {
+	case o.yes:
+		return true
+	case o.all:
+		return confirm(d, "  proceed? [y/N] ")
+	default:
+		return confirm(d, "  proceed with all removals? [y/N] ")
+	}
+}
+
+// stopDaemonForUninstall stops the daemon and confirms its socket is gone
+// before anything is removed. A daemon that is still answering means
+// removals would race its writes, so this refuses (ExitOperationRefused)
+// unless force is set, in which case it only warns.
+func stopDaemonForUninstall(d uninstallDeps, force bool) error {
+	wasRunning := d.daemon.running()
+	err := d.daemon.stopAndWait()
+	if err == nil {
+		if wasRunning {
+			slog.Info("uninstall: daemon stopped", "socket", d.daemon.socket)
+			fmt.Fprintln(d.out, "  "+uninstallBullet.Render(core.HelpBullet)+" "+core.HelpDim.Render("stopped rex-daemon"))
+		}
+		return nil
+	}
+	if force {
+		fmt.Fprintf(d.errOut, "  warning: %v; continuing because of -force\n", err)
+		return nil
+	}
+	return core.NewExitError(core.ExitOperationRefused,
+		fmt.Sprintf("%v; nothing was removed. Stop it with `rex daemon stop` and retry, or pass -force", err))
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-func confirm(prompt string) bool {
-	fmt.Print(prompt)
+func confirm(d uninstallDeps, prompt string) bool {
+	fmt.Fprint(d.out, prompt)
 	var ans string
-	_, _ = fmt.Fscanln(os.Stdin, &ans)
+	_, _ = fmt.Fscanln(d.stdin, &ans)
 	return ans == "y" || ans == "Y" || ans == "yes"
+}
+
+// isUnder reports whether path is dir or inside it. It compares cleaned
+// paths element-wise, so /home/alice is not inside /home/al.
+func isUnder(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil || filepath.IsAbs(rel) {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func removeFile(path string) error {
@@ -239,22 +336,14 @@ func removeFile(path string) error {
 	return nil
 }
 
-func removeDir(path string) error {
-	if err := os.RemoveAll(path); err != nil {
-		return err
-	}
-	return nil
-}
-
-// stopDaemonQuietly sends SIGTERM to rex-daemon if found; ignores errors.
-func stopDaemonQuietly() {
-	pid, err := daemonctl.FindPID()
-	if err != nil {
+// removeDirReported removes dir and prints done on success or the error.
+func removeDirReported(d uninstallDeps, dir, done string) {
+	if err := os.RemoveAll(dir); err != nil {
+		fmt.Fprintf(d.errOut, "  error removing %s: %v\n", dir, err)
 		return
 	}
-	daemonctl.StopQuietly()
-	slog.Info("uninstall: sent SIGTERM to daemon", "pid", pid)
-	fmt.Println("  " + uninstallBullet.Render(core.HelpBullet) + " " + core.HelpDim.Render(fmt.Sprintf("sent SIGTERM to rex-daemon (pid %s)", pid)))
+	fmt.Fprintln(d.out, "  "+uninstallOK.Render("✓")+" "+core.HelpCmd.Render(done))
+	slog.Info("uninstall: removed dir", "path", dir)
 }
 
 // dirSummary returns a human-readable "(N files, X KB)" string for a directory.
@@ -276,114 +365,4 @@ func dirSummary(dir string) string {
 	}
 	kb := totalBytes / 1024
 	return fmt.Sprintf("(%d files, %d KB)", count, kb)
-}
-
-// profileFilesWithBlock returns only the files that contain a BEGIN REX block.
-func profileFilesWithBlock(files []string) []string {
-	var found []string
-	for _, f := range files {
-		if hasProfileBlock(f) {
-			found = append(found, f)
-		}
-	}
-	return found
-}
-
-// hasProfileBlock reports whether a file contains a # BEGIN REX marker.
-func hasProfileBlock(path string) bool {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	lower := strings.ToLower(string(data))
-	return strings.Contains(lower, "# begin rex")
-}
-
-// stripProfileBlocks rewrites each file in paths, removing lines bracketed by
-// # BEGIN REX … # END REX (case-insensitive, inclusive). Returns count of
-// modified files and any errors encountered.
-func stripProfileBlocks(paths []string) (int, []error) {
-	var modified int
-	var errs []error
-	for _, p := range paths {
-		ok, err := stripBlockFromFile(p)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", p, err))
-			continue
-		}
-		if ok {
-			modified++
-			slog.Info("uninstall: stripped profile block", "file", p)
-		}
-	}
-	return modified, errs
-}
-
-// stripBlockFromFile removes BEGIN REX … END REX blocks from a single file
-// using an atomic temp-file + rename. Returns true if the file was modified.
-func stripBlockFromFile(path string) (modified bool, err error) {
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	var out bytes.Buffer
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	inBlock := false
-	for scanner.Scan() {
-		line := scanner.Text()
-		lower := strings.ToLower(strings.TrimSpace(line))
-		if !inBlock && lower == "# begin rex" {
-			inBlock = true
-			modified = true
-			continue
-		}
-		if inBlock {
-			if lower == "# end rex" {
-				inBlock = false
-			}
-			continue
-		}
-		out.WriteString(line + "\n")
-	}
-	if err := scanner.Err(); err != nil {
-		return false, err
-	}
-	if !modified {
-		return false, nil
-	}
-
-	// Atomic write: temp file in same dir, then rename.
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".rex-uninstall-*")
-	if err != nil {
-		return false, err
-	}
-	tmpName := tmp.Name()
-	defer func() {
-		if err != nil {
-			_ = os.Remove(tmpName)
-		}
-	}()
-
-	if _, err = tmp.Write(out.Bytes()); err != nil {
-		_ = tmp.Close()
-		return false, err
-	}
-	if err = tmp.Close(); err != nil {
-		return false, err
-	}
-
-	// Preserve original permissions.
-	if info, statErr := os.Stat(path); statErr == nil {
-		_ = os.Chmod(tmpName, info.Mode())
-	}
-
-	if err = os.Rename(tmpName, path); err != nil {
-		return false, err
-	}
-	return true, nil
 }
