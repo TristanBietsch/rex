@@ -3,20 +3,30 @@
 package daemonctl
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"os/exec"
+	"os/user"
 	"strings"
-	"time"
-
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
-// FindPID returns the PID of the first rex-daemon.exe in the task list.
+// FindPID returns the PID of the current user's rex-daemon.exe. It is for
+// display only (status lines and messages): never act on the result. Stop
+// and Reload go through the socket, which names the daemon unambiguously.
+//
+// It returns ErrNotRunning when nothing matches and ErrMultipleDaemons when
+// several daemons do.
 func FindPID() (string, error) {
-	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq rex-daemon.exe", "/FO", "CSV", "/NH").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), pidLookupTimeout)
+	defer cancel()
+	args := []string{"/FI", "IMAGENAME eq rex-daemon.exe", "/FO", "CSV", "/NH"}
+	if u, err := user.Current(); err == nil {
+		args = append(args, "/FI", "USERNAME eq "+u.Username)
+	}
+	out, err := exec.CommandContext(ctx, "tasklist", args...).Output()
 	if err != nil {
-		return "", ErrNotRunning
+		return "", fmt.Errorf("%w: tasklist: %w", ErrNotRunning, err)
 	}
 	return parseTasklistPID(string(out))
 }
@@ -24,50 +34,24 @@ func FindPID() (string, error) {
 // parseTasklistPID reads the PID column of `tasklist /FO CSV /NH` output.
 // With no match tasklist prints an INFO line instead of CSV rows.
 func parseTasklistPID(out string) (string, error) {
-	rows, err := csv.NewReader(strings.NewReader(out)).ReadAll()
+	r := csv.NewReader(strings.NewReader(out))
+	r.FieldsPerRecord = -1
+	rows, err := r.ReadAll()
 	if err != nil {
 		return "", ErrNotRunning
 	}
+	var pids []string
 	for _, row := range rows {
 		if len(row) >= 2 && strings.EqualFold(row[0], "rex-daemon.exe") {
-			return row[1], nil
+			pids = append(pids, row[1])
 		}
 	}
-	return "", ErrNotRunning
-}
-
-// Windows cannot deliver SIGHUP/SIGTERM to the daemon, so reload and stop go
-// over the socket as Reload and Shutdown intents.
-
-// Reload asks the running rex-daemon to re-read tools.yaml.
-func Reload() error {
-	return sendIntent(func(c *client.Client) error { return c.Reload() })
-}
-
-// Stop asks the running rex-daemon to shut down and waits up to
-// StartTimeout for its socket to go away, so a restart can start a new one.
-func Stop() error {
-	if err := sendIntent(func(c *client.Client) error { return c.Shutdown() }); err != nil {
-		return err
+	switch len(pids) {
+	case 0:
+		return "", ErrNotRunning
+	case 1:
+		return pids[0], nil
+	default:
+		return "", fmt.Errorf("%w (pids %s)", ErrMultipleDaemons, strings.Join(pids, ", "))
 	}
-	socket := DefaultSocket()
-	for i := 0; i < StartPollAttempts && Reachable(socket); i++ {
-		time.Sleep(StartPollInterval)
-	}
-	return nil
-}
-
-// StopQuietly stops a running daemon; ignores errors.
-func StopQuietly() { _ = Stop() }
-
-func sendIntent(send func(*client.Client) error) error {
-	c, err := client.Dial(DefaultSocket())
-	if err != nil {
-		return ErrNotRunning
-	}
-	defer c.Close()
-	if err := send(c); err != nil {
-		return fmt.Errorf("send to rex-daemon: %w", err)
-	}
-	return nil
 }

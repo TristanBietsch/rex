@@ -24,6 +24,10 @@ exitcode 4 rex done s1
 exitcode 4 rex rm s1
 exitcode 4 rex log s1
 
+# reload talks to the socket only; it never signals a process found by name.
+exitcode 4 rex reload
+stderr 'rex-daemon is not running: dial unix \S+/rex\.sock: connect: no such file or directory$'
+
 # A leftover non-socket file at the socket path is unreachable too.
 cp leftover $SOCKET
 exitcode 4 rex ls
