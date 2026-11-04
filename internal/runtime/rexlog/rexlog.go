@@ -7,6 +7,7 @@
 package rexlog
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -47,24 +48,35 @@ func Close() {
 	}
 }
 
+// openLogFile opens <stateDir>/<name>.log privately (see OpenPrivate). The
+// default directory is rex's own and is created or tightened to 0700. A
+// REX_LOG_DIR the user chose may be shared (even /tmp), so it is created
+// 0700 when missing but never chmodded.
 func openLogFile(name string) (*os.File, error) {
-	dir := stateDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dir, custom := logDir()
+	if custom {
+		if err := os.MkdirAll(dir, privateDirMode); err != nil {
+			return nil, fmt.Errorf("create log dir: %w", err)
+		}
+	} else if err := PrivateDir(dir); err != nil {
 		return nil, err
 	}
-	return os.OpenFile(
-		filepath.Join(dir, name+".log"),
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
-		0o644,
-	)
+	return OpenPrivate(filepath.Join(dir, name+".log"))
 }
 
 func stateDir() string {
+	dir, _ := logDir()
+	return dir
+}
+
+// logDir returns the log directory and whether the user chose it via
+// REX_LOG_DIR.
+func logDir() (dir string, custom bool) {
 	if d := os.Getenv("REX_LOG_DIR"); d != "" {
-		return d
+		return d, true
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "state", "rex")
+	return filepath.Join(home, ".local", "state", "rex"), false
 }
 
 func handlerOpts() *slog.HandlerOptions {
