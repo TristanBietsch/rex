@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -156,14 +154,13 @@ func (s *Server) Registry() *registry.Registry {
 	return s.reg.Load()
 }
 
-// New unlinks any stale socket and constructs a Server. It does not listen yet.
+// New constructs a Server. It touches nothing on disk: Serve claims the
+// socket, so a second daemon cannot unlink a live one's socket by merely
+// being constructed.
 func New(cfg Config) (*Server, error) {
 	if cfg.Socket == "" {
 		return nil, errors.New("server: empty socket path")
 	}
-	// Unlink any stale socket. If something is actually listening on it we'll
-	// fail on Listen below, which is the right outcome.
-	_ = os.Remove(cfg.Socket)
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
@@ -192,16 +189,20 @@ const defaultSupervisorWait = 5 * time.Second
 // Serve listens until ctx is canceled or Accept fails, then shuts down:
 // it closes every client connection, waits for the handlers and the retire
 // reaper, and waits (bounded by supervisorWait) for the session supervisors,
-// which stop with ctx. The socket is unlinked on return. Serve may be called
-// at most once per Server.
+// which stop with ctx. Serve may be called at most once per Server.
+//
+// Serve refuses (ErrSocketInUse) a socket path a live process answers on and
+// never replaces a path that is not a socket; a stale socket is replaced. On
+// return it unlinks the socket only if the path still names the socket it
+// created.
 func (s *Server) Serve(ctx context.Context) error {
-	l, err := net.Listen("unix", s.cfg.Socket)
+	l, ours, err := listenSocket(ctx, s.cfg.Socket)
 	if err != nil {
-		return fmt.Errorf("listen %s: %w", s.cfg.Socket, err)
+		return err
 	}
 	defer func() {
 		_ = l.Close()
-		_ = os.Remove(s.cfg.Socket)
+		removeOwnSocket(s.cfg.Socket, ours)
 	}()
 
 	// serveCtx also ends when Accept fails, so sessions and handlers stop
@@ -291,6 +292,13 @@ func (s *Server) trackConn(c *clientConn) bool {
 	}
 	s.conns[c] = struct{}{}
 	return true
+}
+
+// liveConns is the number of tracked client connections.
+func (s *Server) liveConns() int {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	return len(s.conns)
 }
 
 func (s *Server) untrackConn(c *clientConn) {

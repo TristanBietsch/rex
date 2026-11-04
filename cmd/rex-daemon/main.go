@@ -63,6 +63,17 @@ func run(args []string) error {
 	if err := os.MkdirAll(*stateDir, 0o755); err != nil {
 		return fmt.Errorf("state dir: %w", err)
 	}
+	// One daemon per state dir, held for the process lifetime: taken before
+	// any state is read, released last (defers run in reverse).
+	lock, err := state.AcquireLock(*stateDir)
+	if err != nil {
+		return lockError(err, *socketPath)
+	}
+	defer func() {
+		if err := lock.Release(); err != nil {
+			slog.Warn("daemon: release state lock", "err", err)
+		}
+	}()
 	if err := os.MkdirAll(filepath.Dir(*socketPath), 0o755); err != nil {
 		return fmt.Errorf("socket dir: %w", err)
 	}
@@ -184,4 +195,21 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
+}
+
+// lockError explains a failed state-dir lock. When another daemon holds it,
+// the message names that daemon's pid and the socket this one would have
+// served, so the user knows which process to stop.
+func lockError(err error, socket string) error {
+	var held *state.LockedError
+	if !errors.As(err, &held) {
+		return fmt.Errorf("state lock: %w", err)
+	}
+	pid := "unknown pid"
+	if held.PID > 0 {
+		pid = fmt.Sprintf("pid %d", held.PID)
+	}
+	slog.Error("daemon: another daemon holds the state dir", "lock", held.Path, "holder", pid, "socket", socket)
+	return fmt.Errorf("another rex-daemon is already running (%s, lock %s); not starting a second one on socket %s: %w",
+		pid, held.Path, socket, err)
 }
