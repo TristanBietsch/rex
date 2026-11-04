@@ -3,11 +3,13 @@ package daemonctl
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -77,8 +79,8 @@ func TestReloadDaemon_SendsReloadIntent(t *testing.T) {
 	require.ErrorIs(t, ReloadDaemon(bg(), socketIn(t)), ErrNotRunning)
 }
 
-// S-08: the zero-argument forms act on DefaultSocket only. They used to
-// signal whatever `pgrep rex-daemon` matched, across all users.
+// S-08: the zero-argument forms act on the default socket only. They used
+// to signal whatever `pgrep rex-daemon` matched, across all users.
 func TestStopAndReload_UseDefaultSocket(t *testing.T) {
 	dir := shortTempDir(t)
 	t.Setenv("XDG_RUNTIME_DIR", dir)
@@ -86,10 +88,22 @@ func TestStopAndReload_UseDefaultSocket(t *testing.T) {
 	require.ErrorIs(t, Stop(), ErrNotRunning)
 	StopQuietly()
 
-	fd := startFakeDaemon(t, DefaultSocket(), shutdownLikeDaemon(0))
+	sock := filepath.Join(dir, "rex.sock")
+	fd := startFakeDaemon(t, sock, shutdownLikeDaemon(0))
 	require.NoError(t, Reload())
 	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentReload)
 	require.NoError(t, Stop())
 	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentShutdown)
-	require.False(t, Reachable(DefaultSocket()))
+	require.False(t, Reachable(sock))
+}
+
+// Without a home directory (and no XDG_RUNTIME_DIR) there is no default
+// socket: the zero-argument forms fail instead of dialing a CWD-relative
+// path.
+func TestStopAndReload_NoHome(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	require.ErrorIs(t, Reload(), paths.ErrNoHome)
+	require.ErrorIs(t, Stop(), paths.ErrNoHome)
 }

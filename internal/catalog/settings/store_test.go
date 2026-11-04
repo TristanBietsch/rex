@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
@@ -50,6 +51,40 @@ func TestStore_LoadOverridesDefaults(t *testing.T) {
 	require.NoError(t, s.Load(path))
 	require.Equal(t, "pulse", s.Get("spinner"))
 	require.Equal(t, 0.5, s.Get("master_volume"))
+}
+
+func TestLoadDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	want := paths.ForHome(home).ConfigFile
+
+	s, path, err := LoadDefault()
+	require.NoError(t, err, "a missing config file is not an error")
+	require.Equal(t, want, path)
+	require.Equal(t, "braille", s.Get("spinner"))
+
+	testperm.MkdirAll(t, filepath.Dir(want), 0o700)
+	require.NoError(t, os.WriteFile(want, []byte("spinner: moon\n"), 0o600))
+	s, _, err = LoadDefault()
+	require.NoError(t, err)
+	require.Equal(t, "moon", s.Get("spinner"))
+
+	require.NoError(t, os.WriteFile(want, []byte("spinner: [\n"), 0o600))
+	s, path, err = LoadDefault()
+	require.Error(t, err)
+	require.Equal(t, want, path)
+	require.Equal(t, "braille", s.Get("spinner"), "a bad file leaves the defaults")
+
+	// No home: defaults, no path, and Save refuses rather than writing
+	// into the working directory.
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	s, path, err = LoadDefault()
+	require.ErrorIs(t, err, paths.ErrNoHome)
+	require.Empty(t, path)
+	require.Equal(t, "braille", s.Get("spinner"))
+	require.ErrorIs(t, s.Save(path), errNoPath)
 }
 
 func TestStore_SaveAndReload(t *testing.T) {

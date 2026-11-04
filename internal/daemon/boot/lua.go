@@ -4,15 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/lua"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -101,19 +99,21 @@ func luaEvent(store *state.Store, e state.Event) (eventType string, data any, ok
 	}
 }
 
-// luaConfigPath returns the resolved path to the user's init.lua, or "" if not configured.
+// luaConfigPath returns the resolved path to the user's init.lua, or "" if
+// not configured or when a "~/" path cannot be resolved (no home directory).
 func luaConfigPath() string {
-	st := settings.NewStore()
-	if err := st.Load(settings.DefaultPath()); err != nil {
+	st, _, err := settings.LoadDefault()
+	if err != nil {
 		slog.Warn("daemon: settings load failed for lua path", "err", err)
 	}
 	raw := st.String("lua_config_path")
 	if raw == "" {
 		return ""
 	}
-	if strings.HasPrefix(raw, "~/") {
-		home, _ := os.UserHomeDir()
-		raw = filepath.Join(home, raw[2:])
+	p, err := paths.ExpandHome(raw)
+	if err != nil {
+		slog.Warn("daemon: lua disabled; cannot resolve lua_config_path", "path", raw, "err", err)
+		return ""
 	}
-	return raw
+	return p
 }

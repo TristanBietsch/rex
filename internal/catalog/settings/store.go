@@ -1,24 +1,38 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 )
 
 // Store holds the effective settings: defaults overlaid with values loaded from
-// ~/.config/rex/config.yaml.
+// config.yaml (paths.ConfigFile).
 type Store struct {
 	values map[string]any
 }
 
-// DefaultPath returns the standard config.yaml location.
-func DefaultPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex", "config.yaml")
+// errNoPath is Save's answer to an empty path, so a caller whose config
+// path could not be resolved never writes into the working directory.
+var errNoPath = errors.New("settings: no config file path")
+
+// LoadDefault returns a Store holding the defaults overlaid with the user's
+// config file, and that file's path (paths.ConfigFile). A missing file is
+// not an error. On error the Store still holds the defaults, so best-effort
+// callers can use it; path is "" when the home directory is unknown.
+func LoadDefault() (store *Store, path string, err error) {
+	store = NewStore()
+	path, err = paths.ConfigFile()
+	if err != nil {
+		return store, "", fmt.Errorf("settings: %w", err)
+	}
+	return store, path, store.Load(path)
 }
 
 // NewStore returns a Store populated with the registry's defaults.
@@ -62,6 +76,9 @@ func (s *Store) Load(path string) error {
 // existing one keeps its permission bits, so Save never widens a private
 // config.yaml and never undoes a mode its owner chose.
 func (s *Store) Save(path string) error {
+	if path == "" {
+		return errNoPath
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}

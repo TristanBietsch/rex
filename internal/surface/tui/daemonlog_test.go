@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
@@ -28,10 +29,18 @@ func fakeStart(t *testing.T) *[]string {
 	return &logs
 }
 
+// daemonLogPath is paths.DaemonLog under the test's HOME.
+func daemonLogPath(t *testing.T) string {
+	t.Helper()
+	path, err := paths.DaemonLog()
+	require.NoError(t, err)
+	return path
+}
+
 // requirePrivateLog checks daemon.log and its directory are owner-only.
 func requirePrivateLog(t *testing.T, path string) {
 	t.Helper()
-	require.Equal(t, daemonctl.LogPath(), path)
+	require.Equal(t, daemonLogPath(t), path)
 	if runtime.GOOS == "windows" {
 		return
 	}
@@ -46,7 +55,7 @@ func requirePrivateLog(t *testing.T, path string) {
 // 0644 and ignored errors. Both now go through daemonctl.OpenLog, which
 // also tightens a log an older version left world-readable.
 func TestDaemonSpawns_usePrivateLog(t *testing.T) {
-	logPath := daemonctl.LogPath()
+	logPath := daemonLogPath(t)
 	testperm.MkdirAll(t, filepath.Dir(logPath), 0o755)
 	testperm.WriteFile(t, logPath, []byte("old\n"), 0o644)
 	logs := fakeStart(t)

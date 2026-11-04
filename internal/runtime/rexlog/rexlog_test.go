@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 )
 
 func TestLevelFromEnv(t *testing.T) {
@@ -29,10 +31,33 @@ func TestLevelFromEnv(t *testing.T) {
 	}
 }
 
-func TestStateDir_UsesRexLogDir(t *testing.T) {
+func TestPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	t.Setenv("REX_LOG_DIR", "")
+	got, err := Path("tui")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(paths.ForHome(home).LogDir, "tui.log"), got)
+
 	dir := t.TempDir()
 	t.Setenv("REX_LOG_DIR", dir)
-	require.Equal(t, dir, stateDir())
+	got, err = Path("tui")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(dir, "tui.log"), got)
+
+	// REX_LOG_DIR needs no home; the default dir does.
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	got, err = Path("tui")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(dir, "tui.log"), got)
+	t.Setenv("REX_LOG_DIR", "")
+	_, err = Path("tui")
+	require.ErrorIs(t, err, paths.ErrNoHome)
+	_, err = openLogFile("tui")
+	require.ErrorIs(t, err, paths.ErrNoHome)
 }
 
 func TestOpenLogFile_CreatesFile(t *testing.T) {

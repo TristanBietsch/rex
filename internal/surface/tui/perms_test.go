@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
@@ -23,10 +24,44 @@ func requireMode(t *testing.T, path string, want os.FileMode) {
 
 // S-01: tui-state.json and its directory were created 0644/0755.
 func TestSaveTUIState_ownerOnly(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	require.NoError(t, SaveTUIState(Model{SelectedID: "s1", Filter: "all"}))
-	requireMode(t, filepath.Dir(statePath()), 0o700)
-	requireMode(t, statePath(), 0o600)
+	statePath := paths.ForHome(home).TUIStateFile
+	requireMode(t, filepath.Dir(statePath), 0o700)
+	requireMode(t, statePath, 0o600)
+
+	sel, filter, ok := LoadTUIState()
+	require.True(t, ok)
+	require.Equal(t, "s1", sel)
+	require.Equal(t, "all", filter)
+}
+
+func TestTildePath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	sep := string(filepath.Separator)
+	require.Equal(t, "~"+sep+".zshrc", tildePath(filepath.Join(home, ".zshrc")))
+	require.Equal(t, "~", tildePath(home))
+	other := filepath.Join(filepath.Dir(home), "other", ".zshrc")
+	require.Equal(t, other, tildePath(other))
+}
+
+// Without a home directory the TUI state is neither saved nor loaded:
+// never a tui-state.json relative to the working directory.
+func TestTUIState_noHome(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	require.ErrorIs(t, SaveTUIState(Model{SelectedID: "s1"}), paths.ErrNoHome)
+	_, _, ok := LoadTUIState()
+	require.False(t, ok)
+
+	msg := runBootStep(t, stepPathsEnsure(Model{}))
+	require.Equal(t, stepFail, msg.Status)
+	require.ErrorIs(t, msg.Err, paths.ErrNoHome)
+	require.Empty(t, detectShellRC(), "no shell rc relative to the working directory")
+	require.Equal(t, "/x/.zshrc", tildePath("/x/.zshrc"))
 }
 
 // S-01, FU-09: the boot splash created ~/.config/rex and

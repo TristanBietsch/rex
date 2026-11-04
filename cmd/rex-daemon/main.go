@@ -20,7 +20,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
-	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/version"
 )
@@ -34,9 +34,13 @@ func main() {
 
 func run(args []string) error {
 	fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
-	socketPath := fs.String("socket", daemonctl.DefaultSocket(), "UDS path")
-	stateDir := fs.String("state-dir", daemonctl.DefaultStateDir(), "state directory")
-	toolsPath := fs.String("tools", daemonctl.DefaultToolsPath(), "path to tools.yaml override (optional)")
+	// Path defaults come from package paths. Without a home directory they
+	// are empty, and requireDefaults fails unless the flag was given.
+	layout, homeErr := paths.Resolve()
+	defaultSocket, socketErr := paths.Socket()
+	socketPath := fs.String("socket", defaultSocket, "UDS path")
+	stateDir := fs.String("state-dir", layout.DataDir, "state directory")
+	toolsPath := fs.String("tools", layout.ToolsFile, "path to tools.yaml override (optional)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
 
@@ -46,6 +50,11 @@ func run(args []string) error {
 	if *printVersion {
 		fmt.Println(version.Version)
 		return nil
+	}
+	if err := requireDefaults(fs, map[string]error{
+		"socket": socketErr, "state-dir": homeErr, "tools": homeErr,
+	}); err != nil {
+		return err
 	}
 
 	rexlog.Init("daemon")
@@ -103,9 +112,9 @@ func run(args []string) error {
 
 	// Load settings — same config.yaml the TUI writes to. Missing file is fine;
 	// the registry defaults apply.
-	settingsStore := settings.NewStore()
-	if err := settingsStore.Load(settings.DefaultPath()); err != nil {
-		slog.Warn("daemon: settings load failed (using defaults)", "path", settings.DefaultPath(), "err", err)
+	settingsStore, settingsPath, err := settings.LoadDefault()
+	if err != nil {
+		slog.Warn("daemon: settings load failed (using defaults)", "path", settingsPath, "err", err)
 	}
 	summaryEnabled, _ := settingsStore.Get("summary_enabled").(bool)
 	summaryModel, _ := settingsStore.Get("summary_model").(string)
@@ -218,4 +227,19 @@ func lockError(err error, socket string) error {
 	slog.Error("daemon: another daemon holds the state dir", "lock", held.Path, "holder", pid, "socket", socket)
 	return fmt.Errorf("another rex-daemon is already running (%s, lock %s); not starting a second one on socket %s: %w",
 		pid, held.Path, socket, err)
+}
+
+// requireDefaults fails when a path flag was left at its default and that
+// default could not be resolved (resolveErrs maps flag names to the
+// resolution error, nil when it resolved). A flag the user set, even to "",
+// is taken as given.
+func requireDefaults(fs *flag.FlagSet, resolveErrs map[string]error) error {
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	for _, name := range []string{"socket", "state-dir", "tools"} {
+		if err := resolveErrs[name]; err != nil && !set[name] {
+			return fmt.Errorf("no default for -%s (pass it explicitly): %w", name, err)
+		}
+	}
+	return nil
 }

@@ -19,8 +19,7 @@ const boardPad = 0
 func Run(socket string) error {
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
-	store := settings.NewStore()
-	_ = store.Load(settings.DefaultPath())
+	store, _, _ := settings.LoadDefault()
 	soundEnabled, _ := store.Get("sound_enabled").(bool)
 	soundset, _ := store.Get("soundset").(string)
 	volume, _ := store.Get("master_volume").(float64)

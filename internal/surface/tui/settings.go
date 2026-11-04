@@ -23,12 +23,16 @@ type SettingsState struct {
 
 func openSettings(m Model) (Model, tea.Cmd) {
 	if m.Store == nil {
-		m.Store = settings.NewStore()
-		m.StorePath = settings.DefaultPath()
-		_ = m.Store.Load(m.StorePath)
+		store, path, err := settings.LoadDefault()
+		if path == "" {
+			// No config path (no home directory): nothing could be saved.
+			m.Err = "settings: " + err.Error()
+			return m, nil
+		}
+		m.Store, m.StorePath = store, path
 	}
 	st := &SettingsState{}
-	if reg, err := registry.Load(toolsConfigPath()); err == nil {
+	if reg, err := loadToolsStrict(); err == nil {
 		st.Tools = visibleTools(reg.Tools)
 	} else {
 		slog.Warn("tui: settings could not load tool registry; spawn pickers disabled", "err", err)

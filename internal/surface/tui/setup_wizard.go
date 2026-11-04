@@ -13,6 +13,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 )
 
 // ── Setup wizard step enum ──────────────────────────────────────────────────
@@ -151,9 +152,8 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 
 	// tools: a broken user tools.yaml falls back to the built-ins (shown to
 	// the user via toolsErr) instead of a nil registry.
-	toolsPath := toolsConfigPath()
 	var all []registry.Tool
-	reg, toolsErr, err := loadToolsOrBuiltin(toolsPath)
+	reg, toolsPath, toolsErr, err := loadUserTools()
 	if toolsErr != nil {
 		slog.Warn("setup: tools.yaml unusable; offering built-in tools", "path", toolsPath, "err", toolsErr)
 	}
@@ -645,10 +645,8 @@ func (m *SetupWizardModel) buildPreview() {
 	})
 	// shell block if requested
 	if m.installShell && m.shellRC != "" {
-		home, _ := os.UserHomeDir()
-		rel := strings.TrimPrefix(m.shellRC, home)
 		m.writeItems = append(m.writeItems, writeItem{
-			label: "~" + rel,
+			label: tildePath(m.shellRC),
 			path:  m.shellRC,
 			kind:  "shell",
 		})
@@ -1055,8 +1053,7 @@ func (m SetupWizardModel) renderShell() (string, []string, string) {
 	body = append(body, "")
 
 	if m.shellRC != "" {
-		home, _ := os.UserHomeDir()
-		rel := "~" + strings.TrimPrefix(m.shellRC, home)
+		rel := tildePath(m.shellRC)
 
 		if m.shellBlockExists {
 			body = append(body, "  "+styleBootOK.Render("✓")+" block already in "+styleDim.Render(rel))
@@ -1201,13 +1198,36 @@ func ShellProfileBlock(shell string) string {
 	}, "\n")
 }
 
+// tildePath shows p with the home directory abbreviated to "~", or as is
+// when p is outside it or the home directory is unknown.
+func tildePath(p string) string {
+	home, err := paths.Home()
+	if err != nil {
+		return p
+	}
+	rel, err := filepath.Rel(home, p)
+	switch {
+	case err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)):
+		return p
+	case rel == ".":
+		return "~"
+	default:
+		return "~" + string(filepath.Separator) + rel
+	}
+}
+
 // DetectShellRC returns the path to the user's shell RC file based on $SHELL.
 // Exported for use by internal/surface/cli/setup.go's preview renderer.
 func DetectShellRC() string { return detectShellRC() }
 
-// detectShellRC is the internal implementation.
+// detectShellRC is the internal implementation. It returns "" when the
+// home directory is unknown: a relative ".zshrc" would edit a file in the
+// working directory.
 func detectShellRC() string {
-	home, _ := os.UserHomeDir()
+	home, err := paths.Home()
+	if err != nil {
+		return ""
+	}
 	shell := filepath.Base(os.Getenv("SHELL"))
 	switch shell {
 	case "zsh":

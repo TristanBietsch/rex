@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 )
 
@@ -16,16 +17,14 @@ type persistedState struct {
 	SavedAt      time.Time `json:"saved_at"`
 }
 
-func statePath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "state", "rex", "tui-state.json")
-}
-
-// SaveTUIState writes selection + filter to ~/.local/state/rex/tui-state.json.
-// The state dir is rex's own and is created or tightened to 0700; the file
-// is 0600.
+// SaveTUIState writes selection + filter to paths.TUIStateFile
+// (~/.local/state/rex/tui-state.json). The state dir is rex's own and is
+// created or tightened to 0700; the file is 0600.
 func SaveTUIState(m Model) error {
-	path := statePath()
+	path, err := paths.TUIStateFile()
+	if err != nil {
+		return err
+	}
 	if err := rexlog.PrivateDir(filepath.Dir(path)); err != nil {
 		return err
 	}
@@ -42,7 +41,10 @@ func SaveTUIState(m Model) error {
 
 // LoadTUIState reads + deletes the persisted state. Returns ok=false when the file doesn't exist.
 func LoadTUIState() (selection string, filter string, ok bool) {
-	path := statePath()
+	path, err := paths.TUIStateFile()
+	if err != nil {
+		return "", "", false
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", "", false

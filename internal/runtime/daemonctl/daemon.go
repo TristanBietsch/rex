@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 )
 
@@ -30,15 +31,6 @@ func Reachable(socket string) bool {
 	}
 	_ = conn.Close()
 	return true
-}
-
-// DefaultSocket returns the default UDS path, matching rex-daemon's logic.
-func DefaultSocket() string {
-	if r := os.Getenv("XDG_RUNTIME_DIR"); r != "" {
-		return filepath.Join(r, "rex.sock")
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".cache", "rex", "rex.sock")
 }
 
 // FindBinary returns the path to rex-daemon. It checks (in order):
@@ -226,11 +218,14 @@ func maxSocketPathLen(goos string) int {
 	}
 }
 
-// OpenLog opens LogPath for appending with private modes: the directory is
-// created or tightened to 0700 and the file to 0600. Pass the result to
-// Start; the caller closes it.
+// OpenLog opens paths.DaemonLog for appending with private modes: the
+// directory is created or tightened to 0700 and the file to 0600. Pass the
+// result to Start; the caller closes it.
 func OpenLog() (*os.File, error) {
-	path := LogPath()
+	path, err := paths.DaemonLog()
+	if err != nil {
+		return nil, fmt.Errorf("daemon log: %w", err)
+	}
 	if err := rexlog.PrivateDir(filepath.Dir(path)); err != nil {
 		return nil, fmt.Errorf("daemon log dir: %w", err)
 	}
@@ -250,7 +245,11 @@ func tightenLog(f *os.File) {
 	if err := f.Chmod(0o600); err != nil {
 		slog.Warn("daemonctl: cannot tighten daemon log", "path", f.Name(), "err", err)
 	}
-	if dir := filepath.Dir(LogPath()); filepath.Dir(f.Name()) == dir {
+	dir, err := paths.LogDir()
+	if err != nil {
+		return // no standard log dir to compare against
+	}
+	if filepath.Dir(f.Name()) == dir {
 		if err := rexlog.PrivateDir(dir); err != nil {
 			slog.Warn("daemonctl: cannot tighten log dir", "dir", dir, "err", err)
 		}

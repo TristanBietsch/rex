@@ -3,13 +3,13 @@ package tui
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -39,7 +39,7 @@ type WizardState struct {
 }
 
 func openWizard(m Model) (Model, tea.Cmd) {
-	reg, err := registry.Load(toolsConfigPath())
+	reg, err := loadToolsStrict()
 	if err != nil {
 		m.Err = "wizard: " + err.Error()
 		return m, nil
@@ -59,9 +59,29 @@ func openWizard(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func toolsConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex", "tools.yaml")
+// loadToolsStrict loads the built-in registry merged with the user's
+// tools.yaml (paths.ToolsFile). Unlike loadUserTools it fails when the user
+// file cannot be used, or its path resolved, instead of falling back.
+func loadToolsStrict() (*registry.Registry, error) {
+	path, err := paths.ToolsFile()
+	if err != nil {
+		return nil, err
+	}
+	return registry.Load(path)
+}
+
+// loadUserTools is loadToolsOrBuiltin on the user's tools.yaml
+// (paths.ToolsFile), also returning that path. Without a home directory
+// there is no user file: the built-ins load, path is "" and userErr says
+// why.
+func loadUserTools() (reg *registry.Registry, path string, userErr, err error) {
+	path, userErr = paths.ToolsFile()
+	if userErr != nil {
+		reg, err = registry.Load("")
+		return reg, "", userErr, err
+	}
+	reg, userErr, err = loadToolsOrBuiltin(path)
+	return reg, path, userErr, err
 }
 
 // loadToolsOrBuiltin loads the built-in registry merged with the user's

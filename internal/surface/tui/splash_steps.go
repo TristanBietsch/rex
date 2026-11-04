@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -35,24 +35,28 @@ func emit(name string, fn func() (bootStatus, string, error)) tea.Cmd {
 func stepLogInit(_ Model) tea.Cmd {
 	return emit("log.init", func() (bootStatus, string, error) {
 		rexlog.Init("tui")
-		home, _ := os.UserHomeDir()
-		return stepOK, filepath.Join(home, ".local/state/rex/tui.log"), nil
+		path, err := rexlog.Path("tui")
+		if err != nil {
+			return stepWarn, "logging to stderr: " + err.Error(), err
+		}
+		return stepOK, path, nil
 	})
 }
 
 func stepPathsEnsure(_ Model) tea.Cmd {
 	return emit("paths.ensure", func() (bootStatus, string, error) {
-		home, _ := os.UserHomeDir()
+		l, err := paths.Resolve()
+		if err != nil {
+			return stepFail, err.Error(), err
+		}
 		// The config dir holds files the user edits, so an existing one is
 		// left as they made it; a new one is 0700 (the XDG mode).
-		config := filepath.Join(home, ".config", "rex")
-		if err := os.MkdirAll(config, 0o700); err != nil {
-			return stepFail, fmt.Sprintf("mkdir %s: %v", config, err), err
+		if err := os.MkdirAll(l.ConfigDir, 0o700); err != nil {
+			return stepFail, fmt.Sprintf("mkdir %s: %v", l.ConfigDir, err), err
 		}
 		// The state dir (logs, tui-state) is rex's own: created or
 		// tightened to 0700.
-		state := filepath.Join(home, ".local", "state", "rex")
-		if err := rexlog.PrivateDir(state); err != nil {
+		if err := rexlog.PrivateDir(l.LogDir); err != nil {
 			return stepFail, err.Error(), err
 		}
 		return stepOK, "config + state dirs ok", nil
@@ -90,12 +94,15 @@ type settingsResultMsg struct {
 func stepSettingsLoad(_ Model) tea.Cmd {
 	return func() tea.Msg {
 		t0 := time.Now()
-		path := settings.DefaultPath()
 		s := settings.NewStore()
+		path, err := paths.ConfigFile()
+		if err != nil {
+			return settingsResultMsg{Store: s, Found: true, Err: err, Dur: time.Since(t0)}
+		}
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return settingsResultMsg{Store: s, Path: path, Found: false, Dur: time.Since(t0)}
 		}
-		err := s.Load(path)
+		err = s.Load(path)
 		return settingsResultMsg{Store: s, Path: path, Found: true, Err: err, Dur: time.Since(t0)}
 	}
 }
@@ -157,8 +164,7 @@ func stepAudioLoad(m Model) tea.Cmd {
 // own copy); a bad built-in registry is fatal.
 func stepRegistryLoad(_ Model) tea.Cmd {
 	return emit("registry.load", func() (bootStatus, string, error) {
-		path := toolsConfigPath()
-		reg, userErr, err := loadToolsOrBuiltin(path)
+		reg, _, userErr, err := loadUserTools()
 		if err != nil {
 			return stepFail, err.Error(), err
 		}

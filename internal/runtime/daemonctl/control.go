@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -19,19 +20,28 @@ import (
 // Whoever can connect to the socket already controls the daemon, so the
 // socket is the right authority.
 
-// Stop asks the daemon on DefaultSocket to shut down; see ShutdownDaemon.
+// Stop asks the daemon on the default socket (paths.Socket) to shut down;
+// see ShutdownDaemon.
 func Stop() error {
-	return ShutdownDaemon(context.Background(), DefaultSocket())
+	socket, err := paths.Socket()
+	if err != nil {
+		return err
+	}
+	return ShutdownDaemon(context.Background(), socket)
 }
 
-// StopQuietly stops the daemon on DefaultSocket if one answers; errors are
-// ignored.
+// StopQuietly stops the daemon on the default socket if one answers; errors
+// are ignored.
 func StopQuietly() { _ = Stop() }
 
-// Reload asks the daemon on DefaultSocket to re-read tools.yaml; see
-// ReloadDaemon.
+// Reload asks the daemon on the default socket (paths.Socket) to re-read
+// tools.yaml; see ReloadDaemon.
 func Reload() error {
-	return ReloadDaemon(context.Background(), DefaultSocket())
+	socket, err := paths.Socket()
+	if err != nil {
+		return err
+	}
+	return ReloadDaemon(context.Background(), socket)
 }
 
 // ShutdownDaemon sends a Shutdown intent to the daemon listening on socket

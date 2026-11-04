@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
@@ -21,24 +22,30 @@ import (
 func TestOpenLog_PrivateModes(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	dir := filepath.Dir(LogPath())
+	logPath := paths.ForHome(home).DaemonLog
+	dir := filepath.Dir(logPath)
 	testperm.MkdirAll(t, dir, 0o755)
-	testperm.WriteFile(t, LogPath(), []byte("old\n"), 0o644)
+	testperm.WriteFile(t, logPath, []byte("old\n"), 0o644)
 
 	f, err := OpenLog()
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	for path, want := range map[string]os.FileMode{dir: 0o700, LogPath(): 0o600} {
+	for path, want := range map[string]os.FileMode{dir: 0o700, logPath: 0o600} {
 		info, err := os.Stat(path)
 		require.NoError(t, err)
 		require.Equal(t, want, info.Mode().Perm(), path)
 	}
 
 	// A file where the log dir belongs fails cleanly.
-	t.Setenv("HOME", LogPath())
+	t.Setenv("HOME", logPath)
 	_, err = OpenLog()
 	require.Error(t, err)
+
+	// So does a missing home: no daemon.log relative to the working dir.
+	t.Setenv("HOME", "")
+	_, err = OpenLog()
+	require.ErrorIs(t, err, paths.ErrNoHome)
 }
 
 // Start puts the daemon in its own session, so Ctrl-C (SIGINT to the

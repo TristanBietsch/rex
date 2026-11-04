@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
-	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -81,7 +81,10 @@ func updateFailKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func tailDaemonLog(n int) []string {
-	path := daemonctl.LogPath()
+	path, err := paths.DaemonLog()
+	if err != nil {
+		return []string{fmt.Sprintf("(no daemon log: %v)", err)}
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return []string{fmt.Sprintf("(no log at %s)", path)}
