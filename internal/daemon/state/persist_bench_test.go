@@ -1,7 +1,6 @@
 package state
 
 import (
-	"os"
 	"testing"
 )
 
@@ -79,7 +78,7 @@ func BenchmarkAppendTranscript_1MiB(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = os.RemoveAll(sessionDir(dir, "bench-sess"))
+		_ = RemoveSessionDir(dir, "bench-sess")
 		for c := 0; c < chunks; c++ {
 			if err := AppendTranscript(dir, "bench-sess", chunk); err != nil {
 				b.Fatal(err)

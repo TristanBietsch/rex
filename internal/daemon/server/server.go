@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -89,7 +88,38 @@ type Server struct {
 	cfg  Config
 	reg  atomic.Pointer[registry.Registry]
 	gate *concurrencyGate
-	wg   sync.WaitGroup
+	// wg tracks the connection handlers and the retire reaper. Serve waits
+	// for it before it waits for sessions, so no handler can start a
+	// supervisor (sessions.Add) once sessions.Wait has begun.
+	wg sync.WaitGroup
+	// sessions tracks the per-session supervisor goroutines (spawn.go).
+	sessions sync.WaitGroup
+	// supervisorWait bounds how long Serve waits for sessions on shutdown
+	// (0 = defaultSupervisorWait).
+	supervisorWait time.Duration
+
+	// connsMu guards conns and closing. Serve's shutdown sets closing and
+	// aborts every tracked connection; a connection accepted after that is
+	// aborted on registration instead of being missed.
+	connsMu sync.Mutex
+	conns   map[*clientConn]struct{}
+	closing bool
+
+	// ownerUID is the only peer uid accept lets through (os.Getuid() from
+	// New; -1 on Windows, where verifyPeer does not check).
+	ownerUID int
+
+	// handlers maps intent types to their handlers. Built in New and
+	// read-only once Serve starts; tests may swap entries before Serve.
+	handlers map[string]intentHandler
+
+	// Per-connection outbound limits (0 = defaultClientQueueLen /
+	// defaultClientWriteTimeout). Set before Serve; tests shrink them.
+	clientQueueLen     int
+	clientWriteTimeout time.Duration
+	nextConnID         atomic.Uint64
+	// maxLineBytes caps one inbound line (0 = protocol.MaxLineBytes).
+	maxLineBytes int
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
@@ -131,14 +161,13 @@ func (s *Server) Registry() *registry.Registry {
 	return s.reg.Load()
 }
 
-// New unlinks any stale socket and constructs a Server. It does not listen yet.
+// New constructs a Server. It touches nothing on disk: Serve claims the
+// socket, so a second daemon cannot unlink a live one's socket by merely
+// being constructed.
 func New(cfg Config) (*Server, error) {
 	if cfg.Socket == "" {
 		return nil, errors.New("server: empty socket path")
 	}
-	// Unlink any stale socket. If something is actually listening on it we'll
-	// fail on Listen below, which is the right outcome.
-	_ = os.Remove(cfg.Socket)
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
@@ -148,7 +177,12 @@ func New(cfg Config) (*Server, error) {
 	if cfg.RetireSweepInterval <= 0 {
 		cfg.RetireSweepInterval = defaultRetireSweepInterval
 	}
-	s := &Server{cfg: cfg, gate: &concurrencyGate{max: cfg.MaxConcurrentSessions}}
+	s := &Server{
+		cfg:      cfg,
+		gate:     &concurrencyGate{max: cfg.MaxConcurrentSessions},
+		handlers: defaultHandlers(),
+		ownerUID: os.Getuid(),
+	}
 	s.reg.Store(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
 	// Registry() / MaxConcurrentSessions() so nobody uses a stale copy.
@@ -156,49 +190,148 @@ func New(cfg Config) (*Server, error) {
 	return s, nil
 }
 
-// Serve listens until ctx is canceled. The socket is unlinked on return.
+// defaultSupervisorWait bounds the shutdown wait for session supervisors:
+// long enough for a kill, a PTY drain and a final meta write.
+const defaultSupervisorWait = 5 * time.Second
+
+// Serve listens until ctx is canceled or Accept fails, then shuts down:
+// it closes every client connection, waits for the handlers and the retire
+// reaper, and waits (bounded by supervisorWait) for the session supervisors,
+// which stop with ctx. Serve may be called at most once per Server.
+//
+// Serve refuses (ErrSocketInUse) a socket path a live process answers on and
+// never replaces a path that is not a socket; a stale socket is replaced. On
+// return it unlinks the socket only if the path still names the socket it
+// created.
 func (s *Server) Serve(ctx context.Context) error {
-	l, err := net.Listen("unix", s.cfg.Socket)
+	l, ours, err := listenSocket(ctx, s.cfg.Socket)
 	if err != nil {
-		return fmt.Errorf("listen %s: %w", s.cfg.Socket, err)
+		return err
 	}
 	defer func() {
 		_ = l.Close()
-		_ = os.Remove(s.cfg.Socket)
+		removeOwnSocket(s.cfg.Socket, ours)
 	}()
 
-	// Close the listener when ctx is canceled to unblock Accept.
-	go func() {
-		<-ctx.Done()
+	// serveCtx also ends when Accept fails, so sessions and handlers stop
+	// the same way on either exit path.
+	serveCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// Unblock Accept and every handler's Read once serveCtx is done.
+	stopClose := context.AfterFunc(serveCtx, func() {
 		_ = l.Close()
-	}()
+		s.closeConns()
+	})
+	defer stopClose()
 
 	// Retire reaper: clears marked-done sessions once their deadline passes.
 	// Tracked by wg so shutdown proves it has exited.
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		s.runRetireReaper(ctx)
+		s.runRetireReaper(serveCtx)
 	}()
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			if ctx.Err() != nil {
-				slog.Info("server: shutting down, waiting for clients")
-				s.wg.Wait()
+			requested := ctx.Err() != nil
+			cancel()
+			s.drain()
+			if requested {
 				return nil
 			}
 			slog.Error("server: accept failed", "err", err)
 			return fmt.Errorf("accept: %w", err)
 		}
+		if err := verifyPeer(conn, s.ownerUID); err != nil {
+			slog.Warn("server: rejected connection", "err", err)
+			_ = conn.Close()
+			continue
+		}
 		slog.Debug("server: client connected")
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			handleClient(ctx, conn, s)
+			handleClient(serveCtx, conn, s)
 			slog.Debug("server: client disconnected")
 		}()
+	}
+}
+
+// drain waits for the handlers and the reaper, then (bounded) for the
+// session supervisors. Their contexts are already canceled.
+func (s *Server) drain() {
+	slog.Info("server: shutting down, waiting for clients")
+	s.wg.Wait()
+	wait := s.supervisorWait
+	if wait <= 0 {
+		wait = defaultSupervisorWait
+	}
+	if !waitTimeout(&s.sessions, wait) {
+		slog.Warn("server: session supervisors still running; exiting anyway", "waited", wait)
+	}
+}
+
+// waitTimeout waits for wg for at most d and reports whether it finished.
+// On timeout the helper goroutine stays parked in wg.Wait until the group
+// finishes; callers use it only on the way out.
+func waitTimeout(wg *sync.WaitGroup, d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-done:
+		return true
+	case <-t.C:
+		return false
+	}
+}
+
+// trackConn registers a live connection for shutdown. It returns false once
+// shutdown has begun; the caller must then abort the connection itself.
+func (s *Server) trackConn(c *clientConn) bool {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	if s.closing {
+		return false
+	}
+	if s.conns == nil {
+		s.conns = make(map[*clientConn]struct{})
+	}
+	s.conns[c] = struct{}{}
+	return true
+}
+
+// liveConns is the number of tracked client connections.
+func (s *Server) liveConns() int {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	return len(s.conns)
+}
+
+func (s *Server) untrackConn(c *clientConn) {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	delete(s.conns, c)
+}
+
+// closeConns starts shutdown: it aborts every live connection, which
+// unblocks its handler's Read, and makes trackConn refuse new ones.
+func (s *Server) closeConns() {
+	s.connsMu.Lock()
+	s.closing = true
+	conns := make([]*clientConn, 0, len(s.conns))
+	for c := range s.conns {
+		conns = append(conns, c)
+	}
+	s.connsMu.Unlock()
+	for _, c := range conns {
+		c.abort(errServerShutdown)
 	}
 }
 
@@ -249,7 +382,15 @@ func (s *Server) InputChannel(sessionID string) chan []byte {
 	return s.inputChannels[sessionID]
 }
 
-// SubscribeSessionOutput registers a per-session output callback. Returns a cancel func.
+// SubscribeSessionOutput registers a per-session output callback. Returns a
+// cancel func.
+//
+// Callback contract: fn runs on the session's PTY reader goroutine (the
+// supervisor's OutputSink) with outputSubsMu read-held, so a slow fn stalls
+// that session's output and its transcript. fn must not block or do I/O
+// (client connections encode and enqueue), must not retain b past the call
+// unless it copies it, and must not call SubscribeSessionOutput or a cancel
+// func. Once the cancel func returns, fn is never called again.
 func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func() {
 	s.outputSubsMu.Lock()
 	defer s.outputSubsMu.Unlock()
@@ -282,7 +423,9 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 
 // SubscribeSummarizerHealth registers a global callback for SummarizerHealth
 // events. Returns a cancel func. Every connected client subscribes once after
-// Hello so health flips propagate to all live TUIs.
+// Hello so health flips propagate to all live TUIs. fn runs with
+// summarizerHealthMu read-held and follows the SubscribeSessionOutput
+// contract: no blocking, no I/O, no (un)subscribing from inside it.
 func (s *Server) SubscribeSummarizerHealth(fn func(protocol.SummarizerHealth)) func() {
 	s.summarizerHealthMu.Lock()
 	defer s.summarizerHealthMu.Unlock()

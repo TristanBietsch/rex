@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,8 +17,13 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, w *protocol.Writer) error {
+func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) error {
 	if err := validateNewSession(p); err != nil {
+		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
+		return badIntent(err)
+	}
+	p, err := normalizeNewSession(p)
+	if err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
 		return badIntent(err)
 	}
@@ -55,11 +59,15 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// Hook-detected tools report state by appending to a per-session file
 	// named in the child's env. Flags must precede the `--` prompt separator.
 	var childEnv []string
-	hookFile := state.HookFile(cfg.StateDir, id)
+	hookFile, err := state.HookFile(cfg.StateDir, id)
+	if err != nil {
+		srv.ReleaseSession()
+		return fmt.Errorf("hook file: %w", err)
+	}
 	if tool.Detect.Kind == "hooks" {
-		if err := os.MkdirAll(filepath.Dir(hookFile), 0o755); err != nil {
+		if _, err := state.CreateHookFile(cfg.StateDir, id); err != nil {
 			srv.ReleaseSession()
-			return fmt.Errorf("hook dir: %w", err)
+			return fmt.Errorf("hook file: %w", err)
 		}
 		switch tool.Detect.Format {
 		case "claude":
@@ -165,7 +173,11 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	})
 
 	// Run in a background goroutine; the store events drive the wire.
+	// Tracked in srv.sessions so Serve's shutdown waits for the supervisor's
+	// final transition and meta write.
+	srv.sessions.Add(1)
 	go func() {
+		defer srv.sessions.Done()
 		defer close(done)
 		// Release sessCtx on natural exit too; an uncanceled child context
 		// stays registered with the server ctx for the daemon's lifetime.
@@ -176,7 +188,5 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		defer srv.ReleaseSession()
 		_ = sup.Run(sessCtx, sess)
 	}()
-	_ = intentID
-	_ = w
 	return nil
 }

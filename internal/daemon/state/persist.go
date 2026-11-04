@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -13,23 +14,41 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// sessionDir returns ~/.local/share/rex/sessions/<id> built from a state-dir root.
-// HookFile is the per-session file agent hooks append state words to.
-func HookFile(root, id string) string {
-	return filepath.Join(sessionDir(root, id), "hooks.log")
-}
+// Session state holds prompts, cwds and full agent output, so it is
+// private to the user: directories 0700, files 0600. MkdirAll and OpenFile
+// only apply these to what they create; TightenPerms fixes older trees.
+const (
+	dirPerm  os.FileMode = 0o700
+	filePerm os.FileMode = 0o600
+)
 
-func sessionDir(root, id string) string {
-	return filepath.Join(root, "sessions", id)
+// HookFile is the per-session file agent hooks append state words to. It
+// fails with ErrUnsafeSessionID for an id that is not a single path element.
+func HookFile(root, id string) (string, error) {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "hooks.log"), nil
 }
 
 // ErrUnsafeSessionID is returned when a session id would not resolve to a
 // single directory directly under <root>/sessions.
 var ErrUnsafeSessionID = errors.New("unsafe session id")
 
-// safeSessionDir is sessionDir for destructive operations. It refuses ids
-// that are empty, ".", "..", contain a separator, or otherwise escape
-// <root>/sessions — an empty id would otherwise RemoveAll every session.
+// ValidateSessionID reports whether id can name a session directory: it
+// must be one path element, not empty, "." or "..". Ids arrive from clients
+// (Subscribe, Delete, ...), so every path built from one is checked.
+func ValidateSessionID(id string) error {
+	_, err := safeSessionDir("", id)
+	return err
+}
+
+// safeSessionDir returns <root>/sessions/<id>. It is the only way this
+// package turns an id into a path: it refuses ids that are empty, ".",
+// "..", contain a separator, or otherwise escape <root>/sessions, so a
+// client-supplied "../.." can't read or write elsewhere and an empty id
+// can't RemoveAll every session.
 func safeSessionDir(root, id string) (string, error) {
 	if id == "" || id == "." || id == ".." || !filepath.IsLocal(id) || filepath.Base(id) != id {
 		return "", fmt.Errorf("%w: %q", ErrUnsafeSessionID, id)
@@ -78,7 +97,7 @@ func WriteMeta(root string, s *Session) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	final := filepath.Join(dir, "meta.json")
@@ -101,7 +120,7 @@ func WriteMeta(root string, s *Session) error {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("write tmp meta: %w", errors.Join(werr, cerr))
 	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
+	if err := os.Chmod(tmpName, filePerm); err != nil {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("chmod tmp meta: %w", err)
 	}
@@ -114,7 +133,11 @@ func WriteMeta(root string, s *Session) error {
 
 // LoadMeta loads one session's metadata.
 func LoadMeta(root, id string) (*Session, error) {
-	path := filepath.Join(sessionDir(root, id), "meta.json")
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, "meta.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read meta %s: %w", path, err)
@@ -175,17 +198,107 @@ type TranscriptFile struct {
 	f *os.File
 }
 
-// OpenTranscript opens (or creates) transcript.log for repeated appends.
+// OpenTranscript opens (or creates) transcript.log for repeated appends. The
+// file is made owner-only even if an older daemon created it.
 func OpenTranscript(root, id string) (*TranscriptFile, error) {
-	dir := sessionDir(root, id)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, fmt.Errorf("open transcript: %w", err)
 	}
+	if err := f.Chmod(filePerm); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("chmod transcript: %w", err)
+	}
 	return &TranscriptFile{f: f}, nil
+}
+
+// CreateHookFile creates the session's hook state file (owner-only, empty)
+// if it does not exist yet and returns its path. Agent hooks append to it;
+// pre-creating it means the agent never picks its permissions.
+func CreateHookFile(root, id string) (string, error) {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
+		return "", fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, "hooks.log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm)
+	if err != nil {
+		return "", fmt.Errorf("create hook file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("close hook file: %w", err)
+	}
+	return path, nil
+}
+
+// TightenPerms makes an existing state tree owner-only: root, root/sessions
+// and every session dir become 0700, every regular file directly in them
+// 0600. Older daemons created 0755 dirs and 0644 files. root itself may be a
+// symlink (it is the configured dir), but symlinks inside are skipped, since
+// Chmod would follow them out of the tree. A missing root is not an error.
+// It keeps going past individual failures and returns them joined.
+//
+// On Windows, mode bits only toggle the read-only attribute, which these
+// modes leave cleared; access there is governed by the profile's ACLs.
+func TightenPerms(root string) error {
+	fi, err := os.Stat(root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", root, err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("state dir %s is not a directory", root)
+	}
+	errs := []error{chmodErr(root, dirPerm)}
+	sessions := filepath.Join(root, "sessions")
+	if _, err := os.Lstat(sessions); errors.Is(err, fs.ErrNotExist) {
+		return errors.Join(errs...)
+	}
+	errs = append(errs, tightenDir(sessions))
+	entries, err := os.ReadDir(sessions)
+	if err != nil {
+		return errors.Join(append(errs, fmt.Errorf("read %s: %w", sessions, err))...)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			errs = append(errs, tightenDir(filepath.Join(sessions, e.Name())))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// tightenDir makes dir 0700 and each regular file directly in it 0600.
+func tightenDir(dir string) error {
+	errs := []error{chmodErr(dir, dirPerm)}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return errors.Join(append(errs, fmt.Errorf("read %s: %w", dir, err))...)
+	}
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			errs = append(errs, chmodErr(filepath.Join(dir, e.Name()), filePerm))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func chmodErr(path string, mode os.FileMode) error {
+	if err := os.Chmod(path, mode); err != nil {
+		return fmt.Errorf("chmod %s: %w", path, err)
+	}
+	return nil
 }
 
 // Write appends bytes to the transcript.
@@ -218,7 +331,11 @@ func AppendTranscript(root, id string, b []byte) error {
 // TranscriptTail returns the last max bytes of a session's transcript.log
 // (or all of it, if smaller). Missing files return (nil, nil).
 func TranscriptTail(root, id string, max int) ([]byte, error) {
-	path := filepath.Join(sessionDir(root, id), "transcript.log")
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, "transcript.log")
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -249,14 +366,20 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 	return buf[:n], nil
 }
 
+// fromSummary rebuilds a session from its persisted summary. Free-text
+// display fields are sanitized again: meta written before ingest
+// sanitization (S-03) may still hold escapes or newlines.
 func fromSummary(sum protocol.SessionSummary) *Session {
 	return &Session{
 		ID: sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
-		Effort: sum.Effort, Slug: sum.Slug, Title: sum.Title, CWD: sum.CWD,
-		State: sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
-		LastLine: sum.LastLine, Description: sum.Description, ExitCode: sum.ExitCode,
+		Effort: sum.Effort, Slug: sum.Slug, CWD: sum.CWD,
+		Title:       protocol.SanitizeDisplayText(sum.Title, protocol.MaxTitleRunes),
+		Description: protocol.SanitizeDisplayText(sum.Description, protocol.MaxDescriptionRunes),
+		Fleet:       protocol.SanitizeDisplayText(sum.Fleet, protocol.MaxFleetRunes),
+		State:       sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
+		LastLine: sum.LastLine, ExitCode: sum.ExitCode,
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
-		Fleet: sum.Fleet, Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
+		Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
 		WorkingSince: sum.WorkingSince,
 	}
 }

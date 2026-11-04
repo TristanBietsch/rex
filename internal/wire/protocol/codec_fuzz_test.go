@@ -28,9 +28,15 @@ func encodeLine(f *testing.F, kind Kind, typ, id string, payload any) []byte {
 	return buf.Bytes()
 }
 
+// fuzzLineCap is the Reader cap FuzzReaderRead uses, small enough that the
+// fuzzer reaches the ErrLineTooLong path without megabyte inputs.
+const fuzzLineCap = 256
+
 // FuzzReaderRead feeds arbitrary bytes to Reader.Read. The daemon runs Read
 // on every client connection, so it must never panic and must always make
-// progress: each call consumes one line and the stream ends in io.EOF.
+// progress: each call consumes one line, every failure is one of the typed
+// errors the daemon maps to an Error event, and the stream ends in io.EOF or
+// the sticky ErrLineTooLong.
 func FuzzReaderRead(f *testing.F) {
 	hello := encodeLine(f, KindIntent, IntentHello, "1", Hello{ClientVersion: "test"})
 	snap := encodeLine(f, KindEvent, EventSnapshot, "", Snapshot{Filter: "all"})
@@ -43,20 +49,46 @@ func FuzzReaderRead(f *testing.F) {
 	f.Add([]byte("\n"))
 	f.Add([]byte(`{"v":1,"kind":"Intent","type":"Hello","data":{}}`)) // no trailing newline
 	f.Add([]byte("not json\n{\"v\":1}\n"))
+	// Oversized lines: exactly at the cap, one byte over, and an over-cap
+	// line followed by a valid one (which must not be reached).
+	atCap := append(bytes.Repeat([]byte{' '}, fuzzLineCap-len(hello)), hello...)
+	f.Add(atCap)
+	f.Add(append([]byte{' '}, atCap...))
+	f.Add(append(bytes.Repeat([]byte{'x'}, 3*fuzzLineCap), append([]byte{'\n'}, hello...)...))
+	f.Add(append(append([]byte{}, hello...), bytes.Repeat([]byte{'{'}, 2*fuzzLineCap)...)) // long partial line at EOF
+	f.Add([]byte("{}\n"))                                                                  // v missing: version 0
+	f.Add([]byte(`{"v":1,"kind":"Intent","type":"Hello","data":{}}` + "\r\n"))             // CRLF framing
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		r := NewReader(bytes.NewReader(data))
+		r := NewReaderSize(bytes.NewReader(data), fuzzLineCap)
 		// Every Read consumes through the next '\n' (or to EOF), so the
 		// stream must end within lines+1 non-EOF results.
 		maxReads := bytes.Count(data, []byte{'\n'}) + 1
+		consumed := 0
 		for i := 0; ; i++ {
 			env, err := r.Read()
 			if errors.Is(err, io.EOF) {
 				return
 			}
 			require.Less(t, i, maxReads, "Read did not reach io.EOF")
-			if err == nil {
+			switch {
+			case err == nil:
 				require.Equal(t, ProtocolVersion, env.V, "Read returned an envelope with an unsupported version")
+			case errors.Is(err, ErrLineTooLong):
+				rest := data[consumed:]
+				line, _, _ := bytes.Cut(rest, []byte{'\n'})
+				require.Greater(t, len(line)+1, fuzzLineCap, "ErrLineTooLong for a line within the cap")
+				_, again := r.Read()
+				require.ErrorIs(t, again, ErrLineTooLong, "ErrLineTooLong must be sticky")
+				return
+			default:
+				require.True(t, errors.Is(err, ErrMalformed) || errors.Is(err, ErrUnsupportedVersion) ||
+					errors.Is(err, io.ErrUnexpectedEOF), "untyped Read error: %v", err)
+			}
+			if j := bytes.IndexByte(data[consumed:], '\n'); j >= 0 {
+				consumed += j + 1
+			} else {
+				consumed = len(data)
 			}
 		}
 	})

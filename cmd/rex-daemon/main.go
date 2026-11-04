@@ -60,10 +60,28 @@ func run(args []string) error {
 	}
 	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
 
-	if err := os.MkdirAll(*stateDir, 0o755); err != nil {
+	// Owner-only: sessions hold prompts, cwds and full agent output.
+	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
 		return fmt.Errorf("state dir: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(*socketPath), 0o755); err != nil {
+	// One daemon per state dir, held for the process lifetime: taken before
+	// any state is read, released last (defers run in reverse).
+	lock, err := state.AcquireLock(*stateDir)
+	if err != nil {
+		return lockError(err, *socketPath)
+	}
+	defer func() {
+		if err := lock.Release(); err != nil {
+			slog.Warn("daemon: release state lock", "err", err)
+		}
+	}()
+	// Older daemons wrote 0755 dirs and 0644 files; fix them before loading.
+	if err := state.TightenPerms(*stateDir); err != nil {
+		slog.Warn("daemon: could not make state dir owner-only", "state_dir", *stateDir, "err", err)
+	}
+	// Only a dir we create is made 0700: an existing socket dir (such as
+	// $XDG_RUNTIME_DIR) is not ours to chmod. The socket itself is 0600.
+	if err := os.MkdirAll(filepath.Dir(*socketPath), 0o700); err != nil {
 		return fmt.Errorf("socket dir: %w", err)
 	}
 
@@ -126,8 +144,12 @@ func run(args []string) error {
 		summaryCh = summaryWorker.Channel()
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	// After the first signal (or a Shutdown intent), restore the default
+	// handlers: a second SIGINT/SIGTERM then kills a daemon whose graceful
+	// shutdown is stuck instead of being swallowed.
+	context.AfterFunc(ctx, stop)
 
 	var srv *server.Server
 	srv, err = server.New(server.Config{
@@ -138,7 +160,7 @@ func run(args []string) error {
 		MaxConcurrentSessions: *maxConcurrent,
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
-		OnShutdown:            cancel,
+		OnShutdown:            stop,
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
 	})
 	if err != nil {
@@ -180,4 +202,21 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
+}
+
+// lockError explains a failed state-dir lock. When another daemon holds it,
+// the message names that daemon's pid and the socket this one would have
+// served, so the user knows which process to stop.
+func lockError(err error, socket string) error {
+	var held *state.LockedError
+	if !errors.As(err, &held) {
+		return fmt.Errorf("state lock: %w", err)
+	}
+	pid := "unknown pid"
+	if held.PID > 0 {
+		pid = fmt.Sprintf("pid %d", held.PID)
+	}
+	slog.Error("daemon: another daemon holds the state dir", "lock", held.Path, "holder", pid, "socket", socket)
+	return fmt.Errorf("another rex-daemon is already running (%s, lock %s); not starting a second one on socket %s: %w",
+		pid, held.Path, socket, err)
 }

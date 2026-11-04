@@ -122,4 +122,8 @@ const (
 	ErrCodeSpawn           = "spawn_failed"
 	ErrCodeTooManySessions = "too_many_sessions"
 	ErrCodeBadState        = "bad_state"
+	// The daemon sends these, then closes the connection.
+	ErrCodeLineTooLong        = "line_too_long"       // a line exceeded MaxLineBytes
+	ErrCodeUnsupportedVersion = "unsupported_version" // envelope "v" is not ProtocolVersion
+	ErrCodeInternal           = "internal_error"      // a daemon bug while handling the intent
 )
