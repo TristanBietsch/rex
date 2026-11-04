@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -21,12 +22,14 @@ import (
 )
 
 // pidChildArgv runs a child that records its PID in pidFile, prints a line
-// (so the reader has something to persist) and then idles. exec keeps the
-// PID, so pidFile names the process the supervisor started. The child
-// ignores SIGHUP (inherited across exec) so closing the PTY cannot stand in
-// for the explicit kill under test.
+// (so the reader has something to persist) and then idles. The shell idles
+// itself rather than exec'ing sleep, so pidFile names the process the
+// supervisor started and that process's command line keeps naming pidFile,
+// which is how killIfOwnChild recognizes it. The child ignores SIGHUP (its
+// sleeps inherit that) so closing the PTY cannot stand in for the explicit
+// kill under test.
 func pidChildArgv(pidFile string) []string {
-	return []string{"sh", "-c", `trap '' HUP; echo $$ > "$1"; echo hello; exec sleep 30`, "sh", pidFile}
+	return []string{"sh", "-c", `trap '' HUP; echo $$ > "$1"; echo hello; while :; do sleep 1; done`, "sh", pidFile}
 }
 
 // chattyPIDChildArgv is pidChildArgv for a child that never stops printing,
@@ -55,18 +58,61 @@ func readPID(t *testing.T, pidFile string, wait time.Duration) int {
 	}
 }
 
-// requireReaped fails when pid still exists, as a live process or an
-// unreaped zombie. On failure it kills the stray so the test cleans up the
-// process it started.
-func requireReaped(t *testing.T, pid int) {
+// requireReaped fails when pid, the child named by pidFile, still exists
+// as a child of this test, live or an unreaped zombie. A PID that now
+// belongs to some other process means the child was reaped and the PID
+// recycled. On failure it kills the stray, but only through
+// killIfOwnChild, so a recycled PID is never signaled.
+func requireReaped(t *testing.T, pid int, pidFile string) {
 	t.Helper()
-	if pid == 0 {
+	if pid == 0 || errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
 		return
 	}
-	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
-		_ = syscall.Kill(pid, syscall.SIGKILL)
-		t.Fatalf("child pid %d outlived Run (kill(0) = %v)", pid, err)
+	ppid, args, err := psProcess(pid)
+	if err != nil {
+		if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
+			return // exited between the two checks
+		}
+		t.Fatalf("child pid %d: cannot identify it: %v", pid, err)
 	}
+	if ppid != os.Getpid() {
+		return // reaped; the PID now belongs to an unrelated process
+	}
+	killIfOwnChild(pid, pidFile)
+	t.Fatalf("child pid %d outlived Run (%s)", pid, args)
+}
+
+// psProcess returns pid's parent PID and command line as ps reports them.
+// -ww keeps ps from truncating the command line; ps exits non-zero when
+// pid does not exist.
+func psProcess(pid int) (ppid int, args string, err error) {
+	out, err := exec.Command("ps", "-ww", "-o", "ppid=", "-o", "args=", "-p", strconv.Itoa(pid)).Output()
+	if err != nil {
+		return 0, "", fmt.Errorf("ps -p %d: %w", pid, err)
+	}
+	field, args, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+	ppid, err = strconv.Atoi(field)
+	if err != nil {
+		return 0, "", fmt.Errorf("ps -p %d: parse ppid %q: %w", pid, field, err)
+	}
+	return ppid, strings.TrimSpace(args), nil
+}
+
+// killIfOwnChild SIGKILLs pid only while it is still this test's child and
+// its command line names pidFile, and reports whether it did. pidFile sits
+// in the test's own t.TempDir, so no other process names it. A PID read
+// back from a file may have been recycled by an unrelated process (an e2e
+// rex-daemon, the user's shell) once the child exited; that process must
+// never be signaled.
+func killIfOwnChild(pid int, pidFile string) bool {
+	if pid <= 0 {
+		return false
+	}
+	ppid, args, err := psProcess(pid)
+	if err != nil || ppid != os.Getpid() || !strings.Contains(args, pidFile) {
+		return false
+	}
+	return syscall.Kill(pid, syscall.SIGKILL) == nil
 }
 
 // orphanStopTimeout is the StopDrainTimeout these tests configure. Run must
@@ -89,9 +135,7 @@ func runBounded(t *testing.T, sup *Supervisor, sess *state.Session, pidFile stri
 		require.Less(t, time.Since(start), orphanStopTimeout/2, "Run hit the reap timeout")
 		return err
 	case <-time.After(2 * orphanStopTimeout):
-		if pid := readPID(t, pidFile, 0); pid != 0 {
-			_ = syscall.Kill(pid, syscall.SIGKILL)
-		}
+		killIfOwnChild(readPID(t, pidFile, 0), pidFile)
 		<-done
 		t.Fatal("Run did not return after the failure; the child was left running")
 		return nil
@@ -129,7 +173,7 @@ func TestSupervisor_TranscriptWriteErrorKillsChild(t *testing.T) {
 
 	err := runBounded(t, sup, sess, pidFile)
 	require.ErrorIs(t, err, syscall.ENOSPC)
-	requireReaped(t, readPID(t, pidFile, time.Second))
+	requireReaped(t, readPID(t, pidFile, time.Second), pidFile)
 	st, _ := store.CurrentState(sess.ID)
 	require.Equal(t, protocol.StateFailed, st)
 }
@@ -153,7 +197,7 @@ func TestSupervisor_OpenTranscriptErrorKillsChild(t *testing.T) {
 	err := runBounded(t, sup, sess, pidFile)
 	require.ErrorIs(t, err, openErr)
 	require.NotZero(t, pid, "child never wrote its pid")
-	requireReaped(t, pid)
+	requireReaped(t, pid, pidFile)
 }
 
 // P0-05: a Transition error (session not in the store) after the console
@@ -175,5 +219,47 @@ func TestSupervisor_TransitionErrorKillsChild(t *testing.T) {
 	err := runBounded(t, sup, sess, pidFile)
 	require.Error(t, err)
 	require.NotZero(t, pid, "child never wrote its pid")
-	requireReaped(t, pid)
+	requireReaped(t, pid, pidFile)
+}
+
+// The cleanup in requireReaped and runBounded kills a PID read back from a
+// pid file. By then the child may be gone and its PID recycled, so only a
+// process that is still this test's child and names pidFile may be killed.
+func TestKillIfOwnChild_SparesOtherProcesses(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "pid")
+
+	// A child of this test that pidFile does not name, standing in for a
+	// process that reused the PID.
+	other := exec.Command("sleep", "30")
+	require.NoError(t, other.Start())
+	t.Cleanup(func() {
+		_ = other.Process.Kill()
+		_ = other.Wait()
+	})
+	require.False(t, killIfOwnChild(other.Process.Pid, pidFile))
+	require.NoError(t, other.Process.Signal(syscall.Signal(0)), "killed a process pidFile does not name")
+
+	// The child pidFile names is killed.
+	argv := pidChildArgv(pidFile)
+	own := exec.Command(argv[0], argv[1:]...)
+	require.NoError(t, own.Start())
+	var waitErr error
+	waited := make(chan struct{})
+	go func() {
+		waitErr = own.Wait()
+		close(waited)
+	}()
+	t.Cleanup(func() {
+		_ = own.Process.Kill()
+		<-waited
+	})
+	pid := readPID(t, pidFile, 5*time.Second)
+	require.Equal(t, own.Process.Pid, pid)
+	require.True(t, killIfOwnChild(pid, pidFile))
+	select {
+	case <-waited:
+		require.ErrorContains(t, waitErr, "signal: killed")
+	case <-time.After(5 * time.Second):
+		t.Fatal("own child survived killIfOwnChild")
+	}
 }
