@@ -19,6 +19,13 @@ func TestSanitizeForDisplay(t *testing.T) {
 		{"strips_osc_set_title", "\x1b]0;title\x07payload", "payload"},
 		{"keeps_unicode", "ok ✓ done", "ok ✓ done"},
 		{"trims_trailing_space_after_strip", "data\x1b[K   ", "data"},
+		// F-05: C1 controls (U+0080-U+009F) are 8-bit escape introducers;
+		// U+009B is CSI and U+009D is OSC on terminals that honor them.
+		{"strips_c1_csi", "a\u009b31mb", "a 31mb"},
+		{"strips_c1_osc_and_st", "x\u009d0;t\u009cy", "x 0;t y"},
+		{"strips_c1_range_ends", "\u0080p\u009fq", "p q"},
+		{"keeps_latin1_after_c1", "caf\u00e9\u0085ok", "caf\u00e9 ok"},
+		{"escape_after_invalid_utf8", "\xc9\x1b[31mred", "red"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

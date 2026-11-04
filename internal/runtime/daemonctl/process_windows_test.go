@@ -15,4 +15,9 @@ func TestParseTasklistPID(t *testing.T) {
 
 	_, err = parseTasklistPID("INFO: No tasks are running which match the specified criteria.\r\n")
 	require.ErrorIs(t, err, ErrNotRunning)
+
+	_, err = parseTasklistPID("\"rex-daemon.exe\",\"4242\",\"Console\",\"1\",\"12,345 K\"\r\n" +
+		"\"rex-daemon.exe\",\"4343\",\"Console\",\"1\",\"12,345 K\"\r\n")
+	require.ErrorIs(t, err, ErrMultipleDaemons)
+	require.ErrorContains(t, err, "4242, 4343")
 }

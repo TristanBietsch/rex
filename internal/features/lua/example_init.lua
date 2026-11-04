@@ -3,9 +3,14 @@
 -- Place this file (or a version of it) at:
 --   ~/.config/rex/init.lua
 --
--- The rex daemon loads it once at startup. The script runs in-process as the
--- daemon user. Do NOT load untrusted scripts; the sandbox restricts standard
--- I/O libraries but the rex.* API has real side effects.
+-- The rex daemon loads it once at startup. The script is trusted code: it
+-- runs in-process as the daemon user, can load other Lua files (require,
+-- dofile) and can type into any session with rex.send. There is no sandbox;
+-- only load a script you wrote or reviewed.
+--
+-- Handlers run one at a time, off the daemon's hot path, and each call is
+-- cut off after a few seconds (the top-level run of this file too). Keep
+-- handlers short: a stuck handler delays the events queued behind it.
 --
 -- ─── API reference ───────────────────────────────────────────────────────────
 --

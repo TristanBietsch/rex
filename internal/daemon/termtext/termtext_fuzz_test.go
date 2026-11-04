@@ -3,6 +3,7 @@ package termtext
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 )
@@ -34,6 +35,8 @@ func FuzzTermtext(f *testing.F) {
 		"› do not use any tools\n• Hi. What are we working on?\n› Improve documentation",
 		"hello there\nsecond line",
 		"\x1b", "\x1b[", "\x1b]0;title\x07after", "\xff\xfe broken utf8 line",
+		// F-01 crasher: an escape right after an invalid UTF-8 lead byte.
+		"\xc9\x1b[31mred",
 	} {
 		f.Add([]byte(s), 20)
 	}
@@ -41,10 +44,10 @@ func FuzzTermtext(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b []byte, max int) {
 		norm := Normalize(b)
 		require.NotContains(t, norm, "\r", "carriage return survived Normalize")
-		// Known failure under -fuzz: "\xc9\x1b[31m" comes back unchanged,
-		// because ansi.Strip passes escapes that follow an invalid UTF-8
-		// lead byte. Kept as a finding for the hardening backlog.
+		// "\xc9\x1b[31m" (F-01) used to come back unchanged: ansi.Strip
+		// passes escapes that follow an invalid UTF-8 lead byte.
 		require.NotContains(t, norm, "\x1b", "escape survived Normalize")
+		require.True(t, utf8.ValidString(norm), "Normalize output is not valid UTF-8")
 
 		lines := Lines(b)
 		requireReadableLines(t, lines)

@@ -48,6 +48,26 @@ func TestOpenLogFile_CreatesFile(t *testing.T) {
 	require.False(t, info.IsDir())
 }
 
+// A regular file where a directory belongs makes every open fail cleanly.
+func TestOpenLogFile_ErrorsWhenDirIsAFile(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	require.NoError(t, os.WriteFile(blocker, nil, 0o600))
+
+	t.Setenv("REX_LOG_DIR", filepath.Join(blocker, "logs"))
+	_, err := openLogFile("x")
+	require.Error(t, err)
+
+	t.Setenv("REX_LOG_DIR", "")
+	t.Setenv("HOME", blocker)
+	t.Setenv("USERPROFILE", blocker)
+	_, err = openLogFile("x")
+	require.Error(t, err)
+
+	require.Error(t, PrivateDir(filepath.Join(blocker, "sub")))
+	_, err = OpenPrivate(filepath.Join(blocker, "sub", "x.log"))
+	require.Error(t, err)
+}
+
 func TestInit_WritesToConfiguredDir(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("REX_LOG_DIR", dir)

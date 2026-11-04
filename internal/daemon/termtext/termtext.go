@@ -29,9 +29,14 @@ var cursorForwardRe = regexp.MustCompile(`\x1b\[\d*C`)
 
 // Normalize returns b with cursor movement mapped to line breaks / spaces and
 // all other escapes stripped. Line content is otherwise untouched so callers
-// can still anchor regexes at `^`.
+// can still anchor regexes at `^`. The result is always valid UTF-8.
+//
+// Invalid UTF-8 is dropped first: ansi.Strip's parser passes an escape
+// sequence that follows an invalid lead byte ("\xc9\x1b[31m"), and a split
+// rune at a read boundary is noise either way.
 func Normalize(b []byte) string {
-	s := lineBreakRe.ReplaceAllString(string(b), "\n")
+	s := strings.ToValidUTF8(string(b), "")
+	s = lineBreakRe.ReplaceAllString(s, "\n")
 	s = cursorForwardRe.ReplaceAllString(s, " ")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	return ansi.Strip(s)

@@ -40,23 +40,30 @@ func hasVisibleText(b []byte) bool {
 // sees on every new agent.
 //
 // We:
-//  1. Strip CSI/OSC sequences via charmbracelet/x/ansi.Strip.
-//  2. Replace remaining C0 control bytes (\r \t \v \b BEL …) with a single
-//     space so they can't reposition the cursor or ring the terminal.
-//  3. Collapse repeated whitespace and trim, since stripped output often
+//  1. Drop invalid UTF-8, which would otherwise let ansi.Strip pass the
+//     escape that follows an invalid lead byte.
+//  2. Strip CSI/OSC sequences via charmbracelet/x/ansi.Strip.
+//  3. Replace remaining control runes with a single space so they can't
+//     reposition the cursor or ring the terminal: C0 (\r \t \v \b BEL …),
+//     DEL, and C1 (U+0080–U+009F), whose U+009B and U+009D are the 8-bit
+//     CSI and OSC introducers.
+//  4. Collapse repeated whitespace and trim, since stripped output often
 //     leaves runs of spaces where escapes used to be.
+//
+// The result is valid UTF-8 with no control runes, no leading or trailing
+// space and no double spaces.
 func sanitizeForDisplay(line string) string {
 	if line == "" {
 		return ""
 	}
-	stripped := ansi.Strip(line)
+	stripped := ansi.Strip(strings.ToValidUTF8(line, ""))
 
 	var b strings.Builder
 	b.Grow(len(stripped))
 	prevSpace := false
 	for _, r := range stripped {
-		// Replace C0 controls and DEL with a space — never let them through.
-		if r < 0x20 || r == 0x7f {
+		// Replace C0, DEL and C1 controls with a space — never let them through.
+		if unicode.IsControl(r) {
 			if !prevSpace && b.Len() > 0 {
 				b.WriteByte(' ')
 				prevSpace = true

@@ -32,6 +32,12 @@ func (c unixConsole) Resize(cols, rows uint16) error {
 
 func (c unixConsole) Wait() error { return c.cmd.Wait() }
 
+// isHangup reports whether a PTY master read error means the slave side was
+// closed. Linux returns EIO instead of EOF once the child (and everything
+// that inherited the slave) has exited; that is a normal end of session, not
+// a reader failure.
+func isHangup(err error) bool { return errors.Is(err, syscall.EIO) }
+
 // KillTree SIGKILLs the child's process group (Setsid, so pgid == pid).
 func (c unixConsole) KillTree() error {
 	if err := syscall.Kill(-c.cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
