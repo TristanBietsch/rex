@@ -241,10 +241,11 @@ func OpenLog() (*os.File, error) {
 	return f, nil
 }
 
-// tightenLog makes a daemon log the caller opened private: callers have
-// created it 0644, and it carries session names, paths and errors. The
-// standard log directory is tightened too. Best effort: a log Start cannot
-// chmod is still used.
+// tightenLog makes a daemon log the caller opened private, as defense in
+// depth: rex's own callers use OpenLog, but older versions created the log
+// 0644 and it carries session names, paths and errors. The standard log
+// directory is tightened too. Best effort: a log Start cannot chmod is
+// still used.
 func tightenLog(f *os.File) {
 	if err := f.Chmod(0o600); err != nil {
 		slog.Warn("daemonctl: cannot tighten daemon log", "path", f.Name(), "err", err)

@@ -213,18 +213,25 @@ func init() {
 	}
 }
 
+// startDaemon spawns rex-daemon for the boot splash and the setup wizard.
+// Tests replace it so no real daemon is spawned.
+var startDaemon = daemonctl.Start
+
 func stepDaemon(m Model) tea.Cmd {
 	return emit("daemon", func() (bootStatus, string, error) {
 		if daemonctl.Reachable(m.Socket) {
 			return stepOK, "already running", nil
 		}
-		home, _ := os.UserHomeDir()
-		logPath := filepath.Join(home, ".local", "state", "rex", "daemon.log")
-		logf, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		if logf != nil {
-			defer logf.Close()
+		// The daemon's stderr log is owner-only (it carries session paths
+		// and agent output). Without it a crash at startup leaves nothing
+		// to read, so failing to open it fails the step.
+		logf, err := daemonctl.OpenLog()
+		if err != nil {
+			return stepFail, err.Error(), err
 		}
-		res, err := daemonctl.Start(m.Socket, logf)
+		// The child gets its own descriptor; ours is only for the spawn.
+		defer logf.Close()
+		res, err := startDaemon(m.Socket, logf)
 		if err != nil {
 			return stepFail, err.Error(), err
 		}

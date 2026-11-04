@@ -703,15 +703,18 @@ func (m SetupWizardModel) checkDaemonCmd() tea.Cmd {
 	}
 }
 
+// startDaemonCmd starts rex-daemon on socket with its stderr in the
+// owner-only daemon.log (daemonctl.OpenLog). A log that cannot be opened
+// is reported rather than starting a daemon whose crash output is lost.
 func startDaemonCmd(socket string) tea.Cmd {
 	return func() tea.Msg {
-		home, _ := os.UserHomeDir()
-		logPath := filepath.Join(home, ".local", "state", "rex", "daemon.log")
-		logf, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		if logf != nil {
-			defer logf.Close()
+		logf, err := daemonctl.OpenLog()
+		if err != nil {
+			return setupDaemonStartMsg{err: err}
 		}
-		res, err := daemonctl.Start(socket, logf)
+		// The child gets its own descriptor; ours is only for the spawn.
+		defer logf.Close()
+		res, err := startDaemon(socket, logf)
 		if err != nil {
 			return setupDaemonStartMsg{err: err}
 		}

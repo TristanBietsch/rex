@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -81,11 +81,7 @@ func updateFailKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func tailDaemonLog(n int) []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return []string{"(could not resolve $HOME)"}
-	}
-	path := filepath.Join(home, ".local", "state", "rex", "daemon.log")
+	path := daemonctl.LogPath()
 	f, err := os.Open(path)
 	if err != nil {
 		return []string{fmt.Sprintf("(no log at %s)", path)}
