@@ -366,14 +366,20 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 	return buf[:n], nil
 }
 
+// fromSummary rebuilds a session from its persisted summary. Free-text
+// display fields are sanitized again: meta written before ingest
+// sanitization (S-03) may still hold escapes or newlines.
 func fromSummary(sum protocol.SessionSummary) *Session {
 	return &Session{
 		ID: sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
-		Effort: sum.Effort, Slug: sum.Slug, Title: sum.Title, CWD: sum.CWD,
-		State: sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
-		LastLine: sum.LastLine, Description: sum.Description, ExitCode: sum.ExitCode,
+		Effort: sum.Effort, Slug: sum.Slug, CWD: sum.CWD,
+		Title:       protocol.SanitizeDisplayText(sum.Title, protocol.MaxTitleRunes),
+		Description: protocol.SanitizeDisplayText(sum.Description, protocol.MaxDescriptionRunes),
+		Fleet:       protocol.SanitizeDisplayText(sum.Fleet, protocol.MaxFleetRunes),
+		State:       sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
+		LastLine: sum.LastLine, ExitCode: sum.ExitCode,
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
-		Fleet: sum.Fleet, Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
+		Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
 		WorkingSince: sum.WorkingSince,
 	}
 }

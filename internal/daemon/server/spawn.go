@@ -22,6 +22,11 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
 		return badIntent(err)
 	}
+	p, err := normalizeNewSession(p)
+	if err != nil {
+		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
+		return badIntent(err)
+	}
 	cfg := srv.cfg
 	// Read the registry through the lock so SIGHUP-swapped versions take effect.
 	tool, model, ok := srv.Registry().FindModel(p.ToolID, p.ModelID)

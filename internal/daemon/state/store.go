@@ -509,7 +509,12 @@ func (s *Store) Screen(id string) string {
 // screen text whose arrival already bumped LastEventAt (UpdateLastLine), and
 // it lands after model latency — possibly after the session finished — so
 // counting it as activity would stretch a done session's duration.
+//
+// desc is model output derived from transcript text, so it is untrusted: it
+// is reduced to one line of display-safe text (protocol.SanitizeDisplayText,
+// capped at MaxDescriptionRunes) before it is stored or broadcast.
 func (s *Store) UpdateDescription(id, desc string) error {
+	desc = protocol.SanitizeDisplayText(desc, protocol.MaxDescriptionRunes)
 	s.mu.RLock()
 	sess, ok := s.sessions[id]
 	s.mu.RUnlock()

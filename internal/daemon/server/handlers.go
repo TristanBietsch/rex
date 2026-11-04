@@ -197,7 +197,11 @@ func handleRename(c *client, env protocol.Envelope) {
 	if !ok || !c.validSessionID(env, p.SessionID) {
 		return
 	}
-	if err := validateRename(p); err != nil {
+	p, err := normalizeRename(p)
+	if err == nil {
+		err = validateRename(p)
+	}
+	if err != nil {
 		slog.Warn("server: rename rejected", "session", p.SessionID, "slug", p.Slug, "reason", err, "req_id", env.ID)
 		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
 		return
@@ -321,6 +325,12 @@ func handleSetSessionFleet(c *client, env protocol.Envelope) {
 	if !ok || !c.validSessionID(env, p.SessionID) {
 		return
 	}
+	fleet, err := sanitizeField("fleet", p.Fleet, protocol.MaxFleetRunes)
+	if err != nil {
+		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
+		return
+	}
+	p.Fleet = fleet
 	store := c.srv.cfg.Store
 	sess, ok := store.Get(p.SessionID)
 	if !ok {

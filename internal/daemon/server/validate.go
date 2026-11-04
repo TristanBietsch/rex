@@ -65,3 +65,46 @@ func validateRename(p protocol.Rename) error {
 	}
 	return nil
 }
+
+// Free-text fields (title, fleet) have no format to validate, so they are
+// sanitized on ingest (S-03): escape sequences, control characters and
+// everything after the first line go, and the length is capped. Slugs and
+// names keep their existing validation, which rejects instead. A value that
+// was non-empty but has no displayable text left is rejected rather than
+// silently clearing the field.
+
+// sanitizeField returns raw as one line of display-safe text, or an error
+// naming field when raw was non-empty and nothing displayable is left.
+func sanitizeField(field, raw string, maxRunes int) (string, error) {
+	clean := protocol.SanitizeDisplayText(raw, maxRunes)
+	if clean == "" && raw != "" {
+		return "", fmt.Errorf("%s has no displayable text (control characters and escape sequences are removed)", field)
+	}
+	return clean, nil
+}
+
+// normalizeNewSession sanitizes a NewSession's title and fleet. The title
+// is the task prompt for most clients, so only its first line survives; the
+// prompt itself travels separately in InitialPrompt.
+func normalizeNewSession(p protocol.NewSession) (protocol.NewSession, error) {
+	// A title of only control bytes is dropped, not rejected: it is optional
+	// and usually derived from the prompt rather than typed as a label.
+	p.Title = protocol.SanitizeDisplayText(p.Title, protocol.MaxTitleRunes)
+	fleet, err := sanitizeField("fleet", p.Fleet, protocol.MaxFleetRunes)
+	if err != nil {
+		return p, err
+	}
+	p.Fleet = fleet
+	return p, nil
+}
+
+// normalizeRename sanitizes a Rename's title (the slug is validated, not
+// sanitized, by validateRename).
+func normalizeRename(p protocol.Rename) (protocol.Rename, error) {
+	title, err := sanitizeField("title", p.Title, protocol.MaxTitleRunes)
+	if err != nil {
+		return p, err
+	}
+	p.Title = title
+	return p, nil
+}
