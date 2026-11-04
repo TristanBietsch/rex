@@ -34,7 +34,7 @@ func NormalizeSessionName(s string) (string, error) {
 			space = true
 			continue
 		}
-		if unicode.IsControl(r) || isBidiControl(r) || r == ' ' || r == ' ' {
+		if unicode.IsControl(r) || isBidiControl(r) || r == '\u2028' || r == '\u2029' {
 			continue
 		}
 		if space && b.Len() > 0 {
