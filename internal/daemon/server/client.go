@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
 	"net"
 	"sync/atomic"
 
@@ -45,16 +48,45 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	defer c.runCleanups()
 	c.subscribeBoard()
 
-	r := protocol.NewReader(conn)
+	r := protocol.NewReaderSize(conn, srv.maxLineBytes)
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 		env, err := r.Read()
 		if err != nil {
+			c.readFailed(err)
 			return
 		}
 		c.dispatch(env)
+	}
+}
+
+// readFailed tells the client why the daemon is about to close on it when
+// the cause is a protocol violation (the error line is flushed before the
+// close). A clean EOF or a dead socket closes silently.
+func (c *client) readFailed(err error) {
+	code, ok := protocolErrorCode(err)
+	if !ok {
+		slog.Debug("server: client read ended", "conn", c.out.id, "err", err)
+		return
+	}
+	slog.Warn("server: closing client after protocol error", "conn", c.out.id, "code", code, "err", err)
+	c.sendError("", code, err.Error())
+}
+
+// protocolErrorCode maps a Reader error caused by the peer's bytes to the
+// Error code the daemon reports; ok is false for transport errors.
+func protocolErrorCode(err error) (code string, ok bool) {
+	switch {
+	case errors.Is(err, protocol.ErrLineTooLong):
+		return protocol.ErrCodeLineTooLong, true
+	case errors.Is(err, protocol.ErrUnsupportedVersion):
+		return protocol.ErrCodeUnsupportedVersion, true
+	case errors.Is(err, protocol.ErrMalformed), errors.Is(err, io.ErrUnexpectedEOF):
+		return protocol.ErrCodeBadIntent, true
+	default:
+		return "", false
 	}
 }
 

@@ -118,6 +118,8 @@ type Server struct {
 	clientQueueLen     int
 	clientWriteTimeout time.Duration
 	nextConnID         atomic.Uint64
+	// maxLineBytes caps one inbound line (0 = protocol.MaxLineBytes).
+	maxLineBytes int
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
