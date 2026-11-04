@@ -38,6 +38,11 @@ func listenSocket(ctx context.Context, path string) (*net.UnixListener, os.FileI
 		return nil, nil, fmt.Errorf("listen %s: unexpected listener %T", path, l)
 	}
 	ul.SetUnlinkOnClose(false)
+	if err := restrictSocket(path); err != nil {
+		_ = ul.Close()
+		_ = os.Remove(path)
+		return nil, nil, err
+	}
 	ours, err := os.Lstat(path)
 	if err != nil {
 		_ = ul.Close()

@@ -5,12 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
+)
+
+// Session state holds prompts, cwds and full agent output, so it is
+// private to the user: directories 0700, files 0600. MkdirAll and OpenFile
+// only apply these to what they create; TightenPerms fixes older trees.
+const (
+	dirPerm  os.FileMode = 0o700
+	filePerm os.FileMode = 0o600
 )
 
 // sessionDir returns ~/.local/share/rex/sessions/<id> built from a state-dir root.
@@ -78,7 +87,7 @@ func WriteMeta(root string, s *Session) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	final := filepath.Join(dir, "meta.json")
@@ -101,7 +110,7 @@ func WriteMeta(root string, s *Session) error {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("write tmp meta: %w", errors.Join(werr, cerr))
 	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
+	if err := os.Chmod(tmpName, filePerm); err != nil {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("chmod tmp meta: %w", err)
 	}
@@ -175,17 +184,104 @@ type TranscriptFile struct {
 	f *os.File
 }
 
-// OpenTranscript opens (or creates) transcript.log for repeated appends.
+// OpenTranscript opens (or creates) transcript.log for repeated appends. The
+// file is made owner-only even if an older daemon created it.
 func OpenTranscript(root, id string) (*TranscriptFile, error) {
 	dir := sessionDir(root, id)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filepath.Join(dir, "transcript.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, fmt.Errorf("open transcript: %w", err)
 	}
+	if err := f.Chmod(filePerm); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("chmod transcript: %w", err)
+	}
 	return &TranscriptFile{f: f}, nil
+}
+
+// CreateHookFile creates the session's hook state file (owner-only, empty)
+// if it does not exist yet and returns its path. Agent hooks append to it;
+// pre-creating it means the agent never picks its permissions.
+func CreateHookFile(root, id string) (string, error) {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
+		return "", fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, "hooks.log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm)
+	if err != nil {
+		return "", fmt.Errorf("create hook file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("close hook file: %w", err)
+	}
+	return path, nil
+}
+
+// TightenPerms makes an existing state tree owner-only: root, root/sessions
+// and every session dir become 0700, every regular file directly in them
+// 0600. Older daemons created 0755 dirs and 0644 files. root itself may be a
+// symlink (it is the configured dir), but symlinks inside are skipped, since
+// Chmod would follow them out of the tree. A missing root is not an error.
+// It keeps going past individual failures and returns them joined.
+//
+// On Windows, mode bits only toggle the read-only attribute, which these
+// modes leave cleared; access there is governed by the profile's ACLs.
+func TightenPerms(root string) error {
+	fi, err := os.Stat(root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", root, err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("state dir %s is not a directory", root)
+	}
+	errs := []error{chmodErr(root, dirPerm)}
+	sessions := filepath.Join(root, "sessions")
+	if _, err := os.Lstat(sessions); errors.Is(err, fs.ErrNotExist) {
+		return errors.Join(errs...)
+	}
+	errs = append(errs, tightenDir(sessions))
+	entries, err := os.ReadDir(sessions)
+	if err != nil {
+		return errors.Join(append(errs, fmt.Errorf("read %s: %w", sessions, err))...)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			errs = append(errs, tightenDir(filepath.Join(sessions, e.Name())))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// tightenDir makes dir 0700 and each regular file directly in it 0600.
+func tightenDir(dir string) error {
+	errs := []error{chmodErr(dir, dirPerm)}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return errors.Join(append(errs, fmt.Errorf("read %s: %w", dir, err))...)
+	}
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			errs = append(errs, chmodErr(filepath.Join(dir, e.Name()), filePerm))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func chmodErr(path string, mode os.FileMode) error {
+	if err := os.Chmod(path, mode); err != nil {
+		return fmt.Errorf("chmod %s: %w", path, err)
+	}
+	return nil
 }
 
 // Write appends bytes to the transcript.

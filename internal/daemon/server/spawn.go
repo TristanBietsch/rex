@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -57,9 +56,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	var childEnv []string
 	hookFile := state.HookFile(cfg.StateDir, id)
 	if tool.Detect.Kind == "hooks" {
-		if err := os.MkdirAll(filepath.Dir(hookFile), 0o755); err != nil {
+		if _, err := state.CreateHookFile(cfg.StateDir, id); err != nil {
 			srv.ReleaseSession()
-			return fmt.Errorf("hook dir: %w", err)
+			return fmt.Errorf("hook file: %w", err)
 		}
 		switch tool.Detect.Format {
 		case "claude":

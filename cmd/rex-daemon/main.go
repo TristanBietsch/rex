@@ -60,7 +60,8 @@ func run(args []string) error {
 	}
 	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
 
-	if err := os.MkdirAll(*stateDir, 0o755); err != nil {
+	// Owner-only: sessions hold prompts, cwds and full agent output.
+	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
 		return fmt.Errorf("state dir: %w", err)
 	}
 	// One daemon per state dir, held for the process lifetime: taken before
@@ -74,7 +75,13 @@ func run(args []string) error {
 			slog.Warn("daemon: release state lock", "err", err)
 		}
 	}()
-	if err := os.MkdirAll(filepath.Dir(*socketPath), 0o755); err != nil {
+	// Older daemons wrote 0755 dirs and 0644 files; fix them before loading.
+	if err := state.TightenPerms(*stateDir); err != nil {
+		slog.Warn("daemon: could not make state dir owner-only", "state_dir", *stateDir, "err", err)
+	}
+	// Only a dir we create is made 0700: an existing socket dir (such as
+	// $XDG_RUNTIME_DIR) is not ours to chmod. The socket itself is 0600.
+	if err := os.MkdirAll(filepath.Dir(*socketPath), 0o700); err != nil {
 		return fmt.Errorf("socket dir: %w", err)
 	}
 

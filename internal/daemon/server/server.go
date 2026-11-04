@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -104,6 +105,10 @@ type Server struct {
 	conns   map[*clientConn]struct{}
 	closing bool
 
+	// ownerUID is the only peer uid accept lets through (os.Getuid() from
+	// New; -1 on Windows, where verifyPeer does not check).
+	ownerUID int
+
 	// handlers maps intent types to their handlers. Built in New and
 	// read-only once Serve starts; tests may swap entries before Serve.
 	handlers map[string]intentHandler
@@ -174,6 +179,7 @@ func New(cfg Config) (*Server, error) {
 		cfg:      cfg,
 		gate:     &concurrencyGate{max: cfg.MaxConcurrentSessions},
 		handlers: defaultHandlers(),
+		ownerUID: os.Getuid(),
 	}
 	s.reg.Store(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
@@ -235,6 +241,11 @@ func (s *Server) Serve(ctx context.Context) error {
 			}
 			slog.Error("server: accept failed", "err", err)
 			return fmt.Errorf("accept: %w", err)
+		}
+		if err := verifyPeer(conn, s.ownerUID); err != nil {
+			slog.Warn("server: rejected connection", "err", err)
+			_ = conn.Close()
+			continue
 		}
 		slog.Debug("server: client connected")
 		s.wg.Add(1)
