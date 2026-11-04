@@ -14,6 +14,10 @@ import (
 // make the other buffer.
 const MaxLineBytes = 16 << 20
 
+// readBufSize is the Reader's read buffer; longer lines are assembled from
+// several buffer fills.
+const readBufSize = 64 * 1024
+
 // Errors returned by Reader.Read. Each is wrapped with detail; match with
 // errors.Is.
 var (
@@ -53,7 +57,9 @@ func NewReaderSize(r io.Reader, maxLine int) *Reader {
 	if maxLine <= 0 {
 		maxLine = MaxLineBytes
 	}
-	return &Reader{br: bufio.NewReaderSize(r, 64*1024), max: maxLine}
+	// The buffer never exceeds the cap, so an over-cap prefix fills it and
+	// trips the check without waiting for a newline or more input.
+	return &Reader{br: bufio.NewReaderSize(r, min(readBufSize, maxLine)), max: maxLine}
 }
 
 // Read returns the next envelope. At a clean end of stream it returns io.EOF;

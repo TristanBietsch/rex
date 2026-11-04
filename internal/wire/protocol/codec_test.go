@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -84,6 +85,27 @@ func TestReader_CapsLineLength(t *testing.T) {
 	// The stream is now mid-line: the error is sticky rather than a resync.
 	_, err = r.Read()
 	require.ErrorIs(t, err, ErrLineTooLong)
+}
+
+// TestReader_CapTripsWithoutWaitingForMoreInput: a peer that sends an
+// over-cap prefix and then stalls must get ErrLineTooLong at once, not
+// after it sends a newline or fills a bigger internal buffer.
+func TestReader_CapTripsWithoutWaitingForMoreInput(t *testing.T) {
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	go func() { _, _ = pw.Write([]byte(strings.Repeat("x", 300))) }()
+	errc := make(chan error, 1)
+	go func() {
+		_, err := NewReaderSize(pr, 128).Read()
+		errc <- err
+	}()
+	select {
+	case err := <-errc:
+		require.ErrorIs(t, err, ErrLineTooLong)
+	case <-time.After(2 * time.Second):
+		_ = pr.CloseWithError(io.ErrClosedPipe)
+		t.Fatal("Read waited for more input past the cap")
+	}
 }
 
 func TestReader_LineAtCapIsAccepted(t *testing.T) {
