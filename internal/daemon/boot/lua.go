@@ -19,14 +19,20 @@ import (
 // StartLuaRuntime initializes the Lua scripting runtime and subscribes it to
 // store events. Returns (nil, nil) if Lua is disabled or fails to init —
 // daemon startup must not depend on user scripts.
+//
+// Running init.lua is bounded by lua.DefaultLoadTimeout. Handlers never run
+// on the store's broadcast path: events go through a lua.Dispatcher (bounded
+// queue, one goroutine, each call bounded by lua.DefaultHandlerTimeout). The
+// returned func unsubscribes from the store, then stops the dispatcher and
+// waits for it, interrupting a handler in flight. It may run before or after
+// Runtime.Close.
 func StartLuaRuntime(srv *server.Server, store *state.Store) (*lua.Runtime, func()) {
 	cfgPath := luaConfigPath()
 	if cfgPath == "" {
 		slog.Info("daemon: lua disabled (no config path)")
 		return nil, nil
 	}
-
-	rt, err := lua.New(lua.Options{
+	return startLua(cfgPath, store, lua.Options{
 		Sender: func(sessionID, text string) error {
 			ch := srv.InputChannel(sessionID)
 			if ch == nil {
@@ -44,6 +50,11 @@ func StartLuaRuntime(srv *server.Server, store *state.Store) (*lua.Runtime, func
 			return store.Snapshot()
 		},
 	})
+}
+
+// startLua is StartLuaRuntime after the config path and callbacks are known.
+func startLua(cfgPath string, store *state.Store, opts lua.Options) (*lua.Runtime, func()) {
+	rt, err := lua.New(opts)
 	if err != nil {
 		slog.Error("daemon: lua init failed", "err", err)
 		return nil, nil
@@ -53,24 +64,41 @@ func StartLuaRuntime(srv *server.Server, store *state.Store) (*lua.Runtime, func
 		slog.Error("daemon: lua load failed; runtime still active for future reloads", "path", cfgPath, "err", err)
 	}
 
-	cancel := store.Subscribe(func(e state.Event) {
-		switch e.Kind {
-		case state.EventAdded:
-			if e.Summary != nil {
-				_ = rt.OnEvent(protocol.EventSessionAdded, *e.Summary)
-			}
-		case state.EventUpdated:
-			sess, ok := store.Get(e.SessionID)
-			if !ok {
-				return
-			}
-			_ = rt.OnEvent(protocol.EventSessionUpdated, sess.Summary())
-		case state.EventRemoved:
-			_ = rt.OnEvent(protocol.EventSessionRemoved, protocol.SessionRemoved{SessionID: e.SessionID})
+	d := lua.NewDispatcher(rt, lua.DispatcherOptions{})
+	unsubscribe := store.Subscribe(func(e state.Event) {
+		if eventType, data, ok := luaEvent(store, e); ok {
+			d.Enqueue(eventType, e.SessionID, data)
 		}
 	})
 
-	return rt, cancel
+	return rt, func() {
+		unsubscribe()
+		d.Close()
+	}
+}
+
+// luaEvent maps a store event to the event type and payload Lua handlers
+// receive. It runs inside Store.broadcast, so it only reads the store and
+// never calls into Lua. session_updated carries the session's whole current
+// summary, which is what lets the dispatcher keep only the latest one.
+func luaEvent(store *state.Store, e state.Event) (eventType string, data any, ok bool) {
+	switch e.Kind {
+	case state.EventAdded:
+		if e.Summary == nil {
+			return "", nil, false
+		}
+		return protocol.EventSessionAdded, *e.Summary, true
+	case state.EventUpdated:
+		sess, found := store.Get(e.SessionID)
+		if !found {
+			return "", nil, false
+		}
+		return protocol.EventSessionUpdated, sess.Summary(), true
+	case state.EventRemoved:
+		return protocol.EventSessionRemoved, protocol.SessionRemoved{SessionID: e.SessionID}, true
+	default:
+		return "", nil, false
+	}
 }
 
 // luaConfigPath returns the resolved path to the user's init.lua, or "" if not configured.
