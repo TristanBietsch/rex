@@ -8,8 +8,9 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
-// RunReload sends SIGHUP to the running rex-daemon so the user/script can
-// trigger a config re-read.
+// RunReload asks the rex-daemon on the default socket to re-read tools.yaml
+// with a Reload intent. It never signals a process; nothing answering on
+// the socket exits ExitDaemonUnreachable.
 func RunReload(args []string) error {
 	fs := flag.NewFlagSet("reload", flag.ContinueOnError)
 	if err := fs.Parse(args); err != nil {

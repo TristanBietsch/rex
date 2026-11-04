@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -133,4 +134,135 @@ func TestDaemonStart_spawnFailure(t *testing.T) {
 	err := f.starter(filepath.Join(t.TempDir(), "daemon.log")).run()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no such file")
+}
+
+// fakeCtl is a daemonCtl over a fake daemon: nothing real is dialed,
+// looked up or signaled.
+type fakeCtl struct {
+	up          bool
+	pid         string
+	pidErr      error
+	shutdownErr error
+	calls       []string
+	out, errOut bytes.Buffer
+}
+
+func (f *fakeCtl) ctl(t *testing.T) daemonCtl {
+	return daemonCtl{
+		socket: "fake.sock",
+		reachable: func(socket string) bool {
+			require.Equal(t, "fake.sock", socket)
+			return f.up
+		},
+		shutdown: func(_ context.Context, socket string) error {
+			require.Equal(t, "fake.sock", socket)
+			f.calls = append(f.calls, "shutdown")
+			if f.shutdownErr != nil {
+				return f.shutdownErr
+			}
+			f.up = false
+			return nil
+		},
+		findPID: func() (string, error) { return f.pid, f.pidErr },
+		starter: daemonStarter{
+			socket:    "fake.sock",
+			logPath:   filepath.Join(t.TempDir(), "daemon.log"),
+			reachable: func(string) bool { return f.up },
+			start: func(string, *os.File) (*daemonctl.StartResult, error) {
+				f.calls = append(f.calls, "start")
+				f.up = true
+				return &daemonctl.StartResult{PID: 7}, nil
+			},
+			out: &f.out,
+		},
+		out:    &f.out,
+		errOut: &f.errOut,
+	}
+}
+
+func requireExitCode(t *testing.T, err error, want int) {
+	t.Helper()
+	var ec core.ExitCoder
+	require.True(t, errors.As(err, &ec), "want an exit error, got %v", err)
+	require.Equal(t, want, ec.ExitCode())
+}
+
+// FU-11: FindPID errors when the user runs two daemons, and stop used to
+// refuse on that. The socket decides; the PID is only shown.
+func TestDaemonStop_gatesOnSocketNotPID(t *testing.T) {
+	f := &fakeCtl{up: true, pidErr: daemonctl.ErrMultipleDaemons}
+	require.NoError(t, f.ctl(t).stop())
+	require.Equal(t, []string{"shutdown"}, f.calls)
+	require.Equal(t, "stopped rex-daemon (pid unknown) · socket=fake.sock\n", f.out.String())
+}
+
+func TestDaemonStop_showsPID(t *testing.T) {
+	f := &fakeCtl{up: true, pid: "123"}
+	require.NoError(t, f.ctl(t).stop())
+	require.Equal(t, "stopped rex-daemon (pid 123) · socket=fake.sock\n", f.out.String())
+	require.NotContains(t, f.out.String(), "SIGTERM")
+}
+
+// A rex-daemon process that does not answer on this socket (another
+// socket, another HOME) is not ours to stop.
+func TestDaemonStop_notReachable(t *testing.T) {
+	f := &fakeCtl{pid: "123"}
+	err := f.ctl(t).stop()
+	requireExitCode(t, err, core.ExitDaemonUnreachable)
+	require.Contains(t, err.Error(), "fake.sock")
+	require.Empty(t, f.calls, "nothing answers on the socket, so nothing is stopped")
+}
+
+func TestDaemonStop_shutdownFails(t *testing.T) {
+	f := &fakeCtl{up: true, shutdownErr: errors.New("still answering after 10s")}
+	err := f.ctl(t).stop()
+	requireExitCode(t, err, core.ExitGeneric)
+	require.Contains(t, err.Error(), "still answering")
+}
+
+func TestDaemonStop_goneBeforeShutdown(t *testing.T) {
+	f := &fakeCtl{up: true, shutdownErr: daemonctl.ErrNotRunning}
+	requireExitCode(t, f.ctl(t).stop(), core.ExitDaemonUnreachable)
+}
+
+// Status reports the socket as the truth: a stray rex-daemon process does
+// not make it "running", and a PID lookup failure does not make it "not
+// running".
+func TestDaemonStatus_socketIsTheTruth(t *testing.T) {
+	f := &fakeCtl{up: true, pidErr: daemonctl.ErrMultipleDaemons}
+	require.NoError(t, f.ctl(t).status())
+	require.Equal(t, "running · socket=fake.sock · pid=unknown\n", f.out.String())
+
+	f = &fakeCtl{up: true, pid: "123"}
+	require.NoError(t, f.ctl(t).status())
+	require.Equal(t, "running · socket=fake.sock · pid=123\n", f.out.String())
+
+	f = &fakeCtl{pid: "123"}
+	requireExitCode(t, f.ctl(t).status(), core.ExitDaemonUnreachable)
+	require.Equal(t, "not running · socket=fake.sock\n", f.out.String())
+}
+
+// Restart starts the new daemon only after shutdown returns, which is once
+// the old daemon has removed its socket; no fixed sleep.
+func TestDaemonRestart_stopsThenStarts(t *testing.T) {
+	f := &fakeCtl{up: true, pid: "123"}
+	require.NoError(t, f.ctl(t).restart())
+	require.Equal(t, []string{"shutdown", "start"}, f.calls)
+	require.Equal(t, "stopped rex-daemon (pid 123) · socket=fake.sock\nrex-daemon started (pid 7)\n", f.out.String())
+}
+
+func TestDaemonRestart_notRunningStillStarts(t *testing.T) {
+	f := &fakeCtl{}
+	require.NoError(t, f.ctl(t).restart())
+	require.Equal(t, []string{"start"}, f.calls)
+	require.Contains(t, f.errOut.String(), "not running")
+}
+
+// A daemon that will not stop must not get a second daemon started beside
+// it on the same socket.
+func TestDaemonRestart_stopFailureDoesNotStart(t *testing.T) {
+	f := &fakeCtl{up: true, shutdownErr: errors.New("still answering after 10s")}
+	err := f.ctl(t).restart()
+	requireExitCode(t, err, core.ExitGeneric)
+	require.Equal(t, []string{"shutdown"}, f.calls)
 }

@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -10,8 +11,10 @@ import (
 )
 
 // daemonStopTimeout bounds how long update and uninstall wait for the
-// daemon's socket to stop answering after asking it to stop. Shutdown
-// persists every session and reaps PTYs, so allow more than a spawn.
+// daemon's socket to stop answering after the stop request returns.
+// shutdownDaemon itself already waits up to daemonctl.StopTimeout for the
+// daemon to remove its socket; this covers a daemon that keeps answering
+// after that.
 const daemonStopTimeout = 5 * time.Second
 
 // errDaemonStillRunning means the daemon's socket still accepted
@@ -20,13 +23,14 @@ var errDaemonStillRunning = errors.New("rex-daemon is still running")
 
 // daemonControl stops the rex-daemon on socket and confirms it is gone.
 //
-// stop and reachable are daemonctl.Stop and daemonctl.Reachable in
-// production. They are fields so tests drive a fake daemon: tests must
-// never signal a real process (daemonctl.Stop finds its target by process
-// name, not by socket).
+// The socket is the authority: stop sends a Shutdown intent to whatever
+// answers on it, and running probes it. No process is looked up by name or
+// signaled. stop and reachable are shutdownDaemon and daemonctl.Reachable
+// in production; they are fields so tests drive a fake daemon and never
+// reach a real one.
 type daemonControl struct {
 	socket    string
-	stop      func() error
+	stop      func(socket string) error
 	reachable func(socket string) bool
 	timeout   time.Duration
 	interval  time.Duration
@@ -36,25 +40,31 @@ type daemonControl struct {
 func defaultDaemonControl() daemonControl {
 	return daemonControl{
 		socket:    core.DefaultSocket(),
-		stop:      daemonctl.Stop,
+		stop:      shutdownDaemon,
 		reachable: daemonctl.Reachable,
 		timeout:   daemonStopTimeout,
 		interval:  daemonctl.StartPollInterval,
 	}
 }
 
+// shutdownDaemon is daemonctl.ShutdownDaemon without a caller context:
+// update and uninstall have none, and ShutdownDaemon bounds its own wait.
+func shutdownDaemon(socket string) error {
+	return daemonctl.ShutdownDaemon(context.Background(), socket)
+}
+
 // running reports whether the daemon's socket accepts connections.
 func (d daemonControl) running() bool { return d.reachable(d.socket) }
 
-// stopAndWait asks the daemon to stop, then polls the socket until it stops
-// answering. daemonctl.Stop only sends the request, so returning from it
-// does not mean the daemon has finished writing state.
+// stopAndWait asks the daemon on d.socket to stop, then polls the socket
+// until it stops answering, so update and uninstall never act while the
+// daemon may still be writing state.
 //
 // It returns nil once the socket is unreachable, including when no daemon
 // was running. Otherwise it returns an error wrapping errDaemonStillRunning
 // and, if the stop request itself failed, that error too.
 func (d daemonControl) stopAndWait() error {
-	stopErr := d.stop()
+	stopErr := d.stop(d.socket)
 	if errors.Is(stopErr, daemonctl.ErrNotRunning) {
 		stopErr = nil
 	}

@@ -28,6 +28,14 @@ exitcode 4 rex log s1
 exitcode 4 rex reload
 stderr 'rex-daemon is not running: dial unix \S+/rex\.sock: connect: no such file or directory$'
 
+# daemon stop and status gate on the socket, not on a rex-daemon process
+# found by name (the user's real daemons must not count).
+exitcode 4 rex daemon stop
+stderr '^rex: rex-daemon is not running: nothing answers on \S+/rex\.sock$'
+! stdout .
+exitcode 4 rex daemon status
+stdout '^not running · socket=\S+/rex\.sock$'
+
 # A leftover non-socket file at the socket path is unreachable too.
 cp leftover $SOCKET
 exitcode 4 rex ls

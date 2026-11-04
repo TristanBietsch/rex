@@ -15,6 +15,8 @@ type fakeDaemon struct {
 	stopErr  error // returned by stop
 	stops    int
 	probes   int
+	// stoppedSockets records the socket each stop request was sent to.
+	stoppedSockets []string
 	// downAfter, when > 0, keeps the socket answering for that many probes
 	// after stop, like a daemon that takes a moment to persist and exit.
 	downAfter int
@@ -35,13 +37,14 @@ func (f *fakeDaemon) control() daemonControl {
 	}
 }
 
-func (f *fakeDaemon) stop() error {
+func (f *fakeDaemon) stop(socket string) error {
 	if f.onStop != nil {
 		f.onStop()
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stops++
+	f.stoppedSockets = append(f.stoppedSockets, socket)
 	if f.log != nil {
 		*f.log = append(*f.log, "stop")
 	}

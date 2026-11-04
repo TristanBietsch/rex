@@ -41,6 +41,11 @@ stdout ' s1 '
 exec rex ls -state working
 stdout '^\(no sessions\)$'
 
+# status trusts the socket. The PID is display only: it reads "unknown"
+# when other rex-daemon processes (the developer's own) also exist.
+exec rex daemon status
+stdout '^running · socket=\S+/rex\.sock · pid=(\d+|unknown)$'
+
 daemon-stop
 
 -- home/.config/rex/config.yaml --

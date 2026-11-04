@@ -1,15 +1,16 @@
 package lifecycle
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
@@ -22,11 +23,11 @@ func RunDaemon(args []string) error {
 	case "start":
 		return daemonStart(args[1:])
 	case "stop":
-		return daemonStop(args[1:])
+		return defaultDaemonCtl().stop()
 	case "status":
-		return daemonStatus(args[1:])
+		return defaultDaemonCtl().status()
 	case "restart":
-		return daemonRestart(args[1:])
+		return defaultDaemonCtl().restart()
 	case "logs":
 		return daemonLogs(args[1:])
 	default:
@@ -36,13 +37,19 @@ func RunDaemon(args []string) error {
 
 func daemonStart(args []string) error {
 	_ = args
+	return defaultDaemonStarter().run()
+}
+
+// defaultDaemonStarter wires daemonStarter to the real daemon on the
+// default socket.
+func defaultDaemonStarter() daemonStarter {
 	return daemonStarter{
 		socket:    core.DefaultSocket(),
 		logPath:   daemonctl.LogPath(),
 		reachable: daemonctl.Reachable,
 		start:     daemonctl.Start,
 		out:       os.Stdout,
-	}.run()
+	}
 }
 
 // daemonStarter is `rex daemon start`. reachable and start are
@@ -78,57 +85,115 @@ func (s daemonStarter) run() error {
 	return nil
 }
 
-// openDaemonLog opens the rex-daemon stderr log for appending. The
-// directory is created 0700 and the file is 0600, tightening a log an older
-// version left world-readable: panics and stderr output can carry session
-// paths and agent output (backlog S-01).
+// openDaemonLog opens the rex-daemon stderr log for appending through
+// rexlog's private-open helpers: the directory is created or tightened to
+// 0700 and the file to 0600, fixing a log an older version left
+// world-readable. Panics and stderr output can carry session paths and
+// agent output (backlog S-01).
 func openDaemonLog(path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return nil, fmt.Errorf("create daemon log dir: %w", err)
+	if err := rexlog.PrivateDir(filepath.Dir(path)); err != nil {
+		return nil, fmt.Errorf("daemon log dir: %w", err)
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := rexlog.OpenPrivate(path)
 	if err != nil {
-		return nil, fmt.Errorf("open daemon log: %w", err)
-	}
-	if err := f.Chmod(0o600); err != nil {
-		_ = f.Close()
-		return nil, fmt.Errorf("restrict daemon log %s: %w", path, err)
+		return nil, fmt.Errorf("daemon log: %w", err)
 	}
 	return f, nil
 }
 
-func daemonStop(args []string) error {
-	_ = args
-	pid, err := daemonctl.FindPID()
-	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+// daemonCtl is `rex daemon stop`, `status` and `restart`.
+//
+// The socket is the authority: whatever answers on it is the daemon these
+// commands act on, and stopping goes through a Shutdown intent on it. No
+// process is looked up by name and signaled. findPID (daemonctl.FindPID)
+// is for display only; it fails when the user runs two daemons, which
+// must not stop anything from working.
+//
+// The fields are daemonctl functions in production; tests swap them so no
+// real daemon is ever reached.
+type daemonCtl struct {
+	socket      string
+	reachable   func(socket string) bool
+	shutdown    func(ctx context.Context, socket string) error
+	findPID     func() (string, error)
+	starter     daemonStarter // restart's start half
+	out, errOut io.Writer
+}
+
+// defaultDaemonCtl targets the daemon on the default socket.
+func defaultDaemonCtl() daemonCtl {
+	return daemonCtl{
+		socket:    core.DefaultSocket(),
+		reachable: daemonctl.Reachable,
+		shutdown:  daemonctl.ShutdownDaemon,
+		findPID:   daemonctl.FindPID,
+		starter:   defaultDaemonStarter(),
+		out:       os.Stdout,
+		errOut:    os.Stderr,
 	}
-	if err := daemonctl.Stop(); err != nil {
+}
+
+// pid returns the daemon's PID for display, or "unknown" when the lookup
+// fails (no match, several daemons, pgrep missing).
+func (c daemonCtl) pid() string {
+	pid, err := c.findPID()
+	if err != nil || pid == "" {
+		return "unknown"
+	}
+	return pid
+}
+
+// notRunning is the error for a socket nothing answers on.
+func (c daemonCtl) notRunning() error {
+	return core.NewExitError(core.ExitDaemonUnreachable,
+		fmt.Sprintf("%v: nothing answers on %s", daemonctl.ErrNotRunning, c.socket))
+}
+
+// stop asks the daemon on the socket to shut down and returns once it has
+// removed its socket (daemonctl.ShutdownDaemon waits for that), so a new
+// daemon can bind the path straight away.
+func (c daemonCtl) stop() error {
+	if !c.reachable(c.socket) {
+		return c.notRunning()
+	}
+	// Look the PID up first: once the daemon has exited there is none.
+	pid := c.pid()
+	if err := c.shutdown(context.Background(), c.socket); err != nil {
+		if errors.Is(err, daemonctl.ErrNotRunning) {
+			return c.notRunning()
+		}
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	fmt.Printf("stopped rex-daemon (pid %s)\n", pid)
+	fmt.Fprintf(c.out, "stopped rex-daemon (pid %s) · socket=%s\n", pid, c.socket)
 	return nil
 }
 
-func daemonStatus(args []string) error {
-	_ = args
-	socket := core.DefaultSocket()
-	if conn, err := net.DialTimeout("unix", socket, daemonctl.SocketDialTimeout); err == nil {
-		_ = conn.Close()
-		pid, _ := daemonctl.FindPID()
-		fmt.Printf("running · socket=%s · pid=%s\n", socket, pid)
-		return nil
+// status reports whether the daemon answers on the socket. That is the
+// truth: a rex-daemon process that does not answer here (another socket,
+// another HOME) does not count, and a failed PID lookup only shows as
+// pid=unknown.
+func (c daemonCtl) status() error {
+	if !c.reachable(c.socket) {
+		fmt.Fprintf(c.out, "not running · socket=%s\n", c.socket)
+		return core.NewExitError(core.ExitDaemonUnreachable, "")
 	}
-	fmt.Printf("not running · socket=%s\n", socket)
-	return core.NewExitError(core.ExitDaemonUnreachable, "")
+	fmt.Fprintf(c.out, "running · socket=%s · pid=%s\n", c.socket, c.pid())
+	return nil
 }
 
-func daemonRestart(args []string) error {
-	if err := daemonStop(args); err != nil {
-		fmt.Fprintln(os.Stderr, "stop:", err)
+// restart stops the daemon if one answers and starts a new one. stop
+// returns only once the old daemon has removed its socket, so no settling
+// delay is needed. A daemon that will not stop is reported and no second
+// daemon is started beside it.
+func (c daemonCtl) restart() error {
+	if err := c.stop(); err != nil {
+		var ec core.ExitCoder
+		if !errors.As(err, &ec) || ec.ExitCode() != core.ExitDaemonUnreachable {
+			return err
+		}
+		fmt.Fprintf(c.errOut, "rex-daemon was not running on %s; starting it\n", c.socket)
 	}
-	time.Sleep(300 * time.Millisecond)
-	return daemonStart(args)
+	return c.starter.run()
 }
 
 func daemonLogs(args []string) error {
