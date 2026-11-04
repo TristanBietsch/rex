@@ -21,7 +21,7 @@ import (
 )
 
 // binDir holds the rex and rex-daemon binaries TestMain builds once. Each
-// script links them into its own $WORK/bin before use.
+// script copies them into its own $WORK/bin before use.
 var binDir string
 
 // systemPath is the PATH tail scripts see after their bin dir. It
@@ -97,7 +97,8 @@ type scriptHarness struct {
 //   - HOME, the XDG variables and REX_LOG_DIR point under $WORK, and
 //     XDG_RUNTIME_DIR at a short private dir in /tmp;
 //   - OLLAMA_HOST is unset;
-//   - PATH is $WORK/bin (hard links to the built binaries) plus system dirs.
+//   - PATH is $WORK/bin (private copies of the built binaries) plus system
+//     dirs.
 //
 // rex starts rex-daemon from its own directory, so any daemon the script
 // causes runs as $WORK/bin/rex-daemon. The registered cleanup stops the
@@ -113,7 +114,7 @@ func setupScriptEnv(env *testscript.Env) error {
 		return err
 	}
 	for _, name := range []string{"rex", "rex-daemon"} {
-		if err := linkOrCopy(filepath.Join(binDir, name), filepath.Join(scriptBin, name)); err != nil {
+		if err := copyBinary(filepath.Join(binDir, name), filepath.Join(scriptBin, name)); err != nil {
 			return err
 		}
 	}
@@ -170,19 +171,24 @@ func setupScriptEnv(env *testscript.Env) error {
 	return nil
 }
 
-// linkOrCopy hard-links src to dst, copying when a link is not possible
-// (e.g. across file systems). A hard link, unlike a symlink, keeps dst as
-// the path os.Executable reports, so rex looks for rex-daemon next to dst.
-func linkOrCopy(src, dst string) error {
-	if err := os.Link(src, dst); err == nil {
-		return nil
-	}
+// copyBinary copies the executable src to dst, owner-only (0700). dst
+// sits in the script's $WORK/bin, so os.Executable reports it and rex
+// looks for rex-daemon next to it.
+//
+// It must be a real copy, never a hard link. Hard links share one vnode,
+// and when Gatekeeper assesses a new executable macOS hands syspolicyd one
+// of that vnode's names. If the name belonged to a script that had
+// already finished and removed its $WORK, syspolicyd could not open it and
+// SIGKILLed the process at exec ("Terminating process due to Gatekeeper
+// rejection"). A private copy has exactly one name, which lives as long as
+// the script does.
+func copyBinary(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
 	if err != nil {
 		return err
 	}
