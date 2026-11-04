@@ -187,7 +187,11 @@ func TestSubscribe_ReplaysTranscript(t *testing.T) {
 	sock := filepath.Join(dir, "rex.sock")
 	reg, err := registry.Load("")
 	require.NoError(t, err)
-	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore()})
+	// The session must be known to the store (restored from disk, say); its
+	// process does not need to be running.
+	store := state.NewStore()
+	require.NoError(t, store.Add(doneSession("fake-sess")))
+	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: store})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -200,7 +204,7 @@ func TestSubscribe_ReplaysTranscript(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	// Pre-seed transcript for a fake session id; the daemon doesn't need to be running it.
+	// Pre-seed transcript for the session.
 	require.NoError(t, state.AppendTranscript(dir, "fake-sess", []byte("PRIOR OUTPUT\n")))
 
 	conn, err := net.Dial("unix", sock)

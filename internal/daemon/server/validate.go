@@ -5,12 +5,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
+// requireSessionID rejects a missing session_id and one that could not name
+// a session directory (e.g. "../.."), before any handler builds a path or
+// looks it up.
 func requireSessionID(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return fmt.Errorf("session_id required")
+	}
+	if err := state.ValidateSessionID(id); err != nil {
+		return fmt.Errorf("invalid session_id: %w", err)
 	}
 	return nil
 }

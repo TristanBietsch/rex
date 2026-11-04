@@ -22,23 +22,33 @@ const (
 	filePerm os.FileMode = 0o600
 )
 
-// sessionDir returns ~/.local/share/rex/sessions/<id> built from a state-dir root.
-// HookFile is the per-session file agent hooks append state words to.
-func HookFile(root, id string) string {
-	return filepath.Join(sessionDir(root, id), "hooks.log")
-}
-
-func sessionDir(root, id string) string {
-	return filepath.Join(root, "sessions", id)
+// HookFile is the per-session file agent hooks append state words to. It
+// fails with ErrUnsafeSessionID for an id that is not a single path element.
+func HookFile(root, id string) (string, error) {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "hooks.log"), nil
 }
 
 // ErrUnsafeSessionID is returned when a session id would not resolve to a
 // single directory directly under <root>/sessions.
 var ErrUnsafeSessionID = errors.New("unsafe session id")
 
-// safeSessionDir is sessionDir for destructive operations. It refuses ids
-// that are empty, ".", "..", contain a separator, or otherwise escape
-// <root>/sessions — an empty id would otherwise RemoveAll every session.
+// ValidateSessionID reports whether id can name a session directory: it
+// must be one path element, not empty, "." or "..". Ids arrive from clients
+// (Subscribe, Delete, ...), so every path built from one is checked.
+func ValidateSessionID(id string) error {
+	_, err := safeSessionDir("", id)
+	return err
+}
+
+// safeSessionDir returns <root>/sessions/<id>. It is the only way this
+// package turns an id into a path: it refuses ids that are empty, ".",
+// "..", contain a separator, or otherwise escape <root>/sessions, so a
+// client-supplied "../.." can't read or write elsewhere and an empty id
+// can't RemoveAll every session.
 func safeSessionDir(root, id string) (string, error) {
 	if id == "" || id == "." || id == ".." || !filepath.IsLocal(id) || filepath.Base(id) != id {
 		return "", fmt.Errorf("%w: %q", ErrUnsafeSessionID, id)
@@ -123,7 +133,11 @@ func WriteMeta(root string, s *Session) error {
 
 // LoadMeta loads one session's metadata.
 func LoadMeta(root, id string) (*Session, error) {
-	path := filepath.Join(sessionDir(root, id), "meta.json")
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, "meta.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read meta %s: %w", path, err)
@@ -187,7 +201,10 @@ type TranscriptFile struct {
 // OpenTranscript opens (or creates) transcript.log for repeated appends. The
 // file is made owner-only even if an older daemon created it.
 func OpenTranscript(root, id string) (*TranscriptFile, error) {
-	dir := sessionDir(root, id)
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
@@ -314,7 +331,11 @@ func AppendTranscript(root, id string, b []byte) error {
 // TranscriptTail returns the last max bytes of a session's transcript.log
 // (or all of it, if smaller). Missing files return (nil, nil).
 func TranscriptTail(root, id string, max int) ([]byte, error) {
-	path := filepath.Join(sessionDir(root, id), "transcript.log")
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, "transcript.log")
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {

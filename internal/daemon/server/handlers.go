@@ -91,9 +91,20 @@ func handleSubscribe(c *client, env protocol.Envelope) {
 		return
 	}
 	srv := c.srv
+	// Only sessions the store knows get a replay or a sink: an unknown id
+	// would otherwise read whatever transcript sits at that path and leave
+	// a sink nobody ever drops.
+	if _, ok := srv.cfg.Store.Get(p.SessionID); !ok {
+		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
+		return
+	}
 	var preambleBytes int
 	if p.Replay {
-		if tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax); err == nil && len(tail) > 0 {
+		tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax)
+		if err != nil {
+			slog.Warn("server: transcript replay failed", "session", p.SessionID, "err", err)
+		}
+		if len(tail) > 0 {
 			c.sendEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
 				SessionID: p.SessionID, Bytes: tail,
 			})

@@ -54,7 +54,11 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// Hook-detected tools report state by appending to a per-session file
 	// named in the child's env. Flags must precede the `--` prompt separator.
 	var childEnv []string
-	hookFile := state.HookFile(cfg.StateDir, id)
+	hookFile, err := state.HookFile(cfg.StateDir, id)
+	if err != nil {
+		srv.ReleaseSession()
+		return fmt.Errorf("hook file: %w", err)
+	}
 	if tool.Detect.Kind == "hooks" {
 		if _, err := state.CreateHookFile(cfg.StateDir, id); err != nil {
 			srv.ReleaseSession()
