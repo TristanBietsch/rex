@@ -92,6 +92,12 @@ type Model struct {
 	spinnerGen     int
 	spinnerRunning bool
 
+	// reconnect is non-nil while the daemon connection is down and the TUI
+	// is redialing it (see reconnect.go). dialDaemon overrides the redial's
+	// handshakeDaemon (tests).
+	reconnect  *reconnectState
+	dialDaemon daemonDialer
+
 	// BackendUnavailable mirrors the daemon's summarizer health flag, delivered
 	// via SummarizerHealth events.
 	BackendUnavailable       bool
@@ -360,8 +366,10 @@ func registerDescAnim(m Model, id, from, to string) Model {
 	if _, replacing := m.DescAnim[id]; replacing {
 		slog.Info("desc_anim: replaced_in_flight", "session", id)
 	}
+	// Frames slice From/To by rune; sanitize first so an escape sequence
+	// can't be cut in half mid-animation (cell() re-sanitizes each frame).
 	m.DescAnim[id] = DescAnim{
-		From: from, To: to, Effect: effect,
+		From: sanitizeText(from), To: sanitizeText(to), Effect: effect,
 		StartedAt: time.Now(),
 		Duration:  animDurationFor(effect),
 	}

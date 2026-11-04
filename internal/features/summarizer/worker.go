@@ -126,18 +126,22 @@ func (w *Worker) MarkAvailable() {
 	}
 }
 
-// SetModel updates both the config record and the underlying client so
-// subsequent Generate calls use the new model. Intended for use by the
-// daemon's health probe after substituting a fallback when the configured
-// model isn't pulled. Not safe to call concurrently with Generate.
+// SetModel switches the model subsequent Generate calls use. Intended for
+// the daemon's health probe after substituting a fallback when the
+// configured model isn't pulled. Safe to call from any goroutine, including
+// while the worker is mid-call: the client holds the name atomically, and
+// w.cfg stays the immutable construction-time config (cfg.Model is the
+// configured model, Model() the live one).
 func (w *Worker) SetModel(model string) {
-	w.cfg.Model = model
 	w.client.SetModel(model)
 }
 
+// Model returns the model the worker currently sends requests to.
+func (w *Worker) Model() string { return w.client.Model() }
+
 // Start launches the worker goroutine. Returns when ctx is canceled.
 func (w *Worker) Start(ctx context.Context) error {
-	slog.Info("summarizer: started", "model", w.cfg.Model, "base_url", w.cfg.BaseURL, "min_interval_ms", w.cfg.MinInterval.Milliseconds())
+	slog.Info("summarizer: started", "model", w.Model(), "base_url", w.cfg.BaseURL, "min_interval_ms", w.cfg.MinInterval.Milliseconds())
 	for {
 		select {
 		case <-ctx.Done():

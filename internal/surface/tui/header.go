@@ -7,7 +7,9 @@ import (
 )
 
 // renderHeader renders the two-line header (logo+counts row, chips row),
-// padded to `width` columns.
+// padded to `width` columns. The counts follow the board columns, so every
+// session lands in exactly one bucket and they add up to the stats
+// overlay's total: queued counts as working (its column).
 func renderHeader(m Model, width int) string {
 	var working, needsInput, done, failed, crashed int
 	for _, s := range m.Sessions {
@@ -16,7 +18,7 @@ func renderHeader(m Model, width int) string {
 			continue
 		}
 		switch s.State {
-		case protocol.StateWorking:
+		case protocol.StateWorking, protocol.StateQueued:
 			working++
 		case protocol.StateNeedsInput:
 			needsInput++
@@ -26,8 +28,6 @@ func renderHeader(m Model, width int) string {
 			failed++
 		case protocol.StateCrashed:
 			crashed++
-		case protocol.StateQueued:
-			// Not counted: the header has no queued bucket.
 		}
 	}
 
@@ -51,7 +51,7 @@ func renderHeader(m Model, width int) string {
 	out := padLine(topRow, width) + "\n" + chipRow
 
 	if m.BackendUnavailable {
-		reason := m.BackendUnavailableReason
+		reason := sanitizeText(m.BackendUnavailableReason) // daemon-supplied
 		if reason == "" {
 			reason = "ollama unreachable"
 		}

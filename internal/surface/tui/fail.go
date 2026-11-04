@@ -161,9 +161,11 @@ func renderFailEntry(s protocol.SessionSummary) string {
 	if s.ExitCode != nil {
 		exit = fmt.Sprintf("%d", *s.ExitCode)
 	}
-	id := lipgloss.NewStyle().Foreground(colorFgDim).Render(s.ShortID)
-	slug := styleSlug.Render(s.Slug)
-	meta := styleDim.Render(fmt.Sprintf("%s · %s · exit=%s · %s ago", s.ToolID, s.ModelID, exit, when))
+	// Session strings are sanitized before styling; LastLine goes through
+	// truncate, which sanitizes.
+	id := lipgloss.NewStyle().Foreground(colorFgDim).Render(sanitizeText(s.ShortID))
+	slug := styleSlug.Render(sanitizeText(s.Slug))
+	meta := styleDim.Render(sanitizeText(fmt.Sprintf("%s · %s · exit=%s · %s ago", s.ToolID, s.ModelID, exit, when)))
 	line1 := fmt.Sprintf("  %s  %s    %s", id, slug, meta)
 	if s.LastLine == "" {
 		return line1

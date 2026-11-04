@@ -2,9 +2,11 @@ package summarizer
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -212,10 +214,55 @@ func TestWorker_SetModelUpdatesConfigAndClient(t *testing.T) {
 	store := state.NewStore()
 	w := New(Config{Model: "gemma2:2b", BaseURL: "http://127.0.0.1:11434"},
 		store, func(string, int) []byte { return nil })
-	require.Equal(t, "gemma2:2b", w.cfg.Model)
+	require.Equal(t, "gemma2:2b", w.Model())
 	w.SetModel("llama3.1")
-	require.Equal(t, "llama3.1", w.cfg.Model)
-	require.Equal(t, "llama3.1", w.client.model)
+	require.Equal(t, "llama3.1", w.Model())
+	require.Equal(t, "llama3.1", w.client.Model())
+}
+
+// TestWorker_SetModelConcurrentWithGenerate mirrors the daemon: the health
+// probe goroutine calls SetModel while the worker goroutine is starting up
+// and mid-Generate. Run under -race; it fails without synchronization on
+// the model name.
+func TestWorker_SetModelConcurrentWithGenerate(t *testing.T) {
+	models := []string{"gemma2:2b", "llama3.2:3b"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model string `json:"model"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Model != models[0] && body.Model != models[1] {
+			t.Errorf("request model = %q, want one of %v", body.Model, models)
+		}
+		_, _ = io.WriteString(w, `{"response":"ok"}`)
+	}))
+	defer srv.Close()
+
+	w := New(Config{BaseURL: srv.URL, Model: models[0]}, state.NewStore(), transcriptStub(""))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); _ = w.Start(ctx) }()
+	go func() {
+		defer wg.Done()
+		for i := range 50 {
+			w.SetModel(models[i%2])
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		for range 20 {
+			if _, err := w.client.Generate(ctx, "hi"); err != nil {
+				t.Errorf("generate: %v", err)
+				return
+			}
+		}
+	}()
+	wg.Wait()
+	require.Contains(t, models, w.Model())
 }
 
 // With nothing readable on screen, a prompt built from the slug alone makes

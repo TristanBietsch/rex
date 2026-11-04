@@ -15,7 +15,9 @@ type DaemonEventMsg struct {
 	Env protocol.Envelope
 }
 
-// DaemonErrMsg is sent when the connection to the daemon dies.
+// DaemonErrMsg is sent when reading the daemon's event stream fails: either
+// the connection is gone (isConnClosed; Update starts the reconnect loop)
+// or one line was bad (Update shows it and keeps listening).
 type DaemonErrMsg struct {
 	Err error
 }
@@ -42,7 +44,9 @@ func dropLastRune(s string) string {
 // several places can never stack up parallel chains (double-speed spinner).
 type SpinnerTickMsg struct{ Gen int }
 
-// listenDaemon returns a tea.Cmd that reads ONE event then re-arms itself.
+// listenDaemon returns a tea.Cmd that reads ONE event. Update re-arms it
+// after each event and after a transient error, never on a dead connection
+// (see reconnect.go), so exactly one listen chain runs per live client.
 func listenDaemon(c *client.Client) tea.Cmd {
 	return func() tea.Msg {
 		env, err := c.NextEvent()

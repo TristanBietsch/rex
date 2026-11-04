@@ -64,6 +64,21 @@ func toolsConfigPath() string {
 	return filepath.Join(home, ".config", "rex", "tools.yaml")
 }
 
+// loadToolsOrBuiltin loads the built-in registry merged with the user's
+// tools.yaml at path. registry.Load returns a nil registry on any error, so
+// callers that ignored the error dereferenced nil (P0-08). Here a user file
+// that can't be read, parsed or validated degrades to the built-in registry,
+// and userErr says why so the caller can show it. err is set only when the
+// built-in registry itself fails to load (a build defect); reg is then nil.
+func loadToolsOrBuiltin(path string) (reg *registry.Registry, userErr, err error) {
+	reg, userErr = registry.Load(path)
+	if userErr == nil {
+		return reg, nil, nil
+	}
+	reg, err = registry.Load("")
+	return reg, userErr, err
+}
+
 var hiddenInWizard = map[string]bool{
 	"echo": true, // internal test adapter, never user-visible
 }

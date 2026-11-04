@@ -6,14 +6,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
 // Client is a thin wrapper over the Ollama HTTP API. Holds a single keep-alive
 // connection so we don't repeatedly handshake against the local daemon.
+//
+// The model name is the only field that changes after construction: the
+// daemon's health probe swaps in a fallback model from its own goroutine
+// while the worker goroutine is mid-Generate. It is therefore held in an
+// atomic.Pointer; everything else is immutable after NewClient.
 type Client struct {
 	baseURL string
-	model   string
+	model   atomic.Pointer[string]
 	http    *http.Client
 }
 
@@ -25,9 +31,8 @@ func NewClient(cfg Config) *Client {
 	if cfg.RequestTimeout == 0 {
 		cfg.RequestTimeout = 15 * time.Second
 	}
-	return &Client{
+	c := &Client{
 		baseURL: cfg.BaseURL,
-		model:   cfg.Model,
 		http: &http.Client{
 			Timeout: cfg.RequestTimeout,
 			Transport: &http.Transport{
@@ -36,12 +41,23 @@ func NewClient(cfg Config) *Client {
 			},
 		},
 	}
+	c.SetModel(cfg.Model)
+	return c
 }
 
-// SetModel updates which model subsequent Generate calls will target.
-// Safe to call between Generate calls; not safe to call concurrently with one.
+// SetModel updates which model subsequent Generate calls will target. Safe
+// to call concurrently with Generate: a call already in flight keeps the
+// model it started with.
 func (c *Client) SetModel(model string) {
-	c.model = model
+	c.model.Store(&model)
+}
+
+// Model returns the model Generate currently targets.
+func (c *Client) Model() string {
+	if p := c.model.Load(); p != nil {
+		return *p
+	}
+	return ""
 }
 
 type generateRequest struct {
@@ -61,7 +77,7 @@ type generateResponse struct {
 // Generate calls /api/generate with the configured model and returns the response text.
 func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 	body := generateRequest{
-		Model:     c.model,
+		Model:     c.Model(),
 		Prompt:    prompt,
 		Stream:    false,
 		KeepAlive: "30m",

@@ -10,7 +10,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
@@ -148,11 +147,21 @@ func stepAudioLoad(m Model) tea.Cmd {
 	})
 }
 
+// stepRegistryLoad validates the tool registry the wizard and daemon will
+// use: the built-ins merged with the user's tools.yaml. Checking only the
+// built-ins let a broken tools.yaml pass boot and fail later. A bad user
+// file is a warning (the board works on built-ins and the daemon has its
+// own copy); a bad built-in registry is fatal.
 func stepRegistryLoad(_ Model) tea.Cmd {
 	return emit("registry.load", func() (bootStatus, string, error) {
-		reg, err := registry.Load("")
+		path := toolsConfigPath()
+		reg, userErr, err := loadToolsOrBuiltin(path)
 		if err != nil {
 			return stepFail, err.Error(), err
+		}
+		if userErr != nil {
+			// Validation errors don't name the file; say which one to fix.
+			return stepWarn, fmt.Sprintf("tools.yaml ignored, using built-in tools: %v", userErr), userErr
 		}
 		enabled, hidden := 0, 0
 		for _, t := range reg.Tools {

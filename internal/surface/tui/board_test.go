@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -76,4 +78,56 @@ func TestRowDescription_SummaryThenTitleNeverLastLine(t *testing.T) {
 	s.Description = "editing auth middleware"
 	require.Equal(t, "editing auth middleware", rowDescription(s))
 	require.Equal(t, "", rowDescription(protocol.SessionSummary{LastLine: "✶"}))
+}
+
+// A session is queued from spawn until its agent starts. No board group
+// matched StateQueued, so new (or stuck-before-start) sessions never showed
+// up. Queued now lives in Working with its own marker glyph.
+func TestBoard_QueuedSessionShowsInWorking(t *testing.T) {
+	queued := protocol.SessionSummary{ID: "q", ShortID: "q001", Slug: "fresh", State: protocol.StateQueued}
+	m := boardModel(protocol.SessionSummary{ID: "w", ShortID: "w001", Slug: "busy", State: protocol.StateWorking}, queued)
+
+	require.Equal(t, []string{"w", "q"}, sessionIDs(orderedSessions(m)), "queued is navigable")
+	group := -1
+	for _, sl := range boardSlots(m) {
+		if sl.kind == slotRow && sl.sess.ID == "q" {
+			group = sl.group
+		}
+	}
+	require.GreaterOrEqual(t, group, 0, "queued row in a board group")
+	require.Equal(t, "Working", boardGroups[group].Title)
+
+	var row string
+	for _, line := range strings.Split(ansi.Strip(renderBoard(m, 120, 0)), "\n") {
+		if strings.Contains(line, "q001") {
+			row = line
+		}
+	}
+	require.NotEmpty(t, row, "queued row rendered")
+	require.Contains(t, row, queuedGlyph)
+	require.Contains(t, ansi.Strip(attachStateChip(m, protocol.StateQueued)), queuedGlyph+" queued")
+}
+
+// The header counts every session the stats overlay counts: queued folds
+// into "working" (its board column), so the header buckets add up to the
+// overlay's total.
+func TestHeader_CountsQueuedAsWorking(t *testing.T) {
+	m := boardModel(
+		protocol.SessionSummary{ID: "1", State: protocol.StateNeedsInput},
+		protocol.SessionSummary{ID: "2", State: protocol.StateWorking},
+		protocol.SessionSummary{ID: "3", State: protocol.StateQueued},
+		protocol.SessionSummary{ID: "4", State: protocol.StateDone},
+	)
+	require.Contains(t, ansi.Strip(renderHeader(m, 160)), "1 awaiting input · 2 working · 1 completed")
+	stats := ansi.Strip(renderStatsOverlay(m))
+	require.Regexp(t, `queued\s+1`, stats)
+	require.Regexp(t, `total\s+4`, stats)
+}
+
+func sessionIDs(ss []protocol.SessionSummary) []string {
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		out = append(out, s.ID)
+	}
+	return out
 }

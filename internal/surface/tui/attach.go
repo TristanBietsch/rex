@@ -445,17 +445,19 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	} else {
 		stateChip = styleDim.Render("· unknown")
 	}
-	title := a.Slug
+	// Session strings are sanitized before styling (sanitizeText strips
+	// escapes, so it can't run on the styled line).
+	title := sanitizeText(a.Slug)
 	if haveSum {
 		title = displayName(sum)
 		if sum.Name != "" {
-			title += styleDim.Render(" · " + sum.Slug)
+			title += styleDim.Render(" · " + sanitizeText(sum.Slug))
 		}
 	}
 	slug := styleHeaderApp.Render(title)
 	var meta string
 	if haveSum {
-		meta = styleDim.Render(sum.ToolID + " · " + modelLabel(sum))
+		meta = styleDim.Render(sanitizeText(sum.ToolID + " · " + modelLabel(sum)))
 	}
 	geom := styleMuted.Render(fmt.Sprintf("%d×%d", a.Cols, a.Rows))
 	if a.Scrolling() {
@@ -480,6 +482,8 @@ func attachStateChip(m Model, st protocol.State) string {
 		frames := spinnerFramesFor(m)
 		g := frames[m.SpinnerTick%len(frames)]
 		return bold.Foreground(colorWorking).Render(g + " working")
+	case protocol.StateQueued:
+		return bold.Foreground(colorWorking).Render(queuedGlyph + " queued")
 	case protocol.StateNeedsInput:
 		return bold.Foreground(colorNeeds).Render("◆ needs input")
 	case protocol.StateDone:
