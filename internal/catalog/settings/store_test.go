@@ -3,9 +3,12 @@ package settings
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 func TestStore_DefaultsPopulated(t *testing.T) {
@@ -41,7 +44,7 @@ func TestStore_StringParsedToBool(t *testing.T) {
 func TestStore_LoadOverridesDefaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("spinner: pulse\nmaster_volume: 0.5\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("spinner: pulse\nmaster_volume: 0.5\n"), 0o600))
 
 	s := NewStore()
 	require.NoError(t, s.Load(path))
@@ -72,4 +75,35 @@ func TestStore_Reset(t *testing.T) {
 	require.NoError(t, s.Set("spinner", "moon"))
 	require.NoError(t, s.Reset("spinner"))
 	require.Equal(t, "braille", s.Get("spinner"))
+}
+
+// requireMode checks path's permission bits (Unix only: Windows has just a
+// read-only attribute).
+func requireMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	if runtime.GOOS != "windows" {
+		require.Equal(t, want, info.Mode().Perm(), path)
+	}
+}
+
+// S-01: Save created ~/.config/rex 0755 and config.yaml 0644, and its
+// rename replaced a private config.yaml with a world-readable one. A new
+// file is owner-only; an existing one keeps the mode its owner chose.
+func TestStore_SaveModes(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "rex")
+	path := filepath.Join(dir, "config.yaml")
+	s := NewStore()
+
+	require.NoError(t, s.Save(path))
+	requireMode(t, dir, 0o700)
+	requireMode(t, path, 0o600)
+
+	for _, mode := range []os.FileMode{0o600, 0o640, 0o644} {
+		testperm.Loosen(t, path, mode)
+		require.NoError(t, s.Set("spinner", "blocks"))
+		require.NoError(t, s.Save(path))
+		requireMode(t, path, mode)
+	}
 }

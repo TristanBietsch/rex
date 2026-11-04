@@ -2,8 +2,13 @@ package setup
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSummaryLine_NoFailNoWarn(t *testing.T) {
@@ -120,4 +125,34 @@ func TestPrintDoctorJSON_Structure(t *testing.T) {
 	if decoded.Checks[1].Status != "WARN" {
 		t.Errorf("expected WARN, got %q", decoded.Checks[1].Status)
 	}
+}
+
+// S-01: doctor created missing config, state and share dirs 0755.
+func TestCheckDir_createsOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits")
+	}
+	dir := filepath.Join(t.TempDir(), "state", "rex")
+	r := checkDir("state dir", dir)
+	require.Equal(t, checkPass, r.Status, r.Detail)
+	for _, d := range []string{dir, filepath.Dir(dir)} {
+		info, err := os.Stat(d)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0o700), info.Mode().Perm(), d)
+	}
+}
+
+// S-01: `rex config edit` created ~/.config/rex 0755. EDITOR=true stands in
+// for the user's editor.
+func TestConfigEdit_createsConfigDirOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits; no true(1)")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("EDITOR", "true")
+	require.NoError(t, configEdit(nil))
+	info, err := os.Stat(filepath.Join(home, ".config", "rex"))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
 }

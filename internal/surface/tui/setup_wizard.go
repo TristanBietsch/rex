@@ -1246,7 +1246,7 @@ func hasShellBlock(rcPath string) bool {
 
 // installShellBlock installs (or rewrites in-place) the REX shell block in rcPath.
 // Idempotent: if the block already exists, it is replaced with the current block.
-// Content outside the markers is preserved.
+// Content outside the markers and the file's permission bits are preserved.
 func installShellBlock(rcPath string) error {
 	shell := filepath.Base(os.Getenv("SHELL"))
 	block := ShellProfileBlock(shell)
@@ -1263,12 +1263,23 @@ func installShellBlock(rcPath string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(rcPath), 0o755); err != nil {
+	// A new profile's directory (e.g. ~/.config/fish) gets the XDG 0700.
+	if err := os.MkdirAll(filepath.Dir(rcPath), 0o700); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
+	// The profile is the user's file: keep its mode across the rewrite. A
+	// profile rex creates is owner-only; the shell reads it as its owner.
+	mode := os.FileMode(0o600)
+	if info, err := os.Stat(rcPath); err == nil {
+		mode = info.Mode().Perm()
+	}
 	tmp := rcPath + ".rextmp"
-	if err := os.WriteFile(tmp, []byte(newContent), 0o644); err != nil { //nolint:gosec // G703: rcPath is the user's own shell profile under $HOME, chosen from $SHELL.
+	if err := os.WriteFile(tmp, []byte(newContent), 0o600); err != nil { //nolint:gosec // G703: rcPath is the user's own shell profile under $HOME, chosen from $SHELL.
 		return fmt.Errorf("write tmp: %w", err)
+	}
+	if err := os.Chmod(tmp, mode); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("chmod tmp: %w", err)
 	}
 	if err := os.Rename(tmp, rcPath); err != nil {
 		return fmt.Errorf("rename: %w", err)

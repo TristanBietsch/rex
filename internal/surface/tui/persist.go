@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 )
 
 type persistedState struct {
@@ -20,9 +22,11 @@ func statePath() string {
 }
 
 // SaveTUIState writes selection + filter to ~/.local/state/rex/tui-state.json.
+// The state dir is rex's own and is created or tightened to 0700; the file
+// is 0600.
 func SaveTUIState(m Model) error {
 	path := statePath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := rexlog.PrivateDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(persistedState{
@@ -33,7 +37,7 @@ func SaveTUIState(m Model) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o600)
 }
 
 // LoadTUIState reads + deletes the persisted state. Returns ok=false when the file doesn't exist.

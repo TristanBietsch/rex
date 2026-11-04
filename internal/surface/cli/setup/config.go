@@ -146,7 +146,7 @@ func configEdit(args []string) error {
 	_ = args
 	home, _ := os.UserHomeDir()
 	path := filepath.Join(home, ".config", "rex", "init.lua")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	editor := os.Getenv("EDITOR")

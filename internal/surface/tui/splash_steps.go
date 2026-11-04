@@ -43,14 +43,17 @@ func stepLogInit(_ Model) tea.Cmd {
 func stepPathsEnsure(_ Model) tea.Cmd {
 	return emit("paths.ensure", func() (bootStatus, string, error) {
 		home, _ := os.UserHomeDir()
-		paths := []string{
-			filepath.Join(home, ".config", "rex"),
-			filepath.Join(home, ".local", "state", "rex"),
+		// The config dir holds files the user edits, so an existing one is
+		// left as they made it; a new one is 0700 (the XDG mode).
+		config := filepath.Join(home, ".config", "rex")
+		if err := os.MkdirAll(config, 0o700); err != nil {
+			return stepFail, fmt.Sprintf("mkdir %s: %v", config, err), err
 		}
-		for _, p := range paths {
-			if err := os.MkdirAll(p, 0o755); err != nil {
-				return stepFail, fmt.Sprintf("mkdir %s: %v", p, err), err
-			}
+		// The state dir (logs, tui-state) is rex's own: created or
+		// tightened to 0700.
+		state := filepath.Join(home, ".local", "state", "rex")
+		if err := rexlog.PrivateDir(state); err != nil {
+			return stepFail, err.Error(), err
 		}
 		return stepOK, "config + state dirs ok", nil
 	})

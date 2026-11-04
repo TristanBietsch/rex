@@ -57,18 +57,31 @@ func (s *Store) Load(path string) error {
 	return nil
 }
 
-// Save writes the current values to path atomically.
+// Save writes the current values to path atomically (temp file, then
+// rename). A missing directory is created 0700. A new file is 0600; an
+// existing one keeps its permission bits, so Save never widens a private
+// config.yaml and never undoes a mode its owner chose.
 func (s *Store) Save(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
 	b, err := yaml.Marshal(s.values)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
+	mode := os.FileMode(0o600)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return fmt.Errorf("write tmp: %w", err)
+	}
+	// WriteFile keeps the mode of a leftover tmp and is subject to the
+	// umask, so set the final mode explicitly.
+	if err := os.Chmod(tmp, mode); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("chmod tmp: %w", err)
 	}
 	return os.Rename(tmp, path)
 }

@@ -149,9 +149,10 @@ func checkDaemonReachable(socket string) checkResult {
 	return checkResult{"daemon reachable", checkWarn, fmt.Sprintf("socket not responding — run: rex daemon start  (socket=%s)", socket)}
 }
 
-// checkDir verifies that a directory exists and is writable.
+// checkDir verifies that a directory exists and is writable, creating a
+// missing one (and its parents) owner-only.
 func checkDir(name, dir string) checkResult {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return checkResult{name, checkFail, fmt.Sprintf("cannot create %s: %v", dir, err)}
 	}
 
