@@ -89,7 +89,22 @@ type Server struct {
 	cfg  Config
 	reg  atomic.Pointer[registry.Registry]
 	gate *concurrencyGate
-	wg   sync.WaitGroup
+	// wg tracks the connection handlers and the retire reaper. Serve waits
+	// for it before it waits for sessions, so no handler can start a
+	// supervisor (sessions.Add) once sessions.Wait has begun.
+	wg sync.WaitGroup
+	// sessions tracks the per-session supervisor goroutines (spawn.go).
+	sessions sync.WaitGroup
+	// supervisorWait bounds how long Serve waits for sessions on shutdown
+	// (0 = defaultSupervisorWait).
+	supervisorWait time.Duration
+
+	// connsMu guards conns and closing. Serve's shutdown sets closing and
+	// aborts every tracked connection; a connection accepted after that is
+	// aborted on registration instead of being missed.
+	connsMu sync.Mutex
+	conns   map[*clientConn]struct{}
+	closing bool
 
 	// handlers maps intent types to their handlers. Built in New and
 	// read-only once Serve starts; tests may swap entries before Serve.
@@ -170,7 +185,15 @@ func New(cfg Config) (*Server, error) {
 	return s, nil
 }
 
-// Serve listens until ctx is canceled. The socket is unlinked on return.
+// defaultSupervisorWait bounds the shutdown wait for session supervisors:
+// long enough for a kill, a PTY drain and a final meta write.
+const defaultSupervisorWait = 5 * time.Second
+
+// Serve listens until ctx is canceled or Accept fails, then shuts down:
+// it closes every client connection, waits for the handlers and the retire
+// reaper, and waits (bounded by supervisorWait) for the session supervisors,
+// which stop with ctx. The socket is unlinked on return. Serve may be called
+// at most once per Server.
 func (s *Server) Serve(ctx context.Context) error {
 	l, err := net.Listen("unix", s.cfg.Socket)
 	if err != nil {
@@ -181,26 +204,32 @@ func (s *Server) Serve(ctx context.Context) error {
 		_ = os.Remove(s.cfg.Socket)
 	}()
 
-	// Close the listener when ctx is canceled to unblock Accept.
-	go func() {
-		<-ctx.Done()
+	// serveCtx also ends when Accept fails, so sessions and handlers stop
+	// the same way on either exit path.
+	serveCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// Unblock Accept and every handler's Read once serveCtx is done.
+	stopClose := context.AfterFunc(serveCtx, func() {
 		_ = l.Close()
-	}()
+		s.closeConns()
+	})
+	defer stopClose()
 
 	// Retire reaper: clears marked-done sessions once their deadline passes.
 	// Tracked by wg so shutdown proves it has exited.
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		s.runRetireReaper(ctx)
+		s.runRetireReaper(serveCtx)
 	}()
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			if ctx.Err() != nil {
-				slog.Info("server: shutting down, waiting for clients")
-				s.wg.Wait()
+			requested := ctx.Err() != nil
+			cancel()
+			s.drain()
+			if requested {
 				return nil
 			}
 			slog.Error("server: accept failed", "err", err)
@@ -210,9 +239,78 @@ func (s *Server) Serve(ctx context.Context) error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			handleClient(ctx, conn, s)
+			handleClient(serveCtx, conn, s)
 			slog.Debug("server: client disconnected")
 		}()
+	}
+}
+
+// drain waits for the handlers and the reaper, then (bounded) for the
+// session supervisors. Their contexts are already canceled.
+func (s *Server) drain() {
+	slog.Info("server: shutting down, waiting for clients")
+	s.wg.Wait()
+	wait := s.supervisorWait
+	if wait <= 0 {
+		wait = defaultSupervisorWait
+	}
+	if !waitTimeout(&s.sessions, wait) {
+		slog.Warn("server: session supervisors still running; exiting anyway", "waited", wait)
+	}
+}
+
+// waitTimeout waits for wg for at most d and reports whether it finished.
+// On timeout the helper goroutine stays parked in wg.Wait until the group
+// finishes; callers use it only on the way out.
+func waitTimeout(wg *sync.WaitGroup, d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-done:
+		return true
+	case <-t.C:
+		return false
+	}
+}
+
+// trackConn registers a live connection for shutdown. It returns false once
+// shutdown has begun; the caller must then abort the connection itself.
+func (s *Server) trackConn(c *clientConn) bool {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	if s.closing {
+		return false
+	}
+	if s.conns == nil {
+		s.conns = make(map[*clientConn]struct{})
+	}
+	s.conns[c] = struct{}{}
+	return true
+}
+
+func (s *Server) untrackConn(c *clientConn) {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	delete(s.conns, c)
+}
+
+// closeConns starts shutdown: it aborts every live connection, which
+// unblocks its handler's Read, and makes trackConn refuse new ones.
+func (s *Server) closeConns() {
+	s.connsMu.Lock()
+	s.closing = true
+	conns := make([]*clientConn, 0, len(s.conns))
+	for c := range s.conns {
+		conns = append(conns, c)
+	}
+	s.connsMu.Unlock()
+	for _, c := range conns {
+		c.abort(errServerShutdown)
 	}
 }
 

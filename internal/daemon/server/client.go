@@ -33,6 +33,10 @@ type intentHandler func(c *client, env protocol.Envelope)
 
 func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	out := newClientConn(conn, srv.nextConnID.Add(1), srv.clientQueueLen, srv.clientWriteTimeout)
+	if !srv.trackConn(out) {
+		out.abort(errServerShutdown) // accepted while Serve was shutting down
+	}
+	defer srv.untrackConn(out)
 	c := &client{srv: srv, ctx: ctx, out: out}
 	// Deferred calls run in reverse: subscriptions are canceled first, so no
 	// broadcast can enqueue any more, then queued lines are flushed and the

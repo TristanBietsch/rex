@@ -165,7 +165,11 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	})
 
 	// Run in a background goroutine; the store events drive the wire.
+	// Tracked in srv.sessions so Serve's shutdown waits for the supervisor's
+	// final transition and meta write.
+	srv.sessions.Add(1)
 	go func() {
+		defer srv.sessions.Done()
 		defer close(done)
 		// Release sessCtx on natural exit too; an uncanceled child context
 		// stays registered with the server ctx for the daemon's lifetime.

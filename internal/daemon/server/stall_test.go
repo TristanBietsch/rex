@@ -41,11 +41,15 @@ func serveTest(t *testing.T, srv *Server) (context.CancelFunc, <-chan error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
-	go func() { served <- srv.Serve(ctx) }()
+	done := make(chan struct{})
+	go func() {
+		served <- srv.Serve(ctx)
+		close(done)
+	}()
 	t.Cleanup(func() {
 		cancel()
 		select {
-		case <-served:
+		case <-done:
 		case <-time.After(10 * time.Second):
 			t.Error("Serve did not return after cancel")
 		}

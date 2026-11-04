@@ -126,8 +126,12 @@ func run(args []string) error {
 		summaryCh = summaryWorker.Channel()
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	// After the first signal (or a Shutdown intent), restore the default
+	// handlers: a second SIGINT/SIGTERM then kills a daemon whose graceful
+	// shutdown is stuck instead of being swallowed.
+	context.AfterFunc(ctx, stop)
 
 	var srv *server.Server
 	srv, err = server.New(server.Config{
@@ -138,7 +142,7 @@ func run(args []string) error {
 		MaxConcurrentSessions: *maxConcurrent,
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
-		OnShutdown:            cancel,
+		OnShutdown:            stop,
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
 	})
 	if err != nil {

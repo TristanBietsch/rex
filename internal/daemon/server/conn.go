@@ -24,8 +24,9 @@ const (
 
 // Reasons a connection is dropped, logged once per connection.
 var (
-	errQueueFull    = errors.New("outbound queue full")
-	errFlushTimeout = errors.New("final flush timed out")
+	errQueueFull      = errors.New("outbound queue full")
+	errFlushTimeout   = errors.New("final flush timed out")
+	errServerShutdown = errors.New("daemon shutting down")
 )
 
 // clientConn owns one accepted socket's write side. Every line bound for the
