@@ -27,3 +27,22 @@ func TestEnvelope_OmitsEmptyID(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(b), `"id"`)
 }
+
+// The ack fields are additive: older peers see the shapes they always did.
+func TestAckAndVersionFields_WireShape(t *testing.T) {
+	b, err := EncodeEvent(EventAck, "r1", Ack{Intent: IntentRename, SessionID: "s1"})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"v":1,"kind":"Event","type":"Ack","id":"r1","data":{"intent":"Rename","session_id":"s1"}}`, string(b))
+
+	b, err = json.Marshal(Ack{Intent: IntentReload})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"intent":"Reload"}`, string(b))
+
+	b, err = json.Marshal(Snapshot{Sessions: []SessionSummary{}, Filter: "all"})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"sessions":[],"filter":"all"}`, string(b), "no daemon_version unless set")
+
+	b, err = json.Marshal(Hello{ClientVersion: "v1"})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"client_version":"v1"}`, string(b), "no client unless set")
+}

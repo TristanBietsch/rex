@@ -22,9 +22,16 @@ const (
 	IntentReload           = "Reload"
 )
 
-// Hello is the first message a client sends after connect.
+// Hello is the first message a client sends after connect. The daemon
+// answers with a Snapshot and from then on broadcasts board events to the
+// connection.
 type Hello struct {
+	// ClientVersion is the client's release label (package version).
+	// Clients before acks sent their program name here.
 	ClientVersion string `json:"client_version"`
+	// Client names the client program ("rex-cli", "rex-tui", ...), for
+	// the daemon log. Empty from older clients.
+	Client string `json:"client,omitempty"`
 }
 
 // Subscribe controls what events flow back. SessionID == "" means board-wide updates only.

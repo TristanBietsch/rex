@@ -11,6 +11,9 @@ const (
 	EventSessionOutput    = "SessionOutput"
 	EventSummarizerHealth = "SummarizerHealth"
 	EventError            = "Error"
+	// EventAck is the success reply to an intent that carried an ID and has
+	// no more specific reply (see the package doc for the table).
+	EventAck = "Ack"
 )
 
 // State is the lifecycle state of a session.
@@ -72,6 +75,19 @@ type SessionSummary struct {
 type Snapshot struct {
 	Sessions []SessionSummary `json:"sessions"`
 	Filter   string           `json:"filter"`
+	// DaemonVersion is the daemon's release label. Empty from daemons that
+	// predate acks; such a daemon never sends Ack.
+	DaemonVersion string `json:"daemon_version,omitempty"`
+}
+
+// Ack is the success reply to an intent that carried an envelope ID. The
+// envelope's ID is the intent's.
+type Ack struct {
+	// Intent is the type of the intent acknowledged.
+	Intent string `json:"intent"`
+	// SessionID is the session the intent acted on; for NewSession, the
+	// session it created. Empty for intents not about one session.
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // SessionUpdated carries a sparse merge-patch over the summary.
