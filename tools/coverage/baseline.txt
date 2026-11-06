@@ -17,13 +17,14 @@ github.com/tristanbietsch/rex/internal/features/lua 89
 github.com/tristanbietsch/rex/internal/features/summarizer 79
 github.com/tristanbietsch/rex/internal/runtime/daemonctl 87
 github.com/tristanbietsch/rex/internal/runtime/ids 75
+github.com/tristanbietsch/rex/internal/runtime/paths 100
 github.com/tristanbietsch/rex/internal/runtime/rexlog 85
 github.com/tristanbietsch/rex/internal/surface/cli/core 46
 github.com/tristanbietsch/rex/internal/surface/cli/inspect 39
-github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 58
-github.com/tristanbietsch/rex/internal/surface/cli/meta 24
+github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
+github.com/tristanbietsch/rex/internal/surface/cli/meta 35
 github.com/tristanbietsch/rex/internal/surface/cli/session 16
-github.com/tristanbietsch/rex/internal/surface/cli/setup 50
+github.com/tristanbietsch/rex/internal/surface/cli/setup 55
 github.com/tristanbietsch/rex/internal/surface/tui 64
 github.com/tristanbietsch/rex/internal/testutil 0
 github.com/tristanbietsch/rex/internal/testutil/testenv 42
