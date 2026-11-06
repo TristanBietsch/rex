@@ -2,7 +2,6 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -51,9 +50,9 @@ func replyErr(code string, err error) error {
 	return &intentError{code: code, err: err}
 }
 
-// replyErrf is replyErr with a formatted message.
-func replyErrf(code, format string, args ...any) error {
-	return replyErr(code, fmt.Errorf(format, args...))
+// replyMsg is replyErr for a fixed message.
+func replyMsg(code, msg string) error {
+	return replyErr(code, errors.New(msg))
 }
 
 // errorCode is the Error code dispatch reports err under. An error without

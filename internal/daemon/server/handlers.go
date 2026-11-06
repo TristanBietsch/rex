@@ -94,7 +94,7 @@ func handleComplete(c *client, env protocol.Envelope) (outcome, error) {
 		return outcome{}, err
 	}
 	if _, ok := c.srv.cfg.Store.Get(p.SessionID); !ok {
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	c.srv.CompleteSession(p.SessionID)
 	return outcome{sessionID: p.SessionID}, nil
@@ -113,7 +113,7 @@ func handleSubscribe(c *client, env protocol.Envelope) (outcome, error) {
 	// would otherwise read whatever transcript sits at that path and leave
 	// a sink nobody ever drops.
 	if _, ok := srv.cfg.Store.Get(p.SessionID); !ok {
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	var preambleBytes int
 	if p.Replay {
@@ -168,7 +168,7 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	ch := c.srv.InputChannel(p.SessionID)
 	if ch == nil {
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not running")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
 	select {
 	case ch <- p.Bytes:
@@ -177,7 +177,7 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 		}
 		return outcome{sessionID: p.SessionID}, nil
 	default:
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "input buffer full")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
 	}
 }
 
@@ -188,7 +188,7 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	ch := c.srv.InputChannel(p.SessionID)
 	if ch == nil {
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not running")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
 	// Text, then Enter as a separate write. Terminals send Enter as
 	// \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
@@ -197,7 +197,7 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	select {
 	case ch <- []byte(p.Text):
 	default:
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "input buffer full")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
 	}
 	time.Sleep(replySubmitDelay)
 	select {
@@ -206,7 +206,7 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 		c.srv.cancelRetireOnInput(p.SessionID, "Reply")
 		return outcome{sessionID: p.SessionID}, nil
 	default:
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "input buffer full")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
 	}
 }
 
@@ -227,7 +227,7 @@ func handleRename(c *client, env protocol.Envelope) (outcome, error) {
 	sess, ok := store.Get(p.SessionID)
 	if !ok {
 		slog.Warn("server: rename rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	if err := store.UpdateRename(p.SessionID, p.Slug, p.Title); err != nil {
 		var taken *state.SlugTakenError
@@ -259,7 +259,7 @@ func handleSetSessionName(c *client, env protocol.Envelope) (outcome, error) {
 	sess, ok := c.srv.cfg.Store.Get(p.SessionID)
 	if !ok {
 		slog.Warn("server: set_name rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	changed, err := c.srv.cfg.Store.SetName(p.SessionID, name)
 	if err != nil {
@@ -286,7 +286,7 @@ func handleRetire(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	sess, ok := srv.cfg.Store.Get(p.SessionID)
 	if !ok {
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	markedAt := srv.now().Round(0).UTC()
 	changed, err := srv.cfg.Store.SetRetire(p.SessionID, at, markedAt)
@@ -312,7 +312,7 @@ func handleUnretire(c *client, env protocol.Envelope) (outcome, error) {
 	store := c.srv.cfg.Store
 	sess, ok := store.Get(p.SessionID)
 	if !ok {
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	remaining := time.Until(sess.Summary().RetireAt)
 	changed, err := store.ClearRetire(p.SessionID)
@@ -343,7 +343,7 @@ func handleSetSessionFleet(c *client, env protocol.Envelope) (outcome, error) {
 	store := c.srv.cfg.Store
 	sess, ok := store.Get(p.SessionID)
 	if !ok {
-		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
+		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	if err := store.SetFleet(p.SessionID, p.Fleet); err != nil {
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
@@ -375,7 +375,7 @@ func handleSetMaxConcurrent(c *client, env protocol.Envelope) (outcome, error) {
 // connection before the Ack is written (best effort, as documented).
 func handleShutdown(c *client, env protocol.Envelope) (outcome, error) {
 	if c.srv.cfg.OnShutdown == nil {
-		return outcome{}, replyErrf(protocol.ErrCodeBadIntent, "intent not implemented")
+		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "intent not implemented")
 	}
 	slog.Info("server: shutdown requested by client")
 	c.ack(env, "")
@@ -385,7 +385,7 @@ func handleShutdown(c *client, env protocol.Envelope) (outcome, error) {
 
 func handleReload(c *client, env protocol.Envelope) (outcome, error) {
 	if c.srv.cfg.OnReload == nil {
-		return outcome{}, replyErrf(protocol.ErrCodeBadIntent, "intent not implemented")
+		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "intent not implemented")
 	}
 	if err := c.srv.cfg.OnReload(); err != nil {
 		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
