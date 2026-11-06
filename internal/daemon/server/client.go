@@ -32,8 +32,10 @@ type client struct {
 }
 
 // intentHandler serves one intent type. It runs on the connection's handler
-// goroutine and replies through c.
-type intentHandler func(c *client, env protocol.Envelope)
+// goroutine. It returns the intent's outcome and never sends an Ack or an
+// Error for the intent itself: dispatch turns the result into the intent's
+// one terminal reply (see reply.go).
+type intentHandler func(c *client, env protocol.Envelope) (outcome, error)
 
 func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
 	out := newClientConn(conn, srv.nextConnID.Add(1), srv.clientQueueLen, srv.clientWriteTimeout)
@@ -117,8 +119,9 @@ func (c *client) runCleanups() {
 	c.cleanups = nil
 }
 
-// dispatch routes one envelope to its intent handler and reports whether
-// the connection should stay open.
+// dispatch routes one envelope to its intent handler, sends the intent's
+// terminal reply (see reply.go) and reports whether the connection should
+// stay open.
 //
 // A panicking handler must not take the daemon, and every session it
 // supervises, down with it. dispatch recovers, logs the stack, answers the
@@ -145,7 +148,8 @@ func (c *client) dispatch(env protocol.Envelope) (keepOpen bool) {
 		c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
 		return true
 	}
-	h(c, env)
+	res, err := h(c, env)
+	c.reply(env, res, err)
 	return true
 }
 
@@ -159,21 +163,29 @@ func (c *client) sendError(id, code, msg string) {
 	c.sendEvent(protocol.EventError, id, protocol.ErrorEvent{ID: id, Code: code, Message: msg})
 }
 
-// decodeIntent unmarshals env.Data into a T, replying bad_intent on failure.
-func decodeIntent[T any](c *client, env protocol.Envelope) (T, bool) {
+// decodeIntent unmarshals env.Data into a T; a failure is bad_intent.
+func decodeIntent[T any](env protocol.Envelope) (T, error) {
 	var p T
 	if err := json.Unmarshal(env.Data, &p); err != nil {
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-		return p, false
+		return p, replyErr(protocol.ErrCodeBadIntent, err)
 	}
-	return p, true
+	return p, nil
 }
 
-// validSessionID replies bad_intent and returns false when id is unusable.
-func (c *client) validSessionID(env protocol.Envelope, id string) bool {
+// checkSessionID is requireSessionID as a bad_intent reply error.
+func checkSessionID(id string) error {
 	if err := requireSessionID(id); err != nil {
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-		return false
+		return replyErr(protocol.ErrCodeBadIntent, err)
 	}
-	return true
+	return nil
+}
+
+// decodeSessionIntent decodes a session intent's payload and validates the
+// session ID that sessionID extracts from it.
+func decodeSessionIntent[T any](env protocol.Envelope, sessionID func(T) string) (T, error) {
+	p, err := decodeIntent[T](env)
+	if err != nil {
+		return p, err
+	}
+	return p, checkSessionID(sessionID(p))
 }

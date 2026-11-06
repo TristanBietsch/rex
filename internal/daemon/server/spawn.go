@@ -17,29 +17,32 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) error {
+// handleNewSession validates p, spawns its session and returns the new
+// session's ID. Errors from validation are badIntent; the caller maps the
+// rest to spawn_failed or too_many_sessions.
+func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) (string, error) {
 	if err := validateNewSession(p); err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
-		return badIntent(err)
+		return "", badIntent(err)
 	}
 	p, err := normalizeNewSession(p)
 	if err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
-		return badIntent(err)
+		return "", badIntent(err)
 	}
 	cfg := srv.cfg
 	// Read the registry through the lock so SIGHUP-swapped versions take effect.
 	tool, model, ok := srv.Registry().FindModel(p.ToolID, p.ModelID)
 	if !ok {
-		return fmt.Errorf("tool %s/%s not in registry", p.ToolID, p.ModelID)
+		return "", fmt.Errorf("tool %s/%s not in registry", p.ToolID, p.ModelID)
 	}
 	if p.Effort != "" && model.Effort != nil && !slices.Contains(model.Effort.Options, p.Effort) {
-		return fmt.Errorf("effort %q not offered by %s/%s (options: %s)",
+		return "", fmt.Errorf("effort %q not offered by %s/%s (options: %s)",
 			p.Effort, p.ToolID, p.ModelID, strings.Join(model.Effort.Options, ", "))
 	}
 
 	if !srv.TryAcquireSession() {
-		return fmt.Errorf("too many concurrent sessions (cap=%d)", srv.MaxConcurrentSessions())
+		return "", fmt.Errorf("too many concurrent sessions (cap=%d)", srv.MaxConcurrentSessions())
 	}
 	// From here, must release on error.
 
@@ -62,12 +65,12 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	hookFile, err := state.HookFile(cfg.StateDir, id)
 	if err != nil {
 		srv.ReleaseSession()
-		return fmt.Errorf("hook file: %w", err)
+		return "", fmt.Errorf("hook file: %w", err)
 	}
 	if tool.Detect.Kind == "hooks" {
 		if _, err := state.CreateHookFile(cfg.StateDir, id); err != nil {
 			srv.ReleaseSession()
-			return fmt.Errorf("hook file: %w", err)
+			return "", fmt.Errorf("hook file: %w", err)
 		}
 		switch tool.Detect.Format {
 		case "claude":
@@ -108,16 +111,16 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		var taken *state.SlugTakenError
 		if errors.As(err, &taken) {
 			slog.Warn("spawn: rejected, slug taken", "req_id", intentID, "slug", p.Slug, "holder", taken.ShortID)
-			return badIntent(err)
+			return "", badIntent(err)
 		}
-		return err
+		return "", err
 	}
 
 	ad, err := adapter.For(tool, hookFile)
 	if err != nil {
 		srv.ReleaseSession()
 		_ = cfg.Store.Remove(sess.ID)
-		return fmt.Errorf("build adapter: %w", err)
+		return "", fmt.Errorf("build adapter: %w", err)
 	}
 
 	inputCh := make(chan []byte, 16)
@@ -188,5 +191,5 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		defer srv.ReleaseSession()
 		_ = sup.Run(sessCtx, sess)
 	}()
-	return nil
+	return id, nil
 }

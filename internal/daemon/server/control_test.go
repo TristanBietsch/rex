@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -80,10 +81,20 @@ func TestIntentReload_CallsHookAndReportsError(t *testing.T) {
 	require.NoError(t, w.WriteIntent(protocol.IntentReload, "r2", struct{}{}))
 	<-calls
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+	// The successful reload is acked (FU-13: it used to get no reply)...
 	env, err := r.Read()
+	require.NoError(t, err)
+	require.Equal(t, protocol.EventAck, env.Type)
+	require.Equal(t, "r1", env.ID)
+	// ...and the failed one is an Error carrying the load error.
+	env, err = r.Read()
 	require.NoError(t, err)
 	require.Equal(t, protocol.EventError, env.Type)
 	require.Equal(t, "r2", env.ID)
+	var ee protocol.ErrorEvent
+	require.NoError(t, json.Unmarshal(env.Data, &ee))
+	require.Equal(t, protocol.ErrCodeBadIntent, ee.Code)
+	require.Equal(t, "bad tools.yaml", ee.Message)
 }
 
 func TestIntentShutdown_RejectedWithoutHook(t *testing.T) {

@@ -17,7 +17,7 @@ func TestHandlerPanic_ClosesOnlyThatConnection(t *testing.T) {
 	store := state.NewStore()
 	require.NoError(t, store.Add(doneSession("s1")))
 	srv, sock, _ := newTestServer(t, store)
-	srv.handlers["Boom"] = func(*client, protocol.Envelope) { panic("boom") }
+	srv.handlers["Boom"] = func(*client, protocol.Envelope) (outcome, error) { panic("boom") }
 	serveTest(t, srv)
 
 	bystander := dialTest(t, sock)

@@ -1,12 +1,14 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/version"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -38,18 +40,29 @@ func defaultHandlers() map[string]intentHandler {
 	}
 }
 
-func handleHello(c *client, env protocol.Envelope) {
-	snap := protocol.Snapshot{Sessions: c.srv.cfg.Store.Snapshot(), Filter: "all"}
+func handleHello(c *client, env protocol.Envelope) (outcome, error) {
+	// The payload only feeds the log; a client that sends none still gets
+	// its snapshot, as before.
+	var p protocol.Hello
+	_ = json.Unmarshal(env.Data, &p)
+	slog.Debug("server: hello", "conn", c.out.id, "client", p.Client, "client_version", p.ClientVersion)
+	snap := protocol.Snapshot{
+		Sessions:      c.srv.cfg.Store.Snapshot(),
+		Filter:        "all",
+		DaemonVersion: version.Version,
+	}
 	c.sendEvent(protocol.EventSnapshot, env.ID, snap)
 	c.subscribed.Store(true)
+	return outcome{replied: true}, nil
 }
 
-func handleNewSessionIntent(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.NewSession](c, env)
-	if !ok {
-		return
+func handleNewSessionIntent(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeIntent[protocol.NewSession](env)
+	if err != nil {
+		return outcome{}, err
 	}
-	if err := handleNewSession(c.ctx, env.ID, p, c.srv); err != nil {
+	id, err := handleNewSession(c.ctx, env.ID, p, c.srv)
+	if err != nil {
 		code := protocol.ErrCodeSpawn
 		switch {
 		case isBadIntent(err):
@@ -57,46 +70,50 @@ func handleNewSessionIntent(c *client, env protocol.Envelope) {
 		case strings.Contains(err.Error(), "too many concurrent sessions"):
 			code = protocol.ErrCodeTooManySessions
 		}
-		c.sendError(env.ID, code, err.Error())
+		return outcome{}, replyErr(code, err)
 	}
+	return outcome{sessionID: id}, nil
 }
 
-func handleDelete(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Delete](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleDelete(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.Delete) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	// Stops a running supervisor first so its goroutines don't race with
 	// the on-disk cleanup; disk cleanup is best-effort.
 	if err := c.srv.deleteSession(p.SessionID, protocol.RemovedByUser); err != nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleComplete(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Complete](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleComplete(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.Complete) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	if _, ok := c.srv.cfg.Store.Get(p.SessionID); !ok {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	c.srv.CompleteSession(p.SessionID)
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleSubscribe(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Subscribe](c, env)
-	if !ok || p.SessionID == "" || !c.validSessionID(env, p.SessionID) {
-		return
+func handleSubscribe(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeIntent[protocol.Subscribe](env)
+	if err != nil || p.SessionID == "" {
+		return outcome{}, err // no session: board-wide events only, nothing to do
+	}
+	if err := checkSessionID(p.SessionID); err != nil {
+		return outcome{}, err
 	}
 	srv := c.srv
 	// Only sessions the store knows get a replay or a sink: an unknown id
 	// would otherwise read whatever transcript sits at that path and leave
 	// a sink nobody ever drops.
 	if _, ok := srv.cfg.Store.Get(p.SessionID); !ok {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	var preambleBytes int
 	if p.Replay {
@@ -127,50 +144,51 @@ func handleSubscribe(c *client, env protocol.Envelope) {
 			SessionID: p.SessionID, Bytes: b,
 		})
 	}))
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleResize(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Resize](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleResize(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.Resize) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	if p.Cols == 0 || p.Rows == 0 {
-		return
+		return outcome{sessionID: p.SessionID}, nil // ignored, as documented
 	}
 	if err := c.srv.Resize(p.SessionID, p.Cols, p.Rows); err != nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleSendInput(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.SendInput](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.SendInput) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	ch := c.srv.InputChannel(p.SessionID)
 	if ch == nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not running")
 	}
 	select {
 	case ch <- p.Bytes:
 		if !p.Synthetic {
 			c.srv.cancelRetireOnInput(p.SessionID, "SendInput")
 		}
+		return outcome{sessionID: p.SessionID}, nil
 	default:
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "input buffer full")
 	}
 }
 
-func handleReply(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Reply](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleReply(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.Reply) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	ch := c.srv.InputChannel(p.SessionID)
 	if ch == nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not running")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not running")
 	}
 	// Text, then Enter as a separate write. Terminals send Enter as
 	// \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
@@ -179,203 +197,198 @@ func handleReply(c *client, env protocol.Envelope) {
 	select {
 	case ch <- []byte(p.Text):
 	default:
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "input buffer full")
 	}
 	time.Sleep(replySubmitDelay)
 	select {
 	case ch <- []byte{'\r'}:
 		slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
 		c.srv.cancelRetireOnInput(p.SessionID, "Reply")
+		return outcome{sessionID: p.SessionID}, nil
 	default:
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "input buffer full")
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "input buffer full")
 	}
 }
 
-func handleRename(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Rename](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleRename(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.Rename) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
-	p, err := normalizeRename(p)
+	p, err = normalizeRename(p)
 	if err == nil {
 		err = validateRename(p)
 	}
 	if err != nil {
 		slog.Warn("server: rename rejected", "session", p.SessionID, "slug", p.Slug, "reason", err, "req_id", env.ID)
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
 	}
 	store := c.srv.cfg.Store
 	sess, ok := store.Get(p.SessionID)
 	if !ok {
 		slog.Warn("server: rename rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	if err := store.UpdateRename(p.SessionID, p.Slug, p.Title); err != nil {
 		var taken *state.SlugTakenError
 		if errors.As(err, &taken) {
 			slog.Warn("server: rename rejected, slug taken", "session", p.SessionID,
 				"slug", p.Slug, "holder", taken.ShortID, "req_id", env.ID)
-			c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-			return
+			return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
 		}
 		slog.Warn("server: rename failed", "session", p.SessionID, "err", err, "req_id", env.ID)
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	if err := state.WriteMeta(c.srv.cfg.StateDir, sess); err != nil {
 		slog.Warn("server: write meta after rename", "session", p.SessionID, "err", err)
 	}
 	slog.Info("server: rename", "session", p.SessionID, "slug", p.Slug, "title_len", len(p.Title), "req_id", env.ID)
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleSetSessionName(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.SetSessionName](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleSetSessionName(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.SetSessionName) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	name, err := protocol.NormalizeSessionName(p.Name)
 	if err != nil {
 		slog.Warn("server: set_name rejected", "session", p.SessionID, "reason", err, "req_id", env.ID)
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
 	}
 	sess, ok := c.srv.cfg.Store.Get(p.SessionID)
 	if !ok {
 		slog.Warn("server: set_name rejected", "session", p.SessionID, "reason", "unknown session", "req_id", env.ID)
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	changed, err := c.srv.cfg.Store.SetName(p.SessionID, name)
 	if err != nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
-	// Broadcast even when unchanged: it is the confirmation clients wait on.
+	// Broadcast even when unchanged: clients older than acks wait on it as
+	// the confirmation.
 	c.srv.commit(sess, map[string]any{"name": name})
 	slog.Info("server: set_name", "session", p.SessionID, "cleared", name == "",
 		"runes", len([]rune(name)), "changed", changed, "req_id", env.ID)
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleRetire(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Retire](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleRetire(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.Retire) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	srv := c.srv
 	at, ttl, err := srv.retireDeadline(p.TTLSeconds)
 	if err != nil {
 		slog.Warn("retire: invalid ttl", "session", p.SessionID, "ttl_s", p.TTLSeconds, "err", err)
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
 	}
 	sess, ok := srv.cfg.Store.Get(p.SessionID)
 	if !ok {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	markedAt := srv.now().Round(0).UTC()
 	changed, err := srv.cfg.Store.SetRetire(p.SessionID, at, markedAt)
 	if err != nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	if !changed {
 		slog.Debug("retire: already marked; no-op", "session", p.SessionID)
-		return
+		return outcome{sessionID: p.SessionID}, nil
 	}
 	srv.commit(sess, map[string]any{"retire_at": at, "retired_at": markedAt})
 	sum := sess.Summary()
 	slog.Info("retire: marked", "session", p.SessionID, "slug", sum.Slug, "state", sum.State,
 		"ttl_s", int64(ttl.Seconds()), "retire_at", at, "retired_at", markedAt)
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleUnretire(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.Unretire](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleUnretire(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.Unretire) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	store := c.srv.cfg.Store
 	sess, ok := store.Get(p.SessionID)
 	if !ok {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	remaining := time.Until(sess.Summary().RetireAt)
 	changed, err := store.ClearRetire(p.SessionID)
 	if errors.Is(err, state.ErrReaping) {
 		slog.Warn("retire: unmark rejected; clearing", "session", p.SessionID)
-		c.sendError(env.ID, protocol.ErrCodeBadState, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeBadState, err)
 	}
 	if err != nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	if changed {
 		c.srv.commit(sess, map[string]any{"retire_at": nil, "retired_at": nil})
 		slog.Info("retire: unmarked", "session", p.SessionID, "cause", "user", "remaining_s", int64(remaining.Seconds()))
 	}
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-func handleSetSessionFleet(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.SetSessionFleet](c, env)
-	if !ok || !c.validSessionID(env, p.SessionID) {
-		return
+func handleSetSessionFleet(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeSessionIntent(env, func(p protocol.SetSessionFleet) string { return p.SessionID })
+	if err != nil {
+		return outcome{}, err
 	}
 	fleet, err := sanitizeField("fleet", p.Fleet, protocol.MaxFleetRunes)
 	if err != nil {
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
 	}
 	p.Fleet = fleet
 	store := c.srv.cfg.Store
 	sess, ok := store.Get(p.SessionID)
 	if !ok {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, "session not found")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeUnknownSession, "session not found")
 	}
 	if err := store.SetFleet(p.SessionID, p.Fleet); err != nil {
-		c.sendError(env.ID, protocol.ErrCodeUnknownSession, err.Error())
-		return
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	if err := state.WriteMeta(c.srv.cfg.StateDir, sess); err != nil {
 		slog.Warn("server: write meta after fleet update", "session", p.SessionID, "err", err)
 	}
 	slog.Info("server: fleet updated", "session", p.SessionID, "fleet", p.Fleet)
+	return outcome{sessionID: p.SessionID}, nil
 }
 
-// handleFocusFilter accepts the cosmetic FocusFilter intent silently.
-func handleFocusFilter(*client, protocol.Envelope) {}
+// handleFocusFilter accepts the cosmetic FocusFilter intent; nothing is
+// stored.
+func handleFocusFilter(*client, protocol.Envelope) (outcome, error) { return outcome{}, nil }
 
-func handleSetMaxConcurrent(c *client, env protocol.Envelope) {
-	p, ok := decodeIntent[protocol.SetMaxConcurrent](c, env)
-	if !ok {
-		return
+func handleSetMaxConcurrent(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeIntent[protocol.SetMaxConcurrent](env)
+	if err != nil {
+		return outcome{}, err
 	}
 	c.srv.SetMaxConcurrentSessions(p.N)
+	return outcome{}, nil
 }
 
 // Shutdown and Reload are the socket forms of SIGTERM and SIGHUP, for
 // platforms (Windows) that cannot signal the daemon.
 
-func handleShutdown(c *client, env protocol.Envelope) {
+// handleShutdown acks before it starts the shutdown, which may close this
+// connection before the Ack is written (best effort, as documented).
+func handleShutdown(c *client, env protocol.Envelope) (outcome, error) {
 	if c.srv.cfg.OnShutdown == nil {
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeBadIntent, "intent not implemented")
 	}
 	slog.Info("server: shutdown requested by client")
+	c.ack(env, "")
 	c.srv.cfg.OnShutdown()
+	return outcome{replied: true}, nil
 }
 
-func handleReload(c *client, env protocol.Envelope) {
+func handleReload(c *client, env protocol.Envelope) (outcome, error) {
 	if c.srv.cfg.OnReload == nil {
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
-		return
+		return outcome{}, replyErrf(protocol.ErrCodeBadIntent, "intent not implemented")
 	}
 	if err := c.srv.cfg.OnReload(); err != nil {
-		c.sendError(env.ID, protocol.ErrCodeBadIntent, err.Error())
+		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
 	}
+	return outcome{}, nil
 }

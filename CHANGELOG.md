@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Protocol: the daemon answers every intent that carries an envelope `id`
+  with exactly one reply: its specific event (`Hello` gets `Snapshot`),
+  an `Error`, or the new `Ack` event. Intents without an `id` behave as
+  before. `Snapshot` carries the daemon's version (`daemon_version`) and
+  `Hello` the client's. See `docs/protocol.md`.
 - Hardening effort under way: a staged pass over crash, hang, data-loss and
   security findings from a full code audit. Entries for each fix land here.
 - `make lint-windows`, `make cover`, `make cover-check`, `make fuzz` and
