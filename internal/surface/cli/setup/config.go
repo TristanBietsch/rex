@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
@@ -36,9 +37,8 @@ func RunConfig(args []string) error {
 }
 
 func loadStore() (*settings.Store, string, error) {
-	path := settings.DefaultPath()
-	s := settings.NewStore()
-	if err := s.Load(path); err != nil {
+	s, path, err := settings.LoadDefault()
+	if err != nil {
 		return nil, path, err
 	}
 	return s, path, nil
@@ -144,8 +144,10 @@ func configReset(args []string) error {
 
 func configEdit(args []string) error {
 	_ = args
-	home, _ := os.UserHomeDir()
-	path := filepath.Join(home, ".config", "rex", "init.lua")
+	path, err := paths.LuaInitFile()
+	if err != nil {
+		return core.NewExitError(core.ExitGeneric, err.Error())
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}

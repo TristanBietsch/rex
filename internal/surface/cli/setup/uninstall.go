@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
@@ -39,18 +40,23 @@ type uninstallDeps struct {
 	now         func() time.Time // names profile backups
 }
 
-// defaultUninstallDeps wires RunUninstall to the real system.
-func defaultUninstallDeps() uninstallDeps {
+// defaultUninstallDeps wires RunUninstall to the real system. It fails
+// when the daemon socket cannot be resolved (no home directory).
+func defaultUninstallDeps() (uninstallDeps, error) {
+	daemon, err := defaultDaemonControl()
+	if err != nil {
+		return uninstallDeps{}, err
+	}
 	return uninstallDeps{
 		out:        os.Stdout,
 		errOut:     os.Stderr,
 		stdin:      os.Stdin,
-		home:       os.UserHomeDir,
+		home:       paths.Home,
 		executable: os.Executable,
 		lookDaemon: func() string { p, _ := exec.LookPath("rex-daemon"); return p },
-		daemon:     defaultDaemonControl(),
+		daemon:     daemon,
 		now:        time.Now,
-	}
+	}, nil
 }
 
 // uninstallPlan is everything one uninstall run may remove.
@@ -72,7 +78,11 @@ type uninstallPlan struct {
 // session state and would recreate what -wipe-state deletes. If the daemon
 // will not stop, uninstall refuses unless -force is given.
 func RunUninstall(args []string) error {
-	return runUninstall(args, defaultUninstallDeps())
+	d, err := defaultUninstallDeps()
+	if err != nil {
+		return err
+	}
+	return runUninstall(args, d)
 }
 
 func runUninstall(args []string, d uninstallDeps) error {
@@ -143,12 +153,13 @@ func newUninstallPlan(opts uninstallOpts, d uninstallDeps) (*uninstallPlan, erro
 	if err != nil {
 		return nil, core.NewExitError(core.ExitGeneric, "cannot determine home directory: "+err.Error())
 	}
+	l := paths.ForHome(home)
 	p := &uninstallPlan{
 		opts:        opts,
 		home:        home,
-		stateDir:    filepath.Join(home, ".local", "state", "rex"),
-		sessionsDir: filepath.Join(home, ".local", "share", "rex", "sessions"),
-		configDir:   filepath.Join(home, ".config", "rex"),
+		stateDir:    l.LogDir,
+		sessionsDir: l.SessionsDir,
+		configDir:   l.ConfigDir,
 		profiles:    profileFiles(home),
 	}
 	if !opts.binaries {

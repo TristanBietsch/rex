@@ -6,29 +6,28 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // RunStats prints lifetime usage statistics across all known sessions.
 func RunStats(args []string) error {
 	fs := flag.NewFlagSet("stats", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	asJSON := fs.Bool("json", false, "output JSON")
 	showAll := fs.Bool("all", false, "include zero-usage models")
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
 
-	sessions, fromDaemon := loadSessionsForStats(*socket)
+	sessions, fromDaemon := loadSessionsForStats(socket)
 	slog.Debug("stats: loaded sessions", "count", len(sessions), "from_daemon", fromDaemon)
 
 	agg := aggregateSessions(sessions)
@@ -41,8 +40,8 @@ func RunStats(args []string) error {
 
 // loadSessionsForStats tries the daemon first, then falls back to on-disk state.
 // Returns the sessions and a bool indicating whether the daemon was used.
-func loadSessionsForStats(socket string) ([]protocol.SessionSummary, bool) {
-	c, err := client.Dial(socket)
+func loadSessionsForStats(socket *core.SocketFlag) ([]protocol.SessionSummary, bool) {
+	c, err := socket.Dial()
 	if err == nil {
 		defer c.Close()
 		snap, err := c.Hello("rex-cli")
@@ -55,7 +54,11 @@ func loadSessionsForStats(socket string) ([]protocol.SessionSummary, bool) {
 		slog.Debug("stats: daemon unreachable, falling back to disk", "err", err)
 	}
 
-	root := defaultShareDir()
+	root, err := paths.DataDir()
+	if err != nil {
+		slog.Warn("stats: no session data dir", "err", err)
+		return nil, false
+	}
 	sessions, err := state.LoadAll(root)
 	if err != nil {
 		slog.Warn("stats: LoadAll failed", "root", root, "err", err)
@@ -66,11 +69,6 @@ func loadSessionsForStats(socket string) ([]protocol.SessionSummary, bool) {
 		summaries = append(summaries, s.Summary())
 	}
 	return summaries, false
-}
-
-func defaultShareDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "rex")
 }
 
 // statsModelRow holds per-model aggregated data.

@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -15,15 +14,15 @@ import (
 // Useful for shell prompts as an ambient indicator.
 func RunStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	asJSON := fs.Bool("json", false, "output JSON")
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")

@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
@@ -73,13 +74,13 @@ var (
 func RunDoctor(args []string) error {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "output JSON")
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	verbose := fs.Bool("verbose", false, "include INFO-level rows")
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
 
-	checks := runAllChecks(*socket)
+	checks := runAllChecks(socket)
 
 	if *asJSON {
 		return printDoctorJSON(checks)
@@ -88,15 +89,13 @@ func RunDoctor(args []string) error {
 }
 
 // runAllChecks executes every diagnostic check and returns results.
-func runAllChecks(socket string) []checkResult {
+func runAllChecks(socket *core.SocketFlag) []checkResult {
 	var results []checkResult
 
 	results = append(results, checkRexBinary())
 	results = append(results, checkDaemonBinary())
 	results = append(results, checkDaemonReachable(socket))
-	results = append(results, checkDir("config dir", configDirPath()))
-	results = append(results, checkDir("state dir", stateDirPath()))
-	results = append(results, checkDir("share dir", shareDirPath()))
+	results = append(results, checkRexDirs()...)
 	results = append(results, checkSettingsLoad())
 	results = append(results, checkToolBinaries()...)
 	results = append(results, checkGoVersion())
@@ -142,7 +141,11 @@ func checkDaemonBinary() checkResult {
 }
 
 // checkDaemonReachable checks that the daemon socket is answering.
-func checkDaemonReachable(socket string) checkResult {
+func checkDaemonReachable(flag *core.SocketFlag) checkResult {
+	socket, err := flag.Path()
+	if err != nil {
+		return checkResult{"daemon reachable", checkFail, err.Error()}
+	}
 	if daemonctl.Reachable(socket) {
 		return checkResult{"daemon reachable", checkPass, socket}
 	}
@@ -169,11 +172,14 @@ func checkDir(name, dir string) checkResult {
 
 // checkSettingsLoad attempts to load settings from the default path.
 func checkSettingsLoad() checkResult {
-	st := settings.NewStore()
-	if err := st.Load(settings.DefaultPath()); err != nil {
+	_, path, err := settings.LoadDefault()
+	switch {
+	case path == "":
+		return checkResult{"settings load", checkFail, err.Error()}
+	case err != nil:
 		return checkResult{"settings load", checkWarn, fmt.Sprintf("parse error: %v", err)}
 	}
-	return checkResult{"settings load", checkPass, settings.DefaultPath()}
+	return checkResult{"settings load", checkPass, path}
 }
 
 // checkToolBinaries checks each known tool binary via PATH lookup.
@@ -196,22 +202,19 @@ func checkGoVersion() checkResult {
 	return checkResult{"go version", checkInfo, runtime.Version()}
 }
 
-// configDirPath returns ~/.config/rex/.
-func configDirPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex")
-}
-
-// stateDirPath returns ~/.local/state/rex/.
-func stateDirPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "state", "rex")
-}
-
-// shareDirPath returns ~/.local/share/rex/sessions/.
-func shareDirPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "rex", "sessions")
+// checkRexDirs checks rex's config, state and session dirs (see package
+// paths). Without a home directory they cannot be located, which fails the
+// check instead of testing dirs relative to the working directory.
+func checkRexDirs() []checkResult {
+	l, err := paths.Resolve()
+	if err != nil {
+		return []checkResult{{"rex dirs", checkFail, err.Error()}}
+	}
+	return []checkResult{
+		checkDir("config dir", l.ConfigDir),
+		checkDir("state dir", l.LogDir),
+		checkDir("share dir", l.SessionsDir),
+	}
 }
 
 // printDoctorJSON prints all checks as a single JSON line.

@@ -5,13 +5,12 @@ import (
 	"fmt"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunArchive marks a completed session as archived by prefixing its Title.
 func RunArchive(args []string) error {
 	fs := flag.NewFlagSet("archive", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
@@ -20,9 +19,9 @@ func RunArchive(args []string) error {
 	}
 	sel := fs.Arg(0)
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, sel)

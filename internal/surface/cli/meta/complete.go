@@ -4,14 +4,13 @@ import (
 	"flag"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunComplete cleanly terminates a running session and marks it done.
 // Distinct from rm (which deletes) and archive (which renames).
 func RunComplete(args []string) error {
 	fs := flag.NewFlagSet("complete", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
@@ -20,9 +19,9 @@ func RunComplete(args []string) error {
 	}
 	sel := fs.Arg(0)
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, sel)

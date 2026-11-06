@@ -22,7 +22,7 @@ import (
 //	show <fleet>              list sessions in a fleet
 func RunFleet(args []string) error {
 	fs := flag.NewFlagSet("fleet", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
@@ -30,25 +30,29 @@ func RunFleet(args []string) error {
 	if len(sub) == 0 {
 		return core.NewExitError(core.ExitInvalidArgs, "fleet: subcommand required (ls|set|unset|show)")
 	}
+	sock, err := socket.Path()
+	if err != nil {
+		return err
+	}
 
 	switch sub[0] {
 	case "ls":
-		return runFleetLS(*socket, os.Stdout)
+		return runFleetLS(sock, os.Stdout)
 	case "set":
 		if len(sub) < 3 {
 			return core.NewExitError(core.ExitInvalidArgs, "fleet set: usage: fleet set <selector> <fleet>")
 		}
-		return runFleetSet(*socket, sub[1], sub[2])
+		return runFleetSet(sock, sub[1], sub[2])
 	case "unset":
 		if len(sub) < 2 {
 			return core.NewExitError(core.ExitInvalidArgs, "fleet unset: usage: fleet unset <selector>")
 		}
-		return runFleetUnset(*socket, sub[1])
+		return runFleetUnset(sock, sub[1])
 	case "show":
 		if len(sub) < 2 {
 			return core.NewExitError(core.ExitInvalidArgs, "fleet show: usage: fleet show <fleet>")
 		}
-		return runFleetShow(*socket, sub[1], os.Stdout)
+		return runFleetShow(sock, sub[1], os.Stdout)
 	default:
 		return core.NewExitError(core.ExitInvalidArgs, "fleet: unknown subcommand: "+sub[0])
 	}

@@ -7,13 +7,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // nameArgs is the parsed form of `rex name`.
 type nameArgs struct {
-	socket string
+	socket *core.SocketFlag
 	sel    string
 	name   string
 	clear  bool
@@ -22,7 +21,7 @@ type nameArgs struct {
 
 func parseNameArgs(args []string) (nameArgs, error) {
 	fs := flag.NewFlagSet("name", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	clear := fs.Bool("clear", false, "clear the name (board shows the slug)")
 	if err := fs.Parse(args); err != nil {
 		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, err.Error())
@@ -30,7 +29,7 @@ func parseNameArgs(args []string) (nameArgs, error) {
 	if fs.NArg() < 1 {
 		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, "name: <selector> [text…] | -clear <selector>")
 	}
-	a := nameArgs{socket: *socket, sel: fs.Arg(0), clear: *clear}
+	a := nameArgs{socket: socket, sel: fs.Arg(0), clear: *clear}
 	text := strings.Join(fs.Args()[1:], " ")
 	switch {
 	case a.clear && text != "":
@@ -58,9 +57,9 @@ func RunName(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := client.Dial(a.socket)
+	c, err := a.socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, a.sel)

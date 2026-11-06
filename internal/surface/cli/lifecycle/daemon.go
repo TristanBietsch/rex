@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
@@ -22,12 +23,19 @@ func RunDaemon(args []string) error {
 	switch args[0] {
 	case "start":
 		return daemonStart(args[1:])
-	case "stop":
-		return defaultDaemonCtl().stop()
-	case "status":
-		return defaultDaemonCtl().status()
-	case "restart":
-		return defaultDaemonCtl().restart()
+	case "stop", "status", "restart":
+		c, err := defaultDaemonCtl()
+		if err != nil {
+			return err
+		}
+		switch args[0] {
+		case "stop":
+			return c.stop()
+		case "status":
+			return c.status()
+		default:
+			return c.restart()
+		}
 	case "logs":
 		return daemonLogs(args[1:])
 	default:
@@ -37,19 +45,32 @@ func RunDaemon(args []string) error {
 
 func daemonStart(args []string) error {
 	_ = args
-	return defaultDaemonStarter().run()
+	s, err := defaultDaemonStarter()
+	if err != nil {
+		return err
+	}
+	return s.run()
 }
 
 // defaultDaemonStarter wires daemonStarter to the real daemon on the
-// default socket.
-func defaultDaemonStarter() daemonStarter {
+// default socket, logging to paths.DaemonLog. It fails when either path
+// cannot be resolved (no home directory).
+func defaultDaemonStarter() (daemonStarter, error) {
+	socket, err := core.DefaultSocket()
+	if err != nil {
+		return daemonStarter{}, err
+	}
+	logPath, err := paths.DaemonLog()
+	if err != nil {
+		return daemonStarter{}, core.NewExitError(core.ExitGeneric, err.Error())
+	}
 	return daemonStarter{
-		socket:    core.DefaultSocket(),
-		logPath:   daemonctl.LogPath(),
+		socket:    socket,
+		logPath:   logPath,
 		reachable: daemonctl.Reachable,
 		start:     daemonctl.Start,
 		out:       os.Stdout,
-	}
+	}, nil
 }
 
 // daemonStarter is `rex daemon start`. reachable and start are
@@ -120,17 +141,22 @@ type daemonCtl struct {
 	out, errOut io.Writer
 }
 
-// defaultDaemonCtl targets the daemon on the default socket.
-func defaultDaemonCtl() daemonCtl {
+// defaultDaemonCtl targets the daemon on the default socket. It fails when
+// the socket or daemon log cannot be resolved (no home directory).
+func defaultDaemonCtl() (daemonCtl, error) {
+	starter, err := defaultDaemonStarter()
+	if err != nil {
+		return daemonCtl{}, err
+	}
 	return daemonCtl{
-		socket:    core.DefaultSocket(),
+		socket:    starter.socket,
 		reachable: daemonctl.Reachable,
 		shutdown:  daemonctl.ShutdownDaemon,
 		findPID:   daemonctl.FindPID,
-		starter:   defaultDaemonStarter(),
+		starter:   starter,
 		out:       os.Stdout,
 		errOut:    os.Stderr,
-	}
+	}, nil
 }
 
 // pid returns the daemon's PID for display, or "unknown" when the lookup
@@ -202,7 +228,11 @@ func daemonLogs(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
-	if err := tailFile(os.Stdout, daemonctl.LogPath(), logTailLines, *follow); err != nil {
+	logPath, err := paths.DaemonLog()
+	if err != nil {
+		return core.NewExitError(core.ExitGeneric, err.Error())
+	}
+	if err := tailFile(os.Stdout, logPath, logTailLines, *follow); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	return nil

@@ -12,9 +12,12 @@ import (
 func RunTUI() error {
 	rexlog.Init("tui")
 	defer rexlog.Close()
-	socket := core.DefaultSocket()
+	socket, err := core.DefaultSocket()
+	if err != nil {
+		return err
+	}
 	slog.Info("tui: starting", "socket", socket)
-	err := tui.Run(socket)
+	err = tui.Run(socket)
 	if err != nil {
 		slog.Error("tui: exited with error", "err", err)
 	} else {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
@@ -39,18 +40,23 @@ type updateDeps struct {
 	installedVersion func() string
 }
 
-// defaultUpdateDeps wires RunUpdate to the real system.
-func defaultUpdateDeps() updateDeps {
+// defaultUpdateDeps wires RunUpdate to the real system. It fails when the
+// daemon socket cannot be resolved (no home directory).
+func defaultUpdateDeps() (updateDeps, error) {
+	daemon, err := defaultDaemonControl()
+	if err != nil {
+		return updateDeps{}, err
+	}
 	return updateDeps{
 		out:              os.Stdout,
 		errOut:           os.Stderr,
 		stdin:            os.Stdin,
 		detectMode:       detectInstallMode,
-		daemon:           defaultDaemonControl(),
+		daemon:           daemon,
 		goInstall:        upgradeGoInstall,
 		fromSource:       upgradeFromSource,
 		installedVersion: readInstalledVersion,
-	}
+	}, nil
 }
 
 // RunUpdate upgrades the rex and rex-daemon binaries in place.
@@ -61,7 +67,11 @@ func defaultUpdateDeps() updateDeps {
 // sessions. The daemon is stopped, and its socket confirmed closed, only
 // right before the upgrade itself.
 func RunUpdate(args []string) error {
-	return runUpdate(args, defaultUpdateDeps())
+	d, err := defaultUpdateDeps()
+	if err != nil {
+		return err
+	}
+	return runUpdate(args, d)
 }
 
 func runUpdate(args []string, d updateDeps) error {
@@ -217,8 +227,14 @@ func detectInstallMode() (installMode, string, error) {
 	if err != nil {
 		real = exe
 	}
-	home, _ := os.UserHomeDir()
-	return classifyInstall(real, home, os.Getenv("GOPATH")), real, nil
+	gopath := os.Getenv("GOPATH")
+	home, err := paths.Home()
+	if err != nil && gopath == "" {
+		// ~/go/bin cannot be located; a relative "go/bin" would match
+		// nothing meaningful.
+		return 0, "", err
+	}
+	return classifyInstall(real, home, gopath), real, nil
 }
 
 // classifyInstall reports go-install mode when exe is under $GOPATH/bin

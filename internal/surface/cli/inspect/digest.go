@@ -7,13 +7,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -285,19 +285,10 @@ func parseDigestRange(dateFlag, sinceFlag string) (digestRange, error) {
 	return digestRange{start: today, end: today.AddDate(0, 0, 1)}, nil
 }
 
-// persistRoot returns ~/.local/share/rex/.
-func persistRoot() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join("/tmp", "rex")
-	}
-	return filepath.Join(home, ".local", "share", "rex")
-}
-
 // RunDigest prints a daily summary of sessions.
 func RunDigest(args []string) error {
 	fs := flag.NewFlagSet("digest", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	dateFlag := fs.String("date", "", "specific day: YYYY-MM-DD or 'yesterday'")
 	sinceFlag := fs.String("since", "", "relative window: 7d or 24h")
 	asJSON := fs.Bool("json", false, "emit JSON")
@@ -316,7 +307,11 @@ func RunDigest(args []string) error {
 	var liveSessions []protocol.SessionSummary
 	daemonDown := false
 
-	c, dialErr := client.Dial(*socket)
+	var c *client.Client
+	sock, dialErr := socket.Path()
+	if dialErr == nil {
+		c, dialErr = client.Dial(sock)
+	}
 	if dialErr != nil {
 		slog.Info("digest: daemon unreachable, falling back to disk", "err", dialErr)
 		daemonDown = true
@@ -333,8 +328,11 @@ func RunDigest(args []string) error {
 	}
 
 	// --- load from disk ---
-	root := persistRoot()
-	diskSessions, diskErr := state.LoadAll(root)
+	var diskSessions []*state.Session
+	root, diskErr := paths.DataDir()
+	if diskErr == nil {
+		diskSessions, diskErr = state.LoadAll(root)
+	}
 	if diskErr != nil {
 		slog.Warn("digest: failed to load disk sessions", "err", diskErr)
 		// non-fatal — continue with whatever we have

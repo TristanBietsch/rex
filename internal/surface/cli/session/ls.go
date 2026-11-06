@@ -5,14 +5,13 @@ import (
 	"os"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // RunLs prints session table or JSONL.
 func RunLs(args []string) error {
 	fs := flag.NewFlagSet("ls", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	stateFilter := fs.String("state", "", "filter by state")
 	toolFilter := fs.String("tool", "", "filter by tool id")
 	modelFilter := fs.String("model", "", "filter by model id")
@@ -25,9 +24,9 @@ func RunLs(args []string) error {
 	_ = showArchived
 	_ = short
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")

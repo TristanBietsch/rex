@@ -15,7 +15,7 @@ import (
 // the visual layout without launching the interactive TUI.
 func RunRender(args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	widthFlag := fs.String("w", "120", "render width")
 	heightFlag := fs.String("h", "30", "render height")
 	if err := fs.Parse(args); err != nil {
@@ -24,7 +24,11 @@ func RunRender(args []string) error {
 	w, _ := strconv.Atoi(*widthFlag)
 	h, _ := strconv.Atoi(*heightFlag)
 
-	c, err := client.Dial(*socket)
+	sock, err := socket.Path()
+	if err != nil {
+		return err
+	}
+	c, err := client.Dial(sock)
 	if err != nil {
 		return fmt.Errorf("dial daemon: %w", err)
 	}

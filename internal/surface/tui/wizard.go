@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
-	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )

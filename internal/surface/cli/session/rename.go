@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -14,7 +13,7 @@ import (
 // a rejection (slug already in use, bad format) reaches the user.
 func RunRename(args []string) error {
 	fs := flag.NewFlagSet("rename", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
@@ -27,9 +26,9 @@ func RunRename(args []string) error {
 		return core.NewExitError(core.ExitInvalidArgs, "rename: "+err.Error())
 	}
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, sel)

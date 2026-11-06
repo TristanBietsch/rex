@@ -7,14 +7,12 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // defaultRetireAfter reads retire_after_hours from config.yaml (the same
 // setting the TUI uses), falling back to 7 days.
 func defaultRetireAfter() time.Duration {
-	st := settings.NewStore()
-	_ = st.Load(settings.DefaultPath())
+	st, _, _ := settings.LoadDefault()
 	if h, ok := st.Get("retire_after_hours").(int); ok && h > 0 {
 		return time.Duration(h) * time.Hour
 	}
@@ -28,7 +26,7 @@ func defaultRetireAfter() time.Duration {
 // deadline is cleared once it settles.
 func RunDone(args []string) error {
 	fs := flag.NewFlagSet("done", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	after := fs.Duration("after", 0, "clear after this long (e.g. 2h, 72h); default retire_after_hours")
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
@@ -43,9 +41,9 @@ func RunDone(args []string) error {
 	if ttl < 10*time.Second {
 		return core.NewExitError(core.ExitInvalidArgs, "done: -after must be at least 10s")
 	}
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, fs.Arg(0))
@@ -70,16 +68,16 @@ func RunDone(args []string) error {
 // RunUndone cancels a pending `rex done`.
 func RunUndone(args []string) error {
 	fs := flag.NewFlagSet("undone", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
 	if fs.NArg() != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "undone: <selector>")
 	}
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, fs.Arg(0))

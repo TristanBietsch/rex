@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
@@ -26,8 +27,8 @@ func RunSetup(args []string) error {
 	model := fs.String("model", "", "override default model id")
 	effort := fs.String("effort", "", "override default effort")
 	noShell := fs.Bool("no-shell", false, "skip shell integration")
-	configPath := fs.String("config", defaultConfigPath(), "path to config.yaml")
-	socket := fs.String("socket", core.DefaultSocket(), "daemon socket path")
+	configPath := fs.String("config", "", "path to config.yaml (default ~/.config/rex/config.yaml)")
+	socketFlag := core.AddSocketFlag(fs)
 	force := fs.Bool("force", false, "overwrite existing config without prompting")
 
 	if err := fs.Parse(args); err != nil {
@@ -43,15 +44,27 @@ func RunSetup(args []string) error {
 	}
 	doYes := *yes || shortY
 
+	if *configPath == "" {
+		path, err := paths.ConfigFile()
+		if err != nil {
+			return core.NewExitError(core.ExitGeneric, err.Error()+"; pass -config")
+		}
+		*configPath = path
+	}
+	socket, err := socketFlag.Path()
+	if err != nil {
+		return err
+	}
+
 	rexlog.Init("setup")
 	defer rexlog.Close()
 	slog.Info("setup: started",
 		"preview", *preview, "yes", doYes,
 		"tool", *tool, "model", *model, "effort", *effort,
-		"no_shell", *noShell, "config", *configPath, "socket", *socket)
+		"no_shell", *noShell, "config", *configPath, "socket", socket)
 
 	if *preview {
-		printPreview(*configPath, *socket, *tool, *model, *effort, *noShell)
+		printPreview(*configPath, socket, *tool, *model, *effort, *noShell)
 		return nil
 	}
 
@@ -63,15 +76,10 @@ func RunSetup(args []string) error {
 					fmt.Sprintf("config already exists at %s — rerun with --force to overwrite", *configPath))
 			}
 		}
-		return tui.ApplyDefaultsNonInteractive(*configPath, *socket, *tool, *model, *effort, *noShell)
+		return tui.ApplyDefaultsNonInteractive(*configPath, socket, *tool, *model, *effort, *noShell)
 	}
 
-	return tui.RunSetupWizard(*configPath, *socket)
-}
-
-func defaultConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "rex", "config.yaml")
+	return tui.RunSetupWizard(*configPath, socket)
 }
 
 // ── Preview renderer (cli-side, uses cli lipgloss palette) ───────────────────

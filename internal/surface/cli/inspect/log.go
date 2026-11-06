@@ -8,17 +8,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunLog prints (or tails) the transcript for a session by reading the
 // transcript file directly from disk.
 func RunLog(args []string) error {
 	fs := flag.NewFlagSet("log", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
-	stateDir := fs.String("state-dir", daemonctl.DefaultStateDir(), "state dir (rarely needed)")
+	socket := core.AddSocketFlag(fs)
+	stateDir := fs.String("state-dir", "", "state dir (default ~/.local/share/rex; rarely needed)")
 	follow := fs.Bool("f", false, "follow the transcript (like tail -f)")
 	tailN := fs.Int("n", 0, "show only the last N lines (0 = all)")
 	asBytes := fs.Bool("bytes", false, "print raw bytes (including ANSI)")
@@ -30,9 +29,9 @@ func RunLog(args []string) error {
 	}
 	sel := fs.Arg(0)
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, sel)
@@ -40,7 +39,13 @@ func RunLog(args []string) error {
 		return err
 	}
 
-	path := filepath.Join(*stateDir, "sessions", sess.ID, "transcript.log")
+	root := *stateDir
+	if root == "" {
+		if root, err = paths.DataDir(); err != nil {
+			return core.NewExitError(core.ExitGeneric, err.Error()+"; pass -state-dir")
+		}
+	}
+	path := filepath.Join(root, "sessions", sess.ID, "transcript.log")
 	// -f runs until the process is interrupted; the default SIGINT handler
 	// ends it, so no cancellation is wired here.
 	if err := streamFile(context.Background(), path, os.Stdout, *follow, *tailN, *asBytes); err != nil {

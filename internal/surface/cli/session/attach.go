@@ -12,7 +12,6 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -43,7 +42,7 @@ var redrawKickTools = map[string]bool{
 // detach. Read-only mode forwards no input, but Ctrl+] still detaches.
 func RunAttach(args []string) error {
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	readOnly := fs.Bool("read-only", false, "attach as observer (no input forwarding; Ctrl+] detaches)")
 	noReplay := fs.Bool("no-replay", false, "skip transcript backlog on attach")
 	if err := fs.Parse(args); err != nil {
@@ -54,9 +53,9 @@ func RunAttach(args []string) error {
 	}
 	sel := fs.Arg(0)
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, sel)

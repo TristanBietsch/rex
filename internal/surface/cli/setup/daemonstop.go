@@ -36,15 +36,20 @@ type daemonControl struct {
 	interval  time.Duration
 }
 
-// defaultDaemonControl targets the daemon on the default socket.
-func defaultDaemonControl() daemonControl {
+// defaultDaemonControl targets the daemon on the default socket. It fails
+// when that socket cannot be resolved (no home directory).
+func defaultDaemonControl() (daemonControl, error) {
+	socket, err := core.DefaultSocket()
+	if err != nil {
+		return daemonControl{}, err
+	}
 	return daemonControl{
-		socket:    core.DefaultSocket(),
+		socket:    socket,
 		stop:      shutdownDaemon,
 		reachable: daemonctl.Reachable,
 		timeout:   daemonStopTimeout,
 		interval:  daemonctl.StartPollInterval,
-	}
+	}, nil
 }
 
 // shutdownDaemon is daemonctl.ShutdownDaemon without a caller context:

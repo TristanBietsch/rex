@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // RunWait blocks until a session reaches a target state.
 func RunWait(args []string) error {
 	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	until := fs.String("until", "done", "target state: working | needs_input | done | failed | any")
 	timeout := fs.Duration("timeout", 0, "max wait duration (0 = no timeout)")
 	if err := fs.Parse(args); err != nil {
@@ -25,9 +24,9 @@ func RunWait(args []string) error {
 	}
 	sel := fs.Arg(0)
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, sel)

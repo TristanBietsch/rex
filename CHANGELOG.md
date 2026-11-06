@@ -37,6 +37,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Paths: every rex path now comes from one package
+  (`internal/runtime/paths`, documented in `docs/paths.md`). File
+  locations are unchanged. An unset or relative `HOME` is now an error
+  that names the flag to pass (`-socket`, `-config`, `-state-dir`),
+  instead of reading and writing paths relative to the working directory
+  (or, for `rex digest`, a shared `/tmp/rex`). A relative
+  `XDG_RUNTIME_DIR` is ignored, as the XDG spec requires.
 - `.gitignore` no longer hides source files: bare `store_test.go`,
   `persist_test.go` and `test/` patterns silently ignored matching files
   anywhere in the tree.

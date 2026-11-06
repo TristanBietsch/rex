@@ -7,13 +7,12 @@ import (
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunReply sends a one-shot text reply (newline-terminated) to a session.
 func RunReply(args []string) error {
 	fs := flag.NewFlagSet("reply", flag.ContinueOnError)
-	socket := fs.String("socket", core.DefaultSocket(), "UDS path")
+	socket := core.AddSocketFlag(fs)
 	raw := fs.Bool("raw", false, "do not append newline")
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
@@ -34,9 +33,9 @@ func RunReply(args []string) error {
 		text = string(b)
 	}
 
-	c, err := client.Dial(*socket)
+	c, err := socket.Dial()
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, sel)

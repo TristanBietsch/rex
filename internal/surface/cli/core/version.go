@@ -1,5 +1,5 @@
 // Package core holds what every rex CLI subcommand shares: exit codes,
-// output helpers and session selectors.
+// output helpers, session selectors and the -socket flag.
 package core
 
 import (
