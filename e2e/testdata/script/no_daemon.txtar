@@ -2,9 +2,10 @@
 # (ExitDaemonUnreachable) and none of them starts a daemon. The harness
 # fails the script if anything answers on $SOCKET when it ends.
 
-# The dial error is wrapped twice ("dial <path>: dial unix <path>: ...").
+# The dial error names the socket once (F-04: it used to be wrapped twice,
+# "dial <path>: dial unix <path>: ...").
 exitcode 4 rex ls
-stderr '^rex: dial \S+/rex\.sock: dial unix \S+/rex\.sock: connect: no such file or directory$'
+stderr '^rex: dial unix \S+/rex\.sock: connect: no such file or directory$'
 ! stdout .
 
 exitcode 4 rex status

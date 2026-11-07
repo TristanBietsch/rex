@@ -14,11 +14,7 @@ func TestClient_CompleteWritesIntent(t *testing.T) {
 	defer clientConn.Close()
 	defer serverConn.Close()
 
-	c := &Client{
-		conn: clientConn,
-		r:    protocol.NewReader(clientConn),
-		w:    protocol.NewWriter(clientConn),
-	}
+	c := newClient(clientConn)
 
 	done := make(chan error, 1)
 	go func() { done <- c.Complete("sess-1") }()

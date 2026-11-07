@@ -1,13 +1,16 @@
 package client_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/testutil"
+	"github.com/tristanbietsch/rex/internal/version"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -139,4 +142,40 @@ func TestClient_SetMaxConcurrent(t *testing.T) {
 	_, err = c.Hello("test")
 	require.NoError(t, err)
 	require.NoError(t, c.SetMaxConcurrent(4))
+}
+
+// Against the real daemon: Do gets an Ack (NewSession's names the new
+// session, whose SessionAdded is already in the stream), a typed Error for
+// a rejected intent, and Hello reports the daemon's version.
+func TestDo_AgainstDaemon(t *testing.T) {
+	d := testutil.StartDaemon(t)
+	defer d.Close()
+	c := dialHello(t, d.Socket)
+	require.Equal(t, version.Version, c.DaemonVersion())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{
+		ToolID: "echo", ModelID: "short", Slug: "acked", CWD: d.StateDir,
+	})
+	require.NoError(t, err)
+	var a protocol.Ack
+	require.NoError(t, json.Unmarshal(env.Data, &a))
+	require.Equal(t, protocol.IntentNewSession, a.Intent)
+	require.Equal(t, a.SessionID, waitSessionAdded(t, c), "SessionAdded precedes the Ack")
+
+	_, err = c.Do(ctx, protocol.IntentRename, protocol.Rename{SessionID: "nope", Title: "t"})
+	var de *client.Error
+	require.True(t, errors.As(err, &de), "%v", err)
+	require.Equal(t, protocol.ErrCodeUnknownSession, de.Code)
+	require.Equal(t, protocol.IntentRename, de.Intent)
+
+	_, err = c.Do(ctx, protocol.IntentOpenSession, protocol.OpenSession{SessionID: a.SessionID})
+	require.True(t, errors.As(err, &de))
+	require.Contains(t, err.Error(), "does not support OpenSession")
+
+	env, err = c.Do(ctx, protocol.IntentFocusFilter, protocol.FocusFilter{ToolID: "all"})
+	require.NoError(t, err)
+	require.Equal(t, protocol.EventAck, env.Type)
 }

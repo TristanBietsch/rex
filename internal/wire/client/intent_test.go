@@ -25,7 +25,7 @@ func TestClient_SubscribeWritesIntent(t *testing.T) {
 	defer clientConn.Close()
 	defer serverConn.Close()
 
-	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+	c := newClient(clientConn)
 	go func() { require.NoError(t, c.Subscribe("sess-1")) }()
 
 	typ, data := readIntent(t, serverConn)
@@ -41,7 +41,7 @@ func TestClient_SubscribeReplayWritesIntent(t *testing.T) {
 	defer clientConn.Close()
 	defer serverConn.Close()
 
-	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+	c := newClient(clientConn)
 	go func() { require.NoError(t, c.SubscribeReplay("sess-2")) }()
 
 	typ, data := readIntent(t, serverConn)
@@ -58,7 +58,7 @@ func TestClient_NewSessionWritesIntent(t *testing.T) {
 	defer serverConn.Close()
 
 	req := protocol.NewSession{ToolID: "echo", ModelID: "short", Slug: "t", CWD: "/tmp"}
-	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+	c := newClient(clientConn)
 	go func() { require.NoError(t, c.NewSession(req)) }()
 
 	typ, data := readIntent(t, serverConn)
@@ -74,7 +74,7 @@ func TestClient_SendInputAndReplyWriteIntents(t *testing.T) {
 	defer clientConn.Close()
 	defer serverConn.Close()
 
-	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+	c := newClient(clientConn)
 
 	go func() { require.NoError(t, c.SendInput("s1", []byte("hi"))) }()
 	typ, data := readIntent(t, serverConn)
@@ -96,7 +96,7 @@ func TestClient_RenameDeleteResizeFleetMaxConcurrent(t *testing.T) {
 	defer clientConn.Close()
 	defer serverConn.Close()
 
-	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+	c := newClient(clientConn)
 
 	check := func(wantType string, decode func([]byte)) {
 		typ, data := readIntent(t, serverConn)
@@ -152,7 +152,7 @@ func TestClient_RenameCarriesRequestID(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	defer clientConn.Close()
 	defer serverConn.Close()
-	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+	c := newClient(clientConn)
 
 	go func() { require.NoError(t, c.Rename("id", "new", "", "cli-rename-abcd")) }()
 	env, err := protocol.NewReader(serverConn).Read()
@@ -165,7 +165,7 @@ func TestClient_DrainStopsWhenHandlerReturnsFalse(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	t.Cleanup(func() { _ = clientConn.Close() })
 
-	c := &Client{conn: clientConn, r: protocol.NewReader(clientConn), w: protocol.NewWriter(clientConn)}
+	c := newClient(clientConn)
 	w := protocol.NewWriter(serverConn)
 
 	done := make(chan error, 1)
