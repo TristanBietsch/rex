@@ -17,6 +17,10 @@ const StartTimeout = StartPollAttempts * StartPollInterval
 // bounded by the supervisor's 5s drain, so this leaves room for that.
 const StopTimeout = 10 * time.Second
 
+// ReloadTimeout bounds ReloadDaemon: the handshake plus the daemon
+// re-reading tools.yaml, which is a small local file.
+const ReloadTimeout = 5 * time.Second
+
 // intentWriteTimeout bounds writing one intent to a connected daemon.
 const intentWriteTimeout = 2 * time.Second
 

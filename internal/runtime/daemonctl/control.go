@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
+	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -61,11 +62,35 @@ func shutdownDaemon(ctx context.Context, socket string, timeout time.Duration) e
 	return waitSocketRemoved(ctx, socket, timeout)
 }
 
-// ReloadDaemon sends a Reload intent to the daemon listening on socket. The
-// daemon does not acknowledge it; a failed reload shows up in its log. It
-// returns ErrNotRunning when nothing answers on socket.
+// ReloadDaemon asks the daemon listening on socket to re-read tools.yaml and
+// waits, at most ReloadTimeout or until ctx ends, for its answer. A reload
+// the daemon rejects (a tools.yaml it cannot load) returns the daemon's
+// *client.Error, wrapped. A daemon that predates acks gets the Reload
+// fire-and-forget, as before, and nil is returned: its errors still only
+// reach its log. It returns ErrNotRunning when nothing answers on socket.
 func ReloadDaemon(ctx context.Context, socket string) error {
-	return sendIntent(ctx, socket, protocol.IntentReload)
+	ctx, cancel := context.WithTimeout(ctx, ReloadTimeout)
+	defer cancel()
+	dialCtx, cancelDial := context.WithTimeout(ctx, SocketDialTimeout)
+	defer cancelDial()
+	c, err := client.DialContext(dialCtx, socket)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrNotRunning, err)
+	}
+	defer c.Close()
+	if _, err := c.HelloContext(ctx, "rex-reload"); err != nil {
+		return fmt.Errorf("reload rex-daemon: %w", err)
+	}
+	if c.DaemonVersion() == "" {
+		if err := c.Reload(); err != nil {
+			return fmt.Errorf("send %s to rex-daemon: %w", protocol.IntentReload, err)
+		}
+		return nil
+	}
+	if _, err := c.Do(ctx, protocol.IntentReload, struct{}{}); err != nil {
+		return fmt.Errorf("rex-daemon could not reload tools.yaml: %w", err)
+	}
+	return nil
 }
 
 // sendIntent dials socket and writes one intent with an empty payload. The

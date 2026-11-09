@@ -1,0 +1,28 @@
+# rex reload asks the daemon on the socket to re-read tools.yaml and reports
+# its answer. FU-13: a tools.yaml the daemon could not load used to exit 0,
+# with the error only in the daemon's log.
+
+daemon-start
+
+exec rex reload
+! stdout .
+! stderr .
+
+# A broken tools.yaml is reported, and the daemon keeps serving.
+cp broken.yaml home/.config/rex/tools.yaml
+exitcode 1 rex reload
+stderr '^rex: rex-daemon could not reload tools\.yaml: reload \S+/tools\.yaml: parse user registry '
+! stdout .
+exec rex ls -json
+
+# Fixing the file makes the next reload succeed.
+rm home/.config/rex/tools.yaml
+exec rex reload
+! stderr .
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false
+-- broken.yaml --
+tools: [

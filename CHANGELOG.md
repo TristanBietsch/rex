@@ -42,6 +42,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `rex reload` and the TUI's `:reload` report a `tools.yaml` the daemon
+  could not load and exit 1. They used to exit 0 with the error only in
+  the daemon's log. A daemon older than this release still gets the
+  reload, unacknowledged.
 - Paths: every rex path now comes from one package
   (`internal/runtime/paths`, documented in `docs/paths.md`). File
   locations are unchanged. An unset or relative `HOME` is now an error

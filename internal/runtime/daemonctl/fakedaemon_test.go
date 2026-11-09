@@ -100,12 +100,24 @@ func shortTempDir(t *testing.T) string {
 }
 
 // fakeDaemon is an in-process stand-in for rex-daemon's socket: it records
-// the intents it receives and handles Shutdown with onShutdown.
+// the intents it receives, answers Hello and Reload the way opts says, and
+// handles Shutdown with onShutdown.
 type fakeDaemon struct {
 	socket  string
 	ln      *net.UnixListener
 	intents chan string
+	opts    fakeOpts
 	wg      sync.WaitGroup
+}
+
+// fakeOpts scripts a fakeDaemon's replies.
+type fakeOpts struct {
+	// legacy answers Hello like a daemon that predates acks: a Snapshot
+	// without daemon_version, and nothing for any other intent.
+	legacy bool
+	// reloadErr, when set, rejects Reload with this bad_intent message
+	// (a tools.yaml the daemon could not load).
+	reloadErr string
 }
 
 // shutdownLikeDaemon stops answering at once and removes the socket a
@@ -121,9 +133,14 @@ func shutdownLikeDaemon(delay time.Duration) func(*fakeDaemon) {
 
 func startFakeDaemon(t *testing.T, socket string, onShutdown func(*fakeDaemon)) *fakeDaemon {
 	t.Helper()
+	return startFakeDaemonWith(t, socket, fakeOpts{}, onShutdown)
+}
+
+func startFakeDaemonWith(t *testing.T, socket string, opts fakeOpts, onShutdown func(*fakeDaemon)) *fakeDaemon {
+	t.Helper()
 	ln, err := net.Listen("unix", socket)
 	require.NoError(t, err)
-	fd := &fakeDaemon{socket: socket, ln: ln.(*net.UnixListener), intents: make(chan string, 16)}
+	fd := &fakeDaemon{socket: socket, ln: ln.(*net.UnixListener), intents: make(chan string, 16), opts: opts}
 	fd.wg.Add(1)
 	go func() {
 		defer fd.wg.Done()
@@ -149,6 +166,7 @@ func startFakeDaemon(t *testing.T, socket string, onShutdown func(*fakeDaemon)) 
 func (fd *fakeDaemon) serve(conn net.Conn, onShutdown func(*fakeDaemon)) {
 	defer conn.Close()
 	r := protocol.NewReader(conn)
+	w := protocol.NewWriter(conn)
 	for {
 		env, err := r.Read()
 		if err != nil {
@@ -158,9 +176,31 @@ func (fd *fakeDaemon) serve(conn net.Conn, onShutdown func(*fakeDaemon)) {
 			return
 		}
 		fd.intents <- string(env.Kind) + ":" + env.Type
+		fd.reply(w, env)
 		if env.Type == protocol.IntentShutdown && onShutdown != nil {
 			onShutdown(fd)
 		}
+	}
+}
+
+// reply answers env the way rex-daemon does (see the protocol package doc),
+// or like a pre-ack daemon when opts.legacy is set. Write errors are
+// ignored: the client may already have hung up.
+func (fd *fakeDaemon) reply(w *protocol.Writer, env protocol.Envelope) {
+	switch {
+	case env.Type == protocol.IntentHello:
+		snap := protocol.Snapshot{Sessions: []protocol.SessionSummary{}, Filter: "all"}
+		if !fd.opts.legacy {
+			snap.DaemonVersion = "v1"
+		}
+		_ = w.WriteEvent(protocol.EventSnapshot, env.ID, snap)
+	case env.ID == "" || fd.opts.legacy:
+	case env.Type == protocol.IntentReload && fd.opts.reloadErr != "":
+		_ = w.WriteEvent(protocol.EventError, env.ID, protocol.ErrorEvent{
+			ID: env.ID, Code: protocol.ErrCodeBadIntent, Message: fd.opts.reloadErr,
+		})
+	default:
+		_ = w.WriteEvent(protocol.EventAck, env.ID, protocol.Ack{Intent: env.Type})
 	}
 }
 

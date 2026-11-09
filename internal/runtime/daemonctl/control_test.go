@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
+	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -70,10 +71,41 @@ func TestShutdownDaemon_HonorsContext(t *testing.T) {
 	require.Less(t, time.Since(start), 2*time.Second)
 }
 
+// FU-13: a reload the daemon rejects (a tools.yaml it cannot load) is
+// reported to the caller. Reload used to be fire-and-forget, so the error
+// only reached the daemon log.
+func TestReloadDaemon_ReportsRejection(t *testing.T) {
+	sock := socketIn(t)
+	fd := startFakeDaemonWith(t, sock, fakeOpts{reloadErr: "parse user registry: bad yaml"}, nil)
+
+	err := ReloadDaemon(bg(), sock)
+	var de *client.Error
+	require.ErrorAs(t, err, &de)
+	require.Equal(t, protocol.ErrCodeBadIntent, de.Code)
+	require.ErrorContains(t, err, "parse user registry: bad yaml")
+	require.NotErrorIs(t, err, ErrNotRunning)
+	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentHello)
+	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentReload)
+}
+
+// A daemon older than acks never answers Reload: it still gets the intent,
+// fire-and-forget as before, and ReloadDaemon does not wait for a reply.
+func TestReloadDaemon_PreAckDaemon(t *testing.T) {
+	sock := socketIn(t)
+	fd := startFakeDaemonWith(t, sock, fakeOpts{legacy: true}, nil)
+
+	start := time.Now()
+	require.NoError(t, ReloadDaemon(bg(), sock))
+	require.Less(t, time.Since(start), time.Second, "waited for an Ack an old daemon never sends")
+	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentHello)
+	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentReload)
+}
+
 func TestReloadDaemon_SendsReloadIntent(t *testing.T) {
 	sock := socketIn(t)
 	fd := startFakeDaemon(t, sock, nil)
 	require.NoError(t, ReloadDaemon(bg(), sock))
+	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentHello)
 	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentReload)
 
 	require.ErrorIs(t, ReloadDaemon(bg(), socketIn(t)), ErrNotRunning)
@@ -91,6 +123,7 @@ func TestStopAndReload_UseDefaultSocket(t *testing.T) {
 	sock := filepath.Join(dir, "rex.sock")
 	fd := startFakeDaemon(t, sock, shutdownLikeDaemon(0))
 	require.NoError(t, Reload())
+	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentHello)
 	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentReload)
 	require.NoError(t, Stop())
 	fd.requireIntent(t, string(protocol.KindIntent)+":"+protocol.IntentShutdown)
