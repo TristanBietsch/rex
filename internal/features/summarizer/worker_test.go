@@ -287,3 +287,25 @@ func TestWorkerSkipsEmptyScreen(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	require.Equal(t, int32(0), atomic.LoadInt32(&calls))
 }
+
+// The health callback fires once per flip, not once per call: the daemon
+// broadcasts each flip as a SummarizerHealth event to every client.
+func TestWorker_HealthCallbackFiresOnFlipsOnly(t *testing.T) {
+	w := New(Defaults(), state.NewStore(), transcriptStub(""))
+	type flip struct {
+		available bool
+		reason    string
+	}
+	var flips []flip
+	w.SetHealthCallback(func(available bool, reason string) { flips = append(flips, flip{available, reason}) })
+
+	require.True(t, w.BackendAvailable(), "a new worker assumes the backend is up")
+	w.MarkAvailable() // no flip
+	w.MarkUnavailable("connection refused")
+	w.MarkUnavailable("still refused") // no flip
+	require.False(t, w.BackendAvailable())
+	w.MarkAvailable()
+	require.True(t, w.BackendAvailable())
+
+	require.Equal(t, []flip{{false, "connection refused"}, {true, ""}}, flips)
+}
