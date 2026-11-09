@@ -35,10 +35,13 @@ func TestServe_RefusesSocketOfLiveDaemon(t *testing.T) {
 		t.Fatal("second Serve started on a socket a live daemon answers")
 	}
 
-	// The first daemon still owns the path.
+	// The first daemon still owns the path. The readiness and liveness
+	// probes dialed it too; their handlers untrack them asynchronously once
+	// they see EOF, so wait for the count to settle on this one connection.
 	conn := dialTest(t, sock)
 	helloOnConn(t, conn)
-	require.Equal(t, 1, first.liveConns())
+	require.Eventually(t, func() bool { return first.liveConns() == 1 }, 2*time.Second, 5*time.Millisecond,
+		"the first daemon should be serving exactly the test's connection")
 }
 
 // TestServe_ExitLeavesReplacedSocket: a daemon exiting must not unlink a
