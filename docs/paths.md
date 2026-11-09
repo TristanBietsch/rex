@@ -2,6 +2,16 @@
 
 Canonical list of files and directories Rex uses. See [glossary.md](glossary.md) for terms.
 
+In code, every path comes from one package, `internal/runtime/paths`. Its package doc is the source of truth for this layout; change both together.
+
+## Home directory
+
+Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Windows). When it is unset, empty or not an absolute path, rex does not guess:
+
+- Commands that need a missing path fail and name the flag to pass instead: `-socket`, `-config` or `-state-dir`.
+- `rex-daemon` refuses to start unless `-socket`, `-state-dir` and `-tools` are all given.
+- No path is ever taken relative to the working directory, and nothing falls back to `/tmp`.
+
 ## Directories
 
 | Path | Contents |
@@ -9,12 +19,15 @@ Canonical list of files and directories Rex uses. See [glossary.md](glossary.md)
 | `~/.config/rex/` | User configuration |
 | `~/.local/share/rex/` | Session state (default `-state-dir`) |
 | `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json` and `transcript.log` |
+| `~/.local/share/rex/daemon.lock` | Held by the running daemon; one daemon per state directory |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |
-| `$XDG_RUNTIME_DIR/rex.sock` | Socket when `XDG_RUNTIME_DIR` is set |
+| `$XDG_RUNTIME_DIR/rex.sock` | Socket when `XDG_RUNTIME_DIR` is set to an absolute path |
 | `~/.local/bin/` | Default install location for `rex` and `rex-daemon` |
 
 `~/.local/share/rex` holds durable session data. `~/.local/state/rex` holds logs and ephemeral TUI state. They are not the same tree.
+
+Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` are not. The locations above are where every release has kept its files, and honoring those variables would strand existing data.
 
 ## Files
 
@@ -31,18 +44,19 @@ Canonical list of files and directories Rex uses. See [glossary.md](glossary.md)
 
 Default Unix domain socket path:
 
-1. `$XDG_RUNTIME_DIR/rex.sock` when `XDG_RUNTIME_DIR` is set
+1. `$XDG_RUNTIME_DIR/rex.sock` when `XDG_RUNTIME_DIR` is set to an absolute path. A relative value is ignored, as the XDG spec requires.
 2. Otherwise `~/.cache/rex/rex.sock`
 
-Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial the daemon.
+Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial the daemon. The CLI resolves the default when the command runs, so its help shows the rule rather than a path.
 
 ## Environment variables
 
 | Variable | Read by | Effect |
 |----------|---------|--------|
-| `XDG_RUNTIME_DIR` | `daemonctl` | Default socket directory |
+| `HOME` (`USERPROFILE` on Windows) | `paths` | Root of every default path; required unless every path flag is given |
+| `XDG_RUNTIME_DIR` | `paths` | Default socket directory (absolute paths only) |
 | `REX_LOG_LEVEL` | `rexlog` | `debug`, `info`, `warn`, `error` (default `info`) |
-| `REX_LOG_DIR` | `rexlog` | Override log directory under state |
+| `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
 | `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer |
 | `EDITOR` | `rex config edit` | Program to edit `init.lua` |
 | `GOPATH` | `rex update` | Module install path resolution |

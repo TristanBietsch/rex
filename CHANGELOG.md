@@ -42,6 +42,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- CLI: when the daemon is unreachable, the error names the socket once
+  (`dial unix <path>: connect: …`) instead of wrapping it twice.
 - `rex reload` and the TUI's `:reload` report a `tools.yaml` the daemon
   could not load and exit 1. They used to exit 0 with the error only in
   the daemon's log. A daemon older than this release still gets the

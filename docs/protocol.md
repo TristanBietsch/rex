@@ -17,16 +17,16 @@ rex — JSONL control protocol (version 1)
 | `v` | int | yes | Must be `1` (`ProtocolVersion`) |
 | `kind` | string | yes | `Intent` or `Event` |
 | `type` | string | yes | Intent or event name |
-| `id` | string | no | Correlation id; echoed on errors |
+| `id` | string | no | Correlation id. An intent with an `id` gets exactly one reply carrying it (see [Replies](#replies)) |
 | `data` | object | yes | Payload for `type` |
 
-Reader rejects lines where `v` ≠ `1`. Maximum line buffer: 64 KiB.
+Reader rejects lines where `v` ≠ `1`. A line may be at most 16 MiB, newline included (`MaxLineBytes`).
 
 ## Handshake
 
 1. Client connects to the socket.
-2. Client sends `Hello` intent.
-3. Daemon responds with `Snapshot` event (full session list).
+2. Client sends `Hello` intent with its release (`client_version`) and program name (`client`).
+3. Daemon responds with `Snapshot` event (full session list and `daemon_version`).
 4. Daemon may send live events (`SessionAdded`, `SessionUpdated`, …).
 5. Further intents on the same connection.
 
@@ -47,12 +47,12 @@ Store broadcasts are gated until `Hello` completes on that connection.
 
 | Type | Implemented | Payload summary |
 |------|-------------|-----------------|
-| `Hello` | yes | `client_version` |
+| `Hello` | yes | `client_version` (release label; older clients sent their name here), `client` (program name, optional) |
 | `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet` |
 | `Subscribe` | yes | `session_id`, `replay`, `mode_sync` |
 | `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
-| `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Confirmed by `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
+| `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Broadcast as `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
 | `Delete` | yes | `session_id` |
 | `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored) |
 | `SetSessionFleet` | yes | `session_id`, `fleet` |
@@ -61,10 +61,10 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `SetSessionName` | yes | `session_id`, `name` (always sent; `""` clears; normalized, max 64 runes) |
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
-| `FocusFilter` | no-op | Accepted; not stored |
+| `FocusFilter` | no-op | Accepted (and acked); not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
-| `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM |
-| `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP; `bad_intent` with the load error on failure |
+| `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
+| `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP. `Ack` once the new registry is in use; `bad_intent` with the load error on failure |
 
 ### NewSession fields
 
@@ -75,11 +75,40 @@ Store broadcasts are gated until `Hello` completes on that connection.
 
 `slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
 
+## Replies
+
+An intent whose envelope carries a non-empty `id` gets exactly one terminal reply, an event with the same `id`:
+
+| Intent | Reply on success | Notes |
+|--------|------------------|-------|
+| `Hello` | `Snapshot` | Sent even without an `id` |
+| `NewSession` | `Ack` with the new `session_id` | The `SessionAdded` broadcast arrives first |
+| `Subscribe` | `Ack` (`session_id` when given) | After any replay or mode-sync `SessionOutput` |
+| `SendInput` | `Ack` | The bytes are queued to the PTY |
+| `Reply` | `Ack` | The text and the Enter are queued |
+| `Rename`, `SetSessionName` | `Ack` | The `SessionUpdated` broadcast arrives first |
+| `SetSessionFleet` | `Ack` | |
+| `Retire`, `Unretire` | `Ack` | Also when nothing changed |
+| `Delete` | `Ack` | The `SessionRemoved` broadcast arrives first |
+| `Complete` | `Ack` | Termination requested, not finished |
+| `Resize` | `Ack` | Also for the ignored 0×0 size |
+| `FocusFilter`, `SetMaxConcurrent` | `Ack` | |
+| `Reload` | `Ack` | After the new registry is in use |
+| `Shutdown` | `Ack` | Queued before shutdown starts; the daemon may close the connection first, so treat the close as success |
+| `OpenSession`, unknown types | — | `Error` `bad_intent` "intent not implemented" |
+
+- Any failure is an `Error` event with the intent's `id` instead.
+- `Ack` carries the intent type it answers (`intent`) and, for intents about one session, its `session_id`.
+- "Arrives first" holds on a connection that has sent `Hello`: broadcasts and replies share one ordered queue per connection.
+- An intent **without** an `id` gets no `Ack`. It still gets an `Error` (with an empty `id`) on failure, and `Hello` still gets its `Snapshot`, as before acks existed.
+- A protocol violation (a line over 16 MiB, an unsupported `v`, a malformed line) is answered with an `Error` with an empty `id`. After `line_too_long` or `unsupported_version` the daemon closes the connection.
+
 ## Events (daemon → client)
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`) |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks) |
+| `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
 | `SessionRemoved` | `session_id`, `reason` (`user` \| `retired`; empty from older daemons) |
@@ -107,7 +136,9 @@ When `mode_sync` is true and `replay` is false, the daemon first sends one `Sess
 
 ### Compatibility
 
-Additive changes (new optional fields, new intents, new patch keys) keep `v: 1`; both sides ignore unknown fields. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
+Additive changes (new optional fields, new intents, new events, new patch keys) keep `v: 1`; both sides ignore unknown fields and event types. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
+
+A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
 
 ## Error codes
 
@@ -120,19 +151,29 @@ Additive changes (new optional fields, new intents, new patch keys) keep `v: 1`;
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
 | `bad_state` | `Unretire` after the reaper started clearing the session |
+| `line_too_long` | A line exceeded 16 MiB; the daemon closes the connection |
+| `unsupported_version` | The envelope's `v` is not `1`; the daemon closes the connection |
+| `internal_error` | A daemon bug while handling the intent; the daemon closes the connection |
 
 ## EXAMPLES
 
 Hello (client line):
 
 ```json
-{"v":1,"kind":"Intent","type":"Hello","data":{"client_version":"rex-cli"}}
+{"v":1,"kind":"Intent","type":"Hello","id":"h1","data":{"client_version":"v1","client":"rex-cli"}}
 ```
 
 Snapshot (daemon line, abbreviated):
 
 ```json
-{"v":1,"kind":"Event","type":"Snapshot","data":{"sessions":[],"filter":"all"}}
+{"v":1,"kind":"Event","type":"Snapshot","id":"h1","data":{"sessions":[],"filter":"all","daemon_version":"v1"}}
+```
+
+Rename with an id, and its Ack:
+
+```json
+{"v":1,"kind":"Intent","type":"Rename","id":"r1","data":{"session_id":"<id>","title":"new title"}}
+{"v":1,"kind":"Event","type":"Ack","id":"r1","data":{"intent":"Rename","session_id":"<id>"}}
 ```
 
 Debug with socat:
@@ -145,7 +186,13 @@ Paste one intent line; read one event line per response phase.
 
 ## Go client
 
-`internal/wire/client` provides `Dial`, `Hello`, intent helpers, and `NextEvent`. Intended for in-repo use; not a stable public Go API.
+`internal/wire/client` is intended for in-repo use; it is not a stable public Go API.
+
+- `Dial`, `DialTimeout` and `DialContext` connect. A dial error names the socket once (`dial unix <path>: connect: …`).
+- `Hello` / `HelloContext` perform the handshake. `Hello` is bounded by `HelloTimeout`. `DaemonVersion` reports the daemon's version afterwards.
+- `Do(ctx, intentType, payload)` sends an intent with a fresh `id` and waits for its reply. An `Error` reply comes back as a `*client.Error` (`errors.As`) with `Code` and `Message`. `Do` honors `ctx` deadlines and cancellation.
+- `Send(ctx, intentType, payload)` and the helper methods (`Rename`, `SendInput`, …) write an intent without waiting for a reply.
+- One reader goroutine routes replies to their `Do` callers and every other event to `NextEvent` / `NextEventContext`. `Do` and the writers are safe for concurrent use. Read events from one goroutine. `Close` unblocks every pending `Do`.
 
 ## SEE ALSO
 
