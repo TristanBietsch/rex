@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 var (
@@ -74,7 +76,7 @@ func renderHelpLine(m Model, width int) string {
 	}
 	if m.Err != "" {
 		// Errors echo daemon messages and session strings: sanitize.
-		return padLine("  "+styleStateFailed.Render("err: "+sanitizeText(m.Err)), width)
+		return padLine("  "+styleStateFailed.Render("err: "+protocol.FlattenDisplayText(m.Err)), width)
 	}
 	if m.Focus == FocusRename {
 		parts := []string{

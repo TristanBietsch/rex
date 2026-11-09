@@ -59,3 +59,42 @@ func TestSanitizeDisplayText(t *testing.T) {
 		})
 	}
 }
+
+// FlattenDisplayText is the TUI's render-side sanitizer. These cases came
+// with it from internal/surface/tui (FU-03). One changed meaning: the
+// TUI's own sanitizer (ansi.Strip) dropped a lone C1 introducer rune and
+// kept the bytes after it, and did not treat NEL as a line break. The
+// shared scanner removes a C1 sequence whole, as it does an ESC one, and
+// NEL is a line break, so it becomes a space.
+func TestFlattenDisplayText(t *testing.T) {
+	cases := map[string]struct{ in, want string }{
+		"plain kept":             {"fix auth bug", "fix auth bug"},
+		"unicode kept":           {"日本語 — ok ✓", "日本語 — ok ✓"},
+		"newline to space":       {"a\nb\r\nc", "a b  c"},
+		"tab to space":           {"a\tb", "a b"},
+		"OSC 52 removed":         {"a\x1b]52;c;ZXZpbA==\x07b", "ab"},
+		"OSC with ST":            {"a\x1b]0;title\x1b\\b", "ab"},
+		"CSI removed":            {"a\x1b[2Jb\x1b[31mc", "abc"},
+		"C0 and DEL dropped":     {"a\x00b\x07c\x7f", "abc"},
+		"C1 sequence, NEL":       {"a\u009b31mb\u0085c", "ab c"},
+		"other C1 dropped":       {"a\u0084b", "ab"},
+		"invalid UTF-8":          {"a\xff\xfeb", "ab"},
+		"line separators":        {"a\u2028b\u2029c", "a b c"},
+		"bidi overrides dropped": {"abc\u202edef", "abcdef"},
+		"not trimmed":            {"  padded  ", "  padded  "},
+		"blank lines kept":       {"\n\nx", "  x"},
+		"literal U+FFFD kept":    {"a�b", "a�b"},
+		"empty":                  {"", ""},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.want, FlattenDisplayText(tc.in))
+		})
+	}
+}
+
+// The board renders every cell on every frame: clean text costs nothing.
+func TestFlattenDisplayText_PlainDoesNotAllocate(t *testing.T) {
+	s := "fix the auth bug — 日本語"
+	require.Zero(t, testing.AllocsPerRun(100, func() { _ = FlattenDisplayText(s) }))
+}

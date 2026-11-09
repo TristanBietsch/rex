@@ -374,7 +374,7 @@ func registerDescAnim(m Model, id, from, to string) Model {
 	// Frames slice From/To by rune; sanitize first so an escape sequence
 	// can't be cut in half mid-animation (cell() re-sanitizes each frame).
 	m.DescAnim[id] = DescAnim{
-		From: sanitizeText(from), To: sanitizeText(to), Effect: effect,
+		From: protocol.FlattenDisplayText(from), To: protocol.FlattenDisplayText(to), Effect: effect,
 		StartedAt: time.Now(),
 		Duration:  animDurationFor(effect),
 	}

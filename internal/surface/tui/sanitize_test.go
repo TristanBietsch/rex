@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
@@ -39,47 +38,6 @@ func assertNoInjection(t *testing.T, out string) {
 	for _, r := range out {
 		require.False(t, r != '\n' && unicode.IsControl(r), "control rune %U in output", r)
 	}
-}
-
-func TestSanitizeText(t *testing.T) {
-	cases := map[string]struct{ in, want string }{
-		"plain kept":         {"fix auth bug", "fix auth bug"},
-		"unicode kept":       {"日本語 — ok ✓", "日本語 — ok ✓"},
-		"newline to space":   {"a\nb\r\nc", "a b  c"},
-		"tab to space":       {"a\tb", "a b"},
-		"OSC 52 removed":     {"a\x1b]52;c;ZXZpbA==\x07b", "ab"},
-		"OSC with ST":        {"a\x1b]0;title\x1b\\b", "ab"},
-		"CSI removed":        {"a\x1b[2Jb\x1b[31mc", "abc"},
-		"C0 and DEL dropped": {"a\x00b\x07c\x7f", "abc"},
-		"C1 dropped":         {"a\u009bb\u0085c", "abc"},
-		"invalid UTF-8":      {"a\xff\xfeb", "ab"},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			require.Equal(t, tc.want, sanitizeText(tc.in))
-		})
-	}
-}
-
-func FuzzSanitizeText(f *testing.F) {
-	for _, s := range escapePayloads {
-		f.Add(s)
-	}
-	f.Add("\u009b31m\xff")
-	f.Fuzz(func(t *testing.T, in string) {
-		out := sanitizeText(in)
-		if !utf8.ValidString(out) {
-			t.Fatalf("invalid UTF-8 out of %q: %q", in, out)
-		}
-		for _, r := range out {
-			if unicode.IsControl(r) {
-				t.Fatalf("control rune %U out of %q", r, in)
-			}
-		}
-		if sanitizeText(out) != out {
-			t.Fatalf("not idempotent on %q", in)
-		}
-	})
 }
 
 // Every session-provided string on the board (title, description, name,

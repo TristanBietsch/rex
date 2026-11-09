@@ -154,10 +154,10 @@ func longRunBadge(now time.Time, s protocol.SessionSummary) string {
 
 // displayName is the name column text: the user's label, else the slug.
 // It feeds the board, the attach title and status-line notices, so it is
-// sanitized here once for all of them (see sanitizeText).
+// sanitized here once for all of them (see protocol.FlattenDisplayText).
 func displayName(s protocol.SessionSummary) string {
 	if s.Name != "" {
-		return sanitizeText(s.Name)
+		return protocol.FlattenDisplayText(s.Name)
 	}
-	return sanitizeText(s.Slug)
+	return protocol.FlattenDisplayText(s.Slug)
 }

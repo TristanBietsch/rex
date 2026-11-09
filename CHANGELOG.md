@@ -118,7 +118,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `line_too_long`, `unsupported_version` and `internal_error`.
 - Session titles, fleets, summaries and session text are stripped of
   terminal escape sequences and control characters, both when the daemon
-  receives them and when the TUI renders them.
+  receives them and when the TUI renders them. The daemon, the TUI and the
+  AI summarizer share one sanitizer, so the TUI now also removes bidi
+  overrides and drops C1 escape sequences (such as U+009B) whole.
 - Supervisor logs redact agent command-line arguments.
 - A runaway `init.lua` can no longer hang the daemon: Lua handlers run off
   the hot path with timeouts. `init.lua` is documented as trusted code.

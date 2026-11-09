@@ -51,7 +51,7 @@ func renderHeader(m Model, width int) string {
 	out := padLine(topRow, width) + "\n" + chipRow
 
 	if m.BackendUnavailable {
-		reason := sanitizeText(m.BackendUnavailableReason) // daemon-supplied
+		reason := protocol.FlattenDisplayText(m.BackendUnavailableReason) // daemon-supplied
 		if reason == "" {
 			reason = "ollama unreachable"
 		}

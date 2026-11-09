@@ -43,8 +43,46 @@ const (
 //   - drops invalid UTF-8, trims surrounding whitespace and keeps at most
 //     maxRunes runes (maxRunes <= 0 means no cap).
 //
-// The result is idempotent: sanitizing it again returns it unchanged.
+// The daemon applies it when it ingests free text, and the summarizer to
+// model output. The result is idempotent: sanitizing it again returns it
+// unchanged.
 func SanitizeDisplayText(s string, maxRunes int) string {
+	return finishDisplayText(scanDisplayText(s, false), maxRunes)
+}
+
+// FlattenDisplayText is SanitizeDisplayText for text that must keep all of
+// its content: escape sequences, controls, bidi overrides and invalid UTF-8
+// go exactly as there, but every line break and tab becomes a space instead
+// of ending the text, and nothing is trimmed or capped. The TUI renders
+// every session string and daemon message through it, as the backstop
+// against an older or misbehaving daemon (backlog S-03, FU-03).
+//
+// The result is valid UTF-8 with no control, line-break or bidi runes, and
+// is idempotent. Text that needs no change is returned as is without
+// allocating, because the board renders every cell on every frame.
+func FlattenDisplayText(s string) string {
+	if isPlainDisplayText(s) {
+		return s
+	}
+	return scanDisplayText(s, true)
+}
+
+// isPlainDisplayText reports whether FlattenDisplayText would return s
+// unchanged without scanning it: valid UTF-8 with no control, line-break or
+// bidi runes. A literal U+FFFD takes the slow path, which keeps it.
+func isPlainDisplayText(s string) bool {
+	for _, r := range s {
+		if r == utf8.RuneError || unicode.IsControl(r) || isLineBreak(r) || isBidiControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// scanDisplayText is the scanner behind both sanitizers. With flatten, a
+// line break becomes a space; without, the text ends at the first line
+// break that follows visible text.
+func scanDisplayText(s string, flatten bool) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	hasText := false
@@ -61,8 +99,10 @@ func SanitizeDisplayText(s string, maxRunes int) string {
 		case r == runeOSC || r == runeDCS || r == runeSOS || r == runePM || r == runeAPC:
 			next = skipControlString(s, next)
 		case isLineBreak(r):
-			if hasText {
-				return finishDisplayText(b.String(), maxRunes)
+			if flatten {
+				b.WriteByte(' ')
+			} else if hasText {
+				return b.String()
 			}
 		case r == '\t':
 			b.WriteByte(' ')
@@ -74,7 +114,7 @@ func SanitizeDisplayText(s string, maxRunes int) string {
 		}
 		i = next
 	}
-	return finishDisplayText(b.String(), maxRunes)
+	return b.String()
 }
 
 func finishDisplayText(s string, maxRunes int) string {

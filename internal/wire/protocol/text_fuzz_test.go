@@ -107,3 +107,32 @@ func FuzzNormalizeSessionName(f *testing.F) {
 		require.Equal(t, out, again, "not idempotent")
 	})
 }
+
+// FuzzFlattenDisplayText checks FlattenDisplayText's documented promise:
+// valid UTF-8 with no control, line-break or bidi runes (so no escape
+// sequence survives), idempotent, and never longer than the input except
+// that a line break or tab becomes one space. Without line breaks it keeps
+// exactly what SanitizeDisplayText keeps, untrimmed.
+func FuzzFlattenDisplayText(f *testing.F) {
+	for _, s := range []string{
+		"line one\nline two", "copy \x1b]52;c;ZWNobyBwd25lZA==\x07me", "wipe \x1b[2Jscreen",
+		"\u009b31m\xff", "a\u0085b", "a\u2028b", "  x  ", "abc\u202edef", "a\tb", "日本語",
+	} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		out := FlattenDisplayText(s)
+		require.True(t, utf8.ValidString(out), "invalid UTF-8 out of %q: %q", s, out)
+		for _, r := range out {
+			require.False(t, unicode.IsControl(r), "control rune %U out of %q", r, s)
+			require.False(t, isLineBreak(r), "line break %U out of %q", r, s)
+			require.False(t, isBidiControl(r), "bidi control %U out of %q", r, s)
+		}
+		require.Equal(t, out, FlattenDisplayText(out), "not idempotent on %q", s)
+		require.LessOrEqual(t, len(out), len(s), "result longer than input")
+		if !strings.ContainsFunc(s, isLineBreak) {
+			require.Equal(t, SanitizeDisplayText(s, 0), strings.TrimSpace(out),
+				"flatten and sanitize disagree on %q", s)
+		}
+	})
+}

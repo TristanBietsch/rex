@@ -148,7 +148,7 @@ func renderRenamePrompt(m Model, width int) string {
 	head := styleArrowYellow.Render("✎ rename") + " " + styleDim.Render(truncate(r.Slug, 24)) + styleMuted.Render(" › ")
 	count := styleMuted.Render(" " + strconv.Itoa(utf8.RuneCountInString(r.Draft)) + "/" + strconv.Itoa(protocol.MaxSessionNameRunes))
 	room := width - 2 - ansi.StringWidth(head) - ansi.StringWidth(count) - 1
-	draft := sanitizeText(r.Draft) // prefilled from the session's current name
+	draft := protocol.FlattenDisplayText(r.Draft) // prefilled from the session's current name
 	if room < 1 {
 		room = 1
 	}

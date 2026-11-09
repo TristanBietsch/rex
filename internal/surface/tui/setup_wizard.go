@@ -14,6 +14,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // ── Setup wizard step enum ──────────────────────────────────────────────────
@@ -864,7 +865,7 @@ func (m SetupWizardModel) toolsWarningLines() []string {
 	}
 	out := []string{"  " + styleBootWarn.Render("!") + " tools.yaml ignored — using the built-in tools"}
 	// YAML errors can quote the file's content: sanitize before wrapping.
-	wrapped := lipgloss.NewStyle().Width(setupWidth - 4).Render(sanitizeText(m.toolsErr.Error()))
+	wrapped := lipgloss.NewStyle().Width(setupWidth - 4).Render(protocol.FlattenDisplayText(m.toolsErr.Error()))
 	for i, l := range strings.Split(wrapped, "\n") {
 		if i == 3 {
 			break

@@ -1,5 +1,7 @@
 package tui
 
+import "github.com/tristanbietsch/rex/internal/wire/protocol"
+
 func renderQuitConfirm(width int) string {
 	line := styleArrowYellow.Render("?") + " " +
 		stylePrimary.Render("quit rex? running sessions stay alive in the daemon — ") +
@@ -19,7 +21,7 @@ func renderDeleteConfirm(m Model, width int) string {
 	}
 	line := styleArrowYellow.Render("?") + " " +
 		stylePrimary.Render("delete session ") +
-		styleSlug.Render(sanitizeText(slug)) +
+		styleSlug.Render(protocol.FlattenDisplayText(slug)) +
 		stylePrimary.Render("? this kills any running process and removes the transcript — ") +
 		styleDim.Render("y / N")
 	return padLine(" "+line, width)

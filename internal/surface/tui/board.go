@@ -534,14 +534,15 @@ func formatTokens(n int64) string {
 // truncate cuts s to at most n terminal columns (wide runes count double),
 // ending in "…" when cut. Counting runes instead of columns let CJK / emoji
 // text overflow its cell, and lipgloss then wrapped the row onto two lines.
-// s is untrusted text, so it is sanitized first (sanitizeText): a newline
-// would wrap the row and an escape sequence would reach the terminal. Never
-// pass lipgloss-styled text; its styling would be stripped.
+// s is untrusted text, so it is sanitized first
+// (protocol.FlattenDisplayText): a newline would wrap the row and an escape
+// sequence would reach the terminal. Never pass lipgloss-styled text; its
+// styling would be stripped.
 func truncate(s string, n int) string {
 	if n <= 0 {
 		return ""
 	}
-	s = sanitizeText(s)
+	s = protocol.FlattenDisplayText(s)
 	if ansi.StringWidth(s) <= n {
 		return s
 	}
@@ -574,11 +575,11 @@ func durationAgoAt(now, t time.Time) string {
 // rowDescription is the desc column text: the AI summary once one exists,
 // else the task the session was started with. Raw last_line is never shown —
 // for TUI agents it is spinner frames and key hints, not activity. The
-// result is sanitized (see sanitizeText) so column sizing measures what
-// renders.
+// result is sanitized (see protocol.FlattenDisplayText) so column sizing
+// measures what renders.
 func rowDescription(s protocol.SessionSummary) string {
 	if s.Description != "" {
-		return sanitizeText(s.Description)
+		return protocol.FlattenDisplayText(s.Description)
 	}
-	return sanitizeText(s.Title)
+	return protocol.FlattenDisplayText(s.Title)
 }

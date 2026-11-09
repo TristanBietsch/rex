@@ -445,19 +445,19 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	} else {
 		stateChip = styleDim.Render("· unknown")
 	}
-	// Session strings are sanitized before styling (sanitizeText strips
+	// Session strings are sanitized before styling (protocol.FlattenDisplayText strips
 	// escapes, so it can't run on the styled line).
-	title := sanitizeText(a.Slug)
+	title := protocol.FlattenDisplayText(a.Slug)
 	if haveSum {
 		title = displayName(sum)
 		if sum.Name != "" {
-			title += styleDim.Render(" · " + sanitizeText(sum.Slug))
+			title += styleDim.Render(" · " + protocol.FlattenDisplayText(sum.Slug))
 		}
 	}
 	slug := styleHeaderApp.Render(title)
 	var meta string
 	if haveSum {
-		meta = styleDim.Render(sanitizeText(sum.ToolID + " · " + modelLabel(sum)))
+		meta = styleDim.Render(protocol.FlattenDisplayText(sum.ToolID + " · " + modelLabel(sum)))
 	}
 	geom := styleMuted.Render(fmt.Sprintf("%d×%d", a.Cols, a.Rows))
 	if a.Scrolling() {

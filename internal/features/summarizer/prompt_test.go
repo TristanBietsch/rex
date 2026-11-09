@@ -72,7 +72,9 @@ func TestCleanResponseIsTerminalSafe(t *testing.T) {
 		{"SGR color", "\x1b[31mrunning tests\x1b[0m", "running tests"},
 		{"C0 controls dropped", "run\x00ning\x07 tests\x7f", "running tests"},
 		{"tab becomes space", "running\ttests", "running tests"},
-		{"C1 CSI rune dropped", "running \u009btests", "running tests"},
+		// U+009B opens a CSI sequence like ESC [ does, and the whole
+		// sequence goes (FU-03: the summarizer used to drop only the rune).
+		{"C1 CSI rune dropped", "running \u009b31mtests", "running tests"},
 		{"invalid UTF-8 dropped", "running \xff\xfetests", "running tests"},
 		{"prefix after sanitizing", "\x1b[1mOutput:\x1b[0m running tests", "running tests"},
 	}
