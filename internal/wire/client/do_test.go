@@ -303,6 +303,21 @@ func TestHello_SendsVersionAndRecordsDaemonVersion(t *testing.T) {
 	require.Equal(t, "v9", c.DaemonVersion())
 }
 
+// Send writes an intent without an ID and returns without waiting.
+func TestSend_NoIDNoWait(t *testing.T) {
+	c, fd := pipeClient(t)
+	done := make(chan error, 1)
+	go func() { done <- c.Send(context.Background(), protocol.IntentReload, struct{}{}) }()
+	env := fd.read(t)
+	require.Equal(t, protocol.IntentReload, env.Type)
+	require.Empty(t, env.ID)
+	require.NoError(t, <-done)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, c.Send(ctx, protocol.IntentReload, struct{}{}), context.Canceled)
+}
+
 // A daemon that predates acks answers Hello with no daemon_version. Do then
 // fails at once instead of waiting for an Ack that never comes.
 func TestDo_DaemonWithoutAcks(t *testing.T) {

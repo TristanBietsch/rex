@@ -373,6 +373,15 @@ func (c *Client) write(ctx context.Context, typ, id string, payload any) error {
 	return c.w.WriteIntent(typ, id, payload)
 }
 
+// Send writes intentType with payload and no envelope ID, and returns once
+// it is written: the daemon sends no Ack, and an Error, if any, arrives in
+// the event stream. The write honors ctx's deadline and is bounded by
+// WriteTimeout. Use it for a daemon that predates acks; use Do to learn the
+// outcome. Safe for concurrent use.
+func (c *Client) Send(ctx context.Context, intentType string, payload any) error {
+	return c.write(ctx, intentType, "", payload)
+}
+
 // send writes an intent without waiting for any reply.
 func (c *Client) send(typ, id string, payload any) error {
 	return c.write(context.Background(), typ, id, payload)

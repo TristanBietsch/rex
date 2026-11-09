@@ -82,7 +82,7 @@ func ReloadDaemon(ctx context.Context, socket string) error {
 		return fmt.Errorf("reload rex-daemon: %w", err)
 	}
 	if c.DaemonVersion() == "" {
-		if err := c.Reload(); err != nil {
+		if err := c.Send(ctx, protocol.IntentReload, struct{}{}); err != nil {
 			return fmt.Errorf("send %s to rex-daemon: %w", protocol.IntentReload, err)
 		}
 		return nil
