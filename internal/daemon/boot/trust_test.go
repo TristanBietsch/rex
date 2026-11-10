@@ -16,14 +16,19 @@ func TestAutoTrustDirs(t *testing.T) {
 
 	cfg := filepath.Join(home, ".config", "rex", "config.yaml")
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
-	list := "~/dev" + string(filepath.ListSeparator) + "/srv/work"
-	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \""+list+"\"\n"), 0o600))
-	require.Equal(t, []string{"~/dev", "/srv/work"}, AutoTrustDirs())
+	work := filepath.Join(home, "work") // absolute on every OS
+	sep := string(filepath.ListSeparator)
+	writeSetting := func(v string) {
+		t.Helper()
+		// Single-quoted YAML keeps Windows backslashes literal.
+		require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: '"+v+"'\n"), 0o600))
+	}
+	writeSetting("~/dev" + sep + work)
+	require.Equal(t, []string{"~/dev", work}, AutoTrustDirs())
 
 	// A folder name holding the separator splits into a broader folder and
 	// a relative piece; the whole setting is ignored instead.
-	sep := string(filepath.ListSeparator)
-	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \"/work/a"+sep+"b\"\n"), 0o600))
+	writeSetting(work + sep + "b")
 	require.Nil(t, AutoTrustDirs())
 
 	t.Setenv("HOME", "")

@@ -2,6 +2,7 @@ package boot
 
 import (
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -25,10 +26,16 @@ func AutoTrustDirs() []string {
 	dirs := filepath.SplitList(st.String("auto_trust_dirs"))
 	for _, d := range dirs {
 		d = strings.TrimSpace(d)
-		if d != "" && !filepath.IsAbs(d) && !strings.HasPrefix(d, "~"+string(filepath.Separator)) {
+		if d != "" && !filepath.IsAbs(d) && !homeRelative(d) {
 			slog.Warn("daemon: auto_trust_dirs has a piece that is not an absolute or ~/ path; trusting no folder", "piece", d)
 			return nil
 		}
 	}
 	return dirs
+}
+
+// homeRelative matches what paths.ExpandHome expands: "~" then a separator
+// ("~/" everywhere, and "~\" too on Windows).
+func homeRelative(d string) bool {
+	return len(d) >= 2 && d[0] == '~' && os.IsPathSeparator(d[1])
 }
