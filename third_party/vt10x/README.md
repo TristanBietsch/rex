@@ -13,6 +13,9 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
 
 ## Changes from upstream
 
+- The parser state is an enum, not a bound method value, and per-rune
+  debug traces only build their arguments when a `DebugLogger` is set.
+  Both allocated on almost every byte. See `alloc_test.go`.
 - `WithScrollback(func(line []Glyph))` option: called with a trimmed copy of
   each primary-screen line just before it is lost — scrolled out of a region
   that starts at the top row (newline/IND at the bottom margin, CSI S), or

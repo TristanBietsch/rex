@@ -42,6 +42,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Daemon and TUI: the terminal emulator no longer allocates on almost
+  every byte of agent output (14× fewer allocations on escape-heavy
+  output). The daemon runs one per session.
 - CLI: when the daemon is unreachable, the error names the socket once
   (`dial unix <path>: connect: …`) instead of wrapping it twice.
 - `rex reload` and the TUI's `:reload` report a `tools.yaml` the daemon
