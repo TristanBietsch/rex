@@ -50,7 +50,9 @@ func toggleRetire(m Model, id string) (Model, tea.Cmd) {
 	} else {
 		m.Notice = "marked done: " + label + " clears in " + shortDuration(ttl) + " (cc to undo)"
 	}
-	if m.Audio != nil {
+	// A mark is announced by the done sound when the daemon's retire_at
+	// patch arrives (applyEvent); playing close here too stacked two sounds.
+	if retiring && m.Audio != nil {
 		m.Audio.Play(audio.EventClose)
 	}
 	slog.Info("tui: retire toggle", "session", id, "action", map[bool]string{true: "unmark", false: "mark"}[retiring], "ttl_s", int64(ttl.Seconds()))

@@ -198,13 +198,15 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// prevState is the state before this patch; known is false for a
 			// session this TUI never saw (no live transition to announce).
 			var prevState protocol.State
-			known := false
+			known, marked := false, false
 			for i := range m.Sessions {
 				if m.Sessions[i].ID == upd.SessionID {
 					known = true
 					prevState = m.Sessions[i].State
 					prevDesc := m.Sessions[i].Description
+					wasMarked := !m.Sessions[i].RetireAt.IsZero()
 					applyPatch(&m.Sessions[i], upd.Patch)
+					marked = !wasMarked && !m.Sessions[i].RetireAt.IsZero()
 					if m.Sessions[i].Description != prevDesc {
 						m = registerDescAnim(m, m.Sessions[i].ID, prevDesc, m.Sessions[i].Description)
 					}
@@ -214,15 +216,19 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			s, hasState := upd.Patch["state"].(string)
 			next := protocol.State(s)
 			// A repeated done patch is not a new completion; stay silent.
-			if hasState && next == protocol.StateDone && (!known || prevState != protocol.StateDone) {
+			completed := hasState && next == protocol.StateDone && (!known || prevState != protocol.StateDone)
+			if completed {
 				if m.BlinkUntil == nil {
 					m.BlinkUntil = make(map[string]time.Time)
 				}
 				m.BlinkUntil[upd.SessionID] = time.Now().Add(1600 * time.Millisecond)
-				// Covers needs_input → done too: one transition, one sound.
-				if m.Audio != nil {
-					m.Audio.Play(audio.EventDone)
-				}
+			}
+			// Covers needs_input → done too: one transition, one sound. Marking
+			// done (cc, :done, rex done) leaves the session running, so no
+			// state patch announces it; the mark itself plays the done sound,
+			// once, even if the same patch also completes the session.
+			if (completed || marked) && m.Audio != nil {
+				m.Audio.Play(audio.EventDone)
 			}
 			if hasState {
 				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
