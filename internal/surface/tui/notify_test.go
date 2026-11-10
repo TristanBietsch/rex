@@ -73,6 +73,26 @@ func TestMarkDonePlaysDoneSound(t *testing.T) {
 	}
 }
 
+// cc end to end: the keypress plus the daemon's patch play one sound each
+// way, the done sound for a mark and the close sound for an undo.
+func TestRetireToggleSoundsOnce(t *testing.T) {
+	rec := &recordingAudio{}
+	m := boardModel(protocol.SessionSummary{ID: "a", Slug: "s", State: protocol.StateWorking})
+	m.retirer = &fakeRetirer{}
+	m.Audio = rec
+
+	m, _ = updateKey(m, key("c"))
+	m, _ = updateKey(m, key("c"))
+	m = m.applyEvent(retireUpdate(t, "a", map[string]any{"retire_at": "2026-01-09T03:04:05Z", "retired_at": "2026-01-02T03:04:05Z"}))
+	require.Equal(t, []string{audio.EventDone}, rec.Events, "mark")
+
+	rec.Events = nil
+	m, _ = updateKey(m, key("c"))
+	m, _ = updateKey(m, key("c"))
+	_ = m.applyEvent(retireUpdate(t, "a", map[string]any{"retire_at": nil, "retired_at": nil}))
+	require.Equal(t, []string{audio.EventClose}, rec.Events, "undo")
+}
+
 func TestStateChangeNotifyPerTransition(t *testing.T) {
 	cases := []struct {
 		name     string
