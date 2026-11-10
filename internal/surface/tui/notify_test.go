@@ -35,6 +35,64 @@ func stateUpdate(t *testing.T, id string, st protocol.State) protocol.Envelope {
 	return protocol.Envelope{Type: protocol.EventSessionUpdated, Data: raw}
 }
 
+func retireUpdate(t *testing.T, id string, patch map[string]any) protocol.Envelope {
+	t.Helper()
+	raw, err := json.Marshal(protocol.SessionUpdated{SessionID: id, Patch: patch})
+	require.NoError(t, err)
+	return protocol.Envelope{Type: protocol.EventSessionUpdated, Data: raw}
+}
+
+// Marking done keeps the session running, so only the retire_at patch can
+// announce it.
+func TestMarkDonePlaysDoneSound(t *testing.T) {
+	at := "2026-01-09T03:04:05Z"
+	later := "2026-01-10T03:04:05Z"
+	marked := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	cases := []struct {
+		name      string
+		alreadyAt time.Time
+		id        string
+		patch     map[string]any
+		want      []string
+	}{
+		{"mark plays done", time.Time{}, "s1", map[string]any{"retire_at": at, "retired_at": "2026-01-02T03:04:05Z"}, []string{audio.EventDone}},
+		{"mark from an older daemon (retire_at only) plays done", time.Time{}, "s1", map[string]any{"retire_at": at}, []string{audio.EventDone}},
+		{"mark that also completes plays done once", time.Time{}, "s1", map[string]any{"retire_at": at, "state": "done"}, []string{audio.EventDone}},
+		{"undo is silent", marked, "s1", map[string]any{"retire_at": nil, "retired_at": nil}, nil},
+		{"moving an existing mark is silent", marked, "s1", map[string]any{"retire_at": later}, nil},
+		{"unknown session is silent", time.Time{}, "other", map[string]any{"retire_at": at}, nil},
+		{"unrelated patch is silent", time.Time{}, "s1", map[string]any{"name": "x"}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m, rec, _ := notifyModel(t, protocol.StateWorking)
+			m.Sessions[0].RetireAt = tc.alreadyAt
+			m = m.applyEvent(retireUpdate(t, tc.id, tc.patch))
+			require.Equal(t, tc.want, rec.Events)
+		})
+	}
+}
+
+// cc end to end: the keypress plus the daemon's patch play one sound each
+// way, the done sound for a mark and the close sound for an undo.
+func TestRetireToggleSoundsOnce(t *testing.T) {
+	rec := &recordingAudio{}
+	m := boardModel(protocol.SessionSummary{ID: "a", Slug: "s", State: protocol.StateWorking})
+	m.retirer = &fakeRetirer{}
+	m.Audio = rec
+
+	m, _ = updateKey(m, key("c"))
+	m, _ = updateKey(m, key("c"))
+	m = m.applyEvent(retireUpdate(t, "a", map[string]any{"retire_at": "2026-01-09T03:04:05Z", "retired_at": "2026-01-02T03:04:05Z"}))
+	require.Equal(t, []string{audio.EventDone}, rec.Events, "mark")
+
+	rec.Events = nil
+	m, _ = updateKey(m, key("c"))
+	m, _ = updateKey(m, key("c"))
+	_ = m.applyEvent(retireUpdate(t, "a", map[string]any{"retire_at": nil, "retired_at": nil}))
+	require.Equal(t, []string{audio.EventClose}, rec.Events, "undo")
+}
+
 func TestStateChangeNotifyPerTransition(t *testing.T) {
 	cases := []struct {
 		name     string
