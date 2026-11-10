@@ -37,11 +37,13 @@ tools:
     # Folder-trust dialog. The daemon accepts it only for sessions started
     # under a folder in auto_trust_dirs (config.yaml); everywhere else the
     # user answers it. "No, exit" is selected first, so the daemon moves
-    # down until "Yes" is selected, then confirms. "Yes, proceed" is the
-    # older wording.
+    # down until "Yes" is selected, then confirms. "shown" needs the dialog
+    # header before the option, so text that merely quotes an option never
+    # triggers it. "Do you trust the files…" / "Yes, proceed" is the older
+    # wording. [ \t] (not \s) keeps "selected" on one line.
     trust_prompt:
-      shown: "Yes, I trust this folder|Yes, proceed"
-      selected: "❯\\s*(\\d+\\.\\s*)?(Yes, I trust this folder|Yes, proceed)"
+      shown: "(?s)(Accessing workspace:|Do you trust the files in this folder\\?).*(Yes, I trust this folder|Yes, proceed)"
+      selected: "❯[ \\t]*(\\d+\\.[ \\t]*)?(Yes, I trust this folder|Yes, proceed)"
       move: "\e[B"
       confirm: "\r"
     icon: "◆"

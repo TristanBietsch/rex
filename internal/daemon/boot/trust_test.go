@@ -20,6 +20,12 @@ func TestAutoTrustDirs(t *testing.T) {
 	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \""+list+"\"\n"), 0o600))
 	require.Equal(t, []string{"~/dev", "/srv/work"}, AutoTrustDirs())
 
+	// A folder name holding the separator splits into a broader folder and
+	// a relative piece; the whole setting is ignored instead.
+	sep := string(filepath.ListSeparator)
+	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \"/work/a"+sep+"b\"\n"), 0o600))
+	require.Nil(t, AutoTrustDirs())
+
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
 	require.Nil(t, AutoTrustDirs(), "no home: trust nothing")

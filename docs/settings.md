@@ -95,7 +95,13 @@ Claude Code asks "Is this a project you created or one you trust?" the first tim
 rex config set auto_trust_dirs "~/Documents/dev"
 ```
 
-The setting is read at each spawn; no restart is needed. A filesystem root (`/`) and relative entries are ignored.
+The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
+
+- a filesystem root (`/`) or your home folder itself (`~`, `~/`);
+- relative entries, and any path containing `..`;
+- the whole setting, if splitting it on `:` (`;` on Windows) gives a piece that is not an absolute or `~/` path. A folder name that contains `:` would otherwise split into a broader folder.
+
+Symlinks are resolved on both sides, so a link inside a trusted folder that points elsewhere does not count.
 
 **Only list folders whose code you trust.** Accepting the dialog lets the repository's own agent settings apply without that prompt (for Claude Code, allow rules in its `.claude/settings.json`). A repository you cloned from someone else belongs outside these folders. Which agents have a dialog to answer is set by `trust_prompt` in the tool registry ([registry.md](registry.md#trust_prompt)).
 

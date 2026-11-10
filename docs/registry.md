@@ -91,7 +91,7 @@ Describes the agent's folder-trust dialog. The daemon answers it only for sessio
 | `move` | Keys that move the selection one step (Claude: Down, `"\e[B"`) |
 | `confirm` | Keys that confirm (Claude: Enter, `"\r"`) |
 
-While `shown` matches, the daemon sends `move` (at most 4 times, 300 ms apart) until `selected` matches, then sends `confirm` once. All four fields are required, and both regexes must compile. The built-in `claude` entry matches "Yes, I trust this folder" and the older "Yes, proceed".
+While `shown` matches, the daemon sends `move` (at most 4 times, 300 ms apart) until `selected` matches, then sends `confirm` once. All four fields are required, and both regexes must compile. Anchor `shown` on the dialog's own header, so text that only quotes an option never triggers it, and keep `selected` on one line (`[ \t]`, not `\s`). The built-in `claude` entry needs "Accessing workspace:" (or the older "Do you trust the files in this folder?") followed by "Yes, I trust this folder" (or "Yes, proceed").
 
 ## Model fields
 

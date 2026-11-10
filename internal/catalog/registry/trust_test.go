@@ -42,6 +42,8 @@ func TestBuiltinClaudeTrustPrompt(t *testing.T) {
 	require.True(t, shown.MatchString(claudeTrustOld))
 	require.True(t, selected.MatchString(claudeTrustOld))
 	require.False(t, shown.MatchString("❯ Try \"fix the tests\"\n? for shortcuts"), "the normal prompt is not the dialog")
+	require.False(t, shown.MatchString("⏺ The docs say to pick \"❯ Yes, I trust this folder\""), "quoting the option without the dialog header")
+	require.False(t, selected.MatchString("Accessing workspace:\n ❯\n   Yes, I trust this folder"), "selected must not span lines")
 
 	require.Equal(t, "\x1b[B", tp.Move)
 	require.Equal(t, "\r", tp.Confirm)

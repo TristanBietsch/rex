@@ -21,6 +21,12 @@ func TestUnderAutoTrustDir(t *testing.T) {
 	require.NoError(t, os.MkdirAll(devil, 0o700))
 	link := filepath.Join(home, "link")
 	require.NoError(t, os.Symlink(dev, link))
+	// A link inside the trusted folder that points outside it.
+	outside := filepath.Join(home, "outside", "y")
+	require.NoError(t, os.MkdirAll(outside, 0o700))
+	escape := filepath.Join(dev, "escape")
+	require.NoError(t, os.Symlink(outside, escape))
+	sep := string(filepath.Separator)
 
 	cases := []struct {
 		name string
@@ -32,7 +38,13 @@ func TestUnderAutoTrustDir(t *testing.T) {
 		{"subfolder", project, []string{dev}, true},
 		{"sibling with a shared prefix", devil, []string{dev}, false},
 		{"tilde entry", project, []string{"~/dev"}, true},
-		{"bare tilde trusts home", project, []string{"~"}, true},
+		{"home itself is ignored", project, []string{"~/"}, false},
+		{"bare tilde is ignored", project, []string{"~"}, false},
+		{"home by absolute path is ignored", project, []string{home}, false},
+		{"link out of the trusted folder", escape, []string{dev}, false},
+		// Built by hand: filepath.Join would clean the ".." away.
+		{"dot-dot after a link is refused", dev + sep + "escape" + sep + ".." + sep + "x", []string{dev}, false},
+		{"dot-dot in an entry is refused", project, []string{dev + sep + "project" + sep + ".."}, false},
 		{"cwd through a symlink", filepath.Join(link, "project"), []string{dev}, true},
 		{"entry through a symlink", project, []string{link}, true},
 		{"root never counts", project, []string{string(filepath.Separator)}, false},

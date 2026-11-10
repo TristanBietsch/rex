@@ -17,8 +17,8 @@ import (
 // testTrust matches the fake dialog below, worded like Claude Code's.
 func testTrust() *TrustAnswer {
 	return &TrustAnswer{
-		Shown:    regexp.MustCompile(`Yes, I trust this folder`),
-		Selected: regexp.MustCompile(`❯\s*Yes, I trust this folder`),
+		Shown:    regexp.MustCompile(`(?s)Accessing workspace:.*Yes, I trust this folder`),
+		Selected: regexp.MustCompile(`❯[ \t]*Yes, I trust this folder`),
 		Move:     []byte("\x1b[B"),
 		Confirm:  []byte("\r"),
 	}
@@ -132,5 +132,6 @@ func TestSupervisor_AcceptsTrustDialog(t *testing.T) {
 
 func TestSupervisor_LeavesTrustDialogWithoutAnswer(t *testing.T) {
 	out := runFakeDialog(t, nil, 1500*time.Millisecond)
+	require.Contains(t, out, "Accessing workspace:", "the fake must have drawn the dialog")
 	require.False(t, strings.Contains(out, "TRUSTED") || strings.Contains(out, "EXITED"), "no keys are sent: %q", out)
 }
