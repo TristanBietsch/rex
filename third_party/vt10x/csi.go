@@ -13,6 +13,9 @@ type csiEscape struct {
 	args []int
 	mode byte
 	priv bool
+	// marker is the private-parameter prefix ('?', '<', '=' or '>'), or 0.
+	// priv is true only for '?' (DEC private modes).
+	marker byte
 }
 
 func (c *csiEscape) reset() {
@@ -20,6 +23,7 @@ func (c *csiEscape) reset() {
 	c.args = c.args[:0]
 	c.mode = 0
 	c.priv = false
+	c.marker = 0
 }
 
 func (c *csiEscape) put(b byte) bool {
@@ -38,8 +42,10 @@ func (c *csiEscape) parse() {
 	}
 	s := string(c.buf)
 	c.args = c.args[:0]
-	if s[0] == '?' {
-		c.priv = true
+	switch s[0] {
+	case '?', '<', '=', '>':
+		c.marker = s[0]
+		c.priv = s[0] == '?'
 		s = s[1:]
 	}
 	s = s[:len(s)-1]
@@ -68,6 +74,15 @@ func (c *csiEscape) maxarg(i, def int) int {
 
 func (t *State) handleCSI() {
 	c := &t.csi
+	// No sequence with a '<', '=' or '>' marker is emulated: kitty keyboard
+	// (CSI > flags u, CSI < u, CSI = flags ; mode u), xterm modifyOtherKeys
+	// (CSI > Pp ; Pv m), XTVERSION (CSI > q) and DA2/DA3 (CSI > c, CSI = c).
+	// Before the marker was recognized, CSI < u and CSI > 1 u fell through
+	// to DECRC and teleported the cursor, and CSI > 4;2 m reset the pen.
+	// Claude Code sends these on every redraw.
+	if c.marker != 0 && c.marker != '?' {
+		goto unknown
+	}
 	switch c.mode {
 	default:
 		goto unknown
@@ -162,6 +177,9 @@ func (t *State) handleCSI() {
 	case 'h': // SM - set terminal mode
 		t.setMode(c.priv, true, c.args)
 	case 'm': // SGR - terminal attribute (color)
+		if c.priv { // CSI ? Pp m is XTQMODKEYS, a query
+			goto unknown
+		}
 		t.setAttr(c.args)
 	case 'n':
 		switch c.arg(0, 0) {
@@ -178,8 +196,14 @@ func (t *State) handleCSI() {
 			t.moveAbsTo(0, 0)
 		}
 	case 's': // DECSC - save cursor position (ANSI.SYS)
+		if c.priv { // CSI ? Pm s is XTSAVE (save DEC private modes)
+			goto unknown
+		}
 		t.saveCursor()
 	case 'u': // DECRC - restore cursor position (ANSI.SYS)
+		if c.priv { // CSI ? u is the kitty keyboard flags query
+			goto unknown
+		}
 		t.restoreCursor()
 	}
 	return

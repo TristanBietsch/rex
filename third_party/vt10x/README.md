@@ -19,6 +19,11 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
   dropped by a resize that shrinks the screen above the cursor. Not called on
   the alternate screen, for regions starting below the top, or for CSI M
   (delete lines). See `scrollback_test.go`.
+- CSI sequences with a `<`, `=` or `>` parameter marker are ignored. Upstream
+  only recognized `?`, so kitty keyboard sequences (`CSI < u`, `CSI > 5 u`)
+  ran DECRC and moved the cursor, and modifyOtherKeys (`CSI > 4;2 m`) reset
+  the pen. `CSI ? u`, `CSI ? Pm s` and `CSI ? Pp m` (queries and XTSAVE) no
+  longer run DECRC, DECSC or SGR either. See `csi_test.go`.
 - `gofmt` added `//go:build` lines.
 
 Tests here are a separate module: `go -C third_party/vt10x test ./...`
