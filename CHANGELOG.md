@@ -42,6 +42,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: the attach popup no longer drifts out of sync with a long-running
+  Claude Code session until you detach and reattach. The terminal emulator
+  read Claude's kitty keyboard sequences (`CSI < u`, `CSI > 5 u`) as
+  "restore cursor", so each redraw landed on the wrong rows and the popup
+  kept showing an old frame. Sequences with a `<`, `=` or `>` marker are now
+  ignored. The daemon's per-session screen, which feeds the board's last
+  line and the AI summaries, had the same drift and is fixed too.
 - CLI: when the daemon is unreachable, the error names the socket once
   (`dial unix <path>: connect: …`) instead of wrapping it twice.
 - `rex reload` and the TUI's `:reload` report a `tools.yaml` the daemon
