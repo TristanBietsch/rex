@@ -74,7 +74,7 @@ Non-obvious choices an agent might undo without context.
 
 ## vt10x forked in-tree for scrollback
 
-**Chosen:** Copy `github.com/hinshun/vt10x` into `third_party/vt10x` (MIT, own `go.mod`) and `replace` the import path to it. The fork adds `WithScrollback`, a hook for primary-screen lines lost off the top (scrolls with region top 0, rows dropped by resize). The attach popup keeps them in a bounded ring (`attach_scrollback_lines`, 8 MiB cap) for its scroll mode.
+**Chosen:** Copy `github.com/hinshun/vt10x` into `third_party/vt10x` (MIT, own `go.mod`) and `replace` the import path to it. The fork adds `WithScrollback`, a hook for primary-screen lines lost off the top (scrolls with region top 0, rows dropped by resize). The attach popup keeps them in a bounded ring (`attach_scrollback_lines`, 8 MiB cap) for its scroll mode. The fork also ignores CSI sequences with a `<`, `=` or `>` marker (kitty keyboard, modifyOtherKeys), which upstream ran as DECRC/SGR; see `third_party/vt10x/README.md`.
 
 **Rejected:** Reconstructing history in the TUI from the raw byte stream / replay; switching emulators.
 

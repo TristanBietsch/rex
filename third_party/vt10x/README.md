@@ -13,12 +13,23 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
 
 ## Changes from upstream
 
+- The parser state is an enum, not a bound method value, and per-rune
+  debug traces only build their arguments when a `DebugLogger` is set.
+  Both allocated on almost every byte. See `alloc_test.go`.
+- `AttrReverse`, `AttrUnderline`, `AttrBold` and `AttrItalic` export the
+  `Glyph.Mode` bits so a renderer can draw them. A reversed cell is stored
+  with FG and BG already swapped. See `attr_test.go`.
 - `WithScrollback(func(line []Glyph))` option: called with a trimmed copy of
   each primary-screen line just before it is lost — scrolled out of a region
   that starts at the top row (newline/IND at the bottom margin, CSI S), or
   dropped by a resize that shrinks the screen above the cursor. Not called on
   the alternate screen, for regions starting below the top, or for CSI M
   (delete lines). See `scrollback_test.go`.
+- CSI sequences with a `<`, `=` or `>` parameter marker are ignored. Upstream
+  only recognized `?`, so kitty keyboard sequences (`CSI < u`, `CSI > 5 u`)
+  ran DECRC and moved the cursor, and modifyOtherKeys (`CSI > 4;2 m`) reset
+  the pen. `CSI ? u`, `CSI ? Pm s` and `CSI ? Pp m` (queries and XTSAVE) no
+  longer run DECRC, DECSC or SGR either. See `csi_test.go`.
 - `gofmt` added `//go:build` lines.
 
 Tests here are a separate module: `go -C third_party/vt10x test ./...`

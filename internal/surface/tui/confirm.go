@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/tristanbietsch/rex/internal/wire/protocol"
+import (
+	"fmt"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
+)
 
 func renderQuitConfirm(width int) string {
 	line := styleArrowYellow.Render("?") + " " +
@@ -12,6 +16,13 @@ func renderQuitConfirm(width int) string {
 // renderDeleteConfirm asks before tearing down a session. Includes the slug so the
 // user can see which row they're about to nuke.
 func renderDeleteConfirm(m Model, width int) string {
+	if n := len(m.PendingPrune); n > 0 {
+		line := styleArrowYellow.Render("?") + " " +
+			stylePrimary.Render(fmt.Sprintf("clear %d completed? kills their agents and removes their transcripts%s — ",
+				n, PruneKeptNote(m.PendingPruneKept))) +
+			styleDim.Render("y / N")
+		return padLine(" "+line, width)
+	}
 	slug := m.PendingDeleteID
 	for _, s := range m.Sessions {
 		if s.ID == m.PendingDeleteID {
