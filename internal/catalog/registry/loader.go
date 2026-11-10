@@ -112,6 +112,9 @@ func mergeOne(base, over Tool) Tool {
 	if over.Color != "" {
 		merged.Color = over.Color
 	}
+	if over.TrustPrompt != nil {
+		merged.TrustPrompt = over.TrustPrompt
+	}
 	// Models: extend by id rather than replace.
 	if len(over.Models) > 0 {
 		mi := make(map[string]int, len(merged.Models))
@@ -162,6 +165,16 @@ func validate(tools []Tool) error {
 			}
 		default:
 			return fmt.Errorf("tool %q: unknown detect.kind %q", t.ID, t.Detect.Kind)
+		}
+		if tp := t.TrustPrompt; tp != nil {
+			if tp.Shown == "" || tp.Selected == "" || tp.Move == "" || tp.Confirm == "" {
+				return fmt.Errorf("tool %q: trust_prompt needs shown, selected, move and confirm", t.ID)
+			}
+			for _, re := range []string{tp.Shown, tp.Selected} {
+				if _, err := regexp.Compile(re); err != nil {
+					return fmt.Errorf("tool %q: trust_prompt regex compile failed: %w", t.ID, err)
+				}
+			}
 		}
 	}
 	return nil

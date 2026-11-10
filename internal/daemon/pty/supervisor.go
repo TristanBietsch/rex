@@ -60,6 +60,9 @@ type SupervisorConfig struct {
 	UnregisterModePreamble func()
 	// StopDrainTimeout bounds the reader drain after a kill (0 = 5s).
 	StopDrainTimeout time.Duration
+	// TrustPrompt, when set, accepts the agent's folder-trust dialog (the
+	// session's folder is under auto_trust_dirs). nil leaves it to the user.
+	TrustPrompt *TrustAnswer
 }
 
 // transcriptWriter persists the raw PTY output (*state.TranscriptFile in
@@ -352,6 +355,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 
 	// Adapter classification ticker.
 	ticker := time.NewTicker(s.cfg.IdleTick)
+	trust := newTrustAnswerer(s.cfg.TrustPrompt, time.Now())
 	defer ticker.Stop()
 
 	for {
@@ -423,6 +427,19 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			windowMu.Unlock()
 			if refresh {
 				s.refreshScreenText(sess.ID, screen)
+			}
+
+			// Folder-trust dialog, only for folders the user listed.
+			if trust != nil && !trust.done {
+				keys, action := trust.next(screen.String(), time.Now())
+				if action != "" {
+					slog.Info("pty: trust prompt", "session", sess.ID, "action", action)
+				}
+				if keys != nil {
+					if _, err := f.Write(keys); err != nil {
+						slog.Warn("pty: trust prompt write failed", "session", sess.ID, "err", err)
+					}
+				}
 			}
 
 			// Summary trigger (additive — independent of adapter).

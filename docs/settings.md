@@ -83,8 +83,27 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 | `default_spawn_tool` | string | `claude` | Tool id for `i` quick-spawn |
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
+| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex config set` |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
+
+### Auto-trust
+
+Claude Code asks "Is this a project you created or one you trust?" the first time it runs in a folder, with **No, exit** selected. For a session started in a folder listed in `auto_trust_dirs`, or anywhere below one, the daemon answers it: it moves the selection to **Yes, I trust this folder**, checks that it is selected, and confirms. It acts only within the first 60 s of the session and gives up after 4 moves. Anywhere else the dialog waits for you as before.
+
+```sh
+rex config set auto_trust_dirs "~/Documents/dev"
+```
+
+The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
+
+- a filesystem root (`/`) or your home folder itself (`~`, `~/`);
+- relative entries, and any path containing `..`;
+- the whole setting, if splitting it on `:` (`;` on Windows) gives a piece that is not an absolute or `~/` path. A folder name that contains `:` would otherwise split into a broader folder.
+
+Symlinks are resolved on both sides, so a link inside a trusted folder that points elsewhere does not count.
+
+**Only list folders whose code you trust.** Accepting the dialog lets the repository's own agent settings apply without that prompt (for Claude Code, allow rules in its `.claude/settings.json`). A repository you cloned from someone else belongs outside these folders. Which agents have a dialog to answer is set by `trust_prompt` in the tool registry ([registry.md](registry.md#trust_prompt)).
 
 ### Advanced
 

@@ -13,6 +13,19 @@ type Tool struct {
 	Color            string   `yaml:"color"`
 	EnabledByDefault *bool    `yaml:"enabled_by_default,omitempty"`
 	Models           []Model  `yaml:"models"`
+	// TrustPrompt describes the agent's folder-trust dialog so the daemon
+	// can accept it for sessions under auto_trust_dirs. nil: no dialog.
+	TrustPrompt *TrustPrompt `yaml:"trust_prompt,omitempty"`
+}
+
+// TrustPrompt is an agent's "do you trust this folder?" dialog: how to tell
+// it is on screen and that its accept option is the selected one, and the
+// keys that move the selection and confirm it.
+type TrustPrompt struct {
+	Shown    string `yaml:"shown"`    // regex: the dialog is on screen
+	Selected string `yaml:"selected"` // regex: the accept option is selected
+	Move     string `yaml:"move"`     // keys that move the selection one step
+	Confirm  string `yaml:"confirm"`  // keys that confirm the selection
 }
 
 // Detect describes how the adapter decides session state.
