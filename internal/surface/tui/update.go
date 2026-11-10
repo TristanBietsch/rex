@@ -312,6 +312,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 				m.PendingChord = ""
 				if m.SelectedID != "" {
 					m.PendingDeleteID = m.SelectedID
+					m.PendingPrune, m.PendingPruneKept = nil, 0
 					m.Focus = FocusConfirmDelete
 					if m.Audio != nil {
 						m.Audio.Play(audio.EventOpen)
@@ -635,14 +636,8 @@ func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 func updateConfirmDeleteKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	switch k.String() {
 	case "y", "Y":
-		if ids := m.PendingPrune; len(ids) > 0 {
-			kept := m.PendingPruneKept
-			m.PendingPrune, m.PendingPruneKept = nil, 0
-			m.Focus = FocusBoard
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventDelete)
-			}
-			return m, pruneCmd(deleterOf(m), ids, kept)
+		if len(m.PendingPrune) > 0 {
+			return confirmPrune(m)
 		}
 		id := m.PendingDeleteID
 		m.PendingDeleteID = ""

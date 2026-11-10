@@ -80,7 +80,54 @@ func TestPruneCommandConfirmsThenDeletes(t *testing.T) {
 
 	next, _ := m.Update(msg)
 	m = next.(Model)
-	require.Equal(t, "cleared 4 (2 still working kept)", m.Notice)
+	require.Equal(t, "deleting 4 (2 still working kept)", m.Notice)
+}
+
+// The prompt can stay open while sessions change. On y only the sessions
+// still prunable on the live board are deleted.
+func TestPruneRechecksOnConfirm(t *testing.T) {
+	fd := &fakeDeleter{}
+	m := boardModel(pruneFixture()...)
+	m.deleter = fd
+	m = typeCommand(m, "prune")
+
+	// Someone typed into marked-idle: its mark is cleared and it works again.
+	for i := range m.Sessions {
+		if m.Sessions[i].ID == "marked-idle" {
+			m.Sessions[i].RetireAt = time.Time{}
+			m.Sessions[i].State = protocol.StateWorking
+		}
+	}
+	m, cmd := updateKey(m, key("y"))
+	next, _ := m.Update(cmd())
+	m = next.(Model)
+	require.Equal(t, []string{"done", "failed", "crashed"}, fd.deleted)
+	require.Equal(t, "deleting 3 (2 still working kept); 1 changed since you asked, kept", m.Notice)
+}
+
+func TestPruneWithoutDaemonReportsError(t *testing.T) {
+	m := boardModel(pruneFixture()...)
+	m = typeCommand(m, "prune")
+	m, cmd := updateKey(m, key("y"))
+	require.Nil(t, cmd)
+	require.Equal(t, FocusBoard, m.Focus)
+	require.Equal(t, "prune: not connected to the daemon", m.Err)
+}
+
+// dd after a cancelled prune deletes only the selected session.
+func TestDeleteAfterPruneCancelTargetsOneSession(t *testing.T) {
+	fd := &fakeDeleter{}
+	m := boardModel(pruneFixture()...)
+	m.deleter = fd
+	m = typeCommand(m, "prune")
+	m, _ = updateKey(m, key("esc"))
+	m.PendingPrune = []string{"done", "failed"} // a leftover must not survive dd
+	m, _ = updateKey(m, key("d"))
+	m, _ = updateKey(m, key("d"))
+	require.Equal(t, FocusConfirmDelete, m.Focus)
+	require.Nil(t, m.PendingPrune)
+	require.Equal(t, "needs", m.PendingDeleteID)
+	require.NotContains(t, renderDeleteConfirm(m, 200), "completed?")
 }
 
 func TestPruneCommandCancel(t *testing.T) {

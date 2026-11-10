@@ -86,28 +86,111 @@ func RunPrune(args []string) error {
 		}
 	}
 
-	failed := 0
+	var r pruneResult
 	for _, s := range targets {
-		if err := deleteAcked(c, s.ID); err != nil {
-			failed++
-			fmt.Fprintf(errOut, "rex: prune %s (%s): %v\n", s.ShortID, protocol.FlattenDisplayText(s.Slug), err)
-		}
+		o, err := prunePrecheckedDelete(socket, c, s)
+		r.add(o, err, s, errOut)
 	}
-	fmt.Fprintf(out, "cleared %d%s\n", len(targets)-failed, note)
-	if failed > 0 {
-		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("prune: %d of %d failed", failed, len(targets)))
+	fmt.Fprintln(out, r.summary()+note)
+	if r.failed > 0 {
+		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("prune: %d of %d failed", r.failed, len(targets)))
 	}
 	return nil
 }
 
-// deleteAcked deletes a session and waits for the daemon's Ack. A daemon
-// that predates acks gets a plain Delete it cannot confirm.
-func deleteAcked(c *client.Client, id string) error {
+// pruneOutcome is what happened to one target.
+type pruneOutcome int
+
+const (
+	pruneCleared     pruneOutcome = iota // the daemon acknowledged the delete, or it was already gone
+	pruneUnconfirmed                     // sent to a daemon that predates acks
+	pruneSkipped                         // no longer prunable (e.g. typed into, so working again)
+	pruneFailed
+)
+
+type pruneResult struct{ cleared, unconfirmed, skipped, failed int }
+
+func (r *pruneResult) add(o pruneOutcome, err error, s protocol.SessionSummary, errOut io.Writer) {
+	label := s.ShortID + " (" + protocol.FlattenDisplayText(s.Slug) + ")"
+	switch o {
+	case pruneCleared:
+		r.cleared++
+	case pruneUnconfirmed:
+		r.unconfirmed++
+	case pruneSkipped:
+		r.skipped++
+		fmt.Fprintf(errOut, "rex: prune: kept %s: it changed since the list was taken\n", label)
+	case pruneFailed:
+		r.failed++
+		fmt.Fprintf(errOut, "rex: prune %s: %v\n", label, err)
+	}
+}
+
+func (r pruneResult) summary() string {
+	out := fmt.Sprintf("cleared %d", r.cleared)
+	if r.unconfirmed > 0 {
+		out += fmt.Sprintf(", sent %d unconfirmed (daemon predates acks; run 'rex daemon restart')", r.unconfirmed)
+	}
+	if r.skipped > 0 {
+		out += fmt.Sprintf(", kept %d that changed", r.skipped)
+	}
+	return out
+}
+
+// prunePrecheckedDelete deletes s if a fresh snapshot still shows it
+// prunable. The list was taken before the prompt, and a marked-done session
+// goes back to work when someone types into it, so each target is checked
+// again right before its delete.
+func prunePrecheckedDelete(socket *core.SocketFlag, c *client.Client, s protocol.SessionSummary) (pruneOutcome, error) {
+	now, found, err := freshSession(socket, s.ID)
+	switch {
+	case err != nil:
+		return pruneFailed, err
+	case !found:
+		return pruneCleared, nil // already gone (the reaper got it first)
+	case !tui.Prunable(now):
+		return pruneSkipped, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
 	defer cancel()
-	_, err := c.Do(ctx, protocol.IntentDelete, protocol.Delete{SessionID: id})
-	if errors.Is(err, client.ErrNoAcks) {
-		return c.Delete(id)
+	_, err = c.Do(ctx, protocol.IntentDelete, protocol.Delete{SessionID: s.ID})
+	var de *client.Error
+	switch {
+	case err == nil:
+		return pruneCleared, nil
+	case errors.Is(err, client.ErrNoAcks):
+		if err := c.Delete(s.ID); err != nil {
+			return pruneFailed, err
+		}
+		return pruneUnconfirmed, nil
+	case errors.As(err, &de) && de.Code == protocol.ErrCodeUnknownSession:
+		return pruneCleared, nil // removed between the check and the delete
+	case errors.Is(err, context.DeadlineExceeded):
+		// The daemon may still be tearing the agent down.
+		if _, found, ferr := freshSession(socket, s.ID); ferr == nil && !found {
+			return pruneCleared, nil
+		}
+		return pruneFailed, err
+	default:
+		return pruneFailed, err
 	}
-	return err
+}
+
+// freshSession reads one session from a new snapshot on its own connection.
+func freshSession(socket *core.SocketFlag, id string) (protocol.SessionSummary, bool, error) {
+	c, err := socket.Dial()
+	if err != nil {
+		return protocol.SessionSummary{}, false, err
+	}
+	defer c.Close()
+	snap, err := c.Hello("rex-cli")
+	if err != nil {
+		return protocol.SessionSummary{}, false, err
+	}
+	for _, s := range snap.Sessions {
+		if s.ID == id {
+			return s, true, nil
+		}
+	}
+	return protocol.SessionSummary{}, false, nil
 }

@@ -175,7 +175,9 @@ Delete every session in the board's **Completed** column: `done`, `failed`, `cra
 rex prune [-socket path] [-dry-run] [-yes|-y]
 ```
 
-Asks `clear N completed session(s)? … [y/N]` first. `-yes` skips the question and is required when stdin is not a terminal (exit **6** otherwise). `-dry-run` lists the sessions (`short_id`, slug, state) and deletes nothing. Prints `cleared N (M still working kept)`. Exits **1** if any delete fails.
+Asks `clear N completed session(s)? … [y/N]` first. `-yes` skips the question and is required when stdin is not a terminal (exit **6** otherwise). `-dry-run` lists the sessions (`short_id`, slug, state) and deletes nothing.
+
+Each session is checked again right before its delete. One that went back to work meanwhile (typing into a marked-done session cancels the mark) is kept and named on stderr. One already gone counts as cleared. Prints `cleared N`, then `, kept K that changed` and `(M still working kept)` when they apply. A daemon that predates acks cannot confirm deletes, so they are reported as `sent N unconfirmed`. Exits **1** if any delete fails.
 
 The TUI equivalent is `:prune`.
 

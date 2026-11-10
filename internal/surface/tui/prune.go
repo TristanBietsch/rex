@@ -17,16 +17,38 @@ import (
 // Sessions in other columns are never targets.
 func PruneTargets(sessions []protocol.SessionSummary) (targets []protocol.SessionSummary, kept int) {
 	for _, s := range sessions {
-		if !inCompleted(s) {
-			continue
-		}
-		if s.State == protocol.StateWorking || s.State == protocol.StateQueued {
+		switch {
+		case Prunable(s):
+			targets = append(targets, s)
+		case inCompleted(s):
 			kept++
-			continue
 		}
-		targets = append(targets, s)
 	}
 	return targets, kept
+}
+
+// Prunable reports whether a prune may delete s right now: it is on the
+// Completed column and its agent is not working or queued. Callers check it
+// again just before deleting, because a marked-done session goes back to
+// work when someone types into it.
+func Prunable(s protocol.SessionSummary) bool {
+	return inCompleted(s) && s.State != protocol.StateWorking && s.State != protocol.StateQueued
+}
+
+// stillPrunable keeps the ids that are still prunable in sessions (the live
+// board); a session that changed or went away since the prompt opened drops.
+func stillPrunable(sessions []protocol.SessionSummary, ids []string) []string {
+	byID := make(map[string]protocol.SessionSummary, len(sessions))
+	for _, s := range sessions {
+		byID[s.ID] = s
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if s, ok := byID[id]; ok && Prunable(s) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // PruneKeptNote is the "(N still working kept)" suffix, or "" when none.
@@ -73,19 +95,41 @@ func openPrune(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// pruneDoneMsg reports how many Delete intents went out.
+// pruneDoneMsg reports how many Delete intents went out. The TUI does not
+// wait for acks: the board drops each row as the daemon removes it.
 type pruneDoneMsg struct {
 	sent, failed int
-	kept         int
+	kept         int // still working when the prompt opened
+	skipped      int // changed after the prompt opened
 	err          error
 }
 
-func pruneCmd(d sessionDeleter, ids []string, kept int) tea.Cmd {
+// confirmPrune runs on y: it deletes the pending sessions that are still
+// prunable on the live board.
+func confirmPrune(m Model) (Model, tea.Cmd) {
+	ids := stillPrunable(m.Sessions, m.PendingPrune)
+	skipped := len(m.PendingPrune) - len(ids)
+	kept := m.PendingPruneKept
+	m.PendingPrune, m.PendingPruneKept = nil, 0
+	m.Focus = FocusBoard
+	d := deleterOf(m)
 	if d == nil {
-		return nil
+		m.Err = "prune: not connected to the daemon"
+		return m, nil
 	}
+	if len(ids) == 0 {
+		m.Notice = "nothing to clear: every session changed since you asked"
+		return m, nil
+	}
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventDelete)
+	}
+	return m, pruneCmd(d, ids, kept, skipped)
+}
+
+func pruneCmd(d sessionDeleter, ids []string, kept, skipped int) tea.Cmd {
 	return func() tea.Msg {
-		msg := pruneDoneMsg{kept: kept}
+		msg := pruneDoneMsg{kept: kept, skipped: skipped}
 		for _, id := range ids {
 			if err := d.Delete(id); err != nil {
 				msg.failed++
@@ -96,7 +140,7 @@ func pruneCmd(d sessionDeleter, ids []string, kept int) tea.Cmd {
 			}
 			msg.sent++
 		}
-		slog.Info("tui: prune", "sent", msg.sent, "failed", msg.failed, "kept", kept)
+		slog.Info("tui: prune", "sent", msg.sent, "failed", msg.failed, "kept", kept, "skipped", skipped)
 		return msg
 	}
 }
@@ -106,6 +150,14 @@ func applyPruneDone(m Model, msg pruneDoneMsg) Model {
 		m.Err = fmt.Sprintf("prune: %d of %d failed: %v", msg.failed, msg.sent+msg.failed, msg.err)
 		return m
 	}
-	m.Notice = fmt.Sprintf("cleared %d", msg.sent) + PruneKeptNote(msg.kept)
+	m.Notice = fmt.Sprintf("deleting %d", msg.sent) + PruneKeptNote(msg.kept) + pruneSkippedNote(msg.skipped)
 	return m
+}
+
+// pruneSkippedNote is the "; N changed since you asked, kept" suffix.
+func pruneSkippedNote(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("; %d changed since you asked, kept", n)
 }

@@ -29,7 +29,7 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `filter` | `<tool>` | Set filter chip (`all` or tool id) |
 | `new` | — | New-session wizard |
 | `rm` | `<sel>` | Delete session |
-| `prune` | — | Delete every Completed session except those still working (confirm `y`) |
+| `prune` | — | Delete every Completed session except those still working (confirm `y`; sessions that changed while the prompt was open are kept) |
 | `rename` | `<sel> <slug>` | Rename slug |
 | `name` | `[text…]` | Set selected session's display name; no text opens the editor |
 | `done`, `undone` | `[sel]` | Mark done / undo (default: selected) |
