@@ -116,7 +116,7 @@ bench-integration:
 		./bench/integration/... \
 		| tee bench/results/integration-$$(date +%Y%m%d-%H%M%S).txt
 
-# SCENARIO: s1|s2|s3|s4|s5 — writes cpu+mem profiles under bench/profiles/
+# SCENARIO: s1|s2|s3|s4|s5|s6 — writes cpu+mem profiles under bench/profiles/
 SCENARIO ?= s3
 bench-profile:
 	@mkdir -p bench/profiles
@@ -126,6 +126,7 @@ bench-profile:
 	  s3) go test -bench=BenchmarkRenderBoard_50 -cpuprofile=bench/profiles/s3-cpu.prof -memprofile=bench/profiles/s3-mem.prof -count=1 ./internal/surface/tui/... ;; \
 	  s4) go test -bench=BenchmarkCodec -cpuprofile=bench/profiles/s4-cpu.prof -memprofile=bench/profiles/s4-mem.prof -count=1 ./internal/wire/protocol/... ;; \
 	  s5) go test -bench=BenchmarkLoadAll_200 -cpuprofile=bench/profiles/s5-cpu.prof -memprofile=bench/profiles/s5-mem.prof -count=1 ./internal/daemon/state/... ;; \
+	  s6) go test -bench=BenchmarkAttachFrame -cpuprofile=bench/profiles/s6-cpu.prof -memprofile=bench/profiles/s6-mem.prof -count=1 ./internal/surface/tui/... ;; \
 	  *) echo "unknown SCENARIO=$(SCENARIO)"; exit 1 ;; \
 	esac
 

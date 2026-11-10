@@ -45,6 +45,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: the attach popup no longer drifts out of sync with a long-running
+  Claude Code session until you detach and reattach. The terminal emulator
+  read Claude's kitty keyboard sequences (`CSI < u`, `CSI > 5 u`) as
+  "restore cursor", so each redraw landed on the wrong rows and the popup
+  kept showing an old frame. Sequences with a `<`, `=` or `>` marker are now
+  ignored. The daemon's per-session screen, which feeds the board's last
+  line and the AI summaries, had the same drift and is fixed too.
+- TUI: the attach popup renders about 5× faster with 5–10× fewer
+  allocations per frame (211×57: 3.2 ms to 0.6 ms on an unchanged screen,
+  3.6 ms to 0.8 ms with new output), so busy agents no longer make it choppy. It
+  paints the emulator grid directly instead of through a lipgloss style
+  per cell, reuses unchanged rows, and draws the popup border in one pass.
+- TUI: the attach popup shows bold, italic, underline and reverse text,
+  including an agent's own reverse-video cursor, and 24-bit colors. It
+  used to drop the attributes and send 24-bit colors as invalid 256-color
+  codes.
+- Daemon and TUI: the terminal emulator no longer allocates on almost
+  every byte of agent output (14× fewer allocations on escape-heavy
+  output). The daemon runs one per session.
 - CLI: when the daemon is unreachable, the error names the socket once
   (`dial unix <path>: connect: …`) instead of wrapping it twice.
 - `rex reload` and the TUI's `:reload` report a `tools.yaml` the daemon

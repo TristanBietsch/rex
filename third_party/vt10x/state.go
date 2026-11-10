@@ -20,6 +20,15 @@ const (
 	attrWrap
 )
 
+// Glyph.Mode bits for the attributes a renderer draws (rex fork). A cell
+// with AttrReverse is stored with FG and BG already swapped.
+const (
+	AttrReverse   = attrReverse
+	AttrUnderline = attrUnderline
+	AttrBold      = attrBold
+	AttrItalic    = attrItalic
+)
+
 const (
 	cursorDefault = 1 << iota
 	cursorWrapNext
@@ -76,7 +85,20 @@ type Cursor struct {
 	State uint8
 }
 
-type parseState func(c rune)
+// parseStep is the parser's current state. It used to be a bound method
+// value (t.state = t.parseEsc), and Go allocates each time one is taken, so
+// escape-heavy output allocated on almost every byte.
+type parseStep uint8
+
+const (
+	stepGround parseStep = iota
+	stepEsc
+	stepCSI
+	stepStr
+	stepStrEnd
+	stepAltCharset
+	stepTest
+)
 
 // State represents the terminal emulation state. Use Lock/Unlock
 // methods to synchronize data access with VT.
@@ -94,7 +116,7 @@ type State struct {
 	cur, curSaved Cursor
 	top, bottom   int // scroll limits
 	mode          ModeFlag
-	state         parseState
+	state         parseStep
 	str           strEscape
 	csi           csiEscape
 	numlock       bool
@@ -208,7 +230,31 @@ func (t *State) restoreCursor() {
 }
 
 func (t *State) put(c rune) {
-	t.state(c)
+	switch t.state {
+	case stepEsc:
+		t.parseEsc(c)
+	case stepCSI:
+		t.parseEscCSI(c)
+	case stepStr:
+		t.parseEscStr(c)
+	case stepStrEnd:
+		t.parseEscStrEnd(c)
+	case stepAltCharset:
+		t.parseEscAltCharset(c)
+	case stepTest:
+		t.parseEscTest(c)
+	default:
+		t.parse(c)
+	}
+}
+
+// trace logs one parsed rune when a DebugLogger is set. It takes the rune,
+// not a string, so the disabled path does not allocate: logf's variadic
+// arguments are built even when nothing is logged.
+func (t *State) trace(c rune) {
+	if t.DebugLogger != nil {
+		t.DebugLogger.Printf("%q", string(c))
+	}
 }
 
 func (t *State) putTab(forward bool) {
