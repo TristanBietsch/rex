@@ -34,6 +34,16 @@ tools:
     detect:
       kind: hooks
       format: claude
+    # Folder-trust dialog. The daemon accepts it only for sessions started
+    # under a folder in auto_trust_dirs (config.yaml); everywhere else the
+    # user answers it. "No, exit" is selected first, so the daemon moves
+    # down until "Yes" is selected, then confirms. "Yes, proceed" is the
+    # older wording.
+    trust_prompt:
+      shown: "Yes, I trust this folder|Yes, proceed"
+      selected: "❯\\s*(\\d+\\.\\s*)?(Yes, I trust this folder|Yes, proceed)"
+      move: "\e[B"
+      confirm: "\r"
     icon: "◆"
     color: "#D97757"
     models:

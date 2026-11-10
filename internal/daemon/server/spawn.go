@@ -141,6 +141,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		PlainPaste:     delivery.plainPaste,
 		ReadySettle:    delivery.readySettle,
 		SummaryRequest: cfg.SummaryRequest,
+		TrustPrompt:    srv.trustAnswerFor(tool, p.CWD),
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)
 		},

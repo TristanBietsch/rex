@@ -168,6 +168,7 @@ func run(args []string) error {
 		MaxConcurrentSessions: *maxConcurrent,
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
+		AutoTrustDirs:         boot.AutoTrustDirs,
 		OnShutdown:            stop,
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
 	})

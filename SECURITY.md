@@ -56,6 +56,11 @@ filesystem permissions.
   `config.yaml`, which choose the programs rex spawns.
 - What the agent CLIs themselves do (Claude Code, Codex, Gemini and others),
   including the commands they run in your repository.
+- Folders you list in the `auto_trust_dirs` setting. For sessions there,
+  rex accepts the agent's "trust this folder" dialog, so the repository's
+  own agent settings apply without that prompt. The setting is empty by
+  default. rex accepting the dialog for a folder you did not list is in
+  scope.
 - An attacker who already runs code as your user, or as root.
 - Vulnerabilities in third-party dependencies that rex does not reach. Use
   `make vuln` (govulncheck) to check reachability first.

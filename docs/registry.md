@@ -19,6 +19,7 @@ tools:
     icon: <string>
     color: <string>
     enabled_by_default: <bool>            # optional; builtin only
+    trust_prompt: { ... }                 # optional
     models:
       - id: <string>
         name: <string>
@@ -78,6 +79,19 @@ State semantics for all kinds: a finished agent turn is `needs_input` (waiting o
 ### Initial prompt delivery
 
 The wizard / quick-spawn task reaches the agent on argv where the CLI supports it: `claude … -- <prompt>`, `codex … -- <prompt>`, `gemini … --prompt-interactive=<prompt>`. Other tools (ollama, custom) get it pasted into the PTY once `prompt_regex` matches.
+
+### trust_prompt
+
+Describes the agent's folder-trust dialog. The daemon answers it only for sessions under a folder in the `auto_trust_dirs` setting ([settings.md](settings.md#auto-trust)).
+
+| Field | Description |
+|-------|-------------|
+| `shown` | Regex on the screen text: the dialog is up |
+| `selected` | Regex: the accept option is the selected one |
+| `move` | Keys that move the selection one step (Claude: Down, `"\e[B"`) |
+| `confirm` | Keys that confirm (Claude: Enter, `"\r"`) |
+
+While `shown` matches, the daemon sends `move` (at most 4 times, 300 ms apart) until `selected` matches, then sends `confirm` once. All four fields are required, and both regexes must compile. The built-in `claude` entry matches "Yes, I trust this folder" and the older "Yes, proceed".
 
 ## Model fields
 

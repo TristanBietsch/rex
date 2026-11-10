@@ -68,6 +68,10 @@ type Config struct {
 	SummaryRequest chan<- string
 	// Now is the clock for retire deadlines (nil = time.Now). Tests inject it.
 	Now func() time.Time
+	// AutoTrustDirs returns the folders whose sessions get their agent's
+	// folder-trust dialog accepted (setting auto_trust_dirs). Called at each
+	// spawn, so a changed setting applies to the next session. nil: never.
+	AutoTrustDirs func() []string
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).

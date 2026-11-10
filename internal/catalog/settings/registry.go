@@ -1,5 +1,7 @@
 package settings
 
+import "path/filepath"
+
 // Registry is the canonical list of every Rex setting.
 //
 // Adding a new setting is one struct literal here — the TUI page, the CLI, and
@@ -146,6 +148,13 @@ var Registry = []Setting{
 		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn,
 		Type: TypeString, Default: "max",
 		Help: "Effort used when pressing 'i'. Cycles through the model's effort options.",
+	},
+	{
+		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn,
+		Type: TypeString, Default: "",
+		Help: "Sessions started in these folders (or below them) get the agent's \"trust this folder\" prompt accepted for them. " +
+			"Separate folders with " + string(filepath.ListSeparator) + "; ~/ is your home. Empty: always ask. " +
+			"Only list folders whose code you trust: accepting lets a repo's own agent settings apply.",
 	},
 
 	// Advanced

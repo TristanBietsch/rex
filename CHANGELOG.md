@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `auto_trust_dirs` setting: for sessions started in these folders, the
+  daemon answers Claude Code's "trust this folder" dialog (it moves to
+  "Yes, I trust this folder", checks it is selected, then confirms).
+  Empty by default; set it with `rex config set auto_trust_dirs ~/dev`.
+  Tools declare their dialog with `trust_prompt` in `tools.yaml`. Only
+  list folders whose code you trust; see `SECURITY.md`.
 - Protocol: the daemon answers every intent that carries an envelope `id`
   with exactly one reply: its specific event (`Hello` gets `Snapshot`),
   an `Error`, or the new `Ack` event. Intents without an `id` behave as

@@ -15,7 +15,8 @@ Loads the agent tool catalog: embedded `builtin.yaml` merged with optional user 
 
 ### Types
 
-- `Tool` — `ID`, `Name`, `Category`, `Command`, `CWDStrategy`, `Detect`, `Icon`, `Color`, `EnabledByDefault`, `Models`.
+- `Tool` — `ID`, `Name`, `Category`, `Command`, `CWDStrategy`, `Detect`, `Icon`, `Color`, `EnabledByDefault`, `Models`, `TrustPrompt`.
+- `TrustPrompt` — `Shown`, `Selected` (regexes), `Move`, `Confirm` (keys); answered by `internal/daemon/pty/trust.go` only under `auto_trust_dirs` (`internal/daemon/server/trust.go`).
 - `Model` — `ID`, `Name`, `Args`, `ArgsPrompt`, `Effort`.
 - `Effort` — `Options`, `Default`, `ArgTemplate`.
 - `Detect` — `Kind`, `Format`, `PromptRegex`, `DoneRegex`, `IdleMs`.
