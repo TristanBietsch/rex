@@ -69,49 +69,61 @@ func TestCSIParseMarkers(t *testing.T) {
 
 // Claude Code sends kitty keyboard and modifyOtherKeys sequences on every
 // redraw. They must not move the cursor (they used to run DECRC) or touch
-// the pen, or the redraw that follows lands on the wrong rows.
+// the pen (CSI > 4;2 m used to run SGR 0, CSI ? 4 m set underline), or the
+// redraw that follows lands on the wrong rows.
 func TestCSIMarkerSequencesAreIgnored(t *testing.T) {
+	cases := []struct{ name, seq string }{
+		{"kitty pop", "\x1b[<u"},
+		{"kitty push", "\x1b[>5u"},
+		{"kitty set", "\x1b[=1;1u"},
+		{"kitty query", "\x1b[?u"},
+		{"modifyOtherKeys", "\x1b[>4;2m"},
+		{"XTQMODKEYS", "\x1b[?4m"},
+		{"XTVERSION", "\x1b[>q"},
+		{"DA2", "\x1b[>c"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			term := New(WithSize(40, 20))
+			// Save the cursor at row 4 col 9, then move to row 11 col 2 in red.
+			writeTerm(t, term, "\x1b[5;10H\x1b7\x1b[12;3H\x1b[31m")
+			before := term.Cursor()
+			writeTerm(t, term, tc.seq)
+			after := term.Cursor()
+			if after.X != before.X || after.Y != before.Y {
+				t.Fatalf("%q moved the cursor from (%d,%d) to (%d,%d)", tc.seq, before.X, before.Y, after.X, after.Y)
+			}
+			if after.Attr.FG != before.Attr.FG || after.Attr.BG != before.Attr.BG || after.Attr.Mode != before.Attr.Mode {
+				t.Fatalf("%q changed the pen: fg %v->%v bg %v->%v mode %d->%d", tc.seq,
+					before.Attr.FG, after.Attr.FG, before.Attr.BG, after.Attr.BG, before.Attr.Mode, after.Attr.Mode)
+			}
+			writeTerm(t, term, "x")
+			if g := term.Cell(2, 11); g.Char != 'x' || g.FG != Color(1) {
+				t.Fatalf("cell (2,11) = %q fg %v, want red 'x'", g.Char, g.FG)
+			}
+		})
+	}
+}
+
+// CSI ? Pm s is XTSAVE. It must not overwrite the position CSI s saved.
+func TestCSIXTSaveDoesNotSaveCursor(t *testing.T) {
 	term := New(WithSize(40, 20))
-	// Save the cursor at row 4 col 9, then move to row 11 col 2 in red.
-	if _, err := term.Write([]byte("\x1b[5;10H\x1b7\x1b[12;3H\x1b[31m")); err != nil {
+	writeTerm(t, term, "\x1b[3;4H\x1b[s\x1b[12;3H\x1b[?1s\x1b[1;1H\x1b[u")
+	if cur := term.Cursor(); cur.X != 3 || cur.Y != 2 {
+		t.Fatalf("CSI u restored to (%d,%d), want (3,2) from CSI s", cur.X, cur.Y)
+	}
+}
+
+func writeTerm(t *testing.T, term Terminal, s string) {
+	t.Helper()
+	if _, err := term.Write([]byte(s)); err != nil {
 		t.Fatal(err)
-	}
-	seqs := []string{
-		"\x1b[<u",    // kitty: pop keyboard flags
-		"\x1b[>5u",   // kitty: push keyboard flags
-		"\x1b[=1;1u", // kitty: set keyboard flags
-		"\x1b[?u",    // kitty: query keyboard flags
-		"\x1b[>4;2m", // xterm modifyOtherKeys
-		"\x1b[?4m",   // XTQMODKEYS query
-		"\x1b[?1s",   // XTSAVE
-		"\x1b[>q",    // XTVERSION query
-		"\x1b[>c",    // DA2 query
-	}
-	for _, s := range seqs {
-		if _, err := term.Write([]byte(s)); err != nil {
-			t.Fatal(err)
-		}
-		cur := term.Cursor()
-		if cur.X != 2 || cur.Y != 11 {
-			t.Fatalf("after %q cursor at (%d,%d), want (2,11)", s, cur.X, cur.Y)
-		}
-		if cur.Attr.FG != Color(1) {
-			t.Fatalf("after %q FG = %v, want red", s, cur.Attr.FG)
-		}
-	}
-	if _, err := term.Write([]byte("x")); err != nil {
-		t.Fatal(err)
-	}
-	if g := term.Cell(2, 11); g.Char != 'x' || g.FG != Color(1) {
-		t.Fatalf("cell (2,11) = %q fg %v, want red 'x'", g.Char, g.FG)
 	}
 }
 
 func TestCSISaveRestoreCursorStillWorks(t *testing.T) {
 	term := New(WithSize(40, 20))
-	if _, err := term.Write([]byte("\x1b[3;4H\x1b[s\x1b[10;10H\x1b[u")); err != nil {
-		t.Fatal(err)
-	}
+	writeTerm(t, term, "\x1b[3;4H\x1b[s\x1b[10;10H\x1b[u")
 	if cur := term.Cursor(); cur.X != 3 || cur.Y != 2 {
 		t.Fatalf("CSI u restored to (%d,%d), want (3,2)", cur.X, cur.Y)
 	}
