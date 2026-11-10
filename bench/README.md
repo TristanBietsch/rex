@@ -26,6 +26,7 @@ Results land in `bench/results/`. Profiles land in `bench/profiles/` (gitignored
 | S3 | TUI `renderBoard` at 10/50/200 sessions | `internal/surface/tui` |
 | S4 | Wire JSONL encode/decode round-trip | `internal/wire/protocol` |
 | S5 | `state.LoadAll` cold restore | `internal/daemon/state` |
+| S6 | Attach popup at 211×57: `View` on an unchanged screen, a Claude-style repaint plus `View`, and an opt-in replay of a real `transcript.log` (`REX_BENCH_TRANSCRIPT=path`) | `internal/surface/tui` |
 
 ## Comparing runs
 

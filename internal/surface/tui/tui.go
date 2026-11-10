@@ -155,23 +155,11 @@ func renderFullScreen(m Model, w, h int) string {
 // The board behind it stays visible around the popup so it reads as an
 // overlay, not a separate screen.
 func centerOverlay(w, h int, content, bg string) string {
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorBorder).
-		Padding(1, 2).
-		Render(content)
+	popupLines, popupW := overlayBox(content)
 
 	bgLines := strings.Split(bg, "\n")
 	for len(bgLines) < h {
 		bgLines = append(bgLines, "")
-	}
-
-	popupLines := strings.Split(box, "\n")
-	popupW := 0
-	for _, l := range popupLines {
-		if pw := ansi.StringWidth(l); pw > popupW {
-			popupW = pw
-		}
 	}
 	popupH := len(popupLines)
 
@@ -196,12 +184,37 @@ func centerOverlay(w, h int, content, bg string) string {
 		}
 		left := ansi.Truncate(bgLine, x, "")
 		right := ansi.TruncateLeft(bgLine, x+popupW, "")
-		plW := ansi.StringWidth(pl)
-		if plW < popupW {
-			pl += strings.Repeat(" ", popupW-plW)
-		}
 		bgLines[row] = left + pl + right
 	}
 
 	return strings.Join(bgLines, "\n")
+}
+
+// overlayBox draws content in a rounded border with one blank line above and
+// below and two columns each side, every line padded to the same width. It
+// matches lipgloss Border(RoundedBorder()).Padding(1, 2) but measures each
+// line once; lipgloss measured them several times, which was most of the
+// attach popup's frame time. It returns the box lines and their width.
+func overlayBox(content string) ([]string, int) {
+	content = strings.ReplaceAll(content, "\t", "    ") // lipgloss's tab width
+	lines := strings.Split(content, "\n")
+	widths := make([]int, len(lines))
+	inner := 0
+	for i, l := range lines {
+		widths[i] = ansi.StringWidth(l)
+		inner = max(inner, widths[i])
+	}
+	padded := inner + 4
+	border := lipgloss.NewStyle().Foreground(colorBorder)
+	side := border.Render("│")
+	blank := side + strings.Repeat(" ", padded) + side
+	rule := strings.Repeat("─", padded)
+
+	out := make([]string, 0, len(lines)+4)
+	out = append(out, border.Render("╭"+rule+"╮"), blank)
+	for i, l := range lines {
+		out = append(out, side+"  "+l+strings.Repeat(" ", inner-widths[i])+"  "+side)
+	}
+	out = append(out, blank, border.Render("╰"+rule+"╯"))
+	return out, padded + 2
 }

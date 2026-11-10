@@ -52,6 +52,10 @@ type AttachState struct {
 	sb        *attachScrollback
 	ScrollOff int
 	scrollNew int
+
+	// Render caches (see attach_render.go). Only View touches them.
+	paint    *glyphPainter
+	rowCache []attachRowCache
 }
 
 type AttachOutputMsg struct {
@@ -537,37 +541,6 @@ func findSession(sessions []protocol.SessionSummary, id string) (protocol.Sessio
 		}
 	}
 	return protocol.SessionSummary{}, false
-}
-
-func glyphStyle(g vt10x.Glyph) lipgloss.Style {
-	s := lipgloss.NewStyle()
-	if c, ok := vtFGColor(g.FG); ok {
-		s = s.Foreground(c)
-	}
-	if c, ok := vtBGColor(g.BG); ok {
-		s = s.Background(c)
-	}
-	return s
-}
-
-func vtFGColor(c vt10x.Color) (lipgloss.Color, bool) {
-	if c == vt10x.DefaultFG || c == vt10x.DefaultBG || c == vt10x.DefaultCursor {
-		return "", false
-	}
-	return lipgloss.Color(fmt.Sprintf("%d", uint32(c))), true
-}
-
-func vtBGColor(c vt10x.Color) (lipgloss.Color, bool) {
-	if c == vt10x.DefaultFG || c == vt10x.DefaultBG || c == vt10x.DefaultCursor {
-		return "", false
-	}
-	return lipgloss.Color(fmt.Sprintf("%d", uint32(c))), true
-}
-
-func styleEq(a, b lipgloss.Style) bool {
-	return a.GetForeground() == b.GetForeground() &&
-		a.GetBackground() == b.GetBackground() &&
-		a.GetReverse() == b.GetReverse()
 }
 
 func lipglossWidth(s string) int {
