@@ -49,6 +49,8 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 			m.Filter = args[0]
 		}
 		return m, nil
+	case "prune":
+		return openPrune(m)
 	case "rm":
 		if len(args) == 1 {
 			id, msg := resolveLocal(m, args[0])

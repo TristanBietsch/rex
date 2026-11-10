@@ -20,6 +20,7 @@ Human reference: **[../../cli.md](../../cli.md)** — commands, flags, selectors
 | `log` | `inspect` | `RunLog` |
 | `wait` | `session` | `RunWait` |
 | `rm` | `session` | `RunRm` |
+| `prune` | `session` | `RunPrune` (selection: `tui.PruneTargets`) |
 | `rename` | `session` | `RunRename` |
 | `archive` | `session` | `RunArchive` |
 | `complete` | `meta` | `RunComplete` |

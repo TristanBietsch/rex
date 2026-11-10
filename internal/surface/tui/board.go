@@ -37,10 +37,13 @@ var boardGroups = []boardGroup{
 	{"Working", func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued)
 	}},
-	{"Completed", func(s protocol.SessionSummary) bool {
-		return isMarkedDone(s) || s.State == protocol.StateDone ||
-			s.State == protocol.StateFailed || s.State == protocol.StateCrashed
-	}},
+	{"Completed", inCompleted},
+}
+
+// inCompleted reports whether a session sits in the Completed column.
+func inCompleted(s protocol.SessionSummary) bool {
+	return isMarkedDone(s) || s.State == protocol.StateDone ||
+		s.State == protocol.StateFailed || s.State == protocol.StateCrashed
 }
 
 // filterByGroup applies the group predicate plus the active tool filter.

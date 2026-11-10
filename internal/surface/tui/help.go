@@ -44,6 +44,7 @@ func renderHelp() string {
 		"  :new          new-agent wizard",
 		"  :filter <t>   set filter chip",
 		"  :rm <sel>     delete",
+		"  :prune        clear Completed (keeps sessions still working)",
 		"  :rename <s> <new-slug>   change slug",
 		"  :name [text]  rename selected (no text: open editor)",
 		"  :done [sel]   mark done / undo",

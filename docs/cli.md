@@ -167,6 +167,20 @@ rex rm <sel> [-socket path] [-force]
 
 ---
 
+## rex prune
+
+Delete every session in the board's **Completed** column: `done`, `failed`, `crashed`, and sessions marked done. Sessions marked done whose agent is still working (or queued) are kept; the daemon clears them once they settle. Deleting kills each agent and removes its directory (`meta.json`, `transcript.log`, `hooks.log`).
+
+```sh
+rex prune [-socket path] [-dry-run] [-yes|-y]
+```
+
+Asks `clear N completed session(s)? … [y/N]` first. `-yes` skips the question and is required when stdin is not a terminal (exit **6** otherwise). `-dry-run` lists the sessions (`short_id`, slug, state) and deletes nothing. Prints `cleared N (M still working kept)`. Exits **1** if any delete fails.
+
+The TUI equivalent is `:prune`.
+
+---
+
 ## rex rename
 
 Change a session's **slug** (the selector handle). Waits for the daemon to confirm and prints `<old>: renamed to <new>`.

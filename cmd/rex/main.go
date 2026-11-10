@@ -50,6 +50,8 @@ func run(args []string) error {
 		return session.RunWait(args[1:])
 	case "rm":
 		return session.RunRm(args[1:])
+	case "prune":
+		return session.RunPrune(args[1:])
 	case "rename":
 		return session.RunRename(args[1:])
 	case "name":
