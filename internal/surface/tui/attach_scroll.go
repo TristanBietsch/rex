@@ -220,69 +220,30 @@ func updateAttachScrollKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// attachGlyphRow renders one row of cols cells; cursorX < 0 draws no cursor.
-// Callers reading live cells must hold the term lock.
-func attachGlyphRow(cols int, cell func(x int) vt10x.Glyph, cursorX int) string {
-	var row strings.Builder
-	var run strings.Builder
-	var runStyle lipgloss.Style
-	var haveStyle bool
-	flush := func() {
-		if run.Len() == 0 {
-			return
-		}
-		if haveStyle {
-			row.WriteString(runStyle.Render(run.String()))
-		} else {
-			row.WriteString(run.String())
-		}
-		run.Reset()
-	}
-	for x := 0; x < cols; x++ {
-		g := cell(x)
-		r := g.Char
-		if r == 0 || r == ' ' {
-			r = ' '
-		}
-		style := glyphStyle(g)
-		if x == cursorX {
-			style = style.Reverse(true)
-		}
-		if !haveStyle || !styleEq(style, runStyle) {
-			flush()
-			runStyle = style
-			haveStyle = true
-		}
-		run.WriteRune(r)
-	}
-	flush()
-	return row.String()
-}
-
 var blankGlyph = vt10x.Glyph{Char: ' ', FG: vt10x.DefaultFG, BG: vt10x.DefaultBG}
 
 // attachViewRow renders popup row y: the live screen, or while scrolled the
 // slice of scrollback + live rows the offset selects. Scrollback rows are
 // padded or cut to the current width (no reflow). Term lock must be held.
 func attachViewRow(a *AttachState, y, cols int, cursorX int) string {
-	live := func(ly int) func(int) vt10x.Glyph {
-		return func(x int) vt10x.Glyph { return a.Term.Cell(x, ly) }
-	}
 	if a.ScrollOff == 0 {
-		return attachGlyphRow(cols, live(y), cursorX)
+		return a.liveRow(y, cols, cursorX)
 	}
 	n := a.sb.Len()
 	idx := n - a.ScrollOff + y
 	if idx >= n {
-		return attachGlyphRow(cols, live(idx-n), -1)
+		return a.liveRow(idx-n, cols, -1)
 	}
 	line := a.sb.Line(idx)
-	return attachGlyphRow(cols, func(x int) vt10x.Glyph {
+	cells := make([]vt10x.Glyph, cols)
+	for x := range cells {
 		if x < len(line) {
-			return line[x]
+			cells[x] = line[x]
+		} else {
+			cells[x] = blankGlyph
 		}
-		return blankGlyph
-	}, -1)
+	}
+	return a.painter().row(cells, -1)
 }
 
 // attachScrollChip is the "SCROLL ↑N/total" title chip.
