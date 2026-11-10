@@ -20,6 +20,15 @@ const (
 	attrWrap
 )
 
+// Glyph.Mode bits for the attributes a renderer draws (rex fork). A cell
+// with AttrReverse is stored with FG and BG already swapped.
+const (
+	AttrReverse   = attrReverse
+	AttrUnderline = attrUnderline
+	AttrBold      = attrBold
+	AttrItalic    = attrItalic
+)
+
 const (
 	cursorDefault = 1 << iota
 	cursorWrapNext

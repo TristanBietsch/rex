@@ -24,21 +24,6 @@ func paintedRow(t *testing.T, p *glyphPainter, input string, cols, cursorX int) 
 	return p.row(cells, cursorX)
 }
 
-func TestGlyphAttrsLearned(t *testing.T) {
-	a := vtGlyphAttrs()
-	bits := []int16{a.bold, a.italic, a.underline, a.reverse}
-	for i, b := range bits {
-		if b == 0 || b&(b-1) != 0 {
-			t.Fatalf("attr %d = %b, want one bit", i, b)
-		}
-		for j := i + 1; j < len(bits); j++ {
-			if b == bits[j] {
-				t.Fatalf("attrs %d and %d share bit %b", i, j, b)
-			}
-		}
-	}
-}
-
 func TestGlyphPainterSGR(t *testing.T) {
 	p := newGlyphPainter(termenv.TrueColor)
 	cases := []struct {
@@ -50,6 +35,9 @@ func TestGlyphPainterSGR(t *testing.T) {
 		{"bold", "\x1b[1mab", 2, "\x1b[1mab\x1b[0m"},
 		{"italic underline", "\x1b[3;4mab", 2, "\x1b[3;4mab\x1b[0m"},
 		{"reverse", "\x1b[7mab", 2, "\x1b[7mab\x1b[0m"},
+		// vt10x stores these with FG and BG swapped; drawn once, not twice.
+		{"reverse with fg", "\x1b[7;31mab", 2, "\x1b[7;31mab\x1b[0m"},
+		{"reverse with fg and bg", "\x1b[7;31;44mab", 2, "\x1b[7;31;44mab\x1b[0m"},
 		{"ansi fg", "\x1b[31mab", 2, "\x1b[31mab\x1b[0m"},
 		{"256 fg and bg", "\x1b[38;5;174;48;5;16mab", 2, "\x1b[38;5;174;48;5;16mab\x1b[0m"},
 		{"truecolor", "\x1b[38;2;217;119;87mab", 2, "\x1b[38;2;217;119;87mab\x1b[0m"},
@@ -72,6 +60,9 @@ func TestGlyphPainterCursorFlipsReverse(t *testing.T) {
 	// An agent's own reversed "cursor" cell under our cursor turns back.
 	if got, want := paintedRow(t, p, "\x1b[7mab", 2, 0), "a\x1b[7mb\x1b[0m"; got != want {
 		t.Fatalf("cursor on reversed cell = %q, want %q", got, want)
+	}
+	if got, want := paintedRow(t, p, "\x1b[7;31mab", 2, 0), "\x1b[31ma\x1b[0m\x1b[7;31mb\x1b[0m"; got != want {
+		t.Fatalf("cursor on reversed red cell = %q, want %q", got, want)
 	}
 }
 

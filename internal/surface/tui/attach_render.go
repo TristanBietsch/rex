@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hinshun/vt10x"
@@ -16,31 +15,14 @@ import (
 // cached SGR prefix, and attachRowCache reuses a row's output while its
 // cells are unchanged, which is most rows on most frames.
 
-// glyphAttrs are the Glyph.Mode bits for the attributes the popup draws.
-// vt10x keeps them unexported, so they are learned once from the emulator.
-type glyphAttrs struct {
-	bold, italic, underline, reverse int16
-}
-
-func (b glyphAttrs) mask() int16 { return b.bold | b.italic | b.underline | b.reverse }
-
-var vtGlyphAttrs = sync.OnceValue(func() glyphAttrs {
-	term := vt10x.New(vt10x.WithSize(4, 1))
-	_, _ = term.Write([]byte("\x1b[1mA\x1b[0m\x1b[3mB\x1b[0m\x1b[4mC\x1b[0m\x1b[7mD\x1b[0m"))
-	term.Lock()
-	defer term.Unlock()
-	return glyphAttrs{
-		bold:      term.Cell(0, 0).Mode,
-		italic:    term.Cell(1, 0).Mode,
-		underline: term.Cell(2, 0).Mode,
-		reverse:   term.Cell(3, 0).Mode,
-	}
-})
+// attrMask is the Glyph.Mode bits the popup draws; others (wrap, gfx,
+// blink) must not split runs.
+const attrMask = vt10x.AttrBold | vt10x.AttrItalic | vt10x.AttrUnderline | vt10x.AttrReverse
 
 // sgrKey is everything about a cell that changes how it is drawn.
 type sgrKey struct {
 	fg, bg vt10x.Color
-	mode   int16 // glyphAttrs bits only
+	mode   int16 // attrMask bits only
 }
 
 // maxSGRCache bounds the prefix cache; an agent cycling through truecolor
@@ -50,14 +32,11 @@ const maxSGRCache = 4096
 // glyphPainter renders emulator cells for one color profile.
 type glyphPainter struct {
 	profile termenv.Profile
-	attrs   glyphAttrs
-	mask    int16
 	prefix  map[sgrKey]string // SGR that starts a run; "" draws plain
 }
 
 func newGlyphPainter(profile termenv.Profile) *glyphPainter {
-	a := vtGlyphAttrs()
-	return &glyphPainter{profile: profile, attrs: a, mask: a.mask(), prefix: make(map[sgrKey]string)}
+	return &glyphPainter{profile: profile, prefix: make(map[sgrKey]string)}
 }
 
 // sgr returns the escape sequence that starts a run drawn as k.
@@ -78,16 +57,16 @@ func (p *glyphPainter) buildSGR(k sgrKey) string {
 		return "" // no styling at all, as lipgloss does for this profile
 	}
 	params := make([]string, 0, 6)
-	if k.mode&p.attrs.bold != 0 {
+	if k.mode&vt10x.AttrBold != 0 {
 		params = append(params, "1")
 	}
-	if k.mode&p.attrs.italic != 0 {
+	if k.mode&vt10x.AttrItalic != 0 {
 		params = append(params, "3")
 	}
-	if k.mode&p.attrs.underline != 0 {
+	if k.mode&vt10x.AttrUnderline != 0 {
 		params = append(params, "4")
 	}
-	if k.mode&p.attrs.reverse != 0 {
+	if k.mode&vt10x.AttrReverse != 0 {
 		params = append(params, "7")
 	}
 	if s := p.color(k.fg).Sequence(false); s != "" {
@@ -121,15 +100,24 @@ const sgrReset = termenv.CSI + termenv.ResetSeq + "m"
 
 // row renders cells as one line. The cell at cursorX (if any) is drawn with
 // its reverse attribute flipped, so the cursor shows on reversed text too.
+//
+// vt10x stores a reversed cell with FG and BG already swapped and keeps the
+// reverse bit. The painter swaps them back and sends SGR 7, so the terminal
+// does the reversing once: drawing the swapped colors with SGR 7 inverted
+// colored text twice, and drawing them without it lost reverse on
+// default-colored text (an agent's own cursor).
 func (p *glyphPainter) row(cells []vt10x.Glyph, cursorX int) string {
 	var out strings.Builder
 	out.Grow(len(cells) * 2)
 	var prev sgrKey
 	cur, open := "", false
 	for x, g := range cells {
-		k := sgrKey{fg: g.FG, bg: g.BG, mode: g.Mode & p.mask}
+		k := sgrKey{fg: g.FG, bg: g.BG, mode: g.Mode & attrMask}
+		if k.mode&vt10x.AttrReverse != 0 {
+			k.fg, k.bg = k.bg, k.fg
+		}
 		if x == cursorX {
-			k.mode ^= p.attrs.reverse
+			k.mode ^= vt10x.AttrReverse
 		}
 		if x == 0 || k != prev {
 			if pre := p.sgr(k); x == 0 || pre != cur {

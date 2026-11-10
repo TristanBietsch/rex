@@ -42,9 +42,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- TUI: the attach popup renders about 5× faster and allocates about 10×
-  less per frame (211×57: 3.2 ms to 0.6 ms on an unchanged screen, 3.6 ms
-  to 0.8 ms with new output), so busy agents no longer make it choppy. It
+- TUI: the attach popup renders about 5× faster with 5–10× fewer
+  allocations per frame (211×57: 3.2 ms to 0.6 ms on an unchanged screen,
+  3.6 ms to 0.8 ms with new output), so busy agents no longer make it choppy. It
   paints the emulator grid directly instead of through a lipgloss style
   per cell, reuses unchanged rows, and draws the popup border in one pass.
 - TUI: the attach popup shows bold, italic, underline and reverse text,

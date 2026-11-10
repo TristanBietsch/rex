@@ -18,6 +18,7 @@ func TestOverlayBoxMatchesLipgloss(t *testing.T) {
 		"\x1b[1mbold\x1b[0m and \x1b[38;5;174mcolor\x1b[0m\nplain",
 		"wide 文字 chars\nx",
 		"tab\tseparated",
+		"crlf\r\nlines\r\n",
 		"",
 	}
 	for _, profile := range []termenv.Profile{termenv.Ascii, termenv.ANSI256} {

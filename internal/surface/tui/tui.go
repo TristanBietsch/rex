@@ -196,6 +196,7 @@ func centerOverlay(w, h int, content, bg string) string {
 // line once; lipgloss measured them several times, which was most of the
 // attach popup's frame time. It returns the box lines and their width.
 func overlayBox(content string) ([]string, int) {
+	content = strings.ReplaceAll(content, "\r\n", "\n") // as lipgloss does
 	content = strings.ReplaceAll(content, "\t", "    ") // lipgloss's tab width
 	lines := strings.Split(content, "\n")
 	widths := make([]int, len(lines))
