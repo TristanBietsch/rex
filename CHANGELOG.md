@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - TUI: marking a session done (`cc`, `:done`, `rex done`) plays the done
   sound. The session keeps running, so nothing announced the mark before.
   `cc` no longer also plays the close sound for a mark; undoing still does.
+- `rex prune` and the TUI's `:prune` delete every Completed session (done,
+  failed, crashed, marked done) after one confirmation, keeping sessions
+  marked done whose agent is still working. Each session is checked again
+  just before its delete, so one typed into after the list was shown is
+  kept. `rex prune -dry-run` lists them; `-yes` skips the question and is
+  required without a terminal.
 - Protocol: the daemon answers every intent that carries an envelope `id`
   with exactly one reply: its specific event (`Hello` gets `Snapshot`),
   an `Error`, or the new `Ack` event. Intents without an `id` behave as

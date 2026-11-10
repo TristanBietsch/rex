@@ -135,6 +135,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleReconnectTick(m, msg)
 	case reconnectResultMsg:
 		return handleReconnectResult(m, msg)
+	case pruneDoneMsg:
+		return applyPruneDone(m, msg), nil
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
 		m.Err = msg.Op + ": " + msg.Err.Error()
@@ -310,6 +312,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 				m.PendingChord = ""
 				if m.SelectedID != "" {
 					m.PendingDeleteID = m.SelectedID
+					m.PendingPrune, m.PendingPruneKept = nil, 0
 					m.Focus = FocusConfirmDelete
 					if m.Audio != nil {
 						m.Audio.Play(audio.EventOpen)
@@ -633,6 +636,9 @@ func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 func updateConfirmDeleteKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	switch k.String() {
 	case "y", "Y":
+		if len(m.PendingPrune) > 0 {
+			return confirmPrune(m)
+		}
 		id := m.PendingDeleteID
 		m.PendingDeleteID = ""
 		m.Focus = FocusBoard
@@ -645,6 +651,7 @@ func updateConfirmDeleteKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, deleteSessionCmd(m.Client, id)
 	case "n", "N", "esc", "enter":
 		m.PendingDeleteID = ""
+		m.PendingPrune, m.PendingPruneKept = nil, 0
 		m.Focus = FocusBoard
 		if m.Audio != nil {
 			m.Audio.Play(audio.EventClose)

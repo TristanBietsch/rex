@@ -65,9 +65,10 @@ type Model struct {
 
 	// Clock overrides time.Now for rendering (tests). nil = wall clock.
 	Clock func() time.Time
-	// namer / retirer override Client for those intents (tests).
+	// namer / retirer / deleter override Client for those intents (tests).
 	namer   sessionNamer
 	retirer sessionRetirer
+	deleter sessionDeleter
 	// reloader sends :reload's Reload intent to the daemon on a socket.
 	// nil means daemonctl.ReloadDaemon; tests swap it so no real daemon is
 	// reached.
@@ -80,6 +81,10 @@ type Model struct {
 
 	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
 	PendingDeleteID string
+	// PendingPrune holds the sessions a :prune confirmation would delete
+	// (it shares the delete prompt); PendingPruneKept is how many it skips.
+	PendingPrune     []string
+	PendingPruneKept int
 
 	// BlinkUntil tracks done-blink expiry per session.
 	BlinkUntil map[string]time.Time

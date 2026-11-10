@@ -48,6 +48,7 @@ func RunHelp() error {
 				{"done <sel>", "mark done: cleared after retire_after_hours (-after 72h)"},
 				{"undone <sel>", "cancel a pending done"},
 				{"rm <sel>", "delete a session"},
+				{"prune", "delete Completed sessions, keeping any still working (-dry-run, -yes)"},
 				{"archive <sel>", "archive a session"},
 				{"complete <sel>", "cleanly terminate a session and mark it done"},
 				{"log <sel>", "stream session log"},
