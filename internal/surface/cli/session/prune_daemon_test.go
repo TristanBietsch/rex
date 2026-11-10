@@ -16,6 +16,9 @@ import (
 // rex prune against a real in-process daemon: a finished echo session is
 // deleted (and acknowledged), one still waiting for input is left alone.
 func TestRunPrune_RealDaemon(t *testing.T) {
+	// Agent folders are made before the daemon starts, so their cleanup runs
+	// after d.Close: Windows will not remove a folder a live agent is in.
+	finishedDir, waitingDir := t.TempDir(), t.TempDir()
 	d := testutil.StartDaemon(t)
 	t.Cleanup(d.Close)
 
@@ -24,19 +27,19 @@ func TestRunPrune_RealDaemon(t *testing.T) {
 	defer c.Close()
 	_, err = c.Hello("prune-test")
 	require.NoError(t, err)
-	spawn := func(model, slug string) string {
+	spawn := func(model, slug, cwd string) string {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{
-			ToolID: "echo", ModelID: model, Slug: slug, CWD: t.TempDir(),
+			ToolID: "echo", ModelID: model, Slug: slug, CWD: cwd,
 		})
 		require.NoError(t, err)
 		var ack protocol.Ack
 		require.NoError(t, json.Unmarshal(env.Data, &ack))
 		return ack.SessionID
 	}
-	finished := spawn("short", "finished")
-	waiting := spawn("prompt", "waiting")
+	finished := spawn("short", "finished", finishedDir)
+	waiting := spawn("prompt", "waiting", waitingDir)
 
 	states := func() map[string]protocol.State {
 		sc, err := client.Dial(d.Socket)
@@ -62,4 +65,10 @@ func TestRunPrune_RealDaemon(t *testing.T) {
 	st := states()
 	require.NotContains(t, st, finished, "the done session is deleted")
 	require.Contains(t, st, waiting, "a session needing input is not on Completed")
+
+	// Stop the waiting agent before cleanup (acknowledged once torn down).
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_, err = c.Do(ctx, protocol.IntentDelete, protocol.Delete{SessionID: waiting})
+	require.NoError(t, err)
 }
