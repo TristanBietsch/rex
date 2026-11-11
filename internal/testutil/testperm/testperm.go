@@ -50,8 +50,9 @@ func MkdirAll(t testing.TB, dir string, mode os.FileMode) {
 }
 
 // RequireMode fails t unless path's permission bits are the ones os.Stat
-// reports on this OS for a path whose mode was set to mode, when it was
-// created or by chmod.
+// reports on this OS for a path whose mode was set to mode: when a file was
+// created or by chmod, and for a directory by chmod only (creating a
+// directory on Windows ignores its mode).
 //
 // On Unix that is exactly mode. Windows keeps only the owner write bit, as
 // the read-only attribute, so os.Stat reports 0666 or 0444 for a file and

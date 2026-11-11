@@ -24,8 +24,6 @@ func TestWriteFileAndMkdirAll_setExactModes(t *testing.T) {
 	RequireMode(t, path, 0o640)
 
 	// Without the owner write bit (the read-only attribute on Windows).
-	// Restored so the TempDir cleanup can remove the file on Windows.
-	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
 	Loosen(t, path, 0o400)
 	RequireMode(t, path, 0o400)
 }
