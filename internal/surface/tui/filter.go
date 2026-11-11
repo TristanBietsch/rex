@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
 
 // filterCommand runs `:filter`.
@@ -210,4 +212,33 @@ func renderFilterStatus(m Model) string {
 		}
 	}
 	return styleDim.Render(strings.Join(names, ", ") + " hidden (" + hint + ")")
+}
+
+// hiddenSectionsFrom reads the board_hidden_sections setting.
+func hiddenSectionsFrom(st *settings.Store) map[string]bool {
+	if st == nil {
+		return nil
+	}
+	raw, _ := st.Get("board_hidden_sections").(string)
+	return hiddenSectionsFromIDs(strings.Split(raw, ","))
+}
+
+// hiddenSectionsFromIDs keeps the known section IDs (case-insensitive,
+// trimmed). Unknown IDs are dropped, and a list that would hide every
+// section is ignored. Nothing hidden is a nil map.
+func hiddenSectionsFromIDs(ids []string) map[string]bool {
+	known := map[string]bool{}
+	for _, g := range boardGroups {
+		known[g.ID] = true
+	}
+	out := map[string]bool{}
+	for _, id := range ids {
+		if id = strings.ToLower(strings.TrimSpace(id)); known[id] {
+			out[id] = true
+		}
+	}
+	if len(out) == 0 || len(out) == len(boardGroups) {
+		return nil
+	}
+	return out
 }

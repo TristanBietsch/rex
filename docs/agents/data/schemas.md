@@ -108,7 +108,7 @@ Flat top-level keys matching `settings.Registry` IDs. Unknown keys ignored on lo
 
 ## tui-state.json
 
-Written by `internal/surface/tui/persist.go` at `~/.local/state/rex/tui-state.json` — selection and filter strings (read once on next launch then deleted). Exact JSON keys: see `persist.go` (not exported as named struct).
+Written by `internal/surface/tui/persist.go` at `~/.local/state/rex/tui-state.json` — `selection`, `filter`, `scroll_offset`, `saved_at` and `hidden_sections` (a list of section ids; `[]` means none hidden, a missing key leaves `board_hidden_sections` alone). Read once on next launch then deleted. See `persistedState` in `persist.go`.
 
 ## Registry Tool (YAML)
 

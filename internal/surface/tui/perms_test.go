@@ -21,10 +21,10 @@ func TestSaveTUIState_ownerOnly(t *testing.T) {
 	testperm.RequireMode(t, filepath.Dir(statePath), 0o700)
 	testperm.RequireMode(t, statePath, 0o600)
 
-	sel, filter, ok := LoadTUIState()
+	st, ok := LoadTUIState()
 	require.True(t, ok)
-	require.Equal(t, "s1", sel)
-	require.Equal(t, "all", filter)
+	require.Equal(t, "s1", st.Selection)
+	require.Equal(t, "all", st.Filter)
 }
 
 func TestTildePath(t *testing.T) {
@@ -44,7 +44,7 @@ func TestTUIState_noHome(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
 	require.ErrorIs(t, SaveTUIState(Model{SelectedID: "s1"}), paths.ErrNoHome)
-	_, _, ok := LoadTUIState()
+	_, ok := LoadTUIState()
 	require.False(t, ok)
 
 	msg := runBootStep(t, stepPathsEnsure(Model{}))

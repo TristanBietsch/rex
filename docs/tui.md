@@ -215,7 +215,7 @@ A small column before the time column flags sessions that have been **working** 
 
 ## DETACH WITHOUT QUITTING
 
-`:bg` or `:detach` saves selection and filter to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores selection and filter once, then deletes the state file.
+`:bg` or `:detach` saves selection, tool filter and hidden sections to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores them once (the saved hidden sections replace `board_hidden_sections` for that run), then deletes the state file.
 
 ## PROMPT
 

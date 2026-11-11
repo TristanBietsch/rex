@@ -36,7 +36,7 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 | `~/.config/rex/config.yaml` | `rex setup`, TUI settings, `rex config` | User settings (flat keys) |
 | `~/.config/rex/tools.yaml` | User | Tool registry overlay |
 | `~/.config/rex/init.lua` | User | Optional Lua hooks |
-| `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection and filter; read once on next launch, then deleted |
+| `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection, tool filter and hidden sections; read once on next launch, then deleted |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
 | `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`) |
 

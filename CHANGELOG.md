@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Setting `board_hidden_sections` (Behavior): section ids hidden at startup,
+  for example `done`. `:bg` now also saves the hidden sections, and the
+  next start restores them.
 - TUI: the filter bar names the hidden sections (`done hidden (zh)`) and
   stays up while any is hidden. `:prune` says "filters ignored" in its
   confirmation while a filter is active, since it clears every Done
@@ -126,6 +129,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The settings page showed a second "Spawn" section for
+  `auto_trust_dirs`; it now sits with the other Spawn settings.
 - TUI: a reconnect to the daemon no longer resets the tool filter to `all`.
 - TUI: `:filter <tool>` now moves the selection off a row the filter hides
   (before, `enter` did nothing) and rejects a tool that is neither a filter

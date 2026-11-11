@@ -50,6 +50,7 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | `screensaver_after_minutes` | int | `5` | 1–120 | Idle minutes before the screensaver shows. Only time on the bare board counts: overlays, prompts and the attach popup never time out. A change applies within a minute |
 | `skip_permissions` | bool | `false` | | Start Claude Code and Antigravity with `--dangerously-skip-permissions` (the tool's `skip_permissions_args`). Agents then edit files and run commands without asking you first. Off by default; read at each spawn, so it applies to the next session. See [SECURITY.md](../SECURITY.md) |
 | `screensaver_keep_awake` | bool | `true` | | macOS only: keep the display from sleeping while the screensaver shows (`caffeinate -d`, stopped when it goes away or rex exits). Does nothing on other systems. See [tui.md](tui.md#keep-awake-macos) |
+| `board_hidden_sections` | string | `""` | | Board sections hidden at startup: comma-separated ids from `needs`, `working`, `done` (for example `done`). Unknown ids are ignored, and a list naming every section is ignored. `zh`, `z1`-`z9` and `:filter` change it for the current run; `:bg` keeps that choice for the next start, which overrides this setting once. Read at startup only. See [tui.md](tui.md#filter-and-search) |
 
 `max_concurrent_sessions` in YAML does **not** set the daemon cap at startup. The daemon uses `-max-concurrent-sessions` (default 16). The TUI can apply a new cap live via the settings UI (`SetMaxConcurrent` intent). Restart the daemon to pick up a YAML change for startup behavior.
 

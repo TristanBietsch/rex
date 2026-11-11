@@ -101,6 +101,11 @@ var Registry = []Setting{
 		Help: "macOS: keep the display from sleeping while the screensaver shows (caffeinate -d). Does nothing on other systems.",
 	},
 	{
+		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior,
+		Type: TypeString, Default: "",
+		Help: "Board sections hidden at startup, comma-separated ids: needs, working, done (for example: done). Unknown ids are ignored. zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
+	},
+	{
 		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior,
 		Type: TypeBool, Default: false,
 		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions. Agents then edit files and run commands without asking you first. Applies to the next session.",
@@ -121,6 +126,14 @@ var Registry = []Setting{
 		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn,
 		Type: TypeString, Default: "max",
 		Help: "Effort used when pressing 'i'. Cycles through the model's effort options.",
+	},
+	{
+		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn,
+		Type: TypeString, Default: "",
+		Normalize: normalizeAutoTrustDirs,
+		Help: "Sessions started in these folders (or below them) skip the agent's \"trust this folder\" question: rex starts the agent with the folder trusted, or answers the question. " +
+			"Separate folders with " + string(filepath.ListSeparator) + "; ~/ is your home. Empty: always ask. " +
+			"Only list folders whose code you trust: accepting lets a repo's own agent settings apply.",
 	},
 
 	// AI summary
@@ -170,15 +183,6 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "Spoken \"rex\" announcement after the startup tone (needs sound enabled).",
 	},
-	{
-		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn,
-		Type: TypeString, Default: "",
-		Normalize: normalizeAutoTrustDirs,
-		Help: "Sessions started in these folders (or below them) skip the agent's \"trust this folder\" question: rex starts the agent with the folder trusted, or answers the question. " +
-			"Separate folders with " + string(filepath.ListSeparator) + "; ~/ is your home. Empty: always ask. " +
-			"Only list folders whose code you trust: accepting lets a repo's own agent settings apply.",
-	},
-
 	// Advanced
 	{
 		ID: "lua_config_path", Label: "Lua config", Section: SectionAdvanced,
