@@ -21,6 +21,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Antigravity: a question or the trust dialog shows as waiting at once, not
+  after 15 s. rex asks agy for its terminal status (`AGY_CLI_OSC7501=on`,
+  per session, nothing written to `~/.gemini`) and falls back to the footer
+  until it arrives. New registry field `detect.status: osc7501`.
+- Antigravity: rex keeps the conversation id agy prints when it quits, so
+  `uc` and `:resume` work for agy sessions (`resume` block with
+  `--conversation={id}`), and a `trust_prompt` fallback answers agy's trust
+  dialog in trusted folders.
 - TUI: a banner above the agent in the attach popup: what it is doing (the
   AI description, else the task or the question it asks), where (folder),
   for how long (working, waiting, ended) and how fresh the description is.
