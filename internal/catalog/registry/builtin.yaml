@@ -157,6 +157,12 @@ tools:
     # Folders in auto_trust_dirs: agy trusts them itself for this session
     # (--settings is session-only and never saved), so no dialog shows.
     trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
+    # agy cannot preassign a conversation id, so there is no new_args. On exit
+    # it prints "Resume with -c (or command below):" and then
+    # "agy --conversation=<uuid>"; the id is read from that line.
+    resume:
+      args: ["--conversation={id}"]
+      capture_regex: "agy --conversation=([0-9a-fA-F-]{36})"
     icon: "◈"
     color: "#4285F4"
     models:
