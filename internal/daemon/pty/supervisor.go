@@ -58,6 +58,15 @@ type SupervisorConfig struct {
 	// escape-sequence preamble (see ModePreamble) to attach clients.
 	RegisterModePreamble   func(preamble func() []byte)
 	UnregisterModePreamble func()
+	// RegisterAttach exposes a hook for attach clients: it runs fn with the
+	// session's output held, so no PTY chunk is persisted, passed to
+	// OutputSink or applied to the screen while fn runs. fn's repaint
+	// returns the current screen as escape sequences (see Repaint). A
+	// subscriber that snapshots (transcript tail, repaint) and registers
+	// its output sink inside fn sees each chunk exactly once: in the
+	// snapshot or live. fn must not block on the session's output.
+	RegisterAttach   func(attach func(fn func(repaint func() []byte)))
+	UnregisterAttach func()
 	// StopDrainTimeout bounds the reader drain after a kill (0 = 5s).
 	StopDrainTimeout time.Duration
 	// TrustPrompt, when set, accepts the agent's folder-trust dialog (the
@@ -166,6 +175,24 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		})
 		if s.cfg.UnregisterModePreamble != nil {
 			defer s.cfg.UnregisterModePreamble()
+		}
+	}
+
+	// outMu makes each chunk's transcript write, fan-out and screen update
+	// one step as far as attach snapshots are concerned (RegisterAttach).
+	var outMu sync.Mutex
+	if s.cfg.RegisterAttach != nil {
+		s.cfg.RegisterAttach(func(fn func(repaint func() []byte)) {
+			outMu.Lock()
+			defer outMu.Unlock()
+			fn(func() []byte {
+				screen.Lock()
+				defer screen.Unlock()
+				return Repaint(screen)
+			})
+		})
+		if s.cfg.UnregisterAttach != nil {
+			defer s.cfg.UnregisterAttach()
 		}
 	}
 
@@ -304,7 +331,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			n, rerr := f.Read(buf)
 			if n > 0 {
 				chunk := buf[:n]
+				outMu.Lock()
 				if err := transcript.Write(chunk); err != nil {
+					outMu.Unlock()
 					errc <- fmt.Errorf("persist transcript: %w", err)
 					return
 				}
@@ -313,6 +342,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					out := append([]byte(nil), chunk...)
 					s.cfg.OutputSink(out)
 				}
+				_, _ = screen.Write(chunk)
+				outMu.Unlock()
 
 				// Increment token counter and emit a patch every +500 tokens.
 				// Tokens = OutputBytes / 4 (approximate heuristic).
@@ -329,7 +360,6 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				// heuristic adapter never sees idle ≥ idle_ms and codex/claude
 				// stay pinned at "working" forever while sitting at a prompt.
 				visible := hasVisibleText(chunk)
-				_, _ = screen.Write(chunk)
 				windowMu.Lock()
 				window = appendBounded(window, chunk, 8192)
 				if visible {

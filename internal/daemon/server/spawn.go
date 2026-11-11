@@ -58,6 +58,8 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		rendered := strings.ReplaceAll(model.Effort.ArgTemplate, "{value}", p.Effort)
 		cmdArgs = append(cmdArgs, strings.Fields(rendered)...)
 	}
+	// Folder trust the agent applies itself (only under auto_trust_dirs).
+	cmdArgs = append(cmdArgs, srv.trustArgsFor(tool, p.CWD)...)
 
 	// Hook-detected tools report state by appending to a per-session file
 	// named in the child's env. Flags must precede the `--` prompt separator.
@@ -156,6 +158,12 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		},
 		UnregisterModePreamble: func() {
 			srv.UnregisterModePreamble(sess.ID)
+		},
+		RegisterAttach: func(fn func(fn func(repaint func() []byte))) {
+			srv.RegisterAttach(sess.ID, fn)
+		},
+		UnregisterAttach: func() {
+			srv.UnregisterAttach(sess.ID)
 		},
 	})
 

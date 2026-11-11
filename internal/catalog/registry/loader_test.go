@@ -43,7 +43,7 @@ func TestLoad_BadYAMLFails(t *testing.T) {
 func TestLoad_RealToolsPresent(t *testing.T) {
 	reg, err := Load("")
 	require.NoError(t, err)
-	for _, id := range []string{"claude", "codex", "gemini", "ollama", "grok", "deepseek", "kimi"} {
+	for _, id := range []string{"claude", "codex", "antigravity", "ollama", "grok", "deepseek", "kimi"} {
 		_, ok := reg.Find(id)
 		require.True(t, ok, "tool %s missing", id)
 	}

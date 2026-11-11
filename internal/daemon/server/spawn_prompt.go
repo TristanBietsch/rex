@@ -17,7 +17,7 @@ type promptDelivery struct {
 }
 
 // initialPromptDelivery decides argv vs PTY paste for a tool's first prompt.
-// Full-screen TUIs (claude, codex, gemini) take the prompt natively on argv;
+// Full-screen TUIs (claude, codex, antigravity, gemini) take the prompt natively on argv;
 // pasting into a half-drawn TUI is racy. Ollama's `run MODEL PROMPT` is
 // one-shot (answers and exits), so it keeps the PTY paste path.
 func initialPromptDelivery(toolID string, cmdArgs []string, prompt string) promptDelivery {
@@ -30,8 +30,9 @@ func initialPromptDelivery(toolID string, cmdArgs []string, prompt string) promp
 	case "claude", "codex":
 		// `--` stops option parsing so a prompt starting with `-` stays a prompt.
 		return promptDelivery{argv: append(base, "--", prompt)}
-	case "gemini":
-		// A bare positional is one-shot in gemini; -i keeps the session interactive.
+	case "antigravity", "gemini":
+		// A bare positional / -p is one-shot in agy and gemini;
+		// --prompt-interactive keeps the session interactive.
 		return promptDelivery{argv: append(base, "--prompt-interactive="+prompt)}
 	case "ollama":
 		return promptDelivery{plainPaste: true, readySettle: 800 * time.Millisecond}

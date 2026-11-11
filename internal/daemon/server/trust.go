@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"log/slog"
 	"path/filepath"
 	"regexp"
@@ -34,6 +35,34 @@ func (s *Server) trustAnswerFor(tool registry.Tool, cwd string) *pty.TrustAnswer
 	}
 	slog.Info("spawn: auto-trust enabled", "tool", tool.ID, "auto_trust_dir", dir)
 	return &pty.TrustAnswer{Shown: shown, Selected: selected, Move: []byte(tp.Move), Confirm: []byte(tp.Confirm)}
+}
+
+// trustArgsFor returns tool.TrustArgs with {cwd_list} expanded to a JSON
+// array of the session folder (as given and, when different, resolved
+// through symlinks) when cwd is under one of the user's auto_trust_dirs,
+// else nil. The agent then trusts the folder itself and shows no dialog.
+func (s *Server) trustArgsFor(tool registry.Tool, cwd string) []string {
+	if len(tool.TrustArgs) == 0 || s.cfg.AutoTrustDirs == nil {
+		return nil
+	}
+	dir, ok := underAutoTrustDir(cwd, s.cfg.AutoTrustDirs())
+	if !ok {
+		return nil
+	}
+	folders := []string{filepath.Clean(cwd)}
+	if c, ok := settings.CanonicalDir(cwd); ok && c != folders[0] {
+		folders = append(folders, c)
+	}
+	list, err := json.Marshal(folders)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, len(tool.TrustArgs))
+	for i, a := range tool.TrustArgs {
+		out[i] = strings.ReplaceAll(a, registry.TrustArgsCWDList, string(list))
+	}
+	slog.Info("spawn: auto-trust via args", "tool", tool.ID, "auto_trust_dir", dir)
+	return out
 }
 
 // underAutoTrustDir reports whether cwd is one of dirs or inside one, and

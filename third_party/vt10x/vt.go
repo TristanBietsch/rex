@@ -42,8 +42,23 @@ type View interface {
 	// background color at position (x, y) relative to the top left of the terminal.
 	Cell(x, y int) Glyph
 
+	// InactiveCell is Cell for the screen buffer not on display (the primary
+	// screen while the alternate screen is active). (rex fork addition.)
+	InactiveCell(x, y int) Glyph
+
 	// Cursor returns the current position of the cursor.
 	Cursor() Cursor
+
+	// SavedCursor returns the cursor DECRC would restore. (rex fork addition.)
+	SavedCursor() Cursor
+
+	// ScrollRegion returns the 0-based top and bottom scroll margins.
+	// (rex fork addition.)
+	ScrollRegion() (top, bottom int)
+
+	// PartialRune returns the start of a UTF-8 rune the last Write ended
+	// in, which the next Write completes. (rex fork addition.)
+	PartialRune() []byte
 
 	// CursorVisible returns the visible state of the cursor.
 	CursorVisible() bool

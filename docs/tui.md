@@ -73,7 +73,7 @@ The **text** is the task you gave the session. A session that needs you shows th
 | `1`, `2` | Jump to Needs you / Working |
 | `3` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
-| `t` | Cycle tool filter (`all`, `claude`, `codex`, `gemini`, `ollama`) |
+| `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
 | `i` | Focus bottom prompt (quick-spawn) |
@@ -127,6 +127,10 @@ The popup shares the board's mouse capture (`mouse_enabled`). Wheel events over 
 
 The popup subscribes with `mode_sync`, so it learns which terminal modes the agent switched on before the popup opened.
 
+### Opening a running agent
+
+Full-screen tools in rex's list (claude, codex, gemini, …) are attached without transcript replay. Instead the daemon repaints its own copy of the agent's screen into the popup (`repaint`, see [protocol.md](protocol.md#subscribe-repaint)): colors, attributes, cursor and modes included. The popup shows the agent's current frame at once, even when the agent is busy or does not redraw on `^L`. The popup first resizes the session to its own size, so the repaint fits; when that changes the size, the agent also redraws itself. With a daemon too old to repaint, the popup sends the `^L` redraw nudge instead (run `rex daemon restart` to get repaints). `^L` in the popup still asks the agent to redraw.
+
 ### Scrollback
 
 Agents on the primary screen (codex inline, ollama, echo, Claude Code without fullscreen) print history that scrolls off the top of the popup. rex keeps those lines (`attach_scrollback_lines`, default 5000, capped at 8 MiB) and the footer shows `^PgUp scroll` once there are any. Lines on the alternate screen are never kept: full-screen agents own their history (the wheel goes to them, above).
@@ -144,7 +148,7 @@ Agents on the primary screen (codex inline, ollama, echo, Claude Code without fu
 
 Scrolling back down to the bottom also returns to live output, as does the agent switching to the alternate screen. The title shows `SCROLL ↑N/total`. New output keeps the view where it is and the footer counts it (`↓ N new · G/esc to resume`). `ctrl+]` still detaches and `::` still opens the command bar. Kept lines are shown at their original width: wider lines are cut, narrower ones padded (no reflow after a resize).
 
-Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, gemini, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept.
+Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, antigravity, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept. The repaint that opens the popup draws in place and adds none.
 
 ## RENAME
 

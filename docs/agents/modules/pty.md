@@ -13,8 +13,9 @@ Runs one agent child process inside a PTY: read output, classify state, persist 
 
 ### Types
 
-- `SupervisorConfig` — `StateDir`, `Store`, `Command`, `CWD`, `Adapter`, `OutputSink`, `SummaryRequest`, `InputCh`, `CompleteCh`, `IdleTick`, `InitialCols`/`InitialRows`, `InitialPrompt`, `RegisterResize`/`UnregisterResize`.
+- `SupervisorConfig` — `StateDir`, `Store`, `Command`, `CWD`, `Adapter`, `OutputSink`, `SummaryRequest`, `InputCh`, `CompleteCh`, `IdleTick`, `InitialCols`/`InitialRows`, `InitialPrompt`, `RegisterResize`/`UnregisterResize`, `RegisterModePreamble`/`UnregisterModePreamble`, `RegisterAttach`/`UnregisterAttach` (runs a callback with the session's output held, handing it a repaint of the screen).
 - `Supervisor` — `New(cfg SupervisorConfig)`, `Run(ctx context.Context, sess *state.Session) error`.
+- `ModePreamble(vt10x.ModeFlag) []byte`, `Repaint(vt10x.View) []byte` — escape sequences re-creating a screen's modes, or the whole screen (`repaint.go`; round-trip tested in `repaint_test.go`).
 
 Package also exports sanitize helpers used internally (see `sanitize.go`; not all symbols are exported — check `go doc`).
 
@@ -44,9 +45,9 @@ Spawn and PTY errors fail `Run`. Context cancel marks failed state (distinct fro
 
 ## Gotchas
 
-Initial prompt goroutine waits for `Adapter.IsReadyForInput` before pasting `InitialPrompt`. Idle sampling defaults to 200ms if `IdleTick` zero. `ReadySettle` additionally requires that much output silence; `PlainPaste` skips bracketed-paste markers (line REPLs like ollama). Tools that take the prompt on argv (claude/codex/gemini) never use the paste path.
+Initial prompt goroutine waits for `Adapter.IsReadyForInput` before pasting `InitialPrompt`. Idle sampling defaults to 200ms if `IdleTick` zero. `ReadySettle` additionally requires that much output silence; `PlainPaste` skips bracketed-paste markers (line REPLs like ollama). Tools that take the prompt on argv (claude/codex/antigravity/gemini) never use the paste path.
 
-A vt10x screen mirrors the child's output (resized with the PTY). Each tick with new visible output derives `last_line` and the summarizer's screen text (`Store.SetScreen`) from it via `internal/daemon/termtext`. Adapter-reported `done` is sticky. `meta.json` is written at start and on every state transition. `Env` entries are appended to the child environment (`REX_HOOK_FILE`, `REX_SESSION_ID`).
+A vt10x screen mirrors the child's output (resized with the PTY). Each chunk's transcript write, `OutputSink` call and screen write happen under one mutex, which the attach hook holds, so an attach snapshot never loses or doubles a chunk. Each tick with new visible output derives `last_line` and the summarizer's screen text (`Store.SetScreen`) from it via `internal/daemon/termtext`. Adapter-reported `done` is sticky. `meta.json` is written at start and on every state transition. `Env` entries are appended to the child environment (`REX_HOOK_FILE`, `REX_SESSION_ID`).
 
 ## See also
 

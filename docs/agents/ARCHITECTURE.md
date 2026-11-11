@@ -38,7 +38,7 @@ TUI boot (`internal/surface/tui/splash_steps.go`): if socket unreachable, `daemo
 
 ## Main use case: attach
 
-1. `rex attach <sel>` or TUI attach: client `SubscribeReplay`, receives transcript tail + live `SessionOutput`.
+1. `rex attach <sel>` or TUI attach: client `Resize`, then `SubscribeID` (replay for line-oriented agents; `repaint` of the supervisor's screen mirror for full-screen ones), receives transcript tail and/or repaint + live `SessionOutput`. `client.RepaintWatch` sends the `^L` nudge only when the daemon did not repaint.
 2. Server forwards stdin via `SendInput` / dedicated input channel to supervisor.
 3. Detach stops forwarding; daemon keeps child running.
 

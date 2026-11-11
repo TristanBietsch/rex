@@ -143,6 +143,9 @@ type Server struct {
 	modeMu       sync.RWMutex
 	modePreamble map[string]func() []byte
 
+	attachMu    sync.RWMutex
+	attachFuncs map[string]func(fn func(repaint func() []byte))
+
 	stopMu    sync.Mutex
 	stopFuncs map[string]func()
 
@@ -515,6 +518,40 @@ func (s *Server) ModePreamble(sessionID string) []byte {
 		return nil
 	}
 	return fn()
+}
+
+// RegisterAttach stores a session's attach hook (see
+// pty.SupervisorConfig.RegisterAttach). Called by the supervisor at PTY
+// start.
+func (s *Server) RegisterAttach(sessionID string, fn func(fn func(repaint func() []byte))) {
+	s.attachMu.Lock()
+	defer s.attachMu.Unlock()
+	if s.attachFuncs == nil {
+		s.attachFuncs = make(map[string]func(fn func(repaint func() []byte)))
+	}
+	s.attachFuncs[sessionID] = fn
+}
+
+// UnregisterAttach removes it after the session exits.
+func (s *Server) UnregisterAttach(sessionID string) {
+	s.attachMu.Lock()
+	defer s.attachMu.Unlock()
+	delete(s.attachFuncs, sessionID)
+}
+
+// withOutputHeld runs fn with the session's PTY output held (no chunk is
+// persisted, broadcast or applied to its screen until fn returns) and
+// repaint rendering its current screen. For a session that is not running
+// it runs fn at once, and repaint returns nil.
+func (s *Server) withOutputHeld(sessionID string, fn func(repaint func() []byte)) {
+	s.attachMu.RLock()
+	hook := s.attachFuncs[sessionID]
+	s.attachMu.RUnlock()
+	if hook == nil {
+		fn(func() []byte { return nil })
+		return
+	}
+	hook(fn)
 }
 
 // TranscriptDir returns the directory backing transcripts (state root + sessions/<id>).
