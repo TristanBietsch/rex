@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -25,9 +27,14 @@ func TestCheckSnapshots_OldGitWarns(t *testing.T) {
 	//nolint:gosec // a fake git must be executable
 	require.NoError(t, os.WriteFile(filepath.Join(bin, "git"), []byte("#!/bin/sh\necho 'git version 2.30.1'\n"), 0o700))
 	t.Setenv("PATH", bin)
-	rows := rowsByName(checkSnapshots())
+	// A freshly written script can fail to exec once while another test
+	// forks (text file busy); a failed version probe is not remembered.
+	var rows map[string]checkResult
+	require.Eventually(t, func() bool {
+		rows = rowsByName(checkSnapshots())
+		return strings.Contains(rows["turn snapshots"].Detail, "2.32")
+	}, 30*time.Second, 50*time.Millisecond)
 	require.Equal(t, checkWarn, rows["turn snapshots"].Status)
-	require.Contains(t, rows["turn snapshots"].Detail, "2.32")
 	require.Equal(t, checkWarn, rows["git binary"].Status)
 }
 

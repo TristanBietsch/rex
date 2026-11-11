@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func fakeGit(t *testing.T, version string) {
@@ -24,7 +25,16 @@ func fakeGit(t *testing.T, version string) {
 
 func TestCheckGitRefusesOldVersions(t *testing.T) {
 	fakeGit(t, "2.31.9 (Apple Git-1)")
-	if err := CheckGit(context.Background()); !errors.Is(err, ErrGitTooOld) {
+	// A freshly written script can fail to exec once while another test forks
+	// (text file busy); a failed probe is not remembered, so retry.
+	var err error
+	for range 50 {
+		if err = CheckGit(context.Background()); errors.Is(err, ErrGitTooOld) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !errors.Is(err, ErrGitTooOld) {
 		t.Fatalf("2.31: %v", err)
 	}
 	// A capture refuses too, before touching anything.
@@ -41,7 +51,14 @@ func TestCheckGitRefusesOldVersions(t *testing.T) {
 func TestCheckGitAcceptsNewVersions(t *testing.T) {
 	for _, v := range []string{"2.32.0", "2.56.0", "3.0.1"} {
 		fakeGit(t, v)
-		if err := CheckGit(context.Background()); err != nil {
+		var err error
+		for range 50 {
+			if err = CheckGit(context.Background()); err == nil {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		if err != nil {
 			t.Errorf("%s: %v", v, err)
 		}
 	}
