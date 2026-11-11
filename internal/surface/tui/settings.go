@@ -472,6 +472,8 @@ func settingAdjustable(m Model, s settings.Setting) bool {
 		return true
 	case settings.TypeString:
 		return len(s.Options) > 0
+	case settings.TypeBool:
+		return false
 	}
 	return false
 }

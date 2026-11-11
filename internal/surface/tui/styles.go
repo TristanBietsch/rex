@@ -65,7 +65,6 @@ var palettes = map[string]palette{
 // Live palette. Mutated by applyTheme.
 var (
 	colorBgElev       lipgloss.Color
-	colorBgModal      lipgloss.Color
 	colorFgPrimary    lipgloss.Color
 	colorFgDim        lipgloss.Color
 	colorFgMuted      lipgloss.Color
@@ -120,7 +119,6 @@ func applyTheme(name string) {
 		p = palettes["default"]
 	}
 	colorBgElev = p.BgElev
-	colorBgModal = p.BgModal
 	colorFgPrimary = p.FgPrimary
 	colorFgDim = p.FgDim
 	colorFgMuted = p.FgMuted
