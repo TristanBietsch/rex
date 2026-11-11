@@ -90,6 +90,52 @@ Errors go to stderr in the same format: styled in `text`, `rex: message` in `txt
 
 Every command takes these flags except `rex attach` and the bare `rex` TUI, which are interactive; before the command name they are refused (exit 5) for those two.
 
+**Command classes** decide which formats a command supports:
+
+| Class | Commands | Formats |
+|-------|----------|---------|
+| Query | `ls`, `status`, `digest`, `stats`, `fleet ls`/`show`, `config list`/`get`, `doctor`, `daemon status`, `version`, `errors`, `help`, `agent-help`, `update -check`, `setup -preview`, `uninstall -dry-run` | all five |
+| Action | `new`, `rm`, `rename`, `name`, `done`, `undone`, `archive`, `complete`, `resume`, `reply`, `send`, `wait`, `prune`, `fleet set`/`unset`, `config set`/`reset`, `reload`, `daemon start`/`stop`/`restart`, `update`, `uninstall`, `setup -yes` | all five (a result record) |
+| Content | `log`, `render`, `completion`, `daemon logs`, `config edit` | `text` and `txt`; `agent` behaves like `txt` (the content, no trailer); `json` and `md` exit 5 |
+| Interactive | `rex` (the board), `attach`, the `setup` wizard | `text` only (`attach` also `txt`); any other format exits 5 with a hint (`rex ls`, `rex log <sel> -n 50`, `rex setup -yes`) |
+
+**Streams.** stdout carries the result and nothing else. Errors, warnings, questions and progress go to stderr, so `rex ls | wc -l` and `$(rex new …)` stay clean. A note that qualifies the data (`digest` reading the on-disk snapshot) is part of the result: a note in `text`, `meta.source` in `json`, `source=disk` in `agent`.
+
+**Questions.** `rm`, `prune`, `update`, `uninstall` and `errors -clear` ask on stderr, and only in `text` with stdin and stderr both terminals. Otherwise they exit 6 and name the flag that skips the question (`-force` for `rm` and `errors -clear`, `-yes` for the rest). A declined question exits 6.
+
+**Untrusted text** (a session slug, a name, a daemon message) is flattened in every human format and Go-quoted in `agent`, so a value never carries an escape sequence or breaks a line.
+
+---
+
+## AGENT MODE
+
+Built for LLM agents that drive rex from a shell. Turn it on with `--agent`, `-o agent` or `REX_AGENT=1`, or let rex do it: it switches on by itself when `CLAUDECODE=1` and stdout is not a terminal (a Claude Code Bash tool, including inside rex-spawned sessions). A human at a terminal is never affected. `REX_AGENT=0` turns it off for one run, an explicit `-o` wins, and the `cli_agent_auto` setting (Settings, Features) turns the detection off for good.
+
+**Grammar.** One record per line: `<kind> key=value key=value …`. Keys are lowercase snake_case in a fixed order per kind. A value is bare when it matches `[A-Za-z0-9._:/@+%-]+`, otherwise Go-quoted (`strconv.Quote`), and empty is `""`. Durations are integer seconds (`idle_s=42`), times are RFC 3339 UTC, booleans are `true` or `false`.
+
+**Shape.** A list command prints one line per record then a trailer: `ok cmd=ls count=3`. A query or action prints one `ok` line: `ok cmd=status needs_input=1 working=2 queued=0 done=3 failed=0` (the exit code is unchanged, `status` still exits 1 when a session needs input). `doctor` ends in `fail cmd=doctor fails=1 warns=2` when a check fails. An error is one line on stderr, `error code=4 kind=daemon_unreachable cmd=ls msg="rex-daemon is not running" hint="rex daemon start"`, with the normal exit code. Kinds: `error` (1), `not_found` (2), `ambiguous` (3), `daemon_unreachable` (4), `invalid_args` (5), `refused` (6), `timeout` (7).
+
+**Implied.** No color, no spinner or progress output, and nothing ever prompts: a command that would ask needs `-force` or `-yes` and exits 6 without it. The interactive commands exit 5 with a hint. `rex --help` prints the agent card.
+
+`rex agent-help` (alias `rex help agent`) prints that card: at most 30 lines (about 1.2k tokens) with the grammar, exit codes, the commands to read and write with, and the ones not to run. `rex agent-help -o json` gives the same as data. A snippet for your own CLAUDE.md or AGENTS.md is in [howto/agents.md](howto/agents.md); rex never writes to those files.
+
+---
+
+## ERROR LOG
+
+A failed command leaves one JSON line in `~/.local/state/rex/cli-errors.log` (`$REX_LOG_DIR/cli-errors.log` when set; 0600 in a 0700 folder), so the error is still there after the terminal scrolls:
+
+```json
+{"v":1,"time":"2026-11-11T09:12:03.123Z","version":"v1","os":"darwin/arm64","pid":4242,
+ "cmd":"rm","args":["rm","<sel:8 bytes>","-force"],"format":"agent","agent_auto":true,
+ "tty":{"in":false,"out":false},"exit":6,"kind":"refused",
+ "error":"rm: stdin is not a terminal; pass -force …","chain":["…"],"hint":"rex rm <sel> -force"}
+```
+
+What it holds: the command, flag names, the values of a short list of safe flags (`-tool -model -effort -o -until -timeout -state -after -n -since -date`), selectors as short ids or sizes, the exit code and kind, and error text scrubbed of API keys, tokens and `password=` values. What it never holds: prompts, `reply`/`send`/`name` text, `config set` values, `-cwd` or `-socket` paths, stdin, environment values or transcripts. Help requests and bare exit statuses (`status` finding a session that needs input, `doctor` failures) are not recorded.
+
+The log is capped at 1 MiB plus one backup (`cli-errors.log.1`). Logging never changes an exit code and never prints (except one stderr line with `REX_LOG_LEVEL=debug`). Concurrent rex processes append whole lines; a rotation race can lose a few. Turn it off with the `cli_error_log` setting or `REX_ERROR_LOG=0`. Read it with [`rex errors`](#rex-errors); `rex doctor` has a `cli errors` row.
+
 ---
 
 ## rex status
@@ -481,7 +527,17 @@ Shell script on stdout. Install via `./install.sh --shell-init`.
 
 See [paths.md](paths.md). Most commands accept `-socket` to override the default.
 
-Output: `REX_OUTPUT`, `REX_AGENT`, `REX_ASCII`, `NO_COLOR`, `CLICOLOR_FORCE`, `COLUMNS` (see OUTPUT FORMATS).
+| Variable | Effect |
+|----------|--------|
+| `REX_OUTPUT` | Default format (`text`, `txt`, `md`, `json`, `agent`) when no flag is given |
+| `REX_AGENT` | `1` turns agent mode on; `0` turns the `CLAUDECODE` auto-detection off for the run |
+| `CLAUDECODE` | `1` with a piped stdout switches agent mode on (see AGENT MODE) |
+| `REX_ASCII` | `1` uses ASCII glyphs in `text` |
+| `REX_ERROR_LOG` | `0` stops the CLI error log |
+| `REX_LOG_DIR` | Folder for the `.log` files, `cli-errors.log` included |
+| `NO_COLOR` | Non-empty: no color |
+| `CLICOLOR_FORCE` | Non-empty and not `0`: color even in a pipe |
+| `COLUMNS` | Width for `text` when stdout is not a terminal (80 by default; 40 to 200) |
 
 ## FILES
 

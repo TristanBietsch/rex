@@ -331,6 +331,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- ANSI color no longer reaches a redirected stderr: each stream decides on
+  its own, and nothing uses a shared renderer.
+- `rex digest` and `rex stats` read their colors from the theme instead of
+  copied hex values that ignored `color_scheme`.
 - `auto_trust_dirs` and the per-session trust request now also refuse a case
   variant of the home folder on a case-insensitive filesystem (macOS,
   Windows), and any folder that holds the home folder (`/Users`, `/home`).
