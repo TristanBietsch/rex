@@ -578,7 +578,7 @@ func (s *Store) UpdateDescription(id, desc string) error {
 	s.broadcast(Event{
 		Kind:      EventUpdated,
 		SessionID: id,
-		Patch:     map[string]any{"description": desc},
+		Patch:     map[string]any{"description": desc, "description_at": now},
 	})
 	return nil
 }

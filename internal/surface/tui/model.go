@@ -305,6 +305,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["description"].(string); ok {
 		s.Description = v
 	}
+	if t, ok := patchTime(patch, "description_at"); ok {
+		s.DescriptionAt = t
+	}
 	if v, ok := patch["fleet"].(string); ok {
 		s.Fleet = v
 	}

@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Sessions carry `description_at`, when the AI description was last written
+  (snapshots, `description` patches, `meta.json`). Older clients ignore it.
 - Settings: a new Features section (after Behavior) holds one on/off switch
   per optional feature. A feature that is off is inert: it starts nothing,
   writes nothing, its keys do nothing and its commands refuse. No switches
