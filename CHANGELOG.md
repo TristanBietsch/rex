@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Setting `summary_detail` (AI summary): `short`, `medium` (default) or
   `long` sets how much an AI description says (about 8, 15 or 28 words; 60,
-  110 or 180 characters).
+  110 or 180 characters). The daemon applies a change within about 5
+  seconds, with no restart, by polling `config.yaml`.
 - Sessions carry `description_at`, when the AI description was last written
   (snapshots, `description` patches, `meta.json`). Older clients ignore it.
 - Settings: a new Features section (after Behavior) holds one on/off switch
