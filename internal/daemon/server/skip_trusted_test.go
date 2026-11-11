@@ -19,12 +19,12 @@ func TestTrustDecisionFor_Trusted(t *testing.T) {
 	echo := registry.Tool{ID: "echo"} // no trust prompt or args: Trusted must not depend on them
 
 	off := &Server{}
-	require.False(t, off.trustDecisionFor(echo, trusted).Trusted, "no auto_trust_dirs")
+	require.False(t, off.trustDecisionFor(echo, trusted, false).Trusted, "no auto_trust_dirs")
 
 	on := &Server{cfg: Config{AutoTrustDirs: func() []string { return []string{trusted} }}}
-	require.True(t, on.trustDecisionFor(echo, trusted).Trusted)
-	require.True(t, on.trustDecisionFor(echo, sub).Trusted)
-	require.False(t, on.trustDecisionFor(echo, other).Trusted)
+	require.True(t, on.trustDecisionFor(echo, trusted, false).Trusted)
+	require.True(t, on.trustDecisionFor(echo, sub, false).Trusted)
+	require.False(t, on.trustDecisionFor(echo, other, false).Trusted)
 }
 
 // The setting alone is not enough: the flag reaches argv only when the

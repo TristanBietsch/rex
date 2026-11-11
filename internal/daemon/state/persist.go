@@ -413,6 +413,6 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
 		Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
 		WorkingSince: sum.WorkingSince, EndedAt: sum.EndedAt,
-		ResumeID: resumeID,
+		ResumeID: resumeID, TrustFolder: sum.TrustFolder,
 	}
 }

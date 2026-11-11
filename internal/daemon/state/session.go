@@ -61,6 +61,10 @@ type Session struct {
 	// protocol.ValidResumeID, lowercase), or "" when unknown.
 	ResumeID string
 
+	// TrustFolder is whether the folder was trusted for this session when
+	// it was created (NewSession.TrustFolder). Resume applies it again.
+	TrustFolder bool
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
 	// reaping is set once the retire sweep has claimed the session for
@@ -106,6 +110,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		WorkingSince: s.WorkingSince,
 		EndedAt:      s.EndedAt,
 		ResumeID:     s.ResumeID,
+		TrustFolder:  s.TrustFolder,
 	}
 }
 

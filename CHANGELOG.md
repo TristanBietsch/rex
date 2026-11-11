@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `NewSession.trust_folder` (daemon protocol): trusts the session's folder
+  for that session only, as if it were in `auto_trust_dirs`. The daemon
+  answers the agent's trust dialog (or passes `trust_args`), and
+  `skip_permissions` applies there. Refused (`bad_intent`) for relative
+  paths, `..`, a filesystem root and the home folder. The choice is saved in
+  `meta.json` (`trust_folder` in summaries) and kept when the session is
+  resumed. The CLI and TUI controls follow.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current

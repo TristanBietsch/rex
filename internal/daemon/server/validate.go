@@ -35,6 +35,11 @@ func validateNewSession(p protocol.NewSession) error {
 	if strings.TrimSpace(p.CWD) == "" {
 		return fmt.Errorf("cwd required")
 	}
+	if p.TrustFolder {
+		if _, err := sessionTrustDir(p.CWD); err != nil {
+			return fmt.Errorf("trust_folder: cannot trust cwd: %w", err)
+		}
+	}
 	return nil
 }
 

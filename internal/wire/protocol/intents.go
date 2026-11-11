@@ -73,6 +73,13 @@ type NewSession struct {
 	InitialPrompt string `json:"initial_prompt,omitempty"`
 	// Fleet optionally assigns the new session to a named fleet.
 	Fleet string `json:"fleet,omitempty"`
+	// TrustFolder asks the daemon to trust CWD for this session as if it
+	// were listed in auto_trust_dirs: the agent's folder-trust dialog is
+	// answered or avoided, and skip_permissions may apply. CWD must be an
+	// absolute folder that is neither a filesystem root nor the home folder
+	// and has no "..", else the intent is bad_intent. The choice is kept for
+	// Resume.
+	TrustFolder bool `json:"trust_folder,omitempty"`
 }
 
 // SetSessionFleet updates the fleet label of an existing session.

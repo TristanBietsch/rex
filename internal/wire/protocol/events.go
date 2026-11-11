@@ -84,6 +84,10 @@ type SessionSummary struct {
 	// (a canonical UUID, lowercase; see ValidResumeID). Empty when unknown or
 	// when the tool cannot resume.
 	ResumeID string `json:"resume_id,omitempty"`
+
+	// TrustFolder is whether the folder was trusted for this session when it
+	// was created (NewSession.TrustFolder). Resume applies it again.
+	TrustFolder bool `json:"trust_folder,omitempty"`
 }
 
 // Snapshot is the daemon's response to Hello: full board state.

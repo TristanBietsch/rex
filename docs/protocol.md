@@ -48,7 +48,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Type | Implemented | Payload summary |
 |------|-------------|-----------------|
 | `Hello` | yes | `client_version` (release label; older clients sent their name here), `client` (program name, optional) |
-| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet` |
+| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet`, `trust_folder` |
 | `Subscribe` | yes | `session_id`, `replay`, `mode_sync`, `repaint` |
 | `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
@@ -72,7 +72,9 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Field | Required |
 |-------|----------|
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
-| `effort`, `title`, `initial_prompt`, `fleet` | no |
+| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder` | no |
+
+`trust_folder` (bool, default false) trusts `cwd` for this session as if it were listed in `auto_trust_dirs`: the agent's folder-trust dialog is answered (or avoided with `trust_args`) and `skip_permissions` may apply. `cwd` must be absolute, without `..`, and neither a filesystem root nor the home folder; otherwise the intent is `bad_intent` with a `trust_folder: ...` message. The choice is stored in `meta.json` and shown as `trust_folder` in session summaries, and `Resume` applies it again (re-checking the stored `cwd`; a folder that no longer passes is not trusted). Nothing is written to the agent's own config by rex.
 
 `slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
 
@@ -85,7 +87,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
   1. checks the tool and model are still in the registry (`bad_intent` `tool <tool>/<model> not in registry`, the same error `NewSession` gives), the stored effort is still offered and the tool has a `resume` block and the session has a valid `resume_id` (`bad_state` `session exited and <tool> cannot be resumed`), and the working directory is still a directory (`spawn_failed`);
   2. takes the session's slot atomically, so concurrent `Resume`s start one process and the others ack as for a running session, then a concurrency slot (`too_many_sessions`);
   3. moves the session to `queued` and broadcasts one patch, `{state: "queued", last_event_at, ended_at: null, exit_code: null, retire_at: null, retired_at: null}`, after writing `meta.json`;
-  4. truncates the session's hook file, recomputes folder trust from the current config, and starts the agent without an initial prompt. The usual state patches follow (`working`, ...), and `ended_at` is set again when the run ends.
+  4. truncates the session's hook file, recomputes folder trust from the current config and the session's `trust_folder`, and starts the agent without an initial prompt. The usual state patches follow (`working`, ...), and `ended_at` is set again when the run ends.
 - `bad_state` `session is already being cleared` when the retire sweep has claimed the session (also for a running one).
 - A `Delete` that lands while a resume is starting wins: the session is removed, no process is started and no directory is left behind. The `Resume` fails with `unknown_session`.
 - If the agent cannot start, the session ends `failed` and the `Resume` fails with `spawn_failed`. An agent that starts but cannot find its conversation (never saved) fails after the ack, like any exit.
@@ -136,7 +138,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 ### SessionSummary fields
 
-`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `retired_at` (RFC 3339; when the session was marked done; omitted when not marked and for marks persisted before the field existed), `working_since` (start of the current working stretch; omitted unless working), `ended_at` (RFC 3339; the first time the session reached done, failed or crashed; omitted while live; a daemon that predates it never sends it, so clients fall back to `last_event_at` for terminal sessions), `subagents` (subagents the agent is running now; Claude Code only; omitted when 0, and patches send `0` when the last one stops), `resume_id` (the agent's own conversation id, a canonical UUID in lowercase; omitted when unknown; a patch carries it when it becomes known or changes; an older client ignores it).
+`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `retired_at` (RFC 3339; when the session was marked done; omitted when not marked and for marks persisted before the field existed), `working_since` (start of the current working stretch; omitted unless working), `ended_at` (RFC 3339; the first time the session reached done, failed or crashed; omitted while live; a daemon that predates it never sends it, so clients fall back to `last_event_at` for terminal sessions), `subagents` (subagents the agent is running now; Claude Code only; omitted when 0, and patches send `0` when the last one stops), `trust_folder` (true when the folder was trusted for the session at creation; omitted otherwise), `resume_id` (the agent's own conversation id, a canonical UUID in lowercase; omitted when unknown; a patch carries it when it becomes known or changes; an older client ignores it).
 
 `last_event_at` is the last real activity — a state change, a new screen line, or the child's exit; stats and digest treat it as a finished session's end. Metadata edits (`rename`, fleet, `name`, retire, AI `description`) leave it unchanged and their patches omit it.
 

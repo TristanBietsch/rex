@@ -75,7 +75,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		Model:           model,
 		Effort:          p.Effort,
 		CWD:             p.CWD,
-		Trust:           srv.trustDecisionFor(tool, p.CWD),
+		Trust:           srv.trustDecisionFor(tool, p.CWD, p.TrustFolder),
 		SkipPermissions: srv.cfg.SkipPermissions != nil && srv.cfg.SkipPermissions(),
 		HookFile:        hookFile,
 		SessionID:       id,
@@ -102,18 +102,19 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	}
 
 	sess := &state.Session{
-		ID:        id,
-		ShortID:   short,
-		ToolID:    p.ToolID,
-		ModelID:   p.ModelID,
-		Effort:    p.Effort,
-		Slug:      p.Slug,
-		Title:     p.Title,
-		CWD:       p.CWD,
-		State:     protocol.StateQueued,
-		StartedAt: time.Now().UTC(),
-		Fleet:     p.Fleet,
-		ResumeID:  resumeID,
+		ID:          id,
+		ShortID:     short,
+		ToolID:      p.ToolID,
+		ModelID:     p.ModelID,
+		Effort:      p.Effort,
+		Slug:        p.Slug,
+		Title:       p.Title,
+		CWD:         p.CWD,
+		State:       protocol.StateQueued,
+		StartedAt:   time.Now().UTC(),
+		Fleet:       p.Fleet,
+		ResumeID:    resumeID,
+		TrustFolder: p.TrustFolder,
 	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
