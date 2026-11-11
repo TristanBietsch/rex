@@ -3,7 +3,6 @@ package boot
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -53,6 +52,9 @@ func TestUsageTap_Table(t *testing.T) {
 			}
 			require.Contains(t, got, "statusline-tap --session sess-9")
 			require.Contains(t, got, "--socket /some/other.sock", "a non-default socket is passed on")
+			// The daemon bakes in the absolute user-level settings path.
+			require.Contains(t, got, "--user-settings ")
+			require.Contains(t, got, filepath.Join(os.Getenv("HOME"), ".claude", "settings.json"))
 		})
 	}
 }
@@ -62,7 +64,8 @@ func TestUsageTap_DefaultSocketIsNotRepeated(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", "")
 	def := filepath.Join(os.Getenv("HOME"), ".cache", "rex", "rex.sock")
 	got := UsageTap(def)("s")
-	require.True(t, strings.HasSuffix(got, "statusline-tap --session s"), got)
+	require.Contains(t, got, "statusline-tap --session s ")
+	require.NotContains(t, got, "--socket", got)
 }
 
 // Off is inert: no tap command and nothing written under HOME.

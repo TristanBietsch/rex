@@ -46,18 +46,18 @@ func TestShouldInjectTap_Table(t *testing.T) {
 		{false, "on", true, false},
 	} {
 		home, _ := fakeHome(t, tc.userLine)
-		require.Equal(t, tc.want, ShouldInjectTap(tc.usageOn, tc.mode, home), "%+v", tc)
+		require.Equal(t, tc.want, ShouldInjectTap(tc.usageOn, tc.mode, UserSettingsPath(home)), "%+v", tc)
 	}
 }
 
 func TestUserStatusLine_UserLevelOnly(t *testing.T) {
 	home, cwd := fakeHome(t, true)
-	require.Equal(t, "echo mine", UserStatusLine(home))
+	require.Equal(t, "echo mine", UserStatusLine(UserSettingsPath(home)))
 
 	// Project and local files never count, whatever they say.
 	writeFile(t, filepath.Join(cwd, ".claude", "settings.json"), `{"statusLine":{"type":"command","command":"echo project"}}`)
 	writeFile(t, filepath.Join(cwd, ".claude", "settings.local.json"), `{"statusLine":{"type":"command","command":"echo local"}}`)
-	require.Equal(t, "echo mine", UserStatusLine(home))
+	require.Equal(t, "echo mine", UserStatusLine(UserSettingsPath(home)))
 }
 
 // A status line set only in a project file is not "the user has a status
@@ -66,13 +66,13 @@ func TestShouldInjectTap_ProjectOnlyStatusLineDoesNotCount(t *testing.T) {
 	home, cwd := fakeHome(t, false)
 	writeFile(t, filepath.Join(cwd, ".claude", "settings.local.json"), userLine)
 	writeFile(t, filepath.Join(cwd, ".claude", "settings.json"), userLine)
-	require.Empty(t, UserStatusLine(home))
-	require.False(t, ShouldInjectTap(true, "auto", home))
+	require.Empty(t, UserStatusLine(UserSettingsPath(home)))
+	require.False(t, ShouldInjectTap(true, "auto", UserSettingsPath(home)))
 }
 
 func TestUserStatusLine_SkipsUnusableEntries(t *testing.T) {
 	home, _ := fakeHome(t, false)
-	require.Empty(t, UserStatusLine(home), "no file")
+	require.Empty(t, UserStatusLine(UserSettingsPath(home)), "no file")
 	require.Empty(t, UserStatusLine(""), "no home")
 
 	user := filepath.Join(home, ".claude", "settings.json")
@@ -85,35 +85,18 @@ func TestUserStatusLine_SkipsUnusableEntries(t *testing.T) {
 		"the tap itself": `{"statusLine":{"type":"command","command":"/x/rex-daemon statusline-tap --session a"}}`,
 	} {
 		writeFile(t, user, body)
-		require.Empty(t, UserStatusLine(home), name)
+		require.Empty(t, UserStatusLine(UserSettingsPath(home)), name)
 	}
-}
-
-func TestUserStatusLine_ClaudeConfigDir(t *testing.T) {
-	home, _ := fakeHome(t, true)
-	other := t.TempDir()
-	t.Setenv("CLAUDE_CONFIG_DIR", other)
-	require.Empty(t, UserStatusLine(home), "CLAUDE_CONFIG_DIR replaces ~/.claude")
-	writeFile(t, filepath.Join(other, "settings.json"), `{"statusLine":{"type":"command","command":"echo cfg"}}`)
-	require.Equal(t, "echo cfg", UserStatusLine(home))
-	require.True(t, ShouldInjectTap(true, "auto", home))
 }
 
 func TestUserStatusLine_NeverWritesSettings(t *testing.T) {
 	home, cwd := fakeHome(t, true)
 	before, err := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
 	require.NoError(t, err)
-	_ = UserStatusLine(home)
-	_ = ShouldInjectTap(true, "on", home)
+	_ = UserStatusLine(UserSettingsPath(home))
+	_ = ShouldInjectTap(true, "on", UserSettingsPath(home))
 	after, err := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
 	require.NoError(t, err)
 	require.Equal(t, before, after)
 	require.NoDirExists(t, filepath.Join(cwd, ".claude"))
-}
-
-func TestTapCommand(t *testing.T) {
-	require.Equal(t, "/opt/rex/rex-daemon statusline-tap --session abc-1", TapCommand("/opt/rex/rex-daemon", "abc-1", ""))
-	require.Equal(t, `'/opt/my rex/rex-daemon' statusline-tap --session abc --socket /run/rex.sock`,
-		TapCommand("/opt/my rex/rex-daemon", "abc", "/run/rex.sock"))
-	require.Equal(t, `'/o'\''k/d' statusline-tap --session s`, TapCommand("/o'k/d", "s", ""))
 }

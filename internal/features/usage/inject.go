@@ -26,7 +26,7 @@ const (
 //     replaced under auto.
 //
 // An unknown mode is treated as auto.
-func ShouldInjectTap(usageOn bool, mode, home string) bool {
+func ShouldInjectTap(usageOn bool, mode, userSettings string) bool {
 	if !usageOn {
 		return false
 	}
@@ -36,17 +36,23 @@ func ShouldInjectTap(usageOn bool, mode, home string) bool {
 	case TapOn:
 		return true
 	}
-	return UserStatusLine(home) != ""
+	return UserStatusLine(userSettings) != ""
 }
 
 // TapCommand is the statusLine.command rex injects: the rex-daemon binary at
 // exe, run as `statusline-tap --session <id>`, plus --socket when the daemon
-// listens somewhere other than the default. Arguments are shell-quoted,
-// because Claude runs the command through a shell.
-func TapCommand(exe, sessionID, socket string) string {
+// listens somewhere other than the default and --user-settings with the
+// absolute user-level Claude settings file the tap may take the user's own
+// status line from (omitted when there is none: the tap then runs no user
+// command). Arguments are shell-quoted, because Claude runs the command
+// through a shell.
+func TapCommand(exe, sessionID, socket, userSettings string) string {
 	parts := []string{shellQuote(exe), TapSubcommand, "--session", shellQuote(sessionID)}
 	if socket != "" {
 		parts = append(parts, "--socket", shellQuote(socket))
+	}
+	if userSettings != "" {
+		parts = append(parts, "--user-settings", shellQuote(userSettings))
 	}
 	return strings.Join(parts, " ")
 }

@@ -39,7 +39,7 @@ func main() {
 	}
 }
 
-// runTap is `rex-daemon statusline-tap --session <id> [--socket path]`, the
+// runTap is `rex-daemon statusline-tap --session <id> [--socket path] [--user-settings path]`, the
 // status-line command rex gives Claude Code. Its stdout is Claude's status
 // line, so it never prints a message of its own; a flag it cannot parse only
 // means no usage is sent. It does not start logging or touch any state.
@@ -48,11 +48,16 @@ func runTap(args []string) int {
 	fs.SetOutput(io.Discard)
 	session := fs.String("session", "", "rex session id")
 	socket := fs.String("socket", "", "daemon socket (default: the standard one)")
+	userSettings := fs.String("user-settings", "", "absolute path of the user-level Claude settings file")
 	if err := fs.Parse(args); err != nil {
 		*session = "" // run the user's command, send nothing
 	}
-	return usage.RunTap(context.Background(), usage.TapOptions{
-		Session: *session, Socket: *socket,
+	// Claude stops a status line with a signal; it must stop the user's
+	// command with it, not leave it running.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	return usage.RunTap(ctx, usage.TapOptions{
+		Session: *session, Socket: *socket, UserSettings: *userSettings,
 		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
 	})
 }

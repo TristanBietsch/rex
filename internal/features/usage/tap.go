@@ -37,9 +37,11 @@ type TapOptions struct {
 	// Stdin, Stdout and Stderr are the process's streams.
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
-	// Home locates the user's Claude settings (~/.claude); "" uses the
-	// user's home directory.
-	Home string
+	// UserSettings is the absolute path of the user-level Claude settings
+	// file (the daemon's --user-settings). The tap reads only this path; it
+	// never consults its own CLAUDE_CONFIG_DIR or HOME, which an agent may
+	// have redirected. "" or a relative path: no user command is run.
+	UserSettings string
 	// Send delivers the sample to the daemon (nil dials Socket). It must
 	// honor ctx; RunTap also stops waiting after TapCap.
 	Send func(ctx context.Context, s protocol.UsageSample) error
@@ -123,29 +125,30 @@ func dialAndSend(ctx context.Context, socket string, s protocol.UsageSample) err
 	return c.Send(ctx, protocol.IntentUsageSample, s)
 }
 
-// userCommand finds the user's own status-line command: from the user-level
-// Claude settings only, never from the folder or from anything in the
-// status-line JSON.
-func (o TapOptions) userCommand() string {
-	home := o.Home
-	if home == "" {
-		home, _ = paths.Home()
-	}
-	return UserStatusLine(home)
-}
+// userCommand finds the user's own status-line command in the one file the
+// daemon named (UserSettings), never from the tap's environment, a folder or
+// the status-line JSON.
+func (o TapOptions) userCommand() string { return UserStatusLine(o.UserSettings) }
+
+// killWait is how long a cancelled user command gets to exit after its
+// process group was killed before RunTap stops waiting on its pipes.
+const killWait = 500 * time.Millisecond
 
 // runUser runs the user's command through a shell, as Claude would, with in
 // on stdin, and returns its exit code. A command that cannot start exits 127.
+// When ctx ends (Claude signalled the tap) the command's whole process group
+// is killed, so no child is left behind.
 func runUser(ctx context.Context, command string, in []byte, stdout, stderr io.Writer) int {
-	var c *exec.Cmd
-	if runtime.GOOS == "windows" {
-		c = exec.CommandContext(ctx, "bash", "-c", command)
-	} else {
-		c = exec.CommandContext(ctx, "sh", "-c", command)
+	shell, err := shellFor(runtime.GOOS)
+	if err != nil {
+		return 127
 	}
+	c := exec.CommandContext(ctx, shell[0], append(shell[1:], command)...)
+	configureKill(c)
+	c.WaitDelay = killWait
 	c.Stdin = bytes.NewReader(in)
 	c.Stdout, c.Stderr = stdout, stderr
-	err := c.Run()
+	err = c.Run()
 	if err == nil {
 		return 0
 	}

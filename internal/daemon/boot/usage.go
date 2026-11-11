@@ -36,7 +36,10 @@ func UsageTap(socket string) func(sessionID string) string {
 		if st != nil {
 			mode = st.String("usage_statusline_tap")
 		}
-		if !usage.ShouldInjectTap(settings.FeatureOn(st, "usage"), mode, home) {
+		// Resolved here, from the daemon's own environment, and baked into
+		// the command line: the tap never looks at its own.
+		userSettings := usage.UserSettingsPath(home)
+		if !usage.ShouldInjectTap(settings.FeatureOn(st, "usage"), mode, userSettings) {
 			return ""
 		}
 		exe, err := os.Executable()
@@ -47,6 +50,6 @@ func UsageTap(socket string) func(sessionID string) string {
 		if def, err := paths.Socket(); err == nil && def == socket {
 			socket = ""
 		}
-		return usage.TapCommand(exe, sessionID, socket)
+		return usage.TapCommand(exe, sessionID, socket, userSettings)
 	}
 }

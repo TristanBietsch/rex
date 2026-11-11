@@ -62,10 +62,16 @@ filesystem permissions.
   stdin and sends only the usage fields to the daemon (plan rate-limit
   percentages and reset times, session cost, model id and name, Claude's
   conversation id); the prompt, transcript path and folder in that JSON are
-  never forwarded. It also **reads** your user-level Claude settings file
-  (`$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json`) and
+  never forwarded. It also **reads** your user-level Claude settings file and
   **runs the status line command found there** with the same input, so it
-  runs code you already configured, nothing else. It deliberately never reads
+  runs code you already configured, nothing else. The daemon resolves that
+  file's absolute path once per spawn from its own environment
+  (`$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json`) and
+  passes it as `--user-settings`; the tap reads only that path, ignores its
+  own `CLAUDE_CONFIG_DIR` and `HOME` (Claude applies the `env` of project
+  settings files to what it starts, so an agent could redirect them), and
+  refuses a relative path, a symlink or a non-regular file. On a signal the
+  tap kills the command's whole process group. It deliberately never reads
   project-level settings (`.claude/settings.json`, `.claude/settings.local.json`
   in a session folder), nor takes a folder from Claude's JSON: an agent can
   write those files from inside its folder at any time, and Claude itself
