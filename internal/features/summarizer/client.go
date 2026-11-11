@@ -4,11 +4,40 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
+
+// statusError is a non-200 reply from Ollama.
+type statusError struct{ Code int }
+
+func (e *statusError) Error() string { return fmt.Sprintf("ollama status %d", e.Code) }
+
+// transient reports whether err is worth one retry: the server was not
+// reachable (refused, reset, cut off) or answered 5xx. A deadline is never
+// transient: the call already spent its whole budget, and a second one would
+// stall every session behind it.
+func transient(err error) bool {
+	if err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return false
+	}
+	var se *statusError
+	if errors.As(err, &se) {
+		return se.Code >= 500
+	}
+	return errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF)
+}
 
 // Client is a thin wrapper over the Ollama HTTP API. Holds a single keep-alive
 // connection so we don't repeatedly handshake against the local daemon.
@@ -101,7 +130,7 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("ollama status %d", resp.StatusCode)
+		return "", &statusError{Code: resp.StatusCode}
 	}
 	var out generateResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -128,7 +157,7 @@ func (c *Client) Tags(ctx context.Context) ([]string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama status %d", resp.StatusCode)
+		return nil, &statusError{Code: resp.StatusCode}
 	}
 	var out tagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {

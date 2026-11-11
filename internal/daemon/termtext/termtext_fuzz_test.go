@@ -34,6 +34,8 @@ func FuzzTermtext(f *testing.F) {
 		"❯ do not use any tools\n⏺ Hi.\n  What're you working on?\n❯ \n  ⏸ manual mode on",
 		"› do not use any tools\n• Hi. What are we working on?\n› Improve documentation",
 		"hello there\nsecond line",
+		"⏺ Reading cache_test.go\n⣷  Generating...\n\n> fix the flaky test\n\n? for shortcuts",
+		"quote:\n> keep it small\nand more\nand more\nand more\nand more",
 		"\x1b", "\x1b[", "\x1b]0;title\x07after", "\xff\xfe broken utf8 line",
 		// F-01 crasher: an escape right after an invalid UTF-8 lead byte.
 		"\xc9\x1b[31mred",

@@ -23,6 +23,7 @@ const (
 	SectionAppearance Section = "Appearance"
 	SectionAudio      Section = "Audio"
 	SectionBehavior   Section = "Behavior"
+	SectionFeatures   Section = "Features"
 	SectionOnboarding Section = "Onboarding"
 	SectionSummary    Section = "AI summary"
 	SectionSpawn      Section = "Spawn"

@@ -111,6 +111,11 @@ var Registry = []Setting{
 		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions, but only in folders under auto_trust_dirs. Agents then edit files and run commands without asking you first. Applies to the next session.",
 	},
 
+	// Features: one on/off switch per optional feature, read with FeatureOn.
+	// Off means inert: no goroutine, subprocess, network, file write or argv
+	// addition, keys unbound, commands refuse. Rows are added by the step
+	// that adds the feature; each must be a bool or enum with help text.
+
 	// Spawn
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,

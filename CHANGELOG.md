@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Settings: a new Features section (after Behavior) holds one on/off switch
+  per optional feature. A feature that is off is inert: it starts nothing,
+  writes nothing, its keys do nothing and its commands refuse. No switches
+  yet; each feature adds its own. `settings.FeatureOn(store, id)` reads one.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current
