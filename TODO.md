@@ -44,6 +44,7 @@
 - [ ] improve workflow and rm the need for: /ob, then "yes, i trust"
 - [ ] harden the cli
 *** - [ ] change gemini to antigravity and improve functionality with it like you did with claude code (yes, trust this folder etc)
+- [ ] (epic) i insert mode auto chooses model based onn prompt and use case 
 
 ## Done
 
