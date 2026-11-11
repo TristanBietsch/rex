@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Skills per session: `NewSession` takes `name` and `skills`. Skills come
+  from a library at `~/.config/rex/skills/<name>/SKILL.md`; the daemon copies
+  the chosen ones into the session's own folder and starts Claude Code with
+  `--plugin-dir`, so nothing is written to `~/.claude`. The registry gains
+  `skill_args` (with `{plugin_dir}`; built-in `claude` only, Antigravity has
+  no per-session plugin flag), and `rex-daemon` a `-skills-dir` flag. A
+  resumed session loads its skills again. Switchable in Settings → Features
+  (`spawn_skills`): off, skills are refused and no `--plugin-dir` is added.
 - TUI: a dim preview line under the board shows the selected session's full
   AI summary and how old it is (`↳ Editing api/webhooks.go … · 12s`), in
   both views, while any session has a summary. In the detailed view it only

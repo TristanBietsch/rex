@@ -36,6 +36,12 @@ func TestBuiltinClaudeSkillArgs(t *testing.T) {
 	require.Equal(t, []string{"--plugin-dir", "{plugin_dir}"}, tool.SkillArgs)
 }
 
+func TestSkillArgsFor(t *testing.T) {
+	tool := Tool{ID: "x", SkillArgs: []string{"--plugin-dir", "{plugin_dir}", "--also={plugin_dir}/x"}}
+	require.Equal(t, []string{"--plugin-dir", "/a b/plugin", "--also=/a b/plugin/x"}, tool.SkillArgsFor("/a b/plugin"), "one argument per element, spaces kept")
+	require.Nil(t, Tool{ID: "y"}.SkillArgsFor("/p"))
+}
+
 func TestBuiltinAntigravityHasNoSkillArgs(t *testing.T) {
 	reg, err := Load("")
 	require.NoError(t, err)

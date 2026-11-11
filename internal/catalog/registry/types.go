@@ -1,6 +1,8 @@
 // Package registry defines the tool/model registry shape and the merge of built-ins with user YAML.
 package registry
 
+import "strings"
+
 // Tool is one entry in the registry.
 type Tool struct {
 	ID               string   `yaml:"id"`
@@ -40,6 +42,19 @@ const TrustArgsCWDList = "{cwd_list}"
 
 // SkillArgsPluginDir is the skill_args placeholder for the plugin folder.
 const SkillArgsPluginDir = "{plugin_dir}"
+
+// SkillArgsFor returns SkillArgs with {plugin_dir} replaced by dir. The
+// folder stays one argument even when it holds spaces (nil when unset).
+func (t Tool) SkillArgsFor(dir string) []string {
+	if len(t.SkillArgs) == 0 {
+		return nil
+	}
+	out := make([]string, len(t.SkillArgs))
+	for i, a := range t.SkillArgs {
+		out[i] = strings.ReplaceAll(a, SkillArgsPluginDir, dir)
+	}
+	return out
+}
 
 // TrustPrompt is an agent's "do you trust this folder?" dialog: how to tell
 // it is on screen and that its accept option is the selected one, and the

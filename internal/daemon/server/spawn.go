@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/runtime/ids"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -49,6 +51,13 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 			p.Effort, p.ToolID, p.ModelID, strings.Join(model.Effort.Options, ", "))
 	}
 
+	if len(p.Skills) > 0 {
+		if err := srv.checkSkillsSupported(tool); err != nil {
+			slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
+			return "", badIntent(err)
+		}
+	}
+
 	if !srv.TryAcquireSession() {
 		return "", fmt.Errorf("too many concurrent sessions (cap=%d)", srv.MaxConcurrentSessions())
 	}
@@ -71,11 +80,28 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		}
 		slog.Info("spawn: hook state detection", "tool", p.ToolID, "hook_file", hookFile)
 	}
+	// Chosen skills are copied into the session's own directory, so they
+	// outlive edits to the library and go away with the session.
+	pluginDir := ""
+	if len(p.Skills) > 0 {
+		sessDir, err := state.SessionDir(cfg.StateDir, id)
+		if err == nil {
+			pluginDir, err = skills.Stage(cfg.SkillsDir, sessDir, p.Skills)
+		}
+		if err != nil {
+			srv.ReleaseSession()
+			_ = state.RemoveSessionDir(cfg.StateDir, id)
+			slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
+			return "", badIntent(fmt.Errorf("skills: %w", err))
+		}
+		slog.Info("spawn: skills staged", "tool", p.ToolID, "skills", p.Skills)
+	}
 	spec := spawnSpec{
 		Tool:            tool,
 		Model:           model,
 		Effort:          p.Effort,
 		CWD:             p.CWD,
+		PluginDir:       pluginDir,
 		Trust:           srv.trustDecisionFor(tool, p.CWD, p.TrustFolder),
 		SkipPermissions: srv.cfg.SkipPermissions != nil && srv.cfg.SkipPermissions(),
 		HookFile:        hookFile,
@@ -116,9 +142,14 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		Fleet:       p.Fleet,
 		ResumeID:    resumeID,
 		TrustFolder: p.TrustFolder,
+		Name:        p.Name,
+		Skills:      slices.Clone(p.Skills),
 	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
+		if pluginDir != "" {
+			_ = state.RemoveSessionDir(cfg.StateDir, id)
+		}
 		var taken *state.SlugTakenError
 		if errors.As(err, &taken) {
 			slog.Warn("spawn: rejected, slug taken", "req_id", intentID, "slug", p.Slug, "holder", taken.ShortID)
@@ -130,6 +161,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	if err := startSupervisor(ctx, srv, sess, spec, cmdArgs, childEnv, ptyPrompt, delivery, nil); err != nil {
 		srv.ReleaseSession()
 		_ = cfg.Store.Remove(sess.ID)
+		if pluginDir != "" {
+			_ = state.RemoveSessionDir(cfg.StateDir, id)
+		}
 		return "", err
 	}
 	return id, nil
@@ -148,8 +182,11 @@ type spawnSpec struct {
 	// SkipPermissions adds Tool.SkipPermissionsArgs (setting skip_permissions,
 	// read once per spawn) when Trust.Trusted.
 	SkipPermissions bool
-	HookFile        string
-	SessionID       string
+	// PluginDir is the staged skills plugin folder ("" = none). Added as the
+	// tool's skill_args after the resume args and before the hook args.
+	PluginDir string
+	HookFile  string
+	SessionID string
 	// Resume, when set and the tool has a resume block, adds its resume or
 	// new-session args (see resumeArgs).
 	Resume *resumeArgs
@@ -165,7 +202,7 @@ type resumeArgs struct {
 
 // buildArgv returns the child argv up to, but not including, the initial
 // prompt: command, model args, effort, trust args, skip-permissions args,
-// resume args, hook args. The prompt (`--` text or `--prompt-interactive=`)
+// resume args, skill args, hook args. The prompt (`--` text or `--prompt-interactive=`)
 // is appended by initialPromptDelivery.
 func buildArgv(spec spawnSpec) []string {
 	argv := append([]string{}, spec.Tool.Command...)
@@ -196,6 +233,9 @@ func buildArgv(spec spawnSpec) []string {
 		} else {
 			argv = append(argv, spec.Tool.Resume.ArgsFor(r.ID)...)
 		}
+	}
+	if spec.PluginDir != "" {
+		argv = append(argv, spec.Tool.SkillArgsFor(spec.PluginDir)...)
 	}
 	// Flags must precede the `--` prompt separator.
 	if spec.Tool.Detect.Kind == "hooks" && spec.Tool.Detect.Format == "claude" {
@@ -324,4 +364,39 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		_ = sup.Run(sessCtx, sess)
 	}()
 	return nil
+}
+
+// checkSkillsSupported reports why skills cannot be loaded for tool, or nil.
+func (s *Server) checkSkillsSupported(tool registry.Tool) error {
+	switch {
+	case !s.skillsOn():
+		return errors.New("skills are off")
+	case len(tool.SkillArgs) == 0:
+		return fmt.Errorf("tool %s cannot load skills per session", tool.ID)
+	case s.cfg.SkillsDir == "":
+		return errors.New("no skills library configured")
+	}
+	return nil
+}
+
+// resumePlugin returns the plugin folder a resumed session loads, or "" for
+// none. The folder staged at creation is reused as a snapshot; one that is
+// gone is staged again from the library. With the feature off or a tool that
+// cannot load skills nothing is added.
+func (s *Server) resumePlugin(tool registry.Tool, id string, names []string) (string, error) {
+	if len(names) == 0 || !s.skillsOn() || len(tool.SkillArgs) == 0 {
+		return "", nil
+	}
+	sessDir, err := state.SessionDir(s.cfg.StateDir, id)
+	if err != nil {
+		return "", err
+	}
+	plugin := filepath.Join(sessDir, skills.PluginDirName)
+	if fi, err := os.Lstat(plugin); err == nil && fi.IsDir() {
+		return plugin, nil
+	}
+	if s.cfg.SkillsDir == "" {
+		return "", errors.New("no skills library configured")
+	}
+	return skills.Stage(s.cfg.SkillsDir, sessDir, names)
 }

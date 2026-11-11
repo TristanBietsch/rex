@@ -93,6 +93,9 @@ type SessionSummary struct {
 	// TrustFolder is whether the folder was trusted for this session when it
 	// was created (NewSession.TrustFolder). Resume applies it again.
 	TrustFolder bool `json:"trust_folder,omitempty"`
+
+	// Skills are the library skills loaded into this session (NewSession.Skills).
+	Skills []string `json:"skills,omitempty"`
 }
 
 // Snapshot is the daemon's response to Hello: full board state.

@@ -140,6 +140,11 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
 	},
+	{
+		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Load skills from ~/.config/rex/skills into one session: the skills step in the new-session wizard and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
+	},
 
 	// Spawn
 	{

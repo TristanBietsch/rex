@@ -80,6 +80,13 @@ type Config struct {
 	// resume). Called at each spawn and Resume. Off: no conversation id is
 	// preassigned or captured, and a Resume intent is refused. nil: on.
 	ResumeEnabled func() bool
+	// SkillsDir is the skill library (~/.config/rex/skills). NewSession
+	// resolves skill names under it; "" means no library.
+	SkillsDir string
+	// SkillsEnabled reports whether the spawn_skills feature is on. Called
+	// at each spawn and Resume. Off: skills are refused at NewSession and no
+	// plugin folder is added. nil: on.
+	SkillsEnabled func() bool
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
@@ -94,6 +101,9 @@ type Config struct {
 
 // resumeOn reports whether the resume feature is on.
 func (s *Server) resumeOn() bool { return s.cfg.ResumeEnabled == nil || s.cfg.ResumeEnabled() }
+
+// skillsOn reports whether the spawn_skills feature is on.
+func (s *Server) skillsOn() bool { return s.cfg.SkillsEnabled == nil || s.cfg.SkillsEnabled() }
 
 // Server owns the UDS listener and accepts clients.
 type Server struct {

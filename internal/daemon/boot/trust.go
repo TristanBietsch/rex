@@ -30,6 +30,17 @@ func ResumeEnabled() bool {
 	return settings.FeatureOn(st, "resume")
 }
 
+// SpawnSkillsEnabled reads the spawn_skills feature switch from config.yaml.
+// The server calls it at each spawn and Resume. On a read error it uses the
+// defaults (on).
+func SpawnSkillsEnabled() bool {
+	st, _, err := settings.LoadDefault()
+	if err != nil {
+		slog.Warn("daemon: settings load failed for spawn_skills; using the default", "err", err)
+	}
+	return settings.FeatureOn(st, "spawn_skills")
+}
+
 // AutoTrustDirs reads auto_trust_dirs from config.yaml. The server calls it
 // at each spawn, so a changed setting applies to the next session without a
 // daemon restart. On a read error it trusts nothing.

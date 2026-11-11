@@ -9,7 +9,7 @@ rex-daemon — Runtime Executive supervisor
 ## SYNOPSIS
 
 ```sh
-rex-daemon [-socket path] [-state-dir dir] [-tools path] [-max-concurrent-sessions N]
+rex-daemon [-socket path] [-state-dir dir] [-tools path] [-max-concurrent-sessions N] [-skills-dir dir]
 rex-daemon -version
 ```
 
@@ -31,6 +31,7 @@ A `done`, `failed` or `crashed` session whose tool has a `resume` block and whos
 | `-state-dir` | `~/.local/share/rex` | Session persistence root |
 | `-tools` | `~/.config/rex/tools.yaml` | Registry overlay; missing file is OK |
 | `-max-concurrent-sessions` | `16` | Live PTY cap; `0` means uncapped after `SetMaxConcurrent` |
+| `-skills-dir` | `~/.config/rex/skills` | Skill library that `NewSession` skill names resolve under (see [skills](howto/skills.md)) |
 | `-version` | — | Print `v1` and exit |
 
 `-version` prints the daemon build label. It is not the wire protocol version. Wire version is `1` in every envelope (`v` field). See [protocol.md](protocol.md).
