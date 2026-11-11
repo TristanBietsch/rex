@@ -24,7 +24,7 @@ Scope rules agreed 2026-11-11:
 | R07 | multiplayer? | deferred | — | Deferred epic ([R07](R07-multiplayer-spike.md) kept as notes). |
 | R08 | rex fork for research only? | deferred | — | Ignored for now ([R08](R08-research-mode-spike.md) kept as notes). |
 | R09 | configurable board sections (ToDo … Done) | build | L | [R09](R09-board-sections.md) |
-| R10 | usage meter top right | build | M | [R10](R10-usage-meter.md) |
+| R10 | `:usage` page (per agent, per model, total, quota) + header meter | build | L | [R10](R10-usage.md) |
 | R11 | Jira / Linear sync? | build | L | [R11](R11-linear-sync.md): Linear only, two-way |
 | R12 | loop workflows (epic) | epic | L | [R12](R12-loop-workflows.md) |
 | R13 | (epic) insert mode auto-chooses model | epic | M | [R13](R13-auto-model.md) |
@@ -52,7 +52,8 @@ User rule (2026-11-11): every feature, round 1 and round 2, can be turned on and
 | `audit_trail` | R06 audit records + `rex audit` | on |
 | `audit_full_prompt` | R06 full prompt text in audit | off |
 | `board_preset` | R09 `simple` / `kanban` / `custom` (simple = off) | simple |
-| `usage_meter` | R10 `off` / `compact` / `full` | compact |
+| `usage` | R10 usage ledger, sources, `:usage` page, `rex usage` | on |
+| `usage_meter` | R10 header meter `off` / `compact` / `full` | compact |
 | `usage_statusline_tap` | R10 Claude status-line tap | on |
 | `linear_sync` | R11 Linear two-way | off |
 | `loops` | R12 loop workflows | off |
@@ -84,7 +85,7 @@ Lane A = TUI, B = daemon/registry/protocol, C = CLI/settings/features.
 | 0 | — | R02-1 live captures (qwen, cursor-agent, grok) | R01 spike, R11-0 API spike (docs only) |
 | 1 | R04 full-screen pages | R02-2..6 registry + detect | R05-1..4 Lua evaluator + store layer |
 | 2 | R09-1..4 stage model + view | R09-5..6 stage on wire/meta | R05-5..7 TUI lock, `rex config` |
-| 3 | R10-3..5 meter view | R10-1..2 usage sources | R13 auto model |
+| 3 | R10-5..6 page + header meter | R10-1..4 sources, ledger, wire | R13 auto model → R10-7 CLI |
 | 4b | R09-6 drafts UI | R11-1..4 Linear client, pull, push | R11-5..6 UI + docs |
 | 4 | R06 W0–W4 (own orchestration file after W0 gate; W5 deferred, W6 dropped) | | |
 | 5 | R12 repeat loops (chains deferred) | | |
@@ -107,7 +108,7 @@ Same as round 1 (`00-orchestration.md` → "Per-task pipeline"): worktree per ta
 | R07 | multiplayer | deferred epic |
 | R08 | research fork | ignored for now |
 | R09 | stage, default, ToDo | hybrid · `simple` default, switchable in Settings · drafts |
-| R10 | source, default, tap | real plan usage · compact · pass through to the user's status line |
+| R10 | source, default, tap, page | real plan usage · compact meter · pass through to the user's status line · `:usage` page + header meter |
 | R11 | tracker | Linear only, two-way |
 | R12 | kinds, format, stop | repeat first · YAML · check command exit 0 + cap |
 | R13 | router, confirm, scope, fallback | Ollama only · inline preview · model + effort · defaults + notice |
