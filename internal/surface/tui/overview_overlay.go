@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -30,9 +29,6 @@ var overviewTitles = map[overview.Bucket]string{
 // overviewNameMax caps the name column.
 const overviewNameMax = 24
 
-// overviewCompletedWindow is how far back the overlay lists completed work.
-const overviewCompletedWindow = 24 * time.Hour
-
 // overviewRow is one selectable session in the overlay.
 type overviewRow struct {
 	bucket overview.Bucket
@@ -47,22 +43,13 @@ func overviewRows(m Model) []overviewRow {
 	var rows []overviewRow
 	for _, b := range overviewOrder {
 		for _, s := range groups[b] {
-			if b == overview.Completed && now.Sub(overviewAt(s)) > overviewCompletedWindow {
+			if !overview.Listed(b, s, now) {
 				continue
 			}
 			rows = append(rows, overviewRow{bucket: b, sess: s})
 		}
 	}
 	return rows
-}
-
-// overviewAt is when a session last mattered: when it was marked done, else
-// its last activity.
-func overviewAt(s protocol.SessionSummary) time.Time {
-	if !s.RetireAt.IsZero() && !s.RetiredAt.IsZero() {
-		return s.RetiredAt
-	}
-	return s.LastEventAt
 }
 
 // overviewStatus is the row's text: the question a session waits on, else its
@@ -197,7 +184,7 @@ func renderOverviewRow(m Model, r overviewRow, nameW, width int, selected bool) 
 	marker := stateMarkerCellFor(m, s.State, 0, false)
 	name := truncate(displayName(s), overviewNameMax)
 	name += strings.Repeat(" ", nameW-ansi.StringWidth(name))
-	age := durationAgoAt(m.now(), overviewAt(s))
+	age := durationAgoAt(m.now(), overview.At(s))
 	room := width - 2 - ansi.StringWidth(marker) - 1 - ansi.StringWidth(name) - 1 - 1 - len(age)
 	text := ""
 	if room > 3 {

@@ -26,8 +26,18 @@ const (
 // closeTag matches the digest's closing delimiter however it is spelled.
 var closeTag = regexp.MustCompile(`(?i)<\s*/\s*sessions\s*>`)
 
-// recency is the time a session is ordered by within its bucket.
-func recency(s protocol.SessionSummary) time.Time {
+// CompletedWindow is how far back overviews list completed sessions.
+const CompletedWindow = 24 * time.Hour
+
+// Listed reports whether an overview lists s, given its bucket: everything
+// but a completed session older than CompletedWindow.
+func Listed(b Bucket, s protocol.SessionSummary, now time.Time) bool {
+	return b != Completed || now.Sub(At(s)) <= CompletedWindow
+}
+
+// At is the time a session is ordered by within its bucket, and the age an
+// overview shows: when the user marked it done, else its last activity.
+func At(s protocol.SessionSummary) time.Time {
 	if !s.RetireAt.IsZero() && !s.RetiredAt.IsZero() {
 		return s.RetiredAt
 	}
@@ -98,7 +108,7 @@ func digestLine(b Bucket, s protocol.SessionSummary, now time.Time) string {
 	if st := field(statusText(s), maxStatusRunes); st != "" {
 		parts = append(parts, "status: "+st)
 	}
-	parts = append(parts, ago(now, recency(s)))
+	parts = append(parts, ago(now, At(s)))
 	return strings.Join(parts, " · ")
 }
 

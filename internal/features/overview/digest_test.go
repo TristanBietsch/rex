@@ -111,6 +111,20 @@ func TestDigest_OrderCapsAndEscapes(t *testing.T) {
 	})
 }
 
+func TestListed(t *testing.T) {
+	now := t0.Add(48 * time.Hour)
+	fresh := sess("a", protocol.StateDone, func(s *protocol.SessionSummary) {
+		s.RetireAt, s.RetiredAt = now.Add(time.Hour), now.Add(-23*time.Hour)
+	})
+	old := sess("b", protocol.StateDone, func(s *protocol.SessionSummary) {
+		s.RetireAt, s.RetiredAt = now.Add(time.Hour), now.Add(-25*time.Hour)
+	})
+	require.True(t, Listed(Completed, fresh, now))
+	require.False(t, Listed(Completed, old, now))
+	require.True(t, Listed(Working, sess("c", protocol.StateWorking, nil), now), "only completed work ages out")
+	require.Equal(t, now.Add(-25*time.Hour), At(old))
+}
+
 // rlo is U+202E, the right-to-left override.
 var rlo = string(rune(0x202e))
 

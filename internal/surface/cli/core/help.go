@@ -68,6 +68,7 @@ func RunHelp() error {
 				{"digest", "today's sessions, time, totals"},
 				{"stats", "lifetime usage by model/tool"},
 				{"fleet", "list/set/unset session fleets"},
+				{"overview", "what needs you, is ready for review, failed or finished"},
 			},
 		},
 		{

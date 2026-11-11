@@ -29,7 +29,7 @@ func main() {
 // kitVerbs are the commands rendered through the output kit. They accept
 // -o/--output, --agent and -json; the rest still print their own format, so
 // an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{"ls": true, "status": true}
+var kitVerbs = map[string]bool{"ls": true, "status": true, "overview": true}
 
 func run(args []string) error {
 	if core.Out().Flags.Explicit() {
@@ -106,6 +106,8 @@ func run(args []string) error {
 		return inspect.RunStats(args[1:])
 	case "fleet":
 		return inspect.RunFleet(args[1:])
+	case "overview":
+		return inspect.RunOverview(args[1:])
 	default:
 		return unknownCommand(args[0])
 	}
@@ -118,7 +120,7 @@ var commands = []string{
 	"wait", "rm", "prune", "rename", "name", "done", "retire", "undone",
 	"unretire", "archive", "complete", "reload", "daemon", "completion",
 	"render", "config", "setup", "doctor", "update", "uninstall", "digest",
-	"stats", "fleet",
+	"stats", "fleet", "overview",
 }
 
 // unknownCommand is the exit-5 error for a command rex does not have, with

@@ -94,7 +94,7 @@ func Group(ss []protocol.SessionSummary) map[Bucket][]protocol.SessionSummary {
 	}
 	for _, list := range out {
 		sort.SliceStable(list, func(i, j int) bool {
-			ti, tj := recency(list[i]), recency(list[j])
+			ti, tj := At(list[i]), At(list[j])
 			if !ti.Equal(tj) {
 				return ti.After(tj)
 			}
