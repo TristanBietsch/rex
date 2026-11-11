@@ -24,8 +24,9 @@ func RunNew(args []string) error {
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
 	noAttach := fs.Bool("no-attach", true, "spawn and exit (default)")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseTextArgs(fs, args, 0)
+	if err != nil {
+		return err
 	}
 	_ = noAttach
 
@@ -38,7 +39,7 @@ func RunNew(args []string) error {
 	}
 
 	// Prompt = positional args joined, or stdin if not a TTY
-	prompt := strings.Join(fs.Args(), " ")
+	prompt := strings.Join(rest, " ")
 	if prompt == "" {
 		fi, _ := os.Stdin.Stat()
 		if (fi.Mode() & os.ModeCharDevice) == 0 {

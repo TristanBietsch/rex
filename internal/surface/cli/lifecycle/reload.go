@@ -13,8 +13,9 @@ import (
 // the socket exits ExitDaemonUnreachable.
 func RunReload(args []string) error {
 	fs := flag.NewFlagSet("reload", flag.ContinueOnError)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 	if err := daemonctl.Reload(); err != nil {
 		if errors.Is(err, daemonctl.ErrNotRunning) {

@@ -10,9 +10,9 @@ exec rex wait -until needs_input -timeout 20s p1
 
 exitcode 7 rex wait -until done -timeout 300ms p1
 stderr '^rex: wait timed out$'
-# BUG: flags after the selector are ignored, so this is three positionals; flip when fixed.
-exitcode 5 rex wait p1 -until done -timeout 300ms
-stderr '^rex: wait: exactly one selector required$'
+# Flags may follow the selector.
+exitcode 7 rex wait p1 -until done -timeout 300ms
+stderr '^rex: wait timed out$'
 
 # Already in the target state: returns at once.
 exec rex wait -until needs_input -timeout 1s p1

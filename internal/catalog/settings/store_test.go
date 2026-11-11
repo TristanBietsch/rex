@@ -142,3 +142,21 @@ func TestStore_SaveModes(t *testing.T) {
 		requireMode(t, path, mode)
 	}
 }
+
+func TestSetAutoTrustDirsValidates(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	for _, bad := range []string{"/", "~", "rel", "a/../b", "/ok" + string(filepath.ListSeparator) + "rel"} {
+		s := NewStore()
+		require.Error(t, s.Set("auto_trust_dirs", bad), bad)
+		require.Equal(t, "", s.String("auto_trust_dirs"), bad)
+	}
+
+	s := NewStore()
+	require.NoError(t, s.Set("auto_trust_dirs", ""))
+	sep := string(filepath.ListSeparator)
+	dir := t.TempDir()
+	require.NoError(t, s.Set("auto_trust_dirs", " "+dir+sep+sep+" "+dir+"/x "))
+	require.Equal(t, dir+sep+dir+"/x", s.String("auto_trust_dirs"))
+}

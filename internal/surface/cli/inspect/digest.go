@@ -292,8 +292,9 @@ func RunDigest(args []string) error {
 	dateFlag := fs.String("date", "", "specific day: YYYY-MM-DD or 'yesterday'")
 	sinceFlag := fs.String("since", "", "relative window: 7d or 24h")
 	asJSON := fs.Bool("json", false, "emit JSON")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 
 	slog.Debug("digest: starting", "date", *dateFlag, "since", *sinceFlag, "json", *asJSON)

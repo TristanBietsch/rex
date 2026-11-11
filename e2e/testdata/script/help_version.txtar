@@ -29,7 +29,15 @@ stdout '^v1$'
 exitcode 1 rex frobnicate
 stderr '^rex: unknown command "frobnicate" \(try `rex --help`\)$'
 
-# BUG: subcommand -h is reported as invalid args and exits 5; flip to 0 when fixed.
-exitcode 5 rex ls -h
+# -h on a subcommand prints its usage and exits 0, with no error line.
+exec rex ls -h
 stderr 'Usage of ls:'
-stderr '^rex: flag: help requested$'
+! stderr '^rex:'
+
+exec rex new -h
+stderr 'Usage of new:'
+! stderr '^rex:'
+
+exec rex wait p1 -h
+stderr 'Usage of wait:'
+! stderr '^rex:'

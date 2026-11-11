@@ -28,10 +28,11 @@ func RunDone(args []string) error {
 	fs := flag.NewFlagSet("done", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
 	after := fs.Duration("after", 0, "clear after this long (e.g. 2h, 72h); default retire_after_hours")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "done: <selector> [-after 72h]")
 	}
 	ttl := *after
@@ -46,7 +47,7 @@ func RunDone(args []string) error {
 		return err
 	}
 	defer c.Close()
-	sess, err := core.ResolveSelector(c, fs.Arg(0))
+	sess, err := core.ResolveSelector(c, rest[0])
 	if err != nil {
 		return err
 	}
@@ -69,10 +70,11 @@ func RunDone(args []string) error {
 func RunUndone(args []string) error {
 	fs := flag.NewFlagSet("undone", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "undone: <selector>")
 	}
 	c, err := socket.Dial()
@@ -80,7 +82,7 @@ func RunUndone(args []string) error {
 		return err
 	}
 	defer c.Close()
-	sess, err := core.ResolveSelector(c, fs.Arg(0))
+	sess, err := core.ResolveSelector(c, rest[0])
 	if err != nil {
 		return err
 	}

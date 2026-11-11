@@ -43,10 +43,11 @@ func RunPrune(args []string) error {
 	var yes bool
 	fs.BoolVar(&yes, "yes", false, "do not ask (required when stdin is not a terminal)")
 	fs.BoolVar(&yes, "y", false, "shorthand for -yes")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 0 {
+	if len(rest) != 0 {
 		return core.NewExitError(core.ExitInvalidArgs, "prune: takes no arguments")
 	}
 

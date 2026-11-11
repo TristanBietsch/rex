@@ -77,6 +77,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   you set `skip_permissions: true` (default off; read at each spawn). The
   flag moved from the built-in `command` to a per-tool
   `skip_permissions_args` registry field.
+- CLI: flags are now accepted anywhere among the arguments, so
+  `rex new task -tool claude`, `rex wait p1 -until done`,
+  `rex done p1 -after 72h` and `rex attach p1 -read-only` work as
+  documented. `--` ends flag parsing. **Breaking:** free text that starts
+  with `-` (in `rex new`, `rex reply`, `rex name`) now needs `--` before
+  it, for example `rex name p1 -- -clear`; an unknown `-x` after text exits 5
+  with a hint. `-h` on any command prints its usage and exits 0 instead of
+  5.
 - TUI: a simpler board. Rows show state, name, the task (or the agent's
   question when it is waiting on you) and age; `v` brings back the id,
   model, tokens and AI summary. Columns are NEEDS YOU / WORKING / DONE
@@ -106,6 +114,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A partial `tools.yaml` entry for a retired built-in tool (codex, gemini,
   ollama, grok, deepseek, kimi) no longer stops the daemon from starting.
   It is dropped with a warning in the daemon log and on the TUI splash.
+- Saving settings no longer overwrites changes made elsewhere. `Store.Save`
+  re-reads `config.yaml` and writes only the keys that store changed (a
+  reset deletes its key), so a TUI save can no longer undo a concurrent
+  `rex config set`. New config files hold only the keys that were set; keys
+  this build does not know are kept. Existing files are not trimmed.
+- `rex config set auto_trust_dirs` (and the settings page) now refuse the
+  values `rex setup` refuses (a filesystem root, the home folder, relative
+  paths, `..`), exit 5 and leave `config.yaml` unchanged, instead of saving
+  a value the daemon ignores.
+- `rex ls` and `rex digest` clip long model, slug and name columns by
+  display width instead of bytes, so multi-byte text such as `·` or CJK
+  is no longer cut mid-character and the columns stay aligned.
 - TUI: opening a running full-screen agent (Claude Code, codex, gemini, …)
   no longer shows a black popup until the agent next draws. The popup
   attaches without the transcript replay and relied on the agent redrawing

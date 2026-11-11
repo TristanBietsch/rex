@@ -19,8 +19,8 @@ exec rex config set spinner moon
 ! stdout .
 exists home/.config/rex/config.yaml
 grep '^spinner: moon$' home/.config/rex/config.yaml
-# BUG: Save writes every default into the file, pinning them; flip when fixed.
-grep '^color_scheme: default$' home/.config/rex/config.yaml
+# Save is sparse: only the key that was set reaches the file.
+! grep '^color_scheme:' home/.config/rex/config.yaml
 exec rex config get spinner
 stdout '^moon$'
 
@@ -45,6 +45,15 @@ exitcode 5 rex config
 stderr 'config: subcommand required'
 exitcode 5 rex config bogus
 stderr '^rex: config: unknown subcommand "bogus"$'
+
+# auto_trust_dirs is validated like rex setup: bad values exit 5, file unchanged.
+cp home/.config/rex/config.yaml before.yaml
+exitcode 5 rex config set auto_trust_dirs /
+stderr 'auto_trust_dirs'
+exitcode 5 rex config set auto_trust_dirs rel/dir
+cmp home/.config/rex/config.yaml before.yaml
+exec rex config set auto_trust_dirs ''
+exec rex config get auto_trust_dirs
 
 # BUG: master_volume accepts NaN although its range is [0, 1]; flip when fixed.
 exec rex config set master_volume NaN

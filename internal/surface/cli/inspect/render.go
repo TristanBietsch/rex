@@ -18,7 +18,8 @@ func RunRender(args []string) error {
 	socket := core.AddSocketFlag(fs)
 	widthFlag := fs.String("w", "120", "render width")
 	heightFlag := fs.String("h", "30", "render height")
-	if err := fs.Parse(args); err != nil {
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
 		return err
 	}
 	w, _ := strconv.Atoi(*widthFlag)

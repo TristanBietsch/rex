@@ -2,6 +2,8 @@
 
 User settings live in `~/.config/rex/config.yaml`. Keys are flat top-level YAML entries. Unknown keys are ignored on load. Invalid values for known keys are skipped silently.
 
+Saving is sparse: rex re-reads the file and writes only the keys it changed (`rex config reset` deletes the key), so the TUI and `rex config set` do not overwrite each other. There is no file lock; two saves in the same instant can still lose one.
+
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
 
 ## Files
@@ -58,7 +60,7 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | `default_spawn_tool` | string | `claude` | Tool id for `i` quick-spawn |
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
-| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex setup` or `rex config set` |
+| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex setup` or `rex config set`; both refuse the values listed below (exit 5) |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
 

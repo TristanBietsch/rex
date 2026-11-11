@@ -16,13 +16,14 @@ func RunWait(args []string) error {
 	socket := core.AddSocketFlag(fs)
 	until := fs.String("until", "done", "target state: working | needs_input | done | failed | any")
 	timeout := fs.Duration("timeout", 0, "max wait duration (0 = no timeout)")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "wait: exactly one selector required")
 	}
-	sel := fs.Arg(0)
+	sel := rest[0]
 
 	c, err := socket.Dial()
 	if err != nil {

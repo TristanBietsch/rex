@@ -41,4 +41,8 @@ type Setting struct {
 	Max      float64
 	Help     string
 	ReadOnly bool
+	// Normalize, when set, validates and tidies a string value in Store.Set
+	// (after type coercion). Load does not call it: a bad stored value stays
+	// visible so doctor can report it.
+	Normalize func(string) (string, error)
 }

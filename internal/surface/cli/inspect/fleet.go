@@ -23,10 +23,11 @@ import (
 func RunFleet(args []string) error {
 	fs := flag.NewFlagSet("fleet", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	sub := fs.Args()
+	sub := rest
 	if len(sub) == 0 {
 		return core.NewExitError(core.ExitInvalidArgs, "fleet: subcommand required (ls|set|unset|show)")
 	}
