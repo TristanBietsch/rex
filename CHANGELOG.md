@@ -103,6 +103,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Saving settings no longer overwrites changes made elsewhere. `Store.Save`
+  re-reads `config.yaml` and writes only the keys that store changed (a
+  reset deletes its key), so a TUI save can no longer undo a concurrent
+  `rex config set`. New config files hold only the keys that were set; keys
+  this build does not know are kept. Existing files are not trimmed.
 - `rex config set auto_trust_dirs` (and the settings page) now refuse the
   values `rex setup` refuses (a filesystem root, the home folder, relative
   paths, `..`), exit 5 and leave `config.yaml` unchanged, instead of saving

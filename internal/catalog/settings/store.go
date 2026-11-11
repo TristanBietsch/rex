@@ -16,7 +16,21 @@ import (
 // config.yaml (paths.ConfigFile).
 type Store struct {
 	values map[string]any
+	src    map[string]Source
+	// dirty holds the ids changed since the last Save: true for Set (Save
+	// writes the key), false for Reset (Save deletes it).
+	dirty map[string]bool
 }
+
+// Source says where a setting's current value comes from.
+type Source string
+
+const (
+	// SourceDefault is the registry default: the key is not in config.yaml.
+	SourceDefault Source = "default"
+	// SourceFile is a value read from, or destined for, config.yaml.
+	SourceFile Source = "file"
+)
 
 // errNoPath is Save's answer to an empty path, so a caller whose config
 // path could not be resolved never writes into the working directory.
@@ -37,9 +51,14 @@ func LoadDefault() (store *Store, path string, err error) {
 
 // NewStore returns a Store populated with the registry's defaults.
 func NewStore() *Store {
-	s := &Store{values: make(map[string]any, len(Registry))}
+	s := &Store{
+		values: make(map[string]any, len(Registry)),
+		src:    make(map[string]Source, len(Registry)),
+		dirty:  make(map[string]bool),
+	}
 	for _, r := range Registry {
 		s.values[r.ID] = r.Default
+		s.src[r.ID] = SourceDefault
 	}
 	return s
 }
@@ -67,14 +86,22 @@ func (s *Store) Load(path string) error {
 			continue // skip invalid entries silently
 		}
 		s.values[k] = coerced
+		s.src[k] = SourceFile
 	}
 	return nil
 }
 
-// Save writes the current values to path atomically (temp file, then
-// rename). A missing directory is created 0700. A new file is 0600; an
-// existing one keeps its permission bits, so Save never widens a private
-// config.yaml and never undoes a mode its owner chose.
+// Save writes this Store's changes to path atomically (temp file, then
+// rename). It re-reads the file and applies only the ids changed on this
+// Store since it was created or last saved (Set writes the key, Reset
+// deletes it), so another process's edit to a different key survives and
+// defaults are never pinned into the file. Keys this build does not know
+// are kept. An unparseable file is an error and is left untouched. A
+// missing directory is created 0700. A new file is 0600; an existing one
+// keeps its permission bits, so Save never widens a private config.yaml.
+//
+// There is no file lock: an edit landing between the read and the rename is
+// lost, a much smaller window than the whole-file overwrite it replaces.
 func (s *Store) Save(path string) error {
 	if path == "" {
 		return errNoPath
@@ -82,7 +109,27 @@ func (s *Store) Save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
-	b, err := yaml.Marshal(s.values)
+	data := map[string]any{}
+	raw, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		if err := yaml.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		if data == nil {
+			data = map[string]any{}
+		}
+	case !os.IsNotExist(err):
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	for id, set := range s.dirty {
+		if set {
+			data[id] = s.values[id]
+		} else {
+			delete(data, id)
+		}
+	}
+	b, err := yaml.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
@@ -100,7 +147,12 @@ func (s *Store) Save(path string) error {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("chmod tmp: %w", err)
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	clear(s.dirty)
+	return nil
 }
 
 // Get returns the current value or nil.
@@ -115,7 +167,41 @@ func (s *Store) String(id string) string {
 	return fmt.Sprintf("%v", v)
 }
 
-// Set validates the new value against the Setting spec and stores it.
+// Source reports where id's value comes from (SourceDefault for unknown ids).
+func (s *Store) Source(id string) Source {
+	if src, ok := s.src[id]; ok {
+		return src
+	}
+	return SourceDefault
+}
+
+// Validate coerces raw to the Go type of setting id, checks it against the
+// setting's options and range, and applies its Normalize func. It is what
+// Set runs, exported for callers that must check a value without storing it.
+func Validate(id string, raw any) (any, error) {
+	setting, ok := Find(id)
+	if !ok {
+		return nil, fmt.Errorf("unknown setting %q", id)
+	}
+	return validate(setting, raw)
+}
+
+func validate(setting Setting, raw any) (any, error) {
+	v, err := coerce(setting, raw)
+	if err != nil {
+		return nil, err
+	}
+	if str, ok := v.(string); ok && setting.Normalize != nil {
+		if str, err = setting.Normalize(str); err != nil {
+			return nil, fmt.Errorf("%s: %w", setting.ID, err)
+		}
+		v = str
+	}
+	return v, nil
+}
+
+// Set validates the new value against the Setting spec and stores it. The
+// next Save writes the key.
 func (s *Store) Set(id string, raw any) error {
 	setting, ok := Find(id)
 	if !ok {
@@ -124,27 +210,25 @@ func (s *Store) Set(id string, raw any) error {
 	if setting.ReadOnly {
 		return fmt.Errorf("setting %q is read-only", id)
 	}
-	v, err := coerce(setting, raw)
+	v, err := validate(setting, raw)
 	if err != nil {
 		return err
 	}
-	if str, ok := v.(string); ok && setting.Normalize != nil {
-		if str, err = setting.Normalize(str); err != nil {
-			return fmt.Errorf("%s: %w", id, err)
-		}
-		v = str
-	}
 	s.values[id] = v
+	s.src[id] = SourceFile
+	s.dirty[id] = true
 	return nil
 }
 
-// Reset restores the setting to its default.
+// Reset restores the setting to its default. The next Save deletes the key.
 func (s *Store) Reset(id string) error {
 	setting, ok := Find(id)
 	if !ok {
 		return fmt.Errorf("unknown setting %q", id)
 	}
 	s.values[id] = setting.Default
+	s.src[id] = SourceDefault
+	s.dirty[id] = false
 	return nil
 }
 

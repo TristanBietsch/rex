@@ -2,6 +2,8 @@
 
 User settings live in `~/.config/rex/config.yaml`. Keys are flat top-level YAML entries. Unknown keys are ignored on load. Invalid values for known keys are skipped silently.
 
+Saving is sparse: rex re-reads the file and writes only the keys it changed (`rex config reset` deletes the key), so the TUI and `rex config set` do not overwrite each other. There is no file lock; two saves in the same instant can still lose one.
+
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
 
 ## Files

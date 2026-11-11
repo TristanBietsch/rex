@@ -19,8 +19,8 @@ exec rex config set spinner moon
 ! stdout .
 exists home/.config/rex/config.yaml
 grep '^spinner: moon$' home/.config/rex/config.yaml
-# BUG: Save writes every default into the file, pinning them; flip when fixed.
-grep '^color_scheme: default$' home/.config/rex/config.yaml
+# Save is sparse: only the key that was set reaches the file.
+! grep '^color_scheme:' home/.config/rex/config.yaml
 exec rex config get spinner
 stdout '^moon$'
 
