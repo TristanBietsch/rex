@@ -74,6 +74,11 @@ type SessionSummary struct {
 	// WorkingSince is when the current uninterrupted working stretch began.
 	// Zero unless State is working. Drives the long-running badge.
 	WorkingSince time.Time `json:"working_since,omitzero"`
+
+	// EndedAt is the first time the session reached a terminal state (done,
+	// failed or crashed). Zero while it is live. Patches send null to clear
+	// it when the session goes live again.
+	EndedAt time.Time `json:"ended_at,omitzero"`
 }
 
 // Snapshot is the daemon's response to Hello: full board state.

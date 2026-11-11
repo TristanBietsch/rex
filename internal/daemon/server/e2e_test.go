@@ -52,6 +52,8 @@ func TestE2E_FullFlow(t *testing.T) {
 			var upd protocol.SessionUpdated
 			require.NoError(t, json.Unmarshal(env.Data, &upd))
 			if s, ok := upd.Patch["state"].(string); ok && s == string(protocol.StateDone) {
+				_, hasEnd := upd.Patch["ended_at"]
+				require.True(t, hasEnd, "the terminal patch carries ended_at")
 				gotDone = true
 			}
 		}
@@ -60,6 +62,7 @@ func TestE2E_FullFlow(t *testing.T) {
 
 	// Verify meta.json on disk (no poll needed — supervisor writes meta before broadcasting done).
 	meta := filepath.Join(stateDir, "sessions", sessID, "meta.json")
-	_, err = os.Stat(meta)
+	raw, err := os.ReadFile(meta)
 	require.NoError(t, err, "meta.json must exist on disk after done at %s", meta)
+	require.Contains(t, string(raw), `"ended_at"`, "meta.json records ended_at")
 }

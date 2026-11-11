@@ -3,6 +3,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -247,6 +248,7 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 		sess.WorkingSince = time.Time{}
 		patch["working_since"] = nil
 	}
+	maps.Copy(patch, sess.noteStateLocked(newState, now))
 	sess.State = newState
 	sess.LastEventAt = now
 	sess.mu.Unlock()

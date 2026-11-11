@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- The daemon records `ended_at` for every session: the first time it reached
+  done, failed or crashed. It is in `meta.json`, in snapshots and in state
+  patches, and older sessions get it from their last event.
 - `rex setup` asks whether agents may skip the folder trust prompt in a
   folder (default no; it suggests the folder that holds the current
   project), and `rex setup -auto-trust folders` sets it without the

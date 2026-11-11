@@ -53,6 +53,10 @@ type Session struct {
 	// State is working). Maintained by Store.Transition.
 	WorkingSince time.Time
 
+	// EndedAt is the first time State became terminal (zero while live). It
+	// is never moved later, and cleared when the session goes live again.
+	EndedAt time.Time
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
 	// reaping is set once the retire sweep has claimed the session for
@@ -96,7 +100,37 @@ func (s *Session) Summary() protocol.SessionSummary {
 		RetireAt:     s.RetireAt,
 		RetiredAt:    s.RetiredAt,
 		WorkingSince: s.WorkingSince,
+		EndedAt:      s.EndedAt,
 	}
+}
+
+// isTerminal reports whether st is a state a session does not leave on its own.
+func isTerminal(st protocol.State) bool {
+	switch st {
+	case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
+		return true
+	case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
+		return false
+	}
+	return false
+}
+
+// noteStateLocked updates EndedAt for a move to newState at now and returns
+// the patch entries to broadcast: ended_at (the value) when newState is
+// terminal, ended_at: nil when it clears a recorded end, else nil. The first
+// terminal time is kept. Caller holds s.mu.
+func (s *Session) noteStateLocked(newState protocol.State, now time.Time) map[string]any {
+	if isTerminal(newState) {
+		if s.EndedAt.IsZero() {
+			s.EndedAt = now
+		}
+		return map[string]any{"ended_at": s.EndedAt}
+	}
+	if !s.EndedAt.IsZero() {
+		s.EndedAt = time.Time{}
+		return map[string]any{"ended_at": nil}
+	}
+	return nil
 }
 
 // SetExit records how the child exited (state + optional exit code) under
@@ -113,7 +147,9 @@ func (s *Session) SetExit(final protocol.State, code *int) {
 	if final != protocol.StateWorking {
 		s.WorkingSince = time.Time{}
 	}
-	s.LastEventAt = time.Now().UTC()
+	now := time.Now().UTC()
+	s.noteStateLocked(final, now)
+	s.LastEventAt = now
 }
 
 func (s *Session) isRemoved() bool {

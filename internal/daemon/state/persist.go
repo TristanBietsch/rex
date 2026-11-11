@@ -185,6 +185,11 @@ func LoadAll(root string) ([]*Session, error) {
 			// Terminal states survive a daemon restart unchanged.
 		}
 		sess.WorkingSince = time.Time{}
+		// Older files, and sessions just marked crashed, have no end time;
+		// the last event is the best estimate. Written on the next WriteMeta.
+		if isTerminal(sess.State) && sess.EndedAt.IsZero() {
+			sess.EndedAt = sess.LastEventAt
+		}
 		out = append(out, sess)
 	}
 	return out, nil
@@ -380,6 +385,6 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 		LastLine: sum.LastLine, ExitCode: sum.ExitCode,
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
 		Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
-		WorkingSince: sum.WorkingSince,
+		WorkingSince: sum.WorkingSince, EndedAt: sum.EndedAt,
 	}
 }

@@ -10,7 +10,7 @@ github.com/tristanbietsch/rex/internal/daemon/adapter 98
 github.com/tristanbietsch/rex/internal/daemon/boot 24
 github.com/tristanbietsch/rex/internal/daemon/pty 88
 github.com/tristanbietsch/rex/internal/daemon/server 89
-github.com/tristanbietsch/rex/internal/daemon/state 84
+github.com/tristanbietsch/rex/internal/daemon/state 86
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
 github.com/tristanbietsch/rex/internal/features/audio 65
 github.com/tristanbietsch/rex/internal/features/lua 89
