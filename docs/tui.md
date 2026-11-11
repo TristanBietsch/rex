@@ -16,7 +16,7 @@ rex
 
 Three columns group sessions: **NEEDS YOU**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N working · N done`. The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
-The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, or a section is hidden. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`). See FILTER AND SEARCH.
+The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, or a section is hidden. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`). See FILTERS.
 
 A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `3` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
@@ -156,6 +156,26 @@ Agents on the primary screen (codex inline, ollama, echo, Claude Code without fu
 Scrolling back down to the bottom also returns to live output, as does the agent switching to the alternate screen. The title shows `SCROLL ↑N/total`. New output keeps the view where it is and the footer counts it (`↓ N new · G/esc to resume`). `ctrl+]` still detaches and `::` still opens the command bar. Kept lines are shown at their original width: wider lines are cut, narrower ones padded (no reflow after a resize).
 
 Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, antigravity, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept. The repaint that opens the popup draws in place and adds none.
+
+## FILTERS
+
+Two filters narrow the board: the **tool filter** (`t` cycles it, `:filter <tool>` sets it, a click on a chip sets it) and **hidden sections**. A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global.
+
+| Key | Effect |
+|-----|--------|
+| `zh` | Hide every completed section (Done); again shows it |
+| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Working, `z3` Done) |
+| `z0` | Show every section |
+
+`z` followed by any other key is just that key. While `z` is pending the help line lists the second keys. rex refuses to hide the last shown section.
+
+`:filter` does the same by name: `:filter hide done`, `:filter show all`, `:filter only needs working`, and a bare `:filter` clears the tool filter and every hidden section ([slash.md](slash.md)).
+
+- The filter bar names what is hidden (`done hidden (zh)`) and shows while any section is hidden.
+- When the selection falls into a hidden section (for example `cc` marks it done while Done is hidden), it moves to the first visible row. `1`, `3` and `tab` aimed at a hidden section say how to show it. A session you just started that the filter hides shows the notice `<slug> is hidden by the filter`.
+- Hiding is per run. The `board_hidden_sections` setting ([settings.md](settings.md#behavior)) sets what starts hidden, and `:bg` saves the current choice for the next start (see DETACH WITHOUT QUITTING).
+- `:prune` ignores filters: it clears every Done session, and its confirmation says so while a filter is active.
+- The tool filter survives a daemon reconnect.
 
 ## RENAME
 
