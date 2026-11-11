@@ -10,8 +10,8 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// PruneTargets splits the board's Completed column for a prune (TUI :prune,
-// CLI rex prune). targets are the sessions to delete. kept counts Completed
+// PruneTargets splits the board's Done column for a prune (TUI :prune,
+// CLI rex prune). targets are the sessions to delete. kept counts Done
 // sessions left alone because their agent is still working or queued: they
 // were marked done while busy, and the daemon clears them once they settle.
 // Sessions in other columns are never targets.
@@ -28,7 +28,7 @@ func PruneTargets(sessions []protocol.SessionSummary) (targets []protocol.Sessio
 }
 
 // Prunable reports whether a prune may delete s right now: it is on the
-// Completed column and its agent is not working or queued. Callers check it
+// Done column and its agent is not working or queued. Callers check it
 // again just before deleting, because a marked-done session goes back to
 // work when someone types into it.
 func Prunable(s protocol.SessionSummary) bool {

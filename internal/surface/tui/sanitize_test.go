@@ -56,6 +56,8 @@ func TestView_SessionStringsCannotInjectEscapes(t *testing.T) {
 			)
 			m.Clock = func() time.Time { return now }
 			m.Err = "daemon: " + payload
+			assertNoInjection(t, m.View()) // simple view: titles and questions
+			m.Detailed = true              // rows are found by short id
 			out := m.View()
 			assertNoInjection(t, out)
 			for _, id := range []string{"dddd", "tttt", "nnnn"} {

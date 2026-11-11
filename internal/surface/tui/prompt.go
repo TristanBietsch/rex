@@ -91,16 +91,13 @@ func renderHelpLine(m Model, width int) string {
 	if m.Notice != "" {
 		return padLine("  "+styleBootReady.Render(truncate(m.Notice, width-2)), width)
 	}
+	// Five keys; the rest live under ?.
 	parts := []string{
-		styleHeaderApp.Render("i") + styleDim.Render(" focus"),
 		styleHeaderApp.Render("enter") + styleDim.Render(" open"),
-		styleHeaderApp.Render("n") + styleDim.Render(" new"),
-		styleHeaderApp.Render("r") + styleDim.Render(" rename"),
-		styleHeaderApp.Render("cc") + styleDim.Render(" done/undo"),
-		styleHeaderApp.Render("t") + styleDim.Render(" filter"),
-		styleHeaderApp.Render(":") + styleDim.Render(" command"),
-		styleHeaderApp.Render("dd") + styleDim.Render(" delete"),
-		styleHeaderApp.Render("?") + styleDim.Render(" help"),
+		styleHeaderApp.Render("i") + styleDim.Render(" new"),
+		styleHeaderApp.Render("cc") + styleDim.Render(" done"),
+		styleHeaderApp.Render("tab") + styleDim.Render(" next"),
+		styleHeaderApp.Render("?") + styleDim.Render(" more"),
 	}
 	sep := styleMuted.Render(" · ")
 	return padLine("  "+strings.Join(parts, sep), width)

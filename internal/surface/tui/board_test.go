@@ -86,6 +86,7 @@ func TestRowDescription_SummaryThenTitleNeverLastLine(t *testing.T) {
 func TestBoard_QueuedSessionShowsInWorking(t *testing.T) {
 	queued := protocol.SessionSummary{ID: "q", ShortID: "q001", Slug: "fresh", State: protocol.StateQueued}
 	m := boardModel(protocol.SessionSummary{ID: "w", ShortID: "w001", Slug: "busy", State: protocol.StateWorking}, queued)
+	m.Detailed = true // rows are found by short id
 
 	require.Equal(t, []string{"w", "q"}, sessionIDs(orderedSessions(m)), "queued is navigable")
 	group := -1
@@ -118,7 +119,7 @@ func TestHeader_CountsQueuedAsWorking(t *testing.T) {
 		protocol.SessionSummary{ID: "3", State: protocol.StateQueued},
 		protocol.SessionSummary{ID: "4", State: protocol.StateDone},
 	)
-	require.Contains(t, ansi.Strip(renderHeader(m, 160)), "1 awaiting input · 2 working · 1 completed")
+	require.Contains(t, ansi.Strip(renderHeader(m, 160)), "1 need you · 2 working · 1 done")
 	stats := ansi.Strip(renderStatsOverlay(m))
 	require.Regexp(t, `queued\s+1`, stats)
 	require.Regexp(t, `total\s+4`, stats)

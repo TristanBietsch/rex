@@ -14,13 +14,26 @@ rex
 
 ## DESCRIPTION
 
-Three columns group sessions: **Needs input**, **Working**, and **Completed** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). A header shows aggregate counts. A tool filter chip cycles with `t`. The bottom prompt (`λ` by default) accepts quick-spawn text.
+Three columns group sessions: **NEEDS YOU**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N working · N done`. The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
+
+The tool filter row (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool or a filter other than `all` is active.
+
+A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `3` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
 The daemon auto-starts if the socket is unreachable (boot splash).
 
 ## ROW COLUMNS
 
-Each session row, left to right:
+By default a row shows four things: state, name, text and age.
+
+```
+ ▸ ◆  release-notes   Which feature should lead: search or export?          11m
+     state name       text                                                  last event
+```
+
+The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary.
+
+`v` switches to the detailed view, which adds the short id, model · effort and tokens, shows the AI summary as the text, and adds `· N marked done` to the header:
 
 ```
  ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴45m   11m
@@ -55,7 +68,10 @@ Each session row, left to right:
 |-----|--------|
 | `j`, `k`, `↓`, `↑` | Move selection |
 | `g`, `G` | First / last row |
-| `1`, `2`, `3` | Jump to Needs input / Working / Completed |
+| `tab` | Next session that needs you (wraps) |
+| `1`, `2` | Jump to Needs you / Working |
+| `3` | Jump to Done; on a long Done column, show / hide it |
+| `v` | Simple / detailed rows |
 | `t` | Cycle tool filter (`all`, `claude`, `codex`, `gemini`, `ollama`) |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
@@ -135,7 +151,7 @@ Line-oriented agents (ollama, echo) are attached with transcript replay, so thei
 
 ## MARK DONE
 
-`cc` marks the selected session done **without stopping it**. The row dims, moves to **Completed** whatever its live state, and shows a **done badge** with the time it was marked (`done 14:32` today, `done Oct 21` otherwise; plain `done` for marks made before the daemon recorded the time). The header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
+`cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state, and shows a **done badge** with the time it was marked (`done 14:32` today, `done Oct 21` otherwise; plain `done` for marks made before the daemon recorded the time). The detailed view's header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
 - `cc` again undoes the mark.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.

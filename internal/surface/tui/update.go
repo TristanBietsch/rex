@@ -53,6 +53,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 	nm = normalizeFocus(nm)
+	nm = keepSelectionVisible(nm)
 	var arm tea.Cmd
 	if nm, arm = armSpinner(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
@@ -324,7 +325,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		// 'cc' is the soft "mark done": the session keeps running, moves to
-		// Completed, and is cleared after retire_after_hours; 'cc' again undoes it.
+		// Done, and is cleared after retire_after_hours; 'cc' again undoes it.
 		if k.String() == "c" {
 			if m.PendingChord == "c" {
 				m.PendingChord = ""
@@ -380,7 +381,12 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		case "2":
 			return jumpToSection(m, 1), nil
 		case "3":
-			return jumpToSection(m, 2), nil
+			return toggleDone(m), nil
+		case "tab":
+			return nextNeedsYou(m), nil
+		case "v":
+			m.Detailed = !m.Detailed
+			return ensureVisible(m), nil
 		case "t":
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventFilter)
