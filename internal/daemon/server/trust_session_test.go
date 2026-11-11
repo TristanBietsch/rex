@@ -100,7 +100,9 @@ func TestValidateNewSession_TrustFolder(t *testing.T) {
 		p.CWD, p.TrustFolder = cwd, true
 		err := validateNewSession(p)
 		require.Error(t, err, name)
-		require.Contains(t, err.Error(), "trust_folder", name)
+		// Relative and ~ paths fail the absolute-cwd check first (H5); the
+		// rest reach the trust check.
+		require.Regexp(t, `trust_folder|absolute path`, err.Error(), name)
 	}
 }
 
@@ -188,5 +190,5 @@ func TestNewSession_TrustFolderPersistsAndTrusts(t *testing.T) {
 		ToolID: "echo", ModelID: "argv", Slug: "bad", CWD: "relative/dir", TrustFolder: true,
 	})
 	require.Equal(t, protocol.ErrCodeBadIntent, code)
-	require.Contains(t, msg, "trust_folder")
+	require.Contains(t, msg, "absolute path", "a relative cwd is refused before the trust check")
 }
