@@ -348,6 +348,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: the attach popup is no longer wider than a narrow terminal (it was
+  clipped below 54 columns), and in the mobile layout (60 columns or fewer)
+  it is a full-screen sheet with no margin or padding.
 - TUI: the help, settings, new-session, stats, overview and failures
   overlays no longer overflow a narrow terminal (below about 60 columns);
   wide lines are cut with `…` instead of being clipped by the terminal.

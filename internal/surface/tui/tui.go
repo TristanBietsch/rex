@@ -113,7 +113,7 @@ func (m Model) view(w, h int) string {
 	case FocusSettings:
 		return centerOverlayBox(w, h, renderSettings(m, w), renderFullScreen(m, w, h))
 	case FocusAttach:
-		return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
+		return centerAttach(m, w, h, renderFullScreen(m, w, h))
 	case FocusFail:
 		return centerOverlay(w, h, fitOverlay(renderFail(m), w), renderFullScreen(m, w, h))
 	case FocusStats:
@@ -124,7 +124,7 @@ func (m Model) view(w, h int) string {
 		// A command bar opened from inside the attach popup (::) keeps the
 		// popup on screen; the bar renders in its footer.
 		if m.Attach != nil {
-			return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
+			return centerAttach(m, w, h, renderFullScreen(m, w, h))
 		}
 	default:
 		// The board and its bottom-bar prompts render on the full screen.
@@ -199,6 +199,14 @@ func centerOverlay(w, h int, content, bg string) string {
 	return compositeOverlay(w, h, popupLines, popupW, bg)
 }
 
+// centerAttach composites the attach popup (a padded box, or the mobile
+// sheet) over bg with the geometry attachChrome gives the mouse.
+func centerAttach(m Model, w, h int, bg string) string {
+	c := attachChromeOf(m).withBanner(m.Attach.BannerRows)
+	popupLines, popupW := overlayBoxPad(renderAttach(m), c.padX(), c.padY())
+	return compositeOverlay(w, h, popupLines, popupW, bg)
+}
+
 // overlayChrome is the columns overlayBox adds around its content: two for the
 // border and four for the padding.
 const overlayChrome = 6
@@ -268,6 +276,12 @@ func compositeOverlay(w, h int, popupLines []string, popupW int, bg string) stri
 // line once; lipgloss measured them several times, which was most of the
 // attach popup's frame time. It returns the box lines and their width.
 func overlayBox(content string) ([]string, int) {
+	return overlayBoxPad(content, 2, 1)
+}
+
+// overlayBoxPad is overlayBox with padX columns and padY rows of padding
+// (the attach sheet uses none).
+func overlayBoxPad(content string, padX, padY int) ([]string, int) {
 	content = strings.ReplaceAll(content, "\r\n", "\n") // as lipgloss does
 	content = strings.ReplaceAll(content, "\t", "    ") // lipgloss's tab width
 	lines := strings.Split(content, "\n")
@@ -277,17 +291,24 @@ func overlayBox(content string) ([]string, int) {
 		widths[i] = ansi.StringWidth(l)
 		inner = max(inner, widths[i])
 	}
-	padded := inner + 4
+	padded := inner + 2*padX
 	border := lipgloss.NewStyle().Foreground(colorBorder)
 	side := border.Render("│")
 	blank := side + strings.Repeat(" ", padded) + side
+	padding := strings.Repeat(" ", padX)
 	rule := strings.Repeat("─", padded)
 
 	out := make([]string, 0, len(lines)+4)
-	out = append(out, border.Render("╭"+rule+"╮"), blank)
-	for i, l := range lines {
-		out = append(out, side+"  "+l+strings.Repeat(" ", inner-widths[i])+"  "+side)
+	out = append(out, border.Render("╭"+rule+"╮"))
+	for range padY {
+		out = append(out, blank)
 	}
-	out = append(out, blank, border.Render("╰"+rule+"╯"))
+	for i, l := range lines {
+		out = append(out, side+padding+l+strings.Repeat(" ", inner-widths[i])+padding+side)
+	}
+	for range padY {
+		out = append(out, blank)
+	}
+	out = append(out, border.Render("╰"+rule+"╯"))
 	return out, padded + 2
 }
