@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -90,6 +91,10 @@ type Config struct {
 	// OnReload handles a Reload intent (nil = intent rejected): re-read
 	// tools.yaml and swap the registry, same as SIGHUP.
 	OnReload func() error
+	// OnBoardClient runs after a board viewer (Hello.Client ==
+	// protocol.ClientTUI) completed its Hello and was counted. nil: nothing.
+	// It runs on the connection's goroutine and must not block.
+	OnBoardClient func()
 }
 
 // resumeOn reports whether the resume feature is on.
@@ -147,6 +152,17 @@ type Server struct {
 	// after Hello).
 	summarizerHealthMu   sync.RWMutex
 	summarizerHealthSubs []func(protocol.SummarizerHealth)
+
+	// overview is the latest board overview (memory only, never persisted),
+	// with a global fan-out like SummarizerHealth. overviewMu guards all
+	// three.
+	overviewMu   sync.RWMutex
+	overview     *protocol.Overview
+	overviewSubs []func(protocol.Overview)
+
+	// boardClients counts the connections that completed Hello as a board
+	// viewer (the rex TUI) and are still open.
+	boardClients atomic.Int32
 
 	resizeMu    sync.RWMutex
 	resizeFuncs map[string]func(cols, rows uint16) error
@@ -476,6 +492,58 @@ func (s *Server) BroadcastSummarizerHealth(available bool, reason string) {
 		}
 	}
 }
+
+// SetOverview stores o as the current overview and sends it to every client
+// that has said Hello. The headline is model output, so it is sanitized again
+// here (one line, no escapes, at most protocol.MaxOverviewRunes): whatever the
+// caller did, no escape sequence reaches a terminal. Nothing is logged or
+// persisted.
+func (s *Server) SetOverview(o protocol.Overview) {
+	o.Headline = protocol.SanitizeDisplayText(o.Headline, protocol.MaxOverviewRunes)
+	s.overviewMu.Lock()
+	cp := o
+	s.overview = &cp
+	subs := slices.Clone(s.overviewSubs)
+	s.overviewMu.Unlock()
+	for _, fn := range subs {
+		if fn != nil {
+			fn(o)
+		}
+	}
+}
+
+// Overview returns a copy of the current overview, nil until SetOverview ran.
+func (s *Server) Overview() *protocol.Overview {
+	s.overviewMu.RLock()
+	defer s.overviewMu.RUnlock()
+	if s.overview == nil {
+		return nil
+	}
+	cp := *s.overview
+	return &cp
+}
+
+// SubscribeOverview registers a global callback for overview changes and
+// returns its cancel func. Every connected client subscribes once; fn follows
+// the SubscribeSessionOutput contract: no blocking, no I/O.
+func (s *Server) SubscribeOverview(fn func(protocol.Overview)) func() {
+	s.overviewMu.Lock()
+	defer s.overviewMu.Unlock()
+	idx := len(s.overviewSubs)
+	s.overviewSubs = append(s.overviewSubs, fn)
+	return func() {
+		s.overviewMu.Lock()
+		defer s.overviewMu.Unlock()
+		if idx < len(s.overviewSubs) {
+			s.overviewSubs[idx] = nil
+		}
+	}
+}
+
+// BoardClients is how many open connections are board viewers (said Hello as
+// protocol.ClientTUI). The overview runner generates only while it is above
+// zero.
+func (s *Server) BoardClients() int { return int(s.boardClients.Load()) }
 
 // RegisterResize stores a resize callback for a session. Called by the supervisor at PTY start.
 func (s *Server) RegisterResize(sessionID string, fn func(cols, rows uint16) error) {

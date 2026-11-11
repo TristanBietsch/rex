@@ -31,9 +31,14 @@ type Hello struct {
 	// Clients before acks sent their program name here.
 	ClientVersion string `json:"client_version"`
 	// Client names the client program ("rex-cli", "rex-tui", ...), for
-	// the daemon log. Empty from older clients.
+	// the daemon log and, for ClientTUI, to count a board viewer. Empty from
+	// older clients.
 	Client string `json:"client,omitempty"`
 }
+
+// ClientTUI is the Hello.Client of the rex board. The daemon counts only
+// these connections as someone looking at the board.
+const ClientTUI = "rex-tui"
 
 // Subscribe controls what events flow back. SessionID == "" means board-wide updates only.
 // Replay asks the daemon to emit the tail of the session's transcript as a SessionOutput
