@@ -24,12 +24,15 @@ func chordUndoComplete(m Model, second string) (Model, tea.Cmd, bool) {
 
 // undoComplete takes a session out of Done.
 //
-//	exited (done, failed or crashed)  explain: it can't be brought back yet
 //	not in Done                       notice: nothing to undo
 //	marked done, still running        unmark (Unretire)
+//	exited, with a resume id          Resume: respawn in place
+//	exited, no resume id              explain: the tool can't be resumed
 //
-// An exited session keeps its mark: clearing it would leave the row in Done
-// anyway.
+// An exited session keeps its mark until the daemon respawns it (Resume
+// clears it), and when it can't be resumed the mark stays: clearing it would
+// leave the row in Done anyway. The daemon stays authoritative: a process
+// that exits between the key press and the intent is handled in handleResume.
 func undoComplete(m Model, id string) (Model, tea.Cmd) {
 	sum, ok := findSession(m.Sessions, id)
 	if !ok {
@@ -38,14 +41,39 @@ func undoComplete(m Model, id string) (Model, tea.Cmd) {
 	}
 	name := displayName(sum)
 	switch {
-	case sum.State == protocol.StateDone || sum.State == protocol.StateFailed || sum.State == protocol.StateCrashed:
-		m.Err = "uc: " + name + " has exited; it can't be brought back yet"
-		return m, nil
+	case isTerminalState(sum.State):
+		return resumeExited(m, sum, name)
 	case !isMarkedDone(sum):
 		m.Notice = name + " isn't done"
 		return m, nil
 	}
 	return toggleRetire(m, id) // marked: toggling unmarks
+}
+
+// resumeExited sends Resume for an exited session that has a resume id, or
+// says why it can't.
+func resumeExited(m Model, sum protocol.SessionSummary, name string) (Model, tea.Cmd) {
+	rid := resumeIDShown(sum)
+	switch {
+	case !m.featureOn("resume"):
+		m.Err = "uc: " + name + " has exited; resume is off (rex config set resume true)"
+		return m, nil
+	case rid == "":
+		tool := protocol.FlattenDisplayText(sum.ToolID)
+		if tool == "" {
+			tool = "its tool"
+		}
+		m.Err = "uc: " + name + " has exited and " + tool + " can't be resumed"
+		return m, nil
+	}
+	r := resumerOf(m)
+	if r == nil {
+		m.Err = "uc: not connected to the daemon"
+		return m, nil
+	}
+	m.Notice = "resuming " + name + " (resume id " + rid[:colResume] + "…)"
+	slog.Info("tui: uc resumes an exited session", "session", sum.ID, "state", sum.State)
+	return m, resumeSessionCmd(r, sum.ID)
 }
 
 func runUC(m Model, c cmdCall) (Model, tea.Cmd) {

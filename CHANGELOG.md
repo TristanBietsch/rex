@@ -60,10 +60,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   sections. A search unfolds a long Done column. `:search [text]` does the
   same from the command line (`::search` from attach), and `:bg` saves the
   search for the next start.
-- TUI: `uc` and `:uc [sel]` undo done: they unmark a running session that
-  was marked done (`cc`, `:done`). A session that is not in Done gets a
-  notice, and one that has already exited is explained rather than touched.
-  `u` then `c` never arms `cc`.
+- TUI: `uc` and `:uc [sel]` (also `:resume [sel]`) undo done: they unmark a
+  running session that was marked done (`cc`, `:done`), and resume an exited
+  one (done, failed, crashed, or completed with `C`) in place with its
+  resume id: same row, slug, start time and transcript, back in Working. An
+  exited session whose tool can't be resumed is explained rather than
+  touched. A session that is not in Done gets a notice. `u` then `c` never
+  arms `cc`.
 - TUI: section titles read `n/total` (`WORKING  1/4`) while a tool filter or
   search narrows the rows.
 - TUI: hide board sections. `zh` hides or shows the completed (Done)

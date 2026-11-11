@@ -91,7 +91,7 @@ The **text** is the task you gave the session. A session that needs you shows th
 | `i` | Focus bottom prompt (quick-spawn) |
 | `r` | Rename selected (display name; empty resets to slug) |
 | `cc` | Mark selected done / undo (see MARK DONE) |
-| `uc` | Undo done: unmark the selected session (see MARK DONE) |
+| `uc` | Undo done: unmark a running session, or resume an exited one (see MARK DONE) |
 | `C` | Complete now: kill the agent and mark it done |
 | `dd` | Delete selected (confirm) |
 | `:` | Command mode |
@@ -222,7 +222,7 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 
 - `cc` again undoes the mark. `uc` (or `:uc [sel]`) does the same without ever marking: it unmarks a session that is still running and says `<name> isn't done` for one that is not in Done.
 - `uc` and `:uc` belong to the `undo_complete` feature (Settings → Features, on by default). Off, `u` is unbound and `:uc` answers `off: enable in Settings → Features (rex config set undo_complete true)`; `:undone` still unmarks.
-- `uc` on a session that has exited (done, failed or crashed, including after `C`) cannot bring it back yet: the status line says `uc: <name> has exited; it can't be brought back yet`, and the row stays in Done.
+- `uc` on a session that has exited (done, failed or crashed, including after `C`) resumes it in place when it has a resume id (the `resume id` column): the status line says `resuming <name> (resume id 1a2b3c4d…)`, the row keeps its slug, start time and transcript, leaves Done for Working, and the agent is started again with its own resume arguments (`claude --resume <id>`). The daemon clears a done mark when it respawns. A session whose tool can't be resumed (no id) gets `uc: <name> has exited and <tool> can't be resumed` and stays in Done; with the `resume` feature off it says `resume is off`. A row already being cleared answers `too late — session is already being cleared`. `:resume [sel]` is the same as `:uc [sel]`.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.
 - A session still **working** at the deadline is not cleared; it is cleared as soon as it settles (the attach footer reads `clears when idle`).
 - `cc` again moves the row back to the column its live state belongs to.
