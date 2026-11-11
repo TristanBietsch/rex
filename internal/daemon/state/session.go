@@ -36,6 +36,10 @@ type Session struct {
 	// restored from meta.json: subagents do not outlive the daemon.
 	Subagents int
 
+	// WaitReason is why a needs_input session waits (protocol.WaitReview or
+	// protocol.WaitInput), "" when unknown. Not restored from meta.json.
+	WaitReason string
+
 	// Fleet optionally groups this session under a named label.
 	Fleet string
 
@@ -104,6 +108,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		Tokens:        s.Tokens,
 		OutputBytes:   s.OutputBytes,
 		Subagents:     s.Subagents,
+		WaitReason:    s.WaitReason,
 		Fleet:         s.Fleet,
 		Name:          s.Name,
 		RetireAt:      s.RetireAt,

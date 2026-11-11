@@ -595,3 +595,73 @@ func TestSupervisor_ReportsSubagents(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(meta), "subagents", "the final meta.json keeps no count")
 }
+
+// reasonAdapter reports a wait reason that the test changes.
+type reasonAdapter struct {
+	stubAdapter
+	reason atomic.Value // string
+}
+
+func (r *reasonAdapter) WaitReason() string {
+	v, _ := r.reason.Load().(string)
+	return v
+}
+
+// The supervisor patches the wait reason while the agent runs and clears it
+// when the agent exits, before the final meta.json write. Driven by the
+// patches themselves, not by sleeps.
+func TestSupervisor_ReportsWaitReason(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the child reads its exit signal from a Unix tty")
+	}
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{ID: "wr1", ShortID: "wr1", ToolID: "claude", Slug: "wr",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	ad := &reasonAdapter{}
+	ad.reason.Store(protocol.WaitReview)
+	release := make(chan struct{})
+	var (
+		mu   sync.Mutex
+		seen []string
+		once sync.Once
+	)
+	store.Subscribe(func(e state.Event) {
+		v, ok := e.Patch["wait_reason"].(string)
+		if !ok {
+			return
+		}
+		mu.Lock()
+		seen = append(seen, v)
+		mu.Unlock()
+		switch v {
+		case protocol.WaitReview:
+			ad.reason.Store(protocol.WaitInput)
+		case protocol.WaitInput:
+			once.Do(func() { close(release) })
+		}
+	})
+	input := make(chan []byte, 1)
+	go func() {
+		<-release
+		input <- []byte("\n")
+	}()
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sh", "-c", "read x"},
+		Adapter:  ad,
+		InputCh:  input,
+		IdleTick: 20 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+
+	mu.Lock()
+	require.Equal(t, []string{protocol.WaitReview, protocol.WaitInput, ""}, seen, "one patch per change, cleared at exit")
+	mu.Unlock()
+	meta, err := os.ReadFile(filepath.Join(stateDir, "sessions", sess.ID, "meta.json"))
+	require.NoError(t, err)
+	require.NotContains(t, string(meta), "wait_reason", "the final meta.json keeps no reason")
+}

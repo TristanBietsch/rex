@@ -36,8 +36,8 @@ var claudeHookStates = []struct {
 	{"UserPromptSubmit", false, protocol.StateWorking},
 	{"PreToolUse", true, protocol.StateWorking},
 	{"PostToolUse", true, protocol.StateWorking},
-	{"Notification", false, protocol.StateNeedsInput}, // permission / idle prompt
-	{"Stop", false, protocol.StateNeedsInput},         // turn finished, waiting on user
+	{"Notification", false, protocol.StateNeedsInput}, // permission / idle prompt; writes a notify line
+	{"Stop", false, protocol.StateNeedsInput},         // turn finished, waiting on user; writes turn-done
 }
 
 // Subagent lines in the hook file, next to the state words:
@@ -47,13 +47,24 @@ var claudeHookStates = []struct {
 //	agent~ <agent_id>  PostToolUse of a subagent's tool call (still running)
 //	agents-reset       SessionStart of a new or cleared conversation
 //	sid <session_id>   SessionStart: the conversation id (resume id)
+//	turn-done          Stop: the agent finished a turn (wait_reason review)
+//	notify <type>      Notification: notification_type, "" if absent
+//
+// The wait reason lines follow the needs_input word of their own event, so
+// the word itself never clears the reason.
 const (
 	hookAgentStart  = "agent+"
 	hookAgentStop   = "agent-"
 	hookAgentSeen   = "agent~"
 	hookAgentsReset = "agents-reset"
 	hookSessionID   = "sid"
+	hookTurnDone    = "turn-done"
+	hookNotify      = "notify"
 )
+
+// notifyIdle is the Notification type Claude fires after about 60 seconds
+// idle. It must not turn a finished turn into a question.
+const notifyIdle = "idle_prompt"
 
 // subagentQuiet is how long a subagent may go without a start or a tool
 // call before it stops counting. It bounds a count stuck by a lost
@@ -103,6 +114,11 @@ func claudeHookCommand(event string, state protocol.State) string {
 	case "PostToolUse":
 		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; ` +
 			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookAgentSeen+` %s\n' "$id"; else printf '`+st+`\n'; fi`)
+	case "Stop":
+		return hookAppend(`printf '` + st + `\n` + hookTurnDone + `\n'`)
+	case "Notification":
+		return `in=$(cat); ty=$(` + hookJSONField("notification_type") + hookSafeID + `); ` +
+			hookAppend(`printf '`+st+`\n`+hookNotify+` %s\n' "$ty"`)
 	default:
 		return hookAppend(`printf '` + st + `\n'`)
 	}
@@ -148,6 +164,14 @@ type ResumeIDReporter interface {
 	ResumeID() string
 }
 
+// WaitReasoner is implemented by adapters that know why a needs_input
+// session waits.
+type WaitReasoner interface {
+	// WaitReason is protocol.WaitReview or protocol.WaitInput, "" when
+	// unknown or while the agent works.
+	WaitReason() string
+}
+
 // ClaudeHooks classifies Claude Code sessions from the hook state file written
 // by ClaudeHookArgs hooks. Claude renders a full-screen TUI to the PTY (its
 // stream-json output only exists with --print), so screen-scraping is
@@ -161,6 +185,7 @@ type ClaudeHooks struct {
 	last    protocol.State
 	agents  map[string]time.Time // running subagents by agent_id: last sign of life
 	sid     string               // latest valid session_id from a sid line
+	reason  string               // why the agent waits (protocol.Wait*), "" if unknown
 	now     func() time.Time
 }
 
@@ -204,6 +229,15 @@ func (a *ClaudeHooks) ResumeID() string {
 	defer a.mu.Unlock()
 	a.read()
 	return a.sid
+}
+
+// WaitReason implements WaitReasoner: review after a Stop, input after a
+// Notification other than idle_prompt, which keeps what was there.
+func (a *ClaudeHooks) WaitReason() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.read()
+	return a.reason
 }
 
 // IsReadyForInput implements Adapter. Claude receives its first prompt on argv,
@@ -262,6 +296,9 @@ func (a *ClaudeHooks) apply(line string) {
 		return
 	case string(protocol.StateWorking), string(protocol.StateNeedsInput):
 		a.last = protocol.State(word)
+		if a.last == protocol.StateWorking {
+			a.reason = ""
+		}
 		slog.Debug("adapter: claude hook state", "path", a.path, "state", a.last)
 	case hookAgentStart, hookAgentSeen:
 		// A sign of life also brings back a subagent dropped as quiet or
@@ -273,6 +310,13 @@ func (a *ClaudeHooks) apply(line string) {
 		delete(a.agents, arg)
 	case hookAgentsReset:
 		clear(a.agents)
+		a.reason = ""
+	case hookTurnDone:
+		a.reason = protocol.WaitReview
+	case hookNotify:
+		if arg != notifyIdle {
+			a.reason = protocol.WaitInput
+		}
 	case hookSessionID:
 		// The latest wins (/clear and in-app /resume start new conversations).
 		// An invalid or missing id is ignored: it ends up on an argv.

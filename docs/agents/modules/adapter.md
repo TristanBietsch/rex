@@ -32,8 +32,9 @@ Classifies PTY output into `protocol.State` values and detects when an agent CLI
 ### Methods
 
 - `(*HeuristicCLI) Detect`, `IsReadyForInput`
-- `(*ClaudeHooks) Detect`, `IsReadyForInput` (always false; Claude gets its prompt on argv), `Subagents`, `ResumeID`
+- `(*ClaudeHooks) Detect`, `IsReadyForInput` (always false; Claude gets its prompt on argv), `Subagents`, `ResumeID`, `WaitReason`
 - `ResumeIDReporter` — optional interface (`ResumeID() string`); the supervisor polls it once per tick and patches `resume_id` on change
+- `WaitReasoner` — optional interface (`WaitReason() string`); the supervisor polls it once per tick and patches `wait_reason` on change, and clears it on exit. Hook lines: Stop writes `needs_input` then `turn-done` (reason `review`); Notification writes `needs_input` then `notify <notification_type>` (reason `input`, except `idle_prompt`, which keeps the previous reason); `working` and `agents-reset` clear it; `sid` lines do not touch it
 
 ## Internal structure
 

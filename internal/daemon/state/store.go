@@ -477,6 +477,32 @@ func (s *Store) SetSubagents(id string, n int) error {
 	return nil
 }
 
+// SetWaitReason records why a needs_input session waits (protocol.WaitReview,
+// protocol.WaitInput, or "" for unknown or none) and broadcasts a change. It
+// is not activity: last_event_at is left alone.
+func (s *Store) SetWaitReason(id, reason string) error {
+	switch reason {
+	case "", protocol.WaitReview, protocol.WaitInput:
+	default:
+		return fmt.Errorf("invalid wait reason %q", reason)
+	}
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.WaitReason == reason {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.WaitReason = reason
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"wait_reason": reason}})
+	return nil
+}
+
 // LastEventAt is the session's last real activity: a state transition, a new
 // screen line from the child, or its exit. Stats and digest use it as a
 // finished session's end time and the board as "time ago", so metadata
