@@ -34,7 +34,7 @@ Many commands take `<sel>`: one session reference.
 | Form | Rule |
 |------|------|
 | Full UUID | Exact match on `id` |
-| Slug | Exact match on `slug` (checked before short id) |
+| Slug | Exact match on `slug`. If the same text is also the short id or id prefix of a different session, the selector is ambiguous (exit 3) |
 | Short id | Four or more hex digits, in any case; prefix match on `id` |
 
 Exit **2** if no match. Exit **3** if multiple match: a slug shared by several sessions restored from an older daemon, or a slug that is also the short id (or id prefix) of a *different* session, such as a slug `feed` next to a session whose id starts with `feed`. The error lists each match and how it matched (`slug`, `short id`); pass the full id to pick one.
@@ -49,7 +49,7 @@ Exit **2** if no match. Exit **3** if multiple match: a slug shared by several s
 | 3 | Ambiguous selector |
 | 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
 | 5 | Invalid arguments: a bad flag or value, a missing argument, or an unknown command |
-| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined confirmation |
+| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` confirmation (a declined `prune` prompt still exits 1) |
 | 7 | `rex wait` timed out |
 
 An unknown command exits **5** and, when a real command is within two edits, names it: `unknown command "lss"; did you mean "ls"?`. A session removed while `rex wait` runs exits **2**.
@@ -406,7 +406,7 @@ Print a static board view (no TUI).
 rex render [-socket path] [-w cols] [-h rows]
 ```
 
-Dial or protocol errors exit **1** (not always `ExitCoder`).
+No daemon or a failed handshake exits **4**.
 
 ---
 

@@ -41,3 +41,6 @@ claude/*
 
 # dev
 dev/
+
+# editor backups
+*.bak

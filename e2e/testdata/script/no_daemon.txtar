@@ -43,6 +43,6 @@ stdout '^not running · socket=\S+/rex\.sock$'
 # A leftover non-socket file at the socket path is unreachable too.
 cp leftover $SOCKET
 exitcode 4 rex ls
-stderr 'connect: (connection refused|socket operation on non-socket)$'
+stderr 'rex-daemon is not running \(no socket at \S+/rex\.sock\)|connect: (connection refused|socket operation on non-socket)$'
 
 -- leftover --

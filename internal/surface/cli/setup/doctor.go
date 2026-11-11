@@ -217,7 +217,10 @@ var agyVersion = func(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out, err := exec.CommandContext(ctx, path, "--version").Output()
+	cmd := exec.CommandContext(ctx, path, "--version")
+	// A child that keeps stdout open must not outlast the timeout.
+	cmd.WaitDelay = 500 * time.Millisecond
+	out, err := cmd.Output()
 	return string(out), err
 }
 
