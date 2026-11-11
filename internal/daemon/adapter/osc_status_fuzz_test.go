@@ -40,7 +40,7 @@ func FuzzOSCStatusObserve(f *testing.F) {
 		whole.Observe(data)
 
 		split := fuzzOSC(t)
-		rng := rand.New(rand.NewSource(seed))
+		rng := rand.New(rand.NewSource(seed)) //nolint:gosec // deterministic chunking for a test
 		for rest := data; len(rest) > 0; {
 			n := 1 + rng.Intn(len(rest))
 			split.Observe(rest[:n])
