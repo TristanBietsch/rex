@@ -6,11 +6,13 @@ import (
 
 var mdEscaper = strings.NewReplacer(
 	`\`, `\\`, "|", `\|`, "`", "\\`", "<", "&lt;", ">", "&gt;",
+	"[", `\[`, "]", `\]`, "!", `\!`, "*", `\*`, "_", `\_`, "~", `\~`,
 )
 
 // escapeMD makes s safe inside a Markdown table cell or paragraph: pipes,
 // backticks, backslashes and angle brackets (so <script> stays text) are
-// escaped, and a leading # cannot become a heading.
+// escaped, as are [ ] ! * _ ~ (no links, images, emphasis or strikethrough
+// when pasted into an issue), and a leading # cannot become a heading.
 func escapeMD(s string) string {
 	s = mdEscaper.Replace(s)
 	if strings.HasPrefix(s, "#") {

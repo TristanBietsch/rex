@@ -27,12 +27,17 @@ type Section struct {
 	Body string
 }
 
-// Check compares sections with the archive at path (relative to the test's
+// Check fails the test for a path with no testdata directory component. It
+// compares sections with the archive at path (relative to the test's
 // package directory). With -update it writes the archive instead. Sections
 // are compared by name and order; a missing, extra or reordered section
 // fails the test.
 func Check(t testing.TB, path string, sections ...Section) {
 	t.Helper()
+	if !underTestdata(path) {
+		t.Fatalf("golden: %q is not under a testdata directory", path)
+		return
+	}
 	got := encode(sections)
 	if *update {
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -51,6 +56,18 @@ func Check(t testing.TB, path string, sections ...Section) {
 		return
 	}
 	t.Errorf("golden %s mismatch (run with -update to accept):\n%s", path, diff(want, got))
+}
+
+// underTestdata reports whether path has a "testdata" directory component, so
+// -update can never overwrite a file outside the fixtures.
+func underTestdata(path string) bool {
+	dir := filepath.ToSlash(filepath.Dir(filepath.Clean(path)))
+	for _, part := range strings.Split(dir, "/") {
+		if part == "testdata" {
+			return true
+		}
+	}
+	return false
 }
 
 // Visible replaces ESC bytes with the ␛ symbol.

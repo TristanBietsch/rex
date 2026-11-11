@@ -31,7 +31,7 @@ func writeGolden(t *testing.T, path string, secs ...Section) {
 }
 
 func TestCheck_MatchesAndShowsESC(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "g.txtar")
+	path := filepath.Join(t.TempDir(), "testdata", "g.txtar")
 	secs := []Section{{"text", "\x1b[1mhi\x1b[0m\n"}, {"txt", "hi"}}
 	writeGolden(t, path, secs...)
 
@@ -45,7 +45,7 @@ func TestCheck_MatchesAndShowsESC(t *testing.T) {
 }
 
 func TestCheck_MismatchFails(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "g.txtar")
+	path := filepath.Join(t.TempDir(), "testdata", "g.txtar")
 	writeGolden(t, path, Section{"a", "one"})
 
 	f := &fakeT{TB: t}
@@ -66,6 +66,30 @@ func TestCheck_MismatchFails(t *testing.T) {
 
 func TestCheck_MissingFileFatal(t *testing.T) {
 	f := &fakeT{TB: t}
-	Check(f, filepath.Join(t.TempDir(), "none.txtar"), Section{"a", "x"})
+	Check(f, filepath.Join(t.TempDir(), "testdata", "none.txtar"), Section{"a", "x"})
 	require.Contains(t, f.fatal, "-update")
+}
+
+func TestCheck_RefusesPathOutsideTestdata(t *testing.T) {
+	for _, path := range []string{
+		filepath.Join(t.TempDir(), "g.txtar"),
+		"g.txtar",
+		"../escape/g.txtar",
+		"mytestdata/g.txtar",
+	} {
+		f := &fakeT{TB: t}
+		Check(f, path, Section{"a", "x"})
+		require.Contains(t, f.fatal, "testdata", path)
+		_, err := os.Stat(path)
+		require.Error(t, err, "nothing written for %s", path)
+	}
+	// -update must refuse too: it is the writing path.
+	*update = true
+	defer func() { *update = false }()
+	f := &fakeT{TB: t}
+	path := filepath.Join(t.TempDir(), "w.txtar")
+	Check(f, path, Section{"a", "x"})
+	require.Contains(t, f.fatal, "testdata")
+	_, err := os.Stat(path)
+	require.Error(t, err)
 }

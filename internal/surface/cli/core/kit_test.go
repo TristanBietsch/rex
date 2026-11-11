@@ -173,6 +173,10 @@ func TestKitMarkdownEscape(t *testing.T) {
 	require.Equal(t, `a\|b \`+"`"+`c\`+"`"+` &lt;script&gt;`, escapeMD("a|b `c` <script>"))
 	require.Equal(t, `\# not a heading`, escapeMD("# not a heading"))
 	require.Equal(t, `a\\b`, escapeMD(`a\b`))
+	// Links, images, emphasis and strikethrough cannot be injected.
+	require.Equal(t, `\!\[x\](http://e)`, escapeMD("![x](http://e)"))
+	require.Equal(t, `\[click\]`, escapeMD("[click]"))
+	require.Equal(t, `\*b\* \_i\_ \~s\~ hi\!`, escapeMD("*b* _i_ ~s~ hi!"))
 	out := emitKit(t, "md", 80, false, Result{View: kitView()})
 	require.Contains(t, out, `a\|b \`+"`"+`c\`+"`"+` &lt;i&gt;`)
 	require.Contains(t, out, "| ID | State | Slug | N | Name |")

@@ -133,7 +133,7 @@ on-disk snapshot
 
 | Status | Check | Detail |
 | --- | --- | --- |
-| PASS | rex binary | ~/.local/bin/rex |
+| PASS | rex binary | \~/.local/bin/rex |
 | WARN | daemon | not responding (`rex daemon start`) |
 | FAIL | config | bad |
 | INFO | extra | n/a |
