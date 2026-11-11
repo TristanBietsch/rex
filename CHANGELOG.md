@@ -54,6 +54,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `today`, `7d` or `30d`) and the `UsageSample` intent the status-line tap
   sends. An older daemon answers `UsageQuery` with `bad_intent`, and the CLI
   tells you to run `rex daemon restart`. See [docs/protocol.md](docs/protocol.md).
+- Antigravity: a question or the trust dialog shows as waiting at once, not
+  after 15 s. rex asks agy for its terminal status (`AGY_CLI_OSC7501=on`,
+  per session, nothing written to `~/.gemini`) and falls back to the footer
+  until it arrives. New registry field `detect.status: osc7501`.
+- Antigravity: rex keeps the conversation id agy prints when it quits, so
+  `uc` and `:resume` work for agy sessions (`resume` block with
+  `--conversation={id}`), and a `trust_prompt` fallback answers agy's trust
+  dialog in trusted folders.
 - `rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]`
   writes one session as a readable document: its metadata plus the
   transcript as clean text, never raw PTY bytes. Full-screen agents are

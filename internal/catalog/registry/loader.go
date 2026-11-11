@@ -225,6 +225,15 @@ func validateTool(t Tool) error {
 	default:
 		return fmt.Errorf("tool %q: unknown detect.kind %q", t.ID, t.Detect.Kind)
 	}
+	switch t.Detect.Status {
+	case "":
+	case StatusOSC7501:
+		if t.Detect.Kind != "heuristic" {
+			return fmt.Errorf("tool %q: detect.status %q needs detect.kind heuristic", t.ID, t.Detect.Status)
+		}
+	default:
+		return fmt.Errorf("tool %q: unknown detect.status %q", t.ID, t.Detect.Status)
+	}
 	if len(t.TrustArgs) > 0 && !slices.ContainsFunc(t.TrustArgs, func(a string) bool {
 		return strings.Contains(a, TrustArgsCWDList)
 	}) {

@@ -79,11 +79,6 @@ func TestBuiltinClaudeResume(t *testing.T) {
 		Args:    []string{"--resume", "{id}"},
 		NewArgs: []string{"--session-id", "{id}"},
 	}, claude.Resume)
-
-	// Antigravity's values belong to the agy parity work; nothing here yet.
-	if agy, ok := reg.Find("antigravity"); ok {
-		require.Nil(t, agy.Resume)
-	}
 }
 
 func TestResumeSpec_Substitute(t *testing.T) {
