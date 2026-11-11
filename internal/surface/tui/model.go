@@ -360,6 +360,10 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
 		s.Subagents = int(v)
 	}
+	if raw, ok := patch["wait_reason"]; ok { // "" or null clears it
+		v, _ := raw.(string)
+		s.WaitReason = v
+	}
 	if v, ok := patch["resume_id"].(string); ok {
 		s.ResumeID = v
 	}

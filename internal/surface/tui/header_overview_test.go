@@ -175,6 +175,32 @@ func TestApplyEvent_Overview(t *testing.T) {
 	require.Equal(t, "x is ready", m.Overview.Headline)
 }
 
+// A wait_reason patch moves a waiting session between NEEDS YOU and READY
+// FOR REVIEW, and clearing it moves it back.
+func TestApplyEvent_WaitReasonPatchMovesBucket(t *testing.T) {
+	m := Model{Sessions: []protocol.SessionSummary{
+		{ID: "a", State: protocol.StateNeedsInput, LastLine: "Edited 3 files"},
+	}}
+	patch := func(v any) Model {
+		data, err := json.Marshal(protocol.SessionUpdated{SessionID: "a", Patch: map[string]any{"wait_reason": v}})
+		require.NoError(t, err)
+		return m.applyEvent(protocol.Envelope{Type: protocol.EventSessionUpdated, Data: data})
+	}
+	bucket := func(m Model) overview.Bucket { return overview.Classify(m.Sessions[0]) }
+
+	require.Equal(t, overview.NeedsYou, bucket(m))
+	m = patch("review")
+	require.Equal(t, overview.Review, bucket(m))
+	m = patch("input")
+	require.Equal(t, overview.NeedsYou, bucket(m))
+	m = patch("review")
+	m = patch("")
+	require.Equal(t, overview.NeedsYou, bucket(m))
+	m = patch("review")
+	m = patch(nil)
+	require.Empty(t, m.Sessions[0].WaitReason, "null clears it")
+}
+
 func TestApplyEvent_SnapshotAdoptsOverview(t *testing.T) {
 	data, err := json.Marshal(protocol.Snapshot{Filter: "all", Overview: &protocol.Overview{Enabled: true, Headline: "from snapshot"}})
 	require.NoError(t, err)
