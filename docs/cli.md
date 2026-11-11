@@ -189,7 +189,7 @@ rex wait <sel> [-socket path] [-until state] [-timeout duration]
 
 `-until`: `working`, `needs_input`, `done`, `failed`, or `any` (terminal states). Default `done`.
 
-`-timeout` uses Go duration syntax (`30s`, `10m`). Exit **7** on timeout.
+`-timeout` uses Go duration syntax (`30s`, `10m`); `0` (the default) waits without limit. Exit **7** on timeout. An unknown `-until` or a negative `-timeout` exits **5** before anything is sent. A session that is removed while waiting exits **2**.
 
 ---
 
@@ -254,7 +254,7 @@ rex done <sel> [-after 72h] [-socket path]
 rex undone <sel> [-socket path]
 ```
 
-`rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 3 ("session removed") when the session disappears.
+`rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 2 ("session removed") when the session disappears.
 
 ---
 

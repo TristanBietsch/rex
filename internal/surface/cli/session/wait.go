@@ -2,13 +2,20 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
+	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
+
+// waitTargets are the values -until accepts.
+var waitTargets = []string{"working", "needs_input", "done", "failed", "any"}
 
 // RunWait blocks until a session reaches a target state.
 func RunWait(args []string) error {
@@ -24,6 +31,13 @@ func RunWait(args []string) error {
 		return core.NewExitError(core.ExitInvalidArgs, "wait: exactly one selector required")
 	}
 	sel := rest[0]
+	if !slices.Contains(waitTargets, *until) {
+		return core.NewExitError(core.ExitInvalidArgs,
+			fmt.Sprintf("wait: -until %q: want one of %s", *until, strings.Join(waitTargets, ", ")))
+	}
+	if *timeout < 0 {
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("wait: -timeout %s: must not be negative", *timeout))
+	}
 
 	c, err := socket.Dial()
 	if err != nil {
@@ -52,7 +66,7 @@ func RunWait(args []string) error {
 		}
 		env, err := c.NextEvent()
 		if err != nil {
-			if strings.Contains(err.Error(), "deadline") || strings.Contains(err.Error(), "i/o timeout") {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
 				return core.NewExitError(core.ExitWaitTimedOut, "wait timed out")
 			}
 			return core.NewExitError(core.ExitGeneric, err.Error())

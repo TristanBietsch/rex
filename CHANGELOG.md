@@ -190,6 +190,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `rex wait` refuses an unknown `-until` and a negative `-timeout` (exit 5)
+  instead of waiting forever or without limit. A timeout is recognized by
+  its error type, not its text. `docs/cli.md` said a session removed during
+  `wait` exits 3; it exits 2.
+
 - `rex new`, `rm` and `prune` no longer crash when stdin is closed, and a
   character device that is not a terminal (`< /dev/null`, `< NUL` on
   Windows) is no longer mistaken for one.

@@ -23,6 +23,10 @@ exitcode 5 rex wait ''
 stderr '^rex: empty selector$'
 exitcode 5 rex wait
 stderr '^rex: wait: exactly one selector required$'
+exitcode 5 rex wait -until bogus x
+stderr 'wait: -until "bogus": want one of working, needs_input, done, failed, any'
+exitcode 5 rex wait -timeout -1s x
+stderr 'wait: -timeout -1s: must not be negative'
 exitcode 5 rex rename onlyone
 stderr '^rex: rename: <selector> <new-slug>$'
 exitcode 5 rex ls -bogus
