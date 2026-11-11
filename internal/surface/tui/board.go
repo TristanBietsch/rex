@@ -82,7 +82,7 @@ var boardGroups = []boardGroup{
 	}},
 	{ID: "working", Title: "Working", Count: "working", Empty: "nothing running", Match: func(s protocol.SessionSummary, c groupCtx) bool {
 		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued) &&
-			!(c.waiting && isWaiting(s, c.now))
+			(!c.waiting || !isWaiting(s, c.now))
 	}},
 	{ID: "done", Title: "Done", Count: "done", Empty: "nothing finished yet", Completed: true, Match: func(s protocol.SessionSummary, _ groupCtx) bool {
 		return inCompleted(s)
