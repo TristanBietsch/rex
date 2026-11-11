@@ -52,7 +52,8 @@ internal/
 │   └── client/             # dial, intents, event stream
 ├── catalog/                # tools + user settings
 │   ├── registry/           # builtin.yaml + tools.yaml
-│   └── settings/           # config.yaml registry + store
+│   ├── settings/           # config.yaml registry + store
+│   └── theme/              # semantic color palettes (TUI + CLI)
 ├── runtime/                # paths, process control, logging
 │   ├── daemonctl/          # spawn/check daemon, socket paths
 │   ├── ids/                # session UUID / short id
@@ -74,7 +75,7 @@ internal/
 | `daemon/` | PTY supervision, persistence, classification |
 | `daemon/boot/` | Extracted from `cmd/rex-daemon` so `main` stays thin |
 | `wire/` | Shared socket protocol + client SDK |
-| `catalog/` | `tools.yaml` and `config.yaml` domains |
+| `catalog/` | `tools.yaml`, `config.yaml` and color palette domains |
 | `runtime/` | Socket paths, daemon spawn, IDs, slog setup |
 | `features/` | Can disable Ollama/Lua/audio without breaking core kanban |
 | `testutil/` | Shared daemon fixture for integration tests |

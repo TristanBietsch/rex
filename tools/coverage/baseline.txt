@@ -6,6 +6,7 @@ github.com/tristanbietsch/rex/cmd/rex 0
 github.com/tristanbietsch/rex/cmd/rex-daemon 32
 github.com/tristanbietsch/rex/internal/catalog/registry 86
 github.com/tristanbietsch/rex/internal/catalog/settings 84
+github.com/tristanbietsch/rex/internal/catalog/theme 100
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
 github.com/tristanbietsch/rex/internal/daemon/boot 27
 github.com/tristanbietsch/rex/internal/daemon/pty 88
