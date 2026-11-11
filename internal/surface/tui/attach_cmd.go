@@ -149,8 +149,10 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 	switch verb {
 	case "q", "q!", "quit", "detach", "close":
 		return detach(m)
-	case "done", "undone":
+	case "done":
 		return toggleRetire(m, a.SessionID)
+	case "undone":
+		return unmarkDone(m, a.SessionID)
 	case "complete", "kill":
 		if m.Client == nil {
 			return m, nil

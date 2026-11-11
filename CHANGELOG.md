@@ -182,6 +182,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: `::undone` in the attach popup only unmarks; on a session that is not
+  marked done it shows a notice instead of marking it done.
 - The settings page showed a second "Spawn" section for
   `auto_trust_dirs`; it now sits with the other Spawn settings.
 - TUI: a reconnect to the daemon no longer resets the tool filter to `all`.
