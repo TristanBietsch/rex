@@ -382,12 +382,8 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, completeSessionCmd(m.Client, m.SelectedID)
 		case "r":
 			return openRename(m)
-		case "1":
-			return jumpToSection(m, 0), nil
-		case "2":
-			return jumpToSection(m, 1), nil
-		case "3":
-			return toggleDone(m), nil
+		case "1", "2", "3", "4":
+			return jumpToNumber(m, int(k.String()[0]-'0')), nil
 		case "tab":
 			return nextNeedsYou(m), nil
 		case "v":

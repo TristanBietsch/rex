@@ -58,7 +58,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status` and `rex overview` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status` and `rex skills` and `rex overview` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -120,6 +120,8 @@ rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-sho
 
 The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 
+A working session blocked on a tool (a shell command, subagent or web call, for 3 s or more; Claude Code) shows `waiting (shell)`, `waiting (subagent)` or `waiting (web)` in the `STATE` column of `text` and `md`, and the header counts it as `N waiting`. `txt` and the agent `state=` key keep `working`, so scripts do not change; `json` carries `waiting_on` and `waiting_since`. `waiting_section` off shows plain `working`. `rex status` is unchanged: a waiting session counts as working and does not make it exit 1.
+
 ---
 
 ## rex new
@@ -128,7 +130,8 @@ Spawn a session.
 
 ```sh
 rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
-           [-slug name] [-cwd dir] [-fleet name] [-wait duration] [-no-attach]
+           [-slug name] [-cwd dir] [-fleet name] [-name text] [-skill name]...
+           [-wait duration] [-no-attach]
 ```
 
 Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. `-cwd` must be an existing folder (exit 5 otherwise); a relative path is made absolute by the CLI. Prompt from arguments or stdin when stdin is not a TTY.
@@ -137,9 +140,25 @@ Prints `short_id` and `slug` tab-separated on success.
 
 Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
 
+`-name` sets the session's display name (see `rex name`; whitespace is collapsed, at most 64 characters). With no prompt and no `-slug`, the slug is derived from the name.
+
+`-skill name` loads a skill from the library at `~/.config/rex/skills` into this session only; repeat it for more (at most 16). The daemon copies the skills into the session's folder and starts Claude Code with `--plugin-dir`, so nothing is written to `~/.claude`. List the names with `rex skills`; see [howto/skills.md](howto/skills.md). Exit 5 when a name is invalid or not in the library, when the tool cannot load skills per session (Antigravity cannot), or when the `spawn_skills` setting is off (`off: enable in Settings → Features (rex config set spawn_skills true)`). Against a `rex-daemon` older than these flags, `rex new` still spawns and prints `warning: this rex-daemon ignored skills; run \`rex daemon restart\`` on stderr.
+
 `-wait` (default `5s`) is how long to wait for the daemon to confirm the spawn. If it does not, `rex new` exits 1 with `daemon did not confirm the spawn within 5s; check \`rex ls\``: the session may still appear.
 
 `-no-attach` is deprecated: it is accepted but has no effect.
+
+---
+
+## rex skills
+
+List the skill library, `~/.config/rex/skills/<name>/SKILL.md`: the names `rex new -skill` accepts.
+
+```sh
+rex skills [-o FORMAT] [--agent]
+```
+
+Columns: `name`, `description` (from the `description` in the SKILL.md frontmatter). Folders that cannot be used (a symlink, a name that is not lowercase letters, digits and hyphens, no SKILL.md) are skipped and shown as warnings. Needs no daemon. Exits 5 with the Features message when `spawn_skills` is off.
 
 ---
 

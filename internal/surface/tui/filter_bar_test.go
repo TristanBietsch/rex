@@ -18,7 +18,7 @@ func TestRenderFilterStatus(t *testing.T) {
 	require.Equal(t, "done hidden (zh)", ansi.Strip(renderFilterStatus(one)))
 
 	working := setSectionHidden(m, "working", true)
-	require.Equal(t, "working hidden (z2)", ansi.Strip(renderFilterStatus(working)))
+	require.Equal(t, "working hidden (z3)", ansi.Strip(renderFilterStatus(working)))
 
 	two := setSectionHidden(one, "needs", true)
 	require.Equal(t, "needs, done hidden (z0 shows all)", ansi.Strip(renderFilterStatus(two)))

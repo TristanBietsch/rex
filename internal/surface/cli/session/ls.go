@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -52,10 +53,11 @@ func RunLs(args []string) error {
 	}
 
 	p := core.Out()
+	st, _, _ := settings.LoadDefault()
 	return p.Emit(core.Result{
 		Cmd:    "ls",
 		Data:   filtered,
-		View:   lsView(filtered, p.Now(), p.Glyphs),
+		View:   lsView(filtered, p.Now(), p.Glyphs, settings.FeatureOn(st, "waiting_section")),
 		Legacy: func(w io.Writer) error { return core.WriteSessionsJSONL(w, filtered) },
 	})
 }
@@ -66,6 +68,16 @@ func stateLabel(s protocol.State) string {
 		return "needs you"
 	}
 	return string(s)
+}
+
+// waitingKind is what the session is waiting on at now ("" unless the
+// waiting_section feature is on and the session has waited on a tool for
+// protocol.WaitingAfter): the board's definition of Waiting.
+func waitingKind(s protocol.SessionSummary, now time.Time, on bool) string {
+	if !on {
+		return ""
+	}
+	return s.WaitingFor(now)
 }
 
 func stateTone(s protocol.State) core.Tone {
@@ -91,8 +103,10 @@ func stateTone(s protocol.State) core.Tone {
 // swaps in a state marker and a compact IDLE column (and moves NAME to a
 // second line on a narrow terminal); md and agent lines carry the real name,
 // without the done marker, and agent lines model and effort apart and idle_s
-// in seconds (-1 when unknown).
-func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) core.View {
+// in seconds (-1 when unknown). A session waiting on a tool shows "waiting
+// (shell)" in text and md; txt and the agent state= key keep "working"
+// (scripts parse them); json carries waiting_on and waiting_since.
+func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, waitingOn bool) core.View {
 	text, txt, md := core.SetOf(core.FormatText), core.SetOf(core.FormatTXT), core.SetOf(core.FormatMD)
 	agent := core.SetOf(core.FormatAgent)
 	human := text | md
@@ -112,14 +126,19 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 		{Key: "name", Title: "Name", Below: true, Formats: text | txt},
 		{Key: "name", Title: "Name", Formats: md | agent},
 	}
-	var needs, working, done int
+	var needs, waiting, working, done int
 	rows := make([][]core.Cell, 0, len(sessions))
 	for _, s := range sessions {
+		wait := waitingKind(s, now, waitingOn)
 		switch s.State {
 		case protocol.StateNeedsInput:
 			needs++
 		case protocol.StateWorking:
-			working++
+			if wait != "" {
+				waiting++
+			} else {
+				working++
+			}
 		case protocol.StateDone:
 			done++
 		case protocol.StateQueued, protocol.StateFailed, protocol.StateCrashed:
@@ -138,10 +157,14 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 			idleS = int(now.Sub(s.LastEventAt).Seconds())
 		}
 		tone := stateTone(s.State)
+		label := stateLabel(s.State)
+		if wait != "" {
+			label = "waiting (" + wait + ")"
+		}
 		rows = append(rows, []core.Cell{
 			{Text: g.State[s.State], Tone: tone},
 			{Text: s.ShortID},
-			{Text: stateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: tone},
+			{Text: label, Txt: string(s.State), Raw: string(s.State), Tone: tone},
 			{Text: s.ToolID},
 			{Text: model},
 			{Text: s.ModelID},
@@ -158,7 +181,7 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 	for _, c := range []struct {
 		n     int
 		label string
-	}{{needs, "needs you"}, {working, "working"}, {done, "done"}} {
+	}{{needs, "needs you"}, {waiting, "waiting"}, {working, "working"}, {done, "done"}} {
 		if c.n > 0 {
 			meta = append(meta, fmt.Sprintf("%d %s", c.n, c.label))
 		}

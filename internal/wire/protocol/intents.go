@@ -85,6 +85,15 @@ type NewSession struct {
 	// and has no "..", else the intent is bad_intent. The choice is kept for
 	// Resume.
 	TrustFolder bool `json:"trust_folder,omitempty"`
+	// Name is the session's display name (see NormalizeSessionName); empty
+	// shows the slug. SetSessionName changes it later.
+	Name string `json:"name,omitempty"`
+	// Skills are names from the daemon's skill library to load into this
+	// session only (at most 16, unique). The daemon copies them into the
+	// session directory; the tool must declare skill_args and the
+	// spawn_skills setting must be on, else the intent is bad_intent. Names
+	// only: the daemon never takes a path from a client.
+	Skills []string `json:"skills,omitempty"`
 }
 
 // SetSessionFleet updates the fleet label of an existing session.

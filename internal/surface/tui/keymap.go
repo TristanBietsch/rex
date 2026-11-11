@@ -37,7 +37,49 @@ func nextNeedsYou(m Model) Model {
 	return ensureVisible(m)
 }
 
-// toggleDone handles 3: a long Done column folds and unfolds; a short one
+// activeGroups is the indexes into boardGroups of the sections the board
+// has, in screen order: all of them, except Waiting while the
+// waiting_section feature is off. Number keys, z chords and section
+// references count within it, so with the feature off 1/2/3 are Needs you /
+// Working / Done again.
+func activeGroups(m Model) []int {
+	on := m.featureOn("waiting_section")
+	out := make([]int, 0, len(boardGroups))
+	for i, g := range boardGroups {
+		if g.ID == waitingGroupID && !on {
+			continue
+		}
+		out = append(out, i)
+	}
+	return out
+}
+
+// sectionNumber is the 1-based number of boardGroups[gi] among the active
+// sections (what its key and z chord say), or 0 when it is not active.
+func sectionNumber(m Model, gi int) int {
+	for n, i := range activeGroups(m) {
+		if i == gi {
+			return n + 1
+		}
+	}
+	return 0
+}
+
+// jumpToNumber handles the number keys: n-th section on screen. The
+// completed section's key also folds and unfolds a long column. A number
+// past the last section does nothing.
+func jumpToNumber(m Model, n int) Model {
+	active := activeGroups(m)
+	if n < 1 || n > len(active) {
+		return m
+	}
+	if gi := active[n-1]; gi != groupDone {
+		return jumpToSection(m, gi)
+	}
+	return toggleDone(m)
+}
+
+// toggleDone handles the Done key (4): a long Done column folds and unfolds; a short one
 // just gets the selection.
 func toggleDone(m Model) Model {
 	if hiddenNotice(&m, groupDone) {

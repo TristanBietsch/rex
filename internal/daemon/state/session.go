@@ -2,6 +2,7 @@
 package state
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -39,6 +40,13 @@ type Session struct {
 	// WaitReason is why a needs_input session waits (protocol.WaitReview or
 	// protocol.WaitInput), "" when unknown. Not restored from meta.json.
 	WaitReason string
+	// WaitingOn and WaitingSince say what a working session is blocked on
+	// (protocol.WaitShell and friends) and since when. Both are zero unless
+	// State is working; Store.Transition, SetExit and SetWaiting keep it so.
+	// They are written to meta.json but not restored by LoadAll (a restart
+	// maps a working session to crashed).
+	WaitingOn    string
+	WaitingSince time.Time
 
 	// Fleet optionally groups this session under a named label.
 	Fleet string
@@ -68,6 +76,10 @@ type Session struct {
 	// TrustFolder is whether the folder was trusted for this session when
 	// it was created (NewSession.TrustFolder). Resume applies it again.
 	TrustFolder bool
+
+	// Skills are the library skills staged for this session
+	// (NewSession.Skills). Resume loads them again.
+	Skills []string
 
 	// Internal — not serialized to summary.
 	mu sync.Mutex
@@ -109,6 +121,8 @@ func (s *Session) Summary() protocol.SessionSummary {
 		OutputBytes:   s.OutputBytes,
 		Subagents:     s.Subagents,
 		WaitReason:    s.WaitReason,
+		WaitingOn:     s.WaitingOn,
+		WaitingSince:  s.WaitingSince,
 		Fleet:         s.Fleet,
 		Name:          s.Name,
 		RetireAt:      s.RetireAt,
@@ -117,6 +131,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		EndedAt:       s.EndedAt,
 		ResumeID:      s.ResumeID,
 		TrustFolder:   s.TrustFolder,
+		Skills:        slices.Clone(s.Skills),
 	}
 }
 
@@ -165,6 +180,7 @@ func (s *Session) SetExit(final protocol.State, code *int) {
 	}
 	if final != protocol.StateWorking {
 		s.WorkingSince = time.Time{}
+		s.WaitingOn, s.WaitingSince = "", time.Time{}
 	}
 	now := time.Now().UTC()
 	s.noteStateLocked(final, now)

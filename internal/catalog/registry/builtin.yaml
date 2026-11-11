@@ -30,6 +30,8 @@ tools:
     category: paid
     command: ["claude"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
+    # Skills rex stages for one session load as a plugin folder (this session only).
+    skill_args: ["--plugin-dir", "{plugin_dir}"]
     # rex preassigns the conversation id at spawn (new_args) and the SessionStart
     # hook keeps it current across /clear and in-app /resume; args resumes it.
     resume:

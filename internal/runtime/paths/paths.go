@@ -7,6 +7,7 @@
 //	    config.yaml                ConfigFile: settings (rex setup, rex config, TUI)
 //	    tools.yaml                 ToolsFile: tool registry overlay
 //	    init.lua                   LuaInitFile: optional Lua hooks
+//	    skills/<name>/SKILL.md     SkillsDir: skill library (rex new -skill)
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
@@ -50,6 +51,7 @@ const (
 	configFileName   = "config.yaml"
 	toolsFileName    = "tools.yaml"
 	luaInitFileName  = "init.lua"
+	skillsDirName    = "skills"
 	sessionsDirName  = "sessions"
 	daemonLockName   = "daemon.lock"
 	daemonLogName    = "daemon.log"
@@ -71,6 +73,7 @@ type Layout struct {
 	ConfigFile   string // ~/.config/rex/config.yaml
 	ToolsFile    string // ~/.config/rex/tools.yaml
 	LuaInitFile  string // ~/.config/rex/init.lua
+	SkillsDir    string // ~/.config/rex/skills
 	DataDir      string // ~/.local/share/rex
 	SessionsDir  string // ~/.local/share/rex/sessions
 	DaemonLock   string // ~/.local/share/rex/daemon.lock
@@ -94,6 +97,7 @@ func ForHome(home string) Layout {
 		ConfigFile:   filepath.Join(config, configFileName),
 		ToolsFile:    filepath.Join(config, toolsFileName),
 		LuaInitFile:  filepath.Join(config, luaInitFileName),
+		SkillsDir:    filepath.Join(config, skillsDirName),
 		DataDir:      data,
 		SessionsDir:  filepath.Join(data, sessionsDirName),
 		DaemonLock:   filepath.Join(data, daemonLockName),
@@ -170,6 +174,10 @@ func ToolsFile() (string, error) { return field(func(l Layout) string { return l
 // LuaInitFile returns ~/.config/rex/init.lua, the default Lua hooks file
 // (the lua_config_path setting can point elsewhere).
 func LuaInitFile() (string, error) { return field(func(l Layout) string { return l.LuaInitFile }) }
+
+// SkillsDir returns ~/.config/rex/skills, the skill library: one folder per
+// skill, each holding a SKILL.md (rex-daemon -skills-dir default).
+func SkillsDir() (string, error) { return field(func(l Layout) string { return l.SkillsDir }) }
 
 // DataDir returns ~/.local/share/rex, the durable session data root
 // (rex-daemon -state-dir default).

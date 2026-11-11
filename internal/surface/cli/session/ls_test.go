@@ -47,7 +47,7 @@ func lsPrinter(t *testing.T, format string, width int, color bool) (*core.Printe
 func emitLs(t *testing.T, format string, width int, color bool, sessions []protocol.SessionSummary) string {
 	t.Helper()
 	p, out := lsPrinter(t, format, width, color)
-	require.NoError(t, p.Emit(core.Result{Cmd: "ls", Data: sessions, View: lsView(sessions, lsNow, p.Glyphs)}))
+	require.NoError(t, p.Emit(core.Result{Cmd: "ls", Data: sessions, View: lsView(sessions, lsNow, p.Glyphs, true)}))
 	return out.String()
 }
 

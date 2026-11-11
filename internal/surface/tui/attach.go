@@ -472,6 +472,9 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 		stateChip = lipgloss.NewStyle().Bold(true).Foreground(colorFailed).Render("✕ ended")
 	} else if haveSum {
 		stateChip = attachStateChip(m, sum.State)
+		if waitingKindOf(m, sum) != "" {
+			stateChip = waitingChip(m, sum)
+		}
 	} else {
 		stateChip = styleDim.Render("· unknown")
 	}

@@ -13,7 +13,7 @@ Unix domain socket listener: one goroutine per client, intent dispatch, PTY sess
 
 ### Types
 
-- `Config` — `Socket`, `StateDir`, `Registry`, `Store`, `MaxConcurrentSessions`, `SummaryRequest chan<- string`.
+- `Config` — `Socket`, `StateDir`, `Registry`, `Store`, `MaxConcurrentSessions`, `SummaryRequest chan<- string`, `SkillsDir` (skill library; `NewSession.Skills` names resolve under it, staged by `internal/features/skills`), `SkillsEnabled func() bool` (the `spawn_skills` flag; off: skills refused as bad_intent, no `--plugin-dir`).
 - `Server` — `New(cfg Config) (*Server, error)`, `Serve(ctx context.Context) error`, `SetRegistry`, `Registry`.
 
 Session lifecycle / IO registration (used by `client.go` handlers and supervisor):

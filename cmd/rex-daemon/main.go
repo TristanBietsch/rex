@@ -42,6 +42,7 @@ func run(args []string) error {
 	socketPath := fs.String("socket", defaultSocket, "UDS path")
 	stateDir := fs.String("state-dir", layout.DataDir, "state directory")
 	toolsPath := fs.String("tools", layout.ToolsFile, "path to tools.yaml override (optional)")
+	skillsDir := fs.String("skills-dir", layout.SkillsDir, "skill library directory (rex new -skill)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
 
@@ -177,6 +178,8 @@ func run(args []string) error {
 		AutoTrustDirs:         boot.AutoTrustDirs,
 		SkipPermissions:       boot.SkipPermissions,
 		ResumeEnabled:         boot.ResumeEnabled,
+		SkillsDir:             *skillsDir,
+		SkillsEnabled:         boot.SpawnSkillsEnabled,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },

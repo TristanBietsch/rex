@@ -398,9 +398,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// clearAgents zeroes the count once the agent is gone, and its
 	// subagents with it. The exit paths call it before the final meta.json
 	// write, so the file never keeps a count; the defer covers the rest.
+	waits, _ := s.cfg.Adapter.(adapter.WaitReporter) // nil unless the agent reports tool waits
 	clearAgents := func() {
 		if agents != nil {
 			_ = s.cfg.Store.SetSubagents(sess.ID, 0)
+		}
+		if waits != nil {
+			_ = s.cfg.Store.SetWaiting(sess.ID, "", time.Time{})
 		}
 	}
 	defer clearAgents()
@@ -532,6 +536,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			if reasons != nil {
 				_ = s.cfg.Store.SetWaitReason(sess.ID, reasons.WaitReason()) // broadcasts only a change
+			}
+			if waits != nil {
+				kind, since := waits.Waiting()
+				if err := s.cfg.Store.SetWaiting(sess.ID, kind, since); err != nil { // broadcasts only a change
+					slog.Warn("pty: store reported wait failed", "session", sess.ID, "err", err)
+				}
 			}
 			if ids != nil {
 				if rid := ids.ResumeID(); rid != "" {

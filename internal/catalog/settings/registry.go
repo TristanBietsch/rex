@@ -103,7 +103,7 @@ var Registry = []Setting{
 	{
 		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior,
 		Type: TypeString, Default: "",
-		Help: "Board sections hidden at startup, comma-separated ids: needs, working, done (for example: done). Unknown ids are ignored. zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
+		Help: "Board sections hidden at startup, comma-separated ids: needs, waiting, working, done (for example: done). Unknown ids are ignored. zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
 	},
 	{
 		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior,
@@ -139,6 +139,17 @@ var Registry = []Setting{
 		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
+	},
+	{
+		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Load skills from ~/.config/rex/skills into one session: the skills step in the new-session wizard and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
+	},
+
+	{
+		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
 	},
 
 	// Spawn

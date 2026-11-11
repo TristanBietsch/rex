@@ -61,6 +61,64 @@ func TestClaudeHooks_WaitReason(t *testing.T) {
 	require.Equal(t, protocol.WaitReview, a.WaitReason(), "subagent lines do not clear it")
 }
 
+// The wait reason (needs_input) and the tool wait (working) share one hook
+// file: neither clears the other wrongly, and sid lines touch neither.
+func TestClaudeHooks_WaitReasonAndToolWaitCoexist(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.log")
+	a := NewClaudeHooks(path)
+	both := func() (string, string, protocol.State) {
+		kind, _ := a.Waiting()
+		return kind, a.WaitReason(), a.Detect(nil, 0)
+	}
+
+	// A turn: a shell wait starts, a sid line arrives mid-wait, the tool ends.
+	appendLine(t, path, "working")
+	appendLine(t, path, "wait+ shell")
+	appendLine(t, path, "sid 8f6a1b2c-1234-4abc-89ab-cdefabcdef01")
+	kind, reason, st := both()
+	require.Equal(t, protocol.WaitShell, kind)
+	require.Empty(t, reason)
+	require.Equal(t, protocol.StateWorking, st)
+	appendLine(t, path, "working")
+	appendLine(t, path, "wait-")
+	kind, _, _ = both()
+	require.Empty(t, kind)
+
+	// A tool wait ends with Stop; the turn is then ready for review.
+	appendLine(t, path, "working")
+	appendLine(t, path, "wait+ web")
+	appendLine(t, path, "needs_input")
+	appendLine(t, path, "turn-done")
+	kind, reason, st = both()
+	require.Empty(t, kind, "Stop ends the tool wait")
+	require.Equal(t, protocol.WaitReview, reason)
+	require.Equal(t, protocol.StateNeedsInput, st)
+
+	// An idle notification keeps the review; wait lines do not disturb it.
+	appendLine(t, path, "needs_input")
+	appendLine(t, path, "notify idle_prompt")
+	_, reason, _ = both()
+	require.Equal(t, protocol.WaitReview, reason)
+
+	// A new turn clears the reason and starts a new tool wait.
+	appendLine(t, path, "working")
+	appendLine(t, path, "wait-")
+	appendLine(t, path, "working")
+	appendLine(t, path, "wait+ subagent")
+	kind, reason, st = both()
+	require.Equal(t, protocol.WaitSubagent, kind)
+	require.Empty(t, reason)
+	require.Equal(t, protocol.StateWorking, st)
+
+	// A permission prompt mid-tool: the wait ends, the session needs input.
+	appendLine(t, path, "needs_input")
+	appendLine(t, path, "notify permission_prompt")
+	kind, reason, st = both()
+	require.Empty(t, kind)
+	require.Equal(t, protocol.WaitInput, reason)
+	require.Equal(t, protocol.StateNeedsInput, st)
+}
+
 // Stop and Notification commands, run by sh with Claude-style JSON on stdin,
 // write the lines the adapter reads.
 func TestClaudeHookArgs_StopAndNotificationLines(t *testing.T) {

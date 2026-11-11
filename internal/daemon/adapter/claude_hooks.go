@@ -25,8 +25,8 @@ const HookFileEnv = "REX_HOOK_FILE"
 const hookStaleWorking = 15 * time.Second
 
 // claudeHookStates maps Claude Code hook events to the state each implies.
-// SessionStart and PostToolUse also write subagent lines (see
-// claudeHookCommand).
+// SessionStart, PreToolUse and PostToolUse also write extra lines: subagent,
+// session id and tool-wait lines (see claudeHookCommand).
 var claudeHookStates = []struct {
 	event   string
 	matcher bool // tool events take a matcher
@@ -36,6 +36,7 @@ var claudeHookStates = []struct {
 	{"UserPromptSubmit", false, protocol.StateWorking},
 	{"PreToolUse", true, protocol.StateWorking},
 	{"PostToolUse", true, protocol.StateWorking},
+	{"PostToolUseFailure", true, protocol.StateWorking},
 	{"Notification", false, protocol.StateNeedsInput}, // permission / idle prompt; writes a notify line
 	{"Stop", false, protocol.StateNeedsInput},         // turn finished, waiting on user; writes turn-done
 }
@@ -49,6 +50,9 @@ var claudeHookStates = []struct {
 //	sid <session_id>   SessionStart: the conversation id (resume id)
 //	turn-done          Stop: the agent finished a turn (wait_reason review)
 //	notify <type>      Notification: notification_type, "" if absent
+//	wait+ <kind>       PreToolUse of a main-thread shell, subagent or web
+//	                   tool (kind: shell, subagent, web)
+//	wait-              PostToolUse of a main-thread tool call
 //
 // The wait reason lines follow the needs_input word of their own event, so
 // the word itself never clears the reason.
@@ -60,6 +64,8 @@ const (
 	hookSessionID   = "sid"
 	hookTurnDone    = "turn-done"
 	hookNotify      = "notify"
+	hookWaitStart   = "wait+"
+	hookWaitEnd     = "wait-"
 )
 
 // notifyIdle is the Notification type Claude fires after about 60 seconds
@@ -111,14 +117,25 @@ func claudeHookCommand(event string, state protocol.State) string {
 	case "SessionStart":
 		return `in=$(cat); src=$(` + hookJSONField("source") + `); sid=$(` + hookJSONField("session_id") + hookSafeID + `); ` +
 			hookAppend(`if [ "$src" = compact ]; then printf '`+st+`\n`+hookSessionID+` %s\n' "$sid"; else printf '`+hookAgentsReset+`\n`+st+`\n`+hookSessionID+` %s\n' "$sid"; fi`)
-	case "PostToolUse":
+	case "PostToolUse", "PostToolUseFailure":
 		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; ` +
-			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookAgentSeen+` %s\n' "$id"; else printf '`+st+`\n'; fi`)
+			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookAgentSeen+` %s\n' "$id"; else printf '`+st+`\n`+hookWaitEnd+`\n'; fi`)
 	case "Stop":
 		return hookAppend(`printf '` + st + `\n` + hookTurnDone + `\n'`)
 	case "Notification":
 		return `in=$(cat); ty=$(` + hookJSONField("notification_type") + hookSafeID + `); ` +
 			hookAppend(`printf '`+st+`\n`+hookNotify+` %s\n' "$ty"`)
+	case "PreToolUse":
+		// Only a main-thread call (no agent_id) can mark the session as
+		// waiting. The kind is picked by a shell case, so only the three
+		// fixed words are ever written.
+		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; k=; ` +
+			`if [ -z "$id" ]; then case "$(` + hookJSONField("tool_name") + `)" in Bash) k=` + protocol.WaitShell +
+			`;; Task|Agent) k=` + protocol.WaitSubagent + `;; WebFetch|WebSearch) k=` + protocol.WaitWeb + `;; esac; fi; ` +
+			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n'; elif [ -n "$k" ]; then printf '`+st+`\n`+hookWaitStart+` %s\n' "$k"; else printf '`+st+`\n`+hookWaitEnd+`\n'; fi`)
+	case "UserPromptSubmit":
+		// A new turn: no tool of the last one is still being waited on.
+		return hookAppend(`printf '` + st + `\n` + hookWaitEnd + `\n'`)
 	default:
 		return hookAppend(`printf '` + st + `\n'`)
 	}
@@ -172,6 +189,15 @@ type WaitReasoner interface {
 	WaitReason() string
 }
 
+// WaitReporter is implemented by adapters that know when a working agent is
+// blocked on a tool (a shell command, a subagent, a web call).
+type WaitReporter interface {
+	// Waiting is the kind (protocol.WaitShell and friends) and the start of
+	// the wait, or "" and the zero time when the agent is not waiting on a
+	// tool. It is empty unless the agent's state is working.
+	Waiting() (kind string, since time.Time)
+}
+
 // ClaudeHooks classifies Claude Code sessions from the hook state file written
 // by ClaudeHookArgs hooks. Claude renders a full-screen TUI to the PTY (its
 // stream-json output only exists with --print), so screen-scraping is
@@ -186,7 +212,14 @@ type ClaudeHooks struct {
 	agents  map[string]time.Time // running subagents by agent_id: last sign of life
 	sid     string               // latest valid session_id from a sid line
 	reason  string               // why the agent waits (protocol.Wait*), "" if unknown
-	now     func() time.Time
+	// waitOn and waitSince are the main thread's current tool wait (wait+
+	// line); one slot, last writer wins.
+	waitOn    string
+	waitSince time.Time
+	// waitEnding is set when a wait- arrived while subagents still ran:
+	// the wait stays (several Task calls fan out) until the last one stops.
+	waitEnding bool
+	now        func() time.Time
 }
 
 // NewClaudeHooks reads hook state from path.
@@ -201,9 +234,41 @@ func (a *ClaudeHooks) Detect(_ []byte, idle time.Duration) protocol.State {
 	defer a.mu.Unlock()
 	a.read()
 	if a.last == protocol.StateWorking && idle >= hookStaleWorking {
+		a.clearWait()
 		return protocol.StateNeedsInput
 	}
 	return a.last
+}
+
+// Waiting implements WaitReporter.
+func (a *ClaudeHooks) Waiting() (string, time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.read()
+	if a.last != protocol.StateWorking {
+		return "", time.Time{}
+	}
+	if a.waitEnding && a.runningAgents() == 0 { // the last one went quiet
+		a.clearWait()
+	}
+	return a.waitOn, a.waitSince
+}
+
+// clearWait ends the tool wait. Callers hold mu.
+func (a *ClaudeHooks) clearWait() {
+	a.waitOn, a.waitSince, a.waitEnding = "", time.Time{}, false
+}
+
+// runningAgents counts subagents, dropping any quiet for subagentQuiet.
+// Callers hold mu.
+func (a *ClaudeHooks) runningAgents() int {
+	cutoff := a.now().Add(-subagentQuiet)
+	for id, seen := range a.agents {
+		if seen.Before(cutoff) {
+			delete(a.agents, id)
+		}
+	}
+	return len(a.agents)
 }
 
 // Subagents implements SubagentCounter: subagents started and not yet
@@ -213,13 +278,7 @@ func (a *ClaudeHooks) Subagents() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.read()
-	cutoff := a.now().Add(-subagentQuiet)
-	for id, seen := range a.agents {
-		if seen.Before(cutoff) {
-			delete(a.agents, id)
-		}
-	}
-	return len(a.agents)
+	return a.runningAgents()
 }
 
 // ResumeID implements ResumeIDReporter. The id survives a truncated hook
@@ -264,6 +323,7 @@ func (a *ClaudeHooks) read() {
 	if size < a.off { // truncated or replaced: start over
 		a.off, a.partial = 0, nil
 		clear(a.agents)
+		a.clearWait()
 	}
 	if size == a.off {
 		return
@@ -298,8 +358,24 @@ func (a *ClaudeHooks) apply(line string) {
 		a.last = protocol.State(word)
 		if a.last == protocol.StateWorking {
 			a.reason = ""
+		} else { // Stop, Notification, SessionStart end any tool wait
+			a.clearWait()
 		}
 		slog.Debug("adapter: claude hook state", "path", a.path, "state", a.last)
+	case hookWaitStart:
+		// An unknown kind is ignored: the file is plain text.
+		if protocol.ValidWaitKind(arg) {
+			a.waitOn, a.waitSince, a.waitEnding = arg, a.now(), false
+		}
+	case hookWaitEnd:
+		// One of several parallel Task calls ending leaves the wait on
+		// while other subagents run; the last stop (or a quiet timeout)
+		// ends it.
+		if a.waitOn == protocol.WaitSubagent && a.runningAgents() > 0 {
+			a.waitEnding = true
+		} else {
+			a.clearWait()
+		}
 	case hookAgentStart, hookAgentSeen:
 		// A sign of life also brings back a subagent dropped as quiet or
 		// cleared by a reset while it ran.
@@ -308,6 +384,9 @@ func (a *ClaudeHooks) apply(line string) {
 		}
 	case hookAgentStop:
 		delete(a.agents, arg)
+		if a.waitEnding && len(a.agents) == 0 {
+			a.clearWait()
+		}
 	case hookAgentsReset:
 		clear(a.agents)
 		a.reason = ""

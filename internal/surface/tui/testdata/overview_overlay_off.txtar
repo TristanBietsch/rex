@@ -9,17 +9,17 @@
    ◆  api╭────────────────────────────────────────────────────────────────────────────────────────────────────╮       9m
    ◆  dep│                                                                                                    │      40s
          │  Overview                                                                                          │
-  WORKING│                                                                                                    │         
-   ⠋  per│  Turn on overview_enabled in Settings for a one-line summary.                                      │       5s
+  WAITING│                                                                                                    │         
+      not│  Turn on overview_enabled in Settings for a one-line summary.                                      │
          │                                                                                                    │
-  DONE  4│  READY FOR REVIEW (2)                                                                              │         
- ▸ ●  bil│  › ● billing-tests Done: 48 tests pass                                                         3m  │       3m
-   ✕  mig│    ◆ api docs      write api docs                                                              9m  │       2h
+  WORKING│  READY FOR REVIEW (2)                                                                              │         
+   ⠋  per│  › ● billing-tests Done: 48 tests pass                                                         3m  │       5s
+         │    ◆ api docs      write api docs                                                              9m  │
+  DONE  4│                                                                                                    │         
+ ▸ ●  bil│  NEEDS YOU (1)                                                                                     │       3m
+   ✕  mig│    ◆ deploy        Deploy to prod?                                                            40s  │       2h
    ●  old│                                                                                                    │       3h
-   ●  anc│  NEEDS YOU (1)                                                                                     │       1d
-         │    ◆ deploy        Deploy to prod?                                                            40s  │
-         │                                                                                                    │
-         │  FAILED (1)                                                                                        │
+   ●  anc│  FAILED (1)                                                                                        │       1d
          │    ✕ migrate-db    Failed: migration 0042 timed out                                            2h  │
          │                                                                                                    │
          │  WORKING (1)                                                                                       │

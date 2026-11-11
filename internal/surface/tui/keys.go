@@ -49,8 +49,7 @@ var bindings = []binding{
 	{Keys: "j k", Desc: "move row selection", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"j", "k"}},
 	{Keys: "g G", Desc: "top / bottom", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"g", "G"}},
 	{Keys: "tab", Desc: "next session that needs you", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"tab"}, Line: "next"},
-	{Keys: "1 2", Desc: "jump to Needs you / Working", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2"}},
-	{Keys: "3", Desc: "jump to Done (show / hide a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"3"}},
+	{Keys: sectionKeysLabel, Desc: "jump to Needs you / Waiting / Working / Done (4 also folds a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2", "3", "4"}},
 	{Keys: "v", Desc: "simple / detailed rows (id, model, tokens, AI summary)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"v"}},
 
 	{Keys: "t", Desc: "cycle tool filter", Group: groupFilter, Ctx: ctxBoard, Press: []string{"t"}},

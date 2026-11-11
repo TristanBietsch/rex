@@ -256,6 +256,12 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 			patch["working_since"] = nil
 		}
 	}
+	// SetExit clears the wait before it calls Transition (see WorkingSince),
+	// so a terminal change always tells clients the wait is over.
+	if newState != protocol.StateWorking && (sess.WaitingOn != "" || isTerminal(newState)) {
+		sess.WaitingOn, sess.WaitingSince = "", time.Time{}
+		patch["waiting_on"], patch["waiting_since"] = nil, nil
+	}
 	maps.Copy(patch, sess.noteStateLocked(newState, now))
 	sess.State = newState
 	sess.LastEventAt = now
@@ -500,6 +506,45 @@ func (s *Store) SetWaitReason(id, reason string) error {
 	sess.WaitReason = reason
 	sess.mu.Unlock()
 	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"wait_reason": reason}})
+	return nil
+}
+
+// SetWaiting records what a working session is blocked on and since when,
+// and broadcasts a change. An empty kind clears it. A session that is not
+// working cannot wait, so kind is then treated as empty. It is not
+// activity: last_event_at is left alone. An unknown kind, or a kind with no
+// start time, is an error (nothing changes).
+func (s *Store) SetWaiting(id, kind string, since time.Time) error {
+	if kind != "" && !protocol.ValidWaitKind(kind) {
+		return fmt.Errorf("invalid wait kind %q", kind)
+	}
+	if kind != "" && since.IsZero() {
+		return fmt.Errorf("wait %q needs a start time", kind)
+	}
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.State != protocol.StateWorking {
+		kind = ""
+	}
+	if kind == "" {
+		since = time.Time{}
+	}
+	if sess.WaitingOn == kind && sess.WaitingSince.Equal(since) {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.WaitingOn, sess.WaitingSince = kind, since
+	sess.mu.Unlock()
+	patch := map[string]any{"waiting_on": nil, "waiting_since": nil}
+	if kind != "" {
+		patch["waiting_on"], patch["waiting_since"] = kind, since
+	}
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: patch})
 	return nil
 }
 
