@@ -75,6 +75,8 @@ Duplicate tool or model ids are rejected at load time.
 
 `busy_regex` (heuristic, optional) is text the agent shows only while it works, such as `agy`'s `esc to cancel` footer. Detection reads raw output, where an old idle footer can linger after the agent swaps it, so busy wins when its last match comes after the last `prompt_regex` match. A quiet stretch mid-turn then stays `working`. A screen frozen for 15 s still reads as waiting, which covers a permission question.
 
+`status` (heuristic, optional) names a per-session status channel the agent reports its state on. The only value is `osc7501`, Antigravity's terminal status sequence. The daemon then sets `AGY_CLI_OSC7501=on` in the child's environment (after your own environment, so it wins over an `off`) and reads `ESC ] 7501 ; state=<word> : ... BEL` from the output (ST also ends it). `working` is `working`; `idle` (turn finished), `blocked` (a question, a permission, the trust dialog) and `error` are `needs_input`. Process exit still decides `done` and `failed`. Unknown states and keys are ignored, and a sequence longer than 512 bytes is dropped. Before the first sequence the footer heuristic decides, and a `working` report followed by 15 s of silence reads as waiting (Esc sends no idle sequence). The optional `msg` key is base64 text from the agent; it is decoded, sanitized and kept only for a future preview, never logged. Nothing is written to `~/.gemini`: antigravity hooks are not used. `status` needs `kind: heuristic`.
+
 `hooks` / `claude`: at spawn the daemon adds `--settings <json>` with Claude Code hooks and sets `REX_HOOK_FILE` in the child env. Each hook appends a state word to `sessions/<id>/hooks.log`:
 
 | Hook | State |
@@ -130,6 +132,8 @@ The built-in `antigravity` entry uses `agy`'s session-only settings, which are n
 trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
 ```
 
+It also has a `trust_prompt` fallback for a future `agy` that ignores `--settings`: it answers "Do you trust the contents of this project?" (`> Yes, I trust this folder` selected first) in trusted folders only.
+
 ### resume
 
 How an agent's conversation is identified and resumed. Without it the tool cannot be resumed.
@@ -149,7 +153,7 @@ Rex learns the id from up to three sources; a later one overwrites an earlier on
 2. **The agent's own report.** Claude Code's session-scoped SessionStart hook reports its `session_id` (a `sid` line in the hook file), so the id stays right after `/clear` or an in-app `/resume`.
 3. **`capture_regex`**, run when the child exits on the normalized screen text (escape sequences stripped). The last match's group 1 is used.
 
-Every id must be a canonical UUID (either case; stored lowercase), because it becomes a command-line argument. Anything else is ignored. The built-in `antigravity` has no `resume` block yet.
+Every id must be a canonical UUID (either case; stored lowercase), because it becomes a command-line argument. Anything else is ignored. The built-in `antigravity` resumes with `--conversation={id}`. It has no `new_args` (agy cannot preassign an id), so the id comes from `capture_regex` only: on exit agy prints `Resume with -c (or command below):` and then `agy --conversation=<uuid>`, which `agy --conversation=([0-9a-fA-F-]{36})` reads.
 
 ## Model fields
 

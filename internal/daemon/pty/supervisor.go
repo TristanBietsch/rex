@@ -330,6 +330,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// From here every exit of the main loop kills or reaps the child.
 	owned = true
 
+	// observer is asserted once; nil unless the adapter reads the raw stream.
+	observer, _ := s.cfg.Adapter.(adapter.OutputObserver)
+
 	// Reader goroutine. It sends exactly one value on errc and returns: nil
 	// when the child hung up the PTY, otherwise the read or transcript
 	// write error, after which the child is still running.
@@ -352,6 +355,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				}
 				_, _ = screen.Write(chunk)
 				outMu.Unlock()
+				if observer != nil {
+					observer.Observe(chunk)
+				}
 
 				// Increment token counter and emit a patch every +500 tokens.
 				// Tokens = OutputBytes / 4 (approximate heuristic).

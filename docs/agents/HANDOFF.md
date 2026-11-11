@@ -74,9 +74,12 @@ Keep the version in step with `GOLANGCI_LINT_PKG` in the `Makefile`.
 
 1. #16 (attach repaint) and #19 (screensaver) are merged. Check
    `gh pr list --state open` for anything newer.
-2. Antigravity hook-based state needs the user's OK to write
-   `~/.gemini/config/hooks.json`. Not done. Today state comes from the
-   footer (`busy_regex`). Ask before touching that file.
+2. Antigravity state: decided, no hooks (never write `~/.gemini`). State
+   comes from OSC 7501 (`detect.status: osc7501`, `AGY_CLI_OSC7501=on`),
+   with the footer (`busy_regex`) as fallback before the first sequence.
+   agy also has a resume id (captured from its exit line) and a
+   `trust_prompt` fallback. Not done: subagent count (agy has no source) and
+   a preview of the question from the OSC `msg` (kept, not shown).
 3. #16 follow-ups:
    - the repaint can snapshot the screen in the middle of an escape sequence;
    - bracketed paste mode (`?2004`) is not tracked by vt10x.
