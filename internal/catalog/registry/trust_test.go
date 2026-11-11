@@ -79,7 +79,7 @@ func TestBuiltinAntigravity(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, []string{"agy"}, agy.Command)
 	require.Equal(t, []string{"--dangerously-skip-permissions"}, agy.SkipPermissionsArgs)
-	require.Nil(t, agy.TrustPrompt, "agy trusts the folder from --settings; no keystrokes")
+	require.NotNil(t, agy.TrustPrompt, "fallback if --settings is ignored")
 	require.Equal(t, []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}, agy.TrustArgs)
 	gemini, ok := reg.Find("gemini")
 	require.True(t, ok, "kept so partial overlays and saved defaults still work")

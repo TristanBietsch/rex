@@ -157,6 +157,15 @@ tools:
     # Folders in auto_trust_dirs: agy trusts them itself for this session
     # (--settings is session-only and never saved), so no dialog shows.
     trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
+    # Fallback if a future agy ignores trust_args: its dialog is "Do you trust
+    # the contents of this project?" with "> Yes, I trust this folder" first
+    # (selected marker "> ") and "No, exit" second. Answered only in trusted
+    # folders, like Claude's. "shown" needs the header before the option.
+    trust_prompt:
+      shown: "(?s)Do you trust the contents of this project\\?.*Yes, I trust this folder"
+      selected: "(?m)^[ \\t]*>[ \\t]+Yes, I trust this folder"
+      move: "\e[B"
+      confirm: "\r"
     # agy cannot preassign a conversation id, so there is no new_args. On exit
     # it prints "Resume with -c (or command below):" and then
     # "agy --conversation=<uuid>"; the id is read from that line.
