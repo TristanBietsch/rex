@@ -30,7 +30,9 @@ func TestCopyBinary_PrivateInode(t *testing.T) {
 	dstInfo, err := os.Stat(dst)
 	require.NoError(t, err)
 	require.False(t, os.SameFile(srcInfo, dstInfo), "script binary shares an inode with the build output")
-	require.Equal(t, os.FileMode(0o700), dstInfo.Mode().Perm(), "script binary must be owner-executable only")
+	// Owner-executable only: 0700 on Unix. Windows has no execute bit and
+	// reports a writable 0666 file.
+	testperm.RequireMode(t, dst, 0o700)
 	got, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	require.Equal(t, "#!/bin/sh\nexit 0\n", string(got))
