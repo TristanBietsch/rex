@@ -45,6 +45,7 @@ func TestAccessors_UnderHome(t *testing.T) {
 		{"DataDir", paths.DataDir, j(".local", "share", "rex")},
 		{"SessionsDir", paths.SessionsDir, j(".local", "share", "rex", "sessions")},
 		{"DaemonLock", paths.DaemonLock, j(".local", "share", "rex", "daemon.lock")},
+		{"UsageLedger", paths.UsageLedger, j(".local", "share", "rex", "usage.jsonl")},
 		{"LogDir", paths.LogDir, j(".local", "state", "rex")},
 		{"DaemonLog", paths.DaemonLog, j(".local", "state", "rex", "daemon.log")},
 		{"TUIStateFile", paths.TUIStateFile, j(".local", "state", "rex", "tui-state.json")},
@@ -110,7 +111,7 @@ func TestAccessors_NoHome(t *testing.T) {
 	accessors := map[string]func() (string, error){
 		"Home": paths.Home, "ConfigDir": paths.ConfigDir, "ConfigFile": paths.ConfigFile,
 		"ToolsFile": paths.ToolsFile, "LuaInitFile": paths.LuaInitFile, "SkillsDir": paths.SkillsDir, "DataDir": paths.DataDir,
-		"SessionsDir": paths.SessionsDir, "DaemonLock": paths.DaemonLock, "LogDir": paths.LogDir,
+		"SessionsDir": paths.SessionsDir, "DaemonLock": paths.DaemonLock, "UsageLedger": paths.UsageLedger, "LogDir": paths.LogDir,
 		"DaemonLog": paths.DaemonLog, "TUIStateFile": paths.TUIStateFile, "CacheDir": paths.CacheDir,
 		"Socket": paths.Socket,
 	}

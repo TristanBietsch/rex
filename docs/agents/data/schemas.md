@@ -118,9 +118,29 @@ Running session: clears the done mark. Exited session: respawns in place (see `d
     <session-id>/
       meta.json      # SessionSummary JSON
       transcript.log # raw PTY bytes (append-only)
+  usage.jsonl        # usage ledger (0600, append-only; see below)
 ```
 
 Default `<state-dir>`: `~/.local/share/rex` (`rex-daemon -state-dir`).
+
+## usage.jsonl (usage ledger)
+
+One JSON object per line, `usage.Record` in `internal/features/usage/ledger.go`. A session has several lines; the one with the greatest `at` (the later line on a tie) is its current total, so periodic lines never double count.
+
+| Field | JSON | Type | Notes |
+|-------|------|------|-------|
+| version | `v` | int | `1` |
+| session id | `session_id` | string | rex session id (a resumed session keeps it) |
+| tool | `tool` | string | tool id |
+| model | `model` | string | model id; the model Claude reported when known, else the spawn model |
+| tokens | `tokens` | int | rex's own estimate (`output_bytes / 4`) |
+| cost | `cost_usd` | number | omitted when no source reported a cost |
+| estimated | `estimated` | bool | `tokens` is an estimate |
+| started | `started_at` | time | omitted when unknown |
+| at | `at` | time | when the line was written; an ended session is dated by when it ended |
+| ended | `ended` | bool | the session's final line |
+
+Written when a session ends (or is removed by prune, retire or delete) and, for a live session, at most every 10 minutes and only when its totals changed. Trimmed to 90 days when the daemon starts. A line that is not valid JSON or lacks `session_id` or `at` is skipped with one warning. Never created while the `usage` setting is off.
 
 ## tools.yaml
 

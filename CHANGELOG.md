@@ -30,6 +30,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (a status line makes Claude hide its footer hints, which rex never does on
   its own), `on` always, `off` never. `usage` off adds no tap and writes
   nothing. See [docs/settings.md](docs/settings.md) and SECURITY.md.
+- Usage ledger: with `usage` on, the daemon keeps
+  `~/.local/share/rex/usage.jsonl` (mode 0600, append-only): one line per
+  session when it ends or is pruned, and at most every 10 minutes for a live
+  one. The latest line per session counts, so nothing is counted twice, and
+  the file is trimmed to 90 days when the daemon starts. It holds ids, tool
+  and model names, estimated tokens and cost, never prompts or output. See
+  [docs/paths.md](docs/paths.md).
 - TUI: a Waiting section below Needs you for working sessions that are
   blocked on a shell command, a subagent or a web call, not on you (Claude
   Code). A session moves there after 3 seconds on the call. It has its own

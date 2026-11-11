@@ -186,6 +186,13 @@ func run(args []string) error {
 	// shutdown is stuck instead of being swallowed.
 	context.AfterFunc(ctx, stop)
 
+	// Usage tracking: inert while the usage setting is off.
+	usageHub := boot.NewUsage(ctx, *stateDir, store)
+	defer usageHub.Close()
+	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
+	// One settings watcher: every feature adds an applier here.
+	appliers := []func(*settings.Store){usageHub.Applier()}
+
 	var srv *server.Server
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
@@ -241,9 +248,9 @@ func run(args []string) error {
 			}
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
-		// One settings watcher: later features add an applier here.
-		go boot.WatchSettings(ctx, settingsPath, 5*time.Second, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
+		appliers = append(appliers, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
 	}
+	go boot.WatchSettings(ctx, settingsPath, 5*time.Second, appliers...)
 
 	// SIGHUP → reload tools.yaml.
 	go boot.ReloadOnHUP(ctx, srv, *toolsPath)

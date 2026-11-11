@@ -22,6 +22,7 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 | `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json` and `transcript.log` |
 | `~/.local/share/rex/sessions/<id>/plugin/` | The skills chosen for that session, copied from the library (removed with the session) |
 | `~/.local/share/rex/daemon.lock` | Held by the running daemon; one daemon per state directory |
+| `~/.local/share/rex/usage.jsonl` | Usage ledger (mode 0600, append-only): see below |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |
 | `$XDG_RUNTIME_DIR/rex.sock` | Socket when `XDG_RUNTIME_DIR` is set to an absolute path |
@@ -38,6 +39,7 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 | `~/.config/rex/config.yaml` | `rex setup`, TUI settings, `rex config` | User settings (flat keys) |
 | `~/.config/rex/tools.yaml` | User | Tool registry overlay |
 | `~/.config/rex/init.lua` | User | Optional Lua hooks |
+| `~/.local/share/rex/usage.jsonl` | `rex-daemon` (when `usage` is on) | Usage ledger: one JSON line per session snapshot (session id, tool, model, tokens, cost, estimate flag, time), written when a session ends and at most every 10 minutes for a live one. The latest line per session wins when totals are computed. Trimmed to the last 90 days when the daemon starts; unreadable lines are skipped with one warning. No prompts or output. Never created while `usage` is off |
 | `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection, tool filter, hidden sections and board search; read once on next launch, then deleted |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
 | `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`) |

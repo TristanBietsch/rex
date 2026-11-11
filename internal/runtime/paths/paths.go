@@ -10,6 +10,7 @@
 //	    skills/<name>/SKILL.md     SkillsDir: skill library (rex new -skill)
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
+//	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
@@ -54,6 +55,7 @@ const (
 	skillsDirName    = "skills"
 	sessionsDirName  = "sessions"
 	daemonLockName   = "daemon.lock"
+	usageLedgerName  = "usage.jsonl"
 	daemonLogName    = "daemon.log"
 	tuiStateFileName = "tui-state.json"
 	socketName       = "rex.sock"
@@ -77,6 +79,7 @@ type Layout struct {
 	DataDir      string // ~/.local/share/rex
 	SessionsDir  string // ~/.local/share/rex/sessions
 	DaemonLock   string // ~/.local/share/rex/daemon.lock
+	UsageLedger  string // ~/.local/share/rex/usage.jsonl
 	LogDir       string // ~/.local/state/rex
 	DaemonLog    string // ~/.local/state/rex/daemon.log
 	TUIStateFile string // ~/.local/state/rex/tui-state.json
@@ -101,6 +104,7 @@ func ForHome(home string) Layout {
 		DataDir:      data,
 		SessionsDir:  filepath.Join(data, sessionsDirName),
 		DaemonLock:   filepath.Join(data, daemonLockName),
+		UsageLedger:  filepath.Join(data, usageLedgerName),
 		LogDir:       logs,
 		DaemonLog:    filepath.Join(logs, daemonLogName),
 		TUIStateFile: filepath.Join(logs, tuiStateFileName),
@@ -190,6 +194,14 @@ func SessionsDir() (string, error) { return field(func(l Layout) string { return
 // DaemonLock returns ~/.local/share/rex/daemon.lock, the lock that keeps a
 // second daemon off the same DataDir.
 func DaemonLock() (string, error) { return field(func(l Layout) string { return l.DaemonLock }) }
+
+// UsageLedger returns ~/.local/share/rex/usage.jsonl, the append-only usage
+// ledger (one JSON line per session snapshot, mode 0600).
+func UsageLedger() (string, error) { return field(func(l Layout) string { return l.UsageLedger }) }
+
+// UsageLedgerFileName is the ledger's file name inside a state directory,
+// for a daemon started with a -state-dir other than DataDir.
+const UsageLedgerFileName = usageLedgerName
 
 // LogDir returns ~/.local/state/rex, the directory of logs and ephemeral
 // TUI state. It ignores REX_LOG_DIR, which only rexlog honors.
