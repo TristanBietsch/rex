@@ -95,6 +95,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `rex ls` and `rex digest` clip long model, slug and name columns by
+  display width instead of bytes, so multi-byte text such as `·` or CJK
+  is no longer cut mid-character and the columns stay aligned.
 - TUI: opening a running full-screen agent (Claude Code, codex, gemini, …)
   no longer shows a black popup until the agent next draws. The popup
   attaches without the transcript replay and relied on the agent redrawing

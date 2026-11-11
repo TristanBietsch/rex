@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -32,8 +34,15 @@ func WriteSessionsTable(w io.Writer, sessions []protocol.SessionSummary) error {
 		if !s.RetireAt.IsZero() {
 			name = strings.TrimSpace(name + " ✓done")
 		}
-		row := fmt.Sprintf("%-5s  %-12s  %-9s  %-20s  %-24s  %-10s  %s",
-			s.ShortID, s.State, s.ToolID, Truncate(model, 20), Truncate(s.Slug, 24), ago, name)
+		row := strings.Join([]string{
+			padCells(s.ShortID, 5),
+			padCells(string(s.State), 12),
+			padCells(s.ToolID, 9),
+			padCells(Truncate(model, 20), 20),
+			padCells(Truncate(s.Slug, 24), 24),
+			padCells(ago, 10),
+			name,
+		}, "  ")
 		if _, err := fmt.Fprintln(w, row); err != nil {
 			return err
 		}
@@ -115,15 +124,27 @@ func WriteAggregateJSON(w io.Writer, sessions []protocol.SessionSummary) error {
 	return err
 }
 
-// Truncate shortens s to at most n runes, appending "…" when clipped.
+// Truncate shortens s to at most n display cells, appending "…" when
+// clipped. It never splits a multi-byte character.
 func Truncate(s string, n int) string {
-	if len(s) <= n {
+	if n <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(s) <= n {
 		return s
 	}
-	if n <= 1 {
-		return s[:n]
+	if n == 1 {
+		return ansi.Truncate(s, 1, "")
 	}
-	return s[:n-1] + "…"
+	return ansi.Truncate(s, n, "…")
+}
+
+// padCells right-pads s with spaces to w display cells.
+func padCells(s string, w int) string {
+	if gap := w - ansi.StringWidth(s); gap > 0 {
+		return s + strings.Repeat(" ", gap)
+	}
+	return s
 }
 
 func durationAgo(t time.Time) string {
