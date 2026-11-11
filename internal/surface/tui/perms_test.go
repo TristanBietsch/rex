@@ -3,7 +3,6 @@ package tui
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,24 +11,15 @@ import (
 	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
-// requireMode checks path's permission bits on Unix.
-func requireMode(t *testing.T, path string, want os.FileMode) {
-	t.Helper()
-	info, err := os.Stat(path)
-	require.NoError(t, err)
-	if runtime.GOOS != "windows" {
-		require.Equal(t, want, info.Mode().Perm(), path)
-	}
-}
-
 // S-01: tui-state.json and its directory were created 0644/0755.
 func TestSaveTUIState_ownerOnly(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	require.NoError(t, SaveTUIState(Model{SelectedID: "s1", Filter: "all"}))
 	statePath := paths.ForHome(home).TUIStateFile
-	requireMode(t, filepath.Dir(statePath), 0o700)
-	requireMode(t, statePath, 0o600)
+	testperm.RequireMode(t, filepath.Dir(statePath), 0o700)
+	testperm.RequireMode(t, statePath, 0o600)
 
 	sel, filter, ok := LoadTUIState()
 	require.True(t, ok)
@@ -70,15 +60,16 @@ func TestTUIState_noHome(t *testing.T) {
 func TestStepPathsEnsure_ownerOnly(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	msg := runBootStep(t, stepPathsEnsure(Model{}))
 	require.Equal(t, stepOK, msg.Status, msg.Desc)
-	requireMode(t, filepath.Join(home, ".config", "rex"), 0o700)
-	requireMode(t, filepath.Join(home, ".local", "state", "rex"), 0o700)
+	testperm.RequireMode(t, filepath.Join(home, ".config", "rex"), 0o700)
+	testperm.RequireMode(t, filepath.Join(home, ".local", "state", "rex"), 0o700)
 
 	testperm.Loosen(t, filepath.Join(home, ".local", "state", "rex"), 0o755)
 	msg = runBootStep(t, stepPathsEnsure(Model{}))
 	require.Equal(t, stepOK, msg.Status, msg.Desc)
-	requireMode(t, filepath.Join(home, ".local", "state", "rex"), 0o700)
+	testperm.RequireMode(t, filepath.Join(home, ".local", "state", "rex"), 0o700)
 }
 
 // installShellBlock wrote its temp file 0644 and renamed it over the
@@ -92,11 +83,11 @@ func TestInstallShellBlock_modes(t *testing.T) {
 		rc := filepath.Join(dir, "rc-"+mode.String())
 		testperm.WriteFile(t, rc, []byte("export SEED=1\n"), mode)
 		require.NoError(t, installShellBlock(rc))
-		requireMode(t, rc, mode)
+		testperm.RequireMode(t, rc, mode)
 	}
 
 	rc := filepath.Join(dir, "fish", "config.fish")
 	require.NoError(t, installShellBlock(rc))
-	requireMode(t, filepath.Dir(rc), 0o700)
-	requireMode(t, rc, 0o600)
+	testperm.RequireMode(t, filepath.Dir(rc), 0o700)
+	testperm.RequireMode(t, rc, 0o600)
 }
