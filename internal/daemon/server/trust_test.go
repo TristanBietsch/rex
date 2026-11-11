@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -110,10 +111,17 @@ func TestTrustArgsFor(t *testing.T) {
 	require.Nil(t, (&Server{cfg: Config{}}).trustArgsFor(tool, project), "no setting")
 	require.Nil(t, on.trustArgsFor(registry.Tool{ID: "codex"}, project), "tool without trust_args")
 
-	// A folder whose name needs JSON escaping stays one valid entry.
-	odd := filepath.Join(real, `quote"and\slash`)
-	require.NoError(t, os.MkdirAll(odd, 0o700))
-	args = on.trustArgsFor(tool, odd)
-	require.NoError(t, json.Unmarshal([]byte(args[1]), &settings))
-	require.Contains(t, settings.TrustedWorkspaces, odd)
+	// A folder whose name needs JSON escaping stays one valid entry. Windows
+	// forbids " and \ in names, so those are tried on Unix only.
+	names := []string{"amp & 'tick' ünï {braces}"}
+	if runtime.GOOS != "windows" {
+		names = append(names, `quote"and\slash`)
+	}
+	for _, name := range names {
+		odd := filepath.Join(real, name)
+		require.NoError(t, os.MkdirAll(odd, 0o700))
+		args = on.trustArgsFor(tool, odd)
+		require.NoError(t, json.Unmarshal([]byte(args[1]), &settings), name)
+		require.Contains(t, settings.TrustedWorkspaces, odd)
+	}
 }
