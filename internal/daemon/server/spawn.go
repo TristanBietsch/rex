@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -49,21 +50,8 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	id := ids.NewSessionID()
 	short := ids.ExtendShortID(id, cfg.Store.TakenShortIDs())
 
-	cmdArgs := append([]string{}, tool.Command...)
-	cmdArgs = append(cmdArgs, model.Args...)
-	// Apply the chosen reasoning effort by interpolating model.effort.arg_template.
-	// We split the rendered template on whitespace so multi-token flags like
-	// `-c key=value` work (each becomes its own argv slot).
-	if model.Effort != nil && p.Effort != "" && model.Effort.ArgTemplate != "" {
-		rendered := strings.ReplaceAll(model.Effort.ArgTemplate, "{value}", p.Effort)
-		cmdArgs = append(cmdArgs, strings.Fields(rendered)...)
-	}
-	// Folder trust the agent applies itself (only under auto_trust_dirs).
-	cmdArgs = append(cmdArgs, srv.trustArgsFor(tool, p.CWD)...)
-
 	// Hook-detected tools report state by appending to a per-session file
-	// named in the child's env. Flags must precede the `--` prompt separator.
-	var childEnv []string
+	// named in the child's env.
 	hookFile, err := state.HookFile(cfg.StateDir, id)
 	if err != nil {
 		srv.ReleaseSession()
@@ -74,16 +62,19 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 			srv.ReleaseSession()
 			return "", fmt.Errorf("hook file: %w", err)
 		}
-		switch tool.Detect.Format {
-		case "claude":
-			cmdArgs = append(cmdArgs, adapter.ClaudeHookArgs()...)
-		}
-		// ToSlash: on Windows, Claude runs hooks in Git Bash, which reads
-		// C:/... paths without backslash escapes. Go opens either form.
-		childEnv = append(childEnv, adapter.HookFileEnv+"="+filepath.ToSlash(hookFile))
 		slog.Info("spawn: hook state detection", "tool", p.ToolID, "hook_file", hookFile)
 	}
-	childEnv = append(childEnv, "REX_SESSION_ID="+id)
+	spec := spawnSpec{
+		Tool:      tool,
+		Model:     model,
+		Effort:    p.Effort,
+		CWD:       p.CWD,
+		Trust:     srv.trustDecisionFor(tool, p.CWD),
+		HookFile:  hookFile,
+		SessionID: id,
+	}
+	cmdArgs := buildArgv(spec)
+	childEnv := childEnvFor(spec)
 
 	ptyPrompt := p.InitialPrompt
 	delivery := initialPromptDelivery(p.ToolID, cmdArgs, p.InitialPrompt)
@@ -118,11 +109,69 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		return "", err
 	}
 
-	ad, err := adapter.For(tool, hookFile)
-	if err != nil {
+	if err := startSupervisor(ctx, srv, sess, spec, cmdArgs, childEnv, ptyPrompt, delivery); err != nil {
 		srv.ReleaseSession()
 		_ = cfg.Store.Remove(sess.ID)
-		return "", fmt.Errorf("build adapter: %w", err)
+		return "", err
+	}
+	return id, nil
+}
+
+// spawnSpec is everything that decides a session's argv and environment.
+// buildArgv and childEnvFor are pure over it, so argv is testable without a
+// Server and a future Resume path can rebuild it from a persisted session.
+type spawnSpec struct {
+	Tool   registry.Tool
+	Model  registry.Model
+	Effort string
+	CWD    string
+	// Trust is the already-computed folder-trust decision (it reads config).
+	Trust     trustDecision
+	HookFile  string
+	SessionID string
+}
+
+// buildArgv returns the child argv up to, but not including, the initial
+// prompt: command, model args, effort, trust args, hook args. The prompt
+// (`--` text or `--prompt-interactive=`) is appended by initialPromptDelivery.
+func buildArgv(spec spawnSpec) []string {
+	argv := append([]string{}, spec.Tool.Command...)
+	argv = append(argv, spec.Model.Args...)
+	// Apply the chosen reasoning effort by interpolating model.effort.arg_template.
+	// We split the rendered template on whitespace so multi-token flags like
+	// `-c key=value` work (each becomes its own argv slot).
+	if spec.Model.Effort != nil && spec.Effort != "" && spec.Model.Effort.ArgTemplate != "" {
+		rendered := strings.ReplaceAll(spec.Model.Effort.ArgTemplate, "{value}", spec.Effort)
+		argv = append(argv, strings.Fields(rendered)...)
+	}
+	// Folder trust the agent applies itself (only under auto_trust_dirs).
+	argv = append(argv, spec.Trust.Args...)
+	// Flags must precede the `--` prompt separator.
+	if spec.Tool.Detect.Kind == "hooks" && spec.Tool.Detect.Format == "claude" {
+		argv = append(argv, adapter.ClaudeHookArgs()...)
+	}
+	return argv
+}
+
+// childEnvFor returns the extra environment for the child process.
+func childEnvFor(spec spawnSpec) []string {
+	var env []string
+	if spec.Tool.Detect.Kind == "hooks" {
+		// ToSlash: on Windows, Claude runs hooks in Git Bash, which reads
+		// C:/... paths without backslash escapes. Go opens either form.
+		env = append(env, adapter.HookFileEnv+"="+filepath.ToSlash(spec.HookFile))
+	}
+	return append(env, "REX_SESSION_ID="+spec.SessionID)
+}
+
+// startSupervisor builds the adapter and PTY supervisor for sess and runs it
+// in the background. The caller owns the session slot and the Store entry:
+// on error it must release the slot (and remove sess if it added it).
+func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec spawnSpec, argv, env []string, ptyPrompt string, delivery promptDelivery) error {
+	cfg := srv.cfg
+	ad, err := adapter.For(spec.Tool, spec.HookFile)
+	if err != nil {
+		return fmt.Errorf("build adapter: %w", err)
 	}
 
 	inputCh := make(chan []byte, 16)
@@ -133,9 +182,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	sup := pty.New(pty.SupervisorConfig{
 		StateDir:       cfg.StateDir,
 		Store:          cfg.Store,
-		Command:        cmdArgs,
-		CWD:            p.CWD,
-		Env:            childEnv,
+		Command:        argv,
+		CWD:            spec.CWD,
+		Env:            env,
 		Adapter:        ad,
 		InputCh:        inputCh,
 		CompleteCh:     completeCh,
@@ -143,7 +192,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		PlainPaste:     delivery.plainPaste,
 		ReadySettle:    delivery.readySettle,
 		SummaryRequest: cfg.SummaryRequest,
-		TrustPrompt:    srv.trustAnswerFor(tool, p.CWD),
+		TrustPrompt:    spec.Trust.Answer,
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)
 		},
@@ -200,5 +249,5 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		defer srv.ReleaseSession()
 		_ = sup.Run(sessCtx, sess)
 	}()
-	return id, nil
+	return nil
 }

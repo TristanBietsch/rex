@@ -12,6 +12,19 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
 )
 
+// trustDecision is the folder-trust handling chosen for one spawn: argv the
+// agent trusts the folder with, and/or an answer for its trust dialog. The
+// zero value means the user answers the dialog.
+type trustDecision struct {
+	Args   []string
+	Answer *pty.TrustAnswer
+}
+
+// trustDecisionFor computes both halves of the trust decision for tool in cwd.
+func (s *Server) trustDecisionFor(tool registry.Tool, cwd string) trustDecision {
+	return trustDecision{Args: s.trustArgsFor(tool, cwd), Answer: s.trustAnswerFor(tool, cwd)}
+}
+
 // trustAnswerFor returns what accepts tool's folder-trust dialog when cwd is
 // under one of the user's auto_trust_dirs, else nil (the user answers it).
 func (s *Server) trustAnswerFor(tool registry.Tool, cwd string) *pty.TrustAnswer {
