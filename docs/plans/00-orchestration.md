@@ -136,4 +136,5 @@ No flag (fixes, refactors, hardening): F1, U1-2, T4-1, P3, U6, A1 (tool support;
 | Wave | State |
 |---|---|
 | 1 | **Merged** into integration/todo @ 2c0be13: F1-1..3, T4-1, U1-2 (+review fixes), T3-1+A1-1 spawn spec, U3-1 guard, T2-1 `ended_at`, K1, P3-1/2/3 (H11, H2+H3, H1), U2-2 sparse Save (+wizard reset fix). `make check` green (lint 0, vuln clean, floors pass). Sandbox TUI check: board, arrow color, `:undone`, `cc`, help OK. |
-| 2 | Lane A: U1-7 → T1-1..8 → T2-2. Lane B: T3-2 → T3-3 → T3-4. Lane C: P4-1..5, then S1-1 → A1-3 → S1-2..4. |
+| 2 | **Merged** @ 9b35370: U1-7 command table, T1-1..8 filters/hide sections, T2-2 span column, T3-2..4 resume ids, P4-1..5 output kit (+7 review fixes, quiet flag errors in agent/json). `make check` green. Sandbox: zh/z0/:filter only/span OK. |
+| 3 | Lane A: T5-1..5 search → T4-2 uc (building). Lane B: T3-5 Resume + U6-1..3 vt10x (review fixes: StopSession reserve race, terminal check before reserve, effort re-validation) → K2 (building). Lane C: S1/S2/S3 summarizer (building). Next: T3-6 column, T4-3 uc resume, T3-7 rex resume (on kit), T2-3 ls -wide, A1-2 doctor. |
