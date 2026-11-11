@@ -24,8 +24,10 @@ exec rex name m2
 stdout '^My Task$'
 exec rex ls
 stdout ' m2 .*My Task$'
-# BUG: flags after the selector are ignored, so -clear becomes the name; flip when fixed.
+# Flags may follow the selector; text that starts with - needs --.
 exec rex name m2 -clear
+stdout '^m2: name cleared$'
+exec rex name m2 -- -clear
 stdout '^m2: named "-clear" \(6/64\)$'
 exec rex name -clear m2
 stdout '^m2: name cleared$'
@@ -43,10 +45,10 @@ exec rex undone m2
 stdout '^m2: unmarked$'
 exec rex undone m2
 stdout '^m2: not marked done$'
-# BUG: the documented `rex done <sel> -after 72h` is rejected because flags
-# after the selector are ignored; flip when fixed.
-exitcode 5 rex done m2 -after 72h
-stderr '^rex: done: <selector> \[-after 72h\]$'
+# The documented order: flags after the selector.
+exec rex done m2 -after 72h
+stdout '^m2: marked done — clears in 3d'
+exec rex undone m2
 exitcode 5 rex done -after 5s m2
 stderr '^rex: done: -after must be at least 10s$'
 

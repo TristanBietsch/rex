@@ -82,8 +82,9 @@ func runUpdate(args []string, d updateDeps) error {
 	yShort := fs.Bool("y", false, "skip confirmation prompt (shorthand)")
 	source := fs.String("source", "", "explicit source checkout path; run git pull + ./install.sh")
 	verbose := fs.Bool("verbose", false, "stream go install output instead of spinning")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 
 	slog.Info("update: starting", "check", *check, "source", *source, "verbose", *verbose)

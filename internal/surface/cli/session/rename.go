@@ -14,14 +14,15 @@ import (
 func RunRename(args []string) error {
 	fs := flag.NewFlagSet("rename", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 2 {
+	if len(rest) != 2 {
 		return core.NewExitError(core.ExitInvalidArgs, "rename: <selector> <new-slug>")
 	}
-	sel := fs.Arg(0)
-	newSlug := fs.Arg(1)
+	sel := rest[0]
+	newSlug := rest[1]
 	if err := protocol.ValidateSlug(newSlug); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, "rename: "+err.Error())
 	}

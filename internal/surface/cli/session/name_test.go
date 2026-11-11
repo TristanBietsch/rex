@@ -32,3 +32,16 @@ func TestParseNameArgs(t *testing.T) {
 	_, err = parseNameArgs([]string{"ab12", "\x1b"})
 	require.ErrorContains(t, err, "-clear", "control-only text normalizes to empty")
 }
+
+func TestParseNameArgs_FlagAfterSelector(t *testing.T) {
+	a, err := parseNameArgs([]string{"ab12", "-clear"})
+	require.NoError(t, err)
+	require.True(t, a.clear)
+
+	a, err = parseNameArgs([]string{"ab12", "--", "-clear"})
+	require.NoError(t, err)
+	require.Equal(t, "-clear", a.name)
+
+	_, err = parseNameArgs([]string{"ab12", "fix", "-nope"})
+	require.ErrorContains(t, err, "use -- before text")
+}

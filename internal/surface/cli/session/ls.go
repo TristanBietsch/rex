@@ -18,8 +18,9 @@ func RunLs(args []string) error {
 	showArchived := fs.Bool("show-archived", false, "include archived sessions")
 	short := fs.Bool("short", false, "compact mode (reserved)")
 	asJSON := fs.Bool("json", false, "output JSONL")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 	_ = showArchived
 	_ = short

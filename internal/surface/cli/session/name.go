@@ -23,14 +23,15 @@ func parseNameArgs(args []string) (nameArgs, error) {
 	fs := flag.NewFlagSet("name", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
 	clear := fs.Bool("clear", false, "clear the name (board shows the slug)")
-	if err := fs.Parse(args); err != nil {
-		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseTextArgs(fs, args, 1)
+	if err != nil {
+		return nameArgs{}, err
 	}
-	if fs.NArg() < 1 {
+	if len(rest) < 1 {
 		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, "name: <selector> [text…] | -clear <selector>")
 	}
-	a := nameArgs{socket: socket, sel: fs.Arg(0), clear: *clear}
-	text := strings.Join(fs.Args()[1:], " ")
+	a := nameArgs{socket: socket, sel: rest[0], clear: *clear}
+	text := strings.Join(rest[1:], " ")
 	switch {
 	case a.clear && text != "":
 		return nameArgs{}, core.NewExitError(core.ExitInvalidArgs, "name: -clear takes no text")

@@ -69,6 +69,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- CLI: flags are now accepted anywhere among the arguments, so
+  `rex new task -tool claude`, `rex wait p1 -until done`,
+  `rex done p1 -after 72h` and `rex attach p1 -read-only` work as
+  documented. `--` ends flag parsing. **Breaking:** free text that starts
+  with `-` (in `rex new`, `rex reply`, `rex name`) now needs `--` before
+  it, for example `rex name p1 -- -clear`; an unknown `-x` after text exits 5
+  with a hint. `-h` on any command prints its usage and exits 0 instead of
+  5.
 - TUI: a simpler board. Rows show state, name, the task (or the agent's
   question when it is waiting on you) and age; `v` brings back the id,
   model, tokens and AI summary. Columns are NEEDS YOU / WORKING / DONE

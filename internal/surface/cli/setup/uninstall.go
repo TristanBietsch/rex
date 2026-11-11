@@ -137,8 +137,9 @@ func parseUninstallFlags(args []string, errOut io.Writer) (uninstallOpts, error)
 	fs.BoolVar(&o.all, "all", false, "equivalent to all flags above")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print what would be removed without touching anything")
 	fs.BoolVar(&o.force, "force", false, "remove files even if rex-daemon is still running after the stop request")
-	if err := fs.Parse(args); err != nil {
-		return o, core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return o, err
 	}
 	if o.all {
 		o.binaries, o.wipeState, o.purgeConfig, o.stripProfile = true, true, true, true

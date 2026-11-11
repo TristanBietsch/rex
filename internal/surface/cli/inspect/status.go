@@ -16,8 +16,9 @@ func RunStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
 	asJSON := fs.Bool("json", false, "output JSON")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 
 	c, err := socket.Dial()

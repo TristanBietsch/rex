@@ -23,8 +23,9 @@ func RunStats(args []string) error {
 	socket := core.AddSocketFlag(fs)
 	asJSON := fs.Bool("json", false, "output JSON")
 	showAll := fs.Bool("all", false, "include zero-usage models")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 
 	sessions, fromDaemon := loadSessionsForStats(socket)

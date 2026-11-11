@@ -14,17 +14,18 @@ func RunReply(args []string) error {
 	fs := flag.NewFlagSet("reply", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
 	raw := fs.Bool("raw", false, "do not append newline")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseTextArgs(fs, args, 1)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() < 1 {
+	if len(rest) < 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "reply: selector required")
 	}
-	sel := fs.Arg(0)
+	sel := rest[0]
 
 	var text string
-	if fs.NArg() > 1 {
-		text = strings.Join(fs.Args()[1:], " ")
+	if len(rest) > 1 {
+		text = strings.Join(rest[1:], " ")
 	} else {
 		b, err := io.ReadAll(os.Stdin)
 		if err != nil {

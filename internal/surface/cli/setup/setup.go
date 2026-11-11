@@ -34,8 +34,9 @@ func RunSetup(args []string) error {
 	socketFlag := core.AddSocketFlag(fs)
 	force := fs.Bool("force", false, "overwrite existing config without prompting")
 
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 	// Refuse what the daemon would ignore, before anything runs or is written.
 	if *autoTrust != "" {

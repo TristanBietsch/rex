@@ -225,8 +225,9 @@ func (c daemonCtl) restart() error {
 func daemonLogs(args []string) error {
 	fs := flag.NewFlagSet("daemon logs", flag.ContinueOnError)
 	follow := fs.Bool("f", false, "follow")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 	logPath, err := paths.DaemonLog()
 	if err != nil {

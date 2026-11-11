@@ -19,6 +19,14 @@ rex <command> [flags] [args...]
 
 Commands dial the default socket unless `-socket` is set. See [paths.md](paths.md) for the default path.
 
+## FLAGS AND ARGUMENTS
+
+Flags may come before, between or after the positional arguments: `rex wait p1 -until done` and `rex wait -until done p1` are the same. `--` ends flag parsing; everything after it is positional. A lone `-` is positional.
+
+`rex new`, `rex reply` and `rex name` take free text. In them, an unknown `-x` after the text is an error (exit 5). Put `--` before text that starts with `-`: `rex new -- -h is the flag I want to document`, `rex name p1 -- -clear`.
+
+`-h` or `-help` on a command prints its usage and exits **0**.
+
 ## SELECTORS
 
 Many commands take `<sel>`: one session reference.

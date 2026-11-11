@@ -12,13 +12,14 @@ import (
 func RunSend(args []string) error {
 	fs := flag.NewFlagSet("send", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "send: exactly one selector required")
 	}
-	sel := fs.Arg(0)
+	sel := rest[0]
 
 	c, err := socket.Dial()
 	if err != nil {

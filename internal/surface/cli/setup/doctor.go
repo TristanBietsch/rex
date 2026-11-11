@@ -76,8 +76,9 @@ func RunDoctor(args []string) error {
 	asJSON := fs.Bool("json", false, "output JSON")
 	socket := core.AddSocketFlag(fs)
 	verbose := fs.Bool("verbose", false, "include INFO-level rows")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := core.ParseArgs(fs, args)
+	if err != nil {
+		return err
 	}
 
 	checks := runAllChecks(socket)
