@@ -32,7 +32,8 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `prune` | — | Delete every DONE session except those still working (confirm `y`; sessions that changed while the prompt was open are kept) |
 | `rename` | `<sel> <slug>` | Rename slug |
 | `name` | `[text…]` | Set selected session's display name; no text opens the editor |
-| `done`, `undone` | `[sel]` | Mark done / undo (default: selected) |
+| `done` | `[sel]` | Mark done, or undo the mark (default: selected) |
+| `undone` | `[sel]` | Undo the mark only; an unmarked session gets the notice "is not marked done" |
 | `complete` | `[sel]` | Kill now and mark done |
 | `fail`, `fails`, `failed` | — | Failed-session inspector |
 | `stats` | — | Toggle stats overlay |

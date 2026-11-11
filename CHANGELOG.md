@@ -126,6 +126,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rex ls` and `rex digest` clip long model, slug and name columns by
   display width instead of bytes, so multi-byte text such as `·` or CJK
   is no longer cut mid-character and the columns stay aligned.
+- TUI: the `λ` prompt glyph, the `▸` selection marker and the `:` prompt
+  are now colored and follow `color_scheme` (they were never colored).
+  The text cursor is drawn in reverse video, or as a solid `█` when there
+  is no color (`NO_COLOR`), so it is always visible. The color scheme and
+  the style cache are no longer written from background commands at
+  startup, which removes a data race with the splash screen.
+- TUI: `:undone` on a session that is not marked done no longer marks it
+  done. It now only unmarks, and says "<name> is not marked done"
+  otherwise. `:done` still toggles.
 - TUI: opening a running full-screen agent (Claude Code, codex, gemini, …)
   no longer shows a black popup until the agent next draws. The popup
   attaches without the transcript replay and relied on the agent redrawing

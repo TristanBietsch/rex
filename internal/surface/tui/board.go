@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 // navigation, jump-to-section) reads from boardGroups so the three views stay
 // in sync. Adding a new state means updating exactly one place.
 type boardGroup struct {
+	// ID is the stable handle for the section ("needs", "working", "done").
+	ID    string
 	Title string
 	// Count names the column's sessions after a number, as on the
 	// screensaver ("2 working").
@@ -23,7 +26,12 @@ type boardGroup struct {
 	// Alert marks a column that wants the user: its title and count are
 	// highlighted while it holds any session.
 	Alert bool
-	Match func(protocol.SessionSummary) bool
+	// Empty is the line an empty column shows.
+	Empty string
+	// Completed marks the column that holds finished work (it folds past
+	// doneCollapseAt rows).
+	Completed bool
+	Match     func(protocol.SessionSummary) bool
 }
 
 // isMarkedDone reports whether the user marked the session done (it then
@@ -37,13 +45,13 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 // agent not started yet; marker ◌): every state must land in some group, or
 // the session is invisible and unreachable by keyboard.
 var boardGroups = []boardGroup{
-	{Title: "Needs you", Count: "need you", Alert: true, Match: func(s protocol.SessionSummary) bool {
+	{ID: "needs", Title: "Needs you", Count: "need you", Alert: true, Empty: "nothing waiting on you", Match: func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
 	}},
-	{Title: "Working", Count: "working", Match: func(s protocol.SessionSummary) bool {
+	{ID: "working", Title: "Working", Count: "working", Empty: "nothing running", Match: func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued)
 	}},
-	{Title: "Done", Count: "done", Match: inCompleted},
+	{ID: "done", Title: "Done", Count: "done", Empty: "nothing finished yet", Completed: true, Match: inCompleted},
 }
 
 // styleAlert highlights an Alert column's title and count while it holds
@@ -87,7 +95,7 @@ const doneCollapseAt = 5
 
 // doneCollapsed reports whether the Done column shows only its title line.
 func doneCollapsed(m Model) bool {
-	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) > doneCollapseAt
+	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) > doneCollapseAt
 }
 
 // visibleRows is group gi's rows as the board shows them: none while Done
@@ -96,11 +104,37 @@ func visibleRows(m Model, gi int) []protocol.SessionSummary {
 	if gi == groupDone && doneCollapsed(m) {
 		return nil
 	}
-	return filterByGroup(m.Sessions, boardGroups[gi], m.Filter)
+	return filterByGroup(m.Sessions, boardGroups[gi], rowFilterOf(m))
 }
 
-// emptyGroupText is the line an empty column shows.
-var emptyGroupText = []string{"nothing waiting on you", "nothing running", "nothing finished yet"}
+// resolveSection maps a user reference to a boardGroups index: an ID, a
+// unique ID prefix, the title with spaces ignored, or a 1-based number.
+func resolveSection(ref string) (int, error) {
+	r := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(ref), " ", ""))
+	if n, err := strconv.Atoi(r); err == nil {
+		if n >= 1 && n <= len(boardGroups) {
+			return n - 1, nil
+		}
+	} else if r != "" {
+		prefix, hits := 0, 0
+		for i, g := range boardGroups {
+			if r == g.ID || r == strings.ToLower(strings.ReplaceAll(g.Title, " ", "")) {
+				return i, nil
+			}
+			if strings.HasPrefix(g.ID, r) {
+				prefix, hits = i, hits+1
+			}
+		}
+		if hits == 1 {
+			return prefix, nil
+		}
+	}
+	ids := make([]string, len(boardGroups))
+	for i, g := range boardGroups {
+		ids[i] = g.ID
+	}
+	return 0, fmt.Errorf("unknown section %q: use %s or 1-%d", ref, strings.Join(ids, ", "), len(boardGroups))
+}
 
 // inCompleted reports whether a session sits in the Done column.
 func inCompleted(s protocol.SessionSummary) bool {
@@ -109,13 +143,10 @@ func inCompleted(s protocol.SessionSummary) bool {
 }
 
 // filterByGroup applies the group predicate plus the active tool filter.
-func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter string) []protocol.SessionSummary {
+func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, f rowFilter) []protocol.SessionSummary {
 	out := make([]protocol.SessionSummary, 0, len(sessions))
 	for _, s := range sessions {
-		if !g.Match(s) {
-			continue
-		}
-		if filter != "all" && filter != "" && s.ToolID != filter {
+		if !g.Match(s) || !f.keep(s) {
 			continue
 		}
 		out = append(out, s)
@@ -124,13 +155,13 @@ func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter stri
 }
 
 // partitionSessions buckets sessions into board columns in one pass (O(n) vs 3× scan).
-func partitionSessions(sessions []protocol.SessionSummary, filter string) [][]protocol.SessionSummary {
+func partitionSessions(sessions []protocol.SessionSummary, f rowFilter) [][]protocol.SessionSummary {
 	out := make([][]protocol.SessionSummary, len(boardGroups))
 	for i := range out {
 		out[i] = make([]protocol.SessionSummary, 0, len(sessions)/len(boardGroups)+1)
 	}
 	for _, s := range sessions {
-		if filter != "all" && filter != "" && s.ToolID != filter {
+		if !f.keep(s) {
 			continue
 		}
 		for i, g := range boardGroups {
@@ -265,7 +296,7 @@ func groupTitle(m Model, gi, width int) string {
 }
 
 func groupTitleText(m Model, gi int) string {
-	n := len(filterByGroup(m.Sessions, boardGroups[gi], m.Filter))
+	n := len(filterByGroup(m.Sessions, boardGroups[gi], rowFilterOf(m)))
 	title := styleSectionTitle.Render(strings.ToUpper(boardGroups[gi].Title))
 	if boardGroups[gi].Alert && n > 0 {
 		title = styleAlert().Render(strings.ToUpper(boardGroups[gi].Title))
@@ -319,7 +350,7 @@ func renderBoard(m Model, width, height int) string {
 		case slotTitle:
 			lines = append(lines, groupTitle(m, sl.group, width))
 		case slotNone:
-			lines = append(lines, noneIndent+styleMuted.Render(emptyGroupText[sl.group]))
+			lines = append(lines, noneIndent+styleMuted.Render(boardGroups[sl.group].Empty))
 		case slotRow:
 			lines = append(lines, renderRow(m, sl.sess, cols))
 		}

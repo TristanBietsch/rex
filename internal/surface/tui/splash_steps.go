@@ -108,18 +108,23 @@ func stepSettingsLoad(_ Model) tea.Cmd {
 	}
 }
 
+// themeApplyMsg asks Update to apply the color scheme. The palette is
+// global state the View reads, so it is only written on the UI goroutine,
+// never from a step Cmd.
+type themeApplyMsg struct {
+	Scheme string // "": nothing configured, keep the default
+	Dur    time.Duration
+}
+
 func stepThemeApply(m Model) tea.Cmd {
-	return emit("theme.apply", func() (bootStatus, string, error) {
-		if m.Store == nil {
-			return stepSkip, "default", nil
+	return func() tea.Msg {
+		t0 := time.Now()
+		scheme := ""
+		if m.Store != nil {
+			scheme, _ = m.Store.Get("color_scheme").(string)
 		}
-		scheme, _ := m.Store.Get("color_scheme").(string)
-		if scheme == "" {
-			return stepSkip, "default", nil
-		}
-		applyTheme(scheme)
-		return stepOK, scheme, nil
-	})
+		return themeApplyMsg{Scheme: scheme, Dur: time.Since(t0)}
+	}
 }
 
 func stepAudioInit(m Model) tea.Cmd {
@@ -349,7 +354,8 @@ func short8(s string) string {
 
 func stepRendererWarm(_ Model) tea.Cmd {
 	return emit("renderer.warm", func() (bootStatus, string, error) {
-		rebuildStyles()
+		// Report only: styles are built by init/applyTheme, and a step Cmd
+		// must not write them while the splash View reads them.
 		return stepOK, "styles cached", nil
 	})
 }

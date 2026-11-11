@@ -89,9 +89,20 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 		}
 		name := strings.TrimSpace(strings.TrimPrefix(line, verb))
 		return m, setNameCmd(namerOf(m), m.SelectedID, name)
-	case "done", "undone":
+	case "done":
 		id, ok := commandTarget(&m, verb, args)
 		if !ok {
+			return m, nil
+		}
+		return toggleRetire(m, id)
+	case "undone":
+		// Unmark only: toggling here would mark an unmarked session.
+		id, ok := commandTarget(&m, verb, args)
+		if !ok {
+			return m, nil
+		}
+		if sum, found := findSession(m.Sessions, id); found && sum.RetireAt.IsZero() {
+			m.Notice = displayName(sum) + " is not marked done"
 			return m, nil
 		}
 		return toggleRetire(m, id)
