@@ -95,6 +95,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: `:undone` on a session that is not marked done no longer marks it
+  done. It now only unmarks, and says "<name> is not marked done"
+  otherwise. `:done` still toggles.
 - TUI: opening a running full-screen agent (Claude Code, codex, gemini, …)
   no longer shows a black popup until the agent next draws. The popup
   attaches without the transcript replay and relied on the agent redrawing
