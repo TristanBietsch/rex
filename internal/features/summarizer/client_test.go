@@ -103,3 +103,53 @@ func TestClient_SetModelChangesGenerateRequestModel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "llama3.1", captured)
 }
+
+func captureBody(t *testing.T, reply string) (*Client, func() map[string]any) {
+	t.Helper()
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, reply)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient(Config{BaseURL: srv.URL, Model: "m", RequestTimeout: 2 * time.Second})
+	return c, func() map[string]any { return got }
+}
+
+func TestClientComplete_SendsSystemStopNumPredict(t *testing.T) {
+	c, body := captureBody(t, `{"response":"Editing x.go"}`)
+	got, err := c.Complete(context.Background(), CompleteRequest{
+		System: "be brief", Prompt: "screen", NumPredict: 64, Stop: []string{"\n"}, Temperature: 0.2,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Editing x.go", got)
+	b := body()
+	require.Equal(t, "be brief", b["system"])
+	require.Equal(t, "screen", b["prompt"])
+	require.Equal(t, false, b["stream"])
+	opts := b["options"].(map[string]any)
+	require.Equal(t, float64(64), opts["num_predict"])
+	require.Equal(t, []any{"\n"}, opts["stop"])
+	require.Equal(t, 0.2, opts["temperature"])
+}
+
+func TestClientGenerate_Unchanged(t *testing.T) {
+	c, body := captureBody(t, `{"response":"ok"}`)
+	_, err := c.Generate(context.Background(), "ping")
+	require.NoError(t, err)
+	b := body()
+	require.NotContains(t, b, "system", "the probe sends no system prompt")
+	opts := b["options"].(map[string]any)
+	require.Equal(t, float64(30), opts["num_predict"])
+	require.NotContains(t, opts, "stop")
+}
+
+func TestClientComplete_OmitsZeroOptions(t *testing.T) {
+	c, body := captureBody(t, `{"response":"ok"}`)
+	_, err := c.Complete(context.Background(), CompleteRequest{Prompt: "p"})
+	require.NoError(t, err)
+	opts := body()["options"].(map[string]any)
+	require.NotContains(t, opts, "num_predict")
+	require.NotContains(t, opts, "stop")
+}
