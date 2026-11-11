@@ -118,7 +118,7 @@ func TestCapDropsRemovedSessionsBeforeLiveOnes(t *testing.T) {
 		turn(t, s, repo, id, func() { write(t, repo, "f-"+id+".txt", blob) })
 		clock = clock.Add(time.Hour)
 	}
-	if err := s.MarkRemoved(repo, "gone"); err != nil {
+	if err := s.MarkRemoved(context.Background(), repo, "gone"); err != nil {
 		t.Fatal(err)
 	}
 	liveOnly := func(id string) bool { return id == "live" }

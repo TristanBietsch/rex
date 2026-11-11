@@ -218,7 +218,7 @@ func TestRestoreFileDirSwap(t *testing.T) {
 
 func TestMarkRemovedNoStore(t *testing.T) {
 	s := newStore(t)
-	if err := s.MarkRemoved(t.TempDir(), "s1"); err != nil {
+	if err := s.MarkRemoved(context.Background(), t.TempDir(), "s1"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(s.Root()); err == nil {
@@ -235,11 +235,11 @@ func TestRetainRemovesOnlyLongPrunedSessions(t *testing.T) {
 	turn(t, s, repo, "old", func() { write(t, repo, "a.txt", "old\n") })
 	turn(t, s, repo, "recent", func() { write(t, repo, "a.txt", "recent\n") })
 	turn(t, s, repo, "live", func() { write(t, repo, "a.txt", "live\n") })
-	if err := s.MarkRemoved(repo, "old"); err != nil {
+	if err := s.MarkRemoved(context.Background(), repo, "old"); err != nil {
 		t.Fatal(err)
 	}
 	clock = clock.Add(5 * 24 * time.Hour)
-	if err := s.MarkRemoved(repo, "recent"); err != nil {
+	if err := s.MarkRemoved(context.Background(), repo, "recent"); err != nil {
 		t.Fatal(err)
 	}
 	clock = clock.Add(3 * 24 * time.Hour) // old: 8 days, recent: 3 days
@@ -363,7 +363,7 @@ func TestMarkMissedMakesTurnNotUndoable(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	turn(t, s, repo, "s1", func() { write(t, repo, "a.txt", "t1\n") })
-	if err := s.MarkMissed(repo, "s1"); err != nil {
+	if err := s.MarkMissed(context.Background(), repo, "s1"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Undo(ctx, repo, "s1", 1); !errors.Is(err, ErrNotUndoable) {
@@ -380,7 +380,7 @@ func TestMarkMissedMakesTurnNotUndoable(t *testing.T) {
 	if got := read(t, repo, "a.txt"); got != "t1\n" {
 		t.Errorf("got %q", got)
 	}
-	if err := s.MarkMissed("rel", "s1"); err == nil {
+	if err := s.MarkMissed(context.Background(), "rel", "s1"); err == nil {
 		t.Error("relative cwd accepted")
 	}
 }

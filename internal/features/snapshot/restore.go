@@ -69,7 +69,11 @@ func (s *Store) Changed(ctx context.Context, cwd string, a, b Tree) ([]FileChang
 		return nil, err
 	}
 	dir := s.dirFor(cwd)
-	defer s.lock(dir)()
+	unlock, err := s.lockCtx(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	if _, err := os.Stat(shadowOf(dir)); err != nil {
 		return nil, fmt.Errorf("snapshot: no store for %s", cwd)
 	}
@@ -89,7 +93,11 @@ func (s *Store) Restore(ctx context.Context, cwd string, to Tree, opts RestoreOp
 		return Result{}, err
 	}
 	dir := s.dirFor(cwd)
-	defer s.lock(dir)()
+	unlock, err := s.lockCtx(ctx, dir)
+	if err != nil {
+		return Result{}, err
+	}
+	defer unlock()
 	return s.restore(ctx, dir, cwd, to, opts)
 }
 

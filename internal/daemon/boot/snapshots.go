@@ -184,7 +184,7 @@ func (s *Snapshots) run(ctx context.Context, cwd string, q *snapQueue) {
 
 func (s *Snapshots) do(ctx context.Context, cwd string, j snapJob) {
 	if j.phase == "" {
-		if err := s.store.MarkRemoved(cwd, j.session); err != nil {
+		if err := s.store.MarkRemoved(ctx, cwd, j.session); err != nil {
 			slog.Warn("snapshots: mark removed failed", "session", j.session, "err", err)
 		}
 		return
@@ -205,7 +205,7 @@ func (s *Snapshots) do(ctx context.Context, cwd string, j snapJob) {
 	default:
 		slog.Warn("snapshots: capture failed; the turn is not undoable", "session", j.session, "phase", j.phase, "err", err)
 		if j.phase == snapshot.PhaseStart {
-			if err := s.store.MarkMissed(cwd, j.session); err != nil {
+			if err := s.store.MarkMissed(ctx, cwd, j.session); err != nil {
 				slog.Warn("snapshots: record missed capture failed", "session", j.session, "err", err)
 			}
 		}

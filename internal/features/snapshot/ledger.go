@@ -90,7 +90,7 @@ func trimTornTail(path string) error {
 		return nil
 	}
 	if json.Valid(tail) { // whole but without its newline
-		return os.WriteFile(path, append(b, '\n'), 0o600)
+		return os.WriteFile(path, append(b, '\n'), 0o600) //nolint:gosec // the store's own ledger path
 	}
 	return os.Truncate(path, int64(start))
 }

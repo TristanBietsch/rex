@@ -96,7 +96,11 @@ type sessionAge struct {
 }
 
 func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, rep *RetainReport) error {
-	defer s.lock(dir)()
+	unlock, err := s.lockCtx(ctx, dir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	entries, err := readLedger(dir)
 	if err != nil {
 		return err

@@ -232,7 +232,7 @@ func (s *Store) verify(ctx context.Context, dir, cwd, session string, to Tree, o
 
 // MarkRemoved records that session left the board, which starts the clock
 // for its retention. It is a no-op for a folder without a store.
-func (s *Store) MarkRemoved(cwd, session string) error {
+func (s *Store) MarkRemoved(ctx context.Context, cwd, session string) error {
 	if err := checkCWD(cwd); err != nil {
 		return err
 	}
@@ -240,7 +240,11 @@ func (s *Store) MarkRemoved(cwd, session string) error {
 		return err
 	}
 	dir := s.dirFor(cwd)
-	defer s.lock(dir)()
+	unlock, err := s.lockCtx(ctx, dir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if _, err := os.Stat(ledgerOf(dir)); errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -250,7 +254,7 @@ func (s *Store) MarkRemoved(cwd, session string) error {
 // MarkMissed records that session's turn start could not be captured, so
 // that turn is reported as not undoable instead of an earlier turn being
 // undone in its place.
-func (s *Store) MarkMissed(cwd, session string) error {
+func (s *Store) MarkMissed(ctx context.Context, cwd, session string) error {
 	if err := checkCWD(cwd); err != nil {
 		return err
 	}
@@ -258,7 +262,11 @@ func (s *Store) MarkMissed(cwd, session string) error {
 		return err
 	}
 	dir := s.dirFor(cwd)
-	defer s.lock(dir)()
+	unlock, err := s.lockCtx(ctx, dir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
