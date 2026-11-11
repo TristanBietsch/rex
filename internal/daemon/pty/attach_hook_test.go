@@ -83,3 +83,41 @@ func TestSupervisor_AttachHookHoldsOutput(t *testing.T) {
 	require.NoError(t, <-done)
 	<-unregistered
 }
+
+// TestSupervisor_ScreenKeepsRuneSplitAcrossReads: a rune the child writes in
+// two parts arrives in two PTY reads; the screen mirror (and so last_line
+// and the repaint) must still hold it, with the rest of the row in place.
+func TestSupervisor_ScreenKeepsRuneSplitAcrossReads(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("printf of raw bytes through ConPTY")
+	}
+	store := state.NewStore()
+	sess := &state.Session{ID: "split1", ShortID: "split1", ToolID: "echo", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	hookCh := make(chan func(fn func(repaint func() []byte)), 1)
+	sup := New(SupervisorConfig{
+		StateDir: t.TempDir(), Store: store,
+		Command:        []string{"bash", "-c", `printf 'ab line\342\224'; sleep 0.3; printf '\200cd'; sleep 5`},
+		RegisterAttach: func(h func(fn func(repaint func() []byte))) { hookCh <- h },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+	defer func() {
+		cancel()
+		<-done
+	}()
+	hook := <-hookCh
+	require.Eventually(t, func() bool {
+		var b []byte
+		hook(func(repaint func() []byte) { b = repaint() })
+		term := vt10x.New(vt10x.WithSize(120, 32))
+		_, _ = term.Write(b)
+		return strings.HasPrefix(term.String(), "ab line─cd ")
+	}, 5*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool {
+		got, _ := store.Get("split1")
+		return got.Summary().LastLine == "ab line─cd"
+	}, 5*time.Second, 20*time.Millisecond)
+}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"time"
 
 	"golang.org/x/term"
 
@@ -127,7 +128,7 @@ func RunAttach(args []string) error {
 		}()
 	}
 
-	watch := redrawFallback(c, sess, reqID)
+	watch := redrawFallback(c, sess, reqID, repaintWait(!*noReplay))
 	defer watch.Stop()
 	return streamAttach(c, sess.ID, watch, os.Stdout)
 }
@@ -140,15 +141,25 @@ func subscribeAttach(c *client.Client, sess protocol.SessionSummary, replay bool
 	return c.SubscribeID(protocol.Subscribe{SessionID: sess.ID, Replay: replay, Repaint: redrawKickTools[sess.ToolID]})
 }
 
+// repaintWait is how long redrawFallback waits for a daemon that predates
+// acks: longer with a replay, which arrives (and is drawn) before the reply.
+func repaintWait(replay bool) time.Duration {
+	if replay {
+		return client.RepaintReplayWait
+	}
+	return client.RepaintReplyWait
+}
+
 // redrawFallback returns the watch that sends Ctrl+L to a full-screen agent
 // when the daemon did not repaint it: the replay alone shows a frozen frame
 // from the transcript tail (or, with -no-replay, nothing), and SIGWINCH on
-// a same-size resize is a no-op. Nil for other agents.
-func redrawFallback(c *client.Client, sess protocol.SessionSummary, reqID string) *client.RepaintWatch {
+// a same-size resize is a no-op. wait bounds the wait for a daemon without
+// acks (see repaintWait). Nil for other agents.
+func redrawFallback(c *client.Client, sess protocol.SessionSummary, reqID string, wait time.Duration) *client.RepaintWatch {
 	if !redrawKickTools[sess.ToolID] {
 		return nil
 	}
-	return client.WatchRepaint(sess.ID, reqID, client.RepaintReplyWait, func() {
+	return client.WatchRepaint(sess.ID, reqID, wait, func() {
 		if err := c.SendRedraw(sess.ID); err != nil {
 			slog.Warn("attach: redraw kick failed", "session", sess.ID, "tool", sess.ToolID, "err", err)
 			return

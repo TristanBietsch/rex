@@ -90,6 +90,11 @@ var altScreenTools = map[string]bool{
 	"kimi":     true,
 }
 
+// attachRepaintWait bounds how long the popup waits for a daemon that
+// predates acks to answer its Subscribe before sending the ^L nudge (no
+// replay comes first here). A variable so tests can stretch it.
+var attachRepaintWait = client.RepaintReplyWait
+
 func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	if m.Socket == "" {
 		m.Err = "attach: socket unknown"
@@ -132,7 +137,7 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		// SIGWINCH alone is a no-op if the size didn't change: nudge the
 		// agent with ^L (documented in our footer as "redraw"). Safe because
 		// readline-based agents (ollama) aren't in altScreenTools.
-		watch = client.WatchRepaint(sessionID, reqID, client.RepaintReplyWait, func() {
+		watch = client.WatchRepaint(sessionID, reqID, attachRepaintWait, func() {
 			if err := c.SendRedraw(sessionID); err != nil {
 				slog.Warn("tui: attach redraw nudge failed", "session", sessionID, "err", err)
 				return

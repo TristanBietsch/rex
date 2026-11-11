@@ -1,6 +1,7 @@
 package pty
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -97,7 +98,11 @@ func requireSameScreen(t *testing.T, want, got vt10x.Terminal, msgAndArgs ...any
 	}
 	wc, gcur := cursorOf(want.Cursor(), cols, rows), cursorOf(got.Cursor(), cols, rows)
 	wc.Visible, gcur.Visible = want.CursorVisible(), got.CursorVisible()
+	if pendingWideWrap(want) {
+		wc.State &^= vt10x.CursorWrapNext // not re-created (see Repaint)
+	}
 	require.Equal(t, wc, gcur, append([]any{"cursor"}, msgAndArgs...)...)
+	require.Equal(t, want.PartialRune(), got.PartialRune(), append([]any{"partial rune"}, msgAndArgs...)...)
 	ws, gs := cursorOf(want.SavedCursor(), cols, rows), cursorOf(got.SavedCursor(), cols, rows)
 	ws.State &^= vt10x.CursorWrapNext // restoring always clears it
 	gs.State &^= vt10x.CursorWrapNext
@@ -139,6 +144,13 @@ var probes = []string{
 // swaps in the unrepainted alternate buffer (see requireSameScreen).
 const leaveAlt = "\x1b[?1049l"
 
+// pendingWideWrap reports a pending wrap after a wide rune in the last
+// column, which Repaint drops. The caller holds v's lock.
+func pendingWideWrap(v vt10x.View) bool {
+	c := v.Cursor()
+	return c.State&vt10x.CursorWrapNext != 0 && isWide(v.Cell(c.X, c.Y).Char)
+}
+
 func onAlt(v vt10x.Terminal) bool {
 	v.Lock()
 	defer v.Unlock()
@@ -149,6 +161,12 @@ func requireRoundTrip(t *testing.T, src vt10x.Terminal, label string) {
 	t.Helper()
 	dst, b := repaintOf(t, src)
 	requireSameScreen(t, src, dst, label, fmt.Sprintf("repaint %q", b))
+	src.Lock()
+	diverges := pendingWideWrap(src)
+	src.Unlock()
+	if diverges {
+		return // the next rune wraps on one side only
+	}
 	for _, p := range probes {
 		if p == leaveAlt && !onAlt(src) {
 			continue
@@ -203,6 +221,8 @@ func TestRepaint_RoundTrip(t *testing.T) {
 		{"line drawing left on", 20, 4, []string{"\x1b(0q"}},
 		{"full screen", 8, 4, []string{"11111111\r\n22222222\r\n33333333\r\n44444444"}},
 		{"scrolled", 10, 3, []string{"1\r\n2\r\n3\r\n4\r\n5\r\n6"}},
+		{"rune split across writes", 10, 3, []string{"ab\xe2\x94", "\x80cd"}},
+		{"ends inside a rune", 10, 3, []string{"\x1b[1;31mab\xf0\x9f"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -301,6 +321,7 @@ var repaintVocabulary = []string{
 	"\x1b[20h", "\x1b[20l", "\x1b[?25l", "\x1b[?25h", "\x1b[?1049h", "\x1b[?1049l", "\x1b[?47h", "\x1b[?1047l",
 	"\x1b[?1000h", "\x1b[?1003h", "\x1b[?1000l", "\x1b[?1006h", "\x1b[?1h", "\x1b=", "\x1b>", "\x1b[?5h", "\x1b[?1004h",
 	"\x1bc", "0123456789abcdef",
+	"\xe2\x94", "\x80", "\xf0\x9f", "\x8e\x89", // runes split across writes
 }
 
 // TestRepaint_RandomScreens round-trips screens built from random escape
@@ -340,4 +361,30 @@ func FuzzRepaint_RoundTrip(f *testing.F) {
 		}
 		requireRoundTrip(t, src, fmt.Sprintf("%dx%d %v", c, r, words))
 	})
+}
+
+// A screen holding the start of a split rune hands it on: the next output
+// completes the rune on the client, as on the screen.
+func TestRepaint_CarriesPartialRune(t *testing.T) {
+	src := newScreen(t, 10, 2, "ab\xe2\x94")
+	dst, b := repaintOf(t, src)
+	require.True(t, strings.HasSuffix(string(b), "\xe2\x94"), "repaint %q", b)
+	for _, term := range []vt10x.Terminal{src, dst} {
+		_, err := term.Write([]byte("\x80cd"))
+		require.NoError(t, err)
+	}
+	requireSameScreen(t, src, dst)
+	require.Equal(t, "ab─cd", strings.TrimRight(strings.Split(dst.String(), "\n")[0], " "))
+}
+
+// A pending wrap after a wide rune is dropped rather than rewritten: on a
+// real terminal the rewrite would wrap the rune (and could scroll).
+func TestRepaint_WideRuneInLastColumnNotRewritten(t *testing.T) {
+	src := newScreen(t, 4, 2, "\x1b[2;4H日")
+	src.Lock()
+	b := Repaint(src)
+	src.Unlock()
+	tail := string(b[bytes.LastIndex(b, []byte("\x1b[2;4H")):])
+	require.NotContains(t, tail, "日", "repaint %q", b)
+	requireRoundTrip(t, src, "wide pending wrap")
 }

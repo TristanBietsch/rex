@@ -36,6 +36,11 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
   `ScrollRegion`; `AttrBlink`, `AttrGfx`, `AttrWrap`, `CursorWrapNext` and
   `CursorOrigin` export the remaining `Glyph.Mode` and `Cursor.State` bits.
   See `inspect_test.go`.
+- `Write` keeps a UTF-8 rune split across two writes and completes it on
+  the next one (`PartialRune` returns the held bytes). Upstream dropped the
+  rune's first bytes and skipped the rest as invalid, so the rune vanished
+  and the rest of its row shifted left. `Write` now always consumes all of
+  its input. See `write_test.go`.
 - `gofmt` added `//go:build` lines.
 
 Tests here are a separate module: `go -C third_party/vt10x test ./...`

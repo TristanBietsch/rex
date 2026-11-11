@@ -50,7 +50,7 @@ func startSilentSession(t *testing.T, model, want string) (*testutil.Daemon, pro
 	t.Cleanup(func() { _ = c.Close() })
 	_, err = c.Hello("test")
 	require.NoError(t, err)
-	cwd := t.TempDir()
+	cwd := d.StateDir // not t.TempDir: on Windows its cleanup runs before d.Close, while the child still uses it
 	require.NoError(t, c.NewSession(protocol.NewSession{ToolID: "echo", ModelID: model, Slug: model, CWD: cwd}))
 	var sum protocol.SessionSummary
 	drawn := false
@@ -164,10 +164,12 @@ func TestAttachE2E_SilentInlineAgentIsNotBlank(t *testing.T) {
 // popup must not also type ^L into the agent.
 func TestAttachE2E_RepaintSkipsRedrawNudge(t *testing.T) {
 	d, sum := startSilentSession(t, "alt", "FRAME-ONE")
+	withAttachRepaintWait(t, time.Minute) // only the repaint and the Ack may decide
 	m := openFullScreenAttach(t, d, sum)
 	m = pumpPopup(t, m, 2*time.Second, func(m Model) bool { return strings.Contains(popupText(m), "orange") })
-	// Past the nudge's fallback timer, then a key of our own as a marker.
-	time.Sleep(2 * client.RepaintReplyWait)
+	// The Ack follows the repaint; give the pump time to see it (a nudge
+	// would go out then), then type a key of our own as a marker.
+	time.Sleep(300 * time.Millisecond)
 	out, _ := m.Update(key("z"))
 	m = out.(Model)
 	require.Empty(t, m.Err)
@@ -178,6 +180,23 @@ func TestAttachE2E_RepaintSkipsRedrawNudge(t *testing.T) {
 		return strings.Contains(string(got), "z")
 	}, 3*time.Second, 20*time.Millisecond)
 	require.Equal(t, "z", string(got), "agent received input other than the marker")
+}
+
+// withAttachRepaintWait sets the popup's fallback wait for one test.
+func withAttachRepaintWait(t *testing.T, d time.Duration) {
+	t.Helper()
+	prev := attachRepaintWait
+	attachRepaintWait = d
+	t.Cleanup(func() { attachRepaintWait = prev })
+}
+
+// Output split inside a rune across messages (the daemon forwards PTY reads
+// as they come) still draws the rune, and the rest of the row stays put.
+func TestAttach_RuneSplitAcrossOutput(t *testing.T) {
+	m := attachWithScrollback(t, 0)
+	m = feedAttach(t, m, "ab\xe2\x94")
+	m = feedAttach(t, m, "\x80cd")
+	require.True(t, strings.HasPrefix(popupText(m), "ab─cd "), "popup row %q", strings.Split(popupText(m), "\n")[0])
 }
 
 // legacyAttachDaemon serves one attach connection like a daemon that
@@ -228,15 +247,20 @@ func nextIntent(ch <-chan protocol.Envelope, d time.Duration) (protocol.Envelope
 }
 
 // TestAttach_LegacyDaemonGetsRedrawNudge: against a daemon that cannot
-// repaint, the popup still nudges a full-screen agent with ^L: at once on
-// the Subscribe's Ack, or after RepaintReplyWait from a daemon without acks.
+// repaint, the popup still nudges a full-screen agent with ^L: on the
+// Subscribe's Ack (the fallback wait is a minute, so only the Ack can
+// trigger it), or after the wait from a daemon without acks.
 func TestAttach_LegacyDaemonGetsRedrawNudge(t *testing.T) {
 	for _, acks := range []bool{true, false} {
 		t.Run(map[bool]string{true: "acks", false: "before-acks"}[acks], func(t *testing.T) {
+			if acks {
+				withAttachRepaintWait(t, time.Minute)
+			} else {
+				withAttachRepaintWait(t, 50*time.Millisecond)
+			}
 			sock, intents := legacyAttachDaemon(t, "s1", acks)
 			m := boardModel(protocol.SessionSummary{ID: "s1", Slug: "a", ToolID: "codex"})
 			m.Socket = sock
-			start := time.Now()
 			m, _ = openAttach(m, "s1")
 			require.NotNil(t, m.Attach, m.Err)
 			st := m.Attach
@@ -253,16 +277,13 @@ func TestAttach_LegacyDaemonGetsRedrawNudge(t *testing.T) {
 			require.Equal(t, protocol.Subscribe{SessionID: "s1", ModeSync: true, Repaint: true}, p)
 			require.NotEmpty(t, sub.ID)
 
-			in, ok := nextIntent(intents, 3*time.Second)
+			in, ok := nextIntent(intents, 5*time.Second)
 			require.True(t, ok, "no ^L nudge")
 			require.Equal(t, protocol.IntentSendInput, in.Type)
 			var si protocol.SendInput
 			require.NoError(t, json.Unmarshal(in.Data, &si))
 			require.Equal(t, []byte{0x0c}, si.Bytes)
 			require.True(t, si.Synthetic)
-			if acks {
-				require.Less(t, time.Since(start), client.RepaintReplyWait, "an Ack decides at once")
-			}
 
 			m = pumpPopup(t, m, 2*time.Second, func(m Model) bool { return !m.Attach.onPrimaryScreen() })
 			require.False(t, m.Attach.onPrimaryScreen(), "the mode-sync preamble still applies")

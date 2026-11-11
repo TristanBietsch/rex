@@ -9,10 +9,14 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// RepaintReplyWait is how long a RepaintWatch waits for the Subscribe's
-// reply before it gives up on it (a daemon that predates acks never sends
-// one) and sends the redraw nudge.
-const RepaintReplyWait = 250 * time.Millisecond
+// How long a RepaintWatch waits for the Subscribe's reply before it gives
+// up on it (a daemon that predates acks never sends one) and sends the
+// redraw nudge. With a replay the reply comes after up to 256 KiB of
+// transcript, which the attach also has to read and draw first.
+const (
+	RepaintReplyWait  = 250 * time.Millisecond
+	RepaintReplayWait = 2 * time.Second
+)
 
 // RepaintWatch decides whether an attach that subscribed with
 // Subscribe.Repaint (via SubscribeID) still needs the ^L redraw nudge,

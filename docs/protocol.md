@@ -136,11 +136,13 @@ When `mode_sync` is true and `replay` is false, the daemon first sends one `Sess
 
 ### Subscribe repaint
 
-When `repaint` is true and the session is running, the daemon sends, after the replay (if any) and before live output, one `SessionOutput` with `repaint: true`. Its bytes redraw the session's current screen from the daemon's per-session screen mirror: every visible cell with its colors (16, 256 and 24-bit) and attributes, the primary screen under an active alternate screen, the terminal modes (alternate screen, autowrap, insert, mouse tracking and encoding, cursor keys, keypad, focus reporting, reverse video), the scroll region, the saved cursor, the cursor position and pen, and the cursor's visibility. Each row is drawn in place (cursor position, cells, erase to end of line) with autowrap off, so the repaint never scrolls a terminal or feeds its scrollback. A full-screen agent that has nothing new to draw then still shows its last frame in a client that attaches late.
+When `repaint` is true and the session is running, the daemon sends, after the replay (if any) and before live output, one `SessionOutput` with `repaint: true`. Its bytes redraw the session's current screen from the daemon's per-session screen mirror: every visible cell with its colors and attributes, the primary screen under an active alternate screen, the terminal modes (alternate screen, autowrap, insert, mouse tracking and encoding, cursor keys, keypad, focus reporting, reverse video), the scroll region, the saved cursor, the cursor position and pen, the cursor's visibility, and the first bytes of a rune the child's last write split (the next output completes it). Each row is drawn in place (cursor position, cells, erase to end of line) with autowrap off, so the repaint never scrolls a terminal or feeds its scrollback. A full-screen agent that has nothing new to draw then still shows its last frame in a client that attaches late.
 
 The repaint is drawn at the mirror's size, which follows the last `Resize`; send `Resize` before `Subscribe` to get it at your size. While the daemon reads the transcript tail and renders the repaint it holds the session's output, so each PTY chunk lands exactly once: in the replay and the repaint, or live.
 
-Not reproduced: tab stops, the window title and palette changes (cells carry the colors they resolve to). The mirror is a vt10x emulator, which gives every rune one cell; on a real terminal a wide rune pushes the rest of its row right, as in the TUI's attach popup.
+Colors come back as the mirror stores them. Palette colors 0–255 and default colors are exact. A 24-bit color is exact unless its red and green are both 0: the mirror keeps rgb(0,0,b) as palette color b. Bold text in colors 0–7 is stored, and repainted, as bright colors 8–15.
+
+Not reproduced: tab stops, the window title, palette changes (cells carry the colors they resolve to), a pending wrap after a wide rune in the last column, and an escape sequence the child's last write left unfinished (the client then shows the rest of it as text until the agent redraws). Bracketed paste (`?2004`) is not tracked by the mirror, so it is not re-sent. The mirror is a vt10x emulator, which gives every rune one cell; on a real terminal a wide rune pushes the rest of its row right, as in the TUI's attach popup.
 
 Nothing is sent for a session that is not running.
 
@@ -150,7 +152,7 @@ Additive changes (new optional fields, new intents, new events, new patch keys) 
 
 A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
 
-A daemon that predates `repaint` ignores the field and answers `mode_sync` as before. A client tells by the `Subscribe`'s reply: send it with an `id`, and if the `Ack` arrives with no `repaint: true` output before it, there was no repaint. A daemon that predates acks sends no reply at all, so wait for it only briefly. rex's attach clients (`client.RepaintWatch`, 250 ms) then fall back to the `^L` redraw nudge. Clients that do not set `repaint` get exactly what they got before, and no `repaint` key on the wire.
+A daemon that predates `repaint` ignores the field and answers `mode_sync` as before. A client tells by the `Subscribe`'s reply: send it with an `id`, and if the `Ack` arrives with no `repaint: true` output before it, there was no repaint. A daemon that predates acks sends no reply at all, so wait for it only briefly. rex's attach clients (`client.RepaintWatch`: 250 ms, or 2 s after a replay) then fall back to the `^L` redraw nudge. Clients that do not set `repaint` get exactly what they got before, and no `repaint` key on the wire.
 
 ## Error codes
 

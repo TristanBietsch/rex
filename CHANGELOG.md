@@ -83,6 +83,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   repeats the output that arrives while the daemon reads the replay.
   `rex attach` also resets the scroll region, charset and cursor-key and
   keypad modes on detach.
+- A character that arrives split across two reads of the agent's output
+  (box drawing, emoji, accented letters) is no longer lost, along with the
+  rest of its row shifting left, in the attach popup and in the daemon's
+  copy of the screen (board last line, AI summaries, the repaint above).
 - TUI: the attach popup no longer drifts out of sync with a long-running
   Claude Code session until you detach and reattach. The terminal emulator
   read Claude's kitty keyboard sequences (`CSI < u`, `CSI > 5 u`) as

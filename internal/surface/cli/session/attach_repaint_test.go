@@ -43,7 +43,7 @@ func startSpinner(t *testing.T) (*testutil.Daemon, protocol.SessionSummary) {
 	t.Cleanup(func() { _ = c.Close() })
 	_, err = c.Hello("test")
 	require.NoError(t, err)
-	require.NoError(t, c.NewSession(protocol.NewSession{ToolID: "echo", ModelID: "spinner", Slug: "spin", CWD: t.TempDir()}))
+	require.NoError(t, c.NewSession(protocol.NewSession{ToolID: "echo", ModelID: "spinner", Slug: "spin", CWD: d.StateDir})) // not t.TempDir: Windows cleans that up before d.Close
 	var sum protocol.SessionSummary
 	deadline := time.Now().Add(15 * time.Second)
 	for {
@@ -85,7 +85,8 @@ func TestAttach_FullScreenAgentShowsCurrentScreen(t *testing.T) {
 			_, _ = screen.Write([]byte(enterAlt))
 			reqID, err := subscribeAttach(c, sess, replay)
 			require.NoError(t, err)
-			watch := redrawFallback(c, sess, reqID)
+			// A long fallback wait: only the repaint may decide here.
+			watch := redrawFallback(c, sess, reqID, time.Minute)
 			done := make(chan error, 1)
 			go func() { done <- streamAttach(c, sess.ID, watch, screen) }()
 
@@ -149,8 +150,8 @@ func legacyDaemon(t *testing.T, sess protocol.SessionSummary, acks bool) (string
 }
 
 // TestAttach_LegacyDaemonGetsRedrawNudge: a daemon that cannot repaint
-// still gets the ^L nudge, at once on its Ack or after RepaintReplyWait
-// when it predates acks.
+// still gets the ^L nudge: on its Ack (the fallback wait is a minute, so
+// only the Ack can trigger it), or after the wait when it predates acks.
 func TestAttach_LegacyDaemonGetsRedrawNudge(t *testing.T) {
 	sess := protocol.SessionSummary{ID: "7d4f3c8a-1234-4abc-89ab-cdefabcdef01", ShortID: "7d4f", Slug: "alpha", ToolID: "codex"}
 	for _, acks := range []bool{true, false} {
@@ -160,20 +161,20 @@ func TestAttach_LegacyDaemonGetsRedrawNudge(t *testing.T) {
 			require.NoError(t, err)
 			got, err := core.ResolveSelector(c, "alpha")
 			require.NoError(t, err)
-			start := time.Now()
+			wait := 50 * time.Millisecond
+			if acks {
+				wait = time.Minute
+			}
 			reqID, err := subscribeAttach(c, got, false)
 			require.NoError(t, err)
-			watch := redrawFallback(c, got, reqID)
+			watch := redrawFallback(c, got, reqID, wait)
 			done := make(chan error, 1)
 			go func() { done <- streamAttach(c, got.ID, watch, &strings.Builder{}) }()
 			select {
 			case in := <-inputs:
 				require.Equal(t, []byte{0x0c}, in.Bytes)
 				require.True(t, in.Synthetic)
-				if acks {
-					require.Less(t, time.Since(start), client.RepaintReplyWait, "an Ack decides at once")
-				}
-			case <-time.After(3 * time.Second):
+			case <-time.After(5 * time.Second):
 				t.Fatal("no ^L nudge sent to a daemon without repaints")
 			}
 			require.True(t, watch.Nudged())
@@ -186,7 +187,7 @@ func TestAttach_LegacyDaemonGetsRedrawNudge(t *testing.T) {
 // Agents that are not full-screen keep the plain replay and get no nudge.
 func TestAttach_LineAgentNoRepaintNoNudge(t *testing.T) {
 	sess := protocol.SessionSummary{ID: "7d4f3c8a-1234-4abc-89ab-cdefabcdef01", ShortID: "7d4f", Slug: "alpha", ToolID: "ollama"}
-	require.Nil(t, redrawFallback(nil, sess, "x"))
+	require.Nil(t, redrawFallback(nil, sess, "x", time.Second))
 	sock, inputs := legacyDaemon(t, sess, true)
 	c, err := client.Dial(sock)
 	require.NoError(t, err)
@@ -200,4 +201,12 @@ func TestAttach_LineAgentNoRepaintNoNudge(t *testing.T) {
 		t.Fatalf("unexpected input %q", in.Bytes)
 	case <-time.After(2 * client.RepaintReplyWait):
 	}
+}
+
+// With a replay, the reply follows up to 256 KiB of transcript: wait longer
+// before deciding the daemon predates acks.
+func TestRepaintWait(t *testing.T) {
+	require.Equal(t, client.RepaintReplayWait, repaintWait(true))
+	require.Equal(t, client.RepaintReplyWait, repaintWait(false))
+	require.Greater(t, client.RepaintReplayWait, client.RepaintReplyWait)
 }

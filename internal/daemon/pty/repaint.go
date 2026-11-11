@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strconv"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/hinshun/vt10x"
 )
 
@@ -11,9 +12,10 @@ import (
 // visible cells with their colors and attributes, the primary screen under
 // an active alternate screen, the terminal modes (as ModePreamble's and
 // more), the scroll region, the saved and current cursor, the pen and the
-// cursor's visibility. Fed to a fresh vt10x terminal of the same size, it
-// reproduces v's cells, cursor, modes and scroll region (see
-// repaint_test.go); fed to a real terminal, it draws the same picture.
+// cursor's visibility, and the start of a rune split across the child's
+// writes. Fed to a fresh vt10x terminal of the same size, it reproduces v's
+// cells, cursor, modes and scroll region (see repaint_test.go); fed to a
+// real terminal, it draws the same picture.
 //
 // An attach client that subscribes without the transcript replay (the
 // full-screen agents) has nothing on its screen until the agent draws
@@ -26,9 +28,15 @@ import (
 // (one cell per rune, wide runes included); on a real terminal a wide rune
 // pushes the rest of its row right, as in the attach popup.
 //
+// Colors are re-created as vt10x stores them, which is not always as the
+// child sent them: it keeps rgb(0,0,b) for b < 256 as palette color b, and
+// bold text in colors 0-7 as the bright colors 8-15.
+//
 // Not reproduced: tab stops, the window title, palette changes (cells carry
 // the colors they resolve to), keyboard-lock, local-echo and 8-bit-meta
-// modes, and the wrap marks vt10x keeps on wrapped lines.
+// modes, the wrap marks vt10x keeps on wrapped lines, a pending wrap after a
+// wide rune in the last column, and an escape sequence the child's last
+// write left unfinished.
 //
 // The caller must hold v's lock.
 func Repaint(v vt10x.View) []byte {
@@ -58,6 +66,9 @@ func Repaint(v vt10x.View) []byte {
 	if mode&vt10x.ModeHide == 0 {
 		r.b.WriteString("\x1b[?25h")
 	}
+	// The start of a rune the child's last write split: the client holds
+	// it, as the screen does, until the next output completes it.
+	r.b.Write(v.PartialRune())
 	return r.b.Bytes()
 }
 
@@ -208,7 +219,8 @@ func (r *repainter) setPen(p pen) {
 
 // color appends c's SGR parameters: base+n for 0-7, bright+n-8 for 8-15,
 // ext;5;n for 16-255 and ext;2;r;g;b for 24-bit colors (vt10x stores them
-// as r<<16 | g<<8 | b). Default colors need none after the reset.
+// as r<<16 | g<<8 | b, so rgb(0,0,b) for b < 256 reads as palette color b).
+// Default colors need none after the reset.
 func (r *repainter) color(c vt10x.Color, base, bright, ext int) {
 	switch {
 	case !isColor(c):
@@ -319,10 +331,17 @@ func (r *repainter) cursor(v vt10x.View, rows int) {
 		y -= top
 	}
 	r.cup(y+1, c.X+1)
-	if c.State&vt10x.CursorWrapNext != 0 {
+	if g := v.Cell(c.X, c.Y); c.State&vt10x.CursorWrapNext != 0 && !isWide(g.Char) {
 		// Only a write to the last column leaves a wrap pending: rewrite
-		// the cell that is already there.
-		r.glyph(v.Cell(c.X, c.Y), true)
+		// the cell that is already there. Not a wide rune: a real terminal
+		// would move it to the next row (and might scroll); the pending
+		// wrap is lost instead.
+		r.glyph(g, true)
 	}
 	r.setPen(cursorPen(c))
+}
+
+// isWide reports whether a terminal draws c two columns wide.
+func isWide(c rune) bool {
+	return ansi.StringWidth(string(printable(c))) > 1
 }

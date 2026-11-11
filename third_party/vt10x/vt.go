@@ -56,6 +56,10 @@ type View interface {
 	// (rex fork addition.)
 	ScrollRegion() (top, bottom int)
 
+	// PartialRune returns the start of a UTF-8 rune the last Write ended
+	// in, which the next Write completes. (rex fork addition.)
+	PartialRune() []byte
+
 	// CursorVisible returns the visible state of the cursor.
 	CursorVisible() bool
 

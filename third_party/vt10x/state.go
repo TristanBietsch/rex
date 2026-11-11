@@ -142,6 +142,7 @@ type State struct {
 	title         string
 	colorOverride map[Color]Color
 	scrollback    func(line []Glyph) // see WithScrollback
+	partial       []byte             // incomplete UTF-8 rune awaiting its next Write
 }
 
 func newState(w io.Writer) *State {
