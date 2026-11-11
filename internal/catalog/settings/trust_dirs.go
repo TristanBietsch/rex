@@ -70,10 +70,28 @@ func TrustDir(entry string) (string, error) {
 		return "", fmt.Errorf("cannot check %q against the home folder: %w", d, err)
 	case h == dir || sameFolder(dir, h):
 		return "", homeFolderError(d)
-	case strings.HasPrefix(h, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator)):
+	case holdsFolder(dir, h):
 		return "", fmt.Errorf("%q holds your home folder; pick a folder inside it, such as ~/dev", d)
 	}
 	return dir, nil
+}
+
+// holdsFolder reports whether dir is a proper ancestor of home h. Whole path
+// elements are compared first (so /Users2 does not hold /Users/me); then each
+// parent of h is compared by identity on disk, which catches a case variant
+// on a case-insensitive filesystem.
+func holdsFolder(dir, h string) bool {
+	if strings.HasPrefix(h, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator)) {
+		return true
+	}
+	for p := filepath.Dir(h); ; p = filepath.Dir(p) {
+		if sameFolder(dir, p) {
+			return true
+		}
+		if filepath.Dir(p) == p {
+			return false
+		}
+	}
 }
 
 // sameFolder reports whether a and b are the same folder on disk. The path

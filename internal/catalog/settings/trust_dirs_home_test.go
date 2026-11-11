@@ -40,6 +40,24 @@ func TestTrustDir_RefusesHomeByIdentity(t *testing.T) {
 	require.Error(t, err)
 }
 
+// The case variant of a folder that holds home is that folder.
+func TestTrustDir_RefusesAncestorsOfHomeByIdentity(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "Users", "Me")
+	require.NoError(t, os.MkdirAll(home, 0o700))
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	variant := filepath.Join(base, flipCase("Users"))
+	if _, err := os.Stat(variant); err != nil {
+		t.Skip("case-sensitive filesystem")
+	}
+	_, err := TrustDir(variant)
+	require.ErrorContains(t, err, "holds your home folder")
+	_, err = TrustDir(filepath.Join(variant, "Me"))
+	require.ErrorContains(t, err, "home folder")
+}
+
 // A folder that holds home trusts everything in it: refused, by whole path
 // elements, not by string prefix.
 func TestTrustDir_RefusesAncestorsOfHome(t *testing.T) {
