@@ -14,10 +14,12 @@ import (
 type chordHandler func(m Model, second string) (Model, tea.Cmd, bool)
 
 // boardChords maps a chord's first key to its handler: dd deletes, cc marks
-// done (or undoes the mark), z... hides or shows sections.
+// done (or undoes the mark), uc unmarks a done session, z... hides or shows
+// sections.
 var boardChords = map[string]chordHandler{
 	"d": chordDelete,
 	"c": chordDone,
+	"u": chordUndoComplete,
 	"z": chordSection,
 }
 
