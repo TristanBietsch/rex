@@ -58,7 +58,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status` and `rex skills` and `rex overview` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status`, `rex skills`, `rex overview` and `rex usage` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -105,6 +105,24 @@ rex overview [-socket path] [-o FORMAT] [--agent]
 Prints the daemon's one-line headline with its age (when `overview_enabled` is on and the daemon has written one), the counts, then one table per non-empty bucket: **Ready for review**, **Needs you**, **Failed**, **Working** and **Completed (last 24 h)**. The buckets are computed from the sessions, never from the headline: a session you marked done is Completed; `failed` and `crashed` are Failed; `done` is Ready for review; a Claude session that finished a turn and whose last line is not a question is Ready for review, otherwise a `needs_input` session is Needs you; the rest are Working. With the setting off the lists still print, with a note naming the setting. Exits 0.
 
 `json` is `{"v":1,"cmd":"overview","data":{"overview":{"enabled":…,"headline":…,"generated_at":…}|null,"buckets":{"review":[ids],"needs_you":[ids],"failed":[ids],"working":[ids],"completed":[ids]}}}` with full session ids (`overview` is `null` from a daemon without one). `agent` prints an `overview headline=… generated_at=…` line when there is a headline, one `session bucket=… id=… name=… state=… status=… age_s=…` line per session, then `ok cmd=overview count=N review=… needs_you=… failed=… working=… completed=…`. The headline is model text: it is cut to one line and stripped of escape sequences, but it can be wrong.
+
+---
+
+## rex usage
+
+What the agents used: tokens, cost and plan quota, per agent, per model and in total.
+
+```sh
+rex usage [-range today|7d|30d] [-tool ID] [-by tool|model] [-socket path] [-o FORMAT] [--agent]
+```
+
+Asks the daemon, which counts each session once from its usage ledger (`~/.local/share/rex/usage.jsonl`, see [paths.md](paths.md)) overlaid with the live sessions, so a session still running counts as it is now. A session belongs to the range its latest ledger line falls in. `-range` is `today` (since local midnight, the default), `7d` or `30d`. `-tool` limits it to one tool id. Default rows are one per tool with its models under it; `-by tool` shows only the tool rows and `-by model` one flat row per tool and model. `-by` changes the human rows only: `json` always carries the whole report.
+
+Columns: sessions, tokens and cost. **Tokens are rex's own estimate** (`output_bytes / 4`) and show a `~` in front (`~1.2M`); **cost** is what Claude Code reports for the session through its status line, `—` when the tool reported none (every tool but Claude today, and Claude when the tap is off, see `usage_statusline_tap` in [settings.md](settings.md)). A **Quota** table follows when a tool reports plan limits (Claude, through the status-line tap): window (`5h`, `week` or a spend period), percent used (green under 60, yellow under 85, red from there), when it resets, and `(as of HH:MM)` when the reading is older than 15 minutes. A plan without rate limits (API-key billing) shows cost and no quota table. Grok's `grok usage` is not read yet.
+
+`json` is `{"v":1,"cmd":"usage","data":{"range","since","tool","total":{"sessions","tokens","tokens_estimated","cost_usd"},"tools":[{"tool",…row,"models":[{"model",…row}]}],"quotas":[{"tool","window","used_pct","resets_at","used_usd","limit_usd","at","stale"}]}}`; `cost_usd` is absent when no counted session reported one. `agent` prints one `usage level=tool|model tool=… model=… sessions=… tokens=… estimated=… cost_usd=…` line per row (`cost_usd=none` when unknown), one `quota tool=… window=… used=… resets_at=… stale=…` line per window, then `ok cmd=usage count=N sessions=… tokens=… cost_usd=…`.
+
+Exit **5** with `off: enable in Settings → Features (rex config set usage true)` while the `usage` setting is off (checked before any connection), and for a bad `-range` or `-by`. Exit **4** when the daemon is not running. Against a `rex-daemon` older than this command it exits **6** with ``run `rex daemon restart` ``.
 
 ---
 

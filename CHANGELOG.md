@@ -37,6 +37,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the file is trimmed to 90 days when the daemon starts. It holds ids, tool
   and model names, estimated tokens and cost, never prompts or output. See
   [docs/paths.md](docs/paths.md).
+- `rex usage [-range today|7d|30d] [-tool ID] [-by tool|model] [-o FORMAT]`:
+  tokens, cost and plan quota per agent, per model and in total. Token
+  counts are rex's own estimate and show `~`; cost comes from Claude Code's
+  status line; quota windows show percent used and time to reset. Exits 5
+  while `usage` is off. See [docs/cli.md](docs/cli.md).
 - Protocol (additive, `ProtocolVersion` unchanged): `Usage` event and
   `Snapshot.usage` with the live plan quotas, the `UsageQuery` intent
   (replies `UsageResult`: totals per tool, per model and overall over

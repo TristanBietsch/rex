@@ -70,6 +70,7 @@ func RunHelp() error {
 				{"stats", "lifetime usage by model/tool"},
 				{"fleet", "list/set/unset session fleets"},
 				{"overview", "what needs you, is ready for review, failed or finished"},
+				{"usage", "tokens, cost and plan quota per agent and model (-range, -tool, -by)"},
 			},
 		},
 		{

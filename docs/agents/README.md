@@ -17,6 +17,7 @@ Rex is a Go terminal kanban for parallel AI coding-agent sessions: `rex` (TUI/CL
 | [client](modules/client.md) | Protocol client SDK |
 | [protocol](modules/protocol.md) | Wire format |
 | [overview](modules/overview.md) | Board overview: buckets, digest, runner |
+| [usage](modules/usage.md) | Usage ledger, Claude status-line tap, quotas |
 | [state](modules/state.md) | Session store and persistence |
 | [pty](modules/pty.md) | Per-session PTY supervisor |
 | [adapter](modules/adapter.md) | Output → state classification |

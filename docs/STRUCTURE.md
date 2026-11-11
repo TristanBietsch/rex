@@ -62,6 +62,7 @@ internal/
 │   ├── skills/             # skill library + per-session plugin staging
 │   ├── summarizer/         # Ollama descriptions
 │   ├── overview/           # board buckets, digest, headline runner
+│   ├── usage/              # usage ledger, Claude status-line tap, quotas
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)
