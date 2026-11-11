@@ -41,9 +41,19 @@ Method: each CLI in a private tmux server (`tmux -L rexcap`, 120×40, `TERM=tmux
 | Models | `--list-models`: header `MODEL`, then `Name (id)` per line, e.g. `Qwen3.8-Flash (qfmodel)`. `-m` accepts both the name and the id; use the id |
 | Other flags | `--session-id <id>` (preassign, like Claude; for T3 resume), `-r/--resume [id]`, `--plugin-dir <dir>` (P1 skills work as for Claude), `--dangerously-skip-permissions` (K1 `skip_permissions_args`), `--reasoning-effort <level>` |
 
-### cursor-agent (2026.11.10-731fb78): blocked, not signed in
-- Without a login it shows "Press any key to log in..." and nothing else. Treat that screen as `needs_input` with the notice "cursor: not signed in — run `cursor-agent login`".
-- No OSC 7501 check seen on that screen. Rest of the capture waits for the user to sign in.
+### cursor-agent (2026.11.10-731fb78): done
+
+| What | Finding |
+|---|---|
+| Signed out | "Press any key to log in..." (any key starts the login flow) |
+| Trust dialog | "⚠ Workspace Trust Required" … "Do you trust the contents of this directory?" → `▶ [a] Trust this workspace` / `[q] Quit`. **No session-only option:** `--trust` skips the dialog but is saved (the next plain launch in that folder did not ask again) |
+| Idle screen | no spinner line; input bar `→ …` (shows the last prompt as a hint), status line `Auto · 6.1%` (model · context %), then `<cwd> · <branch>` |
+| Busy screen | braille spinner line above the input: `⠘⠤ Working`, `⠘⠣ Thinking  2 tokens`, `⠀⠞ Editing  64 tokens` (verbs vary), plus a `Tip:` line |
+| Permissions | file edits ran **without asking** (default "auto-runs safe tool calls"); a shell command asked: `$ touch … Waiting for approval...` / "Run this command?" / "Not in allowlist: touch" → `Run (once) (y)` · allowlist (tab) · Run Everything (shift+tab) · Skip (esc or n) |
+| Status channel | **none**: no OSC 7501 query or reports, even under the fake terminal outside tmux. Window title is the chat name only (`Pong Chat`) |
+| Initial prompt | positional `[prompt...]` starts an interactive session with it |
+| Models | `cursor-agent models`: "Available models", blank line, then `id - Name` per line, e.g. `auto - Auto (current, default)`, `gpt-5.3-codex-high - Codex 5.3 High`, `claude-opus-5-thinking-high - Claude Opus 5 1M Thinking`. Effort is part of the model id (`-low`, `-high`, `-xhigh`, `-fast`) |
+| Other flags | `--model`, `--resume [chatId]`, `--yolo`/`--force` (K1 `skip_permissions_args`), `--workspace`, `--add-dir` |
 
 ### grok (Grok Build 1.0.77): done
 
@@ -72,19 +82,20 @@ Method: each CLI in a private tmux server (`tmux -L rexcap`, 120×40, `TERM=tmux
 
 ### Design changes from the captures
 - **State from OSC 7501 for every tool that speaks it.** New registry `detect.kind: osc7501` (with the existing footer regexes as fallback fields). The daemon (a) answers `ESC]7501;?` on the child PTY with the states reply, (b) strips `TMUX*`/`TERM_PROGRAM*` from the child env, (c) parses reports in the PTY reader (A1's `OutputObserver` slot). Map: `working` → working; `blocked` → needs_input with `wait_reason` = kind; `done` → needs_input (S4 "ready for review"); `idle` → needs_input; `error` → needs_input with the decoded `msg`; `clear` → no change (exit is handled by the process). Child records (`id=a/b`) are ignored at first; a later step can feed S4/T-subagent counts.
+- **cursor has no OSC 7501**, so it uses screen regexes only: `busy_regex: "(?m)^\\s*[\\x{2800}-\\x{28FF}]{1,2} [A-Z][a-z]+"` (spinner + verb), `prompt_regex: "Waiting for approval|Run this command\\?|Workspace Trust Required"`, `idle_ms: 1500` (no spinner for 1.5 s → needs_input).
 - **Fallback regexes**
   - qwen: `prompt_regex: "\\? for shortcuts|Apply this change\\?|Do you trust the files in this folder\\?"`, `busy_regex: "esc to cancel"`.
   - grok: `prompt_regex: "Shift\\+Tab:mode|Do you trust the contents of this directory\\?"`, `busy_regex: "Ctrl\\+c:cancel"`.
 - **Per-tool prompt delivery** in the registry, replacing the tool-id switch in `spawn_prompt.go`: `prompt_args` (qwen `["-i", "{prompt}"]`, grok `["{prompt}"]` after `--`).
-- **`models_cmd` parsing** gets `id_regex` and `skip_header`: qwen `--list-models`, id `\\(([^)]+)\\)\\s*$`; grok `models`, id `^\\s*\\*\\s+(\\S+)`.
+- **`models_cmd` parsing** gets `id_regex` and `skip_header`: qwen `--list-models`, id `\\(([^)]+)\\)\\s*$`; grok `models`, id `^\\s*\\*\\s+(\\S+)`; cursor `models`, id `^(\\S+) - `. cursor's effort lives in the model id, so its models carry no `effort` block.
 - **Signed-out screens** become a per-tool `login_regex` (cursor "Press any key to log in", grok "Approve in your browser to finish signing in") → needs_input with the fixed notice "<tool>: not signed in — run `<cmd> login`".
-- **Trust**: qwen has a session-only switch (`trust_args`); grok has none, so rex leaves grok's dialog to the user (D5).
-- **grok permissions**: its default mode can edit files and run commands without asking. Document it in `docs/registry.md`; rex does not change grok's mode (that is the user's grok config).
+- **Trust**: qwen has a session-only switch (`trust_args`); grok and cursor have none (`--trust` is saved), so rex leaves both dialogs to the user (D5 applies to cursor too).
+- **grok and cursor permissions**: grok's default mode edited a file and ran a command without asking; cursor's default edited a file without asking (shell commands do ask). Document it in `docs/registry.md`; rex does not change grok's mode (that is the user's grok config).
 
 ## Design
 
 ### 1. Registry entries
-One entry per tool with `command`, `detect` (heuristic until a hooks adapter exists), `skip_permissions_args` (K1), `trust_args` where the CLI has one (`cursor-agent --trust`), and a new optional `models_cmd` block:
+One entry per tool with `command`, `detect` (`osc7501` for qwen and grok, `heuristic` for cursor; see the capture results), `skip_permissions_args` (K1), `trust_args` only where the CLI has a session-only switch (qwen), `prompt_args`, `login_regex`, and a new optional `models_cmd` block:
 
 ```yaml
 models_cmd:
@@ -117,7 +128,7 @@ U3 was dropped (D13), so no tool was removed. R02 adds qwen and cursor and repla
 
 ## Plan (tasks; each = one commit, test first, `make check`)
 
-1. **R02-1 Live captures.** qwen and grok done (above); cursor-agent waits for sign-in. For each: run in a temp folder with a one-line prompt under `dev/sandbox.sh`, save raw PTY bytes to the scratchpad, record idle footer, busy footer, trust dialog, permission prompt. Output: a table in this file (not the bytes). No code.
+1. **R02-1 Live captures.** Done 2026-11-11 for qwen, grok and cursor (results above): private tmux server plus a fake OSC 7501 terminal, temp git folders, raw bytes kept in the session scratchpad only. No code.
 2. **R02-2a OSC 7501 terminal side (D6).** `internal/daemon/adapter/osc7501.go`: `Parse(b []byte) []Report` (stateful across chunk boundaries), `QueryReply` constant; supervisor writes the reply when the query appears; `childEnvFor` drops `TMUX`, `TMUX_PANE`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`; registry `detect.kind: osc7501` with regex fallback fields. Tests: query split across two reads still answered once; reports with BEL and ST terminators; base64 `msg` decoded and sanitized; `blocked` sets `wait_reason`; unknown state ignored; a tool that never reports falls back to its regexes after the first prompt match; fuzz `FuzzParse`. Coordinate with A1-2 (same reader slot) so there is one parser.
 3. **R02-2 Registry fields.** `types.go`: `ModelsCmd *ModelsCmd` (`args`, `parse`, `json_path`, `id_regex`, `skip_header`, `timeout_ms`), `ModelArgTemplate []string`, `PromptArgs []string` (`{prompt}`; replaces the tool-id switch in `spawn_prompt.go`), `LoginRegex string`. Loader validation (args non-empty, parse ∈ {lines,json}, regexes compile, timeout 100–30000 ms). Tests: `TestLoaderModelsCmdValidation` table; qwen and grok model-list fixtures (synthetic, shaped like the captures) parse to `qfmodel…` / `grok-4.7`; login screen → needs_input with the notice.
 3. **R02-3 Builtin entries.** Three tools in `builtin.yaml` (`detect.kind: osc7501`, regex fallbacks, `prompt_args`, `models_cmd`, `login_regex`, qwen `trust_args`). Tests: `TestBuiltinNewToolsDetect` feeding sanitized synthetic fixtures (written by hand to match captured shapes) through the heuristic adapter: idle → needs_input, busy → working.
@@ -141,5 +152,5 @@ U3 was dropped (D13), so no tool was removed. R02 adds qwen and cursor and repla
 | D2 | Not-installed tools | Hidden in wizard; Settings → Onboarding lists them dimmed with an install hint. |
 | D3 | Model refresh | Daemon start + `rex reload` + 24 h age, cached on disk. |
 | D4 | State detection | Superseded by D6 (OSC 7501 primary, footer regexes as fallback). No hook adapters needed for qwen or grok. |
-| D5 | grok folder trust | rex never answers grok's trust dialog and never passes `--trust`; the session shows "needs you" until the user presses `y` once per folder. `auto_trust_dirs` does not apply to grok (documented). |
+| D5 | grok (and cursor) folder trust | rex never answers grok's trust dialog and never passes `--trust`; the session shows "needs you" until the user presses `y` once per folder. `auto_trust_dirs` does not apply to grok (documented). |
 | D6 | OSC 7501 | Primary state source: the daemon answers `ESC]7501;?` on the child PTY and strips `TMUX*`/`TERM_PROGRAM*` from the child env; footer regexes are the fallback. |
