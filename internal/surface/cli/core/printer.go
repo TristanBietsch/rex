@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -281,22 +282,37 @@ func AddOutputFlags(fs *flag.FlagSet, supported FormatSet, opts ...OutputOption)
 // installs a best-effort Printer from the flags parsed so far (with Cmd set
 // to the command), so main renders the error in the format the user asked
 // for. Help (ErrHelpShown) leaves the Printer alone.
+//
+// The flag package's own output (the "flag provided but not defined" line
+// and the usage block) is held back while parsing. After a parse error it is
+// replayed to the FlagSet's writer only for the human formats, so agent mode
+// stays exactly one stderr line and json mode only the error envelope. -h
+// prints the usage in every format.
 func (o *OutputFlags) Parse(fs *flag.FlagSet, args []string) ([]string, error) {
-	pos, err := ParseArgs(fs, args)
-	return o.finish(pos, err)
+	return o.parse(fs, func() ([]string, error) { return ParseArgs(fs, args) })
 }
 
 // ParseText is ParseTextArgs followed by Validate, like Parse.
 func (o *OutputFlags) ParseText(fs *flag.FlagSet, args []string, leading int) ([]string, error) {
-	pos, err := ParseTextArgs(fs, args, leading)
-	return o.finish(pos, err)
+	return o.parse(fs, func() ([]string, error) { return ParseTextArgs(fs, args, leading) })
 }
 
-func (o *OutputFlags) finish(pos []string, err error) ([]string, error) {
-	if err == nil {
+func (o *OutputFlags) parse(fs *flag.FlagSet, run func() ([]string, error)) ([]string, error) {
+	dest := fs.Output()
+	var held bytes.Buffer
+	fs.SetOutput(&held)
+	pos, err := run()
+	fs.SetOutput(dest)
+	switch {
+	case err == nil:
 		err = o.Validate()
-	} else if !errors.Is(err, ErrHelpShown) {
-		o.install()
+	case errors.Is(err, ErrHelpShown):
+		_, _ = dest.Write(held.Bytes())
+	default:
+		p := o.install()
+		if p.Legacy || (p.Format != FormatAgent && p.Format != FormatJSON) {
+			_, _ = dest.Write(held.Bytes())
+		}
 	}
 	if err != nil {
 		return nil, err

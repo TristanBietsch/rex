@@ -57,15 +57,32 @@ stderr '^error code=5 kind=invalid_args cmd=ls msg="conflicting output flags'
 exitcode 5 rex ls -json=false -o yaml
 stderr '^rex: unknown output format "yaml"'
 
-# A parse error renders in the requested format, with the command name.
+# A parse error renders in the requested format, with the command name and
+# nothing else: no flag usage before the agent line or the JSON envelope.
 exitcode 5 rex ls --agent -bogus
 ! stdout .
-stderr '^error code=5 kind=invalid_args cmd=ls msg="flag provided but not defined: -bogus"$'
+cmp stderr want/agent_bogus.txt
 exitcode 5 rex ls -o json -bogus
 ! stdout .
-stderr '^\{"v":1,"error":\{"code":5,"kind":"invalid_args","cmd":"ls","msg":"flag provided but not defined: -bogus"\}\}$'
+cmp stderr want/json_bogus.txt
 exitcode 5 rex -o json ls -bogus
-stderr '^\{"v":1,"error":\{"code":5,"kind":"invalid_args","cmd":"ls",'
+cmp stderr want/json_bogus.txt
+exitcode 5 rex ls -o json -state
+cmp stderr want/json_state.txt
+
+# Human formats keep the flag package's usage on a parse error.
+exitcode 5 rex ls -bogus
+stderr '^flag provided but not defined: -bogus$'
+stderr '^Usage of ls:$'
+stderr '^rex: flag provided but not defined: -bogus$'
+exitcode 5 rex ls -o md -bogus
+stderr '^Usage of ls:$'
+
+# -h prints the usage and exits 0 in every format.
+exitcode 0 rex ls -h
+stderr '^Usage of ls:$'
+exitcode 0 rex ls --agent -h
+stderr '^Usage of ls:$'
 
 # =false turns a flag off.
 exec rex ls -json=false
@@ -87,5 +104,11 @@ stderr '^error code=4 kind=daemon_unreachable cmd=ls msg='
 
 daemon-stop
 
+-- want/agent_bogus.txt --
+error code=5 kind=invalid_args cmd=ls msg="flag provided but not defined: -bogus"
+-- want/json_bogus.txt --
+{"v":1,"error":{"code":5,"kind":"invalid_args","cmd":"ls","msg":"flag provided but not defined: -bogus"}}
+-- want/json_state.txt --
+{"v":1,"error":{"code":5,"kind":"invalid_args","cmd":"ls","msg":"flag needs an argument: -state"}}
 -- home/.config/rex/config.yaml --
 summary_enabled: false
