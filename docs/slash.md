@@ -37,6 +37,7 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `undone` | `[sel]` | Undo the mark only; an unmarked session gets the notice "is not marked done" |
 | `rid` | `[sel]` | Show the full resume id (the agent's conversation id) of the session on the status line. Needs the `resume` feature (Settings → Features); an error when the session has no id |
 | `uc`, `resume` | `[sel]` | Undo done (same as the `uc` key): unmark a running session marked done, or resume an exited one in place with its resume id (`resuming <name> (resume id 1a2b3c4d…)`). A session that is not in Done gets the notice "isn't done"; an exited one with no resume id gets an error (`<name> has exited and <tool> can't be resumed`), and so does any exited one while the `resume` feature is off |
+| `export` | `[sel] [json\|yaml\|md\|txt]` | Write the session (default: selected) as a readable document to `~/.local/share/rex/exports/<slug>-<shortid>.<ext>` (mode 0600) and show the path. One argument that names a format is the format. Needs the `session_export` feature (Settings → Features). See [export.md](export.md) |
 | `complete` | `[sel]` | Kill now and mark done |
 | `fail`, `fails`, `failed` | — | Failed-session inspector |
 | `stats` | — | Toggle stats overlay |

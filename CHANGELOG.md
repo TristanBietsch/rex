@@ -21,6 +21,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]`
+  writes one session as a readable document: its metadata plus the
+  transcript as clean text, never raw PTY bytes. Full-screen agents are
+  replayed through the terminal emulator into screen frames (cut at each
+  clear-screen and alternate-screen switch, repeats dropped); `echo` and
+  `ollama` are escape-stripped. `json` is the default (`version: 1`), `yaml`
+  is the same document. Output goes to stdout or `--out` (mode 0600, refuses
+  to replace a file without `--force`; the format follows the extension).
+  `--from-agent-log` reads Claude Code's own log for the session's resume id
+  (roles and text, one line per tool call) and falls back to frames with a
+  notice. A running session is read up to its current end. Nothing is
+  uploaded. See [docs/export.md](docs/export.md).
+- TUI: `:export [sel] [fmt]` writes the session to
+  `~/.local/share/rex/exports/<slug>-<shortid>.<ext>` (0600) in the
+  background and shows the path when done; the board stays responsive.
+- `session_export` in Settings → Features (on). Off, `rex export` exits 5
+  and `:export` answers the usual off message.
 - TUI: a banner above the agent in the attach popup: what it is doing (the
   AI description, else the task or the question it asks), where (folder),
   for how long (working, waiting, ended) and how fresh the description is.

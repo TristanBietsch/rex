@@ -1,0 +1,114 @@
+-- frames.md --
+# Session export: Fix the widget
+
+| Field | Value |
+| --- | --- |
+| Tool | claude |
+| Model | opus |
+| Effort | max |
+| Name | Fix the widget |
+| Slug | fix-the-widget |
+| ID | 11111111-2222-4333-8444-555555555555 |
+| Working directory | /work/example |
+| State | done |
+| Started | 2026-01-02T03:04:05Z |
+| Ended | 2026-01-02T04:00:00Z |
+| Resume ID | aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee |
+| Description | Fixed the widget: tests pass |
+| Source | frames |
+
+## Frame 1
+
+```text
+> fix the widget
+thinking...
+```
+
+## Frame 2
+
+````text
+done: all tests pass
+```
+code fence inside
+```
+````
+-- frames.txt --
+rex session export: Fix the widget
+tool: claude
+model: opus
+effort: max
+name: Fix the widget
+slug: fix-the-widget
+id: 11111111-2222-4333-8444-555555555555
+working directory: /work/example
+state: done
+started: 2026-01-02T03:04:05Z
+ended: 2026-01-02T04:00:00Z
+resume id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+description: Fixed the widget: tests pass
+source: frames
+
+------------------------------------------------------------------------
+> fix the widget
+thinking...
+
+------------------------------------------------------------------------
+done: all tests pass
+```
+code fence inside
+```
+-- turns.md --
+# Session export: Fix the widget
+
+| Field | Value |
+| --- | --- |
+| Tool | claude |
+| Model | opus |
+| Effort | max |
+| Name | Fix the widget |
+| Slug | fix-the-widget |
+| ID | 11111111-2222-4333-8444-555555555555 |
+| Working directory | /work/example |
+| State | done |
+| Started | 2026-01-02T03:04:05Z |
+| Ended | 2026-01-02T04:00:00Z |
+| Resume ID | aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee |
+| Description | Fixed the widget: tests pass |
+| Source | agent_log |
+
+## Turn 1 · user · 2026-01-02T03:04:06Z
+
+```text
+fix the widget
+```
+
+## Turn 2 · assistant · 2026-01-02T03:04:09Z
+
+```text
+On it.
+[tool] Edit widget.go
+```
+-- turns.txt --
+rex session export: Fix the widget
+tool: claude
+model: opus
+effort: max
+name: Fix the widget
+slug: fix-the-widget
+id: 11111111-2222-4333-8444-555555555555
+working directory: /work/example
+state: done
+started: 2026-01-02T03:04:05Z
+ended: 2026-01-02T04:00:00Z
+resume id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+description: Fixed the widget: tests pass
+source: agent_log
+
+------------------------------------------------------------------------
+[user] 2026-01-02T03:04:06Z
+fix the widget
+
+------------------------------------------------------------------------
+[assistant] 2026-01-02T03:04:09Z
+On it.
+[tool] Edit widget.go

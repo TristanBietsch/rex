@@ -129,6 +129,9 @@ type Model struct {
 	// persisted; attach_banner is the setting.
 	bannerHidden bool
 
+	// exporting holds the sessions with a :export still running.
+	exporting map[string]bool
+
 	// reconnect is non-nil while the daemon connection is down and the TUI
 	// is redialing it (see reconnect.go). dialDaemon overrides the redial's
 	// handshakeDaemon (tests).
