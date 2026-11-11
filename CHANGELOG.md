@@ -192,6 +192,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: the new-session wizard (`n`, `:new`) has a model step again. It is
+  skipped for a tool with one model, and starts on `default_spawn_model` when
+  the tool is `default_spawn_tool`. It used to pick the first model silently.
 - `rex setup` now suggests trusting the project's own folder (the git root
   of where you ran it, or the folder itself when it is not a checkout)
   instead of the folder above it. Still never your home folder or anything
@@ -274,6 +277,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: `b` on the wizard's describe step now goes back when the field is
+  empty, as the footer says. It used to be typed into the text.
 - `auto_trust_dirs` and the per-session trust request now also refuse a case
   variant of the home folder on a case-insensitive filesystem (macOS,
   Windows), and any folder that holds the home folder (`/Users`, `/home`).

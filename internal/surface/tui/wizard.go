@@ -15,27 +15,33 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// wizardStep names the three phases of the new-agent flow.
-//
-// The model selection step from the previous flow is gone — the wizard
-// auto-picks the first model defined for each tool. Slug edit and confirm
-// steps are also gone; the slug is derived from the task description and
-// pressing enter on the describe step launches the session directly.
+// wizardStep names the phases of the new-agent flow, in order. A step that
+// does not apply (one model, no effort levels) is skipped in both directions
+// (see stepApplies). Slug edit and confirm steps are gone; the slug is derived
+// from the task description and pressing enter on the describe step launches
+// the session directly.
 type wizardStep int
 
 const (
 	wizProvider wizardStep = iota
+	wizModel
 	wizEffort
 	wizDescribe
 )
 
 // WizardState lives on Model when Focus == FocusWizard.
 type WizardState struct {
-	Step      wizardStep
-	Tools     []registry.Tool
-	ToolIdx   int
+	Step    wizardStep
+	Tools   []registry.Tool
+	ToolIdx int
+	// ModelIdx indexes the selected tool's Models.
+	ModelIdx  int
 	EffortIdx int
 	TaskText  string
+	// SpawnTool and SpawnModel are the quick-spawn defaults
+	// (default_spawn_tool / default_spawn_model): the model step starts on
+	// SpawnModel when its tool is the selected one.
+	SpawnTool, SpawnModel string
 }
 
 func openWizard(m Model) (Model, tea.Cmd) {
@@ -50,6 +56,11 @@ func openWizard(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 	w := &WizardState{Step: wizProvider, Tools: visible}
+	if m.Store != nil {
+		w.SpawnTool, _ = m.Store.Get("default_spawn_tool").(string)
+		w.SpawnModel, _ = m.Store.Get("default_spawn_model").(string)
+	}
+	presetModelDefault(w)
 	presetEffortDefault(w)
 	m.Wizard = w
 	m.Focus = FocusWizard
@@ -117,21 +128,57 @@ func visibleTools(tools []registry.Tool) []registry.Tool {
 	return out
 }
 
-// firstModel returns the auto-picked model for the selected tool — the first
-// one listed. tools.yaml is authored with the strongest/default model first.
-func (w *WizardState) firstModel() registry.Model {
-	if w.ToolIdx >= len(w.Tools) {
+// selectedTool returns the tool under the provider cursor.
+func (w *WizardState) selectedTool() registry.Tool {
+	if w.ToolIdx < 0 || w.ToolIdx >= len(w.Tools) {
+		return registry.Tool{}
+	}
+	return w.Tools[w.ToolIdx]
+}
+
+// selectedModel returns the chosen model of the selected tool. The index is
+// clamped, so a stale one (the tool changed) still gives a model.
+func (w *WizardState) selectedModel() registry.Model {
+	models := w.selectedTool().Models
+	if len(models) == 0 {
 		return registry.Model{}
 	}
-	t := w.Tools[w.ToolIdx]
-	if len(t.Models) == 0 {
-		return registry.Model{}
+	return models[min(max(w.ModelIdx, 0), len(models)-1)]
+}
+
+// presetModelDefault points ModelIdx at the quick-spawn model when the
+// selected tool is the quick-spawn tool, else at the first model (tools.yaml
+// lists the strongest model first).
+func presetModelDefault(w *WizardState) {
+	w.ModelIdx = 0
+	t := w.selectedTool()
+	if t.ID != w.SpawnTool {
+		return
 	}
-	return t.Models[0]
+	for i, md := range t.Models {
+		if md.ID == w.SpawnModel {
+			w.ModelIdx = i
+			return
+		}
+	}
+}
+
+// stepApplies reports whether the wizard shows step for the current tool and
+// model.
+func (w *WizardState) stepApplies(step wizardStep) bool {
+	switch step {
+	case wizModel:
+		return len(w.selectedTool().Models) > 1
+	case wizEffort:
+		return w.effortApplies()
+	case wizProvider, wizDescribe:
+		return true
+	}
+	return false
 }
 
 func (w *WizardState) currentEffort() string {
-	m := w.firstModel()
+	m := w.selectedModel()
 	if m.Effort == nil || len(m.Effort.Options) == 0 {
 		return ""
 	}
@@ -142,7 +189,7 @@ func (w *WizardState) currentEffort() string {
 }
 
 func (w *WizardState) effortApplies() bool {
-	m := w.firstModel()
+	m := w.selectedModel()
 	return m.Effort != nil && len(m.Effort.Options) > 0
 }
 
@@ -152,7 +199,7 @@ func presetEffortDefault(w *WizardState) {
 		w.EffortIdx = 0
 		return
 	}
-	m := w.firstModel()
+	m := w.selectedModel()
 	for i, opt := range m.Effort.Options {
 		if opt == m.Effort.Default {
 			w.EffortIdx = i
@@ -162,35 +209,30 @@ func presetEffortDefault(w *WizardState) {
 	w.EffortIdx = 0
 }
 
+// nextWizardStep moves to the next step that applies. Leaving the provider
+// or model step re-derives what depends on it (the effort default).
 func nextWizardStep(w *WizardState) {
-	switch w.Step {
-	case wizProvider:
+	if w.Step == wizProvider || w.Step == wizModel {
 		presetEffortDefault(w)
-		if w.effortApplies() {
-			w.Step = wizEffort
-		} else {
-			w.Step = wizDescribe
-		}
-	case wizEffort:
-		w.Step = wizDescribe
-	case wizDescribe:
-		// Last step: updateWizardDescribeStep owns enter here.
 	}
+	for s := w.Step + 1; s <= wizDescribe; s++ {
+		if w.stepApplies(s) {
+			w.Step = s
+			return
+		}
+	}
+	// Last step: updateWizardDescribeStep owns enter there.
 }
 
+// prevWizardStep moves to the previous step that applies.
 func prevWizardStep(w *WizardState) {
-	switch w.Step {
-	case wizEffort:
-		w.Step = wizProvider
-	case wizDescribe:
-		if w.effortApplies() {
-			w.Step = wizEffort
-		} else {
-			w.Step = wizProvider
+	for s := w.Step - 1; s >= wizProvider; s-- {
+		if w.stepApplies(s) {
+			w.Step = s
+			return
 		}
-	case wizProvider:
-		// First step: nothing to go back to.
 	}
+	// First step: nothing to go back to.
 }
 
 func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
@@ -229,10 +271,19 @@ func moveWizard(m Model, delta int) Model {
 		next := m.Wizard.ToolIdx + delta
 		if next >= 0 && next < len(m.Wizard.Tools) {
 			m.Wizard.ToolIdx = next
+			presetModelDefault(m.Wizard)
+			presetEffortDefault(m.Wizard)
+			moved = true
+		}
+	case wizModel:
+		next := m.Wizard.ModelIdx + delta
+		if next >= 0 && next < len(m.Wizard.selectedTool().Models) {
+			m.Wizard.ModelIdx = next
+			presetEffortDefault(m.Wizard)
 			moved = true
 		}
 	case wizEffort:
-		opts := m.Wizard.firstModel().Effort.Options
+		opts := m.Wizard.selectedModel().Effort.Options
 		next := m.Wizard.EffortIdx + delta
 		if next >= 0 && next < len(opts) {
 			m.Wizard.EffortIdx = next
@@ -253,32 +304,26 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	switch k.Type {
 	case tea.KeyEnter:
-		task := strings.TrimSpace(m.Wizard.TaskText)
-		tool := m.Wizard.Tools[m.Wizard.ToolIdx]
-		model := m.Wizard.firstModel()
-		slug := deriveAgentSlug(tool.ID, model.ID, task, existingSlugs(m))
 		cwd, _ := os.Getwd()
-		cmd := wizardLaunchCmd(m.Client,
-			tool.ID, model.ID, m.Wizard.currentEffort(),
-			slug, task, cwd, task)
-		m.PendingSelectSlug = slug
-		return closeWizard(m), cmd
+		req := m.Wizard.request(cwd, existingSlugs(m))
+		m.PendingSelectSlug = req.Slug
+		return closeWizard(m), wizardLaunchCmd(m.Client, req)
 	case tea.KeyBackspace:
 		if len(m.Wizard.TaskText) > 0 {
 			m.Wizard.TaskText = dropLastRune(m.Wizard.TaskText)
 		}
 		return m, nil
 	case tea.KeyRunes:
+		if k.String() == "b" && m.Wizard.TaskText == "" {
+			// Only treat 'b' as "back" when the input is empty — otherwise it's a character.
+			prevWizardStep(m.Wizard)
+			playNav(m)
+			return m, nil
+		}
 		m.Wizard.TaskText += string(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.Wizard.TaskText += " "
-		return m, nil
-	}
-	if k.String() == "b" && m.Wizard.TaskText == "" {
-		// Only treat 'b' as "back" when the input is empty — otherwise it's a character.
-		prevWizardStep(m.Wizard)
-		playNav(m)
 		return m, nil
 	}
 	return m, nil
@@ -309,20 +354,28 @@ func existingSlugs(m Model) []string {
 	return out
 }
 
-func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd, initialPrompt string) tea.Cmd {
+// request builds the NewSession the wizard's choices stand for: the slug is
+// derived from the task and made unique against existing.
+func (w *WizardState) request(cwd string, existing []string) protocol.NewSession {
+	task := strings.TrimSpace(w.TaskText)
+	tool, model := w.selectedTool(), w.selectedModel()
+	return protocol.NewSession{
+		ToolID:        tool.ID,
+		ModelID:       model.ID,
+		Effort:        w.currentEffort(),
+		Slug:          deriveAgentSlug(tool.ID, model.ID, task, existing),
+		Title:         task,
+		CWD:           cwd,
+		InitialPrompt: task,
+	}
+}
+
+func wizardLaunchCmd(c *client.Client, req protocol.NewSession) tea.Cmd {
 	return func() tea.Msg {
-		if slug == "" {
-			slug = "session"
+		if req.Slug == "" {
+			req.Slug = "session"
 		}
-		err := c.NewSession(protocol.NewSession{
-			ToolID:        toolID,
-			ModelID:       modelID,
-			Effort:        effort,
-			Slug:          slug,
-			Title:         title,
-			CWD:           cwd,
-			InitialPrompt: initialPrompt,
-		})
+		err := c.NewSession(req)
 		if err != nil {
 			return CmdErrMsg{Op: "spawn", Err: err}
 		}
@@ -477,10 +530,16 @@ func renderWizard(m Model) string {
 		for i, t := range m.Wizard.Tools {
 			body = append(body, wizOption(i == m.Wizard.ToolIdx, t.Icon, t.Name, t.Color))
 		}
+	case wizModel:
+		title = styleSlug.Render("which model?")
+		body = append(body, "")
+		for i, md := range m.Wizard.selectedTool().Models {
+			body = append(body, wizOption(i == m.Wizard.ModelIdx, "", md.Name, ""))
+		}
 	case wizEffort:
 		title = styleSlug.Render("reasoning effort?")
 		body = append(body, "")
-		opts := m.Wizard.firstModel().Effort.Options
+		opts := m.Wizard.selectedModel().Effort.Options
 		for i, opt := range opts {
 			body = append(body, wizOption(i == m.Wizard.EffortIdx, "", opt, ""))
 		}
@@ -509,7 +568,7 @@ func wizardFooter(step wizardStep) string {
 	switch step {
 	case wizProvider:
 		return styleDim.Render("  j/k select   enter next   esc cancel")
-	case wizEffort:
+	case wizModel, wizEffort:
 		return styleDim.Render("  j/k select   enter next   b back   esc cancel")
 	case wizDescribe:
 		return styleDim.Render("  enter launch   b back (when empty)   esc cancel")

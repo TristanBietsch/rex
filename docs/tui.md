@@ -214,6 +214,19 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 - `:prune` ignores filters: it clears every Done session, and its confirmation says so while a filter is active.
 - The tool filter survives a daemon reconnect.
 
+## NEW-SESSION WIZARD
+
+`n` or `:new` opens a short flow. Steps that do not apply are skipped, in both directions, so the common path is a few Enter presses:
+
+1. **Provider**: the tool (`j`/`k`, `enter`).
+2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
+3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
+4. **Describe**: the task. `enter` launches.
+
+`b` goes back (on the describe step only while the text is empty), `esc` cancels. Quick-spawn (`i`) is unchanged.
+
+---
+
 ## RENAME
 
 `r` edits the selected session's **name**: free text (64 characters max) shown in the name column instead of the slug. The slug stays the selector for commands and scripts. Enter an empty name to go back to the slug. Control characters, escapes and bidi overrides are stripped; whitespace collapses. Names are stored by the daemon and appear in every connected TUI and in `rex ls`.
