@@ -109,6 +109,9 @@ func (s *Session) Summary() protocol.SessionSummary {
 	}
 }
 
+// IsTerminal reports whether st is done, failed or crashed.
+func IsTerminal(st protocol.State) bool { return isTerminal(st) }
+
 // isTerminal reports whether st is a state a session does not leave on its own.
 func isTerminal(st protocol.State) bool {
 	switch st {

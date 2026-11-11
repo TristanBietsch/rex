@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -28,7 +29,10 @@ func handleResume(c *client, env protocol.Envelope) (outcome, error) {
 	if !ok {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
-	if !srv.hasStop(p.SessionID) {
+	// Only an exited session with no supervisor is respawned. One that is
+	// still starting (queued, no stop func yet) counts as live: touching its
+	// hook file or stop slot now would race its own startup.
+	if !srv.hasStop(p.SessionID) && state.IsTerminal(sess.Summary().State) {
 		resumed, err := srv.resumeExited(c.ctx, sess)
 		if err != nil {
 			return outcome{}, err
@@ -69,6 +73,10 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, e
 	tool, model, ok := s.Registry().FindModel(sum.ToolID, sum.ModelID)
 	if !ok {
 		return false, replyErr(protocol.ErrCodeBadIntent, unknownToolError(sum.ToolID, sum.ModelID))
+	}
+	if sum.Effort != "" && model.Effort != nil && !slices.Contains(model.Effort.Options, sum.Effort) {
+		return false, replyMsg(protocol.ErrCodeBadState, fmt.Sprintf("effort %q is no longer offered by %s/%s",
+			sum.Effort, sum.ToolID, sum.ModelID))
 	}
 	if tool.Resume == nil || !protocol.ValidResumeID(sum.ResumeID) {
 		return false, replyMsg(protocol.ErrCodeBadState, fmt.Sprintf("session exited and %s cannot be resumed", tool.ID))

@@ -82,7 +82,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 
 - **Running session** (including one that is starting): clears a done mark (`retire_at` and `retired_at` patch `null`, as `Unretire` does) and acks. Nothing is spawned. An unmarked running session just acks.
 - **Exited session** (done, failed or crashed): respawned in place with the tool's `resume.args` and the stored `resume_id`. The row keeps its id, slug, start time, tokens, description and transcript, and the transcript gains the new run. The daemon:
-  1. checks the tool and model are still in the registry (`bad_intent` `tool <tool>/<model> not in registry`, the same error `NewSession` gives), the tool has a `resume` block and the session has a valid `resume_id` (`bad_state` `session exited and <tool> cannot be resumed`), and the working directory is still a directory (`spawn_failed`);
+  1. checks the tool and model are still in the registry (`bad_intent` `tool <tool>/<model> not in registry`, the same error `NewSession` gives), the stored effort is still offered and the tool has a `resume` block and the session has a valid `resume_id` (`bad_state` `session exited and <tool> cannot be resumed`), and the working directory is still a directory (`spawn_failed`);
   2. takes the session's slot atomically, so concurrent `Resume`s start one process and the others ack as for a running session, then a concurrency slot (`too_many_sessions`);
   3. moves the session to `queued` and broadcasts one patch, `{state: "queued", last_event_at, ended_at: null, exit_code: null, retire_at: null, retired_at: null}`, after writing `meta.json`;
   4. truncates the session's hook file, recomputes folder trust from the current config, and starts the agent without an initial prompt. The usual state patches follow (`working`, ...), and `ended_at` is set again when the run ends.
@@ -182,7 +182,7 @@ A daemon that predates `repaint` ignores the field and answers `mode_sync` as be
 | `too_many_sessions` | Concurrency cap |
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
-| `bad_state` | `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`) |
+| `bad_state` | `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
 | `line_too_long` | A line exceeded 16 MiB; the daemon closes the connection |
 | `unsupported_version` | The envelope's `v` is not `1`; the daemon closes the connection |
 | `internal_error` | A daemon bug while handling the intent; the daemon closes the connection |

@@ -610,7 +610,7 @@ func (s *Server) reserveStop(id string) (*stopReservation, bool) {
 	if s.reserved == nil {
 		s.reserved = make(map[string]*stopReservation)
 	}
-	s.stopFuncs[id] = func() { r.cancelled.Store(true) }
+	s.stopFuncs[id] = func() {} // marks the slot taken; StopSession cancels r itself
 	s.reserved[id] = r
 	return r, true
 }
@@ -663,6 +663,15 @@ func (s *Server) dropOutputSubs(sessionID string) {
 // Blocks until the supervisor goroutine has exited.
 func (s *Server) StopSession(sessionID string) {
 	s.stopMu.Lock()
+	if r := s.reserved[sessionID]; r != nil {
+		// A resume holds the slot: cancel it under the lock, so a promote
+		// either happened before this (and the real stop is used below) or
+		// sees the flag. Calling a copied placeholder after unlocking could
+		// land after the swap and be lost.
+		r.cancelled.Store(true)
+		s.stopMu.Unlock()
+		return
+	}
 	stop := s.stopFuncs[sessionID]
 	s.stopMu.Unlock()
 	if stop != nil {
