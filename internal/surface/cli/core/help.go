@@ -96,6 +96,7 @@ func RunHelp() error {
 			rows: []helpRow{
 				{"-h, --help", "show this help"},
 				{"-v, --version", "print version"},
+				{"--quiet-boot", "open the board without boot sounds"},
 			},
 		},
 	}

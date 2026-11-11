@@ -81,4 +81,4 @@ Unknown verbs set the error `unknown command: x (try :help)` on the command line
 
 ## Inside an attached session
 
-`::` opens a command bar over the attach popup: `q` detaches, `done` toggles mark-done, `kill` completes, `name <text>` renames; other commands close the popup and run as board commands. `:::` types a literal `::`. See [tui.md](tui.md#attach).
+`::` opens a command bar over the attach popup: `q` detaches, `done` toggles mark-done, `kill` completes, `name <text>` renames, `banner` hides or shows the banner row for this run; other commands close the popup and run as board commands. `:::` types a literal `::`. See [tui.md](tui.md#attach).

@@ -79,7 +79,7 @@ var bindings = []binding{
 	{Keys: "?", Desc: "this help", Group: groupModes, Ctx: ctxBoard, Press: []string{"?"}, Line: "more"},
 
 	{Keys: "qq / ctrl+]", Desc: "detach", Group: groupAttached, Ctx: ctxAttach},
-	{Keys: "::", Desc: "command bar (q detach, done, kill, name <t>)", Group: groupAttached, Ctx: ctxAttach},
+	{Keys: "::", Desc: "command bar (q detach, done, kill, name <t>, banner)", Group: groupAttached, Ctx: ctxAttach},
 	{Keys: ":::", Desc: "type a literal \"::\" into the agent", Group: groupAttached, Ctx: ctxAttach},
 	{Keys: "ctrl+pgup", Desc: "scroll back; k/j pgup/pgdn g/G, esc live", Group: groupAttached, Ctx: ctxAttach},
 }

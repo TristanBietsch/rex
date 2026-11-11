@@ -212,6 +212,12 @@ var Registry = []Setting{
 		Type: TypeBool, Default: false,
 		Help: "Header line + :overview: what needs you, what is ready for review, what finished. Uses the summary model (one call at most every 30 s while rex is open). Applies within seconds.",
 	},
+	{
+		ID: "attach_banner", Label: "Attach banner", Section: SectionSummary,
+		Type: TypeEnum, Default: "marquee",
+		Options: []string{"marquee", "static", "off"},
+		Help:    "Row above the agent in the attach popup: what it is doing, where, and (with overview) what the rest are doing. reduce_motion makes marquee static. Hidden below 25 rows. Read when a popup opens and on resize.",
+	},
 
 	// Audio
 	{

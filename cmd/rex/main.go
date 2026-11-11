@@ -43,9 +43,14 @@ func run(args []string) error {
 		}
 	}
 	if len(args) == 0 {
-		return meta.RunTUI()
+		return meta.RunTUI(false)
 	}
 	switch args[0] {
+	case "--quiet-boot":
+		if len(args) > 1 {
+			return core.NewExitError(core.ExitInvalidArgs, "--quiet-boot takes no arguments")
+		}
+		return meta.RunTUI(true)
 	case "--help", "-h", "help":
 		return core.RunHelp()
 	case "--version", "-v", "version":
