@@ -127,6 +127,10 @@ The popup shares the board's mouse capture (`mouse_enabled`). Wheel events over 
 
 The popup subscribes with `mode_sync`, so it learns which terminal modes the agent switched on before the popup opened.
 
+### Opening a running agent
+
+Full-screen tools in rex's list (claude, codex, gemini, …) are attached without transcript replay. Instead the daemon repaints its own copy of the agent's screen into the popup (`repaint`, see [protocol.md](protocol.md#subscribe-repaint)): colors, attributes, cursor and modes included. The popup shows the agent's current frame at once, even when the agent is busy or does not redraw on `^L`. The popup first resizes the session to its own size, so the repaint fits; when that changes the size, the agent also redraws itself. With a daemon too old to repaint, the popup sends the `^L` redraw nudge instead (run `rex daemon restart` to get repaints). `^L` in the popup still asks the agent to redraw.
+
 ### Scrollback
 
 Agents on the primary screen (codex inline, ollama, echo, Claude Code without fullscreen) print history that scrolls off the top of the popup. rex keeps those lines (`attach_scrollback_lines`, default 5000, capped at 8 MiB) and the footer shows `^PgUp scroll` once there are any. Lines on the alternate screen are never kept: full-screen agents own their history (the wheel goes to them, above).
@@ -144,7 +148,7 @@ Agents on the primary screen (codex inline, ollama, echo, Claude Code without fu
 
 Scrolling back down to the bottom also returns to live output, as does the agent switching to the alternate screen. The title shows `SCROLL ↑N/total`. New output keeps the view where it is and the footer counts it (`↓ N new · G/esc to resume`). `ctrl+]` still detaches and `::` still opens the command bar. Kept lines are shown at their original width: wider lines are cut, narrower ones padded (no reflow after a resize).
 
-Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, antigravity, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept.
+Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, antigravity, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept. The repaint that opens the popup draws in place and adds none.
 
 ## RENAME
 
@@ -164,6 +168,31 @@ Line-oriented agents (ollama, echo) are attached with transcript replay, so thei
 ## SOUNDS
 
 With sound on, each soundset chimes when a session needs you (`working` → `needs_input`), when it resumes (`needs_input` → `working`), and when it finishes (→ `done`) or you mark it done (`cc`, `:done`, `rex done`). A flickering session chimes at most once every 1.5 s. Turn off the first two with `notify_on_state_change`; see [settings.md](settings.md#audio).
+
+## SCREENSAVER
+
+After 5 minutes (`screensaver_after_minutes`) with no key or mouse event while the board itself has focus, the board gives way to a small screen: `∴ rex` in the center and the header's counts under it.
+
+```
+             ∴ rex
+
+1 need you · 3 working · 7 done
+```
+
+- The counts stay live: daemon events keep updating them. `need you` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
+- Any key or mouse event (click, wheel) brings the board back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
+- It only starts over the bare board. Overlays, prompts, confirmations, the wizard, the settings page and the attach popup never time out, because there you are in the middle of something.
+- Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.
+- It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute. It plays no sound.
+
+Turn it off with `screensaver_enabled` (settings page `S`, or `rex config set screensaver_enabled false`). See [settings.md](settings.md#behavior).
+
+### Keep awake (macOS)
+
+With `screensaver_keep_awake` on (the default), rex runs `/usr/bin/caffeinate -d -w <rex pid>` while the screensaver shows, so the display does not sleep. It needs no root. rex stops it when the screensaver goes away and when the TUI exits; `-w` makes it exit by itself if rex dies. On other systems the setting does nothing.
+
+- rex holds the display on only while the screensaver shows. If macOS turns the display off sooner (System Settings, Lock Screen, "Turn display off ... when inactive"), the display is already off when the screensaver starts, and rex does not turn it back on. Set `screensaver_after_minutes` below that time.
+- rex cannot tell whether you are working in another app. While the screensaver shows in a background window, macOS does not turn the display off for inactivity. Turn `screensaver_keep_awake` off if you don't want that.
 
 ## LONG-RUNNING BADGE
 

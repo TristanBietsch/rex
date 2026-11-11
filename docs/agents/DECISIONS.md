@@ -79,3 +79,11 @@ Non-obvious choices an agent might undo without context.
 **Rejected:** Reconstructing history in the TUI from the raw byte stream / replay; switching emulators.
 
 **Why:** Upstream is unmaintained and clears scrolled-off lines in place; only the emulator knows when a line leaves the screen. A hook is a small, testable diff (`third_party/vt10x/scrollback_test.go`, run by `make test`); a new emulator would be a much larger change to attach and the daemon's screen mirror.
+
+## Attach repaints from the daemon's screen mirror
+
+**Chosen:** Full-screen agents are attached without transcript replay; the daemon serializes its per-session vt10x screen (`pty.Repaint`) and sends it as the first `SessionOutput` (`Subscribe.repaint`), atomically with registering the output sink. The `^L` nudge is only the fallback for daemons that cannot repaint (`client.RepaintWatch`).
+
+**Rejected:** Relying on `^L` / SIGWINCH alone (a busy agent, or one that ignores `^L`, leaves the popup black until it next draws); replaying the transcript into the popup (the 256 KiB tail starts mid-frame and vt10x mis-renders it).
+
+**Why:** The mirror already sees every byte from the child's start, so it holds the real current screen. Rows are drawn in place with autowrap off, so the popup's scrollback never takes the repaint as history. `repaint_test.go` round-trips random screens through a fresh vt10x.

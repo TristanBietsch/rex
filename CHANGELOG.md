@@ -14,6 +14,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   question. Both write `auto_trust_dirs` and refuse the values the daemon
   ignores (a filesystem root, the home folder, relative paths, `..`), so
   setup and the daemon share one set of checks.
+- TUI: screensaver. After 5 minutes with no key or click on the bare
+  board, the board gives way to a small centered `∴ rex` with the live
+  counts under it (`1 need you · 3 working · 7 done`). Any key or click
+  brings the board back and does nothing else. Overlays, prompts and the
+  attach popup never time out. On macOS it keeps the display awake while
+  it shows (`caffeinate -d -w <rex pid>`, stopped on wake and on exit).
+  It moves a little once a minute, and stays put with `reduce_motion`. New
+  settings: `screensaver_enabled` (default on),
+  `screensaver_after_minutes` (default 5, 1–120) and
+  `screensaver_keep_awake` (default on, macOS only).
 - Antigravity CLI (`agy`) replaces Gemini CLI, which Google retired on
   2026-06-18, as a built-in tool (`antigravity`). It ships the account's
   current models (Gemini 3.8 Flash with low/medium/high effort, Claude
@@ -85,6 +95,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: opening a running full-screen agent (Claude Code, codex, gemini, …)
+  no longer shows a black popup until the agent next draws. The popup
+  attaches without the transcript replay and relied on the agent redrawing
+  on `^L`, which a busy agent, or one that ignores `^L`, did not do. The
+  daemon now repaints its own copy of the agent's screen into the popup
+  (colors, cursor and terminal modes included) when it opens. `rex attach`
+  gets the same repaint after the transcript tail, which could start
+  mid-frame (or was empty with `-no-replay`). The `^L` nudge is now sent
+  only to a daemon too old to repaint. Protocol: `Subscribe` gains an
+  optional `repaint` field and `SessionOutput` an optional `repaint` flag;
+  older clients and daemons are unaffected. Subscribing no longer loses or
+  repeats the output that arrives while the daemon reads the replay.
+  `rex attach` also resets the scroll region, charset and cursor-key and
+  keypad modes on detach.
+- A character that arrives split across two reads of the agent's output
+  (box drawing, emoji, accented letters) is no longer lost, along with the
+  rest of its row shifting left, in the attach popup and in the daemon's
+  copy of the screen (board last line, AI summaries, the repaint above).
 - TUI: the attach popup no longer drifts out of sync with a long-running
   Claude Code session until you detach and reattach. The terminal emulator
   read Claude's kitty keyboard sequences (`CSI < u`, `CSI > 5 u`) as

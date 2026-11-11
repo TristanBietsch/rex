@@ -29,16 +29,29 @@ func Run(socket string) error {
 	}
 	player := audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset, BootVoice: bootVoice})
 
+	awake := newDisplayAwake()
+	idleDone := make(chan struct{})
 	m := Model{
 		Socket:    socket,
 		Focus:     FocusBoot,
 		Filter:    "all",
 		Audio:     player,
 		BootStart: time.Now(),
+		idleDone:  idleDone,
+		keepAwake: awake,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	final, err := p.Run()
+	return runProgram(p.Run, awake, idleDone)
+}
+
+// runProgram runs the TUI and, however it ends (quit, error, a signal, a
+// panic Bubble Tea recovered), lets the display sleep again and ends the
+// screensaver's pending idle timer.
+func runProgram(run func() (tea.Model, error), awake *displayAwake, idleDone chan struct{}) error {
+	defer close(idleDone)
+	defer awake.Stop()
+	final, err := run()
 	if err != nil {
 		return err
 	}
@@ -66,6 +79,9 @@ func (m Model) View() string {
 	}
 	if h <= 0 {
 		h = 32
+	}
+	if m.saverOn && m.Focus == FocusBoard {
+		return renderScreensaver(m, w, h)
 	}
 
 	switch m.Focus {

@@ -119,6 +119,9 @@ const (
 type SessionOutput struct {
 	SessionID string `json:"session_id"`
 	Bytes     []byte `json:"bytes"`
+	// Repaint marks the SessionOutput that answers Subscribe.Repaint: Bytes
+	// redraw the session's current screen instead of carrying new output.
+	Repaint bool `json:"repaint,omitempty"`
 }
 
 // SummarizerHealth signals AI summary backend availability changes.

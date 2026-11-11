@@ -22,6 +22,8 @@ Session lifecycle / IO registration (used by `client.go` handlers and supervisor
 - `RegisterInputChannel`, `UnregisterInputChannel`, `InputChannel`
 - `SubscribeSessionOutput`, `SubscribeSummarizerHealth`, `BroadcastSummarizerHealth`
 - `RegisterResize`, `UnregisterResize`, `Resize`
+- `RegisterModePreamble`, `UnregisterModePreamble`, `ModePreamble`
+- `RegisterAttach`, `UnregisterAttach` — the supervisor's output-hold hook; `handleSubscribe` sends replay/repaint and registers its sink inside it (`withOutputHeld`)
 - `RegisterStop`, `UnregisterStop`, `StopSession`
 - `RegisterComplete`, `UnregisterComplete`, `CompleteSession`
 - `TranscriptDir`

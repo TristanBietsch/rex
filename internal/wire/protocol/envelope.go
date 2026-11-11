@@ -13,7 +13,7 @@
 //	Intent            Success reply                 Notes
 //	Hello             Snapshot                      sent even without an ID
 //	NewSession        Ack{session_id: new id}       SessionAdded is broadcast first
-//	Subscribe         Ack{session_id}               after any replay/mode-sync output
+//	Subscribe         Ack{session_id}               after any replay/repaint/mode-sync output
 //	SendInput         Ack{session_id}               bytes queued to the PTY
 //	Reply             Ack{session_id}               text and Enter queued
 //	Rename            Ack{session_id}               SessionUpdated is broadcast first

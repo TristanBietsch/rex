@@ -17,6 +17,12 @@ import (
 // in sync. Adding a new state means updating exactly one place.
 type boardGroup struct {
 	Title string
+	// Count names the column's sessions after a number, as on the
+	// screensaver ("2 working").
+	Count string
+	// Alert marks a column that wants the user: its title and count are
+	// highlighted while it holds any session.
+	Alert bool
 	Match func(protocol.SessionSummary) bool
 }
 
@@ -31,13 +37,41 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 // agent not started yet; marker ◌): every state must land in some group, or
 // the session is invisible and unreachable by keyboard.
 var boardGroups = []boardGroup{
-	{"Needs you", func(s protocol.SessionSummary) bool {
+	{Title: "Needs you", Count: "need you", Alert: true, Match: func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
 	}},
-	{"Working", func(s protocol.SessionSummary) bool {
+	{Title: "Working", Count: "working", Match: func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued)
 	}},
-	{"Done", inCompleted},
+	{Title: "Done", Count: "done", Match: inCompleted},
+}
+
+// styleAlert highlights an Alert column's title and count while it holds
+// any session. Built per call: the palette changes with color_scheme.
+func styleAlert() lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).Foreground(colorNeeds)
+}
+
+// columnCounts counts every session (tool filter ignored) per board column,
+// in boardGroups order, except failed and crashed sessions the user hasn't
+// marked done: those are counted apart so a failure stands out instead of
+// hiding in the done total. Each session is counted at most once, so the
+// numbers add up to the stats overlay's total.
+func columnCounts(sessions []protocol.SessionSummary) (cols []int, failed int) {
+	cols = make([]int, len(boardGroups))
+	for _, s := range sessions {
+		if !isMarkedDone(s) && (s.State == protocol.StateFailed || s.State == protocol.StateCrashed) {
+			failed++
+			continue
+		}
+		for i, g := range boardGroups {
+			if g.Match(s) {
+				cols[i]++
+				break
+			}
+		}
+	}
+	return cols, failed
 }
 
 // Board group indexes.
@@ -233,8 +267,8 @@ func groupTitle(m Model, gi, width int) string {
 func groupTitleText(m Model, gi int) string {
 	n := len(filterByGroup(m.Sessions, boardGroups[gi], m.Filter))
 	title := styleSectionTitle.Render(strings.ToUpper(boardGroups[gi].Title))
-	if gi == groupNeeds && n > 0 {
-		title = lipgloss.NewStyle().Bold(true).Foreground(colorNeeds).Render(strings.ToUpper(boardGroups[gi].Title))
+	if boardGroups[gi].Alert && n > 0 {
+		title = styleAlert().Render(strings.ToUpper(boardGroups[gi].Title))
 	}
 	out := "  " + title + styleDim.Render(fmt.Sprintf("  %d", n))
 	if gi != groupDone || n <= doneCollapseAt {

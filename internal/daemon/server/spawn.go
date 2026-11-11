@@ -159,6 +159,12 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		UnregisterModePreamble: func() {
 			srv.UnregisterModePreamble(sess.ID)
 		},
+		RegisterAttach: func(fn func(fn func(repaint func() []byte))) {
+			srv.RegisterAttach(sess.ID, fn)
+		},
+		UnregisterAttach: func() {
+			srv.UnregisterAttach(sess.ID)
+		},
 	})
 
 	// Per-session ctx + done so IntentDelete can synchronously tear the PTY down.

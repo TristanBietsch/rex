@@ -128,6 +128,21 @@ type Model struct {
 	lastClickID string
 	lastClickAt time.Time
 
+	// Screensaver (screensaver.go). lastInput is the last key or mouse
+	// event; saverOn / saverSince say whether the screensaver shows and
+	// since when. idleGen / idleArmed track the single idle timer chain,
+	// which only runs when idleDone is set: Run closes idleDone on exit so
+	// a pending timer ends with the program (hand-built test models leave
+	// it nil, so they never start a long timer). keepAwake holds the
+	// display on while the screensaver shows; nil does nothing.
+	lastInput  time.Time
+	saverOn    bool
+	saverSince time.Time
+	idleGen    int
+	idleArmed  bool
+	idleDone   <-chan struct{}
+	keepAwake  *displayAwake
+
 	// Boot / splash state.
 	BootLog     []bootLine
 	BootStep    int

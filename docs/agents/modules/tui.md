@@ -54,6 +54,8 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `stats_overlay.go` | Token histogram overlay |
 | `events.go` | tea.Msg wrappers |
 | `fail.go` | Backend failure UI |
+| `screensaver.go` | Idle timer, screensaver show/wake and render (`screensaver_*` settings) |
+| `keepawake.go` | macOS display keep-awake (`caffeinate -d -w <pid>`) while the screensaver shows |
 
 Tests: `*_test.go` for board snapshots, splash, wizard slugs, settings, stats overlay, update spawn logic.
 
@@ -63,7 +65,7 @@ Boot splash must reach daemon (`daemonctl.Start` or existing socket) before boar
 
 ## Side effects
 
-UDS to daemon; audio `Play`; writes `tui-state.json` on exit; setup wizard writes `config.yaml` and optional shell RC block; spawns `rex attach` child for in-TUI attach path (see `attach.go`).
+UDS to daemon; audio `Play`; writes `tui-state.json` on exit; setup wizard writes `config.yaml` and optional shell RC block; spawns `rex attach` child for in-TUI attach path (see `attach.go`); on macOS runs `/usr/bin/caffeinate` while the screensaver shows (`keepawake.go`; tests inject a fake launcher).
 
 ## Error handling
 

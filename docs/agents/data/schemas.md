@@ -61,6 +61,16 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 |-------|------|------|
 | SessionID | `session_id` | string |
 | Bytes | `bytes` | base64 on wire |
+| Repaint | `repaint` | bool | optional; true only on the output answering `Subscribe.repaint` (bytes redraw the current screen) |
+
+## Subscribe intent
+
+| Field | JSON | Type |
+|-------|------|------|
+| SessionID | `session_id` | string | `""` = board-wide only |
+| Replay | `replay` | bool | optional; transcript tail (≤ 256 KiB) first |
+| ModeSync | `mode_sync` | bool | optional; without replay or repaint, the child's terminal modes first |
+| Repaint | `repaint` | bool | optional; after any replay, one `SessionOutput` with `repaint: true` redrawing the current screen (running sessions only) |
 
 ## NewSession intent
 
