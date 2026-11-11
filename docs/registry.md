@@ -78,7 +78,13 @@ Duplicate tool or model ids are rejected at load time.
 | Hook | State |
 |------|-------|
 | `SessionStart`, `Notification`, `Stop` | `needs_input` |
-| `UserPromptSubmit`, `PreToolUse`, `PostToolUse` | `working` |
+| `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure` | `working` |
+
+Tool waits are tracked in the same file (they feed the board's Waiting section):
+
+- A main-thread `PreToolUse` (no `agent_id` in the hook JSON) of `Bash`, `Task` / `Agent` or `WebFetch` / `WebSearch` appends `wait+ shell`, `wait+ subagent` or `wait+ web` after the state word, in the same write. Any other main-thread tool appends `wait-`; a subagent's tool call appends neither.
+- A main-thread `PostToolUse` or `PostToolUseFailure`, and `UserPromptSubmit`, append `wait-`. `Stop`, `Notification` and `SessionStart` end a wait through their `needs_input` word.
+- A `wait-` while other subagents still run leaves a `subagent` wait on until the last one stops (several `Task` calls in parallel).
 
 Subagents are tracked in the same file:
 

@@ -27,7 +27,7 @@
 | `WaitingSince time.Time` | `waiting_since,omitzero` | when the main thread started that tool call |
 
 - Patch keys `waiting_on` / `waiting_since`; `null` (or `""` for `waiting_on`) clears. Both fields persist in `meta.json` like the rest of the summary.
-- A session that is not `working` has neither field. `Store.Transition` clears them (and patches `null`) on any move out of `working`; `fromSummary` restores them only for a `working` summary (a daemon restart maps live states to `crashed`, so they are dropped).
+- A session that is not `working` has neither field. `Store.Transition` clears them (and patches `null`) on any move out of `working`; `fromSummary` never restores them (a daemon restart maps live states to `crashed`; meta.json still records them while working).
 - `ProtocolVersion` is not bumped. An old TUI ignores both fields and shows the session in Working (tested: the old-client view).
 - Constants `protocol.WaitShell/WaitSubagent/WaitWeb` and `protocol.ValidWaitKind`. The daemon store rejects an unknown kind (error, no patch); the TUI patch merge ignores an unknown kind (treats it as not waiting), because a newer daemon may add kinds.
 
@@ -36,17 +36,19 @@ Extra line in the hook file, same printf as the state word:
 
 | Event | Main thread (no `agent_id` in the hook JSON) | Subagent tool call |
 |---|---|---|
-| PreToolUse | `working` + `wait+ <kind>` when `tool_name` is `Bash` (shell), `Task` or `Agent` (subagent), `WebFetch` or `WebSearch` (web); else `working` only | `working` only (never marks the main session) |
-| PostToolUse | `working` + `wait-` | `working` + `agent~ <id>` as today (no `wait-`) |
+| PreToolUse | `working` + `wait+ <kind>` when `tool_name` is `Bash` (shell), `Task` or `Agent` (subagent), `WebFetch` or `WebSearch` (web); else `working` + `wait-` (a lost Post event cannot leave a stale wait) | `working` only (never marks or clears the main session) |
+| PostToolUse, PostToolUseFailure | `working` + `wait-` | `working` + `agent~ <id>` as today (no `wait-`) |
+| UserPromptSubmit | `working` + `wait-` | n/a |
 
 - Extraction: `hookJSONField("tool_name")` and the existing `case "$in" in *'"agent_id"'*` pre-check. No jq, no new dependency. The kind is mapped in shell with a `case`, so only the three fixed words can be written.
-- `PostToolUseFailure` is not in the hook table and is not added: an unverified event name could make an older Claude reject `--settings`. A failed tool call therefore leaves the wait set until the next main-thread tool call, Stop, Notification or prompt. See "Follow-ups".
+- `PostToolUseFailure` (verified present in Claude Code 2.1.286) joins the hook table with the same body as PostToolUse, so a failed call ends the wait. The Pre-non-wait and UserPromptSubmit `wait-` lines bound the wait even if that event never fires.
+- A `wait-` while the wait is `subagent` and subagents still run (the adapter's quiet-pruned set) only marks the wait ending; the last `agent-` (or the 15 min quiet timeout, checked in `Waiting()`) clears it. So several parallel `Task` calls stay Waiting until the last ends. Other kinds clear at once.
 - `ClaudeHooks` keeps `waitOn` / `waitSince`. `wait+` sets (since = hook-file read time, `a.now()`), `wait-` clears. They are also cleared by: a `needs_input` word (Stop, Notification, SessionStart), the stale-working path in `Detect`, a truncated hook file, and process exit. The adapter reports through a new `adapter.WaitReporter` interface (`Waiting() (kind string, since time.Time)`), which returns empty unless the adapter's last state is `working`.
 - The supervisor asserts `WaitReporter` once (like `SubagentCounter`), calls `Store.SetWaiting(id, kind, since)` on each tick (a no-op when unchanged; empty unless the session is `working`), and clears on every exit path (sibling of `clearAgents`).
 - Heuristic adapters and OSC 7501 are out of scope.
 
 ### 3. Anti-flicker threshold in the TUI
-- `const waitingAfter = 3 * time.Second` (tui). A working session is *waiting* when `WaitingOn != ""`, `WaitingSince` is set and `now - WaitingSince >= waitingAfter`. Below that it is Working, so quick tool calls never move rows.
+- `protocol.WaitingAfter = 3 * time.Second`. A working session is *waiting* when `WaitingOn` is a known kind, `WaitingSince` is set and `now - WaitingSince >= protocol.WaitingAfter`. Below that it is Working, so quick tool calls never move rows.
 - One pure predicate `isWaiting(s, now)` (in `board.go`), which calls `protocol.SessionSummary.WaitingFor`. Grouping takes a `groupCtx{now time.Time, waiting bool}` carried by `rowFilter` (`rowFilterOf(m)` fills it from `m.now()` and the flag); `boardGroup.Match` becomes `func(SessionSummary, groupCtx) bool`. Grouping stays pure: tests pass a fixed `now`.
 - The threshold lives in the protocol package as `protocol.WaitingAfter` (3 s) next to `SessionSummary.WaitingFor(now)`, so `rex ls` and the board share one definition (no separate TUI const).
 - `isMarkedDone` sessions stay in Done; `needs_input` is never Waiting (the predicate requires `State == working`); `queued` stays Working.
@@ -62,7 +64,7 @@ Needs you, **Waiting**, Working, Done:
 - `jumpToSection`, `visibleRows`, `orderedSessions` (j/k order), mouse hit testing and scrolling all read `boardGroups`, so they follow with no extra code.
 
 ### 5. Icon and animation
-- Marker `◷` (U+25F7). While waiting the row marker cycles `◴ ◷ ◶ ◵` one step per second, from `m.now().Unix()` (redraws come from the existing 100 ms spinner tick, which already runs while any session is working). Static `◷` when `reduce_motion` is on and in the static paths (`rex render`, snapshots: they pin or omit the clock; a test pins this).
+- Marker `◷` (U+25F7). While waiting the row marker cycles `◴ ◷ ◶ ◵` one step per second, from `SpinnerTick` (10 ticks of the existing 100 ms spinner tick, which already runs while any session is working; frame 1 is `◷`, so tick 0 shows the still glyph). Static `◷` when `reduce_motion` is on and at tick 0 (snapshots, tests).
 - Colour: the working colour, no bold alert (it reads as "busy, not for you").
 - Attach header chip: `◷ waiting (shell)` while it applies.
 - Width: all four glyphs are width 1 in `ansi.StringWidth` and `lipgloss.Width` (test in `board_waiting_test.go`); the marker column is `colMarker = 1`.
@@ -72,7 +74,7 @@ Needs you, **Waiting**, Working, Done:
 - Header verbose: `N need you · N waiting · N working · N done`; the waiting part is left out when 0. `glyphs`: `◆N  ◷N  ⟳N  ●N` (waiting left out when 0). `numbers` keeps three numbers (waiting folded into working: a bare `a · b · c` has no label to carry a fourth).
 - Screensaver `saverCounts` walks `boardGroups`, so it includes waiting (hidden at 0, matching the header).
 - Waiting sessions: no sound, no notification (neither exists for working; Waiting is not an Alert group and no new event is added).
-- `rex ls`: text/md STATE shows `waiting (shell)`; the script-stable `txt` column and the `agent` `state=` key keep `working` (`waiting_on` is a separate agent column); JSON carries the fields.
+- `rex ls`: text/md STATE shows `waiting (shell)`; the script-stable `txt` column and the `agent` `state=` key keep `working`; there is no agent `waiting_on` column (it would add a key to every line); only JSON carries the fields.
 - `rex status`: unchanged counts and exit codes; a waiting session counts under working. Pinned by a test.
 
 ### 7. Keys follow screen order
@@ -108,9 +110,16 @@ Each step = one commit with its tests, `make check` green. (As built: the flag r
 - Mixed versions: new TUI + old daemon never gets the fields (Working); old TUI + new daemon ignores them.
 - Merge conflicts: S4 `wait_reason` edits the same hook command builders and adapter `apply`; T1 hidden sections edit `filter.go` and `rowfilter.go`; S3 touches `Session`/`Summary`.
 
+## Review (independent review, fixes applied)
+- Failed tool calls: `PostToolUseFailure` hook, plus `wait-` on a main-thread non-wait Pre and on UserPromptSubmit.
+- The Done fold hint and the help row `1-N` use the active section numbers (`3` / `1-3` with the flag off).
+- Hidden ids of inactive sections are dropped in `rowFilterOf`; a saved list that hid every section but Waiting (a pre-R14 `needs,working,done`) is still ignored.
+- Parallel `Task` calls keep a subagent wait until the last one ends.
+- Known limitation (docs/tui.md): a command that needed a permission prompt shows Working, not Waiting, after approval.
+- Spec text corrected (animation source, `fromSummary`, no agent column, `protocol.WaitingAfter`).
+
 ## Follow-ups (not in this spec)
 - R02 OSC 7501 `working` reports can feed `WaitingOn` for other agents.
-- `PostToolUseFailure` hook once the minimum Claude version is known.
 - Heuristic adapters (`busy_regex`) could report `shell` from a status line.
 - A "waiting for N min" badge if a wait runs very long.
 
@@ -120,7 +129,7 @@ Each step = one commit with its tests, `make check` green. (As built: the flag r
 |---|---|---|
 | D1 | Data model | Additive fields `waiting_on` / `waiting_since`; state stays `working`; no protocol bump. |
 | D2 | Source | Claude hooks only: `wait+ <kind>` / `wait-` on main-thread PreToolUse / PostToolUse. |
-| D3 | Flicker | 3 s threshold in the TUI (`waitingAfter`), not in the daemon. |
+| D3 | Flicker | 3 s threshold in the clients (`protocol.WaitingAfter`), not in the daemon. |
 | D4 | Order | Needs you, Waiting, Working, Done. |
 | D5 | Icon | `◷`, cycling `◴ ◷ ◶ ◵` at 1/s; static with `reduce_motion`. |
 | D6 | Counts | Header and screensaver show waiting; `rex ls` `waiting (shell)`; status exit code unchanged; no sound. |

@@ -248,7 +248,7 @@ func TestUC_ResumeAliasInTable(t *testing.T) {
 }
 
 func TestUC_HelpListsIt(t *testing.T) {
-	plain := ansi.Strip(renderHelp(120, 60))
+	plain := ansi.Strip(renderHelp(Model{}, 120, 60))
 	require.Contains(t, plain, "uc")
 	require.Contains(t, plain, ":uc :resume [sel]")
 }

@@ -30,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   patches, `meta.json`). The state stays `working`, so older clients show
   those sessions in Working. The daemon records them even with
   `waiting_section` off.
+- Claude Code hooks: `PostToolUseFailure` joins the state hooks, and tool
+  waits are bounded: a failed tool call, any other main-thread tool and a new
+  prompt all end a Waiting state. Parallel subagents keep it until the last
+  one stops.
 - `rex ls` shows `waiting (shell)` in the STATE column (text and md) for a
   session in Waiting, and counts it in the header. `-o txt` and the agent
   `state=` key keep `working`; `rex status` is unchanged.
