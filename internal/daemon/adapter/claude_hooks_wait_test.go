@@ -30,11 +30,12 @@ func TestClaudeHookArgs_PreToolUseWaitLine(t *testing.T) {
 		{"Agent", "working\nwait+ subagent\n"},
 		{"WebFetch", "working\nwait+ web\n"},
 		{"WebSearch", "working\nwait+ web\n"},
-		{"Read", "working\n"},
-		{"Edit", "working\n"},
-		{"mcp__x__Bash", "working\n"},
-		{"Bashful", "working\n"},
-		{"", "working\n"},
+		// Any other main-thread tool ends a stale wait (a failed call fired no Post).
+		{"Read", "working\nwait-\n"},
+		{"Edit", "working\nwait-\n"},
+		{"mcp__x__Bash", "working\nwait-\n"},
+		{"Bashful", "working\nwait-\n"},
+		{"", "working\nwait-\n"},
 	}
 	for _, c := range cases {
 		t.Run(c.tool, func(t *testing.T) {
@@ -62,7 +63,7 @@ func TestClaudeHookArgs_SubagentPreToolUseWritesNoWait(t *testing.T) {
 func TestClaudeHookArgs_PreToolUseTopLevelToolName(t *testing.T) {
 	got := hookFileAfter(t, "PreToolUse",
 		`{"session_id":"s","tool_name":"Read","tool_input":{"a":1,"tool_name":"Bash"}}`)
-	require.Equal(t, "working\n", got)
+	require.Equal(t, "working\nwait-\n", got)
 	got = hookFileAfter(t, "PreToolUse", "{\n  \"session_id\": \"s\",\n\t\"tool_name\": \"Bash\"\n}\n")
 	require.Equal(t, "working\nwait+ shell\n", got)
 	// A quoted agent_id inside a string value is not a subagent call.
@@ -80,7 +81,7 @@ func TestClaudeHookArgs_PostToolUseClearsWait(t *testing.T) {
 }
 
 func TestClaudeHookArgs_OtherEventsWriteNoWaitLines(t *testing.T) {
-	for _, ev := range []string{"UserPromptSubmit", "Notification", "Stop"} {
+	for _, ev := range []string{"Notification", "Stop"} {
 		require.NotContains(t, hookFileAfter(t, ev, `{"tool_name":"Bash"}`), "wait", ev)
 	}
 }
@@ -184,6 +185,7 @@ func TestClaudeHooks_SubagentActivityKeepsMainWait(t *testing.T) {
 	runHook(t, cmds["PostToolUse"], path, `{"agent_id":"sub-1","agent_type":"Explore","tool_name":"Bash"}`)
 	got, _ := a.Waiting()
 	require.Equal(t, protocol.WaitSubagent, got)
+	appendLine(t, path, "agent- sub-1") // SubagentStop comes before the Task's own Post
 	runHook(t, cmds["PostToolUse"], path, `{"tool_name":"Task"}`)
 	got, _ = a.Waiting()
 	require.Empty(t, got)
@@ -210,4 +212,88 @@ func TestClaudeHooks_WaitClearedByTruncation(t *testing.T) {
 
 func TestClaudeHooks_ImplementsWaitReporter(t *testing.T) {
 	var _ WaitReporter = (*ClaudeHooks)(nil)
+}
+
+// A failed tool call fires PostToolUseFailure, not PostToolUse.
+func TestClaudeHooks_FailureClearsWait(t *testing.T) {
+	cmds := hookCommands(t)
+	require.Contains(t, cmds, "PostToolUseFailure")
+	require.Equal(t, "working\nwait-\n", hookFileAfter(t, "PostToolUseFailure", `{"session_id":"s","tool_name":"Bash"}`))
+	require.Equal(t, "working\nagent~ sub-7\n",
+		hookFileAfter(t, "PostToolUseFailure", `{"agent_id":"sub-7","agent_type":"Explore","tool_name":"Bash"}`))
+
+	a, path, _ := waitingAdapter(t)
+	runHook(t, cmds["PreToolUse"], path, `{"tool_name":"Bash"}`)
+	got, _ := a.Waiting()
+	require.Equal(t, protocol.WaitShell, got)
+	runHook(t, cmds["PostToolUseFailure"], path, `{"tool_name":"Bash"}`)
+	got, _ = a.Waiting()
+	require.Empty(t, got)
+}
+
+// Fallbacks bound the wait even if no Post event ever fires.
+func TestClaudeHooks_NonWaitPreAndPromptClearWait(t *testing.T) {
+	cmds := hookCommands(t)
+	a, path, _ := waitingAdapter(t)
+	runHook(t, cmds["PreToolUse"], path, `{"tool_name":"Bash"}`)
+	runHook(t, cmds["PreToolUse"], path, `{"tool_name":"Read"}`)
+	got, _ := a.Waiting()
+	require.Empty(t, got, "a non-wait tool ends the wait")
+
+	runHook(t, cmds["PreToolUse"], path, `{"tool_name":"WebFetch"}`)
+	got, _ = a.Waiting()
+	require.Equal(t, protocol.WaitWeb, got)
+	runHook(t, cmds["UserPromptSubmit"], path, `{"prompt":"hi"}`)
+	got, _ = a.Waiting()
+	require.Empty(t, got, "a new prompt ends the wait")
+
+	// A subagent's non-wait Pre does not end the main thread's wait.
+	runHook(t, cmds["PreToolUse"], path, `{"tool_name":"Bash"}`)
+	runHook(t, cmds["PreToolUse"], path, `{"agent_id":"sub-1","agent_type":"Explore","tool_name":"Read"}`)
+	got, _ = a.Waiting()
+	require.Equal(t, protocol.WaitShell, got)
+}
+
+// Several main-thread Task calls fan out: the wait lasts until the last
+// subagent ends.
+func TestClaudeHooks_ParallelSubagentsKeepWaiting(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	for _, l := range []string{"working", "wait+ subagent", "wait+ subagent", "agent+ a", "agent+ b", "agent- a", "working", "wait-"} {
+		appendLine(t, path, l)
+	}
+	got, _ := a.Waiting()
+	require.Equal(t, protocol.WaitSubagent, got, "b is still running")
+	appendLine(t, path, "agent- b")
+	got, _ = a.Waiting()
+	require.Empty(t, got, "the last one ended")
+
+	// Without a stop, the quiet timeout ends it.
+	a2, path2, now2 := waitingAdapter(t)
+	for _, l := range []string{"wait+ subagent", "agent+ a", "wait-"} {
+		appendLine(t, path2, l)
+	}
+	got, _ = a2.Waiting()
+	require.Equal(t, protocol.WaitSubagent, got)
+	*now2 = now2.Add(subagentQuiet + time.Second)
+	got, _ = a2.Waiting()
+	require.Empty(t, got)
+	_ = now
+
+	// A later wait+ starts fresh.
+	a3, path3, _ := waitingAdapter(t)
+	for _, l := range []string{"wait+ subagent", "agent+ a", "wait-", "wait+ shell", "agent- a"} {
+		appendLine(t, path3, l)
+	}
+	got, _ = a3.Waiting()
+	require.Equal(t, protocol.WaitShell, got)
+}
+
+// Other waits end on wait- even with subagents running.
+func TestClaudeHooks_ShellWaitEndsWithSubagentsRunning(t *testing.T) {
+	a, path, _ := waitingAdapter(t)
+	for _, l := range []string{"agent+ a", "wait+ shell", "wait-"} {
+		appendLine(t, path, l)
+	}
+	got, _ := a.Waiting()
+	require.Empty(t, got)
 }

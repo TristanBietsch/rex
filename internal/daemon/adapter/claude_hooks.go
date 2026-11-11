@@ -36,6 +36,7 @@ var claudeHookStates = []struct {
 	{"UserPromptSubmit", false, protocol.StateWorking},
 	{"PreToolUse", true, protocol.StateWorking},
 	{"PostToolUse", true, protocol.StateWorking},
+	{"PostToolUseFailure", true, protocol.StateWorking},
 	{"Notification", false, protocol.StateNeedsInput}, // permission / idle prompt
 	{"Stop", false, protocol.StateNeedsInput},         // turn finished, waiting on user
 }
@@ -105,7 +106,7 @@ func claudeHookCommand(event string, state protocol.State) string {
 	case "SessionStart":
 		return `in=$(cat); src=$(` + hookJSONField("source") + `); sid=$(` + hookJSONField("session_id") + hookSafeID + `); ` +
 			hookAppend(`if [ "$src" = compact ]; then printf '`+st+`\n`+hookSessionID+` %s\n' "$sid"; else printf '`+hookAgentsReset+`\n`+st+`\n`+hookSessionID+` %s\n' "$sid"; fi`)
-	case "PostToolUse":
+	case "PostToolUse", "PostToolUseFailure":
 		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; ` +
 			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookAgentSeen+` %s\n' "$id"; else printf '`+st+`\n`+hookWaitEnd+`\n'; fi`)
 	case "PreToolUse":
@@ -115,7 +116,10 @@ func claudeHookCommand(event string, state protocol.State) string {
 		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; k=; ` +
 			`if [ -z "$id" ]; then case "$(` + hookJSONField("tool_name") + `)" in Bash) k=` + protocol.WaitShell +
 			`;; Task|Agent) k=` + protocol.WaitSubagent + `;; WebFetch|WebSearch) k=` + protocol.WaitWeb + `;; esac; fi; ` +
-			hookAppend(`if [ -n "$k" ]; then printf '`+st+`\n`+hookWaitStart+` %s\n' "$k"; else printf '`+st+`\n'; fi`)
+			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n'; elif [ -n "$k" ]; then printf '`+st+`\n`+hookWaitStart+` %s\n' "$k"; else printf '`+st+`\n`+hookWaitEnd+`\n'; fi`)
+	case "UserPromptSubmit":
+		// A new turn: no tool of the last one is still being waited on.
+		return hookAppend(`printf '` + st + `\n` + hookWaitEnd + `\n'`)
 	default:
 		return hookAppend(`printf '` + st + `\n'`)
 	}
@@ -187,7 +191,10 @@ type ClaudeHooks struct {
 	// line); one slot, last writer wins.
 	waitOn    string
 	waitSince time.Time
-	now       func() time.Time
+	// waitEnding is set when a wait- arrived while subagents still ran:
+	// the wait stays (several Task calls fan out) until the last one stops.
+	waitEnding bool
+	now        func() time.Time
 }
 
 // NewClaudeHooks reads hook state from path.
@@ -216,11 +223,28 @@ func (a *ClaudeHooks) Waiting() (string, time.Time) {
 	if a.last != protocol.StateWorking {
 		return "", time.Time{}
 	}
+	if a.waitEnding && a.runningAgents() == 0 { // the last one went quiet
+		a.clearWait()
+	}
 	return a.waitOn, a.waitSince
 }
 
 // clearWait ends the tool wait. Callers hold mu.
-func (a *ClaudeHooks) clearWait() { a.waitOn, a.waitSince = "", time.Time{} }
+func (a *ClaudeHooks) clearWait() {
+	a.waitOn, a.waitSince, a.waitEnding = "", time.Time{}, false
+}
+
+// runningAgents counts subagents, dropping any quiet for subagentQuiet.
+// Callers hold mu.
+func (a *ClaudeHooks) runningAgents() int {
+	cutoff := a.now().Add(-subagentQuiet)
+	for id, seen := range a.agents {
+		if seen.Before(cutoff) {
+			delete(a.agents, id)
+		}
+	}
+	return len(a.agents)
+}
 
 // Subagents implements SubagentCounter: subagents started and not yet
 // stopped, minus any quiet for subagentQuiet. A set, not a counter, because
@@ -229,13 +253,7 @@ func (a *ClaudeHooks) Subagents() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.read()
-	cutoff := a.now().Add(-subagentQuiet)
-	for id, seen := range a.agents {
-		if seen.Before(cutoff) {
-			delete(a.agents, id)
-		}
-	}
-	return len(a.agents)
+	return a.runningAgents()
 }
 
 // ResumeID implements ResumeIDReporter. The id survives a truncated hook
@@ -311,10 +329,17 @@ func (a *ClaudeHooks) apply(line string) {
 	case hookWaitStart:
 		// An unknown kind is ignored: the file is plain text.
 		if protocol.ValidWaitKind(arg) {
-			a.waitOn, a.waitSince = arg, a.now()
+			a.waitOn, a.waitSince, a.waitEnding = arg, a.now(), false
 		}
 	case hookWaitEnd:
-		a.clearWait()
+		// One of several parallel Task calls ending leaves the wait on
+		// while other subagents run; the last stop (or a quiet timeout)
+		// ends it.
+		if a.waitOn == protocol.WaitSubagent && a.runningAgents() > 0 {
+			a.waitEnding = true
+		} else {
+			a.clearWait()
+		}
 	case hookAgentStart, hookAgentSeen:
 		// A sign of life also brings back a subagent dropped as quiet or
 		// cleared by a reset while it ran.
@@ -323,6 +348,9 @@ func (a *ClaudeHooks) apply(line string) {
 		}
 	case hookAgentStop:
 		delete(a.agents, arg)
+		if a.waitEnding && len(a.agents) == 0 {
+			a.clearWait()
+		}
 	case hookAgentsReset:
 		clear(a.agents)
 	case hookSessionID:
