@@ -27,6 +27,8 @@ Per-task plans: `docs/plans/<ID>-*.md`. Independent review: `00-review.md`.
 | P2 | rm "yes, i trust" | M |
 | P3 | harden the CLI | L |
 | A1 | antigravity parity | M (no hooks, see D7) |
+| K1 | opt-in skip-permissions setting (D9) | S |
+| P4 | CLI output look, -o formats, --agent mode, error log (plan pending) | L |
 
 Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
 
@@ -42,6 +44,8 @@ Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
 | D6 | P1 "setup" | Per-session spawn wizard (`n`, `:new`) + `rex new -name/-skill`. Not `rex setup`. |
 | D7 | A1 hooks | None. OSC 7501 per-session env + footer fallback. Never write `~/.gemini`. Drop A1 steps 8–10. |
 | D8 | P2 `ctrl+a` scope | Trust the repo's own folder (git root, or the folder itself if not a repo). NOT the parent. `SuggestTrustDir` changes accordingly; show the exact path. |
+| D9 | `--dangerously-skip-permissions` (user commit 29ca4e9) | Make it opt-in: new `skip_permissions` bool setting (Behavior section, default **off**, help text warns). Remove the flag from the builtin `command` arrays; registry gains `skip_permissions_args` per tool (claude, agy: `["--dangerously-skip-permissions"]`); `buildArgv` appends them only when the setting is on. Task **K1**, lane B, after T2-1. Doc in SECURITY.md + settings.md. |
+| D10 | New unstarred TODO lines from 29ca4e9 | Out of scope this round; U3 and D1 stand. |
 | — | Agents | claude + antigravity visible; echo hidden (tests). Others deleted, with U3's retired-tool guard. |
 | — | `/ob` | Ignored. |
 | — | Remote | Keep local. No push, no PR. |
@@ -78,7 +82,7 @@ Lane A = TUI, B = daemon/registry/protocol, C = CLI/settings/summarizer. Steps w
 
 | Wave | Lane A | Lane B | Lane C |
 |---|---|---|---|
-| 1 | F1-1..3 → T4-1 (`:undone` fix) → U1-2 (arrow color, theme race, NO_COLOR cursor) | T3-1+A1-1 (spawn spec) → U3-1 (retired-tool guard) → T2-1 (`ended_at`) | P3-1 → P3-2 (`ParseArgs`, `-h`) → P3-3 (H1) → U2-2 (sparse Save) |
+| 1 | F1-1..3 → T4-1 (`:undone` fix) → U1-2 (arrow color, theme race, NO_COLOR cursor) | T3-1+A1-1 (spawn spec) → U3-1 (retired-tool guard) → T2-1 (`ended_at`) → K1 (opt-in skip-permissions) | P3-1 → P3-2 (`ParseArgs`, `-h`) → P3-3 (H1) → U2-2 (sparse Save) |
 | 2 | U3-4 → U1-7 (command table) → T1-1..8 → T2-2 | U3-2,3,5,6 → T3-2..4 | S1-1 → A1-3 (agy fixtures) → S1-2..4 → S3-1 → S2-1,2 |
 | 3 | T5-1..5 → T4-2 | T3-5..7 → T2-3 → T4-3 → A1-2 | S1-5,6 → S2-3,4 → S3-2..7 → S1-7, S2-5 |
 | 4 | P1-1..8 | S4-1..9 | P3-4..11 |
