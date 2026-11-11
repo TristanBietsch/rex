@@ -51,7 +51,7 @@ func (s *Store) undo(ctx context.Context, cwd, session string, turns int, dry bo
 	if err := checkSession(session); err != nil {
 		return UndoResult{}, err
 	}
-	if _, err := repoExclude(ctx, cwd); err != nil {
+	if _, err := repoIgnores(ctx, cwd); err != nil {
 		return UndoResult{}, err
 	}
 	dir := s.dirFor(cwd)
@@ -108,7 +108,7 @@ func (s *Store) redo(ctx context.Context, cwd, session string, dry bool) (UndoRe
 	if err := checkSession(session); err != nil {
 		return UndoResult{}, err
 	}
-	if _, err := repoExclude(ctx, cwd); err != nil {
+	if _, err := repoIgnores(ctx, cwd); err != nil {
 		return UndoResult{}, err
 	}
 	dir := s.dirFor(cwd)

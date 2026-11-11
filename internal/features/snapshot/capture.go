@@ -3,7 +3,6 @@ package snapshot
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,34 +10,50 @@ import (
 	"strings"
 )
 
-// repoExclude checks that cwd is inside a git worktree and returns the
-// content of that repo's info/exclude. It only reads the user's repo.
-func repoExclude(ctx context.Context, cwd string) ([]byte, error) {
-	if _, err := GitPath(); err != nil {
+// repoIgnores checks that cwd is inside a git worktree and returns exclude
+// lines, anchored and relative to cwd, for everything the user's git ignores
+// under cwd: the repo's .gitignore files (those above cwd too), its
+// info/exclude, nested ones. The shadow store applies exactly these, so a
+// snapshot of a repo subfolder skips node_modules and .env as git does. It
+// only reads the user's repo.
+func repoIgnores(ctx context.Context, cwd string) ([]string, error) {
+	if err := CheckGit(ctx); err != nil {
 		return nil, err
 	}
-	out, err := run(ctx, readOnlyEnv(), cwd, nil,
-		"-c", "core.fsmonitor=false",
-		"rev-parse", "--is-inside-work-tree", "--git-path", "info/exclude")
+	out, err := run(ctx, readOnlyEnv(), cwd, nil, "-c", "core.fsmonitor=false", "rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		if ce := ctx.Err(); ce != nil {
 			return nil, ce
 		}
+		if strings.Contains(err.Error(), "dubious ownership") {
+			return nil, ErrDubiousOwnership
+		}
 		return nil, ErrNotGitWorktree
 	}
-	lines := strings.Split(strings.TrimRight(string(out), "\r\n"), "\n")
-	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "true" {
+	if strings.TrimSpace(string(out)) != "true" {
 		return nil, ErrNotGitWorktree
 	}
-	p := strings.TrimRight(lines[1], "\r")
-	if !filepath.IsAbs(p) {
-		p = filepath.Join(cwd, filepath.FromSlash(p))
+	out, err = run(ctx, readOnlyEnv(), cwd, nil, "-c", "core.fsmonitor=false",
+		"ls-files", "-z", "-o", "-i", "--exclude-standard", "--directory")
+	if err != nil {
+		return nil, err
 	}
-	b, err := os.ReadFile(p)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("snapshot: %w", err)
+	var lines []string
+	for p := range strings.SplitSeq(string(out), "\x00") {
+		if p == "" {
+			continue
+		}
+		dir := strings.HasSuffix(p, "/")
+		l := excludeLine(strings.TrimSuffix(p, "/"))
+		if l == "" {
+			continue
+		}
+		if dir {
+			l += "/"
+		}
+		lines = append(lines, l)
 	}
-	return b, nil
+	return lines, nil
 }
 
 // excludeLine escapes a slash path into one anchored gitignore pattern.
@@ -123,7 +138,7 @@ func (s *Store) capture(ctx context.Context, dir, cwd, session string, phase Pha
 // the tree. Nothing keeps the tree alive yet: no ref, no ledger line. It
 // also returns the environment for the session's shadow calls.
 func (s *Store) writeTree(ctx context.Context, dir, cwd, session string) (Tree, []string, error) {
-	exclude, err := repoExclude(ctx, cwd)
+	exclude, err := repoIgnores(ctx, cwd)
 	if err != nil {
 		return "", nil, err
 	}

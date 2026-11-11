@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -107,9 +108,9 @@ func (s *Store) lock(dir string) func() {
 }
 
 // ensure creates the folder store and its shadow git dir (0700) when
-// missing and refreshes its info files. exclude is the user's repo exclude
-// file content; extra are additional exclude lines.
-func (s *Store) ensure(ctx context.Context, dir, cwd string, exclude []byte, extra []string) error {
+// missing and refreshes its info files. exclude are the exclude lines for
+// what the user's git ignores; extra are additional exclude lines.
+func (s *Store) ensure(ctx context.Context, dir, cwd string, exclude, extra []string) error {
 	shadow := shadowOf(dir)
 	if err := os.MkdirAll(s.root, 0o700); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
@@ -134,13 +135,8 @@ func (s *Store) ensure(ctx context.Context, dir, cwd string, exclude []byte, ext
 	if err := os.MkdirAll(info, 0o700); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
-	var ex []byte
-	ex = append(ex, "# rex shadow store: the user's .git/info/exclude, then skipped big files\n"...)
-	ex = append(ex, exclude...)
-	if len(exclude) > 0 && exclude[len(exclude)-1] != '\n' {
-		ex = append(ex, '\n')
-	}
-	for _, l := range extra {
+	ex := []byte("# rex shadow store: what the user's git ignores under this folder, then skipped files\n")
+	for _, l := range slices.Concat(exclude, extra) {
 		ex = append(ex, l...)
 		ex = append(ex, '\n')
 	}

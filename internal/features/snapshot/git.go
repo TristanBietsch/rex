@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 // Errors callers match with errors.Is.
@@ -17,6 +20,12 @@ var (
 	ErrNotGitWorktree = errors.New("snapshots need a git repo: the folder is not inside a git worktree")
 	// ErrNoGit means no git binary was found on PATH.
 	ErrNoGit = errors.New("git not found on PATH")
+	// ErrGitTooOld means git predates GIT_CONFIG_GLOBAL (2.32), which keeps
+	// the user's global config out of every call.
+	ErrGitTooOld = errors.New("git is older than 2.32: snapshots need it to ignore global config")
+	// ErrDubiousOwnership means git refused the folder as owned by someone
+	// else (safe.directory). It is not "not a git repo".
+	ErrDubiousOwnership = errors.New("git treats the folder as unsafe (dubious ownership), so it cannot be snapshotted")
 )
 
 // safeConfig are the -c settings on every shadow git call. They keep the
@@ -105,6 +114,43 @@ func subcommand(args []string) string {
 		return args[i]
 	}
 	return ""
+}
+
+var (
+	gitVerMu    sync.Mutex
+	gitVerCache = map[string]error{}
+)
+
+var gitVersionRe = regexp.MustCompile(`(\d+)\.(\d+)`)
+
+// CheckGit reports ErrNoGit when git is missing and ErrGitTooOld when it is
+// older than 2.32. The answer is remembered per git path.
+func CheckGit(ctx context.Context) error {
+	path, err := GitPath()
+	if err != nil {
+		return err
+	}
+	gitVerMu.Lock()
+	defer gitVerMu.Unlock()
+	if r, ok := gitVerCache[path]; ok {
+		return r
+	}
+	out, err := run(ctx, baseEnv(), "", nil, "--version")
+	if err != nil {
+		return err
+	}
+	m := gitVersionRe.FindStringSubmatch(string(out))
+	if m == nil {
+		return fmt.Errorf("snapshot: cannot read git version from %q", strings.TrimSpace(string(out)))
+	}
+	major, _ := strconv.Atoi(m[1])
+	minor, _ := strconv.Atoi(m[2])
+	var res error
+	if major < 2 || (major == 2 && minor < 32) {
+		res = fmt.Errorf("%w (found %d.%d)", ErrGitTooOld, major, minor)
+	}
+	gitVerCache[path] = res
+	return res
 }
 
 // GitPath returns the git binary's path, or ErrNoGit.
