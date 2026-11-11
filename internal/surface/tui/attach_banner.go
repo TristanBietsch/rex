@@ -67,7 +67,7 @@ func bannerModeOf(m Model) string {
 // only input to the agent's size besides the terminal: openAttach and
 // resizeAttach both call it.
 func attachBannerRows(m Model) int {
-	if bannerModeOf(m) == bannerOff {
+	if bannerModeOf(m) == bannerOff || m.bannerHidden {
 		return 0
 	}
 	if _, rows := attachPopupInnerSize(m.Width, m.Height, 0); rows < bannerMinAgentRows+1 {
@@ -342,4 +342,30 @@ func bannerMetaStyled(items []bannerItem) string {
 		}
 	}
 	return strings.Join(parts, styleMuted.Render(" · "))
+}
+
+// toggleBanner is ::banner: hide or show the banner for this run only (the
+// attach_banner setting is the persistent switch) and resize the agent to the
+// rows that remain. A setting of off, or a terminal too short, leaves nothing
+// to show; it says so.
+func toggleBanner(m Model) Model {
+	if bannerModeOf(m) == bannerOff {
+		m.Notice = "banner is off — set attach_banner in Settings"
+		return m
+	}
+	m.bannerHidden = !m.bannerHidden
+	was := m.Attach.BannerRows
+	resizeAttach(m)
+	switch {
+	case m.bannerHidden:
+		m.Notice = "banner hidden — ::banner shows it"
+	case m.Attach.BannerRows == 0:
+		m.Notice = "terminal too short for the banner (needs 25 rows)"
+	default:
+		m.Notice = "banner shown — ::banner hides it"
+	}
+	if was == 0 && m.Attach.BannerRows == 1 {
+		m.Attach.BannerSince = m.now()
+	}
+	return m
 }

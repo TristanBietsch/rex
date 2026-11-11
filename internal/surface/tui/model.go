@@ -125,6 +125,9 @@ type Model struct {
 	// bannerGen / bannerRunning track the attach banner's marquee tick chain.
 	bannerGen     int
 	bannerRunning bool
+	// bannerHidden is ::banner: the attach banner is off for this run. Not
+	// persisted; attach_banner is the setting.
+	bannerHidden bool
 
 	// reconnect is non-nil while the daemon connection is down and the TUI
 	// is redialing it (see reconnect.go). dialDaemon overrides the redial's

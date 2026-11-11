@@ -276,3 +276,67 @@ func TestAttachBannerSetting_Registered(t *testing.T) {
 	require.Equal(t, "marquee", st.Get("attach_banner"))
 	require.Error(t, st.Set("attach_banner", "blink"))
 }
+
+func TestAttachCommand_BannerToggleResizes(t *testing.T) {
+	m := bannerModel(t, 120, 40, bannerSession())
+	var got [][2]uint16
+	m.Attach.resize = func(c, r uint16) error { got = append(got, [2]uint16{c, r}); return nil }
+	require.Equal(t, 27, m.Attach.Rows)
+
+	m, _ = executeAttachCommand(m, "banner")
+	require.True(t, m.bannerHidden)
+	require.Equal(t, 0, m.Attach.BannerRows)
+	require.Equal(t, 28, m.Attach.Rows)
+	require.Equal(t, [][2]uint16{{106, 28}}, got, "the agent gets one more row")
+	_, vtRows := m.Attach.Term.Size()
+	require.Equal(t, 28, vtRows, "vt10x follows")
+	require.Equal(t, FocusAttach, m.Focus)
+	require.Contains(t, m.Notice, "::banner shows it")
+	require.NotContains(t, ansi.Strip(m.View()), "↳ Rewriting")
+	require.Equal(t, "marquee", m.Store.Get("attach_banner"), "this run only: the setting is untouched")
+	require.Equal(t, 0, attachBannerRows(m), "a popup opened now stays without it")
+
+	m, _ = executeAttachCommand(m, "banner")
+	require.False(t, m.bannerHidden)
+	require.Equal(t, 1, m.Attach.BannerRows)
+	require.Equal(t, [2]uint16{106, 27}, got[len(got)-1], "and one fewer when it returns")
+	require.Equal(t, bannerNow, m.Attach.BannerSince, "a returning marquee starts from its beginning")
+	require.Contains(t, ansi.Strip(m.View()), "↳ Rewriting")
+}
+
+func TestAttachCommand_BannerToggleKeepsScrollInRange(t *testing.T) {
+	m := bannerModel(t, 120, 40, bannerSession())
+	m.Attach.sb = newAttachScrollback("a", 100)
+	m.Attach.Term = newAttachTerm(m.Attach, m.Attach.Cols, m.Attach.Rows, 100)
+	for i := range 60 {
+		_, _ = m.Attach.Term.Write([]byte(strings.Repeat("x", 3) + string(rune('a'+i%26)) + "\r\n"))
+	}
+	m.Attach.ScrollOff = m.Attach.sb.Len()
+	m, _ = executeAttachCommand(m, "banner") // grows
+	m, _ = executeAttachCommand(m, "banner") // shrinks: rows go to scrollback
+	require.LessOrEqual(t, m.Attach.ScrollOff, m.Attach.sb.Len())
+}
+
+func TestAttachCommand_BannerOffInSettingsSaysSo(t *testing.T) {
+	m := bannerModel(t, 120, 40, bannerSession())
+	require.NoError(t, m.Store.Set("attach_banner", "off"))
+	resizeAttach(m)
+	m, _ = executeAttachCommand(m, "banner")
+	require.False(t, m.bannerHidden, "nothing to toggle")
+	require.Contains(t, m.Notice, "attach_banner")
+	require.Equal(t, 0, m.Attach.BannerRows)
+}
+
+func TestAttachCommand_BannerTooShortSaysSo(t *testing.T) {
+	m := bannerModel(t, 120, 24, bannerSession())
+	require.Equal(t, 0, m.Attach.BannerRows)
+	m, _ = executeAttachCommand(m, "banner") // hides (already not shown)
+	m, _ = executeAttachCommand(m, "banner") // shows: still no room
+	require.Equal(t, 0, m.Attach.BannerRows)
+	require.Contains(t, m.Notice, "too short")
+}
+
+func TestAttachCommandBar_HintListsBanner(t *testing.T) {
+	m := bannerModel(t, 160, 40, bannerSession())
+	require.Contains(t, ansi.Strip(renderAttachCommandBar(m, 200)), "banner")
+}
