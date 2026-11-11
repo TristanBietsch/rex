@@ -22,6 +22,9 @@ import (
 // on disk.
 var ErrNoAgentLog = errors.New("agent log not found")
 
+// maxTurns caps the messages read from one agent log.
+const maxTurns = 200000
+
 // maxLogLine caps one line of the agent log (tool results can be large).
 const maxLogLine = 64 << 20
 
@@ -58,10 +61,19 @@ func ReadAgentLog(home, resumeID string) ([]Turn, error) {
 // findAgentLog locates <resumeID>.jsonl one or two folders below
 // <home>/.claude/projects, as a regular file.
 func findAgentLog(home, resumeID string) (string, error) {
-	root := filepath.Join(home, ".claude", "projects")
+	root, err := filepath.EvalSymlinks(filepath.Join(home, ".claude", "projects"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", ErrNoAgentLog
+	}
+	if err != nil {
+		return "", fmt.Errorf("export: %w", err)
+	}
 	var found string
-	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if p != root && d != nil && d.IsDir() {
+				return fs.SkipDir // an unreadable project folder is not the one
+			}
 			return err
 		}
 		rel, _ := filepath.Rel(root, p)
@@ -109,10 +121,7 @@ func parseAgentLog(r io.Reader) ([]Turn, error) {
 	br := bufio.NewReaderSize(r, 1<<20)
 	var turns []Turn
 	for n := 1; ; n++ {
-		line, err := br.ReadBytes('\n')
-		if len(line) > maxLogLine {
-			return nil, fmt.Errorf("export: agent log line %d is too large", n)
-		}
+		line, err := readLine(br, maxLogLine)
 		complete := err == nil
 		if rec := strings.TrimSpace(string(line)); rec != "" {
 			turn, ok, perr := parseLogLine([]byte(rec))
@@ -122,6 +131,9 @@ func parseAgentLog(r io.Reader) ([]Turn, error) {
 			case perr != nil:
 				return nil, fmt.Errorf("export: agent log line %d: %w", n, perr)
 			case ok:
+				if len(turns) >= maxTurns {
+					return nil, fmt.Errorf("export: agent log has more than %d messages: %w", maxTurns, ErrTooLarge)
+				}
 				turns = append(turns, turn)
 			}
 		}
@@ -131,6 +143,28 @@ func parseAgentLog(r io.Reader) ([]Turn, error) {
 		if err != nil {
 			return nil, fmt.Errorf("export: read agent log: %w", err)
 		}
+	}
+}
+
+// readLine returns the next line of br including its newline. A line longer
+// than limit is read through but not kept: the result is empty (a tool result
+// that large is no conversation text). The error is nil after a full line.
+func readLine(br *bufio.Reader, limit int) ([]byte, error) {
+	var line []byte
+	skipped := false
+	for {
+		chunk, err := br.ReadSlice('\n')
+		if !skipped {
+			if len(line)+len(chunk) > limit {
+				skipped, line = true, nil
+			} else {
+				line = append(line, chunk...)
+			}
+		}
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
+		}
+		return line, err
 	}
 }
 

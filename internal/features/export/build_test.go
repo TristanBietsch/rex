@@ -2,7 +2,6 @@ package export
 
 import (
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -69,27 +68,6 @@ func TestBuild_negativeMaxFrames(t *testing.T) {
 func TestBuild_missingTranscript(t *testing.T) {
 	_, err := Build(Options{Session: session("claude"), TranscriptPath: filepath.Join(t.TempDir(), "none.log")})
 	require.ErrorIs(t, err, ErrNoTranscript)
-}
-
-// A session still running keeps appending: the export reads up to the size
-// the file had when it was opened and ignores bytes appended after.
-func TestBuild_readsOnlyUpToTheSizeAtOpen(t *testing.T) {
-	p := writeTranscript(t, "before\r\n")
-	f, err := os.Open(p)
-	require.NoError(t, err)
-	defer f.Close()
-	st, err := f.Stat()
-	require.NoError(t, err)
-
-	app, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0o600)
-	require.NoError(t, err)
-	_, err = app.WriteString("after\r\n")
-	require.NoError(t, err)
-	require.NoError(t, app.Close())
-
-	fs, err := Frames(io.LimitReader(f, st.Size()), 40, 6, nil)
-	require.NoError(t, err)
-	require.Equal(t, []string{"before"}, texts(fs))
 }
 
 func TestBuild_largeTranscriptStreams(t *testing.T) {

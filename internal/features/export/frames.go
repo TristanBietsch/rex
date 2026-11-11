@@ -24,7 +24,7 @@ import (
 const MaxTranscriptBytes = 512 << 20
 
 // ErrTooLarge reports a transcript above MaxTranscriptBytes.
-var ErrTooLarge = errors.New("transcript is too large to export")
+var ErrTooLarge = errors.New("input is too large to export")
 
 // readChunk is how much of the transcript is read at a time. Frames never
 // holds more than one chunk plus the screen.

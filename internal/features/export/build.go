@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -47,6 +48,9 @@ type Options struct {
 	Home string
 }
 
+// afterStat is a test hook run between sizing the transcript and reading it.
+var afterStat = func() {}
+
 // Build reads the session's transcript and returns the document. The file
 // is opened read-only and read up to the size it has at that moment, so a
 // running session keeps writing undisturbed and bytes appended meanwhile are
@@ -56,14 +60,20 @@ func Build(o Options) (Document, error) {
 	if o.MaxFrames < 0 {
 		return Document{}, fmt.Errorf("export: max frames %d: must not be negative", o.MaxFrames)
 	}
-	d := Document{Version: Version, Session: o.Session, Source: SourceFrames}
+	d := Document{Version: Version, Session: cleanSession(o.Session), Source: SourceFrames}
+	o.Session = d.Session
 	if o.FromAgentLog {
 		turns, notice, err := agentTurns(o)
 		if err != nil {
 			return d, err
 		}
 		if notice == "" {
-			d.Source, d.Turns = SourceAgentLog, turns
+			d.Source = SourceAgentLog
+			if o.MaxFrames > 0 && len(turns) > o.MaxFrames {
+				d.TurnsDropped = len(turns) - o.MaxFrames
+				turns = turns[d.TurnsDropped:]
+			}
+			d.Turns = turns
 			return d, nil
 		}
 		d.Notice = notice
@@ -80,6 +90,7 @@ func Build(o Options) (Document, error) {
 	if err != nil {
 		return d, fmt.Errorf("export: %w", err)
 	}
+	afterStat()
 	r := io.LimitReader(f, st.Size())
 
 	if LineTool(o.Session.ToolID) {
@@ -87,9 +98,7 @@ func Build(o Options) (Document, error) {
 		if err != nil {
 			return d, err
 		}
-		if text != "" {
-			d.Frames = []Frame{{At: st.Size(), Text: text}}
-		}
+		d.Frames, d.FramesDropped = lineFrames(text, st.Size(), o.MaxFrames)
 		return d, nil
 	}
 	cols, rows := o.Cols, o.Rows
@@ -99,16 +108,28 @@ func Build(o Options) (Document, error) {
 	if rows == 0 {
 		rows = DefaultRows
 	}
-	frames, err := Frames(r, cols, rows, o.Cuts)
-	if err != nil {
-		return d, err
+	d.Frames, d.FramesDropped, err = FramesLimited(r, cols, rows, o.Cuts, o.MaxFrames)
+	return d, err
+}
+
+// lineFrames splits a line tool's text into frames of scrollFrameLines lines
+// (At is the transcript size for all of them: the stripped text has no
+// offsets), keeping the last limit when limit > 0.
+func lineFrames(text string, size int64, limit int) (frames []Frame, dropped int) {
+	if text == "" {
+		return nil, 0
 	}
-	if o.MaxFrames > 0 && len(frames) > o.MaxFrames {
-		d.FramesDropped = len(frames) - o.MaxFrames
-		frames = frames[d.FramesDropped:]
+	lines := strings.Split(text, "\n")
+	for len(lines) > 0 {
+		n := min(scrollFrameLines, len(lines))
+		frames = append(frames, Frame{At: size, Text: strings.Join(lines[:n], "\n")})
+		lines = lines[n:]
 	}
-	d.Frames = frames
-	return d, nil
+	if limit > 0 && len(frames) > limit {
+		dropped = len(frames) - limit
+		frames = frames[dropped:]
+	}
+	return frames, dropped
 }
 
 // agentTurns reads the agent log for o.Session. A non-empty notice means it
@@ -134,27 +155,43 @@ func agentTurns(o Options) (turns []Turn, notice string, err error) {
 	return turns, "", err
 }
 
+// ErrSymlink reports an output path that is a symbolic link.
+var ErrSymlink = errors.New("refusing to write through a symbolic link")
+
 // WriteFile writes data to path with mode 0600. Without force it refuses to
-// replace a file (ErrExists); with force it truncates the file and tightens
-// its mode. The directory must exist.
+// replace a file (ErrExists). With force it replaces the file atomically (a
+// temporary file in the same folder, renamed over path) and refuses a path
+// that is a symbolic link (ErrSymlink). The folder must exist.
 func WriteFile(path string, data []byte, force bool) error {
-	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
-	if force {
-		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	if !force {
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("%w: %s (use --force to replace it)", ErrExists, path)
+		}
+		if err != nil {
+			return fmt.Errorf("export: %w", err)
+		}
+		return writeAndClose(f, data)
 	}
-	f, err := os.OpenFile(path, flags, 0o600)
-	if errors.Is(err, fs.ErrExist) {
-		return fmt.Errorf("%w: %s (use --force to replace it)", ErrExists, path)
+	if st, err := os.Lstat(path); err == nil && st.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("export: %w: %s", ErrSymlink, path)
 	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".rex-export-*") // O_EXCL, mode 0600
 	if err != nil {
 		return fmt.Errorf("export: %w", err)
 	}
-	if force {
-		if err := f.Chmod(0o600); err != nil && !errors.Is(err, errors.ErrUnsupported) {
-			_ = f.Close()
-			return fmt.Errorf("export: %w", err)
-		}
+	if err := writeAndClose(tmp, data); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
 	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		_ = os.Remove(tmp.Name())
+		return fmt.Errorf("export: %w", err)
+	}
+	return nil
+}
+
+func writeAndClose(f *os.File, data []byte) error {
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
 		return fmt.Errorf("export: %w", err)

@@ -54,9 +54,11 @@ type Document struct {
 	// agent log was missing and frames were used instead).
 	Notice string `json:"notice,omitempty"`
 	// FramesDropped counts older frames cut by --max-frames.
-	FramesDropped int     `json:"frames_dropped,omitempty"`
-	Frames        []Frame `json:"frames,omitempty"`
-	Turns         []Turn  `json:"turns,omitempty"`
+	FramesDropped int `json:"frames_dropped,omitempty"`
+	// TurnsDropped counts older turns cut by --max-frames.
+	TurnsDropped int     `json:"turns_dropped,omitempty"`
+	Frames       []Frame `json:"frames,omitempty"`
+	Turns        []Turn  `json:"turns,omitempty"`
 }
 
 // Format is an output format.
@@ -138,22 +140,25 @@ func renderJSON(d Document) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// renderYAML writes the same document as renderJSON: it is the JSON, read as
-// YAML (a superset) and re-emitted in block style with the keys in order.
+// renderYAML writes the same document as renderJSON: the JSON, walked
+// token by token into a yaml.Node tree (keys in order) and emitted in block
+// style. It never parses the JSON as YAML, so text YAML would reject (DEL,
+// C1, noncharacters) is quoted by the encoder instead.
 func renderYAML(d Document) ([]byte, error) {
 	j, err := json.Marshal(d)
 	if err != nil {
 		return nil, fmt.Errorf("export: encode yaml: %w", err)
 	}
-	var n yaml.Node
-	if err := yaml.Unmarshal(j, &n); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(j))
+	dec.UseNumber()
+	n, err := nodeFromJSON(dec)
+	if err != nil {
 		return nil, fmt.Errorf("export: encode yaml: %w", err)
 	}
-	blockStyle(&n)
 	var b bytes.Buffer
 	enc := yaml.NewEncoder(&b)
 	enc.SetIndent(2)
-	if err := enc.Encode(&n); err != nil {
+	if err := enc.Encode(n); err != nil {
 		return nil, fmt.Errorf("export: encode yaml: %w", err)
 	}
 	if err := enc.Close(); err != nil {
@@ -162,17 +167,56 @@ func renderYAML(d Document) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// blockStyle drops the flow and quoting styles JSON parsed with, so the
-// encoder picks plain scalars (quoting only where needed) and literal blocks
-// for multi-line text.
-func blockStyle(n *yaml.Node) {
-	n.Style = 0
-	if n.Kind == yaml.ScalarNode && n.Tag == "!!str" && strings.Contains(n.Value, "\n") {
-		n.Style = yaml.LiteralStyle
+// nodeFromJSON reads one JSON value from dec as a yaml.Node.
+func nodeFromJSON(dec *json.Decoder) (*yaml.Node, error) {
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, err
 	}
-	for _, c := range n.Content {
-		blockStyle(c)
+	switch v := tok.(type) {
+	case json.Delim:
+		if v == '{' {
+			n := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+			for dec.More() {
+				key, err := dec.Token()
+				if err != nil {
+					return nil, err
+				}
+				val, err := nodeFromJSON(dec)
+				if err != nil {
+					return nil, err
+				}
+				n.Content = append(n.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.(string)}, val)
+			}
+			_, err := dec.Token()
+			return n, err
+		}
+		n := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		for dec.More() {
+			val, err := nodeFromJSON(dec)
+			if err != nil {
+				return nil, err
+			}
+			n.Content = append(n.Content, val)
+		}
+		_, err := dec.Token()
+		return n, err
+	case string:
+		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v}
+		if strings.Contains(v, "\n") {
+			n.Style = yaml.LiteralStyle
+		}
+		return n, nil
+	case json.Number:
+		tag := "!!int"
+		if strings.ContainsAny(v.String(), ".eE") {
+			tag = "!!float"
+		}
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: v.String()}, nil
+	case bool:
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: strconv.FormatBool(v)}, nil
 	}
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"}, nil
 }
 
 // metaRow is one metadata line of the md and txt documents.
@@ -241,6 +285,9 @@ func renderMD(d Document) string {
 	if d.FramesDropped > 0 {
 		b.WriteString("\n_" + strconv.Itoa(d.FramesDropped) + " earlier frames left out (--max-frames)._\n")
 	}
+	if d.TurnsDropped > 0 {
+		b.WriteString("\n_" + strconv.Itoa(d.TurnsDropped) + " earlier turns left out (--max-frames)._\n")
+	}
 	for i, f := range d.Frames {
 		b.WriteString("\n## Frame " + strconv.Itoa(i+1) + "\n\n")
 		writeFenced(&b, f.Text)
@@ -286,6 +333,9 @@ func renderTXT(d Document) string {
 	}
 	if d.FramesDropped > 0 {
 		b.WriteString("frames left out: " + strconv.Itoa(d.FramesDropped) + " (--max-frames)\n")
+	}
+	if d.TurnsDropped > 0 {
+		b.WriteString("turns left out: " + strconv.Itoa(d.TurnsDropped) + " (--max-frames)\n")
 	}
 	for _, f := range d.Frames {
 		b.WriteString("\n" + rule + "\n" + f.Text + "\n")
