@@ -152,6 +152,12 @@ var Registry = []Setting{
 		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
 	},
 
+	{
+		ID: "session_export", Label: "Session export", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
+	},
+
 	// Spawn
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,
