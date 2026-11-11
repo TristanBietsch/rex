@@ -105,6 +105,9 @@ var (
 	styleBootHeader  lipgloss.Style
 	styleBootReady   lipgloss.Style
 	styleBootCause   lipgloss.Style
+
+	styleArrow       lipgloss.Style
+	styleArrowYellow lipgloss.Style
 )
 
 func init() {
@@ -158,6 +161,11 @@ func rebuildStyles() {
 	styleBootHeader = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
 	styleBootReady = lipgloss.NewStyle().Foreground(colorDone)
 	styleBootCause = lipgloss.NewStyle().Foreground(colorFailed)
+
+	// Rebuilt with the palette: package-level initializers run before
+	// init(), when the colors are still empty.
+	styleArrow = lipgloss.NewStyle().Foreground(colorWorking)
+	styleArrowYellow = lipgloss.NewStyle().Foreground(colorNeeds)
 }
 
 // renderHR renders a horizontal rule line of given width.

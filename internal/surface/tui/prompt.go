@@ -8,11 +8,6 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-var (
-	styleArrow       = lipgloss.NewStyle().Foreground(colorWorking)
-	styleArrowYellow = lipgloss.NewStyle().Foreground(colorNeeds)
-)
-
 // renderPrompt builds the bottom prompt line, sized to width.
 func renderPrompt(m Model, width int) string {
 	glyph := promptGlyph(m)
@@ -54,15 +49,21 @@ func promptGlyph(m Model) string {
 	return "λ"
 }
 
+// cursorStyle is the lit cursor. Reverse video shows under NO_COLOR, where a
+// background-only block would vanish.
+func cursorStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Reverse(true)
+}
+
 func cursorBlock(m Model) string {
 	// reduce_motion: render a steady cursor.
 	if m.Store != nil {
 		if rm, _ := m.Store.Get("reduce_motion").(bool); rm {
-			return lipgloss.NewStyle().Background(colorFgPrimary).Foreground(lipgloss.Color("#0F1115")).Render(" ")
+			return cursorStyle().Render(" ")
 		}
 	}
 	if m.SpinnerTick%10 < 5 {
-		return lipgloss.NewStyle().Background(colorFgPrimary).Foreground(lipgloss.Color("#0F1115")).Render(" ")
+		return cursorStyle().Render(" ")
 	}
 	return styleDim.Render(" ")
 }

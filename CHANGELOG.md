@@ -95,6 +95,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: the `λ` prompt glyph, the `▸` selection marker and the `:` prompt
+  are now colored and follow `color_scheme` (they were never colored).
+  The text cursor is drawn in reverse video, so it shows with `NO_COLOR`.
+  The color scheme is applied on the UI goroutine at startup, not from a
+  background command, which removes a data race with the splash screen.
 - TUI: `:undone` on a session that is not marked done no longer marks it
   done. It now only unmarks, and says "<name> is not marked done"
   otherwise. `:done` still toggles.
