@@ -152,6 +152,17 @@ var Registry = []Setting{
 		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
 	},
 
+	{
+		ID: "usage", Label: "Usage tracking", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Track agent usage: a ledger of tokens and cost per session (~/.local/share/rex/usage.jsonl) for rex usage, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written, nothing is polled, and rex usage refuses.",
+	},
+	{
+		ID: "usage_statusline_tap", Label: "Claude status-line tap", Section: SectionFeatures,
+		Type: TypeEnum, Default: "auto", Options: []string{"auto", "on", "off"},
+		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
+	},
+
 	// Spawn
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,

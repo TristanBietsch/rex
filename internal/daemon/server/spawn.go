@@ -106,6 +106,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		SkipPermissions: srv.cfg.SkipPermissions != nil && srv.cfg.SkipPermissions(),
 		HookFile:        hookFile,
 		SessionID:       id,
+		StatusLine:      srv.statusLineFor(tool, id, p.CWD),
 	}
 	// A tool that takes a preassigned conversation id (Claude's --session-id)
 	// gets a fresh UUID, which is not the rex session id: the two diverge
@@ -187,6 +188,9 @@ type spawnSpec struct {
 	PluginDir string
 	HookFile  string
 	SessionID string
+	// StatusLine is the statusLine command added to Claude's --settings (the
+	// usage tap); "" adds none.
+	StatusLine string
 	// Resume, when set and the tool has a resume block, adds its resume or
 	// new-session args (see resumeArgs).
 	Resume *resumeArgs
@@ -239,7 +243,7 @@ func buildArgv(spec spawnSpec) []string {
 	}
 	// Flags must precede the `--` prompt separator.
 	if spec.Tool.Detect.Kind == "hooks" && spec.Tool.Detect.Format == "claude" {
-		argv = append(argv, adapter.ClaudeHookArgs()...)
+		argv = append(argv, adapter.ClaudeSettingsArgs(spec.StatusLine)...)
 	}
 	return argv
 }

@@ -21,6 +21,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Usage tracking, first part (the `usage` feature, on by default):
+  `rex-daemon statusline-tap`, a Claude Code status line that sends plan
+  rate-limit, cost and model fields to the daemon and then runs your own
+  status line with the same input, so yours looks the same. The
+  `usage_statusline_tap` setting (`auto`, `on`, `off`; Settings → Features)
+  decides when rex adds it: `auto` only when you already have a status line
+  (a status line makes Claude hide its footer hints, which rex never does on
+  its own), `on` always, `off` never. `usage` off adds no tap and writes
+  nothing. See [docs/settings.md](docs/settings.md) and SECURITY.md.
 - TUI: a Waiting section below Needs you for working sessions that are
   blocked on a shell command, a subagent or a web call, not on you (Claude
   Code). A session moves there after 3 seconds on the call. It has its own

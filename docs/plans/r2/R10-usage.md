@@ -73,6 +73,7 @@ esc back  ←/→ range  r refresh  / filter  ~ = estimate
 
 ## Plan
 1. **R10-1 Capture.** Record Claude status-line JSON from a sandboxed session (scratchpad only, never committed) and `grok usage` output (plan and per-session forms). Write the field table into this file. No code.
+1b. **R10-1b capture `grok usage`. TODO.** Capture `grok usage` output (plan and per-session forms) from a sandboxed session, add the field table here, then write the grok parser and poller. Until then `usage.GrokSource` is registered but answers `ErrNotImplemented`: no parser exists and none may be guessed.
 2. **R10-2 Sources + flags.** `usage` package, Claude tap (`rex-daemon statusline-tap`), grok poller, estimate fallback; `usage` and `usage_statusline_tap` flags. Tests: tap passes stdin byte-for-byte to a stub user command and keeps its exit code; parse fixtures (synthetic, shaped like the captures); missing fields → Stale; grok poll stops when no grok session is live; off-is-inert for both flags.
 3. **R10-3 Ledger.** Append, periodic snapshot, latest-per-session aggregation, 90-day trim. Tests: no double count across periodic lines; prune/reap of a session leaves its ledger line; 0600 perms; corrupt line skipped with a warning; Windows path.
 4. **R10-4 Wire.** `Usage` event, snapshot, `UsageQuery` intent. Tests: late-joining TUI gets current readings; old daemon → page shows "update daemon", meter hidden.

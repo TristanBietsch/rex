@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -21,16 +22,38 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/features/overview"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
+	"github.com/tristanbietsch/rex/internal/features/usage"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/version"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == usage.TapSubcommand {
+		os.Exit(runTap(os.Args[2:]))
+	}
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "rex-daemon:", err)
 		os.Exit(1)
 	}
+}
+
+// runTap is `rex-daemon statusline-tap --session <id> [--socket path]`, the
+// status-line command rex gives Claude Code. Its stdout is Claude's status
+// line, so it never prints a message of its own; a flag it cannot parse only
+// means no usage is sent. It does not start logging or touch any state.
+func runTap(args []string) int {
+	fs := flag.NewFlagSet(usage.TapSubcommand, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	session := fs.String("session", "", "rex session id")
+	socket := fs.String("socket", "", "daemon socket (default: the standard one)")
+	if err := fs.Parse(args); err != nil {
+		*session = "" // run the user's command, send nothing
+	}
+	return usage.RunTap(context.Background(), usage.TapOptions{
+		Session: *session, Socket: *socket,
+		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
+	})
 }
 
 func run(args []string) error {
@@ -180,6 +203,7 @@ func run(args []string) error {
 		ResumeEnabled:         boot.ResumeEnabled,
 		SkillsDir:             *skillsDir,
 		SkillsEnabled:         boot.SpawnSkillsEnabled,
+		UsageTap:              boot.UsageTap(*socketPath),
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },

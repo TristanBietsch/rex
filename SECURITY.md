@@ -56,6 +56,22 @@ filesystem permissions.
   The digest it is built from (every session's name, task, description and
   question line) goes to `OLLAMA_HOST`: if that points off this machine, so
   do those titles and statuses.
+- **The Claude status-line tap** (`usage`, `usage_statusline_tap`). When on,
+  rex starts Claude Code with a status line that runs
+  `rex-daemon statusline-tap`. The tap reads Claude's status-line JSON from
+  stdin and sends only the usage fields to the daemon (plan rate-limit
+  percentages and reset times, session cost, model id and name, Claude's
+  conversation id); the prompt, transcript path and folder in that JSON are
+  never forwarded. It also **reads** your Claude settings files
+  (`~/.claude/settings.json`, and `.claude/settings*.json` in the session
+  folder) and **runs the status line command found there** with the same
+  input, so it runs code you already configured, nothing else. It never
+  writes a Claude settings file. The daemon ignores a sample for an unknown
+  session. Reports of the tap sending more than those fields, running
+  anything other than your own status line command, or writing to your Claude
+  settings are in scope. The usage ledger (`usage.jsonl`) holds session ids,
+  tool and model names, token counts and cost, mode 0600, and no prompts or
+  output.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the

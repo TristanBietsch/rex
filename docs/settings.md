@@ -67,6 +67,8 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `summary_preview` | bool | `true` | A line under the board with the selected session's full AI summary and its age. Shown only while some session has a summary. Off: no line and no row reserved |
 | `waiting_section` | bool | `true` | A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own `◷` marker and count. Off: those sessions stay in Working, the section, its count and its key go away, and `1` `2` `3` (and `z1`-`z3`) are Needs you / Working / Done again. The daemon still records `waiting_on` / `waiting_since`; the switch is read by the TUI and `rex ls` |
 | `spawn_skills` | bool | `true` | Load skills from `~/.config/rex/skills` into one session: the wizard's skills step and `rex new -skill`. Off: the step is hidden, `-skill` exits 5 (`off: enable in Settings → Features (rex config set spawn_skills true)`), `NewSession` with skills is `bad_intent` `skills are off`, and no `--plugin-dir` is added, also on resume. The daemon reads it at each spawn and `Resume`. See [howto/skills.md](howto/skills.md) |
+| `usage` | bool | `true` | Track agent usage: the per-session ledger (`~/.local/share/rex/usage.jsonl`, see [paths.md](paths.md)) behind `rex usage`, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written or trimmed, nothing is polled, and `rex usage` exits 5 (`off: enable in Settings → Features (rex config set usage true)`). The daemon reads it at each spawn and each ledger write |
+| `usage_statusline_tap` | `auto` \| `on` \| `off` | `auto` | How rex reads Claude Code's plan usage. rex gives Claude a status line (`rex-daemon statusline-tap`) that sends the usage fields to the daemon and then runs **your own** status line command with the same input, so yours looks unchanged. `auto` adds it only when you already have a status line, because Claude hides its footer hints (`esc to interrupt`, `? for shortcuts`) once any status line is set and rex never changes that on its own. `on` always adds it (the footer hints go away). `off` never adds it; Claude rows then use rex's own token estimate (`~`). Ignored while `usage` is off. Read at each spawn and `Resume`, so it applies to the next session |
 
 ### Spawn
 
@@ -154,3 +156,13 @@ default_spawn_model: short
 - [howto/lua-hooks.md](howto/lua-hooks.md)
 - [registry.md](registry.md) — tool ids for spawn defaults
 - [paths.md](paths.md)
+
+### How the Claude status-line tap finds your status line
+
+`usage_statusline_tap` (and the tap itself) reads these files, read-only, and uses the first that sets `statusLine` with `"type": "command"` and a non-empty command, in Claude's precedence order:
+
+1. `<session folder>/.claude/settings.local.json`
+2. `<session folder>/.claude/settings.json`
+3. `$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json`
+
+Not supported: enterprise managed settings, and a `--settings` file you pass to `claude` yourself (rex starts Claude). A file that is missing or is not valid JSON is skipped. A command that already runs `statusline-tap` is ignored. rex never writes any Claude settings file: the tap is injected through the `--settings` argument rex already passes, which also holds the hooks. At run time the tap runs your command through `sh -c` (`bash -c` on Windows) with the identical stdin bytes and passes its stdout, stderr and exit code through. With no status line of your own it prints nothing and exits 0.
