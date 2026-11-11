@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: one space between an icon and the number after it, so the board is
+  less crowded: the subagent count (`⋔ 3`), the long-running badge
+  (`▴ 42m`) and the `glyphs` header style (`◆ 4  ◷ 1  ⟳ 2  ● 7`, `✕ 2`).
+  The subagent and badge columns are one cell wider.
 - TUI: the number keys follow the screen, which now has four sections: `1`
   Needs you, `2` Waiting, `3` Working, `4` Done. `2` and `3` used to jump to
   Working and Done, and `4` is now the key that folds a long Done column.
