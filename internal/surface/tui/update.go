@@ -142,6 +142,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleReconnectTick(m, msg)
 	case reconnectResultMsg:
 		return handleReconnectResult(m, msg)
+	case exportDoneMsg:
+		return applyExportDone(m, msg), nil
 	case pruneDoneMsg:
 		return applyPruneDone(m, msg), nil
 	case CmdErrMsg:

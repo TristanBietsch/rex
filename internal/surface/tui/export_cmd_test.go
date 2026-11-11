@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/features/export"
@@ -31,14 +32,33 @@ func exportModel(t *testing.T) (Model, string) {
 	return m, filepath.Join(home, ".local", "share", "rex", "exports")
 }
 
+// finishExport runs the background command a :export line returned and feeds
+// its message back through Update, as the program would.
+func finishExport(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	require.NotNil(t, cmd)
+	msg, ok := cmd().(exportDoneMsg)
+	require.True(t, ok)
+	next, _ := m.Update(msg)
+	return next.(Model)
+}
+
+func exportLine(t *testing.T, m Model, line string) Model {
+	t.Helper()
+	m, cmd := executeCommand(m, line)
+	require.Empty(t, m.Err)
+	require.True(t, strings.HasPrefix(m.Notice, "exporting "), m.Notice)
+	return finishExport(t, m, cmd)
+}
+
 func TestExportCommand_writesJSONForTheSelectedSession(t *testing.T) {
 	m, dir := exportModel(t)
-	m, cmd := executeCommand(m, "export")
-	require.Nil(t, cmd)
+	m = exportLine(t, m, "export")
 	require.Empty(t, m.Err)
 	want := filepath.Join(dir, "dark-mode-7d4f.json")
-	require.Contains(t, m.Notice, want)
+	require.True(t, strings.HasPrefix(m.Notice, "exported "+want), m.Notice)
 	require.Contains(t, m.Notice, "secrets", "the notice reminds the user the file is sensitive")
+	require.Empty(t, m.exporting)
 
 	b, err := os.ReadFile(want)
 	require.NoError(t, err)
@@ -46,6 +66,32 @@ func TestExportCommand_writesJSONForTheSelectedSession(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &d))
 	require.Equal(t, "7d4f", d.Session.ShortID)
 	require.Equal(t, "screen of dark-mode", d.Frames[len(d.Frames)-1].Text)
+}
+
+func TestExportCommand_doesNotBlockTheBoard(t *testing.T) {
+	m, dir := exportModel(t)
+	m, cmd := executeCommand(m, "export")
+	require.NotNil(t, cmd)
+	require.NoDirExists(t, dir, "nothing is written until the command runs")
+	require.True(t, m.exporting["1"])
+}
+
+func TestExportCommand_secondExportOfTheSameSessionIsIgnoredWhileRunning(t *testing.T) {
+	m, _ := exportModel(t)
+	m, first := executeCommand(m, "export")
+	require.NotNil(t, first)
+	m, second := executeCommand(m, "export")
+	require.Nil(t, second)
+	require.Contains(t, m.Notice, "already running")
+
+	// Another session is not blocked.
+	m, other := executeCommand(m, "export release-notes")
+	require.NotNil(t, other)
+	m = finishExport(t, m, first)
+	require.False(t, m.exporting["1"])
+	require.True(t, m.exporting["2"])
+	_, again := executeCommand(m, "export")
+	require.NotNil(t, again, "free again once the first finished")
 }
 
 func TestExportCommand_selectorAndFormat(t *testing.T) {
@@ -59,7 +105,7 @@ func TestExportCommand_selectorAndFormat(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.line, func(t *testing.T) {
 			m, dir := exportModel(t)
-			m, _ = executeCommand(m, c.line)
+			m = exportLine(t, m, c.line)
 			require.Empty(t, m.Err)
 			b, err := os.ReadFile(filepath.Join(dir, c.file))
 			require.NoError(t, err)
@@ -73,21 +119,20 @@ func TestExportCommand_fileMode0600(t *testing.T) {
 		t.Skip("unix permission bits")
 	}
 	m, dir := exportModel(t)
-	m, _ = executeCommand(m, "export")
-	require.Empty(t, m.Err)
+	require.NoError(t, os.MkdirAll(dir, 0o755)) //nolint:gosec // G301: an exports folder that was too open.
+	exportLine(t, m, "export")
 	st, err := os.Stat(filepath.Join(dir, "dark-mode-7d4f.json"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o600), st.Mode().Perm())
 	dst, err := os.Stat(dir)
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o700), dst.Mode().Perm())
+	require.Equal(t, os.FileMode(0o700), dst.Mode().Perm(), "an existing folder is tightened")
 }
 
 func TestExportCommand_exportingAgainReplacesTheFile(t *testing.T) {
 	m, dir := exportModel(t)
-	m, _ = executeCommand(m, "export")
-	m, _ = executeCommand(m, "export")
-	require.Empty(t, m.Err)
+	m = exportLine(t, m, "export")
+	exportLine(t, m, "export")
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
@@ -96,17 +141,13 @@ func TestExportCommand_exportingAgainReplacesTheFile(t *testing.T) {
 func TestExportCommand_errors(t *testing.T) {
 	m, _ := exportModel(t)
 	for line, want := range map[string]string{
-		"export nope":          "no match for nope",
-		"export a b c":         "usage",
-		"export md md":         "no match for md",
-		"export release-notes": "",
+		"export nope":  "no match for nope",
+		"export a b c": "usage",
+		"export md md": "no match for md",
 	} {
-		got, _ := executeCommand(m, line)
-		if want == "" {
-			require.Empty(t, got.Err, line)
-			continue
-		}
+		got, cmd := executeCommand(m, line)
 		require.Contains(t, got.Err, want, line)
+		require.Nil(t, cmd, line)
 	}
 
 	m.SelectedID = ""
@@ -115,9 +156,10 @@ func TestExportCommand_errors(t *testing.T) {
 
 	m, exports := exportModel(t)
 	require.NoError(t, os.Remove(filepath.Join(filepath.Dir(exports), "sessions", "1", "transcript.log")))
-	got, _ = executeCommand(m, "export")
-	require.Contains(t, got.Err, "no transcript")
-	require.Empty(t, got.Notice)
+	m, cmd := executeCommand(m, "export")
+	m = finishExport(t, m, cmd)
+	require.Contains(t, m.Err, "no transcript")
+	require.False(t, m.exporting["1"], "a failed export frees the session")
 }
 
 func TestExportOff_IsInert(t *testing.T) {
@@ -134,5 +176,5 @@ func TestExportCommand_isInTheHelpTable(t *testing.T) {
 	c, ok := lookupCommand("export")
 	require.True(t, ok)
 	require.Equal(t, "session_export", c.Flag)
-	require.Equal(t, ":export [sel] [json|yaml|md|txt]", c.helpKey())
+	require.Equal(t, ":export [sel] [fmt]", c.helpKey())
 }
