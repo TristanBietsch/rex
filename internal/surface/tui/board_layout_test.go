@@ -64,7 +64,7 @@ func boardRows(t *testing.T, m Model, width int) map[string]string {
 	return rows
 }
 
-var layoutWidths = []int{40, 60, 80, 100, 120, 160, 220}
+var layoutWidths = []int{30, 40, 45, 60, 61, 80, 109, 110, 149, 150, 220}
 
 // Every row is exactly the board width (never wraps, never overflows) and the
 // time column sits flush right on every row.
@@ -142,7 +142,7 @@ func TestBoardLayout_WideShowsEverything(t *testing.T) {
 // readable, and the time is never cut.
 func TestBoardLayout_EightyColumns(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	m := layoutModel(now, 80, layoutSessions(now)...)
+	m := fitModel(t, layoutModel(now, 80, layoutSessions(now)...))
 	cols := boardLayout(m, 80)
 	require.GreaterOrEqual(t, cols.desc, descMin)
 	rows := boardRows(t, m, 80)
@@ -151,8 +151,8 @@ func TestBoardLayout_EightyColumns(t *testing.T) {
 	require.True(t, strings.HasSuffix(rows["2"], "11m"))
 }
 
-// No blank badge column is reserved when no row has a badge, and no tokens
-// column when no row has tokens.
+// column_layout: fit reserves no blank badge column when no row has a badge,
+// and no tokens column when no row has tokens.
 func TestBoardLayout_OptionalColumnsCollapse(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	plain := []protocol.SessionSummary{
@@ -161,7 +161,7 @@ func TestBoardLayout_OptionalColumnsCollapse(t *testing.T) {
 		{ID: "b", ShortID: "bbbb", ModelID: "sonnet", Slug: "beta", Description: "other",
 			State: protocol.StateDone, LastEventAt: now.Add(-2 * time.Minute)},
 	}
-	m := layoutModel(now, 120, plain...)
+	m := fitModel(t, layoutModel(now, 120, plain...))
 	cols := boardLayout(m, 120)
 	require.Zero(t, cols.run)
 	require.Zero(t, cols.tokens)
@@ -176,11 +176,11 @@ func TestBoardLayout_OptionalColumnsCollapse(t *testing.T) {
 func TestBoardLayout_NarrowDegradation(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	sessions := layoutSessions(now)
-	prev := boardLayout(layoutModel(now, 220, sessions...), 220)
+	prev := boardLayout(fitModel(t, layoutModel(now, 220, sessions...)), 220)
 	require.NotZero(t, prev.tokens)
 	require.NotZero(t, prev.model)
 	for w := 219; w >= 40; w-- {
-		c := boardLayout(layoutModel(now, w, sessions...), w)
+		c := boardLayout(fitModel(t, layoutModel(now, w, sessions...)), w)
 		if c.model > 0 {
 			require.GreaterOrEqual(t, c.desc, descMin, "width %d: model kept while desc under min", w)
 		}

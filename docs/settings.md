@@ -36,6 +36,7 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | `blinking_enabled` | bool | `true` | Completed-row blink |
 | `show_help_bar` | bool | `true` | Bottom help line |
 | `header_style` | enum | `verbose` | `verbose`, `glyphs`, `numbers` |
+| `column_layout` | enum | `fixed` | `fixed`, `fit`. `fixed` gives board columns set widths that change only at width breakpoints (see [tui.md](tui.md#column-widths)); `fit` sizes them to their content |
 
 ### Behavior
 

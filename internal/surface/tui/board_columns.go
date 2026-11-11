@@ -38,18 +38,91 @@ func classForWidth(cw int) layoutClass {
 	}
 }
 
-// columnSizer sizes the row columns for rows at a content width.
-type columnSizer func(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume bool) rowCols
+// columnLayoutFit is the column_layout value that sizes columns to content.
+const columnLayoutFit = "fit"
 
-// columnLayouts picks the column sizer of each class.
-var columnLayouts = [...]columnSizer{
-	classWide:   layoutFit,
-	classNormal: layoutFit,
-	classNarrow: layoutFit,
-	classMobile: layoutFit,
+// layoutOpts is what column sizing needs besides the rows and the width.
+type layoutOpts struct {
+	detailed bool // the detailed view (v)
+	resume   bool // the resume feature is on: the resume column exists
+	fit      bool // column_layout: fit
+}
+
+func layoutOptsOf(m Model) layoutOpts {
+	return layoutOpts{
+		detailed: m.Detailed,
+		resume:   m.featureOn("resume"),
+		fit:      m.Store != nil && m.Store.String("column_layout") == columnLayoutFit,
+	}
+}
+
+// colSet is the widths of one view in one class. 0 means no column (no
+// cell, no gap). A column that is present is always reserved, empty or not.
+type colSet struct {
+	slug, id, model, tokens, span, resume, agents, run int
+}
+
+// classSpec is a class's fixed widths for each view.
+type classSpec struct {
+	simple, detailed colSet
+}
+
+// classSpecs holds the fixed column widths of every class. The description
+// takes whatever is left.
+var classSpecs = [...]classSpec{
+	classWide: {
+		simple:   colSet{slug: 22, agents: colAgents, run: colRun},
+		detailed: colSet{slug: 22, id: colID, model: 24, tokens: colTokens, span: colSpan, resume: colResume, agents: colAgents, run: colRun},
+	},
+	classNormal: {
+		simple:   colSet{slug: 20, agents: colAgents, run: colRun},
+		detailed: colSet{slug: 20, id: colID, model: 16, tokens: colTokens, agents: colAgents, run: colRun},
+	},
+	classNarrow: {
+		simple:   colSet{slug: 16, agents: colAgents, run: colRun},
+		detailed: colSet{slug: 16, agents: colAgents, run: colRun},
+	},
+	// Below breakNarrow the narrow widths apply (mobile_layout: off), and
+	// layoutFixed shrinks them to fit.
+	classMobile: {
+		simple:   colSet{slug: 16, agents: colAgents, run: colRun},
+		detailed: colSet{slug: 16, agents: colAgents, run: colRun},
+	},
 }
 
 // layoutRows sizes the row columns for a content width.
-func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume bool) rowCols {
-	return columnLayouts[classForWidth(width)](rows, now, width, detailed, resume)
+func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, o layoutOpts) rowCols {
+	if o.fit {
+		return layoutFit(rows, now, width, o.detailed, o.resume)
+	}
+	return layoutFixed(width, o)
+}
+
+// layoutFixed sizes the columns from the class table alone: no row content
+// is read, so a column never moves when a row changes. Only a terminal too
+// narrow for the class (mobile_layout: off below breakNarrow) squeezes: the
+// badge column, then the subagent column go, then the name gives way, so
+// the description keeps descMinNarrow.
+func layoutFixed(width int, o layoutOpts) rowCols {
+	spec := classSpecs[classForWidth(width)]
+	set := spec.simple
+	if o.detailed {
+		set = spec.detailed
+	}
+	c := rowCols{id: set.id, slug: set.slug, model: set.model, tokens: set.tokens,
+		span: set.span, resume: set.resume, agents: set.agents, run: set.run}
+	if !o.resume {
+		c.resume = 0
+	}
+	for _, drop := range []*int{&c.run, &c.agents} {
+		if width-c.used() >= descMinNarrow {
+			break
+		}
+		*drop = 0
+	}
+	if short := descMinNarrow - (width - c.used()); short > 0 {
+		c.slug = max(c.slug-short, 0)
+	}
+	c.desc = max(width-c.used(), 0)
+	return c
 }

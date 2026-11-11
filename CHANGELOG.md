@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: board columns have fixed widths by default and change only when the
+  terminal crosses a width breakpoint (150 and 110 columns). The subagent,
+  badge, tokens, span and resume columns are always reserved, so nothing
+  shifts when a row changes. Below 110 columns the detailed view shows the
+  same columns as the simple one. `column_layout: fit` (Settings →
+  Appearance) brings back content-sized columns.
 - TUI: one space between an icon and the number after it, so the board is
   less crowded: the subagent count (`⋔ 3`), the long-running badge
   (`▴ 42m`) and the `glyphs` header style (`◆ 4  ◷ 1  ⟳ 2  ● 7`, `✕ 2`).

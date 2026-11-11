@@ -53,6 +53,12 @@ var Registry = []Setting{
 		Options: []string{"verbose", "glyphs", "numbers"},
 		Help:    "Change the header style for the aggregate counts at the top.",
 	},
+	{
+		ID: "column_layout", Label: "Column layout", Section: SectionAppearance,
+		Type: TypeEnum, Default: "fixed",
+		Options: []string{"fixed", "fit"},
+		Help:    "fixed: board columns have set widths that change only at breakpoints. fit: columns size to their content.",
+	},
 
 	// Behavior
 	{
