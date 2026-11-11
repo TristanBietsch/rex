@@ -45,6 +45,9 @@ type Model struct {
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string
 	Filter            string
+	// Search is the board search text (/ or :search): every term must match a
+	// row. Session-only; :bg saves it.
+	Search string
 	// Detailed shows the short id, model · effort and token columns and the
 	// AI description (v toggles). The simple view shows the task.
 	Detailed bool
