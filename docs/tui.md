@@ -40,7 +40,7 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 `v` switches to the detailed view, which adds the short id, model · effort, tokens and the start→end span, shows the AI summary as the text, and adds `· N marked done` to the header:
 
 ```
- ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴45m   11m
+ ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴ 45m   11m
      state  id  name        description                          model · effort         tokens   badge  last event
 ```
 
@@ -48,7 +48,7 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 - **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view, only while some row has one, and is the first column to go on a narrow terminal. Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
 - **name**, **model · effort**, and **tokens** are as wide as their widest value on the board (name capped at 22, model at 24). Tokens are right-aligned.
 - The **waiting** detail: in the detailed view a row in WAITING starts its text with the reason and how long it has waited (`shell 42s · Running the test suite`). The attach header chip reads `◷ waiting (shell)`.
-- The **subagent** column (`⋔3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
+- The **subagent** column (`⋔ 3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
 - The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
 - **last event** is right-aligned against the edge; `-` means no event yet.
 - The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
@@ -270,10 +270,10 @@ A small column before the time column flags sessions that have been **working** 
 | Badge | Working for |
 |-------|-------------|
 | (blank) | under 10 min |
-| `▴12m` dim | 10–30 min |
-| `▴45m` amber | 30 min – 2 h |
-| `▴3h` red | 2–6 h |
-| `▴7h` red, inverse | 6 h + |
+| `▴ 12m` dim | 10–30 min |
+| `▴ 45m` amber | 30 min – 2 h |
+| `▴ 3h` red | 2–6 h |
+| `▴ 7h` red, inverse | 6 h + |
 
 ## DETACH WITHOUT QUITTING
 

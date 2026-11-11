@@ -90,7 +90,7 @@ func showFilterChips(m Model) bool {
 
 // renderHeaderCounts formats the counts segment of the header per header_style.
 // verbose: "  4 need you · 1 waiting · 2 working · 7 done"
-// glyphs:  "  ◆4  ◷1  ⟳2  ●7"
+// glyphs:  "  ◆ 4  ◷ 1  ⟳ 2  ● 7"
 // numbers: "  4 · 3 · 7" (waiting folded into working: a bare number has no
 // label to say it is a fourth bucket)
 // The waiting count is left out while it is 0.
@@ -106,9 +106,9 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 	case "glyphs":
 		wait := ""
 		if waiting > 0 {
-			wait = fmt.Sprintf("%s%d  ", waitingGlyph, waiting)
+			wait = fmt.Sprintf("%s %d  ", waitingGlyph, waiting)
 		}
-		s = fmt.Sprintf("    ◆%d  %s⟳%d  ●%d", needs, wait, working, done)
+		s = fmt.Sprintf("    ◆ %d  %s⟳ %d  ● %d", needs, wait, working, done)
 	case "numbers":
 		s = fmt.Sprintf("    %d · %d · %d", needs, working+waiting, done)
 	default:
@@ -123,7 +123,7 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 		if style == "verbose" {
 			out += styleStateFailed.Render(fmt.Sprintf("  · %d failed", failed))
 		} else {
-			out += styleStateFailed.Render(fmt.Sprintf("  ✕%d", failed))
+			out += styleStateFailed.Render(fmt.Sprintf("  ✕ %d", failed))
 		}
 	}
 	return out

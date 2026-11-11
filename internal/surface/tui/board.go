@@ -450,8 +450,8 @@ const (
 	colSlug   = 22 // name column cap
 	colModel  = 24 // model · effort column cap
 	colTokens = 8  // "99.9M tk"
-	colRun    = 4  // long-running badge: "▴42m"
-	colAgents = 3  // running subagents: subagentGlyph + count, "⋔12"
+	colRun    = 5  // long-running badge: "▴ 42m"
+	colAgents = 4  // running subagents: subagentGlyph, space, count: "⋔ 12"
 	colTime   = 4  // "59m", "23h", "12d"
 	colSpan   = 13 // start→end: "Jan 2→Jan 2" at most
 	colGap    = 2
@@ -673,11 +673,11 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 const subagentGlyph = "⋔"
 
 // subagentCell renders how many subagents the session is running, e.g.
-// "⋔3", or blank. Counts above 99 show as 99.
+// "⋔ 3", or blank. Counts above 99 show as 99.
 func subagentCell(s protocol.SessionSummary, w int, dim bool) string {
 	text := ""
 	if s.Subagents > 0 {
-		text = fmt.Sprintf("%s%d", subagentGlyph, min(s.Subagents, 99))
+		text = fmt.Sprintf("%s %d", subagentGlyph, min(s.Subagents, 99))
 	}
 	style := lipgloss.NewStyle().Foreground(colorWorking)
 	if dim {

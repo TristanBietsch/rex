@@ -269,14 +269,14 @@ func TestSubagentColumn(t *testing.T) {
 	require.NotContains(t, boardText(none), subagentGlyph)
 
 	m := simpleBoard(busy, calm)
-	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+"3")
+	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+" 3")
 	require.NotContains(t, lineWith(t, boardText(m), "calm"), subagentGlyph)
 	m.Detailed = true
-	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+"3")
+	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+" 3")
 
 	big := busy
 	big.Subagents = 150
-	require.Contains(t, lineWith(t, boardText(simpleBoard(big)), "busy"), subagentGlyph+"99")
+	require.Contains(t, lineWith(t, boardText(simpleBoard(big)), "busy"), subagentGlyph+" 99")
 
 	// Rows stay exactly the board width with the column, down to narrow.
 	for _, detailed := range []bool{false, true} {

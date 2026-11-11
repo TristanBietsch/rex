@@ -67,10 +67,10 @@ var helpRight = []helpGroup{
 	commandsIn(groupAppCmd),
 	bindingsIn(groupAttached),
 	{helpGroupBadges, [][2]string{
-		{"▴12m", "dim"},
-		{"▴45m", "amber"},
-		{"▴3h", "red"},
-		{"▴7h", "red inverse (time working)"},
+		{"▴ 12m", "dim"},
+		{"▴ 45m", "amber"},
+		{"▴ 3h", "red"},
+		{"▴ 7h", "red inverse (time working)"},
 	}},
 }
 

@@ -249,7 +249,7 @@ func TestLongRunTiers(t *testing.T) {
 	idle := w(7 * time.Hour)
 	idle.State = protocol.StateNeedsInput
 	require.Equal(t, -1, longRunTier(now, idle), "only working sessions get the badge")
-	require.Contains(t, longRunBadge(now, w(45*time.Minute)), "▴45m")
+	require.Contains(t, longRunBadge(now, w(45*time.Minute)), "▴ 45m")
 }
 
 func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
@@ -273,7 +273,7 @@ func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
 	require.Contains(t, row, "日本語")
 	require.NotContains(t, row, "done", "marked-done rows carry no badge")
 	require.NotContains(t, row, "clears")
-	require.Contains(t, row, "▴3h")
+	require.Contains(t, row, "▴ 3h")
 	require.Contains(t, ansi.Strip(renderRow(m, m.Sessions[1], cols)), "plain")
 }
 
