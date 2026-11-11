@@ -16,7 +16,7 @@ rex
 
 Three columns group sessions: **NEEDS YOU**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N working · N done`. The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
-The tool filter row (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool or a filter other than `all` is active.
+The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, or a section is hidden. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`). See FILTERS.
 
 A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `3` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
@@ -33,19 +33,20 @@ By default a row shows four things: state, name, text and age.
 
 The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary.
 
-`v` switches to the detailed view, which adds the short id, model · effort and tokens, shows the AI summary as the text, and adds `· N marked done` to the header:
+`v` switches to the detailed view, which adds the short id, model · effort, tokens and the start→end span, shows the AI summary as the text, and adds `· N marked done` to the header:
 
 ```
  ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴45m   11m
      state  id  name        description                          model · effort         tokens   badge  last event
 ```
 
+- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps.
 - **name**, **model · effort**, and **tokens** are as wide as their widest value on the board (name capped at 22, model at 24). Tokens are right-aligned.
 - The **subagent** column (`⋔3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
 - The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
 - **last event** is right-aligned against the edge; `-` means no event yet.
 - The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
-- On narrow terminals, columns give way in this order until the description has 20 columns: tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), done badge is hidden, model is hidden, long-run badge is hidden. After that the description shrinks, then the name.
+- On narrow terminals, columns give way in this order until the description has 20 columns: the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
 
 ## FOCUS MODES
 
@@ -65,7 +66,7 @@ The **text** is the task you gave the session. A session that needs you shows th
 
 ### Help overlay
 
-`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`). At 96+ columns it is two columns: Navigation, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
+`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
 
 ## KEYS (board focus)
 
@@ -78,6 +79,9 @@ The **text** is the task you gave the session. A session that needs you shows th
 | `3` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
 | `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
+| `zh` | Hide / show every completed section (Done) |
+| `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Working, `z3` Done) |
+| `z0` | Show every section |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
 | `i` | Focus bottom prompt (quick-spawn) |
@@ -154,13 +158,33 @@ Scrolling back down to the bottom also returns to live output, as does the agent
 
 Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, antigravity, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept. The repaint that opens the popup draws in place and adds none.
 
+## FILTERS
+
+Two filters narrow the board: the **tool filter** (`t` cycles it, `:filter <tool>` sets it, a click on a chip sets it) and **hidden sections**. A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global.
+
+| Key | Effect |
+|-----|--------|
+| `zh` | Hide every completed section (Done); again shows it |
+| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Working, `z3` Done) |
+| `z0` | Show every section |
+
+`z` followed by any other key is just that key. While `z` is pending the help line lists the second keys. rex refuses to hide the last shown section.
+
+`:filter` does the same by name: `:filter hide done`, `:filter show all`, `:filter only needs working`, and a bare `:filter` clears the tool filter and every hidden section ([slash.md](slash.md)).
+
+- The filter bar names what is hidden (`done hidden (zh)`) and shows while any section is hidden.
+- When the selection falls into a hidden section (for example `cc` marks it done while Done is hidden), it moves to the first visible row. `1`, `3` and `tab` aimed at a hidden section say how to show it. A session you just started that the filter hides shows the notice `<slug> is hidden by the filter`.
+- Hiding is per run. The `board_hidden_sections` setting ([settings.md](settings.md#behavior)) sets what starts hidden, and `:bg` saves the current choice for the next start (see DETACH WITHOUT QUITTING).
+- `:prune` ignores filters: it clears every Done session, and its confirmation says so while a filter is active.
+- The tool filter survives a daemon reconnect.
+
 ## RENAME
 
 `r` edits the selected session's **name**: free text (64 characters max) shown in the name column instead of the slug. The slug stays the selector for commands and scripts. Enter an empty name to go back to the slug. Control characters, escapes and bidi overrides are stripped; whitespace collapses. Names are stored by the daemon and appear in every connected TUI and in `rex ls`.
 
 ## MARK DONE
 
-`cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state, and shows a **done badge** with the time it was marked (`done 14:32` today, `done Oct 21` otherwise; plain `done` for marks made before the daemon recorded the time). The detailed view's header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
+`cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state,. The detailed view's span column shows when it was marked, and its header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
 - `cc` again undoes the mark.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.
@@ -212,7 +236,7 @@ A small column before the time column flags sessions that have been **working** 
 
 ## DETACH WITHOUT QUITTING
 
-`:bg` or `:detach` saves selection and filter to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores selection and filter once, then deletes the state file.
+`:bg` or `:detach` saves selection, tool filter and hidden sections to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores them once (the saved hidden sections replace `board_hidden_sections` for that run), then deletes the state file.
 
 ## PROMPT
 

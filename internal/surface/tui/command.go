@@ -7,10 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/wire/client"
-	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // executeCommand parses and dispatches a `:` command line.
@@ -20,118 +18,13 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 		return m, nil
 	}
 	parts := strings.Fields(line)
-	verb := parts[0]
-	args := parts[1:]
-
-	switch verb {
-	case "q", "quit":
-		m.Focus = FocusConfirmQuit
+	call := cmdCall{Verb: parts[0], Args: parts[1:], Line: line}
+	c, ok := lookupCommand(call.Verb)
+	if !ok {
+		m.Err = "unknown command: " + call.Verb + " (try :help)"
 		return m, nil
-	case "q!":
-		m.Quitting = true
-		return m, tea.Quit
-	case "bg", "detach":
-		_ = SaveTUIState(m)
-		m.Quitting = true
-		return m, tea.Quit
-	case "help":
-		m.Focus = FocusHelp
-		if m.Audio != nil {
-			m.Audio.Play(audio.EventOpen)
-		}
-		return m, nil
-	case "settings":
-		return openSettings(m)
-	case "reload":
-		return m, reloadDaemonCmd(m)
-	case "filter":
-		if len(args) == 1 {
-			m.Filter = args[0]
-		}
-		return m, nil
-	case "prune":
-		return openPrune(m)
-	case "rm":
-		if len(args) == 1 {
-			id, msg := resolveLocal(m, args[0])
-			if id == "" {
-				m.Err = msg
-				return m, nil
-			}
-			return m, deleteSessionCmd(m.Client, id)
-		}
-		m.Err = "rm: selector required"
-		return m, nil
-	case "rename":
-		if len(args) == 2 {
-			id, msg := resolveLocal(m, args[0])
-			if id == "" {
-				m.Err = msg
-				return m, nil
-			}
-			if err := protocol.ValidateSlug(args[1]); err != nil {
-				m.Err = "rename: " + err.Error()
-				return m, nil
-			}
-			return m, renameCmd(m.Client, id, args[1])
-		}
-		m.Err = "rename: <selector> <new-slug>"
-		return m, nil
-	case "name":
-		// :name           open the rename editor for the selection
-		// :name <text…>   set it directly
-		if len(args) == 0 {
-			return openRename(m)
-		}
-		if m.SelectedID == "" || indexOfSelected(m) < 0 {
-			m.Err = "name: no session selected"
-			return m, nil
-		}
-		name := strings.TrimSpace(strings.TrimPrefix(line, verb))
-		return m, setNameCmd(namerOf(m), m.SelectedID, name)
-	case "done":
-		id, ok := commandTarget(&m, verb, args)
-		if !ok {
-			return m, nil
-		}
-		return toggleRetire(m, id)
-	case "undone":
-		// Unmark only: toggling here would mark an unmarked session.
-		id, ok := commandTarget(&m, verb, args)
-		if !ok {
-			return m, nil
-		}
-		if sum, found := findSession(m.Sessions, id); found && sum.RetireAt.IsZero() {
-			m.Notice = displayName(sum) + " is not marked done"
-			return m, nil
-		}
-		return toggleRetire(m, id)
-	case "complete":
-		id, ok := commandTarget(&m, verb, args)
-		if !ok {
-			return m, nil
-		}
-		return m, completeSessionCmd(m.Client, id)
-	case "new":
-		// Same path as the `n` key: setting FocusWizard alone left Wizard
-		// nil and soft-locked the TUI (P0-07).
-		return openWizard(m)
-	case "fail", "fails", "failed":
-		return openFail(m)
-	case "stats":
-		if m.Focus == FocusStats {
-			// Toggle off.
-			m.Focus = FocusBoard
-			slog.Debug("tui: stats overlay closed")
-		} else {
-			m.Focus = FocusStats
-			slog.Debug("tui: stats overlay opened")
-		}
-		return m, nil
-	default:
-		m.Err = "unknown command: " + verb
 	}
-	return m, nil
+	return c.Run(m, call)
 }
 
 // reloadDaemonCmd asks the daemon on the TUI's socket to re-read

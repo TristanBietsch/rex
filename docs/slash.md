@@ -26,7 +26,7 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `help` | — | Help overlay |
 | `settings` | — | Settings page |
 | `reload` | — | Ask the daemon to reload tools.yaml (over the socket) |
-| `filter` | `<tool>` | Set filter chip (`all` or tool id) |
+| `filter` | `[what]` | No argument: clear every filter (tool and hidden sections). `<tool>`: set the tool filter (`all`, a filter chip tool, or a tool id on the board; anything else is an error). `hide <sec…>`, `show <sec…\|all>`, `only <sec…>`: hide or show board sections |
 | `new` | — | New-session wizard |
 | `rm` | `<sel>` | Delete session |
 | `prune` | — | Delete every DONE session except those still working (confirm `y`; sessions that changed while the prompt was open are kept) |
@@ -40,13 +40,19 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 
 `<sel>` resolves against the current board: full session id, then `slug`, then `short_id`. A slug shared by several sessions (restored from an older daemon) is reported as `ambiguous: … use short id`. `:rename` to a slug another session holds is rejected by the daemon; the error shows on the status line.
 
-Unknown verbs set an error on the command line.
+A `<sec>` for `:filter` is a section id (`needs`, `working`, `done`), a unique prefix of one, its title (`Needs`), or a 1-based number. `:filter` refuses a change that would hide every section and changes nothing when a section is not recognised. A hidden section is gone from the board (no rows, no navigation); the header counts stay global.
+
+Unknown verbs set the error `unknown command: x (try :help)` on the command line.
 
 ## EXAMPLES
 
 ```text
 :bg
 :filter claude
+:filter hide done
+:filter only needs working
+:filter show all
+:filter
 :rm 7d4f
 :rename dark-mode dark-mode-v2
 :reload

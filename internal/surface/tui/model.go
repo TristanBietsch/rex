@@ -51,6 +51,9 @@ type Model struct {
 	// DoneExpanded shows every Done row; a long Done column otherwise folds
 	// into its title line (3 toggles).
 	DoneExpanded bool
+	// Hidden holds the IDs of board sections hidden from view. Treat it as
+	// immutable: setSectionHidden is the only writer, and it clones.
+	Hidden       map[string]bool
 	PromptText   string
 	CmdText      string
 	PendingChord string
@@ -171,6 +174,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
 				m.SelectedID = sum.ID
 				m.PendingSelectSlug = ""
+				if indexOfSelected(m) < 0 {
+					m.Notice = sum.Slug + " is hidden by the filter"
+				}
 			}
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventCreate)
@@ -259,9 +265,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m.Sessions = snap.Sessions
-			if snap.Filter != "" {
-				m.Filter = snap.Filter
-			}
+			m = adoptSnapshotFilter(m, snap.Filter)
 		}
 	case protocol.EventError:
 		var ee protocol.ErrorEvent
@@ -315,6 +319,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if t, ok := patchTime(patch, "retired_at"); ok {
 		s.RetiredAt = t
+	}
+	if t, ok := patchTime(patch, "ended_at"); ok {
+		s.EndedAt = t
 	}
 	if t, ok := patchTime(patch, "working_since"); ok {
 		s.WorkingSince = t

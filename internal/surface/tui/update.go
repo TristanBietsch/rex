@@ -172,6 +172,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case settingsResultMsg:
 		m.Store = msg.Store
 		m.StorePath = msg.Path
+		m.Hidden = hiddenSectionsFrom(msg.Store)
 		if !msg.Found {
 			return m.appendBootStep(bootStepMsg{
 				Name: "settings.load", Status: stepSkip, Desc: "no config file (defaults)", Dur: msg.Dur,
@@ -203,14 +204,17 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "state.restore", Status: stepSkip, Desc: "first run", Dur: msg.Dur,
 			})
 		}
-		m.SelectedID = msg.Selection
-		if msg.Filter != "" {
-			m.Filter = msg.Filter
+		m.SelectedID = msg.State.Selection
+		if msg.State.Filter != "" {
+			m.Filter = msg.State.Filter
+		}
+		if msg.State.HiddenSections != nil {
+			m.Hidden = hiddenSectionsFromIDs(*msg.State.HiddenSections)
 		}
 		m = ensureVisible(m)
 		return m.appendBootStep(bootStepMsg{
 			Name: "state.restore", Status: stepOK,
-			Desc: fmt.Sprintf("selected=%s · filter=%s", short8(msg.Selection), msg.Filter),
+			Desc: fmt.Sprintf("selected=%s · filter=%s", short8(msg.State.Selection), msg.State.Filter),
 			Dur:  msg.Dur,
 		})
 
@@ -234,9 +238,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		m.Sessions = msg.Snap.Sessions
-		if msg.Snap.Filter != "" {
-			m.Filter = msg.Snap.Filter
-		}
+		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
 			Desc: "接続 · rex-tui",

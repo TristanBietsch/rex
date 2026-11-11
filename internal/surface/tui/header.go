@@ -33,7 +33,11 @@ func renderHeader(m Model, width int) string {
 	}
 	out := padLine(topRow, width)
 	if showFilterChips(m) {
-		out += "\n" + padLine("  "+renderFilterChips(m), width)
+		chips := renderFilterChips(m)
+		if status := renderFilterStatus(m); status != "" {
+			chips += styleChipSep.Render("   ·  ") + status
+		}
+		out += "\n" + padLine("  "+chips, width)
 	}
 
 	if m.BackendUnavailable {
@@ -57,9 +61,10 @@ func renderHeader(m Model, width int) string {
 }
 
 // showFilterChips reports whether the tool filter row is worth a line: some
-// filter is active, or sessions run more than one tool.
+// filter is active (a tool, or a hidden section), or sessions run more than
+// one tool.
 func showFilterChips(m Model) bool {
-	if m.Filter != "" && m.Filter != "all" {
+	if (m.Filter != "" && m.Filter != "all") || len(m.Hidden) > 0 {
 		return true
 	}
 	first := ""

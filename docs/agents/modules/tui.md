@@ -16,7 +16,7 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 - `Run(socket string) error` — main TUI program.
 - `RunSetupWizard(configPath, socket, autoTrust string) error`
 - `ApplyDefaultsNonInteractive(configPath, socket, toolID, modelID, effortVal, autoTrust string, noShell bool) error`
-- `SaveTUIState(m Model) error`, `LoadTUIState() (selection, filter string, ok bool)` — `~/.local/state/rex/tui-state.json`
+- `SaveTUIState(m Model) error`, `LoadTUIState() (persistedState, ok bool)` — `~/.local/state/rex/tui-state.json`
 - `ShellProfileBlock(shell string) string`, `DetectShellRC() string`, `HasShellBlock(rcPath string) bool`
 
 ### Types (Bubble Tea)
@@ -35,10 +35,12 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `update.go` | Update loop, daemon intents, spawn |
 | `board.go` | Kanban columns render; section registry (`boardGroups`, `resolveSection`) |
 | `rowfilter.go` | `rowFilter`: the one predicate every board view applies |
+| `filter.go` | `:filter` grammar, hidden sections (`setSectionHidden`, `z` chord, `board_hidden_sections`), filter-bar status |
 | `chords.go` | Board chord table (`dd`, `cc`; first key to handler) |
 | `header.go` | Aggregate counts |
 | `prompt.go` | Bottom prompt |
-| `command.go` | `/` command palette |
+| `command.go` | `:` command line: parse and look up in `commands` |
+| `keys.go` | `commands` table (names, args, help text, `Run`) and `bindings` table (help rows, board help line); add a `:` command here |
 | `wizard.go` | New-session wizard |
 | `attach.go` | Full-screen attach (vt10x) |
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |

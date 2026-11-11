@@ -331,17 +331,16 @@ func stepSnapshotParse(m Model) tea.Cmd {
 }
 
 type stateRestoreResultMsg struct {
-	Selection string
-	Filter    string
-	OK        bool
-	Dur       time.Duration
+	State persistedState
+	OK    bool
+	Dur   time.Duration
 }
 
 func stepStateRestore(_ Model) tea.Cmd {
 	return func() tea.Msg {
 		t0 := time.Now()
-		sel, filt, ok := LoadTUIState()
-		return stateRestoreResultMsg{Selection: sel, Filter: filt, OK: ok, Dur: time.Since(t0)}
+		st, ok := LoadTUIState()
+		return stateRestoreResultMsg{State: st, OK: ok, Dur: time.Since(t0)}
 	}
 }
 

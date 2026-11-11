@@ -16,6 +16,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `capture_regex`, with `{id}` as the placeholder); see `docs/registry.md`.
   Only canonical UUIDs are accepted, since the id ends up on a command line.
   Nothing uses it yet: resuming an exited session comes next.
+- TUI: the detailed view (`v`) has a start→end span column (`14:02→15:30`,
+  `14:02→` while live). The end is when the row entered Done: the earlier of
+  marking it done and the session ending. It is the first column to go on a
+  narrow terminal.
+- Setting `board_hidden_sections` (Behavior): section ids hidden at startup,
+  for example `done`. `:bg` now also saves the hidden sections, and the
+  next start restores them.
+- TUI: the filter bar names the hidden sections (`done hidden (zh)`) and
+  stays up while any is hidden. `:prune` says "filters ignored" in its
+  confirmation while a filter is active, since it clears every Done
+  session.
+- TUI: `:filter hide <section…>`, `:filter show <section…|all>` and
+  `:filter only <section…>` hide and show board sections by id, prefix,
+  title or number. A bare `:filter` clears the tool filter and every hidden
+  section.
+- TUI: hide board sections. `zh` hides or shows the completed (Done)
+  section, `z1`-`z9` toggle section N, `z0` shows them all. While `z` is
+  pending the help line lists the second keys. `1`, `3` and `tab` aimed at
+  a hidden section say how to show it, and rex refuses to hide every
+  section.
 - The daemon records `ended_at` for every session: the first time it reached
   done, failed or crashed. It is in `meta.json`, in snapshots and in state
   patches, and older sessions get it from their last event.
@@ -80,6 +100,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: an unknown `:` command now says `(try :help)`. Commands and key
+  help come from one table, so `?` can no longer drift from what `:` runs.
 - Skipping agent permission prompts is now opt-in. Claude Code and
   Antigravity no longer start with `--dangerously-skip-permissions` unless
   you set `skip_permissions: true` (default off; read at each spawn). The
@@ -119,6 +141,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The settings page showed a second "Spawn" section for
+  `auto_trust_dirs`; it now sits with the other Spawn settings.
+- TUI: a reconnect to the daemon no longer resets the tool filter to `all`.
+- TUI: `:filter <tool>` now moves the selection off a row the filter hides
+  (before, `enter` did nothing) and rejects a tool that is neither a filter
+  chip nor on the board, with `filter: unknown tool or subcommand x`.
 - A partial `tools.yaml` entry for a retired built-in tool (codex, gemini,
   ollama, grok, deepseek, kimi) no longer stops the daemon from starting.
   It is dropped with a warning in the daemon log and on the TUI splash.

@@ -25,7 +25,7 @@ github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
 github.com/tristanbietsch/rex/internal/surface/cli/meta 35
 github.com/tristanbietsch/rex/internal/surface/cli/session 29
 github.com/tristanbietsch/rex/internal/surface/cli/setup 62
-github.com/tristanbietsch/rex/internal/surface/tui 74
+github.com/tristanbietsch/rex/internal/surface/tui 75
 github.com/tristanbietsch/rex/internal/testutil 0
 github.com/tristanbietsch/rex/internal/testutil/testenv 42
 github.com/tristanbietsch/rex/internal/testutil/testperm 80

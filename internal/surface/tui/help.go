@@ -24,67 +24,20 @@ const (
 	helpGroupBadges = "Long-running badges"
 )
 
+// helpLeft and helpRight read the bindings and commands tables; only the
+// badge legend is written out here.
 var helpLeft = []helpGroup{
-	{"Navigation", [][2]string{
-		{"j k", "move row selection"},
-		{"g G", "top / bottom"},
-		{"tab", "next session that needs you"},
-		{"1 2", "jump to Needs you / Working"},
-		{"3", "jump to Done (show / hide a long Done column)"},
-		{"v", "simple / detailed rows (id, model, tokens, AI summary)"},
-		{"t", "cycle tool filter"},
-	}},
-	{"Actions", [][2]string{
-		{"enter", "attach to selected session"},
-		{"n", "new-agent wizard"},
-		{"r", "rename selected (empty = slug)"},
-		{"cc", "mark done / undo"},
-		{"C", "complete now (kill agent, mark done)"},
-		{"dd", "delete selected"},
-		{"i", "focus λ prompt (new-session text)"},
-		{"S", "settings"},
-		{"q", "quit (confirm)"},
-	}},
-	{helpGroupMouse, [][2]string{
-		{"click", "select row / filter chip"},
-		{"double-click", "attach to row"},
-		{"wheel", "move row selection"},
-		{"hold ⌥ / ⇧", "select text natively"},
-	}},
-	{"Modes", [][2]string{
-		{":", "command mode"},
-		{"?", "this help"},
-	}},
+	bindingsIn(groupNavigation),
+	bindingsIn(groupFilter),
+	bindingsIn(groupActions),
+	bindingsIn(groupMouse),
+	bindingsIn(groupModes),
 }
 
 var helpRight = []helpGroup{
-	{"Session commands", [][2]string{
-		{":new", "new-agent wizard"},
-		{":name [text]", "rename selected (no text: open editor)"},
-		{":rename <s> <slug>", "change slug"},
-		{":done [sel]", "mark done"},
-		{":undone [sel]", "undo done"},
-		{":complete [sel]", "kill agent + mark done now"},
-		{":rm <sel>", "delete"},
-		{":prune", "clear Done (keeps sessions still working)"},
-		{":filter <t>", "set filter chip"},
-	}},
-	{"App commands", [][2]string{
-		{":q :quit", "quit (confirm)"},
-		{":q!", "force quit"},
-		{":bg :detach", "detach, save place"},
-		{":reload", "reload tools.yaml"},
-		{":fail", "failed sessions + daemon log (:fails :failed)"},
-		{":stats", "session statistics overlay"},
-		{":help", "this overlay"},
-		{":settings", "open settings"},
-	}},
-	{"Attached session", [][2]string{
-		{"qq / ctrl+]", "detach"},
-		{"::", "command bar (q detach, done, kill, name <t>)"},
-		{":::", "type a literal \"::\" into the agent"},
-		{"ctrl+pgup", "scroll back; k/j pgup/pgdn g/G, esc live"},
-	}},
+	commandsIn(groupSessionCmd),
+	commandsIn(groupAppCmd),
+	bindingsIn(groupAttached),
 	{helpGroupBadges, [][2]string{
 		{"▴12m", "dim"},
 		{"▴45m", "amber"},

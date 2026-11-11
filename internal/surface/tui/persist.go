@@ -15,6 +15,10 @@ type persistedState struct {
 	Filter       string    `json:"filter"`
 	ScrollOffset int       `json:"scroll_offset"`
 	SavedAt      time.Time `json:"saved_at"`
+	// HiddenSections is a pointer so "none hidden" (an empty list, which
+	// overrides board_hidden_sections) differs from a file written before
+	// this field existed (nil, which leaves the setting alone).
+	HiddenSections *[]string `json:"hidden_sections,omitempty"`
 }
 
 // SaveTUIState writes selection + filter to paths.TUIStateFile
@@ -28,10 +32,17 @@ func SaveTUIState(m Model) error {
 	if err := rexlog.PrivateDir(filepath.Dir(path)); err != nil {
 		return err
 	}
+	hidden := []string{}
+	for _, g := range boardGroups {
+		if m.Hidden[g.ID] {
+			hidden = append(hidden, g.ID)
+		}
+	}
 	b, err := json.MarshalIndent(persistedState{
-		Selection: m.SelectedID,
-		Filter:    m.Filter,
-		SavedAt:   time.Now().UTC(),
+		Selection:      m.SelectedID,
+		Filter:         m.Filter,
+		SavedAt:        time.Now().UTC(),
+		HiddenSections: &hidden,
 	}, "", "  ")
 	if err != nil {
 		return err
@@ -40,19 +51,18 @@ func SaveTUIState(m Model) error {
 }
 
 // LoadTUIState reads + deletes the persisted state. Returns ok=false when the file doesn't exist.
-func LoadTUIState() (selection string, filter string, ok bool) {
+func LoadTUIState() (st persistedState, ok bool) {
 	path, err := paths.TUIStateFile()
 	if err != nil {
-		return "", "", false
+		return persistedState{}, false
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return "", "", false
+		return persistedState{}, false
 	}
-	var st persistedState
 	if err := json.Unmarshal(b, &st); err != nil {
-		return "", "", false
+		return persistedState{}, false
 	}
 	_ = os.Remove(path)
-	return st.Selection, st.Filter, true
+	return st, true
 }
