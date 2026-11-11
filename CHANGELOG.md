@@ -95,6 +95,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A partial `tools.yaml` entry for a retired built-in tool (codex, gemini,
+  ollama, grok, deepseek, kimi) no longer stops the daemon from starting.
+  It is dropped with a warning in the daemon log and on the TUI splash.
 - TUI: opening a running full-screen agent (Claude Code, codex, gemini, …)
   no longer shows a black popup until the agent next draws. The popup
   attaches without the transcript replay and relied on the agent redrawing

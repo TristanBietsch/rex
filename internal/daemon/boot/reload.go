@@ -12,6 +12,16 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 )
 
+// LogRegistryWarnings logs each non-fatal warning from loading reg (for
+// example a dropped partial overlay of a retired tool) to the daemon log and
+// stderr. Used at boot and on reload.
+func LogRegistryWarnings(toolsPath string, reg *registry.Registry) {
+	for _, w := range reg.Warnings {
+		fmt.Fprintf(os.Stderr, "rex-daemon: registry warning: %s\n", w)
+		slog.Warn("daemon: registry", "tools", toolsPath, "warning", w)
+	}
+}
+
 // ReloadRegistry re-reads toolsPath and swaps it into srv. Used by SIGHUP and
 // the Reload intent.
 func ReloadRegistry(srv *server.Server, toolsPath string) error {
@@ -21,6 +31,7 @@ func ReloadRegistry(srv *server.Server, toolsPath string) error {
 		slog.Error("daemon: reload failed", "tools", toolsPath, "err", err)
 		return fmt.Errorf("reload %s: %w", toolsPath, err)
 	}
+	LogRegistryWarnings(toolsPath, reg)
 	srv.SetRegistry(reg)
 	fmt.Fprintln(os.Stderr, "rex-daemon: registry reloaded")
 	slog.Info("daemon: reload ok", "tools", toolsPath, "count", len(reg.Tools))
