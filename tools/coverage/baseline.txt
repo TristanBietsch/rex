@@ -2,9 +2,9 @@
 # One line per package: <import path> <min int percent>.
 # Each floor is the measured coverage rounded down. Raise a floor when
 # coverage goes up. Lower one only with a reason in the commit message.
-github.com/tristanbietsch/rex/cmd/rex 72
+github.com/tristanbietsch/rex/cmd/rex 73
 github.com/tristanbietsch/rex/cmd/rex-daemon 32
-github.com/tristanbietsch/rex/internal/catalog/registry 90
+github.com/tristanbietsch/rex/internal/catalog/registry 91
 github.com/tristanbietsch/rex/internal/catalog/settings 85
 github.com/tristanbietsch/rex/internal/catalog/theme 100
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
@@ -15,6 +15,7 @@ github.com/tristanbietsch/rex/internal/daemon/state 85
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
 github.com/tristanbietsch/rex/internal/features/audio 65
 github.com/tristanbietsch/rex/internal/features/lua 89
+github.com/tristanbietsch/rex/internal/features/skills 86
 github.com/tristanbietsch/rex/internal/features/summarizer 93
 github.com/tristanbietsch/rex/internal/runtime/daemonctl 88
 github.com/tristanbietsch/rex/internal/runtime/ids 75
@@ -24,9 +25,9 @@ github.com/tristanbietsch/rex/internal/surface/cli/core 93
 github.com/tristanbietsch/rex/internal/surface/cli/inspect 47
 github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
 github.com/tristanbietsch/rex/internal/surface/cli/meta 35
-github.com/tristanbietsch/rex/internal/surface/cli/session 54
+github.com/tristanbietsch/rex/internal/surface/cli/session 56
 github.com/tristanbietsch/rex/internal/surface/cli/setup 67
-github.com/tristanbietsch/rex/internal/surface/tui 77
+github.com/tristanbietsch/rex/internal/surface/tui 78
 github.com/tristanbietsch/rex/internal/testutil 0
 github.com/tristanbietsch/rex/internal/testutil/golden 88
 github.com/tristanbietsch/rex/internal/testutil/testenv 42

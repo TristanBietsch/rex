@@ -151,6 +151,9 @@ func mergeOne(base, over Tool) Tool {
 	if len(over.SkipPermissionsArgs) > 0 {
 		merged.SkipPermissionsArgs = over.SkipPermissionsArgs
 	}
+	if len(over.SkillArgs) > 0 {
+		merged.SkillArgs = over.SkillArgs
+	}
 	if over.Resume != nil {
 		merged.Resume = over.Resume
 	}
@@ -229,6 +232,16 @@ func validateTool(t Tool) error {
 	}
 	if slices.Contains(t.SkipPermissionsArgs, "") {
 		return fmt.Errorf("tool %q: skip_permissions_args must not hold an empty argument", t.ID)
+	}
+	if len(t.SkillArgs) > 0 {
+		if slices.Contains(t.SkillArgs, "") {
+			return fmt.Errorf("tool %q: skill_args must not hold an empty argument", t.ID)
+		}
+		if !slices.ContainsFunc(t.SkillArgs, func(a string) bool {
+			return strings.Contains(a, SkillArgsPluginDir)
+		}) {
+			return fmt.Errorf("tool %q: skill_args must name the plugin folder with %s", t.ID, SkillArgsPluginDir)
+		}
 	}
 	if err := validateResume(t.ID, t.Resume); err != nil {
 		return err

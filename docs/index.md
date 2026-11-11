@@ -34,6 +34,7 @@ Go source wins when docs disagree with code.
 |----------|---------|
 | [quickstart.md](quickstart.md) | Install to first working session |
 | [howto/add-a-tool.md](howto/add-a-tool.md) | Add a tool to the registry |
+| [howto/skills.md](howto/skills.md) | Load skills into one session |
 | [howto/lua-hooks.md](howto/lua-hooks.md) | Lua event hooks |
 | [howto/headless-ci.md](howto/headless-ci.md) | Script sessions without the TUI |
 | [howto/shell-integration.md](howto/shell-integration.md) | PATH, completion, prompt |

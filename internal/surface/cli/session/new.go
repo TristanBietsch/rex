@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -28,6 +29,9 @@ func RunNew(args []string) error {
 	slug := fs.String("slug", "", "session slug (defaults to derived from prompt)")
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
+	name := fs.String("name", "", "display name (optional; the slug is shown when empty)")
+	var skillNames core.StringList
+	fs.Var(&skillNames, "skill", "skill from ~/.config/rex/skills to load into this session (repeatable; see `rex skills`)")
 	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
 	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")
 	rest, err := core.ParseTextArgs(fs, args, 0)
@@ -37,6 +41,11 @@ func RunNew(args []string) error {
 	_ = noAttach
 	if *wait <= 0 {
 		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("new: -wait %s: must be positive", *wait))
+	}
+
+	*name, err = checkNewExtras(*name, skillNames)
+	if err != nil {
+		return err
 	}
 
 	absCwd, err := resolveNewCwd(*cwd)
@@ -58,8 +67,11 @@ func RunNew(args []string) error {
 	// use); a derived one is made unique against the snapshot below.
 	derived := *slug == ""
 	if derived {
-		if prompt != "" {
+		switch {
+		case prompt != "":
 			*slug = deriveSlug(prompt)
+		case *name != "":
+			*slug = deriveSlug(*name)
 		}
 		if *slug == "" {
 			*slug = "session"
@@ -84,7 +96,7 @@ func RunNew(args []string) error {
 	req := protocol.NewSession{
 		ToolID: *tool, ModelID: *model, Effort: *effort,
 		Slug: *slug, Title: prompt, CWD: *cwd, InitialPrompt: prompt,
-		Fleet: *fleet,
+		Fleet: *fleet, Name: *name, Skills: skillNames,
 	}
 	if err := c.NewSession(req); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
@@ -112,6 +124,9 @@ func RunNew(args []string) error {
 			if _, err := os.Stdout.WriteString(sum.ShortID + "\t" + sum.Slug + "\n"); err != nil {
 				return core.NewExitError(core.ExitGeneric, err.Error())
 			}
+			if msg := ignoredByDaemon(req, sum); msg != "" {
+				fmt.Fprintln(os.Stderr, "rex: warning: "+msg)
+			}
 			return nil
 		case protocol.EventError:
 			var ee protocol.ErrorEvent
@@ -124,6 +139,45 @@ func RunNew(args []string) error {
 			return core.NewExitError(code, "spawn failed: "+ee.Message)
 		}
 	}
+}
+
+// checkNewExtras validates -name and -skill before anything is sent, and
+// returns the normalized name. -skill needs the spawn_skills feature (checked
+// here so a switched-off feature answers before the daemon is dialed).
+func checkNewExtras(name string, skillNames []string) (string, error) {
+	norm, err := protocol.NormalizeSessionName(name)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -name: "+err.Error())
+	}
+	if name != "" && norm == "" {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -name: no displayable text")
+	}
+	if len(skillNames) == 0 {
+		return norm, nil
+	}
+	if err := core.RequireFeature("spawn_skills"); err != nil {
+		return "", err
+	}
+	if err := skills.ValidateNames(skillNames); err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -skill: "+err.Error())
+	}
+	return norm, nil
+}
+
+// ignoredByDaemon says what an older rex-daemon silently dropped: it
+// predates the name and skills fields and echoes neither in SessionAdded.
+func ignoredByDaemon(req protocol.NewSession, sum protocol.SessionSummary) string {
+	var what []string
+	if req.Name != "" && sum.Name == "" {
+		what = append(what, "the name")
+	}
+	if len(req.Skills) > 0 && len(sum.Skills) == 0 {
+		what = append(what, "skills")
+	}
+	if len(what) == 0 {
+		return ""
+	}
+	return "this rex-daemon ignored " + strings.Join(what, " and ") + "; run `rex daemon restart`"
 }
 
 // promptFromStdin reads the prompt from in unless in is a terminal. A closed

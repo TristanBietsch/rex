@@ -2,6 +2,7 @@
 package state
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -73,6 +74,10 @@ type Session struct {
 	// it was created (NewSession.TrustFolder). Resume applies it again.
 	TrustFolder bool
 
+	// Skills are the library skills staged for this session
+	// (NewSession.Skills). Resume loads them again.
+	Skills []string
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
 	// reaping is set once the retire sweep has claimed the session for
@@ -122,6 +127,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		EndedAt:       s.EndedAt,
 		ResumeID:      s.ResumeID,
 		TrustFolder:   s.TrustFolder,
+		Skills:        slices.Clone(s.Skills),
 	}
 }
 

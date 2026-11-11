@@ -217,6 +217,21 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 - `:prune` ignores filters: it clears every Done session, and its confirmation says so while a filter is active.
 - The tool filter survives a daemon reconnect.
 
+## NEW-SESSION WIZARD
+
+`n` or `:new` opens a short flow. Steps that do not apply are skipped, in both directions, so the common path is a few Enter presses:
+
+1. **Provider**: the tool (`j`/`k`, `enter`).
+2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
+3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
+4. **Name**: an optional display name (the board shows it instead of the slug; at most 64 characters, checked as you type). `enter` on an empty field skips it; an invalid name shows the reason and stays. With no task, the name also gives the slug.
+5. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
+6. **Describe**: the task. `enter` launches.
+
+`b` goes back (on the text steps only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the name or skills fields, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
+
+---
+
 ## RENAME
 
 `r` edits the selected session's **name**: free text (64 characters max) shown in the name column instead of the slug. The slug stays the selector for commands and scripts. Enter an empty name to go back to the slug. Control characters, escapes and bidi overrides are stripped; whitespace collapses. Names are stored by the daemon and appear in every connected TUI and in `rex ls`.

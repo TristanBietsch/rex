@@ -1,0 +1,54 @@
+-- text.w40 --
+Skills  3 in /h/.config/rex/skills
+
+  NAME    DESCRIPTION
+  review  Review a diff for bugs
+  docs    Write docs
+  日本語  a|b `c` <i>
+
+› rex new -skill <name>  load a skill into a new session
+-- text.w80 --
+Skills  3 in /h/.config/rex/skills
+
+  NAME    DESCRIPTION
+  review  Review a diff for bugs
+  docs    Write docs
+  日本語  a|b `c` <i>
+
+skill "Bad_Name": invalid name (use lowercase letters, digits and hyphens)
+
+› rex new -skill <name>  load a skill into a new session
+-- txt --
+NAME    DESCRIPTION
+review  Review a diff for bugs
+docs    Write docs
+日本語  a|b `c` <i>
+-- md --
+### Skills
+
+*3 in /h/.config/rex/skills*
+
+| Name | Description |
+| --- | --- |
+| review | Review a diff for bugs |
+| docs | Write docs |
+| 日本語 | a\|b \`c\` &lt;i&gt; |
+
+`rex new -skill <name>` load a skill into a new session
+-- json --
+{"v":1,"cmd":"skills","data":[{"name":"review","description":"Review a diff for bugs"},{"name":"docs","description":"Write docs"},{"name":"日本語","description":"a|b `c` <i>"}],"meta":{"dir":"/h/.config/rex/skills"}}
+-- agent --
+skill name=review description="Review a diff for bugs"
+skill name=docs description="Write docs"
+skill name="日本語" description="a|b `c` <i>"
+ok cmd=skills count=3 dir=/h/.config/rex/skills
+-- empty.text --
+Skills
+
+  (no skills)
+
+add one as /h/.config/rex/skills/<name>/SKILL.md
+-- empty.json --
+{"v":1,"cmd":"skills","data":[],"meta":{"dir":"/h/.config/rex/skills"}}
+-- empty.agent --
+ok cmd=skills count=0 dir=/h/.config/rex/skills

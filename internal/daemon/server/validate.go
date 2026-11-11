@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -39,6 +40,9 @@ func validateNewSession(p protocol.NewSession) error {
 	// The daemon's own working directory is meaningless to the client.
 	if !filepath.IsAbs(p.CWD) {
 		return fmt.Errorf("cwd must be an absolute path, got %q", p.CWD)
+	}
+	if err := skills.ValidateNames(p.Skills); err != nil {
+		return err
 	}
 	if p.TrustFolder {
 		if _, err := sessionTrustDir(p.CWD); err != nil {
@@ -105,6 +109,11 @@ func normalizeNewSession(p protocol.NewSession) (protocol.NewSession, error) {
 		return p, err
 	}
 	p.Fleet = fleet
+	name, err := protocol.NormalizeSessionName(p.Name)
+	if err != nil {
+		return p, err
+	}
+	p.Name = name
 	return p, nil
 }
 

@@ -121,6 +121,12 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, e
 		}
 	}
 
+	// Skills load again: the snapshot staged at creation, or a fresh copy.
+	pluginDir, err := s.resumePlugin(tool, sess.ID, sum.Skills)
+	if err != nil {
+		return false, replyMsg(protocol.ErrCodeBadState, fmt.Sprintf("skills for this session cannot be loaded: %v", err))
+	}
+
 	if err := cfg.Store.Reopen(sess.ID); err != nil {
 		switch {
 		case errors.Is(err, state.ErrReaping), errors.Is(err, state.ErrNotExited):
@@ -140,10 +146,11 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, e
 	})
 
 	spec := spawnSpec{
-		Tool:   tool,
-		Model:  model,
-		Effort: sum.Effort,
-		CWD:    sum.CWD,
+		Tool:      tool,
+		Model:     model,
+		Effort:    sum.Effort,
+		CWD:       sum.CWD,
+		PluginDir: pluginDir,
 		// Trust is recomputed from the current config and the session's own
 		// trust request (re-validated against the stored folder).
 		Trust:           s.trustDecisionFor(tool, sum.CWD, sum.TrustFolder),

@@ -42,6 +42,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   session in Waiting, and counts it in the header. `-o txt` and the agent
   `state=` key keep `working`; `rex status` is unchanged.
 
+- Skills per session: `NewSession` takes `name` and `skills`. Skills come
+  from a library at `~/.config/rex/skills/<name>/SKILL.md`; the daemon copies
+  the chosen ones into the session's own folder and starts Claude Code with
+  `--plugin-dir`, so nothing is written to `~/.claude`. The registry gains
+  `skill_args` (with `{plugin_dir}`; built-in `claude` only, Antigravity has
+  no per-session plugin flag), and `rex-daemon` a `-skills-dir` flag. A
+  resumed session loads its skills again. Switchable in Settings → Features
+  (`spawn_skills`): off, skills are refused and no `--plugin-dir` is added.
+- CLI: `rex new -name "text" -skill a -skill b` sets the display name and
+  loads skills for that session (exit 5 for an unknown skill, a tool that
+  cannot load skills, or when `spawn_skills` is off). `rex skills` lists the
+  library in every output format. See `docs/howto/skills.md`.
 - TUI: a dim preview line under the board shows the selected session's full
   AI summary and how old it is (`↳ Editing api/webhooks.go … · 12s`), in
   both views, while any session has a summary. In the detailed view it only
@@ -214,6 +226,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: the new-session wizard (`n`, `:new`) has a model step again. It is
+  skipped for a tool with one model, and starts on `default_spawn_model` when
+  the tool is `default_spawn_tool`. It used to pick the first model silently.
+- TUI: the wizard has an optional name step (after effort). `enter` on an
+  empty field skips it; the name is checked as you type. With no task, the
+  name also gives the session's slug.
+- TUI: the wizard has an optional skills step (after the name): a checklist
+  of `~/.config/rex/skills` that loads the chosen skills into that session
+  only. Hidden for tools that cannot load skills (Antigravity), for an empty
+  library, and when `spawn_skills` is off.
 - `rex setup` now suggests trusting the project's own folder (the git root
   of where you ran it, or the folder itself when it is not a checkout)
   instead of the folder above it. Still never your home folder or anything
@@ -296,6 +318,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: `b` on the wizard's describe step now goes back when the field is
+  empty, as the footer says. It used to be typed into the text.
 - `auto_trust_dirs` and the per-session trust request now also refuse a case
   variant of the home folder on a case-insensitive filesystem (macOS,
   Windows), and any folder that holds the home folder (`/Users`, `/home`).

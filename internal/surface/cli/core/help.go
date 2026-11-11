@@ -38,7 +38,8 @@ func RunHelp() error {
 			title: "Session",
 			rows: []helpRow{
 				{"ls", "list sessions"},
-				{"new", "create a new session (wizard)"},
+				{"new", "create a new session (-name, -skill)"},
+				{"skills", "list skills you can load with new -skill"},
 				{"attach <sel>", "attach to a session (ctrl+] to detach)"},
 				{"reply <sel> <text>", "reply to a needs-input session"},
 				{"send <sel> <text>", "send raw input"},
