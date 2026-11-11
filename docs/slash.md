@@ -26,7 +26,8 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `help` | — | Help overlay |
 | `settings` | — | Settings page |
 | `reload` | — | Ask the daemon to reload tools.yaml (over the socket) |
-| `filter` | `[what]` | No argument: clear every filter (tool and hidden sections). `<tool>`: set the tool filter (`all`, a filter chip tool, or a tool id on the board; anything else is an error). `hide <sec…>`, `show <sec…\|all>`, `only <sec…>`: hide or show board sections |
+| `filter` | `[what]` | No argument: clear every filter (tool, hidden sections and search). `<tool>`: set the tool filter (`all`, a filter chip tool, or a tool id on the board; anything else is an error). `hide <sec…>`, `show <sec…\|all>`, `only <sec…>`: hide or show board sections |
+| `search` | `[text…]` | Search the board: a row must contain every word (case-insensitive). No text clears the search. Same as `/`; `:filter` with no argument clears it too |
 | `new` | — | New-session wizard |
 | `rm` | `<sel>` | Delete session |
 | `prune` | — | Delete every DONE session except those still working (confirm `y`; sessions that changed while the prompt was open are kept) |
@@ -53,6 +54,8 @@ Unknown verbs set the error `unknown command: x (try :help)` on the command line
 :filter only needs working
 :filter show all
 :filter
+:search auth callback
+:search
 :rm 7d4f
 :rename dark-mode dark-mode-v2
 :reload

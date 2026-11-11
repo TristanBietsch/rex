@@ -10,6 +10,7 @@ BenchmarkTranscriptFile_1MiB   500000 ns/op   15 allocs/op
 BenchmarkRenderBoard_10        180000 ns/op  850 allocs/op
 BenchmarkRenderBoard_50        850000 ns/op 4200 allocs/op
 BenchmarkRenderBoard_200      3200000 ns/op 17000 allocs/op
+BenchmarkRenderBoard_200_Search 3200000 ns/op 17000 allocs/op
 
 # S6 (internal/surface/tui, attach popup 211x57, ANSI256 profile; Nov 2026)
 BenchmarkAttachView           750000 ns/op 2800 allocs/op

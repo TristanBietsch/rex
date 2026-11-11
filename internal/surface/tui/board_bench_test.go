@@ -71,3 +71,16 @@ func BenchmarkRenderBoard_200(b *testing.B) {
 		_ = renderBoard(m, 120, 30)
 	}
 }
+
+// BenchmarkRenderBoard_200_Search is the 200-row render with a search that
+// keeps about a tenth of the rows. It should stay within about 2x of the
+// unfiltered render.
+func BenchmarkRenderBoard_200_Search(b *testing.B) {
+	m := benchModel(200)
+	m.Search = "task-01"
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = renderBoard(m, 120, 30)
+	}
+}

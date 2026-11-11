@@ -54,6 +54,8 @@ var bindings = []binding{
 	{Keys: "v", Desc: "simple / detailed rows (id, model, tokens, AI summary)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"v"}},
 
 	{Keys: "t", Desc: "cycle tool filter", Group: groupFilter, Ctx: ctxBoard, Press: []string{"t"}},
+	{Keys: "/", Desc: "search the board (every word must match)", Group: groupFilter, Ctx: ctxBoard, Press: []string{"/"}},
+	{Keys: "esc", Desc: "clear the search", Group: groupFilter, Ctx: ctxBoard, Press: []string{"esc"}},
 	{Keys: "zh", Desc: "hide / show completed sections", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "h"}},
 	{Keys: "z1-9", Desc: "hide / show section N", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "1"}},
 	{Keys: "z0", Desc: "show every section", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "0"}},
