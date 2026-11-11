@@ -15,34 +15,35 @@
 ## Board / sessions
 
 - [ ] add sections (can be changed in settings): ToDo, In Progress, In review, Testing, Ready for Release, Done
-- [ ] filter options for only showing certain steps of the kanban / hiding completed
-- [ ] add start / complete timestamps
-- [ ] have a column for the --resume id so that in the completed section we can resume it if needed and know the id
-- [ ] add the cmd "uc" to undo marking an agent as "complete" (or "done") and move it back to working / needs approval
-- [ ] search function
+***- [ ] filter options for only showing certain steps of the kanban / hiding completed
+*** - [ ] add start / complete timestamps
+*** - [ ] have a column for the --resume id so that in the completed section we can resume it if needed and know the id
+*** - [ ] add the cmd "uc" to undo marking an agent as "complete" (or "done") and move it back to working / needs approval
+*** - [ ] search function
 - [ ] usage meter top right (config in settings)
 - [ ] Jira / linear sync ?
 - [ ] loop workflows (epic)
 
-## Summaries / ollama
+*** ## Summaries / ollama
 
 - [ ] fix the ollama preview of what the agent is doing
 - [ ] change ollama to give more desc / better prompt for summarizing
 - [ ] remake the summary col to not say or start with "claude is..." instead, be more desc. adjust desc amt in settings
 - [ ] master agent option (feature toggle) that summarizes what's going on / completed / ready for review
-- [ ] add banner above claude code that is a marquee summary of what we are doing, where we are, etc..
+- [ ] add banner above claude code that is a marquee summary of what we are doing, where we are, etc.. (can be turned off in settings)
 
-## UI / settings
+*** ## UI / settings
 
 - [ ] remake the UI and the color scheme; better help menu, remake the help and settings page
 - [ ] make more settings modular and editable / hackable via lua config files and add themes
 - [ ] rm all other agents in the settings
 
-## Setup / spawn
+*** ## Setup / spawn
 
 - [ ] add a step to setup: add name, choose model, and select any skills to inject into it
 - [ ] improve workflow and rm the need for: /ob, then "yes, i trust"
 - [ ] harden the cli
+*** - [ ] change gemini to antigravity and improve functionality with it like you did with claude code (yes, trust this folder etc)
 
 ## Done
 
