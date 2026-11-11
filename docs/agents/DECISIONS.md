@@ -66,9 +66,9 @@ Non-obvious choices an agent might undo without context.
 
 **Why:** Wire protocol version is `protocol.ProtocolVersion`; daemon banner version is independent (do not conflate when debugging).
 
-## IntentOpenSession / IntentShutdown undefined in server
+## IntentOpenSession undefined in server
 
-**Chosen:** Constants exist in `protocol` but `server` handler has no cases.
+**Chosen:** The constant exists in `protocol` but the handler table in `internal/daemon/server/handlers.go` has no entry (`IntentShutdown` is handled).
 
 **Why:** Dead protocol surface or future work — clients must not rely on them until implemented.
 

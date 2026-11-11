@@ -6,6 +6,7 @@ Router for AI agents working in this repository.
 
 | Task type | Start |
 |-----------|--------|
+| New agent: current state, open work | [HANDOFF.md](HANDOFF.md) |
 | Navigation / "what is this?" | [README.md](README.md) |
 | Layout / new file placement | [../STRUCTURE.md](../STRUCTURE.md) |
 | Edit CLI | [modules/cli.md](modules/cli.md), [interfaces/cli.md](interfaces/cli.md) |
@@ -47,10 +48,9 @@ No generated Go in repo. No vendored tree. `install.sh` and `Makefile` affect us
 
 ## Commit / PR conventions
 
-No `CONTRIBUTING.md` in repo. Commit history uses short imperative subjects (`Add …`, `Fix …`, `Refactor …`). No enforced conventional-commits types.
+See [../../CONTRIBUTING.md](../../CONTRIBUTING.md): Conventional Commits subjects (`type(scope): summary`), `make check` before a PR, `CHANGELOG.md` entry under `[Unreleased]`. Session-specific conventions: [HANDOFF.md](HANDOFF.md).
 
 ## Known doc gaps (this pass)
 
-- `IntentOpenSession`, `IntentShutdown` documented as unimplemented in server.
-- `TestLoad_UserExtends` failing in `internal/catalog/registry` at time of doc write.
+- `IntentOpenSession` is unimplemented in the server (`bad_intent`).
 - Human reference lives under `docs/*.md`; keep agent docs as navigation, not duplicate tables.

@@ -53,6 +53,7 @@ rex status
 
 ## Next
 
+- [docs/agents/HANDOFF.md](docs/agents/HANDOFF.md) — AI agents: start here (current state, open work)
 - [docs/index.md](docs/index.md) — documentation map
 - [docs/quickstart.md](docs/quickstart.md) — install through first session
 - [docs/cli.md](docs/cli.md) — command reference

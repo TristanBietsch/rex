@@ -55,7 +55,7 @@ Codec returns decode errors; server maps handler failures to `EventError` with s
 
 ## Gotchas
 
-`IntentOpenSession` and `IntentShutdown` exist in `intents.go` but `internal/daemon/server/client.go` does not handle them (would return not-implemented style error if sent). `IntentFocusFilter` is cosmetic per-client state.
+`IntentOpenSession` exists in `intents.go` but the handler table in `internal/daemon/server/handlers.go` has no entry; the server answers `bad_intent` "intent not implemented". `IntentShutdown` is handled. `IntentFocusFilter` is cosmetic per-client state.
 
 ## See also
 
