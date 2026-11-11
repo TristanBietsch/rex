@@ -173,11 +173,12 @@ var chromeHints = []string{
 // ("✻ Cooked for 2s · done").
 var turnDoneRe = regexp.MustCompile(`^\S+ \p{L}+(?:…| for \d+(?:\.\d+)?[smh]\b)`)
 
-// agySpinnerRe matches agy's ASCII-ellipsis spinner rows: a glyph then one to
-// three words ("⣷  Generating...", "◐ Reading files... (3s)"), or a lone
-// "Thinking..." word. The glyph is required for multi-word rows so agent
-// prose like "Running tests..." is kept.
-var agySpinnerRe = regexp.MustCompile(`^(?:[^\p{L}\p{N}\s]+\s+\p{L}+(?:\s+\p{L}+){0,2}|\p{L}+)\.\.\.(?:\s+\(.*\))?$`)
+// agySpinnerRe matches agy's ASCII-ellipsis spinner rows: a spinner glyph
+// then one to three words ("⣷  Generating...", "◐ Reading files... (3s)"), or
+// a lone "Thinking..." word. Only braille frames (U+2800-U+28FF) and the
+// quarter-circle glyphs count as spinner glyphs: Claude's "⏺" bullet and "-"
+// or "*" list bullets start agent prose ("⏺ Let me check...") that must stay.
+var agySpinnerRe = regexp.MustCompile(`^(?:[\x{2800}-\x{28FF}◐◓◑◒◴◵◶◷]\s+\p{L}+(?:\s+\p{L}+){0,2}|\p{L}+)\.\.\.(?:\s+\(.*\))?$`)
 
 // IsChrome reports whether line is UI furniture rather than content: spinner
 // frames, box borders, counters, key hints, or fragments with too few letters
