@@ -111,6 +111,15 @@ func CheckAutoTrustDirs(value string) (string, error) {
 	return strings.Join(keep, string(filepath.ListSeparator)), nil
 }
 
+// normalizeAutoTrustDirs is the Normalize func of auto_trust_dirs: empty
+// (always ask) stays empty, anything else must pass CheckAutoTrustDirs.
+func normalizeAutoTrustDirs(v string) (string, error) {
+	if v == "" {
+		return "", nil
+	}
+	return CheckAutoTrustDirs(v)
+}
+
 // CanonicalDir resolves an absolute path through symlinks in its deepest
 // existing ancestor, so a folder not created yet still compares equal to
 // its resolved parent (on macOS /var is a link to /private/var).

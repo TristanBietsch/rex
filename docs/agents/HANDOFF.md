@@ -82,8 +82,9 @@ Keep the version in step with `GOLANGCI_LINT_PKG` in the `Makefile`.
    - bracketed paste mode (`?2004`) is not tracked by vt10x.
 4. #10 (`auto_trust_dirs`) and #12 (subagent count) were not tried against
    a live Claude run with background subagents.
-5. `rex config set auto_trust_dirs` does not validate its value. `rex setup`
-   does; the daemon ignores bad entries. Route it through the same checks.
+5. ~~`rex config set auto_trust_dirs` does not validate its value.~~ Done:
+   `Setting.Normalize` runs in `Store.Set`, with the same checks as
+   `rex setup`.
 6. More unchecked TODO items live in the user's local, gitignored `TODO.md`
    (not in the repo). Ask the user for it.
 

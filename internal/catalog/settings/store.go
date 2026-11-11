@@ -128,6 +128,12 @@ func (s *Store) Set(id string, raw any) error {
 	if err != nil {
 		return err
 	}
+	if str, ok := v.(string); ok && setting.Normalize != nil {
+		if str, err = setting.Normalize(str); err != nil {
+			return fmt.Errorf("%s: %w", id, err)
+		}
+		v = str
+	}
 	s.values[id] = v
 	return nil
 }

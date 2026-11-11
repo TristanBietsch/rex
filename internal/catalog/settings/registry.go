@@ -168,6 +168,7 @@ var Registry = []Setting{
 	{
 		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn,
 		Type: TypeString, Default: "",
+		Normalize: normalizeAutoTrustDirs,
 		Help: "Sessions started in these folders (or below them) skip the agent's \"trust this folder\" question: rex starts the agent with the folder trusted, or answers the question. " +
 			"Separate folders with " + string(filepath.ListSeparator) + "; ~/ is your home. Empty: always ask. " +
 			"Only list folders whose code you trust: accepting lets a repo's own agent settings apply.",

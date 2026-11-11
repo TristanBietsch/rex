@@ -103,6 +103,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `rex config set auto_trust_dirs` (and the settings page) now refuse the
+  values `rex setup` refuses (a filesystem root, the home folder, relative
+  paths, `..`), exit 5 and leave `config.yaml` unchanged, instead of saving
+  a value the daemon ignores.
 - `rex ls` and `rex digest` clip long model, slug and name columns by
   display width instead of bytes, so multi-byte text such as `·` or CJK
   is no longer cut mid-character and the columns stay aligned.
