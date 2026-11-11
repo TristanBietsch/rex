@@ -13,7 +13,12 @@ type rowFilter struct {
 
 // rowFilterOf is the filter the model currently has active.
 func rowFilterOf(m Model) rowFilter {
-	return rowFilter{tool: m.Filter, terms: compileQuery(m.Search), hidden: m.Hidden}
+	var f rowFilter
+	if m.featureOn("board_filter") {
+		f.tool, f.hidden = m.Filter, m.Hidden
+	}
+	f.terms = compileQuery(m.Search)
+	return f
 }
 
 // keep reports whether a session passes the row filters.

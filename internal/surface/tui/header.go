@@ -33,9 +33,15 @@ func renderHeader(m Model, width int) string {
 	}
 	out := padLine(topRow, width)
 	if showFilterChips(m) {
-		chips := renderFilterChips(m)
+		chips := ""
+		if m.featureOn("board_filter") {
+			chips = renderFilterChips(m)
+		}
 		if status := renderFilterStatus(m); status != "" {
-			chips += styleChipSep.Render("   ·  ") + status
+			if chips != "" {
+				chips += styleChipSep.Render("   ·  ")
+			}
+			chips += status
 		}
 		out += "\n" + padLine("  "+chips, width)
 	}
@@ -64,8 +70,12 @@ func renderHeader(m Model, width int) string {
 // filter is active (a tool, or a hidden section), or sessions run more than
 // one tool.
 func showFilterChips(m Model) bool {
-	if (m.Filter != "" && m.Filter != "all") || len(m.Hidden) > 0 || rowFilterOf(m).searching() {
+	f := rowFilterOf(m)
+	if (f.tool != "" && f.tool != "all") || len(f.hidden) > 0 || f.searching() {
 		return true
+	}
+	if !m.featureOn("board_filter") {
+		return false // the chips are the filter; only a search keeps the row
 	}
 	first := ""
 	for _, s := range m.Sessions {

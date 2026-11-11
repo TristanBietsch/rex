@@ -115,6 +115,7 @@ type command struct {
 	Label string // help key override; default ":" + Names joined by " :" + Args
 	Desc  string
 	Group string
+	Flag  string // Features switch that gates the command ("" = always on)
 	Run   func(m Model, c cmdCall) (Model, tea.Cmd)
 }
 
@@ -141,7 +142,7 @@ var commands = []command{
 	{Names: []string{"complete"}, Args: "[sel]", Desc: "kill agent + mark done now", Group: groupSessionCmd, Run: runComplete},
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},
-	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Run: runFilter},
+	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Flag: "board_filter", Run: runFilter},
 	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Run: runSearch},
 
 	{Names: []string{"q", "quit"}, Desc: "quit (confirm)", Group: groupAppCmd, Run: runQuit},

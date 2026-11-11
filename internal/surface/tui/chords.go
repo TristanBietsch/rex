@@ -13,6 +13,10 @@ import (
 // complete the chord, so the key is handled normally.
 type chordHandler func(m Model, second string) (Model, tea.Cmd, bool)
 
+// chordFlags names the Features switch behind a chord; while it is off the
+// first key is unbound.
+var chordFlags = map[string]string{"z": "board_filter"}
+
 // boardChords maps a chord's first key to its handler: dd deletes, cc marks
 // done (or undoes the mark), uc unmarks a done session, z... hides or shows
 // sections.
@@ -30,13 +34,13 @@ var boardChords = map[string]chordHandler{
 func handleBoardChord(m Model, key string) (Model, tea.Cmd, bool) {
 	if pending := m.PendingChord; pending != "" {
 		m.PendingChord = ""
-		if h, ok := boardChords[pending]; ok {
+		if h, ok := boardChords[pending]; ok && m.chordOn(pending) {
 			if m, cmd, done := h(m, key); done {
 				return m, cmd, true
 			}
 		}
 	}
-	if _, ok := boardChords[key]; ok {
+	if _, ok := boardChords[key]; ok && m.chordOn(key) {
 		m.PendingChord = key
 		return m, nil, true
 	}
@@ -72,4 +76,10 @@ func chordDone(m Model, second string) (Model, tea.Cmd, bool) {
 	}
 	m, cmd := toggleRetire(m, m.SelectedID)
 	return m, cmd, true
+}
+
+// chordOn reports whether the chord starting with key is bound.
+func (m Model) chordOn(key string) bool {
+	flag, gated := chordFlags[key]
+	return !gated || m.featureOn(flag)
 }

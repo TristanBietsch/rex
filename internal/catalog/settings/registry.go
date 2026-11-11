@@ -115,6 +115,11 @@ var Registry = []Setting{
 	// Off means inert: no goroutine, subprocess, network, file write or argv
 	// addition, keys unbound, commands refuse. Rows are added by the step
 	// that adds the feature; each must be a bool or enum with help text.
+	{
+		ID: "board_filter", Label: "Board filters", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Tool filter chips, :filter, section hiding (zh, z1-z9) and board_hidden_sections. Off: no chip row, the t key and the z chords do nothing, :filter refuses, and hidden sections and the saved tool filter are ignored.",
+	},
 
 	// Spawn
 	{

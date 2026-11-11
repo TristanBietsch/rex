@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   per optional feature. A feature that is off is inert: it starts nothing,
   writes nothing, its keys do nothing and its commands refuse. No switches
   yet; each feature adds its own. `settings.FeatureOn(store, id)` reads one.
+- Setting `board_filter` (Features, on by default): switches off the tool
+  filter chips, `:filter`, `t`, the `z` chords and `board_hidden_sections`.
+  Off, there is no chip row and `:filter` answers `off: enable in Settings
+  → Features (rex config set board_filter true)`.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current
