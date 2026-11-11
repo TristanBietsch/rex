@@ -57,6 +57,26 @@ func OpenLedger(path string) *Ledger { return &Ledger{path: path} }
 // Path is the ledger file.
 func (l *Ledger) Path() string { return l.path }
 
+// ErrNotRegular is returned for a ledger path that exists but is not a
+// regular file (a symlink, a directory, a device). It is never followed.
+var ErrNotRegular = errors.New("usage ledger is not a regular file")
+
+// checkRegular refuses an existing ledger path that is not a regular file.
+// A missing file is fine. Callers hold l.mu.
+func (l *Ledger) checkRegular() error {
+	fi, err := os.Lstat(l.path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("%w: %s", ErrNotRegular, l.path)
+	}
+	return nil
+}
+
 // Append writes r as one line. The directory is created 0700 and the file
 // 0600 (a wider mode on an existing file is tightened first).
 func (l *Ledger) Append(r Record) error {
@@ -69,6 +89,9 @@ func (l *Ledger) Append(r Record) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(l.path), 0o700); err != nil {
+		return err
+	}
+	if err := l.checkRegular(); err != nil {
 		return err
 	}
 	f, err := os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
@@ -101,6 +124,9 @@ func (l *Ledger) Append(r Record) error {
 // file order, and returns how many lines were unusable (corrupt JSON, a
 // missing field). A missing file is an empty ledger.
 func (l *Ledger) scan(keep func(Record)) (corrupt int, err error) {
+	if err := l.checkRegular(); err != nil {
+		return 0, err
+	}
 	f, err := os.Open(l.path)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, nil
