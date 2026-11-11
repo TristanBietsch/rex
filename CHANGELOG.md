@@ -133,6 +133,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `rex setup` now suggests trusting the project's own folder (the git root
+  of where you ran it, or the folder itself when it is not a checkout)
+  instead of the folder above it. Still never your home folder or anything
+  outside it. The logic moved to `settings.SuggestTrustDir`, with
+  `settings.AppendTrustDir` and `settings.RemoveTrustDir` beside it.
 - TUI: an unknown `:` command now says `(try :help)`. Commands and key
   help come from one table, so `?` can no longer drift from what `:` runs.
 - `rex ls` and `rex status` on a terminal use the new human layout (state

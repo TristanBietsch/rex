@@ -3,7 +3,6 @@ package tui
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -53,7 +52,7 @@ func pressSetup(t *testing.T, m SetupWizardModel, keys ...string) SetupWizardMod
 }
 
 // trustWizard is a wizard on the folder trust step with a config path in a
-// temp home. It starts in a checkout under ~/dev, so ~/dev is suggested.
+// temp home. It starts in a checkout under ~/dev, so ~/dev/project (its own folder) is suggested.
 func trustWizard(t *testing.T) (SetupWizardModel, string) {
 	t.Helper()
 	home := trustTestHome(t)
@@ -80,7 +79,7 @@ func setupView(m SetupWizardModel) string { return ansi.Strip(m.View()) }
 func TestSetupWizard_TrustDefaultsToNo(t *testing.T) {
 	m, cfg := trustWizard(t)
 	require.False(t, m.trustYes)
-	require.Equal(t, "~"+string(filepath.Separator)+"dev", m.trustDir, "parent of the checkout is suggested")
+	require.Equal(t, "~"+string(filepath.Separator)+filepath.Join("dev", "project"), m.trustDir, "the checkout itself is suggested, not its parent")
 	v := setupView(m)
 	require.Contains(t, v, "Only pick folders whose code you trust.")
 	require.Contains(t, v, "no, always ask")
@@ -97,10 +96,10 @@ func TestSetupWizard_TrustAcceptSuggestion(t *testing.T) {
 	m, cfg := trustWizard(t)
 	m = pressSetup(t, m, "y", "enter")
 	require.Equal(t, trustFolder, m.trustField)
-	require.Contains(t, setupView(m), "~"+string(filepath.Separator)+"dev|")
+	require.Contains(t, setupView(m), "~"+string(filepath.Separator)+filepath.Join("dev", "project")+"|")
 	m = pressSetup(t, m, "enter", "enter")
 	require.Equal(t, setupStepPreview, m.step)
-	want := "~" + string(filepath.Separator) + "dev"
+	want := "~" + string(filepath.Separator) + filepath.Join("dev", "project")
 	require.Contains(t, setupView(m), "auto-trust: "+want)
 	require.Equal(t, want, writeAndLoad(t, m, cfg))
 }
@@ -202,34 +201,6 @@ func TestSetupWizard_WithAutoTrust(t *testing.T) {
 	m = m.withAutoTrust("~/work")
 	require.True(t, m.trustYes)
 	require.Equal(t, "~/work", m.trustDir)
-}
-
-func TestSuggestTrustDir(t *testing.T) {
-	home := trustTestHome(t)
-	sep := string(filepath.Separator)
-	require.Equal(t, "~"+sep+"dev", suggestTrustDir(gitProject(t, filepath.Join(home, "dev", "app"))))
-	require.Empty(t, suggestTrustDir(filepath.Join(home, "dev", "plain")), "not a checkout")
-	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "app"))), "parent is home")
-	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(t.TempDir(), "app"))), "outside home")
-	require.Empty(t, suggestTrustDir(""))
-
-	// A link inside home that leads out of it is not inside home.
-	outside := filepath.Join(t.TempDir(), "code")
-	gitProject(t, filepath.Join(outside, "app"))
-	require.NoError(t, os.Symlink(outside, filepath.Join(home, "code")))
-	require.Empty(t, suggestTrustDir(filepath.Join(home, "code", "app")), "link out of home")
-
-	// One that stays inside home is fine.
-	require.NoError(t, os.Symlink(filepath.Join(home, "dev"), filepath.Join(home, "link")))
-	require.Equal(t, "~"+sep+"link", suggestTrustDir(filepath.Join(home, "link", "app")))
-
-	// A folder named "a:" holding "b" reads back as "~/a" and "/b".
-	list := string(filepath.ListSeparator)
-	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "a"+list, "b", "app"))), "separator in a name")
-	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "x"+list+"y", "app"))), "separator in a name")
-	if runtime.GOOS != "windows" { // Windows does not allow a trailing space in a name
-		require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "dev ", "app"))), "outer space would be trimmed")
-	}
 }
 
 // A value from config.yaml or a folder name may hold terminal escapes; the
