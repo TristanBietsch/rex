@@ -546,7 +546,7 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	} else if !retiring && s.State == protocol.StateNeedsInput && !selected {
 		descColor = colorFgPrimary // what needs you reads first
 	}
-	desc := cell(lipgloss.NewStyle().Foreground(descColor), descSource, c.desc)
+	desc := lipgloss.NewStyle().Foreground(descColor).Width(c.desc).Render(truncateWords(descSource, c.desc))
 
 	gap := strings.Repeat(" ", colGap)
 	indent := " " + markerPrefix + " " // 3 chars total: marker arrow indent
@@ -731,6 +731,30 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return ansi.Truncate(s, n, "…")
+}
+
+// truncateWords is truncate for prose: when it has to cut, it cuts on a word
+// boundary (backing up to the last space when that keeps at least 60% of the
+// cell), trims trailing separators and ends in "…". s is sanitized like
+// truncate's.
+func truncateWords(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	s = protocol.FlattenDisplayText(s)
+	if ansi.StringWidth(s) <= n {
+		return s
+	}
+	if n == 1 {
+		return "…"
+	}
+	cut := ansi.Truncate(s, n-1, "")
+	if !strings.HasPrefix(s[len(cut):], " ") { // cut a word in half
+		if i := strings.LastIndexByte(cut, ' '); i >= 0 && ansi.StringWidth(cut[:i]) >= (n-1)*6/10 {
+			cut = cut[:i]
+		}
+	}
+	return strings.TrimRight(cut, " ,;:—-") + "…"
 }
 
 func durationAgo(t time.Time) string {
