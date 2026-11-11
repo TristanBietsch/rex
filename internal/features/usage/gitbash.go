@@ -1,10 +1,12 @@
 package usage
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // ErrNoGitBash is returned on Windows when Git for Windows' bash is not found.
@@ -31,7 +33,9 @@ func fileExists(p string) bool {
 
 // gitExecPath is the output of `git --exec-path`, "" when it fails.
 func gitExecPath() string {
-	out, err := exec.Command("git", "--exec-path").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "--exec-path").Output()
 	if err != nil {
 		return ""
 	}
