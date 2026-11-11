@@ -101,6 +101,8 @@ func (p *Printer) renderMD(v View) string {
 			blocks = append(blocks, escapeMD(b.Text))
 		case Para:
 			blocks = append(blocks, escapeMD(b.Text))
+		case Pre:
+			blocks = append(blocks, "```\n"+strings.ReplaceAll(b.Text, "```", "'''")+"\n```")
 		case Defs:
 			if len(b.Items) == 0 {
 				continue

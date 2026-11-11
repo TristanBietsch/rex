@@ -74,7 +74,7 @@ func renderAgent(cmd string, v View, meta map[string]any, failed bool) string {
 				lines = append(lines, EncodeLine(b.Kind, fields...))
 				count++
 			}
-		case Header, Section, Note, Hint, Line, Para:
+		case Header, Section, Note, Hint, Line, Para, Pre:
 		}
 	}
 	head := []Field{{"cmd", cmd}}

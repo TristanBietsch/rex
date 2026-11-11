@@ -174,7 +174,7 @@ func emitSetupPreview(p *core.Printer, configPath, socket, toolID, modelID, effo
 		v = append(v, core.Note{Text: rcNote})
 	}
 	v = append(v,
-		core.Section{Title: "Shell block"}, core.Para{Text: data.ShellBlock},
+		core.Section{Title: "Shell block"}, core.Pre{Text: data.ShellBlock},
 		core.Section{Title: "Daemon"}, core.Para{Text: daemonLine},
 		core.Section{Title: "Next command"}, core.Defs{Items: []core.Def{{Name: data.NextCommand}}},
 		core.Note{Text: "Docs: https://github.com/tristanbietsch/rex"},

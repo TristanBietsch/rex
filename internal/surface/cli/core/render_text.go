@@ -55,6 +55,8 @@ func (p *Printer) renderText(v View) string {
 			l.add(p.Styles.Tone(b.Tone).Render(s))
 		case Para:
 			l.add(ansi.Wrap(b.Text, p.Width, ""))
+		case Pre:
+			l.add(p.Styles.Dim.Render(b.Text))
 		case Defs:
 			l.add(p.textDefs(b))
 		}

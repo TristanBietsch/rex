@@ -331,6 +331,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The CLI error log no longer keeps paths (working folders, sockets, the
+  home folder), `config set` values, raw selectors in hints, the text of
+  dial or OS errors, or a prompt typed where a command goes; Bearer tokens
+  are redacted whole.
+- `rex update` reads the new version with plain output, so `CLAUDECODE`,
+  `REX_AGENT` or `REX_OUTPUT` in the caller no longer turn it into an agent
+  or json line.
+- `rex setup -preview` shows the shell block on separate lines in every
+  format.
+- `rex resume -print` prints the bare id under `CLAUDECODE` auto-detect.
 - ANSI color no longer reaches a redirected stderr: each stream decides on
   its own, and nothing uses a shared renderer.
 - `rex digest` and `rex stats` read their colors from the theme instead of

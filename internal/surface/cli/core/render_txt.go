@@ -38,8 +38,8 @@ func (p *Printer) renderTXT(v View) string {
 			} else {
 				l.add(b.Text)
 			}
-		case Para:
-			l.add(b.Text)
+		case Para, Pre:
+			l.add(blockText(b))
 		case Defs:
 			l.add(txtDefs(b))
 		case Header, Hint:
@@ -62,6 +62,16 @@ func txtDefs(d Defs) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func blockText(b Block) string {
+	switch b := b.(type) {
+	case Para:
+		return b.Text
+	case Pre:
+		return b.Text
+	}
+	return ""
 }
 
 func pairLabel(p Pair) string {

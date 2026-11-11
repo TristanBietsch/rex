@@ -74,6 +74,14 @@ func RunResume(args []string) error {
 		if !protocol.ValidResumeID(sess.ResumeID) {
 			return core.Errorf(core.ExitGeneric, "", "resume: %s has no resume id", sess.Slug)
 		}
+		// A scripting primitive: `claude --resume "$(rex resume -print sel)"`
+		// gets the bare id even where CLAUDECODE switched agent mode on by
+		// itself. An explicit -o, --agent or REX_AGENT=1 still decides.
+		if p.AgentAuto && !p.Flags.Explicit() {
+			if tp, err := p.WithFlags(core.FormatFlags{Output: "txt"}); err == nil {
+				p = tp
+			}
+		}
 		return p.Emit(core.Result{
 			Cmd:  "resume",
 			Data: resumeIDResult{ID: sess.ID, ResumeID: sess.ResumeID},

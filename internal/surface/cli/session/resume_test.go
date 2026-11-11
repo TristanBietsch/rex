@@ -1,9 +1,11 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,6 +180,28 @@ func TestRunResume_RealDaemon(t *testing.T) {
 	out, err = run("agent", "-print", ack.SessionID[:4])
 	require.NoError(t, err)
 	require.Equal(t, "ok cmd=resume id="+state().ShortID+" resume_id="+id+"\n", out)
+
+	// Under CLAUDECODE auto-detect, -print is still the bare id; an explicit
+	// -o (or the other commands) keeps agent mode.
+	auto := func(args ...string) string {
+		var buf bytes.Buffer
+		env := core.Env{Getenv: func(k string) string {
+			if k == "CLAUDECODE" {
+				return "1"
+			}
+			return ""
+		}, Width: 80, Scheme: "default", GOOS: "linux"}
+		p, perr := core.NewPrinter(core.FormatFlags{}, env, &buf, io.Discard)
+		require.NoError(t, perr)
+		require.True(t, p.AgentAuto)
+		core.SetOut(p)
+		t.Cleanup(func() { core.SetOut(nil) })
+		require.NoError(t, RunResume(append([]string{"-socket", d.Socket}, args...)))
+		return buf.String()
+	}
+	require.Equal(t, id+"\n", auto("-print", "finished"))
+	require.Contains(t, auto("-print", "-o", "agent", "finished"), "ok cmd=resume")
+	require.Contains(t, auto("-print", "-o", "json", "finished"), `"resume_id"`)
 
 	out, err = run("txt", "finished")
 	require.NoError(t, err)

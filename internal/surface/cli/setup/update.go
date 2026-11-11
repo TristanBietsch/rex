@@ -377,9 +377,18 @@ func readInstalledVersion() string {
 	if err != nil {
 		return core.Version
 	}
+	return versionOf(exe)
+}
+
+// versionOf runs `exe --version` and returns its one line. The child gets
+// plain output: an inherited CLAUDECODE, REX_AGENT or REX_OUTPUT would make
+// it print an agent or json line instead of the version.
+func versionOf(exe string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, exe, "--version").Output()
+	cmd := exec.CommandContext(ctx, exe, "--version")
+	cmd.Env = append(os.Environ(), "REX_AGENT=0", "REX_OUTPUT=txt")
+	out, err := cmd.Output()
 	if err != nil {
 		return core.Version
 	}

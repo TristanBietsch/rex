@@ -132,7 +132,7 @@ A failed command leaves one JSON line in `~/.local/state/rex/cli-errors.log` (`$
  "error":"rm: stdin is not a terminal; pass -force …","chain":["…"],"hint":"rex rm <sel> -force"}
 ```
 
-What it holds: the command, flag names, the values of a short list of safe flags (`-tool -model -effort -o -until -timeout -state -after -n -since -date`), selectors as short ids or sizes, the exit code and kind, and error text scrubbed of API keys, tokens and `password=` values. What it never holds: prompts, `reply`/`send`/`name` text, `config set` values, `-cwd` or `-socket` paths, stdin, environment values or transcripts. Help requests and bare exit statuses (`status` finding a session that needs input, `doctor` failures) are not recorded.
+What it holds: the command, flag names, the values of a short list of safe flags (`-tool -model -effort -o -until -timeout -state -after -n -since -date`), selectors as short ids or sizes, the exit code and kind, and error text with paths (`/…`, `~/…`, the home folder) replaced by `<path>`, argument values that were redacted replaced by `<arg>`, and API keys, tokens and `password=` values scrubbed. The `chain` field holds only the Go error types of the causes, never the text of a dial or OS error. The command is logged only when rex knows it (`?` otherwise, so a prompt typed as a command is not kept); a `config set` failure logs no text at all. What it never holds: prompts, `reply`/`send`/`name` text, `config set` values, `-cwd` or `-socket` paths, stdin, environment values or transcripts. Help requests and bare exit statuses (`status` finding a session that needs input, `doctor` failures) are not recorded.
 
 The log is capped at 1 MiB plus one backup (`cli-errors.log.1`). Logging never changes an exit code and never prints (except one stderr line with `REX_LOG_LEVEL=debug`). Concurrent rex processes append whole lines; a rotation race can lose a few. Turn it off with the `cli_error_log` setting or `REX_ERROR_LOG=0`. Read it with [`rex errors`](#rex-errors); `rex doctor` has a `cli errors` row.
 
@@ -327,7 +327,7 @@ rex resume <sel> [-socket path] [-print] [-o FORMAT] [--agent]
 rex resume -print <sel>
 ```
 
-`<sel>` is a short id, slug or full id (see SELECTORS). Prints `slug: resuming`, `slug: unmarked` or `slug: already running` in `txt` (`✓ resuming 7d4f slug` in `text`); `agent` gives `ok cmd=resume id=7d4f slug=slug outcome=resuming`. `-print` sends nothing and prints only the full resume id, so `claude --resume "$(rex resume -print fix-auth)"` works in a shell. `rex ls -wide` shows the id in a `RESUME ID` column.
+`<sel>` is a short id, slug or full id (see SELECTORS). Prints `slug: resuming`, `slug: unmarked` or `slug: already running` in `txt` (`✓ resuming 7d4f slug` in `text`); `agent` gives `ok cmd=resume id=7d4f slug=slug outcome=resuming`. `-print` sends nothing and prints only the full resume id (the bare id even where `CLAUDECODE` switched agent mode on by itself; an explicit `-o` or `--agent` decides), so `claude --resume "$(rex resume -print fix-auth)"` works in a shell. `rex ls -wide` shows the id in a `RESUME ID` column.
 
 Exit **1** when the agent cannot be resumed (it has no resume block, no id was captured, or the folder is gone) and for `-print` on a session with no id; **2** for an unknown session; **5** when the `resume` feature is off: `off: enable in Settings → Features (rex config set resume true)`. The daemon must be current: an older one answers `daemon is older than rex` (run `rex daemon restart`).
 

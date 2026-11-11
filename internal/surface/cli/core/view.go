@@ -199,6 +199,10 @@ type Line struct {
 // the other human formats, and not part of agent output.
 type Para struct{ Text string }
 
+// Pre is preformatted text: its line breaks and spacing are kept (each line
+// is flattened), nothing is wrapped, and md fences it. Agent output skips it.
+type Pre struct{ Text string }
+
 // Def is one Defs entry.
 type Def struct {
 	Name, Desc string
@@ -226,6 +230,7 @@ func (Note) isBlock()    {}
 func (Hint) isBlock()    {}
 func (Line) isBlock()    {}
 func (Para) isBlock()    {}
+func (Pre) isBlock()     {}
 func (Defs) isBlock()    {}
 
 // flat strips control, line-break and bidi characters from untrusted text.
@@ -287,6 +292,8 @@ func (v View) sanitized() View {
 			out[i] = Line{Tone: b.Tone, Glyph: flat(b.Glyph), Text: flat(b.Text), Txt: flatKeepTab(b.Txt), Silent: b.Silent}
 		case Para:
 			out[i] = Para{Text: flat(b.Text)}
+		case Pre:
+			out[i] = Pre{Text: flatTxtLines(b.Text)}
 		case Defs:
 			items := make([]Def, len(b.Items))
 			for j, d := range b.Items {
