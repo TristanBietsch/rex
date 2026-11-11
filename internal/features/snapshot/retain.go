@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -40,6 +41,9 @@ type RetainReport struct {
 	Dropped []string
 	// GCRuns is how many folder stores were garbage collected.
 	GCRuns int
+	// DroppedLive are "folderkey/session" for live sessions whose refs went
+	// because the size cap left nothing else to drop.
+	DroppedLive []string
 }
 
 // Retain applies the retention rules to every folder store: refs of
@@ -65,6 +69,7 @@ func (s *Store) Retain(ctx context.Context, o RetainOpts) (RetainReport, error) 
 	if err != nil {
 		return rep, fmt.Errorf("snapshot: %w", err)
 	}
+	var errs []error
 	for _, de := range ents {
 		if !de.IsDir() {
 			continue
@@ -76,11 +81,12 @@ func (s *Store) Retain(ctx context.Context, o RetainOpts) (RetainReport, error) 
 		if err := ctx.Err(); err != nil {
 			return rep, err
 		}
+		// A folder store that fails does not stop the others.
 		if err := s.retainDir(ctx, dir, de.Name(), o, &rep); err != nil {
-			return rep, err
+			errs = append(errs, fmt.Errorf("%s: %w", de.Name(), err))
 		}
 	}
-	return rep, nil
+	return rep, errors.Join(errs...)
 }
 
 type sessionAge struct {
@@ -168,8 +174,19 @@ func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, re
 		if dirSize(dir) <= o.MaxBytes || len(order) == 0 {
 			return nil
 		}
-		oldest := slices.MinFunc(order, func(x, y string) int { return byID[x].first.Compare(byID[y].first) })
-		drop[oldest] = true
+		victim, live := capVictim(order, byID)
+		if victim == "" {
+			slog.Warn("snapshots: store is over its size cap and only live sessions are left", "folder", key)
+			return nil
+		}
+		if live {
+			slog.Warn("snapshots: size cap reached; dropping a live session's snapshots", "folder", key, "session", victim)
+			rep.DroppedLive = append(rep.DroppedLive, key+"/"+victim)
+			if err := noteOverCap(dir, victim, now); err != nil {
+				return err
+			}
+		}
+		drop[victim] = true
 		if err := dropNow(); err != nil {
 			return err
 		}
@@ -177,6 +194,44 @@ func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, re
 			return os.RemoveAll(dir)
 		}
 	}
+}
+
+// capVictim picks the session to drop when a store is over its cap: the
+// oldest session that has left the board, else (live true) the oldest live
+// one, but never the newest live one, so a store with a live session is
+// never emptied. "" means nothing may be dropped.
+func capVictim(order []string, byID map[string]*sessionAge) (id string, live bool) {
+	var gone, alive []string
+	for _, s := range order {
+		if byID[s].removedAt.IsZero() {
+			alive = append(alive, s)
+		} else {
+			gone = append(gone, s)
+		}
+	}
+	byFirst := func(x, y string) int { return byID[x].first.Compare(byID[y].first) }
+	if len(gone) > 0 {
+		return slices.MinFunc(gone, byFirst), false
+	}
+	if len(alive) > 1 {
+		slices.SortFunc(alive, byFirst)
+		return alive[0], true
+	}
+	return "", false
+}
+
+// noteOverCap records that the cap forced a live session's snapshots out,
+// for rex doctor.
+func noteOverCap(dir, session string, at time.Time) error {
+	f, err := os.OpenFile(filepath.Join(dir, "over-cap"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	_, werr := fmt.Fprintf(f, "%s %s\n", at.Format(time.RFC3339), session)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	return werr
 }
 
 // deleteRefs deletes every refs/rex/<session>/ ref and the session's private
@@ -242,6 +297,9 @@ type FolderUsage struct {
 	CWD      string
 	Bytes    int64
 	Sessions int
+	// OverCap lists live sessions whose snapshots the size cap dropped, as
+	// "<time> <session>" lines.
+	OverCap []string
 }
 
 // Usage lists every folder store under the root, sorted by folder.
@@ -263,15 +321,25 @@ func (s *Store) Usage() ([]FolderUsage, error) {
 			continue
 		}
 		cwd, _ := os.ReadFile(filepath.Join(dir, "cwd"))
+		unlock := s.lock(dir)
 		entries, err := readLedger(dir)
+		unlock()
 		if err != nil {
 			return nil, err
+		}
+		var over []string
+		if b, err := os.ReadFile(filepath.Join(dir, "over-cap")); err == nil {
+			for l := range strings.SplitSeq(strings.TrimSpace(string(b)), "\n") {
+				if l != "" {
+					over = append(over, l)
+				}
+			}
 		}
 		seen := map[string]bool{}
 		for _, e := range entries {
 			seen[e.SessionID] = true
 		}
-		out = append(out, FolderUsage{Key: de.Name(), CWD: string(cwd), Bytes: dirSize(dir), Sessions: len(seen)})
+		out = append(out, FolderUsage{Key: de.Name(), CWD: string(cwd), Bytes: dirSize(dir), Sessions: len(seen), OverCap: over})
 	}
 	return out, nil
 }

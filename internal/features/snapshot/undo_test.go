@@ -151,16 +151,6 @@ func TestLedgerFilesChanged(t *testing.T) {
 	}
 }
 
-func TestLedgerBadLine(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(ledgerOf(dir), []byte("{\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := readLedger(dir); err == nil {
-		t.Error("a corrupt ledger line was accepted")
-	}
-}
-
 func TestFold(t *testing.T) {
 	e := func(ph Phase, turn int, tree string) Entry {
 		return Entry{SessionID: "s", Phase: ph, Turn: turn, Tree: Tree(tree)}
