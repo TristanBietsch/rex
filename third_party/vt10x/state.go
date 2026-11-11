@@ -138,6 +138,7 @@ type State struct {
 	str           strEscape
 	csi           csiEscape
 	numlock       bool
+	lastc         rune // last graphic rune received, for REP; 0 = none
 	tabs          []bool
 	title         string
 	colorOverride map[Color]Color
@@ -392,6 +393,7 @@ func (t *State) resetTabs() {
 func (t *State) reset() {
 	t.cur = t.defaultCursor()
 	t.saveCursor()
+	t.lastc = 0
 	t.resetTabs()
 	t.top = 0
 	t.bottom = t.rows - 1

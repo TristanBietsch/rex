@@ -48,6 +48,13 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
   `tabs_test.go`.
 - `CSI ? 5 W` (DECST8C) resets the tab stops to every 8 columns, which
   ultraviolet (the renderer in Antigravity) sends. See `tabs_test.go`.
+- `CSI n b` (REP) repeats the last graphic character `n` times through the
+  normal print path (autowrap, pending wrap and the line-drawing charset
+  apply). Antigravity's renderer (ultraviolet) uses it for runs of identical
+  cells and assumes the cursor moved; ignoring it shifted the rest of the row
+  left. The character is forgotten after a control character other than ESC
+  and on reset, and `n` is capped at cols*rows so a few bytes cannot make the
+  daemon loop 2^31 times. See `rep_test.go`.
 - `gofmt` added `//go:build` lines.
 
 Tests here are a separate module: `go -C third_party/vt10x test ./...`

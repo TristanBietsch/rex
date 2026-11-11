@@ -92,6 +92,19 @@ func (t *State) handleCSI() {
 		t.moveTo(t.cur.X, t.cur.Y-c.maxarg(0, 1))
 	case 'B', 'e': // CUD, VPR - cursor <n> down
 		t.moveTo(t.cur.X, t.cur.Y+c.maxarg(0, 1))
+	case 'b': // REP - repeat the last graphic character <n> times
+		if c.priv {
+			goto unknown
+		}
+		// Capped at the screen size: more repeats only overwrite cells
+		// already written, and an agent must not be able to make the daemon
+		// loop 2^31 times with a few bytes.
+		if t.lastc != 0 {
+			n := min(c.maxarg(0, 1), t.cols*t.rows)
+			for i := 0; i < n; i++ {
+				t.printRune(t.lastc)
+			}
+		}
 	case 'c': // DA - device attributes
 		if c.arg(0, 0) == 0 {
 			// TODO: write vt102 id
