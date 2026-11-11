@@ -95,7 +95,7 @@ const doneCollapseAt = 5
 
 // doneCollapsed reports whether the Done column shows only its title line.
 func doneCollapsed(m Model) bool {
-	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) > doneCollapseAt
+	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) > doneCollapseAt
 }
 
 // visibleRows is group gi's rows as the board shows them: none while Done
@@ -104,7 +104,7 @@ func visibleRows(m Model, gi int) []protocol.SessionSummary {
 	if gi == groupDone && doneCollapsed(m) {
 		return nil
 	}
-	return filterByGroup(m.Sessions, boardGroups[gi], m.Filter)
+	return filterByGroup(m.Sessions, boardGroups[gi], rowFilterOf(m))
 }
 
 // resolveSection maps a user reference to a boardGroups index: an ID, a
@@ -143,13 +143,10 @@ func inCompleted(s protocol.SessionSummary) bool {
 }
 
 // filterByGroup applies the group predicate plus the active tool filter.
-func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter string) []protocol.SessionSummary {
+func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, f rowFilter) []protocol.SessionSummary {
 	out := make([]protocol.SessionSummary, 0, len(sessions))
 	for _, s := range sessions {
-		if !g.Match(s) {
-			continue
-		}
-		if filter != "all" && filter != "" && s.ToolID != filter {
+		if !g.Match(s) || !f.keep(s) {
 			continue
 		}
 		out = append(out, s)
@@ -158,13 +155,13 @@ func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter stri
 }
 
 // partitionSessions buckets sessions into board columns in one pass (O(n) vs 3× scan).
-func partitionSessions(sessions []protocol.SessionSummary, filter string) [][]protocol.SessionSummary {
+func partitionSessions(sessions []protocol.SessionSummary, f rowFilter) [][]protocol.SessionSummary {
 	out := make([][]protocol.SessionSummary, len(boardGroups))
 	for i := range out {
 		out[i] = make([]protocol.SessionSummary, 0, len(sessions)/len(boardGroups)+1)
 	}
 	for _, s := range sessions {
-		if filter != "all" && filter != "" && s.ToolID != filter {
+		if !f.keep(s) {
 			continue
 		}
 		for i, g := range boardGroups {
@@ -299,7 +296,7 @@ func groupTitle(m Model, gi, width int) string {
 }
 
 func groupTitleText(m Model, gi int) string {
-	n := len(filterByGroup(m.Sessions, boardGroups[gi], m.Filter))
+	n := len(filterByGroup(m.Sessions, boardGroups[gi], rowFilterOf(m)))
 	title := styleSectionTitle.Render(strings.ToUpper(boardGroups[gi].Title))
 	if boardGroups[gi].Alert && n > 0 {
 		title = styleAlert().Render(strings.ToUpper(boardGroups[gi].Title))

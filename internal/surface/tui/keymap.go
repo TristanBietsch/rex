@@ -37,7 +37,7 @@ func nextNeedsYou(m Model) Model {
 // toggleDone handles 3: a long Done column folds and unfolds; a short one
 // just gets the selection.
 func toggleDone(m Model) Model {
-	if len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) <= doneCollapseAt {
+	if len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) <= doneCollapseAt {
 		return jumpToSection(m, groupDone)
 	}
 	m.DoneExpanded = !m.DoneExpanded
@@ -54,14 +54,14 @@ func toggleDone(m Model) Model {
 // column back to folding once it is short again, so it folds the next time
 // it grows past doneCollapseAt.
 func keepSelectionVisible(m Model) Model {
-	if m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) <= doneCollapseAt {
+	if m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) <= doneCollapseAt {
 		m.DoneExpanded = false
 	}
 	if m.SelectedID == "" || !doneCollapsed(m) || indexOfSelected(m) >= 0 {
 		return m
 	}
 	hidden := false
-	for _, s := range filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter) {
+	for _, s := range filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m)) {
 		if s.ID == m.SelectedID {
 			hidden = true
 			break
@@ -225,9 +225,14 @@ func cycleFilter(m Model) Model {
 }
 
 // setFilter switches the tool filter, keeping a still-visible selection.
-func setFilter(m Model, filter string) Model {
-	m.Filter = filter
-	// Filter change shifts visible rows — reset scroll and re-select to the top.
+func setFilter(m Model, tool string) Model {
+	m.Filter = tool
+	return refilter(m)
+}
+
+// refilter re-seats the view after any row filter changed: scroll resets and
+// the selection stays if still visible, else moves to the first row.
+func refilter(m Model) Model {
 	m.ScrollOffset = 0
 	rows := orderedSessions(m)
 	if len(rows) > 0 {
