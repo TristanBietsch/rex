@@ -473,6 +473,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusFail {
 		return updateFailKey(m, k)
 	}
+	if m.Focus == FocusOverview {
+		return updateOverviewKey(m, k)
+	}
 	if m.Focus == FocusStats {
 		switch k.String() {
 		case "esc", ":":

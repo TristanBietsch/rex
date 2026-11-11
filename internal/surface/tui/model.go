@@ -31,6 +31,7 @@ const (
 	FocusStats
 	FocusRename
 	FocusSearch
+	FocusOverview
 )
 
 // Model is the root Bubble Tea model.
@@ -133,6 +134,8 @@ type Model struct {
 	// TUI computes itself), from the Snapshot and Overview events. Nil
 	// until the daemon sends one, and from daemons that predate it.
 	Overview *protocol.Overview
+	// OverviewSel is the selected row of the :overview overlay.
+	OverviewSel int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
