@@ -113,12 +113,19 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		perSess:    make(map[string]*sessionMeta),
 	}
 	w.available.Store(1)
-	w.detail.Store(int32(DetailMedium))
+	w.detail.Store(int32(cfg.Detail.valid()))
 	return w
 }
 
 // Detail returns the current description detail level.
 func (w *Worker) Detail() Detail { return Detail(w.detail.Load()) }
+
+// SetDetail changes the description detail level for later requests. Safe
+// from any goroutine, including mid-call: a request in flight keeps the level
+// it was built with. The prompt (and so the unchanged-prompt hash) changes
+// with the level, so existing sessions are re-summarized on their next
+// request.
+func (w *Worker) SetDetail(d Detail) { w.detail.Store(int32(d.valid())) }
 
 // Channel returns the send-side of the request channel.
 func (w *Worker) Channel() chan<- string { return w.ch }

@@ -12,6 +12,7 @@ type Config struct {
 	RequestTimeout time.Duration // per HTTP call; default 15s
 	MinInterval    time.Duration // per-session floor between Ollama calls; default 800ms
 	MaxBytes       int           // transcript window size sent to the model; default 2048
+	Detail         Detail        // description detail level; zero value is DetailMedium
 }
 
 // Defaults returns a Config populated with library-wide defaults.
@@ -22,5 +23,6 @@ func Defaults() Config {
 		RequestTimeout: 15 * time.Second,
 		MinInterval:    800 * time.Millisecond,
 		MaxBytes:       2048,
+		Detail:         DetailMedium,
 	}
 }

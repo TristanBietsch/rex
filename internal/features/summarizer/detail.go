@@ -3,13 +3,27 @@ package summarizer
 // Detail is how much a description says. It sets the rune cap the cleaned
 // text is clamped to, the token budget of the call, and the length rule in
 // the prompt.
-type Detail int
+type Detail int32
 
+// The zero value is DetailMedium, the default, so an unset Config.Detail
+// means medium.
 const (
-	DetailShort Detail = iota
-	DetailMedium
+	DetailMedium Detail = iota
+	DetailShort
 	DetailLong
 )
+
+// ParseDetail maps a summary_detail setting value to a Detail; anything
+// unknown is medium, the default.
+func ParseDetail(s string) Detail {
+	switch s {
+	case "short":
+		return DetailShort
+	case "long":
+		return DetailLong
+	}
+	return DetailMedium
+}
 
 type detailCaps struct{ maxRunes, numPredict int }
 
@@ -38,7 +52,7 @@ func (d Detail) String() string {
 
 // valid maps an out-of-range value to the default, medium.
 func (d Detail) valid() Detail {
-	if d < DetailShort || d > DetailLong {
+	if d < DetailMedium || d > DetailLong {
 		return DetailMedium
 	}
 	return d
