@@ -141,6 +141,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   fuzz run.
 - `SECURITY.md` (private reporting and threat model), `CONTRIBUTING.md`,
   CODEOWNERS and a pull request template.
+- `rex doctor` shows the installed agy version (`agy 1.5.5`, a `-verbose`
+  row) and warns below 1.5.5 (untested). It shows nothing when agy is not
+  installed, and gives up after 2 s.
 
 ### Changed
 
@@ -149,6 +152,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   instead of the folder above it. Still never your home folder or anything
   outside it. The logic moved to `settings.SuggestTrustDir`, with
   `settings.AppendTrustDir` and `settings.RemoveTrustDir` beside it.
+- **Breaking:** an unknown command now exits 5 (was 1) and, when a real
+  command is within two edits, says `did you mean "ls"?`.
+- **Breaking:** `rex reply <sel>` with no text on a terminal exits 5 instead
+  of waiting for end-of-file; `rex log -n` with a negative number exits 5
+  instead of being accepted.
+- `rex new` waits for the daemon with `-wait` (default 5s). On timeout it
+  says `daemon did not confirm the spawn within 5s; check \`rex ls\`` and
+  exits 1, instead of a raw deadline error.
+- `rex setup -y` is a real alias of `-yes` (so `-y=false` works). The no-op
+  flags `rex ls -short`, `rex ls -show-archived` and `rex new -no-attach`
+  are marked "(deprecated, no effect)" in their usage; they are still
+  accepted.
+
+- **Breaking:** a selector that is a session's exact slug and also the short
+  id (or id prefix) of a different session, such as a slug `feed` and
+  another session whose id starts with `feed`, now exits 3 and lists both.
+  It used to pick the slug silently, so `rex rm feed` could delete the wrong
+  session. Use the full id.
+
+- **Breaking:** `rex rm` without a terminal on stdin now needs `-force`
+  (aliases `-yes`, `-y`) and otherwise exits 6, like `rex prune`. It used
+  to delete without asking. Declining the prompt on a terminal also exits 6
+  (was 1).
+
 - TUI: an unknown `:` command now says `(try :help)`. Commands and key
   help come from one table, so `?` can no longer drift from what `:` runs.
 - `rex ls` and `rex status` on a terminal use the new human layout (state
@@ -205,6 +232,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   elements, so `/Users2` is still fine.
 - TUI: `::undone` in the attach popup only unmarks; on a session that is not
   marked done it shows a notice instead of marking it done.
+- Short ids match in any case (`rex attach A91C`). `rex --help` no longer
+  lists the `@needs`, `@working` and `@done` selectors, which never existed.
+
+- With no daemon running, commands now say so: `rex-daemon is not running
+  (no socket at <path>); start it with \`rex daemon start\``, instead of the
+  raw `dial unix …: no such file or directory`. The same goes for a socket
+  file a dead daemon left behind. A daemon that accepts the connection but
+  fails the handshake exits 4 (it was 1) in selector lookup, `rex prune` and
+  `rex render`, which also returned raw errors.
+
+- `rex wait` refuses an unknown `-until` and a negative `-timeout` (exit 5)
+  instead of waiting forever or without limit. A timeout is recognized by
+  its error type, not its text. `docs/cli.md` said a session removed during
+  `wait` exits 3; it exits 2.
+
+- `rex new`, `rm` and `prune` no longer crash when stdin is closed, and a
+  character device that is not a terminal (`< /dev/null`, `< NUL` on
+  Windows) is no longer mistaken for one.
+
+- `rex new -cwd` makes a relative folder absolute and refuses one that
+  does not exist or is not a folder (exit 5). The daemon now rejects a
+  `NewSession` whose `cwd` is not absolute (`bad_intent`) instead of
+  resolving it against its own working directory.
+
+- `rex setup -tool/-model/-effort` now writes `default_spawn_tool`,
+  `default_spawn_model` and `default_spawn_effort` (before, they were
+  ignored). An unknown tool, model or effort exits 5 and lists the valid
+  ids. The setup wizard writes the same keys, refuses a model the tool does
+  not have, and keeps every other setting in an existing config.yaml.
+
 - The settings page showed a second "Spawn" section for
   `auto_trust_dirs`; it now sits with the other Spawn settings.
 - TUI: a reconnect to the daemon no longer resets the tool filter to `all`.

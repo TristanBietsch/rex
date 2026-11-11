@@ -34,12 +34,10 @@ Many commands take `<sel>`: one session reference.
 | Form | Rule |
 |------|------|
 | Full UUID | Exact match on `id` |
-| Slug | Exact match on `slug` (checked before short id) |
-| Short id | Four or more hex digits; prefix match on `id` |
+| Slug | Exact match on `slug`. If the same text is also the short id or id prefix of a different session, the selector is ambiguous (exit 3) |
+| Short id | Four or more hex digits, in any case; prefix match on `id` |
 
-Exit **2** if no match. Exit **3** if multiple match — including a slug shared by several sessions restored from an older daemon (the error lists their short ids).
-
-The interactive help text mentions `@needs`, `@working`, and `@done`. Those aliases are **not** implemented. Use `rex ls` and a concrete id or slug.
+Exit **2** if no match. Exit **3** if multiple match: a slug shared by several sessions restored from an older daemon, or a slug that is also the short id (or id prefix) of a *different* session, such as a slug `feed` next to a session whose id starts with `feed`. The error lists each match and how it matched (`slug`, `short id`); pass the full id to pick one.
 
 ## GLOBAL EXIT STATUS
 
@@ -49,12 +47,12 @@ The interactive help text mentions `@needs`, `@working`, and `@done`. Those alia
 | 1 | Generic error; also `rex status` when any session is `needs_input`; `rex doctor` when any check fails |
 | 2 | Selector not found |
 | 3 | Ambiguous selector |
-| 4 | Daemon unreachable |
-| 5 | Invalid arguments |
-| 6 | Operation refused |
+| 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
+| 5 | Invalid arguments: a bad flag or value, a missing argument, or an unknown command |
+| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` confirmation (a declined `prune` prompt still exits 1) |
 | 7 | `rex wait` timed out |
 
-Unknown commands print to stderr and exit **1**.
+An unknown command exits **5** and, when a real command is within two edits, names it: `unknown command "lss"; did you mean "ls"?`. A session removed while `rex wait` runs exits **2**.
 
 ---
 
@@ -104,7 +102,7 @@ List sessions.
 rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-short] [-o FORMAT] [--agent] [-json]
 ```
 
-`-show-archived` and `-short` are accepted but have no effect today.
+`-show-archived` and `-short` are deprecated: they are accepted but have no effect.
 
 The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 
@@ -116,16 +114,18 @@ Spawn a session.
 
 ```sh
 rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
-           [-slug name] [-cwd dir] [-fleet name] [-no-attach]
+           [-slug name] [-cwd dir] [-fleet name] [-wait duration] [-no-attach]
 ```
 
-Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. Prompt from arguments or stdin when stdin is not a TTY.
+Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. `-cwd` must be an existing folder (exit 5 otherwise); a relative path is made absolute by the CLI. Prompt from arguments or stdin when stdin is not a TTY.
 
 Prints `short_id` and `slug` tab-separated on success.
 
 Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
 
-`-no-attach` is accepted but has no effect.
+`-wait` (default `5s`) is how long to wait for the daemon to confirm the spawn. If it does not, `rex new` exits 1 with `daemon did not confirm the spawn within 5s; check \`rex ls\``: the session may still appear.
+
+`-no-attach` is deprecated: it is accepted but has no effect.
 
 ---
 
@@ -151,7 +151,7 @@ Send text to a session, then press Enter (`\r`, sent as a separate write so full
 rex reply <sel> [text] [-socket path] [-raw]
 ```
 
-Text from argument or stdin. `-raw` sends the bytes as-is, without pressing Enter.
+Text from arguments or stdin. With no text and a terminal on stdin it exits 5 instead of waiting for end-of-file. `-raw` sends the bytes as-is, without pressing Enter.
 
 ---
 
@@ -172,10 +172,10 @@ Reads stdin until EOF. No positional text argument.
 Read transcript file.
 
 ```sh
-rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes N]
+rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes]
 ```
 
-`-f` follows the file. Default state dir: `~/.local/share/rex`.
+`-f` follows the file. `-n` shows only the last N lines (`0`, the default, shows all; a negative number exits 5). `-bytes` is a switch that prints the raw bytes, including ANSI sequences, instead of stripping them. Default state dir: `~/.local/share/rex`.
 
 ---
 
@@ -189,7 +189,7 @@ rex wait <sel> [-socket path] [-until state] [-timeout duration]
 
 `-until`: `working`, `needs_input`, `done`, `failed`, or `any` (terminal states). Default `done`.
 
-`-timeout` uses Go duration syntax (`30s`, `10m`). Exit **7** on timeout.
+`-timeout` uses Go duration syntax (`30s`, `10m`); `0` (the default) waits without limit. Exit **7** on timeout. An unknown `-until` or a negative `-timeout` exits **5** before anything is sent. A session that is removed while waiting exits **2**.
 
 ---
 
@@ -198,8 +198,10 @@ rex wait <sel> [-socket path] [-until state] [-timeout duration]
 Delete a session.
 
 ```sh
-rex rm <sel> [-socket path] [-force]
+rex rm <sel> [-socket path] [-force|-yes|-y]
 ```
+
+On a terminal it asks `delete <id> (<slug>)? [y/N]`; anything but `y`/`yes` exits **6**. Without a terminal on stdin (a script, a pipe, `< /dev/null`) it refuses with exit **6** unless `-force` (alias `-yes`, `-y`) is given, the same rule as `prune`.
 
 ---
 
@@ -252,7 +254,7 @@ rex done <sel> [-after 72h] [-socket path]
 rex undone <sel> [-socket path]
 ```
 
-`rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 3 ("session removed") when the session disappears.
+`rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 2 ("session removed") when the session disappears.
 
 ---
 
@@ -330,6 +332,8 @@ rex setup [-preview] [-yes|-y] [-tool id] [-model id] [-effort tier]
 
 The wizard asks whether agents may skip the folder trust prompt in one folder; the default is no. `-auto-trust folders` sets [`auto_trust_dirs`](settings.md#auto-trust): with `-yes` it is written directly (an existing `config.yaml` needs `-force`), with `-preview` it is only printed, and otherwise the wizard starts with that answer filled in. Separate folders with `:` (`;` on Windows); `~/` is your home folder. A filesystem root, the home folder itself, a relative path or a path with `..` is refused with exit code 5. Only list folders whose code you trust.
 
+`-tool`, `-model` and `-effort` are checked against the registry and written to `default_spawn_tool`, `default_spawn_model` and `default_spawn_effort` (the quick-spawn defaults). An unknown tool, a model the tool does not have or an effort the model does not offer exits 5 and lists the valid ids; nothing is written. A new tool without a model takes that tool's first model. Settings you do not name stay as they are, in `-yes` mode and in the wizard.
+
 ---
 
 ## rex doctor
@@ -339,6 +343,8 @@ Diagnostics. Exit **1** if any check fails.
 ```sh
 rex doctor [-json] [-socket path] [-verbose]
 ```
+
+With `-verbose`, an `agy version` row shows the installed Antigravity CLI version (`agy 1.5.5`). It warns below 1.5.5 (untested) or when `agy --version` fails or takes over 2 s, and is left out when `agy` is not on `PATH`.
 
 ---
 
@@ -400,7 +406,7 @@ Print a static board view (no TUI).
 rex render [-socket path] [-w cols] [-h rows]
 ```
 
-Dial or protocol errors exit **1** (not always `ExitCoder`).
+No daemon or a failed handshake exits **4**.
 
 ---
 
@@ -433,4 +439,4 @@ See [paths.md](paths.md).
 
 ## BUGS
 
-`rex ls -short` and `rex new -no-attach` are no-ops. `rex --help` lists `@` selector aliases that the implementation does not support.
+`rex ls -short`, `rex ls -show-archived` and `rex new -no-attach` are deprecated no-ops.

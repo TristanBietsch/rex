@@ -1,15 +1,20 @@
 package setup
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -99,6 +104,7 @@ func runAllChecks(socket *core.SocketFlag) []checkResult {
 	results = append(results, checkRexDirs()...)
 	results = append(results, checkSettingsLoad())
 	results = append(results, checkToolBinaries()...)
+	results = append(results, checkAgyVersion()...)
 	results = append(results, checkGoVersion())
 
 	return results
@@ -196,6 +202,81 @@ func checkToolBinaries() []checkResult {
 		}
 	}
 	return results
+}
+
+// agyMinVersion is the oldest agy rex was tested against.
+var agyMinVersion = [3]int{1, 5, 5}
+
+// agyVersionTimeout bounds `agy --version`.
+var agyVersionTimeout = 2 * time.Second
+
+// agyVersion returns the raw output of `agy --version`. Tests replace it so
+// the real agy is never run.
+var agyVersion = func(ctx context.Context) (string, error) {
+	path, err := exec.LookPath("agy")
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.CommandContext(ctx, path, "--version")
+	// A child that keeps stdout open must not outlast the timeout.
+	cmd.WaitDelay = 500 * time.Millisecond
+	out, err := cmd.Output()
+	return string(out), err
+}
+
+var semverRE = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
+
+// parseSemver pulls the first major.minor.patch triple out of s.
+func parseSemver(s string) ([3]int, bool) {
+	m := semverRE.FindStringSubmatch(s)
+	if m == nil {
+		return [3]int{}, false
+	}
+	var v [3]int
+	for i := range v {
+		n, err := strconv.Atoi(m[i+1])
+		if err != nil {
+			return [3]int{}, false
+		}
+		v[i] = n
+	}
+	return v, true
+}
+
+func semverLess(a, b [3]int) bool {
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] < b[i]
+		}
+	}
+	return false
+}
+
+// checkAgyVersion reports the installed agy version. It returns no row when
+// agy is not installed.
+func checkAgyVersion() []checkResult {
+	const name = "agy version"
+	ctx, cancel := context.WithTimeout(context.Background(), agyVersionTimeout)
+	defer cancel()
+	out, err := agyVersion(ctx)
+	switch {
+	case errors.Is(err, exec.ErrNotFound):
+		return nil
+	case errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil:
+		return []checkResult{{name, checkWarn, fmt.Sprintf("`agy --version` timed out after %s", agyVersionTimeout)}}
+	case err != nil:
+		return []checkResult{{name, checkWarn, fmt.Sprintf("`agy --version` failed: %v", err)}}
+	}
+	out = strings.TrimSpace(out)
+	v, ok := parseSemver(out)
+	if !ok {
+		return []checkResult{{name, checkWarn, fmt.Sprintf("unrecognized `agy --version` output: %q", out)}}
+	}
+	ver := fmt.Sprintf("%d.%d.%d", v[0], v[1], v[2])
+	if semverLess(v, agyMinVersion) {
+		return []checkResult{{name, checkWarn, fmt.Sprintf("agy %s (untested; rex expects %d.%d.%d or newer)", ver, agyMinVersion[0], agyMinVersion[1], agyMinVersion[2])}}
+	}
+	return []checkResult{{name, checkInfo, "agy " + ver}}
 }
 
 // checkGoVersion reports the runtime Go version.

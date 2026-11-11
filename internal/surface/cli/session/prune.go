@@ -20,17 +20,12 @@ import (
 // group and drains its output before it acknowledges.
 const deleteTimeout = 15 * time.Second
 
-// pruneIO is what RunPrune reads and writes; tests replace it.
+// pruneIO is what RunPrune and RunRm read and write; tests replace it.
 var pruneIO = struct {
 	in          io.Reader
 	out, errOut io.Writer
 	interactive func() bool
-}{os.Stdin, os.Stdout, os.Stderr, stdinIsTerminal}
-
-func stdinIsTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	return err == nil && fi.Mode()&os.ModeCharDevice != 0
-}
+}{os.Stdin, os.Stdout, os.Stderr, core.StdinIsTerminal}
 
 // RunPrune deletes every session in the board's Completed column (done,
 // failed, crashed, or marked done) except those whose agent is still
@@ -58,7 +53,7 @@ func RunPrune(args []string) error {
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return err
+		return core.HelloFailed(err)
 	}
 	targets, kept := tui.PruneTargets(snap.Sessions)
 	note := tui.PruneKeptNote(kept)

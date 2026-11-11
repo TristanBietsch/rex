@@ -878,7 +878,18 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 		soundset = m.soundsetOpts[m.soundsetIdx]
 	}
 
+	tools := m.tools
+
 	return func() tea.Msg {
+		// The model field is free text: refuse one the tool does not have
+		// before anything is written.
+		var spawn registry.SpawnChoice
+		if toolID != "" {
+			var err error
+			if spawn, err = wizardSpawnChoice(tools, toolID, modelID, effortVal); err != nil {
+				return setupWriteMsg{err: err}
+			}
+		}
 		// Save is sparse: it writes only the keys set or reset here and keeps
 		// the rest of an existing config.yaml. A value the wizard cannot
 		// produce is reset (key deleted) rather than left at what the file
@@ -901,9 +912,11 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 			_ = store.Reset("auto_trust_dirs")
 		}
 
-		// store tool/model/effort as extension keys (not in registry, skip validation)
-		// They're informational for the "done" screen; actual session args come from `rex new` flags.
-		// We persist what we can via the registry keys.
+		if toolID != "" {
+			setOrReset("default_spawn_tool", spawn.Tool)
+			setOrReset("default_spawn_model", spawn.Model)
+			setOrReset("default_spawn_effort", spawn.Effort)
+		}
 
 		slog.Info("setup: writing config", "path", configPath,
 			"tool", toolID, "model", modelID, "effort", effortVal)
@@ -1575,6 +1588,55 @@ func RunSetupWizard(configPath, socket, autoTrust string) error {
 	return err
 }
 
+// wizardSpawnChoice resolves the wizard's tool and free-text model against
+// the registry. The effort list the wizard shows belongs to the tool's first
+// model, so an effort the typed model does not offer falls back to that
+// model's default instead of failing.
+func wizardSpawnChoice(tools []registry.Tool, toolID, modelID, effort string) (registry.SpawnChoice, error) {
+	reg := &registry.Registry{Tools: tools}
+	choice, _, err := reg.ResolveSpawn(registry.SpawnChoice{}, toolID, modelID, "")
+	if err != nil {
+		return registry.SpawnChoice{}, err
+	}
+	if effort != "" {
+		if c, _, err := reg.ResolveSpawn(choice, "", "", effort); err == nil {
+			choice = c
+		}
+	}
+	return choice, nil
+}
+
+// ResolveSpawnDefaults checks the tool, model and effort given to rex setup
+// against the registry, on top of the spawn defaults already in the config
+// at configPath. An empty tool, model and effort changes nothing. The error
+// names the valid ids.
+func ResolveSpawnDefaults(configPath, toolID, modelID, effortVal string) (registry.SpawnChoice, bool, error) {
+	if toolID == "" && modelID == "" && effortVal == "" {
+		return registry.SpawnChoice{}, false, nil
+	}
+	store := settings.NewStore()
+	if err := store.Load(configPath); err != nil {
+		return registry.SpawnChoice{}, false, err
+	}
+	return resolveSpawnDefaults(store, toolID, modelID, effortVal)
+}
+
+func resolveSpawnDefaults(store *settings.Store, toolID, modelID, effortVal string) (registry.SpawnChoice, bool, error) {
+	if toolID == "" && modelID == "" && effortVal == "" {
+		return registry.SpawnChoice{}, false, nil
+	}
+	reg, err := loadToolsStrict()
+	if err != nil {
+		return registry.SpawnChoice{}, false, fmt.Errorf("load tools: %w", err)
+	}
+	cur := registry.SpawnChoice{
+		Tool:   store.String("default_spawn_tool"),
+		Model:  store.String("default_spawn_model"),
+		Effort: store.String("default_spawn_effort"),
+	}
+	return reg.ResolveSpawn(cur, toolID, modelID, effortVal)
+}
+
 // ApplyDefaultsNonInteractive writes the config without prompting. Used by --yes.
 // A non-empty autoTrust is written to auto_trust_dirs after the same checks
 // the daemon applies; empty leaves the current value alone.
@@ -1587,6 +1649,11 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 	// Load existing so we don't wipe unrelated keys
 	_ = store.Load(configPath)
 
+	spawn, spawnChanged, err := resolveSpawnDefaults(store, toolID, modelID, effortVal)
+	if err != nil {
+		return err
+	}
+
 	if autoTrust != "" {
 		v, err := settings.CheckAutoTrustDirs(autoTrust)
 		if err != nil {
@@ -1596,6 +1663,18 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 			return fmt.Errorf("auto-trust: %w", err)
 		}
 		autoTrust = v
+	}
+
+	if spawnChanged {
+		for id, v := range map[string]string{
+			"default_spawn_tool":   spawn.Tool,
+			"default_spawn_model":  spawn.Model,
+			"default_spawn_effort": spawn.Effort,
+		} {
+			if err := store.Set(id, v); err != nil {
+				return fmt.Errorf("%s: %w", id, err)
+			}
+		}
 	}
 
 	// Check if config already exists and is non-empty — non-interactive treats

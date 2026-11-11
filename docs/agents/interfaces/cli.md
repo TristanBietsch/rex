@@ -43,7 +43,7 @@ Defined in `internal/surface/cli/core/version.go`: `ExitOK` (0) through `ExitWai
 
 ## Selectors
 
-`internal/surface/cli/core/selector.go`: UUID, slug, hex short-id prefix. **`@needs` / `@working` / `@done` in `RunHelp` are not implemented.**
+`internal/surface/cli/core/selector.go`: UUID, slug, hex short-id prefix (case-insensitive). A slug that is also another session's short id exits 3.
 
 ## Gotchas
 

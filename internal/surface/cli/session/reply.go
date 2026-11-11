@@ -27,6 +27,11 @@ func RunReply(args []string) error {
 	if len(rest) > 1 {
 		text = strings.Join(rest[1:], " ")
 	} else {
+		// A terminal would block here until the user types ctrl+d.
+		if pruneIO.interactive() {
+			return core.NewExitError(core.ExitInvalidArgs,
+				"reply: no text; pass it as arguments or pipe it on stdin (`rex reply <sel> -- text`)")
+		}
 		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return core.NewExitError(core.ExitGeneric, err.Error())

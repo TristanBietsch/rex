@@ -22,8 +22,9 @@ import (
 func RunSetup(args []string) error {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	preview := fs.Bool("preview", false, "print plan only, no writes")
-	yes := fs.Bool("yes", false, "apply defaults non-interactively")
-	fs.Bool("y", false, "alias for --yes") // parsed below via shorthand
+	var doYes bool
+	fs.BoolVar(&doYes, "yes", false, "apply defaults non-interactively")
+	fs.BoolVar(&doYes, "y", false, "alias for -yes")
 	tool := fs.String("tool", "", "override default tool id")
 	model := fs.String("model", "", "override default model id")
 	effort := fs.String("effort", "", "override default effort")
@@ -47,15 +48,6 @@ func RunSetup(args []string) error {
 		*autoTrust = v
 	}
 
-	// -y is an alias
-	shortY := false
-	for _, a := range args {
-		if a == "-y" || a == "--y" {
-			shortY = true
-		}
-	}
-	doYes := *yes || shortY
-
 	if *configPath == "" {
 		path, err := paths.ConfigFile()
 		if err != nil {
@@ -66,6 +58,10 @@ func RunSetup(args []string) error {
 	socket, err := socketFlag.Path()
 	if err != nil {
 		return err
+	}
+	// Same for a tool, model or effort the registry does not have.
+	if _, _, err := tui.ResolveSpawnDefaults(*configPath, *tool, *model, *effort); err != nil {
+		return core.Errorf(core.ExitInvalidArgs, "", "-tool/-model/-effort: %s", err)
 	}
 
 	rexlog.Init("setup")

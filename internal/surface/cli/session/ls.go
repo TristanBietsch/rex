@@ -19,8 +19,8 @@ func RunLs(args []string) error {
 	stateFilter := fs.String("state", "", "filter by state")
 	toolFilter := fs.String("tool", "", "filter by tool id")
 	modelFilter := fs.String("model", "", "filter by model id")
-	showArchived := fs.Bool("show-archived", false, "include archived sessions")
-	short := fs.Bool("short", false, "compact mode (reserved)")
+	showArchived := fs.Bool("show-archived", false, "(deprecated, no effect)")
+	short := fs.Bool("short", false, "(deprecated, no effect)")
 	if _, err := out.Parse(fs, args); err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func RunLs(args []string) error {
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 
 	filtered := make([]protocol.SessionSummary, 0, len(snap.Sessions))

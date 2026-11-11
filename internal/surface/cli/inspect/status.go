@@ -28,7 +28,7 @@ func RunStatus(args []string) error {
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 
 	counts := countSessions(snap.Sessions)

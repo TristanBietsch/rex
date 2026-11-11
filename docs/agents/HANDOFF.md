@@ -85,6 +85,13 @@ Keep the version in step with `GOLANGCI_LINT_PKG` in the `Makefile`.
 5. ~~`rex config set auto_trust_dirs` does not validate its value.~~ Done:
    `Setting.Normalize` runs in `Store.Set`, with the same checks as
    `rex setup`.
+   The rest of the CLI hardening pass (P3) is done too: flags anywhere,
+   `-h` exits 0, `setup` writes spawn defaults, absolute `-cwd`, safe
+   terminal detection with `rm` needing `-force`, `wait` validation, clear
+   daemon-down errors (exit 4), slug/short-id collisions (exit 3), unknown
+   command (exit 5). Breaking changes are listed under **Changed** in the
+   CHANGELOG. New commands must parse with `core.ParseArgs` and build errors
+   with `core.Errorf(code, hint, ...)`.
 6. More unchecked TODO items live in the user's local, gitignored `TODO.md`
    (not in the repo). Ask the user for it.
 

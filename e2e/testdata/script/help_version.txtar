@@ -25,9 +25,11 @@ stdout '^v1$'
 exec rex-daemon -version
 stdout '^v1$'
 
-# An unknown verb is a generic failure, not invalid args.
-exitcode 1 rex frobnicate
+# An unknown verb is invalid args; a near miss names the real command.
+exitcode 5 rex frobnicate
 stderr '^rex: unknown command "frobnicate" \(try `rex --help`\)$'
+exitcode 5 rex lss
+stderr 'did you mean "ls"\?'
 
 # -h on a subcommand prints its usage and exits 0, with no error line.
 exec rex ls -h

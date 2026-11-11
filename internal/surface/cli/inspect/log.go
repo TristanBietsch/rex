@@ -3,6 +3,7 @@ package inspect
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,6 +30,9 @@ func RunLog(args []string) error {
 		return core.NewExitError(core.ExitInvalidArgs, "log: exactly one selector required")
 	}
 	sel := rest[0]
+	if *tailN < 0 {
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("log: -n %d: must not be negative", *tailN))
+	}
 
 	c, err := socket.Dial()
 	if err != nil {

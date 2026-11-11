@@ -76,6 +76,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 
 `trust_folder` (bool, default false) trusts `cwd` for this session as if it were listed in `auto_trust_dirs`: the agent's folder-trust dialog is answered (or avoided with `trust_args`) and `skip_permissions` may apply. `cwd` must be absolute, without `..`, and neither a filesystem root nor the home folder; otherwise the intent is `bad_intent` with a `trust_folder: ...` message. The choice is stored in `meta.json` and shown as `trust_folder` in session summaries, and `Resume` applies it again (re-checking the stored `cwd`; a folder that no longer passes is not trusted). Nothing is written to the agent's own config by rex.
 
+`cwd` must be an absolute path (`bad_intent` otherwise); the daemon never resolves it against its own working directory.
+
 `slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
 
 ### Resume

@@ -2,12 +2,17 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -23,31 +28,29 @@ func RunNew(args []string) error {
 	slug := fs.String("slug", "", "session slug (defaults to derived from prompt)")
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
-	noAttach := fs.Bool("no-attach", true, "spawn and exit (default)")
+	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
+	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")
 	rest, err := core.ParseTextArgs(fs, args, 0)
 	if err != nil {
 		return err
 	}
 	_ = noAttach
-
-	if *cwd == "" {
-		wd, err := os.Getwd()
-		if err != nil {
-			return core.NewExitError(core.ExitGeneric, err.Error())
-		}
-		*cwd = wd
+	if *wait <= 0 {
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("new: -wait %s: must be positive", *wait))
 	}
+
+	absCwd, err := resolveNewCwd(*cwd)
+	if err != nil {
+		return err
+	}
+	*cwd = absCwd
 
 	// Prompt = positional args joined, or stdin if not a TTY
 	prompt := strings.Join(rest, " ")
 	if prompt == "" {
-		fi, _ := os.Stdin.Stat()
-		if (fi.Mode() & os.ModeCharDevice) == 0 {
-			b, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return core.NewExitError(core.ExitGeneric, err.Error())
-			}
-			prompt = string(b)
+		var err error
+		if prompt, err = promptFromStdin(os.Stdin); err != nil {
+			return core.NewExitError(core.ExitGeneric, err.Error())
 		}
 	}
 
@@ -72,7 +75,7 @@ func RunNew(args []string) error {
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 	if derived {
 		*slug = uniqueSlug(*slug, snap.Sessions)
@@ -88,11 +91,15 @@ func RunNew(args []string) error {
 	}
 
 	// Wait for SessionAdded to surface the new id.
-	if err := c.SetReadDeadline(core.DeadlineSeconds(5)); err != nil {
+	if err := c.SetReadDeadline(time.Now().Add(*wait)); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	for {
 		env, err := c.NextEvent()
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			return core.Errorf(core.ExitGeneric, "rex ls",
+				"new: daemon did not confirm the spawn within %s; check `rex ls`", *wait)
+		}
 		if err != nil {
 			return core.NewExitError(core.ExitGeneric, err.Error())
 		}
@@ -117,6 +124,44 @@ func RunNew(args []string) error {
 			return core.NewExitError(code, "spawn failed: "+ee.Message)
 		}
 	}
+}
+
+// promptFromStdin reads the prompt from in unless in is a terminal. A closed
+// or missing stdin has no prompt.
+func promptFromStdin(in *os.File) (string, error) {
+	if in == nil || core.IsTerminal(in) {
+		return "", nil
+	}
+	b, err := io.ReadAll(in)
+	if errors.Is(err, os.ErrClosed) || errors.Is(err, syscall.EBADF) {
+		return "", nil
+	}
+	return string(b), err
+}
+
+// resolveNewCwd turns -cwd into the absolute path the daemon requires: empty
+// is the working directory, anything else is made absolute here, not against
+// the daemon's own working directory. It must exist and be a folder.
+func resolveNewCwd(cwd string) (string, error) {
+	if cwd == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", core.NewExitError(core.ExitGeneric, err.Error())
+		}
+		return wd, nil
+	}
+	abs, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+": "+err.Error())
+	}
+	fi, err := os.Stat(abs)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+": "+err.Error())
+	}
+	if !fi.IsDir() {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+" is not a folder")
+	}
+	return abs, nil
 }
 
 // uniqueSlug returns base, or base-2, base-3, … — the first not already
