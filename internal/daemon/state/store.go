@@ -256,7 +256,9 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 			patch["working_since"] = nil
 		}
 	}
-	if newState != protocol.StateWorking && sess.WaitingOn != "" {
+	// SetExit clears the wait before it calls Transition (see WorkingSince),
+	// so a terminal change always tells clients the wait is over.
+	if newState != protocol.StateWorking && (sess.WaitingOn != "" || isTerminal(newState)) {
 		sess.WaitingOn, sess.WaitingSince = "", time.Time{}
 		patch["waiting_on"], patch["waiting_since"] = nil, nil
 	}
