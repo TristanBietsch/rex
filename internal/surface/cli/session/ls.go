@@ -88,8 +88,10 @@ func stateTone(s protocol.State) core.Tone {
 
 // lsView builds the session list. The txt columns reproduce `rex ls` as it
 // always printed (ID STATE TOOL MODEL SLUG LAST EVENT NAME, NAME last); text
-// and md swap in a state marker and a compact IDLE column; agent lines carry
-// model and effort apart and idle_s in seconds (-1 when unknown).
+// swaps in a state marker and a compact IDLE column (and moves NAME to a
+// second line on a narrow terminal); md and agent lines carry the real name,
+// without the done marker, and agent lines model and effort apart and idle_s
+// in seconds (-1 when unknown).
 func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) core.View {
 	text, txt, md := core.SetOf(core.FormatText), core.SetOf(core.FormatTXT), core.SetOf(core.FormatMD)
 	agent := core.SetOf(core.FormatAgent)
@@ -106,7 +108,9 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 		{Key: "last_event", Title: "Last event", Width: 10, Formats: txt},
 		{Key: "idle", Title: "Idle", Align: core.AlignRight, Formats: human},
 		{Key: "idle_s", Title: "Idle s", Formats: agent},
-		{Key: "name", Title: "Name", DropBelow: 60},
+		// text and txt show the done marker; md, agent and json carry the real name.
+		{Key: "name", Title: "Name", Below: true, Formats: text | txt},
+		{Key: "name", Title: "Name", Formats: md | agent},
 	}
 	var needs, working, done int
 	rows := make([][]core.Cell, 0, len(sessions))
@@ -124,9 +128,9 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 		if s.Effort != "" {
 			model += " · " + s.Effort
 		}
-		name := s.Name
+		shown := s.Name
 		if !s.RetireAt.IsZero() {
-			name = strings.TrimSpace(name + " ✓done")
+			shown = strings.TrimSpace(shown + " ✓done")
 		}
 		ago := core.DurationAgoAt(s.LastEventAt, now)
 		idleS := -1
@@ -146,7 +150,8 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 			{Text: ago},
 			{Text: strings.TrimSuffix(ago, " ago"), Tone: core.ToneDim},
 			{Text: fmt.Sprint(idleS), Raw: idleS},
-			{Text: name},
+			{Text: shown},
+			{Text: s.Name},
 		})
 	}
 	meta := []string{}

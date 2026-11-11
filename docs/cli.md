@@ -106,7 +106,7 @@ rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-sho
 
 `-show-archived` and `-short` are accepted but have no effect today.
 
-The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and drops `TOOL` and `NAME` on terminals narrower than 60 columns; `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
+The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 
 ---
 

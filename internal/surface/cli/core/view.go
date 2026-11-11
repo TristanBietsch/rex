@@ -78,6 +78,10 @@ type Col struct {
 	// narrower than this many cells (0 = never), so low-value columns give
 	// way before the others are squeezed.
 	DropBelow int
+	// Below moves the column onto a second dim line under each row when the
+	// table does not fit the terminal even after Flex columns shrink (last
+	// Below column first).
+	Below bool
 	// Formats limits the column to these formats; zero means all. Rows still
 	// carry a cell for every column.
 	Formats FormatSet

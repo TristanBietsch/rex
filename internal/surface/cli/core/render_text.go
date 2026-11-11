@@ -104,35 +104,57 @@ func (p *Printer) textTable(t Table) string {
 	if len(t.Rows) == 0 && t.Empty != "" {
 		return indent + p.Styles.Dim.Render(t.Empty)
 	}
-	widths := make([]int, len(idx))
-	for n, i := range idx {
-		c := t.Cols[i]
-		w := displayWidth(c.Title)
-		for _, r := range t.Rows {
-			w = max(w, displayWidth(r[i].Text))
-		}
-		if c.Max > 0 {
-			w = min(w, c.Max)
-		}
-		widths[n] = max(w, c.Min)
-	}
-	total := bodyIndent + gutter*max(len(idx)-1, 0)
-	for _, w := range widths {
-		total += w
-	}
-	for total > p.Width {
-		best := -1
+	// layout sizes the columns in idx, shrinking Flex ones to fit.
+	layout := func(idx []int) (widths []int, total int) {
+		widths = make([]int, len(idx))
 		for n, i := range idx {
 			c := t.Cols[i]
-			if c.Flex && widths[n] > max(c.Min, defaultFlexMin) && (best < 0 || widths[n] > widths[best]) {
-				best = n
+			w := displayWidth(c.Title)
+			for _, r := range t.Rows {
+				w = max(w, displayWidth(r[i].Text))
+			}
+			if c.Max > 0 {
+				w = min(w, c.Max)
+			}
+			widths[n] = max(w, c.Min)
+		}
+		total = bodyIndent + gutter*max(len(idx)-1, 0)
+		for _, w := range widths {
+			total += w
+		}
+		for total > p.Width {
+			best := -1
+			for n, i := range idx {
+				c := t.Cols[i]
+				if c.Flex && widths[n] > max(c.Min, defaultFlexMin) && (best < 0 || widths[n] > widths[best]) {
+					best = n
+				}
+			}
+			if best < 0 {
+				break
+			}
+			widths[best]--
+			total--
+		}
+		return widths, total
+	}
+	// A table that still does not fit moves its Below columns, last first,
+	// onto a second dim line under each row.
+	var below []int
+	widths, total := layout(idx)
+	for total > p.Width {
+		pos := -1
+		for n, i := range idx {
+			if t.Cols[i].Below {
+				pos = n
 			}
 		}
-		if best < 0 {
+		if pos < 0 {
 			break
 		}
-		widths[best]--
-		total--
+		below = append([]int{idx[pos]}, below...)
+		idx = append(idx[:pos:pos], idx[pos+1:]...)
+		widths, total = layout(idx)
 	}
 	line := func(text func(i int) string, style func(i int) lipgloss.Style) string {
 		var b strings.Builder
@@ -165,6 +187,17 @@ func (p *Printer) textTable(t Table) string {
 		lines = append(lines, line(
 			func(i int) string { return r[i].Text },
 			func(i int) lipgloss.Style { return p.Styles.Tone(r[i].Tone) }))
+		var extra []string
+		for _, i := range below {
+			if r[i].Text != "" {
+				extra = append(extra, r[i].Text)
+			}
+		}
+		if len(extra) > 0 {
+			hang := indent + strings.Repeat(" ", widths[0]+gutter)
+			text := Truncate(strings.Join(extra, "  "), max(p.Width-displayWidth(hang), 1))
+			lines = append(lines, hang+p.Styles.Dim.Render(text))
+		}
 	}
 	return strings.Join(lines, "\n")
 }
