@@ -111,6 +111,13 @@ func openSearch(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// runSearch is `:search [text…]`: set the query to the rest of the line
+// (like :name), or clear it when there is none.
+func runSearch(m Model, c cmdCall) (Model, tea.Cmd) {
+	m.Search = appendSearch("", strings.TrimSpace(strings.TrimPrefix(c.Line, c.Verb)))
+	return refilter(m), nil
+}
+
 // updateSearchKey edits the query. Every edit refilters the board live.
 func updateSearchKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	switch k.Type {

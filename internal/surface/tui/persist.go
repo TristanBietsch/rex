@@ -19,6 +19,8 @@ type persistedState struct {
 	// overrides board_hidden_sections) differs from a file written before
 	// this field existed (nil, which leaves the setting alone).
 	HiddenSections *[]string `json:"hidden_sections,omitempty"`
+	// Search is the board search text, restored once on the next start.
+	Search string `json:"search,omitempty"`
 }
 
 // SaveTUIState writes selection + filter to paths.TUIStateFile
@@ -43,6 +45,7 @@ func SaveTUIState(m Model) error {
 		Filter:         m.Filter,
 		SavedAt:        time.Now().UTC(),
 		HiddenSections: &hidden,
+		Search:         m.Search,
 	}, "", "  ")
 	if err != nil {
 		return err

@@ -12,7 +12,7 @@ import (
 
 // filterCommand runs `:filter`.
 //
-//	:filter                 clear every filter
+//	:filter                 clear every filter (and the search)
 //	:filter <tool>          show one tool's sessions ("all" shows every tool)
 //	:filter hide <sec…>     hide sections
 //	:filter show <sec…|all> show sections
@@ -23,6 +23,7 @@ import (
 func filterCommand(m Model, args []string) Model {
 	if len(args) == 0 {
 		m.Hidden = nil
+		m.Search = ""
 		return setFilter(m, "all")
 	}
 	switch args[0] {

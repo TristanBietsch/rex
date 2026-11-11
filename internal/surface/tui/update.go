@@ -204,6 +204,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "state.restore", Status: stepSkip, Desc: "first run", Dur: msg.Dur,
 			})
 		}
+		m.Search = appendSearch("", msg.State.Search) // user-editable file: drop control runes, cap
 		m.SelectedID = msg.State.Selection
 		if msg.State.Filter != "" {
 			m.Filter = msg.State.Filter

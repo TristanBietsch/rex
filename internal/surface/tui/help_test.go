@@ -35,7 +35,7 @@ func TestRenderHelpFits(t *testing.T) {
 }
 
 func TestRenderHelpGroupTitles(t *testing.T) {
-	plain := ansi.Strip(renderHelp(120, 50))
+	plain := ansi.Strip(renderHelp(120, 60))
 	for _, gs := range [][]helpGroup{helpLeft, helpRight} {
 		for _, g := range gs {
 			if !strings.Contains(plain, g.Title) {
@@ -49,7 +49,7 @@ func TestRenderHelpCommandVerbs(t *testing.T) {
 	plain := ansi.Strip(renderHelp(120, 60))
 	for _, v := range []string{"q", "quit", "q!", "bg", "detach", "help", "settings", "reload",
 		"filter", "rm", "rename", "name", "done", "undone", "complete", "new", "fail", "fails",
-		"failed", "stats"} {
+		"failed", "stats", "search"} {
 		if !strings.Contains(plain, ":"+v) {
 			t.Errorf("missing command :%s", v)
 		}
