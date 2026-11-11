@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -57,7 +56,7 @@ func RunLs(args []string) error {
 	return p.Emit(core.Result{
 		Cmd:    "ls",
 		Data:   filtered,
-		View:   lsView(filtered, p.Now(), p.Glyphs, lsOpts{Wide: *wide, Times: *wide && lsFeature("timestamps")}),
+		View:   lsView(filtered, p.Now(), p.Glyphs, lsOpts{Wide: *wide, Times: *wide && featureOn("timestamps"), Resume: *wide && featureOn("resume")}),
 		Legacy: func(w io.Writer) error { return core.WriteSessionsJSONL(w, filtered) },
 	})
 }
@@ -68,17 +67,8 @@ type lsOpts struct {
 	Wide bool
 	// Times adds STARTED and ENDED (the timestamps feature).
 	Times bool
-}
-
-// lsFeature reads a Features switch from the user's config. A config that
-// will not load reads the registry defaults, so a broken file never breaks
-// `rex ls`.
-func lsFeature(id string) bool {
-	store, _, err := settings.LoadDefault()
-	if err != nil {
-		store = nil
-	}
-	return settings.FeatureOn(store, id)
+	// Resume adds RESUME ID (the resume feature).
+	Resume bool
 }
 
 // clockTime is t in now's zone as "2006-01-02 15:04", or "-" when unset.
@@ -165,6 +155,9 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 			core.Col{Key: "started", Title: "Started", DropBelow: 100},
 			core.Col{Key: "ended", Title: "Ended", DropBelow: 100})
 	}
+	if opts.Wide && opts.Resume {
+		cols = append(cols, core.Col{Key: "resume_id", Title: "Resume ID", DropBelow: 140})
+	}
 	cols = append(cols,
 		// text and txt show the done marker; md, agent and json carry the real name.
 		core.Col{Key: "name", Title: "Name", Below: true, Formats: text | txt},
@@ -213,6 +206,17 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 			cells = append(cells,
 				core.Cell{Text: clockTime(now, s.StartedAt), Raw: rfc3339(s.StartedAt)},
 				core.Cell{Text: clockTime(now, end), Raw: rfc3339(end)})
+		}
+		if opts.Wide && opts.Resume {
+			id := "-"
+			if protocol.ValidResumeID(s.ResumeID) {
+				id = s.ResumeID
+			}
+			raw := id
+			if id == "-" {
+				raw = ""
+			}
+			cells = append(cells, core.Cell{Text: id, Raw: raw})
 		}
 		cells = append(cells, core.Cell{Text: shown}, core.Cell{Text: s.Name})
 		rows = append(rows, cells)

@@ -26,6 +26,9 @@ func lsWideSessions() []protocol.SessionSummary {
 	ss[1].StartedAt = time.Date(2026, 11, 11, 9, 5, 0, 0, time.UTC)
 	ss[2].StartedAt = time.Date(2026, 11, 10, 22, 0, 0, 0, time.UTC)
 	ss[2].EndedAt = time.Date(2026, 11, 11, 11, 0, 0, 0, time.UTC)
+	ss[1].ResumeID = "7d4f3c8a-1234-4abc-89ab-cdefabcdef01"
+	ss[2].ResumeID = "0b2e9f10-5678-4def-8abc-0123456789ab"
+	ss[3].ResumeID = "-x --flag" // never shown
 	ss[4].StartedAt = time.Date(2026, 11, 9, 8, 0, 0, 0, time.UTC)
 	ss[4].LastEventAt = time.Date(2026, 11, 9, 8, 30, 0, 0, time.UTC) // no ended_at: older daemon
 	return ss
@@ -39,7 +42,7 @@ func emitLsOpts(t *testing.T, format string, width int, color bool, sessions []p
 }
 
 func TestLsWideGolden(t *testing.T) {
-	wide := lsOpts{Wide: true, Times: true}
+	wide := lsOpts{Wide: true, Times: true, Resume: true}
 	var secs []golden.Section
 	for _, w := range []int{80, 120, 160} {
 		secs = append(secs, golden.Section{Name: "text.w" + strconv.Itoa(w),
@@ -70,10 +73,12 @@ func TestLsWideTXTKeepsNameLast(t *testing.T) {
 // `rex ls` always printed.
 func TestLsWideOffIsInert(t *testing.T) {
 	base := emitLsOpts(t, "txt", 80, false, lsWideSessions(), lsOpts{})
-	for _, o := range []lsOpts{{Wide: true}, {Times: true}} {
+	for _, o := range []lsOpts{{Wide: true}, {Times: true}, {Resume: true}} {
 		require.Equal(t, base, emitLsOpts(t, "txt", 80, false, lsWideSessions(), o))
 		for _, f := range []string{"text", "md", "agent"} {
-			require.NotContains(t, emitLsOpts(t, f, 160, false, lsWideSessions(), o), "ended", f)
+			out := emitLsOpts(t, f, 160, false, lsWideSessions(), o)
+			require.NotContains(t, out, "ended", f)
+			require.NotContains(t, out, "7d4f3c8a-1234", f)
 		}
 	}
 	require.NotContains(t, base, "STARTED")
@@ -130,6 +135,7 @@ func TestRunLsWideHonorsTimestampsFeature(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
 	require.NoError(t, os.WriteFile(cfg, []byte("timestamps: false\n"), 0o600))
+	t.Cleanup(func() { _ = os.Remove(cfg) })
 	out := run()
 	require.NotContains(t, out, "STARTED")
 	require.NotContains(t, out, "ENDED")

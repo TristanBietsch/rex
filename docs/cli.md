@@ -58,7 +58,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls` and `rex status` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status` and `rex resume` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -104,7 +104,7 @@ rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-sho
 
 `-show-archived` and `-short` are deprecated: they are accepted but have no effect.
 
-`-wide` adds `STARTED` and `ENDED` columns before `NAME` (local `2006-01-02 15:04`, `-` when unset; a finished session from an older daemon shows its last event as the end). In `txt` that keeps `NAME` last; in `text` they are dropped below 100 columns; `agent` lines get `started=` and `ended=` (RFC 3339 UTC, `""` when unset) before `name`. `-o json` already carries `started_at` and `ended_at`. The `timestamps` feature (Settings → Features) switches the columns off.
+`-wide` adds `STARTED` and `ENDED` columns before `NAME` (local `2006-01-02 15:04`, `-` when unset; a finished session from an older daemon shows its last event as the end). In `txt` that keeps `NAME` last; in `text` they are dropped below 100 columns; `agent` lines get `started=` and `ended=` (RFC 3339 UTC, `""` when unset) before `name`. `-o json` already carries `started_at` and `ended_at`. With the `resume` feature on, `-wide` also adds a `RESUME ID` column (the full id, `-` when unknown; `text` drops it below 140 columns; agent key `resume_id`). The `timestamps` feature (Settings → Features) switches the columns off.
 
 The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 
@@ -257,6 +257,21 @@ rex undone <sel> [-socket path]
 ```
 
 `rex attach` exits with "session cleared (marked done)" and `rex wait` exits with code 2 ("session removed") when the session disappears.
+
+---
+
+## rex resume
+
+Make a session live and not marked done. An exited session (done, failed or crashed) is respawned **in place** with the agent's own resume arguments (`claude --resume <id>`): same row, short id, slug, start time and transcript, which then holds both runs. A running session that was marked done loses the mark, like `rex undone`.
+
+```sh
+rex resume <sel> [-socket path] [-print] [-o FORMAT] [--agent]
+rex resume -print <sel>
+```
+
+`<sel>` is a short id, slug or full id (see SELECTORS). Prints `slug: resuming`, `slug: unmarked` or `slug: already running` in `txt` (`✓ resuming 7d4f slug` in `text`); `agent` gives `ok cmd=resume id=7d4f slug=slug outcome=resuming`. `-print` sends nothing and prints only the full resume id, so `claude --resume "$(rex resume -print fix-auth)"` works in a shell. `rex ls -wide` shows the id in a `RESUME ID` column.
+
+Exit **1** when the agent cannot be resumed (it has no resume block, no id was captured, or the folder is gone) and for `-print` on a session with no id; **2** for an unknown session; **5** when the `resume` feature is off: `off: enable in Settings → Features (rex config set resume true)`. The daemon must be current: an older one answers `daemon is older than rex` (run `rex daemon restart`).
 
 ---
 

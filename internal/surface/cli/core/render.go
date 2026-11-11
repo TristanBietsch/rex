@@ -42,12 +42,19 @@ func (p *Printer) Emit(r Result) error {
 }
 
 // joinBlocks joins rendered blocks with one blank line and ends the output
-// with a single newline. No blocks means no output.
+// with a single newline. A block that rendered nothing (a KV whose pairs are
+// all for another format) is skipped; no blocks means no output.
 func joinBlocks(blocks []string) string {
-	if len(blocks) == 0 {
+	kept := make([]string, 0, len(blocks))
+	for _, b := range blocks {
+		if b != "" {
+			kept = append(kept, b)
+		}
+	}
+	if len(kept) == 0 {
 		return ""
 	}
-	return strings.Join(blocks, "\n\n") + "\n"
+	return strings.Join(kept, "\n\n") + "\n"
 }
 
 // visibleCols returns the indexes of the columns shown in f.

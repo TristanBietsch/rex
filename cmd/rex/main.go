@@ -29,7 +29,7 @@ func main() {
 // kitVerbs are the commands rendered through the output kit. They accept
 // -o/--output, --agent and -json; the rest still print their own format, so
 // an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{"ls": true, "status": true}
+var kitVerbs = map[string]bool{"ls": true, "status": true, "resume": true}
 
 func run(args []string) error {
 	if core.Out().Flags.Explicit() {
@@ -80,6 +80,8 @@ func run(args []string) error {
 		return session.RunUndone(args[1:])
 	case "archive":
 		return session.RunArchive(args[1:])
+	case "resume":
+		return session.RunResume(args[1:])
 	case "complete":
 		return meta.RunComplete(args[1:])
 	case "reload":
@@ -116,7 +118,7 @@ func run(args []string) error {
 var commands = []string{
 	"help", "version", "status", "ls", "new", "attach", "reply", "send", "log",
 	"wait", "rm", "prune", "rename", "name", "done", "retire", "undone",
-	"unretire", "archive", "complete", "reload", "daemon", "completion",
+	"unretire", "archive", "resume", "complete", "reload", "daemon", "completion",
 	"render", "config", "setup", "doctor", "update", "uninstall", "digest",
 	"stats", "fleet",
 }

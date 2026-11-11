@@ -50,6 +50,7 @@ func RunHelp() error {
 				{"rm <sel>", "delete a session"},
 				{"prune", "delete Completed sessions, keeping any still working (-dry-run, -yes)"},
 				{"archive <sel>", "archive a session"},
+				{"resume <sel>", "respawn an exited session in place (-print: only the resume id)"},
 				{"complete <sel>", "cleanly terminate a session and mark it done"},
 				{"log <sel>", "stream session log"},
 			},

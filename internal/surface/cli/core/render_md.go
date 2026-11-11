@@ -53,6 +53,9 @@ func (p *Printer) renderMD(v View) string {
 			blocks = append(blocks, "#### "+escapeMD(b.Title))
 		case KV:
 			pairs := b.pairs(FormatMD)
+			if len(pairs) == 0 {
+				continue
+			}
 			rows := make([][]string, len(pairs))
 			for i, pr := range pairs {
 				rows[i] = []string{escapeMD(pairLabel(pr)), escapeMD(pr.Val.Text)}

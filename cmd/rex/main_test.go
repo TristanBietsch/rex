@@ -14,7 +14,7 @@ import (
 // render is absent: it defines -h as the render height.
 var helpCommands = []string{
 	"status", "ls", "new", "attach", "reply", "send", "log", "wait", "rm",
-	"prune", "rename", "name", "done", "undone", "archive", "complete",
+	"prune", "rename", "name", "done", "undone", "archive", "resume", "complete",
 	"reload", "completion", "setup", "doctor", "update", "uninstall",
 	"digest", "stats", "fleet",
 }

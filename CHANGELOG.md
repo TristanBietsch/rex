@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex resume <sel>` respawns an exited session in place (same row, id, slug
+  and transcript) with the agent's resume arguments, or unmarks a running
+  session marked done. `rex resume -print <sel>` prints only the full resume
+  id. It exits 5 with `off: enable in Settings → Features (rex config set
+  resume true)` while the `resume` feature is off.
+- `rex ls -wide` adds a `RESUME ID` column (full id) while the `resume`
+  feature is on.
 - `rex ls -wide` adds `STARTED` and `ENDED` columns before `NAME` (agent
   lines get `started=` and `ended=`).
 - Setting `timestamps` (Features, on by default): switches off the TUI's
