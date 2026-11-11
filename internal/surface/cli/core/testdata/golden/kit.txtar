@@ -1,0 +1,156 @@
+-- text.w40 --
+Sessions  1 needs you · 1 working
+
+Fleet:
+
+  Version  v1
+  Binary   /very/long/path/to/the/rex/bi
+           nary/that/needs/to/wrap/aroun
+           d/the/terminal/width/for/sure
+           /ok
+
+     ID    STATE      SLUG     N  NAME
+  ◆  a91c  needs you  refac…   7
+  ●  0b2e  done       日本…   12  a|b `c` <i>
+
+  ✓ rex binary  ~/.local/bin/rex
+  ! daemon      not responding
+                › rex daemon start
+  ✗ config      bad
+  · extra       n/a
+
+on-disk snapshot
+
+✓ started 7d4f
+
+› rex attach 7d4f  open a session
+-- text.w80 --
+Sessions  1 needs you · 1 working
+
+Fleet:
+
+  Version  v1
+  Binary   /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/termi
+           nal/width/for/sure/ok
+
+     ID    STATE      SLUG                       N  NAME
+  ◆  a91c  needs you  refactor-db-with-a-real…   7
+  ●  0b2e  done       日本語のスラッグ          12  a|b `c` <i>
+
+  ✓ rex binary  ~/.local/bin/rex
+  ! daemon      not responding
+                › rex daemon start
+  ✗ config      bad
+  · extra       n/a
+
+on-disk snapshot
+
+✓ started 7d4f
+
+› rex attach 7d4f  open a session
+-- text.w120 --
+Sessions  1 needs you · 1 working
+
+Fleet:
+
+  Version  v1
+  Binary   /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/terminal/width/for/sure/ok
+
+     ID    STATE      SLUG                       N  NAME
+  ◆  a91c  needs you  refactor-db-with-a-real…   7
+  ●  0b2e  done       日本語のスラッグ          12  a|b `c` <i>
+
+  ✓ rex binary  ~/.local/bin/rex
+  ! daemon      not responding
+                › rex daemon start
+  ✗ config      bad
+  · extra       n/a
+
+on-disk snapshot
+
+✓ started 7d4f
+
+› rex attach 7d4f  open a session
+-- text.color.w80 --
+␛[1;38;2;230;230;230mSessions␛[0m  ␛[38;2;121;127;140m1 needs you · 1 working␛[0m
+
+␛[1;38;2;230;230;230mFleet:␛[0m
+
+  ␛[38;2;121;127;140mVersion␛[0m  v1
+  ␛[38;2;121;127;140mBinary ␛[0m  /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/termi
+           nal/width/for/sure/ok
+
+     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mSTATE␛[0m      ␛[38;2;121;127;140mSLUG␛[0m                       ␛[38;2;121;127;140mN␛[0m  ␛[38;2;121;127;140mNAME␛[0m
+  ␛[38;2;229;179;65m◆␛[0m  a91c  ␛[38;2;229;179;65mneeds you␛[0m  refactor-db-with-a-real…   7
+  ␛[38;2;73;222;128m●␛[0m  0b2e  ␛[38;2;73;222;128mdone␛[0m       日本語のスラッグ          12  a|b `c` <i>
+
+  ␛[38;2;73;222;128m✓␛[0m rex binary  ~/.local/bin/rex
+  ␛[38;2;229;179;65m!␛[0m daemon      not responding
+                ␛[1;38;2;91;141;239m› rex daemon start␛[0m
+  ␛[38;2;239;68;68m✗␛[0m config      bad
+  ␛[38;2;73;79;89m·␛[0m extra       n/a
+
+␛[38;2;229;179;65mon-disk snapshot␛[0m
+
+␛[38;2;73;222;128m✓ started 7d4f␛[0m
+
+␛[1;38;2;91;141;239m› rex attach 7d4f␛[0m  ␛[38;2;121;127;140mopen a session␛[0m
+-- txt --
+# Fleet
+
+Version  v1
+Binary   /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/terminal/width/for/sure/ok
+
+ID     STATE         SLUG                        N  NAME
+a91c   needs_input   refactor-db-with-a-real…    7  
+0b2e   done          日本語のスラッグ           12  a|b `c` <i>
+
+v rex binary  ~/.local/bin/rex
+! daemon  not responding
+  > rex daemon start
+x config  bad
+- extra  n/a
+
+on-disk snapshot
+
+7d4f	fix
+-- md --
+### Sessions
+
+*1 needs you · 1 working*
+
+#### Fleet
+
+| Key | Value |
+| --- | --- |
+| Version | v1 |
+| Binary | /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/terminal/width/for/sure/ok |
+
+| ID | State | Slug | N | Name |
+| --- | --- | --- | ---: | --- |
+| a91c | needs you | refactor-db-with-a-really-long-slug-name | 7 |  |
+| 0b2e | done | 日本語のスラッグ | 12 | a\|b \`c\` &lt;i&gt; |
+
+| Status | Check | Detail |
+| --- | --- | --- |
+| PASS | rex binary | ~/.local/bin/rex |
+| WARN | daemon | not responding (`rex daemon start`) |
+| FAIL | config | bad |
+| INFO | extra | n/a |
+
+> on-disk snapshot
+
+started 7d4f
+
+`rex attach 7d4f` open a session
+-- json --
+{"v":1,"cmd":"kit","data":{"html":"<b>","sessions":[1,2]},"meta":{"a":1,"source":"disk"}}
+-- agent --
+info version=v1 path=/very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/terminal/width/for/sure/ok
+session id=a91c state=needs_input slug=refactor-db-with-a-really-long-slug-name n=7 name=""
+session id=0b2e state=done slug="日本語のスラッグ" n=12 name="a|b `c` <i>"
+check name="rex binary" status=pass detail="~/.local/bin/rex"
+check name=daemon status=warn detail="not responding" hint="rex daemon start"
+check name=config status=fail detail=bad
+check name=extra status=info detail=n/a
+ok cmd=kit count=2 a=1 source=disk

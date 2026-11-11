@@ -1,0 +1,20 @@
+-- text.color --
+␛[1;38;2;239;68;68m✗ rex-daemon is not running␛[0m
+  ␛[38;2;121;127;140mno socket at /x/rex.sock␛[0m
+␛[1;38;2;91;141;239m› rex daemon start␛[0m
+-- text --
+✗ rex-daemon is not running
+  no socket at /x/rex.sock
+› rex daemon start
+-- txt --
+rex: rex-daemon is not running
+  hint: rex daemon start
+-- md --
+rex: rex-daemon is not running
+  hint: rex daemon start
+-- agent --
+error code=4 kind=daemon_unreachable cmd=ls msg="rex-daemon is not running" hint="rex daemon start"
+-- json --
+{"v":1,"error":{"code":4,"kind":"daemon_unreachable","cmd":"ls","msg":"rex-daemon is not running","hint":"rex daemon start"}}
+-- legacy --
+rex: rex-daemon is not running

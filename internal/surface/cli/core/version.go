@@ -21,10 +21,19 @@ type ExitCoder interface {
 type ExitError struct {
 	Code int
 	Msg  string
+	// Hint is the command that fixes the problem ("rex daemon start"). The
+	// human and structured formats show it; it is not part of Msg.
+	Hint string
+	// Err is the underlying cause, kept for the error log and for errors.Is
+	// and errors.As. It is not part of Msg.
+	Err error
 }
 
 // Error implements error.
 func (e ExitError) Error() string { return e.Msg }
+
+// Unwrap returns the underlying cause, if any.
+func (e ExitError) Unwrap() error { return e.Err }
 
 // ExitCode implements ExitCoder.
 func (e ExitError) ExitCode() int { return e.Code }

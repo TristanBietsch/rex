@@ -23,6 +23,13 @@ const (
 	ToneOK
 	ToneWarn
 	ToneErr
+	// Session-state tones, colored like the TUI's state markers.
+	ToneNeeds
+	ToneWorking
+	ToneQueued
+	ToneDone
+	ToneFailed
+	ToneCrashed
 )
 
 // Styles is the CLI's style set, built from a theme palette. Every field is
@@ -48,6 +55,18 @@ func (s Styles) Tone(t Tone) lipgloss.Style {
 		return s.Warn
 	case ToneErr:
 		return s.Err
+	case ToneNeeds:
+		return s.State[protocol.StateNeedsInput]
+	case ToneWorking:
+		return s.State[protocol.StateWorking]
+	case ToneQueued:
+		return s.State[protocol.StateQueued]
+	case ToneDone:
+		return s.State[protocol.StateDone]
+	case ToneFailed:
+		return s.State[protocol.StateFailed]
+	case ToneCrashed:
+		return s.State[protocol.StateCrashed]
 	case ToneNone:
 	}
 	// A style with no attributes renders its text unchanged on any renderer.

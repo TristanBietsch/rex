@@ -22,9 +22,7 @@ func main() {
 	}
 	restoreVT()
 	if err != nil {
-		if err.Error() != "" {
-			fmt.Fprintln(os.Stderr, "rex:", err)
-		}
+		core.Out().RenderError(err)
 		os.Exit(exitCodeFor(err))
 	}
 }
