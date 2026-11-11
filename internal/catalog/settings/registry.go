@@ -130,6 +130,11 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "The uc key and :uc / :resume, which take a session out of Done. Off: uc does nothing and the commands refuse; :undone still unmarks a session marked done.",
 	},
+	{
+		ID: "resume", Label: "Resume ids", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Track each session's agent conversation id so an exited session can be resumed: the resume id column, :rid and the Resume intent (used by uc / :resume). Off: no id is assigned or captured, the column and :rid go away, and Resume is refused. Read at each spawn.",
+	},
 
 	// Spawn
 	{

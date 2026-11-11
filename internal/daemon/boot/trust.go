@@ -19,6 +19,17 @@ func SkipPermissions() bool {
 	return on
 }
 
+// ResumeEnabled reads the resume feature switch from config.yaml. The server
+// calls it at each spawn and Resume. On a read error it uses the defaults
+// (on).
+func ResumeEnabled() bool {
+	st, _, err := settings.LoadDefault()
+	if err != nil {
+		slog.Warn("daemon: settings load failed for resume; using the default", "err", err)
+	}
+	return settings.FeatureOn(st, "resume")
+}
+
 // AutoTrustDirs reads auto_trust_dirs from config.yaml. The server calls it
 // at each spawn, so a changed setting applies to the next session without a
 // daemon restart. On a read error it trusts nothing.

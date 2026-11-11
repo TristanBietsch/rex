@@ -83,6 +83,7 @@ type Model struct {
 	// namer / retirer / deleter override Client for those intents (tests).
 	namer   sessionNamer
 	retirer sessionRetirer
+	resumer sessionResumer
 	deleter sessionDeleter
 	// reloader sends :reload's Reload intent to the daemon on a socket.
 	// nil means daemonctl.ReloadDaemon; tests swap it so no real daemon is
@@ -342,6 +343,18 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
 		s.Subagents = int(v)
 	}
+	if v, ok := patch["resume_id"].(string); ok {
+		s.ResumeID = v
+	}
+	if v, present := patch["exit_code"]; present {
+		switch code := v.(type) {
+		case nil:
+			s.ExitCode = nil // a resumed session starts over
+		case float64:
+			n := int(code)
+			s.ExitCode = &n
+		}
+	}
 }
 
 // patchTime reads an optional timestamp patch key: an RFC3339 string sets
@@ -375,6 +388,10 @@ func friendlyDaemonError(ee protocol.ErrorEvent) string {
 		return "daemon is older than rex — run 'rex daemon restart'"
 	case ee.Code == protocol.ErrCodeBadState && strings.HasPrefix(ee.ID, "unretire-"):
 		return "too late — session is already being cleared"
+	case strings.HasPrefix(ee.ID, "resume-") && ee.Code == protocol.ErrCodeBadState && ee.Message == protocol.MsgClearing:
+		return "too late — session is already being cleared"
+	case strings.HasPrefix(ee.ID, "resume-") && ee.Code == protocol.ErrCodeBadIntent && ee.Message == "resume is off":
+		return offMessage("resume")
 	}
 	return ee.Message
 }

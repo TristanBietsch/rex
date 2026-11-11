@@ -35,6 +35,7 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `name` | `[text…]` | Set selected session's display name; no text opens the editor |
 | `done` | `[sel]` | Mark done, or undo the mark (default: selected) |
 | `undone` | `[sel]` | Undo the mark only; an unmarked session gets the notice "is not marked done" |
+| `rid` | `[sel]` | Show the full resume id (the agent's conversation id) of the session on the status line. Needs the `resume` feature (Settings → Features); an error when the session has no id |
 | `uc` | `[sel]` | Undo done (same as the `uc` key): unmark a running session marked done. A session that is not in Done gets the notice "isn't done"; one that has exited gets an error, since it can't be brought back yet |
 | `complete` | `[sel]` | Kill now and mark done |
 | `fail`, `fails`, `failed` | — | Failed-session inspector |

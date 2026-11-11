@@ -90,6 +90,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 - A `Delete` that lands while a resume is starting wins: the session is removed, no process is started and no directory is left behind. The `Resume` fails with `unknown_session`.
 - If the agent cannot start, the session ends `failed` and the `Resume` fails with `spawn_failed`. An agent that starts but cannot find its conversation (never saved) fails after the ack, like any exit.
 
+While the `resume` feature is off (Settings → Features) the daemon answers every `Resume` with `bad_intent` `resume is off`, and assigns or captures no resume ids.
+
 Clients: `(*client.Client).Resume(sessionID, reqID)`. An older daemon answers `bad_intent` "intent not implemented".
 
 ## Replies

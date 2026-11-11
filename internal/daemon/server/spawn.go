@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -84,7 +85,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// gets a fresh UUID, which is not the rex session id: the two diverge
 	// after /clear or a resume anyway.
 	resumeID := ""
-	if tool.Resume != nil && len(tool.Resume.NewArgs) > 0 {
+	if srv.resumeOn() && tool.Resume != nil && len(tool.Resume.NewArgs) > 0 {
 		resumeID = ids.NewSessionID()
 		spec.Resume = &resumeArgs{ID: resumeID, New: true}
 	}
@@ -227,9 +228,12 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 	if err != nil {
 		return fmt.Errorf("build adapter: %w", err)
 	}
-	resumeCapture, err := spec.Tool.Resume.CaptureRegexp() // nil-safe
-	if err != nil {
-		return err
+	resumeOn := srv.resumeOn()
+	var resumeCapture *regexp.Regexp
+	if resumeOn {
+		if resumeCapture, err = spec.Tool.Resume.CaptureRegexp(); err != nil { // nil-safe
+			return err
+		}
 	}
 
 	inputCh := make(chan []byte, 16)
@@ -252,6 +256,7 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		SummaryRequest: cfg.SummaryRequest,
 		TrustPrompt:    spec.Trust.Answer,
 		ResumeCapture:  resumeCapture,
+		NoResumeIDs:    !resumeOn,
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)
 		},

@@ -22,6 +22,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Setting `undo_complete` (Features, on by default): switches off `uc` and
   `:uc`. Off, the chord is unbound and the command answers the off message;
   `:undone` still unmarks.
+- Setting `resume` (Features, on by default): switches off resume ids. Off,
+  the daemon assigns and captures no id, the column and `:rid` go away, and
+  `Resume` is refused with `resume is off`.
+- TUI: the detailed view shows each session's resume id (first 8 characters)
+  in a column that is the first to go on a narrow terminal, and `:rid [sel]`
+  shows the full id on the status line.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current
