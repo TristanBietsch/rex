@@ -114,7 +114,7 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		m.Err = "attach: " + err.Error()
 		return m, nil
 	}
-	banner := 0
+	banner := attachBannerRows(m)
 	cols, rows := attachPopupInnerSize(m.Width, m.Height, banner)
 	toolID := ""
 	for _, s := range m.Sessions {
@@ -231,7 +231,7 @@ func resizeAttach(m Model) {
 	if m.Attach == nil {
 		return
 	}
-	banner := m.Attach.BannerRows
+	banner := attachBannerRows(m)
 	cols, rows := attachPopupInnerSize(m.Width, m.Height, banner)
 	if cols == m.Attach.Cols && rows == m.Attach.Rows && banner == m.Attach.BannerRows {
 		return
@@ -455,10 +455,13 @@ func renderAttach(m Model) string {
 	cols, rows := a.Term.Size()
 	cur := a.Term.Cursor()
 	cursorVisible := a.Term.CursorVisible()
-	lines := make([]string, 0, rows+4)
+	lines := make([]string, 0, rows+4+a.BannerRows)
 	// Chrome lines are clipped to the terminal width: a wider line would
 	// widen the popup and shift it off the geometry mouse hit-testing assumes.
 	lines = append(lines, ansi.Truncate(attachTitleBar(m, a, cols), cols, "…"))
+	if a.BannerRows > 0 {
+		lines = append(lines, renderAttachBanner(m, a, cols))
+	}
 	lines = append(lines, styleBorderFg.Render(strings.Repeat("─", cols)))
 	for y := 0; y < rows; y++ {
 		cx := -1
