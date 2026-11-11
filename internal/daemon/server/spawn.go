@@ -106,7 +106,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		SkipPermissions: srv.cfg.SkipPermissions != nil && srv.cfg.SkipPermissions(),
 		HookFile:        hookFile,
 		SessionID:       id,
-		StatusLine:      srv.statusLineFor(tool, id, p.CWD),
+		StatusLine:      srv.statusLineFor(tool, id),
 	}
 	// A tool that takes a preassigned conversation id (Claude's --session-id)
 	// gets a fresh UUID, which is not the rex session id: the two diverge

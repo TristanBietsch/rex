@@ -11,38 +11,30 @@ import (
 const TapSubcommand = "statusline-tap"
 
 // UserStatusLine returns the user's own Claude status-line command, "" when
-// there is none. It reads, never writes, these files and takes the first
-// that sets a command-type statusLine, in Claude's precedence order:
+// there is none. It reads only the user-level settings file, read-only:
 //
-//	<cwd>/.claude/settings.local.json
-//	<cwd>/.claude/settings.json
 //	$CLAUDE_CONFIG_DIR/settings.json (default ~/.claude/settings.json)
 //
-// Supported: statusLine of type "command" with a non-empty command. Not
-// supported: enterprise managed settings, and a --settings file given by the
-// user on their own claude command line (rex starts Claude itself). A file
-// that is missing or is not valid JSON is skipped. A command that already
+// and takes its statusLine when that is of type "command" with a non-empty
+// command. Project-level files (<folder>/.claude/settings.json and
+// settings.local.json) are deliberately never read. The tap runs this command
+// on every status-line render, and an agent can write a project settings file
+// from inside its own folder at any time; Claude itself reads those files
+// only at startup and only for a trusted folder, so honoring them here would
+// let an agent run a command of its choosing outside Claude's permission
+// system. Not supported either: enterprise managed settings, and a
+// --settings file the user passes to claude themselves (rex starts Claude).
+// A missing or invalid file means no status line. A command that already
 // runs the tap is ignored, so the tap never calls itself.
-func UserStatusLine(home, cwd string) string {
-	var files []string
-	if cwd != "" {
-		files = append(files,
-			filepath.Join(cwd, ".claude", "settings.local.json"),
-			filepath.Join(cwd, ".claude", "settings.json"))
-	}
+func UserStatusLine(home string) string {
 	cfg := os.Getenv("CLAUDE_CONFIG_DIR")
-	if cfg == "" && home != "" {
+	if cfg == "" {
+		if home == "" {
+			return ""
+		}
 		cfg = filepath.Join(home, ".claude")
 	}
-	if cfg != "" {
-		files = append(files, filepath.Join(cfg, "settings.json"))
-	}
-	for _, f := range files {
-		if cmd := statusLineCommand(f); cmd != "" {
-			return cmd
-		}
-	}
-	return ""
+	return statusLineCommand(filepath.Join(cfg, "settings.json"))
 }
 
 // statusLineCommand reads path and returns its statusLine command, "" when

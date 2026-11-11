@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func usageHome(t *testing.T, config string, userLine bool) (home, cwd string) {
+func usageHome(t *testing.T, config string, userLine bool) (home string) {
 	t.Helper()
-	home, cwd = t.TempDir(), t.TempDir()
+	home = t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
@@ -25,7 +25,7 @@ func usageHome(t *testing.T, config string, userLine bool) (home, cwd string) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o700))
 		require.NoError(t, os.WriteFile(p, []byte(`{"statusLine":{"type":"command","command":"echo mine"}}`), 0o600))
 	}
-	return home, cwd
+	return home
 }
 
 // The auto / on / off table, with and without the user's own status line.
@@ -45,8 +45,8 @@ func TestUsageTap_Table(t *testing.T) {
 		{"usage off beats auto", "usage: false\n", true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, cwd := usageHome(t, tc.config, tc.userLine)
-			got := UsageTap("/some/other.sock")("sess-9", cwd)
+			usageHome(t, tc.config, tc.userLine)
+			got := UsageTap("/some/other.sock")("sess-9")
 			if !tc.inject {
 				require.Empty(t, got)
 				return
@@ -58,18 +58,18 @@ func TestUsageTap_Table(t *testing.T) {
 }
 
 func TestUsageTap_DefaultSocketIsNotRepeated(t *testing.T) {
-	_, cwd := usageHome(t, "usage_statusline_tap: \"on\"\n", false)
+	usageHome(t, "usage_statusline_tap: \"on\"\n", false)
 	t.Setenv("XDG_RUNTIME_DIR", "")
 	def := filepath.Join(os.Getenv("HOME"), ".cache", "rex", "rex.sock")
-	got := UsageTap(def)("s", cwd)
+	got := UsageTap(def)("s")
 	require.True(t, strings.HasSuffix(got, "statusline-tap --session s"), got)
 }
 
 // Off is inert: no tap command and nothing written under HOME.
 func TestUsageTap_OffIsInert(t *testing.T) {
-	home, cwd := usageHome(t, "usage: false\n", true)
+	home := usageHome(t, "usage: false\n", true)
 	before := listTree(t, home)
-	require.Empty(t, UsageTap("")("s", cwd))
+	require.Empty(t, UsageTap("")("s"))
 	require.False(t, UsageEnabled())
 	require.Equal(t, before, listTree(t, home), "nothing was created or changed")
 	require.NoFileExists(t, filepath.Join(home, ".local", "share", "rex", "usage.jsonl"))

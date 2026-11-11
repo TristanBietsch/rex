@@ -3,10 +3,8 @@ package usage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
-	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -39,10 +37,9 @@ type TapOptions struct {
 	// Stdin, Stdout and Stderr are the process's streams.
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
-	// Home and Cwd locate the user's Claude settings. "" uses the user's
-	// home and, for Cwd, the status line's own cwd, else the working
-	// directory.
-	Home, Cwd string
+	// Home locates the user's Claude settings (~/.claude); "" uses the
+	// user's home directory.
+	Home string
 	// Send delivers the sample to the daemon (nil dials Socket). It must
 	// honor ctx; RunTap also stops waiting after TapCap.
 	Send func(ctx context.Context, s protocol.UsageSample) error
@@ -73,7 +70,7 @@ func RunTap(ctx context.Context, o TapOptions) int {
 	}()
 
 	code := 0
-	if cmd := o.userCommand(in); cmd != "" {
+	if cmd := o.userCommand(); cmd != "" {
 		code = runUser(ctx, cmd, in, o.Stdout, o.Stderr)
 	}
 
@@ -126,38 +123,15 @@ func dialAndSend(ctx context.Context, socket string, s protocol.UsageSample) err
 	return c.Send(ctx, protocol.IntentUsageSample, s)
 }
 
-// userCommand finds the user's own status-line command for this render.
-func (o TapOptions) userCommand(in []byte) string {
+// userCommand finds the user's own status-line command: from the user-level
+// Claude settings only, never from the folder or from anything in the
+// status-line JSON.
+func (o TapOptions) userCommand() string {
 	home := o.Home
 	if home == "" {
 		home, _ = paths.Home()
 	}
-	cwd := o.Cwd
-	if cwd == "" {
-		cwd = statusLineCwd(in)
-	}
-	if cwd == "" {
-		cwd, _ = os.Getwd()
-	}
-	return UserStatusLine(home, cwd)
-}
-
-// statusLineCwd is the working directory the status-line JSON names
-// (workspace.current_dir, else cwd), "" when it names none.
-func statusLineCwd(in []byte) string {
-	var doc struct {
-		Cwd       string `json:"cwd"`
-		Workspace struct {
-			CurrentDir string `json:"current_dir"`
-		} `json:"workspace"`
-	}
-	if json.Unmarshal(in, &doc) != nil {
-		return ""
-	}
-	if doc.Workspace.CurrentDir != "" {
-		return doc.Workspace.CurrentDir
-	}
-	return doc.Cwd
+	return UserStatusLine(home)
 }
 
 // runUser runs the user's command through a shell, as Claude would, with in

@@ -27,13 +27,13 @@ func skipWindows(t *testing.T) {
 // tapEnv is a fake HOME whose user status line is command ("" for none).
 func tapEnv(t *testing.T, command string) TapOptions {
 	t.Helper()
-	home, cwd := fakeHome(t, false)
+	home, _ := fakeHome(t, false)
 	if command != "" {
 		body, err := jsonString(command)
 		require.NoError(t, err)
 		writeFile(t, filepath.Join(home, ".claude", "settings.json"), `{"statusLine":{"type":"command","command":`+body+`}}`)
 	}
-	return TapOptions{Session: "sess-1", Home: home, Cwd: cwd}
+	return TapOptions{Session: "sess-1", Home: home}
 }
 
 func jsonString(s string) (string, error) {
@@ -242,15 +242,48 @@ func TestRunTap_UserCommandThatCannotRunExits127OrItsOwnCode(t *testing.T) {
 	require.Equal(t, 127, RunTap(context.Background(), o), "sh reports command not found as 127")
 }
 
-func TestRunTap_FindsUserCommandThroughStatusLineCwd(t *testing.T) {
+// An agent can write a project settings file at any time; the tap must
+// never run a command from one, whichever folder it learns about.
+func TestRunTap_NeverRunsProjectStatusLine(t *testing.T) {
 	skipWindows(t)
 	home, _ := fakeHome(t, false)
 	proj := t.TempDir()
-	writeFile(t, filepath.Join(proj, ".claude", "settings.local.json"), `{"statusLine":{"type":"command","command":"cat >/dev/null; printf proj"}}`)
+	marker := filepath.Join(t.TempDir(), "ran")
+	body := `{"statusLine":{"type":"command","command":"touch ` + marker + `; printf proj"}}`
+	writeFile(t, filepath.Join(proj, ".claude", "settings.local.json"), body)
+	writeFile(t, filepath.Join(proj, ".claude", "settings.json"), body)
+
+	run := func(name, in string) {
+		t.Run(name, func(t *testing.T) {
+			var out bytes.Buffer
+			o := TapOptions{Session: "s", Home: home, Stdin: bytes.NewReader([]byte(in)), Stdout: &out, Stderr: &bytes.Buffer{},
+				Send: func(context.Context, protocol.UsageSample) error { return nil }}
+			require.Zero(t, RunTap(context.Background(), o))
+			require.Empty(t, out.String())
+			require.NoFileExists(t, marker)
+		})
+	}
+	// The folder comes from the status-line JSON ...
+	run("cwd from the JSON", `{"workspace":{"current_dir":"`+proj+`"},"cwd":"`+proj+`","cost":{"total_cost_usd":1}}`)
+	// ... or from the tap process's own working directory.
+	t.Chdir(proj)
+	run("process cwd", `{"cost":{"total_cost_usd":1}}`)
+}
+
+func TestRunTap_HonorsClaudeConfigDir(t *testing.T) {
+	skipWindows(t)
+	home, _ := fakeHome(t, false)
+	cfg := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+	dump := filepath.Join(t.TempDir(), "in.bin")
+	writeFile(t, filepath.Join(cfg, "settings.json"), `{"statusLine":{"type":"command","command":"cat > '`+dump+`'; printf cfg"}}`)
+	in := []byte(statusJSON + "\x00\xfe")
 	var out bytes.Buffer
-	in := `{"workspace":{"current_dir":"` + proj + `"},"cost":{"total_cost_usd":1}}`
-	o := TapOptions{Session: "s", Home: home, Stdin: bytes.NewReader([]byte(in)), Stdout: &out, Stderr: &bytes.Buffer{},
+	o := TapOptions{Session: "s", Home: home, Stdin: bytes.NewReader(in), Stdout: &out, Stderr: &bytes.Buffer{},
 		Send: func(context.Context, protocol.UsageSample) error { return nil }}
 	require.Zero(t, RunTap(context.Background(), o))
-	require.Equal(t, "proj", out.String())
+	require.Equal(t, "cfg", out.String())
+	got, err := os.ReadFile(dump)
+	require.NoError(t, err)
+	require.Equal(t, in, got, "stdin passes through byte for byte")
 }

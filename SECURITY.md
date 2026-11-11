@@ -62,13 +62,18 @@ filesystem permissions.
   stdin and sends only the usage fields to the daemon (plan rate-limit
   percentages and reset times, session cost, model id and name, Claude's
   conversation id); the prompt, transcript path and folder in that JSON are
-  never forwarded. It also **reads** your Claude settings files
-  (`~/.claude/settings.json`, and `.claude/settings*.json` in the session
-  folder) and **runs the status line command found there** with the same
-  input, so it runs code you already configured, nothing else. It never
-  writes a Claude settings file. The daemon ignores a sample for an unknown
+  never forwarded. It also **reads** your user-level Claude settings file
+  (`$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json`) and
+  **runs the status line command found there** with the same input, so it
+  runs code you already configured, nothing else. It deliberately never reads
+  project-level settings (`.claude/settings.json`, `.claude/settings.local.json`
+  in a session folder), nor takes a folder from Claude's JSON: an agent can
+  write those files from inside its folder at any time, and Claude itself
+  reads them only at startup for a trusted folder, so honoring them would let
+  an agent run a command of its choosing outside Claude's permission system.
+  It never writes a Claude settings file. The daemon ignores a sample for an unknown
   session. Reports of the tap sending more than those fields, running
-  anything other than your own status line command, or writing to your Claude
+  anything other than your own user-level status line command, or writing to your Claude
   settings are in scope. The usage ledger (`usage.jsonl`) holds session ids,
   tool and model names, token counts and cost, mode 0600, and no prompts or
   output.

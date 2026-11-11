@@ -30,12 +30,11 @@ func TestStatusLineFor(t *testing.T) {
 	claude, _, _ := reg.FindModel("claude", "opus")
 	codex, _, _ := reg.FindModel("codex", "gpt-5.5")
 
-	var gotID, gotCwd string
-	srv := &Server{cfg: Config{UsageTap: func(id, cwd string) string { gotID, gotCwd = id, cwd; return "tap" }}}
-	require.Equal(t, "tap", srv.statusLineFor(claude, "s1", "/w"))
+	var gotID string
+	srv := &Server{cfg: Config{UsageTap: func(id string) string { gotID = id; return "tap" }}}
+	require.Equal(t, "tap", srv.statusLineFor(claude, "s1"))
 	require.Equal(t, "s1", gotID)
-	require.Equal(t, "/w", gotCwd)
-	require.Empty(t, srv.statusLineFor(codex, "s1", "/w"), "only Claude has a status line")
+	require.Empty(t, srv.statusLineFor(codex, "s1"), "only Claude has a status line")
 
-	require.Empty(t, (&Server{}).statusLineFor(claude, "s1", "/w"), "no UsageTap: none")
+	require.Empty(t, (&Server{}).statusLineFor(claude, "s1"), "no UsageTap: none")
 }

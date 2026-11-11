@@ -25,8 +25,8 @@ func UsageEnabled() bool {
 // Settings are read at each spawn, so a change applies to the next session.
 // socket is the daemon's own socket; it is put on the tap's command line
 // only when it is not the default one.
-func UsageTap(socket string) func(sessionID, cwd string) string {
-	return func(sessionID, cwd string) string {
+func UsageTap(socket string) func(sessionID string) string {
+	return func(sessionID string) string {
 		st, _, err := settings.LoadDefault()
 		if err != nil {
 			slog.Warn("daemon: settings load failed for the usage tap; using the defaults", "err", err)
@@ -36,7 +36,7 @@ func UsageTap(socket string) func(sessionID, cwd string) string {
 		if st != nil {
 			mode = st.String("usage_statusline_tap")
 		}
-		if !usage.ShouldInjectTap(settings.FeatureOn(st, "usage"), mode, home, cwd) {
+		if !usage.ShouldInjectTap(settings.FeatureOn(st, "usage"), mode, home) {
 			return ""
 		}
 		exe, err := os.Executable()

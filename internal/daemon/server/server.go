@@ -90,8 +90,8 @@ type Config struct {
 	SkillsEnabled func() bool
 	// UsageTap returns the statusLine command to add to a Claude session's
 	// --settings (the usage status-line tap), or "" for none. Called at each
-	// spawn and Resume with the session id and folder. nil: none.
-	UsageTap func(sessionID, cwd string) string
+	// spawn and Resume with the session id. nil: none.
+	UsageTap func(sessionID string) string
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
@@ -113,11 +113,11 @@ func (s *Server) resumeOn() bool { return s.cfg.ResumeEnabled == nil || s.cfg.Re
 
 // statusLineFor is the usage tap command for a new or resumed session of
 // tool, "" when the tool is not Claude (hooks format) or usage is off.
-func (s *Server) statusLineFor(tool registry.Tool, sessionID, cwd string) string {
+func (s *Server) statusLineFor(tool registry.Tool, sessionID string) string {
 	if s.cfg.UsageTap == nil || tool.Detect.Kind != "hooks" || tool.Detect.Format != "claude" {
 		return ""
 	}
-	return s.cfg.UsageTap(sessionID, cwd)
+	return s.cfg.UsageTap(sessionID)
 }
 
 // skillsOn reports whether the spawn_skills feature is on.

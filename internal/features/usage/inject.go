@@ -21,10 +21,12 @@ const (
 //     UserStatusLine). A configured status line makes Claude hide its footer
 //     hints ("esc to interrupt", "? for shortcuts"); rex must never cause
 //     that on its own, so without a user status line auto leaves Claude
-//     alone and the Claude rows use the estimate.
+//     alone and the Claude rows use the estimate. Only the user-level status
+//     line counts: a project-only one is neither passed through nor
+//     replaced under auto.
 //
 // An unknown mode is treated as auto.
-func ShouldInjectTap(usageOn bool, mode, home, cwd string) bool {
+func ShouldInjectTap(usageOn bool, mode, home string) bool {
 	if !usageOn {
 		return false
 	}
@@ -34,7 +36,7 @@ func ShouldInjectTap(usageOn bool, mode, home, cwd string) bool {
 	case TapOn:
 		return true
 	}
-	return UserStatusLine(home, cwd) != ""
+	return UserStatusLine(home) != ""
 }
 
 // TapCommand is the statusLine.command rex injects: the rex-daemon binary at
