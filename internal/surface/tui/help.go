@@ -28,6 +28,7 @@ const (
 // badge legend is written out here.
 var helpLeft = []helpGroup{
 	bindingsIn(groupNavigation),
+	bindingsIn(groupFilter),
 	bindingsIn(groupActions),
 	bindingsIn(groupMouse),
 	bindingsIn(groupModes),

@@ -99,6 +99,9 @@ func renderHelpLine(m Model, width int) string {
 		}
 		return padLine("  "+strings.Join(parts, styleMuted.Render(" · ")), width)
 	}
+	if m.PendingChord == "z" {
+		return padLine("  "+styleHeaderApp.Render("z")+styleDim.Render(": h completed · 1-9 section · 0 show all"), width)
+	}
 	if m.Notice != "" {
 		return padLine("  "+styleBootReady.Render(truncate(m.Notice, width-2)), width)
 	}

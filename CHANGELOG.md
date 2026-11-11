@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: hide board sections. `zh` hides or shows the completed (Done)
+  section, `z1`-`z9` toggle section N, `z0` shows them all. While `z` is
+  pending the help line lists the second keys. `1`, `3` and `tab` aimed at
+  a hidden section say how to show it, and rex refuses to hide every
+  section.
 - The daemon records `ended_at` for every session: the first time it reached
   done, failed or crashed. It is in `meta.json`, in snapshots and in state
   patches, and older sessions get it from their last event.

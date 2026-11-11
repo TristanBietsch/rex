@@ -15,6 +15,7 @@ const (
 	groupNavigation = "Navigation"
 	groupActions    = "Actions"
 	groupMouse      = helpGroupMouse
+	groupFilter     = "Filter & search"
 	groupModes      = "Modes"
 	groupAttached   = "Attached session"
 	groupSessionCmd = "Session commands"
@@ -51,7 +52,11 @@ var bindings = []binding{
 	{Keys: "1 2", Desc: "jump to Needs you / Working", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2"}},
 	{Keys: "3", Desc: "jump to Done (show / hide a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"3"}},
 	{Keys: "v", Desc: "simple / detailed rows (id, model, tokens, AI summary)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"v"}},
-	{Keys: "t", Desc: "cycle tool filter", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"t"}},
+
+	{Keys: "t", Desc: "cycle tool filter", Group: groupFilter, Ctx: ctxBoard, Press: []string{"t"}},
+	{Keys: "zh", Desc: "hide / show completed sections", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "h"}},
+	{Keys: "z1-9", Desc: "hide / show section N", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "1"}},
+	{Keys: "z0", Desc: "show every section", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "0"}},
 
 	{Keys: "enter", Desc: "attach to selected session", Group: groupActions, Ctx: ctxBoard, Press: []string{"enter"}, Line: "open"},
 	{Keys: "n", Desc: "new-agent wizard", Group: groupActions, Ctx: ctxBoard, Press: []string{"n"}},

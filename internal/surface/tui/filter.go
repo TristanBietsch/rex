@@ -1,6 +1,11 @@
 package tui
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // filterCommand runs `:filter`.
 //
@@ -83,4 +88,49 @@ func knownFilterTool(m Model, tool string) bool {
 		}
 	}
 	return false
+}
+
+// chordSection is z...: zh toggles every completed section, z1-z9 toggle
+// section N, z0 shows every section. Any other second key is not part of
+// the chord.
+func chordSection(m Model, second string) (Model, tea.Cmd, bool) {
+	switch second {
+	case "h":
+		return toggleCompleted(m), nil, true
+	case "0":
+		return showAllSections(m), nil, true
+	}
+	n, err := strconv.Atoi(second)
+	if err != nil || n < 1 || n > 9 {
+		return m, nil, false
+	}
+	if n > len(boardGroups) {
+		m.Notice = fmt.Sprintf("no section %d: use z1-z%d", n, len(boardGroups))
+		return m, nil, true
+	}
+	id := boardGroups[n-1].ID
+	return setSectionHidden(m, id, !m.Hidden[id]), nil, true
+}
+
+// toggleCompleted hides every completed section, or shows them when they
+// are all hidden already.
+func toggleCompleted(m Model) Model {
+	hide := false
+	for _, g := range boardGroups {
+		if g.Completed && !m.Hidden[g.ID] {
+			hide = true
+		}
+	}
+	for _, g := range boardGroups {
+		if g.Completed {
+			m = setSectionHidden(m, g.ID, hide)
+		}
+	}
+	return m
+}
+
+// showAllSections clears every hidden section.
+func showAllSections(m Model) Model {
+	m.Hidden = nil
+	return refilter(m)
 }
