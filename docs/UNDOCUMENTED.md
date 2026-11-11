@@ -7,7 +7,6 @@ Facts not fully specified in code comments or stable APIs. Listed for maintainer
 | Item | Location | Notes |
 |------|----------|-------|
 | `IntentOpenSession` | `internal/wire/protocol/intents.go` | Constant exists; server returns `bad_intent` |
-| `IntentShutdown` | same | Not implemented |
 | `FocusFilter` | `server/client.go` | Accepted, no-op; board filter is client-side |
 | `ErrCodeAmbiguousID` | `protocol/events.go` | Defined, never emitted |
 | `ErrCodeRegistryInvalid` | same | Defined, never emitted |
