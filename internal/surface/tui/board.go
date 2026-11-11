@@ -595,6 +595,10 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		state = protocol.StateDone // marked done reads green whatever the live state
 	}
 	marker := stateMarkerCellFor(m, state, m.SpinnerTick, false)
+	waiting := waitingKindOf(m, s) != ""
+	if waiting {
+		marker = waitingMarkerCell(m, false)
+	}
 	// A marked-done row recedes: muted name and description.
 	slugStyle := lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
 	if retiring && !selected {
@@ -612,6 +616,9 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		descSource = rowDescription(s)
 		if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
 			descSource = renderAnimFrame(anim, c.desc, now)
+		}
+		if waiting { // the reason and how long: "shell 42s · summary"
+			descSource = strings.TrimSuffix(waitingLabel(m, s)+" · "+descSource, " · ")
 		}
 	} else if !retiring && s.State == protocol.StateNeedsInput && !selected {
 		descColor = colorFgPrimary // what needs you reads first
@@ -721,7 +728,7 @@ func blinkEnabled(m Model) bool {
 // waitingGlyph marks a session in Waiting: it is working, but blocked on a
 // shell command, subagent or web call (it does not need you). While it
 // waits the row marker turns through waitingFrames; this is the still form
-// (reduce_motion, headers, legends).
+// (reduce_motion, snapshots, headers, legends).
 const waitingGlyph = "◷"
 
 // queuedGlyph marks a session that is spawned but whose agent hasn't
