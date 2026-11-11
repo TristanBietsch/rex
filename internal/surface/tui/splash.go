@@ -205,12 +205,13 @@ func lastFailedStep(m Model) string {
 }
 
 // handOffToBoard transitions from FocusBoot to FocusBoard, releases the boot
-// log, plays the startup chime, and starts the daemon-event listener.
+// log, plays the startup chime (unless QuietBoot), and starts the
+// daemon-event listener.
 func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	m.Focus = FocusBoard
 	m.BootLog = nil
 	m.lastInput = m.now() // the screensaver's idle time starts with the board
-	if m.Audio != nil {
+	if m.Audio != nil && !m.QuietBoot {
 		m.Audio.Play(audio.EventStartup)
 		// Voice self-schedules after the startup tone and no-ops when boot_voice is off.
 		m.Audio.Play(audio.EventBootVoice)

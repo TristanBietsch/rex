@@ -71,6 +71,7 @@ func RunHelp() error {
 				{"fleet", "list/set/unset session fleets"},
 				{"overview", "what needs you, is ready for review, failed or finished"},
 				{"usage", "tokens, cost and plan quota per agent and model (-range, -tool, -by)"},
+				{"export", "write a session as json, yaml, md or txt"},
 			},
 		},
 		{
@@ -96,6 +97,7 @@ func RunHelp() error {
 			rows: []helpRow{
 				{"-h, --help", "show this help"},
 				{"-v, --version", "print version"},
+				{"--quiet-boot", "open the board without boot sounds"},
 			},
 		},
 	}

@@ -63,6 +63,7 @@ internal/
 │   ├── summarizer/         # Ollama descriptions
 │   ├── overview/           # board buckets, digest, headline runner
 │   ├── usage/              # usage ledger, Claude status-line tap, quotas
+│   ├── export/             # session export: transcript frames, formatters, agent log
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)

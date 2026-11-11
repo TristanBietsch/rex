@@ -29,7 +29,7 @@ func main() {
 // kitVerbs are the commands rendered through the output kit. They accept
 // -o/--output, --agent and -json; the rest still print their own format, so
 // an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{"ls": true, "status": true, "skills": true, "overview": true, "usage": true}
+var kitVerbs = map[string]bool{"ls": true, "status": true, "skills": true, "overview": true, "usage": true, "export": true}
 
 func run(args []string) error {
 	if core.Out().Flags.Explicit() {
@@ -43,9 +43,14 @@ func run(args []string) error {
 		}
 	}
 	if len(args) == 0 {
-		return meta.RunTUI()
+		return meta.RunTUI(false)
 	}
 	switch args[0] {
+	case "--quiet-boot":
+		if len(args) > 1 {
+			return core.NewExitError(core.ExitInvalidArgs, "--quiet-boot takes no arguments")
+		}
+		return meta.RunTUI(true)
 	case "--help", "-h", "help":
 		return core.RunHelp()
 	case "--version", "-v", "version":
@@ -112,6 +117,8 @@ func run(args []string) error {
 		return inspect.RunOverview(args[1:])
 	case "usage":
 		return inspect.RunUsage(args[1:])
+	case "export":
+		return inspect.RunExport(args[1:])
 	default:
 		return unknownCommand(args[0])
 	}
@@ -124,7 +131,7 @@ var commands = []string{
 	"wait", "rm", "prune", "rename", "name", "done", "retire", "undone",
 	"unretire", "archive", "complete", "reload", "daemon", "completion",
 	"render", "config", "setup", "doctor", "update", "uninstall", "digest",
-	"stats", "fleet", "skills", "overview", "usage",
+	"stats", "fleet", "skills", "overview", "export", "usage",
 }
 
 // unknownCommand is the exit-5 error for a command rex does not have, with

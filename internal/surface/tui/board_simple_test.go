@@ -265,7 +265,8 @@ func TestSubagentColumn(t *testing.T) {
 		State: protocol.StateWorking}
 
 	none := simpleBoard(calm)
-	require.Zero(t, boardLayout(none, 140).agents, "no column while nothing runs subagents")
+	require.Positive(t, boardLayout(none, 140).agents, "fixed: the column is reserved while nothing runs subagents")
+	require.Zero(t, boardLayout(fitModel(t, none), 140).agents, "fit: no column while nothing runs subagents")
 	require.NotContains(t, boardText(none), subagentGlyph)
 
 	m := simpleBoard(busy, calm)
