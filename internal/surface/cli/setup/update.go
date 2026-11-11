@@ -1,7 +1,6 @@
 package setup
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -14,17 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-)
-
-var (
-	updateOK     = lipgloss.NewStyle().Foreground(lipgloss.Color("#5FC96E"))
-	updateBullet = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	updateKey    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E6E6E6"))
-	updateVal    = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	updateErr    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E05C5C"))
 )
 
 // updateDeps are RunUpdate's side effects. Tests replace them so the
@@ -47,10 +37,11 @@ func defaultUpdateDeps() (updateDeps, error) {
 	if err != nil {
 		return updateDeps{}, err
 	}
+	p := core.Out()
 	return updateDeps{
-		out:              os.Stdout,
-		errOut:           os.Stderr,
-		stdin:            os.Stdin,
+		out:              p.Out,
+		errOut:           p.Err,
+		stdin:            p.In,
 		detectMode:       detectInstallMode,
 		daemon:           daemon,
 		goInstall:        upgradeGoInstall,
@@ -77,21 +68,27 @@ func RunUpdate(args []string) error {
 func runUpdate(args []string, d updateDeps) error {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(d.errOut)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	check := fs.Bool("check", false, "print version info and exit without upgrading")
 	yes := fs.Bool("yes", false, "skip confirmation prompt")
 	yShort := fs.Bool("y", false, "skip confirmation prompt (shorthand)")
 	source := fs.String("source", "", "explicit source checkout path; run git pull + ./install.sh")
 	verbose := fs.Bool("verbose", false, "stream go install output instead of spinning")
-	_, err := core.ParseArgs(fs, args)
+	_, err := out.Parse(fs, args)
+	if err != nil {
+		return err
+	}
+	// The result goes to d.out, progress, the plan and the question to d.errOut.
+	p, err := core.Out().WithIO(d.out, d.errOut, d.stdin)
 	if err != nil {
 		return err
 	}
 
 	slog.Info("update: starting", "check", *check, "source", *source, "verbose", *verbose)
 
-	// --check: print version and bail.
+	// -check: print version and bail.
 	if *check {
-		return runUpdateCheck(d.out)
+		return runUpdateCheck(p)
 	}
 
 	mode, exePath, err := d.detectMode()
@@ -99,20 +96,27 @@ func runUpdate(args []string, d updateDeps) error {
 		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: could not determine install mode: %v", err))
 	}
 	if *source == "" && mode == installModeBinarySwap {
-		return refuseBinarySwap(d.out, exePath)
+		return refuseBinarySwap(exePath)
 	}
 
 	daemonRunning := d.daemon.running()
-	printUpdatePlan(d.out, exePath, *source, mode, daemonRunning)
+	printUpdatePlan(p, exePath, *source, mode, daemonRunning)
 
 	skipConfirm := *yes || *yShort
-	if !skipConfirm && !confirmUpdate(d) {
-		slog.Info("update: user declined")
-		return core.NewExitError(core.ExitOperationRefused, "upgrade cancelled")
+	if !skipConfirm {
+		ok, err := p.Confirm("upgrade now?", core.Refusal{Cmd: "update", Flag: "-yes", What: "upgrade",
+			Hint: "rex update -yes", DefaultYes: true})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			slog.Info("update: user declined")
+			return core.Errorf(core.ExitOperationRefused, "", "upgrade cancelled")
+		}
 	}
 
 	if daemonRunning {
-		stopDaemonForUpdate(d)
+		stopDaemonForUpdate(p, d)
 	}
 
 	if err := runUpgrade(d, *source, *verbose); err != nil {
@@ -120,68 +124,68 @@ func runUpdate(args []string, d updateDeps) error {
 	}
 
 	newVer := d.installedVersion()
-	fmt.Fprintf(d.out, "\n  %s %s\n", updateOK.Render("✓"), updateKey.Render(fmt.Sprintf("rex %s → %s", core.Version, newVer)))
-	if daemonRunning {
-		fmt.Fprintf(d.out, "  %s %s\n", updateBullet.Render("·"), updateVal.Render("daemon will restart on next `rex`"))
-	}
-	fmt.Fprintln(d.out)
-
 	slog.Info("update: complete", "old_version", core.Version, "new_version", newVer)
-	return nil
-}
-
-// printUpdatePlan shows what the upgrade will do before asking.
-func printUpdatePlan(w io.Writer, exePath, source string, mode installMode, daemonRunning bool) {
-	fmt.Fprintln(w)
-	printKV(w, "current", core.Version)
-	printKV(w, "binary", exePath)
-	if source != "" {
-		printKV(w, "mode", "source checkout (--source)")
-		printKV(w, "source", source)
-	} else {
-		printKV(w, "mode", modeLabel(mode))
-	}
+	v := core.ActionView(core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: fmt.Sprintf("rex %s → %s", core.Version, newVer)},
+		core.Field{Key: "from", Val: core.Version}, core.Field{Key: "to", Val: newVer},
+		core.Field{Key: "daemon_restart", Val: daemonRunning})
 	if daemonRunning {
-		printKV(w, "daemon", "running (will stop, then restart on next `rex`)")
-	} else {
-		printKV(w, "daemon", "not running")
+		v = append(v, core.Note{Text: "daemon will restart on next `rex`"})
 	}
-	fmt.Fprintln(w)
+	return p.Emit(core.Result{Cmd: "update", Data: updateData{From: core.Version, To: newVer, DaemonRestart: daemonRunning}, View: v})
 }
 
-// confirmUpdate asks "upgrade now? [Y/n]"; an empty answer means yes.
-func confirmUpdate(d updateDeps) bool {
-	fmt.Fprint(d.out, "  upgrade now? [Y/n] ")
-	answer, _ := bufio.NewReader(d.stdin).ReadString('\n')
-	answer = strings.TrimSpace(strings.ToLower(answer))
-	return answer == "" || answer == "y" || answer == "yes"
+// updateData is the `-o json` payload of rex update.
+type updateData struct {
+	From          string `json:"from"`
+	To            string `json:"to"`
+	DaemonRestart bool   `json:"daemon_restart"`
+}
+
+// printUpdatePlan shows what the upgrade will do before asking, on stderr in
+// the text format only (it is part of the question, not of the result).
+func printUpdatePlan(p *core.Printer, exePath, source string, mode installMode, daemonRunning bool) {
+	if p.Format != core.FormatText {
+		return
+	}
+	pairs := []core.Pair{
+		{Label: "current", Val: core.Cell{Text: core.Version}},
+		{Label: "binary", Val: core.Cell{Text: exePath}},
+	}
+	if source != "" {
+		pairs = append(pairs, core.Pair{Label: "mode", Val: core.Cell{Text: "source checkout (-source)"}},
+			core.Pair{Label: "source", Val: core.Cell{Text: source}})
+	} else {
+		pairs = append(pairs, core.Pair{Label: "mode", Val: core.Cell{Text: modeLabel(mode)}})
+	}
+	daemon := "not running"
+	if daemonRunning {
+		daemon = "running (will stop, then restart on next `rex`)"
+	}
+	pairs = append(pairs, core.Pair{Label: "daemon", Val: core.Cell{Text: daemon}})
+	p.EmitErr(core.View{core.KV{Pairs: pairs}})
 }
 
 // refuseBinarySwap explains that a binary-swap install (anything not under
 // a Go bin dir, e.g. install.sh's ~/.local/bin) can't upgrade itself, and
 // returns the refusal. It runs before anything is stopped.
-func refuseBinarySwap(w io.Writer, exePath string) error {
-	fmt.Fprintf(w, "\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
-	fmt.Fprintf(w, "  your rex binary is at: %s\n", updateKey.Render(exePath))
-	if repoHint := guessSourceDir(exePath); repoHint != "" {
-		fmt.Fprintf(w, "  re-run the checkout's install script to upgrade:\n\n")
-		fmt.Fprintf(w, "    %s\n\n", updateKey.Render(fmt.Sprintf("cd %s && ./install.sh", repoHint)))
-	} else {
-		fmt.Fprintf(w, "  re-run your original install script (e.g. %s) to upgrade.\n\n",
-			updateKey.Render("./install.sh"))
-	}
+func refuseBinarySwap(exePath string) error {
 	slog.Info("update: binary-swap mode, cannot self-upgrade", "exe", exePath)
-	return core.NewExitError(core.ExitOperationRefused, "re-run your install script to upgrade (see above)")
+	if repoHint := guessSourceDir(exePath); repoHint != "" {
+		return core.Errorf(core.ExitOperationRefused, fmt.Sprintf("cd %s && ./install.sh", repoHint),
+			"cannot self-upgrade binary-swap install (rex is at %s); re-run the checkout's install script", exePath)
+	}
+	return core.Errorf(core.ExitOperationRefused, "./install.sh",
+		"cannot self-upgrade binary-swap install (rex is at %s); re-run your original install script", exePath)
 }
 
 // stopDaemonForUpdate stops the daemon and waits for its socket to close,
 // so the next `rex` starts the new daemon binary. Failure is only a
 // warning: replacing the binaries under a running daemon is still safe on
 // Unix, and the old daemon keeps serving until it is restarted.
-func stopDaemonForUpdate(d updateDeps) {
+func stopDaemonForUpdate(p *core.Printer, d updateDeps) {
 	slog.Info("update: stopping daemon before upgrade")
 	if err := d.daemon.stopAndWait(); err != nil {
-		fmt.Fprintf(d.errOut, "  %s  warning: could not stop daemon: %v\n", updateErr.Render("!"), err)
+		p.Warn(fmt.Sprintf("could not stop daemon: %v", err))
 		slog.Info("update: daemon stop warning", "err", err)
 		return
 	}
@@ -280,15 +284,15 @@ func upgradeGoInstall(verbose bool) error {
 
 		cmd := exec.CommandContext(ctx, "go", "install", target)
 		if verbose {
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			fmt.Printf("  %s go install %s\n", updateBullet.Render("·"), target)
+			cmd.Stdout = core.Out().Err
+			cmd.Stderr = core.Out().Err
+			core.Out().Progress("go install " + target)
 		} else {
 			// Capture output; surface only on error.
 			combined := new(strings.Builder)
 			cmd.Stdout = combined
 			cmd.Stderr = combined
-			fmt.Printf("  %s installing %s ...\n", updateBullet.Render("·"), target)
+			core.Out().Progress("installing " + target + " ...")
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("go install %s: %w\n%s", target, err, combined.String())
 			}
@@ -323,14 +327,14 @@ func runSourceStep(dir string, verbose bool, label string, name string, extraArg
 	cmd := exec.CommandContext(ctx, name, allArgs...)
 	cmd.Dir = dir
 	if verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		fmt.Printf("  %s %s\n", updateBullet.Render("·"), label)
+		cmd.Stdout = core.Out().Err
+		cmd.Stderr = core.Out().Err
+		core.Out().Progress(label)
 	} else {
 		combined := new(strings.Builder)
 		cmd.Stdout = combined
 		cmd.Stderr = combined
-		fmt.Printf("  %s %s ...\n", updateBullet.Render("·"), label)
+		core.Out().Progress(label + " ...")
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("%s in %s: %w\n%s", label, dir, err, combined.String())
 		}
@@ -346,13 +350,23 @@ func runSourceStep(dir string, verbose bool, label string, name string, extraArg
 // Helpers
 // ---------------------------------------------------------------------------
 
-func runUpdateCheck(w io.Writer) error {
-	fmt.Fprintln(w)
-	printKV(w, "version", core.Version)
-	printKV(w, "remote", "(version check not yet wired — no remote lookup performed)")
-	fmt.Fprintln(w)
-	slog.Info("update: --check mode, printed version", "version", core.Version)
-	return nil
+// updateCheckData is the `-o json` payload of rex update -check. Remote is
+// null: no remote lookup is wired.
+type updateCheckData struct {
+	Version string  `json:"version"`
+	Remote  *string `json:"remote"`
+}
+
+func runUpdateCheck(p *core.Printer) error {
+	slog.Info("update: -check mode, printed version", "version", core.Version)
+	return p.Emit(core.Result{
+		Cmd:  "update",
+		Data: updateCheckData{Version: core.Version},
+		View: core.View{core.KV{Pairs: []core.Pair{
+			{Key: "version", Label: "version", Val: core.Cell{Text: core.Version}},
+			{Key: "remote", Label: "remote", Val: core.Cell{Text: "(version check not yet wired — no remote lookup performed)", Raw: ""}},
+		}}},
+	})
 }
 
 // readInstalledVersion runs `rex --version` on the current executable to get
@@ -393,9 +407,4 @@ func guessSourceDir(exePath string) string {
 		dir = parent
 	}
 	return ""
-}
-
-func printKV(w io.Writer, key, val string) {
-	k := fmt.Sprintf("  %-10s", key)
-	fmt.Fprintf(w, "%s %s\n", updateKey.Render(k), updateVal.Render(val))
 }

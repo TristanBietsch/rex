@@ -68,7 +68,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status`, `rex digest`, `rex stats`, `rex fleet`, `rex log`, `rex render`, the session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`, `done`, `undone`, `archive`, `resume`, `complete`, `rm`, `prune`), `rex help`, `rex agent-help` and `rex completion` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+Every command except `attach` and the TUI render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -88,7 +88,7 @@ Errors go to stderr in the same format: styled in `text`, `rex: message` in `txt
 
 **Actions** report one result record. `text` shows a `✓ …` line (and a next-command hint after `new` and `done`), `txt` keeps the line each command always printed (`7d4f<TAB>slug` for `new`, `slug: renamed to x`; nothing for `rm`, `reply`, `send`, `wait` and `complete`), `json` carries the result as data (`{"v":1,"cmd":"rename","data":{"id":…,"short_id":…,"slug":…,"old_slug":…}}`), and `agent` gives `ok cmd=rename id=7d4f slug=x old_slug=y`. Confirmation prompts go to stderr and only appear in `text` with stdin and stderr both terminals; warnings (`prune` keeping a session that changed) also go to stderr.
 
-Commands not yet on the kit refuse `-o`, `--agent` and `-json` before the command name (exit 5) instead of ignoring them.
+Every command takes these flags except `rex attach` and the bare `rex` TUI, which are interactive; before the command name they are refused (exit 5) for those two.
 
 ---
 
@@ -315,7 +315,7 @@ Send a `Reload` request to the daemon over its socket. Reloads **tools.yaml** on
 rex reload
 ```
 
-Does not reload `config.yaml` or `init.lua`.
+Does not reload `config.yaml` or `init.lua`. Silent in `txt`; `agent` gives `ok cmd=reload reloaded=true`.
 
 ---
 
@@ -331,14 +331,14 @@ rex daemon logs [-f]
 
 `stop`, `status` and `restart` act on whatever daemon answers on the socket. `stop` sends it a `Shutdown` request and returns once the daemon has removed its socket; no process is looked up by name or signaled. The PID shown is for information only and reads `unknown` when it cannot be determined (for example, two daemons on different sockets). `restart` does not start a second daemon if the first one will not stop.
 
-`logs` reads `~/.local/state/rex/daemon.log`.
+`logs` reads `~/.local/state/rex/daemon.log` and prints content (`text`, `txt`, `agent`). The other subcommands take `-o` and `--agent`: `txt` keeps the line each always printed, `agent` gives `ok cmd=daemon action=status state=running socket=… pid=…`, and `status` of a stopped daemon is `fail cmd=daemon … state=not_running` (exit 4).
 
 ---
 
 ## rex config
 
 ```sh
-rex config list [-json]
+rex config list [-o FORMAT] [--agent] [-json]
 rex config get <id>...
 rex config set <id> <value>...
 rex config reset <id>...
@@ -346,6 +346,8 @@ rex config edit
 ```
 
 `edit` opens `init.lua` in `$EDITOR`, not `config.yaml`. Keys: [settings.md](settings.md).
+
+`list` prints `# Section` headings with `  id  value` rows in `txt` (unchanged), a `setting id=… section=… value=… default=…` line per setting in `agent`, and the rows as data in `-o json`; `-json` is the legacy JSONL. `get` prints the value (`ok cmd=config id=… value=…` in `agent`); `set` and `reset` print nothing in `txt`. `edit` takes `text`/`txt` only.
 
 ---
 
@@ -370,8 +372,10 @@ The wizard asks whether agents may skip the folder trust prompt in one folder; t
 Diagnostics. Exit **1** if any check fails.
 
 ```sh
-rex doctor [-json] [-socket path] [-verbose]
+rex doctor [-o FORMAT] [--agent] [-json] [-socket path] [-verbose]
 ```
+
+Each check is a `✓` pass, `!` warn, `✗` fail or `·` info row. INFO rows are hidden in `text`/`txt`/`md` unless `-verbose`; `json` and `agent` always carry them. `agent` gives `check name=… status=… detail=…` lines then `ok cmd=doctor fails=0 warns=2`, or `fail cmd=doctor fails=1 …` when a check fails (exit 1). `-json` keeps the one-line legacy object.
 
 With `-verbose`, an `agy version` row shows the installed Antigravity CLI version (`agy 1.5.5`). It warns below 1.5.5 (untested) or when `agy --version` fails or takes over 2 s, and is left out when `agy` is not on `PATH`.
 
@@ -380,8 +384,10 @@ With `-verbose`, an `agy version` row shows the installed Antigravity CLI versio
 ## rex update
 
 ```sh
-rex update [-check] [-yes|-y] [-source module|binary] [-verbose]
+rex update [-check] [-yes|-y] [-source module|binary] [-verbose] [-o FORMAT] [--agent]
 ```
+
+The plan, the `upgrade now? [Y/n]` question and the progress lines go to **stderr**; the result (`✓ rex v1 → v2`, or `ok cmd=update from=… to=…`) is the only thing on stdout. Without a terminal on stdin and stderr, or in any format but `text`, the upgrade needs `-yes` (exit **6** otherwise); a declined question exits **6**. A binary-swap install refuses with exit 6 and the command that fixes it.
 
 ---
 
@@ -393,6 +399,8 @@ rex uninstall [-yes|-y] [-binaries] [-wipe-state] [-purge-config]
 ```
 
 `-all` enables `-wipe-state`, `-purge-config`, and `-strip-profile`. `make uninstall` removes binaries only.
+
+The plan (`-dry-run` prints it and exits) is a table of what would be removed; the run reports what was removed. The question goes to stderr; without a terminal on stdin and stderr, or in any format but `text`, `-yes` is required (exit **6**), and a declined question exits **6** (it was 1). `-o json` carries `{"dry_run":…,"plan":[…],"removed":[…]}`; `agent` gives `removal kind=… path=…` lines.
 
 ---
 

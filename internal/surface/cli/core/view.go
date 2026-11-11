@@ -21,6 +21,9 @@ type Result struct {
 	Meta map[string]any
 	// View is the human and agent layout.
 	View View
+	// Failed makes the agent trailer `fail` instead of `ok`: the result is
+	// the answer, but the command exits non-zero (doctor with failed checks).
+	Failed bool
 	// Content, when set, is the body verbatim for text, txt and agent (for
 	// `rex agent-help`, whose card is its own format). md fences it; json
 	// still carries Data.
@@ -257,7 +260,7 @@ func (v View) sanitized() View {
 				p.Label, p.Glyph, p.Val = flat(p.Label), flat(p.Glyph), flatCell(p.Val)
 				pairs[j] = p
 			}
-			b.Pairs, b.Txt = pairs, flatKeepTab(b.Txt)
+			b.Pairs, b.Txt = pairs, flatTxtLines(b.Txt)
 			out[i] = b
 		case Table:
 			rows := make([][]Cell, len(b.Rows))
@@ -296,6 +299,19 @@ func (v View) sanitized() View {
 		}
 	}
 	return out
+}
+
+// flatTxtLines is flatKeepTab for a block that may span lines: line breaks
+// are kept, each line is flattened.
+func flatTxtLines(s string) string {
+	if !strings.Contains(s, "\n") {
+		return flatKeepTab(s)
+	}
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = flatKeepTab(l)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func flatCell(c Cell) Cell {

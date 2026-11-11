@@ -197,6 +197,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `rex doctor`, `config`, `setup` (`-preview`, `-yes`), `update`, `uninstall`,
+  `daemon` and `reload` and `version` take `-o`, `--agent` and `--no-color`.
+  Their CLI colors come from the theme (`color_scheme`), not copied hex
+  values; piped `doctor` and `setup -preview` (`txt`) have no banner or
+  glyph. `-json` keeps its legacy shape (`doctor`, `config list`).
+- `rex update` and `rex uninstall` ask on stderr (they asked on stdout) and
+  need `-yes` without a terminal or in a non-text format (exit 6); a
+  declined `uninstall` question exits 6 (it was 1). Progress lines of
+  `update` go to stderr. `setup -yes` prints its report through the same
+  formats; `rex setup` (the wizard) refuses non-text formats with exit 5.
+  Suggested commands use single-dash flags (`rex new -tool … -model … --
+  "your first task"`).
 - `rex digest`, `rex stats` and `rex fleet` take `-o`/`--agent`; `rex log`
   and `rex render` take `-o` for text and txt (md and json exit 5). Piped
   `digest` and `stats` output (`txt`) no longer has the banner and rule:

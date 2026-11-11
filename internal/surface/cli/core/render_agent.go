@@ -6,7 +6,8 @@ import (
 )
 
 // renderAgent renders v as agent lines: one `kind key=value ...` line per
-// record, then the trailer `ok cmd=<cmd> [count=N] [fields...]`.
+// record, then the trailer `ok cmd=<cmd> [count=N] [fields...]` (`fail` when
+// failed: an answer that is not a success, such as doctor with failures).
 //
 //   - A Table with Kind set yields one line per row, with a key per column
 //     shown in agent mode (the cell's Raw value, else its Text).
@@ -18,7 +19,7 @@ import (
 //   - meta entries follow, sorted by key.
 //
 // Headers, sections, notes, hints and lines carry no data and are skipped.
-func renderAgent(cmd string, v View, meta map[string]any) string {
+func renderAgent(cmd string, v View, meta map[string]any, failed bool) string {
 	var lines []string
 	var trailer []Field
 	count, tables := 0, false
@@ -89,7 +90,11 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 	for _, k := range keys {
 		head = append(head, Field{k, meta[k]})
 	}
-	lines = append(lines, EncodeLine("ok", head...))
+	kind := "ok"
+	if failed {
+		kind = "fail"
+	}
+	lines = append(lines, EncodeLine(kind, head...))
 	return strings.Join(lines, "\n") + "\n"
 }
 

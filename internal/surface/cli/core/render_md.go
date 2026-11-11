@@ -63,6 +63,9 @@ func (p *Printer) renderMD(v View) string {
 			blocks = append(blocks, mdTable([]string{"Key", "Value"}, []Align{AlignLeft, AlignLeft}, rows))
 		case Table:
 			idx := visibleCols(b.Cols, FormatMD)
+			if len(idx) == 0 {
+				continue
+			}
 			if len(b.Rows) == 0 && b.Empty != "" {
 				blocks = append(blocks, escapeMD(b.Empty))
 				continue

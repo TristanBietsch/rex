@@ -61,3 +61,19 @@ exec rex help ls
 stdout '^Usage: rex ls \[flags\]$'
 exitcode 5 rex help nonsense
 stderr 'help: unknown topic "nonsense"'
+
+# version, update -check and config on the kit.
+exec rex version -o json
+stdout '^\{"v":1,"cmd":"version","data":\{"version":"v1"\}\}$'
+exec rex --agent version
+stdout '^ok cmd=version version=v1$'
+exec rex update -check -o agent
+stdout '^ok cmd=update version=v1 remote='
+exec rex config get spinner --agent
+stdout '^ok cmd=config id=spinner value=braille$'
+exec rex config list -o agent
+stdout '^setting id=spinner section=Appearance value=braille default=braille$'
+stdout '^ok cmd=config count='
+exec rex uninstall -dry-run -o agent
+stdout '^removal kind=binaries '
+stdout '^ok cmd=uninstall count=.* dry_run=true$'

@@ -1637,10 +1637,35 @@ func resolveSpawnDefaults(store *settings.Store, toolID, modelID, effortVal stri
 	return reg.ResolveSpawn(cur, toolID, modelID, effortVal)
 }
 
-// ApplyDefaultsNonInteractive writes the config without prompting. Used by --yes.
-// A non-empty autoTrust is written to auto_trust_dirs after the same checks
-// the daemon applies; empty leaves the current value alone.
+// DefaultsReport says what ApplyDefaults did, for the caller to render.
+type DefaultsReport struct {
+	// ConfigPath is the config.yaml that was written.
+	ConfigPath string
+	// RCPath is the shell profile the block went into, "" when none was
+	// touched; RCState is "installed", "present" (already there), "failed"
+	// or "skipped" (-no-shell, or no profile found).
+	RCPath, RCState string
+	// RCError is why the block could not be installed (RCState "failed").
+	RCError string
+	// AutoTrust is the auto_trust_dirs value written, "" when unchanged.
+	AutoTrust string
+	// NextCommand is the command to run after setup.
+	NextCommand string
+}
+
+// ApplyDefaultsNonInteractive is ApplyDefaults for callers that do not
+// render the report.
 func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, effortVal, autoTrust string, noShell bool) error {
+	_, err := ApplyDefaults(configPath, socket, toolID, modelID, effortVal, autoTrust, noShell)
+	return err
+}
+
+// ApplyDefaults writes the config without prompting. Used by -yes.
+// A non-empty autoTrust is written to auto_trust_dirs after the same checks
+// the daemon applies; empty leaves the current value alone. It prints
+// nothing: the caller renders the report.
+func ApplyDefaults(configPath, socket string, toolID, modelID, effortVal, autoTrust string, noShell bool) (DefaultsReport, error) {
+	rep := DefaultsReport{ConfigPath: configPath, RCState: "skipped"}
 	slog.Info("setup: non-interactive start",
 		"config_path", configPath, "socket", socket,
 		"tool", toolID, "model", modelID, "effort", effortVal, "auto_trust", autoTrust)
@@ -1651,18 +1676,18 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 
 	spawn, spawnChanged, err := resolveSpawnDefaults(store, toolID, modelID, effortVal)
 	if err != nil {
-		return err
+		return rep, err
 	}
 
 	if autoTrust != "" {
 		v, err := settings.CheckAutoTrustDirs(autoTrust)
 		if err != nil {
-			return fmt.Errorf("auto-trust: %w", err)
+			return rep, fmt.Errorf("auto-trust: %w", err)
 		}
 		if err := store.Set("auto_trust_dirs", v); err != nil {
-			return fmt.Errorf("auto-trust: %w", err)
+			return rep, fmt.Errorf("auto-trust: %w", err)
 		}
-		autoTrust = v
+		rep.AutoTrust = v
 	}
 
 	if spawnChanged {
@@ -1672,7 +1697,7 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 			"default_spawn_effort": spawn.Effort,
 		} {
 			if err := store.Set(id, v); err != nil {
-				return fmt.Errorf("%s: %w", id, err)
+				return rep, fmt.Errorf("%s: %w", id, err)
 			}
 		}
 	}
@@ -1683,22 +1708,25 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 
 	slog.Info("setup: writing config", "path", configPath)
 	if err := store.Save(configPath); err != nil {
-		return fmt.Errorf("save config: %w", err)
+		return rep, fmt.Errorf("save config: %w", err)
 	}
 	slog.Info("setup: config written", "path", configPath)
 
 	if !noShell {
 		rcPath := detectShellRC()
 		if rcPath != "" {
+			rep.RCPath = rcPath
 			if hasShellBlock(rcPath) {
+				rep.RCState = "present"
 				slog.Info("setup: shell block already installed, skipping", "rc", rcPath)
 			} else {
 				slog.Info("setup: installing shell block", "rc", rcPath)
 				if err := installShellBlock(rcPath); err != nil {
 					// non-fatal: warn and continue
 					slog.Error("setup: shell block install failed", "rc", rcPath, "err", err)
-					fmt.Fprintf(os.Stderr, "warning: could not install shell block into %s: %v\n", rcPath, err)
+					rep.RCState, rep.RCError = "failed", err.Error()
 				} else {
+					rep.RCState = "installed"
 					slog.Info("setup: shell block installed", "rc", rcPath)
 				}
 			}
@@ -1717,16 +1745,17 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 	if modelDisplay == "" {
 		modelDisplay = "opus"
 	}
-	nextCmd := fmt.Sprintf(`rex new "your first task" --tool %s --model %s`, toolDisplay, modelDisplay)
-	if effortVal != "" {
-		nextCmd += " --effort " + effortVal
+	rep.NextCommand = NextCommand(toolDisplay, modelDisplay, effortVal)
+	return rep, nil
+}
+
+// NextCommand is the command setup suggests running next.
+func NextCommand(tool, model, effort string) string {
+	next := fmt.Sprintf(`rex new -tool %s -model %s -- "your first task"`, tool, model)
+	if effort != "" {
+		next = fmt.Sprintf(`rex new -tool %s -model %s -effort %s -- "your first task"`, tool, model, effort)
 	}
-	if autoTrust != "" {
-		fmt.Printf("auto-trust: agents started under %s skip the folder trust prompt\n", autoTrust)
-	}
-	fmt.Printf("setup complete. Next: %s\n", nextCmd)
-	fmt.Println("Docs: https://github.com/tristanbietsch/rex")
-	return nil
+	return next
 }
 
 // styleArrow is declared in prompt.go and shared across the tui package.

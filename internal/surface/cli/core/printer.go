@@ -113,6 +113,31 @@ func (p *Printer) WithFlags(fl FormatFlags) (*Printer, error) {
 	return np, nil
 }
 
+// WithIO returns a Printer for the same flags and environment that writes to
+// out and errw and asks its questions on in. Commands with injectable I/O
+// (update, uninstall) use it so tests can capture every stream.
+func (p *Printer) WithIO(out, errw io.Writer, in io.Reader) (*Printer, error) {
+	np, err := NewPrinter(p.Flags, p.env, out, errw)
+	if err != nil {
+		return nil, err
+	}
+	np.Now, np.Cmd, np.In = p.Now, p.Cmd, in
+	return np, nil
+}
+
+// EmitErr renders v in the text format on stderr: a plan shown before a
+// question, which is part of the dialog and not of the result. Other formats
+// print nothing.
+func (p *Printer) EmitErr(v View) {
+	if p.Format != FormatText {
+		return
+	}
+	q := *p
+	q.Styles = p.ErrStyles
+	q.Color = p.ErrColor
+	_, _ = io.WriteString(p.Err, q.renderText(v.sanitized()))
+}
+
 // autoAgentWired gates the CLAUDECODE auto-detect rule of ResolveFormat for
 // the real process. The rule is implemented and tested; the process wiring
 // lands with the interactive-command guards (P4-12), because auto agent mode

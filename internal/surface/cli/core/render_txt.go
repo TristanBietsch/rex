@@ -86,6 +86,9 @@ func txtKV(kv KV) string {
 
 func txtTable(t Table) string {
 	idx := visibleCols(t.Cols, FormatTXT)
+	if len(idx) == 0 {
+		return "" // every column is for another format
+	}
 	if len(t.Rows) == 0 && t.Empty != "" {
 		return t.Empty
 	}

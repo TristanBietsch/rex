@@ -17,6 +17,8 @@ type Refusal struct {
 	Hint string
 	// Extra is appended to the message ("or -dry-run to list").
 	Extra string
+	// DefaultYes asks [Y/n] and treats an empty answer as yes.
+	DefaultYes bool
 }
 
 // Confirm asks question on stderr and reads a y/yes answer from stdin. It
@@ -40,9 +42,13 @@ func (p *Printer) Confirm(question string, r Refusal) (bool, error) {
 		}
 		return false, Errorf(ExitOperationRefused, r.Hint, "%s", msg)
 	}
-	_, _ = fmt.Fprintf(p.Err, "%s [y/N] ", question)
+	choice := "[y/N]"
+	if r.DefaultYes {
+		choice = "[Y/n]"
+	}
+	_, _ = fmt.Fprintf(p.Err, "%s %s ", question, choice)
 	var ans string
 	_, _ = fmt.Fscanln(p.In, &ans)
 	a := strings.ToLower(ans)
-	return a == "y" || a == "yes", nil
+	return a == "y" || a == "yes" || (r.DefaultYes && a == ""), nil
 }

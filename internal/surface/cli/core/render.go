@@ -37,7 +37,7 @@ func (p *Printer) Emit(r Result) error {
 			return err
 		}
 	case FormatAgent:
-		s = renderAgent(cmd, r.View, r.Meta)
+		s = renderAgent(cmd, r.View, r.Meta, r.Failed)
 	case FormatMD:
 		s = p.renderMD(r.View.sanitized())
 	case FormatTXT:

@@ -3,7 +3,7 @@
 package core
 
 import (
-	"fmt"
+	"flag"
 
 	"github.com/tristanbietsch/rex/internal/version"
 )
@@ -53,8 +53,21 @@ const (
 	ExitWaitTimedOut      = 7
 )
 
+// versionData is the `-o json` payload of rex version.
+type versionData struct {
+	Version string `json:"version"`
+}
+
 // RunVersion prints the binary version.
-func RunVersion() error {
-	fmt.Println(Version)
-	return nil
+func RunVersion(args []string) error {
+	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	out := AddOutputFlags(fs, AllFormats)
+	if _, err := out.Parse(fs, args); err != nil {
+		return err
+	}
+	return Out().Emit(Result{
+		Cmd:  "version",
+		Data: versionData{Version: Version},
+		View: ActionView(Line{Text: Version, Txt: Version}, Field{Key: "version", Val: Version}),
+	})
 }

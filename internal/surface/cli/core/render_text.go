@@ -151,6 +151,9 @@ func (p *Printer) textTable(t Table) string {
 			idx = append(idx, i)
 		}
 	}
+	if len(idx) == 0 {
+		return "" // every column is for another format
+	}
 	indent := strings.Repeat(" ", bodyIndent)
 	if len(t.Rows) == 0 && t.Empty != "" {
 		return indent + p.Styles.Dim.Render(t.Empty)

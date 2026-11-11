@@ -29,7 +29,7 @@ func main() {
 // kitVerbs are the commands rendered through the output kit. They accept
 // -o/--output, --agent and -json; the rest still print their own format, so
 // an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{"ls": true, "status": true, "resume": true, "new": true, "rm": true, "rename": true, "name": true, "done": true, "retire": true, "undone": true, "unretire": true, "archive": true, "complete": true, "reply": true, "send": true, "wait": true, "prune": true, "digest": true, "stats": true, "fleet": true, "log": true, "render": true, "help": true, "--help": true, "-h": true, "agent-help": true, "completion": true}
+var kitVerbs = map[string]bool{"ls": true, "status": true, "resume": true, "new": true, "rm": true, "rename": true, "name": true, "done": true, "retire": true, "undone": true, "unretire": true, "archive": true, "complete": true, "reply": true, "send": true, "wait": true, "prune": true, "digest": true, "stats": true, "fleet": true, "log": true, "render": true, "version": true, "--version": true, "-v": true, "doctor": true, "config": true, "setup": true, "update": true, "uninstall": true, "daemon": true, "reload": true, "help": true, "--help": true, "-h": true, "agent-help": true, "completion": true}
 
 func run(args []string) error {
 	if core.Out().Flags.Explicit() {
@@ -59,7 +59,7 @@ func run(args []string) error {
 	case "agent-help":
 		return core.RunAgentHelp(args[1:])
 	case "--version", "-v", "version":
-		return core.RunVersion()
+		return core.RunVersion(args[1:])
 	case "status":
 		return inspect.RunStatus(args[1:])
 	case "ls":

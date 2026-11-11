@@ -13,7 +13,8 @@ import (
 // the socket exits ExitDaemonUnreachable.
 func RunReload(args []string) error {
 	fs := flag.NewFlagSet("reload", flag.ContinueOnError)
-	_, err := core.ParseArgs(fs, args)
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	_, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -23,5 +24,13 @@ func RunReload(args []string) error {
 		}
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	return nil
+	p := core.Out()
+	// txt stays silent, as it always was.
+	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: "reloaded tools.yaml", Silent: true}
+	return p.Emit(core.Result{Cmd: "reload", Data: reloadData{Reloaded: true}, View: core.ActionView(line, core.Field{Key: "reloaded", Val: true})})
+}
+
+// reloadData is the `-o json` payload of rex reload.
+type reloadData struct {
+	Reloaded bool `json:"reloaded"`
 }
