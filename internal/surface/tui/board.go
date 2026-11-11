@@ -365,7 +365,7 @@ func renderBoard(m Model, width, height int) string {
 	if end > len(slots) {
 		end = len(slots)
 	}
-	cols := layoutSlots(slots, m.now(), width, m.Detailed, m.featureOn("resume"))
+	cols := layoutSlots(slots, m.now(), width, m.Detailed, m.featureOn("resume"), m.featureOn("timestamps"))
 	// An empty column's text starts where row content does.
 	noneIndent := strings.Repeat(" ", rowIndent+colMarker+colGap)
 	searching := rowFilterOf(m).searching()
@@ -442,17 +442,17 @@ func (c rowCols) used() int {
 // boardLayout sizes the columns for every row the board renders (all
 // sections, not just the scrolled window, so scrolling never shifts columns).
 func boardLayout(m Model, width int) rowCols {
-	return layoutSlots(boardSlots(m), m.now(), width, m.Detailed, m.featureOn("resume"))
+	return layoutSlots(boardSlots(m), m.now(), width, m.Detailed, m.featureOn("resume"), m.featureOn("timestamps"))
 }
 
-func layoutSlots(slots []boardSlot, now time.Time, width int, detailed, resume bool) rowCols {
+func layoutSlots(slots []boardSlot, now time.Time, width int, detailed, resume, times bool) rowCols {
 	rows := make([]protocol.SessionSummary, 0, len(slots))
 	for _, sl := range slots {
 		if sl.kind == slotRow {
 			rows = append(rows, sl.sess)
 		}
 	}
-	return layoutRows(rows, now, width, detailed, resume)
+	return layoutRows(rows, now, width, detailed, resume, times)
 }
 
 // layoutRows sizes columns to content, then degrades for narrow widths in a
@@ -462,7 +462,7 @@ func layoutSlots(slots []boardSlot, now time.Time, width int, detailed, resume b
 // (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
 // long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
-func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume bool) rowCols {
+func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume, times bool) rowCols {
 	var c rowCols
 	if detailed {
 		c.id = colID
@@ -480,7 +480,9 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 			c.agents = colAgents
 		}
 		if detailed {
-			c.span = max(c.span, ansi.StringWidth(spanText(now, s)))
+			if times {
+				c.span = max(c.span, ansi.StringWidth(spanText(now, s)))
+			}
 			if resume && resumeIDShown(s) != "" {
 				c.resume = colResume
 			}

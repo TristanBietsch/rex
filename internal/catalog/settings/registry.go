@@ -136,6 +136,11 @@ var Registry = []Setting{
 		Help: "Track each session's agent conversation id so an exited session can be resumed: the resume id column, :rid and the Resume intent (used by uc / :resume). Off: no id is assigned or captured, the column and :rid go away, and Resume is refused. Read at each spawn.",
 	},
 	{
+		ID: "timestamps", Label: "Start and end times", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Show when each session started and ended: the start→end column in the detailed board view and STARTED / ENDED in rex ls -wide. Off: no column and no such columns; the end time is still recorded.",
+	},
+	{
 		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",

@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex ls -wide` adds `STARTED` and `ENDED` columns before `NAME` (agent
+  lines get `started=` and `ended=`).
+- Setting `timestamps` (Features, on by default): switches off the TUI's
+  start→end span column and the `rex ls -wide` time columns. The end time
+  is still recorded.
 - TUI: a dim preview line under the board shows the selected session's full
   AI summary and how old it is (`↳ Editing api/webhooks.go … · 12s`), in
   both views, while any session has a summary. In the detailed view it only

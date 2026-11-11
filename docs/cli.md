@@ -99,10 +99,12 @@ Exits **1** when at least one session is `needs_input` (even with no other error
 List sessions.
 
 ```sh
-rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-short] [-o FORMAT] [--agent] [-json]
+rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-short] [-wide] [-o FORMAT] [--agent] [-json]
 ```
 
 `-show-archived` and `-short` are deprecated: they are accepted but have no effect.
+
+`-wide` adds `STARTED` and `ENDED` columns before `NAME` (local `2006-01-02 15:04`, `-` when unset; a finished session from an older daemon shows its last event as the end). In `txt` that keeps `NAME` last; in `text` they are dropped below 100 columns; `agent` lines get `started=` and `ended=` (RFC 3339 UTC, `""` when unset) before `name`. `-o json` already carries `started_at` and `ended_at`. The `timestamps` feature (Settings → Features) switches the columns off.
 
 The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -21,6 +22,7 @@ func RunLs(args []string) error {
 	modelFilter := fs.String("model", "", "filter by model id")
 	showArchived := fs.Bool("show-archived", false, "(deprecated, no effect)")
 	short := fs.Bool("short", false, "(deprecated, no effect)")
+	wide := fs.Bool("wide", false, "add STARTED and ENDED columns")
 	if _, err := out.Parse(fs, args); err != nil {
 		return err
 	}
@@ -55,9 +57,57 @@ func RunLs(args []string) error {
 	return p.Emit(core.Result{
 		Cmd:    "ls",
 		Data:   filtered,
-		View:   lsView(filtered, p.Now(), p.Glyphs),
+		View:   lsView(filtered, p.Now(), p.Glyphs, lsOpts{Wide: *wide, Times: *wide && lsFeature("timestamps")}),
 		Legacy: func(w io.Writer) error { return core.WriteSessionsJSONL(w, filtered) },
 	})
+}
+
+// lsOpts selects the extra `-wide` columns.
+type lsOpts struct {
+	// Wide is -wide.
+	Wide bool
+	// Times adds STARTED and ENDED (the timestamps feature).
+	Times bool
+}
+
+// lsFeature reads a Features switch from the user's config. A config that
+// will not load reads the registry defaults, so a broken file never breaks
+// `rex ls`.
+func lsFeature(id string) bool {
+	store, _, err := settings.LoadDefault()
+	if err != nil {
+		store = nil
+	}
+	return settings.FeatureOn(store, id)
+}
+
+// clockTime is t in now's zone as "2006-01-02 15:04", or "-" when unset.
+func clockTime(now, t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.In(now.Location()).Format("2006-01-02 15:04")
+}
+
+// endedAt is when the session reached a terminal state. An older daemon sends
+// no ended_at, so a finished session falls back to its last event.
+func endedAt(s protocol.SessionSummary) time.Time {
+	if !s.EndedAt.IsZero() {
+		return s.EndedAt
+	}
+	switch s.State {
+	case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
+		return s.LastEventAt
+	case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
+	}
+	return time.Time{}
+}
+
+func rfc3339(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // stateLabel is the human name of a session state.
@@ -92,7 +142,7 @@ func stateTone(s protocol.State) core.Tone {
 // second line on a narrow terminal); md and agent lines carry the real name,
 // without the done marker, and agent lines model and effort apart and idle_s
 // in seconds (-1 when unknown).
-func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) core.View {
+func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, opts lsOpts) core.View {
 	text, txt, md := core.SetOf(core.FormatText), core.SetOf(core.FormatTXT), core.SetOf(core.FormatMD)
 	agent := core.SetOf(core.FormatAgent)
 	human := text | md
@@ -108,10 +158,17 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 		{Key: "last_event", Title: "Last event", Width: 10, Formats: txt},
 		{Key: "idle", Title: "Idle", Align: core.AlignRight, Formats: human},
 		{Key: "idle_s", Title: "Idle s", Formats: agent},
-		// text and txt show the done marker; md, agent and json carry the real name.
-		{Key: "name", Title: "Name", Below: true, Formats: text | txt},
-		{Key: "name", Title: "Name", Formats: md | agent},
 	}
+	if opts.Wide && opts.Times {
+		// Before NAME, which stays last in txt.
+		cols = append(cols,
+			core.Col{Key: "started", Title: "Started", DropBelow: 100},
+			core.Col{Key: "ended", Title: "Ended", DropBelow: 100})
+	}
+	cols = append(cols,
+		// text and txt show the done marker; md, agent and json carry the real name.
+		core.Col{Key: "name", Title: "Name", Below: true, Formats: text | txt},
+		core.Col{Key: "name", Title: "Name", Formats: md | agent})
 	var needs, working, done int
 	rows := make([][]core.Cell, 0, len(sessions))
 	for _, s := range sessions {
@@ -138,7 +195,7 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 			idleS = int(now.Sub(s.LastEventAt).Seconds())
 		}
 		tone := stateTone(s.State)
-		rows = append(rows, []core.Cell{
+		cells := []core.Cell{
 			{Text: g.State[s.State], Tone: tone},
 			{Text: s.ShortID},
 			{Text: stateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: tone},
@@ -150,9 +207,15 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) co
 			{Text: ago},
 			{Text: strings.TrimSuffix(ago, " ago"), Tone: core.ToneDim},
 			{Text: fmt.Sprint(idleS), Raw: idleS},
-			{Text: shown},
-			{Text: s.Name},
-		})
+		}
+		if opts.Wide && opts.Times {
+			end := endedAt(s)
+			cells = append(cells,
+				core.Cell{Text: clockTime(now, s.StartedAt), Raw: rfc3339(s.StartedAt)},
+				core.Cell{Text: clockTime(now, end), Raw: rfc3339(end)})
+		}
+		cells = append(cells, core.Cell{Text: shown}, core.Cell{Text: s.Name})
+		rows = append(rows, cells)
 	}
 	meta := []string{}
 	for _, c := range []struct {
