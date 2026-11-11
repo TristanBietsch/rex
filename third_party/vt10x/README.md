@@ -41,6 +41,13 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
   rune's first bytes and skipped the rest as invalid, so the rune vanished
   and the rest of its row shifted left. `Write` now always consumes all of
   its input. See `write_test.go`.
+- A resize that grows the screen gives the new columns default tab stops
+  (every 8). Upstream wrote them into the old slice, so a screen grown from
+  120 to 177 columns had no stops past column 119 and a tab from column 112
+  jumped to the last column. Stops cleared before the grow stay cleared. See
+  `tabs_test.go`.
+- `CSI ? 5 W` (DECST8C) resets the tab stops to every 8 columns, which
+  ultraviolet (the renderer in Antigravity) sends. See `tabs_test.go`.
 - `gofmt` added `//go:build` lines.
 
 Tests here are a separate module: `go -C third_party/vt10x test ./...`

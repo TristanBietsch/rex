@@ -167,6 +167,11 @@ func (t *State) handleCSI() {
 		t.clear(t.cur.X, t.cur.Y, t.cur.X+c.arg(0, 1)-1, t.cur.Y)
 	case 'P': // DCH - delete <n> chars
 		t.deleteChars(c.arg(0, 1))
+	case 'W': // DECST8C - CSI ? 5 W resets tab stops to every 8 columns
+		if !c.priv || c.arg(0, 0) != 5 {
+			goto unknown
+		}
+		t.resetTabs()
 	case 'Z': // CBT - cursor backward tabulation <n> tab stops
 		n := c.arg(0, 1)
 		for i := 0; i < n; i++ {
