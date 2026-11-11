@@ -17,16 +17,21 @@ import (
 // the given session ID. Dependency-injected so unit tests don't touch disk.
 type TranscriptReader func(sessionID string, max int) []byte
 
-// Worker is a single-goroutine consumer of session-summary requests.
+// Worker is a single-goroutine consumer of session-summary requests. Requests
+// arriving on Channel are coalesced per session and scheduled oldest-first;
+// see schedule.go.
 type Worker struct {
 	cfg        Config
 	store      *state.Store
 	client     *Client
 	transcript TranscriptReader
 
-	ch chan string
-
+	ch   chan string
+	wake chan struct{} // capacity 1: nudges the scheduler loop
+	slot chan struct{} // capacity 1: the shared Ollama slot
+	// pending and perSess are guarded by mu.
 	mu       sync.Mutex
+	pending  map[string]pendingReq
 	perSess  map[string]*sessionMeta
 	failures atomic.Int32
 
@@ -86,6 +91,9 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		client:     NewClient(cfg),
 		transcript: transcript,
 		ch:         make(chan string, 64),
+		wake:       make(chan struct{}, 1),
+		slot:       make(chan struct{}, 1),
+		pending:    make(map[string]pendingReq),
 		perSess:    make(map[string]*sessionMeta),
 	}
 	w.available.Store(1)
@@ -120,6 +128,7 @@ func (w *Worker) MarkAvailable() {
 	if w.available.Swap(1) == 0 {
 		w.failures.Store(0)
 		slog.Info("summarizer: backend_restored")
+		w.wakeup() // requests kept while down run now
 		if w.onHealth != nil {
 			w.onHealth(true, "")
 		}
@@ -142,20 +151,20 @@ func (w *Worker) Model() string { return w.client.Model() }
 // Start launches the worker goroutine. Returns when ctx is canceled.
 func (w *Worker) Start(ctx context.Context) error {
 	slog.Info("summarizer: started", "model", w.Model(), "base_url", w.cfg.BaseURL, "min_interval_ms", w.cfg.MinInterval.Milliseconds())
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case id := <-w.ch:
-			w.handle(ctx, id)
-		}
+	// The callback follows the store contract: it takes a mutex and returns.
+	unsub := w.store.Subscribe(w.onEvent)
+	defer unsub()
+	return w.loop(ctx)
+}
+
+// onEvent prunes what the worker holds for a removed session.
+func (w *Worker) onEvent(e state.Event) {
+	if e.Kind == state.EventRemoved {
+		w.forget(e.SessionID)
 	}
 }
 
-func (w *Worker) handle(ctx context.Context, id string) {
-	if w.available.Load() == 0 {
-		return
-	}
+func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 	sess, ok := w.store.Get(id)
 	if !ok {
 		return
@@ -170,10 +179,6 @@ func (w *Worker) handle(ctx context.Context, id string) {
 	if meta == nil {
 		meta = &sessionMeta{}
 		w.perSess[id] = meta
-	}
-	if time.Since(meta.lastSubmittedAt) < w.cfg.MinInterval {
-		w.mu.Unlock()
-		return
 	}
 	w.mu.Unlock()
 
@@ -197,7 +202,7 @@ func (w *Worker) handle(ctx context.Context, id string) {
 		return
 	}
 	// Updated before the call: a failed call still consumes MinInterval so a
-	// degraded backend doesn't get hammered per supervisor tick.
+	// degraded backend doesn't get hammered.
 	meta.lastSubmittedAt = time.Now()
 	w.mu.Unlock()
 
@@ -215,6 +220,11 @@ func (w *Worker) handle(ctx context.Context, id string) {
 	if err != nil {
 		w.failures.Add(1)
 		slog.Warn("summarizer: error", "session", id, "err", err)
+		if ctx.Err() == nil {
+			// Deferred, not dropped: runs again after MinInterval, or once
+			// the backend is back if these failures marked it unavailable.
+			w.enqueue(id, req.since, req.prio)
+		}
 		if w.failures.Load() >= 3 {
 			w.MarkUnavailable("consecutive call failures")
 		}
@@ -241,6 +251,11 @@ func (w *Worker) handle(ctx context.Context, id string) {
 }
 
 func (w *Worker) callWithRetry(ctx context.Context, prompt string) (string, error) {
+	release, err := w.acquireSlot(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
 	resp, err := w.client.Generate(ctx, prompt)
 	if err == nil {
 		return resp, nil
