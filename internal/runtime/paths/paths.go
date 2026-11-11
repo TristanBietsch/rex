@@ -132,7 +132,7 @@ func Home() (string, error) {
 // home directory. Any other p is returned unchanged without looking the
 // home directory up, so only a "~/" path can fail.
 func ExpandHome(p string) (string, error) {
-	if len(p) < 2 || p[0] != '~' || !os.IsPathSeparator(p[1]) {
+	if !IsHomeRelative(p) {
 		return p, nil
 	}
 	home, err := Home()
@@ -140,6 +140,12 @@ func ExpandHome(p string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, p[2:]), nil
+}
+
+// IsHomeRelative reports whether p starts with "~/" (or "~\" on Windows),
+// the only form ExpandHome expands.
+func IsHomeRelative(p string) bool {
+	return len(p) >= 2 && p[0] == '~' && os.IsPathSeparator(p[1])
 }
 
 // field resolves the current layout and returns one of its paths.

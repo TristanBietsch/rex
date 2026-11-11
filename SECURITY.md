@@ -60,7 +60,8 @@ filesystem permissions.
   rex starts the agent with the folder trusted (Antigravity, for that
   session only) or answers its "trust this folder" dialog (Claude Code),
   so the repository's own agent settings apply without that prompt. The
-  setting is empty by default. rex trusting a folder you did not list is
+  setting is empty by default, and `rex setup` sets it only when you
+  answer yes or pass `-auto-trust`. rex trusting a folder you did not list is
   in scope.
 - An attacker who already runs code as your user, or as root.
 - Vulnerabilities in third-party dependencies that rex does not reach. Use

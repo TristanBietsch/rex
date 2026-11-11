@@ -46,6 +46,9 @@ func TestUnderAutoTrustDir(t *testing.T) {
 		// Built by hand: filepath.Join would clean the ".." away.
 		{"dot-dot after a link is refused", dev + sep + "escape" + sep + ".." + sep + "x", []string{dev}, false},
 		{"dot-dot in an entry is refused", project, []string{dev + sep + "project" + sep + ".."}, false},
+		// Expanding ~/ cleans the path, so the ".." is checked before that.
+		{"dot-dot in a tilde entry is refused", project, []string{"~" + sep + "devil" + sep + ".." + sep + "dev"}, false},
+		{"folder above home is refused", project, []string{"~" + sep + ".."}, false},
 		{"cwd through a symlink", filepath.Join(link, "project"), []string{dev}, true},
 		{"entry through a symlink", project, []string{link}, true},
 		{"root never counts", project, []string{string(filepath.Separator)}, false},

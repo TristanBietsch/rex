@@ -14,8 +14,8 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 ### Functions
 
 - `Run(socket string) error` — main TUI program.
-- `RunSetupWizard(configPath, socket string) error`
-- `ApplyDefaultsNonInteractive(configPath, socket, toolID, modelID, effortVal string, noShell bool) error`
+- `RunSetupWizard(configPath, socket, autoTrust string) error`
+- `ApplyDefaultsNonInteractive(configPath, socket, toolID, modelID, effortVal, autoTrust string, noShell bool) error`
 - `SaveTUIState(m Model) error`, `LoadTUIState() (selection, filter string, ok bool)` — `~/.local/state/rex/tui-state.json`
 - `ShellProfileBlock(shell string) string`, `DetectShellRC() string`, `HasShellBlock(rcPath string) bool`
 

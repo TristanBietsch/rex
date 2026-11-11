@@ -127,6 +127,16 @@ func TestAccessors_NoHome(t *testing.T) {
 	}
 }
 
+func TestIsHomeRelative(t *testing.T) {
+	sep := string(filepath.Separator)
+	require.True(t, paths.IsHomeRelative("~/dev"))
+	require.True(t, paths.IsHomeRelative("~"+sep+"dev"))
+	require.True(t, paths.IsHomeRelative("~/"))
+	for _, p := range []string{"", "~", "~user/x", "/abs", "rel", "x~/"} {
+		require.False(t, paths.IsHomeRelative(p), p)
+	}
+}
+
 func TestExpandHome(t *testing.T) {
 	home := t.TempDir()
 	setHome(t, home)

@@ -83,7 +83,7 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 | `default_spawn_tool` | string | `claude` | Tool id for `i` quick-spawn |
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
-| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex config set` |
+| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex setup` or `rex config set` |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
 
@@ -98,13 +98,15 @@ Agents ask whether you trust a folder the first time they run in it. For a sessi
 rex config set auto_trust_dirs "~/Documents/dev"
 ```
 
+`rex setup` asks the same question once, with **no** as the default answer. When you run it from the root of a git checkout, it suggests the folder that holds that checkout, if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
+
 The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
 
 - a filesystem root (`/`) or your home folder itself (`~`, `~/`);
 - relative entries, and any path containing `..`;
 - the whole setting, if splitting it on `:` (`;` on Windows) gives a piece that is not an absolute or `~/` path. A folder name that contains `:` would otherwise split into a broader folder.
 
-Symlinks are resolved on both sides, so a link inside a trusted folder that points elsewhere does not count.
+Symlinks are resolved on both sides, so a link inside a trusted folder that points elsewhere does not count. If your home folder is set but cannot be resolved (it does not exist), no folder is trusted.
 
 **Only list folders whose code you trust.** Accepting the dialog lets the repository's own agent settings apply without that prompt (for Claude Code, allow rules in its `.claude/settings.json`). A repository you cloned from someone else belongs outside these folders. Which agents have a dialog to answer is set by `trust_prompt` in the tool registry ([registry.md](registry.md#trust_prompt)).
 

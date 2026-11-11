@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -27,6 +29,7 @@ const (
 	setupStepDefaults             // tool, model, effort
 	setupStepAppearance           // color_scheme, spinner, row_density
 	setupStepAudio                // sound_enabled, soundset
+	setupStepTrust                // auto_trust_dirs: opt in, default no
 	setupStepShell                // show profile block, offer install
 	setupStepPreview              // list changes before write
 	setupStepWrite                // perform writes
@@ -56,6 +59,13 @@ type audioField int
 const (
 	audioEnabled audioField = iota
 	audioSoundset
+)
+
+type trustField int
+
+const (
+	trustAnswer trustField = iota // no / yes
+	trustFolder                   // the folders, as text
 )
 
 // ── Result types for async ops ───────────────────────────────────────────────
@@ -111,6 +121,12 @@ type SetupWizardModel struct {
 	soundsetOpts []string
 	soundsetIdx  int
 	audioField   audioField
+
+	// step: trust
+	trustYes   bool   // write trustDir to auto_trust_dirs; default no
+	trustDir   string // folders as typed (~/ allowed), list-separated
+	trustErr   error  // why trustDir was refused; shown under the field
+	trustField trustField
 
 	// step: shell
 	shellRC          string // path of target RC file
@@ -193,6 +209,16 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	// effort for first tool's first model
 	effortOpts, effortIdx := effortFor(visible, 0, "")
 
+	// auto-trust: keep an existing opt-in. Otherwise the answer is no and
+	// the folder field holds the old value (to fix) or a suggestion.
+	trustDir, trustYes := st.String("auto_trust_dirs"), false
+	if v, err := settings.CheckAutoTrustDirs(trustDir); err == nil {
+		trustDir, trustYes = v, true
+	} else if strings.TrimSpace(trustDir) == "" {
+		cwd, _ := os.Getwd()
+		trustDir = suggestTrustDir(cwd)
+	}
+
 	// shell RC
 	shellRC := detectShellRC()
 	shellBlockExists := hasShellBlock(shellRC)
@@ -230,6 +256,9 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 		soundsetOpts: soundsetOpts,
 		soundsetIdx:  soundsetIdx,
 		audioField:   audioEnabled,
+
+		trustYes: trustYes,
+		trustDir: trustDir,
 
 		shellRC:          shellRC,
 		shellBlockExists: shellBlockExists,
@@ -377,6 +406,8 @@ func (m SetupWizardModel) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.keyAppearance(k)
 	case setupStepAudio:
 		return m.keyAudio(k)
+	case setupStepTrust:
+		return m.keyTrust(k)
 	case setupStepShell:
 		return m.keyShell(k)
 	case setupStepPreview:
@@ -581,7 +612,7 @@ func (m SetupWizardModel) keyAudio(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case audioEnabled:
 			m.audioField = audioSoundset
 		case audioSoundset:
-			m.step = setupStepShell
+			m.step = setupStepTrust
 		}
 	case "shift+tab", "left":
 		switch m.audioField {
@@ -619,13 +650,136 @@ func (m SetupWizardModel) keyAudio(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m SetupWizardModel) keyTrust(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.trustField == trustFolder {
+		return m.keyTrustFolder(k)
+	}
+	switch k.String() {
+	case "tab", "right", "enter":
+		if m.trustYes {
+			m.trustField = trustFolder
+		} else {
+			m.step = setupStepShell
+		}
+	case "shift+tab", "left":
+		m.step = setupStepAudio
+	case "j", "down", "k", "up", " ":
+		m.moved()
+		m.trustYes = !m.trustYes
+	case "y", "Y":
+		m.moved()
+		m.trustYes = true
+	case "n", "N":
+		m.moved()
+		m.trustYes = false
+	}
+	m.trustErr = nil
+	return m, nil
+}
+
+// keyTrustFolder edits the folder text. Every printable key is text here
+// (paths hold j, k, y and n), so only enter/tab, shift+tab and ctrl+u act.
+func (m SetupWizardModel) keyTrustFolder(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch k.Type {
+	case tea.KeyEnter, tea.KeyTab:
+		v, err := settings.CheckAutoTrustDirs(m.trustDir)
+		if err != nil {
+			m.trustErr = err
+			return m, nil
+		}
+		m.trustDir, m.trustErr = v, nil
+		m.step = setupStepShell
+		return m, nil
+	case tea.KeyShiftTab:
+		m.trustField, m.trustErr = trustAnswer, nil
+		return m, nil
+	case tea.KeyBackspace:
+		if r := []rune(m.trustDir); len(r) > 0 {
+			m.trustDir = string(r[:len(r)-1])
+		}
+	case tea.KeyCtrlU:
+		m.trustDir = ""
+	case tea.KeySpace:
+		m.trustDir += " "
+	case tea.KeyRunes:
+		// Drop control characters a paste can carry (newlines, escapes).
+		m.trustDir += strings.Map(func(r rune) rune {
+			if unicode.IsControl(r) {
+				return -1
+			}
+			return r
+		}, string(k.Runes))
+	default:
+		return m, nil
+	}
+	m.moved()
+	m.trustErr = nil
+	return m, nil
+}
+
+// autoTrustValue is what setup writes to auto_trust_dirs: the folders when
+// the user said yes and they pass the daemon's checks, else "" (off).
+func (m SetupWizardModel) autoTrustValue() string {
+	if !m.trustYes {
+		return ""
+	}
+	v, err := settings.CheckAutoTrustDirs(m.trustDir)
+	if err != nil {
+		return ""
+	}
+	return v
+}
+
+// withAutoTrust starts the trust step at yes with folders filled in, for
+// `rex setup -auto-trust` without -yes. The user still confirms.
+func (m SetupWizardModel) withAutoTrust(folders string) SetupWizardModel {
+	if folders != "" {
+		m.trustYes, m.trustDir = true, folders
+	}
+	return m
+}
+
+// suggestTrustDir offers the folder that holds the current project: the
+// parent of cwd when cwd is the root of a git checkout. The suggestion must
+// pass the checks a typed value does and, with symlinks resolved, lie
+// inside the home folder. It never offers the home folder itself or
+// anything outside it (such as /tmp), and returns "" when nothing fits.
+func suggestTrustDir(cwd string) string {
+	if cwd == "" {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
+		return ""
+	}
+	short := tildePath(filepath.Dir(cwd))
+	// A name holding the list separator would be read back as two folders,
+	// and one with outer spaces would be trimmed into another folder.
+	if !paths.IsHomeRelative(short) || strings.ContainsRune(short, filepath.ListSeparator) {
+		return ""
+	}
+	if v, err := settings.CheckAutoTrustDirs(short); err != nil || v != short {
+		return ""
+	}
+	// Compare resolved paths: a link such as ~/code -> /Volumes/x/code reads
+	// as inside home but is not.
+	dir, err := settings.TrustDir(short)
+	if err != nil {
+		return ""
+	}
+	home, err := settings.CanonicalHome()
+	if err != nil || !strings.HasPrefix(dir, home+string(filepath.Separator)) {
+		return ""
+	}
+	return short
+}
+
 func (m SetupWizardModel) keyShell(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "tab", "right", "enter":
 		m.step = setupStepPreview
 		m.buildPreview()
 	case "shift+tab", "left":
-		m.step = setupStepAudio
+		m.step = setupStepTrust
 	case " ", "y", "Y":
 		m.moved()
 		m.installShell = true
@@ -752,6 +906,7 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 		rowDensity = m.rowDensityOptions[m.rowDensityIdx]
 	}
 	soundEnabled := m.soundEnabled
+	autoTrust := m.autoTrustValue()
 	soundset := ""
 	if m.soundsetIdx < len(m.soundsetOpts) {
 		soundset = m.soundsetOpts[m.soundsetIdx]
@@ -764,6 +919,10 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 		_ = store.Set("row_density", rowDensity)
 		_ = store.Set("sound_enabled", soundEnabled)
 		_ = store.Set("soundset", soundset)
+		// Only on a yes: the store starts at the default, empty (off).
+		if autoTrust != "" {
+			_ = store.Set("auto_trust_dirs", autoTrust)
+		}
 
 		// store tool/model/effort as extension keys (not in registry, skip validation)
 		// They're informational for the "done" screen; actual session args come from `rex new` flags.
@@ -825,6 +984,8 @@ func (m SetupWizardModel) View() string {
 		title, body, footer = m.renderAppearance()
 	case setupStepAudio:
 		title, body, footer = m.renderAudio()
+	case setupStepTrust:
+		title, body, footer = m.renderTrust()
 	case setupStepShell:
 		title, body, footer = m.renderShell()
 	case setupStepPreview:
@@ -835,7 +996,12 @@ func (m SetupWizardModel) View() string {
 		title, body, footer = m.renderDone()
 	}
 
-	body = padOrTrim(body, setupBodyLines)
+	height := setupBodyLines
+	if m.step == setupStepPreview {
+		// The preview grows rather than cut what the user is confirming.
+		height = max(height, len(body))
+	}
+	body = padOrTrim(body, height)
 
 	lines := []string{styleSlug.Render(title)}
 	if m.step == setupStepWelcome || m.step == setupStepDefaults {
@@ -893,7 +1059,7 @@ func (m SetupWizardModel) renderWelcome() (string, []string, string) {
 		"  " + stylePrimary.Render("Welcome to rex."),
 		"",
 		"  This wizard configures your installation:",
-		"  daemon, defaults, appearance, audio, and shell integration.",
+		"  daemon, defaults, appearance, audio, folder trust, and shell.",
 		"",
 		"  Nothing is written until you confirm at the end.",
 	}
@@ -1043,6 +1209,50 @@ func (m SetupWizardModel) renderAudio() (string, []string, string) {
 	return "audio", body, "  j/k select   space toggle bool   tab/enter next   shift+tab back   esc cancel"
 }
 
+func (m SetupWizardModel) renderTrust() (string, []string, string) {
+	answerActive := m.trustField == trustAnswer
+	folderActive := m.trustField == trustFolder
+	body := []string{
+		"",
+		"  Claude Code asks \"do you trust this folder?\" the first time it opens one.",
+		"  rex can say yes for you in the folder below and every folder inside it.",
+		"  " + styleBootWarn.Render("Only pick folders whose code you trust."),
+		"",
+		"  " + setupLabel("skip that question?", answerActive),
+		setupOption(!m.trustYes, "", "no, always ask", ""),
+		setupOption(m.trustYes, "", "yes, in this folder", ""),
+		"",
+		"  " + setupLabel("folder", folderActive),
+	}
+	// The folder can come from config.yaml or a folder name: strip escapes.
+	shown := protocol.FlattenDisplayText(m.trustDir)
+	if !m.trustYes {
+		if shown == "" {
+			shown = "(none)"
+		}
+		body = append(body, "  "+styleDim.Render(shown))
+		return "folder trust", body, "  j/k or y/n choose   enter next   shift+tab back   esc cancel"
+	}
+
+	if folderActive {
+		shown += "|"
+	}
+	for _, l := range strings.Split(setupInput(shown, setupWidth-12), "\n") {
+		body = append(body, "  "+l)
+	}
+	switch {
+	case m.trustErr != nil:
+		body = append(body, "  "+styleBootFail.Render("✗")+" "+protocol.FlattenDisplayText(m.trustErr.Error()))
+	case folderActive:
+		body = append(body, "  "+styleDim.Render(
+			"separate folders with "+string(filepath.ListSeparator)+"   ~/ is your home folder"))
+	}
+	if folderActive {
+		return "folder trust", body, "  type to edit   ctrl+u clear   enter next   shift+tab back   esc cancel"
+	}
+	return "folder trust", body, "  j/k or y/n choose   enter edit folder   shift+tab back   esc cancel"
+}
+
 func (m SetupWizardModel) renderShell() (string, []string, string) {
 	var body []string
 	body = append(body, "")
@@ -1080,6 +1290,9 @@ func (m SetupWizardModel) renderPreview() (string, []string, string) {
 	body = append(body, "")
 	for _, item := range m.writeItems {
 		body = append(body, "  "+styleSlug.Render("·")+" "+item.label)
+		if item.kind == "config" {
+			body = append(body, m.previewTrustLines()...)
+		}
 	}
 	if len(m.writeItems) == 0 {
 		body = append(body, "  "+styleDim.Render("(nothing to write)"))
@@ -1087,6 +1300,30 @@ func (m SetupWizardModel) renderPreview() (string, []string, string) {
 	body = append(body, "")
 	body = append(body, "  "+styleDim.Render("Press enter to write, n/shift+tab to go back."))
 	return "preview", body, "  enter/y write   n/shift+tab back   esc cancel"
+}
+
+// previewTrustLines shows what auto_trust_dirs will hold in full: one
+// folder per line, long ones wrapped, so nothing the user confirms is cut.
+func (m SetupWizardModel) previewTrustLines() []string {
+	const indent = "      "
+	label := "auto-trust: "
+	v := m.autoTrustValue()
+	if v == "" {
+		return []string{indent + styleDim.Render(label) + "off (agents ask before trusting a folder)"}
+	}
+	pad := indent + strings.Repeat(" ", len(label))
+	var out []string
+	for _, dir := range filepath.SplitList(v) {
+		wrapped := ansi.Hardwrap(protocol.FlattenDisplayText(dir), setupWidth-len(pad), true)
+		for _, l := range strings.Split(wrapped, "\n") {
+			if len(out) == 0 {
+				out = append(out, indent+styleDim.Render(label)+l)
+			} else {
+				out = append(out, pad+l)
+			}
+		}
+	}
+	return out
 }
 
 func (m SetupWizardModel) renderWriting() (string, []string, string) {
@@ -1165,13 +1402,28 @@ func setupOption(selected bool, glyph, name, glyphColor string) string {
 	return "  " + cursor + g + styleSlug.Render(name)
 }
 
-func setupInputInline(value string) string {
+func setupInputInline(value string) string { return setupInput(value, 40) }
+
+// setupInput is a one-line bordered text field width cells wide. A longer
+// value keeps its end (where the user types) and drops its start.
+func setupInput(value string, width int) string {
+	if room := width - 2; ansi.StringWidth(value) > room {
+		value = ansi.TruncateLeft(value, ansi.StringWidth(value)-room+1, "…")
+	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorWorking).
 		Padding(0, 1).
-		Width(40).
+		Width(width).
 		Render(stylePrimary.Render(value))
+}
+
+// setupLabel is a field label: bright while the field has focus.
+func setupLabel(text string, active bool) string {
+	if active {
+		return styleSlug.Render(text)
+	}
+	return styleDim.Render(text)
 }
 
 // styleArrow is already defined in wizard.go but not exported — replicate the
@@ -1334,9 +1586,10 @@ func rewriteShellBlock(content, block string) string {
 // ── Entry point (called from internal/surface/cli/setup.go) ──────────────────────────
 
 // RunSetupWizard launches the setup wizard as a standalone Bubble Tea program.
-func RunSetupWizard(configPath, socket string) error {
+// autoTrust, when set, pre-fills the folder trust step (rex setup -auto-trust).
+func RunSetupWizard(configPath, socket, autoTrust string) error {
 	slog.Info("setup: launching TUI wizard", "config_path", configPath, "socket", socket)
-	model := NewSetupWizardModel(configPath, socket)
+	model := NewSetupWizardModel(configPath, socket).withAutoTrust(autoTrust)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := p.Run()
 	if err != nil {
@@ -1346,14 +1599,27 @@ func RunSetupWizard(configPath, socket string) error {
 }
 
 // ApplyDefaultsNonInteractive writes the config without prompting. Used by --yes.
-func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, effortVal string, noShell bool) error {
+// A non-empty autoTrust is written to auto_trust_dirs after the same checks
+// the daemon applies; empty leaves the current value alone.
+func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, effortVal, autoTrust string, noShell bool) error {
 	slog.Info("setup: non-interactive start",
 		"config_path", configPath, "socket", socket,
-		"tool", toolID, "model", modelID, "effort", effortVal)
+		"tool", toolID, "model", modelID, "effort", effortVal, "auto_trust", autoTrust)
 
 	store := settings.NewStore()
 	// Load existing so we don't wipe unrelated keys
 	_ = store.Load(configPath)
+
+	if autoTrust != "" {
+		v, err := settings.CheckAutoTrustDirs(autoTrust)
+		if err != nil {
+			return fmt.Errorf("auto-trust: %w", err)
+		}
+		if err := store.Set("auto_trust_dirs", v); err != nil {
+			return fmt.Errorf("auto-trust: %w", err)
+		}
+		autoTrust = v
+	}
 
 	// Check if config already exists and is non-empty — non-interactive treats
 	// an existing non-empty config as a no-op unless explicit overwrite is implied
@@ -1398,6 +1664,9 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 	nextCmd := fmt.Sprintf(`rex new "your first task" --tool %s --model %s`, toolDisplay, modelDisplay)
 	if effortVal != "" {
 		nextCmd += " --effort " + effortVal
+	}
+	if autoTrust != "" {
+		fmt.Printf("auto-trust: agents started under %s skip the folder trust prompt\n", autoTrust)
 	}
 	fmt.Printf("setup complete. Next: %s\n", nextCmd)
 	fmt.Println("Docs: https://github.com/tristanbietsch/rex")

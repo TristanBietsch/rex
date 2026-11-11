@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
-	"github.com/tristanbietsch/rex/internal/runtime/paths"
 )
 
 // trustAnswerFor returns what accepts tool's folder-trust dialog when cwd is
@@ -50,7 +50,7 @@ func (s *Server) trustArgsFor(tool registry.Tool, cwd string) []string {
 		return nil
 	}
 	folders := []string{filepath.Clean(cwd)}
-	if c, ok := canonicalDir(cwd); ok && c != folders[0] {
+	if c, ok := settings.CanonicalDir(cwd); ok && c != folders[0] {
 		folders = append(folders, c)
 	}
 	list, err := json.Marshal(folders)
@@ -66,67 +66,23 @@ func (s *Server) trustArgsFor(tool registry.Tool, cwd string) []string {
 }
 
 // underAutoTrustDir reports whether cwd is one of dirs or inside one, and
-// which entry matched. Entries may start with ~/; both sides are resolved
-// through symlinks. Relative entries, a filesystem root and the home folder
-// itself are ignored: they would trust far more than one project.
+// which entry matched. Both sides are resolved through symlinks. Entries
+// that settings.TrustDir refuses (relative, "..", a filesystem root, the
+// home folder itself) are skipped: they would trust far more than one
+// project.
 func underAutoTrustDir(cwd string, dirs []string) (string, bool) {
-	c, ok := canonicalDir(cwd)
+	c, ok := settings.CanonicalDir(cwd)
 	if !ok {
 		return "", false
 	}
-	home := ""
-	if h, err := paths.Home(); err == nil {
-		home, _ = canonicalDir(h)
-	}
 	for _, entry := range dirs {
-		d := strings.TrimSpace(entry)
-		expanded, err := paths.ExpandHome(d)
-		if d == "" || err != nil {
-			continue
-		}
-		cd, ok := canonicalDir(expanded)
-		if !ok || filepath.Dir(cd) == cd || cd == home {
+		cd, err := settings.TrustDir(entry)
+		if err != nil {
 			continue
 		}
 		if c == cd || strings.HasPrefix(c, cd+string(filepath.Separator)) {
-			return d, true
+			return strings.TrimSpace(entry), true
 		}
 	}
 	return "", false
-}
-
-// canonicalDir resolves an absolute path through symlinks in its deepest
-// existing ancestor, so a folder not created yet still compares equal to
-// its resolved parent (on macOS /var is a link to /private/var).
-//
-// A path with a ".." element is refused. The kernel applies ".." after
-// following symlinks (<trusted>/link/../x lands next to link's target),
-// while cleaning the path first would apply it before; refusing keeps the
-// check from approving a folder the agent would not actually start in.
-func canonicalDir(p string) (string, bool) {
-	if !filepath.IsAbs(p) || hasDotDot(p) {
-		return "", false
-	}
-	p = filepath.Clean(p)
-	rest := ""
-	for cur := p; ; {
-		if r, err := filepath.EvalSymlinks(cur); err == nil {
-			return filepath.Join(r, rest), true
-		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			return p, true
-		}
-		rest = filepath.Join(filepath.Base(cur), rest)
-		cur = parent
-	}
-}
-
-func hasDotDot(p string) bool {
-	for _, part := range strings.Split(filepath.ToSlash(p), "/") {
-		if part == ".." {
-			return true
-		}
-	}
-	return false
 }
