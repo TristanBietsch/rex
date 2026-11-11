@@ -90,7 +90,7 @@ func spendWindow(period string) string {
 		return WindowMonth
 	}
 	for _, r := range p {
-		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return WindowMonth
 		}
 	}

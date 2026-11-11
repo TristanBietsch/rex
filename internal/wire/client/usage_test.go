@@ -60,3 +60,21 @@ func TestUsageQuery_WrongReplyType(t *testing.T) {
 	fd.ack(t, env, "")
 	require.ErrorContains(t, <-ch, "unexpected reply")
 }
+
+func TestUsageQuery_BadPayload(t *testing.T) {
+	c, fd := pipeClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ch := make(chan error, 1)
+	go func() { _, err := c.UsageQuery(ctx, protocol.UsageQuery{}); ch <- err }()
+	env := fd.read(t)
+	fd.event(t, protocol.EventUsageResult, env.ID, "not a report")
+	require.ErrorContains(t, <-ch, "decode reply")
+}
+
+func TestUsageQuery_ClosedConnection(t *testing.T) {
+	c, _ := pipeClient(t)
+	require.NoError(t, c.Close())
+	_, err := c.UsageQuery(context.Background(), protocol.UsageQuery{})
+	require.ErrorIs(t, err, ErrClosed)
+}

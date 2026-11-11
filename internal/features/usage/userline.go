@@ -40,7 +40,7 @@ func UserStatusLine(home string) string {
 // statusLineCommand reads path and returns its statusLine command, "" when
 // the file has none.
 func statusLineCommand(path string) string {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // G703: the user's own Claude settings file ($CLAUDE_CONFIG_DIR or ~/.claude), read-only.
 	if err != nil {
 		return ""
 	}

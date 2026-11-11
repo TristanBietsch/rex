@@ -2,7 +2,6 @@ package usage
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 var t0 = time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
@@ -68,8 +69,7 @@ func TestLedger_AppendTightensAWiderFile(t *testing.T) {
 	}
 	l := newLedger(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(l.Path()), 0o700))
-	require.NoError(t, os.WriteFile(l.Path(), nil, 0o644))
-	require.NoError(t, os.Chmod(l.Path(), 0o644))
+	testperm.WriteFile(t, l.Path(), nil, 0o644)
 	require.NoError(t, l.Append(rec("a", 10, t0)))
 	fi, err := os.Stat(l.Path())
 	require.NoError(t, err)
@@ -185,5 +185,3 @@ func TestLedger_RecordHoldsNoPromptOrPath(t *testing.T) {
 	require.NotContains(t, string(b), "cwd")
 	require.NotContains(t, string(b), "prompt")
 }
-
-var _ = context.Background

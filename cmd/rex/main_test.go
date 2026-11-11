@@ -16,7 +16,7 @@ var helpCommands = []string{
 	"status", "ls", "new", "attach", "reply", "send", "log", "wait", "rm",
 	"prune", "rename", "name", "done", "undone", "archive", "complete",
 	"reload", "completion", "setup", "doctor", "update", "uninstall",
-	"digest", "stats", "fleet", "skills",
+	"digest", "stats", "fleet", "skills", "overview", "usage",
 }
 
 func TestRun_HelpFlagExitsZero(t *testing.T) {
@@ -51,6 +51,18 @@ func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
 func TestRun_OverviewAcceptsOutputFlags(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	rest, err := core.InitOutput([]string{"-o", "json", "overview", "-socket", "/nonexistent/rex.sock"}, nil)
+	t.Cleanup(func() { core.SetOut(nil) })
+	require.NoError(t, err)
+	err = run(rest)
+	require.Error(t, err)
+	require.Equal(t, core.ExitDaemonUnreachable, exitCodeFor(err))
+}
+
+// rex usage is on the kit too; with usage off it refuses (exit 5) before it
+// looks for the daemon.
+func TestRun_UsageAcceptsOutputFlags(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	rest, err := core.InitOutput([]string{"-o", "json", "usage", "-socket", "/nonexistent/rex.sock"}, nil)
 	t.Cleanup(func() { core.SetOut(nil) })
 	require.NoError(t, err)
 	err = run(rest)
