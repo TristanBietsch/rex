@@ -1,0 +1,73 @@
+# ls and status in every output format; -json stays the legacy shape.
+
+daemon-start
+
+exec rex new --tool echo --model short --slug s1
+exec rex wait -until done -timeout 20s s1
+
+# Piped output defaults to txt: today's columns.
+exec rex ls
+stdout '^ID +STATE +TOOL +MODEL +SLUG +LAST EVENT +NAME$'
+stdout '^[0-9a-f]{4} +done +echo +short +s1 '
+exec rex status
+stdout '^0 awaiting input · 0 working · 1 completed$'
+
+# Explicit txt is the same.
+exec rex ls -o txt
+stdout '^ID +STATE +TOOL +MODEL +SLUG +LAST EVENT +NAME$'
+exec rex --output=txt status
+stdout '^0 awaiting input · 0 working · 1 completed$'
+
+# Legacy -json keeps today's shapes: JSONL for ls, a flat counts object for status.
+exec rex ls -json
+stdout '^\{"id":"[0-9a-f-]+","short_id":"[0-9a-f]{4}",'
+stdout '"slug":"s1"'
+! stdout '"v":1'
+exec rex status -json
+stdout '^\{"awaiting_input":0,"completed":1,"crashed":0,"failed":0,"working":0\}$'
+
+# -o json is the versioned envelope.
+exec rex ls -o json
+stdout '^\{"v":1,"cmd":"ls","data":\[\{"id":'
+exec rex -o json status
+stdout '^\{"v":1,"cmd":"status","data":\{"needs_input":0,"working":0,"queued":0,"done":1,"failed":0\}\}$'
+
+# agent: one line per record, then ok.
+exec rex ls --agent
+stdout '^session id=[0-9a-f]{4} state=done tool=echo model=short effort="" slug=s1 idle_s=\d+ name=""$'
+stdout '^ok cmd=ls count=1$'
+exec rex status -o agent
+stdout '^ok cmd=status needs_input=0 working=0 queued=0 done=1 failed=0$'
+
+# md is a GitHub table.
+exec rex ls -o md
+stdout '^\| ID \| State \| Tool \| Model \| Slug \| Idle \| Name \|$'
+stdout '^### Sessions$'
+
+# text has the human layout, with no ANSI in a pipe.
+exec rex ls -o text
+stdout '^Sessions  1 done$'
+! stdout '\x1b'
+
+# Errors: unknown format and conflicting flags exit 5; json errors go to stderr only.
+exitcode 5 rex ls -o yaml
+stderr 'unknown output format "yaml"'
+exitcode 5 rex ls -json --agent
+stderr 'conflicting output flags'
+exitcode 5 rex attach -o json s1
+stderr 'attach'
+exitcode 5 rex -o json doctor
+stderr 'doctor: -o, --agent and -json are not supported yet'
+
+exitcode 5 rex ls -o json -state
+! stdout .
+exitcode 4 rex ls -o json -socket $WORK/nope.sock
+! stdout .
+stderr '^\{"v":1,"error":\{"code":4,"kind":"daemon_unreachable","cmd":"ls","msg":'
+exitcode 4 rex ls --agent -socket $WORK/nope.sock
+stderr '^error code=4 kind=daemon_unreachable cmd=ls msg='
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false

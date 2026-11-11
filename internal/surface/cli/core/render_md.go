@@ -50,8 +50,9 @@ func (p *Printer) renderMD(v View) string {
 		case Section:
 			blocks = append(blocks, "#### "+escapeMD(b.Title))
 		case KV:
-			rows := make([][]string, len(b.Pairs))
-			for i, pr := range b.Pairs {
+			pairs := b.pairs(FormatMD)
+			rows := make([][]string, len(pairs))
+			for i, pr := range pairs {
 				rows[i] = []string{escapeMD(pairLabel(pr)), escapeMD(pr.Val.Text)}
 			}
 			blocks = append(blocks, mdTable([]string{"Key", "Value"}, []Align{AlignLeft, AlignLeft}, rows))

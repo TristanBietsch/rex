@@ -74,6 +74,10 @@ type Col struct {
 	// Width pads the column to a fixed width in txt (0 = widest cell). The
 	// last column is never padded.
 	Width int
+	// DropBelow hides the column in the text format when the terminal is
+	// narrower than this many cells (0 = never), so low-value columns give
+	// way before the others are squeezed.
+	DropBelow int
 	// Formats limits the column to these formats; zero means all. Rows still
 	// carry a cell for every column.
 	Formats FormatSet
@@ -96,6 +100,19 @@ type Pair struct {
 	Val   Cell
 	// Glyph is shown before the value in an inline KV (a state marker).
 	Glyph string
+	// Formats limits the pair to these formats; zero means all.
+	Formats FormatSet
+}
+
+// pairs returns the pairs shown in f.
+func (k KV) pairs(f Format) []Pair {
+	var out []Pair
+	for _, p := range k.Pairs {
+		if p.Formats == 0 || p.Formats.Has(f) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // KV is a list of labeled values.

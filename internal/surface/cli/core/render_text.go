@@ -59,9 +59,10 @@ func (p *Printer) renderText(v View) string {
 }
 
 func (p *Printer) textKV(kv KV) string {
+	pairs := kv.pairs(FormatText)
 	if kv.Inline {
-		items := make([]string, len(kv.Pairs))
-		for i, pr := range kv.Pairs {
+		items := make([]string, len(pairs))
+		for i, pr := range pairs {
 			s := pr.Val.Text + " " + pairLabel(pr)
 			if pr.Glyph != "" {
 				s = pr.Glyph + " " + s
@@ -71,13 +72,13 @@ func (p *Printer) textKV(kv KV) string {
 		return strings.Join(items, "   ")
 	}
 	w := 0
-	for _, pr := range kv.Pairs {
+	for _, pr := range pairs {
 		w = max(w, displayWidth(pairLabel(pr)))
 	}
 	valW := max(p.Width-bodyIndent-w-gutter, 10)
 	pad := strings.Repeat(" ", bodyIndent+w+gutter)
 	var lines []string
-	for _, pr := range kv.Pairs {
+	for _, pr := range pairs {
 		label := padRight(pairLabel(pr), w)
 		wrapped := strings.Split(ansi.Wrap(pr.Val.Text, valW, ""), "\n")
 		for i, part := range wrapped {
@@ -93,7 +94,12 @@ func (p *Printer) textKV(kv KV) string {
 }
 
 func (p *Printer) textTable(t Table) string {
-	idx := visibleCols(t.Cols, FormatText)
+	var idx []int
+	for _, i := range visibleCols(t.Cols, FormatText) {
+		if d := t.Cols[i].DropBelow; d == 0 || p.Width >= d {
+			idx = append(idx, i)
+		}
+	}
 	indent := strings.Repeat(" ", bodyIndent)
 	if len(t.Rows) == 0 && t.Empty != "" {
 		return indent + p.Styles.Dim.Render(t.Empty)

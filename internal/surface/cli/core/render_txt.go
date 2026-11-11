@@ -49,12 +49,13 @@ func pairLabel(p Pair) string {
 }
 
 func txtKV(kv KV) string {
+	pairs := kv.pairs(FormatTXT)
 	w := 0
-	for _, p := range kv.Pairs {
+	for _, p := range pairs {
 		w = max(w, displayWidth(pairLabel(p)))
 	}
-	lines := make([]string, len(kv.Pairs))
-	for i, p := range kv.Pairs {
+	lines := make([]string, len(pairs))
+	for i, p := range pairs {
 		lines[i] = padRight(pairLabel(p), w) + "  " + p.Val.txt()
 	}
 	return strings.Join(lines, "\n")

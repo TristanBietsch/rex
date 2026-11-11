@@ -39,8 +39,9 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 				count++
 			}
 		case KV:
-			fields := make([]Field, 0, len(b.Pairs))
-			for _, p := range b.Pairs {
+			pairs := b.pairs(FormatAgent)
+			fields := make([]Field, 0, len(pairs))
+			for _, p := range pairs {
 				fields = append(fields, Field{p.Key, cellValue(p.Val)})
 			}
 			if b.Kind == "" {

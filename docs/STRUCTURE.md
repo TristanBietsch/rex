@@ -62,7 +62,7 @@ internal/
 │   ├── summarizer/         # Ollama descriptions
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
-└── testutil/               # cross-package test helpers (test-only)
+└── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)
 ```
 
 ### Rationale (one line each)

@@ -30,7 +30,7 @@ func main() {
 // kitVerbs are the commands rendered through the output kit. They accept
 // -o/--output, --agent and -json; the rest still print their own format, so
 // an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{}
+var kitVerbs = map[string]bool{"ls": true, "status": true}
 
 func run(args []string) error {
 	if core.Out().Flags.Explicit() {

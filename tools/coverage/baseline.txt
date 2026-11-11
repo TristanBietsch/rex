@@ -21,10 +21,10 @@ github.com/tristanbietsch/rex/internal/runtime/ids 75
 github.com/tristanbietsch/rex/internal/runtime/paths 100
 github.com/tristanbietsch/rex/internal/runtime/rexlog 87
 github.com/tristanbietsch/rex/internal/surface/cli/core 89
-github.com/tristanbietsch/rex/internal/surface/cli/inspect 39
+github.com/tristanbietsch/rex/internal/surface/cli/inspect 43
 github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
 github.com/tristanbietsch/rex/internal/surface/cli/meta 35
-github.com/tristanbietsch/rex/internal/surface/cli/session 29
+github.com/tristanbietsch/rex/internal/surface/cli/session 33
 github.com/tristanbietsch/rex/internal/surface/cli/setup 62
 github.com/tristanbietsch/rex/internal/surface/tui 74
 github.com/tristanbietsch/rex/internal/testutil 0
