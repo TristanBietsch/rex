@@ -387,6 +387,32 @@ func (s *Store) BroadcastTokenPatch(id string, tokens, outputBytes int64) {
 	s.BroadcastPatch(id, map[string]any{"tokens": tokens, "output_bytes": outputBytes})
 }
 
+// SetResumeID records the agent's conversation id (lowercased) and reports
+// whether it changed. It does not broadcast: the caller persists meta.json
+// first and then sends the resume_id patch (BroadcastPatch), so a client that
+// reads meta.json after the patch sees the id. It is not activity:
+// last_event_at is left alone. An id that fails protocol.ValidResumeID is an
+// error: ids end up on an argv.
+func (s *Store) SetResumeID(id, resumeID string) (bool, error) {
+	norm, ok := protocol.NormalizeResumeID(resumeID)
+	if !ok {
+		return false, fmt.Errorf("invalid resume id %q", resumeID)
+	}
+	s.mu.RLock()
+	sess, found := s.sessions[id]
+	s.mu.RUnlock()
+	if !found {
+		return false, fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.ResumeID == norm {
+		return false, nil
+	}
+	sess.ResumeID = norm
+	return true, nil
+}
+
 // SetSubagents records how many subagents a session's agent is running and
 // broadcasts a change. It is not activity: last_event_at is left alone.
 func (s *Store) SetSubagents(id string, n int) error {

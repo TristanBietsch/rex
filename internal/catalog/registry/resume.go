@@ -20,7 +20,7 @@ type ResumeSpec struct {
 	// NewArgs, when set, is added at spawn with a fresh UUID so rex knows the
 	// id up front (Claude: --session-id). Contains {id}.
 	NewArgs []string `yaml:"new_args,omitempty"`
-	// CaptureRegex, when set, reads the id at child exit: group 1 of the first
+	// CaptureRegex, when set, reads the id at child exit: group 1 of the last
 	// match on the normalized screen text (multi-line mode).
 	CaptureRegex string `yaml:"capture_regex,omitempty"`
 }

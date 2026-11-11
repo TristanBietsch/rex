@@ -47,6 +47,11 @@ filesystem permissions.
   session names are shown in the TUI and CLI. Escape sequences that rex
   passes through unintentionally and that act on your terminal are in scope.
 - **Malformed protocol input** that crashes or hangs the daemon.
+- **Resume ids reaching a command line.** A tool's conversation id (taken
+  from the agent's hook, its exit text or `meta.json`) is passed to the
+  agent as one argument. Rex accepts only a canonical UUID at every point it
+  reads one, so a crafted value cannot add a flag or an argument. Anything
+  that gets another value onto a command line is in scope.
 
 ### Out of scope
 

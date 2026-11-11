@@ -46,11 +46,13 @@ var claudeHookStates = []struct {
 //	agent- <agent_id>  SubagentStop
 //	agent~ <agent_id>  PostToolUse of a subagent's tool call (still running)
 //	agents-reset       SessionStart of a new or cleared conversation
+//	sid <session_id>   SessionStart: the conversation id (resume id)
 const (
 	hookAgentStart  = "agent+"
 	hookAgentStop   = "agent-"
 	hookAgentSeen   = "agent~"
 	hookAgentsReset = "agents-reset"
+	hookSessionID   = "sid"
 )
 
 // subagentQuiet is how long a subagent may go without a start or a tool
@@ -89,14 +91,15 @@ func subagentHookCommand(word string) string {
 
 // claudeHookCommand is the command for one state event. SessionStart also
 // resets the subagent set, except after a compaction (subagents may still
-// be running). PostToolUse also marks a subagent's tool call (the JSON has
+// be running), and reports the conversation's session_id (a `sid` line in
+// the same printf, so it is atomic with the state word). PostToolUse also marks a subagent's tool call (the JSON has
 // an agent_id) as a sign of life.
 func claudeHookCommand(event string, state protocol.State) string {
 	st := string(state)
 	switch event {
 	case "SessionStart":
-		return `in=$(cat); src=$(` + hookJSONField("source") + `); ` +
-			hookAppend(`if [ "$src" = compact ]; then printf '`+st+`\n'; else printf '`+hookAgentsReset+`\n`+st+`\n'; fi`)
+		return `in=$(cat); src=$(` + hookJSONField("source") + `); sid=$(` + hookJSONField("session_id") + hookSafeID + `); ` +
+			hookAppend(`if [ "$src" = compact ]; then printf '`+st+`\n`+hookSessionID+` %s\n' "$sid"; else printf '`+hookAgentsReset+`\n`+st+`\n`+hookSessionID+` %s\n' "$sid"; fi`)
 	case "PostToolUse":
 		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; ` +
 			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookAgentSeen+` %s\n' "$id"; else printf '`+st+`\n'; fi`)
@@ -138,6 +141,13 @@ type SubagentCounter interface {
 	Subagents() int
 }
 
+// ResumeIDReporter is implemented by adapters that learn the agent's
+// conversation id while it runs.
+type ResumeIDReporter interface {
+	// ResumeID is the latest valid id reported (lowercase), "" if none yet.
+	ResumeID() string
+}
+
 // ClaudeHooks classifies Claude Code sessions from the hook state file written
 // by ClaudeHookArgs hooks. Claude renders a full-screen TUI to the PTY (its
 // stream-json output only exists with --print), so screen-scraping is
@@ -150,6 +160,7 @@ type ClaudeHooks struct {
 	partial []byte // a trailing line not yet terminated by '\n'
 	last    protocol.State
 	agents  map[string]time.Time // running subagents by agent_id: last sign of life
+	sid     string               // latest valid session_id from a sid line
 	now     func() time.Time
 }
 
@@ -184,6 +195,15 @@ func (a *ClaudeHooks) Subagents() int {
 		}
 	}
 	return len(a.agents)
+}
+
+// ResumeID implements ResumeIDReporter. The id survives a truncated hook
+// file (a resumed session reuses its conversation until a new sid arrives).
+func (a *ClaudeHooks) ResumeID() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.read()
+	return a.sid
 }
 
 // IsReadyForInput implements Adapter. Claude receives its first prompt on argv,
@@ -253,6 +273,12 @@ func (a *ClaudeHooks) apply(line string) {
 		delete(a.agents, arg)
 	case hookAgentsReset:
 		clear(a.agents)
+	case hookSessionID:
+		// The latest wins (/clear and in-app /resume start new conversations).
+		// An invalid or missing id is ignored: it ends up on an argv.
+		if id, ok := protocol.NormalizeResumeID(arg); ok {
+			a.sid = id
+		}
 	default:
 		slog.Warn("adapter: unknown claude hook line", "path", a.path, "line", line)
 	}

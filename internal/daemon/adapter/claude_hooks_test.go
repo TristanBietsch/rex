@@ -304,9 +304,68 @@ func TestClaudeHookArgs_SessionStartAndPostToolUse(t *testing.T) {
 	runHook(t, cmds["PostToolUse"], path, `{"session_id":"s","agent_id":"sub-7","agent_type":"Explore","tool_name":"Read"}`)
 	raw, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.Equal(t, "needs_input\n"+
-		"agents-reset\nneeds_input\n"+
-		"agents-reset\nneeds_input\n"+
+	require.Equal(t, "needs_input\nsid s\n"+
+		"agents-reset\nneeds_input\nsid s\n"+
+		"agents-reset\nneeds_input\nsid s\n"+
 		"working\n"+
 		"working\nagent~ sub-7\n", string(raw))
+}
+
+const testSID = "7d4f3c8a-1234-4abc-89ab-cdefabcdef01"
+
+// Both SessionStart branches (new/cleared conversation and compaction)
+// report the session id in the same single write as the state word; the id
+// is cut to safe characters and a missing one writes an empty (ignored) line.
+func TestClaudeHookArgs_SessionStartReportsSID(t *testing.T) {
+	cmds := hookCommands(t)
+	path := filepath.Join(t.TempDir(), "hooks.log")
+	runHook(t, cmds["SessionStart"], path, `{"session_id":"`+testSID+`","source":"startup"}`)
+	runHook(t, cmds["SessionStart"], path, `{"session_id":"`+testSID+`","source":"compact"}`)
+	runHook(t, cmds["SessionStart"], path, `{"source":"clear"}`)
+	runHook(t, cmds["SessionStart"], path, `{"session_id":"$(touch pwned);x y","source":"startup"}`)
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t,
+		"agents-reset\nneeds_input\nsid "+testSID+"\n"+
+			"needs_input\nsid "+testSID+"\n"+
+			"agents-reset\nneeds_input\nsid \n"+
+			"agents-reset\nneeds_input\nsid touchpwnedxy\n", string(raw))
+	require.NoFileExists(t, filepath.Join(filepath.Dir(path), "pwned"))
+}
+
+func TestClaudeHooks_ResumeIDFromSID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.log")
+	a := NewClaudeHooks(path)
+	var _ ResumeIDReporter = a
+	require.Empty(t, a.ResumeID(), "no file yet")
+
+	appendLine(t, path, "needs_input")
+	require.Empty(t, a.ResumeID())
+
+	appendLine(t, path, "sid "+testSID)
+	require.Equal(t, testSID, a.ResumeID())
+
+	// Invalid ids are ignored and do not clobber a good one.
+	for _, bad := range []string{"sid", "sid ", "sid s", "sid --resume", "sid " + testSID + "0"} {
+		appendLine(t, path, bad)
+	}
+	require.Equal(t, testSID, a.ResumeID())
+
+	// /clear starts a new conversation: the latest valid id wins. Upper case
+	// is lowered on ingest.
+	appendLine(t, path, "sid 11111111-2222-4333-8444-ABCDEFABCDEF")
+	require.Equal(t, "11111111-2222-4333-8444-abcdefabcdef", a.ResumeID())
+	appendLine(t, path, "sid "+testSID)
+	require.Equal(t, testSID, a.ResumeID())
+}
+
+// A sid line is not a state change and must not clear anything else.
+func TestClaudeHooks_SIDLeavesStateAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.log")
+	a := NewClaudeHooks(path)
+	appendLine(t, path, "agent+ a1")
+	appendLine(t, path, "needs_input")
+	appendLine(t, path, "sid "+testSID)
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+	require.Equal(t, 1, a.Subagents())
 }

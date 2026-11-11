@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -72,6 +73,10 @@ type SupervisorConfig struct {
 	// TrustPrompt, when set, accepts the agent's folder-trust dialog (the
 	// session's folder is under auto_trust_dirs). nil leaves it to the user.
 	TrustPrompt *TrustAnswer
+	// ResumeCapture, when set, reads the agent's conversation id from its
+	// last output when the child exits: the last match's group 1 on the
+	// normalized screen text, kept only if it is a valid resume id.
+	ResumeCapture *regexp.Regexp
 }
 
 // transcriptWriter persists the raw PTY output (*state.TranscriptFile in
@@ -397,6 +402,40 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	}
 	defer clearAgents()
 	defer ticker.Stop()
+	// ids is asserted once, like agents; nil unless the agent reports its
+	// conversation id while it runs.
+	ids, _ := s.cfg.Adapter.(adapter.ResumeIDReporter)
+	// captureResumeID reads the id from the last output (ResumeCapture) and
+	// stores it, without broadcasting. It reports whether the id changed; the
+	// caller writes meta.json and then sends the resume_id patch.
+	captureResumeID := func() bool {
+		if s.cfg.ResumeCapture == nil {
+			return false
+		}
+		windowMu.Lock()
+		text := termtext.Normalize(window)
+		windowMu.Unlock()
+		matches := s.cfg.ResumeCapture.FindAllStringSubmatch(text, -1)
+		for i := len(matches) - 1; i >= 0; i-- {
+			if len(matches[i]) < 2 {
+				continue
+			}
+			if _, ok := protocol.NormalizeResumeID(matches[i][1]); !ok {
+				continue
+			}
+			changed, err := s.cfg.Store.SetResumeID(sess.ID, matches[i][1])
+			if err != nil {
+				slog.Warn("pty: store captured resume id failed", "session", sess.ID, "err", err)
+				return false
+			}
+			return changed
+		}
+		return false
+	}
+	// announceResumeID sends the resume_id patch for a captured id.
+	announceResumeID := func() {
+		s.cfg.Store.BroadcastPatch(sess.ID, map[string]any{"resume_id": sess.Summary().ResumeID})
+	}
 
 	for {
 		select {
@@ -414,12 +453,19 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			slog.Info("pty: complete signal received, killing child cleanly",
 				"session", sess.ID, "pid", cmd.Process.Pid)
 			s.killAndReap(sess.ID, cmd, f, errc)
+			// Same order as the child-exit path below.
+			s.refreshScreenText(sess.ID, screen)
+			captured := captureResumeID()
 			clearAgents()
+			sess.SetExit(protocol.StateDone, nil)
+			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
+				return fmt.Errorf("write final meta: %w", err)
+			}
 			if err := s.cfg.Store.Transition(sess.ID, protocol.StateDone); err != nil {
 				return err
 			}
-			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
-				return fmt.Errorf("write final meta: %w", err)
+			if captured {
+				announceResumeID()
 			}
 			return nil
 		case rerr := <-errc:
@@ -428,6 +474,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			s.refreshScreenText(sess.ID, screen)
 			final, exitCode, waitErr := s.collectExit(sess.ID, cmd, f, rerr)
 			slog.Info("pty: child exited", "session", sess.ID, "final_state", final, "wait_err", waitErr, "read_err", rerr)
+			captured := captureResumeID()
 			// Update in-memory state first (under the session lock) so the
 			// persisted meta reflects the terminal state.
 			sess.SetExit(final, exitCode)
@@ -438,6 +485,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			// Now broadcast — subscribers can safely read meta.json after this fires.
 			if err := s.cfg.Store.Transition(sess.ID, final); err != nil {
 				return err
+			}
+			if captured {
+				announceResumeID()
 			}
 			if rerr != nil {
 				return fmt.Errorf("pty reader: %w", rerr)
@@ -462,6 +512,17 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			if agents != nil {
 				_ = s.cfg.Store.SetSubagents(sess.ID, agents.Subagents()) // broadcasts only a change
+			}
+			if ids != nil {
+				if rid := ids.ResumeID(); rid != "" {
+					changed, err := s.cfg.Store.SetResumeID(sess.ID, rid)
+					if err != nil {
+						slog.Warn("pty: store reported resume id failed", "session", sess.ID, "err", err)
+					} else if changed {
+						s.persistMeta(sess)
+						announceResumeID()
+					}
+				}
 			}
 
 			// Readable screen → last_line + summarizer input. Sampled on the
