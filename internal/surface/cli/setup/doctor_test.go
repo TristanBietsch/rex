@@ -1,15 +1,80 @@
 package setup
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
+
+func withAgyVersion(t *testing.T, fn func(context.Context) (string, error)) {
+	t.Helper()
+	old, oldTO := agyVersion, agyVersionTimeout
+	agyVersion = fn
+	t.Cleanup(func() { agyVersion, agyVersionTimeout = old, oldTO })
+}
+
+func TestCheckAgyVersion(t *testing.T) {
+	cases := []struct {
+		name       string
+		out        string
+		err        error
+		wantStatus checkStatus
+		wantDetail string
+		wantRows   int
+	}{
+		{"ok", "agy 1.5.5\n", nil, checkInfo, "agy 1.5.5", 1},
+		{"newer", "1.6.0", nil, checkInfo, "agy 1.6.0", 1},
+		{"old", "agy 1.4.9", nil, checkWarn, "untested", 1},
+		{"not installed", "", exec.ErrNotFound, 0, "", 0},
+		{"error", "", errors.New("boom"), checkWarn, "boom", 1},
+		{"unparsable", "hello", nil, checkWarn, "hello", 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			withAgyVersion(t, func(context.Context) (string, error) { return tc.out, tc.err })
+			rows := checkAgyVersion()
+			require.Len(t, rows, tc.wantRows)
+			if tc.wantRows == 0 {
+				return
+			}
+			require.Equal(t, "agy version", rows[0].Name)
+			require.Equal(t, tc.wantStatus, rows[0].Status)
+			require.Contains(t, rows[0].Detail, tc.wantDetail)
+		})
+	}
+}
+
+func TestCheckAgyVersion_Timeout(t *testing.T) {
+	withAgyVersion(t, func(ctx context.Context) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	})
+	agyVersionTimeout = 20 * time.Millisecond
+	rows := checkAgyVersion()
+	require.Len(t, rows, 1)
+	require.Equal(t, checkWarn, rows[0].Status)
+	require.Contains(t, rows[0].Detail, "timed out")
+}
+
+func TestRunAllChecks_IncludesAgyVersion(t *testing.T) {
+	withAgyVersion(t, func(context.Context) (string, error) { return "agy 1.5.5", nil })
+	t.Setenv("HOME", t.TempDir())
+	var names []string
+	for _, r := range runAllChecks(&core.SocketFlag{}) {
+		names = append(names, r.Name)
+	}
+	require.Contains(t, names, "agy version")
+}
 
 func TestSummaryLine_NoFailNoWarn(t *testing.T) {
 	got := summaryLine(0, 0)

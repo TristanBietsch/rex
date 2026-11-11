@@ -130,6 +130,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   fuzz run.
 - `SECURITY.md` (private reporting and threat model), `CONTRIBUTING.md`,
   CODEOWNERS and a pull request template.
+- `rex doctor` shows the installed agy version (`agy 1.5.5`, a `-verbose`
+  row) and warns below 1.5.5 (untested). It shows nothing when agy is not
+  installed, and gives up after 2 s.
 
 ### Changed
 

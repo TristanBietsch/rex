@@ -340,6 +340,8 @@ Diagnostics. Exit **1** if any check fails.
 rex doctor [-json] [-socket path] [-verbose]
 ```
 
+With `-verbose`, an `agy version` row shows the installed Antigravity CLI version (`agy 1.5.5`). It warns below 1.5.5 (untested) or when `agy --version` fails or takes over 2 s, and is left out when `agy` is not on `PATH`.
+
 ---
 
 ## rex update
