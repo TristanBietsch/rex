@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -226,7 +227,9 @@ func TestSuggestTrustDir(t *testing.T) {
 	list := string(filepath.ListSeparator)
 	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "a"+list, "b", "app"))), "separator in a name")
 	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "x"+list+"y", "app"))), "separator in a name")
-	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "dev ", "app"))), "outer space would be trimmed")
+	if runtime.GOOS != "windows" { // Windows does not allow a trailing space in a name
+		require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "dev ", "app"))), "outer space would be trimmed")
+	}
 }
 
 // A value from config.yaml or a folder name may hold terminal escapes; the
