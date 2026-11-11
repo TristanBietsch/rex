@@ -22,6 +22,10 @@ func TestInitialPromptDelivery_CodexDashPromptStaysPositional(t *testing.T) {
 func TestInitialPromptDelivery_GeminiInteractiveFlag(t *testing.T) {
 	d := initialPromptDelivery("gemini", []string{"gemini", "--model", "gemini-2.5-pro"}, "hi")
 	require.Equal(t, []string{"gemini", "--model", "gemini-2.5-pro", "--prompt-interactive=hi"}, d.argv)
+
+	// agy: -p is one-shot; --prompt-interactive keeps the session going.
+	d = initialPromptDelivery("antigravity", []string{"agy", "--model=gemini-3.8-flash-high"}, "-starts with a dash")
+	require.Equal(t, []string{"agy", "--model=gemini-3.8-flash-high", "--prompt-interactive=-starts with a dash"}, d.argv)
 }
 
 // `ollama run MODEL PROMPT` answers once and exits, so the prompt must be

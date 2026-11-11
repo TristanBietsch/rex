@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,4 +79,38 @@ func TestTrustAnswerFor(t *testing.T) {
 
 	noPrompt := registry.Tool{ID: "codex"}
 	require.Nil(t, on.trustAnswerFor(noPrompt, dir), "tool without a trust_prompt")
+}
+
+func TestTrustArgsFor(t *testing.T) {
+	root := t.TempDir()
+	real := filepath.Join(root, "real")
+	project := filepath.Join(real, "project")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+	link := filepath.Join(root, "link")
+	require.NoError(t, os.Symlink(real, link))
+	tool := registry.Tool{ID: "antigravity", TrustArgs: []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}}
+
+	on := &Server{cfg: Config{AutoTrustDirs: func() []string { return []string{real} }}}
+	args := on.trustArgsFor(tool, filepath.Join(link, "project"))
+	require.Len(t, args, 2)
+	require.Equal(t, "--settings", args[0])
+	var settings struct {
+		TrustedWorkspaces []string `json:"trustedWorkspaces"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(args[1]), &settings), "valid session settings JSON")
+	resolved, err := filepath.EvalSymlinks(project)
+	require.NoError(t, err)
+	require.Equal(t, []string{filepath.Join(link, "project"), resolved}, settings.TrustedWorkspaces,
+		"the folder as given and resolved")
+
+	require.Nil(t, on.trustArgsFor(tool, t.TempDir()), "folder not listed")
+	require.Nil(t, (&Server{cfg: Config{}}).trustArgsFor(tool, project), "no setting")
+	require.Nil(t, on.trustArgsFor(registry.Tool{ID: "codex"}, project), "tool without trust_args")
+
+	// A folder whose name needs JSON escaping stays one valid entry.
+	odd := filepath.Join(real, `quote"and\slash`)
+	require.NoError(t, os.MkdirAll(odd, 0o700))
+	args = on.trustArgsFor(tool, odd)
+	require.NoError(t, json.Unmarshal([]byte(args[1]), &settings))
+	require.Contains(t, settings.TrustedWorkspaces, odd)
 }

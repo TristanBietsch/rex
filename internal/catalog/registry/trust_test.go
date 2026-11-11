@@ -71,3 +71,37 @@ func TestMergeTrustPrompt(t *testing.T) {
 	kept := mergeOne(Tool{ID: "claude", TrustPrompt: user}, Tool{ID: "claude", Name: "renamed"})
 	require.Equal(t, user, kept.TrustPrompt, "an overlay without trust_prompt keeps the builtin one")
 }
+
+func TestBuiltinAntigravity(t *testing.T) {
+	reg, err := Load("")
+	require.NoError(t, err)
+	agy, ok := reg.Find("antigravity")
+	require.True(t, ok)
+	require.Equal(t, []string{"agy"}, agy.Command)
+	require.Nil(t, agy.TrustPrompt, "agy trusts the folder from --settings; no keystrokes")
+	require.Equal(t, []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}, agy.TrustArgs)
+	_, ok = reg.Find("gemini")
+	require.False(t, ok, "Gemini CLI was retired; antigravity replaces it")
+
+	_, flash, ok := reg.FindModel("antigravity", "gemini-3.8-flash")
+	require.True(t, ok)
+	require.Equal(t, "--model=gemini-3.8-flash-{value}", flash.Effort.ArgTemplate, "effort picks the slug")
+}
+
+func TestValidateTrustArgs(t *testing.T) {
+	base := Tool{ID: "x", Detect: Detect{Kind: "hooks", Format: "claude"}, Models: []Model{{ID: "m"}}}
+	ok := base
+	ok.TrustArgs = []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}
+	require.NoError(t, validate([]Tool{ok}))
+
+	noFolder := base
+	noFolder.TrustArgs = []string{"--trust-everything"}
+	require.ErrorContains(t, validate([]Tool{noFolder}), "must name the folder")
+}
+
+func TestMergeTrustArgs(t *testing.T) {
+	merged := mergeOne(Tool{ID: "a", TrustArgs: []string{"--old", "{cwd_list}"}}, Tool{ID: "a", TrustArgs: []string{"--new", "{cwd_list}"}})
+	require.Equal(t, []string{"--new", "{cwd_list}"}, merged.TrustArgs)
+	kept := mergeOne(Tool{ID: "a", TrustArgs: []string{"--old", "{cwd_list}"}}, Tool{ID: "a", Name: "x"})
+	require.Equal(t, []string{"--old", "{cwd_list}"}, kept.TrustArgs)
+}

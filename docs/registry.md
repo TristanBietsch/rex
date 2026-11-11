@@ -20,6 +20,7 @@ tools:
     color: <string>
     enabled_by_default: <bool>            # optional; builtin only
     trust_prompt: { ... }                 # optional
+    trust_args: [<argv>...]               # optional
     models:
       - id: <string>
         name: <string>
@@ -86,7 +87,7 @@ State semantics for all kinds: a finished agent turn is `needs_input` (waiting o
 
 ### Initial prompt delivery
 
-The wizard / quick-spawn task reaches the agent on argv where the CLI supports it: `claude … -- <prompt>`, `codex … -- <prompt>`, `gemini … --prompt-interactive=<prompt>`. Other tools (ollama, custom) get it pasted into the PTY once `prompt_regex` matches.
+The wizard / quick-spawn task reaches the agent on argv where the CLI supports it: `claude … -- <prompt>`, `codex … -- <prompt>`, `agy … --prompt-interactive=<prompt>` (antigravity; also a user-defined `gemini` tool). Other tools (ollama, custom) get it pasted into the PTY once `prompt_regex` matches.
 
 ### trust_prompt
 
@@ -100,6 +101,16 @@ Describes the agent's folder-trust dialog. The daemon answers it only for sessio
 | `confirm` | Keys that confirm (Claude: Enter, `"\r"`) |
 
 While `shown` matches, the daemon sends `move` (at most 4 times, 300 ms apart) until `selected` matches, then sends `confirm` once. All four fields are required, and both regexes must compile. Anchor `shown` on the dialog's own header, so text that only quotes an option never triggers it, and keep `selected` on one line (`[ \t]`, not `\s`). The built-in `claude` entry needs "Accessing workspace:" (or the older "Do you trust the files in this folder?") followed by "Yes, I trust this folder" (or "Yes, proceed").
+
+### trust_args
+
+Extra arguments that make the agent trust the session folder itself, so no dialog shows. They are added only for sessions under a folder in `auto_trust_dirs`, and one argument must contain `{cwd_list}`. That placeholder expands to a JSON array holding the folder as given and, when different, as resolved through symlinks. Prefer this to `trust_prompt` when the agent supports it: nothing is typed into the agent.
+
+The built-in `antigravity` entry uses `agy`'s session-only settings, which are never saved to its `settings.json`:
+
+```yaml
+trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
+```
 
 ## Model fields
 
@@ -124,7 +135,9 @@ effort:
 
 ## Built-in tools
 
-Shipped ids include: `echo` (test), `claude`, `codex`, `gemini`, `ollama`, `grok`, `deepseek`, `kimi`. The last three default to `enabled_by_default: false`.
+Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `ollama`, `grok`, `deepseek`, `kimi`. The last three default to `enabled_by_default: false`.
+
+`antigravity` runs the Antigravity CLI (`agy`), Google's successor to Gemini CLI, which was retired on 2026-06-18 and is no longer built in. A `gemini` entry in your `tools.yaml` still works. The Gemini model's effort picks its slug (`--model=gemini-3.8-flash-<effort>`); the other models take `--effort`. Model slugs come from `agy models` and depend on your account.
 
 ## Reload
 

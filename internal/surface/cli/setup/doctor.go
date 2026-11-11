@@ -184,7 +184,7 @@ func checkSettingsLoad() checkResult {
 
 // checkToolBinaries checks each known tool binary via PATH lookup.
 func checkToolBinaries() []checkResult {
-	tools := []string{"claude", "codex", "gemini", "ollama"}
+	tools := []string{"claude", "codex", "agy", "ollama"}
 	var results []checkResult
 	for _, tool := range tools {
 		path, err := exec.LookPath(tool)

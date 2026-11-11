@@ -4,7 +4,7 @@
 # coverage goes up. Lower one only with a reason in the commit message.
 github.com/tristanbietsch/rex/cmd/rex 0
 github.com/tristanbietsch/rex/cmd/rex-daemon 32
-github.com/tristanbietsch/rex/internal/catalog/registry 75
+github.com/tristanbietsch/rex/internal/catalog/registry 82
 github.com/tristanbietsch/rex/internal/catalog/settings 73
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
 github.com/tristanbietsch/rex/internal/daemon/boot 19

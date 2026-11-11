@@ -27,12 +27,13 @@ const detachKey byte = 0x1d
 // excluded — its readline-based prompt treats Ctrl+L as "clear scrollback"
 // and loses chat history.
 var redrawKickTools = map[string]bool{
-	"claude":   true,
-	"codex":    true,
-	"gemini":   true,
-	"grok":     true,
-	"deepseek": true,
-	"kimi":     true,
+	"claude":      true,
+	"codex":       true,
+	"antigravity": true,
+	"gemini":      true,
+	"grok":        true,
+	"deepseek":    true,
+	"kimi":        true,
 }
 
 // RunAttach connects the user's terminal to a session's PTY.

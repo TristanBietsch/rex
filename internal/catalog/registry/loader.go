@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -115,6 +117,9 @@ func mergeOne(base, over Tool) Tool {
 	if over.TrustPrompt != nil {
 		merged.TrustPrompt = over.TrustPrompt
 	}
+	if len(over.TrustArgs) > 0 {
+		merged.TrustArgs = over.TrustArgs
+	}
 	// Models: extend by id rather than replace.
 	if len(over.Models) > 0 {
 		mi := make(map[string]int, len(merged.Models))
@@ -165,6 +170,11 @@ func validate(tools []Tool) error {
 			}
 		default:
 			return fmt.Errorf("tool %q: unknown detect.kind %q", t.ID, t.Detect.Kind)
+		}
+		if len(t.TrustArgs) > 0 && !slices.ContainsFunc(t.TrustArgs, func(a string) bool {
+			return strings.Contains(a, TrustArgsCWDList)
+		}) {
+			return fmt.Errorf("tool %q: trust_args must name the folder with %s", t.ID, TrustArgsCWDList)
 		}
 		if tp := t.TrustPrompt; tp != nil {
 			if tp.Shown == "" || tp.Selected == "" || tp.Move == "" || tp.Confirm == "" {

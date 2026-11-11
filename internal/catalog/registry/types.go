@@ -16,7 +16,15 @@ type Tool struct {
 	// TrustPrompt describes the agent's folder-trust dialog so the daemon
 	// can accept it for sessions under auto_trust_dirs. nil: no dialog.
 	TrustPrompt *TrustPrompt `yaml:"trust_prompt,omitempty"`
+	// TrustArgs are extra argv for sessions under auto_trust_dirs that make
+	// the agent trust the folder itself, so no dialog shows. {cwd_list}
+	// expands to a JSON array of the session folder's paths. Preferred over
+	// TrustPrompt when the agent supports it.
+	TrustArgs []string `yaml:"trust_args,omitempty"`
 }
+
+// TrustArgsCWDList is the trust_args placeholder for the session folder.
+const TrustArgsCWDList = "{cwd_list}"
 
 // TrustPrompt is an agent's "do you trust this folder?" dialog: how to tell
 // it is on screen and that its accept option is the selected one, and the

@@ -54,7 +54,7 @@ filesystem permissions.
   daemon with your privileges and is not sandboxed. Anyone who can edit it
   can already run code as you. The same applies to `tools.yaml` and
   `config.yaml`, which choose the programs rex spawns.
-- What the agent CLIs themselves do (Claude Code, Codex, Gemini and others),
+- What the agent CLIs themselves do (Claude Code, Codex, Antigravity and others),
   including the commands they run in your repository.
 - Folders you list in the `auto_trust_dirs` setting. For sessions there,
   rex accepts the agent's "trust this folder" dialog, so the repository's
