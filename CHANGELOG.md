@@ -190,6 +190,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- With no daemon running, commands now say so: `rex-daemon is not running
+  (no socket at <path>); start it with \`rex daemon start\``, instead of the
+  raw `dial unix …: no such file or directory`. The same goes for a socket
+  file a dead daemon left behind. A daemon that accepts the connection but
+  fails the handshake exits 4 (it was 1) in selector lookup, `rex prune` and
+  `rex render`, which also returned raw errors.
+
 - `rex wait` refuses an unknown `-until` and a negative `-timeout` (exit 5)
   instead of waiting forever or without limit. A timeout is recognized by
   its error type, not its text. `docs/cli.md` said a session removed during

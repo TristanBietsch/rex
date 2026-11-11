@@ -53,7 +53,7 @@ func RunPrune(args []string) error {
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return err
+		return core.HelloFailed(err)
 	}
 	targets, kept := tui.PruneTargets(snap.Sessions)
 	note := tui.PruneKeptNote(kept)

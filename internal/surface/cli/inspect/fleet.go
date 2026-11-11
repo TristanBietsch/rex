@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunFleet dispatches rex fleet subcommands.
@@ -60,14 +59,14 @@ func RunFleet(args []string) error {
 }
 
 func runFleetLS(socket string, w io.Writer) error {
-	c, err := client.Dial(socket)
+	c, err := core.DialPath(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 
 	// Count sessions per fleet; "(none)" for unassigned.
@@ -101,9 +100,9 @@ func runFleetLS(socket string, w io.Writer) error {
 }
 
 func runFleetSet(socket, selector, fleet string) error {
-	c, err := client.Dial(socket)
+	c, err := core.DialPath(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, selector)
@@ -112,13 +111,13 @@ func runFleetSet(socket, selector, fleet string) error {
 	}
 
 	// Reconnect — ResolveSelector consumed Hello.
-	c2, err := client.Dial(socket)
+	c2, err := core.DialPath(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c2.Close()
 	if _, err := c2.Hello("rex-cli"); err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 	if err := c2.SetSessionFleet(sess.ID, fleet); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
@@ -129,9 +128,9 @@ func runFleetSet(socket, selector, fleet string) error {
 }
 
 func runFleetUnset(socket, selector string) error {
-	c, err := client.Dial(socket)
+	c, err := core.DialPath(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	sess, err := core.ResolveSelector(c, selector)
@@ -139,13 +138,13 @@ func runFleetUnset(socket, selector string) error {
 		return err
 	}
 
-	c2, err := client.Dial(socket)
+	c2, err := core.DialPath(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c2.Close()
 	if _, err := c2.Hello("rex-cli"); err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 	if err := c2.SetSessionFleet(sess.ID, ""); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
@@ -156,14 +155,14 @@ func runFleetUnset(socket, selector string) error {
 }
 
 func runFleetShow(socket, fleet string, w io.Writer) error {
-	c, err := client.Dial(socket)
+	c, err := core.DialPath(socket)
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return err
 	}
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 
 	result := snap.Sessions[:0:len(snap.Sessions)]

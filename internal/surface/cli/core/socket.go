@@ -1,7 +1,10 @@
 package core
 
 import (
+	"errors"
 	"flag"
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -57,11 +60,37 @@ func (s *SocketFlag) Dial() (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	return DialPath(socket)
+}
+
+// DialPath connects to the daemon on socket. A failed dial is
+// ExitDaemonUnreachable; when nothing listens there (no socket file, or one
+// a dead daemon left behind) the message says so and how to start it.
+func DialPath(socket string) (*client.Client, error) {
 	c, err := client.Dial(socket)
 	if err != nil {
-		return nil, NewExitError(ExitDaemonUnreachable, err.Error())
+		return nil, DaemonUnreachable(socket, err)
 	}
 	return c, nil
+}
+
+// DaemonUnreachable is the exit-4 error for a dial that failed with err.
+func DaemonUnreachable(socket string, err error) error {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) {
+		ee := Errorf(ExitDaemonUnreachable, "rex daemon start",
+			"rex-daemon is not running (no socket at %s); start it with `rex daemon start`", socket)
+		ee.Err = err
+		return ee
+	}
+	return NewExitError(ExitDaemonUnreachable, err.Error())
+}
+
+// HelloFailed is the exit-4 error for a handshake that failed with err: the
+// daemon accepted the connection but did not answer.
+func HelloFailed(err error) error {
+	ee := Errorf(ExitDaemonUnreachable, "rex daemon status", "daemon did not answer the handshake: %s", err)
+	ee.Err = err
+	return ee
 }
 
 // DefaultSocket returns the daemon's default socket (paths.Socket). When it

@@ -2,21 +2,21 @@
 # (ExitDaemonUnreachable) and none of them starts a daemon. The harness
 # fails the script if anything answers on $SOCKET when it ends.
 
-# The dial error names the socket once (F-04: it used to be wrapped twice,
-# "dial <path>: dial unix <path>: ...").
+# The error names the socket once and says how to start the daemon (F-04: it
+# used to be wrapped twice, "dial <path>: dial unix <path>: ...").
 exitcode 4 rex ls
-stderr '^rex: dial unix \S+/rex\.sock: connect: no such file or directory$'
+stderr '^rex: rex-daemon is not running \(no socket at \S+/rex\.sock\); start it with `rex daemon start`$'
 ! stdout .
 
 exitcode 4 rex status
-stderr 'connect: no such file or directory'
+stderr 'rex-daemon is not running \(no socket at \S+/rex\.sock\)'
 ! stdout .
 
 exitcode 4 rex status -json
 ! stdout .
 
 exitcode 4 rex new -slug s1 hello
-stderr 'connect: no such file or directory'
+stderr 'rex-daemon is not running \(no socket at \S+/rex\.sock\)'
 
 exitcode 4 rex wait s1
 exitcode 4 rex rename s1 s2
@@ -24,6 +24,9 @@ exitcode 4 rex name s1
 exitcode 4 rex done s1
 exitcode 4 rex rm s1
 exitcode 4 rex log s1
+exitcode 4 rex render
+stderr 'rex-daemon is not running'
+exitcode 4 rex fleet ls
 
 # reload talks to the socket only; it never signals a process found by name.
 exitcode 4 rex reload

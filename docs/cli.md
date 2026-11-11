@@ -49,7 +49,7 @@ The interactive help text mentions `@needs`, `@working`, and `@done`. Those alia
 | 1 | Generic error; also `rex status` when any session is `needs_input`; `rex doctor` when any check fails |
 | 2 | Selector not found |
 | 3 | Ambiguous selector |
-| 4 | Daemon unreachable |
+| 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
 | 5 | Invalid arguments |
 | 6 | Operation refused |
 | 7 | `rex wait` timed out |

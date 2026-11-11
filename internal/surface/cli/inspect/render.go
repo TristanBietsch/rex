@@ -7,7 +7,6 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunRender connects to the daemon, fetches a snapshot, and prints the
@@ -25,18 +24,14 @@ func RunRender(args []string) error {
 	w, _ := strconv.Atoi(*widthFlag)
 	h, _ := strconv.Atoi(*heightFlag)
 
-	sock, err := socket.Path()
+	c, err := socket.Dial()
 	if err != nil {
 		return err
-	}
-	c, err := client.Dial(sock)
-	if err != nil {
-		return fmt.Errorf("dial daemon: %w", err)
 	}
 	defer c.Close()
 	snap, err := c.Hello("rex-render")
 	if err != nil {
-		return fmt.Errorf("hello: %w", err)
+		return core.HelloFailed(err)
 	}
 
 	m := tui.Model{

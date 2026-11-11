@@ -17,7 +17,7 @@ var fullUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][
 func ResolveSelector(c *client.Client, sel string) (protocol.SessionSummary, error) {
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return protocol.SessionSummary{}, err
+		return protocol.SessionSummary{}, HelloFailed(err)
 	}
 	return ResolveInSnapshot(snap.Sessions, sel)
 }

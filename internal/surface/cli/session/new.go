@@ -69,7 +69,7 @@ func RunNew(args []string) error {
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 	if derived {
 		*slug = uniqueSlug(*slug, snap.Sessions)
