@@ -110,9 +110,13 @@ func renderHelpLine(m Model, width int) string {
 	if m.Notice != "" {
 		return padLine("  "+styleBootReady.Render(truncate(m.Notice, width-2)), width)
 	}
-	// Five keys; the rest live under ?.
+	// Five keys (three on mobile); the rest live under ?.
+	keys := helpLineKeys
+	if mobileLayout(m) {
+		keys = helpLineKeysMobile
+	}
 	var parts []string
-	for _, k := range helpLineKeys {
+	for _, k := range keys {
 		parts = append(parts, styleHeaderApp.Render(k)+styleDim.Render(" "+helpLineLabel(k)))
 	}
 	sep := styleMuted.Render(" · ")

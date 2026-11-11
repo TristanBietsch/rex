@@ -238,10 +238,11 @@ func boardHeight(m Model) int {
 func ensureVisible(m Model) Model {
 	bh := boardHeight(m)
 	if sel := selectedBoardLine(m); sel >= 0 {
+		last := sel + rowLines(m) - 1 // a stacked row needs both lines on screen
 		if sel < m.ScrollOffset {
 			m.ScrollOffset = sel
-		} else if sel >= m.ScrollOffset+bh {
-			m.ScrollOffset = sel - bh + 1
+		} else if last >= m.ScrollOffset+bh {
+			m.ScrollOffset = last - bh + 1
 		}
 	}
 	m.ScrollOffset = clampScroll(m.ScrollOffset, len(boardSlots(m)), bh)

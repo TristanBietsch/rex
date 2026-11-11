@@ -36,6 +36,8 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | `blinking_enabled` | bool | `true` | Completed-row blink |
 | `show_help_bar` | bool | `true` | Bottom help line |
 | `header_style` | enum | `verbose` | `verbose`, `glyphs`, `numbers` |
+| `column_layout` | enum | `fixed` | `fixed`, `fit`. `fixed` gives board columns set widths that change only at width breakpoints (see [tui.md](tui.md#column-widths)); `fit` sizes them to their content |
+| `mobile_layout` | enum | `auto` | `auto`, `always`, `off`. Two-line rows, a compact header and a three-key help line. `auto` uses it at 60 columns or fewer; `always` and `off` force it (see [tui.md](tui.md#mobile-layout)) |
 
 ### Behavior
 
@@ -67,6 +69,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `summary_preview` | bool | `true` | A line under the board with the selected session's full AI summary and its age. Shown only while some session has a summary. Off: no line and no row reserved |
 | `waiting_section` | bool | `true` | A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own `◷` marker and count. Off: those sessions stay in Working, the section, its count and its key go away, and `1` `2` `3` (and `z1`-`z3`) are Needs you / Working / Done again. The daemon still records `waiting_on` / `waiting_since`; the switch is read by the TUI and `rex ls` |
 | `spawn_skills` | bool | `true` | Load skills from `~/.config/rex/skills` into one session: the wizard's skills step and `rex new -skill`. Off: the step is hidden, `-skill` exits 5 (`off: enable in Settings → Features (rex config set spawn_skills true)`), `NewSession` with skills is `bad_intent` `skills are off`, and no `--plugin-dir` is added, also on resume. The daemon reads it at each spawn and `Resume`. See [howto/skills.md](howto/skills.md) |
+| `session_export` | bool | `true` | `rex export` and `:export`: write one session as a json, yaml, md or txt document (the transcript replayed to clean text). Off: both refuse (`off: enable in Settings → Features (rex config set session_export true)`, exit 5 on the CLI). Exports can hold whatever the agent printed. See [export.md](export.md) |
 
 ### Spawn
 

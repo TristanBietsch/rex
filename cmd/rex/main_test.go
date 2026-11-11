@@ -16,7 +16,7 @@ var helpCommands = []string{
 	"status", "ls", "new", "attach", "reply", "send", "log", "wait", "rm",
 	"prune", "rename", "name", "done", "undone", "archive", "complete",
 	"reload", "completion", "setup", "doctor", "update", "uninstall",
-	"digest", "stats", "fleet", "skills",
+	"digest", "stats", "fleet", "skills", "export",
 }
 
 func TestRun_HelpFlagExitsZero(t *testing.T) {
@@ -56,6 +56,25 @@ func TestRun_OverviewAcceptsOutputFlags(t *testing.T) {
 	err = run(rest)
 	require.Error(t, err)
 	require.Equal(t, core.ExitDaemonUnreachable, exitCodeFor(err))
+}
+
+// rex export is a kit verb: --agent before it is accepted (it then fails on
+// the missing daemon, exit 4), while a format flag before it is refused by
+// the command itself (exit 5), because -o after the command is the export
+// format.
+func TestRun_ExportAcceptsAgentFlagAndRefusesFormatFlag(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(func() { core.SetOut(nil) })
+	rest, err := core.InitOutput([]string{"--agent", "export", "-socket", "/nonexistent/rex.sock", "p1"}, nil)
+	require.NoError(t, err)
+	err = run(rest)
+	require.Equal(t, core.ExitDaemonUnreachable, exitCodeFor(err))
+
+	rest, err = core.InitOutput([]string{"-o", "md", "export", "-socket", "/nonexistent/rex.sock", "p1"}, nil)
+	require.NoError(t, err)
+	err = run(rest)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
+	require.Contains(t, err.Error(), "after the command")
 }
 
 func TestRun_UnknownCommandSuggests(t *testing.T) {
@@ -111,4 +130,10 @@ func TestRun_EveryCommandIsKnown(t *testing.T) {
 	for _, c := range commands {
 		require.Contains(t, cases, c, "commands lists %q but run does not handle it", c)
 	}
+}
+
+func TestRun_QuietBootRejectsArguments(t *testing.T) {
+	err := run([]string{"--quiet-boot", "extra"})
+	require.Error(t, err)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
 }

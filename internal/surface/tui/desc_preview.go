@@ -27,12 +27,13 @@ const (
 
 // previewRows is how many rows sit between the board and the bottom rule for
 // the selected session's summary: 0 when the feature is off, the terminal is
-// short, or no session has a description yet; 2 on a tall terminal at the
+// short, in the mobile layout, or no session has a description yet; 2 on a tall terminal at the
 // long detail level; else 1. Whether the selected row has anything to show
 // does not matter: the rows are reserved for the whole board, so the board
 // height does not jump as the selection moves.
 func previewRows(m Model) int {
-	if !settings.FeatureOn(m.Store, featureSummaryPreview) || m.Height < previewMinHeight || !anyDescription(m) {
+	if !settings.FeatureOn(m.Store, featureSummaryPreview) || m.Height < previewMinHeight || !anyDescription(m) ||
+		mobileLayout(m) { // a stacked row's second line already shows the text
 		return 0
 	}
 	if m.Height >= previewTallHeight && m.Store != nil && m.Store.String("summary_detail") == "long" {

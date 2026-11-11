@@ -11,6 +11,7 @@
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
+//	    exports/                   ExportsDir: files :export writes (0600)
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
 //	    <name>.log                 rexlog files (daemon, tui, setup, ...)
@@ -53,6 +54,7 @@ const (
 	luaInitFileName  = "init.lua"
 	skillsDirName    = "skills"
 	sessionsDirName  = "sessions"
+	exportsDirName   = "exports"
 	daemonLockName   = "daemon.lock"
 	daemonLogName    = "daemon.log"
 	tuiStateFileName = "tui-state.json"
@@ -76,6 +78,7 @@ type Layout struct {
 	SkillsDir    string // ~/.config/rex/skills
 	DataDir      string // ~/.local/share/rex
 	SessionsDir  string // ~/.local/share/rex/sessions
+	ExportsDir   string // ~/.local/share/rex/exports
 	DaemonLock   string // ~/.local/share/rex/daemon.lock
 	LogDir       string // ~/.local/state/rex
 	DaemonLog    string // ~/.local/state/rex/daemon.log
@@ -100,6 +103,7 @@ func ForHome(home string) Layout {
 		SkillsDir:    filepath.Join(config, skillsDirName),
 		DataDir:      data,
 		SessionsDir:  filepath.Join(data, sessionsDirName),
+		ExportsDir:   filepath.Join(data, exportsDirName),
 		DaemonLock:   filepath.Join(data, daemonLockName),
 		LogDir:       logs,
 		DaemonLog:    filepath.Join(logs, daemonLogName),
@@ -186,6 +190,10 @@ func DataDir() (string, error) { return field(func(l Layout) string { return l.D
 // SessionsDir returns ~/.local/share/rex/sessions, which holds one
 // directory per session.
 func SessionsDir() (string, error) { return field(func(l Layout) string { return l.SessionsDir }) }
+
+// ExportsDir returns ~/.local/share/rex/exports, where the TUI's :export
+// writes (one file per session, mode 0600). The caller creates it.
+func ExportsDir() (string, error) { return field(func(l Layout) string { return l.ExportsDir }) }
 
 // DaemonLock returns ~/.local/share/rex/daemon.lock, the lock that keeps a
 // second daemon off the same DataDir.

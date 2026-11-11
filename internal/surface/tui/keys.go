@@ -88,6 +88,9 @@ var bindings = []binding{
 // binding that has a Line label.
 var helpLineKeys = []string{"enter", "i", "cc", "tab", "?"}
 
+// helpLineKeysMobile is the help line in the mobile layout.
+var helpLineKeysMobile = []string{"enter", "i", "?"}
+
 // bindingsIn returns the bindings of one help group as help rows, in table
 // order.
 func bindingsIn(group string) helpGroup {
@@ -142,6 +145,7 @@ var commands = []command{
 	{Names: []string{"complete"}, Args: "[sel]", Desc: "kill agent + mark done now", Group: groupSessionCmd, Run: runComplete},
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},
+	{Names: []string{"export"}, Args: "[sel] [fmt]", Desc: "write session to exports/", Group: groupSessionCmd, Flag: "session_export", Run: runExport},
 	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Flag: "board_filter", Run: runFilter},
 	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Flag: "search", Run: runSearch},
 

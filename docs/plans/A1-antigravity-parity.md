@@ -221,3 +221,14 @@ Do **(d1) + (c) fallback + (d3)** now. Do not touch global agy config. Revisit h
 - internal/daemon/server/spawn.go
 - internal/catalog/registry/builtin.yaml (antigravity block) and types.go/loader.go
 - internal/surface/cli/setup/doctor.go
+
+## Live capture findings (2026-11-11, D2; agy 1.5.6, TERM=tmux-256color, AGY_CLI_OSC7501=on)
+
+Raw bytes stayed in the session scratchpad and were not committed. Facts only:
+
+- **OSC 7501 format:** `ESC ] 7501 ; <fields> BEL` (BEL-terminated in every sample). Fields are colon-separated `key=value`: always `state=<word>` and `app=antigravity`; optional `kind=<word>` and `msg=<base64>` (standard base64 of a human message — untrusted text: decode, then `SanitizeDisplayText` before any display; never log it).
+- **States observed:** `working`, `idle`, `blocked` (seen with `kind=auth`), `error` (seen with the quota message). Map: working → working; idle → needs_input (turn done); blocked → needs_input (waiting on the user); error → needs_input with the error kept for display (process exit still decides done/failed).
+- **Trust dialog (no OSC needed for the fallback):** "Do you trust the contents of this project?", options `> Yes, I trust this folder` / `  No, exit`, footer `↑/↓ Navigate · enter Confirm`. Selected marker is `> `. agy remembers trust per folder after the first answer. rex showed the session as **working** while this dialog was up (the row-2 gap).
+- **Exit lines:** `Resume with -c (or command below):` then `agy --conversation=<uuid>` — the planned `capture_regex` matches.
+- **U6 evidence:** REP (`CSI n b`) ×23, DECST8C ×2, HT ×2 in one short session; with the merged vt10x REP/tab fixes the logo rendered whole and centered in a 166×36 popup, including after detach/re-attach.
+- Account note: the agy account hit its quota during the capture, so no model output; status signals were still emitted.

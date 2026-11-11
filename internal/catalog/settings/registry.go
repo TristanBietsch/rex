@@ -53,6 +53,18 @@ var Registry = []Setting{
 		Options: []string{"verbose", "glyphs", "numbers"},
 		Help:    "Change the header style for the aggregate counts at the top.",
 	},
+	{
+		ID: "column_layout", Label: "Column layout", Section: SectionAppearance,
+		Type: TypeEnum, Default: "fixed",
+		Options: []string{"fixed", "fit"},
+		Help:    "fixed: board columns have set widths that change only at breakpoints. fit: columns size to their content.",
+	},
+	{
+		ID: "mobile_layout", Label: "Mobile layout", Section: SectionAppearance,
+		Type: TypeEnum, Default: "auto",
+		Options: []string{"auto", "always", "off"},
+		Help:    "Two-line rows and a compact header for narrow terminals. auto: 60 columns or fewer. always / off force it.",
+	},
 
 	// Behavior
 	{
@@ -150,6 +162,12 @@ var Registry = []Setting{
 		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
+	},
+
+	{
+		ID: "session_export", Label: "Session export", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
 	},
 
 	// Spawn
