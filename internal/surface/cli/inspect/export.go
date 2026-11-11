@@ -21,6 +21,7 @@ type exportArgs struct {
 	outPath   string // "" = stdout
 	force     bool
 	maxFrames int
+	fromAgent bool
 }
 
 // parseExportArgs parses the arguments after `rex export`. The format is -o,
@@ -41,6 +42,7 @@ func parseExportArgs(args []string) (exportArgs, error) {
 	})
 	fs.BoolVar(&a.force, "force", false, "replace the --out file if it exists")
 	fs.IntVar(&a.maxFrames, "max-frames", 0, "keep only the last `N` frames (0 = all)")
+	fs.BoolVar(&a.fromAgent, "from-agent-log", false, "read Claude Code's own conversation log (roles and text) instead of the transcript")
 	rest, err := core.ParseArgs(fs, args)
 	if err != nil {
 		return a, err
@@ -121,6 +123,7 @@ func doExport(a exportArgs, sess protocol.SessionSummary) error {
 		Session:        sess,
 		TranscriptPath: filepath.Join(root, "sessions", sess.ID, "transcript.log"),
 		MaxFrames:      a.maxFrames,
+		FromAgentLog:   a.fromAgent,
 	})
 	if err != nil {
 		return exportFailure(err)

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -37,6 +38,13 @@ type Options struct {
 	// Cuts are extra frame cut points as transcript byte offsets (turn
 	// boundaries from the turn ledger, when there is one).
 	Cuts []int64
+	// FromAgentLog reads Claude Code's own conversation log instead of the
+	// transcript (see ReadAgentLog). When that is not possible the export
+	// falls back to frames and says why in Document.Notice.
+	FromAgentLog bool
+	// Home is the home directory the agent log is looked for under; empty
+	// means the current user's.
+	Home string
 }
 
 // Build reads the session's transcript and returns the document. The file
@@ -49,6 +57,17 @@ func Build(o Options) (Document, error) {
 		return Document{}, fmt.Errorf("export: max frames %d: must not be negative", o.MaxFrames)
 	}
 	d := Document{Version: Version, Session: o.Session, Source: SourceFrames}
+	if o.FromAgentLog {
+		turns, notice, err := agentTurns(o)
+		if err != nil {
+			return d, err
+		}
+		if notice == "" {
+			d.Source, d.Turns = SourceAgentLog, turns
+			return d, nil
+		}
+		d.Notice = notice
+	}
 	f, err := os.Open(o.TranscriptPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return d, fmt.Errorf("%w for session %s", ErrNoTranscript, o.Session.ShortID)
@@ -90,6 +109,29 @@ func Build(o Options) (Document, error) {
 	}
 	d.Frames = frames
 	return d, nil
+}
+
+// agentTurns reads the agent log for o.Session. A non-empty notice means it
+// could not be used and the export should show frames, for that reason.
+func agentTurns(o Options) (turns []Turn, notice string, err error) {
+	s := o.Session
+	switch {
+	case s.ToolID != "claude":
+		return nil, fmt.Sprintf("--from-agent-log reads Claude Code logs only, not %s; showing frames", s.ToolID), nil
+	case s.ResumeID == "":
+		return nil, "session has no resume id, so its agent log cannot be found; showing frames", nil
+	}
+	home := o.Home
+	if home == "" {
+		if home, err = paths.Home(); err != nil {
+			return nil, "", fmt.Errorf("export: %w", err)
+		}
+	}
+	turns, err = ReadAgentLog(home, s.ResumeID)
+	if errors.Is(err, ErrNoAgentLog) {
+		return nil, "agent log for resume id " + s.ResumeID + " not found under ~/.claude/projects; showing frames", nil
+	}
+	return turns, "", err
 }
 
 // WriteFile writes data to path with mode 0600. Without force it refuses to

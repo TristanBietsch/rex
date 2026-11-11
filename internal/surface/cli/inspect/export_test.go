@@ -309,3 +309,36 @@ func TestRunExport_endToEnd(t *testing.T) {
 	require.Contains(t, out, "tool: echo")
 	require.Contains(t, out, "awaiting input:")
 }
+
+const agentLogFixture = `{"type":"user","timestamp":"2026-01-02T03:04:06Z","message":{"role":"user","content":"fix the widget"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"On it."},{"type":"tool_use","name":"Edit","input":{"file_path":"/work/example/widget.go"}}]}}
+`
+
+func TestExport_fromAgentLog(t *testing.T) {
+	e := newExportEnv(t, "claude", redrawTranscript)
+	e.sess.ResumeID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+	dir := filepath.Join(os.Getenv("HOME"), ".claude", "projects", "-work-example")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, e.sess.ResumeID+".jsonl"), []byte(agentLogFixture), 0o600))
+
+	require.NoError(t, e.run(t, nil, "--from-agent-log"))
+	var d export.Document
+	require.NoError(t, json.Unmarshal(e.out.Bytes(), &d))
+	require.Equal(t, export.SourceAgentLog, d.Source)
+	require.Empty(t, d.Frames)
+	require.Len(t, d.Turns, 2)
+	require.Equal(t, "On it.\n[tool] Edit /work/example/widget.go", d.Turns[1].Text)
+	require.Empty(t, e.err.String())
+}
+
+func TestExport_fromAgentLogMissingFallsBackWithNotice(t *testing.T) {
+	e := newExportEnv(t, "claude", redrawTranscript)
+	e.sess.ResumeID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+	require.NoError(t, e.run(t, nil, "--from-agent-log"))
+	var d export.Document
+	require.NoError(t, json.Unmarshal(e.out.Bytes(), &d))
+	require.Equal(t, export.SourceFrames, d.Source)
+	require.Len(t, d.Frames, 2)
+	require.Contains(t, d.Notice, "showing frames")
+	require.Contains(t, e.err.String(), "rex: export: agent log")
+}
