@@ -653,6 +653,12 @@ func (c *Client) Unretire(sessionID, reqID string) error {
 	return c.send(protocol.IntentUnretire, reqID, protocol.Unretire{SessionID: sessionID})
 }
 
+// Resume makes a session live and not marked done: it unmarks a running
+// one and respawns an exited one in place. reqID is echoed on the reply.
+func (c *Client) Resume(sessionID, reqID string) error {
+	return c.send(protocol.IntentResume, reqID, protocol.Resume{SessionID: sessionID})
+}
+
 // Delete removes a session.
 func (c *Client) Delete(sessionID string) error {
 	return c.send(protocol.IntentDelete, "", protocol.Delete{SessionID: sessionID})

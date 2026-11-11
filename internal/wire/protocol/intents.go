@@ -19,6 +19,7 @@ const (
 	IntentSetSessionName   = "SetSessionName"
 	IntentRetire           = "Retire"
 	IntentUnretire         = "Unretire"
+	IntentResume           = "Resume"
 	IntentReload           = "Reload"
 )
 
@@ -149,5 +150,15 @@ type Retire struct {
 // Unretire cancels a pending Retire. Fails with bad_state once the daemon has
 // started clearing the session.
 type Unretire struct {
+	SessionID string `json:"session_id"`
+}
+
+// Resume makes a session live and not marked done. A running session just
+// loses its done mark. An exited (done, failed or crashed) session is
+// respawned in place with the tool's resume arguments: same id, slug, row
+// and transcript. Fails with bad_state when the tool cannot resume the
+// session (no resume block, or no known resume id) or the daemon has
+// started clearing it, and with too_many_sessions at the concurrency cap.
+type Resume struct {
 	SessionID string `json:"session_id"`
 }

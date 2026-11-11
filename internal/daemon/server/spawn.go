@@ -18,9 +18,15 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
+// unknownToolError is the bad_intent error for a tool/model pair the registry
+// does not have. NewSession and Resume report it the same way.
+func unknownToolError(toolID, modelID string) error {
+	return badIntent(fmt.Errorf("tool %s/%s not in registry", toolID, modelID))
+}
+
 // handleNewSession validates p, spawns its session and returns the new
-// session's ID. Errors from validation are badIntent; the caller maps the
-// rest to spawn_failed or too_many_sessions.
+// session's ID. Errors from validation, and an unknown tool or model, are
+// badIntent; the caller maps the rest to spawn_failed or too_many_sessions.
 func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) (string, error) {
 	if err := validateNewSession(p); err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
@@ -35,7 +41,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// Read the registry through the lock so SIGHUP-swapped versions take effect.
 	tool, model, ok := srv.Registry().FindModel(p.ToolID, p.ModelID)
 	if !ok {
-		return "", fmt.Errorf("tool %s/%s not in registry", p.ToolID, p.ModelID)
+		return "", unknownToolError(p.ToolID, p.ModelID)
 	}
 	if p.Effort != "" && model.Effort != nil && !slices.Contains(model.Effort.Options, p.Effort) {
 		return "", fmt.Errorf("effort %q not offered by %s/%s (options: %s)",
@@ -119,7 +125,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		return "", err
 	}
 
-	if err := startSupervisor(ctx, srv, sess, spec, cmdArgs, childEnv, ptyPrompt, delivery); err != nil {
+	if err := startSupervisor(ctx, srv, sess, spec, cmdArgs, childEnv, ptyPrompt, delivery, nil); err != nil {
 		srv.ReleaseSession()
 		_ = cfg.Store.Remove(sess.ID)
 		return "", err
@@ -204,7 +210,12 @@ func childEnvFor(spec spawnSpec) []string {
 // startSupervisor builds the adapter and PTY supervisor for sess and runs it
 // in the background. The caller owns the session slot and the Store entry:
 // on error it must release the slot (and remove sess if it added it).
-func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec spawnSpec, argv, env []string, ptyPrompt string, delivery promptDelivery) error {
+//
+// res is the stop reservation a Resume holds (nil for a new session): it is
+// swapped for the real stop func before the child is started, and if a Delete
+// cancelled it first, startSupervisor returns errResumeCancelled and starts
+// nothing, so a delete racing a resume leaves no process and no directory.
+func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec spawnSpec, argv, env []string, ptyPrompt string, delivery promptDelivery, res *stopReservation) error {
 	cfg := srv.cfg
 	ad, err := adapter.For(spec.Tool, spec.HookFile)
 	if err != nil {
@@ -263,10 +274,19 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 	sessCtx, cancelCause := context.WithCancelCause(ctx)
 	cancel := func() { cancelCause(nil) }
 	done := make(chan struct{})
-	srv.RegisterStop(sess.ID, func() {
+	stop := func() {
 		cancelCause(pty.ErrSessionDeleted)
 		<-done
-	})
+	}
+	if res != nil {
+		if !srv.promoteStop(sess.ID, res, stop) {
+			cancel()
+			srv.UnregisterInputChannel(sess.ID)
+			return errResumeCancelled
+		}
+	} else {
+		srv.RegisterStop(sess.ID, stop)
+	}
 	srv.RegisterComplete(sess.ID, func() {
 		select {
 		case completeCh <- struct{}{}:

@@ -246,6 +246,31 @@ func CreateHookFile(root, id string) (string, error) {
 	return path, nil
 }
 
+// ResetHookFile empties an existing session's hook state file (owner-only)
+// and returns its path, so a respawned agent's adapter does not replay the
+// previous run's lines. Unlike CreateHookFile it never creates the session
+// directory: a session deleted while a resume was in flight must not come
+// back as an orphan directory.
+func ResetHookFile(root, id string) (string, error) {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "hooks.log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, filePerm)
+	if err != nil {
+		return "", fmt.Errorf("reset hook file: %w", err)
+	}
+	if err := f.Chmod(filePerm); err != nil {
+		_ = f.Close()
+		return "", fmt.Errorf("chmod hook file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("close hook file: %w", err)
+	}
+	return path, nil
+}
+
 // TightenPerms makes an existing state tree owner-only: root, root/sessions
 // and every session dir become 0700, every regular file directly in them
 // 0600. Older daemons created 0755 dirs and 0644 files. root itself may be a

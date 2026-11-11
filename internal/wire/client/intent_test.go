@@ -161,6 +161,22 @@ func TestClient_RenameCarriesRequestID(t *testing.T) {
 	require.Equal(t, "cli-rename-abcd", env.ID)
 }
 
+func TestClient_ResumeSendsIntentWithRequestID(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+	c := newClient(clientConn)
+
+	go func() { require.NoError(t, c.Resume("sess-1", "cli-resume-abcd")) }()
+	env, err := protocol.NewReader(serverConn).Read()
+	require.NoError(t, err)
+	require.Equal(t, protocol.IntentResume, env.Type)
+	require.Equal(t, "cli-resume-abcd", env.ID)
+	var p protocol.Resume
+	require.NoError(t, json.Unmarshal(env.Data, &p))
+	require.Equal(t, "sess-1", p.SessionID)
+}
+
 func TestClient_DrainStopsWhenHandlerReturnsFalse(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	t.Cleanup(func() { _ = clientConn.Close() })

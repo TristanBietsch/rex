@@ -2,6 +2,10 @@ package protocol
 
 import "strings"
 
+// MsgClearing is the bad_state message for an intent that lost the race with
+// the retire sweep: the session is already being cleared.
+const MsgClearing = "session is already being cleared"
+
 // ValidResumeID reports whether s is a canonical UUID (8-4-4-4-12 hex, either
 // case). A resume id becomes one argv element of a spawned agent, so the
 // check also rules out a leading "-" (flag injection), whitespace and NUL.

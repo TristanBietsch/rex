@@ -15,7 +15,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   found and used in a new `resume` registry block (`args`, `new_args`,
   `capture_regex`, with `{id}` as the placeholder); see `docs/registry.md`.
   Only canonical UUIDs are accepted, since the id ends up on a command line.
-  Nothing uses it yet: resuming an exited session comes next.
+  Nothing in the UI uses it yet.
+- New `Resume` intent (`client.Resume`). On a running session it removes the
+  done mark. On a done, failed or crashed session, including ones stranded by
+  a daemon restart, it starts the agent again in the same row with the tool's
+  resume arguments, keeping the id, slug, start time and transcript; folder
+  trust is recomputed from the current config. It fails with `bad_state` when
+  the tool has no resume support or no resume id is known, and with
+  `too_many_sessions` at the session cap. A `Delete` racing a resume leaves no
+  process and no directory behind. See `docs/protocol.md`.
 - The daemon records `ended_at` for every session: the first time it reached
   done, failed or crashed. It is in `meta.json`, in snapshots and in state
   patches, and older sessions get it from their last event.
@@ -80,6 +88,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `NewSession` for a tool or model that is not in the registry now fails
+  with `bad_intent` (it was `spawn_failed`), the same error `Resume` gives.
 - Skipping agent permission prompts is now opt-in. Claude Code and
   Antigravity no longer start with `--dangerously-skip-permissions` unless
   you set `skip_permissions: true` (default off; read at each spawn). The
@@ -119,6 +129,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A session that ends now always sends `working_since: null` in its final
+  state patch, as the protocol says. It was lost on the path where the child
+  exits or is completed, so a client could keep a stale working timer.
 - A partial `tools.yaml` entry for a retired built-in tool (codex, gemini,
   ollama, grok, deepseek, kimi) no longer stops the daemon from starting.
   It is dropped with a warning in the daemon log and on the TUI splash.

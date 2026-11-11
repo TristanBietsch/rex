@@ -31,7 +31,7 @@ type Event struct {
 
 // ErrReaping is returned by ClearRetire once the retire sweep has claimed the
 // session: the undo lost the race and the session is being cleared.
-var ErrReaping = errors.New("session is already being cleared")
+var ErrReaping = errors.New(protocol.MsgClearing)
 
 // Store is the central session table.
 type Store struct {
@@ -248,6 +248,14 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 		sess.WorkingSince = time.Time{}
 		patch["working_since"] = nil
 	}
+	// SetExit (the supervisor's exit paths) clears WorkingSince before it
+	// calls Transition, so the case above sees nothing to clear. A terminal
+	// change still tells clients the stretch is over.
+	if isTerminal(newState) {
+		if _, ok := patch["working_since"]; !ok {
+			patch["working_since"] = nil
+		}
+	}
 	maps.Copy(patch, sess.noteStateLocked(newState, now))
 	sess.State = newState
 	sess.LastEventAt = now
@@ -321,6 +329,42 @@ func (s *Store) ClearRetire(id string) (changed bool, err error) {
 	sess.RetiredAt = time.Time{}
 	sess.mu.Unlock()
 	return true, nil
+}
+
+// ErrNotExited is returned by Reopen for a session that is not done, failed
+// or crashed.
+var ErrNotExited = errors.New("session has not exited")
+
+// Reopen turns an exited (done, failed or crashed) session back into a queued
+// one so a respawn can reuse its row: State=queued, LastEventAt=now, and
+// EndedAt, ExitCode, RetireAt and RetiredAt cleared. StartedAt, tokens,
+// description and slug stay. It refuses a live session (ErrNotExited), a
+// session the retire sweep has claimed (ErrReaping, atomic with the claim)
+// and one that is gone. Like SetRetire it does not broadcast: the caller
+// persists meta, then broadcasts
+// {state, last_event_at, ended_at: nil, exit_code: nil, retire_at: nil, retired_at: nil}.
+func (s *Store) Reopen(id string) error {
+	sess, ok := s.Get(id)
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	switch {
+	case sess.removed:
+		return fmt.Errorf("session %s not found", id)
+	case sess.reaping:
+		return ErrReaping
+	case !isTerminal(sess.State):
+		return ErrNotExited
+	}
+	sess.State = protocol.StateQueued
+	sess.LastEventAt = time.Now().UTC()
+	sess.EndedAt = time.Time{}
+	sess.ExitCode = nil
+	sess.RetireAt = time.Time{}
+	sess.RetiredAt = time.Time{}
+	return nil
 }
 
 // RetireCandidate is a marked session whose deadline has passed.

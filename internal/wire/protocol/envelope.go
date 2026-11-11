@@ -20,6 +20,7 @@
 //	SetSessionName    Ack{session_id}               SessionUpdated is broadcast first
 //	SetSessionFleet   Ack{session_id}
 //	Retire, Unretire  Ack{session_id}               also when nothing changed
+//	Resume            Ack{session_id}               SessionUpdated (state queued) is broadcast first when a dead session respawns
 //	Delete            Ack{session_id}               SessionRemoved is broadcast first
 //	Complete          Ack{session_id}               termination requested, not finished
 //	Resize            Ack{session_id}               also for the 0x0 no-op
