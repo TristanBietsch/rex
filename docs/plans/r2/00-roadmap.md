@@ -105,7 +105,7 @@ Same as round 1 (`00-orchestration.md` → "Per-task pipeline"): worktree per ta
 |---|---|---|
 | R01 | spike breadth, gate | survey + top 5 · all five approved (snapshots + undo, diff, templates, presets, export) |
 | R01-1..5 | build specs | snapshots: git worktrees only, refuse undo unless confirmed when another agent shares the folder, 2 GiB cap, agent not told · diff: add/del colors, enter expands + e edits, last turn first · templates: `{{1}}` style, plain data, `:p` spawns now · presets: one `presets.yaml`, optional prompt prefix, presets first · export: vt10x for full-screen + strip for line tools, `--from-agent-log` opt-in, json default + yaml/md/txt |
-| R02 | tools, missing, refresh, detect | claude, agy, qwen, cursor, grok (no omp) · missing hidden in wizard, dimmed in Settings · refresh at start/reload/24 h · regex now, qwen hooks later |
+| R02 | tools, missing, refresh, detect | claude, agy, qwen, cursor, grok (no omp) · missing hidden in wizard, dimmed in Settings · refresh at start/reload/24 h · OSC 7501 status (rex answers the terminal check) with regex fallback · grok trust dialog left to the user |
 | R03 | follow-up to S4 | none; TODO line closes as a duplicate of S4 |
 | R04 | layout, themes, audio | two-pane inspector · dracula + tokyo_night + pantone_safe · volume now |
 | R05 | API, require, locked, YAML | `rex.set` · `~/.config/rex/lua/` only · refuse + open file · YAML stays the TUI write target |
