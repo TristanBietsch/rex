@@ -125,7 +125,7 @@ func RunHelp() error {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("selectors: short id, slug, ") + HelpCmd.Render("@needs") + HelpDim.Render(", ") + HelpCmd.Render("@working") + HelpDim.Render(", ") + HelpCmd.Render("@done") + "\n")
+	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("selectors: short id, slug, full id") + "\n")
 	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("inside the TUI press ") + HelpCmd.Render("?") + HelpDim.Render(" for keybindings") + "\n")
 	b.WriteString("\n")
 

@@ -45,12 +45,12 @@ func resolveOutcome(t *testing.T, sessions []protocol.SessionSummary, sel string
 
 // FuzzResolveInSnapshot checks that selector resolution over a fixed board
 // never panics, only resolves to a session the selector actually names, keeps
-// the documented precedence (full ID, then exact slug), and does not depend
+// the documented precedence (full ID, then exact slug unless it collides with another session short id), and does not depend
 // on the order sessions arrive in.
 func FuzzResolveInSnapshot(f *testing.F) {
 	for _, s := range []string{
 		"alpha", "b203", "7d4f3c8a-1234-4abc-89ab-cdefabcdef01", "nope", "dup",
-		"", "7d4f", "7d4f9", "b203a", "beef", "7D4F", "7d4f3c8a-1234-4abc-89ab-cdefabcdef0",
+		"", "7d4f", "7d4f9", "b203a", "beef", "7D4F", "B203A", "7d4f3c8a-1234-4abc-89ab-cdefabcdef0",
 	} {
 		f.Add(s)
 	}
@@ -82,14 +82,25 @@ func FuzzResolveInSnapshot(f *testing.F) {
 				bySlug = append(bySlug, s)
 			}
 		}
-		switch len(bySlug) {
-		case 0:
-		case 1:
-			// Exact slug beats any short-id or prefix match.
+		// Another session whose short id or id prefix the selector spells
+		// (in any case) makes an exact slug ambiguous instead of winning.
+		lower := strings.ToLower(sel)
+		collides := false
+		if hexShortID.MatchString(lower) {
+			for _, s := range fuzzSessions {
+				if (s.ShortID == lower || strings.HasPrefix(s.ID, lower)) && s.Slug != sel {
+					collides = true
+				}
+			}
+		}
+		switch {
+		case len(bySlug) == 0:
+		case len(bySlug) == 1 && !collides:
+			// An exact slug beats a short-id match on the same session only.
 			require.Equal(t, bySlug[0].ID, out.id, "exact slug %q must win", sel)
 			return
 		default:
-			require.Equal(t, ExitAmbiguousSelector, out.code, "duplicate slug %q must be ambiguous", sel)
+			require.Equal(t, ExitAmbiguousSelector, out.code, "duplicate or colliding slug %q must be ambiguous", sel)
 			return
 		}
 
@@ -97,7 +108,7 @@ func FuzzResolveInSnapshot(f *testing.F) {
 			i := slices.IndexFunc(fuzzSessions, func(s protocol.SessionSummary) bool { return s.ID == out.id })
 			require.GreaterOrEqual(t, i, 0, "resolved to a session outside the snapshot")
 			got := fuzzSessions[i]
-			require.True(t, got.ShortID == sel || strings.HasPrefix(got.ID, sel),
+			require.True(t, got.ShortID == lower || strings.HasPrefix(got.ID, lower),
 				"selector %q resolved to %s (%s) without naming it", sel, got.ShortID, got.Slug)
 		}
 	})

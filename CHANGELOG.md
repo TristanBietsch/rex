@@ -136,6 +136,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Breaking:** a selector that is a session's exact slug and also the short
+  id (or id prefix) of a different session, such as a slug `feed` and
+  another session whose id starts with `feed`, now exits 3 and lists both.
+  It used to pick the slug silently, so `rex rm feed` could delete the wrong
+  session. Use the full id.
+
 - **Breaking:** `rex rm` without a terminal on stdin now needs `-force`
   (aliases `-yes`, `-y`) and otherwise exits 6, like `rex prune`. It used
   to delete without asking. Declining the prompt on a terminal also exits 6
@@ -189,6 +195,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   start, and it does not start a second daemon if the first will not stop.
 
 ### Fixed
+
+- Short ids match in any case (`rex attach A91C`). `rex --help` no longer
+  lists the `@needs`, `@working` and `@done` selectors, which never existed.
 
 - With no daemon running, commands now say so: `rex-daemon is not running
   (no socket at <path>); start it with \`rex daemon start\``, instead of the
