@@ -360,8 +360,8 @@ func layoutSlots(slots []boardSlot, now time.Time, width int, detailed bool) row
 
 // layoutRows sizes columns to content, then degrades for narrow widths in a
 // fixed order until the description gets descMin: drop tokens, shrink model
-// (to modelMin), shrink name (to slugMin), drop model, drop long-run
-// badge. Below that
+// (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
+// long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
 func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed bool) rowCols {
 	var c rowCols

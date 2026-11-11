@@ -225,3 +225,88 @@ func TestClaudeHooks_BlankLinesAndUnreadableFile(t *testing.T) {
 	require.Equal(t, protocol.StateWorking, b.Detect(nil, 0))
 	require.Zero(t, b.Subagents())
 }
+
+// A subagent quiet for subagentQuiet stops counting; any sign of life
+// (start or a tool call) keeps it, or brings it back.
+func TestClaudeHooks_QuietSubagentsExpire(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.log")
+	a := NewClaudeHooks(path)
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	now := t0
+	a.now = func() time.Time { return now }
+
+	appendLine(t, path, "agent+ busy")
+	appendLine(t, path, "agent+ lost") // its SubagentStop never comes
+	require.Equal(t, 2, a.Subagents())
+
+	now = t0.Add(10 * time.Minute)
+	appendLine(t, path, "agent~ busy")
+	require.Equal(t, 2, a.Subagents())
+
+	now = t0.Add(subagentQuiet + time.Minute)
+	require.Equal(t, 1, a.Subagents(), "lost is quiet past the window; busy was seen 6m ago")
+
+	now = t0.Add(10*time.Minute + subagentQuiet + time.Minute)
+	require.Zero(t, a.Subagents())
+
+	appendLine(t, path, "agent~ busy") // still running after all
+	require.Equal(t, 1, a.Subagents())
+}
+
+func runHook(t *testing.T, command, path, stdin string) {
+	t.Helper()
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Env = append(os.Environ(), HookFileEnv+"="+path)
+	cmd.Stdin = strings.NewReader(stdin)
+	require.NoError(t, cmd.Run())
+}
+
+func hookCommands(t *testing.T) map[string]string {
+	t.Helper()
+	var cfg struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(ClaudeHookArgs()[1]), &cfg))
+	out := map[string]string{}
+	for ev, groups := range cfg.Hooks {
+		out[ev] = groups[0].Hooks[0].Command
+	}
+	return out
+}
+
+// Only the top-level agent_id counts: not a nested object's, not one in an
+// array after it, and pretty-printed JSON works too.
+func TestClaudeHookArgs_TopLevelAgentID(t *testing.T) {
+	cmds := hookCommands(t)
+	path := filepath.Join(t.TempDir(), "hooks.log")
+	runHook(t, cmds["SubagentStart"], path,
+		`{"session_id":"s","agent_id":"top1","agent_type":"Explore","transcript":{"agent_id":"nested"},"background_tasks":[{"agent_id":"b1"},{"agent_id":"b2"}]}`)
+	runHook(t, cmds["SubagentStart"], path, "{\n  \"session_id\": \"s\",\n  \"agent_id\": \"top2\",\n\t\"agent_type\": \"Plan\"\n}\n")
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "agent+ top1\nagent+ top2\n", string(raw))
+}
+
+// SessionStart resets the set for a new or cleared conversation, not after a
+// compaction; a subagent's PostToolUse is a sign of life, the main
+// session's is not.
+func TestClaudeHookArgs_SessionStartAndPostToolUse(t *testing.T) {
+	cmds := hookCommands(t)
+	path := filepath.Join(t.TempDir(), "hooks.log")
+	runHook(t, cmds["SessionStart"], path, `{"session_id":"s","hook_event_name":"SessionStart","source":"compact"}`)
+	runHook(t, cmds["SessionStart"], path, `{"session_id":"s","hook_event_name":"SessionStart","source":"startup"}`)
+	runHook(t, cmds["SessionStart"], path, `{"session_id":"s","source":"clear"}`)
+	runHook(t, cmds["PostToolUse"], path, `{"session_id":"s","tool_name":"Bash","tool_input":{"command":"ls"}}`)
+	runHook(t, cmds["PostToolUse"], path, `{"session_id":"s","agent_id":"sub-7","agent_type":"Explore","tool_name":"Read"}`)
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "needs_input\n"+
+		"agents-reset\nneeds_input\n"+
+		"agents-reset\nneeds_input\n"+
+		"working\n"+
+		"working\nagent~ sub-7\n", string(raw))
+}

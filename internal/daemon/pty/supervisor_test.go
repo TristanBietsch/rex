@@ -2,6 +2,8 @@ package pty
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -535,41 +537,61 @@ type countingAdapter struct {
 func (c *countingAdapter) Subagents() int { return int(c.n.Load()) }
 
 // The supervisor patches the subagent count while the agent runs and clears
-// it when the agent exits.
+// it when the agent exits, before the final meta.json write. Driven by the
+// patches themselves, not by sleeps: the count drops once the first patch
+// is seen, and the child exits once the second is.
 func TestSupervisor_ReportsSubagents(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the child reads its exit signal from a Unix tty")
+	}
 	stateDir := t.TempDir()
 	store := state.NewStore()
 	sess := &state.Session{ID: "sub1", ShortID: "sub1", ToolID: "claude", Slug: "sub",
 		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
 	require.NoError(t, store.Add(sess))
+	ad := &countingAdapter{}
+	ad.n.Store(2)
+	release := make(chan struct{})
 	var (
 		mu   sync.Mutex
 		seen []int
+		once sync.Once
 	)
 	store.Subscribe(func(e state.Event) {
-		if v, ok := e.Patch["subagents"].(int); ok {
-			mu.Lock()
-			seen = append(seen, v)
-			mu.Unlock()
+		v, ok := e.Patch["subagents"].(int)
+		if !ok {
+			return
+		}
+		mu.Lock()
+		seen = append(seen, v)
+		mu.Unlock()
+		switch v {
+		case 2:
+			ad.n.Store(1)
+		case 1:
+			once.Do(func() { close(release) })
 		}
 	})
-	ad := &countingAdapter{}
-	ad.n.Store(2)
+	input := make(chan []byte, 1)
 	go func() {
-		time.Sleep(300 * time.Millisecond)
-		ad.n.Store(1)
+		<-release
+		input <- []byte("\n")
 	}()
 	sup := New(SupervisorConfig{
 		StateDir: stateDir, Store: store,
-		Command:  []string{"sleep", "0.7"},
+		Command:  []string{"sh", "-c", "read x"},
 		Adapter:  ad,
+		InputCh:  input,
 		IdleTick: 20 * time.Millisecond,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = sup.Run(ctx, sess)
+	require.NoError(t, sup.Run(ctx, sess))
 
 	mu.Lock()
-	defer mu.Unlock()
 	require.Equal(t, []int{2, 1, 0}, seen, "one patch per change, cleared at exit")
+	mu.Unlock()
+	meta, err := os.ReadFile(filepath.Join(stateDir, "sessions", sess.ID, "meta.json"))
+	require.NoError(t, err)
+	require.NotContains(t, string(meta), "subagents", "the final meta.json keeps no count")
 }

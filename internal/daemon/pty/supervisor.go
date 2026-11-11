@@ -357,11 +357,15 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	ticker := time.NewTicker(s.cfg.IdleTick)
 	trust := newTrustAnswerer(s.cfg.TrustPrompt, time.Now())
 	agents, _ := s.cfg.Adapter.(adapter.SubagentCounter) // nil unless the agent reports subagents
-	defer func() {
-		if agents != nil { // the agent is gone, and its subagents with it
+	// clearAgents zeroes the count once the agent is gone, and its
+	// subagents with it. The exit paths call it before the final meta.json
+	// write, so the file never keeps a count; the defer covers the rest.
+	clearAgents := func() {
+		if agents != nil {
 			_ = s.cfg.Store.SetSubagents(sess.ID, 0)
 		}
-	}()
+	}
+	defer clearAgents()
 	defer ticker.Stop()
 
 	for {
@@ -380,6 +384,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			slog.Info("pty: complete signal received, killing child cleanly",
 				"session", sess.ID, "pid", cmd.Process.Pid)
 			s.killAndReap(sess.ID, cmd, f, errc)
+			clearAgents()
 			if err := s.cfg.Store.Transition(sess.ID, protocol.StateDone); err != nil {
 				return err
 			}
@@ -396,6 +401,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			// Update in-memory state first (under the session lock) so the
 			// persisted meta reflects the terminal state.
 			sess.SetExit(final, exitCode)
+			clearAgents()
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
 			}
