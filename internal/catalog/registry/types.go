@@ -25,6 +25,9 @@ type Tool struct {
 	// asking for approval (for example --dangerously-skip-permissions). They
 	// are added only while the skip_permissions setting is on.
 	SkipPermissionsArgs []string `yaml:"skip_permissions_args,omitempty"`
+	// Resume says how to resume the agent's conversation and how rex learns
+	// its id. nil: the tool cannot be resumed.
+	Resume *ResumeSpec `yaml:"resume,omitempty"`
 }
 
 // TrustArgsCWDList is the trust_args placeholder for the session folder.

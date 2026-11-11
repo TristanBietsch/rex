@@ -22,6 +22,7 @@ tools:
     trust_prompt: { ... }                 # optional
     trust_args: [<argv>...]               # optional
     skip_permissions_args: [<argv>...]    # optional
+    resume: { ... }                       # optional
     models:
       - id: <string>
         name: <string>
@@ -43,7 +44,7 @@ State detection (`detect`) selects an adapter that classifies PTY output into se
 3. Merge is by tool `id`. User fields replace builtin scalars when non-empty.
 4. Models merge by model `id` (replace or append).
 5. `enabled_by_default` is **not** merged from user YAML; it applies only on builtin entries.
-6. `trust_prompt`, `trust_args` and `skip_permissions_args` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead.
+6. `trust_prompt`, `trust_args`, `skip_permissions_args` and `resume` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead. A `resume` overlay replaces the whole block (no field-by-field merge).
 7. A partial overlay of a retired built-in tool (`codex`, `gemini`, `ollama`, `grok`, `deepseek`, `kimi`) that has no built-in entry and is not a complete tool definition is dropped with a warning instead of failing the load. The daemon logs the warning at start and on reload, and the TUI splash shows it. Define the tool fully in `tools.yaml` to keep it. Any other invalid tool still fails the load.
 
 Duplicate tool or model ids are rejected at load time.
@@ -119,6 +120,21 @@ The built-in `antigravity` entry uses `agy`'s session-only settings, which are n
 ```yaml
 trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
 ```
+
+### resume
+
+How an agent's conversation is identified and resumed. Without it the tool cannot be resumed.
+
+```yaml
+resume:
+  args: ["--resume", "{id}"]            # required: argv that resumes a conversation
+  new_args: ["--session-id", "{id}"]    # optional: added at spawn with a fresh UUID
+  capture_regex: "id=([0-9a-f-]{36})"   # optional: group 1 = id, read at child exit
+```
+
+`{id}` is the placeholder for the conversation id. It may sit inside one argument (`--conversation={id}`); substitution never splits or adds arguments. This differs from effort's `{value}`, which is split on whitespace. `args` is required and must contain `{id}`; `new_args`, when set, must contain `{id}`; `capture_regex` must compile and have at least one group (it runs in multi-line mode).
+
+Every id must be a canonical UUID (either case; stored lowercase), because it becomes a command-line argument. The built-in `antigravity` has no `resume` block yet.
 
 ## Model fields
 
