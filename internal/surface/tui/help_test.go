@@ -35,7 +35,7 @@ func TestRenderHelpFits(t *testing.T) {
 }
 
 func TestRenderHelpGroupTitles(t *testing.T) {
-	plain := ansi.Strip(renderHelp(Model{}, 120, 60))
+	plain := ansi.Strip(renderHelp(Model{}, 120, 64))
 	for _, gs := range [][]helpGroup{helpLeft(Model{}), helpRight} {
 		for _, g := range gs {
 			if !strings.Contains(plain, g.Title) {
