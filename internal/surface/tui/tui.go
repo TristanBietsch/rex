@@ -88,7 +88,7 @@ func (m Model) View() string {
 	case FocusBoot:
 		return renderSplash(m, w, h)
 	case FocusWizard:
-		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderWizard(m), w), renderFullScreen(m, w, h))
 	case FocusHelp:
 		return centerOverlayBox(w, h, renderHelp(m, w, h), renderFullScreen(m, w, h))
 	case FocusSettings:
@@ -96,11 +96,11 @@ func (m Model) View() string {
 	case FocusAttach:
 		return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
 	case FocusFail:
-		return centerOverlay(w, h, renderFail(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderFail(m), w), renderFullScreen(m, w, h))
 	case FocusStats:
-		return centerOverlay(w, h, renderStatsOverlay(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderStatsOverlay(m), w), renderFullScreen(m, w, h))
 	case FocusOverview:
-		return centerOverlay(w, h, renderOverviewOverlay(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderOverviewOverlay(m), w), renderFullScreen(m, w, h))
 	case FocusCommand:
 		// A command bar opened from inside the attach popup (::) keeps the
 		// popup on screen; the bar renders in its footer.
@@ -178,6 +178,24 @@ func renderFullScreen(m Model, w, h int) string {
 func centerOverlay(w, h int, content, bg string) string {
 	popupLines, popupW := overlayBox(content)
 	return compositeOverlay(w, h, popupLines, popupW, bg)
+}
+
+// overlayChrome is the columns overlayBox adds around its content: two for the
+// border and four for the padding.
+const overlayChrome = 6
+
+// fitOverlay cuts every line of overlay content to what overlayBox can show
+// on a w-column screen, so the popup is never wider than the terminal. Lines
+// that already fit are untouched.
+func fitOverlay(content string, w int) string {
+	limit := max(w-overlayChrome, 1)
+	lines := strings.Split(content, "\n")
+	for i, l := range lines {
+		if ansi.StringWidth(l) > limit {
+			lines[i] = ansi.Truncate(l, limit, "…")
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // centerOverlayBox composites an already-rendered box centered over bg.

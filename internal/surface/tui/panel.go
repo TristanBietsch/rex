@@ -33,14 +33,11 @@ func sectionHeader(title string, width int) string {
 	return lead + t + styleDim.Render(" "+strings.Repeat("─", fill))
 }
 
-// panelWidth returns min(want, termW-4), floored at min.
-func panelWidth(termW, want, min int) int {
-	w := termW - 4
-	if want < w {
-		w = want
-	}
-	if w < min {
-		w = min
-	}
-	return w
+// panelWidth returns min(want, termW-4), floored at minW, and never wider
+// than termW-2: a panel that does not fit the screen is clipped by the
+// terminal, so the floor gives way.
+func panelWidth(termW, want, minW int) int {
+	w := min(want, termW-4)
+	w = max(w, minW)
+	return max(min(w, termW-2), 1)
 }

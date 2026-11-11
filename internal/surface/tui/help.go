@@ -159,8 +159,8 @@ func renderHelp(m Model, w, h int) string {
 	if bw > helpMaxBoxW {
 		bw = helpMaxBoxW
 	}
-	if bw > w {
-		bw = w
+	if bw > w-2 {
+		bw = max(w-2, 1)
 	}
 	cols := 1
 	if w >= helpTwoColMinW {

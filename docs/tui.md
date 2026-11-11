@@ -101,7 +101,7 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 
 ### Help overlay
 
-`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
+`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`, at most `w-2` on a narrow terminal). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
 
 ## KEYS (board focus)
 

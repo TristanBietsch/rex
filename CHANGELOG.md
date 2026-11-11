@@ -339,6 +339,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: the help, settings, new-session, stats, overview and failures
+  overlays no longer overflow a narrow terminal (below about 60 columns);
+  wide lines are cut with `…` instead of being clipped by the terminal.
 - TUI: `b` on the wizard's describe step now goes back when the field is
   empty, as the footer says. It used to be typed into the text.
 - `auto_trust_dirs` and the per-session trust request now also refuse a case
