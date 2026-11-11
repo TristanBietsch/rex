@@ -14,6 +14,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   question. Both write `auto_trust_dirs` and refuse the values the daemon
   ignores (a filesystem root, the home folder, relative paths, `..`), so
   setup and the daemon share one set of checks.
+- TUI: screensaver. After 5 minutes with no key or click on the bare
+  board, the board gives way to a small centered `∴ rex` with the live
+  counts under it (`1 need you · 3 working · 7 done`). Any key or click
+  brings the board back and does nothing else. Overlays, prompts and the
+  attach popup never time out. On macOS it keeps the display awake while
+  it shows (`caffeinate -d -w <rex pid>`, stopped on wake and on exit).
+  It moves a little once a minute, and stays put with `reduce_motion`. New
+  settings: `screensaver_enabled` (default on),
+  `screensaver_after_minutes` (default 5, 1–120) and
+  `screensaver_keep_awake` (default on, macOS only).
 - TUI: a Claude Code session running subagents shows how many in its row
   (`⋔3`). The daemon tracks them with Claude's `SubagentStart` and
   `SubagentStop` hooks; the wire gains an optional `subagents` field.

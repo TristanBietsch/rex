@@ -165,6 +165,31 @@ Line-oriented agents (ollama, echo) are attached with transcript replay, so thei
 
 With sound on, each soundset chimes when a session needs you (`working` → `needs_input`), when it resumes (`needs_input` → `working`), and when it finishes (→ `done`) or you mark it done (`cc`, `:done`, `rex done`). A flickering session chimes at most once every 1.5 s. Turn off the first two with `notify_on_state_change`; see [settings.md](settings.md#audio).
 
+## SCREENSAVER
+
+After 5 minutes (`screensaver_after_minutes`) with no key or mouse event while the board itself has focus, the board gives way to a small screen: `∴ rex` in the center and the header's counts under it.
+
+```
+             ∴ rex
+
+1 need you · 3 working · 7 done
+```
+
+- The counts stay live: daemon events keep updating them. `need you` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
+- Any key or mouse event (click, wheel) brings the board back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
+- It only starts over the bare board. Overlays, prompts, confirmations, the wizard, the settings page and the attach popup never time out, because there you are in the middle of something.
+- Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.
+- It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute. It plays no sound.
+
+Turn it off with `screensaver_enabled` (settings page `S`, or `rex config set screensaver_enabled false`). See [settings.md](settings.md#behavior).
+
+### Keep awake (macOS)
+
+With `screensaver_keep_awake` on (the default), rex runs `/usr/bin/caffeinate -d -w <rex pid>` while the screensaver shows, so the display does not sleep. It needs no root. rex stops it when the screensaver goes away and when the TUI exits; `-w` makes it exit by itself if rex dies. On other systems the setting does nothing.
+
+- rex holds the display on only while the screensaver shows. If macOS turns the display off sooner (System Settings, Lock Screen, "Turn display off ... when inactive"), the display is already off when the screensaver starts, and rex does not turn it back on. Set `screensaver_after_minutes` below that time.
+- rex cannot tell whether you are working in another app. While the screensaver shows in a background window, macOS does not turn the display off for inactivity. Turn `screensaver_keep_awake` off if you don't want that.
+
 ## LONG-RUNNING BADGE
 
 A small column before the time column flags sessions that have been **working** without a break. The column is hidden while no row has a badge:

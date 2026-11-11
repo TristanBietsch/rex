@@ -79,8 +79,12 @@ func armSpinner(m Model) (Model, tea.Cmd) {
 // wantsSpinnerTick reports whether anything on screen is driven by the
 // SpinnerTick chain: working-row / attach-chip spinners, the blinking text
 // cursor of an open input bar, and the done-row flash (which reads the clock
-// at render time and so needs periodic re-renders).
+// at render time and so needs periodic re-renders). None of them is on
+// screen while the screensaver shows, so the chain rests then.
 func (m Model) wantsSpinnerTick() bool {
+	if m.saverOn {
+		return false
+	}
 	if m.hasWorkingSessions() {
 		return true
 	}
