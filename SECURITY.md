@@ -68,7 +68,8 @@ filesystem permissions.
   so the repository's own agent settings apply without that prompt. The
   setting is empty by default, and `rex setup` sets it only when you
   answer yes or pass `-auto-trust`. A session trust request is refused for
-  relative paths, paths with `..`, a filesystem root and the home folder, and
+  relative paths, paths with `..`, a filesystem root, the home folder (also
+  as a case variant) and any folder that holds it, and
   Resume keeps it only while the stored folder still passes. rex trusting a
   folder you did not list or ask to trust is in scope.
 - The `skip_permissions` setting. When you turn it on, rex starts Claude

@@ -68,10 +68,27 @@ func TrustDir(entry string) (string, error) {
 		// A home that is set but cannot be resolved could hide that the
 		// entry is the home folder: refuse rather than guess.
 		return "", fmt.Errorf("cannot check %q against the home folder: %w", d, err)
-	case h == dir:
+	case h == dir || sameFolder(dir, h):
 		return "", homeFolderError(d)
+	case strings.HasPrefix(h, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator)):
+		return "", fmt.Errorf("%q holds your home folder; pick a folder inside it, such as ~/dev", d)
 	}
 	return dir, nil
+}
+
+// sameFolder reports whether a and b are the same folder on disk. The path
+// strings of a case variant differ on a case-insensitive filesystem (macOS,
+// Windows) though they name one folder.
+func sameFolder(a, b string) bool {
+	ai, err := os.Stat(a)
+	if err != nil {
+		return false
+	}
+	bi, err := os.Stat(b)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(ai, bi)
 }
 
 // CanonicalHome returns the home folder resolved through symlinks, or an

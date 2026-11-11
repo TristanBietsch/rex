@@ -194,6 +194,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `auto_trust_dirs` and the per-session trust request now also refuse a case
+  variant of the home folder on a case-insensitive filesystem (macOS,
+  Windows), and any folder that holds the home folder (`/Users`, `/home`).
+  Folders are compared by identity on disk, and ancestors by whole path
+  elements, so `/Users2` is still fine.
 - TUI: `::undone` in the attach popup only unmarks; on a session that is not
   marked done it shows a notice instead of marking it done.
 - The settings page showed a second "Spawn" section for
