@@ -496,14 +496,14 @@ func layoutSlots(slots []boardSlot, now time.Time, width int, detailed, resume b
 	return layoutRows(rows, now, width, detailed, resume)
 }
 
-// layoutRows sizes columns to content, then degrades for narrow widths in a
+// layoutFit sizes columns to content, then degrades for narrow widths in a
 // fixed order until the description gets descMin: drop the resume id, drop
 // the start→end span,
 // drop tokens, shrink model
 // (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
 // long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
-func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume bool) rowCols {
+func layoutFit(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume bool) rowCols {
 	var c rowCols
 	if detailed {
 		c.id = colID
