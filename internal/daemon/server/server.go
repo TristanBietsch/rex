@@ -88,6 +88,18 @@ type Config struct {
 	// at each spawn and Resume. Off: skills are refused at NewSession and no
 	// plugin folder is added. nil: on.
 	SkillsEnabled func() bool
+	// UsageTap returns the statusLine command to add to a Claude session's
+	// --settings (the usage status-line tap), or "" for none. Called at each
+	// spawn and Resume with the session id. nil: none.
+	UsageTap func(sessionID string) string
+	// OnUsageSample receives the usage fields a Claude status-line tap sent
+	// (the UsageSample intent). Runs on the connection's goroutine and must
+	// not block. nil: the intent is rejected as not implemented.
+	OnUsageSample func(protocol.UsageSample)
+	// UsageQuery answers a UsageQuery intent. An error becomes bad_intent
+	// with its message ("usage is off", a bad range). nil: the intent is
+	// rejected as not implemented.
+	UsageQuery func(protocol.UsageQuery) (protocol.UsageReport, error)
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
@@ -106,6 +118,15 @@ type Config struct {
 
 // resumeOn reports whether the resume feature is on.
 func (s *Server) resumeOn() bool { return s.cfg.ResumeEnabled == nil || s.cfg.ResumeEnabled() }
+
+// statusLineFor is the usage tap command for a new or resumed session of
+// tool, "" when the tool is not Claude (hooks format) or usage is off.
+func (s *Server) statusLineFor(tool registry.Tool, sessionID string) string {
+	if s.cfg.UsageTap == nil || tool.Detect.Kind != "hooks" || tool.Detect.Format != "claude" {
+		return ""
+	}
+	return s.cfg.UsageTap(sessionID)
+}
 
 // skillsOn reports whether the spawn_skills feature is on.
 func (s *Server) skillsOn() bool { return s.cfg.SkillsEnabled == nil || s.cfg.SkillsEnabled() }
@@ -169,6 +190,12 @@ type Server struct {
 	overviewMu   sync.RWMutex
 	overview     *protocol.Overview
 	overviewSubs []func(protocol.Overview)
+
+	// usage is the latest live usage state (memory only, never persisted),
+	// with the same global fan-out as the overview. usageMu guards all three.
+	usageMu   sync.RWMutex
+	usage     *protocol.Usage
+	usageSubs []func(protocol.Usage)
 
 	// boardClients counts the connections that completed Hello as a board
 	// viewer (the rex TUI) and are still open.
@@ -546,6 +573,50 @@ func (s *Server) SubscribeOverview(fn func(protocol.Overview)) func() {
 		defer s.overviewMu.Unlock()
 		if idx < len(s.overviewSubs) {
 			s.overviewSubs[idx] = nil
+		}
+	}
+}
+
+// SetUsage stores u as the current usage state and sends it to every client
+// that has said Hello. Nothing is logged or persisted.
+func (s *Server) SetUsage(u protocol.Usage) {
+	s.usageMu.Lock()
+	cp := u
+	s.usage = &cp
+	subs := slices.Clone(s.usageSubs)
+	s.usageMu.Unlock()
+	for _, fn := range subs {
+		if fn != nil {
+			fn(u)
+		}
+	}
+}
+
+// Usage returns a copy of the current usage state, nil until SetUsage ran.
+func (s *Server) Usage() *protocol.Usage {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	if s.usage == nil {
+		return nil
+	}
+	cp := *s.usage
+	cp.Quotas = slices.Clone(cp.Quotas)
+	return &cp
+}
+
+// SubscribeUsage registers a global callback for usage changes and returns
+// its cancel func. fn follows the SubscribeOverview contract: no blocking,
+// no I/O.
+func (s *Server) SubscribeUsage(fn func(protocol.Usage)) func() {
+	s.usageMu.Lock()
+	defer s.usageMu.Unlock()
+	idx := len(s.usageSubs)
+	s.usageSubs = append(s.usageSubs, fn)
+	return func() {
+		s.usageMu.Lock()
+		defer s.usageMu.Unlock()
+		if idx < len(s.usageSubs) {
+			s.usageSubs[idx] = nil
 		}
 	}
 }

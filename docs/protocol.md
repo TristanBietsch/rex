@@ -65,6 +65,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `FocusFilter` | no-op | Accepted (and acked); not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
+| `UsageSample` | no | Sent by `rex-daemon statusline-tap`, fire and forget (no `id`, no reply, no `Hello`). `session_id` (the rex session), optional `claude_session_id`, `five_hour` and `seven_day` (`used_pct`, `resets_at` in Unix epoch seconds), `spend_limit` (the same plus `used_usd`, `limit_usd`, `period`), `cost_usd`, `model_id`, `model_name`. Every field may be absent. A sample for an unknown session, one with nothing in it, or one that arrives while `usage` is off is dropped without an error. Nothing else of Claude's status-line JSON is ever sent |
+| `UsageQuery` | yes | `range` (`today`, `7d` or `30d`; empty is `today`) and optional `tool`. Reply is a `UsageResult` event with the intent's `id` (see below); `bad_intent` `usage is off` while the setting is off, and for a bad range. `(*client.Client).UsageQuery(ctx, q)` |
 | `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP. `Ack` once the new registry is in use; `bad_intent` with the load error on failure |
 
 ### NewSession fields
@@ -123,6 +125,8 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `FocusFilter`, `SetMaxConcurrent` | `Ack` | |
 | `Reload` | `Ack` | After the new registry is in use |
 | `Shutdown` | `Ack` | Queued before shutdown starts; the daemon may close the connection first, so treat the close as success |
+| `UsageQuery` | `UsageResult` | Not an `Ack`: the payload is the aggregates |
+| `UsageSample` | `Ack` only if it carried an `id` | The tap sends none |
 | `OpenSession`, unknown types | — | `Error` `bad_intent` "intent not implemented" |
 
 - Any failure is an `Error` event with the intent's `id` instead.
@@ -135,7 +139,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it) |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it) |
 | `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
@@ -143,6 +147,8 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `SessionOutput` | `session_id`, `bytes` (base64), `repaint` (true only on the one that answers `Subscribe` `repaint`; omitted otherwise) |
 | `SummarizerHealth` | `available`, `reason` |
 | `Overview` | `enabled`, `headline` (sanitized model text, at most 200 runes), `generated_at`. Sent to every connection that has sent `Hello`; the latest value is also in `Snapshot.overview` |
+| `Usage` | `enabled`, `quotas[]`: the latest plan-quota reading per tool and window, `{tool, model, window, used_pct, resets_at, used_usd, limit_usd, at, stale}`. Window is `5h`, `week` or a spend period such as `month`; `model` is empty for a plan-wide quota; `resets_at` is RFC 3339 and omitted when unknown; every number may be absent (an API-key plan has no quota). Sent to every connection that has sent `Hello` when a quota changes (a reading that repeats the same numbers is not republished) and when `usage` is switched on or off (`enabled: false`: drop what you hold). A reading with `at` older than 15 minutes is stale. The latest value is also in `Snapshot.usage` |
+| `UsageResult` | Reply to `UsageQuery`: `range`, `since`, `tool`, `total`, `tools[]` (each with `models[]`) and `quotas[]`. A row is `{sessions, tokens, tokens_estimated, cost_usd}`; `cost_usd` is absent when no counted session reported a cost. Rows count each session once, by its latest ledger line (or its live totals) falling inside the range |
 | `Error` | `id`, `code`, `message` |
 
 ### SessionSummary fields
@@ -180,6 +186,8 @@ Nothing is sent for a session that is not running.
 Additive changes (new optional fields, new intents, new events, new patch keys) keep `v: 1`; both sides ignore unknown fields and event types. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
 
 The overview is in the daemon's memory only. An `Overview` published between a client's `Snapshot` and the start of its event stream is missed until the next publish. An older client ignores the event and `snapshot.overview`; against an older daemon a newer client sees neither and shows only what it computes itself.
+
+Usage is the same: the quotas are in the daemon's memory only, and a `Usage` published between a client's `Snapshot` and the start of its event stream is missed until the next change. An older daemon answers `UsageQuery` with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`) and ignores `UsageSample`, so a tap talking to it just loses its usage; an older client ignores the `Usage` event and `snapshot.usage`. `ProtocolVersion` is unchanged.
 
 A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
 

@@ -109,7 +109,7 @@ func protocolErrorCode(err error) (code string, ok bool) {
 	}
 }
 
-// subscribeBoard forwards store events, SummarizerHealth and Overview to this client,
+// subscribeBoard forwards store events, SummarizerHealth, Overview and Usage to this client,
 // both gated on subscribed so nothing arrives before the Hello snapshot.
 func (c *client) subscribeBoard() {
 	c.cleanups = append(c.cleanups,
@@ -126,6 +126,11 @@ func (c *client) subscribeBoard() {
 		c.srv.SubscribeOverview(func(o protocol.Overview) {
 			if c.subscribed.Load() {
 				c.sendEvent(protocol.EventOverview, "", o)
+			}
+		}),
+		c.srv.SubscribeUsage(func(u protocol.Usage) {
+			if c.subscribed.Load() {
+				c.sendEvent(protocol.EventUsage, "", u)
 			}
 		}),
 	)

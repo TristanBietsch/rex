@@ -73,6 +73,7 @@ esc back  ←/→ range  r refresh  / filter  ~ = estimate
 
 ## Plan
 1. **R10-1 Capture.** Record Claude status-line JSON from a sandboxed session (scratchpad only, never committed) and `grok usage` output (plan and per-session forms). Write the field table into this file. No code.
+1b. **R10-1b capture `grok usage`. TODO.** Capture `grok usage` output (plan and per-session forms) from a sandboxed session, add the field table here, then write the grok parser and poller. Until then `usage.GrokSource` is registered but answers `ErrNotImplemented`: no parser exists and none may be guessed.
 2. **R10-2 Sources + flags.** `usage` package, Claude tap (`rex-daemon statusline-tap`), grok poller, estimate fallback; `usage` and `usage_statusline_tap` flags. Tests: tap passes stdin byte-for-byte to a stub user command and keeps its exit code; parse fixtures (synthetic, shaped like the captures); missing fields → Stale; grok poll stops when no grok session is live; off-is-inert for both flags.
 3. **R10-3 Ledger.** Append, periodic snapshot, latest-per-session aggregation, 90-day trim. Tests: no double count across periodic lines; prune/reap of a session leaves its ledger line; 0600 perms; corrupt line skipped with a warning; Windows path.
 4. **R10-4 Wire.** `Usage` event, snapshot, `UsageQuery` intent. Tests: late-joining TUI gets current readings; old daemon → page shows "update daemon", meter hidden.
@@ -96,3 +97,30 @@ esc back  ←/→ range  r refresh  / filter  ~ = estimate
 | D2 | Header meter default | `compact`, only tools with a live session. |
 | D3 | User's Claude status line | The tap passes stdin through to the user's own status line command, so it looks unchanged. |
 | D4 | Page vs meter | Both: `:usage` page (per agent, per model, total, quota, resets) plus the compact header meter. |
+
+## Build notes
+
+Built 2026-11-11 on `feat/r10-usage-backend`: R10-2, R10-3, R10-4 and R10-7 (backend and CLI). **Not built:** R10-1 capture (no real Claude or grok output was recorded; the status-line fields come from the documented schema, the fixtures are synthetic), R10-1b (`grok usage` capture, parser and poller), R10-5 (`:usage` page) and R10-6 (header meter, `usage_meter`). `internal/surface/tui` is untouched.
+
+- **Package** `internal/features/usage`: `Source` / `Reading`, `EstimateSource`, `GrokSource` (registered, `ErrNotImplemented`), `ParseStatusLine`, `RunTap`, `UserStatusLine`, `ShouldInjectTap`, `TapCommand`, `Ledger`, `Hub`, `Aggregate`.
+- **Tap** `rex-daemon statusline-tap --session <id> [--socket path]`: reads all of stdin, sends a `UsageSample` intent (no `Hello`, no `id`) beside the user's command with a 200 ms cap, runs the user command through `sh -c` with identical stdin bytes, passes stdout, stderr and the exit code through (127 when it cannot start). The injected command is added to the `--settings` JSON next to the hooks by `adapter.ClaudeSettingsArgs`; `ClaudeHookArgs()` is unchanged.
+- **Flags** (Settings → Features): `usage` (bool, on) and `usage_statusline_tap` (`auto|on|off`, `auto`). Read at each spawn and `Resume`. `usage` off: no tap, hub never started, no ledger read, written or trimmed, `rex usage` exits 5 before dialing.
+- **Ledger** `<state-dir>/usage.jsonl` (`paths.UsageLedger`, `paths.UsageLedgerFileName`). The hub queues lines from a store subscription and one goroutine writes them (the store forbids I/O in a subscriber). A final line on a terminal state or on removal (prune, retire, delete), a periodic line at most every 10 minutes and only when totals changed, a flush on daemon stop. Latest `at` per session wins. Trim to 90 days at the first enable.
+- **Wire**: `Usage` event, `Snapshot.usage`, `UsageSample` and `UsageQuery` intents, `UsageResult` reply. No `ProtocolVersion` bump. `client.UsageQuery` helper.
+- **CLI** `rex usage` through the P4 kit, registered in `kitVerbs`, `commands`, help and completions.
+
+Deviations from the spec:
+
+- **The settings path is baked in by the daemon** (`--user-settings`, from the daemon's own env; the tap ignores its own `CLAUDE_CONFIG_DIR` and `HOME`; no symlinks). **The pass-through status line is resolved from user-level settings only** (`$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json`). The first draft also read project `.claude/settings.json` and `settings.local.json` under the session folder; a security review found that an agent can write those files mid-session and have the tap run its command outside Claude's permission system, so they are never read, and `auto` does not count a project-only status line as "the user has one". With `on`, a project-level status line is replaced by rex's for that session. See SECURITY.md.
+- `Reading` has extra fields `HasPct` and `LimitUSD` (a spend limit has a cap and no percentage).
+- The Claude tap is not a polled `Source`: it is pushed to through the `UsageSample` intent (`Hub.Sample`). Sources that poll (grok, later) go through `Source.Poll`. The estimate source exists and is registered, but the ledger takes tokens straight from the session summary (the same number); `rex usage` marks them `~`.
+- Missing fields never mark a quota `Stale`; staleness is age only (older than 15 minutes). A Claude that renames its fields yields an empty sample, so nothing updates and the old readings age into Stale. `rex doctor` does not report it yet.
+- Quotas are plan-wide only (`model` empty). A spend limit's window is named by its `period` (default `month`).
+- A cost is summed per Claude conversation id (`/clear` starts another), and after a daemon restart the saved ledger total is the floor.
+- Sessions that finished before the hub was first switched on are backfilled once from the board (dated by `ended_at`, skipped past 90 days, skipped when the ledger already has an ended line with the same tokens).
+- A session counts in a range when its latest line is in the range, so a session spanning midnight counts in the day it last ran, not in both.
+- `rex usage -by`: default is tools with their models, `tool` and `model` are the two flat views (spec left the default open).
+- `WatchSettings` is now started once after the summarizer block with an applier list (usage's applier plus the summarizer ones), not only when the summarizer is on.
+- Workspace filtering (`workspace_id`, R06) is not built.
+
+Known limits: tokens in the ledger are `output_bytes / 4`; Claude's own token counts are not in the status-line fields kept. Windows: the user command runs under `bash -c` (Git Bash), the same assumption the hooks make; not run on Windows here.

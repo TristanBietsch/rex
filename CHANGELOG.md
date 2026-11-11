@@ -27,6 +27,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Usage tracking, first part (the `usage` feature, on by default):
+  `rex-daemon statusline-tap`, a Claude Code status line that sends plan
+  rate-limit, cost and model fields to the daemon and then runs your own
+  status line with the same input, so yours looks the same. The
+  `usage_statusline_tap` setting (`auto`, `on`, `off`; Settings → Features)
+  decides when rex adds it: `auto` only when you already have a status line
+  (a status line makes Claude hide its footer hints, which rex never does on
+  its own), `on` always, `off` never. `usage` off adds no tap and writes
+  nothing. See [docs/settings.md](docs/settings.md) and SECURITY.md.
+- Usage ledger: with `usage` on, the daemon keeps
+  `~/.local/share/rex/usage.jsonl` (mode 0600, append-only): one line per
+  session when it ends or is pruned, and at most every 10 minutes for a live
+  one. The latest line per session counts, so nothing is counted twice, and
+  the file is trimmed to 90 days when the daemon starts. It holds ids, tool
+  and model names, estimated tokens and cost, never prompts or output. See
+  [docs/paths.md](docs/paths.md).
+- `rex usage [-range today|7d|30d] [-tool ID] [-by tool|model] [-o FORMAT]`:
+  tokens, cost and plan quota per agent, per model and in total. Token
+  counts are rex's own estimate and show `~`; cost comes from Claude Code's
+  status line; quota windows show percent used and time to reset. Exits 5
+  while `usage` is off. See [docs/cli.md](docs/cli.md).
+- Protocol (additive, `ProtocolVersion` unchanged): `Usage` event and
+  `Snapshot.usage` with the live plan quotas, the `UsageQuery` intent
+  (replies `UsageResult`: totals per tool, per model and overall over
+  `today`, `7d` or `30d`) and the `UsageSample` intent the status-line tap
+  sends. An older daemon answers `UsageQuery` with `bad_intent`, and the CLI
+  tells you to run `rex daemon restart`. See [docs/protocol.md](docs/protocol.md).
 - Antigravity: a question or the trust dialog shows as waiting at once, not
   after 15 s. rex asks agy for its terminal status (`AGY_CLI_OSC7501=on`,
   per session, nothing written to `~/.gemini`) and falls back to the footer
