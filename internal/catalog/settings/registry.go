@@ -120,6 +120,11 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "Tool filter chips, :filter, section hiding (zh, z1-z9) and board_hidden_sections. Off: no chip row, the t key and the z chords do nothing, :filter refuses, and hidden sections and the saved tool filter are ignored.",
 	},
+	{
+		ID: "search", Label: "Board search", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Search the board with / and :search. Off: / does nothing, :search refuses, and a saved or stale query is ignored.",
+	},
 
 	// Spawn
 	{

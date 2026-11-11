@@ -143,7 +143,7 @@ var commands = []command{
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},
 	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Flag: "board_filter", Run: runFilter},
-	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Run: runSearch},
+	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Flag: "search", Run: runSearch},
 
 	{Names: []string{"q", "quit"}, Desc: "quit (confirm)", Group: groupAppCmd, Run: runQuit},
 	{Names: []string{"q!"}, Desc: "force quit", Group: groupAppCmd, Run: runForceQuit},

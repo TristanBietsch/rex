@@ -166,6 +166,8 @@ Line-oriented agents (ollama, echo) are attached with transcript replay, so thei
 
 The tool filter and hidden sections belong to the `board_filter` feature (Settings → Features, on by default). Off, the chip row is gone, `t` and the `z` chords do nothing, `:filter` answers `off: enable in Settings → Features (rex config set board_filter true)`, and `board_hidden_sections` and saved filter state are ignored. A search still shows its status on the filter row.
 
+Search belongs to the `search` feature (on by default). Off, `/` does nothing, `:search` answers `off: enable in Settings → Features (rex config set search true)`, and a saved or stale query is ignored.
+
 Three things narrow the board: the **tool filter** (`t` cycles it, `:filter <tool>` sets it, a click on a chip sets it), **hidden sections**, and a **search**. While any of them narrows the rows, section titles read `n/total` (`WORKING  1/4`).
 
 ### Search

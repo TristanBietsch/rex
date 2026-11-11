@@ -61,6 +61,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | ID | Type | Default | Notes |
 |----|------|---------|-------|
 | `board_filter` | bool | `true` | Tool filter chips, `:filter`, section hiding (`zh`, `z1`-`z9`) and `board_hidden_sections`. Off: no chip row, `t` and the `z` chords do nothing, `:filter` refuses, and hidden sections, `board_hidden_sections` and a saved tool filter are ignored. See [tui.md](tui.md#filter-and-search) |
+| `search` | bool | `true` | Board search: `/` and `:search`. Off: `/` does nothing, `:search` refuses, and a saved or stale query is ignored |
 
 ### Spawn
 

@@ -17,7 +17,9 @@ func rowFilterOf(m Model) rowFilter {
 	if m.featureOn("board_filter") {
 		f.tool, f.hidden = m.Filter, m.Hidden
 	}
-	f.terms = compileQuery(m.Search)
+	if m.featureOn("search") {
+		f.terms = compileQuery(m.Search)
+	}
 	return f
 }
 

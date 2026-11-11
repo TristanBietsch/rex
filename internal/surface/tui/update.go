@@ -204,7 +204,9 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "state.restore", Status: stepSkip, Desc: "first run", Dur: msg.Dur,
 			})
 		}
-		m.Search = appendSearch("", msg.State.Search) // user-editable file: drop control runes, cap
+		if m.featureOn("search") {
+			m.Search = appendSearch("", msg.State.Search) // user-editable file: drop control runes, cap
+		}
 		m.SelectedID = msg.State.Selection
 		if msg.State.Filter != "" && m.featureOn("board_filter") {
 			m.Filter = msg.State.Filter
@@ -421,6 +423,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return chooseAttach(m, m.SelectedID)
 		case "/":
+			if !m.featureOn("search") {
+				return m, nil
+			}
 			return openSearch(m)
 		case "esc":
 			if m.Search == "" {

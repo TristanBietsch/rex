@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   filter chips, `:filter`, `t`, the `z` chords and `board_hidden_sections`.
   Off, there is no chip row and `:filter` answers `off: enable in Settings
   → Features (rex config set board_filter true)`.
+- Setting `search` (Features, on by default): switches off board search.
+  Off, `/` does nothing, `:search` answers the off message, and a saved
+  query is ignored.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current

@@ -44,6 +44,8 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 
 `:filter` needs the `board_filter` feature (Settings → Features); while it is off it answers `off: enable in Settings → Features (rex config set board_filter true)`.
 
+`:search` needs the `search` feature (Settings → Features); while it is off it answers `off: enable in Settings → Features (rex config set search true)`.
+
 A `<sec>` for `:filter` is a section id (`needs`, `working`, `done`), a unique prefix of one, its title (`Needs`), or a 1-based number. `:filter` refuses a change that would hide every section and changes nothing when a section is not recognised. A hidden section is gone from the board (no rows, no navigation); the header counts stay global.
 
 Unknown verbs set the error `unknown command: x (try :help)` on the command line.
