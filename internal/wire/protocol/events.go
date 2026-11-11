@@ -79,6 +79,11 @@ type SessionSummary struct {
 	// failed or crashed). Zero while it is live. Patches send null to clear
 	// it when the session goes live again.
 	EndedAt time.Time `json:"ended_at,omitzero"`
+
+	// ResumeID is the id the agent itself uses to resume this conversation
+	// (a canonical UUID, lowercase; see ValidResumeID). Empty when unknown or
+	// when the tool cannot resume.
+	ResumeID string `json:"resume_id,omitempty"`
 }
 
 // Snapshot is the daemon's response to Hello: full board state.

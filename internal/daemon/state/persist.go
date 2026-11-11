@@ -375,6 +375,8 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 // display fields are sanitized again: meta written before ingest
 // sanitization (S-03) may still hold escapes or newlines.
 func fromSummary(sum protocol.SessionSummary) *Session {
+	// meta.json is not trusted for argv: keep only a valid resume id.
+	resumeID, _ := protocol.NormalizeResumeID(sum.ResumeID)
 	return &Session{
 		ID: sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
 		Effort: sum.Effort, Slug: sum.Slug, CWD: sum.CWD,
@@ -386,5 +388,6 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
 		Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
 		WorkingSince: sum.WorkingSince, EndedAt: sum.EndedAt,
+		ResumeID: resumeID,
 	}
 }

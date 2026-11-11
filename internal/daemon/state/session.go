@@ -57,6 +57,10 @@ type Session struct {
 	// is never moved later, and cleared when the session goes live again.
 	EndedAt time.Time
 
+	// ResumeID is the agent's own conversation id (valid per
+	// protocol.ValidResumeID, lowercase), or "" when unknown.
+	ResumeID string
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
 	// reaping is set once the retire sweep has claimed the session for
@@ -101,6 +105,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		RetiredAt:    s.RetiredAt,
 		WorkingSince: s.WorkingSince,
 		EndedAt:      s.EndedAt,
+		ResumeID:     s.ResumeID,
 	}
 }
 
