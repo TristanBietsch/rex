@@ -36,6 +36,7 @@ Codec: `internal/wire/protocol/codec.go`.
 | RetireAt | `retire_at` | RFC3339 time | optional; when a marked-done session gets cleared |
 | RetiredAt | `retired_at` | RFC3339 time | optional; when the session was marked done (absent on legacy marks) |
 | EndedAt | `ended_at` | RFC3339 time | optional; first time the session became done, failed or crashed; cleared when it goes live again; backfilled from `last_event_at` when an older meta.json is loaded |
+| DescriptionAt | `description_at` | RFC3339 time | optional; when `description` was last written by the summarizer; absent until the first summary |
 | OutputBytes | `output_bytes` | int64 | optional | |
 | Fleet | `fleet` | string | optional |
 | Subagents | `subagents` | int | optional; running subagents (Claude hooks); cleared before the final meta.json write and not restored from it |

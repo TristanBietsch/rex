@@ -77,6 +77,7 @@ func startWorker(t *testing.T, cfg Config, st *state.Store, tr TranscriptReader)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Start(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
+	<-w.subscribed
 	return w
 }
 
@@ -201,7 +202,7 @@ func TestWorker_RequeuesAfterFailedCall(t *testing.T) {
 	w.Channel() <- "sess-fail"
 	select {
 	case v := <-got:
-		require.Equal(t, "running tests", v)
+		require.Equal(t, "Running tests", v)
 	case <-time.After(5 * time.Second):
 		t.Fatal("failed request was dropped, not retried later")
 	}
@@ -249,7 +250,7 @@ func TestWorker_SharedSlotSerializesCalls(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := w.callWithRetry(context.Background(), "p")
+			_, err := w.callWithRetry(context.Background(), CompleteRequest{Prompt: "p"})
 			require.NoError(t, err)
 		}()
 	}

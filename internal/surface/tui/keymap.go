@@ -145,9 +145,13 @@ func selectedBoardLine(m Model) int {
 //	board
 //	HR · prompt · helpline
 const (
-	boardBottomRows = 3
-	minBoardHeight  = 4
+	baseBottomRows = 3
+	minBoardHeight = 4
 )
+
+// boardBottomRows is the rows under the board: the summary preview rows (when
+// shown; see previewRows) plus HR, prompt and helpline.
+func boardBottomRows(m Model) int { return previewRows(m) + baseBottomRows }
 
 // headerHeight is the number of lines renderHeader produces.
 func headerHeight(m Model) int {
@@ -168,7 +172,8 @@ func boardTop(m Model) int {
 
 // boardHeightFor is the board's visible line count on an h-row screen.
 func boardHeightFor(m Model, h int) int {
-	bh := h - boardTop(m) - boardBottomRows
+	m.Height = h // the preview rows depend on the screen height being laid out
+	bh := h - boardTop(m) - boardBottomRows(m)
 	if bh < minBoardHeight {
 		bh = minBoardHeight
 	}

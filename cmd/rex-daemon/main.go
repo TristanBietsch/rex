@@ -134,6 +134,7 @@ func run(args []string) error {
 	if summaryEnabled {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
+		cfg.Detail = summarizer.ParseDetail(settingsStore.String("summary_detail"))
 		if u := boot.OllamaBaseURL(); u != "" {
 			cfg.BaseURL = u
 		}
@@ -200,6 +201,8 @@ func run(args []string) error {
 			}
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
+		// One settings watcher: later features add an applier here.
+		go boot.WatchSettings(ctx, settingsPath, 5*time.Second, boot.SummaryDetailApplier(summaryWorker))
 	}
 
 	// SIGHUP → reload tools.yaml.

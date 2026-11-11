@@ -44,7 +44,7 @@ A `done`, `failed` or `crashed` session whose tool has a `resume` block and whos
 
 `rex reload`, the TUI's `:reload` and `rex daemon stop` do not signal the process. They send `Reload` and `Shutdown` requests over the socket, so they reach exactly the daemon on that socket.
 
-Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config.
+Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config, with one exception: the daemon polls `config.yaml` every 5 s and applies `summary_detail` live.
 
 ## FILES
 

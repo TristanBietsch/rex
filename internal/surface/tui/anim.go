@@ -34,8 +34,9 @@ func renderAnimFrame(a DescAnim, width int, now time.Time) string {
 	if p > 1 {
 		p = 1
 	}
-	to := padOrTruncateRunes(a.To, width)
-	from := padOrTruncateRunes(a.From, width)
+	// The same cut as the settled cell (truncateWords), so the last frame is it.
+	to := padOrTruncateRunes(truncateWords(a.To, width), width)
+	from := padOrTruncateRunes(truncateWords(a.From, width), width)
 	switch a.Effect {
 	case "decode":
 		return decodeFrame(to, p, now)

@@ -146,8 +146,10 @@ func renderFullScreen(m Model, w, h int) string {
 		bottom = hr + "\n" + renderPrompt(m, cw) + "\n" + helpline
 	}
 
-	// 1 blank + header + blank + hr + blank + board + 3 bottom = h (boardTop/boardHeightFor).
+	// 1 blank + header + blank + hr + blank + board + preview + 3 bottom = h
+	// (boardTop/boardHeightFor/boardBottomRows).
 	boardH := boardHeightFor(m, h)
+	m.Height = h
 
 	board := renderBoard(m, cw, boardH)
 
@@ -155,6 +157,7 @@ func renderFullScreen(m Model, w, h int) string {
 	lines = append(lines, strings.Split(header, "\n")...)
 	lines = append(lines, "", hr, "")
 	lines = append(lines, strings.Split(board, "\n")...)
+	lines = append(lines, renderDescPreview(m, cw)...)
 	lines = append(lines, strings.Split(bottom, "\n")...)
 
 	// Hard cap: never produce more than h lines (the alt-screen window).

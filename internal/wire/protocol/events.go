@@ -80,6 +80,11 @@ type SessionSummary struct {
 	// it when the session goes live again.
 	EndedAt time.Time `json:"ended_at,omitzero"`
 
+	// DescriptionAt is when Description was last written by the summarizer.
+	// Zero when there is no description yet. Lets a client show how old the
+	// summary is. A timestamp, not free text.
+	DescriptionAt time.Time `json:"description_at,omitzero"`
+
 	// ResumeID is the id the agent itself uses to resume this conversation
 	// (a canonical UUID, lowercase; see ValidResumeID). Empty when unknown or
 	// when the tool cannot resume.

@@ -26,7 +26,9 @@ type Worker struct {
 	client     *Client
 	transcript TranscriptReader
 
+	subscribed chan struct{} // closed by Start once it is subscribed to the store (tests wait on it)
 	retryDelay time.Duration // pause before the one transient retry
+	detail     atomic.Int32  // a Detail; the zero value is DetailMedium
 
 	ch   chan string
 	wake chan struct{} // capacity 1: nudges the scheduler loop
@@ -45,6 +47,13 @@ type Worker struct {
 type sessionMeta struct {
 	lastSubmittedAt time.Time
 	lastHash        uint64
+	// final is set once a terminal-state (done, failed, crashed) summary has
+	// been produced; it is cleared when the session goes live again.
+	final bool
+}
+
+func isTerminal(s protocol.State) bool {
+	return s == protocol.StateDone || s == protocol.StateFailed || s == protocol.StateCrashed
 }
 
 // preferredFallbacks are small, fast, non-"thinking" models suited to a
@@ -96,6 +105,7 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		client:     NewClient(cfg),
 		transcript: transcript,
 		ch:         make(chan string, 64),
+		subscribed: make(chan struct{}),
 		retryDelay: 500 * time.Millisecond,
 		wake:       make(chan struct{}, 1),
 		slot:       make(chan struct{}, 1),
@@ -103,8 +113,19 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		perSess:    make(map[string]*sessionMeta),
 	}
 	w.available.Store(1)
+	w.detail.Store(int32(cfg.Detail.valid()))
 	return w
 }
+
+// Detail returns the current description detail level.
+func (w *Worker) Detail() Detail { return Detail(w.detail.Load()) }
+
+// SetDetail changes the description detail level for later requests. Safe
+// from any goroutine, including mid-call: a request in flight keeps the level
+// it was built with. The prompt (and so the unchanged-prompt hash) changes
+// with the level, so existing sessions are re-summarized on their next
+// request.
+func (w *Worker) SetDetail(d Detail) { w.detail.Store(int32(d.valid())) }
 
 // Channel returns the send-side of the request channel.
 func (w *Worker) Channel() chan<- string { return w.ch }
@@ -160,13 +181,30 @@ func (w *Worker) Start(ctx context.Context) error {
 	// The callback follows the store contract: it takes a mutex and returns.
 	unsub := w.store.Subscribe(w.onEvent)
 	defer unsub()
+	close(w.subscribed)
 	return w.loop(ctx)
 }
 
-// onEvent prunes what the worker holds for a removed session.
+// onEvent reacts to the store: a removed session is forgotten; a state change
+// queues the session ahead of ordinary requests, because the state changes
+// what the description should say. A move to done, failed or crashed queues
+// the one final summary; a move back to a live state (a resume, or undoing
+// done) re-arms it. It runs on the store's goroutines, so it only takes a
+// mutex and returns.
 func (w *Worker) onEvent(e state.Event) {
-	if e.Kind == state.EventRemoved {
+	switch {
+	case e.Kind == state.EventRemoved:
 		w.forget(e.SessionID)
+	case e.Kind == state.EventUpdated && e.NewState != nil:
+		if !isTerminal(*e.NewState) {
+			w.mu.Lock()
+			if m := w.perSess[e.SessionID]; m != nil {
+				m.final = false
+			}
+			w.mu.Unlock()
+		}
+		w.enqueue(e.SessionID, time.Now(), true)
+		w.wakeup()
 	}
 }
 
@@ -176,15 +214,18 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		return
 	}
 	snap := sess.Summary()
-	if snap.State == protocol.StateDone || snap.State == protocol.StateFailed || snap.State == protocol.StateCrashed {
-		return
-	}
+	terminal := isTerminal(snap.State)
 
 	w.mu.Lock()
 	meta := w.perSess[id]
 	if meta == nil {
 		meta = &sessionMeta{}
 		w.perSess[id] = meta
+	}
+	if terminal && meta.final {
+		// One final summary per run of the session, then nothing more.
+		w.mu.Unlock()
+		return
 	}
 	w.mu.Unlock()
 
@@ -195,14 +236,27 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		slog.Debug("summarizer: skipped_empty_screen", "session", id)
 		return
 	}
-	prompt := buildPrompt(snap.ToolID, snap.Slug, snap.Title, string(tail))
+	task := snap.Title
+	if task == "" {
+		task = snap.Slug
+	}
+	prompt, err := BuildPrompt(KindActivity, Input{Tool: snap.ToolID, Task: task, State: snap.State, Text: string(tail)}, w.Detail())
+	if err != nil {
+		slog.Warn("summarizer: build prompt failed", "session", id, "err", err)
+		return
+	}
 
 	h := fnv.New64a()
-	_, _ = h.Write([]byte(prompt))
+	_, _ = h.Write([]byte(prompt.System))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(prompt.User))
 	hash := h.Sum64()
 
 	w.mu.Lock()
-	if hash == meta.lastHash && meta.lastHash != 0 {
+	if hash == meta.lastHash && meta.lastHash != 0 && !req.prio {
+		if terminal {
+			meta.final = true
+		}
 		w.mu.Unlock()
 		slog.Debug("summarizer: skipped_unchanged", "session", id)
 		return
@@ -220,7 +274,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		"wait_ms", time.Since(req.since).Milliseconds(), "queue_len", queueLen, "model", w.Model())
 	start := time.Now()
 
-	resp, err := w.callWithRetry(ctx, prompt)
+	resp, err := w.complete(ctx, prompt)
 	elapsed := time.Since(start)
 	if err != nil {
 		w.failures.Add(1)
@@ -228,7 +282,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		if ctx.Err() == nil {
 			// Deferred, not dropped: runs again after MinInterval, or once
 			// the backend is back if these failures marked it unavailable.
-			w.enqueue(id, req.since, req.prio)
+			w.enqueue(id, time.Now(), req.prio) // since=now: a failing session does not keep jumping the queue
 		}
 		if w.failures.Load() >= 3 {
 			w.MarkUnavailable("consecutive call failures")
@@ -240,7 +294,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		slog.Info("summarizer: slow_call", "session", id, "duration_ms", elapsed.Milliseconds())
 	}
 
-	cleaned := cleanResponse(resp)
+	cleaned := Clean(resp, prompt.MaxRunes, snap.ToolID)
 	slog.Debug("summarizer: response", "session", id, "duration_ms", elapsed.Milliseconds(), "chars_out", len([]rune(cleaned)))
 	if cleaned == "" {
 		return
@@ -248,6 +302,9 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 
 	w.mu.Lock()
 	meta.lastHash = hash
+	if terminal {
+		meta.final = true
+	}
 	w.mu.Unlock()
 
 	if err := w.store.UpdateDescription(id, cleaned); err != nil {
@@ -258,8 +315,8 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 // callWithRetry makes one attempt, and a second after retryDelay only when
 // the first failed transiently and ctx is still live. Each attempt has its
 // own RequestTimeout, and holds the Ollama slot only while it runs.
-func (w *Worker) callWithRetry(ctx context.Context, prompt string) (string, error) {
-	resp, err := w.attempt(ctx, prompt)
+func (w *Worker) callWithRetry(ctx context.Context, cr CompleteRequest) (string, error) {
+	resp, err := w.attempt(ctx, cr)
 	if err == nil || !transient(err) || ctx.Err() != nil {
 		return resp, err
 	}
@@ -268,10 +325,10 @@ func (w *Worker) callWithRetry(ctx context.Context, prompt string) (string, erro
 		return "", err
 	case <-time.After(w.retryDelay):
 	}
-	return w.attempt(ctx, prompt)
+	return w.attempt(ctx, cr)
 }
 
-func (w *Worker) attempt(ctx context.Context, prompt string) (string, error) {
+func (w *Worker) attempt(ctx context.Context, cr CompleteRequest) (string, error) {
 	release, err := w.acquireSlot(ctx)
 	if err != nil {
 		return "", err
@@ -279,5 +336,5 @@ func (w *Worker) attempt(ctx context.Context, prompt string) (string, error) {
 	defer release()
 	actx, cancel := context.WithTimeout(ctx, w.cfg.RequestTimeout)
 	defer cancel()
-	return w.client.Generate(actx, prompt)
+	return w.client.Complete(actx, cr)
 }

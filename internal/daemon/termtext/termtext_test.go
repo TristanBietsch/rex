@@ -53,6 +53,9 @@ func TestIsChrome(t *testing.T) {
 		"running pnpm test:billing",
 		"⏺ Bash(git status)",
 		"Running tests...",
+		"⏺ Let me check...",
+		"- Installing...",
+		"* Checking the build...",
 		"Waiting for the build...",
 		"Loading… done in 3 files",
 	} {
