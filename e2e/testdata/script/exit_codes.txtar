@@ -33,6 +33,8 @@ exitcode 5 rex ls -bogus
 stderr 'flag provided but not defined: -bogus'
 exitcode 5 rex new -slug 'a b' x
 stderr '^rex: new: slug must not contain whitespace$'
+exitcode 5 rex log -n -5 s1
+stderr 'log: -n -5: must not be negative'
 exitcode 5 rex daemon
 stderr 'daemon: subcommand required'
 exitcode 5 rex daemon bogus

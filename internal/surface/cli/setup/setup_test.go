@@ -102,3 +102,19 @@ func TestRunSetup_SpawnDefaultsWritten(t *testing.T) {
 	require.Equal(t, "claude-opus-4-6", st.String("default_spawn_model"))
 	require.Equal(t, "high", st.String("default_spawn_effort"))
 }
+
+// -y is a real alias of -yes, not a scan of the arguments: it takes
+// -y=true and -y=false like any bool flag.
+func TestRunSetup_YAlias(t *testing.T) {
+	for _, arg := range []string{"-y", "-y=true", "--y", "-yes", "-yes=true"} {
+		t.Run(arg, func(t *testing.T) {
+			_, cfg := setupHome(t)
+			require.NoError(t, RunSetup([]string{arg, "-no-shell", "-config", cfg}))
+			require.FileExists(t, cfg)
+		})
+	}
+	// Flags may follow the others.
+	_, cfg := setupHome(t)
+	require.NoError(t, RunSetup([]string{"-no-shell", "-config", cfg, "-y"}))
+	require.FileExists(t, cfg)
+}

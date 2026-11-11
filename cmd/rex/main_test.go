@@ -1,6 +1,10 @@
 package main
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,4 +44,59 @@ func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
 	_, err = core.InitOutput([]string{"--no-color", "doctor"}, nil)
 	require.NoError(t, err)
 	require.False(t, core.Out().Flags.Explicit(), "--no-color alone is not a format request")
+}
+
+func TestRun_UnknownCommandSuggests(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, tc := range []struct{ in, want string }{
+		{"lss", `did you mean "ls"`},
+		{"stauts", `did you mean "stats"`},
+		{"atach", `did you mean "attach"`},
+		{"unistall", `did you mean "uninstall"`},
+	} {
+		err := run([]string{tc.in})
+		require.Error(t, err, tc.in)
+		require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err), tc.in)
+		require.Contains(t, err.Error(), tc.want)
+	}
+
+	err := run([]string{"zzzzzzzz"})
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
+	require.Contains(t, err.Error(), `unknown command "zzzzzzzz"`)
+	require.NotContains(t, err.Error(), "did you mean")
+}
+
+// commands must list every case of run's switch, or a typo of the missing
+// one gets no suggestion.
+func TestRun_EveryCommandIsKnown(t *testing.T) {
+	f, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
+	require.NoError(t, err)
+	var cases []string
+	ast.Inspect(f, func(n ast.Node) bool {
+		fd, ok := n.(*ast.FuncDecl)
+		if !ok || fd.Name.Name != "run" {
+			return true
+		}
+		ast.Inspect(fd, func(n ast.Node) bool {
+			if cc, ok := n.(*ast.CaseClause); ok {
+				for _, e := range cc.List {
+					if lit, ok := e.(*ast.BasicLit); ok {
+						cases = append(cases, strings.Trim(lit.Value, `"`))
+					}
+				}
+			}
+			return true
+		})
+		return false
+	})
+	require.NotEmpty(t, cases)
+	for _, c := range cases {
+		if strings.HasPrefix(c, "-") {
+			continue // --help, -h, --version, -v
+		}
+		require.Contains(t, commands, c, "run handles %q but commands does not list it", c)
+	}
+	for _, c := range commands {
+		require.Contains(t, cases, c, "commands lists %q but run does not handle it", c)
+	}
 }

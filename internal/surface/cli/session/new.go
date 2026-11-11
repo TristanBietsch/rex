@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -26,12 +28,16 @@ func RunNew(args []string) error {
 	slug := fs.String("slug", "", "session slug (defaults to derived from prompt)")
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
-	noAttach := fs.Bool("no-attach", true, "spawn and exit (default)")
+	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
+	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")
 	rest, err := core.ParseTextArgs(fs, args, 0)
 	if err != nil {
 		return err
 	}
 	_ = noAttach
+	if *wait <= 0 {
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("new: -wait %s: must be positive", *wait))
+	}
 
 	absCwd, err := resolveNewCwd(*cwd)
 	if err != nil {
@@ -85,11 +91,15 @@ func RunNew(args []string) error {
 	}
 
 	// Wait for SessionAdded to surface the new id.
-	if err := c.SetReadDeadline(core.DeadlineSeconds(5)); err != nil {
+	if err := c.SetReadDeadline(time.Now().Add(*wait)); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	for {
 		env, err := c.NextEvent()
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			return core.Errorf(core.ExitGeneric, "rex ls",
+				"new: daemon did not confirm the spawn within %s; check `rex ls`", *wait)
+		}
 		if err != nil {
 			return core.NewExitError(core.ExitGeneric, err.Error())
 		}

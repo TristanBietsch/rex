@@ -3,7 +3,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -108,8 +107,28 @@ func run(args []string) error {
 	case "fleet":
 		return inspect.RunFleet(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (try `rex --help`)", args[0])
+		return unknownCommand(args[0])
 	}
+}
+
+// commands is every name the switch in run accepts, for "did you mean".
+// Keep it in step with that switch (TestRun_EveryCommandIsKnown checks).
+var commands = []string{
+	"help", "version", "status", "ls", "new", "attach", "reply", "send", "log",
+	"wait", "rm", "prune", "rename", "name", "done", "retire", "undone",
+	"unretire", "archive", "complete", "reload", "daemon", "completion",
+	"render", "config", "setup", "doctor", "update", "uninstall", "digest",
+	"stats", "fleet",
+}
+
+// unknownCommand is the exit-5 error for a command rex does not have, with
+// the closest real one when it is within two edits.
+func unknownCommand(name string) error {
+	if s := core.Suggest(name, commands); s != "" {
+		return core.Errorf(core.ExitInvalidArgs, "rex "+s,
+			"unknown command %q; did you mean %q? (try `rex --help`)", name, s)
+	}
+	return core.Errorf(core.ExitInvalidArgs, "rex --help", "unknown command %q (try `rex --help`)", name)
 }
 
 func exitCodeFor(err error) int {

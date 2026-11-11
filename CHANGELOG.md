@@ -136,6 +136,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Breaking:** an unknown command now exits 5 (was 1) and, when a real
+  command is within two edits, says `did you mean "ls"?`.
+- **Breaking:** `rex reply <sel>` with no text on a terminal exits 5 instead
+  of waiting for end-of-file; `rex log -n` with a negative number exits 5
+  instead of being accepted.
+- `rex new` waits for the daemon with `-wait` (default 5s). On timeout it
+  says `daemon did not confirm the spawn within 5s; check \`rex ls\`` and
+  exits 1, instead of a raw deadline error.
+- `rex setup -y` is a real alias of `-yes` (so `-y=false` works). The no-op
+  flags `rex ls -short`, `rex ls -show-archived` and `rex new -no-attach`
+  are marked "(deprecated, no effect)" in their usage; they are still
+  accepted.
+
 - **Breaking:** a selector that is a session's exact slug and also the short
   id (or id prefix) of a different session, such as a slug `feed` and
   another session whose id starts with `feed`, now exits 3 and lists both.
