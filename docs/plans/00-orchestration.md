@@ -27,7 +27,10 @@ Per-task plans: `docs/plans/<ID>-*.md`. Independent review: `00-review.md`.
 | P2 | rm "yes, i trust" | M |
 | P3 | harden the CLI | L |
 | A1 | antigravity parity | M (no hooks, see D7) |
-| K1 | opt-in skip-permissions setting (D9) | S |
+| K1 | opt-in skip-permissions setting (D9) | S — merged ca7a957 |
+| U4 | cmd for thick colored window border (pantone, colorblind-safe, random default) | plan pending |
+| U5 | fixed-width columns, responsive, mobile layout | plan pending |
+| U6 | agy logo centered / not cut off in attach window | plan pending |
 | P4 | CLI output look, -o formats, --agent mode, error log (plan pending) | L |
 
 Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
@@ -45,7 +48,9 @@ Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
 | D7 | A1 hooks | None. OSC 7501 per-session env + footer fallback. Never write `~/.gemini`. Drop A1 steps 8–10. |
 | D8 | P2 `ctrl+a` scope | Trust the repo's own folder (git root, or the folder itself if not a repo). NOT the parent. `SuggestTrustDir` changes accordingly; show the exact path. |
 | D9 | `--dangerously-skip-permissions` (user commit 29ca4e9) | Make it opt-in: new `skip_permissions` bool setting (Behavior section, default **off**, help text warns). Remove the flag from the builtin `command` arrays; registry gains `skip_permissions_args` per tool (claude, agy: `["--dangerously-skip-permissions"]`); `buildArgv` appends them only when the setting is on. Task **K1**, lane B, after T2-1. Doc in SECURITY.md + settings.md. |
-| D10 | New unstarred TODO lines from 29ca4e9 | Out of scope this round; U3 and D1 stand. |
+| D10 | New TODO lines from 29ca4e9 | Top-level unstarred lines: out of scope; U3 and D1 stand. **Correction:** the 3 lines added under `*** ## UI / settings` ARE in scope → U4 window border cmd, U5 fixed-width responsive columns + mobile layout, U6 agy logo centered in the attach window. |
+| D11 | P4 CLI output | agy command-output structure (Usage-first, Title-case sections, aligned, no banners, color for meaning); agent mode = 1 line per record + `ok` trailer, errors one stderr line; auto agent mode when CLAUDECODE=1 and stdout not a TTY (REX_AGENT=0 disables); `-json` stays legacy alias, `-o json` versioned; pipes default `txt`; viewer `rex errors`; error log on, 1 MiB + 1 backup, opt-out `cli_error_log`. P4-1..5 wave 2 lane C first; P4-6..13 wave 4 lane C after P3-11. |
+| D12 | Gates | Go toolchain: user upgrades (`brew upgrade go`); until then `make vuln` stdlib advisories are non-blocking. Coverage: no-regression rule for audio, cli/core, cli/inspect, cli/session, cli/setup (must not drop below base 61.2/43.6/36.3/27.9/60.6); all other floors enforced. |
 | — | Agents | claude + antigravity visible; echo hidden (tests). Others deleted, with U3's retired-tool guard. |
 | — | `/ob` | Ignored. |
 | — | Remote | Keep local. No push, no PR. |
