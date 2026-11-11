@@ -221,9 +221,10 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 1. **Provider**: the tool (`j`/`k`, `enter`).
 2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
 3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
-4. **Describe**: the task. `enter` launches.
+4. **Name**: an optional display name (the board shows it instead of the slug; at most 64 characters, checked as you type). `enter` on an empty field skips it; an invalid name shows the reason and stays. With no task, the name also gives the slug.
+5. **Describe**: the task. `enter` launches.
 
-`b` goes back (on the describe step only while the text is empty), `esc` cancels. Quick-spawn (`i`) is unchanged.
+`b` goes back (on the text steps only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the name field, the status line says `this rex-daemon ignored the name; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
 
 ---
 

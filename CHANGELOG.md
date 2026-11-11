@@ -195,6 +195,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - TUI: the new-session wizard (`n`, `:new`) has a model step again. It is
   skipped for a tool with one model, and starts on `default_spawn_model` when
   the tool is `default_spawn_tool`. It used to pick the first model silently.
+- TUI: the wizard has an optional name step (after effort). `enter` on an
+  empty field skips it; the name is checked as you type. With no task, the
+  name also gives the session's slug.
 - `rex setup` now suggests trusting the project's own folder (the git root
   of where you ran it, or the folder itself when it is not a checkout)
   instead of the folder above it. Still never your home folder or anything

@@ -26,6 +26,7 @@ const (
 	wizProvider wizardStep = iota
 	wizModel
 	wizEffort
+	wizName
 	wizDescribe
 )
 
@@ -37,7 +38,10 @@ type WizardState struct {
 	// ModelIdx indexes the selected tool's Models.
 	ModelIdx  int
 	EffortIdx int
-	TaskText  string
+	// NameText is the optional display name being typed; it is validated
+	// with protocol.NormalizeSessionName as it changes.
+	NameText string
+	TaskText string
 	// SpawnTool and SpawnModel are the quick-spawn defaults
 	// (default_spawn_tool / default_spawn_model): the model step starts on
 	// SpawnModel when its tool is the selected one.
@@ -165,13 +169,20 @@ func presetModelDefault(w *WizardState) {
 
 // stepApplies reports whether the wizard shows step for the current tool and
 // model.
+// nameError is why the typed name cannot be used, or nil (an empty name is
+// fine: the slug is shown).
+func (w *WizardState) nameError() error {
+	_, err := protocol.NormalizeSessionName(w.NameText)
+	return err
+}
+
 func (w *WizardState) stepApplies(step wizardStep) bool {
 	switch step {
 	case wizModel:
 		return len(w.selectedTool().Models) > 1
 	case wizEffort:
 		return w.effortApplies()
-	case wizProvider, wizDescribe:
+	case wizProvider, wizName, wizDescribe:
 		return true
 	}
 	return false
@@ -239,8 +250,12 @@ func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Wizard == nil {
 		return m, nil
 	}
-	if m.Wizard.Step == wizDescribe {
+	switch m.Wizard.Step {
+	case wizName:
+		return updateWizardNameStep(m, k)
+	case wizDescribe:
 		return updateWizardDescribeStep(m, k)
+	case wizProvider, wizModel, wizEffort:
 	}
 	switch k.String() {
 	case "esc":
@@ -289,13 +304,51 @@ func moveWizard(m Model, delta int) Model {
 			m.Wizard.EffortIdx = next
 			moved = true
 		}
-	case wizDescribe:
-		// Free-text step: updateWizardDescribeStep owns the keys.
+	case wizName, wizDescribe:
+		// Free-text steps: updateWizardNameStep / updateWizardDescribeStep own the keys.
 	}
 	if moved {
 		playNav(m)
 	}
 	return m
+}
+
+// wizardInputMaxRunes bounds what a free-text step keeps, so a held key
+// cannot grow the text without limit. The name's own limit (64) is lower and
+// reported as an error.
+const wizardInputMaxRunes = 4096
+
+// updateWizardNameStep handles the optional name step: enter moves on (an
+// empty field skips it, an invalid name stays put with the error shown), b
+// goes back while the field is empty.
+func updateWizardNameStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	w := m.Wizard
+	switch k.Type {
+	case tea.KeyEsc:
+		return closeWizard(m), nil
+	case tea.KeyEnter:
+		if w.nameError() != nil {
+			return m, nil
+		}
+		nextWizardStep(w)
+		playNav(m)
+	case tea.KeyBackspace:
+		w.NameText = dropLastRune(w.NameText)
+	case tea.KeyRunes:
+		if k.String() == "b" && w.NameText == "" {
+			prevWizardStep(w)
+			playNav(m)
+			return m, nil
+		}
+		if len([]rune(w.NameText)) < wizardInputMaxRunes {
+			w.NameText += string(k.Runes)
+		}
+	case tea.KeySpace:
+		if len([]rune(w.NameText)) < wizardInputMaxRunes {
+			w.NameText += " "
+		}
+	}
+	return m, nil
 }
 
 func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
@@ -307,6 +360,7 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		cwd, _ := os.Getwd()
 		req := m.Wizard.request(cwd, existingSlugs(m))
 		m.PendingSelectSlug = req.Slug
+		m.PendingSpawn = pendingSpawn{Name: req.Name, Skills: req.Skills}
 		return closeWizard(m), wizardLaunchCmd(m.Client, req)
 	case tea.KeyBackspace:
 		if len(m.Wizard.TaskText) > 0 {
@@ -354,19 +408,47 @@ func existingSlugs(m Model) []string {
 	return out
 }
 
+// pendingSpawn is the part of a wizard spawn an older daemon would drop.
+type pendingSpawn struct {
+	Name   string
+	Skills []string
+}
+
+// ignoredBy says what the daemon that created sum left out of it, or "".
+func (p pendingSpawn) ignoredBy(sum protocol.SessionSummary) string {
+	var what []string
+	if p.Name != "" && sum.Name == "" {
+		what = append(what, "the name")
+	}
+	if len(p.Skills) > 0 && len(sum.Skills) == 0 {
+		what = append(what, "skills")
+	}
+	if len(what) == 0 {
+		return ""
+	}
+	return "this rex-daemon ignored " + strings.Join(what, " and ") + "; run `rex daemon restart`"
+}
+
 // request builds the NewSession the wizard's choices stand for: the slug is
 // derived from the task and made unique against existing.
 func (w *WizardState) request(cwd string, existing []string) protocol.NewSession {
 	task := strings.TrimSpace(w.TaskText)
+	name, _ := protocol.NormalizeSessionName(w.NameText)
 	tool, model := w.selectedTool(), w.selectedModel()
+	// With no task, the name stands in for it in the slug.
+	slugTask := task
+	if slugTask == "" {
+		slugTask = name
+	}
 	return protocol.NewSession{
 		ToolID:        tool.ID,
 		ModelID:       model.ID,
 		Effort:        w.currentEffort(),
-		Slug:          deriveAgentSlug(tool.ID, model.ID, task, existing),
+		Slug:          deriveAgentSlug(tool.ID, model.ID, slugTask, existing),
 		Title:         task,
 		CWD:           cwd,
 		InitialPrompt: task,
+		Name:          name,
 	}
 }
 
@@ -543,6 +625,15 @@ func renderWizard(m Model) string {
 		for i, opt := range opts {
 			body = append(body, wizOption(i == m.Wizard.EffortIdx, "", opt, ""))
 		}
+	case wizName:
+		title = styleSlug.Render("name it? (optional)")
+		body = append(body, "")
+		body = append(body, wizInputBoxLines(m.Wizard.NameText, m)...)
+		if err := m.Wizard.nameError(); err != nil {
+			body = append(body, "", "  "+lipgloss.NewStyle().Foreground(colorFailed).Render(err.Error()))
+		} else {
+			body = append(body, "", styleDim.Render("  shown on the board instead of the slug"))
+		}
 	case wizDescribe:
 		title = styleSlug.Render("describe the task")
 		body = append(body, "")
@@ -570,6 +661,8 @@ func wizardFooter(step wizardStep) string {
 		return styleDim.Render("  j/k select   enter next   esc cancel")
 	case wizModel, wizEffort:
 		return styleDim.Render("  j/k select   enter next   b back   esc cancel")
+	case wizName:
+		return styleDim.Render("  enter next (empty skips)   b back (when empty)   esc cancel")
 	case wizDescribe:
 		return styleDim.Render("  enter launch   b back (when empty)   esc cancel")
 	}

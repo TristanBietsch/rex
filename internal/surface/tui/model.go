@@ -45,7 +45,11 @@ type Model struct {
 	// PendingSelectSlug is the slug of a session this TUI just asked the
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string
-	Filter            string
+	// PendingSpawn is what the wizard sent beyond what any daemon honors: a
+	// daemon that predates the name and skills fields drops them silently, so
+	// SessionAdded of PendingSelectSlug is checked against it.
+	PendingSpawn pendingSpawn
+	Filter       string
 	// Search is the board search text (/ or :search): every term must match a
 	// row. Session-only; :bg saves it.
 	Search string
@@ -181,6 +185,10 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
 				m.SelectedID = sum.ID
 				m.PendingSelectSlug = ""
+				if msg := m.PendingSpawn.ignoredBy(sum); msg != "" {
+					m.Err = msg
+				}
+				m.PendingSpawn = pendingSpawn{}
 				if indexOfSelected(m) < 0 {
 					m.Notice = sum.Slug + " is hidden by the filter"
 				}
@@ -281,6 +289,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m.Err = "daemon: " + friendlyDaemonError(ee)
 			// A rejected spawn will never produce SessionAdded.
 			m.PendingSelectSlug = ""
+			m.PendingSpawn = pendingSpawn{}
 		}
 	case protocol.EventSummarizerHealth:
 		var h protocol.SummarizerHealth
