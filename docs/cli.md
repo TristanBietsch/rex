@@ -58,7 +58,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status` and `rex skills` and `rex overview` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status`, `rex skills`, `rex overview` and `rex usage` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -117,6 +117,24 @@ rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [
 ```
 
 Replays the session's transcript through the terminal emulator (full-screen agents) or strips it (line tools) and writes the metadata plus clean text as `json` (default, `version: 1`), `yaml` (the same document), `md` or `txt`. Output goes to stdout, or to `--out FILE` (mode 0600; refuses to replace a file without `--force`, exit 6; the format is taken from the extension when `-o` is absent). `--max-frames N` keeps the last N frames. `--from-agent-log` reads Claude Code's own log for the session's resume id instead; a missing log falls back to frames with a notice. A running session is read up to its current end. Needs the `session_export` feature (exit 5 when off). Exports can hold secrets. Details: [export.md](export.md).
+
+---
+
+## rex usage
+
+What the agents used: tokens, cost and plan quota, per agent, per model and in total.
+
+```sh
+rex usage [-range today|7d|30d] [-tool ID] [-by tool|model] [-socket path] [-o FORMAT] [--agent]
+```
+
+Asks the daemon, which counts each session once from its usage ledger (`~/.local/share/rex/usage.jsonl`, see [paths.md](paths.md)) overlaid with the live sessions, so a session still running counts as it is now. A session belongs to the range its latest ledger line falls in. `-range` is `today` (since local midnight, the default), `7d` or `30d`. `-tool` limits it to one tool id. Default rows are one per tool with its models under it; `-by tool` shows only the tool rows and `-by model` one flat row per tool and model. `-by` changes the human rows only: `json` always carries the whole report.
+
+Columns: sessions, tokens and cost. **Tokens are rex's own estimate** (`output_bytes / 4`) and show a `~` in front (`~1.2M`); **cost** is what Claude Code reports for the session through its status line, `—` when the tool reported none (every tool but Claude today, and Claude when the tap is off, see `usage_statusline_tap` in [settings.md](settings.md)). A **Quota** table follows when a tool reports plan limits (Claude, through the status-line tap): window (`5h`, `week` or a spend period), percent used (green under 60, yellow under 85, red from there), when it resets, and `(as of HH:MM)` when the reading is older than 15 minutes. A plan without rate limits (API-key billing) shows cost and no quota table. Grok's `grok usage` is not read yet.
+
+`json` is `{"v":1,"cmd":"usage","data":{"range","since","tool","total":{"sessions","tokens","tokens_estimated","cost_usd"},"tools":[{"tool",…row,"models":[{"model",…row}]}],"quotas":[{"tool","window","used_pct","resets_at","used_usd","limit_usd","at","stale"}]}}`; `cost_usd` is absent when no counted session reported one. `agent` prints one `usage level=tool|model tool=… model=… sessions=… tokens=… estimated=… cost_usd=…` line per row (`cost_usd=none` when unknown), one `quota tool=… window=… used=… resets_at=… stale=…` line per window, then `ok cmd=usage count=N sessions=… tokens=… cost_usd=…`.
+
+Exit **5** with `off: enable in Settings → Features (rex config set usage true)` while the `usage` setting is off (checked before any connection), and for a bad `-range` or `-by`. Exit **4** when the daemon is not running. Against a `rex-daemon` older than this command it exits **6** with ``run `rex daemon restart` ``.
 
 ---
 

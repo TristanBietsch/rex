@@ -54,6 +54,7 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | Sessions | `sessions` | `SessionSummary[]` |
 | Filter | `filter` | string | cosmetic per-client |
 | Overview | `overview` | `Overview` | optional; absent until the daemon publishes one |
+| Usage | `usage` | `Usage` | optional; live quotas, absent while `usage` is off or before the first one |
 
 ## Overview event
 
@@ -64,6 +65,25 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | GeneratedAt | `generated_at` | RFC3339 time | optional |
 
 In memory only; never persisted. See `docs/protocol.md`.
+
+## Usage event
+
+`Usage` in `internal/wire/protocol/usage.go`; memory only, never persisted.
+
+| Field | JSON | Type | Notes |
+|-------|------|------|-------|
+| Enabled | `enabled` | bool | false: `usage` was switched off, drop held quotas |
+| Quotas | `quotas` | `UsageQuota[]` | latest reading per tool and window |
+
+`UsageQuota`: `tool`, `model` (empty = plan-wide), `window` (`5h`, `week`, a spend period), `used_pct`, `resets_at`, `used_usd`, `limit_usd` (all optional), `at`, `stale`.
+
+## UsageSample intent (status-line tap, no reply)
+
+`session_id`, `claude_session_id`, `five_hour` / `seven_day` (`used_pct`, `resets_at` epoch seconds), `spend_limit` (`used_pct`, `resets_at`, `used_usd`, `limit_usd`, `period`), `cost_usd`, `model_id`, `model_name`. All but `session_id` optional.
+
+## UsageQuery intent and UsageResult
+
+Intent: `range` (`today` | `7d` | `30d`), `tool` (optional). Reply event `UsageResult` (`UsageReport`): `range`, `since`, `tool`, `total`, `tools[]` (`tool`, row fields, `models[]` with `model` and row fields), `quotas[]`. Row: `sessions`, `tokens`, `tokens_estimated`, `cost_usd` (optional).
 
 ## SessionUpdated patch
 
@@ -149,9 +169,29 @@ A `start` line numbers its turn one past the current count, which replaces any t
       git/           # shadow git dir
       turns.jsonl    # ledger, see above
       cwd            # the folder this store belongs to
+  usage.jsonl        # usage ledger (0600, append-only; see below)
 ```
 
 Default `<state-dir>`: `~/.local/share/rex` (`rex-daemon -state-dir`).
+
+## usage.jsonl (usage ledger)
+
+One JSON object per line, `usage.Record` in `internal/features/usage/ledger.go`. A session has several lines; the one with the greatest `at` (the later line on a tie) is its current total, so periodic lines never double count.
+
+| Field | JSON | Type | Notes |
+|-------|------|------|-------|
+| version | `v` | int | `1` |
+| session id | `session_id` | string | rex session id (a resumed session keeps it) |
+| tool | `tool` | string | tool id |
+| model | `model` | string | model id; the model Claude reported when known, else the spawn model |
+| tokens | `tokens` | int | rex's own estimate (`output_bytes / 4`) |
+| cost | `cost_usd` | number | omitted when no source reported a cost |
+| estimated | `estimated` | bool | `tokens` is an estimate |
+| started | `started_at` | time | omitted when unknown |
+| at | `at` | time | when the line was written; an ended session is dated by when it ended |
+| ended | `ended` | bool | the session's final line |
+
+Written when a session ends (or is removed by prune, retire or delete) and, for a live session, at most every 10 minutes and only when its totals changed. Trimmed to 90 days when the daemon starts. A line that is not valid JSON or lacks `session_id` or `at` is skipped with one warning. Never created while the `usage` setting is off.
 
 ## tools.yaml
 

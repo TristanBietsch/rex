@@ -158,6 +158,7 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, e
 		HookFile:        hookFile,
 		SessionID:       sess.ID,
 		Resume:          &resumeArgs{ID: sum.ResumeID},
+		StatusLine:      s.statusLineFor(tool, sess.ID),
 	}
 	argv := buildArgv(spec)
 	if err := startSupervisor(ctx, s, sess, spec, argv, childEnvFor(spec), "", promptDelivery{}, res); err != nil {

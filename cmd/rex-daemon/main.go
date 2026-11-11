@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -22,16 +23,44 @@ import (
 	"github.com/tristanbietsch/rex/internal/features/overview"
 	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
+	"github.com/tristanbietsch/rex/internal/features/usage"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/version"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == usage.TapSubcommand {
+		os.Exit(runTap(os.Args[2:]))
+	}
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "rex-daemon:", err)
 		os.Exit(1)
 	}
+}
+
+// runTap is `rex-daemon statusline-tap --session <id> [--socket path] [--user-settings path]`, the
+// status-line command rex gives Claude Code. Its stdout is Claude's status
+// line, so it never prints a message of its own; a flag it cannot parse only
+// means no usage is sent. It does not start logging or touch any state.
+func runTap(args []string) int {
+	fs := flag.NewFlagSet(usage.TapSubcommand, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	session := fs.String("session", "", "rex session id")
+	socket := fs.String("socket", "", "daemon socket (default: the standard one)")
+	userSettings := fs.String("user-settings", "", "absolute path of the user-level Claude settings file")
+	if err := fs.Parse(args); err != nil {
+		*session = "" // run the user's command, send nothing
+	}
+	// Claude stops a status line with a signal; it must stop the user's
+	// command with it, not leave it running.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	return usage.RunTap(ctx, usage.TapOptions{
+		Session: *session, Socket: *socket, UserSettings: *userSettings,
+		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
+	})
 }
 
 func run(args []string) error {
@@ -175,10 +204,15 @@ func run(args []string) error {
 	if settings.FeatureOn(settingsStore, "turn_snapshots") {
 		go retainSnapshots(ctx, snapStore, store)
 	}
-	// One settings watcher: every feature adds its applier to this list.
-	appliers := []func(*settings.Store){snaps.Applier()}
 
 	var srv *server.Server
+	// Usage tracking: inert while the usage setting is off. Its callbacks
+	// read srv only once Serve has started, after that assignment.
+	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
+	defer usageHub.Close()
+	// One settings watcher: every feature adds its applier to this list.
+	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier()}
+
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
 	var ov *boot.Overview
@@ -197,6 +231,9 @@ func run(args []string) error {
 		SkillsEnabled:         boot.SpawnSkillsEnabled,
 		Snapshots:             snapStore,
 		SnapshotsEnabled:      boot.TurnSnapshotsEnabled,
+		UsageTap:              boot.UsageTap(*socketPath),
+		OnUsageSample:         usageHub.Hub.Sample,
+		UsageQuery:            usageHub.Hub.Query,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
@@ -204,6 +241,9 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
+
+	// Started only now: switching usage on publishes its state through srv.
+	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
 	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)
