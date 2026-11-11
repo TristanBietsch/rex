@@ -57,7 +57,7 @@
 - Flag lands in step W1 (`workspaces`) and W4 (`audit_*`).
 
 ## Phases and plan
-- **W0 Spec gate.** Decisions D1–D6 answered; this file updated; a `docs/workspaces.md` user doc drafted. No code.
+- **W0 Spec gate: passed 2026-11-11.** Decisions D1–D6 answered; task plan in [R06-00-plan.md](R06-00-plan.md); user doc drafted in [R06-workspaces-userdoc.md](R06-workspaces-userdoc.md).
 - **W1 Identity.** `internal/workspace` package: `Find(cwd) (*Workspace, error)`, `Init(root, name)`, id + color generation, `workspace.json` read/write with symlink + permission checks. Tests: discovery stops at `$HOME`; symlinked `.rex` refused; id regenerated on collision; Windows paths.
 - **W2 Sessions tagged.** `workspace_id` on `NewSession`/`SessionSummary`/meta; daemon appends `sessions.jsonl`. TUI `rex here` filter, id top-left, U4 border color. Tests: spawn in nested folder tags the right workspace; workspace board hides others; old daemon (no field) shows everything with a notice.
 - **W3 Workspace config.** R05 evaluator on `.rex/config.lua` behind `rex ws trust`. Tests: untrusted workspace config ignored with notice; precedence table extended.
