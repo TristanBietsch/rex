@@ -138,7 +138,7 @@ var commands = []command{
 	{Names: []string{"rename"}, Args: "<s> <slug>", Desc: "change slug", Group: groupSessionCmd, Run: runRename},
 	{Names: []string{"done"}, Args: "[sel]", Desc: "mark done", Group: groupSessionCmd, Run: runDone},
 	{Names: []string{"undone"}, Args: "[sel]", Desc: "undo done", Group: groupSessionCmd, Run: runUndone},
-	{Names: []string{"uc"}, Args: "[sel]", Desc: "undo done: unmark a session marked done", Group: groupSessionCmd, Run: runUC},
+	{Names: []string{"uc"}, Args: "[sel]", Desc: "undo done: unmark a session marked done", Group: groupSessionCmd, Flag: "undo_complete", Run: runUC},
 	{Names: []string{"complete"}, Args: "[sel]", Desc: "kill agent + mark done now", Group: groupSessionCmd, Run: runComplete},
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},

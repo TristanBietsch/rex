@@ -125,6 +125,11 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "Search the board with / and :search. Off: / does nothing, :search refuses, and a saved or stale query is ignored.",
 	},
+	{
+		ID: "undo_complete", Label: "Undo done (uc)", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "The uc key and :uc / :resume, which take a session out of Done. Off: uc does nothing and the commands refuse; :undone still unmarks a session marked done.",
+	},
 
 	// Spawn
 	{

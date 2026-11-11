@@ -19,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Setting `search` (Features, on by default): switches off board search.
   Off, `/` does nothing, `:search` answers the off message, and a saved
   query is ignored.
+- Setting `undo_complete` (Features, on by default): switches off `uc` and
+  `:uc`. Off, the chord is unbound and the command answers the off message;
+  `:undone` still unmarks.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current

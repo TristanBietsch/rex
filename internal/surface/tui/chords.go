@@ -15,7 +15,7 @@ type chordHandler func(m Model, second string) (Model, tea.Cmd, bool)
 
 // chordFlags names the Features switch behind a chord; while it is off the
 // first key is unbound.
-var chordFlags = map[string]string{"z": "board_filter"}
+var chordFlags = map[string]string{"u": "undo_complete", "z": "board_filter"}
 
 // boardChords maps a chord's first key to its handler: dd deletes, cc marks
 // done (or undoes the mark), uc unmarks a done session, z... hides or shows
