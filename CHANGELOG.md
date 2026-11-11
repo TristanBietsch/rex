@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: a dim preview line under the board shows the selected session's full
+  AI summary and how old it is (`↳ Editing api/webhooks.go … · 12s`), in
+  both views, while any session has a summary. In the detailed view it only
+  appears when the row cuts the text. Two lines on a tall terminal at
+  `summary_detail: long`. Hidden below 20 rows, and switchable in Settings →
+  Features (`summary_preview`).
+- TUI: descriptions are cut on a word boundary with an ellipsis, and the
+  description animation ends on exactly the settled text.
 - Setting `summary_detail` (AI summary): `short`, `medium` (default) or
   `long` sets how much an AI description says (about 8, 15 or 28 words; 60,
   110 or 180 characters). The daemon applies a change within about 5

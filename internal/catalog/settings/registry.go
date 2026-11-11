@@ -115,6 +115,11 @@ var Registry = []Setting{
 	// Off means inert: no goroutine, subprocess, network, file write or argv
 	// addition, keys unbound, commands refuse. Rows are added by the step
 	// that adds the feature; each must be a bool or enum with help text.
+	{
+		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
+	},
 
 	// Spawn
 	{

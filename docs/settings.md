@@ -58,7 +58,9 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 
 One on/off switch per optional feature. A feature that is off is inert: no background work, no file writes, its keys do nothing and its commands refuse with `off: enable in Settings → Features (rex config set <flag> true)`. Existing toggles (`summary_enabled`, `skip_permissions`, …) stay in their own sections. Code reads a switch with `settings.FeatureOn(store, id)`, which panics for an id outside this section.
 
-_No switches yet._
+| ID | Type | Default | Notes |
+|----|------|---------|-------|
+| `summary_preview` | bool | `true` | A line under the board with the selected session's full AI summary and its age. Shown only while some session has a summary. Off: no line and no row reserved |
 
 ### Spawn
 
