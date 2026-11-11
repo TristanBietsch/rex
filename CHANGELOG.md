@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex setup` asks whether agents may skip the folder trust prompt in a
+  folder (default no; it suggests the folder that holds the current
+  project), and `rex setup -auto-trust folders` sets it without the
+  question. Both write `auto_trust_dirs` and refuse the values the daemon
+  ignores (a filesystem root, the home folder, relative paths, `..`), so
+  setup and the daemon share one set of checks.
 - TUI: a Claude Code session running subagents shows how many in its row
   (`⋔3`). The daemon tracks them with Claude's `SubagentStart` and
   `SubagentStop` hooks; the wire gains an optional `subagents` field.
@@ -192,6 +198,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the hot path with timeouts. `init.lua` is documented as trusted code.
 - `rex daemon stop`, `rex reload` and the TUI's `:reload` act only through
   the daemon's socket. They never signal a process found by name.
+- `auto_trust_dirs` entries that start with `~/` and contain `..` are now
+  ignored like any other path with `..`. Expanding `~/` cleaned the path
+  before the check, so `~/..` trusted the folder above home (such as
+  `/Users`) and `~/a/../b` trusted `~/b`. A `HOME` that contains `..` no
+  longer lets `~/` trust the home folder, and while `HOME` is set but
+  cannot be resolved, no folder is trusted.
 
 ## [v1]
 
