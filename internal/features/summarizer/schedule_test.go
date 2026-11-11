@@ -201,7 +201,7 @@ func TestWorker_RequeuesAfterFailedCall(t *testing.T) {
 	w.Channel() <- "sess-fail"
 	select {
 	case v := <-got:
-		require.Equal(t, "running tests", v)
+		require.Equal(t, "Running tests", v)
 	case <-time.After(5 * time.Second):
 		t.Fatal("failed request was dropped, not retried later")
 	}

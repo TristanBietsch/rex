@@ -27,15 +27,15 @@ func TestCleanResponseStripsArtifacts(t *testing.T) {
 	cases := []struct {
 		in, want string
 	}{
-		{"running pnpm test", "running pnpm test"},
-		{`"running pnpm test"`, "running pnpm test"},
-		{"Output: running pnpm test", "running pnpm test"},
-		{"- running pnpm test", "running pnpm test"},
-		{"running pnpm test.", "running pnpm test"},
-		{"  running pnpm test  ", "running pnpm test"},
-		{"Description: rewriting webhook handlers — 12 of 14", "rewriting webhook handlers — 12 of 14"},
-		{"waiting...", "waiting..."},
-		{"done..", "done.."},
+		{"running pnpm test", "Running pnpm test"},
+		{`"running pnpm test"`, "Running pnpm test"},
+		{"Output: running pnpm test", "Running pnpm test"},
+		{"- running pnpm test", "Running pnpm test"},
+		{"running pnpm test.", "Running pnpm test"},
+		{"  running pnpm test  ", "Running pnpm test"},
+		{"Description: rewriting webhook handlers — 12 of 14", "Rewriting webhook handlers — 12 of 14"},
+		{"waiting...", "Waiting..."},
+		{"done..", "Done.."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
@@ -63,20 +63,20 @@ func TestCleanResponseIsTerminalSafe(t *testing.T) {
 	cases := []struct {
 		name, in, want string
 	}{
-		{"cut at first newline", "running tests\nrm -rf /", "running tests"},
-		{"cut at carriage return", "running tests\rfake prompt", "running tests"},
-		{"leading blank lines skipped", "\n\n  running tests\nmore", "running tests"},
-		{"OSC 52 clipboard write", "\x1b]52;c;ZWNobyBwd25lZA==\x07running tests", "running tests"},
-		{"OSC with ST terminator", "\x1b]0;evil title\x1b\\running tests", "running tests"},
-		{"CSI clear screen", "running \x1b[2Jtests", "running tests"},
-		{"SGR color", "\x1b[31mrunning tests\x1b[0m", "running tests"},
-		{"C0 controls dropped", "run\x00ning\x07 tests\x7f", "running tests"},
-		{"tab becomes space", "running\ttests", "running tests"},
+		{"cut at first newline", "running tests\nrm -rf /", "Running tests"},
+		{"cut at carriage return", "running tests\rfake prompt", "Running tests"},
+		{"leading blank lines skipped", "\n\n  running tests\nmore", "Running tests"},
+		{"OSC 52 clipboard write", "\x1b]52;c;ZWNobyBwd25lZA==\x07running tests", "Running tests"},
+		{"OSC with ST terminator", "\x1b]0;evil title\x1b\\running tests", "Running tests"},
+		{"CSI clear screen", "running \x1b[2Jtests", "Running tests"},
+		{"SGR color", "\x1b[31mrunning tests\x1b[0m", "Running tests"},
+		{"C0 controls dropped", "run\x00ning\x07 tests\x7f", "Running tests"},
+		{"tab becomes space", "running\ttests", "Running tests"},
 		// U+009B opens a CSI sequence like ESC [ does, and the whole
 		// sequence goes (FU-03: the summarizer used to drop only the rune).
-		{"C1 CSI rune dropped", "running \u009b31mtests", "running tests"},
-		{"invalid UTF-8 dropped", "running \xff\xfetests", "running tests"},
-		{"prefix after sanitizing", "\x1b[1mOutput:\x1b[0m running tests", "running tests"},
+		{"C1 CSI rune dropped", "running \u009b31mtests", "Running tests"},
+		{"invalid UTF-8 dropped", "running \xff\xfetests", "Running tests"},
+		{"prefix after sanitizing", "\x1b[1mOutput:\x1b[0m running tests", "Running tests"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

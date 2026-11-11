@@ -61,7 +61,7 @@ func TestWorkerCallsOllamaAndWritesDescription(t *testing.T) {
 
 	select {
 	case desc := <-got:
-		if desc != "running pnpm test" {
+		if desc != "Running pnpm test" {
 			t.Fatalf("desc: %q", desc)
 		}
 	case <-time.After(2 * time.Second):

@@ -228,7 +228,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		if ctx.Err() == nil {
 			// Deferred, not dropped: runs again after MinInterval, or once
 			// the backend is back if these failures marked it unavailable.
-			w.enqueue(id, req.since, req.prio)
+			w.enqueue(id, time.Now(), req.prio) // since=now: a failing session does not keep jumping the queue
 		}
 		if w.failures.Load() >= 3 {
 			w.MarkUnavailable("consecutive call failures")
@@ -240,7 +240,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		slog.Info("summarizer: slow_call", "session", id, "duration_ms", elapsed.Milliseconds())
 	}
 
-	cleaned := cleanResponse(resp)
+	cleaned := Clean(resp, maxDescription, snap.ToolID)
 	slog.Debug("summarizer: response", "session", id, "duration_ms", elapsed.Milliseconds(), "chars_out", len([]rune(cleaned)))
 	if cleaned == "" {
 		return
