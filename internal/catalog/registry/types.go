@@ -25,6 +25,11 @@ type Tool struct {
 	// asking for approval (for example --dangerously-skip-permissions). They
 	// are added only while the skip_permissions setting is on.
 	SkipPermissionsArgs []string `yaml:"skip_permissions_args,omitempty"`
+	// SkillArgs are extra argv that load the session's staged skills plugin
+	// (for example --plugin-dir {plugin_dir}). {plugin_dir} expands to the
+	// plugin folder under the session directory. nil: the tool cannot load
+	// skills per session.
+	SkillArgs []string `yaml:"skill_args,omitempty"`
 	// Resume says how to resume the agent's conversation and how rex learns
 	// its id. nil: the tool cannot be resumed.
 	Resume *ResumeSpec `yaml:"resume,omitempty"`
@@ -32,6 +37,9 @@ type Tool struct {
 
 // TrustArgsCWDList is the trust_args placeholder for the session folder.
 const TrustArgsCWDList = "{cwd_list}"
+
+// SkillArgsPluginDir is the skill_args placeholder for the plugin folder.
+const SkillArgsPluginDir = "{plugin_dir}"
 
 // TrustPrompt is an agent's "do you trust this folder?" dialog: how to tell
 // it is on screen and that its accept option is the selected one, and the
