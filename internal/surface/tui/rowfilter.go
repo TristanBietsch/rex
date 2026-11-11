@@ -8,12 +8,12 @@ import "github.com/tristanbietsch/rex/internal/wire/protocol"
 type rowFilter struct {
 	tool   string          // "" / "all": any tool
 	terms  []string        // search terms (reserved)
-	hidden map[string]bool // section IDs hidden outright (reserved)
+	hidden map[string]bool // section IDs hidden outright
 }
 
 // rowFilterOf is the filter the model currently has active.
 func rowFilterOf(m Model) rowFilter {
-	return rowFilter{tool: m.Filter}
+	return rowFilter{tool: m.Filter, hidden: m.Hidden}
 }
 
 // keep reports whether a session passes the row filters.

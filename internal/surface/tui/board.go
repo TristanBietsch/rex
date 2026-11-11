@@ -99,8 +99,11 @@ func doneCollapsed(m Model) bool {
 }
 
 // visibleRows is group gi's rows as the board shows them: none while Done
-// is collapsed.
+// is collapsed or the section is hidden.
 func visibleRows(m Model, gi int) []protocol.SessionSummary {
+	if !rowFilterOf(m).showsSection(boardGroups[gi]) {
+		return nil
+	}
 	if gi == groupDone && doneCollapsed(m) {
 		return nil
 	}
@@ -265,9 +268,13 @@ type boardSlot struct {
 func boardSlots(m Model) []boardSlot {
 	gapBetween := densityGap(m)
 	collapsed := doneCollapsed(m)
+	f := rowFilterOf(m)
 	var slots []boardSlot
 	for i := range boardGroups {
-		if i > 0 {
+		if !f.showsSection(boardGroups[i]) {
+			continue
+		}
+		if len(slots) > 0 { // a gap before every shown section but the first
 			for j := 0; j < gapBetween; j++ {
 				slots = append(slots, boardSlot{kind: slotGap, group: i})
 			}

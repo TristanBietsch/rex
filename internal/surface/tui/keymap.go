@@ -18,6 +18,9 @@ func orderedSessions(m Model) []protocol.SessionSummary {
 // nextNeedsYou selects the next session waiting for input after the current
 // selection, wrapping around (tab).
 func nextNeedsYou(m Model) Model {
+	if hiddenNotice(&m, groupNeeds) {
+		return m
+	}
 	rows := visibleRows(m, groupNeeds)
 	if len(rows) == 0 {
 		m.Notice = "nothing needs you"
@@ -37,6 +40,9 @@ func nextNeedsYou(m Model) Model {
 // toggleDone handles 3: a long Done column folds and unfolds; a short one
 // just gets the selection.
 func toggleDone(m Model) Model {
+	if hiddenNotice(&m, groupDone) {
+		return m
+	}
 	if len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) <= doneCollapseAt {
 		return jumpToSection(m, groupDone)
 	}
@@ -47,9 +53,10 @@ func toggleDone(m Model) Model {
 	return keepSelectionVisible(m)
 }
 
-// keepSelectionVisible moves the selection off a row the board no longer
-// shows because the Done column folded (e.g. the row was just marked done),
-// to the first row shown: the top of the board, which is what needs you
+// keepSelectionVisible moves the selection off a live session the board no
+// longer shows (the Done column folded, its section is hidden, or the tool
+// filter excludes it: e.g. the row was just marked done), to the first row
+// shown: the top of the board, which is what needs you
 // first. Other selections are left alone. It also drops an expanded Done
 // column back to folding once it is short again, so it folds the next time
 // it grows past doneCollapseAt.
@@ -57,18 +64,12 @@ func keepSelectionVisible(m Model) Model {
 	if m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) <= doneCollapseAt {
 		m.DoneExpanded = false
 	}
-	if m.SelectedID == "" || !doneCollapsed(m) || indexOfSelected(m) >= 0 {
+	// Cheap exit: nothing narrows the board, so the selection is visible.
+	if m.SelectedID == "" || (len(m.Hidden) == 0 && !doneCollapsed(m) && !rowFilterOf(m).rowsActive()) {
 		return m
 	}
-	hidden := false
-	for _, s := range filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m)) {
-		if s.ID == m.SelectedID {
-			hidden = true
-			break
-		}
-	}
-	if !hidden {
-		return m
+	if _, live := findSession(m.Sessions, m.SelectedID); !live || indexOfSelected(m) >= 0 {
+		return m // gone sessions are the remover's job (neighborOf)
 	}
 	m.SelectedID = ""
 	if rows := orderedSessions(m); len(rows) > 0 {
@@ -201,6 +202,9 @@ func ensureVisible(m Model) Model {
 // (0=Needs you, 1=Working, 2=Done). No-op if the group is empty.
 func jumpToSection(m Model, groupIdx int) Model {
 	if groupIdx < 0 || groupIdx >= len(boardGroups) {
+		return m
+	}
+	if hiddenNotice(&m, groupIdx) {
 		return m
 	}
 	rows := visibleRows(m, groupIdx)
