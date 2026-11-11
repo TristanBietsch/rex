@@ -47,7 +47,7 @@ func TestBuildArgvGoldenEveryBuiltin(t *testing.T) {
 							skipArgs = tool.SkipPermissionsArgs
 						}
 						spec := spawnSpec{Tool: tool, Model: model, Effort: effort, CWD: "/w",
-							Trust: trustDecision{Args: tr}, SkipPermissions: skip, HookFile: "/h", SessionID: "sid"}
+							Trust: trustDecision{Args: tr, Trusted: true}, SkipPermissions: skip, HookFile: "/h", SessionID: "sid"}
 						require.Equal(t, legacyArgv(tool, model, effort, tr, skipArgs), buildArgv(spec),
 							"%s/%s effort=%q trust=%v skip=%v", tool.ID, model.ID, effort, tr, skip)
 						n++
@@ -98,11 +98,15 @@ func TestBuildArgvSkipPermissions(t *testing.T) {
 		model := tool.Models[0]
 		off := buildArgv(spawnSpec{Tool: tool, Model: model})
 		require.NotContains(t, off, "--dangerously-skip-permissions", "%s: setting off", id)
-		on := buildArgv(spawnSpec{Tool: tool, Model: model, SkipPermissions: true})
+		on := buildArgv(spawnSpec{Tool: tool, Model: model, SkipPermissions: true, Trust: trustDecision{Trusted: true}})
+		untrusted := buildArgv(spawnSpec{Tool: tool, Model: model, SkipPermissions: true})
+		trustedOff := buildArgv(spawnSpec{Tool: tool, Model: model, Trust: trustDecision{Trusted: true}})
+		require.NotContains(t, untrusted, "--dangerously-skip-permissions", "%s: setting on, folder not trusted", id)
+		require.NotContains(t, trustedOff, "--dangerously-skip-permissions", "%s: setting off, folder trusted", id)
 		if id == "echo" {
 			require.Equal(t, off, on, "echo has no skip_permissions_args")
 		} else {
-			require.Contains(t, on, "--dangerously-skip-permissions", "%s: setting on", id)
+			require.Contains(t, on, "--dangerously-skip-permissions", "%s: setting on, folder trusted", id)
 		}
 	}
 }

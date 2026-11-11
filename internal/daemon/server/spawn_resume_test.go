@@ -16,7 +16,7 @@ func TestBuildArgvResume(t *testing.T) {
 	require.NoError(t, err)
 	claude, model, ok := reg.FindModel("claude", "opus")
 	require.True(t, ok)
-	trust := trustDecision{Args: []string{"--t"}}
+	trust := trustDecision{Args: []string{"--t"}, Trusted: true}
 
 	base := append([]string{}, claude.Command...)
 	base = append(base, "--model", "opus", "--effort=max", "--t", "--dangerously-skip-permissions")

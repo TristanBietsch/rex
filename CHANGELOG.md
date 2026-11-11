@@ -88,6 +88,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The `skip_permissions` setting now applies only in folders under
+  `auto_trust_dirs` (also when a session is resumed). In any other folder
+  agents start without `--dangerously-skip-permissions` and the daemon log
+  says so.
 - `NewSession` for a tool or model that is not in the registry now fails
   with `bad_intent` (it was `spawn_failed`), the same error `Resume` gives.
 - Skipping agent permission prompts is now opt-in. Claude Code and

@@ -70,8 +70,10 @@ filesystem permissions.
   in scope.
 - The `skip_permissions` setting. When you turn it on, rex starts Claude
   Code and Antigravity with `--dangerously-skip-permissions`, so those
-  agents run commands and edit files without asking you. It is off by
-  default. rex adding that flag while the setting is off is in scope.
+  agents run commands and edit files without asking you, but only in a
+  folder under `auto_trust_dirs`. Elsewhere the flag is left off. It is off
+  by default. rex adding that flag while the setting is off, or in a folder
+  that is not trusted, is in scope.
 - An attacker who already runs code as your user, or as root.
 - Vulnerabilities in third-party dependencies that rex does not reach. Use
   `make vuln` (govulncheck) to check reachability first.

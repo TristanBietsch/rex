@@ -18,11 +18,25 @@ import (
 type trustDecision struct {
 	Args   []string
 	Answer *pty.TrustAnswer
+	// Trusted is whether the folder is one the user trusts: under
+	// auto_trust_dirs. Only a trusted folder gets skip_permissions_args. A
+	// per-session trust choice will set it too.
+	Trusted bool
 }
 
 // trustDecisionFor computes both halves of the trust decision for tool in cwd.
 func (s *Server) trustDecisionFor(tool registry.Tool, cwd string) trustDecision {
-	return trustDecision{Args: s.trustArgsFor(tool, cwd), Answer: s.trustAnswerFor(tool, cwd)}
+	_, trusted := underAutoTrustDirs(s, cwd)
+	return trustDecision{Args: s.trustArgsFor(tool, cwd), Answer: s.trustAnswerFor(tool, cwd), Trusted: trusted}
+}
+
+// underAutoTrustDirs reports whether cwd is under one of the configured
+// auto_trust_dirs.
+func underAutoTrustDirs(s *Server, cwd string) (string, bool) {
+	if s.cfg.AutoTrustDirs == nil {
+		return "", false
+	}
+	return underAutoTrustDir(cwd, s.cfg.AutoTrustDirs())
 }
 
 // trustAnswerFor returns what accepts tool's folder-trust dialog when cwd is

@@ -144,7 +144,7 @@ type spawnSpec struct {
 	// Trust is the already-computed folder-trust decision (it reads config).
 	Trust trustDecision
 	// SkipPermissions adds Tool.SkipPermissionsArgs (setting skip_permissions,
-	// read once per spawn).
+	// read once per spawn) when Trust.Trusted.
 	SkipPermissions bool
 	HookFile        string
 	SessionID       string
@@ -177,8 +177,14 @@ func buildArgv(spec spawnSpec) []string {
 	}
 	// Folder trust the agent applies itself (only under auto_trust_dirs).
 	argv = append(argv, spec.Trust.Args...)
-	if spec.SkipPermissions {
-		argv = append(argv, spec.Tool.SkipPermissionsArgs...)
+	// skip_permissions applies only in a trusted folder: elsewhere the agent
+	// keeps asking, whatever the setting says.
+	if spec.SkipPermissions && len(spec.Tool.SkipPermissionsArgs) > 0 {
+		if spec.Trust.Trusted {
+			argv = append(argv, spec.Tool.SkipPermissionsArgs...)
+		} else {
+			slog.Info("skip_permissions ignored: folder not trusted", "tool", spec.Tool.ID, "cwd", spec.CWD)
+		}
 	}
 	// The id becomes argv, so only a canonical UUID gets through; callers
 	// validate first, this is the backstop.
