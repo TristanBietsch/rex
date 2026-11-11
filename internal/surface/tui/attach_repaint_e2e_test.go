@@ -143,7 +143,9 @@ func TestAttachE2E_SilentFullScreenAgentIsNotBlank(t *testing.T) {
 // primary screen. The repaint redraws the visible screen in place, so none
 // of it lands in the popup's scrollback as history.
 func TestAttachE2E_SilentInlineAgentIsNotBlank(t *testing.T) {
-	d, sum := startSilentSession(t, "inline", "prompt")
+	// The "> prompt" row is input chrome to termtext, so last_line stops at
+	// the line above it.
+	d, sum := startSilentSession(t, "inline", "history 60")
 	m := openFullScreenAttach(t, d, sum)
 	m = pumpPopup(t, m, 2*time.Second, func(m Model) bool { return strings.Contains(popupText(m), "> prompt") })
 
