@@ -343,14 +343,15 @@ func wizardLaunchCmd(c *client.Client, toolID, modelID, effort, slug, title, cwd
 // Collision → <slug>-2, <slug>-3, … against the client's known session set.
 
 var toolShortcodes = map[string]string{
-	"claude":   "cc",
-	"codex":    "cx",
-	"gemini":   "gm",
-	"ollama":   "ol",
-	"grok":     "gk",
-	"deepseek": "ds",
-	"kimi":     "km",
-	"echo":     "ec",
+	"claude":      "cc",
+	"codex":       "cx",
+	"antigravity": "ag",
+	"gemini":      "gm",
+	"ollama":      "ol",
+	"grok":        "gk",
+	"deepseek":    "ds",
+	"kimi":        "km",
+	"echo":        "ec",
 }
 
 func toolShort(id string) string {

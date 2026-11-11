@@ -14,6 +14,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   question. Both write `auto_trust_dirs` and refuse the values the daemon
   ignores (a filesystem root, the home folder, relative paths, `..`), so
   setup and the daemon share one set of checks.
+- Antigravity CLI (`agy`) replaces Gemini CLI, which Google retired on
+  2026-06-18, as a built-in tool (`antigravity`). It ships the account's
+  current models (Gemini 3.8 Flash with low/medium/high effort, Claude
+  Sonnet/Opus 4.6, GPT-OSS 120B) and takes the first prompt with
+  `--prompt-interactive`. Under `auto_trust_dirs` it starts with the folder
+  trusted for that session only (`--settings`, never saved), so no trust
+  question shows. Tools can declare this with the new `trust_args`. Its
+  state comes from the screen's footer, using the new optional
+  `busy_regex` so a quiet stretch mid-turn stays working. `gemini` stays
+  built in but hidden, so existing setups keep working.
 - TUI: a Claude Code session running subagents shows how many in its row
   (`⋔3`). The daemon tracks them with Claude's `SubagentStart` and
   `SubagentStop` hooks; the wire gains an optional `subagents` field.
@@ -175,6 +185,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- rex now requires Go 1.26.11: it fixes GO-2026-6859 in `net/http`,
+  which govulncheck reports as reachable from rex.
 - The daemon's state directory, socket and logs are owner-only (0700
   directories, 0600 files), and existing ones are tightened. Connections
   from other users are rejected. The TUI state file, the daemon log the

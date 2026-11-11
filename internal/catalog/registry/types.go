@@ -16,7 +16,15 @@ type Tool struct {
 	// TrustPrompt describes the agent's folder-trust dialog so the daemon
 	// can accept it for sessions under auto_trust_dirs. nil: no dialog.
 	TrustPrompt *TrustPrompt `yaml:"trust_prompt,omitempty"`
+	// TrustArgs are extra argv for sessions under auto_trust_dirs that make
+	// the agent trust the folder itself, so no dialog shows. {cwd_list}
+	// expands to a JSON array of the session folder's paths. Preferred over
+	// TrustPrompt when the agent supports it.
+	TrustArgs []string `yaml:"trust_args,omitempty"`
 }
+
+// TrustArgsCWDList is the trust_args placeholder for the session folder.
+const TrustArgsCWDList = "{cwd_list}"
 
 // TrustPrompt is an agent's "do you trust this folder?" dialog: how to tell
 // it is on screen and that its accept option is the selected one, and the
@@ -34,7 +42,11 @@ type Detect struct {
 	Format      string `yaml:"format,omitempty"` // when kind=hooks (e.g. "claude")
 	PromptRegex string `yaml:"prompt_regex,omitempty"`
 	DoneRegex   string `yaml:"done_regex,omitempty"` // optional; flips heuristic to StateDone after idle
-	IdleMs      int    `yaml:"idle_ms,omitempty"`
+	// BusyRegex is optional text the agent shows only while it works (e.g.
+	// "esc to cancel"). When it appeared after the last prompt match, a quiet
+	// stretch shorter than the 15 s stale rule stays working.
+	BusyRegex string `yaml:"busy_regex,omitempty"`
+	IdleMs    int    `yaml:"idle_ms,omitempty"`
 }
 
 // Model is one variant of a tool.

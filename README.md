@@ -2,7 +2,7 @@
 
 Rex is a terminal kanban for parallel AI coding-agent sessions. Two binaries: `rex` (CLI and TUI) and `rex-daemon` (PTY supervisor). You run many agent CLIs at once; Rex tracks state, transcripts, and input prompts.
 
-Requires Go 1.26.10+ to build from source. Targets macOS, Linux, and Windows 10 1809+ / 11.
+Requires Go 1.26.11+ to build from source. Targets macOS, Linux, and Windows 10 1809+ / 11.
 
 ## Install
 

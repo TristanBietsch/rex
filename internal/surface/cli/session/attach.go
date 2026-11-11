@@ -41,12 +41,13 @@ const exitAlt = "\x1b[0m\x1b(B\x1b[r\x1b[4l\x1b[20l\x1b[?5l\x1b[?7h\x1b[?1l\x1b>
 // excluded — its readline-based prompt treats Ctrl+L as "clear scrollback"
 // and loses chat history.
 var redrawKickTools = map[string]bool{
-	"claude":   true,
-	"codex":    true,
-	"gemini":   true,
-	"grok":     true,
-	"deepseek": true,
-	"kimi":     true,
+	"claude":      true,
+	"codex":       true,
+	"antigravity": true,
+	"gemini":      true,
+	"grok":        true,
+	"deepseek":    true,
+	"kimi":        true,
 }
 
 // RunAttach connects the user's terminal to a session's PTY.

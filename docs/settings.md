@@ -89,7 +89,10 @@ In the settings page (`S`) these three cycle with `+`/`-` through the tool regis
 
 ### Auto-trust
 
-Claude Code asks "Is this a project you created or one you trust?" the first time it runs in a folder, with **No, exit** selected. For a session started in a folder listed in `auto_trust_dirs`, or anywhere below one, the daemon answers it: it moves the selection to **Yes, I trust this folder**, checks that it is selected, and confirms. It acts only within the first 60 s of the session and gives up after 4 moves. Anywhere else the dialog waits for you as before.
+Agents ask whether you trust a folder the first time they run in it. For a session started in a folder listed in `auto_trust_dirs`, or anywhere below one, rex handles that question:
+
+- **Antigravity CLI (`agy`):** rex starts it with the folder in its session-only `trustedWorkspaces` (never saved), so the question never shows.
+- **Claude Code:** it asks "Is this a project you created or one you trust?" with **No, exit** selected. The daemon answers it: it moves the selection to **Yes, I trust this folder**, checks that it is selected, and confirms. It acts only within the first 60 s of the session and gives up after 4 moves. Anywhere else the dialog waits for you as before.
 
 ```sh
 rex config set auto_trust_dirs "~/Documents/dev"

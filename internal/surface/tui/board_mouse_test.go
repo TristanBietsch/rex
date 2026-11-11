@@ -183,9 +183,12 @@ func TestBoardMouse_ClickEveryRenderedRow(t *testing.T) {
 					screen := strings.Split(ansi.Strip(m.View()), "\n")
 					require.Len(t, screen, m.Height)
 					hits := 0
+					// Near the right edge: rows hit at any x, and no filter chip
+					// reaches that far.
+					x := m.Width - 2
 					for y, line := range screen {
 						want := renderedRowAt(m, line)
-						got, _ := updateMouse(m, click(40, y))
+						got, _ := updateMouse(m, click(x, y))
 						if want == "" {
 							require.Equal(t, m.SelectedID, got.SelectedID, "line %d %q must not select", y, line)
 							continue
@@ -330,7 +333,7 @@ func TestBoardMouse_FilterChipClick(t *testing.T) {
 	for _, banner := range []bool{false, true} {
 		m := scrollModel(t, 30, "normal", 30)
 		m.BackendUnavailable = banner
-		for _, tool := range []string{"claude", "codex", "gemini", "ollama", "all"} {
+		for _, tool := range []string{"claude", "codex", "antigravity", "ollama", "all"} {
 			x := headerX(t, m, 2, " "+tool+" ") + 1
 			for _, dx := range []int{0, len(tool) - 1} {
 				got, _ := updateMouse(m, click(x+dx, 2))

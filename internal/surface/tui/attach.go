@@ -82,12 +82,13 @@ type AttachClosedMsg struct {
 // repaint scrollback on resize — the only way to see prior conversation is
 // to replay the bytes.
 var altScreenTools = map[string]bool{
-	"claude":   true,
-	"codex":    true,
-	"gemini":   true,
-	"grok":     true,
-	"deepseek": true,
-	"kimi":     true,
+	"claude":      true,
+	"codex":       true,
+	"antigravity": true,
+	"gemini":      true,
+	"grok":        true,
+	"deepseek":    true,
+	"kimi":        true,
 }
 
 // attachRepaintWait bounds how long the popup waits for a daemon that

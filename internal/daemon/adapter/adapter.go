@@ -25,7 +25,14 @@ type Adapter interface {
 func For(t registry.Tool, hookFile string) (Adapter, error) {
 	switch t.Detect.Kind {
 	case "heuristic":
-		return NewHeuristic(t.Detect.PromptRegex, t.Detect.DoneRegex, time.Duration(t.Detect.IdleMs)*time.Millisecond)
+		h, err := NewHeuristic(t.Detect.PromptRegex, t.Detect.DoneRegex, time.Duration(t.Detect.IdleMs)*time.Millisecond)
+		if err != nil {
+			return nil, err
+		}
+		if err := h.setBusy(t.Detect.BusyRegex); err != nil {
+			return nil, err
+		}
+		return h, nil
 	case "hooks":
 		switch t.Detect.Format {
 		case "claude":
