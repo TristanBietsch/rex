@@ -22,6 +22,7 @@ import (
 func RunNew(args []string) error {
 	fs := flag.NewFlagSet("new", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	tool := fs.String("tool", "echo", "tool id")
 	model := fs.String("model", "short", "model id within tool")
 	effort := fs.String("effort", "", "reasoning effort")
@@ -30,7 +31,7 @@ func RunNew(args []string) error {
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
 	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
 	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")
-	rest, err := core.ParseTextArgs(fs, args, 0)
+	rest, err := out.ParseText(fs, args, 0)
 	if err != nil {
 		return err
 	}
@@ -109,10 +110,7 @@ func RunNew(args []string) error {
 			if err := json.Unmarshal(env.Data, &sum); err != nil {
 				return core.NewExitError(core.ExitGeneric, err.Error())
 			}
-			if _, err := os.Stdout.WriteString(sum.ShortID + "\t" + sum.Slug + "\n"); err != nil {
-				return core.NewExitError(core.ExitGeneric, err.Error())
-			}
-			return nil
+			return emitNew(sum)
 		case protocol.EventError:
 			var ee protocol.ErrorEvent
 			_ = json.Unmarshal(env.Data, &ee)
@@ -203,4 +201,47 @@ func deriveSlug(prompt string) string {
 		}
 	}
 	return strings.TrimRight(b.String(), "-")
+}
+
+// newData is the `-o json` payload of rex new.
+type newData struct {
+	actionData
+	Tool   string `json:"tool"`
+	Model  string `json:"model"`
+	Effort string `json:"effort"`
+	CWD    string `json:"cwd"`
+}
+
+// emitNew reports the started session: `7d4f\tfix-auth` in txt (scripts and
+// e2e read it), a ✓ line in text, and an ok line in agent mode.
+func emitNew(s protocol.SessionSummary) error {
+	p := core.Out()
+	what := s.ToolID + " " + s.ModelID
+	if s.Effort != "" {
+		what += " · " + s.Effort
+	}
+	text := "started " + s.ShortID + " " + s.Slug + " · " + what + " · " + displayPath(s.CWD)
+	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: text, Txt: s.ShortID + "\t" + s.Slug}
+	fields := sessionFields(s, core.Field{Key: "tool", Val: s.ToolID}, core.Field{Key: "model", Val: s.ModelID},
+		core.Field{Key: "effort", Val: s.Effort})
+	return p.Emit(core.Result{
+		Cmd:  "new",
+		Data: newData{refOf(s), s.ToolID, s.ModelID, s.Effort, s.CWD},
+		View: append(core.ActionView(line, fields...), core.Hint{Cmd: "rex attach " + s.ShortID}),
+	})
+}
+
+// displayPath shortens a path under the home folder to ~/….
+func displayPath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if rel, err := filepath.Rel(home, path); err == nil && !strings.HasPrefix(rel, "..") {
+		if rel == "." {
+			return "~"
+		}
+		return "~/" + filepath.ToSlash(rel)
+	}
+	return path
 }

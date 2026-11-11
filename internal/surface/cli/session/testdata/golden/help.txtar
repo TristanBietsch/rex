@@ -74,6 +74,11 @@ Flags:
   -wait duration  how long to wait for the daemon to confirm the spawn (default
                   5s)
 
+Output:
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
 Example:
   rex new -tool claude -model opus -- fix the failing test
 -- new.txt --
@@ -92,6 +97,11 @@ Start a session in the daemon and print its short id and slug. Put -- before a p
   -tool string    tool id (default echo)
   -wait duration  how long to wait for the daemon to confirm the spawn (default 5s)
 
+# Output
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
 # Example
   rex new -tool claude -model opus -- fix the failing test
 -- new.agent --
@@ -106,7 +116,7 @@ flag name=-tool desc="tool id (default echo)" arg=string default=echo
 flag name=-wait desc="how long to wait for the daemon to confirm the spawn (default 5s)" arg=duration default=5s
 ok cmd=help count=9 usage="rex new [flags] -- <prompt>" desc="Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -."
 -- new.json --
-{"v":1,"cmd":"help","data":{"command":"new","usage":"rex new [flags] -- <prompt>","desc":"Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -.","flags":[{"name":"-cwd","arg":"string","desc":"working directory for the agent (defaults to $PWD)"},{"name":"-effort","arg":"string","desc":"reasoning effort"},{"name":"-fleet","arg":"string","desc":"fleet name (optional; groups related sessions)"},{"name":"-model","arg":"string","default":"short","desc":"model id within tool"},{"name":"-no-attach","default":"true","desc":"(deprecated, no effect)"},{"name":"-slug","arg":"string","desc":"session slug (defaults to derived from prompt)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-tool","arg":"string","default":"echo","desc":"tool id"},{"name":"-wait","arg":"duration","default":"5s","desc":"how long to wait for the daemon to confirm the spawn"}],"example":"rex new -tool claude -model opus -- fix the failing test"}}
+{"v":1,"cmd":"help","data":{"command":"new","usage":"rex new [flags] -- <prompt>","desc":"Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -.","flags":[{"name":"-cwd","arg":"string","desc":"working directory for the agent (defaults to $PWD)"},{"name":"-effort","arg":"string","desc":"reasoning effort"},{"name":"-fleet","arg":"string","desc":"fleet name (optional; groups related sessions)"},{"name":"-model","arg":"string","default":"short","desc":"model id within tool"},{"name":"-no-attach","default":"true","desc":"(deprecated, no effect)"},{"name":"-slug","arg":"string","desc":"session slug (defaults to derived from prompt)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-tool","arg":"string","default":"echo","desc":"tool id"},{"name":"-wait","arg":"duration","default":"5s","desc":"how long to wait for the daemon to confirm the spawn"}],"formats":["text","txt","md","json","agent"],"example":"rex new -tool claude -model opus -- fix the failing test"}}
 -- rm.text --
 Usage: rex rm <sel> [-force]
 
@@ -118,6 +128,11 @@ Flags:
                 ~/.cache/rex/rex.sock)
   -y            alias for -force
   -yes          alias for -force
+
+Output:
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
 
 Example:
   rex rm fix-auth -force
@@ -132,6 +147,11 @@ Delete a session and its files. Asks first; without a terminal it needs -force.
   -y            alias for -force
   -yes          alias for -force
 
+# Output
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
 # Example
   rex rm fix-auth -force
 -- rm.agent --
@@ -141,7 +161,7 @@ flag name=-y desc="alias for -force" arg="" default=""
 flag name=-yes desc="alias for -force" arg="" default=""
 ok cmd=help count=4 usage="rex rm <sel> [-force]" desc="Delete a session and its files. Asks first; without a terminal it needs -force."
 -- rm.json --
-{"v":1,"cmd":"help","data":{"command":"rm","usage":"rex rm <sel> [-force]","desc":"Delete a session and its files. Asks first; without a terminal it needs -force.","flags":[{"name":"-force","desc":"do not ask (required when stdin is not a terminal)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-y","desc":"alias for -force"},{"name":"-yes","desc":"alias for -force"}],"example":"rex rm fix-auth -force"}}
+{"v":1,"cmd":"help","data":{"command":"rm","usage":"rex rm <sel> [-force]","desc":"Delete a session and its files. Asks first; without a terminal it needs -force.","flags":[{"name":"-force","desc":"do not ask (required when stdin is not a terminal)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-y","desc":"alias for -force"},{"name":"-yes","desc":"alias for -force"}],"formats":["text","txt","md","json","agent"],"example":"rex rm fix-auth -force"}}
 -- resume.text --
 Usage: rex resume <sel> [-print]
 

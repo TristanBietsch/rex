@@ -59,7 +59,7 @@ Exit **2** if no match. Exit **3** if multiple match: a slug shared by several s
 | 3 | Ambiguous selector |
 | 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
 | 5 | Invalid arguments: a bad flag or value, a missing argument, or an unknown command |
-| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` confirmation (a declined `prune` prompt still exits 1) |
+| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` or `rex prune` confirmation; also a prompt that cannot be asked (a non-text format, or stderr not a terminal) |
 | 7 | `rex wait` timed out |
 
 An unknown command exits **5** and, when a real command is within two edits, names it: `unknown command "lss"; did you mean "ls"?`. A session removed while `rex wait` runs exits **2**.
@@ -68,7 +68,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status`, `rex resume`, `rex help`, `rex agent-help` and `rex completion` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status`, the session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`, `done`, `undone`, `archive`, `resume`, `complete`, `rm`, `prune`), `rex help`, `rex agent-help` and `rex completion` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -85,6 +85,8 @@ Precedence, highest first: flags (the last one wins), `REX_AGENT=1`, `REX_OUTPUT
 Color is on only for `text`, on a terminal, with `NO_COLOR` unset or empty, `TERM` not `dumb` and no `--no-color`. `CLICOLOR_FORCE=1` forces it in a pipe (`less -R`). Each stream decides on its own, so a redirected stderr never receives ANSI. Colors follow the `color_scheme` setting. `REX_ASCII=1` switches the glyphs to ASCII.
 
 Errors go to stderr in the same format: styled in `text`, `rex: message` in `txt` and `md`, `error code=4 kind=daemon_unreachable cmd=ls msg="..."` in `agent`, and `{"v":1,"error":{"code":4,"kind":"daemon_unreachable",...}}` in `json` (nothing on stdout). Kinds: `error`, `not_found`, `ambiguous`, `daemon_unreachable`, `invalid_args`, `refused`, `timeout`.
+
+**Actions** report one result record. `text` shows a `✓ …` line (and a next-command hint after `new` and `done`), `txt` keeps the line each command always printed (`7d4f<TAB>slug` for `new`, `slug: renamed to x`; nothing for `rm`, `reply`, `send`, `wait` and `complete`), `json` carries the result as data (`{"v":1,"cmd":"rename","data":{"id":…,"short_id":…,"slug":…,"old_slug":…}}`), and `agent` gives `ok cmd=rename id=7d4f slug=x old_slug=y`. Confirmation prompts go to stderr and only appear in `text` with stdin and stderr both terminals; warnings (`prune` keeping a session that changed) also go to stderr.
 
 Commands not yet on the kit refuse `-o`, `--agent` and `-json` before the command name (exit 5) instead of ignoring them.
 
@@ -225,7 +227,7 @@ Delete every session in the board's **Completed** column: `done`, `failed`, `cra
 rex prune [-socket path] [-dry-run] [-yes|-y]
 ```
 
-Asks `clear N completed session(s)? … [y/N]` first. `-yes` skips the question and is required when stdin is not a terminal (exit **6** otherwise). `-dry-run` lists the sessions (`short_id`, slug, state) and deletes nothing.
+Asks `clear N completed session(s)? … [y/N]` first, on stderr. A declined question exits **6**, like `rm`. `-yes` skips the question and is required when stdin or stderr is not a terminal, and in every format but `text` (exit **6** otherwise). `-dry-run` lists the sessions (`short_id`, slug, state) and deletes nothing.
 
 Each session is checked again right before its delete. One that went back to work meanwhile (typing into a marked-done session cancels the mark) is kept and named on stderr. One already gone counts as cleared. Prints `cleared N`, then `, kept K that changed` and `(M still working kept)` when they apply. A daemon that predates acks cannot confirm deletes, so they are reported as `sent N unconfirmed`. Exits **1** if any delete fails.
 

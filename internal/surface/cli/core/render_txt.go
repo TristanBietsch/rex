@@ -30,6 +30,9 @@ func (p *Printer) renderTXT(v View) string {
 		case Note:
 			l.add(b.Text)
 		case Line:
+			if b.Silent {
+				continue
+			}
 			if b.Txt != "" {
 				l.add(b.Txt)
 			} else {
@@ -85,6 +88,20 @@ func txtTable(t Table) string {
 	idx := visibleCols(t.Cols, FormatTXT)
 	if len(t.Rows) == 0 && t.Empty != "" {
 		return t.Empty
+	}
+	if t.TxtRecords {
+		lines := make([]string, len(t.Rows))
+		for i, r := range t.Rows {
+			parts := make([]string, len(idx))
+			for n, c := range idx {
+				parts[n] = r[c].txt()
+			}
+			lines[i] = strings.Join(parts, "\t")
+		}
+		if t.TxtFoot != "" {
+			lines = append(lines, t.TxtFoot)
+		}
+		return strings.Join(lines, "\n")
 	}
 	cell := func(r []Cell, i int) string {
 		s := r[i].txt()

@@ -42,6 +42,8 @@ type Printer struct {
 	AgentAuto bool
 
 	Out, Err io.Writer
+	// In is where Confirm reads the answer (stdin).
+	In io.Reader
 	// OutTTY, ErrTTY and InTTY say whether each standard stream is a terminal.
 	OutTTY, ErrTTY, InTTY bool
 	// Color and ErrColor say whether stdout and stderr may carry ANSI.
@@ -79,7 +81,7 @@ func NewPrinter(fl FormatFlags, env Env, out, errw io.Writer) (*Printer, error) 
 	}
 	p := &Printer{
 		Format: res.Format, Legacy: res.Legacy, AgentAuto: res.Auto,
-		Out: out, Err: errw,
+		Out: out, Err: errw, In: os.Stdin,
 		OutTTY: env.OutTTY, ErrTTY: env.ErrTTY, InTTY: env.InTTY,
 		Width: clampWidth(env.Width),
 		Now:   time.Now,
@@ -107,7 +109,7 @@ func (p *Printer) WithFlags(fl FormatFlags) (*Printer, error) {
 	if err != nil {
 		return nil, err
 	}
-	np.Now, np.Cmd = p.Now, p.Cmd
+	np.Now, np.Cmd, np.In = p.Now, p.Cmd, p.In
 	return np, nil
 }
 

@@ -197,6 +197,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`,
+  `done`, `undone`, `archive`, `complete`, `rm`, `prune`) take `-o`,
+  `--agent` and `--no-color`: `text` prints a `✓` line, `json` the result as
+  data, `agent` one `ok cmd=… id=… slug=…` line. `txt` (a pipe) prints what
+  each command always printed. Confirmation questions and warnings go to
+  stderr.
+- A declined `rex prune` question now exits 6 (it was 1), like `rex rm`.
+  `prune` and `rm` need `-yes`/`-force` in every format but `text`, and
+  whenever stdin or stderr is not a terminal.
 - Help is rebuilt in the style of `agy`: `rex --help` and `rex <command> -h`
   start with `Usage:`, use Title-case sections with a colon, align their
   columns and end with one hint, with no banner or rule. They are generated

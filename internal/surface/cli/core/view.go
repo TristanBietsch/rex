@@ -146,6 +146,11 @@ type Table struct {
 	Rows [][]Cell
 	// Empty is shown instead of the table when there are no rows.
 	Empty string
+	// TxtRecords prints the txt format as tab-separated rows with no header
+	// and no padding, the shape `prune -dry-run` has always had.
+	TxtRecords bool
+	// TxtFoot is a last line of the TxtRecords output ("would clear 2").
+	TxtFoot string
 }
 
 // Check is one doctor-style row.
@@ -179,6 +184,9 @@ type Line struct {
 	// Txt replaces the line in the txt format when non-empty (a tab-separated
 	// record, say).
 	Txt string
+	// Silent prints nothing in the txt format: the command has always been
+	// quiet there, and scripts rely on it. The other formats still show it.
+	Silent bool
 }
 
 // Para is a plain paragraph: wrapped to the terminal in text, as written in
@@ -257,7 +265,7 @@ func (v View) sanitized() View {
 				}
 				rows[j] = cells
 			}
-			b.Rows, b.Empty = rows, flat(b.Empty)
+			b.Rows, b.Empty, b.TxtFoot = rows, flat(b.Empty), flat(b.TxtFoot)
 			out[i] = b
 		case Checks:
 			rows := make([]Check, len(b.Rows))
@@ -270,7 +278,7 @@ func (v View) sanitized() View {
 		case Hint:
 			out[i] = Hint{Text: flat(b.Text), Cmd: flat(b.Cmd)}
 		case Line:
-			out[i] = Line{Tone: b.Tone, Glyph: flat(b.Glyph), Text: flat(b.Text), Txt: flatKeepTab(b.Txt)}
+			out[i] = Line{Tone: b.Tone, Glyph: flat(b.Glyph), Text: flat(b.Text), Txt: flatKeepTab(b.Txt), Silent: b.Silent}
 		case Para:
 			out[i] = Para{Text: flat(b.Text)}
 		case Defs:
