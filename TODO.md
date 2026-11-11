@@ -3,7 +3,7 @@
 - [ ] steal the best ideas from opencode and impliment them in rex (like the kanban board, the summary, the audit trail, etc)
 - [ ] add qwen code and oh my pi and cursor cli and grok build to the options, have settings auto detect which models are installed and available and show them in the list of options
 - [ ] add a "master agent" that summarizes what is going on, what is completed, and what is ready for review (like a project manager) 
-- [ ] make settings its own full screen page with a better layout and more options (like themes, colors, etc), as well as the help page, and make it so that the settings can be saved to a config file and loaded on startup (like cursor's .cursor) 
+- [ ] make settings its own full screen page with a better layout and more options (like themes, colors, etc), as well as the help page, and make it so that the settings can be saved to a config file and loaded on startup (like cursor's .cursor) ANTI 
 - [ ] remke the settings config in lua not yaml
 
 ## Workspaces / state
@@ -26,8 +26,8 @@
 *** - [ ] have a column for the --resume id so that in the completed section we can resume it if needed and know the id
 *** - [ ] add the cmd "uc" to undo marking an agent as "complete" (or "done") and move it back to working / needs approval
 *** - [ ] search function
-- [ ] usage meter top right (config in settings)
-- [ ] Jira / linear sync ?
+- [ ] :usage page, shows the usage of each agent, the total usage, and the usage of each model (like cursor's :usage) and remaining quota for each model (like cursor's :usage)
+- [ ] linear sync 
 - [ ] loop workflows (epic)
 
 *** ## Summaries / ollama
@@ -35,23 +35,17 @@
 - [ ] fix the ollama preview of what the agent is doing
 - [ ] change ollama to give more desc / better prompt for summarizing
 - [ ] remake the summary col to not say or start with "claude is..." instead, be more desc. adjust desc amt in settings
-- [ ] master agent option (feature toggle) that summarizes what's going on / completed / ready for review
-- [ ] add banner above claude code that is a marquee summary of what we are doing, where we are, etc.. (can be turned off in settings)
 
 *** ## UI / settings
 
 - [ ] remake the UI and the color scheme; better help menu, remake the help and settings page
 - [ ] make more settings modular and editable / hackable via lua config files and add themes
-- [ ] rm all other agents in the settings
 - [ ] add a cmd to add a thick colored border around the current rex window (configurable in settings) that is random by default but can be set to a specific color in settings default colors use pantone colors and are colorblind friendly.
 - [ ] make cols fixed width and not resizeable by default (configurable in settings) but responsive to window size changes including a mobile version (configurable in settings)
 - [ ] fix antigravity logo in the acutal agent window (not the board) to be centered and not cut off on the right side
 
 *** ## Setup / spawn
 
-- [ ] add a step to setup: add name, choose model, and select any skills to inject into it
-- [ ] improve workflow and rm the need for: /ob, then "yes, i trust"
-- [ ] harden the cli
 *** - [ ] change gemini to antigravity and improve functionality with it like you did with claude code (yes, trust this folder etc)
 - [ ] (epic) i insert mode auto chooses model based onn prompt and use case 
 
