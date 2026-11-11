@@ -30,6 +30,7 @@ type undoData struct {
 	Restored []string `json:"restored"`
 	Deleted  []string `json:"deleted"`
 	Safety   string   `json:"safety"`
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // RunUndo restores a session's folder to how it was before the agent's last
@@ -166,7 +167,7 @@ func undoSubject(sess protocol.SessionSummary, op string, turns int) string {
 
 // undoResult lays out what an undo or redo did.
 func undoResult(op string, sess protocol.SessionSummary, turns int, res protocol.UndoResult) core.Result {
-	data := undoData{Session: sess.ID, Op: op, Restored: res.Restored, Deleted: res.Deleted, Safety: res.Safety}
+	data := undoData{Session: sess.ID, Op: op, Restored: res.Restored, Deleted: res.Deleted, Safety: res.Safety, Warnings: res.Warnings}
 	if op == "undo" {
 		data.Turns = turns
 	}
@@ -177,6 +178,9 @@ func undoResult(op string, sess protocol.SessionSummary, turns int, res protocol
 	}
 	v = append(v, fileList("restored", res.Restored)...)
 	v = append(v, fileList("deleted", res.Deleted)...)
+	for _, w := range res.Warnings {
+		v = append(v, core.Note{Tone: core.ToneWarn, Text: w})
+	}
 	v = append(v, core.Note{Tone: core.ToneDim, Text: shellEffectsNote})
 	if op == "undo" {
 		v = append(v,

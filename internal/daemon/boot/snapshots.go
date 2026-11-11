@@ -43,8 +43,10 @@ type Snapshots struct {
 	store   *snapshot.Store
 	timeout time.Duration
 	on      atomic.Bool
-	unsub   func()
-	wg      sync.WaitGroup
+	// oldWarned: the "git too old" notice is logged once.
+	oldWarned atomic.Bool
+	unsub     func()
+	wg        sync.WaitGroup
 
 	mu     sync.Mutex
 	states map[string]protocol.State
@@ -192,7 +194,11 @@ func (s *Snapshots) do(ctx context.Context, cwd string, j snapJob) {
 	_, err := s.store.CaptureWithin(ctx, cwd, j.session, j.phase, s.timeout)
 	switch {
 	case err == nil:
-	case errors.Is(err, snapshot.ErrNotGitWorktree), errors.Is(err, snapshot.ErrNoGit):
+	case errors.Is(err, snapshot.ErrGitTooOld):
+		if s.oldWarned.CompareAndSwap(false, true) {
+			slog.Warn("snapshots: disabled: "+err.Error(), "hint", "upgrade git to 2.32 or newer")
+		}
+	case errors.Is(err, snapshot.ErrNotGitWorktree), errors.Is(err, snapshot.ErrNoGit), errors.Is(err, snapshot.ErrDubiousOwnership):
 		slog.Debug("snapshots: skipped", "session", j.session, "phase", j.phase, "reason", err)
 	case ctx.Err() != nil:
 		// Shutting down: not a failure of the turn.

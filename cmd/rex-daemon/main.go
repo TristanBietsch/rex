@@ -170,7 +170,11 @@ func run(args []string) error {
 	snaps := boot.NewSnapshots(ctx, snapStore, store)
 	defer snaps.Close()
 	snaps.SetEnabled(settings.FeatureOn(settingsStore, "turn_snapshots"))
-	go retainSnapshots(ctx, snapStore, store)
+	// Retention touches the store (ledgers, refs, gc), so with the feature off
+	// it does not run at all.
+	if settings.FeatureOn(settingsStore, "turn_snapshots") {
+		go retainSnapshots(ctx, snapStore, store)
+	}
 	// One settings watcher: every feature adds its applier to this list.
 	appliers := []func(*settings.Store){snaps.Applier()}
 
@@ -251,8 +255,8 @@ func run(args []string) error {
 // retainSnapshots applies the snapshot retention rules once at start: refs of
 // sessions removed more than 7 days ago go, a store over 2 GiB loses its
 // oldest sessions, and a store is garbage collected at most once a day. It
-// runs whether or not the feature is on: turning it off keeps old snapshots
-// only until retention removes them.
+// runs only while turn_snapshots is on at daemon start: with it off nothing
+// under the store is touched, so old snapshots wait until it is on again.
 func retainSnapshots(ctx context.Context, st *snapshot.Store, sessions *state.Store) {
 	rep, err := st.Retain(ctx, snapshot.RetainOpts{Live: func(id string) bool {
 		_, ok := sessions.Get(id)

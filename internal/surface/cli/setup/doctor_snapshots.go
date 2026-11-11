@@ -27,7 +27,10 @@ func checkSnapshots() []checkResult {
 	if err != nil {
 		return []checkResult{{name, checkWarn, err.Error()}}
 	}
-	gitPath, gitErr := snapshot.GitPath()
+	gitPath, _ := snapshot.GitPath()
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), envScanTimeout)
+	gitErr := snapshot.CheckGit(gitCtx)
+	gitCancel()
 	usage, usageErr := snapshot.NewStore(root).Usage()
 
 	var rows []checkResult
@@ -35,14 +38,17 @@ func checkSnapshots() []checkResult {
 	case !on:
 		rows = append(rows, checkResult{name, checkInfo, "off (rex config set turn_snapshots true)"})
 	case gitErr != nil:
-		rows = append(rows, checkResult{name, checkWarn, "on, but git was not found on PATH: no snapshot can be taken"})
+		rows = append(rows, checkResult{name, checkWarn, "on, but no snapshot can be taken: " + gitErr.Error()})
 	default:
 		rows = append(rows, checkResult{name, checkPass, "on"})
 	}
-	if gitErr == nil {
+	switch {
+	case gitErr == nil:
 		rows = append(rows, checkResult{"git binary", checkInfo, gitPath})
-	} else if on {
+	case on && gitPath == "":
 		rows = append(rows, checkResult{"git binary", checkWarn, "not found on PATH"})
+	case on:
+		rows = append(rows, checkResult{"git binary", checkWarn, gitPath + ": " + gitErr.Error()})
 	}
 	if usageErr != nil {
 		return append(rows, checkResult{"snapshot store", checkWarn, usageErr.Error()})
@@ -54,6 +60,10 @@ func checkSnapshots() []checkResult {
 		}
 		rows = append(rows, checkResult{"snapshot store: " + folder, checkInfo,
 			fmt.Sprintf("%s, %d session(s)", humanBytes(u.Bytes), u.Sessions)})
+		if len(u.OverCap) > 0 {
+			rows = append(rows, checkResult{"snapshot size cap: " + folder, checkWarn,
+				"the 2 GiB cap dropped the snapshots of live session(s) (" + strings.Join(u.OverCap, "; ") + "): undo is gone for them"})
+		}
 		if u.CWD == "" || gitErr != nil {
 			continue
 		}

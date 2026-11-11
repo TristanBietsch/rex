@@ -222,4 +222,8 @@ type UndoResult struct {
 	Restored  []string `json:"restored"`
 	Deleted   []string `json:"deleted"`
 	Safety    string   `json:"safety"`
+	// Warnings are things to show the user: the folder changed while the
+	// restore ran, or the session started working during it. Absent from
+	// daemons that predate the field.
+	Warnings []string `json:"warnings,omitempty"`
 }
