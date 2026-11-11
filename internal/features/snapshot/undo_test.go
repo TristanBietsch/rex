@@ -367,3 +367,30 @@ func TestUsageAndEnvFiles(t *testing.T) {
 		t.Errorf("non-git: %v", err)
 	}
 }
+
+func TestMarkMissedMakesTurnNotUndoable(t *testing.T) {
+	repo := newRepo(t)
+	s := newStore(t)
+	ctx := context.Background()
+	turn(t, s, repo, "s1", func() { write(t, repo, "a.txt", "t1\n") })
+	if err := s.MarkMissed(repo, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Undo(ctx, repo, "s1", 1); !errors.Is(err, ErrNotUndoable) {
+		t.Fatalf("err = %v, want ErrNotUndoable", err)
+	}
+	if got := read(t, repo, "a.txt"); got != "t1\n" {
+		t.Error("a refused undo changed files")
+	}
+	// The next real turn is numbered after the missed one and undoes alone.
+	turn(t, s, repo, "s1", func() { write(t, repo, "a.txt", "t3\n") })
+	if _, err := s.Undo(ctx, repo, "s1", 1); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, repo, "a.txt"); got != "t1\n" {
+		t.Errorf("got %q", got)
+	}
+	if err := s.MarkMissed("rel", "s1"); err == nil {
+		t.Error("relative cwd accepted")
+	}
+}

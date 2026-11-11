@@ -12,7 +12,9 @@ const (
 	EventSummarizerHealth = "SummarizerHealth"
 	// EventOverview carries the board-wide overview (see Overview).
 	EventOverview = "Overview"
-	EventError    = "Error"
+	// EventUndoResult is the success reply to Undo and Redo.
+	EventUndoResult = "UndoResult"
+	EventError      = "Error"
 	// EventAck is the success reply to an intent that carried an ID and has
 	// no more specific reply (see the package doc for the table).
 	EventAck = "Ack"
@@ -211,3 +213,13 @@ const (
 	ErrCodeUnsupportedVersion = "unsupported_version" // envelope "v" is not ProtocolVersion
 	ErrCodeInternal           = "internal_error"      // a daemon bug while handling the intent
 )
+
+// UndoResult is the reply to Undo and Redo: the files written and deleted
+// (slash paths relative to the session's folder, sorted), and the tree id of
+// the capture taken just before, which Redo restores after an Undo.
+type UndoResult struct {
+	SessionID string   `json:"session_id"`
+	Restored  []string `json:"restored"`
+	Deleted   []string `json:"deleted"`
+	Safety    string   `json:"safety"`
+}

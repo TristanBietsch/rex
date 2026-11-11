@@ -27,6 +27,7 @@
 //	FocusFilter       Ack
 //	SetMaxConcurrent  Ack
 //	Reload            Ack                           after the new registry is in use
+//	Undo, Redo        UndoResult                    files restored and deleted; the folder is changed before the reply
 //	Shutdown          Ack                           best effort, see below
 //	anything else     Error bad_intent              "intent not implemented"
 //

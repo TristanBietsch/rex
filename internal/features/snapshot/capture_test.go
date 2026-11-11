@@ -302,6 +302,12 @@ func TestNotGitWorktree(t *testing.T) {
 	if !errors.Is(err, ErrNotGitWorktree) {
 		t.Fatalf("err = %v, want ErrNotGitWorktree", err)
 	}
+	if _, err := s.Undo(context.Background(), dir, "s1", 1); !errors.Is(err, ErrNotGitWorktree) {
+		t.Errorf("Undo err = %v, want ErrNotGitWorktree", err)
+	}
+	if _, err := s.Redo(context.Background(), dir, "s1"); !errors.Is(err, ErrNotGitWorktree) {
+		t.Errorf("Redo err = %v, want ErrNotGitWorktree", err)
+	}
 	if _, err := os.Stat(s.Root()); err == nil {
 		t.Error("a store was created for a non-git folder")
 	}

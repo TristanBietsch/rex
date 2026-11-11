@@ -191,6 +191,8 @@ func run(args []string) error {
 		ResumeEnabled:         boot.ResumeEnabled,
 		SkillsDir:             *skillsDir,
 		SkillsEnabled:         boot.SpawnSkillsEnabled,
+		Snapshots:             snapStore,
+		SnapshotsEnabled:      boot.TurnSnapshotsEnabled,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },

@@ -38,6 +38,8 @@ func defaultHandlers() map[string]intentHandler {
 		protocol.IntentSetMaxConcurrent: handleSetMaxConcurrent,
 		protocol.IntentShutdown:         handleShutdown,
 		protocol.IntentReload:           handleReload,
+		protocol.IntentUndo:             handleUndo,
+		protocol.IntentRedo:             handleRedo,
 	}
 }
 

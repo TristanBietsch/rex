@@ -14,6 +14,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -88,6 +89,11 @@ type Config struct {
 	// at each spawn and Resume. Off: skills are refused at NewSession and no
 	// plugin folder is added. nil: on.
 	SkillsEnabled func() bool
+	// Snapshots is the turn-snapshot store behind Undo and Redo, and
+	// SnapshotsEnabled reports whether the turn_snapshots feature is on
+	// (called per Undo/Redo). Off or nil: both intents are refused.
+	Snapshots        *snapshot.Store
+	SnapshotsEnabled func() bool
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).

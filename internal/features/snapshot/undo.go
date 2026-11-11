@@ -41,6 +41,9 @@ func (s *Store) Undo(ctx context.Context, cwd, session string, turns int) (UndoR
 	if err := checkSession(session); err != nil {
 		return UndoResult{}, err
 	}
+	if _, err := repoExclude(ctx, cwd); err != nil {
+		return UndoResult{}, err
+	}
 	dir := s.dirFor(cwd)
 	defer s.lock(dir)()
 	entries, err := readLedger(dir)
@@ -81,6 +84,9 @@ func (s *Store) Redo(ctx context.Context, cwd, session string) (UndoResult, erro
 		return UndoResult{}, err
 	}
 	if err := checkSession(session); err != nil {
+		return UndoResult{}, err
+	}
+	if _, err := repoExclude(ctx, cwd); err != nil {
 		return UndoResult{}, err
 	}
 	dir := s.dirFor(cwd)
