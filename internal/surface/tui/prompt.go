@@ -103,13 +103,22 @@ func renderHelpLine(m Model, width int) string {
 		return padLine("  "+styleBootReady.Render(truncate(m.Notice, width-2)), width)
 	}
 	// Five keys; the rest live under ?.
-	parts := []string{
-		styleHeaderApp.Render("enter") + styleDim.Render(" open"),
-		styleHeaderApp.Render("i") + styleDim.Render(" new"),
-		styleHeaderApp.Render("cc") + styleDim.Render(" done"),
-		styleHeaderApp.Render("tab") + styleDim.Render(" next"),
-		styleHeaderApp.Render("?") + styleDim.Render(" more"),
+	var parts []string
+	for _, k := range helpLineKeys {
+		parts = append(parts, styleHeaderApp.Render(k)+styleDim.Render(" "+helpLineLabel(k)))
 	}
 	sep := styleMuted.Render(" · ")
 	return padLine("  "+strings.Join(parts, sep), width)
+}
+
+// helpLineLabel is the short label of the binding whose Keys is k. A key in
+// helpLineKeys without a Line label is a table bug, caught by
+// TestHelpLineKeysHaveLabels.
+func helpLineLabel(k string) string {
+	for _, b := range bindings {
+		if b.Keys == k {
+			return b.Line
+		}
+	}
+	return ""
 }

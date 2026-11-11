@@ -38,7 +38,8 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `chords.go` | Board chord table (`dd`, `cc`; first key to handler) |
 | `header.go` | Aggregate counts |
 | `prompt.go` | Bottom prompt |
-| `command.go` | `/` command palette |
+| `command.go` | `:` command line: parse and look up in `commands` |
+| `keys.go` | `commands` table (names, args, help text, `Run`) and `bindings` table (help rows, board help line); add a `:` command here |
 | `wizard.go` | New-session wizard |
 | `attach.go` | Full-screen attach (vt10x) |
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |

@@ -72,6 +72,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: an unknown `:` command now says `(try :help)`. Commands and key
+  help come from one table, so `?` can no longer drift from what `:` runs.
 - Skipping agent permission prompts is now opt-in. Claude Code and
   Antigravity no longer start with `--dangerously-skip-permissions` unless
   you set `skip_permissions: true` (default off; read at each spawn). The
