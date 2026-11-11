@@ -6,7 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- TUI: one space between an icon and the number after it, so the board is
+  less crowded: the subagent count (`⋔ 3`), the long-running badge
+  (`▴ 42m`) and the `glyphs` header style (`◆ 4  ◷ 1  ⟳ 2  ● 7`, `✕ 2`).
+  The subagent and badge columns are one cell wider.
+- TUI: the number keys follow the screen, which now has four sections: `1`
+  Needs you, `2` Waiting, `3` Working, `4` Done. `2` and `3` used to jump to
+  Working and Done, and `4` is now the key that folds a long Done column.
+  `z1`-`z4` hide and show the same sections, and `:filter` accepts `waiting`
+  (`wa`); a bare `w` is now ambiguous. With the `waiting_section` feature off
+  the keys are `1` `2` `3` as before.
+
 ### Added
+
+- TUI: a Waiting section below Needs you for working sessions that are
+  blocked on a shell command, a subagent or a web call, not on you (Claude
+  Code). A session moves there after 3 seconds on the call. It has its own
+  `◷` marker, which turns once a second (still with `reduce_motion`), a
+  count in the header (`N need you · N waiting · N working · N done`) and on
+  the screensaver, and `shell 42s` in the detailed view. No sound, no
+  notification. Switchable in Settings → Features (`waiting_section`); off,
+  those sessions stay in Working.
+- Sessions carry `waiting_on` (`shell`, `subagent`, `web`) and
+  `waiting_since` while a working session waits on a tool (snapshots,
+  patches, `meta.json`). The state stays `working`, so older clients show
+  those sessions in Working. The daemon records them even with
+  `waiting_section` off.
+- Claude Code hooks: `PostToolUseFailure` joins the state hooks, and tool
+  waits are bounded: a failed tool call, any other main-thread tool and a new
+  prompt all end a Waiting state. Parallel subagents keep it until the last
+  one stops.
+- `rex ls` shows `waiting (shell)` in the STATE column (text and md) for a
+  session in Waiting, and counts it in the header. `-o txt` and the agent
+  `state=` key keep `working`; `rex status` is unchanged.
 
 - TUI: a dim preview line under the board shows the selected session's full
   AI summary and how old it is (`↳ Editing api/webhooks.go … · 12s`), in

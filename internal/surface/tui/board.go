@@ -14,10 +14,11 @@ import (
 )
 
 // boardGroup defines one section of the kanban. All board grouping (rendering,
-// navigation, jump-to-section) reads from boardGroups so the three views stay
-// in sync. Adding a new state means updating exactly one place.
+// navigation, jump-to-section) reads from boardGroups so the views stay in
+// sync. Adding a new state means updating exactly one place.
 type boardGroup struct {
-	// ID is the stable handle for the section ("needs", "working", "done").
+	// ID is the stable handle for the section ("needs", "waiting", "working",
+	// "done").
 	ID    string
 	Title string
 	// Count names the column's sessions after a number, as on the
@@ -31,8 +32,33 @@ type boardGroup struct {
 	// Completed marks the column that holds finished work (it folds past
 	// doneCollapseAt rows).
 	Completed bool
-	Match     func(protocol.SessionSummary) bool
+	// HideZero leaves the section's count out of the header and the
+	// screensaver while it is 0.
+	HideZero bool
+	Match    func(protocol.SessionSummary, groupCtx) bool
 }
+
+// groupCtx is what grouping needs besides the session: the clock (a
+// session only counts as waiting after protocol.WaitingAfter) and whether
+// the waiting_section feature is on. The zero value is the classic board:
+// no Waiting section, waiting sessions are Working. Grouping stays pure:
+// tests pass a fixed now.
+type groupCtx struct {
+	now     time.Time
+	waiting bool
+}
+
+// isWaiting reports whether a session shows in Waiting at now: it is
+// working on a tool call (shell, subagent or web) that began at least
+// protocol.WaitingAfter ago. Marked-done, needs_input and queued sessions
+// never are.
+func isWaiting(s protocol.SessionSummary, now time.Time) bool {
+	return s.WaitingFor(now) != ""
+}
+
+// waitingGroupID is the ID of the Waiting section, which exists only while
+// the waiting_section feature is on.
+const waitingGroupID = "waiting"
 
 // isMarkedDone reports whether the user marked the session done (it then
 // lives in Done whatever its live state).
@@ -43,15 +69,24 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 // whatever its live state; distinct markers (●/✕/○) preserve the at-a-glance
 // distinction within the column. Working also holds queued sessions (spawned,
 // agent not started yet; marker ◌): every state must land in some group, or
-// the session is invisible and unreachable by keyboard.
+// the session is invisible and unreachable by keyboard. Waiting holds
+// working sessions blocked on a tool for a few seconds (see groupCtx); with
+// the waiting_section feature off it matches nothing and they stay in
+// Working.
 var boardGroups = []boardGroup{
-	{ID: "needs", Title: "Needs you", Count: "need you", Alert: true, Empty: "nothing waiting on you", Match: func(s protocol.SessionSummary) bool {
+	{ID: "needs", Title: "Needs you", Count: "need you", Alert: true, Empty: "nothing waiting on you", Match: func(s protocol.SessionSummary, _ groupCtx) bool {
 		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
 	}},
-	{ID: "working", Title: "Working", Count: "working", Empty: "nothing running", Match: func(s protocol.SessionSummary) bool {
-		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued)
+	{ID: waitingGroupID, Title: "Waiting", Count: "waiting", Empty: "nothing waiting on a tool", HideZero: true, Match: func(s protocol.SessionSummary, c groupCtx) bool {
+		return c.waiting && isWaiting(s, c.now)
 	}},
-	{ID: "done", Title: "Done", Count: "done", Empty: "nothing finished yet", Completed: true, Match: inCompleted},
+	{ID: "working", Title: "Working", Count: "working", Empty: "nothing running", Match: func(s protocol.SessionSummary, c groupCtx) bool {
+		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued) &&
+			(!c.waiting || !isWaiting(s, c.now))
+	}},
+	{ID: "done", Title: "Done", Count: "done", Empty: "nothing finished yet", Completed: true, Match: func(s protocol.SessionSummary, _ groupCtx) bool {
+		return inCompleted(s)
+	}},
 }
 
 // styleAlert highlights an Alert column's title and count while it holds
@@ -65,7 +100,7 @@ func styleAlert() lipgloss.Style {
 // marked done: those are counted apart so a failure stands out instead of
 // hiding in the done total. Each session is counted at most once, so the
 // numbers add up to the stats overlay's total.
-func columnCounts(sessions []protocol.SessionSummary) (cols []int, failed int) {
+func columnCounts(sessions []protocol.SessionSummary, ctx groupCtx) (cols []int, failed int) {
 	cols = make([]int, len(boardGroups))
 	for _, s := range sessions {
 		if !isMarkedDone(s) && (s.State == protocol.StateFailed || s.State == protocol.StateCrashed) {
@@ -73,7 +108,7 @@ func columnCounts(sessions []protocol.SessionSummary) (cols []int, failed int) {
 			continue
 		}
 		for i, g := range boardGroups {
-			if g.Match(s) {
+			if g.Match(s, ctx) {
 				cols[i]++
 				break
 			}
@@ -85,6 +120,7 @@ func columnCounts(sessions []protocol.SessionSummary) (cols []int, failed int) {
 // Board group indexes.
 const (
 	groupNeeds = iota
+	groupWaiting
 	groupWorking
 	groupDone
 )
@@ -125,16 +161,20 @@ func visibleRows(m Model, gi int) []protocol.SessionSummary {
 }
 
 // resolveSection maps a user reference to a boardGroups index: an ID, a
-// unique ID prefix, the title with spaces ignored, or a 1-based number.
-func resolveSection(ref string) (int, error) {
+// unique ID prefix, the title with spaces ignored, or a 1-based number. It
+// only knows the active sections (activeGroups): with waiting_section off,
+// "waiting" is unknown and 2 is Working.
+func resolveSection(m Model, ref string) (int, error) {
+	active := activeGroups(m)
 	r := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(ref), " ", ""))
 	if n, err := strconv.Atoi(r); err == nil {
-		if n >= 1 && n <= len(boardGroups) {
-			return n - 1, nil
+		if n >= 1 && n <= len(active) {
+			return active[n-1], nil
 		}
 	} else if r != "" {
 		prefix, hits := 0, 0
-		for i, g := range boardGroups {
+		for _, i := range active {
+			g := boardGroups[i]
 			if r == g.ID || r == strings.ToLower(strings.ReplaceAll(g.Title, " ", "")) {
 				return i, nil
 			}
@@ -146,11 +186,11 @@ func resolveSection(ref string) (int, error) {
 			return prefix, nil
 		}
 	}
-	ids := make([]string, len(boardGroups))
-	for i, g := range boardGroups {
-		ids[i] = g.ID
+	ids := make([]string, len(active))
+	for n, i := range active {
+		ids[n] = boardGroups[i].ID
 	}
-	return 0, fmt.Errorf("unknown section %q: use %s or 1-%d", ref, strings.Join(ids, ", "), len(boardGroups))
+	return 0, fmt.Errorf("unknown section %q: use %s or 1-%d", ref, strings.Join(ids, ", "), len(active))
 }
 
 // inCompleted reports whether a session sits in the Done column.
@@ -163,7 +203,7 @@ func inCompleted(s protocol.SessionSummary) bool {
 func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, f rowFilter) []protocol.SessionSummary {
 	out := make([]protocol.SessionSummary, 0, len(sessions))
 	for _, s := range sessions {
-		if !g.Match(s) || !f.keep(s) {
+		if !g.Match(s, f.ctx) || !f.keep(s) {
 			continue
 		}
 		out = append(out, s)
@@ -171,7 +211,7 @@ func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, f rowFilter
 	return out
 }
 
-// partitionSessions buckets sessions into board columns in one pass (O(n) vs 3× scan).
+// partitionSessions buckets sessions into board columns in one pass (O(n) vs per-column scans).
 func partitionSessions(sessions []protocol.SessionSummary, f rowFilter) [][]protocol.SessionSummary {
 	out := make([][]protocol.SessionSummary, len(boardGroups))
 	for i := range out {
@@ -182,7 +222,7 @@ func partitionSessions(sessions []protocol.SessionSummary, f rowFilter) [][]prot
 			continue
 		}
 		for i, g := range boardGroups {
-			if g.Match(s) {
+			if g.Match(s, f.ctx) {
 				out[i] = append(out[i], s)
 				break
 			}
@@ -325,7 +365,7 @@ func groupTitleText(m Model, gi int) string {
 	}
 	count := fmt.Sprintf("  %d", n)
 	if f.rowsActive() { // a filter or search narrows the rows: show n of the section's total
-		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{})))
+		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx})))
 	}
 	out := "  " + title + styleDim.Render(count)
 	if gi != groupDone || n <= doneCollapseAt || f.searching() {
@@ -337,7 +377,7 @@ func groupTitleText(m Model, gi int) string {
 		out += styleDim.Render(" hidden")
 		verb = " show"
 	}
-	return out + sep + styleHeaderApp.Render("3") + styleDim.Render(verb) + sep +
+	return out + sep + styleHeaderApp.Render(strconv.Itoa(sectionNumber(m, groupDone))) + styleDim.Render(verb) + sep +
 		styleHeaderApp.Render(":prune") + styleDim.Render(" clear")
 }
 
@@ -353,7 +393,7 @@ func clampScroll(offset, total, height int) int {
 	return offset
 }
 
-// renderBoard renders the three sections sized to fit `width` x `height`.
+// renderBoard renders the sections sized to fit `width` x `height`.
 // Long boards scroll: m.ScrollOffset skips that many lines from the top.
 func renderBoard(m Model, width, height int) string {
 	slots := boardSlots(m)
@@ -381,6 +421,7 @@ func renderBoard(m Model, width, height int) string {
 			if searching {
 				none = "no matches"
 			}
+			none = ansi.Truncate(none, max(width-ansi.StringWidth(noneIndent), 0), "…")
 			lines = append(lines, noneIndent+styleMuted.Render(none))
 		case slotRow:
 			lines = append(lines, renderRow(m, sl.sess, cols))
@@ -409,8 +450,8 @@ const (
 	colSlug   = 22 // name column cap
 	colModel  = 24 // model · effort column cap
 	colTokens = 8  // "99.9M tk"
-	colRun    = 4  // long-running badge: "▴42m"
-	colAgents = 3  // running subagents: subagentGlyph + count, "⋔12"
+	colRun    = 5  // long-running badge: "▴ 42m"
+	colAgents = 4  // running subagents: subagentGlyph, space, count: "⋔ 12"
 	colTime   = 4  // "59m", "23h", "12d"
 	colSpan   = 13 // start→end: "Jan 2→Jan 2" at most
 	colGap    = 2
@@ -554,6 +595,10 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		state = protocol.StateDone // marked done reads green whatever the live state
 	}
 	marker := stateMarkerCellFor(m, state, m.SpinnerTick, false)
+	waiting := waitingKindOf(m, s) != ""
+	if waiting {
+		marker = waitingMarkerCell(m, false)
+	}
 	// A marked-done row recedes: muted name and description.
 	slugStyle := lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
 	if retiring && !selected {
@@ -571,6 +616,9 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		descSource = rowDescription(s)
 		if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
 			descSource = renderAnimFrame(anim, c.desc, now)
+		}
+		if waiting { // the reason and how long: "shell 42s · summary"
+			descSource = strings.TrimSuffix(waitingLabel(m, s)+" · "+descSource, " · ")
 		}
 	} else if !retiring && s.State == protocol.StateNeedsInput && !selected {
 		descColor = colorFgPrimary // what needs you reads first
@@ -625,11 +673,11 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 const subagentGlyph = "⋔"
 
 // subagentCell renders how many subagents the session is running, e.g.
-// "⋔3", or blank. Counts above 99 show as 99.
+// "⋔ 3", or blank. Counts above 99 show as 99.
 func subagentCell(s protocol.SessionSummary, w int, dim bool) string {
 	text := ""
 	if s.Subagents > 0 {
-		text = fmt.Sprintf("%s%d", subagentGlyph, min(s.Subagents, 99))
+		text = fmt.Sprintf("%s %d", subagentGlyph, min(s.Subagents, 99))
 	}
 	style := lipgloss.NewStyle().Foreground(colorWorking)
 	if dim {
@@ -676,6 +724,12 @@ func blinkEnabled(m Model) bool {
 	}
 	return b
 }
+
+// waitingGlyph marks a session in Waiting: it is working, but blocked on a
+// shell command, subagent or web call (it does not need you). While it
+// waits the row marker turns through waitingFrames; this is the still form
+// (reduce_motion, snapshots, headers, legends).
+const waitingGlyph = "◷"
 
 // queuedGlyph marks a session that is spawned but whose agent hasn't
 // started yet. It sits in the Working column, so it must read as "not

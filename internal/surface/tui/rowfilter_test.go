@@ -22,7 +22,7 @@ func TestRowFilterToolMatchesLegacy(t *testing.T) {
 		for gi, g := range boardGroups {
 			var want []string
 			for _, s := range sessions {
-				if legacyKeep(tool, s) && g.Match(s) {
+				if legacyKeep(tool, s) && g.Match(s, groupCtx{}) {
 					want = append(want, s.ID)
 				}
 			}

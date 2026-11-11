@@ -307,7 +307,7 @@ func TestClaudeHookArgs_SessionStartAndPostToolUse(t *testing.T) {
 	require.Equal(t, "needs_input\nsid s\n"+
 		"agents-reset\nneeds_input\nsid s\n"+
 		"agents-reset\nneeds_input\nsid s\n"+
-		"working\n"+
+		"working\nwait-\n"+
 		"working\nagent~ sub-7\n", string(raw))
 }
 

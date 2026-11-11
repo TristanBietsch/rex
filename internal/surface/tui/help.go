@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -25,13 +26,40 @@ const (
 )
 
 // helpLeft and helpRight read the bindings and commands tables; only the
-// badge legend is written out here.
-var helpLeft = []helpGroup{
-	bindingsIn(groupNavigation),
-	bindingsIn(groupFilter),
-	bindingsIn(groupActions),
-	bindingsIn(groupMouse),
-	bindingsIn(groupModes),
+// badge legend is written out here. The section-number row is built from
+// the sections the board has (sectionKeysRow).
+func helpLeft(m Model) []helpGroup {
+	nav := bindingsIn(groupNavigation)
+	for i, r := range nav.Rows {
+		if r[0] == sectionKeysLabel {
+			nav.Rows[i] = sectionKeysRow(m)
+		}
+	}
+	return []helpGroup{
+		nav,
+		bindingsIn(groupFilter),
+		bindingsIn(groupActions),
+		bindingsIn(groupMouse),
+		bindingsIn(groupModes),
+	}
+}
+
+// sectionKeysLabel is the Keys text of the section-number binding in the
+// table; the help overlay swaps in sectionKeysRow.
+const sectionKeysLabel = "1-4"
+
+// sectionKeysRow is the help row for the number keys: one per active
+// section, in screen order ("1-3" while Waiting is off).
+func sectionKeysRow(m Model) [2]string {
+	active := activeGroups(m)
+	titles := make([]string, len(active))
+	for n, gi := range active {
+		titles[n] = boardGroups[gi].Title
+	}
+	return [2]string{
+		"1-" + strconv.Itoa(len(active)),
+		"jump to " + strings.Join(titles, " / ") + " (" + strconv.Itoa(len(active)) + " also folds a long Done column)",
+	}
 }
 
 var helpRight = []helpGroup{
@@ -39,10 +67,10 @@ var helpRight = []helpGroup{
 	commandsIn(groupAppCmd),
 	bindingsIn(groupAttached),
 	{helpGroupBadges, [][2]string{
-		{"▴12m", "dim"},
-		{"▴45m", "amber"},
-		{"▴3h", "red"},
-		{"▴7h", "red inverse (time working)"},
+		{"▴ 12m", "dim"},
+		{"▴ 45m", "amber"},
+		{"▴ 3h", "red"},
+		{"▴ 7h", "red inverse (time working)"},
 	}},
 }
 
@@ -103,9 +131,9 @@ func filterGroups(gs []helpGroup, drop map[string]bool) []helpGroup {
 
 // helpBox builds the bordered box at total width bw using cols (1 or 2)
 // columns, omitting groups named in drop. note adds the truncation notice.
-func helpBox(bw, cols int, drop map[string]bool, note bool) string {
+func helpBox(m Model, bw, cols int, drop map[string]bool, note bool) string {
 	inner := bw - 8 // border 2 + padding 6
-	left, right := filterGroups(helpLeft, drop), filterGroups(helpRight, drop)
+	left, right := filterGroups(helpLeft(m), drop), filterGroups(helpRight, drop)
 	var body string
 	if cols == 2 {
 		colW := (inner - helpColGap) / 2
@@ -123,7 +151,7 @@ func helpBox(bw, cols int, drop map[string]bool, note bool) string {
 }
 
 // renderHelp returns the finished bordered help box, fitting within w x h.
-func renderHelp(w, h int) string {
+func renderHelp(m Model, w, h int) string {
 	bw := w - 8
 	if bw < helpMinBoxW {
 		bw = helpMinBoxW
@@ -139,13 +167,13 @@ func renderHelp(w, h int) string {
 		cols = 2
 	}
 	drop := map[string]bool{}
-	box := helpBox(bw, cols, drop, false)
+	box := helpBox(m, bw, cols, drop, false)
 	for _, g := range []string{helpGroupBadges, helpGroupMouse} {
 		if lipgloss.Height(box) <= h-2 {
 			break
 		}
 		drop[g] = true
-		box = helpBox(bw, cols, drop, true)
+		box = helpBox(m, bw, cols, drop, true)
 	}
 	if lipgloss.Height(box) > h {
 		// Hard clip: keep the top h-1 lines plus the bottom border.

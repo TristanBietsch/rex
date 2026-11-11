@@ -115,7 +115,7 @@ func TestBoardLayout_ColumnsAlignVertically(t *testing.T) {
 	require.Equal(t, tkEnd, col(rows["2"], "123K tk")+len("123K tk"))
 	require.Equal(t, tkEnd, col(rows["4"], "900 tk")+len("900 tk"))
 	// Badge column.
-	require.Equal(t, col(rows["2"], "▴45m"), col(rows["4"], "▴7h"))
+	require.Equal(t, col(rows["2"], "▴ 45m"), col(rows["4"], "▴ 7h"))
 	// Name and description columns.
 	require.Equal(t, col(rows["1"], "dark-mode"), col(rows["2"], "release-notes"))
 	require.Equal(t, col(rows["1"], "system theme"), col(rows["2"], "draft ready"))
@@ -129,10 +129,10 @@ func TestBoardLayout_WideShowsEverything(t *testing.T) {
 	require.Contains(t, rows["1"], "12.3K tk")
 	require.Contains(t, rows["2"], "gpt-5-codex · medium")
 	require.Contains(t, rows["2"], "123K tk")
-	require.Contains(t, rows["2"], "▴45m")
+	require.Contains(t, rows["2"], "▴ 45m")
 	require.Contains(t, rows["2"], "11m")
 	require.Contains(t, rows["3"], "日本語")
-	require.Contains(t, rows["4"], "▴7h")
+	require.Contains(t, rows["4"], "▴ 7h")
 	require.NotContains(t, rows["5"], "done")
 	require.NotContains(t, rows["5"], "clears")
 	require.True(t, strings.HasSuffix(rows["6"], "-"), "zero time renders as -")
@@ -147,7 +147,7 @@ func TestBoardLayout_EightyColumns(t *testing.T) {
 	require.GreaterOrEqual(t, cols.desc, descMin)
 	rows := boardRows(t, m, 80)
 	require.Contains(t, rows["1"], "opus · max")
-	require.Contains(t, rows["2"], "▴45m")
+	require.Contains(t, rows["2"], "▴ 45m")
 	require.True(t, strings.HasSuffix(rows["2"], "11m"))
 }
 

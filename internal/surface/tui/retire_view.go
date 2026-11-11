@@ -145,13 +145,13 @@ func longRunTier(now time.Time, s protocol.SessionSummary) int {
 	return -1
 }
 
-// longRunBadge renders the small long-running column: "▴42m", colored by tier.
+// longRunBadge renders the small long-running column: "▴ 42m", colored by tier.
 func longRunBadge(now time.Time, s protocol.SessionSummary) string {
 	tier := longRunTier(now, s)
 	if tier < 0 {
 		return ""
 	}
-	return longRunTiers[tier].style().Render("▴" + shortDuration(now.Sub(s.WorkingSince)))
+	return longRunTiers[tier].style().Render("▴ " + shortDuration(now.Sub(s.WorkingSince)))
 }
 
 // displayName is the name column text: the user's label, else the slug.

@@ -336,6 +336,17 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if t, ok := patchTime(patch, "working_since"); ok {
 		s.WorkingSince = t
 	}
+	if v, present := patch["waiting_on"]; present {
+		// null or "" clears. A kind this version doesn't know (a newer
+		// daemon's) reads as not waiting: the session stays in Working.
+		s.WaitingOn = ""
+		if kind, _ := v.(string); protocol.ValidWaitKind(kind) {
+			s.WaitingOn = kind
+		}
+	}
+	if t, ok := patchTime(patch, "waiting_since"); ok {
+		s.WaitingSince = t
+	}
 	// Token fields come as float64 over JSON; coerce safely.
 	if v, ok := patch["tokens"].(float64); ok {
 		s.Tokens = int64(v)

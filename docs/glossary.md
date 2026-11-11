@@ -28,7 +28,7 @@ Client message sent to the daemon over the socket. JSON envelope with `kind: "In
 
 ## long-running badge
 
-Small row column (`▴42m`) on sessions that have been `working` without a break for 10+ minutes; color tiers escalate at 30 min, 2 h, 6 h. Driven by `working_since`.
+Small row column (`▴ 42m`) on sessions that have been `working` without a break for 10+ minutes; color tiers escalate at 30 min, 2 h, 6 h. Driven by `working_since`.
 
 ## mark done
 
