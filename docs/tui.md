@@ -16,7 +16,7 @@ rex
 
 Three columns group sessions: **NEEDS YOU**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N working · N done`. The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
-The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, or a section is hidden. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`). See FILTERS.
+The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
 A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `3` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
@@ -56,6 +56,7 @@ The **text** is the task you gave the session. A session that needs you shows th
 | Prompt | `i` | `esc` |
 | Command | `:` (board) or `::` (inside attach) | `esc` after command |
 | Rename | `r` | `enter` saves, `esc` cancels |
+| Search | `/` | `enter` keeps the query, `esc` restores the previous one |
 | Attach | `enter` on selected row | `qq`, `ctrl+]` or `::q` |
 | Wizard | `n` or `:new` | wizard flow |
 | Settings | `S` or `:settings` | `esc` |
@@ -79,6 +80,8 @@ The **text** is the task you gave the session. A session that needs you shows th
 | `3` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
 | `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
+| `/` | Search the board (see FILTER AND SEARCH) |
+| `esc` | Clear the search |
 | `zh` | Hide / show every completed section (Done) |
 | `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Working, `z3` Done) |
 | `z0` | Show every section |
@@ -87,6 +90,7 @@ The **text** is the task you gave the session. A session that needs you shows th
 | `i` | Focus bottom prompt (quick-spawn) |
 | `r` | Rename selected (display name; empty resets to slug) |
 | `cc` | Mark selected done / undo (see MARK DONE) |
+| `uc` | Undo done: unmark the selected session (see MARK DONE) |
 | `C` | Complete now: kill the agent and mark it done |
 | `dd` | Delete selected (confirm) |
 | `:` | Command mode |
@@ -158,9 +162,34 @@ Scrolling back down to the bottom also returns to live output, as does the agent
 
 Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, antigravity, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept. The repaint that opens the popup draws in place and adds none.
 
-## FILTERS
+## FILTER AND SEARCH
 
-Two filters narrow the board: the **tool filter** (`t` cycles it, `:filter <tool>` sets it, a click on a chip sets it) and **hidden sections**. A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global.
+Three things narrow the board: the **tool filter** (`t` cycles it, `:filter <tool>` sets it, a click on a chip sets it), **hidden sections**, and a **search**. While any of them narrows the rows, section titles read `n/total` (`WORKING  1/4`).
+
+### Search
+
+`/` opens an editor on the bottom line (`/ query█   3 matches`) and narrows the board as you type.
+
+| Key | Effect |
+|-----|--------|
+| `enter` | Keep the query and go back to the board |
+| `esc` | Restore the query you had before `/` |
+| `ctrl+u`, `ctrl+w`, `backspace` | Clear, delete a word, delete a character |
+| `esc` (on the board) | Clear the search |
+
+`/` again reopens the editor on the current query. `:search <text>` sets the query from the command line (also `::search` from attach), and a bare `:search` clears it ([slash.md](slash.md)).
+
+- A row matches when it contains **every** word of the query, as a case-insensitive substring. There is no regex and no fuzzy matching.
+- The words are looked up in what the rows show (name, task or the question a session is waiting on, AI summary, tool, model · effort) plus the slug, short id, fleet, the folder name of the session's directory and its resume id. Raw screen text is not searched.
+- At most 16 words and 128 characters; control characters are dropped.
+- A search unfolds a long Done column, so hits are never folded away. Empty sections say `no matches`.
+- A search combines with the tool filter and hidden sections (all must match). Matches inside hidden sections are not shown, but the filter bar counts them: `+2 in hidden sections (z0)`.
+- The selection stays if its row still matches, else moves to the first match.
+- The search lasts for the run. `:bg` saves it for the next start (see DETACH WITHOUT QUITTING). `:filter` with no argument clears it along with the other filters.
+
+### Hidden sections
+
+A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global. A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global.
 
 | Key | Effect |
 |-----|--------|
@@ -186,7 +215,8 @@ Two filters narrow the board: the **tool filter** (`t` cycles it, `:filter <tool
 
 `cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state,. The detailed view's span column shows when it was marked, and its header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
-- `cc` again undoes the mark.
+- `cc` again undoes the mark. `uc` (or `:uc [sel]`) does the same without ever marking: it unmarks a session that is still running and says `<name> isn't done` for one that is not in Done.
+- `uc` on a session that has exited (done, failed or crashed, including after `C`) cannot bring it back yet: the status line says `uc: <name> has exited; it can't be brought back yet`, and the row stays in Done.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.
 - A session still **working** at the deadline is not cleared; it is cleared as soon as it settles (the attach footer reads `clears when idle`).
 - `cc` again moves the row back to the column its live state belongs to.
@@ -236,7 +266,7 @@ A small column before the time column flags sessions that have been **working** 
 
 ## DETACH WITHOUT QUITTING
 
-`:bg` or `:detach` saves selection, tool filter and hidden sections to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores them once (the saved hidden sections replace `board_hidden_sections` for that run), then deletes the state file.
+`:bg` or `:detach` saves selection, tool filter, hidden sections and the board search to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores them once (the saved hidden sections replace `board_hidden_sections` for that run), then deletes the state file.
 
 ## PROMPT
 

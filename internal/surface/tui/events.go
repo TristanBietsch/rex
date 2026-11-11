@@ -97,7 +97,7 @@ func (m Model) wantsSpinnerTick() bool {
 // cursorBlinking is true while an input bar showing cursorBlock is focused.
 func (m Model) cursorBlinking() bool {
 	switch m.Focus {
-	case FocusPrompt, FocusCommand, FocusRename, FocusWizard:
+	case FocusPrompt, FocusCommand, FocusRename, FocusSearch, FocusWizard:
 	default:
 		return false
 	}

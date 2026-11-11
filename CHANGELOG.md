@@ -29,8 +29,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   session.
 - TUI: `:filter hide <section…>`, `:filter show <section…|all>` and
   `:filter only <section…>` hide and show board sections by id, prefix,
-  title or number. A bare `:filter` clears the tool filter and every hidden
-  section.
+  title or number. A bare `:filter` clears the tool filter, every hidden
+  section and the search.
+- TUI: board search. `/` opens an editor on the bottom line and narrows the
+  board as you type: a row must contain every word, case-insensitive, in
+  its name, task, AI summary, tool, model, slug, short id, fleet, folder
+  name or resume id. `enter` keeps the query, `esc` restores the previous
+  one, and `esc` on the board clears it. The filter bar shows
+  `/auth · 3 matches · esc clear` and counts matches inside hidden
+  sections. A search unfolds a long Done column. `:search [text]` does the
+  same from the command line (`::search` from attach), and `:bg` saves the
+  search for the next start.
+- TUI: `uc` and `:uc [sel]` undo done: they unmark a running session that
+  was marked done (`cc`, `:done`). A session that is not in Done gets a
+  notice, and one that has already exited is explained rather than touched.
+  `u` then `c` never arms `cc`.
+- TUI: section titles read `n/total` (`WORKING  1/4`) while a tool filter or
+  search narrows the rows.
 - TUI: hide board sections. `zh` hides or shows the completed (Done)
   section, `z1`-`z9` toggle section N, `z0` shows them all. While `z` is
   pending the help line lists the second keys. `1`, `3` and `tab` aimed at

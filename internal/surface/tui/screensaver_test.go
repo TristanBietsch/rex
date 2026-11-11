@@ -133,6 +133,7 @@ func TestScreensaverOnlyOverTheBareBoard(t *testing.T) {
 	cases := map[string]func(Model) Model{
 		"prompt":         func(m Model) Model { m.Focus = FocusPrompt; return m },
 		"command":        func(m Model) Model { m.Focus = FocusCommand; return m },
+		"search":         func(m Model) Model { m.Focus = FocusSearch; return m },
 		"help":           func(m Model) Model { m.Focus = FocusHelp; return m },
 		"stats":          func(m Model) Model { m.Focus = FocusStats; return m },
 		"confirm quit":   func(m Model) Model { m.Focus = FocusConfirmQuit; return m },

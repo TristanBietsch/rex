@@ -20,6 +20,8 @@ func renderPrompt(m Model, width int) string {
 			break
 		}
 		line = styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.CmdText) + cursorBlock(m)
+	case FocusSearch:
+		return renderSearchPrompt(m, width)
 	case FocusPrompt:
 		body := stylePrimary.Render(m.PromptText) + cursorBlock(m)
 		if m.PromptText == "" {
@@ -98,6 +100,9 @@ func renderHelpLine(m Model, width int) string {
 			styleDim.Render("empty = show slug"),
 		}
 		return padLine("  "+strings.Join(parts, styleMuted.Render(" · ")), width)
+	}
+	if m.Focus == FocusSearch {
+		return searchHelpLine(width)
 	}
 	if m.PendingChord == "z" {
 		return padLine("  "+styleHeaderApp.Render("z")+styleDim.Render(": h completed · 1-9 section · 0 show all"), width)
