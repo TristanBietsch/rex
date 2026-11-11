@@ -15,6 +15,7 @@ github.com/tristanbietsch/rex/internal/daemon/state 85
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
 github.com/tristanbietsch/rex/internal/features/audio 65
 github.com/tristanbietsch/rex/internal/features/lua 89
+github.com/tristanbietsch/rex/internal/features/skills 86
 github.com/tristanbietsch/rex/internal/features/summarizer 93
 github.com/tristanbietsch/rex/internal/runtime/daemonctl 88
 github.com/tristanbietsch/rex/internal/runtime/ids 75

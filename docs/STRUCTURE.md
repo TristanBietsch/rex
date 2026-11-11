@@ -59,6 +59,7 @@ internal/
 │   ├── ids/                # session UUID / short id
 │   └── rexlog/             # file-backed slog for daemon/TUI
 ├── features/               # optional enhancements
+│   ├── skills/             # skill library + per-session plugin staging
 │   ├── summarizer/         # Ollama descriptions
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting

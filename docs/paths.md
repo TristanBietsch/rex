@@ -17,8 +17,10 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 | Path | Contents |
 |------|----------|
 | `~/.config/rex/` | User configuration |
+| `~/.config/rex/skills/<name>/` | Skill library: one folder per skill, each with a `SKILL.md` (see [skills](howto/skills.md)) |
 | `~/.local/share/rex/` | Session state (default `-state-dir`) |
 | `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json` and `transcript.log` |
+| `~/.local/share/rex/sessions/<id>/plugin/` | The skills chosen for that session, copied from the library (removed with the session) |
 | `~/.local/share/rex/daemon.lock` | Held by the running daemon; one daemon per state directory |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |
