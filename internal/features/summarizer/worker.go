@@ -26,6 +26,8 @@ type Worker struct {
 	client     *Client
 	transcript TranscriptReader
 
+	retryDelay time.Duration // pause before the one transient retry
+
 	ch   chan string
 	wake chan struct{} // capacity 1: nudges the scheduler loop
 	slot chan struct{} // capacity 1: the shared Ollama slot
@@ -82,6 +84,9 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 	if cfg.MaxBytes == 0 {
 		cfg.MaxBytes = 2048
 	}
+	if cfg.RequestTimeout == 0 {
+		cfg.RequestTimeout = 15 * time.Second
+	}
 	if cfg.MinInterval == 0 {
 		cfg.MinInterval = 800 * time.Millisecond
 	}
@@ -91,6 +96,7 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		client:     NewClient(cfg),
 		transcript: transcript,
 		ch:         make(chan string, 64),
+		retryDelay: 500 * time.Millisecond,
 		wake:       make(chan struct{}, 1),
 		slot:       make(chan struct{}, 1),
 		pending:    make(map[string]pendingReq),
@@ -207,15 +213,14 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 	w.mu.Unlock()
 
 	bytesIn := len(tail)
-	slog.Debug("summarizer: request", "session", id, "bytes_in", bytesIn)
+	w.mu.Lock()
+	queueLen := len(w.pending)
+	w.mu.Unlock()
+	slog.Debug("summarizer: request", "session", id, "bytes_in", bytesIn,
+		"wait_ms", time.Since(req.since).Milliseconds(), "queue_len", queueLen, "model", w.Model())
 	start := time.Now()
 
-	// Single budget for both attempts; if the first call burns RequestTimeout,
-	// the retry may not have headroom — that's acceptable (it'll see ctx.Done()).
-	callCtx, cancel := context.WithTimeout(ctx, w.cfg.RequestTimeout+500*time.Millisecond)
-	defer cancel()
-
-	resp, err := w.callWithRetry(callCtx, prompt)
+	resp, err := w.callWithRetry(ctx, prompt)
 	elapsed := time.Since(start)
 	if err != nil {
 		w.failures.Add(1)
@@ -250,20 +255,29 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 	}
 }
 
+// callWithRetry makes one attempt, and a second after retryDelay only when
+// the first failed transiently and ctx is still live. Each attempt has its
+// own RequestTimeout, and holds the Ollama slot only while it runs.
 func (w *Worker) callWithRetry(ctx context.Context, prompt string) (string, error) {
+	resp, err := w.attempt(ctx, prompt)
+	if err == nil || !transient(err) || ctx.Err() != nil {
+		return resp, err
+	}
+	select {
+	case <-ctx.Done():
+		return "", err
+	case <-time.After(w.retryDelay):
+	}
+	return w.attempt(ctx, prompt)
+}
+
+func (w *Worker) attempt(ctx context.Context, prompt string) (string, error) {
 	release, err := w.acquireSlot(ctx)
 	if err != nil {
 		return "", err
 	}
 	defer release()
-	resp, err := w.client.Generate(ctx, prompt)
-	if err == nil {
-		return resp, nil
-	}
-	select {
-	case <-ctx.Done():
-		return "", err
-	case <-time.After(500 * time.Millisecond):
-	}
-	return w.client.Generate(ctx, prompt)
+	actx, cancel := context.WithTimeout(ctx, w.cfg.RequestTimeout)
+	defer cancel()
+	return w.client.Generate(actx, prompt)
 }
