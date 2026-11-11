@@ -70,6 +70,7 @@ func gitEnv(shadow, cwd, index string) []string {
 		"GIT_CONFIG_GLOBAL="+os.DevNull,
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_OPTIONAL_LOCKS=0",
+		"LC_ALL=C",
 	)
 }
 
@@ -77,11 +78,13 @@ func gitEnv(shadow, cwd, index string) []string {
 // (rev-parse only): no config outside the repo, no optional locks, so
 // nothing in the repo is written.
 func readOnlyEnv() []string {
+	// LC_ALL=C keeps git's messages untranslated: callers match on them.
 	return append(baseEnv(),
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_CONFIG_GLOBAL="+os.DevNull,
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_OPTIONAL_LOCKS=0",
+		"LC_ALL=C",
 	)
 }
 

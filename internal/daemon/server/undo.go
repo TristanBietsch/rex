@@ -159,7 +159,8 @@ func undoError(err error) error {
 		return err
 	}
 	var blocked *snapshot.BlockedError
-	if errors.As(err, &blocked) {
+	var reset *snapshot.ResetError
+	if errors.As(err, &blocked) || errors.As(err, &reset) || errors.Is(err, snapshot.ErrLedgerCorrupt) {
 		return err
 	}
 	if strings.Contains(err.Error(), "rex redo") {

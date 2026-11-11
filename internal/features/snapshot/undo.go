@@ -78,12 +78,15 @@ func (s *Store) undo(ctx context.Context, cwd, session string, turns int, dry bo
 		return UndoResult{}, err
 	}
 	defer unlock()
-	entries, err := readLedger(dir)
+	entries, err := readLedgerMode(dir, !dry)
 	if err != nil {
 		return UndoResult{}, err
 	}
 	p := fold(entries, session)
 	if p.cursor < 1 {
+		if re := readReset(dir); re != nil {
+			return UndoResult{}, re
+		}
 		return UndoResult{}, ErrNothingToUndo
 	}
 	if turns > p.cursor {
@@ -119,12 +122,15 @@ func (s *Store) redo(ctx context.Context, cwd, session string, dry bool, o opts)
 		return UndoResult{}, err
 	}
 	defer unlock()
-	entries, err := readLedger(dir)
+	entries, err := readLedgerMode(dir, !dry)
 	if err != nil {
 		return UndoResult{}, err
 	}
 	p := fold(entries, session)
 	if len(p.undone) == 0 {
+		if re := readReset(dir); re != nil {
+			return UndoResult{}, re
+		}
 		return UndoResult{}, ErrNothingToRedo
 	}
 	top := p.undone[len(p.undone)-1]
@@ -145,7 +151,7 @@ func (s *Store) begin(ctx context.Context, cwd, session string) (dir string, unl
 	if err := checkSession(session); err != nil {
 		return "", nil, err
 	}
-	if _, err := repoIgnores(ctx, cwd); err != nil {
+	if err := checkWorktree(ctx, cwd); err != nil {
 		return "", nil, err
 	}
 	dir = s.dirFor(cwd)

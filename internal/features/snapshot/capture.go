@@ -11,6 +11,28 @@ import (
 	"time"
 )
 
+// checkWorktree checks that git is usable and that cwd is inside a git
+// worktree, with one rev-parse that only reads the user's repo.
+func checkWorktree(ctx context.Context, cwd string) error {
+	if err := CheckGit(ctx); err != nil {
+		return err
+	}
+	out, err := run(ctx, readOnlyEnv(), cwd, nil, "-c", "core.fsmonitor=false", "rev-parse", "--is-inside-work-tree")
+	if err != nil {
+		if ce := ctx.Err(); ce != nil {
+			return ce
+		}
+		if strings.Contains(err.Error(), "dubious ownership") {
+			return ErrDubiousOwnership
+		}
+		return ErrNotGitWorktree
+	}
+	if strings.TrimSpace(string(out)) != "true" {
+		return ErrNotGitWorktree
+	}
+	return nil
+}
+
 // repoIgnores checks that cwd is inside a git worktree and returns exclude
 // lines, anchored and relative to cwd, for everything the user's git ignores
 // under cwd: the repo's .gitignore files (those above cwd too), its
@@ -18,23 +40,10 @@ import (
 // snapshot of a repo subfolder skips node_modules and .env as git does. It
 // only reads the user's repo.
 func repoIgnores(ctx context.Context, cwd string) ([]string, error) {
-	if err := CheckGit(ctx); err != nil {
+	if err := checkWorktree(ctx, cwd); err != nil {
 		return nil, err
 	}
-	out, err := run(ctx, readOnlyEnv(), cwd, nil, "-c", "core.fsmonitor=false", "rev-parse", "--is-inside-work-tree")
-	if err != nil {
-		if ce := ctx.Err(); ce != nil {
-			return nil, ce
-		}
-		if strings.Contains(err.Error(), "dubious ownership") {
-			return nil, ErrDubiousOwnership
-		}
-		return nil, ErrNotGitWorktree
-	}
-	if strings.TrimSpace(string(out)) != "true" {
-		return nil, ErrNotGitWorktree
-	}
-	out, err = run(ctx, readOnlyEnv(), cwd, nil, "-c", "core.fsmonitor=false",
+	out, err := run(ctx, readOnlyEnv(), cwd, nil, "-c", "core.fsmonitor=false",
 		"ls-files", "-z", "-o", "-i", "--exclude-standard", "--directory")
 	if err != nil {
 		return nil, err
@@ -69,8 +78,9 @@ func excludeLine(rel string) string {
 		case ' ':
 			b.WriteString(`\ `)
 		case '\n':
-			// Cannot be written as a pattern; such a name is captured.
-			return ""
+			// A newline cannot be written in a pattern line; '?' matches it. It
+			// over-matches (any one character), the safe side: more is ignored.
+			b.WriteByte('?')
 		default:
 			b.WriteByte(c)
 		}

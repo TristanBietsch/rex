@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -24,14 +26,73 @@ type Entry struct {
 	FilesChanged int       `json:"files_changed"`
 }
 
-// readLedger returns the ledger's entries in order; a missing file is empty.
+// ErrLedgerCorrupt means a folder's ledger is damaged somewhere other than
+// its last line. Read-only callers get it and change nothing; the next write
+// path sets the file aside (see readLedgerMode).
+var ErrLedgerCorrupt = errors.New("snapshot: the ledger of this folder is corrupt")
+
+// ResetError says a folder's ledger was found corrupt and set aside, so its
+// older turns can no longer be undone.
+type ResetError struct {
+	At   time.Time
+	File string // the set-aside file's name, in the folder store
+}
+
+func (e *ResetError) Error() string {
+	return fmt.Sprintf("history for this folder was reset at %s (the old ledger is kept as %s); older turns can't be undone",
+		e.At.Local().Format(time.DateTime), e.File)
+}
+
+func markerOf(dir string) string { return filepath.Join(dir, "ledger-reset") }
+
+// readReset returns the reset marker of a folder store, or nil.
+func readReset(dir string) *ResetError {
+	b, err := os.ReadFile(markerOf(dir))
+	if err != nil {
+		return nil
+	}
+	at, file, _ := strings.Cut(strings.TrimSpace(string(b)), " ")
+	t, err := time.Parse(time.RFC3339, at)
+	if err != nil {
+		if fi, serr := os.Stat(markerOf(dir)); serr == nil {
+			t = fi.ModTime()
+		}
+	}
+	return &ResetError{At: t, File: file}
+}
+
+// resetTime is when the folder store's ledger was last set aside, if ever:
+// from the marker, else from a leftover .corrupt-* file.
+func resetTime(dir string) (time.Time, bool) {
+	if re := readReset(dir); re != nil {
+		return re.At, true
+	}
+	if m, _ := filepath.Glob(ledgerOf(dir) + ".corrupt-*"); len(m) > 0 {
+		if fi, err := os.Stat(m[0]); err == nil {
+			return fi.ModTime(), true
+		}
+		return time.Now(), true
+	}
+	return time.Time{}, false
+}
+
+// readLedger is readLedgerMode for the write paths (the daemon's captures,
+// undo, redo, retention): a corrupt ledger is set aside.
+func readLedger(dir string) ([]Entry, error) { return readLedgerMode(dir, true) }
+
+// peekLedger is readLedgerMode for read-only callers (rex doctor, Entries,
+// a dry run): corruption is reported, nothing is renamed.
+func peekLedger(dir string) ([]Entry, error) { return readLedgerMode(dir, false) }
+
+// readLedgerMode returns the ledger's entries in order; a missing file is empty.
 //
 // A torn or malformed last line (a write cut short) is skipped with a
-// warning. A malformed line anywhere else means the file cannot be trusted:
-// it is renamed to turns.jsonl.corrupt-<time> with a warning, and the folder
-// starts a fresh ledger (its sessions' captures stay in the store but can
-// no longer be undone).
-func readLedger(dir string) ([]Entry, error) {
+// warning. A malformed line anywhere else means the file cannot be trusted.
+// With repair it is renamed to turns.jsonl.corrupt-<time>, a ledger-reset
+// marker is written, and the folder starts a fresh ledger (its sessions'
+// captures stay in the store but can no longer be undone). Without repair
+// the error is ErrLedgerCorrupt and nothing changes.
+func readLedgerMode(dir string, repair bool) ([]Entry, error) {
 	b, err := os.ReadFile(ledgerOf(dir))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -58,9 +119,17 @@ func readLedger(dir string) ([]Entry, error) {
 				slog.Warn("snapshots: ignoring a torn last ledger line", "ledger", ledgerOf(dir), "err", err)
 				continue
 			}
-			dst := fmt.Sprintf("%s.corrupt-%d", ledgerOf(dir), time.Now().Unix())
+			if !repair {
+				return nil, fmt.Errorf("%w (line %d: %v)", ErrLedgerCorrupt, i+1, err)
+			}
+			now := time.Now()
+			dst := fmt.Sprintf("%s.corrupt-%d", ledgerOf(dir), now.Unix())
 			if rerr := os.Rename(ledgerOf(dir), dst); rerr != nil {
 				return nil, fmt.Errorf("snapshot: ledger line %d is corrupt and could not be set aside: %w", i+1, rerr)
+			}
+			marker := now.UTC().Format(time.RFC3339) + " " + filepath.Base(dst) + "\n"
+			if werr := os.WriteFile(markerOf(dir), []byte(marker), 0o600); werr != nil {
+				slog.Warn("snapshots: could not write the ledger-reset marker", "err", werr)
 			}
 			slog.Warn("snapshots: corrupt ledger set aside; starting a new one", "moved_to", dst, "line", i+1, "err", err)
 			return nil, nil
@@ -213,5 +282,5 @@ func (s *Store) Entries(cwd string) ([]Entry, error) {
 	}
 	dir := s.dirFor(cwd)
 	defer s.lock(dir)()
-	return readLedger(dir)
+	return peekLedger(dir)
 }

@@ -128,6 +128,24 @@ func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, re
 	}
 	cwd, _ := os.ReadFile(filepath.Join(dir, "cwd"))
 	env := gitEnv(shadowOf(dir), string(cwd), filepath.Join(shadowOf(dir), "index-retain"))
+	// Refs whose session the ledger no longer knows (it was reset after
+	// corruption) are orphans: nothing can undo to them, but they are kept for
+	// the same 7 days as a reset ledger's file and are the first to go when
+	// the store is over its size cap.
+	refd, err := refSessions(ctx, env, dir)
+	if err != nil {
+		return err
+	}
+	orphanAt := now
+	if t, ok := resetTime(dir); ok {
+		orphanAt = t
+	}
+	for _, id := range refd {
+		if _, ok := byID[id]; !ok {
+			byID[id] = &sessionAge{id: id, removedAt: orphanAt}
+			order = append(order, id)
+		}
+	}
 	drop := map[string]bool{}
 	for _, id := range order {
 		if a := byID[id]; !a.removedAt.IsZero() && now.Sub(a.removedAt) > o.MaxAge {
@@ -160,7 +178,7 @@ func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, re
 		return err
 	}
 	if len(order) == 0 {
-		return os.RemoveAll(dir)
+		return s.removeStore(dir, now, o.MaxAge)
 	}
 	if err := rewriteLedger(dir, entries); err != nil {
 		return err
@@ -195,9 +213,37 @@ func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, re
 			return err
 		}
 		if len(order) == 0 {
-			return os.RemoveAll(dir)
+			return s.removeStore(dir, now, o.MaxAge)
 		}
 	}
+}
+
+// removeStore deletes a folder store that has no sessions left. A store whose
+// ledger was set aside as corrupt is kept until maxAge after that, so the old
+// ledger file can still be used to recover by hand.
+func (s *Store) removeStore(dir string, now time.Time, maxAge time.Duration) error {
+	if t, ok := resetTime(dir); ok && now.Sub(t) <= maxAge {
+		return nil
+	}
+	return os.RemoveAll(dir)
+}
+
+// refSessions lists the session ids that have refs under refs/rex/.
+func refSessions(ctx context.Context, env []string, dir string) ([]string, error) {
+	out, err := run(ctx, env, dir, nil, append(safeConfig(), "for-each-ref", "--format=%(refname)", "refs/rex/")...)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var ids []string
+	for ref := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		parts := strings.Split(ref, "/") // refs/rex/<session>/<n>
+		if len(parts) >= 4 && !seen[parts[2]] {
+			seen[parts[2]] = true
+			ids = append(ids, parts[2])
+		}
+	}
+	return ids, nil
 }
 
 // capVictim picks the session to drop when a store is over its cap: the
@@ -304,6 +350,12 @@ type FolderUsage struct {
 	// OverCap lists live sessions whose snapshots the size cap dropped, as
 	// "<time> <session>" lines.
 	OverCap []string
+	// Corrupt is set when the folder's ledger is damaged and not yet set
+	// aside (the daemon does that on its next write). ResetAt and ResetFile
+	// say the ledger was already set aside: older turns cannot be undone.
+	Corrupt   bool
+	ResetAt   time.Time
+	ResetFile string
 }
 
 // Usage lists every folder store under the root, sorted by folder.
@@ -326,10 +378,16 @@ func (s *Store) Usage() ([]FolderUsage, error) {
 		}
 		cwd, _ := os.ReadFile(filepath.Join(dir, "cwd"))
 		unlock := s.lock(dir)
-		entries, err := readLedger(dir)
+		entries, err := peekLedger(dir)
 		unlock()
-		if err != nil {
+		corrupt := errors.Is(err, ErrLedgerCorrupt)
+		if err != nil && !corrupt {
 			return nil, err
+		}
+		var resetAt time.Time
+		var resetFile string
+		if re := readReset(dir); re != nil {
+			resetAt, resetFile = re.At, re.File
 		}
 		var over []string
 		if b, err := os.ReadFile(filepath.Join(dir, "over-cap")); err == nil {
@@ -343,7 +401,8 @@ func (s *Store) Usage() ([]FolderUsage, error) {
 		for _, e := range entries {
 			seen[e.SessionID] = true
 		}
-		out = append(out, FolderUsage{Key: de.Name(), CWD: string(cwd), Bytes: dirSize(dir), Sessions: len(seen), OverCap: over})
+		out = append(out, FolderUsage{Key: de.Name(), CWD: string(cwd), Bytes: dirSize(dir), Sessions: len(seen), OverCap: over,
+			Corrupt: corrupt, ResetAt: resetAt, ResetFile: resetFile})
 	}
 	return out, nil
 }

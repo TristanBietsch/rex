@@ -60,6 +60,14 @@ func checkSnapshots() []checkResult {
 		}
 		rows = append(rows, checkResult{"snapshot store: " + folder, checkInfo,
 			fmt.Sprintf("%s, %d session(s)", humanBytes(u.Bytes), u.Sessions)})
+		if u.Corrupt {
+			rows = append(rows, checkResult{"snapshot ledger: " + folder, checkWarn,
+				"the history ledger is corrupt; the daemon sets it aside at its next capture and older turns can then no longer be undone"})
+		}
+		if !u.ResetAt.IsZero() {
+			rows = append(rows, checkResult{"snapshot ledger: " + folder, checkWarn,
+				"history was reset at " + u.ResetAt.Local().Format("2006-01-02 15:04:05") + " (old ledger kept as " + u.ResetFile + "); older turns can't be undone"})
+		}
 		if len(u.OverCap) > 0 {
 			rows = append(rows, checkResult{"snapshot size cap: " + folder, checkWarn,
 				"the 2 GiB cap dropped the snapshots of live session(s) (" + strings.Join(u.OverCap, "; ") + "): undo is gone for them"})
