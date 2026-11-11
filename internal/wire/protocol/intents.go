@@ -44,6 +44,14 @@ type Subscribe struct {
 	// current terminal modes (alt screen, mouse tracking, ...) as escape
 	// sequences, so the client's emulator agrees with the child's.
 	ModeSync bool `json:"mode_sync,omitempty"`
+	// Repaint asks the daemon to send, after any replay and before live
+	// output, one SessionOutput with Repaint set whose bytes redraw the
+	// session's current screen (modes, cells, cursor) from the daemon's
+	// screen mirror. It covers what ModeSync would send. Nothing is sent for
+	// a session that is not running. A daemon that predates the field
+	// ignores it; a client tells by seeing no repaint before the Subscribe's
+	// reply.
+	Repaint bool `json:"repaint,omitempty"`
 }
 
 // Resize asks the daemon to resize a running session's PTY.

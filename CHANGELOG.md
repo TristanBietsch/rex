@@ -69,6 +69,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: opening a running full-screen agent (Claude Code, codex, gemini, …)
+  no longer shows a black popup until the agent next draws. The popup
+  attaches without the transcript replay and relied on the agent redrawing
+  on `^L`, which a busy agent, or one that ignores `^L`, did not do. The
+  daemon now repaints its own copy of the agent's screen into the popup
+  (colors, cursor and terminal modes included) when it opens. `rex attach`
+  gets the same repaint after the transcript tail, which could start
+  mid-frame (or was empty with `-no-replay`). The `^L` nudge is now sent
+  only to a daemon too old to repaint. Protocol: `Subscribe` gains an
+  optional `repaint` field and `SessionOutput` an optional `repaint` flag;
+  older clients and daemons are unaffected. Subscribing no longer loses or
+  repeats the output that arrives while the daemon reads the replay.
+  `rex attach` also resets the scroll region, charset and cursor-key and
+  keypad modes on detach.
 - TUI: the attach popup no longer drifts out of sync with a long-running
   Claude Code session until you detach and reattach. The terminal emulator
   read Claude's kitty keyboard sequences (`CSI < u`, `CSI > 5 u`) as

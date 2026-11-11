@@ -115,35 +115,53 @@ func handleSubscribe(c *client, env protocol.Envelope) (outcome, error) {
 	if _, ok := srv.cfg.Store.Get(p.SessionID); !ok {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")
 	}
-	var preambleBytes int
-	if p.Replay {
-		tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax)
-		if err != nil {
-			slog.Warn("server: transcript replay failed", "session", p.SessionID, "err", err)
+	var replayBytes, repaintBytes, preambleBytes int
+	// With the session's output held, the replay, the repaint and the sink
+	// registration see every PTY chunk exactly once: in the transcript tail
+	// and on the screen, or live through the sink.
+	srv.withOutputHeld(p.SessionID, func(repaint func() []byte) {
+		if p.Replay {
+			tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax)
+			if err != nil {
+				slog.Warn("server: transcript replay failed", "session", p.SessionID, "err", err)
+			}
+			if len(tail) > 0 {
+				replayBytes = len(tail)
+				c.sendEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
+					SessionID: p.SessionID, Bytes: tail,
+				})
+			}
 		}
-		if len(tail) > 0 {
+		switch {
+		case p.Repaint:
+			// The current screen, modes included: the client's emulator
+			// shows what the agent last drew even if the agent does not
+			// draw again (busy, or deaf to the ^L nudge).
+			if b := repaint(); len(b) > 0 {
+				repaintBytes = len(b)
+				c.sendEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
+					SessionID: p.SessionID, Bytes: b, Repaint: true,
+				})
+			}
+		case p.ModeSync && !p.Replay:
+			// The replay already carries the child's mode switches;
+			// without one, send them as a preamble.
+			if pre := srv.ModePreamble(p.SessionID); len(pre) > 0 {
+				preambleBytes = len(pre)
+				c.sendEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
+					SessionID: p.SessionID, Bytes: pre,
+				})
+			}
+		}
+		// Register an output sink for this session for the rest of the connection.
+		c.cleanups = append(c.cleanups, srv.SubscribeSessionOutput(p.SessionID, func(b []byte) {
 			c.sendEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
-				SessionID: p.SessionID, Bytes: tail,
+				SessionID: p.SessionID, Bytes: b,
 			})
-		}
-	} else if p.ModeSync {
-		// The replay already carries the child's mode switches;
-		// without one, send them as a preamble.
-		if pre := srv.ModePreamble(p.SessionID); len(pre) > 0 {
-			preambleBytes = len(pre)
-			c.sendEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
-				SessionID: p.SessionID, Bytes: pre,
-			})
-		}
-	}
-	slog.Info("server: subscribe", "session", p.SessionID, "replay", p.Replay,
-		"mode_sync", p.ModeSync, "preamble_bytes", preambleBytes)
-	// Register an output sink for this session for the rest of the connection.
-	c.cleanups = append(c.cleanups, srv.SubscribeSessionOutput(p.SessionID, func(b []byte) {
-		c.sendEvent(protocol.EventSessionOutput, "", protocol.SessionOutput{
-			SessionID: p.SessionID, Bytes: b,
-		})
-	}))
+		}))
+	})
+	slog.Info("server: subscribe", "session", p.SessionID, "replay", p.Replay, "replay_bytes", replayBytes,
+		"repaint", p.Repaint, "repaint_bytes", repaintBytes, "mode_sync", p.ModeSync, "preamble_bytes", preambleBytes)
 	return outcome{sessionID: p.SessionID}, nil
 }
 

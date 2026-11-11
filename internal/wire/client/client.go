@@ -593,6 +593,16 @@ func (c *Client) SubscribeOpts(sessionID string, replay, modeSync bool) error {
 	return c.send(protocol.IntentSubscribe, "", protocol.Subscribe{SessionID: sessionID, Replay: replay, ModeSync: modeSync})
 }
 
+// SubscribeID sends Subscribe with every option under a fresh envelope ID
+// and returns that ID without waiting: the daemon's reply (an Ack after any
+// replay or repaint output, or an Error) arrives in the event stream
+// carrying it. A daemon that predates acks sends none. See RepaintWatch.
+func (c *Client) SubscribeID(p protocol.Subscribe) (string, error) {
+	// Not under idPrefix: route drops unclaimed replies to Do IDs.
+	id := "sub-" + randomHex(6)
+	return id, c.send(protocol.IntentSubscribe, id, p)
+}
+
 // Resize tells the daemon to resize the session's PTY.
 func (c *Client) Resize(sessionID string, cols, rows uint16) error {
 	return c.send(protocol.IntentResize, "", protocol.Resize{SessionID: sessionID, Cols: cols, Rows: rows})

@@ -49,7 +49,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 |------|-------------|-----------------|
 | `Hello` | yes | `client_version` (release label; older clients sent their name here), `client` (program name, optional) |
 | `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet` |
-| `Subscribe` | yes | `session_id`, `replay`, `mode_sync` |
+| `Subscribe` | yes | `session_id`, `replay`, `mode_sync`, `repaint` |
 | `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
 | `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Broadcast as `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
@@ -83,7 +83,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 |--------|------------------|-------|
 | `Hello` | `Snapshot` | Sent even without an `id` |
 | `NewSession` | `Ack` with the new `session_id` | The `SessionAdded` broadcast arrives first |
-| `Subscribe` | `Ack` (`session_id` when given) | After any replay or mode-sync `SessionOutput` |
+| `Subscribe` | `Ack` (`session_id` when given) | After any replay, repaint or mode-sync `SessionOutput` |
 | `SendInput` | `Ack` | The bytes are queued to the PTY |
 | `Reply` | `Ack` | The text and the Enter are queued |
 | `Rename`, `SetSessionName` | `Ack` | The `SessionUpdated` broadcast arrives first |
@@ -112,7 +112,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
 | `SessionRemoved` | `session_id`, `reason` (`user` \| `retired`; empty from older daemons) |
-| `SessionOutput` | `session_id`, `bytes` (base64) |
+| `SessionOutput` | `session_id`, `bytes` (base64), `repaint` (true only on the one that answers `Subscribe` `repaint`; omitted otherwise) |
 | `SummarizerHealth` | `available`, `reason` |
 | `Error` | `id`, `code`, `message` |
 
@@ -132,13 +132,25 @@ When `replay` is true, the daemon sends up to **256 KiB** of transcript tail as 
 
 ### Subscribe mode_sync
 
-When `mode_sync` is true and `replay` is false, the daemon first sends one `SessionOutput` holding escape sequences that re-create the child's current terminal modes (alternate screen `?1049h`, mouse tracking `?9/1000/1002/1003h`, SGR mouse `?1006h`, application cursor keys `?1h`). A client emulator that never saw the child's startup bytes then agrees with it about how to deliver mouse input.
+When `mode_sync` is true and `replay` is false, the daemon first sends one `SessionOutput` holding escape sequences that re-create the child's current terminal modes (alternate screen `?1049h`, mouse tracking `?9/1000/1002/1003h`, SGR mouse `?1006h`, application cursor keys `?1h`). A client emulator that never saw the child's startup bytes then agrees with it about how to deliver mouse input. With `repaint` it sends nothing: the repaint carries the modes.
+
+### Subscribe repaint
+
+When `repaint` is true and the session is running, the daemon sends, after the replay (if any) and before live output, one `SessionOutput` with `repaint: true`. Its bytes redraw the session's current screen from the daemon's per-session screen mirror: every visible cell with its colors (16, 256 and 24-bit) and attributes, the primary screen under an active alternate screen, the terminal modes (alternate screen, autowrap, insert, mouse tracking and encoding, cursor keys, keypad, focus reporting, reverse video), the scroll region, the saved cursor, the cursor position and pen, and the cursor's visibility. Each row is drawn in place (cursor position, cells, erase to end of line) with autowrap off, so the repaint never scrolls a terminal or feeds its scrollback. A full-screen agent that has nothing new to draw then still shows its last frame in a client that attaches late.
+
+The repaint is drawn at the mirror's size, which follows the last `Resize`; send `Resize` before `Subscribe` to get it at your size. While the daemon reads the transcript tail and renders the repaint it holds the session's output, so each PTY chunk lands exactly once: in the replay and the repaint, or live.
+
+Not reproduced: tab stops, the window title and palette changes (cells carry the colors they resolve to). The mirror is a vt10x emulator, which gives every rune one cell; on a real terminal a wide rune pushes the rest of its row right, as in the TUI's attach popup.
+
+Nothing is sent for a session that is not running.
 
 ### Compatibility
 
 Additive changes (new optional fields, new intents, new events, new patch keys) keep `v: 1`; both sides ignore unknown fields and event types. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
 
 A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
+
+A daemon that predates `repaint` ignores the field and answers `mode_sync` as before. A client tells by the `Subscribe`'s reply: send it with an `id`, and if the `Ack` arrives with no `repaint: true` output before it, there was no repaint. A daemon that predates acks sends no reply at all, so wait for it only briefly. rex's attach clients (`client.RepaintWatch`, 250 ms) then fall back to the `^L` redraw nudge. Clients that do not set `repaint` get exactly what they got before, and no `repaint` key on the wire.
 
 ## Error codes
 

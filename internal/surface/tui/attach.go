@@ -73,8 +73,10 @@ type AttachClosedMsg struct {
 // subscribe WITHOUT replay so vt10x doesn't have to chew through the entire
 // transcript of alt-screen toggles, scroll-region resets, kitty-keyboard
 // queries, and cursor positioning — which it doesn't fully emulate and which
-// leaves duplicate / orphaned content on screen. The resize that follows
-// triggers the agent to redraw fresh into a clean buffer.
+// leaves duplicate / orphaned content on screen. Instead the daemon repaints
+// its own screen mirror of the session into our fresh buffer
+// (Subscribe.Repaint), so the popup shows the agent's current frame even
+// when the agent doesn't draw again for a while.
 //
 // Line-oriented agents (ollama, echo) NEED the replay because they don't
 // repaint scrollback on resize — the only way to see prior conversation is
@@ -107,22 +109,36 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 			break
 		}
 	}
-	// Alt-screen agents skip replay; mode sync tells our emulator which
-	// terminal modes (mouse tracking, alt screen) they already switched on.
-	subErr := c.SubscribeOpts(sessionID, !altScreenTools[toolID], true)
+	fullScreen := altScreenTools[toolID]
+	// Size the PTY first: the daemon resizes its screen mirror with it, so
+	// the repaint below has the popup's geometry. A real size change also
+	// makes the agent redraw (SIGWINCH).
+	_ = c.Resize(sessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
+	// Alt-screen agents skip replay and get a repaint of the daemon's
+	// screen mirror instead; mode sync (for daemons without repaints) tells
+	// our emulator which terminal modes they already switched on.
+	reqID, subErr := c.SubscribeID(protocol.Subscribe{
+		SessionID: sessionID, Replay: !fullScreen, ModeSync: true, Repaint: fullScreen,
+	})
 	if subErr != nil {
 		slog.Warn("tui: attach subscribe failed", "session", sessionID, "err", subErr)
 		_ = c.Close()
 		m.Err = "attach: " + subErr.Error()
 		return m, nil
 	}
-	_ = c.Resize(sessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
-	if altScreenTools[toolID] {
-		// SIGWINCH alone is a no-op if size didn't change. Nudge full-TUI
-		// agents with ^L (documented in our footer as "redraw") so they
-		// repaint cleanly into our fresh vt10x buffer. Safe here because
+	var watch *client.RepaintWatch
+	if fullScreen {
+		// A daemon that cannot repaint leaves our fresh buffer empty, and
+		// SIGWINCH alone is a no-op if the size didn't change: nudge the
+		// agent with ^L (documented in our footer as "redraw"). Safe because
 		// readline-based agents (ollama) aren't in altScreenTools.
-		_ = c.SendRedraw(sessionID)
+		watch = client.WatchRepaint(sessionID, reqID, client.RepaintReplyWait, func() {
+			if err := c.SendRedraw(sessionID); err != nil {
+				slog.Warn("tui: attach redraw nudge failed", "session", sessionID, "err", err)
+				return
+			}
+			slog.Info("tui: attach redraw nudge sent; daemon did not repaint", "session", sessionID)
+		})
 	}
 	slug := ""
 	for _, s := range m.Sessions {
@@ -134,14 +150,14 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	mouse := mouseEnabled(m)
 	scrollback := attachScrollbackLimit(m)
 	slog.Info("tui: attach opened", "session", sessionID, "cols", cols, "rows", rows, "mouse", mouse, "mode_sync", true,
-		"scrollback_lines", scrollback)
+		"repaint", fullScreen, "scrollback_lines", scrollback)
 	st := &AttachState{
 		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows,
 		outCh: make(chan AttachOutputMsg, 64),
 		errCh: make(chan AttachClosedMsg, 1),
 	}
 	st.Term = newAttachTerm(st, cols, rows, scrollback)
-	go pumpAttach(c, sessionID, st.outCh, st.errCh)
+	go pumpAttach(c, sessionID, watch, st.outCh, st.errCh)
 	m.Attach = st
 	m.Focus = FocusAttach
 	if m.Audio != nil {
@@ -212,7 +228,10 @@ func resizeAttach(m Model) {
 // pumpAttach is the background reader goroutine. It blocks on the daemon
 // connection and pushes parsed messages onto the AttachState channels until the
 // connection closes. One pump per AttachState; closing the client unblocks it.
-func pumpAttach(c *client.Client, sessionID string, outCh chan<- AttachOutputMsg, errCh chan<- AttachClosedMsg) {
+// watch (nil for replayed agents) sees every event, in order, to decide on
+// the redraw nudge.
+func pumpAttach(c *client.Client, sessionID string, watch *client.RepaintWatch, outCh chan<- AttachOutputMsg, errCh chan<- AttachClosedMsg) {
+	defer watch.Stop()
 	for {
 		env, err := c.NextEvent()
 		if err != nil {
@@ -225,6 +244,7 @@ func pumpAttach(c *client.Client, sessionID string, outCh chan<- AttachOutputMsg
 			slog.Debug("tui: attach pump exit", "session", sessionID, "err", err)
 			return
 		}
+		watch.Observe(env)
 		if env.Type != protocol.EventSessionOutput {
 			continue
 		}

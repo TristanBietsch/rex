@@ -30,6 +30,12 @@ on the primary screen (codex inline, ollama, Claude Code without fullscreen).
   ran DECRC and moved the cursor, and modifyOtherKeys (`CSI > 4;2 m`) reset
   the pen. `CSI ? u`, `CSI ? Pm s` and `CSI ? Pp m` (queries and XTSAVE) no
   longer run DECRC, DECSC or SGR either. See `csi_test.go`.
+- Accessors for re-creating a screen elsewhere (rex's daemon repaints its
+  screen mirror into attach clients): `View` gains `InactiveCell` (the
+  primary screen under an active alternate screen), `SavedCursor` and
+  `ScrollRegion`; `AttrBlink`, `AttrGfx`, `AttrWrap`, `CursorWrapNext` and
+  `CursorOrigin` export the remaining `Glyph.Mode` and `Cursor.State` bits.
+  See `inspect_test.go`.
 - `gofmt` added `//go:build` lines.
 
 Tests here are a separate module: `go -C third_party/vt10x test ./...`

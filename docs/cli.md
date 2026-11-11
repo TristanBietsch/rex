@@ -105,6 +105,8 @@ rex attach <sel> [-socket path] [-read-only] [-no-replay]
 
 Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail.
 
+For full-screen agents (claude, codex, gemini, …) the daemon then redraws the agent's current screen, so you see it at once even if the agent is busy or the transcript tail starts mid-frame. A daemon too old for that gets **Ctrl+L** instead, which asks the agent to redraw.
+
 ---
 
 ## rex reply

@@ -29,10 +29,28 @@ const (
 	AttrItalic    = attrItalic
 )
 
+// The remaining Glyph.Mode bits, for code that re-creates a screen
+// (rex fork). AttrGfx marks a cell written while the DEC line-drawing
+// charset was selected (ESC ( 0); the same bit in a Cursor's Attr means the
+// charset is selected now. AttrWrap marks the cell a line wrapped after.
+const (
+	AttrBlink = attrBlink
+	AttrGfx   = attrGfx
+	AttrWrap  = attrWrap
+)
+
 const (
 	cursorDefault = 1 << iota
 	cursorWrapNext
 	cursorOrigin
+)
+
+// Cursor.State bits (rex fork). CursorWrapNext: the cursor sits in the last
+// column and the next printed character wraps first. CursorOrigin: origin
+// mode (DECOM) is on, so cursor addressing is relative to the scroll region.
+const (
+	CursorWrapNext = cursorWrapNext
+	CursorOrigin   = cursorOrigin
 )
 
 // ModeFlag represents various terminal mode states.
@@ -179,9 +197,38 @@ func (t *State) Cell(x, y int) Glyph {
 	return cell
 }
 
+// InactiveCell is Cell for the screen buffer that is not displayed: the
+// primary screen while the alternate screen is active, and the (blank)
+// alternate screen otherwise. (rex fork addition.)
+func (t *State) InactiveCell(x, y int) Glyph {
+	cell := t.altLines[y][x]
+	if fg, ok := t.colorOverride[cell.FG]; ok {
+		cell.FG = fg
+	}
+	if bg, ok := t.colorOverride[cell.BG]; ok {
+		cell.BG = bg
+	}
+	return cell
+}
+
 // Cursor returns the current position of the cursor.
 func (t *State) Cursor() Cursor {
 	return t.cur
+}
+
+// SavedCursor returns the cursor that DECRC (ESC 8, CSI u) and leaving the
+// alternate screen restore: the one saved by DECSC (ESC 7, CSI s) or by
+// entering the alternate screen with mode 1049, whichever came last. Its
+// position is not clamped to a later, smaller size; restoring clamps it.
+// (rex fork addition.)
+func (t *State) SavedCursor() Cursor {
+	return t.curSaved
+}
+
+// ScrollRegion returns the scroll margins set by DECSTBM as 0-based top and
+// bottom rows; the whole screen when none are set. (rex fork addition.)
+func (t *State) ScrollRegion() (top, bottom int) {
+	return t.top, t.bottom
 }
 
 // CursorVisible returns the visible state of the cursor.

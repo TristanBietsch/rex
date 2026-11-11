@@ -26,6 +26,8 @@ Go SDK for `rex-daemon` Unix-domain-socket protocol: dial, send intents, read ev
 - `Hello(clientVersion string) (*protocol.Snapshot, error)` — first message after connect; blocks for `EventSnapshot`.
 - `Subscribe(sessionID string) error` — `sessionID==""` for board-wide only.
 - `SubscribeReplay(sessionID string) error` — subscribe plus transcript tail as `SessionOutput`.
+- `SubscribeID(p protocol.Subscribe) (string, error)` — every option (`replay`, `mode_sync`, `repaint`) under a fresh envelope ID; the reply arrives in the event stream with it.
+- `WatchRepaint(sessionID, reqID string, wait time.Duration, nudge func()) *RepaintWatch` — feed it each event (`Observe`); it calls `nudge` (the `^L` redraw) once if the Subscribe's reply comes without a repaint, or no reply comes within `wait` (`RepaintReplyWait`).
 - `NewSession(req protocol.NewSession) error`
 - `SendInput(sessionID string, b []byte) error`
 - `Reply(sessionID, text string) error`

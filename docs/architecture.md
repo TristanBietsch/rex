@@ -40,8 +40,8 @@ flowchart LR
 
 ## Attach flow
 
-1. `rex attach <sel>` or TUI `enter` → `Subscribe` with `replay`.
-2. Daemon sends transcript tail (up to 256 KiB) then live `SessionOutput`.
+1. `rex attach <sel>` or TUI `enter` → `Resize`, then `Subscribe` with `replay` (line-oriented agents, and `rex attach` unless `-no-replay`) and/or `repaint` (full-screen agents).
+2. Daemon sends transcript tail (up to 256 KiB), then a repaint of its screen mirror of the session, then live `SessionOutput`. It holds the session's output meanwhile, so no chunk is lost or sent twice.
 3. Client stdin → `SendInput` / `Reply` on the supervisor input channel.
 4. Detach (Ctrl+]) stops forwarding; child keeps running.
 
