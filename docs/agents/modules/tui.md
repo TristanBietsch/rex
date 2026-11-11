@@ -47,6 +47,7 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `attach_scroll.go` | Popup scrollback ring + scroll mode (primary-screen agents) |
 | `attach_render.go` | Popup cell painter (cached SGR per color/attribute set) and per-row render cache |
 | `attach_cmd.go` | `::` command bar and `qq` detach inside the popup |
+| `attach_banner.go` | Attach banner row: `attachBannerRows` (the one place that decides whether it shows), `bannerParts`, static layout, `marqueeWindow`, tick chain, `::banner` |
 | `settings.go` | Settings overlay |
 | `setup_wizard.go` | First-run wizard |
 | `splash.go`, `splash_steps.go` | Boot splash + daemon start |
