@@ -36,7 +36,8 @@ func SplitTrustDirs(value string) ([]string, error) {
 // TrustDir resolves one auto_trust_dirs entry to the folder it trusts,
 // through symlinks. It refuses entries that would trust far more than one
 // project: a blank or relative entry, one containing "..", a filesystem
-// root and the home folder itself.
+// root and the home folder itself. While HOME is set but cannot be
+// resolved (it does not exist), it refuses every entry.
 func TrustDir(entry string) (string, error) {
 	d := strings.TrimSpace(entry)
 	if d == "" {
@@ -58,12 +59,31 @@ func TrustDir(entry string) (string, error) {
 	if filepath.Dir(dir) == dir {
 		return "", fmt.Errorf("%q is a filesystem root; pick a folder inside it", d)
 	}
-	if home, err := paths.Home(); err == nil {
-		if h, ok := CanonicalDir(home); ok && h == dir {
-			return "", homeFolderError(d)
-		}
+	h, err := CanonicalHome()
+	switch {
+	case errors.Is(err, paths.ErrNoHome):
+		// Without a home folder no entry can be it; ~/ entries failed above.
+	case err != nil:
+		// A home that is set but cannot be resolved could hide that the
+		// entry is the home folder: refuse rather than guess.
+		return "", fmt.Errorf("cannot check %q against the home folder: %w", d, err)
+	case h == dir:
+		return "", homeFolderError(d)
 	}
 	return dir, nil
+}
+
+// CanonicalHome returns the home folder resolved through symlinks, or an
+// error wrapping paths.ErrNoHome when it is unknown. HOME is cleaned before
+// it is resolved, as ExpandHome cleans "~/" entries: with HOME=/x/../home,
+// "~/" expands to /home, so /home is the folder to compare against. HOME
+// is the user's environment, not trust input, so its ".." is not refused.
+func CanonicalHome() (string, error) {
+	home, err := paths.Home()
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(filepath.Clean(home))
 }
 
 // CheckAutoTrustDirs returns value tidied (pieces trimmed, blank ones

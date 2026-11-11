@@ -211,6 +211,76 @@ func TestSuggestTrustDir(t *testing.T) {
 	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "app"))), "parent is home")
 	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(t.TempDir(), "app"))), "outside home")
 	require.Empty(t, suggestTrustDir(""))
+
+	// A link inside home that leads out of it is not inside home.
+	outside := filepath.Join(t.TempDir(), "code")
+	gitProject(t, filepath.Join(outside, "app"))
+	require.NoError(t, os.Symlink(outside, filepath.Join(home, "code")))
+	require.Empty(t, suggestTrustDir(filepath.Join(home, "code", "app")), "link out of home")
+
+	// One that stays inside home is fine.
+	require.NoError(t, os.Symlink(filepath.Join(home, "dev"), filepath.Join(home, "link")))
+	require.Equal(t, "~"+sep+"link", suggestTrustDir(filepath.Join(home, "link", "app")))
+
+	// A folder named "a:" holding "b" reads back as "~/a" and "/b".
+	list := string(filepath.ListSeparator)
+	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "a"+list, "b", "app"))), "separator in a name")
+	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "x"+list+"y", "app"))), "separator in a name")
+	require.Empty(t, suggestTrustDir(gitProject(t, filepath.Join(home, "dev ", "app"))), "outer space would be trimmed")
+}
+
+// A value from config.yaml or a folder name may hold terminal escapes; the
+// step and the preview show it without them.
+func TestSetupWizard_TrustStripsEscapes(t *testing.T) {
+	home := trustTestHome(t)
+	cfg := filepath.Join(home, "config.yaml")
+	const clear = "\x1b[2J"
+
+	// Valid as a path, so the step starts at yes and shows it in the box.
+	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \"~/dev\\e[2J\"\n"), 0o600))
+	m := NewSetupWizardModel(cfg, "")
+	require.True(t, m.trustYes)
+	m.step = setupStepTrust
+	require.NotContains(t, m.View(), clear)
+	m = pressSetup(t, m, "enter")
+	require.NotContains(t, m.View(), clear, "while editing")
+	m.step = setupStepShell
+	m = pressSetup(t, m, "enter")
+	require.Equal(t, setupStepPreview, m.step)
+	require.NotContains(t, m.View(), clear, "preview")
+	require.Contains(t, setupView(m), "auto-trust: ~/dev", "the escape is dropped whole")
+
+	// Not valid, so the step starts at no and shows it dimmed.
+	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \"dev\\e[2J\"\n"), 0o600))
+	m = NewSetupWizardModel(cfg, "")
+	require.False(t, m.trustYes)
+	m.step = setupStepTrust
+	require.NotContains(t, m.View(), clear)
+}
+
+// The preview lists every folder in full, one per line, wrapping long ones,
+// and still shows how to confirm.
+func TestSetupWizard_TrustPreviewShowsAll(t *testing.T) {
+	m, _ := trustWizard(t)
+	var dirs []string
+	for _, name := range []string{"one", "two", "three", "four", "five", "six", "seven", "eight"} {
+		dirs = append(dirs, "~/"+strings.Repeat("d", 70)+"/"+name)
+	}
+	m.trustYes, m.trustDir = true, strings.Join(dirs, string(filepath.ListSeparator))
+	m.step = setupStepShell
+	m = pressSetup(t, m, "enter")
+	v := setupView(m)
+	for _, d := range dirs {
+		for len(d) > 0 {
+			n := min(len(d), setupWidth-18)
+			require.Contains(t, v, d[:n])
+			d = d[n:]
+		}
+	}
+	require.Contains(t, v, "Press enter to write", "not cut off")
+	for _, line := range strings.Split(v, "\n") {
+		require.LessOrEqual(t, ansi.StringWidth(line), setupWidth)
+	}
 }
 
 func TestApplyDefaultsNonInteractive_AutoTrust(t *testing.T) {

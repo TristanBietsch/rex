@@ -100,6 +100,49 @@ func TestTrustDir(t *testing.T) {
 		require.NoError(t, err, "an absolute folder needs no home to check")
 		require.Equal(t, canonDev, got)
 	})
+
+	// "~/" expands to the cleaned HOME, so the home check must clean it too;
+	// it used to skip the check for a HOME holding "..".
+	t.Run("home with dot-dot", func(t *testing.T) {
+		base := t.TempDir()
+		realHome := filepath.Join(base, "home")
+		require.NoError(t, os.MkdirAll(filepath.Join(realHome, "dev"), 0o700))
+		dotted := filepath.Join(base, "x") + sep + ".." + sep + "home" // built by hand: Join would clean it
+		t.Setenv("HOME", dotted)
+		t.Setenv("USERPROFILE", dotted)
+		for _, entry := range []string{"~/", "~" + sep, realHome} {
+			_, err := TrustDir(entry)
+			require.ErrorContains(t, err, "home folder", entry)
+			_, err = CheckAutoTrustDirs(entry)
+			require.ErrorContains(t, err, "home folder", entry)
+		}
+		_, err := TrustDir("~/dev")
+		require.NoError(t, err, "a folder inside it is fine")
+	})
+
+	t.Run("home that cannot be resolved", func(t *testing.T) {
+		missing := filepath.Join(t.TempDir(), "gone")
+		t.Setenv("HOME", missing)
+		t.Setenv("USERPROFILE", missing)
+		for _, entry := range []string{"~/", "~/dev", dev} {
+			_, err := TrustDir(entry)
+			require.ErrorContains(t, err, "cannot check", entry)
+		}
+	})
+}
+
+func TestCanonicalHome(t *testing.T) {
+	home, _ := trustHome(t)
+	want, err := filepath.EvalSymlinks(home)
+	require.NoError(t, err)
+	got, err := CanonicalHome()
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	_, err = CanonicalHome()
+	require.ErrorIs(t, err, paths.ErrNoHome)
 }
 
 func TestCheckAutoTrustDirs(t *testing.T) {

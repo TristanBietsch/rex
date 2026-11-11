@@ -740,9 +740,10 @@ func (m SetupWizardModel) withAutoTrust(folders string) SetupWizardModel {
 }
 
 // suggestTrustDir offers the folder that holds the current project: the
-// parent of cwd when cwd is a git checkout and that parent is inside the
-// home folder. It never offers the home folder itself or anything outside
-// it (such as /tmp), and returns "" when nothing fits.
+// parent of cwd when cwd is the root of a git checkout. The suggestion must
+// pass the checks a typed value does and, with symlinks resolved, lie
+// inside the home folder. It never offers the home folder itself or
+// anything outside it (such as /tmp), and returns "" when nothing fits.
 func suggestTrustDir(cwd string) string {
 	if cwd == "" {
 		return ""
@@ -750,12 +751,23 @@ func suggestTrustDir(cwd string) string {
 	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
 		return ""
 	}
-	parent := filepath.Dir(cwd)
-	if _, err := settings.TrustDir(parent); err != nil {
+	short := tildePath(filepath.Dir(cwd))
+	// A name holding the list separator would be read back as two folders,
+	// and one with outer spaces would be trimmed into another folder.
+	if !paths.IsHomeRelative(short) || strings.ContainsRune(short, filepath.ListSeparator) {
 		return ""
 	}
-	short := tildePath(parent)
-	if !paths.IsHomeRelative(short) {
+	if v, err := settings.CheckAutoTrustDirs(short); err != nil || v != short {
+		return ""
+	}
+	// Compare resolved paths: a link such as ~/code -> /Volumes/x/code reads
+	// as inside home but is not.
+	dir, err := settings.TrustDir(short)
+	if err != nil {
+		return ""
+	}
+	home, err := settings.CanonicalHome()
+	if err != nil || !strings.HasPrefix(dir, home+string(filepath.Separator)) {
 		return ""
 	}
 	return short
@@ -984,7 +996,12 @@ func (m SetupWizardModel) View() string {
 		title, body, footer = m.renderDone()
 	}
 
-	body = padOrTrim(body, setupBodyLines)
+	height := setupBodyLines
+	if m.step == setupStepPreview {
+		// The preview grows rather than cut what the user is confirming.
+		height = max(height, len(body))
+	}
+	body = padOrTrim(body, height)
 
 	lines := []string{styleSlug.Render(title)}
 	if m.step == setupStepWelcome || m.step == setupStepDefaults {
@@ -1207,8 +1224,9 @@ func (m SetupWizardModel) renderTrust() (string, []string, string) {
 		"",
 		"  " + setupLabel("folder", folderActive),
 	}
+	// The folder can come from config.yaml or a folder name: strip escapes.
+	shown := protocol.FlattenDisplayText(m.trustDir)
 	if !m.trustYes {
-		shown := m.trustDir
 		if shown == "" {
 			shown = "(none)"
 		}
@@ -1216,7 +1234,6 @@ func (m SetupWizardModel) renderTrust() (string, []string, string) {
 		return "folder trust", body, "  j/k or y/n choose   enter next   shift+tab back   esc cancel"
 	}
 
-	shown := m.trustDir
 	if folderActive {
 		shown += "|"
 	}
@@ -1274,11 +1291,7 @@ func (m SetupWizardModel) renderPreview() (string, []string, string) {
 	for _, item := range m.writeItems {
 		body = append(body, "  "+styleSlug.Render("·")+" "+item.label)
 		if item.kind == "config" {
-			trust := "off (agents ask before trusting a folder)"
-			if v := m.autoTrustValue(); v != "" {
-				trust = v
-			}
-			body = append(body, "      "+styleDim.Render("auto-trust: ")+protocol.FlattenDisplayText(trust))
+			body = append(body, m.previewTrustLines()...)
 		}
 	}
 	if len(m.writeItems) == 0 {
@@ -1287,6 +1300,30 @@ func (m SetupWizardModel) renderPreview() (string, []string, string) {
 	body = append(body, "")
 	body = append(body, "  "+styleDim.Render("Press enter to write, n/shift+tab to go back."))
 	return "preview", body, "  enter/y write   n/shift+tab back   esc cancel"
+}
+
+// previewTrustLines shows what auto_trust_dirs will hold in full: one
+// folder per line, long ones wrapped, so nothing the user confirms is cut.
+func (m SetupWizardModel) previewTrustLines() []string {
+	const indent = "      "
+	label := "auto-trust: "
+	v := m.autoTrustValue()
+	if v == "" {
+		return []string{indent + styleDim.Render(label) + "off (agents ask before trusting a folder)"}
+	}
+	pad := indent + strings.Repeat(" ", len(label))
+	var out []string
+	for _, dir := range filepath.SplitList(v) {
+		wrapped := ansi.Hardwrap(protocol.FlattenDisplayText(dir), setupWidth-len(pad), true)
+		for _, l := range strings.Split(wrapped, "\n") {
+			if len(out) == 0 {
+				out = append(out, indent+styleDim.Render(label)+l)
+			} else {
+				out = append(out, pad+l)
+			}
+		}
+	}
+	return out
 }
 
 func (m SetupWizardModel) renderWriting() (string, []string, string) {

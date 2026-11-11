@@ -28,7 +28,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 
 - `DefaultPath() string` — `~/.config/rex/config.yaml`.
 - `Find(id string) (Setting, bool)`
-- `SplitTrustDirs`, `TrustDir`, `CheckAutoTrustDirs`, `CanonicalDir` (`trust_dirs.go`) — the `auto_trust_dirs` checks. The daemon (`boot.AutoTrustDirs`, `server.underAutoTrustDir`) ignores what fails them; `rex setup` refuses it.
+- `SplitTrustDirs`, `TrustDir`, `CheckAutoTrustDirs`, `CanonicalDir`, `CanonicalHome` (`trust_dirs.go`) — the `auto_trust_dirs` checks. The daemon (`boot.AutoTrustDirs`, `server.underAutoTrustDir`) ignores what fails them; `rex setup` refuses it.
 
 ### Setting IDs (from `registry.go`)
 
