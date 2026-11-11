@@ -276,5 +276,10 @@ func hiddenSectionsFromIDs(ids []string) map[string]bool {
 	if len(out) == 0 || len(out) == len(boardGroups) {
 		return nil
 	}
+	// A list from before the Waiting section (needs,working,done) hid
+	// everything and was ignored: it still is, not read as "only Waiting".
+	if len(out) == len(boardGroups)-1 && !out[waitingGroupID] {
+		return nil
+	}
 	return out
 }

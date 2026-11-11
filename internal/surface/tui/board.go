@@ -377,7 +377,7 @@ func groupTitleText(m Model, gi int) string {
 		out += styleDim.Render(" hidden")
 		verb = " show"
 	}
-	return out + sep + styleHeaderApp.Render("4") + styleDim.Render(verb) + sep +
+	return out + sep + styleHeaderApp.Render(strconv.Itoa(sectionNumber(m, groupDone))) + styleDim.Render(verb) + sep +
 		styleHeaderApp.Render(":prune") + styleDim.Render(" clear")
 }
 

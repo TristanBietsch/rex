@@ -21,8 +21,21 @@ func rowFilterOf(m Model) rowFilter {
 	if m.featureOn("search") {
 		f.terms = compileQuery(m.Search)
 	}
-	if f.hidden != nil && f.hidesAllOf(activeGroups(m)) {
-		f.hidden = nil // a stale list (the Waiting section was switched off) never blanks the board
+	if len(f.hidden) > 0 {
+		// Ids of sections the board does not have (Waiting, switched off)
+		// are dropped: no chip, no status, and a stale list never blanks
+		// the board.
+		active := activeGroups(m)
+		kept := map[string]bool{}
+		for _, i := range active {
+			if id := boardGroups[i].ID; f.hidden[id] {
+				kept[id] = true
+			}
+		}
+		f.hidden = kept
+		if len(kept) == 0 || f.hidesAllOf(active) {
+			f.hidden = nil
+		}
 	}
 	return f
 }
