@@ -345,7 +345,8 @@ func short8(s string) string {
 
 func stepRendererWarm(_ Model) tea.Cmd {
 	return emit("renderer.warm", func() (bootStatus, string, error) {
-		rebuildStyles()
+		// Report only: styles are built by init/applyTheme, and a step Cmd
+		// must not write them while the splash View reads them.
 		return stepOK, "styles cached", nil
 	})
 }

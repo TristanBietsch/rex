@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -47,7 +50,20 @@ func TestStepThemeApply_NoSchemeSkips(t *testing.T) {
 	require.Empty(t, tm.Scheme)
 }
 
-func TestCursorStyleIsReverseVideo(t *testing.T) {
-	// Reverse survives NO_COLOR, where the old background-only block vanished.
-	require.True(t, cursorStyle().GetReverse())
+func TestCursorVisibleUnderAscii(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+	lipgloss.SetColorProfile(termenv.Ascii)
+	lit := cursorBlock(Model{SpinnerTick: 0})
+	off := cursorBlock(Model{SpinnerTick: 5})
+	require.NotEqual(t, lit, off, "lit and off phases must differ without color")
+	require.NotEqual(t, "", strings.TrimSpace(lit), "lit cursor is a visible glyph")
+}
+
+func TestCursorReverseVideoUnderColor(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	require.Contains(t, cursorBlock(Model{SpinnerTick: 0}), "\x1b[7m")
+	require.NotContains(t, cursorBlock(Model{SpinnerTick: 5}), "\x1b[7m")
 }

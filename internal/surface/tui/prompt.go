@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -49,21 +50,30 @@ func promptGlyph(m Model) string {
 	return "λ"
 }
 
-// cursorStyle is the lit cursor. Reverse video shows under NO_COLOR, where a
-// background-only block would vanish.
+// cursorStyle is the lit cursor on a color terminal: reverse video.
 func cursorStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Reverse(true)
+}
+
+// cursorLit draws the lit cursor. termenv drops every attribute under the
+// Ascii profile (NO_COLOR, dumb terminals), which would leave a plain space,
+// so there it is a solid block glyph instead.
+func cursorLit() string {
+	if lipgloss.ColorProfile() == termenv.Ascii {
+		return "█"
+	}
+	return cursorStyle().Render(" ")
 }
 
 func cursorBlock(m Model) string {
 	// reduce_motion: render a steady cursor.
 	if m.Store != nil {
 		if rm, _ := m.Store.Get("reduce_motion").(bool); rm {
-			return cursorStyle().Render(" ")
+			return cursorLit()
 		}
 	}
 	if m.SpinnerTick%10 < 5 {
-		return cursorStyle().Render(" ")
+		return cursorLit()
 	}
 	return styleDim.Render(" ")
 }
