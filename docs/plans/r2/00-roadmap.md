@@ -15,7 +15,7 @@ Scope rules agreed 2026-11-11:
 
 | ID | TODO line | Kind | Size | Spec |
 |---|---|---|---|---|
-| R01 | steal the best ideas from opencode | spike | S | [R01](R01-opencode-ideas-spike.md) |
+| R01 | steal the best ideas from opencode | spike done → 5 builds | L total | [R01](R01-opencode-ideas-spike.md): R01-1 turn snapshots + undo (L), R01-2 session diff (M), R01-3 prompt templates (M), R01-4 spawn presets (S–M), R01-5 session export (S); build specs pending |
 | R02 | add qwen code, cursor cli, grok build (no oh-my-pi); auto-detect models | build | L | [R02](R02-more-agents-model-detect.md) |
 | R03 | "master agent" project manager (top-level line) | dup | — | Closed: duplicate of round-1 **S4**. |
 | R04 | settings + help as full-screen pages (ANTI) | build | M | [R04](R04-fullscreen-settings-help.md) |
@@ -58,7 +58,11 @@ User rule (2026-11-11): every feature, round 1 and round 2, can be turned on and
 | `linear_sync` | R11 Linear two-way | off |
 | `loops` | R12 loop workflows | off |
 | `auto_model` | R13 auto model in insert mode | off |
-| (per R01 pick) | each approved R01 idea gets its own flag | off |
+| `turn_snapshots` | R01-1 per-turn snapshots + `:undo` | off |
+| `session_diff` | R01-2 diff / review page (needs `turn_snapshots`) | on |
+| `prompt_templates` | R01-3 prompt templates | on |
+| `spawn_presets` | R01-4 spawn presets | on |
+| `session_export` | R01-5 `rex export` | on |
 
 ## Cross-feature dependencies
 
@@ -82,14 +86,14 @@ Lane A = TUI, B = daemon/registry/protocol, C = CLI/settings/features.
 
 | Wave | Lane A | Lane B | Lane C |
 |---|---|---|---|
-| 0 | — | R02-1 live captures (qwen, cursor-agent, grok) | R01 spike, R11-0 API spike (docs only) |
+| 0 | — | R02-1 live captures (qwen, cursor-agent, grok) | R01 spike ✓, R11-0 docs ✓ (live read-only pull pending a test key) |
 | 1 | R04 full-screen pages | R02-2..6 registry + detect | R05-1..4 Lua evaluator + store layer |
 | 2 | R09-1..4 stage model + view | R09-5..6 stage on wire/meta | R05-5..7 TUI lock, `rex config` |
 | 3 | R10-5..6 page + header meter | R10-1..4 sources, ledger, wire | R13 auto model → R10-7 CLI |
 | 4b | R09-6 drafts UI | R11-1..4 Linear client, pull, push | R11-5..6 UI + docs |
 | 4 | R06 W0–W4 (own orchestration file after W0 gate; W5 deferred, W6 dropped) | | |
 | 5 | R12 repeat loops (chains deferred) | | |
-| 6 | approved R01 ideas | | |
+| 6 | R01-2 diff page, R01-3 templates | R01-1 snapshots + undo | R01-4 presets, R01-5 export |
 
 ## Per-task pipeline
 
@@ -99,7 +103,7 @@ Same as round 1 (`00-orchestration.md` → "Per-task pipeline"): worktree per ta
 
 | # | Decision | Answer |
 |---|---|---|
-| R01 | spike breadth | survey + top 5; you pick what gets built |
+| R01 | spike breadth, gate | survey + top 5 · all five approved (snapshots + undo, diff, templates, presets, export) |
 | R02 | tools, missing, refresh, detect | claude, agy, qwen, cursor, grok (no omp) · missing hidden in wizard, dimmed in Settings · refresh at start/reload/24 h · regex now, qwen hooks later |
 | R03 | follow-up to S4 | none; TODO line closes as a duplicate of S4 |
 | R04 | layout, themes, audio | two-pane inspector · dracula + tokyo_night + pantone_safe · volume now |

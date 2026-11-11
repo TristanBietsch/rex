@@ -44,8 +44,29 @@
 - Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
 - Flag lands in step R11-1.
 
+## R11-0 spike findings (2026-11-11, docs only)
+
+Sources: Linear developer docs (GraphQL, rate limiting, pagination, filtering, webhooks). No live call made yet: the read-only prototype needs a test team and API key from the user.
+
+| Topic | Finding | Effect on the design |
+|---|---|---|
+| Endpoint | `https://api.linear.app/graphql` | one client |
+| Auth | personal API key: `Authorization: <API_KEY>` (no `Bearer`); OAuth2: `Authorization: Bearer <token>` | start with a personal key in the keychain; OAuth app later only if needed |
+| Read issues | `issues(filter: …, first: 50, after: cursor, orderBy: updatedAt)`; Relay cursors, `pageInfo { hasNextPage endCursor }`, default page 50; `nodes { … }` shorthand | paginate until `hasNextPage` is false |
+| Filters | `team: { key: { eq: "ENG" } }`, `labels: { name: { eq: "rex" } }`, `assignee: { isMe: { eq: true } }`, `state: { type: { nin: ["completed","canceled"] } }`, `updatedAt: { gt: <ISO time> }`; `and` by default, `or: [ … ]` | incremental pull: only issues updated since the last sync |
+| Workflow states | `workflowStates(filter: { team: { key: { eq: "ENG" } } })` → `id name type`; types: triage, backlog, unstarted, started, completed, canceled | `linear_state_map` maps rex stages to state **names**, resolved to ids per team at enable time; "done" detection uses `type`, not names |
+| Update state | `issueUpdate(id: "ENG-123", input: { stateId })` (id or key) | push |
+| Comment | `commentCreate(input: { issueId, body })`, markdown body | completion comment |
+| Rate limits | API key: 2,500 requests/h and 3,000,000 complexity points/h per user; one query ≤ 10,000 points; headers `X-RateLimit-Requests-Remaining`, `X-RateLimit-Complexity-Remaining`, `…-Reset` (epoch ms); over the limit: HTTP 429, GraphQL error `RATELIMITED`, `Retry-After` | poll every 2 min ≈ 30 requests/h; back off on 429 using `Retry-After`; pause sync when remaining < 10 % |
+| Webhooks | HMAC-SHA256 `Linear-Signature`; endpoint must be a **public HTTPS, non-localhost URL**; needs `admin` scope | **not usable** for a local daemon: polling it is |
+
+Design changes from the spike:
+- Pull is incremental (`updatedAt > last_sync`, ordered by `updatedAt`), stored per team in `~/.local/state/rex/linear.json`.
+- The state map is resolved to state ids once per team and re-resolved on a "state not found" error.
+- Still to verify with a live key: whether personal API keys can be limited to read + issue update + comment, and the exact complexity cost of the pull query.
+
 ## Plan
-0. **R11-0 Spike (docs only).** Confirm GraphQL queries/mutations (`issues` with filter, `workflowStates`, `issueUpdate`, `commentCreate`), auth options, rate limits, webhook vs poll. Prototype a read-only pull against a test team the user provides. Update this file.
+0. **R11-0 Spike.** Docs part done (findings above). Remaining: one read-only pull against a test team, with a key the user provides through an env var (never pasted into chat or files).
 1. **R11-1 Token store.** Keychain wrapper + `rex linear login|logout|status`. Tests: env override; token never printed (`status` shows last 4 chars only).
 2. **R11-2 Client.** Queries + mutations behind an interface. Tests against an `httptest` GraphQL stub: pagination, 429 backoff, auth error → feature pauses with notice.
 3. **R11-3 Pull → drafts.** Tests: new issue creates one draft; re-poll is idempotent (keyed by issue id); canceled issue marks card done.
