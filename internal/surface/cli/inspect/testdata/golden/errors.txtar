@@ -1,0 +1,63 @@
+-- text.w40 --
+Errors  2 logged
+
+  TIME                 EXIT  CMD  ERROR
+  2026-11-11 09:12:03     6  rm   rm: stdin i…
+  2026-11-10 22:00:00     4  ls   rex-daemon …
+
+› rex errors -clear  delete the log
+-- text.w80 --
+Errors  2 logged
+
+  TIME                 EXIT  CMD  ERROR
+  2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to d…
+  2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.s…
+
+› rex errors -clear  delete the log
+-- text.w120 --
+Errors  2 logged
+
+  TIME                 EXIT  CMD  ERROR
+  2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to delete without asking
+  2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory
+
+› rex errors -clear  delete the log
+-- text.color.w80 --
+␛[1;38;2;230;230;230mErrors␛[0m  ␛[38;2;121;127;140m2 logged␛[0m
+
+  ␛[38;2;121;127;140mTIME␛[0m                 ␛[38;2;121;127;140mEXIT␛[0m  ␛[38;2;121;127;140mCMD␛[0m  ␛[38;2;121;127;140mERROR␛[0m
+  2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to d…
+  2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.s…
+
+␛[1;38;2;91;141;239m› rex errors -clear␛[0m  ␛[38;2;121;127;140mdelete the log␛[0m
+-- txt --
+TIME                 EXIT  CMD  ERROR
+2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to delete without asking
+2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory
+-- md --
+### Errors
+
+*2 logged*
+
+| Time | Exit | Cmd | Error |
+| --- | ---: | --- | --- |
+| 2026-11-11 09:12:03 | 6 | rm | rm: stdin is not a terminal; pass -force to delete without asking |
+| 2026-11-10 22:00:00 | 4 | ls | rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory |
+
+`rex errors -clear` delete the log
+-- json --
+{"v":1,"cmd":"errors","data":[{"v":1,"time":"2026-11-11T09:12:03.123Z","version":"","os":"","pid":0,"cmd":"rm","args":["rm","<sel:8 bytes>"],"format":"","agent_auto":false,"tty":{"in":false,"out":false},"exit":6,"kind":"refused","error":"rm: stdin is not a terminal; pass -force to delete without asking","hint":"rex rm <sel> -force"},{"v":1,"time":"2026-11-10T22:00:00.000Z","version":"","os":"","pid":0,"cmd":"ls","args":["ls","-o","json"],"format":"","agent_auto":false,"tty":{"in":false,"out":false},"exit":4,"kind":"daemon_unreachable","error":"rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory","hint":"rex daemon start"}]}
+-- agent --
+error_entry time=2026-11-11T09:12:03Z exit=6 kind=refused cmd=rm args="rm <sel:8 bytes>" msg="rm: stdin is not a terminal; pass -force to delete without asking" hint="rex rm <sel> -force"
+error_entry time=2026-11-10T22:00:00Z exit=4 kind=daemon_unreachable cmd=ls args="ls -o json" msg="rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory" hint="rex daemon start"
+ok cmd=errors count=2
+-- empty.text --
+Errors  0 logged
+
+  (no errors logged)
+-- empty.txt --
+(no errors logged)
+-- empty.agent --
+ok cmd=errors count=0
+-- empty.json --
+{"v":1,"cmd":"errors","data":[]}

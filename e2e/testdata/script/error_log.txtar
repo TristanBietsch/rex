@@ -1,0 +1,33 @@
+# A failed command leaves a record in the CLI error log; `rex errors` reads it.
+
+exitcode 4 rex ls
+exec rex errors -o agent
+stdout '^error_entry time=\S+ exit=4 kind=daemon_unreachable cmd=ls args=ls msg='
+stdout '^ok cmd=errors count=1$'
+
+# Prompts never reach the log.
+exitcode 4 rex new -slug s1 -- 'my secret prompt'
+exec rex errors -o json
+! stdout 'secret prompt'
+stdout '"cmd":"new"'
+exec rex errors -n 1 -o agent
+stdout '^ok cmd=errors count=1$'
+
+# Help and a clean run record nothing.
+exec rex ls -h
+exec rex version
+exec rex errors -o agent
+stdout '^ok cmd=errors count=2$'
+
+# Opt out with REX_ERROR_LOG=0.
+env REX_ERROR_LOG=0
+exitcode 4 rex ls
+env REX_ERROR_LOG=
+exec rex errors -o agent
+stdout '^ok cmd=errors count=2$'
+
+# Clearing needs -force without a terminal.
+exitcode 6 rex errors -clear
+exec rex errors -clear -force
+exec rex errors -o agent
+stdout '^ok cmd=errors count=0$'

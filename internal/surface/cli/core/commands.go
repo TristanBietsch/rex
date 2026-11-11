@@ -109,6 +109,9 @@ var Commands = []Command{
 	{Name: "reload", Section: SectionDaemon, Args: "[flags]", Short: "reload tools.yaml in the daemon",
 		Example: "rex reload", Class: ClassAction},
 
+	{Name: "errors", Section: SectionInsights, Args: "[-n N] [-since 24h] [-clear]", Short: "failed rex commands from the error log",
+		Long:    "Show the private log of failed rex commands, newest first. -clear deletes it. Turn the log off with cli_error_log or REX_ERROR_LOG=0.",
+		Example: "rex errors -n 5", Class: ClassQuery},
 	{Name: "digest", Section: SectionInsights, Args: "[flags]", Short: "today's sessions, time and totals",
 		Example: "rex digest -since 48h", Class: ClassQuery},
 	{Name: "stats", Section: SectionInsights, Args: "[flags]", Short: "lifetime usage by model and tool",

@@ -111,6 +111,7 @@ func runAllChecks(socket *core.SocketFlag) []checkResult {
 	results = append(results, checkToolBinaries()...)
 	results = append(results, checkAgyVersion()...)
 	results = append(results, checkGoVersion())
+	results = append(results, checkCLIErrors(time.Now()))
 
 	return results
 }
@@ -282,6 +283,31 @@ func checkAgyVersion() []checkResult {
 		return []checkResult{{name, checkWarn, fmt.Sprintf("agy %s (untested; rex expects %d.%d.%d or newer)", ver, agyMinVersion[0], agyMinVersion[1], agyMinVersion[2])}}
 	}
 	return []checkResult{{name, checkInfo, "agy " + ver}}
+}
+
+// checkCLIErrors reports failed rex commands logged in the last 24 hours (see
+// core.RecordError): an info row when there are none, a warning with the
+// count and the command that shows them otherwise.
+func checkCLIErrors(now time.Time) checkResult {
+	const name = "cli errors"
+	path, err := core.ErrLogPath()
+	if err != nil {
+		return checkResult{name, checkInfo, "no log folder: " + err.Error()}
+	}
+	recs, err := core.ReadErrLog(path)
+	if err != nil {
+		return checkResult{name, checkWarn, fmt.Sprintf("cannot read %s: %v", path, err)}
+	}
+	n := 0
+	for _, r := range recs {
+		if t, err := time.Parse(time.RFC3339, r.Time); err == nil && now.Sub(t) <= 24*time.Hour {
+			n++
+		}
+	}
+	if n == 0 {
+		return checkResult{name, checkInfo, "none in 24h"}
+	}
+	return checkResult{name, checkWarn, fmt.Sprintf("%d in 24h · rex errors", n)}
 }
 
 // checkGoVersion reports the runtime Go version.

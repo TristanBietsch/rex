@@ -26,6 +26,7 @@ Human reference: **[../../cli.md](../../cli.md)** — commands, flags, selectors
 | `resume` | `session` | `RunResume` |
 | `help`, `--help` | `core` | `RunHelp` (table: `core/commands.go`; per-command: `core/help.go` `showCommandHelp`) |
 | `agent-help` | `core` | `RunAgentHelp` (card: `core/agentcard.go`) |
+| `errors` | `inspect` | `RunErrors` (log: `core/errlog.go`, written by `core.RecordError` from `main`) |
 | `complete` | `meta` | `RunComplete` |
 | `reload` | `lifecycle` | `RunReload` |
 | `daemon` | `lifecycle` | `RunDaemon` |

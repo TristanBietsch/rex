@@ -21,7 +21,7 @@ write rex new -tool claude -model opus [-cwd D] -- <prompt> -> ok cmd=new id slu
       rex reply <sel> -- <text> | rex send <sel> -- <text>
       rex done <sel> | rex resume <sel> | rex rm <sel> -force | rex prune -yes
 never rex (TUI), rex attach, rex setup without -yes: interactive, exit 5 here
-more  rex <cmd> -h · formats: -o json|txt|md
+more  rex <cmd> -h · rex errors -n 5 · formats: -o json|txt|md
 `
 
 // agentCardData is the `-o json` payload of rex agent-help: the card as data.

@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex errors [-n N] [-since 24h] [-clear]` shows the CLI error log in every
+  format; `rex doctor` gets a `cli errors` row (failures in the last 24
+  hours).
 - Private CLI error log: a failed `rex` command leaves one JSONL record in
   `~/.local/state/rex/cli-errors.log` (0600, 1 MiB plus one backup) with the
   command, redacted flags, exit code and kind and scrubbed error text. It

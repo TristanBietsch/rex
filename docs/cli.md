@@ -428,6 +428,18 @@ rex stats [-socket path] [-o FORMAT] [--agent] [-json] [-all]
 
 ---
 
+## rex errors
+
+Show the CLI error log (see ERROR LOG): the failed `rex` commands, newest first.
+
+```sh
+rex errors [-n 20] [-since 24h] [-clear [-force]] [-o FORMAT] [--agent]
+```
+
+`-n` limits the count (0 = all); `-since` takes `90m`, `24h` or `7d`. `text`, `txt` and `md` show `TIME EXIT CMD ERROR`; `agent` gives `error_entry time=… exit=… kind=… cmd=… args="…" msg="…" hint="…"` lines then `ok cmd=errors count=N`; `-o json` carries the records. `-clear` deletes the log and its backup. It asks first on a terminal and needs `-force` (alias `-yes`, `-y`) otherwise (exit 6). `rex doctor` has a `cli errors` row: `none in 24h`, or a warning with the count of the last 24 hours.
+
+---
+
 ## rex fleet
 
 ```sh
