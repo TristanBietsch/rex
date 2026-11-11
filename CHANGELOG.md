@@ -34,8 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   notice. A running session is read up to its current end. Nothing is
   uploaded. See [docs/export.md](docs/export.md).
 - TUI: `:export [sel] [fmt]` writes the session to
-  `~/.local/share/rex/exports/<slug>-<shortid>.<ext>` (0600) and shows the
-  path.
+  `~/.local/share/rex/exports/<slug>-<shortid>.<ext>` (0600) in the
+  background and shows the path when done; the board stays responsive.
 - `session_export` in Settings → Features (on). Off, `rex export` exits 5
   and `:export` answers the usual off message.
 - TUI: a Waiting section below Needs you for working sessions that are

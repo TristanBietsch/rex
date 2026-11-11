@@ -65,5 +65,5 @@ Built on `integration/todo` (branch `feat/r01-5-export`). Where the code differs
 - **`rex export` has its own `-o`** (json, yaml, md, txt), not the output kit's. The kit is used for the `--out` report (agent line, json envelope) and for errors. Stdout carries the bare document in every mode. A kit `-o` before the command is refused.
 - **`yaml` is produced from the JSON** (read as YAML, re-emitted in block style), so both always carry the same keys.
 - **`--from-agent-log` for non-Claude tools or sessions without a resume id** falls back to frames with a notice, like a missing file, instead of failing.
-- **The TUI `:export`** runs on the UI goroutine: it reads the transcript synchronously. A very large transcript (hundreds of MB) can stall the board for a moment; `rex export --max-frames` has no TUI counterpart.
-- **Help overlay test height** in `internal/surface/tui/help_test.go` went from 60 to 64 rows: the new command row pushes the last help group out of a 60-row box.
+- **The TUI `:export`** runs in the background (`exportDoneMsg`), one per session at a time. `rex export --max-frames` has no TUI counterpart.
+- **Review fixes:** text and session metadata drop C1, DEL and bidi runes; `Frames` cuts every 200 scrolled lines and `FramesLimited` keeps a bounded ring; `Strip` honours `CSI K` and `CSI G`; yaml is built from the JSON token stream, not by re-parsing it; forced writes are atomic and refuse symlinks; the agent log lookup follows a symlinked root, skips unreadable folders and skips oversize lines.
