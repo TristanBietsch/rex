@@ -141,6 +141,11 @@ var Registry = []Setting{
 		Help: "Show when each session started and ended: the start→end column in the detailed board view and STARTED / ENDED in rex ls -wide. Off: no column and no such columns; the end time is still recorded.",
 	},
 	{
+		ID: "cli_agent_auto", Label: "Agent mode for Claude Code", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Switch rex's CLI to agent mode (one line per record, no color, no prompts) when CLAUDECODE=1 and stdout is not a terminal. Off: only --agent, -o agent and REX_AGENT=1 do. REX_AGENT=0 always turns it off for one run.",
+	},
+	{
 		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",

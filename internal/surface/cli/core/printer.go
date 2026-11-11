@@ -138,12 +138,6 @@ func (p *Printer) EmitErr(v View) {
 	_, _ = io.WriteString(p.Err, q.renderText(v.sanitized()))
 }
 
-// autoAgentWired gates the CLAUDECODE auto-detect rule of ResolveFormat for
-// the real process. The rule is implemented and tested; the process wiring
-// lands with the interactive-command guards (P4-12), because auto agent mode
-// must not switch on before a bare `rex` and `attach` refuse it.
-const autoAgentWired = false
-
 var (
 	outMu sync.Mutex
 	outP  *Printer
@@ -205,8 +199,12 @@ func processEnv(environ []string) Env {
 			vars[k] = v
 		}
 	}
+	// CLAUDECODE switches agent mode on by itself (see ResolveFormat) unless
+	// the cli_agent_auto feature is off; the setting is read only when it
+	// could matter.
+	autoOn := sync.OnceValue(autoAgentSetting)
 	getenv := func(k string) string {
-		if k == "CLAUDECODE" && !autoAgentWired {
+		if k == "CLAUDECODE" && vars[k] != "" && !autoOn() {
 			return ""
 		}
 		return vars[k]
@@ -265,6 +263,10 @@ func outputFor(fs *flag.FlagSet) *OutputFlags {
 // OutputOption customizes AddOutputFlags.
 type OutputOption func(*OutputFlags)
 
+// WithHint sets the command to suggest when the format is refused: an
+// interactive command names the query that gives the same information.
+func WithHint(hint string) OutputOption { return func(o *OutputFlags) { o.hint = hint } }
+
 // WithLegacyJSON registers the legacy -json flag, for commands that had one
 // before versioned output. The command must set Result.Legacy.
 func WithLegacyJSON() OutputOption { return func(o *OutputFlags) { o.legacy = true } }
@@ -276,6 +278,7 @@ type OutputFlags struct {
 	supported FormatSet
 	legacy    bool
 	name      string
+	hint      string
 }
 
 // AddOutputFlags registers the output flags on fs. The global flags given
@@ -395,8 +398,8 @@ func (o *OutputFlags) Validate() error {
 		return NewExitError(ExitInvalidArgs, o.name+": -json is not supported")
 	}
 	if !o.supported.Has(p.Format) {
-		return NewExitError(ExitInvalidArgs, fmt.Sprintf(
-			"%s: output %q is not supported (supported: %s)", o.name, p.Format, o.supported))
+		return Errorf(ExitInvalidArgs, o.hint,
+			"%s: output %q is not supported (supported: %s)", o.name, p.Format, o.supported)
 	}
 	return nil
 }

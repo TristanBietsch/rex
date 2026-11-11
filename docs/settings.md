@@ -65,6 +65,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `undo_complete` | bool | `true` | The `uc` key and `:uc` / `:resume`, which take a session out of Done. Off: `uc` does nothing and the commands refuse; `:undone` (unmark only) still works |
 | `resume` | bool | `true` | Track each session's agent conversation id (resume id) so an exited session can be resumed: the resume id column, `:rid` and the `Resume` intent. Off: no `--session-id` is preassigned, no id is captured from hooks or `capture_regex`, the column and `:rid` go away, and `Resume` is refused with `bad_intent` `resume is off`. The daemon reads it at each spawn and `Resume`; the TUI at each frame. Ids already stored stay in `meta.json` |
 | `timestamps` | bool | `true` | Start and end times: the start→end span column in the detailed board view and `STARTED` / `ENDED` in `rex ls -wide`. Off: no column and no such columns. The end time (`ended_at`) is still recorded. Read at each frame and each `rex ls` |
+| `cli_agent_auto` | bool | `true` | Switch rex's CLI to agent mode (one line per record, no color, no prompts) when `CLAUDECODE=1` and stdout is not a terminal. Off: only `--agent`, `-o agent` and `REX_AGENT=1` do. `REX_AGENT=0` turns it off for one run. See [cli.md](cli.md#agent-mode) |
 | `summary_preview` | bool | `true` | A line under the board with the selected session's full AI summary and its age. Shown only while some session has a summary. Off: no line and no row reserved |
 
 ### Spawn

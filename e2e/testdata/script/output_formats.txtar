@@ -92,7 +92,7 @@ stdout '^ID +STATE '
 exitcode 5 rex attach -o json s1
 stderr 'attach'
 exitcode 5 rex -o json attach s1
-stderr 'attach: -o, --agent and -json are not supported yet'
+stderr 'attach: interactive; -o, --agent and -json do not apply'
 
 exitcode 5 rex ls -o json -state
 ! stdout .

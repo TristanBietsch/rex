@@ -27,23 +27,29 @@ func main() {
 	}
 }
 
-// kitVerbs are the commands rendered through the output kit. They accept
-// -o/--output, --agent and -json; the rest still print their own format, so
-// an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{"ls": true, "status": true, "resume": true, "new": true, "rm": true, "rename": true, "name": true, "done": true, "retire": true, "undone": true, "unretire": true, "archive": true, "complete": true, "reply": true, "send": true, "wait": true, "prune": true, "digest": true, "stats": true, "fleet": true, "log": true, "render": true, "version": true, "--version": true, "-v": true, "doctor": true, "config": true, "setup": true, "update": true, "uninstall": true, "daemon": true, "reload": true, "errors": true, "help": true, "--help": true, "-h": true, "agent-help": true, "completion": true}
+// interactiveVerbs are the commands that need a terminal: the board (bare
+// `rex`) and attach. They cannot render as data, so an output flag before
+// one of them is refused, with the query that answers the same question.
+var interactiveVerbs = map[string]string{
+	"rex":    "rex ls",
+	"attach": "rex log <sel> -n 50",
+}
 
 func run(args []string) error {
-	if core.Out().Flags.Explicit() {
-		verb := "rex"
-		if len(args) > 0 {
-			verb = args[0]
-		}
-		if !kitVerbs[verb] {
-			return core.NewExitError(core.ExitInvalidArgs,
-				verb+": -o, --agent and -json are not supported yet")
-		}
+	verb := "rex"
+	if len(args) > 0 {
+		verb = args[0]
+	}
+	if hint, ok := interactiveVerbs[verb]; ok && core.Out().Flags.Explicit() {
+		return core.Errorf(core.ExitInvalidArgs, hint,
+			"%s: interactive; -o, --agent and -json do not apply (try `%s`)", verb, hint)
 	}
 	if len(args) == 0 {
+		// Includes agent mode switched on by CLAUDECODE: a board has no
+		// agent form.
+		if err := core.Out().RequireText("rex", interactiveVerbs["rex"]); err != nil {
+			return err
+		}
 		return meta.RunTUI()
 	}
 	switch args[0] {

@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Agent mode switches on by itself when `CLAUDECODE=1` and stdout is not a
+  terminal (a Claude Code Bash tool, including inside rex-spawned
+  sessions): one line per record, an `ok` trailer, one error line on
+  stderr, no color, no prompts. `REX_AGENT=0` turns it off for a run; the
+  `cli_agent_auto` setting (Features, on) turns it off for good. A
+  terminal is never affected.
 - `rex errors [-n N] [-since 24h] [-clear]` shows the CLI error log in every
   format; `rex doctor` gets a `cli errors` row (failures in the last 24
   hours).
@@ -206,6 +212,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Interactive commands refuse a format that cannot show them, with exit 5
+  and the query that answers the same question: bare `rex` (any format but
+  text), `rex attach` (json, md, agent) and the `rex setup` wizard.
 - `rex doctor`, `config`, `setup` (`-preview`, `-yes`), `update`, `uninstall`,
   `daemon` and `reload` and `version` take `-o`, `--agent` and `--no-color`.
   Their CLI colors come from the theme (`color_scheme`), not copied hex

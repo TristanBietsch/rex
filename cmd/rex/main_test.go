@@ -41,7 +41,13 @@ func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
 	err = run(rest)
 	require.Error(t, err)
 	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
-	require.Contains(t, err.Error(), "attach")
+	require.Contains(t, err.Error(), "attach: interactive")
+
+	rest, err = core.InitOutput([]string{"--agent"}, nil)
+	require.NoError(t, err)
+	err = run(rest)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err), "bare rex in agent mode has no board to show")
+	require.Equal(t, "rex ls", core.Describe(err).Hint)
 
 	_, err = core.InitOutput([]string{"--no-color", "attach"}, nil)
 	require.NoError(t, err)
