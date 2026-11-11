@@ -129,6 +129,11 @@ type Model struct {
 	BackendUnavailable       bool
 	BackendUnavailableReason string
 
+	// Overview is the daemon's board overview (headline over the buckets the
+	// TUI computes itself), from the Snapshot and Overview events. Nil
+	// until the daemon sends one, and from daemons that predate it.
+	Overview *protocol.Overview
+
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
 
@@ -272,7 +277,13 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m.Sessions = snap.Sessions
+			m.Overview = snap.Overview
 			m = adoptSnapshotFilter(m, snap.Filter)
+		}
+	case protocol.EventOverview:
+		var o protocol.Overview
+		if err := json.Unmarshal(env.Data, &o); err == nil {
+			m.Overview = &o
 		}
 	case protocol.EventError:
 		var ee protocol.ErrorEvent
