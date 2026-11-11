@@ -59,6 +59,12 @@ var Registry = []Setting{
 		Options: []string{"fixed", "fit"},
 		Help:    "fixed: board columns have set widths that change only at breakpoints. fit: columns size to their content.",
 	},
+	{
+		ID: "mobile_layout", Label: "Mobile layout", Section: SectionAppearance,
+		Type: TypeEnum, Default: "auto",
+		Options: []string{"auto", "always", "off"},
+		Help:    "Two-line rows and a compact header for narrow terminals. auto: 60 columns or fewer. always / off force it.",
+	},
 
 	// Behavior
 	{

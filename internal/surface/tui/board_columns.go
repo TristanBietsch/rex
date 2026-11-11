@@ -38,6 +38,49 @@ func classForWidth(cw int) layoutClass {
 	}
 }
 
+// mobileWidth is the widest content width that auto turns the mobile layout
+// on for (the class below breakNarrow).
+const mobileWidth = breakNarrow - 1
+
+// mobileLayout reports whether the board uses the mobile layout: stacked
+// two-line rows and a compact header and help line. mobile_layout: always
+// forces it, off never uses it, auto (the default) uses it from mobileWidth
+// columns down. Before the first size message (Width 0) auto is off.
+func mobileLayout(m Model) bool {
+	mode := "auto"
+	if m.Store != nil {
+		if v := m.Store.String("mobile_layout"); v != "" {
+			mode = v
+		}
+	}
+	switch mode {
+	case "always":
+		return true
+	case "off":
+		return false
+	}
+	return m.Width > 0 && contentWidth(m.Width) <= mobileWidth
+}
+
+// layoutClassOf is the board's class for the current window.
+func layoutClassOf(m Model) layoutClass {
+	if mobileLayout(m) {
+		return classMobile
+	}
+	if c := classForWidth(contentWidth(m.Width)); c != classMobile {
+		return c
+	}
+	return classNarrow // mobile_layout: off
+}
+
+// rowLines is how many lines one session takes on the board.
+func rowLines(m Model) int {
+	if mobileLayout(m) {
+		return 2
+	}
+	return 1
+}
+
 // columnLayoutFit is the column_layout value that sizes columns to content.
 const columnLayoutFit = "fit"
 
@@ -67,8 +110,8 @@ type classSpec struct {
 	simple, detailed colSet
 }
 
-// classSpecs holds the fixed column widths of every class. The description
-// takes whatever is left.
+// classSpecs holds the fixed column widths of every column class (mobile has
+// no columns: its rows are stacked). The description takes whatever is left.
 var classSpecs = [...]classSpec{
 	classWide: {
 		simple:   colSet{slug: 22, agents: colAgents, run: colRun},
@@ -79,12 +122,6 @@ var classSpecs = [...]classSpec{
 		detailed: colSet{slug: 20, id: colID, model: 16, tokens: colTokens, agents: colAgents, run: colRun},
 	},
 	classNarrow: {
-		simple:   colSet{slug: 16, agents: colAgents, run: colRun},
-		detailed: colSet{slug: 16, agents: colAgents, run: colRun},
-	},
-	// Below breakNarrow the narrow widths apply (mobile_layout: off), and
-	// layoutFixed shrinks them to fit.
-	classMobile: {
 		simple:   colSet{slug: 16, agents: colAgents, run: colRun},
 		detailed: colSet{slug: 16, agents: colAgents, run: colRun},
 	},
@@ -104,7 +141,11 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, o layo
 // badge column, then the subagent column go, then the name gives way, so
 // the description keeps descMinNarrow.
 func layoutFixed(width int, o layoutOpts) rowCols {
-	spec := classSpecs[classForWidth(width)]
+	class := classForWidth(width)
+	if class == classMobile {
+		class = classNarrow // mobile_layout: off keeps the narrow widths
+	}
+	spec := classSpecs[class]
 	set := spec.simple
 	if o.detailed {
 		set = spec.detailed

@@ -66,6 +66,21 @@ A column that a class shows is always reserved, even when every row's cell is em
 
 `column_layout` in Settings → Appearance switches the default `fixed` for `fit`, which sizes name, model and tokens to their widest value on the board (name capped at 22, model at 24), shows the subagent, badge, tokens, span and resume columns only while some row has a value, and gives way on narrow terminals in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
 
+### Mobile layout
+
+At 60 columns or fewer (a phone over SSH) the board stacks each session on two lines. `mobile_layout` in Settings → Appearance sets when: `auto` (the default) uses it at 60 columns or fewer, `always` forces it, `off` never uses it (the narrow columns then squeeze to fit).
+
+```
+ ▸ ◆  release-notes     ⋔ 2  ▴ 42m  11m
+      Which feature should lead: sea…
+```
+
+- Line 1 is the state, name, subagent count, long-run badge and age. The subagent and badge cells go below 36 columns.
+- Line 2 is the text (simple view) or the AI summary (detailed view), cut on a word boundary. Clicking either line selects the session, and scrolling keeps both lines on screen.
+- The header shows the short counts (`◆ 4  ⟳ 2  ● 7`) whatever `header_style` says, without `· detailed (v)`. The backend banner is shortened.
+- The help line lists three keys: `enter open · i new · ? help`.
+- There is no summary preview line, since line 2 already shows the text.
+
 ## FOCUS MODES
 
 | Mode | Enter | Exit |

@@ -27,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: a mobile layout for terminals of 60 columns or fewer: two-line rows
+  (name and age, then the text), the short header counts, a three-key help
+  line and no summary preview line. `mobile_layout: auto|always|off`
+  (Settings → Appearance) controls it.
 - TUI: a Waiting section below Needs you for working sessions that are
   blocked on a shell command, a subagent or a web call, not on you (Claude
   Code). A session moves there after 3 seconds on the call. It has its own
