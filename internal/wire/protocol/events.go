@@ -54,6 +54,17 @@ type SessionSummary struct {
 	// 0 when the last one stops.
 	Subagents int `json:"subagents,omitempty"`
 
+	// WaitingOn is what a working session's main thread is blocked on, one of
+	// WaitShell, WaitSubagent or WaitWeb (Claude Code, from its tool hooks).
+	// Empty when it is not waiting on a tool. State stays working; clients
+	// that predate the field show the session as working. Patches send null
+	// or "" to clear it, and it is always cleared when State leaves working.
+	WaitingOn string `json:"waiting_on,omitempty"`
+
+	// WaitingSince is when that tool call began. Zero unless WaitingOn is
+	// set. Clients show a session as waiting only after WaitingAfter.
+	WaitingSince time.Time `json:"waiting_since,omitzero"`
+
 	// Fleet groups related sessions under a named label.
 	Fleet string `json:"fleet,omitempty"`
 

@@ -36,6 +36,14 @@ type Session struct {
 	// restored from meta.json: subagents do not outlive the daemon.
 	Subagents int
 
+	// WaitingOn and WaitingSince say what a working session is blocked on
+	// (protocol.WaitShell and friends) and since when. Both are zero unless
+	// State is working; Store.Transition, SetExit and SetWaiting keep it so.
+	// They are written to meta.json but not restored by LoadAll (a restart
+	// maps a working session to crashed).
+	WaitingOn    string
+	WaitingSince time.Time
+
 	// Fleet optionally groups this session under a named label.
 	Fleet string
 
@@ -104,6 +112,8 @@ func (s *Session) Summary() protocol.SessionSummary {
 		Tokens:        s.Tokens,
 		OutputBytes:   s.OutputBytes,
 		Subagents:     s.Subagents,
+		WaitingOn:     s.WaitingOn,
+		WaitingSince:  s.WaitingSince,
 		Fleet:         s.Fleet,
 		Name:          s.Name,
 		RetireAt:      s.RetireAt,
@@ -160,6 +170,7 @@ func (s *Session) SetExit(final protocol.State, code *int) {
 	}
 	if final != protocol.StateWorking {
 		s.WorkingSince = time.Time{}
+		s.WaitingOn, s.WaitingSince = "", time.Time{}
 	}
 	now := time.Now().UTC()
 	s.noteStateLocked(final, now)
