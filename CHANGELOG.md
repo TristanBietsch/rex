@@ -21,6 +21,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: a banner above the agent in the attach popup: what it is doing (the
+  AI description, else the task or the question it asks), where (folder),
+  for how long (working, waiting, ended) and how fresh the description is.
+  With the overview on it also shows what the other sessions need
+  (`elsewhere: 2 to review · 1 needs you`). Long text scrolls as a ticker.
+  `attach_banner` is `marquee` (default), `static` or `off`; `reduce_motion`
+  makes it static, `::banner` hides or shows it for this run, and it gives way
+  below 25 rows. The agent's terminal is one row shorter while it shows.
+  `rex attach` from a shell has no banner.
 - TUI: a Waiting section below Needs you for working sessions that are
   blocked on a shell command, a subagent or a web call, not on you (Claude
   Code). A session moves there after 3 seconds on the call. It has its own

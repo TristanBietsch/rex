@@ -42,8 +42,8 @@ func mouseEnabled(m Model) bool {
 }
 
 // attachPopupGeometry mirrors centerOverlay's placement of renderAttach:
-// border (1) + padding (2 cols / 1 row), then a title bar and a rule above
-// the terminal rows. Returns the 0-based screen cell of the terminal's
+// border (1) + padding (2 cols / 1 row), then a title bar, the banner (when
+// BannerRows is 1) and a rule above the terminal rows. Returns the 0-based screen cell of the terminal's
 // top-left cell.
 func attachInnerOrigin(m Model) (x, y int) {
 	w, h := m.Width, m.Height
@@ -55,7 +55,7 @@ func attachInnerOrigin(m Model) (x, y int) {
 	}
 	cols, rows := m.Attach.Cols, m.Attach.Rows
 	popupW := cols + 2 + 4
-	popupH := rows + 4 + 2 + 2
+	popupH := rows + 4 + m.Attach.BannerRows + 2 + 2
 	ox := (w - popupW) / 2
 	if ox < 0 {
 		ox = 0
@@ -64,7 +64,7 @@ func attachInnerOrigin(m Model) (x, y int) {
 	if oy < 0 {
 		oy = 0
 	}
-	return ox + 1 + 2, oy + 1 + 1 + 2
+	return ox + 1 + 2, oy + 1 + 1 + 2 + m.Attach.BannerRows
 }
 
 // updateAttachMouse routes a mouse event that arrived while attached.
