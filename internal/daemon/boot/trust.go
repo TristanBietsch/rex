@@ -2,9 +2,6 @@ package boot
 
 import (
 	"log/slog"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
@@ -13,29 +10,19 @@ import (
 // at each spawn, so a changed setting applies to the next session without a
 // daemon restart. On a read error it trusts nothing.
 //
-// Entries are split on the OS list separator (":" on Unix), which is also
-// legal inside a folder name: "/work/a:b" would split into "/work/a" (too
-// broad) and "b". So every piece must be absolute or start with "~/";
-// otherwise the whole setting is ignored rather than guessed at.
+// A value settings.SplitTrustDirs refuses (a piece that is neither absolute
+// nor ~/, as when a folder name holds the list separator) is ignored as a
+// whole rather than guessed at.
 func AutoTrustDirs() []string {
 	st, _, err := settings.LoadDefault()
 	if err != nil {
 		slog.Warn("daemon: settings load failed for auto_trust_dirs; trusting no folder", "err", err)
 		return nil
 	}
-	dirs := filepath.SplitList(st.String("auto_trust_dirs"))
-	for _, d := range dirs {
-		d = strings.TrimSpace(d)
-		if d != "" && !filepath.IsAbs(d) && !homeRelative(d) {
-			slog.Warn("daemon: auto_trust_dirs has a piece that is not an absolute or ~/ path; trusting no folder", "piece", d)
-			return nil
-		}
+	dirs, err := settings.SplitTrustDirs(st.String("auto_trust_dirs"))
+	if err != nil {
+		slog.Warn("daemon: auto_trust_dirs ignored; trusting no folder", "err", err)
+		return nil
 	}
 	return dirs
-}
-
-// homeRelative matches what paths.ExpandHome expands: "~" then a separator
-// ("~/" everywhere, and "~\" too on Windows).
-func homeRelative(d string) bool {
-	return len(d) >= 2 && d[0] == '~' && os.IsPathSeparator(d[1])
 }

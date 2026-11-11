@@ -288,8 +288,11 @@ First-run wizard.
 
 ```sh
 rex setup [-preview] [-yes|-y] [-tool id] [-model id] [-effort tier]
-          [-no-shell] [-config path] [-socket path] [-force]
+          [-auto-trust folders] [-no-shell] [-config path] [-socket path]
+          [-force]
 ```
+
+The wizard asks whether agents may skip the folder trust prompt in one folder; the default is no. `-auto-trust folders` sets [`auto_trust_dirs`](settings.md#auto-trust): with `-yes` it is written directly (an existing `config.yaml` needs `-force`), with `-preview` it is only printed, and otherwise the wizard starts with that answer filled in. Separate folders with `:` (`;` on Windows); `~/` is your home folder. A filesystem root, the home folder itself, a relative path or a path with `..` is refused with exit code 5. Only list folders whose code you trust.
 
 ---
 
