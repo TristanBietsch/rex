@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: `:filter hide <section…>`, `:filter show <section…|all>` and
+  `:filter only <section…>` hide and show board sections by id, prefix,
+  title or number. A bare `:filter` clears the tool filter and every hidden
+  section.
 - TUI: hide board sections. `zh` hides or shows the completed (Done)
   section, `z1`-`z9` toggle section N, `z0` shows them all. While `z` is
   pending the help line lists the second keys. `1`, `3` and `tab` aimed at

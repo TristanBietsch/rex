@@ -137,7 +137,7 @@ var commands = []command{
 	{Names: []string{"complete"}, Args: "[sel]", Desc: "kill agent + mark done now", Group: groupSessionCmd, Run: runComplete},
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},
-	{Names: []string{"filter"}, Args: "<t>", Desc: "set filter chip", Group: groupSessionCmd, Run: runFilter},
+	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Run: runFilter},
 
 	{Names: []string{"q", "quit"}, Desc: "quit (confirm)", Group: groupAppCmd, Run: runQuit},
 	{Names: []string{"q!"}, Desc: "force quit", Group: groupAppCmd, Run: runForceQuit},
