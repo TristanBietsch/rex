@@ -24,6 +24,7 @@ import (
 
 // exportEnv is a state dir holding one session's synthetic transcript.
 type exportEnv struct {
+	home string
 	root string
 	sess protocol.SessionSummary
 	out  *bytes.Buffer
@@ -43,7 +44,7 @@ func newExportEnv(t *testing.T, tool, transcript string) *exportEnv {
 	dir := filepath.Join(root, "sessions", sess.ID)
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "transcript.log"), []byte(transcript), 0o600))
-	e := &exportEnv{root: root, sess: sess, out: &bytes.Buffer{}, err: &bytes.Buffer{}}
+	e := &exportEnv{home: home, root: root, sess: sess, out: &bytes.Buffer{}, err: &bytes.Buffer{}}
 	return e
 }
 
@@ -243,7 +244,7 @@ func TestExportFailure_tooLargeSuggestsMaxFrames(t *testing.T) {
 
 func TestExport_offIsInert(t *testing.T) {
 	e := newExportEnv(t, "claude", redrawTranscript)
-	cfg := filepath.Join(os.Getenv("HOME"), ".config", "rex", "config.yaml")
+	cfg := filepath.Join(e.home, ".config", "rex", "config.yaml")
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
 	require.NoError(t, os.WriteFile(cfg, []byte("session_export: false\n"), 0o600))
 
@@ -317,7 +318,7 @@ const agentLogFixture = `{"type":"user","timestamp":"2026-01-02T03:04:06Z","mess
 func TestExport_fromAgentLog(t *testing.T) {
 	e := newExportEnv(t, "claude", redrawTranscript)
 	e.sess.ResumeID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
-	dir := filepath.Join(os.Getenv("HOME"), ".claude", "projects", "-work-example")
+	dir := filepath.Join(e.home, ".claude", "projects", "-work-example")
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, e.sess.ResumeID+".jsonl"), []byte(agentLogFixture), 0o600))
 

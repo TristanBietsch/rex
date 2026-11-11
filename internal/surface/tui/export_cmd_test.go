@@ -94,7 +94,7 @@ func TestExportCommand_exportingAgainReplacesTheFile(t *testing.T) {
 }
 
 func TestExportCommand_errors(t *testing.T) {
-	m, dir := exportModel(t)
+	m, _ := exportModel(t)
 	for line, want := range map[string]string{
 		"export nope":          "no match for nope",
 		"export a b c":         "usage",
@@ -108,14 +108,13 @@ func TestExportCommand_errors(t *testing.T) {
 		}
 		require.Contains(t, got.Err, want, line)
 	}
-	_ = dir
 
 	m.SelectedID = ""
 	got, _ := executeCommand(m, "export")
 	require.Contains(t, got.Err, "no session selected")
 
-	m, _ = exportModel(t)
-	require.NoError(t, os.Remove(filepath.Join(os.Getenv("HOME"), ".local", "share", "rex", "sessions", "1", "transcript.log")))
+	m, exports := exportModel(t)
+	require.NoError(t, os.Remove(filepath.Join(filepath.Dir(exports), "sessions", "1", "transcript.log")))
 	got, _ = executeCommand(m, "export")
 	require.Contains(t, got.Err, "no transcript")
 	require.Empty(t, got.Notice)

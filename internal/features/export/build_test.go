@@ -128,7 +128,7 @@ func TestWriteFile_mode0600(t *testing.T) {
 	require.Equal(t, os.FileMode(0o600), st.Mode().Perm())
 
 	// --force tightens a file that was group readable.
-	require.NoError(t, os.Chmod(p, 0o644))
+	require.NoError(t, os.Chmod(p, 0o644)) //nolint:gosec // G302: the test needs a group-readable file to prove --force tightens it.
 	require.NoError(t, WriteFile(p, []byte("y"), true))
 	st, err = os.Stat(p)
 	require.NoError(t, err)

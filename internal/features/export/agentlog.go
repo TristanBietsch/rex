@@ -2,6 +2,7 @@ package export
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -98,10 +99,10 @@ type logLine struct {
 
 // logBlock is one element of an array message content.
 type logBlock struct {
-	Type  string                     `json:"type"`
-	Text  string                     `json:"text"`
-	Name  string                     `json:"name"`
-	Input map[string]json.RawMessage `json:"input"`
+	Type  string          `json:"type"`
+	Text  string          `json:"text"`
+	Name  string          `json:"name"`
+	Input json.RawMessage `json:"input"`
 }
 
 func parseAgentLog(r io.Reader) ([]Turn, error) {
@@ -144,13 +145,17 @@ func parseLogLine(rec []byte) (Turn, bool, error) {
 		return Turn{}, false, nil
 	}
 	var parts []string
-	var text string
-	if json.Unmarshal(l.Message.Content, &text) == nil {
+	switch content := bytes.TrimSpace(l.Message.Content); {
+	case len(content) > 0 && content[0] == '"':
+		var text string
+		if err := json.Unmarshal(content, &text); err != nil {
+			return Turn{}, false, err
+		}
 		parts = append(parts, text)
-	} else {
+	case len(content) > 0 && content[0] == '[':
 		var blocks []logBlock
-		if err := json.Unmarshal(l.Message.Content, &blocks); err != nil {
-			return Turn{}, false, nil
+		if err := json.Unmarshal(content, &blocks); err != nil {
+			return Turn{}, false, err
 		}
 		for _, b := range blocks {
 			switch b.Type {
@@ -176,8 +181,10 @@ func parseLogLine(rec []byte) (Turn, bool, error) {
 // toolSummary is the one-line summary of a tool call.
 func toolSummary(b logBlock) string {
 	out := "[tool] " + oneLine(b.Name)
+	var input map[string]json.RawMessage
+	_ = json.Unmarshal(b.Input, &input) // not an object: no argument to show
 	for _, k := range toolArgKeys {
-		raw, ok := b.Input[k]
+		raw, ok := input[k]
 		if !ok {
 			continue
 		}
