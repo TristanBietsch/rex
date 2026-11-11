@@ -2,10 +2,12 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -33,6 +35,15 @@ const (
 	// bannerStaleAfter is the description age past which "updated" is muted.
 	bannerStaleAfter = 2 * time.Minute
 	bannerLead       = "↳ "
+
+	// bannerPause is how long a marquee rests at its start before it
+	// scrolls; bannerStep is the time per cell of scroll (also the tick).
+	bannerPause = 2 * time.Second
+	bannerStep  = 120 * time.Millisecond
+	// bannerGap separates the end of a scrolling text from its next copy.
+	bannerGap = "   ·   "
+	// bannerSep joins the pieces of the one-line marquee text.
+	bannerSep = "  ·  "
 )
 
 // bannerItem is one piece of the banner's meta: where the session is, how
@@ -129,11 +140,149 @@ func bannerParts(m Model, sum protocol.SessionSummary, ended bool) (lead string,
 	return lead, meta
 }
 
-// renderAttachBanner renders the banner row, exactly cols cells wide.
+// bannerMotion reports whether a long banner scrolls: marquee mode and no
+// reduce_motion. Otherwise it is cut at a word boundary like static.
+func bannerMotion(m Model) bool {
+	if bannerModeOf(m) != bannerMarquee {
+		return false
+	}
+	if m.Store != nil {
+		if rm, _ := m.Store.Get("reduce_motion").(bool); rm {
+			return false
+		}
+	}
+	return true
+}
+
+// marqueeText is the banner as one plain string for scrolling (without the
+// fixed arrow): the lead, the task when the lead is the description, then the
+// meta. Plain on purpose: one style for the whole window, no span bookkeeping.
+func marqueeText(sum protocol.SessionSummary, lead string, meta []bannerItem) string {
+	var parts []string
+	if lead != "" {
+		parts = append(parts, lead)
+		if sum.Description != "" {
+			if t := strings.TrimSpace(protocol.FlattenDisplayText(sum.Title)); t != "" {
+				parts = append(parts, "task: "+t)
+			}
+		}
+	}
+	for _, it := range meta {
+		parts = append(parts, it.text)
+	}
+	return strings.Join(parts, bannerSep)
+}
+
+// bannerOverflows reports whether the attached session's banner is too long
+// for its row, so it scrolls.
+func bannerOverflows(m Model) bool {
+	a := m.Attach
+	sum, _ := findSession(m.Sessions, a.SessionID)
+	lead, meta := bannerParts(m, sum, a.Ended)
+	return ansi.StringWidth(marqueeText(sum, lead, meta)) > a.Cols-ansi.StringWidth(bannerLead)
+}
+
+// marqueeWindow returns the width-cell slice of text visible elapsed after
+// the loop (re)started: still for bannerPause, then one cell per bannerStep
+// over text + gap + text, then the cycle repeats, resting at the start again.
+// text must be plain (sanitized). The result is always exactly width cells;
+// a wide rune cut at either edge becomes a space.
+func marqueeWindow(text string, width int, elapsed time.Duration) string {
+	if width <= 0 {
+		return ""
+	}
+	period := ansi.StringWidth(text) + ansi.StringWidth(bannerGap)
+	offset := 0
+	if e := elapsed % (bannerPause + time.Duration(period)*bannerStep); e >= bannerPause {
+		offset = int((e - bannerPause) / bannerStep)
+	}
+	var b strings.Builder
+	col, end := 0, offset+width
+	for _, r := range text + bannerGap + text {
+		if col >= end {
+			break
+		}
+		w := ansi.StringWidth(string(r))
+		switch {
+		case col+w <= offset: // before the window
+		case col < offset || col+w > end: // cut by an edge
+			b.WriteString(strings.Repeat(" ", min(col+w, end)-max(col, offset)))
+		default:
+			b.WriteRune(r)
+		}
+		col += w
+	}
+	if w := ansi.StringWidth(b.String()); w < width {
+		b.WriteString(strings.Repeat(" ", width-w))
+	}
+	return b.String()
+}
+
+// renderAttachBanner renders the banner row, exactly cols cells wide. A
+// banner that fits, or that may not move, is laid out statically.
 func renderAttachBanner(m Model, a *AttachState, cols int) string {
 	sum, _ := findSession(m.Sessions, a.SessionID)
 	lead, meta := bannerParts(m, sum, a.Ended)
+	if bannerMotion(m) {
+		text := marqueeText(sum, lead, meta)
+		if avail := cols - ansi.StringWidth(bannerLead); ansi.StringWidth(text) > avail {
+			var elapsed time.Duration
+			if !a.BannerSince.IsZero() {
+				elapsed = max(m.now().Sub(a.BannerSince), 0)
+			}
+			arrow := lipgloss.NewStyle().Foreground(colorWorking).Render(bannerLead)
+			return padLine(arrow+styleDim.Render(marqueeWindow(text, avail, elapsed)), cols)
+		}
+	}
 	return padLine(renderBannerStatic(m, a, lead, meta, cols), cols)
+}
+
+// bannerTickMsg drives the marquee. Gen tags the chain like SpinnerTickMsg.
+type bannerTickMsg struct{ Gen int }
+
+func tickBanner(gen int) tea.Cmd {
+	return tea.Tick(bannerStep, func(time.Time) tea.Msg { return bannerTickMsg{Gen: gen} })
+}
+
+// wantsBannerTick reports whether a scrolling banner is on screen: the popup
+// is visible with a banner row, in marquee mode without reduce_motion, the
+// agent is alive and the text overflows. Nothing else needs the chain, so a
+// banner that fits costs no CPU.
+func (m Model) wantsBannerTick() bool {
+	a := m.Attach
+	if a == nil || m.saverOn || a.Ended || a.BannerRows != 1 {
+		return false
+	}
+	if m.Focus != FocusAttach && m.Focus != FocusCommand {
+		return false
+	}
+	return bannerMotion(m) && bannerOverflows(m)
+}
+
+// armBanner starts the banner's tick chain when one is wanted and none runs;
+// Update calls it next to armSpinner. The chain ends itself on the first tick
+// that finds nothing scrolling.
+func armBanner(m Model) (Model, tea.Cmd) {
+	if m.bannerRunning || !m.wantsBannerTick() {
+		return m, nil
+	}
+	m.bannerGen++
+	m.bannerRunning = true
+	slog.Debug("tui: banner armed", "gen", m.bannerGen)
+	return m, tickBanner(m.bannerGen)
+}
+
+// handleBannerTick re-arms the current chain while the banner still scrolls.
+func handleBannerTick(m Model, msg bannerTickMsg) (Model, tea.Cmd) {
+	if msg.Gen != m.bannerGen {
+		return m, nil // stale chain
+	}
+	if m.wantsBannerTick() {
+		return m, tickBanner(m.bannerGen)
+	}
+	m.bannerRunning = false
+	slog.Debug("tui: banner idle", "gen", m.bannerGen)
+	return m, nil
 }
 
 // renderBannerStatic lays the banner out without motion: the lead on the

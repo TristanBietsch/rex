@@ -28,6 +28,9 @@ type AttachState struct {
 	// and the rule above the agent's screen. Rows already excludes them:
 	// attachPopupInnerSize(w, h, BannerRows) is the one source of geometry.
 	BannerRows int
+	// BannerSince is when the marquee loop last restarted: the popup opened,
+	// or this session's description changed. Zero reads as just now.
+	BannerSince time.Time
 	// resize sends the agent's new size to the daemon. openAttach binds it to
 	// the session's Client; tests replace it with a recorder.
 	resize   func(cols, rows uint16) error
@@ -167,7 +170,7 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	slog.Info("tui: attach opened", "session", sessionID, "cols", cols, "rows", rows, "mouse", mouse, "mode_sync", true,
 		"repaint", fullScreen, "scrollback_lines", scrollback)
 	st := &AttachState{
-		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows, BannerRows: banner, resize: resize,
+		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows, BannerRows: banner, resize: resize, BannerSince: m.now(),
 		outCh: make(chan AttachOutputMsg, 64),
 		errCh: make(chan AttachClosedMsg, 1),
 	}

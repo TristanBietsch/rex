@@ -122,6 +122,9 @@ type Model struct {
 	// spinnerGen / spinnerRunning track the single live spinner tick chain.
 	spinnerGen     int
 	spinnerRunning bool
+	// bannerGen / bannerRunning track the attach banner's marquee tick chain.
+	bannerGen     int
+	bannerRunning bool
 
 	// reconnect is non-nil while the daemon connection is down and the TUI
 	// is redialing it (see reconnect.go). dialDaemon overrides the redial's
@@ -259,6 +262,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					marked = !wasMarked && !m.Sessions[i].RetireAt.IsZero()
 					if m.Sessions[i].Description != prevDesc {
 						m = registerDescAnim(m, m.Sessions[i].ID, prevDesc, m.Sessions[i].Description)
+						if m.Attach != nil && m.Attach.SessionID == m.Sessions[i].ID {
+							m.Attach.BannerSince = m.now() // read the new summary from its start
+						}
 					}
 					break
 				}

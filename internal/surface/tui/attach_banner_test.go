@@ -249,9 +249,11 @@ func TestBanner_StaticSnapshots(t *testing.T) {
 
 func TestBanner_NarrowDropsMeta(t *testing.T) {
 	m := bannerModel(t, 80, 40, bannerSession()) // cols 66
+	require.NoError(t, m.Store.Set("attach_banner", "static"))
 	out := ansi.Strip(renderAttachBanner(m, m.Attach, m.Attach.Cols))
 	require.Contains(t, out, "working 12m")
 	m = bannerModel(t, 70, 40, bannerSession()) // cols 56 < 60
+	require.NoError(t, m.Store.Set("attach_banner", "static"))
 	out = ansi.Strip(renderAttachBanner(m, m.Attach, m.Attach.Cols))
 	require.NotContains(t, out, "working 12m")
 	require.Contains(t, out, "Rewriting")
