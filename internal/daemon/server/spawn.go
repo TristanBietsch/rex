@@ -74,6 +74,14 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		HookFile:        hookFile,
 		SessionID:       id,
 	}
+	// A tool that takes a preassigned conversation id (Claude's --session-id)
+	// gets a fresh UUID, which is not the rex session id: the two diverge
+	// after /clear or a resume anyway.
+	resumeID := ""
+	if tool.Resume != nil && len(tool.Resume.NewArgs) > 0 {
+		resumeID = ids.NewSessionID()
+		spec.Resume = &resumeArgs{ID: resumeID, New: true}
+	}
 	cmdArgs := buildArgv(spec)
 	childEnv := childEnvFor(spec)
 
@@ -99,6 +107,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		State:     protocol.StateQueued,
 		StartedAt: time.Now().UTC(),
 		Fleet:     p.Fleet,
+		ResumeID:  resumeID,
 	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
@@ -133,12 +142,23 @@ type spawnSpec struct {
 	SkipPermissions bool
 	HookFile        string
 	SessionID       string
+	// Resume, when set and the tool has a resume block, adds its resume or
+	// new-session args (see resumeArgs).
+	Resume *resumeArgs
+}
+
+// resumeArgs asks buildArgv for the tool's resume.new_args (New: a fresh
+// conversation whose id rex chose) or resume.args (resume that conversation),
+// with {id} replaced by ID.
+type resumeArgs struct {
+	ID  string
+	New bool
 }
 
 // buildArgv returns the child argv up to, but not including, the initial
-// prompt: command, model args, effort, trust args, skip-permissions args, hook
-// args. The prompt
-// (`--` text or `--prompt-interactive=`) is appended by initialPromptDelivery.
+// prompt: command, model args, effort, trust args, skip-permissions args,
+// resume args, hook args. The prompt (`--` text or `--prompt-interactive=`)
+// is appended by initialPromptDelivery.
 func buildArgv(spec spawnSpec) []string {
 	argv := append([]string{}, spec.Tool.Command...)
 	argv = append(argv, spec.Model.Args...)
@@ -153,6 +173,15 @@ func buildArgv(spec spawnSpec) []string {
 	argv = append(argv, spec.Trust.Args...)
 	if spec.SkipPermissions {
 		argv = append(argv, spec.Tool.SkipPermissionsArgs...)
+	}
+	// The id becomes argv, so only a canonical UUID gets through; callers
+	// validate first, this is the backstop.
+	if r := spec.Resume; r != nil && spec.Tool.Resume != nil && protocol.ValidResumeID(r.ID) {
+		if r.New {
+			argv = append(argv, spec.Tool.Resume.NewArgsFor(r.ID)...)
+		} else {
+			argv = append(argv, spec.Tool.Resume.ArgsFor(r.ID)...)
+		}
 	}
 	// Flags must precede the `--` prompt separator.
 	if spec.Tool.Detect.Kind == "hooks" && spec.Tool.Detect.Format == "claude" {
@@ -181,6 +210,10 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 	if err != nil {
 		return fmt.Errorf("build adapter: %w", err)
 	}
+	resumeCapture, err := spec.Tool.Resume.CaptureRegexp() // nil-safe
+	if err != nil {
+		return err
+	}
 
 	inputCh := make(chan []byte, 16)
 	srv.RegisterInputChannel(sess.ID, inputCh)
@@ -201,6 +234,7 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		ReadySettle:    delivery.readySettle,
 		SummaryRequest: cfg.SummaryRequest,
 		TrustPrompt:    spec.Trust.Answer,
+		ResumeCapture:  resumeCapture,
 		OutputSink: func(b []byte) {
 			srv.broadcastSessionOutput(sess.ID, b)
 		},

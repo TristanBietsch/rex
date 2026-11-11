@@ -32,7 +32,8 @@ Classifies PTY output into `protocol.State` values and detects when an agent CLI
 ### Methods
 
 - `(*HeuristicCLI) Detect`, `IsReadyForInput`
-- `(*ClaudeHooks) Detect`, `IsReadyForInput` (always false; Claude gets its prompt on argv)
+- `(*ClaudeHooks) Detect`, `IsReadyForInput` (always false; Claude gets its prompt on argv), `Subagents`, `ResumeID`
+- `ResumeIDReporter` — optional interface (`ResumeID() string`); the supervisor polls it once per tick and patches `resume_id` on change
 
 ## Internal structure
 

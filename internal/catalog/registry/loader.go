@@ -151,6 +151,9 @@ func mergeOne(base, over Tool) Tool {
 	if len(over.SkipPermissionsArgs) > 0 {
 		merged.SkipPermissionsArgs = over.SkipPermissionsArgs
 	}
+	if over.Resume != nil {
+		merged.Resume = over.Resume
+	}
 	// Models: extend by id rather than replace.
 	if len(over.Models) > 0 {
 		mi := make(map[string]int, len(merged.Models))
@@ -226,6 +229,9 @@ func validateTool(t Tool) error {
 	}
 	if slices.Contains(t.SkipPermissionsArgs, "") {
 		return fmt.Errorf("tool %q: skip_permissions_args must not hold an empty argument", t.ID)
+	}
+	if err := validateResume(t.ID, t.Resume); err != nil {
+		return err
 	}
 	if tp := t.TrustPrompt; tp != nil {
 		if tp.Shown == "" || tp.Selected == "" || tp.Move == "" || tp.Confirm == "" {

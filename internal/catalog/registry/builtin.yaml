@@ -30,6 +30,11 @@ tools:
     category: paid
     command: ["claude"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
+    # rex preassigns the conversation id at spawn (new_args) and the SessionStart
+    # hook keeps it current across /clear and in-app /resume; args resumes it.
+    resume:
+      args: ["--resume", "{id}"]
+      new_args: ["--session-id", "{id}"]
     # State comes from Claude Code hooks injected with --settings at spawn
     # (stream-json output only exists with --print, never in the TUI).
     detect:

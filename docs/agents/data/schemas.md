@@ -39,6 +39,7 @@ Codec: `internal/wire/protocol/codec.go`.
 | OutputBytes | `output_bytes` | int64 | optional | |
 | Fleet | `fleet` | string | optional |
 | Subagents | `subagents` | int | optional; running subagents (Claude hooks); cleared before the final meta.json write and not restored from it |
+| ResumeID | `resume_id` | string | optional; the agent's own conversation id (canonical UUID, lowercase), used to resume it; validated on every ingest and when loading meta.json |
 
 Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `internal/daemon/state/persist.go` writes same shape to `meta.json`.
 

@@ -27,6 +27,8 @@ Package also exports sanitize helpers used internally (see `sanitize.go`; not al
 
 ## Invariants
 
+`SupervisorConfig.ResumeCapture` (optional regexp) reads the resume id from the last output at exit. Exit order, on child exit and on `CompleteCh`: refresh screen text, capture, clear side-channels, set exit and write meta.json, `Transition`, then the `resume_id` patch.
+
 `Run` blocks until child exit, context cancel (`StateFailed`), or `CompleteCh` (`StateDone`). `Adapter` nil skips state classification.
 
 `OutputSink` must be non-blocking (server uses buffered fan-out).

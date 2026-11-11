@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- The daemon tracks a resume id per session (`resume_id` in snapshots,
+  state patches and `meta.json`). A Claude Code session is started with
+  `--session-id <uuid>`, and its SessionStart hook keeps the id current
+  after `/clear` or an in-app `/resume`. Tools declare how their id is
+  found and used in a new `resume` registry block (`args`, `new_args`,
+  `capture_regex`, with `{id}` as the placeholder); see `docs/registry.md`.
+  Only canonical UUIDs are accepted, since the id ends up on a command line.
+  Nothing uses it yet: resuming an exited session comes next.
 - The daemon records `ended_at` for every session: the first time it reached
   done, failed or crashed. It is in `meta.json`, in snapshots and in state
   patches, and older sessions get it from their last event.

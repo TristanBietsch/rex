@@ -22,6 +22,7 @@ tools:
     trust_prompt: { ... }                 # optional
     trust_args: [<argv>...]               # optional
     skip_permissions_args: [<argv>...]    # optional
+    resume: { ... }                       # optional
     models:
       - id: <string>
         name: <string>
@@ -43,7 +44,7 @@ State detection (`detect`) selects an adapter that classifies PTY output into se
 3. Merge is by tool `id`. User fields replace builtin scalars when non-empty.
 4. Models merge by model `id` (replace or append).
 5. `enabled_by_default` is **not** merged from user YAML; it applies only on builtin entries.
-6. `trust_prompt`, `trust_args` and `skip_permissions_args` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead.
+6. `trust_prompt`, `trust_args`, `skip_permissions_args` and `resume` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead. A `resume` overlay replaces the whole block (no field-by-field merge).
 7. A partial overlay of a retired built-in tool (`codex`, `gemini`, `ollama`, `grok`, `deepseek`, `kimi`) that has no built-in entry and is not a complete tool definition is dropped with a warning instead of failing the load. The daemon logs the warning at start and on reload, and the TUI splash shows it. Define the tool fully in `tools.yaml` to keep it. Any other invalid tool still fails the load.
 
 Duplicate tool or model ids are rejected at load time.
@@ -84,6 +85,7 @@ Subagents are tracked in the same file:
 - `SubagentStart` appends `agent+ <agent_id>` and `SubagentStop` appends `agent- <agent_id>`. The id comes from the hook JSON's top-level `agent_id`; nested objects, arrays and pretty-printing are handled. Events without an `agent_type` are Claude's internal helpers and are skipped.
 - `PostToolUse` of a subagent's tool call (its JSON has an `agent_id`) also appends `agent~ <agent_id>` as a sign of life.
 - `SessionStart` writes `agents-reset` first for a new or cleared conversation, but not after a compaction (`source: compact`), when subagents may still be running.
+- `SessionStart` (every source, compaction included) ends with `sid <session_id>`, the conversation's resume id. The adapter keeps the latest valid one (a canonical UUID; anything else is ignored); it is not a state change.
 
 The adapter counts a set of ids: a resumed subagent starts again with the same id. An id with no start or tool call for 15 minutes stops counting, which bounds a count stuck by a lost `SubagentStop`. Its next tool call counts it again. The board shows the count as the subagent column, and it drops to 0 when the agent exits.
 
@@ -119,6 +121,27 @@ The built-in `antigravity` entry uses `agy`'s session-only settings, which are n
 ```yaml
 trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
 ```
+
+### resume
+
+How an agent's conversation is identified and resumed. Without it the tool cannot be resumed.
+
+```yaml
+resume:
+  args: ["--resume", "{id}"]            # required: argv that resumes a conversation
+  new_args: ["--session-id", "{id}"]    # optional: added at spawn with a fresh UUID
+  capture_regex: "id=([0-9a-f-]{36})"   # optional: group 1 = id, read at child exit
+```
+
+`{id}` is the placeholder for the conversation id. It may sit inside one argument (`--conversation={id}`); substitution never splits or adds arguments. This differs from effort's `{value}`, which is split on whitespace. `args` is required and must contain `{id}`; `new_args`, when set, must contain `{id}`; `capture_regex` must compile and have at least one group (it runs in multi-line mode).
+
+Rex learns the id from up to three sources; a later one overwrites an earlier one:
+
+1. **Spawn.** With `new_args`, rex picks a fresh random UUID (not the rex session id) and adds the substituted `new_args` after the trust and skip-permissions arguments, before the hook arguments and the prompt. The built-in `claude` uses this (`--session-id`). The id is in the session's first `SessionAdded`.
+2. **The agent's own report.** Claude Code's session-scoped SessionStart hook reports its `session_id` (a `sid` line in the hook file), so the id stays right after `/clear` or an in-app `/resume`.
+3. **`capture_regex`**, run when the child exits on the normalized screen text (escape sequences stripped). The last match's group 1 is used.
+
+Every id must be a canonical UUID (either case; stored lowercase), because it becomes a command-line argument. Anything else is ignored. The built-in `antigravity` has no `resume` block yet.
 
 ## Model fields
 
