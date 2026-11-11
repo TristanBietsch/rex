@@ -330,6 +330,8 @@ rex setup [-preview] [-yes|-y] [-tool id] [-model id] [-effort tier]
 
 The wizard asks whether agents may skip the folder trust prompt in one folder; the default is no. `-auto-trust folders` sets [`auto_trust_dirs`](settings.md#auto-trust): with `-yes` it is written directly (an existing `config.yaml` needs `-force`), with `-preview` it is only printed, and otherwise the wizard starts with that answer filled in. Separate folders with `:` (`;` on Windows); `~/` is your home folder. A filesystem root, the home folder itself, a relative path or a path with `..` is refused with exit code 5. Only list folders whose code you trust.
 
+`-tool`, `-model` and `-effort` are checked against the registry and written to `default_spawn_tool`, `default_spawn_model` and `default_spawn_effort` (the quick-spawn defaults). An unknown tool, a model the tool does not have or an effort the model does not offer exits 5 and lists the valid ids; nothing is written. A new tool without a model takes that tool's first model. Settings you do not name stay as they are, in `-yes` mode and in the wizard.
+
 ---
 
 ## rex doctor

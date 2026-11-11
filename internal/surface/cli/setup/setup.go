@@ -67,6 +67,10 @@ func RunSetup(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Same for a tool, model or effort the registry does not have.
+	if _, _, err := tui.ResolveSpawnDefaults(*configPath, *tool, *model, *effort); err != nil {
+		return core.Errorf(core.ExitInvalidArgs, "", "-tool/-model/-effort: %s", err)
+	}
 
 	rexlog.Init("setup")
 	defer rexlog.Close()

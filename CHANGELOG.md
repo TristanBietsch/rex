@@ -185,6 +185,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `rex setup -tool/-model/-effort` now writes `default_spawn_tool`,
+  `default_spawn_model` and `default_spawn_effort` (before, they were
+  ignored). An unknown tool, model or effort exits 5 and lists the valid
+  ids. The setup wizard writes the same keys, refuses a model the tool does
+  not have, and keeps every other setting in an existing config.yaml.
+
 - The settings page showed a second "Spawn" section for
   `auto_trust_dirs`; it now sits with the other Spawn settings.
 - TUI: a reconnect to the daemon no longer resets the tool filter to `all`.
