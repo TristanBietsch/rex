@@ -66,6 +66,12 @@ func WriteSessionsJSONL(w io.Writer, sessions []protocol.SessionSummary) error {
 
 // WriteAggregateLine prints "N awaiting input · N working · N completed".
 func WriteAggregateLine(w io.Writer, sessions []protocol.SessionSummary) error {
+	_, err := fmt.Fprintln(w, AggregateLine(sessions))
+	return err
+}
+
+// AggregateLine is the line WriteAggregateLine prints, without the newline.
+func AggregateLine(sessions []protocol.SessionSummary) string {
 	var working, needsInput, done, failed, crashed int
 	for _, s := range sessions {
 		switch s.State {
@@ -91,8 +97,7 @@ func WriteAggregateLine(w io.Writer, sessions []protocol.SessionSummary) error {
 	if failed+crashed > 0 {
 		parts = append(parts, fmt.Sprintf("%d failed", failed+crashed))
 	}
-	_, err := fmt.Fprintln(w, strings.Join(parts, " · "))
-	return err
+	return strings.Join(parts, " · ")
 }
 
 // WriteAggregateJSON prints counts as one JSON object.
@@ -147,11 +152,15 @@ func padCells(s string, w int) string {
 	return s
 }
 
-func durationAgo(t time.Time) string {
+func durationAgo(t time.Time) string { return DurationAgoAt(t, time.Now()) }
+
+// DurationAgoAt formats now-t as "12s ago", "3m ago", "2h ago" or "4d ago",
+// and a zero t as "-".
+func DurationAgoAt(t, now time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}
-	d := time.Since(t)
+	d := now.Sub(t)
 	switch {
 	case d < time.Minute:
 		return fmt.Sprintf("%ds ago", int(d.Seconds()))

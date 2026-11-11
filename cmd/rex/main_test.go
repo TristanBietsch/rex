@@ -26,3 +26,18 @@ func TestRun_HelpFlagExitsZero(t *testing.T) {
 		})
 	}
 }
+
+func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	rest, err := core.InitOutput([]string{"-o", "json", "doctor"}, nil)
+	t.Cleanup(func() { core.SetOut(nil) })
+	require.NoError(t, err)
+	err = run(rest)
+	require.Error(t, err)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
+	require.Contains(t, err.Error(), "doctor")
+
+	_, err = core.InitOutput([]string{"--no-color", "doctor"}, nil)
+	require.NoError(t, err)
+	require.False(t, core.Out().Flags.Explicit(), "--no-color alone is not a format request")
+}

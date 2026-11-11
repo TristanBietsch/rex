@@ -15,15 +15,34 @@ import (
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		if err.Error() != "" {
-			fmt.Fprintln(os.Stderr, "rex:", err)
-		}
+	restoreVT := core.EnableVT(os.Stdout, os.Stderr)
+	args, err := core.InitOutput(os.Args[1:], os.Environ())
+	if err == nil {
+		err = run(args)
+	}
+	restoreVT()
+	if err != nil {
+		core.Out().RenderError(err)
 		os.Exit(exitCodeFor(err))
 	}
 }
 
+// kitVerbs are the commands rendered through the output kit. They accept
+// -o/--output, --agent and -json; the rest still print their own format, so
+// an explicit output flag before one of them is refused rather than ignored.
+var kitVerbs = map[string]bool{"ls": true, "status": true}
+
 func run(args []string) error {
+	if core.Out().Flags.Explicit() {
+		verb := "rex"
+		if len(args) > 0 {
+			verb = args[0]
+		}
+		if !kitVerbs[verb] {
+			return core.NewExitError(core.ExitInvalidArgs,
+				verb+": -o, --agent and -json are not supported yet")
+		}
+	}
 	if len(args) == 0 {
 		return meta.RunTUI()
 	}

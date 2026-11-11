@@ -36,6 +36,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   pending the help line lists the second keys. `1`, `3` and `tab` aimed at
   a hidden section say how to show it, and rex refuses to hide every
   section.
+- `-o/--output text|txt|md|json|agent`, `--agent` and `--no-color` for
+  `rex ls` and `rex status` (more commands follow). `json` is a versioned
+  `{"v":1,...}` document, `md` a GitHub table, `agent` one `key=value`
+  line per record plus an `ok` line, and `txt` the plain columns rex has
+  always printed in a pipe. Errors follow the format on stderr. Colors
+  follow the `color_scheme` setting, `NO_COLOR`, `CLICOLOR_FORCE` and
+  `REX_ASCII` are honored, and stderr is never colored by stdout's
+  terminal. New environment: `REX_OUTPUT`, `REX_AGENT`, `REX_ASCII`. The
+  existing `-json` stays as a legacy alias with its current shapes.
 - The daemon records `ended_at` for every session: the first time it reached
   done, failed or crashed. It is in `meta.json`, in snapshots and in state
   patches, and older sessions get it from their last event.
@@ -102,6 +111,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - TUI: an unknown `:` command now says `(try :help)`. Commands and key
   help come from one table, so `?` can no longer drift from what `:` runs.
+- `rex ls` and `rex status` on a terminal use the new human layout (state
+  markers, color, width-aware columns). Piped output is unchanged.
 - Skipping agent permission prompts is now opt-in. Claude Code and
   Antigravity no longer start with `--dangerously-skip-permissions` unless
   you set `skip_permissions: true` (default off; read at each spawn). The
@@ -147,6 +158,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - TUI: `:filter <tool>` now moves the selection off a row the filter hides
   (before, `enter` did nothing) and rejects a tool that is neither a filter
   chip nor on the board, with `filter: unknown tool or subcommand x`.
+- `rex ls` no longer prints raw slugs and names: control and bidi
+  characters are flattened, like in the TUI.
 - A partial `tools.yaml` entry for a retired built-in tool (codex, gemini,
   ollama, grok, deepseek, kimi) no longer stops the daemon from starting.
   It is dropped with a warning in the daemon log and on the TUI splash.

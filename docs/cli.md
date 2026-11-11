@@ -58,15 +58,41 @@ Unknown commands print to stderr and exit **1**.
 
 ---
 
+## OUTPUT FORMATS
+
+`rex ls` and `rex status` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+
+| Format | What it is |
+|--------|------------|
+| `text` | The human layout: aligned columns, state markers, color for meaning, shrunk to the terminal width. Default on a terminal. |
+| `txt` | Plain and stable for `grep` and `awk`: no color, no banners, fixed columns. Default in a pipe, and identical to the output rex always had there. |
+| `md` | GitHub-flavored Markdown tables, for pasting into issues and PRs. |
+| `json` | One versioned document: `{"v":1,"cmd":"ls","data":...}`. `v` changes only on a breaking change. |
+| `agent` | One line per record, `kind key=value ...`, then `ok cmd=ls count=3`. Values that are not `[A-Za-z0-9._:/@+%-]+` are Go-quoted, so a value never breaks the line. |
+
+Shortcuts: `--agent` is `-o agent`; `--no-color` never emits ANSI; `-json` is the **legacy** JSON (today's per-command shape: JSONL for `ls`, a flat counts object for `status`). Prefer `-o json`. Combining `-json` with `-o` or `--agent` exits 5. An unknown format, or one a command does not support, exits 5.
+
+Precedence, highest first: flags (the last one wins), `REX_AGENT=1`, `REX_OUTPUT`, then `text` on a terminal and `txt` otherwise.
+
+Color is on only for `text`, on a terminal, with `NO_COLOR` unset or empty, `TERM` not `dumb` and no `--no-color`. `CLICOLOR_FORCE=1` forces it in a pipe (`less -R`). Each stream decides on its own, so a redirected stderr never receives ANSI. Colors follow the `color_scheme` setting. `REX_ASCII=1` switches the glyphs to ASCII.
+
+Errors go to stderr in the same format: styled in `text`, `rex: message` in `txt` and `md`, `error code=4 kind=daemon_unreachable cmd=ls msg="..."` in `agent`, and `{"v":1,"error":{"code":4,"kind":"daemon_unreachable",...}}` in `json` (nothing on stdout). Kinds: `error`, `not_found`, `ambiguous`, `daemon_unreachable`, `invalid_args`, `refused`, `timeout`.
+
+Commands not yet on the kit refuse `-o`, `--agent` and `-json` before the command name (exit 5) instead of ignoring them.
+
+---
+
 ## rex status
 
 Aggregate session counts.
 
 ```sh
-rex status [-socket path] [-json]
+rex status [-socket path] [-o FORMAT] [--agent] [-json]
 ```
 
 Exits **1** when at least one session is `needs_input` (even with no other error).
+
+`txt` is the line shell prompts parse (`0 awaiting input · 1 working · 2 completed`). `agent` prints `ok cmd=status needs_input=1 working=1 queued=0 done=2 failed=0`; `failed` includes crashed sessions.
 
 ---
 
@@ -75,12 +101,12 @@ Exits **1** when at least one session is `needs_input` (even with no other error
 List sessions.
 
 ```sh
-rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-short] [-json]
+rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-short] [-o FORMAT] [--agent] [-json]
 ```
 
 `-show-archived` and `-short` are accepted but have no effect today.
 
-The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working.
+The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 
 ---
 
@@ -391,6 +417,8 @@ Shell script on stdout. Install via `./install.sh --shell-init`.
 ## ENVIRONMENT
 
 See [paths.md](paths.md). Most commands accept `-socket` to override the default.
+
+Output: `REX_OUTPUT`, `REX_AGENT`, `REX_ASCII`, `NO_COLOR`, `CLICOLOR_FORCE`, `COLUMNS` (see OUTPUT FORMATS).
 
 ## FILES
 
