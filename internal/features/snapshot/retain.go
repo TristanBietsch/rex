@@ -155,15 +155,18 @@ func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, re
 	if err := rewriteLedger(dir, entries); err != nil {
 		return err
 	}
-	gcDue := dropped > 0 || gcStale(dir, now, o.GCEvery)
-	for gcDue || dirSize(dir) > o.MaxBytes {
+	if dropped == 0 && !gcStale(dir, now, o.GCEvery) && dirSize(dir) <= o.MaxBytes {
+		return nil
+	}
+	// Collect garbage; while the store is still over the cap, drop the oldest
+	// session and collect again.
+	for {
 		if err := gc(ctx, env, dir); err != nil {
 			return err
 		}
 		rep.GCRuns++
-		gcDue = false
 		if dirSize(dir) <= o.MaxBytes || len(order) == 0 {
-			break
+			return nil
 		}
 		oldest := slices.MinFunc(order, func(x, y string) int { return byID[x].first.Compare(byID[y].first) })
 		drop[oldest] = true
@@ -173,9 +176,7 @@ func (s *Store) retainDir(ctx context.Context, dir, key string, o RetainOpts, re
 		if len(order) == 0 {
 			return os.RemoveAll(dir)
 		}
-		gcDue = true
 	}
-	return nil
 }
 
 // deleteRefs deletes every refs/rex/<session>/ ref and the session's private

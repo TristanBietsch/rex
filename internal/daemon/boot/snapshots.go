@@ -72,7 +72,7 @@ func NewSnapshots(ctx context.Context, store *snapshot.Store, sessions *state.St
 	for _, sum := range sessions.Snapshot() {
 		s.states[sum.ID], s.cwds[sum.ID] = sum.State, sum.CWD
 	}
-	s.unsub = sessions.Subscribe(func(e state.Event) { s.onEvent(sessions, e) })
+	s.unsub = sessions.Subscribe(func(e state.Event) { s.onEvent(ctx, sessions, e) })
 	return s
 }
 
@@ -95,7 +95,7 @@ func (s *Snapshots) Close() {
 }
 
 // onEvent runs on the store's goroutine: memory only, no I/O.
-func (s *Snapshots) onEvent(sessions *state.Store, e state.Event) {
+func (s *Snapshots) onEvent(ctx context.Context, sessions *state.Store, e state.Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	prev := s.states[e.SessionID]
@@ -106,7 +106,7 @@ func (s *Snapshots) onEvent(sessions *state.Store, e state.Event) {
 		}
 		s.states[e.SessionID], s.cwds[e.SessionID] = e.Summary.State, e.Summary.CWD
 		if e.Summary.State == protocol.StateWorking {
-			s.enqueueLocked(e.SessionID, snapshot.PhaseStart)
+			s.enqueueLocked(ctx, e.SessionID, snapshot.PhaseStart)
 		}
 	case state.EventUpdated:
 		if e.NewState == nil {
@@ -121,18 +121,18 @@ func (s *Snapshots) onEvent(sessions *state.Store, e state.Event) {
 		}
 		switch {
 		case now == protocol.StateWorking && prev != protocol.StateWorking:
-			s.enqueueLocked(e.SessionID, snapshot.PhaseStart)
+			s.enqueueLocked(ctx, e.SessionID, snapshot.PhaseStart)
 		case prev == protocol.StateWorking && now != protocol.StateWorking:
-			s.enqueueLocked(e.SessionID, snapshot.PhaseEnd)
+			s.enqueueLocked(ctx, e.SessionID, snapshot.PhaseEnd)
 		}
 	case state.EventRemoved:
-		s.enqueueLocked(e.SessionID, "")
+		s.enqueueLocked(ctx, e.SessionID, "")
 		delete(s.states, e.SessionID)
 		// cwds keeps the entry until the removal job has run (see run).
 	}
 }
 
-func (s *Snapshots) enqueueLocked(session string, phase snapshot.Phase) {
+func (s *Snapshots) enqueueLocked(ctx context.Context, session string, phase snapshot.Phase) {
 	if !s.on.Load() {
 		if phase == "" {
 			delete(s.cwds, session)
@@ -154,11 +154,11 @@ func (s *Snapshots) enqueueLocked(session string, phase snapshot.Phase) {
 	}
 	q.running = true
 	s.wg.Add(1)
-	go s.run(cwd, q)
+	go s.run(ctx, cwd, q)
 }
 
 // run drains one folder's queue in order and exits when it is empty.
-func (s *Snapshots) run(cwd string, q *snapQueue) {
+func (s *Snapshots) run(ctx context.Context, cwd string, q *snapQueue) {
 	defer s.wg.Done()
 	for {
 		s.mu.Lock()
@@ -171,7 +171,7 @@ func (s *Snapshots) run(cwd string, q *snapQueue) {
 		j := q.jobs[0]
 		q.jobs = q.jobs[1:]
 		s.mu.Unlock()
-		s.do(cwd, j)
+		s.do(ctx, cwd, j)
 		if j.phase == "" {
 			s.mu.Lock()
 			delete(s.cwds, j.session)
@@ -180,21 +180,21 @@ func (s *Snapshots) run(cwd string, q *snapQueue) {
 	}
 }
 
-func (s *Snapshots) do(cwd string, j snapJob) {
+func (s *Snapshots) do(ctx context.Context, cwd string, j snapJob) {
 	if j.phase == "" {
 		if err := s.store.MarkRemoved(cwd, j.session); err != nil {
 			slog.Warn("snapshots: mark removed failed", "session", j.session, "err", err)
 		}
 		return
 	}
-	ctx, cancel := context.WithTimeout(s.ctx, s.timeout)
+	cctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	_, err := s.store.Capture(ctx, cwd, j.session, j.phase)
+	_, err := s.store.Capture(cctx, cwd, j.session, j.phase)
 	switch {
 	case err == nil:
 	case errors.Is(err, snapshot.ErrNotGitWorktree), errors.Is(err, snapshot.ErrNoGit):
 		slog.Debug("snapshots: skipped", "session", j.session, "phase", j.phase, "reason", err)
-	case s.ctx.Err() != nil:
+	case ctx.Err() != nil:
 		// Shutting down: not a failure of the turn.
 	default:
 		slog.Warn("snapshots: capture failed; the turn is not undoable", "session", j.session, "phase", j.phase, "err", err)

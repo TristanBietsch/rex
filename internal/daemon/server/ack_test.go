@@ -173,6 +173,11 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		{intent: protocol.IntentReload, payload: struct{}{}, want: fail, code: bad, before: func() { e.failNext.Store(true) }},
 		{intent: protocol.IntentShutdown, payload: struct{}{}, want: ack},
 
+		// Turn snapshots are off in this server; the success reply is
+		// UndoResult, covered in undo_test.go.
+		{intent: protocol.IntentUndo, payload: protocol.Undo{SessionID: "s1"}, want: fail, code: bad},
+		{intent: protocol.IntentRedo, payload: protocol.Redo{SessionID: "s1"}, want: fail, code: bad},
+
 		{intent: protocol.IntentOpenSession, payload: protocol.OpenSession{SessionID: "s1"}, want: fail, code: bad},
 		{intent: "Bogus", payload: struct{}{}, want: fail, code: bad},
 	}

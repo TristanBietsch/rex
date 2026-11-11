@@ -26,7 +26,7 @@ func hashTree(t *testing.T, dir string) string {
 		if d.IsDir() {
 			return nil
 		}
-		b, err := os.ReadFile(p)
+		b, err := os.ReadFile(p) //nolint:gosec // test walks its own temp dir
 		if err != nil {
 			return err
 		}
@@ -197,7 +197,7 @@ func TestNestedRepoNotRecursed(t *testing.T) {
 	repo := newRepo(t)
 	s := newStore(t)
 	nested := filepath.Join(repo, "vendor", "lib")
-	if err := os.MkdirAll(nested, 0o755); err != nil {
+	if err := os.MkdirAll(nested, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	gitIn(t, nested, "init", "-q")
@@ -217,7 +217,7 @@ func TestNestedRepoNotRecursed(t *testing.T) {
 func TestInfoExcludeHonored(t *testing.T) {
 	repo := newRepo(t)
 	s := newStore(t)
-	if err := os.WriteFile(filepath.Join(repo, ".git", "info", "exclude"), []byte("secret.txt\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, ".git", "info", "exclude"), []byte("secret.txt\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	write(t, repo, "secret.txt", "s\n")
@@ -252,7 +252,7 @@ func TestGlobalHookNotRun(t *testing.T) {
 	home := fakeHome(t)
 	hooks := filepath.Join(home, "hooks")
 	marker := filepath.Join(home, "hook-ran")
-	if err := os.MkdirAll(hooks, 0o755); err != nil {
+	if err := os.MkdirAll(hooks, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if runtime.GOOS == "windows" {
@@ -261,12 +261,13 @@ func TestGlobalHookNotRun(t *testing.T) {
 	// reference-transaction runs on update-ref: the call a capture makes.
 	script := "#!/bin/sh\necho ran >> " + marker + "\n"
 	for _, h := range []string{"reference-transaction", "pre-commit", "post-checkout", "post-index-change"} {
-		if err := os.WriteFile(filepath.Join(hooks, h), []byte(script), 0o755); err != nil {
+		//nolint:gosec // a hook must be executable
+		if err := os.WriteFile(filepath.Join(hooks, h), []byte(script), 0o700); err != nil {
 			t.Fatal(err)
 		}
 	}
 	cfg := filepath.Join(home, "gitconfig")
-	if err := os.WriteFile(cfg, []byte("[core]\n\thooksPath = "+hooks+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfg, []byte("[core]\n\thooksPath = "+hooks+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("GIT_CONFIG_GLOBAL", cfg)

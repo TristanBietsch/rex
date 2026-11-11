@@ -122,6 +122,7 @@ func (s *Store) ensure(ctx context.Context, dir, cwd string, exclude []byte, ext
 		if _, err := run(ctx, readOnlyEnv(), dir, nil, args...); err != nil {
 			return err
 		}
+		//nolint:gosec // a directory: owner-only needs the x bit
 		if err := os.Chmod(shadow, 0o700); err != nil {
 			return fmt.Errorf("snapshot: %w", err)
 		}
