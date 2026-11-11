@@ -66,6 +66,7 @@ func run(args []string) error {
 		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
 		return fmt.Errorf("registry: %w", err)
 	}
+	boot.LogRegistryWarnings(*toolsPath, reg)
 	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
 
 	// Owner-only: sessions hold prompts, cwds and full agent output.

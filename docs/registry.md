@@ -43,6 +43,7 @@ State detection (`detect`) selects an adapter that classifies PTY output into se
 4. Models merge by model `id` (replace or append).
 5. `enabled_by_default` is **not** merged from user YAML; it applies only on builtin entries.
 6. `trust_prompt` and `trust_args` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead.
+7. A partial overlay of a retired built-in tool (`codex`, `gemini`, `ollama`, `grok`, `deepseek`, `kimi`) that has no built-in entry and is not a complete tool definition is dropped with a warning instead of failing the load. The daemon logs the warning at start and on reload, and the TUI splash shows it. Define the tool fully in `tools.yaml` to keep it. Any other invalid tool still fails the load.
 
 Duplicate tool or model ids are rejected at load time.
 

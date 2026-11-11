@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -165,24 +166,32 @@ func stepAudioLoad(m Model) tea.Cmd {
 func stepRegistryLoad(_ Model) tea.Cmd {
 	return emit("registry.load", func() (bootStatus, string, error) {
 		reg, _, userErr, err := loadUserTools()
-		if err != nil {
-			return stepFail, err.Error(), err
-		}
-		if userErr != nil {
-			// Validation errors don't name the file; say which one to fix.
-			return stepWarn, fmt.Sprintf("tools.yaml ignored, using built-in tools: %v", userErr), userErr
-		}
-		enabled, hidden := 0, 0
-		for _, t := range reg.Tools {
-			if t.EnabledByDefault != nil && *t.EnabledByDefault {
-				enabled++
-			} else {
-				hidden++
-			}
-		}
-		desc := fmt.Sprintf("%d tools (%d enabled · %d hidden)", len(reg.Tools), enabled, hidden)
-		return stepOK, desc, nil
+		return registryLoadStatus(reg, userErr, err)
 	})
+}
+
+// registryLoadStatus maps a registry load outcome to a splash step result.
+func registryLoadStatus(reg *registry.Registry, userErr, err error) (bootStatus, string, error) {
+	if err != nil {
+		return stepFail, err.Error(), err
+	}
+	if userErr != nil {
+		// Validation errors don't name the file; say which one to fix.
+		return stepWarn, fmt.Sprintf("tools.yaml ignored, using built-in tools: %v", userErr), userErr
+	}
+	if len(reg.Warnings) > 0 {
+		return stepWarn, strings.Join(reg.Warnings, "; "), nil
+	}
+	enabled, hidden := 0, 0
+	for _, t := range reg.Tools {
+		if t.EnabledByDefault != nil && *t.EnabledByDefault {
+			enabled++
+		} else {
+			hidden++
+		}
+	}
+	desc := fmt.Sprintf("%d tools (%d enabled · %d hidden)", len(reg.Tools), enabled, hidden)
+	return stepOK, desc, nil
 }
 
 func stepKeymapBind(_ Model) tea.Cmd {
