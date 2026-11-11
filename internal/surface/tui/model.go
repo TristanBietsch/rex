@@ -320,6 +320,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if t, ok := patchTime(patch, "retired_at"); ok {
 		s.RetiredAt = t
 	}
+	if t, ok := patchTime(patch, "ended_at"); ok {
+		s.EndedAt = t
+	}
 	if t, ok := patchTime(patch, "working_since"); ok {
 		s.WorkingSince = t
 	}

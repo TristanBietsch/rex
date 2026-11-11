@@ -388,6 +388,7 @@ const (
 	colRun    = 4  // long-running badge: "▴42m"
 	colAgents = 3  // running subagents: subagentGlyph + count, "⋔12"
 	colTime   = 4  // "59m", "23h", "12d"
+	colSpan   = 13 // start→end: "Jan 2→Jan 2" at most
 	colGap    = 2
 	rowIndent = 3 // " " + arrow/space + " "
 
@@ -398,15 +399,15 @@ const (
 )
 
 // rowCols holds the per-frame column widths. 0 hides id, model, tokens,
-// agents and run (no cell, no gap).
+// span, agents and run (no cell, no gap).
 type rowCols struct {
-	id, slug, desc, model, tokens, agents, run int
+	id, slug, desc, model, tokens, span, agents, run int
 }
 
 // used is the row width of everything except the description cell.
 func (c rowCols) used() int {
 	w := rowIndent + colMarker + colGap + c.slug + colGap + colGap + colTime
-	for _, x := range []int{c.id, c.model, c.tokens, c.agents, c.run} {
+	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.agents, c.run} {
 		if x > 0 {
 			w += colGap + x
 		}
@@ -431,7 +432,8 @@ func layoutSlots(slots []boardSlot, now time.Time, width int, detailed bool) row
 }
 
 // layoutRows sizes columns to content, then degrades for narrow widths in a
-// fixed order until the description gets descMin: drop tokens, shrink model
+// fixed order until the description gets descMin: drop the start→end span,
+// drop tokens, shrink model
 // (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
 // long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
@@ -452,10 +454,14 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		if s.Subagents > 0 {
 			c.agents = colAgents
 		}
+		if detailed {
+			c.span = max(c.span, ansi.StringWidth(spanText(now, s)))
+		}
 	}
 	c.slug = min(c.slug, colSlug)
 	c.model = min(c.model, colModel)
 	c.tokens = min(c.tokens, colTokens)
+	c.span = min(c.span, colSpan)
 	if !detailed {
 		c.model, c.tokens = 0, 0
 	}
@@ -468,6 +474,7 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		}
 	}
 	steps := []func(){
+		func() { c.span = 0 }, // the least glanceable column goes first
 		func() { c.tokens = 0 },
 		func() { shrink(&c.model, modelMin) },
 		func() { shrink(&c.slug, slugMin) },
@@ -559,6 +566,9 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 			tk = formatTokens(s.Tokens)
 		}
 		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
+	}
+	if c.span > 0 {
+		b.WriteString(gap + cell(dim, spanText(now, s), c.span))
 	}
 	if c.agents > 0 {
 		b.WriteString(gap + subagentCell(s, c.agents, retiring && !selected))

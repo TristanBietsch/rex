@@ -33,19 +33,20 @@ By default a row shows four things: state, name, text and age.
 
 The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary.
 
-`v` switches to the detailed view, which adds the short id, model · effort and tokens, shows the AI summary as the text, and adds `· N marked done` to the header:
+`v` switches to the detailed view, which adds the short id, model · effort, tokens and the start→end span, shows the AI summary as the text, and adds `· N marked done` to the header:
 
 ```
  ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴45m   11m
      state  id  name        description                          model · effort         tokens   badge  last event
 ```
 
+- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps.
 - **name**, **model · effort**, and **tokens** are as wide as their widest value on the board (name capped at 22, model at 24). Tokens are right-aligned.
 - The **subagent** column (`⋔3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
 - The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
 - **last event** is right-aligned against the edge; `-` means no event yet.
 - The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
-- On narrow terminals, columns give way in this order until the description has 20 columns: tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), done badge is hidden, model is hidden, long-run badge is hidden. After that the description shrinks, then the name.
+- On narrow terminals, columns give way in this order until the description has 20 columns: the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
 
 ## FOCUS MODES
 
@@ -183,7 +184,7 @@ Two filters narrow the board: the **tool filter** (`t` cycles it, `:filter <tool
 
 ## MARK DONE
 
-`cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state, and shows a **done badge** with the time it was marked (`done 14:32` today, `done Oct 21` otherwise; plain `done` for marks made before the daemon recorded the time). The detailed view's header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
+`cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state,. The detailed view's span column shows when it was marked, and its header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
 - `cc` again undoes the mark.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.

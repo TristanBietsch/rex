@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: the detailed view (`v`) has a start→end span column (`14:02→15:30`,
+  `14:02→` while live). The end is when the row entered Done: the earlier of
+  marking it done and the session ending. It is the first column to go on a
+  narrow terminal.
 - Setting `board_hidden_sections` (Behavior): section ids hidden at startup,
   for example `done`. `:bg` now also saves the hidden sections, and the
   next start restores them.

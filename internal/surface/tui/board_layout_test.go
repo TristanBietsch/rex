@@ -19,7 +19,7 @@ func layoutSessions(now time.Time) []protocol.SessionSummary {
 	return []protocol.SessionSummary{
 		{ID: "1", ShortID: "7d4f", ToolID: "claude", ModelID: "opus", Effort: "max", Tokens: 12345,
 			Slug: "dark-mode", Description: "system theme vs explicit toggle — your call",
-			State: protocol.StateNeedsInput, LastEventAt: now.Add(-4 * time.Minute)},
+			State: protocol.StateNeedsInput, StartedAt: now.Add(-5 * time.Hour), LastEventAt: now.Add(-4 * time.Minute)},
 		{ID: "2", ShortID: "b203", ToolID: "codex", ModelID: "gpt-5-codex", Effort: "medium", Tokens: 123456,
 			Slug: "release-notes", Description: "draft ready — which feature leads?",
 			State: protocol.StateWorking, WorkingSince: now.Add(-45 * time.Minute), LastEventAt: now.Add(-11 * time.Minute)},
@@ -31,7 +31,7 @@ func layoutSessions(now time.Time) []protocol.SessionSummary {
 			State: protocol.StateWorking, WorkingSince: now.Add(-7 * time.Hour), LastEventAt: now.Add(-2 * time.Hour)},
 		{ID: "5", ShortID: "2b7e", ToolID: "claude", ModelID: "haiku",
 			Slug: "test-coverage", Description: "billing/ from 61% → 92% — PR #408 merged",
-			State: protocol.StateDone, RetireAt: now.Add(4 * time.Minute), RetiredAt: now.Add(-3 * time.Hour), LastEventAt: now.Add(-9 * 24 * time.Hour)},
+			State: protocol.StateDone, StartedAt: now.Add(-30 * time.Hour), EndedAt: now.Add(-28 * time.Hour), RetireAt: now.Add(4 * time.Minute), RetiredAt: now.Add(-3 * time.Hour), LastEventAt: now.Add(-9 * 24 * time.Hour)},
 		{ID: "6", ShortID: "aa01", ToolID: "claude", Slug: "no-model", Title: "boot", State: protocol.StateFailed},
 	}
 }
