@@ -21,6 +21,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Turn snapshots and undo, off by default (Settings → Features,
+  `turn_snapshots`). The daemon snapshots a session's folder at the start
+  and end of every agent turn into a private store under
+  `~/.local/share/rex/snapshots` (only folders inside a git repo; your repo
+  is never touched), and `rex undo <sel> [-turns N] [-force] [-yes]` puts the
+  files back the way they were before the last turn, `rex redo <sel>` brings
+  them back. Undo refuses while the session is working or another live
+  session shares the folder (unless `-force`), asks first with file counts
+  (`-yes` without a terminal), and does not undo shell side effects. The
+  agent is not told. Snapshots keep file contents, including untracked
+  secrets such as `.env`, so read [docs/snapshots.md](docs/snapshots.md)
+  before turning it on. Kept 7 days after a session is removed, at most
+  2 GiB per folder. `rex doctor` shows the store size per folder, whether
+  `git` is found and warns about untracked `.env*` files. New `Undo` and
+  `Redo` intents with an `UndoResult` reply (additive). The TUI `:undo`
+  dialog comes later.
 - TUI: a Waiting section below Needs you for working sessions that are
   blocked on a shell command, a subagent or a web call, not on you (Claude
   Code). A session moves there after 3 seconds on the call. It has its own

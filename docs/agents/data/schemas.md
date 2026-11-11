@@ -110,6 +110,32 @@ In memory only; never persisted. See `docs/protocol.md`.
 
 Running session: clears the done mark. Exited session: respawns in place (see `docs/protocol.md`, Resume).
 
+## Undo and Redo intents
+
+| Field | JSON | Required |
+|-------|------|----------|
+| session_id | string | yes |
+| turns | int (Undo only; 0 = 1, max 1000) | no |
+| force | bool | no |
+| dry_run | bool | no |
+
+Reply event `UndoResult`: `session_id`, `restored` []string, `deleted` []string (relative slash paths, never null), `safety` string (tree id; empty on `dry_run`). See `docs/protocol.md`, Undo and Redo.
+
+## Turn snapshot ledger
+
+`<state-dir>/snapshots/<key>/turns.jsonl`, one JSON object per line, append-only except retention rewriting it. `<key>` is the first 16 hex of sha256 of the folder's absolute path (lowercased on Windows).
+
+| Field | JSON | Notes |
+|-------|------|-------|
+| SessionID | `session_id` | |
+| Turn | `turn` | 1-based turn number; for `safety` the turn count applied before the undo; for `undo` the count after it |
+| Phase | `phase` | capture: `start`, `end`, `safety`, `pre-redo`; operation: `undo`, `redo`, `removed` |
+| Tree | `tree` | git tree id of the capture, or the tree an undo or redo restored; empty on `removed` and on a `start` whose capture failed (that turn is not undoable) |
+| At | `at` | RFC 3339 UTC |
+| FilesChanged | `files_changed` | paths that differ from the session's previous capture |
+
+A `start` line numbers its turn one past the current count, which replaces any turns that were undone (redo history is dropped). Refs `refs/rex/<session>/<n>` in `<key>/git` keep each captured tree alive.
+
 ## On-disk layout
 
 ```
@@ -118,6 +144,11 @@ Running session: clears the done mark. Exited session: respawns in place (see `d
     <session-id>/
       meta.json      # SessionSummary JSON
       transcript.log # raw PTY bytes (append-only)
+  snapshots/         # only with turn_snapshots on
+    <key>/
+      git/           # shadow git dir
+      turns.jsonl    # ledger, see above
+      cwd            # the folder this store belongs to
 ```
 
 Default `<state-dir>`: `~/.local/share/rex` (`rex-daemon -state-dir`).

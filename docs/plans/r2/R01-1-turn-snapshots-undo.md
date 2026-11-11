@@ -47,7 +47,7 @@
 1. **R01-1-1 `snapshot` package.** `internal/features/snapshot`: `Store{root string}`, `Capture(ctx, cwd, sessionID string, phase Phase) (Tree, error)`, `Restore(ctx, cwd string, to Tree, opts RestoreOpts) (Result, error)`, `Changed(ctx, cwd string, a, b Tree) ([]FileChange, error)`. Git env built in one function `gitEnv(shadow, cwd, session)`. Tests (real `git` in `t.TempDir()`; skip if no git): capture/restore round trip; ignored file untouched by restore; file created by the turn removed; >2 MiB untracked skipped; user repo's `HEAD`, index and refs byte-identical before and after (`TestUserRepoUntouched`); user's global git hooks not run (stub `core.hooksPath` in a fake HOME).
 2. **R01-1-2 Daemon wiring + flag.** Subscriber on store events → per-folder worker queue; ledger writes; 10 s cap; flag check. Tests: echo-tool session produces start/end captures; flag off → no shadow dir created; capture failure does not change session state.
 3. **R01-1-3 Undo/redo intents.** `Undo{session, turns, force}`, `Redo{session}` (additive) → `UndoResult{restored, deleted []string, safety Tree}`. Tests: refuse while working; refuse with another live session in the folder unless force; safety capture allows redo; redo dropped after a new turn; old daemon → `bad_intent`.
-4. **R01-1-4 TUI + CLI.** `:undo`, `:redo`, confirm dialog listing file counts and the "shell effects are not undone" line; `rex undo|redo <sel> [--turns N] [--force] [-o …]`. Goldens for the dialog.
+4. **R01-1-4 TUI + CLI.** (TUI part deferred: round 1 is restyling the TUI; only the CLI shipped. `:undo` / `:redo` and the dialog goldens come later.) `:undo`, `:redo`, confirm dialog listing file counts and the "shell effects are not undone" line; `rex undo|redo <sel> [--turns N] [--force] [-o …]`. Goldens for the dialog.
 5. **R01-1-5 Retention + doctor.** Ref cleanup, daily gc, size cap; `rex doctor` shows store size per folder and whether `git` is found. Tests: retention removes refs of long-pruned sessions only.
 6. **R01-1-6 Docs.** `docs/snapshots.md` (new), `docs/paths.md`, `docs/tui.md`, `docs/cli.md`, SECURITY.md (snapshots hold file contents, incl. untracked secrets like `.env` unless ignored), CHANGELOG.
 
@@ -67,3 +67,27 @@
 | D2 | Another live session in the folder | Refuse unless confirmed (dialog names the other session; `--force` on the CLI). |
 | D3 | Size cap | 2 GiB per folder store; oldest sessions' refs dropped first. |
 | D4 | Tell the agent | No. The notice suggests telling the agent yourself. |
+
+## Build notes
+
+Built 2026-11-11 on `feat/r01-1-snapshots` (daemon and CLI; TUI deferred).
+
+- **Package** `internal/features/snapshot`: `Store` (`Capture`, `Restore`, `Changed`, plus `Undo`, `Redo`, `PlanUndo`, `PlanRedo`, `MarkRemoved`, `MarkMissed`, `Retain`, `Usage`, `Entries`, `UntrackedEnvFiles`), one `gitEnv` builder, `ErrNotGitWorktree`. Per-folder lock serializes captures, undo, redo and retention on one folder.
+- **Daemon**: `boot.Snapshots` subscribes to the store and keeps a queue and one worker goroutine per folder (the goroutine exits when the queue drains). Off: only in-memory state tracking, no goroutine, no file, no git call (`TestSnapshots_FlagOffCreatesNothing`). It follows the setting through the `WatchSettings` applier list, which is now started once after the summarizer block instead of inside it. Retention runs once at start, flag on or off, only when a store exists.
+- **Protocol**: `Undo{session_id, turns, force, dry_run}`, `Redo{session_id, force, dry_run}`, reply event `UndoResult{session_id, restored, deleted, safety}`. Additive, no `ProtocolVersion` bump.
+- **CLI**: `rex undo` / `rex redo`, kit commands, `-yes` without a TTY.
+- **Doctor**: size per folder, git lookup, untracked `.env*` warning; creates nothing.
+
+Deviations from the spec:
+
+- `Redo` also takes `force` (otherwise a forced undo could not be redone while the other session lives).
+- `Undo` and `Redo` take `dry_run`. The spec has the confirmation list file counts, which needs the plan before the change, so the CLI asks the daemon for a dry run first. A dry run writes an unreferenced tree object (pruned by the daily gc) and nothing else.
+- `Capture` appends its own ledger line (phase, turn, files changed) and `Restore` takes `RestoreOpts{Session, From}`; the caller passes a fresh capture as `From`. `Undo` / `Redo` wrap both.
+- Turn numbering follows a cursor: a `start` line is numbered one past the current count, which drops undone turns (redo history). A `start` whose capture failed is recorded with no tree, so that turn reports "not undoable" and an earlier turn is never undone in its place.
+- A session added already `working` captures its start then. A session added `queued` is captured at its first move into `working`; there is no separate spawn capture.
+- Retention clock: the daemon appends a `removed` ledger line when a session leaves the board. A session in a ledger that is not on the board and has no such line (daemon crash) is marked removed at the next retention run.
+- The store lives under `<state-dir>/snapshots` (the daemon's `-state-dir`, default `~/.local/share/rex`). `paths.SnapshotsDir()` gives the default for `rex doctor`; a daemon on a custom `-state-dir` keeps its store there and doctor reports the default one.
+- Retention and the cap run at daemon start only. `git gc --prune=now` runs during retention at most once a day per store, and after each oldest-session drop while over the cap.
+- The folder's `.git/info/exclude` is honored by copying it into the shadow's `info/exclude`; a global gitignore and `.gitignore` files above the session folder (when it is a subfolder of the repo) are not read.
+- A nested repository is skipped by excluding its directory (git would otherwise fail on one with no commit, or record a link).
+- Not run on Windows here: the null-device and path code compiles and is unit tested; the git-backed tests run wherever `git` is installed (CI Windows has it).

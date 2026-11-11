@@ -21,6 +21,7 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 | `~/.local/share/rex/` | Session state (default `-state-dir`) |
 | `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json` and `transcript.log` |
 | `~/.local/share/rex/sessions/<id>/plugin/` | The skills chosen for that session, copied from the library (removed with the session) |
+| `~/.local/share/rex/snapshots/<key>/` | Turn-snapshot store for one working folder, `<key>` = first 16 hex of sha256 of its absolute path. Owner-only (0700). `git/` is the shadow repository, `turns.jsonl` the ledger. Exists only with `turn_snapshots` on (see [snapshots](snapshots.md)) |
 | `~/.local/share/rex/daemon.lock` | Held by the running daemon; one daemon per state directory |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |

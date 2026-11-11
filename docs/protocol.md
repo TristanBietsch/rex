@@ -62,6 +62,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
 | `Resume` | yes | `session_id`. Makes the session live and not marked done; see [Resume](#resume) |
+| `Undo` | yes | `session_id`, `turns` (0 = 1; at most 1000), `force`, `dry_run`. Restores the folder from the turn snapshots; see [Undo and Redo](#undo-and-redo) |
+| `Redo` | yes | `session_id`, `force`, `dry_run`. Brings back what the last `Undo` replaced |
 | `FocusFilter` | no-op | Accepted (and acked); not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
@@ -102,6 +104,22 @@ While the `resume` feature is off (Settings → Features) the daemon answers eve
 
 Clients: `(*client.Client).Resume(sessionID, reqID)`. An older daemon answers `bad_intent` "intent not implemented".
 
+### Undo and Redo
+
+`Undo{session_id, turns, force, dry_run}` restores the session's folder to how it was before its last `turns` agent turns, from the turn snapshots (the `turn_snapshots` setting; see [snapshots](snapshots.md)). `Redo{session_id, force, dry_run}` restores the capture `Undo` took first. Both are additive: no `ProtocolVersion` bump, and an older daemon answers `bad_intent` "intent not implemented".
+
+The reply is an `UndoResult` event (not an `Ack`): `session_id`, `restored` and `deleted` (sorted slash paths relative to the session's folder, never null) and `safety`, the tree id of the capture taken just before the restore. The folder is already changed when the reply is sent. With `dry_run` nothing changes and nothing is captured: the same checks run and the reply lists what would be restored and deleted, with an empty `safety`.
+
+Checks, in order:
+
+1. The feature is on, else `bad_intent` "off: enable turn_snapshots in Settings → Features". `turns` outside 0 to 1000 is `bad_intent`.
+2. The session exists (`unknown_session`).
+3. It is not `working` (`bad_state`).
+4. No other live session (state not `done`, `failed` or `crashed`) has the same `cwd`, unless `force` (`bad_state`, naming the others' slugs).
+5. The folder is inside a git worktree, and there is a turn to undo (or an undo to redo): else `bad_state` with the reason ("snapshots need a git repo", "nothing to undo", "nothing to redo", "that turn was not captured, so it cannot be undone").
+
+Snapshots are taken by the daemon at turn boundaries and are not an intent. Redo history is dropped when a session starts another turn. Clients: `(*client.Client).Do(ctx, protocol.IntentUndo, protocol.Undo{...})`.
+
 ## Replies
 
 An intent whose envelope carries a non-empty `id` gets exactly one terminal reply, an event with the same `id`:
@@ -121,6 +139,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `Complete` | `Ack` | Termination requested, not finished |
 | `Resize` | `Ack` | Also for the ignored 0×0 size |
 | `FocusFilter`, `SetMaxConcurrent` | `Ack` | |
+| `Undo`, `Redo` | `UndoResult` | The folder is changed before the reply; with `dry_run` it is not |
 | `Reload` | `Ack` | After the new registry is in use |
 | `Shutdown` | `Ack` | Queued before shutdown starts; the daemon may close the connection first, so treat the close as success |
 | `OpenSession`, unknown types | — | `Error` `bad_intent` "intent not implemented" |
@@ -195,7 +214,7 @@ A daemon that predates `repaint` ignores the field and answers `mode_sync` as be
 | `too_many_sessions` | Concurrency cap |
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
-| `bad_state` | `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
+| `bad_state` | `Undo` or `Redo` refused (session working, another live session in the folder without `force`, folder not in a git repo, nothing to undo or redo, a turn that was not captured); `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
 | `line_too_long` | A line exceeded 16 MiB; the daemon closes the connection |
 | `unsupported_version` | The envelope's `v` is not `1`; the daemon closes the connection |
 | `internal_error` | A daemon bug while handling the intent; the daemon closes the connection |

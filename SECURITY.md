@@ -56,6 +56,18 @@ filesystem permissions.
   The digest it is built from (every session's name, task, description and
   question line) goes to `OLLAMA_HOST`: if that points off this machine, so
   do those titles and statuses.
+- **Turn snapshots** (`turn_snapshots`, off by default). A snapshot holds
+  file **contents**: tracked files and untracked files that git does not
+  ignore, so an untracked `.env` with secrets is copied into
+  `~/.local/share/rex/snapshots/` (retained until 7 days after the session
+  is removed, at most 2 GiB per folder). The store is created owner-only
+  (0700), never leaves the machine and is not encrypted. `rex doctor` warns
+  about untracked `.env*` files in snapshotted folders. Rex runs the `git`
+  binary against its own shadow repository with an explicit environment
+  (no system or global config, no hooks, no prompts) and never writes to the
+  user's repository. Reports of a snapshot writing to the user's repo,
+  running the user's hooks or config, reading or writing outside the folder
+  and the store, or exposing the store to other users are in scope.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the

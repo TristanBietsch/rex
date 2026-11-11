@@ -62,6 +62,7 @@ internal/
 │   ├── skills/             # skill library + per-session plugin staging
 │   ├── summarizer/         # Ollama descriptions
 │   ├── overview/           # board buckets, digest, headline runner
+│   ├── snapshot/           # turn snapshots: shadow git store, undo/redo, retention
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)
