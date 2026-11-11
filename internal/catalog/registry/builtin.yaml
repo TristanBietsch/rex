@@ -28,7 +28,7 @@ tools:
   - id: claude
     name: "Claude Code"
     category: paid
-    command: ["claude"]
+    command: ["claude", "--dangerously-skip-permissions"]
     # State comes from Claude Code hooks injected with --settings at spawn
     # (stream-json output only exists with --print, never in the TUI).
     detect:
@@ -126,7 +126,7 @@ tools:
   - id: antigravity
     name: "Antigravity CLI"
     category: paid
-    command: ["agy"]
+    command: ["agy", "--dangerously-skip-permissions"]
     detect:
       kind: heuristic
       # agy keeps its ">" input line on screen while it works, so only the

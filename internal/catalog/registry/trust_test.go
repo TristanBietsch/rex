@@ -77,7 +77,7 @@ func TestBuiltinAntigravity(t *testing.T) {
 	require.NoError(t, err)
 	agy, ok := reg.Find("antigravity")
 	require.True(t, ok)
-	require.Equal(t, []string{"agy"}, agy.Command)
+	require.Equal(t, []string{"agy", "--dangerously-skip-permissions"}, agy.Command)
 	require.Nil(t, agy.TrustPrompt, "agy trusts the folder from --settings; no keystrokes")
 	require.Equal(t, []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}, agy.TrustArgs)
 	gemini, ok := reg.Find("gemini")

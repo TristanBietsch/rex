@@ -1,5 +1,11 @@
 # ToDo
 
+- [ ] steal the best ideas from opencode and impliment them in rex (like the kanban board, the summary, the audit trail, etc)
+- [ ] add qwen code and oh my pi and cursor cli and grok build to the options, have settings auto detect which models are installed and available and show them in the list of options
+- [ ] add a "master agent" that summarizes what is going on, what is completed, and what is ready for review (like a project manager) 
+- [ ] make settings its own full screen page with a better layout and more options (like themes, colors, etc), as well as the help page, and make it so that the settings can be saved to a config file and loaded on startup (like cursor's .cursor) 
+- [ ] remke the settings config in lua not yaml
+
 ## Workspaces / state
 
 - [ ] per-workspace `.rex` folder (like cursor's `.cursor`) instead of JUST relying on the daemon: holds the rex config, per-folder harness history, and state (list of agents, their states, etc). Copy the folder to another machine and it works. Daemon can still sync between machines but is not required. Make a spec, plan it, then implement on a new branch.
@@ -37,6 +43,9 @@
 - [ ] remake the UI and the color scheme; better help menu, remake the help and settings page
 - [ ] make more settings modular and editable / hackable via lua config files and add themes
 - [ ] rm all other agents in the settings
+- [ ] add a cmd to add a thick colored border around the current rex window (configurable in settings) that is random by default but can be set to a specific color in settings default colors use pantone colors and are colorblind friendly.
+- [ ] make cols fixed width and not resizeable by default (configurable in settings) but responsive to window size changes including a mobile version (configurable in settings)
+- [ ] fix antigravity logo in the acutal agent window (not the board) to be centered and not cut off on the right side
 
 *** ## Setup / spawn
 
