@@ -29,7 +29,7 @@ func main() {
 // kitVerbs are the commands rendered through the output kit. They accept
 // -o/--output, --agent and -json; the rest still print their own format, so
 // an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{"ls": true, "status": true, "resume": true}
+var kitVerbs = map[string]bool{"ls": true, "status": true, "resume": true, "help": true, "--help": true, "-h": true, "agent-help": true, "completion": true}
 
 func run(args []string) error {
 	if core.Out().Flags.Explicit() {
@@ -46,8 +46,18 @@ func run(args []string) error {
 		return meta.RunTUI()
 	}
 	switch args[0] {
-	case "--help", "-h", "help":
-		return core.RunHelp()
+	case "--help", "-h":
+		return core.RunHelp(args[1:])
+	case "help":
+		// `rex help <command>` is `rex <command> -h`.
+		if len(args) >= 2 {
+			if _, ok := core.FindCommand(args[1]); ok {
+				return run(append([]string{args[1], "-h"}, args[2:]...))
+			}
+		}
+		return core.RunHelp(args[1:])
+	case "agent-help":
+		return core.RunAgentHelp(args[1:])
 	case "--version", "-v", "version":
 		return core.RunVersion()
 	case "status":
@@ -113,15 +123,10 @@ func run(args []string) error {
 	}
 }
 
-// commands is every name the switch in run accepts, for "did you mean".
-// Keep it in step with that switch (TestRun_EveryCommandIsKnown checks).
-var commands = []string{
-	"help", "version", "status", "ls", "new", "attach", "reply", "send", "log",
-	"wait", "rm", "prune", "rename", "name", "done", "retire", "undone",
-	"unretire", "archive", "resume", "complete", "reload", "daemon", "completion",
-	"render", "config", "setup", "doctor", "update", "uninstall", "digest",
-	"stats", "fleet",
-}
+// commands is every name the switch in run accepts, for "did you mean". It
+// comes from the command table (TestRun_EveryCommandIsKnown checks the two
+// agree).
+var commands = core.CommandNames()
 
 // unknownCommand is the exit-5 error for a command rex does not have, with
 // the closest real one when it is within two edits.

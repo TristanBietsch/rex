@@ -10,7 +10,9 @@ rex — Runtime Executive for Agents
 
 ```sh
 rex
-rex [--help|-h|help]
+rex [--help|-h|help] [topic] [-o FORMAT]
+rex <command> -h
+rex agent-help [-o FORMAT]
 rex [--version|-v|version]
 rex <command> [flags] [args...]
 ```
@@ -19,13 +21,21 @@ rex <command> [flags] [args...]
 
 Commands dial the default socket unless `-socket` is set. See [paths.md](paths.md) for the default path.
 
+## HELP
+
+`rex --help` lists the commands by section. It is built like `agy`'s help: `Usage:` first, Title-case section headers with a colon, aligned names, no banner or rule, and one closing hint. `rex <command> -h` (or `rex help <command>`) prints that command's usage, description, flags, output formats and an example, from the same table, to stdout, and exits 0. A flag error prints the error and one `Usage:` line on stderr, not the whole list.
+
+Help is a query like any other: `-o txt` (the default in a pipe) has `# Usage` style headers, `-o md` pastes into an issue, and `-o json` gives `{"v":1,"cmd":"help","data":{...}}` with every command (or, for `rex <command> -h`, every flag and its default). In agent mode `rex --help` prints the agent card.
+
+`rex agent-help` (alias `rex help agent`) prints that card: at most 30 lines, about 1.2k tokens, with the line grammar, exit codes, the common commands and the interactive ones agents must not run. `rex agent-help -o json` gives the same information as data.
+
 ## FLAGS AND ARGUMENTS
 
 Flags may come before, between or after the positional arguments: `rex wait p1 -until done` and `rex wait -until done p1` are the same. `--` ends flag parsing; everything after it is positional. A lone `-` is positional.
 
 `rex new`, `rex reply` and `rex name` take free text. In them, an unknown `-x` after the text is an error (exit 5). Put `--` before text that starts with `-`: `rex new -- -h is the flag I want to document`, `rex name p1 -- -clear`.
 
-`-h` or `-help` on a command prints its usage and exits **0**.
+`-h` or `-help` on a command prints its help (see HELP) and exits **0**.
 
 ## SELECTORS
 
@@ -58,7 +68,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status` and `rex resume` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status`, `rex resume`, `rex help`, `rex agent-help` and `rex completion` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|

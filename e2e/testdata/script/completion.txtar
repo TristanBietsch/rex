@@ -3,7 +3,7 @@
 exec rex completion zsh
 stdout '^_rex\(\) \{$'
 stdout '^compdef _rex rex$'
-stdout 'verbs=\(status ls new '
+stdout 'verbs=\(help ls new '
 ! stderr .
 
 exec rex completion bash

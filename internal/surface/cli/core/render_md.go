@@ -96,6 +96,17 @@ func (p *Printer) renderMD(v View) string {
 			blocks = append(blocks, "`"+strings.ReplaceAll(b.Cmd, "`", "'")+"` "+escapeMD(b.Text))
 		case Line:
 			blocks = append(blocks, escapeMD(b.Text))
+		case Para:
+			blocks = append(blocks, escapeMD(b.Text))
+		case Defs:
+			if len(b.Items) == 0 {
+				continue
+			}
+			rows := make([][]string, len(b.Items))
+			for i, it := range b.Items {
+				rows[i] = []string{"`" + strings.ReplaceAll(it.Name, "`", "'") + "`", escapeMD(it.Desc)}
+			}
+			blocks = append(blocks, mdTable([]string{"Name", "Description"}, []Align{AlignLeft, AlignLeft}, rows))
 		}
 	}
 	return joinBlocks(blocks)

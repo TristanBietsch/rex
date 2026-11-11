@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex agent-help` (also `rex help agent`, and `rex --help` in agent mode)
+  prints a compact usage card for LLM agents: line grammar, exit codes, the
+  common commands and the interactive ones to avoid. `-o json` gives it as
+  data.
+- `rex help <command>` is the same as `rex <command> -h`.
 - `rex resume <sel>` respawns an exited session in place (same row, id, slug
   and transcript) with the agent's resume arguments, or unmarks a running
   session marked done. `rex resume -print <sel>` prints only the full resume
@@ -192,6 +197,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Help is rebuilt in the style of `agy`: `rex --help` and `rex <command> -h`
+  start with `Usage:`, use Title-case sections with a colon, align their
+  columns and end with one hint, with no banner or rule. They are generated
+  from one command table, print to stdout (`-h` used to print on stderr) and
+  follow `-o` (`txt` in a pipe, `md`, `json`, `agent`). A flag error prints
+  the error and a one-line `Usage:` hint instead of the whole flag list. The
+  completion scripts now list the same commands as `--help`.
 - `rex setup` now suggests trusting the project's own folder (the git root
   of where you ran it, or the folder itself when it is not a checkout)
   instead of the folder above it. Still never your home folder or anything

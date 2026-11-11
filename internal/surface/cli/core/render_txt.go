@@ -12,33 +12,53 @@ func displayWidth(s string) int { return ansi.StringWidth(s) }
 // Header or Hint blocks, no wrapping. Tables use fixed column widths (Col.Width)
 // truncated by display width.
 func (p *Printer) renderTXT(v View) string {
-	var blocks []string
+	var l blockList
 	for _, b := range v {
 		switch b := b.(type) {
 		case Section:
-			blocks = append(blocks, "# "+b.Title)
+			l.section("# " + b.Title)
 		case KV:
 			if b.Txt != "" {
-				blocks = append(blocks, b.Txt)
+				l.add(b.Txt)
 				continue
 			}
-			blocks = append(blocks, txtKV(b))
+			l.add(txtKV(b))
 		case Table:
-			blocks = append(blocks, txtTable(b))
+			l.add(txtTable(b))
 		case Checks:
-			blocks = append(blocks, p.txtChecks(b))
+			l.add(p.txtChecks(b))
 		case Note:
-			blocks = append(blocks, b.Text)
+			l.add(b.Text)
 		case Line:
 			if b.Txt != "" {
-				blocks = append(blocks, b.Txt)
+				l.add(b.Txt)
 			} else {
-				blocks = append(blocks, b.Text)
+				l.add(b.Text)
 			}
+		case Para:
+			l.add(b.Text)
+		case Defs:
+			l.add(txtDefs(b))
 		case Header, Hint:
 		}
 	}
-	return joinBlocks(blocks)
+	return l.String()
+}
+
+func txtDefs(d Defs) string {
+	w := defNameWidth(d.Items)
+	lines := make([]string, len(d.Items))
+	for i, it := range d.Items {
+		switch {
+		case it.Desc == "":
+			lines[i] = "  " + it.Name
+		case displayWidth(it.Name) > defNameMax:
+			lines[i] = "  " + it.Name + "  " + it.Desc
+		default:
+			lines[i] = "  " + padRight(it.Name, w) + "  " + it.Desc
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func pairLabel(p Pair) string {

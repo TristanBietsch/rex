@@ -21,6 +21,14 @@ func (p *Printer) Emit(r Result) error {
 		}
 		return r.Legacy(p.Out)
 	}
+	if r.Content != "" && p.Format != FormatJSON {
+		s := strings.TrimSuffix(r.Content, "\n") + "\n"
+		if p.Format == FormatMD {
+			s = "```text\n" + s + "```\n"
+		}
+		_, err := io.WriteString(p.Out, s)
+		return err
+	}
 	var s string
 	switch p.Format {
 	case FormatJSON:
@@ -56,6 +64,33 @@ func joinBlocks(blocks []string) string {
 	}
 	return strings.Join(kept, "\n\n") + "\n"
 }
+
+// blockList collects rendered blocks. A Section is attached to the block
+// after it (no blank line between the title and its body); every other
+// pair of blocks is separated by one blank line.
+type blockList struct {
+	blocks []string
+	attach bool
+}
+
+func (l *blockList) add(s string) {
+	if s == "" {
+		return
+	}
+	if l.attach && len(l.blocks) > 0 {
+		l.blocks[len(l.blocks)-1] += "\n" + s
+	} else {
+		l.blocks = append(l.blocks, s)
+	}
+	l.attach = false
+}
+
+func (l *blockList) section(s string) {
+	l.add(s)
+	l.attach = true
+}
+
+func (l *blockList) String() string { return joinBlocks(l.blocks) }
 
 // visibleCols returns the indexes of the columns shown in f.
 func visibleCols(cols []Col, f Format) []int {

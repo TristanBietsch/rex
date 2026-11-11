@@ -225,6 +225,16 @@ func stripGlobalFlags(args []string) (rest []string, fl FormatFlags, err error) 
 	return args, fl, nil
 }
 
+// outputRegistry maps a FlagSet to its OutputFlags, so -h can list the
+// output flags and the formats the command supports.
+var outputRegistry sync.Map
+
+func outputFor(fs *flag.FlagSet) *OutputFlags {
+	o, _ := outputRegistry.Load(fs)
+	f, _ := o.(*OutputFlags)
+	return f
+}
+
 // OutputOption customizes AddOutputFlags.
 type OutputOption func(*OutputFlags)
 
@@ -246,6 +256,7 @@ type OutputFlags struct {
 // After ParseArgs, call Validate.
 func AddOutputFlags(fs *flag.FlagSet, supported FormatSet, opts ...OutputOption) *OutputFlags {
 	o := &OutputFlags{fl: Out().Flags, supported: supported, name: fs.Name()}
+	outputRegistry.Store(fs, o)
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -324,15 +335,24 @@ func (o *OutputFlags) parse(fs *flag.FlagSet, run func() ([]string, error)) ([]s
 // rendering an error. A flag combination that does not resolve (a conflict,
 // an unknown format) drops -json, then falls back to txt.
 func (o *OutputFlags) install() *Printer {
+	p, ok := o.build()
+	if ok {
+		SetOut(p)
+	}
+	return p
+}
+
+// build is install without replacing the process Printer. It reports false
+// when no flag combination resolved and the current Printer is returned.
+func (o *OutputFlags) build() (*Printer, bool) {
 	base := Out()
 	for _, fl := range []FormatFlags{o.fl, {Output: o.fl.Output, NoColor: o.fl.NoColor}, {Output: "txt"}} {
 		if p, err := base.WithFlags(fl); err == nil {
 			p.Cmd = o.name
-			SetOut(p)
-			return p
+			return p, true
 		}
 	}
-	return base
+	return base, false
 }
 
 // Validate resolves the format from the parsed flags and the environment,

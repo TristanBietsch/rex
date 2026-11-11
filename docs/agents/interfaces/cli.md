@@ -23,6 +23,9 @@ Human reference: **[../../cli.md](../../cli.md)** — commands, flags, selectors
 | `prune` | `session` | `RunPrune` (selection: `tui.PruneTargets`) |
 | `rename` | `session` | `RunRename` |
 | `archive` | `session` | `RunArchive` |
+| `resume` | `session` | `RunResume` |
+| `help`, `--help` | `core` | `RunHelp` (table: `core/commands.go`; per-command: `core/help.go` `showCommandHelp`) |
+| `agent-help` | `core` | `RunAgentHelp` (card: `core/agentcard.go`) |
 | `complete` | `meta` | `RunComplete` |
 | `reload` | `lifecycle` | `RunReload` |
 | `daemon` | `lifecycle` | `RunDaemon` |

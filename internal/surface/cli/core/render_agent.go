@@ -57,7 +57,21 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 				}
 				lines = append(lines, EncodeLine("check", fields...))
 			}
-		case Header, Section, Note, Hint, Line:
+		case Defs:
+			if b.Kind == "" {
+				continue
+			}
+			tables = true
+			for _, it := range b.Items {
+				name := it.Name
+				if it.Key != "" {
+					name = it.Key
+				}
+				fields := append([]Field{{"name", name}, {"desc", it.Desc}}, it.Extra...)
+				lines = append(lines, EncodeLine(b.Kind, fields...))
+				count++
+			}
+		case Header, Section, Note, Hint, Line, Para:
 		}
 	}
 	head := []Field{{"cmd", cmd}}

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"strings"
 	"testing"
 
@@ -99,4 +101,59 @@ func TestRun_EveryCommandIsKnown(t *testing.T) {
 	for _, c := range commands {
 		require.Contains(t, cases, c, "commands lists %q but run does not handle it", c)
 	}
+}
+
+func capturePrinter(t *testing.T, format string) *bytes.Buffer {
+	t.Helper()
+	var out bytes.Buffer
+	env := core.Env{Getenv: func(string) string { return "" }, Width: 80, Scheme: "default", GOOS: "linux"}
+	// txt is the default for a non-terminal, so it needs no explicit flag.
+	fl := core.FormatFlags{}
+	if format != "txt" {
+		fl.Output = format
+	}
+	p, err := core.NewPrinter(fl, env, &out, io.Discard)
+	require.NoError(t, err)
+	core.SetOut(p)
+	t.Cleanup(func() { core.SetOut(nil) })
+	return &out
+}
+
+// help, --help, agent-help and `help <command>` are routed to the kit.
+func TestRun_HelpRoutes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"help"}, "# Usage"},
+		{[]string{"--help"}, "# Usage"},
+		{[]string{"-h", "-o", "json"}, `"commands":[`},
+		{[]string{"help", "agent"}, "rex agent card v1"},
+		{[]string{"agent-help"}, "rex agent card v1"},
+	} {
+		out := capturePrinter(t, "txt")
+		require.NoError(t, run(tc.args), tc.args)
+		require.Contains(t, out.String(), tc.want, tc.args)
+	}
+	out := capturePrinter(t, "txt")
+	err := run([]string{"help", "ls"})
+	require.ErrorIs(t, err, core.ErrHelpShown)
+	require.Contains(t, out.String(), "Usage: rex ls [flags]")
+	out = capturePrinter(t, "txt")
+	require.ErrorIs(t, run([]string{"help", "new", "-o", "json"}), core.ErrHelpShown)
+	require.Contains(t, out.String(), "Usage: rex new")
+}
+
+func TestRun_Completion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, sh := range []string{"bash", "zsh", "fish"} {
+		out := capturePrinter(t, "txt")
+		require.NoError(t, run([]string{"completion", sh}))
+		for _, c := range commands {
+			require.Contains(t, out.String(), c, sh)
+		}
+	}
+	capturePrinter(t, "txt")
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(run([]string{"completion", "tcsh"})))
 }

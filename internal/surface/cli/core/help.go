@@ -1,135 +1,202 @@
 package core
 
 import (
-	"fmt"
+	"flag"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	// HelpBold and related styles are shared by help, doctor, and uninstall output.
-	HelpBold     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E6E6E6"))
-	HelpSection  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E6E6E6"))
-	HelpCmd      = lipgloss.NewStyle().Foreground(lipgloss.Color("#E6E6E6"))
-	HelpDim      = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	HelpMuted    = lipgloss.NewStyle().Foreground(lipgloss.Color("#4A4F5A"))
-	HelpAccent   = lipgloss.NewStyle().Foreground(lipgloss.Color("#5B8DEF"))
-	HelpHRStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#262A36"))
-	helpStarChar = "✦"
-	helpArrow    = "▸"
-	HelpBullet   = "·"
-)
+// outputFlagNames are the flags AddOutputFlags registers; per-command help
+// lists them in their own Output section.
+var outputFlagNames = map[string]bool{"o": true, "output": true, "agent": true, "no-color": true, "json": true}
 
-type helpRow struct {
-	cmd  string
-	desc string
-}
-
-type helpSec struct {
-	title string
-	rows  []helpRow
-}
-
-// RunHelp prints the top-level rex help screen.
-func RunHelp() error {
-	sections := []helpSec{
-		{
-			title: "Session",
-			rows: []helpRow{
-				{"ls", "list sessions"},
-				{"new", "create a new session (wizard)"},
-				{"attach <sel>", "attach to a session (ctrl+] to detach)"},
-				{"reply <sel> <text>", "reply to a needs-input session"},
-				{"send <sel> <text>", "send raw input"},
-				{"wait <sel>", "block until session state changes"},
-				{"rename <sel> <slug>", "change a session's slug (selector)"},
-				{"name <sel> [text]", "set/show display name (-clear resets to slug)"},
-				{"done <sel>", "mark done: cleared after retire_after_hours (-after 72h)"},
-				{"undone <sel>", "cancel a pending done"},
-				{"rm <sel>", "delete a session"},
-				{"prune", "delete Completed sessions, keeping any still working (-dry-run, -yes)"},
-				{"archive <sel>", "archive a session"},
-				{"resume <sel>", "respawn an exited session in place (-print: only the resume id)"},
-				{"complete <sel>", "cleanly terminate a session and mark it done"},
-				{"log <sel>", "stream session log"},
-			},
-		},
-		{
-			title: "Daemon",
-			rows: []helpRow{
-				{"status", "aggregate one-liner (pipe-friendly)"},
-				{"daemon", "run daemon in foreground"},
-				{"reload", "reload tools.yaml"},
-			},
-		},
-		{
-			title: "Insights",
-			rows: []helpRow{
-				{"digest", "today's sessions, time, totals"},
-				{"stats", "lifetime usage by model/tool"},
-				{"fleet", "list/set/unset session fleets"},
-			},
-		},
-		{
-			title: "Lifecycle",
-			rows: []helpRow{
-				{"setup", "guided first-run wizard"},
-				{"doctor", "diagnostic check"},
-				{"update", "upgrade rex in place"},
-				{"uninstall", "remove rex + optional state"},
-			},
-		},
-		{
-			title: "Other",
-			rows: []helpRow{
-				{"render", "render an event stream"},
-				{"config", "view config"},
-				{"completion <shell>", "generate shell completions"},
-				{"version", "print version"},
-			},
-		},
-		{
-			title: "Flags",
-			rows: []helpRow{
-				{"-h, --help", "show this help"},
-				{"-v, --version", "print version"},
-			},
-		},
+// helpView builds the top-level help: Usage first, Title-case sections, no
+// banners, ending with one hint line.
+func helpView() View {
+	v := View{
+		Header{Title: "rex — Runtime Executive for Agents", Meta: Version},
+		Section{Title: "Usage"},
+		Defs{Items: []Def{
+			{Name: "rex", Desc: "open the board (TUI)"},
+			{Name: "rex <command> [flags]"},
+		}},
 	}
-
-	cmdWidth := 0
-	for _, sec := range sections {
-		for _, r := range sec.rows {
-			if w := lipgloss.Width(r.cmd); w > cmdWidth {
-				cmdWidth = w
+	for _, sec := range HelpSections {
+		var items []Def
+		for _, c := range Commands {
+			if c.Section == sec {
+				items = append(items, Def{Name: strings.TrimSpace(c.Name + " " + c.Args), Key: c.Name, Desc: c.Short,
+					Extra: []Field{{"class", c.Class.String()}}})
 			}
 		}
+		v = append(v, Section{Title: sec}, Defs{Kind: "command", Items: items})
 	}
-	cmdWidth += 4
+	v = append(v,
+		Section{Title: "Output"},
+		Defs{Items: []Def{
+			{Name: "-o, --output FORMAT", Desc: "text | txt | md | json | agent (txt when piped)"},
+			{Name: "--agent", Desc: "one line per record, no color, no prompts"},
+			{Name: "--no-color", Desc: "never emit ANSI color"},
+		}},
+		Para{Text: "Selectors: short id (4+ hex), slug or full id."},
+		Para{Text: `Run "rex <command> -h" for flags · agents: rex agent-help`},
+	)
+	return v
+}
 
-	var b strings.Builder
-	b.WriteString("\n")
-	b.WriteString("  " + HelpAccent.Render(helpStarChar) + " " + HelpBold.Render("rex") + HelpDim.Render(" — Runtime Executive for Agents") + "\n")
-	b.WriteString("  " + HelpHRStyle.Render(strings.Repeat("─", 44)) + "\n\n")
+// helpData is the `-o json` payload of rex help.
+type helpData struct {
+	Version  string        `json:"version"`
+	Commands []commandData `json:"commands"`
+}
 
-	b.WriteString("  " + HelpSection.Render("USAGE") + "\n")
-	b.WriteString("    " + HelpCmd.Render("rex") + HelpDim.Render("                          launch the TUI") + "\n")
-	b.WriteString("    " + HelpCmd.Render("rex <command> [flags]") + "\n\n")
+type commandData struct {
+	Name    string   `json:"name"`
+	Aliases []string `json:"aliases,omitempty"`
+	Section string   `json:"section"`
+	Args    string   `json:"args"`
+	Desc    string   `json:"desc"`
+	Class   string   `json:"class"`
+}
 
-	for _, sec := range sections {
-		b.WriteString("  " + HelpSection.Render(strings.ToUpper(sec.title)) + "\n")
-		for _, r := range sec.rows {
-			pad := strings.Repeat(" ", cmdWidth-lipgloss.Width(r.cmd))
-			b.WriteString("    " + HelpAccent.Render(helpArrow) + " " + HelpCmd.Render(r.cmd) + pad + HelpDim.Render(r.desc) + "\n")
+func commandsData() []commandData {
+	out := make([]commandData, len(Commands))
+	for i, c := range Commands {
+		out[i] = commandData{c.Name, c.Aliases, c.Section, c.Args, c.Short, c.Class.String()}
+	}
+	return out
+}
+
+// RunHelp prints the top-level help: `rex help`, `rex --help`. `rex help
+// agent` prints the agent card. In agent mode the card is the help, so an
+// agent never has to read the human layout. A command's own help is
+// `rex <command> -h` (main routes `rex help <command>` there).
+func RunHelp(args []string) error {
+	fs := flag.NewFlagSet("help", flag.ContinueOnError)
+	out := AddOutputFlags(fs, AllFormats)
+	rest, err := out.Parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(rest) > 1 {
+		return NewExitError(ExitInvalidArgs, "help: at most one topic")
+	}
+	p := Out()
+	if len(rest) == 1 {
+		if rest[0] != "agent" {
+			return Errorf(ExitInvalidArgs, "rex --help", "help: unknown topic %q (try `rex help agent`, or `rex <command> -h`)", rest[0])
 		}
-		b.WriteString("\n")
+		return emitAgentCard(p)
+	}
+	if p.Format == FormatAgent {
+		return emitAgentCard(p)
+	}
+	return p.Emit(Result{Cmd: "help", Data: helpData{Version: Version, Commands: commandsData()}, View: helpView()})
+}
+
+// flagData is one flag in a command's `-o json` help.
+type flagData struct {
+	Name    string `json:"name"`
+	Arg     string `json:"arg,omitempty"`
+	Default string `json:"default,omitempty"`
+	Desc    string `json:"desc"`
+}
+
+// cmdHelpData is the `-o json` payload of `rex <command> -h`.
+type cmdHelpData struct {
+	Command string     `json:"command"`
+	Usage   string     `json:"usage"`
+	Desc    string     `json:"desc"`
+	Flags   []flagData `json:"flags"`
+	Formats []string   `json:"formats,omitempty"`
+	Example string     `json:"example,omitempty"`
+}
+
+// showCommandHelp prints a command's help from its FlagSet and the command
+// table, to stdout in the current format. ParseArgs calls it for -h.
+func showCommandHelp(fs *flag.FlagSet) {
+	o := outputFor(fs)
+	p := Out()
+	if o != nil {
+		p, _ = o.build()
+	}
+	if p.Legacy { // -json -h: the versioned document is the only JSON help
+		if np, err := p.WithFlags(FormatFlags{Output: "json"}); err == nil {
+			p = np
+		}
+	}
+	cmd, known := FindCommand(fs.Name())
+	usage := strings.TrimSpace("rex " + fs.Name() + " " + cmd.Args)
+	if !known {
+		usage = "rex " + fs.Name() + " [flags]"
+	}
+	desc := cmd.Long
+	if desc == "" {
+		desc = cmd.Short
 	}
 
-	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("selectors: short id, slug, full id") + "\n")
-	b.WriteString("  " + HelpMuted.Render(HelpBullet) + " " + HelpDim.Render("inside the TUI press ") + HelpCmd.Render("?") + HelpDim.Render(" for keybindings") + "\n")
-	b.WriteString("\n")
+	data := cmdHelpData{Command: fs.Name(), Usage: usage, Desc: desc, Flags: []flagData{}, Example: cmd.Example}
+	var items []Def
+	fs.VisitAll(func(f *flag.Flag) {
+		if o != nil && outputFlagNames[f.Name] {
+			return
+		}
+		arg, text := flag.UnquoteUsage(f)
+		if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && bf.IsBoolFlag() {
+			arg = ""
+		}
+		def := f.DefValue
+		if def == "0" || def == "false" || def == "0s" {
+			def = ""
+		}
+		fd := flagData{Name: "-" + f.Name, Arg: arg, Default: def, Desc: text}
+		data.Flags = append(data.Flags, fd)
+		name := fd.Name
+		if arg != "" {
+			name += " " + arg
+		}
+		if def != "" {
+			text += " (default " + def + ")"
+		}
+		items = append(items, Def{Name: name, Key: fd.Name, Desc: text,
+			Extra: []Field{{"arg", arg}, {"default", def}}})
+	})
 
-	fmt.Print(b.String())
-	return nil
+	v := View{Line{Text: "Usage: " + usage}, Para{Text: desc}}
+	if len(items) > 0 {
+		v = append(v, Section{Title: "Flags"}, Defs{Kind: "flag", Items: items})
+	}
+	if o != nil {
+		data.Formats = formatNamesOf(o.supported)
+		v = append(v, Section{Title: "Output"}, Defs{Items: outputDefs(o)})
+	}
+	if cmd.Example != "" {
+		v = append(v, Section{Title: "Example"}, Defs{Items: []Def{{Name: cmd.Example}}})
+	}
+	v = append(v, KV{Pairs: []Pair{
+		{Key: "usage", Val: Cell{Text: usage}, Formats: SetOf(FormatAgent)},
+		{Key: "desc", Val: Cell{Text: desc}, Formats: SetOf(FormatAgent)},
+	}})
+	_ = p.Emit(Result{Cmd: "help", Data: data, View: v})
+}
+
+func outputDefs(o *OutputFlags) []Def {
+	defs := []Def{
+		{Name: "-o, --output FORMAT", Desc: o.supported.String()},
+		{Name: "--agent", Desc: "one line per record, no color, no prompts"},
+		{Name: "--no-color", Desc: "never emit ANSI color"},
+	}
+	if o.legacy {
+		defs = append(defs, Def{Name: "-json", Desc: "legacy JSON shape (prefer -o json)"})
+	}
+	return defs
+}
+
+func formatNamesOf(s FormatSet) []string {
+	var names []string
+	for i, n := range formatNames {
+		if s.Has(Format(i)) {
+			names = append(names, n)
+		}
+	}
+	return names
 }
