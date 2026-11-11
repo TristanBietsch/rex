@@ -1,7 +1,7 @@
 # Handoff: start here
 
 For the next coding agent on rex. Read this first, then follow the
-onboarding order. Last updated 2026-11-10, after PRs #6–#17.
+onboarding order. Last updated 2026-11-10, after PRs #6–#17 and #19.
 
 ## 1. Onboarding order
 
@@ -65,15 +65,15 @@ Keep the version in step with `GOLANGCI_LINT_PKG` in the `Makefile`.
 - #14 `rex setup` auto-trust step; refuses `..` paths (security fix).
 - #15 Antigravity CLI (`agy`) replaces Gemini; adds `trust_args`, `busy_regex`.
 - #16 attach repaint: show a running agent's screen right away (black
-  window fix). **Open at time of writing.**
+  window fix).
 - #17 require Go 1.26.11 (GO-2026-6859).
-- Screensaver: no PR or branch existed at time of writing. Check
-  `gh pr list --state all`.
+- #19 TUI screensaver: centered `∴ rex` with live counts after idle; keeps
+  the macOS display awake (`caffeinate`).
 
 ## 5. Open items: where we left off
 
-1. Check what is merged: `gh pr list --state open`. #16 and the screensaver
-   work were not merged when this was written.
+1. #16 (attach repaint) and #19 (screensaver) are merged. Check
+   `gh pr list --state open` for anything newer.
 2. Antigravity hook-based state needs the user's OK to write
    `~/.gemini/config/hooks.json`. Not done. Today state comes from the
    footer (`busy_regex`). Ask before touching that file.
