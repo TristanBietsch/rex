@@ -160,6 +160,8 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 		return m, completeSessionCmd(m.Client, a.SessionID)
 	case "name", "rename":
 		return m, setNameCmd(namerOf(m), a.SessionID, rest)
+	case "banner":
+		return toggleBanner(m), nil
 	}
 	m, off := detach(m)
 	m, cmd := executeCommand(m, line)
@@ -168,7 +170,7 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 
 // renderAttachCommandBar replaces the attach footer while "::" is open.
 func renderAttachCommandBar(m Model, width int) string {
-	hint := styleMuted.Render("  q detach (or qq while attached) · done · kill · name <text> · ::: types \"::\" · esc back")
+	hint := styleMuted.Render("  q detach (or qq while attached) · done · kill · name <text> · banner · ::: types \"::\" · esc back")
 	line := styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.CmdText) + cursorBlock(m)
 	pad := width - lipgloss.Width(line) - lipgloss.Width(hint)
 	if pad < 1 {

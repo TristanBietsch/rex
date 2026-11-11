@@ -108,6 +108,18 @@ Prints the daemon's one-line headline with its age (when `overview_enabled` is o
 
 ---
 
+## rex export
+
+Write one session as a readable document.
+
+```sh
+rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]
+```
+
+Replays the session's transcript through the terminal emulator (full-screen agents) or strips it (line tools) and writes the metadata plus clean text as `json` (default, `version: 1`), `yaml` (the same document), `md` or `txt`. Output goes to stdout, or to `--out FILE` (mode 0600; refuses to replace a file without `--force`, exit 6; the format is taken from the extension when `-o` is absent). `--max-frames N` keeps the last N frames. `--from-agent-log` reads Claude Code's own log for the session's resume id instead; a missing log falls back to frames with a notice. A running session is read up to its current end. Needs the `session_export` feature (exit 5 when off). Exports can hold secrets. Details: [export.md](export.md).
+
+---
+
 ## rex ls
 
 List sessions.
@@ -170,7 +182,7 @@ Attach terminal to a session PTY.
 rex attach <sel> [-socket path] [-read-only] [-no-replay]
 ```
 
-Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail.
+Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail. There is no banner row here: the agent draws on your terminal directly; the in-TUI popup has one ([tui.md](tui.md#banner)).
 
 For full-screen agents (claude, codex, gemini, …) the daemon then redraws the agent's current screen, so you see it at once even if the agent is busy or the transcript tail starts mid-frame. A daemon too old for that gets **Ctrl+L** instead, which asks the agent to redraw.
 

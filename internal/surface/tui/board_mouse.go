@@ -144,7 +144,7 @@ func sessionAtScreenRow(m Model, y int) string {
 	}
 	slots := boardSlots(m)
 	line := clampScroll(m.ScrollOffset, len(slots), bh) + rel
-	if line >= len(slots) || slots[line].kind != slotRow {
+	if line >= len(slots) || (slots[line].kind != slotRow && slots[line].kind != slotRowCont) {
 		return ""
 	}
 	return slots[line].sess.ID

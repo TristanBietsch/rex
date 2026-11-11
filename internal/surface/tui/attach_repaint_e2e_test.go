@@ -85,9 +85,10 @@ func openFullScreenAttach(t *testing.T, d *testutil.Daemon, sum protocol.Session
 	sum.ToolID = "claude" // full-screen path: no replay
 	m := boardModel(sum)
 	m.Socket = d.Socket
-	m.Width, m.Height = 134, 44
+	m.Width, m.Height = 134, 45 // 45-12 chrome rows-1 banner row = 32
 	m, _ = openAttach(m, sum.ID)
 	require.NotNil(t, m.Attach, "attach failed: %s", m.Err)
+	require.Equal(t, 1, m.Attach.BannerRows, "the banner is on by default; the PTY is sized for it")
 	require.Equal(t, 120, m.Attach.Cols)
 	require.Equal(t, 32, m.Attach.Rows)
 	st := m.Attach

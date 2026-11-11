@@ -31,7 +31,7 @@ func TestPanelWidth(t *testing.T) {
 	cases := []struct{ term, want, min, exp int }{
 		{200, 80, 40, 80},
 		{60, 80, 40, 56},
-		{30, 80, 40, 40},
+		{30, 80, 40, 28}, // the floor gives way: never wider than term-2
 	}
 	for _, c := range cases {
 		if got := panelWidth(c.term, c.want, c.min); got != c.exp {

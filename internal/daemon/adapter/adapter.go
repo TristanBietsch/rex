@@ -32,7 +32,14 @@ func For(t registry.Tool, hookFile string) (Adapter, error) {
 		if err := h.setBusy(t.Detect.BusyRegex); err != nil {
 			return nil, err
 		}
-		return h, nil
+		switch t.Detect.Status {
+		case "":
+			return h, nil
+		case registry.StatusOSC7501:
+			return NewOSCStatus(h), nil
+		default:
+			return nil, fmt.Errorf("unsupported detect.status %q", t.Detect.Status)
+		}
 	case "hooks":
 		switch t.Detect.Format {
 		case "claude":

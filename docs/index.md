@@ -36,6 +36,7 @@ Go source wins when docs disagree with code.
 | [howto/add-a-tool.md](howto/add-a-tool.md) | Add a tool to the registry |
 | [howto/skills.md](howto/skills.md) | Load skills into one session |
 | [snapshots.md](snapshots.md) | Turn snapshots, `rex undo` and `rex redo` |
+| [export.md](export.md) | Export a session as json, yaml, md or txt |
 | [howto/lua-hooks.md](howto/lua-hooks.md) | Lua event hooks |
 | [howto/headless-ci.md](howto/headless-ci.md) | Script sessions without the TUI |
 | [howto/shell-integration.md](howto/shell-integration.md) | PATH, completion, prompt |

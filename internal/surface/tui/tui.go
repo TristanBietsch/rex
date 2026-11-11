@@ -16,7 +16,9 @@ import (
 // boardPad is the side margin we leave so content isn't flush against the terminal edges.
 const boardPad = 0
 
-func Run(socket string) error {
+// Run opens the board. quietBoot silences the boot splash (see
+// Model.QuietBoot).
+func Run(socket string, quietBoot bool) error {
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
 	store, _, _ := settings.LoadDefault()
@@ -39,6 +41,7 @@ func Run(socket string) error {
 		BootStart: time.Now(),
 		idleDone:  idleDone,
 		keepAwake: awake,
+		QuietBoot: quietBoot,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -80,6 +83,22 @@ func (m Model) View() string {
 	if h <= 0 {
 		h = 32
 	}
+	return clipWidth(m.view(w, h), w)
+}
+
+// clipWidth is the last guard: no line leaves View wider than the terminal,
+// whatever an overlay's minimum size is on a tiny screen.
+func clipWidth(s string, w int) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if ansi.StringWidth(l) > w {
+			lines[i] = ansi.Truncate(l, w, "")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) view(w, h int) string {
 	if m.saverOn && m.Focus == FocusBoard {
 		return renderScreensaver(m, w, h)
 	}
@@ -88,24 +107,24 @@ func (m Model) View() string {
 	case FocusBoot:
 		return renderSplash(m, w, h)
 	case FocusWizard:
-		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderWizard(m), w), renderFullScreen(m, w, h))
 	case FocusHelp:
 		return centerOverlayBox(w, h, renderHelp(m, w, h), renderFullScreen(m, w, h))
 	case FocusSettings:
 		return centerOverlayBox(w, h, renderSettings(m, w), renderFullScreen(m, w, h))
 	case FocusAttach:
-		return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
+		return centerAttach(m, w, h, renderFullScreen(m, w, h))
 	case FocusFail:
-		return centerOverlay(w, h, renderFail(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderFail(m), w), renderFullScreen(m, w, h))
 	case FocusStats:
-		return centerOverlay(w, h, renderStatsOverlay(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderStatsOverlay(m), w), renderFullScreen(m, w, h))
 	case FocusOverview:
-		return centerOverlay(w, h, renderOverviewOverlay(m), renderFullScreen(m, w, h))
+		return centerOverlay(w, h, fitOverlay(renderOverviewOverlay(m), w), renderFullScreen(m, w, h))
 	case FocusCommand:
 		// A command bar opened from inside the attach popup (::) keeps the
 		// popup on screen; the bar renders in its footer.
 		if m.Attach != nil {
-			return centerOverlay(w, h, renderAttach(m), renderFullScreen(m, w, h))
+			return centerAttach(m, w, h, renderFullScreen(m, w, h))
 		}
 	default:
 		// The board and its bottom-bar prompts render on the full screen.
@@ -180,6 +199,32 @@ func centerOverlay(w, h int, content, bg string) string {
 	return compositeOverlay(w, h, popupLines, popupW, bg)
 }
 
+// centerAttach composites the attach popup (a padded box, or the mobile
+// sheet) over bg with the geometry attachChrome gives the mouse.
+func centerAttach(m Model, w, h int, bg string) string {
+	c := attachChromeOf(m).withBanner(m.Attach.BannerRows)
+	popupLines, popupW := overlayBoxPad(renderAttach(m), c.padX(), c.padY())
+	return compositeOverlay(w, h, popupLines, popupW, bg)
+}
+
+// overlayChrome is the columns overlayBox adds around its content: two for the
+// border and four for the padding.
+const overlayChrome = 6
+
+// fitOverlay cuts every line of overlay content to what overlayBox can show
+// on a w-column screen, so the popup is never wider than the terminal. Lines
+// that already fit are untouched.
+func fitOverlay(content string, w int) string {
+	limit := max(w-overlayChrome, 1)
+	lines := strings.Split(content, "\n")
+	for i, l := range lines {
+		if ansi.StringWidth(l) > limit {
+			lines[i] = ansi.Truncate(l, limit, "…")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 // centerOverlayBox composites an already-rendered box centered over bg.
 func centerOverlayBox(w, h int, box, bg string) string {
 	popupLines := strings.Split(box, "\n")
@@ -231,6 +276,12 @@ func compositeOverlay(w, h int, popupLines []string, popupW int, bg string) stri
 // line once; lipgloss measured them several times, which was most of the
 // attach popup's frame time. It returns the box lines and their width.
 func overlayBox(content string) ([]string, int) {
+	return overlayBoxPad(content, 2, 1)
+}
+
+// overlayBoxPad is overlayBox with padX columns and padY rows of padding
+// (the attach sheet uses none).
+func overlayBoxPad(content string, padX, padY int) ([]string, int) {
 	content = strings.ReplaceAll(content, "\r\n", "\n") // as lipgloss does
 	content = strings.ReplaceAll(content, "\t", "    ") // lipgloss's tab width
 	lines := strings.Split(content, "\n")
@@ -240,17 +291,24 @@ func overlayBox(content string) ([]string, int) {
 		widths[i] = ansi.StringWidth(l)
 		inner = max(inner, widths[i])
 	}
-	padded := inner + 4
+	padded := inner + 2*padX
 	border := lipgloss.NewStyle().Foreground(colorBorder)
 	side := border.Render("│")
 	blank := side + strings.Repeat(" ", padded) + side
+	padding := strings.Repeat(" ", padX)
 	rule := strings.Repeat("─", padded)
 
 	out := make([]string, 0, len(lines)+4)
-	out = append(out, border.Render("╭"+rule+"╮"), blank)
-	for i, l := range lines {
-		out = append(out, side+"  "+l+strings.Repeat(" ", inner-widths[i])+"  "+side)
+	out = append(out, border.Render("╭"+rule+"╮"))
+	for range padY {
+		out = append(out, blank)
 	}
-	out = append(out, blank, border.Render("╰"+rule+"╯"))
+	for i, l := range lines {
+		out = append(out, side+padding+l+strings.Repeat(" ", inner-widths[i])+padding+side)
+	}
+	for range padY {
+		out = append(out, blank)
+	}
+	out = append(out, border.Render("╰"+rule+"╯"))
 	return out, padded + 2
 }

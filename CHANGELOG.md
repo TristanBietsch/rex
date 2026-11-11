@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: board columns have fixed widths by default and change only when the
+  terminal crosses a width breakpoint (150 and 110 columns). The subagent,
+  badge, tokens, span and resume columns are always reserved, so nothing
+  shifts when a row changes. Below 110 columns the detailed view shows the
+  same columns as the simple one. `column_layout: fit` (Settings →
+  Appearance) brings back content-sized columns.
 - TUI: one space between an icon and the number after it, so the board is
   less crowded: the subagent count (`⋔ 3`), the long-running badge
   (`▴ 42m`) and the `glyphs` header style (`◆ 4  ◷ 1  ⟳ 2  ● 7`, `✕ 2`).
@@ -40,6 +46,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `git` is found and warns about untracked `.env*` files. New `Undo` and
   `Redo` intents with an `UndoResult` reply (additive). The TUI `:undo`
   dialog comes later.
+- Antigravity: a question or the trust dialog shows as waiting at once, not
+  after 15 s. rex asks agy for its terminal status (`AGY_CLI_OSC7501=on`,
+  per session, nothing written to `~/.gemini`) and falls back to the footer
+  until it arrives. New registry field `detect.status: osc7501`.
+- Antigravity: rex keeps the conversation id agy prints when it quits, so
+  `uc` and `:resume` work for agy sessions (`resume` block with
+  `--conversation={id}`), and a `trust_prompt` fallback answers agy's trust
+  dialog in trusted folders.
+- `rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]`
+  writes one session as a readable document: its metadata plus the
+  transcript as clean text, never raw PTY bytes. Full-screen agents are
+  replayed through the terminal emulator into screen frames (cut at each
+  clear-screen and alternate-screen switch, repeats dropped); `echo` and
+  `ollama` are escape-stripped. `json` is the default (`version: 1`), `yaml`
+  is the same document. Output goes to stdout or `--out` (mode 0600, refuses
+  to replace a file without `--force`; the format follows the extension).
+  `--from-agent-log` reads Claude Code's own log for the session's resume id
+  (roles and text, one line per tool call) and falls back to frames with a
+  notice. A running session is read up to its current end. Nothing is
+  uploaded. See [docs/export.md](docs/export.md).
+- TUI: `:export [sel] [fmt]` writes the session to
+  `~/.local/share/rex/exports/<slug>-<shortid>.<ext>` (0600) in the
+  background and shows the path when done; the board stays responsive.
+- `session_export` in Settings → Features (on). Off, `rex export` exits 5
+  and `:export` answers the usual off message.
+- TUI: a mobile layout for terminals of 60 columns or fewer: two-line rows
+  (name and age, then the text), the short header counts, a three-key help
+  line and no summary preview line. `mobile_layout: auto|always|off`
+  (Settings → Appearance) controls it.
+- TUI: a banner above the agent in the attach popup: what it is doing (the
+  AI description, else the task or the question it asks), where (folder),
+  for how long (working, waiting, ended) and how fresh the description is.
+  With the overview on it also shows what the other sessions need
+  (`elsewhere: 2 to review · 1 needs you`). Long text scrolls as a ticker.
+  `attach_banner` is `marquee` (default), `static` or `off`; `reduce_motion`
+  makes it static, `::banner` hides or shows it for this run, and it gives way
+  below 25 rows. The agent's terminal is one row shorter while it shows.
+  `rex attach` from a shell has no banner.
 - TUI: a Waiting section below Needs you for working sessions that are
   blocked on a shell command, a subagent or a web call, not on you (Claude
   Code). A session moves there after 3 seconds on the call. It has its own
@@ -348,6 +392,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: the attach popup is no longer wider than a narrow terminal (it was
+  clipped below 54 columns), and in the mobile layout (60 columns or fewer)
+  it is a full-screen sheet with no margin or padding.
+- TUI: the help, settings, new-session, stats, overview and failures
+  overlays no longer overflow a narrow terminal (below about 60 columns);
+  wide lines are cut with `…` instead of being clipped by the terminal.
 - TUI: `b` on the wizard's describe step now goes back when the field is
   empty, as the footer says. It used to be typed into the text.
 - `auto_trust_dirs` and the per-session trust request now also refuse a case

@@ -24,8 +24,18 @@ type AttachState struct {
 	Term      vt10x.Terminal
 	Cols      int
 	Rows      int
-	Ended     bool
-	EndedMsg  string
+	// BannerRows is the number of banner rows (0 or 1) between the title bar
+	// and the rule above the agent's screen. Rows already excludes them:
+	// attachPopupInnerSize(w, h, BannerRows) is the one source of geometry.
+	BannerRows int
+	// BannerSince is when the marquee loop last restarted: the popup opened,
+	// or this session's description changed. Zero reads as just now.
+	BannerSince time.Time
+	// resize sends the agent's new size to the daemon. openAttach binds it to
+	// the session's Client; tests replace it with a recorder.
+	resize   func(cols, rows uint16) error
+	Ended    bool
+	EndedMsg string
 
 	// outCh / errCh feed listenAttach. A background pump goroutine pulls
 	// envelopes off the daemon connection so listenAttach can drain multiple
@@ -107,7 +117,9 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		m.Err = "attach: " + err.Error()
 		return m, nil
 	}
-	cols, rows := attachPopupInnerSize(m.Width, m.Height)
+	chrome := attachChromeOf(m)
+	banner := chrome.banner
+	cols, rows := chrome.innerSize(m.Width, m.Height)
 	toolID := ""
 	for _, s := range m.Sessions {
 		if s.ID == sessionID {
@@ -119,7 +131,8 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	// Size the PTY first: the daemon resizes its screen mirror with it, so
 	// the repaint below has the popup's geometry. A real size change also
 	// makes the agent redraw (SIGWINCH).
-	_ = c.Resize(sessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
+	resize := func(cols, rows uint16) error { return c.Resize(sessionID, cols, rows) }
+	_ = resize(uint16(cols), uint16(rows)) //nolint:gosec // G115: attachChrome.innerSize is bounded by the terminal size, far below 65536.
 	// Alt-screen agents skip replay and get a repaint of the daemon's
 	// screen mirror instead; mode sync (for daemons without repaints) tells
 	// our emulator which terminal modes they already switched on.
@@ -158,7 +171,7 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	slog.Info("tui: attach opened", "session", sessionID, "cols", cols, "rows", rows, "mouse", mouse, "mode_sync", true,
 		"repaint", fullScreen, "scrollback_lines", scrollback)
 	st := &AttachState{
-		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows,
+		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows, BannerRows: banner, resize: resize, BannerSince: m.now(),
 		outCh: make(chan AttachOutputMsg, 64),
 		errCh: make(chan AttachClosedMsg, 1),
 	}
@@ -193,42 +206,30 @@ func closeAttach(m Model) Model {
 	return m
 }
 
-func attachPopupInnerSize(termW, termH int) (cols, rows int) {
-	if termW <= 0 {
-		termW = 100
-	}
-	if termH <= 0 {
-		termH = 32
-	}
-	// lipgloss border+padding eats 6 cells horizontally and 4 lines vertically;
-	// renderAttach adds title+hr+hr+footer (4 more lines) on top.
-	popupW := termW - 8
-	popupH := termH - 4
-	cols = popupW - 6
-	rows = popupH - 4 - 4
-	if cols < 40 {
-		cols = 40
-	}
-	if rows < 8 {
-		rows = 8
-	}
-	return cols, rows
+// attachPopupInnerSize returns the agent's terminal size inside the desktop
+// popup (not the mobile sheet; attachChromeOf(m).innerSize picks between
+// them). bannerRows (0 or 1) is the banner row the popup shows above the
+// rule; the agent loses that many rows.
+func attachPopupInnerSize(termW, termH, bannerRows int) (cols, rows int) {
+	return attachChrome{banner: bannerRows}.innerSize(termW, termH)
 }
 
 func resizeAttach(m Model) {
 	if m.Attach == nil {
 		return
 	}
-	cols, rows := attachPopupInnerSize(m.Width, m.Height)
-	if cols == m.Attach.Cols && rows == m.Attach.Rows {
+	chrome := attachChromeOf(m)
+	banner := chrome.banner
+	cols, rows := chrome.innerSize(m.Width, m.Height)
+	if cols == m.Attach.Cols && rows == m.Attach.Rows && banner == m.Attach.BannerRows {
 		return
 	}
-	slog.Info("tui: attach resize", "session", m.Attach.SessionID, "cols", cols, "rows", rows)
-	m.Attach.Cols, m.Attach.Rows = cols, rows
+	slog.Info("tui: attach resize", "session", m.Attach.SessionID, "cols", cols, "rows", rows, "banner", banner)
+	m.Attach.Cols, m.Attach.Rows, m.Attach.BannerRows = cols, rows, banner
 	m.Attach.Term.Resize(cols, rows)
 	// A shrink can push rows into scrollback; keep the offset in range.
 	m.Attach.ScrollOff = min(m.Attach.ScrollOff, m.Attach.sb.Len())
-	_ = m.Attach.Client.Resize(m.Attach.SessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
+	_ = m.Attach.resize(uint16(cols), uint16(rows)) //nolint:gosec // G115: attachChrome.innerSize is bounded by the terminal size, far below 65536.
 }
 
 // pumpAttach is the background reader goroutine. It blocks on the daemon
@@ -442,10 +443,13 @@ func renderAttach(m Model) string {
 	cols, rows := a.Term.Size()
 	cur := a.Term.Cursor()
 	cursorVisible := a.Term.CursorVisible()
-	lines := make([]string, 0, rows+4)
+	lines := make([]string, 0, rows+4+a.BannerRows)
 	// Chrome lines are clipped to the terminal width: a wider line would
 	// widen the popup and shift it off the geometry mouse hit-testing assumes.
 	lines = append(lines, ansi.Truncate(attachTitleBar(m, a, cols), cols, "…"))
+	if a.BannerRows > 0 {
+		lines = append(lines, renderAttachBanner(m, a, cols))
+	}
 	lines = append(lines, styleBorderFg.Render(strings.Repeat("─", cols)))
 	for y := 0; y < rows; y++ {
 		cx := -1

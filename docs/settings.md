@@ -36,6 +36,8 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | `blinking_enabled` | bool | `true` | Completed-row blink |
 | `show_help_bar` | bool | `true` | Bottom help line |
 | `header_style` | enum | `verbose` | `verbose`, `glyphs`, `numbers` |
+| `column_layout` | enum | `fixed` | `fixed`, `fit`. `fixed` gives board columns set widths that change only at width breakpoints (see [tui.md](tui.md#column-widths)); `fit` sizes them to their content |
+| `mobile_layout` | enum | `auto` | `auto`, `always`, `off`. Two-line rows, a compact header and a three-key help line. `auto` uses it at 60 columns or fewer; `always` and `off` force it (see [tui.md](tui.md#mobile-layout)) |
 
 ### Behavior
 
@@ -68,6 +70,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `turn_snapshots` | bool | `false` | Snapshot a session's folder at the start and end of every agent turn into a private store under `~/.local/share/rex/snapshots`, so `rex undo` can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as `.env` unless they are gitignored. Off: no snapshot, no git call, no file written, and `rex undo` / `rex redo` refuse. Read live by the daemon (within about 5 s). See [snapshots](snapshots.md) |
 | `waiting_section` | bool | `true` | A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own `◷` marker and count. Off: those sessions stay in Working, the section, its count and its key go away, and `1` `2` `3` (and `z1`-`z3`) are Needs you / Working / Done again. The daemon still records `waiting_on` / `waiting_since`; the switch is read by the TUI and `rex ls` |
 | `spawn_skills` | bool | `true` | Load skills from `~/.config/rex/skills` into one session: the wizard's skills step and `rex new -skill`. Off: the step is hidden, `-skill` exits 5 (`off: enable in Settings → Features (rex config set spawn_skills true)`), `NewSession` with skills is `bad_intent` `skills are off`, and no `--plugin-dir` is added, also on resume. The daemon reads it at each spawn and `Resume`. See [howto/skills.md](howto/skills.md) |
+| `session_export` | bool | `true` | `rex export` and `:export`: write one session as a json, yaml, md or txt document (the transcript replayed to clean text). Off: both refuse (`off: enable in Settings → Features (rex config set session_export true)`, exit 5 on the CLI). Exports can hold whatever the agent printed. See [export.md](export.md) |
 
 ### Spawn
 
@@ -112,6 +115,7 @@ Symlinks are resolved on both sides, so a link inside a trusted folder that poin
 | `summary_detail` | enum | `medium` | Applies within about 5 s, no daemon restart. `short` (about 8 words, 60 characters), `medium` (about 15 words, 110), `long` (about 28 words, 180). Each step up costs roughly 0.5-1.5 s more per call on a small local model |
 | `desc_animation` | enum | `typewriter` | `typewriter`, `decode`, `wipe`, `off` |
 | `overview_enabled` | bool | `false` | Applies within about 5 s, no daemon restart. Needs `summary_enabled`. The daemon asks the summary model for a one-line headline over the whole board (at most one call every 30 s, only while a rex board is open and something needs you, is ready for review, failed or is running). Off: no call, no goroutine |
+| `attach_banner` | enum | `marquee` | `marquee`, `static`, `off`. One row above the agent in the attach popup (what it is doing, where, for how long). Read when a popup opens and on every resize; the agent's terminal is one row shorter while it shows. Hidden below 25 terminal rows. No Ollama call: built from fields the board already has |
 
 Requires a running Ollama instance when enabled. If `summary_model` is not pulled, the daemon substitutes the first pulled model from that small-model list; it never falls back to an arbitrary (large) model. The board shows the session's task (`title`) until the first summary arrives. See `OLLAMA_HOST` in [paths.md](paths.md). If the configured model is not pulled, the substitute is used and logged; run `ollama pull <model>` to use the configured one. Descriptions are written by the model from what the agent printed: they can be wrong, and an `OLLAMA_HOST` that points off this machine receives that screen text. Descriptions start with a verb ("Editing api/webhooks.go"), never "Claude is…", and a finished session gets one final summary ("Done: …").
 
