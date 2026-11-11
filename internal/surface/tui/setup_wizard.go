@@ -913,15 +913,26 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		// apply settings to store
-		_ = store.Set("color_scheme", colorScheme)
-		_ = store.Set("spinner", spinner)
-		_ = store.Set("row_density", rowDensity)
-		_ = store.Set("sound_enabled", soundEnabled)
-		_ = store.Set("soundset", soundset)
-		// Only on a yes: the store starts at the default, empty (off).
+		// Save is sparse: it writes only the keys set or reset here and keeps
+		// the rest of an existing config.yaml. A value the wizard cannot
+		// produce is reset (key deleted) rather than left at what the file
+		// holds, so an old setting never outlives the answer given here.
+		setOrReset := func(id string, v any) {
+			if err := store.Set(id, v); err != nil {
+				_ = store.Reset(id)
+			}
+		}
+		setOrReset("color_scheme", colorScheme)
+		setOrReset("spinner", spinner)
+		setOrReset("row_density", rowDensity)
+		setOrReset("sound_enabled", soundEnabled)
+		setOrReset("soundset", soundset)
+		// "No, always ask" must delete a previously saved folder list, or
+		// rex would keep auto-trusting after the user said no.
 		if autoTrust != "" {
-			_ = store.Set("auto_trust_dirs", autoTrust)
+			setOrReset("auto_trust_dirs", autoTrust)
+		} else {
+			_ = store.Reset("auto_trust_dirs")
 		}
 
 		// store tool/model/effort as extension keys (not in registry, skip validation)
