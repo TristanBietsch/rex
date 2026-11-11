@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -34,6 +35,10 @@ func validateNewSession(p protocol.NewSession) error {
 	}
 	if strings.TrimSpace(p.CWD) == "" {
 		return fmt.Errorf("cwd required")
+	}
+	// The daemon's own working directory is meaningless to the client.
+	if !filepath.IsAbs(p.CWD) {
+		return fmt.Errorf("cwd must be an absolute path, got %q", p.CWD)
 	}
 	return nil
 }

@@ -119,7 +119,7 @@ rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
            [-slug name] [-cwd dir] [-fleet name] [-no-attach]
 ```
 
-Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. Prompt from arguments or stdin when stdin is not a TTY.
+Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. `-cwd` must be an existing folder (exit 5 otherwise); a relative path is made absolute by the CLI. Prompt from arguments or stdin when stdin is not a TTY.
 
 Prints `short_id` and `slug` tab-separated on success.
 

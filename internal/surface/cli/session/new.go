@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -30,13 +31,11 @@ func RunNew(args []string) error {
 	}
 	_ = noAttach
 
-	if *cwd == "" {
-		wd, err := os.Getwd()
-		if err != nil {
-			return core.NewExitError(core.ExitGeneric, err.Error())
-		}
-		*cwd = wd
+	absCwd, err := resolveNewCwd(*cwd)
+	if err != nil {
+		return err
 	}
+	*cwd = absCwd
 
 	// Prompt = positional args joined, or stdin if not a TTY
 	prompt := strings.Join(rest, " ")
@@ -117,6 +116,31 @@ func RunNew(args []string) error {
 			return core.NewExitError(code, "spawn failed: "+ee.Message)
 		}
 	}
+}
+
+// resolveNewCwd turns -cwd into the absolute path the daemon requires: empty
+// is the working directory, anything else is made absolute here, not against
+// the daemon's own working directory. It must exist and be a folder.
+func resolveNewCwd(cwd string) (string, error) {
+	if cwd == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", core.NewExitError(core.ExitGeneric, err.Error())
+		}
+		return wd, nil
+	}
+	abs, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+": "+err.Error())
+	}
+	fi, err := os.Stat(abs)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+": "+err.Error())
+	}
+	if !fi.IsDir() {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+" is not a folder")
+	}
+	return abs, nil
 }
 
 // uniqueSlug returns base, or base-2, base-3, … — the first not already

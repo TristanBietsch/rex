@@ -74,6 +74,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
 | `effort`, `title`, `initial_prompt`, `fleet` | no |
 
+`cwd` must be an absolute path (`bad_intent` otherwise); the daemon never resolves it against its own working directory.
+
 `slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
 
 ### Resume

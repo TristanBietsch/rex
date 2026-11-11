@@ -185,6 +185,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `rex new -cwd` makes a relative folder absolute and refuses one that
+  does not exist or is not a folder (exit 5). The daemon now rejects a
+  `NewSession` whose `cwd` is not absolute (`bad_intent`) instead of
+  resolving it against its own working directory.
+
 - `rex setup -tool/-model/-effort` now writes `default_spawn_tool`,
   `default_spawn_model` and `default_spawn_effort` (before, they were
   ignored). An unknown tool, model or effort exits 5 and lists the valid
