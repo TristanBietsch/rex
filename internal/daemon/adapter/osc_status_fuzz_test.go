@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"math/rand"
 	"testing"
-
 )
 
 func fuzzOSC(t testing.TB) *OSCStatus {
