@@ -29,7 +29,7 @@ func TestWorker_NoRetryAfterDeadline(t *testing.T) {
 	})
 	w := retryWorker(t, f, 60*time.Millisecond)
 
-	_, err := w.callWithRetry(context.Background(), "p")
+	_, err := w.callWithRetry(context.Background(), CompleteRequest{Prompt: "p"})
 	require.Error(t, err)
 	time.Sleep(400 * time.Millisecond)
 	require.Equal(t, 1, f.count(), "a timed-out attempt is never retried")
@@ -45,7 +45,7 @@ func TestWorker_RetriesTransient500(t *testing.T) {
 	})
 	w := retryWorker(t, f, time.Second)
 
-	got, err := w.callWithRetry(context.Background(), "p")
+	got, err := w.callWithRetry(context.Background(), CompleteRequest{Prompt: "p"})
 	require.NoError(t, err)
 	require.Equal(t, "running tests", got)
 	require.Equal(t, 2, f.count())
@@ -58,7 +58,7 @@ func TestWorker_NoRetryOnClientError(t *testing.T) {
 	})
 	w := retryWorker(t, f, time.Second)
 
-	_, err := w.callWithRetry(context.Background(), "p")
+	_, err := w.callWithRetry(context.Background(), CompleteRequest{Prompt: "p"})
 	require.Error(t, err)
 	require.Equal(t, 1, f.count(), "a 4xx will not get better on retry")
 }
@@ -77,7 +77,7 @@ func TestWorker_RetryGetsFullTimeout(t *testing.T) {
 	})
 	w := retryWorker(t, f, 80*time.Millisecond)
 
-	_, err := w.callWithRetry(context.Background(), "p")
+	_, err := w.callWithRetry(context.Background(), CompleteRequest{Prompt: "p"})
 	require.NoError(t, err)
 	require.Equal(t, 2, f.count())
 }

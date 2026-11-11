@@ -7,19 +7,15 @@ import (
 	"unicode/utf8"
 )
 
-func TestBuildPromptIncludesContext(t *testing.T) {
-	p := buildPrompt("codex", "payment-migration", "port billing to the new processor", "running pnpm test:billing\n")
-	for _, s := range []string{"codex", "port billing to the new processor", "running pnpm test:billing"} {
-		if !contains(p, s) {
-			t.Fatalf("prompt missing %q. full:\n%s", s, p)
-		}
+func TestBuildPrompt_ActivityIncludesContext(t *testing.T) {
+	p, err := BuildPrompt(KindActivity, Input{Tool: "codex", Task: "port billing to the new processor", Text: "running pnpm test:billing\n"}, DetailMedium)
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestBuildPromptFallsBackToSlugWithoutTask(t *testing.T) {
-	p := buildPrompt("codex", "payment-migration", "", "x")
-	if !contains(p, "payment-migration") {
-		t.Fatalf("prompt missing slug fallback:\n%s", p)
+	for _, s := range []string{"port billing to the new processor", "running pnpm test:billing"} {
+		if !contains(p.User, s) {
+			t.Fatalf("prompt missing %q. full:\n%s", s, p.User)
+		}
 	}
 }
 

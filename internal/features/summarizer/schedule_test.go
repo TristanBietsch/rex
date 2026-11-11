@@ -249,7 +249,7 @@ func TestWorker_SharedSlotSerializesCalls(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := w.callWithRetry(context.Background(), "p")
+			_, err := w.callWithRetry(context.Background(), CompleteRequest{Prompt: "p"})
 			require.NoError(t, err)
 		}()
 	}

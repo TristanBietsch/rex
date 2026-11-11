@@ -27,6 +27,7 @@ type Worker struct {
 	transcript TranscriptReader
 
 	retryDelay time.Duration // pause before the one transient retry
+	detail     atomic.Int32  // a Detail; the zero value is DetailShort, so New stores medium
 
 	ch   chan string
 	wake chan struct{} // capacity 1: nudges the scheduler loop
@@ -103,8 +104,12 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		perSess:    make(map[string]*sessionMeta),
 	}
 	w.available.Store(1)
+	w.detail.Store(int32(DetailMedium))
 	return w
 }
+
+// Detail returns the current description detail level.
+func (w *Worker) Detail() Detail { return Detail(w.detail.Load()) }
 
 // Channel returns the send-side of the request channel.
 func (w *Worker) Channel() chan<- string { return w.ch }
@@ -195,10 +200,20 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		slog.Debug("summarizer: skipped_empty_screen", "session", id)
 		return
 	}
-	prompt := buildPrompt(snap.ToolID, snap.Slug, snap.Title, string(tail))
+	task := snap.Title
+	if task == "" {
+		task = snap.Slug
+	}
+	prompt, err := BuildPrompt(KindActivity, Input{Tool: snap.ToolID, Task: task, State: snap.State, Text: string(tail)}, w.Detail())
+	if err != nil {
+		slog.Warn("summarizer: build prompt failed", "session", id, "err", err)
+		return
+	}
 
 	h := fnv.New64a()
-	_, _ = h.Write([]byte(prompt))
+	_, _ = h.Write([]byte(prompt.System))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(prompt.User))
 	hash := h.Sum64()
 
 	w.mu.Lock()
@@ -220,7 +235,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		"wait_ms", time.Since(req.since).Milliseconds(), "queue_len", queueLen, "model", w.Model())
 	start := time.Now()
 
-	resp, err := w.callWithRetry(ctx, prompt)
+	resp, err := w.complete(ctx, prompt)
 	elapsed := time.Since(start)
 	if err != nil {
 		w.failures.Add(1)
@@ -240,7 +255,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		slog.Info("summarizer: slow_call", "session", id, "duration_ms", elapsed.Milliseconds())
 	}
 
-	cleaned := Clean(resp, maxDescription, snap.ToolID)
+	cleaned := Clean(resp, prompt.MaxRunes, snap.ToolID)
 	slog.Debug("summarizer: response", "session", id, "duration_ms", elapsed.Milliseconds(), "chars_out", len([]rune(cleaned)))
 	if cleaned == "" {
 		return
@@ -258,8 +273,8 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 // callWithRetry makes one attempt, and a second after retryDelay only when
 // the first failed transiently and ctx is still live. Each attempt has its
 // own RequestTimeout, and holds the Ollama slot only while it runs.
-func (w *Worker) callWithRetry(ctx context.Context, prompt string) (string, error) {
-	resp, err := w.attempt(ctx, prompt)
+func (w *Worker) callWithRetry(ctx context.Context, cr CompleteRequest) (string, error) {
+	resp, err := w.attempt(ctx, cr)
 	if err == nil || !transient(err) || ctx.Err() != nil {
 		return resp, err
 	}
@@ -268,10 +283,10 @@ func (w *Worker) callWithRetry(ctx context.Context, prompt string) (string, erro
 		return "", err
 	case <-time.After(w.retryDelay):
 	}
-	return w.attempt(ctx, prompt)
+	return w.attempt(ctx, cr)
 }
 
-func (w *Worker) attempt(ctx context.Context, prompt string) (string, error) {
+func (w *Worker) attempt(ctx context.Context, cr CompleteRequest) (string, error) {
 	release, err := w.acquireSlot(ctx)
 	if err != nil {
 		return "", err
@@ -279,5 +294,5 @@ func (w *Worker) attempt(ctx context.Context, prompt string) (string, error) {
 	defer release()
 	actx, cancel := context.WithTimeout(ctx, w.cfg.RequestTimeout)
 	defer cancel()
-	return w.client.Generate(actx, prompt)
+	return w.client.Complete(actx, cr)
 }
