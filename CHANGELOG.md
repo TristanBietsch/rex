@@ -197,6 +197,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `rex digest`, `rex stats` and `rex fleet` take `-o`/`--agent`; `rex log`
+  and `rex render` take `-o` for text and txt (md and json exit 5). Piped
+  `digest` and `stats` output (`txt`) no longer has the banner and rule:
+  label and value lines under `# Section` headings. `-json` keeps its
+  shape; `-o json` is the same data in the versioned envelope with integer
+  millisecond durations. Digest errors name `-date`/`-since` (single dash).
 - The session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`,
   `done`, `undone`, `archive`, `complete`, `rm`, `prune`) take `-o`,
   `--agent` and `--no-color`: `text` prints a `✓` line, `json` the result as

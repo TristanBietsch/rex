@@ -28,7 +28,7 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 			if b.Kind == "" {
 				continue
 			}
-			tables = true
+			tables = tables || !b.NoCount
 			idx := visibleCols(b.Cols, FormatAgent)
 			for _, row := range b.Rows {
 				fields := make([]Field, 0, len(idx))
@@ -36,7 +36,9 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 					fields = append(fields, Field{b.Cols[i].Key, cellValue(row[i])})
 				}
 				lines = append(lines, EncodeLine(b.Kind, fields...))
-				count++
+				if !b.NoCount {
+					count++
+				}
 			}
 		case KV:
 			pairs := b.pairs(FormatAgent)

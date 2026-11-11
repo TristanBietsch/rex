@@ -112,7 +112,7 @@ func emitPruneDryRun(p *core.Printer, targets []protocol.SessionSummary, kept in
 		rows[i] = pruneRow{ID: s.ID, ShortID: s.ShortID, Slug: s.Slug, State: s.State}
 		cells[i] = []core.Cell{
 			{Text: s.ShortID}, {Text: s.Slug},
-			{Text: stateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: stateTone(s.State)},
+			{Text: core.StateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: core.StateTone(s.State)},
 		}
 	}
 	foot := fmt.Sprintf("would clear %d%s", len(targets), note)

@@ -68,7 +68,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status`, the session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`, `done`, `undone`, `archive`, `resume`, `complete`, `rm`, `prune`), `rex help`, `rex agent-help` and `rex completion` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status`, `rex digest`, `rex stats`, `rex fleet`, `rex log`, `rex render`, the session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`, `done`, `undone`, `archive`, `resume`, `complete`, `rm`, `prune`), `rex help`, `rex agent-help` and `rex completion` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -401,8 +401,10 @@ rex uninstall [-yes|-y] [-binaries] [-wipe-state] [-purge-config]
 Daily session summary.
 
 ```sh
-rex digest [-socket path] [-date YYYY-MM-DD] [-since duration] [-json]
+rex digest [-socket path] [-date YYYY-MM-DD] [-since duration] [-o FORMAT] [--agent] [-json]
 ```
+
+Shows totals, a by-tool and by-model breakdown and the sessions of the window. With the daemon down it reads the on-disk snapshot and says so: a note in `text`/`txt`/`md`, `"meta":{"source":"disk"}` in `json`, `source=disk` on the `agent` trailer. `-o json` gives `{"v":1,"cmd":"digest","data":{"date","totals","by_tool","by_model","sessions"}}` with durations as integer milliseconds (`active_ms`); `agent` gives `tool`, `model` and `session` lines then `ok cmd=digest count=N date=… sessions=… active_s=…`. `-json` is the legacy indented document with string durations. `txt` (a pipe) has no banner: `label  value` lines and `# By tool` style sections.
 
 ---
 
@@ -411,19 +413,23 @@ rex digest [-socket path] [-date YYYY-MM-DD] [-since duration] [-json]
 Lifetime usage.
 
 ```sh
-rex stats [-socket path] [-json] [-all]
+rex stats [-socket path] [-o FORMAT] [--agent] [-json] [-all]
 ```
+
+`-o json` is the legacy `-json` document in the versioned envelope (`by_model`, `by_tool`, `totals`; `duration_ms`). `agent` gives `model` and `tool` lines then `ok cmd=stats sessions=… done=… failed=… other=…`. `txt` has no banner.
 
 ---
 
 ## rex fleet
 
 ```sh
-rex fleet ls [-socket path]
+rex fleet ls [-socket path] [-o FORMAT] [--agent]
 rex fleet set <sel> <fleet>
 rex fleet unset <sel>
 rex fleet show <fleet>
 ```
+
+`ls` lists fleets with session counts (`agent`: `fleet fleet=… sessions=N` lines); `show` prints the same session table as `rex ls`; `set` and `unset` report the change like the other actions.
 
 ---
 
@@ -434,6 +440,8 @@ Print a static board view (no TUI).
 ```sh
 rex render [-socket path] [-w cols] [-h rows]
 ```
+
+`render` and `log` print content: `-o text` and `txt` (and `agent`, which behaves like `txt`) work; `md` and `json` exit 5.
 
 No daemon or a failed handshake exits **4**.
 

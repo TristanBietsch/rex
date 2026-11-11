@@ -131,3 +131,31 @@ func loadAppearance() (scheme, spinner string) {
 	spinner, _ = store.Get("spinner").(string)
 	return scheme, spinner
 }
+
+// StateLabel is the human name of a session state ("needs you" for
+// needs_input).
+func StateLabel(s protocol.State) string {
+	if s == protocol.StateNeedsInput {
+		return "needs you"
+	}
+	return string(s)
+}
+
+// StateTone is the tone a session state is colored with.
+func StateTone(s protocol.State) Tone {
+	switch s {
+	case protocol.StateNeedsInput:
+		return ToneNeeds
+	case protocol.StateWorking:
+		return ToneWorking
+	case protocol.StateQueued:
+		return ToneQueued
+	case protocol.StateDone:
+		return ToneDone
+	case protocol.StateFailed:
+		return ToneFailed
+	case protocol.StateCrashed:
+		return ToneCrashed
+	}
+	return ToneNone
+}

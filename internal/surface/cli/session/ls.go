@@ -100,30 +100,10 @@ func rfc3339(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-// stateLabel is the human name of a session state.
-func stateLabel(s protocol.State) string {
-	if s == protocol.StateNeedsInput {
-		return "needs you"
-	}
-	return string(s)
-}
-
-func stateTone(s protocol.State) core.Tone {
-	switch s {
-	case protocol.StateNeedsInput:
-		return core.ToneNeeds
-	case protocol.StateWorking:
-		return core.ToneWorking
-	case protocol.StateQueued:
-		return core.ToneQueued
-	case protocol.StateDone:
-		return core.ToneDone
-	case protocol.StateFailed:
-		return core.ToneFailed
-	case protocol.StateCrashed:
-		return core.ToneCrashed
-	}
-	return core.ToneNone
+// SessionsView is the session table of rex ls, for the other commands that
+// list sessions (rex fleet show).
+func SessionsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) core.View {
+	return lsView(sessions, now, g, lsOpts{})
 }
 
 // lsView builds the session list. The txt columns reproduce `rex ls` as it
@@ -187,11 +167,11 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 		if !s.LastEventAt.IsZero() {
 			idleS = int(now.Sub(s.LastEventAt).Seconds())
 		}
-		tone := stateTone(s.State)
+		tone := core.StateTone(s.State)
 		cells := []core.Cell{
 			{Text: g.State[s.State], Tone: tone},
 			{Text: s.ShortID},
-			{Text: stateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: tone},
+			{Text: core.StateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: tone},
 			{Text: s.ToolID},
 			{Text: model},
 			{Text: s.ModelID},

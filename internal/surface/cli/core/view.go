@@ -146,6 +146,9 @@ type Table struct {
 	Rows [][]Cell
 	// Empty is shown instead of the table when there are no rows.
 	Empty string
+	// NoCount keeps the table's rows out of the agent trailer's count (a
+	// breakdown next to the main list).
+	NoCount bool
 	// TxtRecords prints the txt format as tab-separated rows with no header
 	// and no padding, the shape `prune -dry-run` has always had.
 	TxtRecords bool
