@@ -95,6 +95,8 @@ Claude Code asks "Is this a project you created or one you trust?" the first tim
 rex config set auto_trust_dirs "~/Documents/dev"
 ```
 
+`rex setup` asks the same question once, with **no** as the default answer. It suggests the folder that holds the project you run it from (only when that folder is inside your home folder, never the home folder itself); you can accept it, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
+
 The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
 
 - a filesystem root (`/`) or your home folder itself (`~`, `~/`);

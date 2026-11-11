@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
@@ -27,12 +28,22 @@ func RunSetup(args []string) error {
 	model := fs.String("model", "", "override default model id")
 	effort := fs.String("effort", "", "override default effort")
 	noShell := fs.Bool("no-shell", false, "skip shell integration")
+	autoTrust := fs.String("auto-trust", "",
+		"folders where agents skip the folder trust prompt (only folders whose code you trust)")
 	configPath := fs.String("config", "", "path to config.yaml (default ~/.config/rex/config.yaml)")
 	socketFlag := core.AddSocketFlag(fs)
 	force := fs.Bool("force", false, "overwrite existing config without prompting")
 
 	if err := fs.Parse(args); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	}
+	// Refuse what the daemon would ignore, before anything runs or is written.
+	if *autoTrust != "" {
+		v, err := settings.CheckAutoTrustDirs(*autoTrust)
+		if err != nil {
+			return core.NewExitError(core.ExitInvalidArgs, "-auto-trust: "+err.Error())
+		}
+		*autoTrust = v
 	}
 
 	// -y is an alias
@@ -61,10 +72,10 @@ func RunSetup(args []string) error {
 	slog.Info("setup: started",
 		"preview", *preview, "yes", doYes,
 		"tool", *tool, "model", *model, "effort", *effort,
-		"no_shell", *noShell, "config", *configPath, "socket", socket)
+		"no_shell", *noShell, "auto_trust", *autoTrust, "config", *configPath, "socket", socket)
 
 	if *preview {
-		printPreview(*configPath, socket, *tool, *model, *effort, *noShell)
+		printPreview(*configPath, socket, *tool, *model, *effort, *autoTrust, *noShell)
 		return nil
 	}
 
@@ -76,10 +87,10 @@ func RunSetup(args []string) error {
 					fmt.Sprintf("config already exists at %s — rerun with --force to overwrite", *configPath))
 			}
 		}
-		return tui.ApplyDefaultsNonInteractive(*configPath, socket, *tool, *model, *effort, *noShell)
+		return tui.ApplyDefaultsNonInteractive(*configPath, socket, *tool, *model, *effort, *autoTrust, *noShell)
 	}
 
-	return tui.RunSetupWizard(*configPath, socket)
+	return tui.RunSetupWizard(*configPath, socket, *autoTrust)
 }
 
 // ── Preview renderer (cli-side, uses cli lipgloss palette) ───────────────────
@@ -93,7 +104,7 @@ var (
 	setupHR      = lipgloss.NewStyle().Foreground(lipgloss.Color("#262A36"))
 )
 
-func printPreview(configPath, socket, toolID, modelID, effortVal string, noShell bool) {
+func printPreview(configPath, socket, toolID, modelID, effortVal, autoTrust string, noShell bool) {
 	slog.Info("setup: preview mode", "config_path", configPath)
 
 	fmt.Println()
@@ -105,6 +116,9 @@ func printPreview(configPath, socket, toolID, modelID, effortVal string, noShell
 	fmt.Println()
 	fmt.Println("  " + setupAccent.Render("▸") + " " + setupCmd.Render(configPath))
 	fmt.Println("    " + setupDim.Render("config.yaml — written via settings.Store.Save() (atomic temp+rename)"))
+	if autoTrust != "" {
+		fmt.Println("    " + setupDim.Render("auto_trust_dirs: ") + setupCmd.Render(autoTrust))
+	}
 	fmt.Println()
 
 	if !noShell {

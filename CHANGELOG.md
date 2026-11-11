@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex setup` asks whether agents may skip the folder trust prompt in a
+  folder (default no; it suggests the folder that holds the current
+  project), and `rex setup -auto-trust folders` sets it without the
+  question. Both write `auto_trust_dirs` and refuse the values the daemon
+  ignores (a filesystem root, the home folder, relative paths, `..`), so
+  setup and the daemon share one set of checks. An `auto_trust_dirs` entry
+  such as `~/a/../b` is now ignored like any other path with `..`.
 - TUI: a Claude Code session running subagents shows how many in its row
   (`⋔3`). The daemon tracks them with Claude's `SubagentStart` and
   `SubagentStop` hooks; the wire gains an optional `subagents` field.
