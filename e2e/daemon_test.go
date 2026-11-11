@@ -20,7 +20,11 @@ import (
 
 const (
 	// socketWait bounds how long daemon-start waits for the socket to accept.
-	socketWait = 10 * time.Second
+	// It is generous because many scripts start daemons in parallel; override
+	// it with REX_E2E_SOCKET_WAIT (a Go duration, e.g. 60s).
+	socketWait = 30 * time.Second
+	// logTail caps how much of the daemon's output a timeout reports.
+	logTail = 4096
 	// stopWait bounds how long daemon-stop and cleanup wait after SIGTERM
 	// before falling back to SIGKILL.
 	stopWait = 10 * time.Second
@@ -97,7 +101,15 @@ func cmdDaemonStart(ts *testscript.TestScript, neg bool, args []string) {
 	// calls daemon-stop. It only ever signals this PID.
 	h.daemon = d
 
-	deadline := time.Now().Add(socketWait)
+	wait := socketWait
+	if v := os.Getenv("REX_E2E_SOCKET_WAIT"); v != "" {
+		wait, err = time.ParseDuration(v)
+		if err != nil || wait <= 0 {
+			ts.Fatalf("daemon-start: invalid REX_E2E_SOCKET_WAIT %q: want a positive duration", v)
+		}
+	}
+	deadline := time.Now().Add(wait)
+	backoff := 5 * time.Millisecond
 	for !dialable(h.socket) {
 		select {
 		case <-d.done:
@@ -105,9 +117,16 @@ func cmdDaemonStart(ts *testscript.TestScript, neg bool, args []string) {
 		default:
 		}
 		if time.Now().After(deadline) {
-			ts.Fatalf("daemon-start: socket %s not dialable after %s:\n%s", h.socket, socketWait, ts.ReadFile(stderrPath))
+			out := ts.ReadFile(stderrPath)
+			if len(out) > logTail {
+				out = "...\n" + out[len(out)-logTail:]
+			}
+			ts.Fatalf("daemon-start: socket %s not dialable after %s (pid %d still running); daemon output tail:\n%s", h.socket, wait, cmd.Process.Pid, out)
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(backoff)
+		if backoff *= 2; backoff > 200*time.Millisecond {
+			backoff = 200 * time.Millisecond
+		}
 	}
 	ts.Logf("daemon-start: rex-daemon pid %d on %s", cmd.Process.Pid, h.socket)
 }
