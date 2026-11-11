@@ -694,14 +694,21 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		b.WriteString(gap + longRunCell(now, s, c.run))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
-	row := b.String()
+	return blinkRow(m, s.ID, b.String())
+}
 
-	if blinkEnabled(m) {
-		if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
-			if time.Now().UnixMilli()/200%2 == 0 {
-				row = lipgloss.NewStyle().Foreground(colorDone).Render(row)
-			}
-		}
+// blinkNow is the blink clock; tests pin it.
+var blinkNow = time.Now
+
+// blinkRow flashes a just-completed row green on every other 200 ms while
+// its BlinkUntil lasts. A stacked row applies it to both lines.
+func blinkRow(m Model, id, row string) string {
+	if !blinkEnabled(m) {
+		return row
+	}
+	now := blinkNow()
+	if until, ok := m.BlinkUntil[id]; ok && now.Before(until) && now.UnixMilli()/200%2 == 0 {
+		return lipgloss.NewStyle().Foreground(colorDone).Render(row)
 	}
 	return row
 }

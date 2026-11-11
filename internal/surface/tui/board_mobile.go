@@ -42,5 +42,5 @@ func renderRowStacked(m Model, s protocol.SessionSummary, width int) (nameLine, 
 	text := lipgloss.NewStyle().Foreground(rowDescColor(m, s, selected)).Width(textW).
 		Render(truncateWords(rowDescText(m, s, textW, waiting), textW))
 	textLine = strings.Repeat(" ", mobileTextIndent) + text
-	return nameLine, textLine
+	return blinkRow(m, s.ID, nameLine), blinkRow(m, s.ID, textLine)
 }
