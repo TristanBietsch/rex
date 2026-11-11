@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: board columns have fixed widths by default and change only when the
+  terminal crosses a width breakpoint (150 and 110 columns). The subagent,
+  badge, tokens, span and resume columns are always reserved, so nothing
+  shifts when a row changes. Below 110 columns the detailed view shows the
+  same columns as the simple one. `column_layout: fit` (Settings →
+  Appearance) brings back content-sized columns.
 - TUI: one space between an icon and the number after it, so the board is
   less crowded: the subagent count (`⋔ 3`), the long-running badge
   (`▴ 42m`) and the `glyphs` header style (`◆ 4  ◷ 1  ⟳ 2  ● 7`, `✕ 2`).
@@ -38,6 +44,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   background and shows the path when done; the board stays responsive.
 - `session_export` in Settings → Features (on). Off, `rex export` exits 5
   and `:export` answers the usual off message.
+- TUI: a mobile layout for terminals of 60 columns or fewer: two-line rows
+  (name and age, then the text), the short header counts, a three-key help
+  line and no summary preview line. `mobile_layout: auto|always|off`
+  (Settings → Appearance) controls it.
 - TUI: a banner above the agent in the attach popup: what it is doing (the
   AI description, else the task or the question it asks), where (folder),
   for how long (working, waiting, ended) and how fresh the description is.
@@ -355,6 +365,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: the attach popup is no longer wider than a narrow terminal (it was
+  clipped below 54 columns), and in the mobile layout (60 columns or fewer)
+  it is a full-screen sheet with no margin or padding.
+- TUI: the help, settings, new-session, stats, overview and failures
+  overlays no longer overflow a narrow terminal (below about 60 columns);
+  wide lines are cut with `…` instead of being clipped by the terminal.
 - TUI: `b` on the wizard's describe step now goes back when the field is
   empty, as the footer says. It used to be typed into the text.
 - `auto_trust_dirs` and the per-session trust request now also refuse a case

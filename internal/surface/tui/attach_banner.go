@@ -68,10 +68,16 @@ func bannerModeOf(m Model) string {
 // only input to the agent's size besides the terminal: openAttach and
 // resizeAttach both call it.
 func attachBannerRows(m Model) int {
+	return attachBannerRowsFor(m, attachChrome{sheet: mobileLayout(m)})
+}
+
+// attachBannerRowsFor is attachBannerRows for a frame: the banner needs room
+// for the agent's minimum rows beside it.
+func attachBannerRowsFor(m Model, c attachChrome) int {
 	if bannerModeOf(m) == bannerOff || m.bannerHidden {
 		return 0
 	}
-	if _, rows := attachPopupInnerSize(m.Width, m.Height, 0); rows < bannerMinAgentRows+1 {
+	if _, rows := c.withBanner(0).innerSize(m.Width, m.Height); rows < bannerMinAgentRows+1 {
 		return 0
 	}
 	return 1

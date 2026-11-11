@@ -27,12 +27,13 @@ func renderHeader(m Model, width int) string {
 
 	logo := styleHeaderApp.Render("∴ REX")
 	counts := renderHeaderCounts(m, cols[groupNeeds], cols[groupWaiting], cols[groupWorking], cols[groupDone], failed)
-	if marked > 0 && m.Detailed { // marked rows already count as done
+	mobile := mobileLayout(m)
+	if marked > 0 && m.Detailed && !mobile { // marked rows already count as done
 		counts += styleDim.Render(fmt.Sprintf("  · %d marked done", marked))
 	}
 	topRow := "  " + logo + counts
 
-	if m.Detailed {
+	if m.Detailed && !mobile {
 		topRow += styleDim.Render("  · detailed (v)")
 	}
 	out := padLine(topRow, width)
@@ -64,9 +65,11 @@ func renderHeader(m Model, width int) string {
 				model = v
 			}
 		}
-		banner := styleDim.Render(
-			"  summary backend: " + reason + " — install: https://ollama.com  ·  pull: ollama pull " + model,
-		)
+		text := "  summary backend: " + reason + " — install: https://ollama.com  ·  pull: ollama pull " + model
+		if mobile {
+			text = "  summary backend: " + reason
+		}
+		banner := styleDim.Render(text)
 		out += "\n" + padLine(banner, width)
 	}
 
@@ -161,6 +164,9 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 		if v, _ := m.Store.Get("header_style").(string); v != "" {
 			style = v
 		}
+	}
+	if mobileLayout(m) {
+		style = "glyphs" // the short counts: the verbose ones are 45 columns
 	}
 	var s string
 	switch style {
