@@ -48,11 +48,11 @@ Exit **2** if no match. Exit **3** if multiple match: a slug shared by several s
 | 2 | Selector not found |
 | 3 | Ambiguous selector |
 | 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
-| 5 | Invalid arguments |
-| 6 | Operation refused |
+| 5 | Invalid arguments: a bad flag or value, a missing argument, or an unknown command |
+| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined confirmation |
 | 7 | `rex wait` timed out |
 
-Unknown commands print to stderr and exit **1**.
+An unknown command exits **5** and, when a real command is within two edits, names it: `unknown command "lss"; did you mean "ls"?`. A session removed while `rex wait` runs exits **2**.
 
 ---
 
@@ -102,7 +102,7 @@ List sessions.
 rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-short] [-o FORMAT] [--agent] [-json]
 ```
 
-`-show-archived` and `-short` are accepted but have no effect today.
+`-show-archived` and `-short` are deprecated: they are accepted but have no effect.
 
 The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 
@@ -114,7 +114,7 @@ Spawn a session.
 
 ```sh
 rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
-           [-slug name] [-cwd dir] [-fleet name] [-no-attach]
+           [-slug name] [-cwd dir] [-fleet name] [-wait duration] [-no-attach]
 ```
 
 Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. `-cwd` must be an existing folder (exit 5 otherwise); a relative path is made absolute by the CLI. Prompt from arguments or stdin when stdin is not a TTY.
@@ -123,7 +123,9 @@ Prints `short_id` and `slug` tab-separated on success.
 
 Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
 
-`-no-attach` is accepted but has no effect.
+`-wait` (default `5s`) is how long to wait for the daemon to confirm the spawn. If it does not, `rex new` exits 1 with `daemon did not confirm the spawn within 5s; check \`rex ls\``: the session may still appear.
+
+`-no-attach` is deprecated: it is accepted but has no effect.
 
 ---
 
@@ -149,7 +151,7 @@ Send text to a session, then press Enter (`\r`, sent as a separate write so full
 rex reply <sel> [text] [-socket path] [-raw]
 ```
 
-Text from argument or stdin. `-raw` sends the bytes as-is, without pressing Enter.
+Text from arguments or stdin. With no text and a terminal on stdin it exits 5 instead of waiting for end-of-file. `-raw` sends the bytes as-is, without pressing Enter.
 
 ---
 
@@ -170,10 +172,10 @@ Reads stdin until EOF. No positional text argument.
 Read transcript file.
 
 ```sh
-rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes N]
+rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes]
 ```
 
-`-f` follows the file. Default state dir: `~/.local/share/rex`.
+`-f` follows the file. `-n` shows only the last N lines (`0`, the default, shows all; a negative number exits 5). `-bytes` is a switch that prints the raw bytes, including ANSI sequences, instead of stripping them. Default state dir: `~/.local/share/rex`.
 
 ---
 
@@ -437,4 +439,4 @@ See [paths.md](paths.md).
 
 ## BUGS
 
-`rex ls -short` and `rex new -no-attach` are no-ops.
+`rex ls -short`, `rex ls -show-archived` and `rex new -no-attach` are deprecated no-ops.
