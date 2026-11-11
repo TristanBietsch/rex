@@ -129,7 +129,7 @@ func TestBoardRendersDescriptionAnimating(t *testing.T) {
 	}
 }
 
-func TestBoardSnapshot_FailedAndCrashedRenderUnderCompleted(t *testing.T) {
+func TestBoardSnapshot_FailedAndCrashedRenderUnderDone(t *testing.T) {
 	now := time.Now()
 	sessions := []protocol.SessionSummary{
 		{ID: "w1", ShortID: "w1", ToolID: "claude", ModelID: "opus",
@@ -146,7 +146,7 @@ func TestBoardSnapshot_FailedAndCrashedRenderUnderCompleted(t *testing.T) {
 		Width: 120, Height: 30, Focus: FocusBoard,
 	}
 	out := m.View()
-	require.Contains(t, out, "Completed", "Completed header should render")
+	require.Contains(t, out, "DONE", "Done header should render")
 	require.Contains(t, out, "done-one", "done sessions should be visible")
 	require.Contains(t, out, "failed-one", "failed sessions should appear under Completed")
 	require.Contains(t, out, "crashed-one", "crashed sessions should appear under Completed")

@@ -40,6 +40,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: a simpler board. Rows show state, name, the task (or the agent's
+  question when it is waiting on you) and age; `v` brings back the id,
+  model, tokens and AI summary. Columns are NEEDS YOU / WORKING / DONE
+  with counts, the header reads `N need you · N working · N done`, and
+  the help bar lists five keys (`enter open · i new · cc done · tab next
+  · ? more`). `tab` jumps to the next session that needs you. The tool
+  filter row only shows when sessions use more than one tool. A Done
+  column longer than 5 rows folds into its title (`3` shows it). No
+  existing key changed.
 - Lint: gosec, errorlint, exhaustive, gocritic, noctx, contextcheck,
   nilerr, bodyclose, copyloopvar and durationcheck are enabled. gosec's
   directory and file permission checks (G301, G302, G306) are enforced:

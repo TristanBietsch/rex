@@ -45,10 +45,16 @@ type Model struct {
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string
 	Filter            string
-	PromptText        string
-	CmdText           string
-	PendingChord      string
-	Err               string
+	// Detailed shows the short id, model · effort and token columns and the
+	// AI description (v toggles). The simple view shows the task.
+	Detailed bool
+	// DoneExpanded shows every Done row; a long Done column otherwise folds
+	// into its title line (3 toggles).
+	DoneExpanded bool
+	PromptText   string
+	CmdText      string
+	PendingChord string
+	Err          string
 	// Notice is a transient, non-error status line message (cleared on the
 	// next board key).
 	Notice      string

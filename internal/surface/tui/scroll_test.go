@@ -68,6 +68,7 @@ func TestScroll_JumpToLastWithBanner(t *testing.T) {
 // selection off-screen.
 func TestScroll_SelectionFollowsStateChange(t *testing.T) {
 	m := scrollModel(t, 30, "normal", 20)
+	m.DoneExpanded = true // the moved row stays on the board
 	rows := orderedSessions(m)
 	m.SelectedID = rows[0].ID // top of Needs input
 	m = ensureVisible(m)

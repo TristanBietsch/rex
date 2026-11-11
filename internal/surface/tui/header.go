@@ -13,7 +13,7 @@ import (
 func renderHeader(m Model, width int) string {
 	var working, needsInput, done, failed, crashed int
 	for _, s := range m.Sessions {
-		if isMarkedDone(s) { // lives in Completed whatever its state
+		if isMarkedDone(s) { // lives in Done whatever its state
 			done++
 			continue
 		}
@@ -40,15 +40,18 @@ func renderHeader(m Model, width int) string {
 
 	logo := styleHeaderApp.Render("∴ REX")
 	counts := renderHeaderCounts(m, needsInput, working, done, failed+crashed)
-	if marked > 0 {
+	if marked > 0 && m.Detailed { // marked rows already count as done
 		counts += styleDim.Render(fmt.Sprintf("  · %d marked done", marked))
 	}
 	topRow := "  " + logo + counts
 
-	chips := renderFilterChips(m)
-	chipRow := padLine("  "+chips, width)
-
-	out := padLine(topRow, width) + "\n" + chipRow
+	if m.Detailed {
+		topRow += styleDim.Render("  · detailed (v)")
+	}
+	out := padLine(topRow, width)
+	if showFilterChips(m) {
+		out += "\n" + padLine("  "+renderFilterChips(m), width)
+	}
 
 	if m.BackendUnavailable {
 		reason := protocol.FlattenDisplayText(m.BackendUnavailableReason) // daemon-supplied
@@ -70,8 +73,25 @@ func renderHeader(m Model, width int) string {
 	return out
 }
 
+// showFilterChips reports whether the tool filter row is worth a line: some
+// filter is active, or sessions run more than one tool.
+func showFilterChips(m Model) bool {
+	if m.Filter != "" && m.Filter != "all" {
+		return true
+	}
+	first := ""
+	for _, s := range m.Sessions {
+		if first == "" {
+			first = s.ToolID
+		} else if s.ToolID != first {
+			return true
+		}
+	}
+	return false
+}
+
 // renderHeaderCounts formats the counts segment of the header per header_style.
-// verbose: "  4 awaiting input · 2 working · 7 completed"
+// verbose: "  4 need you · 2 working · 7 done"
 // glyphs:  "  ◆4 ⟳2 ●7"
 // numbers: "  4·2·7"
 func renderHeaderCounts(m Model, needs, working, done, failed int) string {
@@ -88,7 +108,7 @@ func renderHeaderCounts(m Model, needs, working, done, failed int) string {
 	case "numbers":
 		s = fmt.Sprintf("    %d · %d · %d", needs, working, done)
 	default:
-		s = fmt.Sprintf("    %d awaiting input · %d working · %d completed", needs, working, done)
+		s = fmt.Sprintf("    %d need you · %d working · %d done", needs, working, done)
 	}
 	out := styleHeaderMeta.Render(s)
 	if failed > 0 {

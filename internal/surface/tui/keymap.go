@@ -4,15 +4,77 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// orderedSessions returns sessions in display order: Needs input → Working → Completed.
-// Filter is applied within each group. All terminal states (done/failed/crashed)
-// are included so j/k navigation matches what the user sees on the board.
+// orderedSessions returns the rows the board shows, in display order: Needs
+// you → Working → Done. Filter is applied within each group, and a collapsed
+// Done column contributes nothing, so j/k navigation matches the board.
 func orderedSessions(m Model) []protocol.SessionSummary {
 	out := make([]protocol.SessionSummary, 0, len(m.Sessions))
-	for _, g := range boardGroups {
-		out = append(out, filterByGroup(m.Sessions, g, m.Filter)...)
+	for gi := range boardGroups {
+		out = append(out, visibleRows(m, gi)...)
 	}
 	return out
+}
+
+// nextNeedsYou selects the next session waiting for input after the current
+// selection, wrapping around (tab).
+func nextNeedsYou(m Model) Model {
+	rows := visibleRows(m, groupNeeds)
+	if len(rows) == 0 {
+		m.Notice = "nothing needs you"
+		return m
+	}
+	next := 0
+	for i, s := range rows {
+		if s.ID == m.SelectedID {
+			next = (i + 1) % len(rows)
+			break
+		}
+	}
+	m.SelectedID = rows[next].ID
+	return ensureVisible(m)
+}
+
+// toggleDone handles 3: a long Done column folds and unfolds; a short one
+// just gets the selection.
+func toggleDone(m Model) Model {
+	if len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) <= doneCollapseAt {
+		return jumpToSection(m, groupDone)
+	}
+	m.DoneExpanded = !m.DoneExpanded
+	if m.DoneExpanded {
+		return jumpToSection(m, groupDone)
+	}
+	return keepSelectionVisible(m)
+}
+
+// keepSelectionVisible moves the selection off a row the board no longer
+// shows because the Done column folded (e.g. the row was just marked done),
+// to the first row shown: the top of the board, which is what needs you
+// first. Other selections are left alone. It also drops an expanded Done
+// column back to folding once it is short again, so it folds the next time
+// it grows past doneCollapseAt.
+func keepSelectionVisible(m Model) Model {
+	if m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) <= doneCollapseAt {
+		m.DoneExpanded = false
+	}
+	if m.SelectedID == "" || !doneCollapsed(m) || indexOfSelected(m) >= 0 {
+		return m
+	}
+	hidden := false
+	for _, s := range filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter) {
+		if s.ID == m.SelectedID {
+			hidden = true
+			break
+		}
+	}
+	if !hidden {
+		return m
+	}
+	m.SelectedID = ""
+	if rows := orderedSessions(m); len(rows) > 0 {
+		m.SelectedID = rows[0].ID
+	}
+	return ensureVisible(m)
 }
 
 func indexOfSelected(m Model) int {
@@ -88,10 +150,14 @@ const (
 
 // headerHeight is the number of lines renderHeader produces.
 func headerHeight(m Model) int {
-	if m.BackendUnavailable {
-		return 3
+	n := 1
+	if showFilterChips(m) {
+		n++
 	}
-	return 2
+	if m.BackendUnavailable {
+		n++
+	}
+	return n
 }
 
 // boardTop is the screen row (0-based) of the first board line.
@@ -132,12 +198,12 @@ func ensureVisible(m Model) Model {
 }
 
 // jumpToSection moves selection to the first row of the group at the given index
-// (0=Needs input, 1=Working, 2=Completed). No-op if the group is empty.
+// (0=Needs you, 1=Working, 2=Done). No-op if the group is empty.
 func jumpToSection(m Model, groupIdx int) Model {
 	if groupIdx < 0 || groupIdx >= len(boardGroups) {
 		return m
 	}
-	rows := filterByGroup(m.Sessions, boardGroups[groupIdx], m.Filter)
+	rows := visibleRows(m, groupIdx)
 	if len(rows) > 0 {
 		m.SelectedID = rows[0].ID
 	}

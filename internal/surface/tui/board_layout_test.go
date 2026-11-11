@@ -36,9 +36,11 @@ func layoutSessions(now time.Time) []protocol.SessionSummary {
 	}
 }
 
+// layoutModel is the detailed view (v): the column layout tests exercise
+// the id, model and token columns, which the simple view hides.
 func layoutModel(now time.Time, width int, sessions ...protocol.SessionSummary) Model {
 	m := Model{Sessions: sessions, Filter: "all", SelectedID: "2", Width: width, Height: 30,
-		Focus: FocusBoard, Store: settings.NewStore()}
+		Focus: FocusBoard, Store: settings.NewStore(), Detailed: true}
 	m.Clock = func() time.Time { return now }
 	return m
 }
@@ -196,7 +198,7 @@ func TestBoardLayout_NoneAlignsWithIDColumn(t *testing.T) {
 	m := layoutModel(now, 120, layoutSessions(now)[0])
 	var noneLine, rowLine string
 	for _, line := range strings.Split(ansi.Strip(renderBoard(m, 120, 0)), "\n") {
-		if strings.Contains(line, "(none)") && noneLine == "" {
+		if strings.Contains(line, emptyGroupText[groupWorking]) && noneLine == "" {
 			noneLine = line
 		}
 		if strings.Contains(line, "7d4f") {
@@ -208,5 +210,5 @@ func TestBoardLayout_NoneAlignsWithIDColumn(t *testing.T) {
 		require.GreaterOrEqual(t, i, 0, "board has no line containing %q", needle)
 		return ansi.StringWidth(line[:i])
 	}
-	require.Equal(t, x(rowLine, "7d4f"), x(noneLine, "(none)"))
+	require.Equal(t, x(rowLine, "7d4f"), x(noneLine, emptyGroupText[groupWorking]))
 }
