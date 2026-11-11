@@ -37,6 +37,7 @@ Codec: `internal/wire/protocol/codec.go`.
 | RetiredAt | `retired_at` | RFC3339 time | optional; when the session was marked done (absent on legacy marks); drives the board `done <time>` badge |
 | OutputBytes | `output_bytes` | int64 | optional | |
 | Fleet | `fleet` | string | optional |
+| Subagents | `subagents` | int | optional; running subagents (Claude hooks); not restored from meta.json |
 
 Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `internal/daemon/state/persist.go` writes same shape to `meta.json`.
 

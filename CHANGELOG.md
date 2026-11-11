@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: a Claude Code session running subagents shows how many in its row
+  (`⋔3`). The daemon tracks them with Claude's `SubagentStart` and
+  `SubagentStop` hooks; the wire gains an optional `subagents` field.
 - TUI: marking a session done (`cc`, `:done`, `rex done`) plays the done
   sound. The session keeps running, so nothing announced the mark before.
   `cc` no longer also plays the close sound for a mark; undoing still does.

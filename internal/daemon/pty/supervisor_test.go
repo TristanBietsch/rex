@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -523,4 +524,52 @@ func TestSupervisor_InputForwarderStopsWithRun(t *testing.T) {
 	in <- []byte("late")
 	time.Sleep(100 * time.Millisecond)
 	require.Len(t, in, 1, "a live forwarder consumed input after Run returned")
+}
+
+// countingAdapter reports a subagent count that the test changes.
+type countingAdapter struct {
+	stubAdapter
+	n atomic.Int32
+}
+
+func (c *countingAdapter) Subagents() int { return int(c.n.Load()) }
+
+// The supervisor patches the subagent count while the agent runs and clears
+// it when the agent exits.
+func TestSupervisor_ReportsSubagents(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{ID: "sub1", ShortID: "sub1", ToolID: "claude", Slug: "sub",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	var (
+		mu   sync.Mutex
+		seen []int
+	)
+	store.Subscribe(func(e state.Event) {
+		if v, ok := e.Patch["subagents"].(int); ok {
+			mu.Lock()
+			seen = append(seen, v)
+			mu.Unlock()
+		}
+	})
+	ad := &countingAdapter{}
+	ad.n.Store(2)
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		ad.n.Store(1)
+	}()
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sleep", "0.7"},
+		Adapter:  ad,
+		IdleTick: 20 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = sup.Run(ctx, sess)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, []int{2, 1, 0}, seen, "one patch per change, cleared at exit")
 }

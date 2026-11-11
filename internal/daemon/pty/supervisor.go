@@ -356,6 +356,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// Adapter classification ticker.
 	ticker := time.NewTicker(s.cfg.IdleTick)
 	trust := newTrustAnswerer(s.cfg.TrustPrompt, time.Now())
+	agents, _ := s.cfg.Adapter.(adapter.SubagentCounter) // nil unless the agent reports subagents
+	defer func() {
+		if agents != nil { // the agent is gone, and its subagents with it
+			_ = s.cfg.Store.SetSubagents(sess.ID, 0)
+		}
+	}()
 	defer ticker.Stop()
 
 	for {
@@ -417,6 +423,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					_ = s.cfg.Store.Transition(sess.ID, next)
 					s.persistMeta(sess)
 				}
+			}
+			if agents != nil {
+				_ = s.cfg.Store.SetSubagents(sess.ID, agents.Subagents()) // broadcasts only a change
 			}
 
 			// Readable screen → last_line + summarizer input. Sampled on the

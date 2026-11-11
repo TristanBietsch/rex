@@ -311,6 +311,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["output_bytes"].(float64); ok {
 		s.OutputBytes = int64(v)
 	}
+	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
+		s.Subagents = int(v)
+	}
 }
 
 // patchTime reads an optional timestamp patch key: an RFC3339 string sets

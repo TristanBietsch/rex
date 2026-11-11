@@ -49,6 +49,11 @@ type SessionSummary struct {
 	Tokens      int64 `json:"tokens,omitempty"`
 	OutputBytes int64 `json:"output_bytes,omitempty"`
 
+	// Subagents is how many subagents the agent is running right now
+	// (Claude Code, from its SubagentStart/SubagentStop hooks). Patches send
+	// 0 when the last one stops.
+	Subagents int `json:"subagents,omitempty"`
+
 	// Fleet groups related sessions under a named label.
 	Fleet string `json:"fleet,omitempty"`
 

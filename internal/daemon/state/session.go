@@ -32,6 +32,10 @@ type Session struct {
 	OutputBytes int64
 	Tokens      int64
 
+	// Subagents is how many subagents the agent is running now. It is not
+	// restored from meta.json: subagents do not outlive the daemon.
+	Subagents int
+
 	// Fleet optionally groups this session under a named label.
 	Fleet string
 
@@ -86,6 +90,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		ExitCode:     s.ExitCode,
 		Tokens:       s.Tokens,
 		OutputBytes:  s.OutputBytes,
+		Subagents:    s.Subagents,
 		Fleet:        s.Fleet,
 		Name:         s.Name,
 		RetireAt:     s.RetireAt,

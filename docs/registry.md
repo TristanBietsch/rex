@@ -72,6 +72,8 @@ Duplicate tool or model ids are rejected at load time.
 | `SessionStart`, `Notification`, `Stop` | `needs_input` |
 | `UserPromptSubmit`, `PreToolUse`, `PostToolUse` | `working` |
 
+Two more hooks track subagents. `SubagentStart` appends `agent+ <agent_id>` and `SubagentStop` appends `agent- <agent_id>`, reading both fields from the hook's JSON. Events without an `agent_type` are Claude's internal helpers and are skipped. `SessionStart` first writes `agents-reset`. The adapter counts a set of ids (a resumed subagent starts again with the same id), and the board shows it as the subagent column. The count drops to 0 when the agent exits.
+
 A `working` state with no visible PTY output for 15s becomes `needs_input` (an Esc-interrupted turn fires no `Stop`). Heuristic tools apply the same rule when `prompt_regex` doesn't match: a screen frozen for 15s (auth, trust or menu dialog) is waiting on you; working agents always stream output or animate a spinner.
 
 State semantics for all kinds: a finished agent turn is `needs_input` (waiting on you). `done` comes from process exit (code 0), the `Complete` intent, or a heuristic `done_regex` match; once `done`, later output can't move the session back.

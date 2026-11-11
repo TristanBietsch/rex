@@ -257,3 +257,52 @@ func TestNavigationSkipsFoldedRows(t *testing.T) {
 	m, _ = updateKey(m, key("G"))
 	require.Equal(t, "live", m.SelectedID)
 }
+
+func TestSubagentColumn(t *testing.T) {
+	busy := protocol.SessionSummary{ID: "a", ShortID: "aaaa", Slug: "busy", Title: "split the work", ToolID: "claude",
+		State: protocol.StateWorking, Subagents: 3}
+	calm := protocol.SessionSummary{ID: "b", ShortID: "bbbb", Slug: "calm", Title: "one thing", ToolID: "claude",
+		State: protocol.StateWorking}
+
+	none := simpleBoard(calm)
+	require.Zero(t, boardLayout(none, 140).agents, "no column while nothing runs subagents")
+	require.NotContains(t, boardText(none), subagentGlyph)
+
+	m := simpleBoard(busy, calm)
+	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+"3")
+	require.NotContains(t, lineWith(t, boardText(m), "calm"), subagentGlyph)
+	m.Detailed = true
+	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+"3")
+
+	big := busy
+	big.Subagents = 150
+	require.Contains(t, lineWith(t, boardText(simpleBoard(big)), "busy"), subagentGlyph+"99")
+
+	// Rows stay exactly the board width with the column, down to narrow.
+	for _, detailed := range []bool{false, true} {
+		m.Detailed = detailed
+		for _, w := range []int{40, 60, 80, 120} {
+			for _, line := range strings.Split(renderBoard(m, w, 0), "\n") {
+				require.LessOrEqual(t, ansi.StringWidth(line), w)
+			}
+			for _, s := range m.Sessions {
+				require.Equal(t, w, ansi.StringWidth(renderRow(m, s, boardLayout(m, w))), "detailed=%v width %d", detailed, w)
+			}
+		}
+	}
+}
+
+func TestSubagentPatch(t *testing.T) {
+	m := simpleBoard(protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateWorking})
+	patch := func(v any) {
+		raw, err := json.Marshal(protocol.SessionUpdated{SessionID: "a", Patch: map[string]any{"subagents": v}})
+		require.NoError(t, err)
+		m = m.applyEvent(protocol.Envelope{Type: protocol.EventSessionUpdated, Data: raw})
+	}
+	patch(4)
+	require.Equal(t, 4, m.Sessions[0].Subagents)
+	patch(0)
+	require.Zero(t, m.Sessions[0].Subagents)
+	patch(-1)
+	require.Zero(t, m.Sessions[0].Subagents, "a negative count is ignored")
+}

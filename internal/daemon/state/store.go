@@ -385,6 +385,26 @@ func (s *Store) BroadcastTokenPatch(id string, tokens, outputBytes int64) {
 	s.BroadcastPatch(id, map[string]any{"tokens": tokens, "output_bytes": outputBytes})
 }
 
+// SetSubagents records how many subagents a session's agent is running and
+// broadcasts a change. It is not activity: last_event_at is left alone.
+func (s *Store) SetSubagents(id string, n int) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.Subagents == n {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.Subagents = n
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"subagents": n}})
+	return nil
+}
+
 // LastEventAt is the session's last real activity: a state transition, a new
 // screen line from the child, or its exit. Stats and digest use it as a
 // finished session's end time and the board as "time ago", so metadata
