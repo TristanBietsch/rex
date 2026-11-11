@@ -127,6 +127,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- AI descriptions are more specific and use the session state: working,
+  waiting for you (they say what is needed), finished or failed. They never
+  start with the agent's name ("Claude is…"), are sentence case, and the
+  default length is longer (`summary_detail: medium`, 110 characters).
 - TUI: an unknown `:` command now says `(try :help)`. Commands and key
   help come from one table, so `?` can no longer drift from what `:` runs.
 - `rex ls` and `rex status` on a terminal use the new human layout (state
@@ -170,6 +174,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Descriptions no longer freeze after a burst of output, an Ollama outage or
+  a state change: requests are queued per session and deferred instead of
+  dropped, the agent going idle with a question is summarized, and a slow
+  call no longer blocks every session for 15 s (each attempt has its own
+  timeout, and only transient errors are retried).
+- A finished session gets one final summary instead of keeping stale
+  "Running tests…" text.
+- Antigravity: the `Generating...` spinner and the text typed in its input
+  box no longer show as the board's last line or reach the summary prompt.
 - The settings page showed a second "Spawn" section for
   `auto_trust_dirs`; it now sits with the other Spawn settings.
 - TUI: a reconnect to the daemon no longer resets the tool filter to `all`.

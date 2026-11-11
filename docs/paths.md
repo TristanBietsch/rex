@@ -57,7 +57,7 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 | `XDG_RUNTIME_DIR` | `paths` | Default socket directory (absolute paths only) |
 | `REX_LOG_LEVEL` | `rexlog` | `debug`, `info`, `warn`, `error` (default `info`) |
 | `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
-| `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer |
+| `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer. A non-local host receives the text of agents' screens |
 | `EDITOR` | `rex config edit` | Program to edit `init.lua` |
 | `GOPATH` | `rex update` | Module install path resolution |
 | `SHELL` | `rex setup` | Shell profile target for PATH block |

@@ -31,7 +31,9 @@ By default a row shows four things: state, name, text and age.
      state name       text                                                  last event
 ```
 
-The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary.
+The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary. When the text does not fit, it is cut on a word boundary and ends in `…`.
+
+Under the board, a dim preview line (`↳ …`) shows the selected session's full AI summary and its age (`· 12s`), in both views, while any session has a summary. In the detailed view it appears only when the row cuts the text. It takes one row (two on a terminal 30+ rows tall with `summary_detail: long`, none below 20 rows), reserved for the whole board so the layout does not move as the selection does. `summary_preview` in Settings → Features turns it off. For Antigravity sessions the board's last line skips agy's `Generating...` spinner and the text in its input box.
 
 `v` switches to the detailed view, which adds the short id, model · effort, tokens and the start→end span, shows the AI summary as the text, and adds `· N marked done` to the header:
 
