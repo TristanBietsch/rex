@@ -14,6 +14,16 @@ func filterCommand(m Model, args []string) Model {
 	return setFilter(m, args[0])
 }
 
+// adoptSnapshotFilter takes the daemon's snapshot filter only while the TUI
+// has none of its own. The daemon always sends "all", so adopting it
+// unconditionally reset the user's tool filter on every reconnect.
+func adoptSnapshotFilter(m Model, snapFilter string) Model {
+	if m.Filter == "" && snapFilter != "" {
+		m.Filter = snapFilter
+	}
+	return m
+}
+
 // knownFilterTool reports whether tool is a filter chip or a tool with a
 // session on the board.
 func knownFilterTool(m Model, tool string) bool {

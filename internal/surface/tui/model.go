@@ -259,9 +259,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m.Sessions = snap.Sessions
-			if snap.Filter != "" {
-				m.Filter = snap.Filter
-			}
+			m = adoptSnapshotFilter(m, snap.Filter)
 		}
 	case protocol.EventError:
 		var ee protocol.ErrorEvent

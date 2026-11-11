@@ -113,6 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: a reconnect to the daemon no longer resets the tool filter to `all`.
 - TUI: `:filter <tool>` now moves the selection off a row the filter hides
   (before, `enter` did nothing) and rejects a tool that is neither a filter
   chip nor on the board, with `filter: unknown tool or subcommand x`.

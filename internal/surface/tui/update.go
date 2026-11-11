@@ -234,9 +234,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		m.Sessions = msg.Snap.Sessions
-		if msg.Snap.Filter != "" {
-			m.Filter = msg.Snap.Filter
-		}
+		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
 			Desc: "接続 · rex-tui",

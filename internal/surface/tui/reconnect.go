@@ -149,9 +149,7 @@ func adoptConnection(m Model, c *client.Client, snap *protocol.Snapshot) Model {
 	m.Client = c
 	m.reconnect = nil
 	m.Sessions = snap.Sessions
-	if snap.Filter != "" {
-		m.Filter = snap.Filter
-	}
+	m = adoptSnapshotFilter(m, snap.Filter)
 	if _, ok := findSession(m.Sessions, m.SelectedID); !ok {
 		m.SelectedID = ""
 		if rows := orderedSessions(m); len(rows) > 0 {
