@@ -13,6 +13,7 @@
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
 //	    <name>.log                 rexlog files (daemon, tui, setup, ...)
+//	    cli-errors.log             CLIErrorLog: failed rex commands (+ .1 backup)
 //	    tui-state.json             TUIStateFile: board selection kept across :bg
 //	~/.cache/rex/                  CacheDir
 //	    rex.sock                   Socket, when $XDG_RUNTIME_DIR is unset

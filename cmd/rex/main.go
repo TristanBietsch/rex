@@ -22,6 +22,7 @@ func main() {
 	restoreVT()
 	if err != nil {
 		core.Out().RenderError(err)
+		core.RecordError(os.Args[1:], err, core.ErrLogOptions{})
 		os.Exit(exitCodeFor(err))
 	}
 }

@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Private CLI error log: a failed `rex` command leaves one JSONL record in
+  `~/.local/state/rex/cli-errors.log` (0600, 1 MiB plus one backup) with the
+  command, redacted flags, exit code and kind and scrubbed error text. It
+  never holds prompts, reply/send text, config values, folders, socket
+  paths, environment or transcripts. On by default; setting
+  `cli_error_log` (Advanced) or `REX_ERROR_LOG=0` turns it off.
 - `rex agent-help` (also `rex help agent`, and `rex --help` in agent mode)
   prints a compact usage card for LLM agents: line grammar, exit codes, the
   common commands and the interactive ones to avoid. `-o json` gives it as

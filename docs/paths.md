@@ -39,6 +39,7 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 | `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection, tool filter, hidden sections and board search; read once on next launch, then deleted |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
 | `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`) |
+| `~/.local/state/rex/cli-errors.log` (+ `.1`) | `rex` | One JSONL record per failed CLI command: command, redacted flags, exit code, scrubbed error text. 0600, capped at 1 MiB plus one backup; read it with `rex errors`; off with `cli_error_log: false` or `REX_ERROR_LOG=0` |
 
 ## Socket
 
@@ -56,7 +57,7 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 | `HOME` (`USERPROFILE` on Windows) | `paths` | Root of every default path; required unless every path flag is given |
 | `XDG_RUNTIME_DIR` | `paths` | Default socket directory (absolute paths only) |
 | `REX_LOG_LEVEL` | `rexlog` | `debug`, `info`, `warn`, `error` (default `info`) |
-| `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
+| `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files (including `cli-errors.log`) instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
 | `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer. A non-local host receives the text of agents' screens |
 | `EDITOR` | `rex config edit` | Program to edit `init.lua` |
 | `GOPATH` | `rex update` | Module install path resolution |

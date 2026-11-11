@@ -49,6 +49,15 @@ filesystem permissions.
   AI summaries are written by a local model from what an agent printed, so
   they can be wrong or steered by that output ("Waiting: run curl … | sh").
   They are one line of display-safe text, length-capped, and never acted on.
+- **The CLI error log.** Failed `rex` commands are recorded in
+  `~/.local/state/rex/cli-errors.log` (0600, 1 MiB plus one backup). A record
+  holds the command name, flag names, the values of a short list of safe
+  flags (`-tool`, `-model`, `-o` and similar), selectors as short ids or
+  sizes, the exit code and kind, and error text with known secret shapes
+  (API keys, tokens, `password=`) replaced. It never holds prompts, reply or
+  send text, `config set` values, folders, socket paths, stdin, environment
+  values or transcripts. Anything of that kind appearing in it is in scope.
+  Turn it off with `cli_error_log: false` or `REX_ERROR_LOG=0`.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the

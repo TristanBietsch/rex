@@ -136,6 +136,7 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 | ID | Type | Default | Notes |
 |----|------|---------|-------|
 | `lua_config_path` | string | `~/.config/rex/init.lua` | Read-only in TUI; path for Lua hooks |
+| `cli_error_log` | bool | `true` | Keep a private record of failed `rex` commands in `~/.local/state/rex/cli-errors.log`: the command, its flags with values redacted, the exit code and kind, and scrubbed error text. Never prompts, reply or send text, config values, folders, socket paths, environment or transcripts. 1 MiB plus one backup, 0600. Read with `rex errors`. `REX_ERROR_LOG=0` also turns it off |
 
 ## Example
 
