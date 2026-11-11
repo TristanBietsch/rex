@@ -132,7 +132,7 @@ func writeExport(sum protocol.SessionSummary, format export.Format, sessionsDir,
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := os.Chmod(dir, 0o700); err != nil { //nolint:gosec // G302: a folder needs its execute bit; 0700 is owner-only.
 		return "", err
 	}
 	path := filepath.Join(dir, export.DefaultName(sum, format))

@@ -16,7 +16,7 @@ func noUnsafe(t *testing.T, s string) {
 }
 
 func TestFrames_c1ControlsAndBidiAreDropped(t *testing.T) {
-	in := "a\xc2\x9d52;c;QQ==\xc2\x9cb\xc2\x9b31mc‮def⁦g\x7f" + "\x1b(0qx\x1b(B\r\n"
+	in := "a\xc2\x9d52;c;QQ==\xc2\x9cb\xc2\x9b31mc\u202edef\u2066g\x7f" + "\x1b(0qx\x1b(B\r\n"
 	for _, strip := range []bool{false, true} {
 		var got string
 		if strip {
@@ -27,14 +27,14 @@ func TestFrames_c1ControlsAndBidiAreDropped(t *testing.T) {
 			got = frames(t, in)[0].Text
 		}
 		noUnsafe(t, got)
-		require.NotContains(t, got, "‮")
+		require.NotContains(t, got, "\u202e")
 		require.Contains(t, got, "def")
 	}
 }
 
 func TestFrames_scrolledLinesAreSanitized(t *testing.T) {
 	var b strings.Builder
-	b.WriteString("top\xc2\x9d0;x\xc2\x9c‮line\r\n")
+	b.WriteString("top\xc2\x9d0;x\xc2\x9c\u202eline\r\n")
 	for range 20 {
 		b.WriteString("filler\r\n")
 	}

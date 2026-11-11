@@ -15,7 +15,7 @@ import (
 
 func TestBuild_cleansSessionStrings(t *testing.T) {
 	s := session("claude")
-	s.Name = "n\x1b]0;t\x07a‮me\u0085\u009b"
+	s.Name = "n\x1b]0;t\x07a\u202eme\u0085\u009b"
 	s.Description = "line\nbreak\x7f"
 	s.CWD = "/work/\xc2\x9d52;c;QQ==\xc2\x9c"
 	d, err := Build(Options{Session: s, TranscriptPath: writeTranscript(t, "x")})
@@ -31,7 +31,7 @@ func TestBuild_cleansSessionStrings(t *testing.T) {
 
 func TestRender_yamlSurvivesTextYAMLRejects(t *testing.T) {
 	d := sampleFrames()
-	d.Frames = []Frame{{At: 1, Text: "nel\u0085 csi\u009b del\x7f nc￾ end"}}
+	d.Frames = []Frame{{At: 1, Text: "nel\u0085 csi\u009b del\x7f nc\ufffe end"}}
 	out, err := Render(d, FormatYAML)
 	require.NoError(t, err)
 	var generic map[string]any

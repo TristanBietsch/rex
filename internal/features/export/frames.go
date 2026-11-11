@@ -367,7 +367,7 @@ func markLineEdits(s string) string {
 	return lineEditRe.ReplaceAllStringFunc(s, func(m string) string {
 		n, _ := strconv.Atoi(m[2 : len(m)-1])
 		if m[len(m)-1] == 'G' {
-			return string(markCHA) + string(rune(markColBase+min(n, 10000)))
+			return string(markCHA) + string(rune(markColBase+min(n, 10000))) //nolint:gosec // G115: n is capped at 10000, so the rune is in the private-use plane.
 		}
 		switch n {
 		case 1:
