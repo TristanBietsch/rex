@@ -1,0 +1,36 @@
+# ToDo
+
+- [ ] rm all other agents in the settings
+- [x] make it so that it skips "yes, trust this folder" *** (PR #10: set auto_trust_dirs; setup-wizard prompt is a follow-up)
+- [ ] per-folder harness history like cursor has
+- [ ] have a column to get the --resume id so that in the completed section we can resume it if needed and know the id
+- [ ] multiplayer?
+- [ ] fix the ollama preview of what the agent is doing
+- [x] add another col that shows the # of subagents used in the past and or currently running (PR #12: currently running only)
+- [ ] better help menu and UI overall
+- [ ] add a step to setup: add name, choose model, and select any skills to inject into it
+- [ ] add start / complete timestamps
+- [ ] add filter to complete tasks / save an audit log
+- [ ] harden the cli
+- [ ] add sections (can be changed in settings) ToDo, in Progress, In review, Testing, Ready for Release, Done
+- [ ] Jira / linear sync ?
+- [ ] search function
+- [ ] usage meter top right (config in settings)
+- [ ] remake the help and settings page
+- [ ] improve workflow and rm the need for: /ob, then "yes, i trust"
+- [ ] change ollama to give more desc / better prompt for summarizing
+- [ ] master agent option (feature toggle) that summaries whats going on / completed / ready for review
+- [ ] filter options for only showing certian steps of the kanban / hiding completed
+- [x] improve overall TUI *** (PR #11: simple board)
+- [x] add sound on marked as complete *** (PR #8)
+- [ ] make more settings modular and editable / hackable via lua config files and add themes
+- [x] cmd to delete all completed prompts *** (PR #9: rex prune / :prune)
+- [x] better render engine / memory allocation manager *** (PR #7)
+- [x] bug: when i go into a long-running claude agent the actual ui will start to not render and will be a bit choppy, and i have to press qq and go back into it for the issue to be sovled, and even then it will go back to breaking afte awhile. also this happens when the window of the claude agents stays open. *** (PR #6 + #7)
+- [x] bug: sometimes when  I open an agent window that is running it will just be black (PR #16)
+- [ ] add banner above claude code that is a marquee summary of what we are doing, where we are, etc..
+- [ ] loop workflows (epic)
+- [ ] remake the summary col to not say or start with "claude is..." instead, be more desc. adjsut desc amt in settings
+- [x] replace google gemini to antigravity and improve functionality with it like you did with claude code (yes, trust this folder etc)*** (PR #15; hook-based state needs your OK to write agy's global hooks.json)
+- [ ] if there is no activity or keystrokes from the user side, show a screensaver that 1 keeps the mac screen on by force and 2 is a super simple minimal unix like of the unicodeicon rex logo in the center middle of the screen, fairly small. under the logo is the numbers of working / waiting / completed etc or the other setting with todo, in progress, etc.. depending on the setting. ***
+- [ ] rex fork for research only? instead of using google?

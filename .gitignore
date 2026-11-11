@@ -1,6 +1,3 @@
-# TODO
-TODO.md
-
 # Benchmark artifacts
 /bench/profiles/*
 !/bench/profiles/.gitkeep
