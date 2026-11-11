@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/tristanbietsch/rex/internal/features/overview"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -137,7 +138,47 @@ func bannerParts(m Model, sum protocol.SessionSummary, ended bool) (lead string,
 			muted: now.Sub(sum.DescriptionAt) > bannerStaleAfter,
 		})
 	}
-	return lead, meta
+	return lead, append(meta, bannerElsewhere(m, sum.ID)...)
+}
+
+// bannerElsewhere is what the other sessions need, when the overview is on:
+// counts from the same buckets as the header's overview line, without the
+// attached session, then the daemon's headline when it has one. The headline
+// is untrusted model text: flattened like every other piece.
+func bannerElsewhere(m Model, self string) []bannerItem {
+	if !overviewOn(m) {
+		return nil
+	}
+	var others []protocol.SessionSummary
+	for _, s := range m.Sessions {
+		if s.ID != self {
+			others = append(others, s)
+		}
+	}
+	var items []bannerItem
+	if len(others) > 0 {
+		g := overview.Group(others)
+		var parts []string
+		if n := len(g[overview.Review]); n > 0 {
+			parts = append(parts, fmt.Sprintf("%d to review", n))
+		}
+		if n := len(g[overview.NeedsYou]); n > 0 {
+			parts = append(parts, fmt.Sprintf("%d needs you", n))
+		}
+		if n := len(g[overview.Failed]); n > 0 {
+			parts = append(parts, fmt.Sprintf("%d failed", n))
+		}
+		if len(parts) == 0 {
+			parts = []string{"quiet"}
+		}
+		items = append(items, bannerItem{text: "elsewhere: " + strings.Join(parts, " · ")})
+	}
+	if o := m.Overview; o != nil && o.Enabled {
+		if h := strings.TrimSpace(protocol.FlattenDisplayText(o.Headline)); h != "" {
+			items = append(items, bannerItem{text: "» " + h})
+		}
+	}
+	return items
 }
 
 // bannerMotion reports whether a long banner scrolls: marquee mode and no

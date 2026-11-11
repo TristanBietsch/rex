@@ -340,3 +340,65 @@ func TestAttachCommandBar_HintListsBanner(t *testing.T) {
 	m := bannerModel(t, 160, 40, bannerSession())
 	require.Contains(t, ansi.Strip(renderAttachCommandBar(m, 200)), "banner")
 }
+
+// elsewhereBoard is bannerModel with other sessions in every bucket and the
+// overview on.
+func elsewhereBoard(t *testing.T, on bool) Model {
+	t.Helper()
+	m := bannerModel(t, 160, 40, bannerSession())
+	m.Sessions = append(m.Sessions,
+		protocol.SessionSummary{ID: "r1", State: protocol.StateNeedsInput, WaitReason: protocol.WaitReview},
+		protocol.SessionSummary{ID: "r2", State: protocol.StateDone},
+		protocol.SessionSummary{ID: "n1", State: protocol.StateNeedsInput, LastLine: "Deploy?"},
+		protocol.SessionSummary{ID: "f1", State: protocol.StateFailed},
+		protocol.SessionSummary{ID: "w1", State: protocol.StateWorking},
+	)
+	require.NoError(t, m.Store.Set("overview_enabled", on))
+	if on {
+		m.Overview = &protocol.Overview{Enabled: true, GeneratedAt: bannerNow, Headline: "billing is done; \x1b[2Jdeploy asks a question"}
+	}
+	return m
+}
+
+func TestBanner_ElsewhereExcludesSelf(t *testing.T) {
+	m := elsewhereBoard(t, true)
+	// The attached session is itself needs-you; it is not counted.
+	m.Sessions[0].State = protocol.StateNeedsInput
+	_, meta := bannerParts(m, m.Sessions[0], false)
+	var texts []string
+	for _, it := range meta {
+		texts = append(texts, it.text)
+	}
+	require.Contains(t, texts, "elsewhere: 2 to review · 1 needs you · 1 failed")
+	require.Contains(t, texts, "» billing is done; deploy asks a question", "the S4 headline follows, flattened")
+}
+
+func TestBanner_ElsewhereNeedsOverviewOn(t *testing.T) {
+	m := elsewhereBoard(t, false)
+	m.Overview = &protocol.Overview{Enabled: true, Headline: "stale"}
+	_, meta := bannerParts(m, m.Sessions[0], false)
+	for _, it := range meta {
+		require.NotContains(t, it.text, "elsewhere")
+		require.NotContains(t, it.text, "stale")
+	}
+}
+
+func TestBanner_ElsewhereVariants(t *testing.T) {
+	m := elsewhereBoard(t, true)
+	m.Overview = nil
+	m.Sessions = m.Sessions[:1]
+	_, meta := bannerParts(m, m.Sessions[0], false)
+	for _, it := range meta {
+		require.NotContains(t, it.text, "elsewhere", "no other sessions, nothing to say")
+	}
+	m.Sessions = append(m.Sessions, protocol.SessionSummary{ID: "w1", State: protocol.StateWorking})
+	_, meta = bannerParts(m, m.Sessions[0], false)
+	require.Equal(t, "elsewhere: quiet", meta[len(meta)-1].text)
+}
+
+func TestBanner_ElsewhereShowsInMarquee(t *testing.T) {
+	m := elsewhereBoard(t, true)
+	sum := m.Sessions[0]
+	lead, meta := bannerParts(m, sum, false)
+	require.Contains(t, marqueeText(sum, lead, meta), "elsewhere: 2 to review")
+}
