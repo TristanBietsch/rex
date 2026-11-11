@@ -80,6 +80,22 @@ func (m Model) View() string {
 	if h <= 0 {
 		h = 32
 	}
+	return clipWidth(m.view(w, h), w)
+}
+
+// clipWidth is the last guard: no line leaves View wider than the terminal,
+// whatever an overlay's minimum size is on a tiny screen.
+func clipWidth(s string, w int) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if ansi.StringWidth(l) > w {
+			lines[i] = ansi.Truncate(l, w, "")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) view(w, h int) string {
 	if m.saverOn && m.Focus == FocusBoard {
 		return renderScreensaver(m, w, h)
 	}

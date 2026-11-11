@@ -76,6 +76,7 @@ var helpRight = []helpGroup{
 
 // renderGroup renders one group at exactly-bounded width colW.
 func renderGroup(g helpGroup, colW int) []string {
+	colW = max(colW, 1)
 	kw := 0
 	for _, r := range g.Rows {
 		if w := ansi.StringWidth(r[0]); w > kw {
@@ -132,11 +133,11 @@ func filterGroups(gs []helpGroup, drop map[string]bool) []helpGroup {
 // helpBox builds the bordered box at total width bw using cols (1 or 2)
 // columns, omitting groups named in drop. note adds the truncation notice.
 func helpBox(m Model, bw, cols int, drop map[string]bool, note bool) string {
-	inner := bw - 8 // border 2 + padding 6
+	inner := max(bw-8, 1) // border 2 + padding 6
 	left, right := filterGroups(helpLeft(m), drop), filterGroups(helpRight, drop)
 	var body string
 	if cols == 2 {
-		colW := (inner - helpColGap) / 2
+		colW := max((inner-helpColGap)/2, 1)
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
 			renderColumn(left, colW), strings.Repeat(" ", helpColGap), renderColumn(right, colW))
 	} else {
