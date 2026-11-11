@@ -1,0 +1,3 @@
+⏺ The migration can keep the old column or drop it.
+  Dropping saves space but breaks the nightly export job.
+  Which do you want: keep users.legacy_id or drop it?

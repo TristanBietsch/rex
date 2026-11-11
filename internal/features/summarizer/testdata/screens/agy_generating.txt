@@ -1,0 +1,5 @@
+⏺ Reading internal/cache/cache_test.go
+  The flaky test sleeps instead of waiting on the fake clock.
+⏺ Edit(internal/cache/cache_test.go)
+  Replaced time.Sleep(50ms) with clock.Advance(50ms)
+⏺ Running go test -race -count=20 ./internal/cache
