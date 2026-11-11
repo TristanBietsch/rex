@@ -19,6 +19,7 @@ func corruptMiddle(t *testing.T, dir string) {
 	}
 	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
 	lines = append([]string{lines[0], "garbage"}, lines[1:]...)
+	//nolint:gosec // the test writes its own temp store
 	if err := os.WriteFile(ledgerOf(dir), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

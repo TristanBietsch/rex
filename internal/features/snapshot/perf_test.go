@@ -18,7 +18,12 @@ func TestCapturePerformanceWithManyIgnoredFiles(t *testing.T) {
 	}
 	repo := newRepo(t)
 	write(t, repo, ".gitignore", "*.o\n")
-	const dirs, perDir = 500, 100
+	// 10,000 files keeps `make check` quick under the race detector; set
+	// REX_SNAPSHOT_PERF=full for the 50,000-file measurement.
+	dirs, perDir := 100, 100
+	if os.Getenv("REX_SNAPSHOT_PERF") == "full" {
+		dirs = 500
+	}
 	for d := 0; d < dirs; d++ {
 		dir := filepath.Join(repo, "src", fmt.Sprintf("d%03d", d))
 		if err := os.MkdirAll(dir, 0o750); err != nil {

@@ -414,7 +414,7 @@ func TestExcludeLine(t *testing.T) {
 		"star*?":      `/star\*\?`,
 		"#hash":       "/#hash",
 		"back\\slash": `/back\\slash`,
-		"nl\nname":    "",
+		"nl\nname":    "/nl?name",
 	}
 	for in, want := range cases {
 		if got := excludeLine(in); got != want {

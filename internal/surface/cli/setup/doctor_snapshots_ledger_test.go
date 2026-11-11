@@ -44,6 +44,7 @@ func TestCheckSnapshots_LedgerCorruptThenReset(t *testing.T) {
 	b, err := os.ReadFile(ledger)
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	//nolint:gosec // the test writes its own temp store
 	require.NoError(t, os.WriteFile(ledger, []byte(lines[0]+"\ngarbage\n"+lines[1]+"\n"), 0o600))
 
 	rows := rowsByName(checkSnapshots())

@@ -49,7 +49,7 @@ func markerOf(dir string) string { return filepath.Join(dir, "ledger-reset") }
 func readReset(dir string) *ResetError {
 	b, err := os.ReadFile(markerOf(dir))
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // no readable marker means no reset
 	}
 	at, file, _ := strings.Cut(strings.TrimSpace(string(b)), " ")
 	t, err := time.Parse(time.RFC3339, at)
@@ -120,7 +120,7 @@ func readLedgerMode(dir string, repair bool) ([]Entry, error) {
 				continue
 			}
 			if !repair {
-				return nil, fmt.Errorf("%w (line %d: %v)", ErrLedgerCorrupt, i+1, err)
+				return nil, fmt.Errorf("%w (line %d: %w)", ErrLedgerCorrupt, i+1, err)
 			}
 			now := time.Now()
 			dst := fmt.Sprintf("%s.corrupt-%d", ledgerOf(dir), now.Unix())
