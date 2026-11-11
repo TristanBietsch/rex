@@ -16,7 +16,7 @@ rex
 
 Three columns group sessions: **NEEDS YOU**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N working · N done`. The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
-The tool filter row (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool or a filter other than `all` is active.
+The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, or a section is hidden. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`). See FILTER AND SEARCH.
 
 A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `3` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 

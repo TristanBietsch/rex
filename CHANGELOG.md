@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: the filter bar names the hidden sections (`done hidden (zh)`) and
+  stays up while any is hidden. `:prune` says "filters ignored" in its
+  confirmation while a filter is active, since it clears every Done
+  session.
 - TUI: `:filter hide <section…>`, `:filter show <section…|all>` and
   `:filter only <section…>` hide and show board sections by id, prefix,
   title or number. A bare `:filter` clears the tool filter and every hidden

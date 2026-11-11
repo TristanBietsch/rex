@@ -184,3 +184,30 @@ func showAllSections(m Model) Model {
 	m.Hidden = nil
 	return refilter(m)
 }
+
+// renderFilterStatus is the dim note after the filter chips naming what is
+// hidden ("done hidden (zh)"), or "" when no section is hidden. It sits
+// after the chips so headerHitAt still finds every chip.
+func renderFilterStatus(m Model) string {
+	var names []string
+	var first int
+	for i, g := range boardGroups {
+		if m.Hidden[g.ID] {
+			if len(names) == 0 {
+				first = i
+			}
+			names = append(names, g.ID)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	hint := "z0 shows all"
+	if len(names) == 1 {
+		hint = "z" + strconv.Itoa(first+1)
+		if boardGroups[first].Completed {
+			hint = "zh"
+		}
+	}
+	return styleDim.Render(strings.Join(names, ", ") + " hidden (" + hint + ")")
+}
