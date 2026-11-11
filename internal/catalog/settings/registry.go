@@ -154,6 +154,12 @@ var Registry = []Setting{
 		Help:    "Model used to summarize sessions.",
 	},
 	{
+		ID: "summary_detail", Label: "Summary detail", Section: SectionSummary,
+		Type: TypeEnum, Default: "medium",
+		Options: []string{"short", "medium", "long"},
+		Help:    "How much the AI description says: short about 8 words, medium about 15, long about 28. Applies within seconds.",
+	},
+	{
 		ID: "desc_animation", Label: "Description animation", Section: SectionSummary,
 		Type: TypeEnum, Default: "typewriter",
 		Options: []string{"typewriter", "decode", "wipe", "off"},

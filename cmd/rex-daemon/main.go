@@ -134,6 +134,7 @@ func run(args []string) error {
 	if summaryEnabled {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
+		cfg.Detail = summarizer.ParseDetail(settingsStore.String("summary_detail"))
 		if u := boot.OllamaBaseURL(); u != "" {
 			cfg.BaseURL = u
 		}

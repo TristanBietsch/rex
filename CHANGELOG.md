@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Setting `summary_detail` (AI summary): `short`, `medium` (default) or
+  `long` sets how much an AI description says (about 8, 15 or 28 words; 60,
+  110 or 180 characters).
 - Sessions carry `description_at`, when the AI description was last written
   (snapshots, `description` patches, `meta.json`). Older clients ignore it.
 - Settings: a new Features section (after Behavior) holds one on/off switch
