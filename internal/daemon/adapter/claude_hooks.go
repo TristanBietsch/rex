@@ -3,9 +3,11 @@ package adapter
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +25,8 @@ const HookFileEnv = "REX_HOOK_FILE"
 const hookStaleWorking = 15 * time.Second
 
 // claudeHookStates maps Claude Code hook events to the state each implies.
+// SessionStart and PostToolUse also write subagent lines (see
+// claudeHookCommand).
 var claudeHookStates = []struct {
 	event   string
 	matcher bool // tool events take a matcher
@@ -36,9 +40,75 @@ var claudeHookStates = []struct {
 	{"Stop", false, protocol.StateNeedsInput},         // turn finished, waiting on user
 }
 
+// Subagent lines in the hook file, next to the state words:
+//
+//	agent+ <agent_id>  SubagentStart
+//	agent- <agent_id>  SubagentStop
+//	agent~ <agent_id>  PostToolUse of a subagent's tool call (still running)
+//	agents-reset       SessionStart of a new or cleared conversation
+const (
+	hookAgentStart  = "agent+"
+	hookAgentStop   = "agent-"
+	hookAgentSeen   = "agent~"
+	hookAgentsReset = "agents-reset"
+)
+
+// subagentQuiet is how long a subagent may go without a start or a tool
+// call before it stops counting. It bounds a count stuck by a lost
+// SubagentStop; a quiet subagent that calls a tool again is counted again.
+const subagentQuiet = 15 * time.Minute
+
+// hookJSONField is a shell pipeline printing a top-level string field of the
+// hook's JSON (held in $in). Splitting on commas puts each key at the start
+// of a line, and only a line that starts with the key counts, so a field of
+// a nested object ("x":{"agent_id":…}) or one quoted inside a string value
+// (\"agent_id\") never matches; the first match is the top-level field.
+// Plain sed and tr, no jq: hooks also run in Git Bash on Windows.
+func hookJSONField(name string) string {
+	return `printf '%s' "$in" | tr ',' '\n' | sed -n 's/^[{[:space:]]*"` + name + `"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1`
+}
+
+// hookSafeID cuts an id to characters that cannot break a hook line.
+const hookSafeID = ` | tr -cd 'A-Za-z0-9_.:-'`
+
+// hookAppend appends the output of body to $REX_HOOK_FILE and always exits
+// 0: a hook must never block Claude. stderr is silenced first, so a failed
+// open is quiet too.
+func hookAppend(body string) string {
+	return `{ ` + body + `; } 2>/dev/null >>"$` + HookFileEnv + `"; exit 0`
+}
+
+// subagentHookCommand writes "<word> <agent_id>" for a SubagentStart or
+// SubagentStop event. An event without an agent_type is one of Claude's
+// internal helpers (prompt suggestions, /btw), not a subagent the user
+// started, and is skipped.
+func subagentHookCommand(word string) string {
+	return `in=$(cat); id=$(` + hookJSONField("agent_id") + hookSafeID + `); ty=$(` + hookJSONField("agent_type") + `); ` +
+		hookAppend(`if [ -n "$id" ] && [ -n "$ty" ]; then printf '`+word+` %s\n' "$id"; fi`)
+}
+
+// claudeHookCommand is the command for one state event. SessionStart also
+// resets the subagent set, except after a compaction (subagents may still
+// be running). PostToolUse also marks a subagent's tool call (the JSON has
+// an agent_id) as a sign of life.
+func claudeHookCommand(event string, state protocol.State) string {
+	st := string(state)
+	switch event {
+	case "SessionStart":
+		return `in=$(cat); src=$(` + hookJSONField("source") + `); ` +
+			hookAppend(`if [ "$src" = compact ]; then printf '`+st+`\n'; else printf '`+hookAgentsReset+`\n`+st+`\n'; fi`)
+	case "PostToolUse":
+		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; ` +
+			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookAgentSeen+` %s\n' "$id"; else printf '`+st+`\n'; fi`)
+	default:
+		return hookAppend(`printf '` + st + `\n'`)
+	}
+}
+
 // ClaudeHookArgs returns argv that makes Claude Code append one state word per
-// hook event to the file named by $REX_HOOK_FILE. Hooks always exit 0 so a
-// write failure can never block the agent.
+// hook event to the file named by $REX_HOOK_FILE, plus the subagent lines.
+// Each hook writes its lines with one printf, so lines from hooks running in
+// parallel never interleave.
 func ClaudeHookArgs() []string {
 	type hookCmd struct {
 		Type    string `json:"type"`
@@ -50,17 +120,22 @@ func ClaudeHookArgs() []string {
 	}
 	hooks := map[string][]matcherGroup{}
 	for _, h := range claudeHookStates {
-		g := matcherGroup{Hooks: []hookCmd{{
-			Type:    "command",
-			Command: `printf '` + string(h.state) + `\n' >> "$` + HookFileEnv + `" 2>/dev/null; exit 0`,
-		}}}
+		g := matcherGroup{Hooks: []hookCmd{{Type: "command", Command: claudeHookCommand(h.event, h.state)}}}
 		if h.matcher {
 			g.Matcher = "*"
 		}
 		hooks[h.event] = append(hooks[h.event], g)
 	}
+	hooks["SubagentStart"] = []matcherGroup{{Hooks: []hookCmd{{Type: "command", Command: subagentHookCommand(hookAgentStart)}}}}
+	hooks["SubagentStop"] = []matcherGroup{{Hooks: []hookCmd{{Type: "command", Command: subagentHookCommand(hookAgentStop)}}}}
 	b, _ := json.Marshal(map[string]any{"hooks": hooks})
 	return []string{"--settings", string(b)}
+}
+
+// SubagentCounter is implemented by adapters that know how many subagents
+// the agent is running.
+type SubagentCounter interface {
+	Subagents() int
 }
 
 // ClaudeHooks classifies Claude Code sessions from the hook state file written
@@ -70,14 +145,17 @@ func ClaudeHookArgs() []string {
 type ClaudeHooks struct {
 	path string
 
-	mu       sync.Mutex
-	lastSize int64
-	last     protocol.State
+	mu      sync.Mutex
+	off     int64  // bytes of the file already consumed
+	partial []byte // a trailing line not yet terminated by '\n'
+	last    protocol.State
+	agents  map[string]time.Time // running subagents by agent_id: last sign of life
+	now     func() time.Time
 }
 
 // NewClaudeHooks reads hook state from path.
 func NewClaudeHooks(path string) *ClaudeHooks {
-	return &ClaudeHooks{path: path, last: protocol.StateWorking}
+	return &ClaudeHooks{path: path, last: protocol.StateWorking, agents: map[string]time.Time{}, now: time.Now}
 }
 
 // Detect implements Adapter. window is unused; idle guards against a turn that
@@ -85,13 +163,27 @@ func NewClaudeHooks(path string) *ClaudeHooks {
 func (a *ClaudeHooks) Detect(_ []byte, idle time.Duration) protocol.State {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if st, ok := a.readLast(); ok {
-		a.last = st
-	}
+	a.read()
 	if a.last == protocol.StateWorking && idle >= hookStaleWorking {
 		return protocol.StateNeedsInput
 	}
 	return a.last
+}
+
+// Subagents implements SubagentCounter: subagents started and not yet
+// stopped, minus any quiet for subagentQuiet. A set, not a counter, because
+// resuming a subagent fires SubagentStart again with the same agent_id.
+func (a *ClaudeHooks) Subagents() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.read()
+	cutoff := a.now().Add(-subagentQuiet)
+	for id, seen := range a.agents {
+		if seen.Before(cutoff) {
+			delete(a.agents, id)
+		}
+	}
+	return len(a.agents)
 }
 
 // IsReadyForInput implements Adapter. Claude receives its first prompt on argv,
@@ -100,36 +192,68 @@ func (a *ClaudeHooks) IsReadyForInput(_ []byte, _ time.Duration) bool {
 	return false
 }
 
-// readLast returns the state on the file's last line when the file grew since
-// the previous read.
-func (a *ClaudeHooks) readLast() (protocol.State, bool) {
+// hookReadMax bounds one read of new hook lines.
+const hookReadMax = 1 << 20
+
+// read consumes the lines appended since the last call. Callers hold mu.
+func (a *ClaudeHooks) read() {
 	f, err := os.Open(a.path)
 	if err != nil {
-		return "", false
+		return
 	}
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || info.Size() == a.lastSize {
-		return "", false
+	if err != nil {
+		return
 	}
-	a.lastSize = info.Size()
-	const tailMax = 256
-	off := info.Size() - tailMax
-	if off < 0 {
-		off = 0
+	size := info.Size()
+	if size < a.off { // truncated or replaced: start over
+		a.off, a.partial = 0, nil
+		clear(a.agents)
 	}
-	buf := make([]byte, info.Size()-off)
-	if _, err := f.ReadAt(buf, off); err != nil && err != io.EOF {
-		return "", false
+	if size == a.off {
+		return
 	}
-	lines := bytes.Split(bytes.TrimSpace(buf), []byte("\n"))
-	word := string(bytes.TrimSpace(lines[len(lines)-1]))
-	switch st := protocol.State(word); st {
-	case protocol.StateWorking, protocol.StateNeedsInput:
-		slog.Debug("adapter: claude hook state", "path", a.path, "state", st)
-		return st, true
+	buf := make([]byte, min(size-a.off, hookReadMax))
+	got, err := f.ReadAt(buf, a.off)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return
+	}
+	a.off += int64(got) // a file shrunk since Stat reads short
+	// Every hook writes its lines with one small printf, so a partial line
+	// is a write still in flight and its rest arrives next.
+	buf = append(a.partial, buf[:got]...)
+	end := bytes.LastIndexByte(buf, '\n')
+	if end < 0 {
+		a.partial = buf
+		return
+	}
+	a.partial = append([]byte(nil), buf[end+1:]...)
+	for _, line := range bytes.Split(buf[:end], []byte("\n")) {
+		a.apply(string(bytes.TrimSpace(line)))
+	}
+}
+
+// apply takes one hook line: a state word or a subagent line.
+func (a *ClaudeHooks) apply(line string) {
+	word, arg, _ := strings.Cut(line, " ")
+	switch word {
+	case "":
+		return
+	case string(protocol.StateWorking), string(protocol.StateNeedsInput):
+		a.last = protocol.State(word)
+		slog.Debug("adapter: claude hook state", "path", a.path, "state", a.last)
+	case hookAgentStart, hookAgentSeen:
+		// A sign of life also brings back a subagent dropped as quiet or
+		// cleared by a reset while it ran.
+		if arg != "" {
+			a.agents[arg] = a.now()
+		}
+	case hookAgentStop:
+		delete(a.agents, arg)
+	case hookAgentsReset:
+		clear(a.agents)
 	default:
-		slog.Warn("adapter: unknown claude hook state", "path", a.path, "line", word)
-		return "", false
+		slog.Warn("adapter: unknown claude hook line", "path", a.path, "line", line)
 	}
 }

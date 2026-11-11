@@ -300,7 +300,7 @@ func renderBoard(m Model, width, height int) string {
 
 // Row grid. Left to right:
 //
-//	indent marker  [id]  name  text  [model·effort  tokens]  run-badge  time
+//	indent marker  [id]  name  text  [model·effort  tokens]  subagents  run-badge  time
 //
 // The bracketed columns only show in the detailed view (v). indent, marker,
 // id and time are fixed. name, model and tokens are sized to
@@ -314,6 +314,7 @@ const (
 	colModel  = 24 // model · effort column cap
 	colTokens = 8  // "99.9M tk"
 	colRun    = 4  // long-running badge: "▴42m"
+	colAgents = 3  // running subagents: subagentGlyph + count, "⋔12"
 	colTime   = 4  // "59m", "23h", "12d"
 	colGap    = 2
 	rowIndent = 3 // " " + arrow/space + " "
@@ -324,16 +325,16 @@ const (
 	slugMin       = 12 // name column floor while desc is above descMinNarrow
 )
 
-// rowCols holds the per-frame column widths. 0 hides id, model, tokens and
-// run (no cell, no gap).
+// rowCols holds the per-frame column widths. 0 hides id, model, tokens,
+// agents and run (no cell, no gap).
 type rowCols struct {
-	id, slug, desc, model, tokens, run int
+	id, slug, desc, model, tokens, agents, run int
 }
 
 // used is the row width of everything except the description cell.
 func (c rowCols) used() int {
 	w := rowIndent + colMarker + colGap + c.slug + colGap + colGap + colTime
-	for _, x := range []int{c.id, c.model, c.tokens, c.run} {
+	for _, x := range []int{c.id, c.model, c.tokens, c.agents, c.run} {
 		if x > 0 {
 			w += colGap + x
 		}
@@ -359,8 +360,8 @@ func layoutSlots(slots []boardSlot, now time.Time, width int, detailed bool) row
 
 // layoutRows sizes columns to content, then degrades for narrow widths in a
 // fixed order until the description gets descMin: drop tokens, shrink model
-// (to modelMin), shrink name (to slugMin), drop model, drop long-run
-// badge. Below that
+// (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
+// long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
 func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed bool) rowCols {
 	var c rowCols
@@ -375,6 +376,9 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		}
 		if longRunTier(now, s) >= 0 {
 			c.run = colRun
+		}
+		if s.Subagents > 0 {
+			c.agents = colAgents
 		}
 	}
 	c.slug = min(c.slug, colSlug)
@@ -396,6 +400,7 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		func() { shrink(&c.model, modelMin) },
 		func() { shrink(&c.slug, slugMin) },
 		func() { c.model = 0 },
+		func() { c.agents = 0 },
 		func() { c.run = 0 },
 	}
 	for _, step := range steps {
@@ -483,6 +488,9 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		}
 		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
 	}
+	if c.agents > 0 {
+		b.WriteString(gap + subagentCell(s, c.agents, retiring && !selected))
+	}
 	if c.run > 0 {
 		b.WriteString(gap + longRunCell(now, s, c.run))
 	}
@@ -497,6 +505,23 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		}
 	}
 	return row
+}
+
+// subagentGlyph marks the subagent count (a fork: work split in parallel).
+const subagentGlyph = "⋔"
+
+// subagentCell renders how many subagents the session is running, e.g.
+// "⋔3", or blank. Counts above 99 show as 99.
+func subagentCell(s protocol.SessionSummary, w int, dim bool) string {
+	text := ""
+	if s.Subagents > 0 {
+		text = fmt.Sprintf("%s%d", subagentGlyph, min(s.Subagents, 99))
+	}
+	style := lipgloss.NewStyle().Foreground(colorWorking)
+	if dim {
+		style = lipgloss.NewStyle().Foreground(colorFgMuted)
+	}
+	return style.Width(w).Render(text)
 }
 
 // longRunCell renders the long-run badge column. The badge is rex-made and

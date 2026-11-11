@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -77,12 +78,15 @@ func cmdDaemonStart(ts *testscript.TestScript, neg bool, args []string) {
 		"-state-dir", filepath.Join(home, ".local", "share", "rex"),
 		"-tools", filepath.Join(home, ".config", "rex", "tools.yaml"),
 	}, args...)
-	cmd := exec.Command(h.daemonBin, flags...)
-	cmd.Dir = ts.MkAbs(".")
-	cmd.Env = scriptEnv(ts)
-	cmd.Stdout = stderr
-	cmd.Stderr = stderr
-	ts.Check(cmd.Start())
+	cmd, err := startRetryingTextBusy(func() *exec.Cmd {
+		c := exec.Command(h.daemonBin, flags...)
+		c.Dir = ts.MkAbs(".")
+		c.Env = scriptEnv(ts)
+		c.Stdout = stderr
+		c.Stderr = stderr
+		return c
+	})
+	ts.Check(err)
 
 	d := &scriptDaemon{cmd: cmd, done: make(chan struct{}), stderr: stderrPath}
 	go func() {
@@ -232,5 +236,25 @@ func shutdownViaSocket(sock string) {
 	deadline := time.Now().Add(stopWait)
 	for dialable(sock) && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// startRetryingTextBusy starts the command newCmd builds, retrying while
+// exec fails with ETXTBSY. Each script runs a private copy of rex-daemon
+// (copyBinary), and on Linux a process forked by a parallel script while
+// the copy was still open for writing holds that write handle until it
+// execs; exec of the copy fails with "text file busy" meanwhile
+// (golang/go#22315). It clears within milliseconds. A Cmd cannot be
+// started twice, so each attempt builds a fresh one.
+func startRetryingTextBusy(newCmd func() *exec.Cmd) (*exec.Cmd, error) {
+	delay := 10 * time.Millisecond
+	for attempt := 0; ; attempt++ {
+		cmd := newCmd()
+		err := cmd.Start()
+		if err == nil || !errors.Is(err, syscall.ETXTBSY) || attempt == 8 {
+			return cmd, err
+		}
+		time.Sleep(delay)
+		delay *= 2
 	}
 }
