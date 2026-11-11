@@ -2,14 +2,17 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -27,6 +30,7 @@ const (
 	wizModel
 	wizEffort
 	wizName
+	wizSkills
 	wizDescribe
 )
 
@@ -41,7 +45,16 @@ type WizardState struct {
 	// NameText is the optional display name being typed; it is validated
 	// with protocol.NormalizeSessionName as it changes.
 	NameText string
-	TaskText string
+	// Skills is the skill library (~/.config/rex/skills) read when the
+	// wizard opened; SkillsOn is the spawn_skills feature at that moment.
+	// The skills step shows only when both allow it and the selected tool
+	// declares skill_args.
+	Skills   []skills.Skill
+	SkillsOn bool
+	// SkillCursor indexes Skills; SkillSel holds the toggled names.
+	SkillCursor int
+	SkillSel    map[string]bool
+	TaskText    string
 	// SpawnTool and SpawnModel are the quick-spawn defaults
 	// (default_spawn_tool / default_spawn_model): the model step starts on
 	// SpawnModel when its tool is the selected one.
@@ -64,6 +77,10 @@ func openWizard(m Model) (Model, tea.Cmd) {
 		w.SpawnTool, _ = m.Store.Get("default_spawn_tool").(string)
 		w.SpawnModel, _ = m.Store.Get("default_spawn_model").(string)
 	}
+	if m.featureOn("spawn_skills") {
+		w.SkillsOn = true
+		w.Skills = loadWizardSkills()
+	}
 	presetModelDefault(w)
 	presetEffortDefault(w)
 	m.Wizard = w
@@ -72,6 +89,22 @@ func openWizard(m Model) (Model, tea.Cmd) {
 		m.Audio.Play(audio.EventOpen)
 	}
 	return m, nil
+}
+
+// loadWizardSkills lists the skill library. A library that cannot be read
+// shows no skills step; entries that cannot be used are skipped (rex skills
+// names them).
+func loadWizardSkills() []skills.Skill {
+	dir, err := paths.SkillsDir()
+	if err != nil {
+		slog.Warn("tui: skills library path", "err", err)
+		return nil
+	}
+	list, problems := skills.List(dir)
+	for _, p := range problems {
+		slog.Warn("tui: skill skipped", "err", p)
+	}
+	return list
 }
 
 // loadToolsStrict loads the built-in registry merged with the user's
@@ -176,8 +209,46 @@ func (w *WizardState) nameError() error {
 	return err
 }
 
+// skillsApply reports whether the skills step is shown: the feature is on,
+// the selected tool can load skills per session, and the library has some.
+func (w *WizardState) skillsApply() bool {
+	return w.SkillsOn && len(w.Skills) > 0 && len(w.selectedTool().SkillArgs) > 0
+}
+
+// chosenSkills returns the toggled skill names in library order, or nil when
+// the step does not apply (a choice made for one tool is not sent to another).
+func (w *WizardState) chosenSkills() []string {
+	if !w.skillsApply() {
+		return nil
+	}
+	var out []string
+	for _, s := range w.Skills {
+		if w.SkillSel[s.Name] {
+			out = append(out, s.Name)
+		}
+	}
+	return out
+}
+
+func (w *WizardState) toggleSkill() {
+	if w.SkillCursor < 0 || w.SkillCursor >= len(w.Skills) {
+		return
+	}
+	if w.SkillSel == nil {
+		w.SkillSel = map[string]bool{}
+	}
+	name := w.Skills[w.SkillCursor].Name
+	if w.SkillSel[name] {
+		delete(w.SkillSel, name)
+	} else {
+		w.SkillSel[name] = true
+	}
+}
+
 func (w *WizardState) stepApplies(step wizardStep) bool {
 	switch step {
+	case wizSkills:
+		return w.skillsApply()
 	case wizModel:
 		return len(w.selectedTool().Models) > 1
 	case wizEffort:
@@ -255,7 +326,7 @@ func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateWizardNameStep(m, k)
 	case wizDescribe:
 		return updateWizardDescribeStep(m, k)
-	case wizProvider, wizModel, wizEffort:
+	case wizProvider, wizModel, wizEffort, wizSkills:
 	}
 	switch k.String() {
 	case "esc":
@@ -271,6 +342,12 @@ func updateWizardKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case "enter":
 		nextWizardStep(m.Wizard)
 		playNav(m)
+		return m, nil
+	case " ":
+		if m.Wizard.Step == wizSkills {
+			m.Wizard.toggleSkill()
+			playNav(m)
+		}
 		return m, nil
 	}
 	return m, nil
@@ -302,6 +379,12 @@ func moveWizard(m Model, delta int) Model {
 		next := m.Wizard.EffortIdx + delta
 		if next >= 0 && next < len(opts) {
 			m.Wizard.EffortIdx = next
+			moved = true
+		}
+	case wizSkills:
+		next := m.Wizard.SkillCursor + delta
+		if next >= 0 && next < len(m.Wizard.Skills) {
+			m.Wizard.SkillCursor = next
 			moved = true
 		}
 	case wizName, wizDescribe:
@@ -449,6 +532,7 @@ func (w *WizardState) request(cwd string, existing []string) protocol.NewSession
 		CWD:           cwd,
 		InitialPrompt: task,
 		Name:          name,
+		Skills:        w.chosenSkills(),
 	}
 }
 
@@ -634,6 +718,10 @@ func renderWizard(m Model) string {
 		} else {
 			body = append(body, "", styleDim.Render("  shown on the board instead of the slug"))
 		}
+	case wizSkills:
+		title = styleSlug.Render("load skills? (optional)")
+		body = append(body, "")
+		body = append(body, wizSkillLines(m.Wizard)...)
 	case wizDescribe:
 		title = styleSlug.Render("describe the task")
 		body = append(body, "")
@@ -663,6 +751,8 @@ func wizardFooter(step wizardStep) string {
 		return styleDim.Render("  j/k select   enter next   b back   esc cancel")
 	case wizName:
 		return styleDim.Render("  enter next (empty skips)   b back (when empty)   esc cancel")
+	case wizSkills:
+		return styleDim.Render("  j/k move   space toggle   enter next   b back   esc cancel")
 	case wizDescribe:
 		return styleDim.Render("  enter launch   b back (when empty)   esc cancel")
 	}
@@ -699,6 +789,34 @@ func wizOption(selected bool, glyph, name, glyphColor string) string {
 		}
 	}
 	return "  " + cursor + g + styleSlug.Render(name)
+}
+
+// wizSkillLines renders the skills checklist: cursor, [x] box, name and the
+// description cut to the popup width, scrolled to keep the cursor visible
+// inside the fixed body height (one row is the blank line above).
+func wizSkillLines(w *WizardState) []string {
+	nameW := 0
+	for _, s := range w.Skills {
+		nameW = max(nameW, min(ansi.StringWidth(s.Name), 24))
+	}
+	lines := make([]string, len(w.Skills))
+	for i, s := range w.Skills {
+		cursor, box := "  ", "[ ]"
+		if i == w.SkillCursor {
+			cursor = styleArrow.Render("▸") + " "
+		}
+		if w.SkillSel[s.Name] {
+			box = "[x]"
+		}
+		name := truncate(s.Name, 24)
+		desc := ""
+		if s.Description != "" {
+			desc = styleDim.Render(truncate(s.Description, wizardWidth-nameW-12))
+		}
+		lines[i] = "  " + cursor + box + " " + styleSlug.Render(name) +
+			strings.Repeat(" ", nameW-ansi.StringWidth(name)) + "  " + desc
+	}
+	return windowLines(lines, w.SkillCursor, wizardBodyLines-1)
 }
 
 // wizInputBoxLines renders the task input box as a slice of lines (so it

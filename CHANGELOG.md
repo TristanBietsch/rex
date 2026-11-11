@@ -198,6 +198,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - TUI: the wizard has an optional name step (after effort). `enter` on an
   empty field skips it; the name is checked as you type. With no task, the
   name also gives the session's slug.
+- TUI: the wizard has an optional skills step (after the name): a checklist
+  of `~/.config/rex/skills` that loads the chosen skills into that session
+  only. Hidden for tools that cannot load skills (Antigravity), for an empty
+  library, and when `spawn_skills` is off.
 - `rex setup` now suggests trusting the project's own folder (the git root
   of where you ran it, or the folder itself when it is not a checkout)
   instead of the folder above it. Still never your home folder or anything
