@@ -28,6 +28,7 @@ Scope rules agreed 2026-11-11:
 | R11 | Jira / Linear sync? | build | L | [R11](R11-linear-sync.md): Linear only, two-way |
 | R12 | loop workflows (epic) | epic | L | [R12](R12-loop-workflows.md) |
 | R13 | (epic) insert mode auto-chooses model | epic | M | [R13](R13-auto-model.md) |
+| R14 | Waiting board section (agent busy on a shell, subagent or web call, below Needs you) | build | M | [R14](R14-waiting-section.md) |
 
 **R03 note.** S4 already plans the "master agent" as a daemon-side overview with buckets *needs you / ready for review / failed / working / completed* and an Ollama headline. It rejects a spawned Claude "master" on cost and cross-session prompt-injection grounds. No follow-up (R03-D1): the top-level TODO line closes when S4 merges.
 
@@ -58,6 +59,7 @@ User rule (2026-11-11): every feature, round 1 and round 2, can be turned on and
 | `linear_sync` | R11 Linear two-way | off |
 | `loops` | R12 loop workflows | off |
 | `auto_model` | R13 auto model in insert mode | off |
+| `waiting_section` | R14 Waiting section (off = waiting sessions show in Working; the daemon still records the fields) | on |
 | `turn_snapshots` | R01-1 per-turn snapshots + `:undo` | off |
 | `session_diff` | R01-2 diff / review page (needs `turn_snapshots`) | on |
 | `prompt_templates` | R01-3 prompt templates | on |
@@ -117,4 +119,5 @@ Same as round 1 (`00-orchestration.md` → "Per-task pipeline"): worktree per ta
 | R11 | tracker | Linear only, two-way |
 | R12 | kinds, format, stop | repeat first · YAML · check command exit 0 + cap |
 | R13 | router, confirm, scope, fallback | Ollama only · inline preview · model + effort · defaults + notice |
+| R14 | data, source, flicker, order, icon, keys, flag | additive `waiting_on`/`waiting_since` · Claude hooks · 3 s in the TUI · below Needs you · `◷` · `1`-`4` follow screen order · `waiting_section` on |
 | — | feature flags | every feature (round 1 + 2) is a Settings → Features toggle; round 1 via D15 + FF0 |
