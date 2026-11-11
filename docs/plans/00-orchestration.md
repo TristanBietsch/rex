@@ -28,9 +28,9 @@ Per-task plans: `docs/plans/<ID>-*.md`. Independent review: `00-review.md`.
 | P3 | harden the CLI | L |
 | A1 | antigravity parity | M (no hooks, see D7) |
 | K1 | opt-in skip-permissions setting (D9) | S — merged ca7a957 |
-| U4 | cmd for thick colored window border (pantone, colorblind-safe, random default) | plan pending |
-| U5 | fixed-width columns, responsive, mobile layout | plan pending |
-| U6 | agy logo centered / not cut off in attach window | plan pending |
+| U4 | cmd for thick colored window border | M — wave 7 lane B (after U1) |
+| U5 | fixed-width columns, breakpoints, mobile layout | M+ — wave 5 lane A after P2 (U5-5 after S5-1) |
+| U6 | agy logo in attach window (vt10x REP/tabs, spawn size, size clamp) | S–M — U6-1..3 wave 3 lane B; U6-4,5 wave 5 lane B after S5-1 |
 | P4 | CLI output look, -o formats, --agent mode, error log (plan pending) | L |
 
 Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
@@ -52,6 +52,7 @@ Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
 | D11 | P4 CLI output | agy command-output structure (Usage-first, Title-case sections, aligned, no banners, color for meaning); agent mode = 1 line per record + `ok` trailer, errors one stderr line; auto agent mode when CLAUDECODE=1 and stdout not a TTY (REX_AGENT=0 disables); `-json` stays legacy alias, `-o json` versioned; pipes default `txt`; viewer `rex errors`; error log on, 1 MiB + 1 backup, opt-out `cli_error_log`. P4-1..5 wave 2 lane C first; P4-6..13 wave 4 lane C after P3-11. |
 | D12 | Gates | Go toolchain: user upgrades (`brew upgrade go`); until then `make vuln` stdlib advisories are non-blocking. Coverage: no-regression rule for audio, cli/core, cli/inspect, cli/session, cli/setup (must not drop below base 61.2/43.6/36.3/27.9/60.6); all other floors enforced. |
 | D13 | Scope after TODO.md edit (2026-11-11) | **U3 dropped** (keep merged retired-tool guard 76c58a9; no agent removal, no `filterToolIDs`; T1 validates `:filter <tool>` against the existing `filterTools` list ∪ tool ids present on the board; U3-5 unknown-tool bad_intent dropped). Kept: S4, S5, P1, P2, P3, P4, all T*, S1–S3, U1, U2, U4–U6, A1. Progress tracked here only; TODO.md is the user's list (tick a line only when fully done). |
+| D14 | U4–U6 (2026-11-11) | U4: border off by default (`:border` per run, settings persist), random = stable per launch folder (`:border next` re-rolls), block frame `█`/`▀▄`, Pantone-inspired ids, hidden on splash/screensaver, `:border` not persisted. U5: breakpoint fixed widths (wide/normal/narrow/mobile), always-reserved sometimes-empty columns, mobile auto ≤60 cols with 2-line rows + attach sheet, no width knobs. U6: keep inherited TERM, fix vt10x (REP capped, tab stops on grow, DECST8C), spawn at popup size, clamp Resize/NewSession sizes (fixes daemon OOM via 65535×65535 Resize), live check folded into A1's D2 capture, hand-written fixtures. |
 | — | Agents | claude + antigravity visible; echo hidden (tests). Others deleted, with U3's retired-tool guard. |
 | — | `/ob` | Ignored. |
 | — | Remote | Keep local. No push, no PR. |
