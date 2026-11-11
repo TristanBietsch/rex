@@ -17,11 +17,7 @@ func RunStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
 	out := core.AddOutputFlags(fs, core.AllFormats, core.WithLegacyJSON())
-	_, err := core.ParseArgs(fs, args)
-	if err != nil {
-		return err
-	}
-	if err := out.Validate(); err != nil {
+	if _, err := out.Parse(fs, args); err != nil {
 		return err
 	}
 

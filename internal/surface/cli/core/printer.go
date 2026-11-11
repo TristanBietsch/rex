@@ -1,11 +1,13 @@
 package core
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -250,22 +252,80 @@ func AddOutputFlags(fs *flag.FlagSet, supported FormatSet, opts ...OutputOption)
 	fs.Func("o", "output `format`: text, txt, md, json or agent", setOutput)
 	fs.Func("output", "same as -o", setOutput)
 	fs.BoolFunc("agent", "one line per record, no color, no prompts (same as -o agent)",
-		func(string) error { o.fl.Output = "agent"; return nil })
-	fs.BoolFunc("no-color", "never emit ANSI color",
-		func(string) error { o.fl.NoColor = true; return nil })
+		func(v string) error {
+			on, err := strconv.ParseBool(v)
+			switch {
+			case err != nil:
+				return err
+			case on:
+				o.fl.Output = "agent"
+			case o.fl.Output == "agent":
+				o.fl.Output = ""
+			}
+			return nil
+		})
+	fs.BoolFunc("no-color", "never emit ANSI color", func(v string) (err error) {
+		o.fl.NoColor, err = strconv.ParseBool(v)
+		return err
+	})
 	if o.legacy {
-		fs.BoolFunc("json", "legacy JSON output (prefer -o json)",
-			func(string) error { o.fl.Legacy = true; return nil })
+		fs.BoolFunc("json", "legacy JSON output (prefer -o json)", func(v string) (err error) {
+			o.fl.Legacy, err = strconv.ParseBool(v)
+			return err
+		})
 	}
 	return o
 }
 
-// Validate resolves the format from the parsed flags and the environment,
-// installs the resulting Printer as the process Printer, and rejects a
-// format the command does not support (ExitInvalidArgs).
-func (o *OutputFlags) Validate() error {
-	p, err := Out().WithFlags(o.fl)
+// Parse is ParseArgs followed by Validate. When either fails, it first
+// installs a best-effort Printer from the flags parsed so far (with Cmd set
+// to the command), so main renders the error in the format the user asked
+// for. Help (ErrHelpShown) leaves the Printer alone.
+func (o *OutputFlags) Parse(fs *flag.FlagSet, args []string) ([]string, error) {
+	pos, err := ParseArgs(fs, args)
+	return o.finish(pos, err)
+}
+
+// ParseText is ParseTextArgs followed by Validate, like Parse.
+func (o *OutputFlags) ParseText(fs *flag.FlagSet, args []string, leading int) ([]string, error) {
+	pos, err := ParseTextArgs(fs, args, leading)
+	return o.finish(pos, err)
+}
+
+func (o *OutputFlags) finish(pos []string, err error) ([]string, error) {
+	if err == nil {
+		err = o.Validate()
+	} else if !errors.Is(err, ErrHelpShown) {
+		o.install()
+	}
 	if err != nil {
+		return nil, err
+	}
+	return pos, nil
+}
+
+// install sets the process Printer from the flags parsed so far, for
+// rendering an error. A flag combination that does not resolve (a conflict,
+// an unknown format) drops -json, then falls back to txt.
+func (o *OutputFlags) install() *Printer {
+	base := Out()
+	for _, fl := range []FormatFlags{o.fl, {Output: o.fl.Output, NoColor: o.fl.NoColor}, {Output: "txt"}} {
+		if p, err := base.WithFlags(fl); err == nil {
+			p.Cmd = o.name
+			SetOut(p)
+			return p
+		}
+	}
+	return base
+}
+
+// Validate resolves the format from the parsed flags and the environment,
+// installs the resulting Printer as the process Printer (even when it then
+// rejects the flags, so the error renders in the requested format), and
+// rejects a format the command does not support (ExitInvalidArgs).
+func (o *OutputFlags) Validate() error {
+	p := o.install()
+	if _, err := ResolveFormat(o.fl, p.env.Getenv, p.env.OutTTY); err != nil {
 		return err
 	}
 	if p.Legacy && !o.legacy {
@@ -275,7 +335,5 @@ func (o *OutputFlags) Validate() error {
 		return NewExitError(ExitInvalidArgs, fmt.Sprintf(
 			"%s: output %q is not supported (supported: %s)", o.name, p.Format, o.supported))
 	}
-	p.Cmd = o.name
-	SetOut(p)
 	return nil
 }

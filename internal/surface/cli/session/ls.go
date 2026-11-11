@@ -21,11 +21,7 @@ func RunLs(args []string) error {
 	modelFilter := fs.String("model", "", "filter by model id")
 	showArchived := fs.Bool("show-archived", false, "include archived sessions")
 	short := fs.Bool("short", false, "compact mode (reserved)")
-	_, err := core.ParseArgs(fs, args)
-	if err != nil {
-		return err
-	}
-	if err := out.Validate(); err != nil {
+	if _, err := out.Parse(fs, args); err != nil {
 		return err
 	}
 	_ = showArchived

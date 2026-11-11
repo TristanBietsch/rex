@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"strconv"
@@ -405,8 +406,20 @@ func TestRenderError(t *testing.T) {
 	for _, f := range []string{"text", "txt", "md", "agent", "json"} {
 		out := render(FormatFlags{Output: f}, Env{}, "ls", evil)
 		require.NotContains(t, out, "\x1b", f)
-		require.Equal(t, 1, strings.Count(out, "\n"), f+": one line")
+		want := 2 // plain formats keep the message's line break
+		if f == "agent" || f == "json" {
+			want = 1
+		}
+		require.Equal(t, want, strings.Count(out, "\n"), f)
 	}
+
+	// Multi-line errors (captured command output) print as before.
+	multi := errors.New("update failed:\nfatal: not a repository\n  hint: run it in a repo")
+	for _, f := range []FormatFlags{{Output: "txt"}, {Output: "md"}, {Legacy: true}} {
+		require.Equal(t, "rex: "+multi.Error()+"\n", render(f, Env{}, "update", multi))
+	}
+	require.Contains(t, render(FormatFlags{Output: "text"}, Env{}, "update", multi), "fatal: not a repository\n")
+	require.Equal(t, 1, strings.Count(render(FormatFlags{Output: "agent"}, Env{}, "update", multi), "\n"))
 }
 
 func TestJSONErrorStdoutEmpty(t *testing.T) {
@@ -416,4 +429,63 @@ func TestJSONErrorStdoutEmpty(t *testing.T) {
 	p.RenderError(NewExitError(ExitSelectorNotFound, "no such session"))
 	require.Empty(t, out.String())
 	require.Contains(t, errw.String(), `"kind":"not_found"`)
+}
+
+func TestOutputFlagsFailurePathRendersInRequestedFormat(t *testing.T) {
+	run := func(t *testing.T, args ...string) string {
+		t.Helper()
+		var errw bytes.Buffer
+		base, err := NewPrinter(FormatFlags{}, Env{Getenv: envOf(), Scheme: "default"}, io.Discard, &errw)
+		require.NoError(t, err)
+		SetOut(base)
+		t.Cleanup(func() { SetOut(nil) })
+		fs := flag.NewFlagSet("ls", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		o := AddOutputFlags(fs, AllFormats, WithLegacyJSON())
+		_, err = o.Parse(fs, args)
+		require.Error(t, err)
+		Out().RenderError(err)
+		return errw.String()
+	}
+	require.Regexp(t, `^error code=5 kind=invalid_args cmd=ls msg="flag provided but not defined: -bogus"`+"\n$",
+		run(t, "--agent", "-bogus"))
+	require.Regexp(t, `^\{"v":1,"error":\{"code":5,"kind":"invalid_args","cmd":"ls","msg":"flag provided but not defined: -bogus"\}\}`+"\n$",
+		run(t, "-o", "json", "-bogus"))
+	require.Regexp(t, `^error code=5 kind=invalid_args cmd=ls msg="conflicting output flags`,
+		run(t, "-json", "--agent"))
+	require.Regexp(t, `^rex: unknown output format "yaml"`, run(t, "-o", "yaml"))
+	require.Contains(t, run(t, "-o", "json", "-o", "yaml", "-bogus"), "rex: flag provided but not defined",
+		"an unresolvable format falls back to txt")
+	require.Contains(t, run(t, "-o", "md", "x", "-agent=maybe"), "invalid", "a bad bool value is a parse error")
+
+	// Help leaves the printer alone and stays silent.
+	SetOut(nil)
+	t.Cleanup(func() { SetOut(nil) })
+	fs := flag.NewFlagSet("ls", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	o := AddOutputFlags(fs, AllFormats)
+	_, err := o.Parse(fs, []string{"-h"})
+	require.ErrorIs(t, err, ErrHelpShown)
+	require.Empty(t, Out().Cmd)
+}
+
+func TestOutputFlagsBoolValues(t *testing.T) {
+	parse := func(base FormatFlags, args ...string) FormatFlags {
+		p, err := NewPrinter(base, Env{Getenv: envOf(), Scheme: "default"}, io.Discard, io.Discard)
+		require.NoError(t, err)
+		SetOut(p)
+		t.Cleanup(func() { SetOut(nil) })
+		fs := flag.NewFlagSet("ls", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		o := AddOutputFlags(fs, AllFormats, WithLegacyJSON())
+		_, err = ParseArgs(fs, args)
+		require.NoError(t, err)
+		return o.fl
+	}
+	require.Equal(t, FormatFlags{}, parse(FormatFlags{}, "-json=false", "--agent=false", "-no-color=false"))
+	require.Equal(t, FormatFlags{Legacy: true, NoColor: true}, parse(FormatFlags{}, "-json=true", "-no-color"))
+	require.Equal(t, FormatFlags{Output: "agent"}, parse(FormatFlags{}, "--agent=true"))
+	require.Equal(t, FormatFlags{}, parse(FormatFlags{Output: "agent"}, "--agent=false"), "=false undoes a leading --agent")
+	require.Equal(t, FormatFlags{Output: "json"}, parse(FormatFlags{Output: "json"}, "--agent=false"), "=false leaves other formats")
+	require.Equal(t, FormatFlags{}, parse(FormatFlags{Legacy: true, NoColor: true}, "-json=0", "-no-color=f"))
 }

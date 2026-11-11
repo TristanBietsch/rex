@@ -70,6 +70,17 @@ func Describe(err error) ErrorInfo {
 	return info
 }
 
+// flatLines flattens each line of s and keeps the line breaks, so a
+// multi-line message (a command's captured output) prints as written but
+// cannot carry a control sequence.
+func flatLines(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = flat(l)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // IsSilent reports whether err is a bare exit status: help was shown, or a
 // signal such as "status found a session needing input". Nothing is printed
 // or logged for it.
@@ -83,11 +94,14 @@ func (p *Printer) RenderError(err error) {
 		return
 	}
 	info := Describe(err)
+	multi := info // the plain formats keep the line breaks of message and cause
+	multi.Msg, multi.Cause = flatLines(info.Msg), flatLines(info.Cause)
 	info.Msg, info.Hint, info.Cause = flat(info.Msg), flat(info.Hint), flat(info.Cause)
+	multi.Hint = info.Hint
 	var line string
 	switch {
 	case p.Legacy:
-		line = "rex: " + info.Msg
+		line = "rex: " + multi.Msg
 	case p.Format == FormatAgent:
 		fields := []Field{{"code", info.Code}, {"kind", info.Kind}}
 		if p.Cmd != "" {
@@ -101,11 +115,11 @@ func (p *Printer) RenderError(err error) {
 	case p.Format == FormatJSON:
 		line = errorJSON(p.Cmd, info)
 	case p.Format == FormatText:
-		line = p.textError(info)
+		line = p.textError(multi)
 	default:
-		line = "rex: " + info.Msg
-		if info.Hint != "" {
-			line += "\n  hint: " + info.Hint
+		line = "rex: " + multi.Msg
+		if multi.Hint != "" {
+			line += "\n  hint: " + multi.Hint
 		}
 	}
 	_, _ = fmt.Fprintln(p.Err, line)
@@ -113,9 +127,18 @@ func (p *Printer) RenderError(err error) {
 
 func (p *Printer) textError(info ErrorInfo) string {
 	s := p.ErrStyles
-	lines := []string{s.Err.Bold(true).Render(p.Glyphs.Fail + " " + info.Msg)}
+	// Style line by line: lipgloss pads a multi-line string to equal widths.
+	var lines []string
+	for i, l := range strings.Split(info.Msg, "\n") {
+		if i == 0 {
+			l = p.Glyphs.Fail + " " + l
+		}
+		lines = append(lines, s.Err.Bold(true).Render(l))
+	}
 	if info.Cause != "" {
-		lines = append(lines, "  "+s.Dim.Render(info.Cause))
+		for _, l := range strings.Split(info.Cause, "\n") {
+			lines = append(lines, "  "+s.Dim.Render(l))
+		}
 	}
 	if info.Hint != "" {
 		lines = append(lines, s.Accent.Render(p.Glyphs.Hint+" "+info.Hint))

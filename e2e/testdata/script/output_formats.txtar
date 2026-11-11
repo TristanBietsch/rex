@@ -51,9 +51,27 @@ stdout '^Sessions  1 done$'
 
 # Errors: unknown format and conflicting flags exit 5; json errors go to stderr only.
 exitcode 5 rex ls -o yaml
-stderr 'unknown output format "yaml"'
+stderr '^rex: unknown output format "yaml"'
 exitcode 5 rex ls -json --agent
-stderr 'conflicting output flags'
+stderr '^error code=5 kind=invalid_args cmd=ls msg="conflicting output flags'
+exitcode 5 rex ls -json=false -o yaml
+stderr '^rex: unknown output format "yaml"'
+
+# A parse error renders in the requested format, with the command name.
+exitcode 5 rex ls --agent -bogus
+! stdout .
+stderr '^error code=5 kind=invalid_args cmd=ls msg="flag provided but not defined: -bogus"$'
+exitcode 5 rex ls -o json -bogus
+! stdout .
+stderr '^\{"v":1,"error":\{"code":5,"kind":"invalid_args","cmd":"ls","msg":"flag provided but not defined: -bogus"\}\}$'
+exitcode 5 rex -o json ls -bogus
+stderr '^\{"v":1,"error":\{"code":5,"kind":"invalid_args","cmd":"ls",'
+
+# =false turns a flag off.
+exec rex ls -json=false
+stdout '^ID +STATE '
+exec rex ls --agent=false
+stdout '^ID +STATE '
 exitcode 5 rex attach -o json s1
 stderr 'attach'
 exitcode 5 rex -o json doctor
