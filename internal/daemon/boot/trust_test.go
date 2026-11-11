@@ -8,6 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSkipPermissions(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.False(t, SkipPermissions(), "no config: off")
+
+	cfg := filepath.Join(home, ".config", "rex", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
+	require.NoError(t, os.WriteFile(cfg, []byte("skip_permissions: true\n"), 0o600))
+	require.True(t, SkipPermissions())
+
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	require.False(t, SkipPermissions(), "no home: off")
+}
+
 func TestAutoTrustDirs(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

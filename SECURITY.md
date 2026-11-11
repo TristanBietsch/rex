@@ -63,6 +63,10 @@ filesystem permissions.
   setting is empty by default, and `rex setup` sets it only when you
   answer yes or pass `-auto-trust`. rex trusting a folder you did not list is
   in scope.
+- The `skip_permissions` setting. When you turn it on, rex starts Claude
+  Code and Antigravity with `--dangerously-skip-permissions`, so those
+  agents run commands and edit files without asking you. It is off by
+  default. rex adding that flag while the setting is off is in scope.
 - An attacker who already runs code as your user, or as root.
 - Vulnerabilities in third-party dependencies that rex does not reach. Use
   `make vuln` (govulncheck) to check reachability first.

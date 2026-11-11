@@ -21,6 +21,7 @@ tools:
     enabled_by_default: <bool>            # optional; builtin only
     trust_prompt: { ... }                 # optional
     trust_args: [<argv>...]               # optional
+    skip_permissions_args: [<argv>...]    # optional
     models:
       - id: <string>
         name: <string>
@@ -42,7 +43,7 @@ State detection (`detect`) selects an adapter that classifies PTY output into se
 3. Merge is by tool `id`. User fields replace builtin scalars when non-empty.
 4. Models merge by model `id` (replace or append).
 5. `enabled_by_default` is **not** merged from user YAML; it applies only on builtin entries.
-6. `trust_prompt` and `trust_args` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead.
+6. `trust_prompt`, `trust_args` and `skip_permissions_args` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead.
 7. A partial overlay of a retired built-in tool (`codex`, `gemini`, `ollama`, `grok`, `deepseek`, `kimi`) that has no built-in entry and is not a complete tool definition is dropped with a warning instead of failing the load. The daemon logs the warning at start and on reload, and the TUI splash shows it. Define the tool fully in `tools.yaml` to keep it. Any other invalid tool still fails the load.
 
 Duplicate tool or model ids are rejected at load time.
@@ -56,6 +57,7 @@ Duplicate tool or model ids are rejected at load time.
 | `category` | yes | Label only (`paid`, `self_hosted`) |
 | `command` | yes | Base argv before model args |
 | `cwd_strategy` | no | `inherit` (default) or `session_dir` |
+| `skip_permissions_args` | no | Extra argv added only while the `skip_permissions` setting is on (the built-in `claude` and `antigravity` use `["--dangerously-skip-permissions"]`). An overlay replaces the built-in value; no argument may be empty |
 | `detect` | yes | State classifier config |
 | `icon`, `color` | yes | TUI display |
 | `enabled_by_default` | no | If false, hidden from wizard until enabled |

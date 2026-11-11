@@ -13,7 +13,7 @@ import (
 
 // legacyArgv is handleNewSession's inline argv construction as it was before
 // buildArgv was extracted. The golden test pins buildArgv to it.
-func legacyArgv(tool registry.Tool, model registry.Model, effort string, trust []string) []string {
+func legacyArgv(tool registry.Tool, model registry.Model, effort string, trust, skip []string) []string {
 	cmdArgs := append([]string{}, tool.Command...)
 	cmdArgs = append(cmdArgs, model.Args...)
 	if model.Effort != nil && effort != "" && model.Effort.ArgTemplate != "" {
@@ -21,6 +21,7 @@ func legacyArgv(tool registry.Tool, model registry.Model, effort string, trust [
 		cmdArgs = append(cmdArgs, strings.Fields(rendered)...)
 	}
 	cmdArgs = append(cmdArgs, trust...)
+	cmdArgs = append(cmdArgs, skip...)
 	if tool.Detect.Kind == "hooks" && tool.Detect.Format == "claude" {
 		cmdArgs = append(cmdArgs, adapter.ClaudeHookArgs()...)
 	}
@@ -40,11 +41,17 @@ func TestBuildArgvGoldenEveryBuiltin(t *testing.T) {
 			}
 			for _, effort := range efforts {
 				for _, tr := range [][]string{nil, trust} {
-					spec := spawnSpec{Tool: tool, Model: model, Effort: effort, CWD: "/w",
-						Trust: trustDecision{Args: tr}, HookFile: "/h", SessionID: "sid"}
-					require.Equal(t, legacyArgv(tool, model, effort, tr), buildArgv(spec),
-						"%s/%s effort=%q trust=%v", tool.ID, model.ID, effort, tr)
-					n++
+					for _, skip := range []bool{false, true} {
+						var skipArgs []string
+						if skip {
+							skipArgs = tool.SkipPermissionsArgs
+						}
+						spec := spawnSpec{Tool: tool, Model: model, Effort: effort, CWD: "/w",
+							Trust: trustDecision{Args: tr}, SkipPermissions: skip, HookFile: "/h", SessionID: "sid"}
+						require.Equal(t, legacyArgv(tool, model, effort, tr, skipArgs), buildArgv(spec),
+							"%s/%s effort=%q trust=%v skip=%v", tool.ID, model.ID, effort, tr, skip)
+						n++
+					}
 				}
 			}
 		}
@@ -80,4 +87,22 @@ func TestChildEnvFor(t *testing.T) {
 	require.Equal(t, []string{"REX_SESSION_ID=abc"},
 		childEnvFor(spawnSpec{Tool: registry.Tool{}, HookFile: hf, SessionID: "abc"}),
 		"no hook env for tools that are not hook-detected")
+}
+
+func TestBuildArgvSkipPermissions(t *testing.T) {
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	for _, id := range []string{"claude", "antigravity", "echo"} {
+		tool, ok := reg.Find(id)
+		require.True(t, ok)
+		model := tool.Models[0]
+		off := buildArgv(spawnSpec{Tool: tool, Model: model})
+		require.NotContains(t, off, "--dangerously-skip-permissions", "%s: setting off", id)
+		on := buildArgv(spawnSpec{Tool: tool, Model: model, SkipPermissions: true})
+		if id == "echo" {
+			require.Equal(t, off, on, "echo has no skip_permissions_args")
+		} else {
+			require.Contains(t, on, "--dangerously-skip-permissions", "%s: setting on", id)
+		}
+	}
 }

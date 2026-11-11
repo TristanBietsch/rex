@@ -100,6 +100,11 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "macOS: keep the display from sleeping while the screensaver shows (caffeinate -d). Does nothing on other systems.",
 	},
+	{
+		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior,
+		Type: TypeBool, Default: false,
+		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions. Agents then edit files and run commands without asking you first. Applies to the next session.",
+	},
 
 	// Spawn
 	{

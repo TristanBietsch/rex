@@ -72,6 +72,10 @@ type Config struct {
 	// folder-trust dialog accepted (setting auto_trust_dirs). Called at each
 	// spawn, so a changed setting applies to the next session. nil: never.
 	AutoTrustDirs func() []string
+	// SkipPermissions reports whether new sessions get their tool's
+	// skip_permissions_args (setting skip_permissions). Called at each
+	// spawn. nil: never.
+	SkipPermissions func() bool
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).

@@ -65,13 +65,14 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		slog.Info("spawn: hook state detection", "tool", p.ToolID, "hook_file", hookFile)
 	}
 	spec := spawnSpec{
-		Tool:      tool,
-		Model:     model,
-		Effort:    p.Effort,
-		CWD:       p.CWD,
-		Trust:     srv.trustDecisionFor(tool, p.CWD),
-		HookFile:  hookFile,
-		SessionID: id,
+		Tool:            tool,
+		Model:           model,
+		Effort:          p.Effort,
+		CWD:             p.CWD,
+		Trust:           srv.trustDecisionFor(tool, p.CWD),
+		SkipPermissions: srv.cfg.SkipPermissions != nil && srv.cfg.SkipPermissions(),
+		HookFile:        hookFile,
+		SessionID:       id,
 	}
 	cmdArgs := buildArgv(spec)
 	childEnv := childEnvFor(spec)
@@ -126,13 +127,17 @@ type spawnSpec struct {
 	Effort string
 	CWD    string
 	// Trust is the already-computed folder-trust decision (it reads config).
-	Trust     trustDecision
-	HookFile  string
-	SessionID string
+	Trust trustDecision
+	// SkipPermissions adds Tool.SkipPermissionsArgs (setting skip_permissions,
+	// read once per spawn).
+	SkipPermissions bool
+	HookFile        string
+	SessionID       string
 }
 
 // buildArgv returns the child argv up to, but not including, the initial
-// prompt: command, model args, effort, trust args, hook args. The prompt
+// prompt: command, model args, effort, trust args, skip-permissions args, hook
+// args. The prompt
 // (`--` text or `--prompt-interactive=`) is appended by initialPromptDelivery.
 func buildArgv(spec spawnSpec) []string {
 	argv := append([]string{}, spec.Tool.Command...)
@@ -146,6 +151,9 @@ func buildArgv(spec spawnSpec) []string {
 	}
 	// Folder trust the agent applies itself (only under auto_trust_dirs).
 	argv = append(argv, spec.Trust.Args...)
+	if spec.SkipPermissions {
+		argv = append(argv, spec.Tool.SkipPermissionsArgs...)
+	}
 	// Flags must precede the `--` prompt separator.
 	if spec.Tool.Detect.Kind == "hooks" && spec.Tool.Detect.Format == "claude" {
 		argv = append(argv, adapter.ClaudeHookArgs()...)

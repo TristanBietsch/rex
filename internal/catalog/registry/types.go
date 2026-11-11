@@ -21,6 +21,10 @@ type Tool struct {
 	// expands to a JSON array of the session folder's paths. Preferred over
 	// TrustPrompt when the agent supports it.
 	TrustArgs []string `yaml:"trust_args,omitempty"`
+	// SkipPermissionsArgs are extra argv that make the agent run without
+	// asking for approval (for example --dangerously-skip-permissions). They
+	// are added only while the skip_permissions setting is on.
+	SkipPermissionsArgs []string `yaml:"skip_permissions_args,omitempty"`
 }
 
 // TrustArgsCWDList is the trust_args placeholder for the session folder.

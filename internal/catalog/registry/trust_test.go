@@ -77,7 +77,8 @@ func TestBuiltinAntigravity(t *testing.T) {
 	require.NoError(t, err)
 	agy, ok := reg.Find("antigravity")
 	require.True(t, ok)
-	require.Equal(t, []string{"agy", "--dangerously-skip-permissions"}, agy.Command)
+	require.Equal(t, []string{"agy"}, agy.Command)
+	require.Equal(t, []string{"--dangerously-skip-permissions"}, agy.SkipPermissionsArgs)
 	require.Nil(t, agy.TrustPrompt, "agy trusts the folder from --settings; no keystrokes")
 	require.Equal(t, []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}, agy.TrustArgs)
 	gemini, ok := reg.Find("gemini")
@@ -116,4 +117,27 @@ func TestValidateBusyRegex(t *testing.T) {
 	require.ErrorContains(t, validate([]Tool{tool}), "busy_regex")
 	tool.Detect.BusyRegex = "esc to cancel"
 	require.NoError(t, validate([]Tool{tool}))
+}
+
+func TestSkipPermissionsArgs(t *testing.T) {
+	reg, err := Load("")
+	require.NoError(t, err)
+	for _, id := range []string{"claude", "antigravity"} {
+		tool, ok := reg.Find(id)
+		require.True(t, ok)
+		require.Equal(t, []string{"--dangerously-skip-permissions"}, tool.SkipPermissionsArgs, id)
+		require.NotContains(t, tool.Command, "--dangerously-skip-permissions", "%s: opt-in only", id)
+	}
+	echo, _ := reg.Find("echo")
+	require.Empty(t, echo.SkipPermissionsArgs)
+
+	merged := mergeOne(Tool{ID: "claude", SkipPermissionsArgs: []string{"--a"}}, Tool{ID: "claude", SkipPermissionsArgs: []string{"--b"}})
+	require.Equal(t, []string{"--b"}, merged.SkipPermissionsArgs, "an overlay replaces the builtin value")
+	kept := mergeOne(Tool{ID: "claude", SkipPermissionsArgs: []string{"--a"}}, Tool{ID: "claude", Name: "x"})
+	require.Equal(t, []string{"--a"}, kept.SkipPermissionsArgs)
+
+	bad := Tool{ID: "x", Models: []Model{{ID: "m"}}, Detect: Detect{Kind: "hooks", Format: "claude"}, SkipPermissionsArgs: []string{"--a", ""}}
+	require.ErrorContains(t, validate([]Tool{bad}), "skip_permissions_args")
+	bad.SkipPermissionsArgs = []string{"--a"}
+	require.NoError(t, validate([]Tool{bad}))
 }

@@ -6,6 +6,19 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
 
+// SkipPermissions reads skip_permissions from config.yaml. The server calls
+// it at each spawn, so a changed setting applies to the next session. On a
+// read error it is off.
+func SkipPermissions() bool {
+	st, _, err := settings.LoadDefault()
+	if err != nil {
+		slog.Warn("daemon: settings load failed for skip_permissions; leaving it off", "err", err)
+		return false
+	}
+	on, _ := st.Get("skip_permissions").(bool)
+	return on
+}
+
 // AutoTrustDirs reads auto_trust_dirs from config.yaml. The server calls it
 // at each spawn, so a changed setting applies to the next session without a
 // daemon restart. On a read error it trusts nothing.

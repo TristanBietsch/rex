@@ -72,6 +72,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Skipping agent permission prompts is now opt-in. Claude Code and
+  Antigravity no longer start with `--dangerously-skip-permissions` unless
+  you set `skip_permissions: true` (default off; read at each spawn). The
+  flag moved from the built-in `command` to a per-tool
+  `skip_permissions_args` registry field.
 - TUI: a simpler board. Rows show state, name, the task (or the agent's
   question when it is waiting on you) and age; `v` brings back the id,
   model, tokens and AI summary. Columns are NEEDS YOU / WORKING / DONE

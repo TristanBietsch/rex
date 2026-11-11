@@ -49,6 +49,15 @@ func TestRegistry_Screensaver(t *testing.T) {
 	}
 }
 
+func TestRegistry_SkipPermissions(t *testing.T) {
+	e, ok := findEntry("skip_permissions")
+	require.True(t, ok)
+	require.Equal(t, TypeBool, e.Type)
+	require.Equal(t, false, e.Default, "opt-in")
+	require.Equal(t, SectionBehavior, e.Section)
+	require.Contains(t, e.Help, "without asking")
+}
+
 func TestStore_ScreensaverMinutesRange(t *testing.T) {
 	s := NewStore()
 	require.Error(t, s.Set("screensaver_after_minutes", 0))
