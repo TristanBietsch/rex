@@ -380,11 +380,15 @@ func readInstalledVersion() string {
 	return versionOf(exe)
 }
 
+// versionProbeTimeout bounds `exe --version`; tests on a loaded machine
+// raise it.
+var versionProbeTimeout = 5 * time.Second
+
 // versionOf runs `exe --version` and returns its one line. The child gets
 // plain output: an inherited CLAUDECODE, REX_AGENT or REX_OUTPUT would make
 // it print an agent or json line instead of the version.
 func versionOf(exe string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), versionProbeTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, exe, "--version")
 	cmd.Env = append(os.Environ(), "REX_AGENT=0", "REX_OUTPUT=txt")

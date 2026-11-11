@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -16,6 +17,9 @@ func TestVersionOfRunsChildWithPlainOutput(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script stand-in")
 	}
+	saved := versionProbeTimeout
+	versionProbeTimeout = 60 * time.Second
+	t.Cleanup(func() { versionProbeTimeout = saved })
 	t.Setenv("CLAUDECODE", "1")
 	t.Setenv("REX_OUTPUT", "json")
 	t.Setenv("REX_AGENT", "1")
