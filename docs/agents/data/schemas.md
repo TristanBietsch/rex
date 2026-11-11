@@ -40,6 +40,8 @@ Codec: `internal/wire/protocol/codec.go`.
 | OutputBytes | `output_bytes` | int64 | optional | |
 | Fleet | `fleet` | string | optional |
 | Subagents | `subagents` | int | optional; running subagents (Claude hooks); cleared before the final meta.json write and not restored from it |
+| WaitingOn | `waiting_on` | string | optional; `shell`, `subagent` or `web`: what a working session is blocked on (Claude hooks `wait+` / `wait-`); cleared when the state leaves `working`, so a final meta.json has none; not restored from meta.json. Patch `null` clears |
+| WaitingSince | `waiting_since` | RFC 3339 | optional; when that wait began; set and cleared with `waiting_on` |
 | ResumeID | `resume_id` | string | optional; the agent's own conversation id (canonical UUID, lowercase), used to resume it; validated on every ingest and when loading meta.json |
 
 Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `internal/daemon/state/persist.go` writes same shape to `meta.json`.

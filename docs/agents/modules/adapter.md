@@ -34,6 +34,7 @@ Classifies PTY output into `protocol.State` values and detects when an agent CLI
 - `(*HeuristicCLI) Detect`, `IsReadyForInput`
 - `(*ClaudeHooks) Detect`, `IsReadyForInput` (always false; Claude gets its prompt on argv), `Subagents`, `ResumeID`
 - `ResumeIDReporter` — optional interface (`ResumeID() string`); the supervisor polls it once per tick and patches `resume_id` on change
+- `WaitReporter` — optional interface (`Waiting() (kind string, since time.Time)`); the supervisor polls it once per tick into `Store.SetWaiting`. `(*ClaudeHooks).Waiting` reads the `wait+ <kind>` / `wait-` lines (one slot, last writer wins) and is empty unless the hook state is `working`. Only a main-thread PreToolUse (no `agent_id` in the hook JSON) of `Bash` (shell), `Task` / `Agent` (subagent) or `WebFetch` / `WebSearch` (web) writes `wait+`; any main-thread PostToolUse writes `wait-`. Stop, Notification, SessionStart, the stale-working rule and a truncated hook file clear it
 
 ## Internal structure
 

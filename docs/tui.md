@@ -14,11 +14,13 @@ rex
 
 ## DESCRIPTION
 
-Three columns group sessions: **NEEDS YOU**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N working · N done`. The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
+Four sections group sessions, top to bottom: **NEEDS YOU**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
+
+**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
 The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
-A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `3` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
+A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `4` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
 The daemon auto-starts if the socket is unreachable (boot splash).
 
@@ -45,6 +47,7 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 - **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps.
 - **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view, only while some row has one, and is the first column to go on a narrow terminal. Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
 - **name**, **model · effort**, and **tokens** are as wide as their widest value on the board (name capped at 22, model at 24). Tokens are right-aligned.
+- The **waiting** detail: in the detailed view a row in WAITING starts its text with the reason and how long it has waited (`shell 42s · Running the test suite`). The attach header chip reads `◷ waiting (shell)`.
 - The **subagent** column (`⋔3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
 - The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
 - **last event** is right-aligned against the edge; `-` means no event yet.
@@ -79,14 +82,14 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 | `j`, `k`, `↓`, `↑` | Move selection |
 | `g`, `G` | First / last row |
 | `tab` | Next session that needs you (wraps) |
-| `1`, `2` | Jump to Needs you / Working |
-| `3` | Jump to Done; on a long Done column, show / hide it |
+| `1`, `2`, `3` | Jump to Needs you / Waiting / Working |
+| `4` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
 | `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
 | `/` | Search the board (see FILTER AND SEARCH) |
 | `esc` | Clear the search |
 | `zh` | Hide / show every completed section (Done) |
-| `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Working, `z3` Done) |
+| `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
@@ -201,15 +204,15 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 | Key | Effect |
 |-----|--------|
 | `zh` | Hide every completed section (Done); again shows it |
-| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Working, `z3` Done) |
+| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 
 `z` followed by any other key is just that key. While `z` is pending the help line lists the second keys. rex refuses to hide the last shown section.
 
-`:filter` does the same by name: `:filter hide done`, `:filter show all`, `:filter only needs working`, and a bare `:filter` clears the tool filter and every hidden section ([slash.md](slash.md)).
+`:filter` does the same by name: `:filter hide done`, `:filter show all`, `:filter only needs working` (`wa` is Waiting, `wo` Working; a bare `w` is ambiguous), and a bare `:filter` clears the tool filter and every hidden section ([slash.md](slash.md)).
 
 - The filter bar names what is hidden (`done hidden (zh)`) and shows while any section is hidden.
-- When the selection falls into a hidden section (for example `cc` marks it done while Done is hidden), it moves to the first visible row. `1`, `3` and `tab` aimed at a hidden section say how to show it. A session you just started that the filter hides shows the notice `<slug> is hidden by the filter`.
+- When the selection falls into a hidden section (for example `cc` marks it done while Done is hidden), it moves to the first visible row. `1`-`4` and `tab` aimed at a hidden section say how to show it. A session you just started that the filter hides shows the notice `<slug> is hidden by the filter`.
 - Hiding is per run. The `board_hidden_sections` setting ([settings.md](settings.md#behavior)) sets what starts hidden, and `:bg` saves the current choice for the next start (see DETACH WITHOUT QUITTING).
 - `:prune` ignores filters: it clears every Done session, and its confirmation says so while a filter is active.
 - The tool filter survives a daemon reconnect.

@@ -103,7 +103,7 @@ var Registry = []Setting{
 	{
 		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior,
 		Type: TypeString, Default: "",
-		Help: "Board sections hidden at startup, comma-separated ids: needs, working, done (for example: done). Unknown ids are ignored. zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
+		Help: "Board sections hidden at startup, comma-separated ids: needs, waiting, working, done (for example: done). Unknown ids are ignored. zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
 	},
 	{
 		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior,
