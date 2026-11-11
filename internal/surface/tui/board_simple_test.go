@@ -139,17 +139,17 @@ func TestDoneCollapsesPastFive(t *testing.T) {
 	require.NotContains(t, text, "done-0")
 	title := lineWith(t, text, "DONE")
 	require.Contains(t, title, "6 hidden")
-	require.Contains(t, title, "3 show")
+	require.Contains(t, title, "4 show")
 	require.Contains(t, title, ":prune clear")
 	require.Equal(t, []string{"live"}, sessionIDs(orderedSessions(m)), "hidden rows are not navigable")
 
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.True(t, m.DoneExpanded)
-	require.Equal(t, "d0", m.SelectedID, "3 expands and selects the first Done row")
+	require.Equal(t, "d0", m.SelectedID, "4 expands and selects the first Done row")
 	require.Contains(t, boardText(m), "done-5")
-	require.Contains(t, lineWith(t, boardText(m), "DONE"), "3 hide")
+	require.Contains(t, lineWith(t, boardText(m), "DONE"), "4 hide")
 
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.False(t, m.DoneExpanded)
 	require.Equal(t, "live", m.SelectedID, "folding moves the selection off the hidden rows")
 }
@@ -195,11 +195,11 @@ func TestHelpBarHasFiveKeys(t *testing.T) {
 	require.Equal(t, "enter open · i new · cc done · tab next · ? more", line)
 }
 
-// 3 on a short Done column keeps its old meaning: jump to Done.
-func TestThreeOnShortDoneJumps(t *testing.T) {
+// 4 on a short Done column just jumps to Done.
+func TestFourOnShortDoneJumps(t *testing.T) {
 	m := simpleBoard(doneSessions(2)...)
 	m.SelectedID = "live"
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.Equal(t, "d0", m.SelectedID)
 	require.False(t, m.DoneExpanded)
 }
@@ -208,7 +208,7 @@ func TestThreeOnShortDoneJumps(t *testing.T) {
 // the next time it grows.
 func TestDoneFoldsAgainAfterShrinking(t *testing.T) {
 	m := simpleBoard(doneSessions(doneCollapseAt + 1)...)
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.True(t, m.DoneExpanded)
 
 	m.Sessions = m.Sessions[:len(m.Sessions)-2] // e.g. two pruned

@@ -49,7 +49,7 @@ func filterSections(m Model, verb string, refs []string) Model {
 	}
 	named := map[string]bool{}
 	for _, ref := range refs {
-		gi, err := resolveSection(ref)
+		gi, err := resolveSection(m, ref)
 		if err != nil {
 			m.Err = "filter: " + err.Error()
 			return m
@@ -80,7 +80,7 @@ func applyHidden(m Model, next map[string]bool) Model {
 			clean[g.ID] = true
 		}
 	}
-	if len(clean) == len(boardGroups) {
+	if (rowFilter{hidden: clean}).hidesAllOf(activeGroups(m)) {
 		m.Err = "filter: can't hide every section"
 		return m
 	}
@@ -109,7 +109,7 @@ func hiddenNotice(m *Model, gi int) bool {
 	if !rowFilterOf(*m).hidden[g.ID] {
 		return false
 	}
-	hint := "z" + strconv.Itoa(gi+1)
+	hint := "z" + strconv.Itoa(sectionNumber(*m, gi))
 	if g.Completed {
 		hint = "zh"
 	}
@@ -157,11 +157,12 @@ func chordSection(m Model, second string) (Model, tea.Cmd, bool) {
 	if err != nil || n < 1 || n > 9 {
 		return m, nil, false
 	}
-	if n > len(boardGroups) {
-		m.Notice = fmt.Sprintf("no section %d: use z1-z%d", n, len(boardGroups))
+	active := activeGroups(m)
+	if n > len(active) {
+		m.Notice = fmt.Sprintf("no section %d: use z1-z%d", n, len(active))
 		return m, nil, true
 	}
-	id := boardGroups[n-1].ID
+	id := boardGroups[active[n-1]].ID
 	return setSectionHidden(m, id, !m.Hidden[id]), nil, true
 }
 
@@ -241,7 +242,7 @@ func hiddenStatus(m Model) string {
 	}
 	hint := "z0 shows all"
 	if len(names) == 1 {
-		hint = "z" + strconv.Itoa(first+1)
+		hint = "z" + strconv.Itoa(sectionNumber(m, first))
 		if boardGroups[first].Completed {
 			hint = "zh"
 		}

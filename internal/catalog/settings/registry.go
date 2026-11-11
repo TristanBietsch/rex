@@ -141,6 +141,12 @@ var Registry = []Setting{
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
 	},
 
+	{
+		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
+	},
+
 	// Spawn
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,

@@ -32,6 +32,7 @@ func TestHideSectionRemovesIt(t *testing.T) {
 	// Hiding the first section leaves no leading gap.
 	m = setSectionHidden(m, "done", false)
 	m = setSectionHidden(m, "needs", true)
+	m = setSectionHidden(m, "waiting", true)
 	lines := plainBoard(m)
 	require.Contains(t, lines[0], "WORKING", "first line is the first shown title, not a gap")
 	require.Equal(t, 1, strings.Count(strings.Join(lines, "\n"), "WORKING"))
@@ -49,6 +50,7 @@ func TestSetSectionHiddenIsCopyOnWrite(t *testing.T) {
 func TestCannotHideEverySection(t *testing.T) {
 	m := filterModel()
 	m = setSectionHidden(m, "needs", true)
+	m = setSectionHidden(m, "waiting", true)
 	m = setSectionHidden(m, "working", true)
 	m = setSectionHidden(m, "done", true)
 	require.Equal(t, "filter: can't hide every section", m.Err)
@@ -84,7 +86,7 @@ func TestJumpToHiddenSectionNotice(t *testing.T) {
 
 	for _, tc := range []struct{ key, notice string }{
 		{"1", "Needs you is hidden — z1 to show"},
-		{"3", "Done is hidden — zh to show"},
+		{"4", "Done is hidden — zh to show"},
 		{"tab", "Needs you is hidden — z1 to show"},
 	} {
 		got, _ := updateKey(m, key(tc.key))

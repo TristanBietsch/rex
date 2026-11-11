@@ -224,16 +224,16 @@ func TestMarkedDone_MovesToCompleted(t *testing.T) {
 		protocol.SessionSummary{ID: "d", Slug: "d", State: protocol.StateDone},
 	)
 	parts := partitionSessions(m.Sessions, rowFilter{})
-	require.Len(t, parts[0], 1)
-	require.Len(t, parts[1], 0, "marked working session leaves Working")
-	require.Len(t, parts[2], 2)
+	require.Len(t, parts[groupNeeds], 1)
+	require.Len(t, parts[groupWorking], 0, "marked working session leaves Working")
+	require.Len(t, parts[groupDone], 2)
 	var ids []string
 	for _, s := range orderedSessions(m) {
 		ids = append(ids, s.ID)
 	}
 	require.Equal(t, []string{"n", "w", "d"}, ids)
 	m.Sessions[1].RetireAt = time.Time{}
-	require.Len(t, partitionSessions(m.Sessions, rowFilter{})[1], 1, "unmarking returns it to Working")
+	require.Len(t, partitionSessions(m.Sessions, rowFilter{})[groupWorking], 1, "unmarking returns it to Working")
 }
 
 func TestLongRunTiers(t *testing.T) {

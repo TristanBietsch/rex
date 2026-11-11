@@ -18,7 +18,10 @@ func TestHiddenSectionsSettingDefault(t *testing.T) {
 	require.NoError(t, st.Set("board_hidden_sections", "Needs,working"))
 	require.Equal(t, map[string]bool{"needs": true, "working": true}, hiddenSectionsFrom(st))
 
-	require.NoError(t, st.Set("board_hidden_sections", "needs,working,done"))
+	require.NoError(t, st.Set("board_hidden_sections", "waiting"))
+	require.Equal(t, map[string]bool{"waiting": true}, hiddenSectionsFrom(st), "waiting is hideable")
+
+	require.NoError(t, st.Set("board_hidden_sections", "needs,waiting,working,done"))
 	require.Nil(t, hiddenSectionsFrom(st), "hiding every section is ignored")
 	require.Nil(t, hiddenSectionsFrom(nil))
 }
