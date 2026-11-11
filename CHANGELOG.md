@@ -129,6 +129,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The attach popup draws Antigravity (and other ultraviolet-based agents
+  under a tmux, ghostty or kitty `TERM`) correctly: the logo is centered and
+  no row is cut off on the right. rex's terminal emulator ignored the "repeat
+  last character" sequence (`CSI n b`) and lost its tab stops beyond the
+  width a screen was first created with, so every later cell on a row was
+  drawn too far left or jammed at the right edge. It now handles both, and
+  `CSI ? 5 W`.
 - A session that ends now always sends `working_since: null` in its final
   state patch, as the protocol says. It was lost on the path where the child
   exits or is completed, so a client could keep a stale working timer.
