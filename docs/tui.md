@@ -189,7 +189,7 @@ Three things narrow the board: the **tool filter** (`t` cycles it, `:filter <too
 
 ### Hidden sections
 
-A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global. A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global.
+A hidden section is gone from the board: no title, no rows, no navigation, and the others close up. The header counts stay global.
 
 | Key | Effect |
 |-----|--------|
@@ -213,7 +213,7 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 
 ## MARK DONE
 
-`cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state,. The detailed view's span column shows when it was marked, and its header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
+`cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state. The detailed view's span column shows when it was marked, and its header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
 - `cc` again undoes the mark. `uc` (or `:uc [sel]`) does the same without ever marking: it unmarks a session that is still running and says `<name> isn't done` for one that is not in Done.
 - `uc` on a session that has exited (done, failed or crashed, including after `C`) cannot bring it back yet: the status line says `uc: <name> has exited; it can't be brought back yet`, and the row stays in Done.

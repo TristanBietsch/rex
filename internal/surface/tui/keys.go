@@ -262,11 +262,16 @@ func runDone(m Model, c cmdCall) (Model, tea.Cmd) {
 }
 
 func runUndone(m Model, c cmdCall) (Model, tea.Cmd) {
-	// Unmark only: toggling here would mark an unmarked session.
 	id, ok := commandTarget(&m, c.Verb, c.Args)
 	if !ok {
 		return m, nil
 	}
+	return unmarkDone(m, id)
+}
+
+// unmarkDone only unmarks: toggling here would mark an unmarked session.
+// Shared by the board's :undone and the attach popup's ::undone.
+func unmarkDone(m Model, id string) (Model, tea.Cmd) {
 	if sum, found := findSession(m.Sessions, id); found && sum.RetireAt.IsZero() {
 		m.Notice = displayName(sum) + " is not marked done"
 		return m, nil
