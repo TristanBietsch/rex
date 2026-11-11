@@ -56,3 +56,8 @@ func EnableVT(files ...*os.File) (restore func()) {
 		}
 	}
 }
+
+// StdinIsTerminal reports whether stdin is a terminal. A closed or missing
+// stdin and a character device that is not a terminal (< /dev/null, < NUL)
+// are not.
+func StdinIsTerminal() bool { return IsTerminal(os.Stdin) }

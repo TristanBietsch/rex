@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -40,13 +42,9 @@ func RunNew(args []string) error {
 	// Prompt = positional args joined, or stdin if not a TTY
 	prompt := strings.Join(rest, " ")
 	if prompt == "" {
-		fi, _ := os.Stdin.Stat()
-		if (fi.Mode() & os.ModeCharDevice) == 0 {
-			b, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return core.NewExitError(core.ExitGeneric, err.Error())
-			}
-			prompt = string(b)
+		var err error
+		if prompt, err = promptFromStdin(os.Stdin); err != nil {
+			return core.NewExitError(core.ExitGeneric, err.Error())
 		}
 	}
 
@@ -116,6 +114,19 @@ func RunNew(args []string) error {
 			return core.NewExitError(code, "spawn failed: "+ee.Message)
 		}
 	}
+}
+
+// promptFromStdin reads the prompt from in unless in is a terminal. A closed
+// or missing stdin has no prompt.
+func promptFromStdin(in *os.File) (string, error) {
+	if in == nil || core.IsTerminal(in) {
+		return "", nil
+	}
+	b, err := io.ReadAll(in)
+	if errors.Is(err, os.ErrClosed) || errors.Is(err, syscall.EBADF) {
+		return "", nil
+	}
+	return string(b), err
 }
 
 // resolveNewCwd turns -cwd into the absolute path the daemon requires: empty

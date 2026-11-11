@@ -3,16 +3,20 @@ package session
 import (
 	"flag"
 	"fmt"
-	"os"
+	"strings"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
-// RunRm deletes a session.
+// RunRm deletes a session. Without a terminal it needs -force, like prune
+// needs -yes: a script never deletes without saying so.
 func RunRm(args []string) error {
 	fs := flag.NewFlagSet("rm", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	force := fs.Bool("force", false, "skip confirmation when stdin is a TTY")
+	var force bool
+	fs.BoolVar(&force, "force", false, "do not ask (required when stdin is not a terminal)")
+	fs.BoolVar(&force, "yes", false, "alias for -force")
+	fs.BoolVar(&force, "y", false, "alias for -force")
 	rest, err := core.ParseArgs(fs, args)
 	if err != nil {
 		return err
@@ -32,13 +36,16 @@ func RunRm(args []string) error {
 		return err
 	}
 
-	fi, _ := os.Stdin.Stat()
-	if !*force && (fi.Mode()&os.ModeCharDevice) != 0 {
-		fmt.Fprintf(os.Stderr, "delete %s (%s)? [y/N] ", sess.ShortID, sess.Slug)
+	if !force {
+		if !pruneIO.interactive() {
+			return core.Errorf(core.ExitOperationRefused, "rex rm -force "+sel,
+				"rm: stdin is not a terminal; pass -force to delete without asking")
+		}
+		fmt.Fprintf(pruneIO.errOut, "delete %s (%s)? [y/N] ", sess.ShortID, sess.Slug)
 		var ans string
-		_, _ = fmt.Fscanln(os.Stdin, &ans)
-		if ans != "y" && ans != "Y" && ans != "yes" {
-			return core.NewExitError(core.ExitGeneric, "aborted")
+		_, _ = fmt.Fscanln(pruneIO.in, &ans)
+		if a := strings.ToLower(ans); a != "y" && a != "yes" {
+			return core.Errorf(core.ExitOperationRefused, "", "rm: not confirmed, nothing deleted")
 		}
 	}
 

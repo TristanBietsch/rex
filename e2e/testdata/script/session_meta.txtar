@@ -65,8 +65,12 @@ stdout '"title":"\[archived\] \[archived\] meta task"'
 exec rex ls
 stdout ' m2 '
 
-# rm (stdin is not a TTY, so no confirmation prompt)
-exec rex rm m2
+# rm (stdin is not a TTY: no prompt, so -force is required)
+exitcode 6 rex rm m2
+stderr '-force'
+exec rex ls
+stdout ' m2 '
+exec rex rm -force m2
 ! stdout .
 exec rex ls
 ! stdout ' m2 '

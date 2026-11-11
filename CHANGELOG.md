@@ -136,6 +136,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Breaking:** `rex rm` without a terminal on stdin now needs `-force`
+  (aliases `-yes`, `-y`) and otherwise exits 6, like `rex prune`. It used
+  to delete without asking. Declining the prompt on a terminal also exits 6
+  (was 1).
+
 - TUI: an unknown `:` command now says `(try :help)`. Commands and key
   help come from one table, so `?` can no longer drift from what `:` runs.
 - `rex ls` and `rex status` on a terminal use the new human layout (state
@@ -184,6 +189,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   start, and it does not start a second daemon if the first will not stop.
 
 ### Fixed
+
+- `rex new`, `rm` and `prune` no longer crash when stdin is closed, and a
+  character device that is not a terminal (`< /dev/null`, `< NUL` on
+  Windows) is no longer mistaken for one.
 
 - `rex new -cwd` makes a relative folder absolute and refuses one that
   does not exist or is not a folder (exit 5). The daemon now rejects a

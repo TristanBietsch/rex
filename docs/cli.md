@@ -198,8 +198,10 @@ rex wait <sel> [-socket path] [-until state] [-timeout duration]
 Delete a session.
 
 ```sh
-rex rm <sel> [-socket path] [-force]
+rex rm <sel> [-socket path] [-force|-yes|-y]
 ```
+
+On a terminal it asks `delete <id> (<slug>)? [y/N]`; anything but `y`/`yes` exits **6**. Without a terminal on stdin (a script, a pipe, `< /dev/null`) it refuses with exit **6** unless `-force` (alias `-yes`, `-y`) is given, the same rule as `prune`.
 
 ---
 
