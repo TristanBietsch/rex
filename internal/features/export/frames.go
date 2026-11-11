@@ -9,9 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
@@ -65,10 +66,33 @@ func LineTool(toolID string) bool { return lineTools[toolID] }
 // emulator does not draw produce no text. The emulator keeps the size it was
 // given: resizes during the session are not replayed.
 func Frames(r io.Reader, cols, rows int, cuts []int64) ([]Frame, error) {
+	frames, _, err := FramesLimited(r, cols, rows, cuts, 0)
+	return frames, err
+}
+
+// scrollFrameLines is how many scrolled-off lines make a frame of their own,
+// so a tool that never clears the screen still gives many frames.
+const scrollFrameLines = 200
+
+// FramesLimited is Frames keeping only the last limit frames (0 = all). It
+// holds at most max frames while it reads, so memory is bounded; dropped
+// counts the older frames left out.
+func FramesLimited(r io.Reader, cols, rows int, cuts []int64, limit int) (frames []Frame, dropped int, err error) {
+	e, err := extract(r, cols, rows, cuts, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return e.frames, e.dropped, nil
+}
+
+func extract(r io.Reader, cols, rows int, cuts []int64, limit int) (*extractor, error) {
 	if cols <= 0 || rows <= 0 {
 		return nil, fmt.Errorf("export: screen size %dx%d: must be positive", cols, rows)
 	}
-	e := &extractor{cuts: slices.Sorted(slices.Values(cuts))}
+	if limit < 0 {
+		return nil, fmt.Errorf("export: max frames %d: must not be negative", limit)
+	}
+	e := &extractor{cuts: slices.Sorted(slices.Values(cuts)), max: limit}
 	e.screen = vt10x.New(vt10x.WithSize(cols, rows), vt10x.WithScrollback(e.scrolled))
 
 	buf := make([]byte, readChunk)
@@ -96,15 +120,20 @@ func Frames(r io.Reader, cols, rows int, cuts []int64) ([]Frame, error) {
 		return nil, err
 	}
 	e.emit(base + int64(len(carry)))
-	return e.frames, nil
+	e.compact()
+	return e, nil
 }
 
 // extractor is the state of one Frames call.
 type extractor struct {
-	screen vt10x.Terminal
-	cuts   []int64  // turn cuts not yet reached, ascending
-	scroll []string // lines scrolled off the screen since the last cut
-	frames []Frame
+	screen  vt10x.Terminal
+	cuts    []int64  // turn cuts not yet reached, ascending
+	scroll  []string // lines scrolled off the screen since the last cut
+	frames  []Frame
+	max     int // keep only the last max frames (0 = all)
+	dropped int
+	at      int64 // transcript offset of the data being fed
+	peak    int   // most frames held at once
 }
 
 // scrolled receives each line the emulator scrolls off the top.
@@ -117,7 +146,37 @@ func (e *extractor) scrolled(line []vt10x.Glyph) {
 		}
 		b.WriteRune(g.Char)
 	}
-	e.scroll = append(e.scroll, strings.TrimRight(b.String(), " "))
+	e.scroll = append(e.scroll, strings.TrimRight(dropUnsafe(b.String()), " "))
+	if len(e.scroll) >= scrollFrameLines {
+		// Called with the emulator locked: cut the lines alone, without the screen.
+		e.add(Frame{At: e.at, Text: joinTrimmed(e.scroll)})
+		e.scroll = e.scroll[:0]
+	}
+}
+
+// add appends a frame unless it is blank or equal to the last, dropping the
+// oldest beyond max.
+func (e *extractor) add(f Frame) {
+	if f.Text == "" || (len(e.frames) > 0 && e.frames[len(e.frames)-1].Text == f.Text) {
+		return
+	}
+	e.frames = append(e.frames, f)
+	e.peak = max(e.peak, len(e.frames))
+	if e.max > 0 && len(e.frames) > e.max {
+		e.dropped++
+		if len(e.frames) > 2*e.max {
+			e.compact()
+		}
+	}
+}
+
+// compact drops the frames beyond the last max, releasing their memory.
+func (e *extractor) compact() {
+	if e.max > 0 && len(e.frames) > e.max {
+		n := copy(e.frames, e.frames[len(e.frames)-e.max:])
+		clear(e.frames[n:])
+		e.frames = e.frames[:n]
+	}
 }
 
 // process feeds data (whose first byte is at transcript offset base) to the
@@ -126,19 +185,25 @@ func (e *extractor) process(data []byte, base int64) error {
 	end := base + int64(len(data))
 	points := screenCuts(data)
 	for len(e.cuts) > 0 && e.cuts[0] < end {
-		points = append(points, int(max(e.cuts[0]-base, 0)))
+		p := int(max(e.cuts[0]-base, 0))
+		for p < len(data) && !utf8.RuneStart(data[p]) {
+			p++ // never cut inside a rune
+		}
+		points = append(points, p)
 		e.cuts = e.cuts[1:]
 	}
 	slices.Sort(points)
 	points = slices.Compact(points)
 	prev := 0
 	for _, p := range points {
+		e.at = base + int64(prev)
 		if err := e.feed(data[prev:p]); err != nil {
 			return err
 		}
 		e.emit(base + int64(p))
 		prev = p
 	}
+	e.at = base + int64(prev)
 	return e.feed(data[prev:])
 }
 
@@ -158,10 +223,7 @@ func (e *extractor) feed(b []byte) error {
 func (e *extractor) emit(at int64) {
 	text := e.snapshot()
 	e.scroll = e.scroll[:0]
-	if text == "" || (len(e.frames) > 0 && e.frames[len(e.frames)-1].Text == text) {
-		return
-	}
-	e.frames = append(e.frames, Frame{At: at, Text: text})
+	e.add(Frame{At: at, Text: text})
 }
 
 // snapshot is the scrolled-off lines plus the screen rows, trailing spaces
@@ -169,7 +231,7 @@ func (e *extractor) emit(at int64) {
 func (e *extractor) snapshot() string {
 	lines := slices.Clone(e.scroll)
 	for row := range strings.SplitSeq(e.screen.String(), "\n") {
-		lines = append(lines, strings.TrimRight(strings.ReplaceAll(row, "\x00", " "), " "))
+		lines = append(lines, strings.TrimRight(dropUnsafe(strings.ReplaceAll(row, "\x00", " ")), " "))
 	}
 	return joinTrimmed(lines)
 }
@@ -272,7 +334,7 @@ func Strip(r io.Reader) (string, error) {
 	if len(b) > MaxTranscriptBytes {
 		return "", ErrTooLarge
 	}
-	s := ansi.Strip(strings.ToValidUTF8(string(b), "�"))
+	s := ansi.Strip(markLineEdits(strings.ToValidUTF8(string(b), "�")))
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
 		lines[i] = strings.TrimRight(overwrite(line), " \t")
@@ -280,22 +342,79 @@ func Strip(r io.Reader) (string, error) {
 	return joinTrimmed(lines), nil
 }
 
-// overwrite resolves carriage returns in one line: each segment after a CR
-// overwrites the start of what came before. Other controls are dropped.
+// Markers for the line edits Strip honours. They are private-use runes, so
+// markLineEdits first removes any the transcript itself holds.
+const (
+	markEL0 = '' // erase from the cursor to the end of the line
+	markEL1 = '' // erase from the start of the line to the cursor
+	markEL2 = '' // erase the whole line
+	markCHA = '' // move to a column: followed by markColBase+column
+	// markColBase offsets the column that follows markCHA (plane 15 private use).
+	markColBase = 0xF0000
+)
+
+var lineEditRe = regexp.MustCompile(`\x1b\[(\d*)([KG])`)
+
+// markLineEdits replaces erase-in-line (CSI K) and cursor-column (CSI G)
+// sequences with markers, which ansi.Strip leaves alone and overwrite acts on.
+func markLineEdits(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if (r >= markEL0 && r <= markCHA) || r >= markColBase {
+			return -1
+		}
+		return r
+	}, s)
+	return lineEditRe.ReplaceAllStringFunc(s, func(m string) string {
+		n, _ := strconv.Atoi(m[2 : len(m)-1])
+		if m[len(m)-1] == 'G' {
+			return string(markCHA) + string(rune(markColBase+min(n, 10000)))
+		}
+		switch n {
+		case 1:
+			return string(markEL1)
+		case 2:
+			return string(markEL2)
+		}
+		return string(markEL0)
+	})
+}
+
+// overwrite resolves one line as a line editor: a carriage return or CSI G
+// moves the cursor, text overwrites from there, CSI K erases. Other
+// controls are dropped.
 func overwrite(line string) string {
-	var cur []rune
-	for seg := range strings.SplitSeq(line, "\r") {
-		var next []rune
-		for _, r := range seg {
-			if r == '\t' || !unicode.IsControl(r) {
-				next = append(next, r)
+	var cells []rune
+	col := 0
+	runes := []rune(line)
+	for i := 0; i < len(runes); i++ {
+		switch r := runes[i]; {
+		case r == '\r':
+			col = 0
+		case r == markEL0:
+			cells = cells[:min(col, len(cells))]
+		case r == markEL1:
+			for j := 0; j < min(col+1, len(cells)); j++ {
+				cells[j] = ' '
 			}
+		case r == markEL2:
+			cells = cells[:0]
+		case r == markCHA:
+			if i+1 < len(runes) {
+				i++
+				col = max(int(runes[i])-markColBase-1, 0)
+			}
+		case r != '\t' && unsafeRune(r):
+		default:
+			for len(cells) < col {
+				cells = append(cells, ' ')
+			}
+			if col < len(cells) {
+				cells[col] = r
+			} else {
+				cells = append(cells, r)
+			}
+			col++
 		}
-		if len(next) >= len(cur) {
-			cur = next
-			continue
-		}
-		copy(cur, next)
 	}
-	return string(cur)
+	return string(cells)
 }
