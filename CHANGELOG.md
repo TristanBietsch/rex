@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   no per-session plugin flag), and `rex-daemon` a `-skills-dir` flag. A
   resumed session loads its skills again. Switchable in Settings → Features
   (`spawn_skills`): off, skills are refused and no `--plugin-dir` is added.
+- CLI: `rex new -name "text" -skill a -skill b` sets the display name and
+  loads skills for that session (exit 5 for an unknown skill, a tool that
+  cannot load skills, or when `spawn_skills` is off). `rex skills` lists the
+  library in every output format.
 - TUI: a dim preview line under the board shows the selected session's full
   AI summary and how old it is (`↳ Editing api/webhooks.go … · 12s`), in
   both views, while any session has a summary. In the detailed view it only
