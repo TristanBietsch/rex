@@ -59,6 +59,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if nm, arm = armSpinner(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
+	if nm, arm = armBanner(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
 	if nm, arm = armIdle(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
@@ -142,6 +145,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleReconnectTick(m, msg)
 	case reconnectResultMsg:
 		return handleReconnectResult(m, msg)
+	case exportDoneMsg:
+		return applyExportDone(m, msg), nil
 	case pruneDoneMsg:
 		return applyPruneDone(m, msg), nil
 	case CmdErrMsg:
@@ -161,6 +166,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinnerRunning = false
 		slog.Debug("tui: spinner idle", "gen", m.spinnerGen, "tick", m.SpinnerTick)
 		return m, nil
+	case bannerTickMsg:
+		return handleBannerTick(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()
@@ -241,6 +248,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		m.Sessions = msg.Snap.Sessions
+		m.Overview = msg.Snap.Overview
 		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
@@ -381,12 +389,8 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, completeSessionCmd(m.Client, m.SelectedID)
 		case "r":
 			return openRename(m)
-		case "1":
-			return jumpToSection(m, 0), nil
-		case "2":
-			return jumpToSection(m, 1), nil
-		case "3":
-			return toggleDone(m), nil
+		case "1", "2", "3", "4":
+			return jumpToNumber(m, int(k.String()[0]-'0')), nil
 		case "tab":
 			return nextNeedsYou(m), nil
 		case "v":
@@ -471,6 +475,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusFail {
 		return updateFailKey(m, k)
+	}
+	if m.Focus == FocusOverview {
+		return updateOverviewKey(m, k)
 	}
 	if m.Focus == FocusStats {
 		switch k.String() {
@@ -708,12 +715,12 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 	if msg.Status == stepFail {
 		m.BootFailed = true
 		m.BootError = msg.Err
-		if m.Audio != nil {
+		if m.Audio != nil && !m.QuietBoot {
 			m.Audio.Play(audio.EventBootFail)
 		}
 		return m, nil
 	}
-	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil {
+	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil && !m.QuietBoot {
 		m.Audio.Play(ev)
 	}
 	m.BootStep++

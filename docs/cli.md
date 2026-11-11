@@ -152,6 +152,32 @@ Exits **1** when at least one session is `needs_input` (even with no other error
 
 ---
 
+## rex overview
+
+What needs you, what is ready for review, what failed, what is working and what finished.
+
+```sh
+rex overview [-socket path] [-o FORMAT] [--agent]
+```
+
+Prints the daemon's one-line headline with its age (when `overview_enabled` is on and the daemon has written one), the counts, then one table per non-empty bucket: **Ready for review**, **Needs you**, **Failed**, **Working** and **Completed (last 24 h)**. The buckets are computed from the sessions, never from the headline: a session you marked done is Completed; `failed` and `crashed` are Failed; `done` is Ready for review; a Claude session that finished a turn and whose last line is not a question is Ready for review, otherwise a `needs_input` session is Needs you; the rest are Working. With the setting off the lists still print, with a note naming the setting. Exits 0.
+
+`json` is `{"v":1,"cmd":"overview","data":{"overview":{"enabled":…,"headline":…,"generated_at":…}|null,"buckets":{"review":[ids],"needs_you":[ids],"failed":[ids],"working":[ids],"completed":[ids]}}}` with full session ids (`overview` is `null` from a daemon without one). `agent` prints an `overview headline=… generated_at=…` line when there is a headline, one `session bucket=… id=… name=… state=… status=… age_s=…` line per session, then `ok cmd=overview count=N review=… needs_you=… failed=… working=… completed=…`. The headline is model text: it is cut to one line and stripped of escape sequences, but it can be wrong.
+
+---
+
+## rex export
+
+Write one session as a readable document.
+
+```sh
+rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]
+```
+
+Replays the session's transcript through the terminal emulator (full-screen agents) or strips it (line tools) and writes the metadata plus clean text as `json` (default, `version: 1`), `yaml` (the same document), `md` or `txt`. Output goes to stdout, or to `--out FILE` (mode 0600; refuses to replace a file without `--force`, exit 6; the format is taken from the extension when `-o` is absent). `--max-frames N` keeps the last N frames. `--from-agent-log` reads Claude Code's own log for the session's resume id instead; a missing log falls back to frames with a notice. A running session is read up to its current end. Needs the `session_export` feature (exit 5 when off). Exports can hold secrets. Details: [export.md](export.md).
+
+---
+
 ## rex ls
 
 List sessions.
@@ -166,6 +192,8 @@ rex ls [-socket path] [-state dir] [-tool id] [-model id] [-show-archived] [-sho
 
 The table's last column is `NAME`: the display name set with `rex name` (or `r` in the TUI), plus `✓done` when the session is marked done. It is last so scripts that cut earlier columns keep working. That layout is the `txt` format. `text` adds a state marker and a compact `IDLE` column and, on a terminal too narrow for the table, drops `TOOL` (below 60 columns) and moves `NAME` to a dim second line under each row. The `✓done` marker appears only in `text` and `txt`; `md`, `agent` and `json` carry the real name. `agent` lines carry `id state tool model effort slug idle_s name` (`idle_s` is -1 when unknown).
 
+A working session blocked on a tool (a shell command, subagent or web call, for 3 s or more; Claude Code) shows `waiting (shell)`, `waiting (subagent)` or `waiting (web)` in the `STATE` column of `text` and `md`, and the header counts it as `N waiting`. `txt` and the agent `state=` key keep `working`, so scripts do not change; `json` carries `waiting_on` and `waiting_since`. `waiting_section` off shows plain `working`. `rex status` is unchanged: a waiting session counts as working and does not make it exit 1.
+
 ---
 
 ## rex new
@@ -174,7 +202,8 @@ Spawn a session.
 
 ```sh
 rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
-           [-slug name] [-cwd dir] [-fleet name] [-wait duration] [-no-attach]
+           [-slug name] [-cwd dir] [-fleet name] [-name text] [-skill name]...
+           [-wait duration] [-no-attach]
 ```
 
 Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. `-cwd` must be an existing folder (exit 5 otherwise); a relative path is made absolute by the CLI. Prompt from arguments or stdin when stdin is not a TTY.
@@ -183,9 +212,25 @@ Prints `short_id` and `slug` tab-separated on success.
 
 Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
 
+`-name` sets the session's display name (see `rex name`; whitespace is collapsed, at most 64 characters). With no prompt and no `-slug`, the slug is derived from the name.
+
+`-skill name` loads a skill from the library at `~/.config/rex/skills` into this session only; repeat it for more (at most 16). The daemon copies the skills into the session's folder and starts Claude Code with `--plugin-dir`, so nothing is written to `~/.claude`. List the names with `rex skills`; see [howto/skills.md](howto/skills.md). Exit 5 when a name is invalid or not in the library, when the tool cannot load skills per session (Antigravity cannot), or when the `spawn_skills` setting is off (`off: enable in Settings → Features (rex config set spawn_skills true)`). Against a `rex-daemon` older than these flags, `rex new` still spawns and prints `warning: this rex-daemon ignored skills; run \`rex daemon restart\`` on stderr.
+
 `-wait` (default `5s`) is how long to wait for the daemon to confirm the spawn. If it does not, `rex new` exits 1 with `daemon did not confirm the spawn within 5s; check \`rex ls\``: the session may still appear.
 
 `-no-attach` is deprecated: it is accepted but has no effect.
+
+---
+
+## rex skills
+
+List the skill library, `~/.config/rex/skills/<name>/SKILL.md`: the names `rex new -skill` accepts.
+
+```sh
+rex skills [-o FORMAT] [--agent]
+```
+
+Columns: `name`, `description` (from the `description` in the SKILL.md frontmatter). Folders that cannot be used (a symlink, a name that is not lowercase letters, digits and hyphens, no SKILL.md) are skipped and shown as warnings. Needs no daemon. Exits 5 with the Features message when `spawn_skills` is off.
 
 ---
 
@@ -197,7 +242,7 @@ Attach terminal to a session PTY.
 rex attach <sel> [-socket path] [-read-only] [-no-replay]
 ```
 
-Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail.
+Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail. There is no banner row here: the agent draws on your terminal directly; the in-TUI popup has one ([tui.md](tui.md#banner)).
 
 For full-screen agents (claude, codex, gemini, …) the daemon then redraws the agent's current screen, so you see it at once even if the agent is busy or the transcript tail starts mid-frame. A daemon too old for that gets **Ctrl+L** instead, which asks the agent to redraw.
 

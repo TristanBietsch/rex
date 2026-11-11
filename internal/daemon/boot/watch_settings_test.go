@@ -15,21 +15,35 @@ import (
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
 )
 
-// runWatch starts WatchSettings and stops it (and waits) when the test ends.
+// runWatch starts the watcher, waits until it has taken its baseline stat
+// (so later writes are guaranteed to count as changes), and stops it (and
+// waits) when the test ends.
 func runWatch(t *testing.T, path string, apply ...func(*settings.Store)) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { defer close(done); WatchSettings(ctx, path, 10*time.Millisecond, apply...) }()
+	ready := make(chan struct{})
+	go func() {
+		defer close(done)
+		watchSettings(ctx, path, 10*time.Millisecond, func() { close(ready) }, apply...)
+	}()
 	t.Cleanup(func() { cancel(); <-done })
+	select {
+	case <-ready:
+	case <-time.After(5 * time.Second):
+		t.Fatal("watcher never took its baseline")
+	}
 }
 
-// write replaces path and gives it a distinct mtime, so a coarse filesystem
-// clock cannot hide the change.
+// write replaces path atomically (temp file + rename) with a chosen mtime, so
+// the watcher never observes a half-done write or a mtime that changes twice,
+// and a coarse filesystem clock cannot hide the change.
 func write(t *testing.T, path, body string, mtime time.Time) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
-	require.NoError(t, os.Chtimes(path, mtime, mtime))
+	tmp := path + ".tmp"
+	require.NoError(t, os.WriteFile(tmp, []byte(body), 0o600))
+	require.NoError(t, os.Chtimes(tmp, mtime, mtime))
+	require.NoError(t, os.Rename(tmp, path))
 }
 
 type recorder struct {

@@ -14,11 +14,13 @@ rex
 
 ## DESCRIPTION
 
-Three columns group sessions: **NEEDS YOU**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N working · N done`. The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
+Four sections group sessions, top to bottom: **NEEDS YOU**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
+
+**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as NEEDS YOU while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
 The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
-A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 3 show · :prune clear`). `3` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
+A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 4 show · :prune clear`). `4` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
 The daemon auto-starts if the socket is unreachable (boot splash).
 
@@ -38,14 +40,15 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 `v` switches to the detailed view, which adds the short id, model · effort, tokens and the start→end span, shows the AI summary as the text, and adds `· N marked done` to the header:
 
 ```
- ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴45m   11m
+ ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴ 45m   11m
      state  id  name        description                          model · effort         tokens   badge  last event
 ```
 
 - **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps. The `timestamps` feature (Settings → Features, on by default) switches the span column off; the end time is still recorded.
 - **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view, only while some row has one, and is the first column to go on a narrow terminal. Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
 - **name**, **model · effort**, and **tokens** are as wide as their widest value on the board (name capped at 22, model at 24). Tokens are right-aligned.
-- The **subagent** column (`⋔3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
+- The **waiting** detail: in the detailed view a row in WAITING starts its text with the reason and how long it has waited (`shell 42s · Running the test suite`). The attach header chip reads `◷ waiting (shell)`.
+- The **subagent** column (`⋔ 3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
 - The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
 - **last event** is right-aligned against the edge; `-` means no event yet.
 - The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
@@ -65,6 +68,7 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 | Settings | `S` or `:settings` | `esc` |
 | Help | `?` or `:help` | `esc`, `?` |
 | Stats | `:stats` | `esc`, `:` |
+| Overview | `:overview` | `esc`, `q`, `:overview` |
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
@@ -79,14 +83,14 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 | `j`, `k`, `↓`, `↑` | Move selection |
 | `g`, `G` | First / last row |
 | `tab` | Next session that needs you (wraps) |
-| `1`, `2` | Jump to Needs you / Working |
-| `3` | Jump to Done; on a long Done column, show / hide it |
+| `1`, `2`, `3` | Jump to Needs you / Waiting / Working |
+| `4` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
 | `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
 | `/` | Search the board (see FILTER AND SEARCH) |
 | `esc` | Clear the search |
 | `zh` | Hide / show every completed section (Done) |
-| `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Working, `z3` Done) |
+| `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
@@ -122,7 +126,7 @@ Capturing the mouse turns off the terminal's own text selection. Hold Option (iT
 
 Detach with `qq` (two quick `q`s), **Ctrl+]** (ASCII 0x1d) or `::q`. The session keeps running. Like `::`, a lone `q` is held for 400 ms and forwarded to the agent if no second `q` follows (or as soon as another key arrives); pasted text is never intercepted. In scroll mode `q` keeps its own meaning (back to live output).
 
-`rex attach <sel>` from a shell uses the same detach key.
+`rex attach <sel>` from a shell uses the same detach key. It has no banner (see [Banner](#banner)): the agent draws straight on your terminal.
 
 ### Command bar (`::`)
 
@@ -134,7 +138,32 @@ Typing `:` twice quickly (within 400 ms) inside the popup opens rex's command ba
 | `done` | Mark this session done / undo |
 | `kill`, `complete` | Kill the agent now and mark it done |
 | `name <text>` | Set this session's display name (`name` alone clears it) |
+| `banner` | Hide or show the [banner](#banner) for this run (not saved) |
 | anything else | Close the popup and run it as a board `:` command |
+
+### Banner
+
+One row between the title bar and the agent's screen says what the session is doing without you leaving it:
+
+```
+↳ Rewriting the invoice rounding tests        code/rex · working 12m · updated 40s ago
+```
+
+- **Lead** (after `↳`): the AI description; without one, `task: ` and the task you gave it; without that, the question a waiting session is asking. Nothing otherwise.
+- **Meta**, in order: the folder (`~` for your home directory, otherwise the last two path elements); `working 12m` (since the current stretch began), `waiting 3m` (needs you) or `ended 14:02` (when it finished); `updated 40s ago` (age of the description, dim past 2 minutes, left out without one).
+- **With `overview_enabled` on:** `elsewhere: 2 to review · 1 needs you · 1 failed` (the other sessions, never this one; `quiet` when none needs anything), then the overview headline.
+
+`attach_banner` (Settings → AI summary) picks how long text is shown:
+
+| Value | Behavior |
+|-------|----------|
+| `marquee` (default) | Text that does not fit scrolls as a ticker: it rests 2 s at the start, moves one cell per 120 ms, and rests again at the start of each pass. The loop restarts when the popup opens and when this session's description changes. Text that fits stays still and costs nothing |
+| `static` | Cut at a word boundary (`…`); the right side keeps as many meta items as fit in half the row, none below 60 columns |
+| `off` | No banner |
+
+`reduce_motion` turns `marquee` into `static`. Below 25 terminal rows the banner gives way, so the agent never drops to its minimum height because of it. `::banner` hides or shows it for this run; `attach_banner` is the saved switch. The banner is rex's own row above the rule, so the agent cannot draw into it, and clicks or the wheel on it never reach the agent. Everything in it comes from the session (description, task, question, folder, headline) and is stripped of control characters and escape sequences before it is drawn.
+
+The agent's terminal is one row shorter while the banner shows, as for any resize: full-screen agents redraw at the new size. Agents on the primary screen push their top row into rex's scrollback when the banner appears; it is not pulled back when the banner goes (no reflow, as for a window resize). `rex attach` from a shell shows no banner.
 
 ### Mouse
 
@@ -201,18 +230,61 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 | Key | Effect |
 |-----|--------|
 | `zh` | Hide every completed section (Done); again shows it |
-| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Working, `z3` Done) |
+| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 
 `z` followed by any other key is just that key. While `z` is pending the help line lists the second keys. rex refuses to hide the last shown section.
 
-`:filter` does the same by name: `:filter hide done`, `:filter show all`, `:filter only needs working`, and a bare `:filter` clears the tool filter and every hidden section ([slash.md](slash.md)).
+`:filter` does the same by name: `:filter hide done`, `:filter show all`, `:filter only needs working` (`wa` is Waiting, `wo` Working; a bare `w` is ambiguous), and a bare `:filter` clears the tool filter and every hidden section ([slash.md](slash.md)).
 
 - The filter bar names what is hidden (`done hidden (zh)`) and shows while any section is hidden.
-- When the selection falls into a hidden section (for example `cc` marks it done while Done is hidden), it moves to the first visible row. `1`, `3` and `tab` aimed at a hidden section say how to show it. A session you just started that the filter hides shows the notice `<slug> is hidden by the filter`.
+- When the selection falls into a hidden section (for example `cc` marks it done while Done is hidden), it moves to the first visible row. `1`-`4` and `tab` aimed at a hidden section say how to show it. A session you just started that the filter hides shows the notice `<slug> is hidden by the filter`.
 - Hiding is per run. The `board_hidden_sections` setting ([settings.md](settings.md#behavior)) sets what starts hidden, and `:bg` saves the current choice for the next start (see DETACH WITHOUT QUITTING).
 - `:prune` ignores filters: it clears every Done session, and its confirmation says so while a filter is active.
 - The tool filter survives a daemon reconnect.
+
+## OVERVIEW
+
+What needs you, what is ready for review and what finished, at a glance. Three places show it: a header line, the `:overview` overlay and `rex overview` ([cli.md](cli.md)).
+
+**Header line.** With `overview_enabled` on (Settings → AI summary, off by default), one line follows the chip row (and comes before the summary-backend banner):
+
+```
+  » 2 ready for review  billing-tests and api docs are ready for review; deploy asks a question · 40s
+```
+
+The count is computed in the TUI from the sessions, so it is true even when the headline is stale or wrong; it reads `nothing to review` at zero. The headline is the daemon's one-line summary of the whole board, cut on a word boundary, with its age. Until the daemon has written one (or against an older daemon, or with the daemon's setting still switching on, which takes about 5 s) only the count shows. The row is reserved while the setting is on, so the board does not jump. Off, the header is exactly as before.
+
+**Buckets.** Every session is in exactly one, decided in code by these rules, in order:
+
+1. Marked done: **Completed**.
+2. `failed` or `crashed`: **Failed**.
+3. `done`: **Ready for review**. The agent says it finished and you have not marked it.
+4. Waiting for input (`needs_input`): **Ready for review** when the agent finished a turn (Claude's Stop hook, `wait_reason: review`) and the last line is not a question (does not end in `?`, the same rule as the row text); otherwise **Needs you**. Claude's idle reminder does not turn a finished turn into a question. Tools without hooks have no `wait_reason`, so a waiting session is always Needs you.
+5. `working` or `queued`: **Working**.
+
+**`:overview` overlay.** The headline, wrapped, then the sections READY FOR REVIEW, NEEDS YOU, FAILED, WORKING and COMPLETED (last 24 h) with `marker name status age` rows; empty sections are left out. `j`/`k` (or arrows) select, `g`/`G` jump, `enter` attaches to the selected session, `esc` or `q` closes. It works with the setting off too: you get the lists and a line pointing at the setting.
+
+The headline is written by the local summary model from the sessions' task titles, descriptions and question lines, so it can be wrong and can be steered by what an agent printed. It is one line of display-safe text, never acted on, and the lists next to it never come from it.
+
+---
+
+**Export.** `:export [sel] [json|yaml|md|txt]` writes the session as a readable document to `~/.local/share/rex/exports/` and shows the path ([export.md](export.md)). It belongs to the `session_export` feature.
+
+## NEW-SESSION WIZARD
+
+`n` or `:new` opens a short flow. Steps that do not apply are skipped, in both directions, so the common path is a few Enter presses:
+
+1. **Provider**: the tool (`j`/`k`, `enter`).
+2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
+3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
+4. **Name**: an optional display name (the board shows it instead of the slug; at most 64 characters, checked as you type). `enter` on an empty field skips it; an invalid name shows the reason and stays. With no task, the name also gives the slug.
+5. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
+6. **Describe**: the task. `enter` launches.
+
+`b` goes back (on the text steps only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the name or skills fields, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
+
+---
 
 ## RENAME
 
@@ -267,10 +339,10 @@ A small column before the time column flags sessions that have been **working** 
 | Badge | Working for |
 |-------|-------------|
 | (blank) | under 10 min |
-| `▴12m` dim | 10–30 min |
-| `▴45m` amber | 30 min – 2 h |
-| `▴3h` red | 2–6 h |
-| `▴7h` red, inverse | 6 h + |
+| `▴ 12m` dim | 10–30 min |
+| `▴ 45m` amber | 30 min – 2 h |
+| `▴ 3h` red | 2–6 h |
+| `▴ 7h` red, inverse | 6 h + |
 
 ## DETACH WITHOUT QUITTING
 

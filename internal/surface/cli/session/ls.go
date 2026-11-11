@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -53,10 +54,11 @@ func RunLs(args []string) error {
 	}
 
 	p := core.Out()
+	st, _, _ := settings.LoadDefault()
 	return p.Emit(core.Result{
 		Cmd:    "ls",
 		Data:   filtered,
-		View:   lsView(filtered, p.Now(), p.Glyphs, lsOpts{Wide: *wide, Times: *wide && featureOn("timestamps"), Resume: *wide && featureOn("resume")}),
+		View:   lsView(filtered, p.Now(), p.Glyphs, lsOpts{Waiting: settings.FeatureOn(st, "waiting_section"), Wide: *wide, Times: *wide && featureOn("timestamps"), Resume: *wide && featureOn("resume")}),
 		Legacy: func(w io.Writer) error { return core.WriteSessionsJSONL(w, filtered) },
 	})
 }
@@ -69,6 +71,19 @@ type lsOpts struct {
 	Times bool
 	// Resume adds RESUME ID (the resume feature).
 	Resume bool
+	// Waiting shows sessions waiting on a tool as "waiting (shell)" (the
+	// waiting_section feature).
+	Waiting bool
+}
+
+// waitingKind is what the session is waiting on at now ("" unless the
+// waiting_section feature is on and the session has waited on a tool for
+// protocol.WaitingAfter): the board's definition of Waiting.
+func waitingKind(s protocol.SessionSummary, now time.Time, on bool) string {
+	if !on {
+		return ""
+	}
+	return s.WaitingFor(now)
 }
 
 // clockTime is t in now's zone as "2006-01-02 15:04", or "-" when unset.
@@ -111,7 +126,9 @@ func SessionsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyp
 // swaps in a state marker and a compact IDLE column (and moves NAME to a
 // second line on a narrow terminal); md and agent lines carry the real name,
 // without the done marker, and agent lines model and effort apart and idle_s
-// in seconds (-1 when unknown).
+// in seconds (-1 when unknown). A session waiting on a tool shows "waiting
+// (shell)" in text and md; txt and the agent state= key keep "working"
+// (scripts parse them); json carries waiting_on and waiting_since.
 func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, opts lsOpts) core.View {
 	text, txt, md := core.SetOf(core.FormatText), core.SetOf(core.FormatTXT), core.SetOf(core.FormatMD)
 	agent := core.SetOf(core.FormatAgent)
@@ -142,14 +159,19 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 		// text and txt show the done marker; md, agent and json carry the real name.
 		core.Col{Key: "name", Title: "Name", Below: true, Formats: text | txt},
 		core.Col{Key: "name", Title: "Name", Formats: md | agent})
-	var needs, working, done int
+	var needs, waiting, working, done int
 	rows := make([][]core.Cell, 0, len(sessions))
 	for _, s := range sessions {
+		wait := waitingKind(s, now, opts.Waiting)
 		switch s.State {
 		case protocol.StateNeedsInput:
 			needs++
 		case protocol.StateWorking:
-			working++
+			if wait != "" {
+				waiting++
+			} else {
+				working++
+			}
 		case protocol.StateDone:
 			done++
 		case protocol.StateQueued, protocol.StateFailed, protocol.StateCrashed:
@@ -168,10 +190,14 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 			idleS = int(now.Sub(s.LastEventAt).Seconds())
 		}
 		tone := core.StateTone(s.State)
+		label := core.StateLabel(s.State)
+		if wait != "" {
+			label = "waiting (" + wait + ")"
+		}
 		cells := []core.Cell{
 			{Text: g.State[s.State], Tone: tone},
 			{Text: s.ShortID},
-			{Text: core.StateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: tone},
+			{Text: label, Txt: string(s.State), Raw: string(s.State), Tone: tone},
 			{Text: s.ToolID},
 			{Text: model},
 			{Text: s.ModelID},
@@ -205,7 +231,7 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 	for _, c := range []struct {
 		n     int
 		label string
-	}{{needs, "needs you"}, {working, "working"}, {done, "done"}} {
+	}{{needs, "needs you"}, {waiting, "waiting"}, {working, "working"}, {done, "done"}} {
 		if c.n > 0 {
 			meta = append(meta, fmt.Sprintf("%d %s", c.n, c.label))
 		}

@@ -1,6 +1,8 @@
 // Package registry defines the tool/model registry shape and the merge of built-ins with user YAML.
 package registry
 
+import "strings"
+
 // Tool is one entry in the registry.
 type Tool struct {
 	ID               string   `yaml:"id"`
@@ -25,6 +27,11 @@ type Tool struct {
 	// asking for approval (for example --dangerously-skip-permissions). They
 	// are added only while the skip_permissions setting is on.
 	SkipPermissionsArgs []string `yaml:"skip_permissions_args,omitempty"`
+	// SkillArgs are extra argv that load the session's staged skills plugin
+	// (for example --plugin-dir {plugin_dir}). {plugin_dir} expands to the
+	// plugin folder under the session directory. nil: the tool cannot load
+	// skills per session.
+	SkillArgs []string `yaml:"skill_args,omitempty"`
 	// Resume says how to resume the agent's conversation and how rex learns
 	// its id. nil: the tool cannot be resumed.
 	Resume *ResumeSpec `yaml:"resume,omitempty"`
@@ -32,6 +39,22 @@ type Tool struct {
 
 // TrustArgsCWDList is the trust_args placeholder for the session folder.
 const TrustArgsCWDList = "{cwd_list}"
+
+// SkillArgsPluginDir is the skill_args placeholder for the plugin folder.
+const SkillArgsPluginDir = "{plugin_dir}"
+
+// SkillArgsFor returns SkillArgs with {plugin_dir} replaced by dir. The
+// folder stays one argument even when it holds spaces (nil when unset).
+func (t Tool) SkillArgsFor(dir string) []string {
+	if len(t.SkillArgs) == 0 {
+		return nil
+	}
+	out := make([]string, len(t.SkillArgs))
+	for i, a := range t.SkillArgs {
+		out[i] = strings.ReplaceAll(a, SkillArgsPluginDir, dir)
+	}
+	return out
+}
 
 // TrustPrompt is an agent's "do you trust this folder?" dialog: how to tell
 // it is on screen and that its accept option is the selected one, and the

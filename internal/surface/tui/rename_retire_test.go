@@ -224,16 +224,16 @@ func TestMarkedDone_MovesToCompleted(t *testing.T) {
 		protocol.SessionSummary{ID: "d", Slug: "d", State: protocol.StateDone},
 	)
 	parts := partitionSessions(m.Sessions, rowFilter{})
-	require.Len(t, parts[0], 1)
-	require.Len(t, parts[1], 0, "marked working session leaves Working")
-	require.Len(t, parts[2], 2)
+	require.Len(t, parts[groupNeeds], 1)
+	require.Len(t, parts[groupWorking], 0, "marked working session leaves Working")
+	require.Len(t, parts[groupDone], 2)
 	var ids []string
 	for _, s := range orderedSessions(m) {
 		ids = append(ids, s.ID)
 	}
 	require.Equal(t, []string{"n", "w", "d"}, ids)
 	m.Sessions[1].RetireAt = time.Time{}
-	require.Len(t, partitionSessions(m.Sessions, rowFilter{})[1], 1, "unmarking returns it to Working")
+	require.Len(t, partitionSessions(m.Sessions, rowFilter{})[groupWorking], 1, "unmarking returns it to Working")
 }
 
 func TestLongRunTiers(t *testing.T) {
@@ -249,7 +249,7 @@ func TestLongRunTiers(t *testing.T) {
 	idle := w(7 * time.Hour)
 	idle.State = protocol.StateNeedsInput
 	require.Equal(t, -1, longRunTier(now, idle), "only working sessions get the badge")
-	require.Contains(t, longRunBadge(now, w(45*time.Minute)), "▴45m")
+	require.Contains(t, longRunBadge(now, w(45*time.Minute)), "▴ 45m")
 }
 
 func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
@@ -273,7 +273,7 @@ func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
 	require.Contains(t, row, "日本語")
 	require.NotContains(t, row, "done", "marked-done rows carry no badge")
 	require.NotContains(t, row, "clears")
-	require.Contains(t, row, "▴3h")
+	require.Contains(t, row, "▴ 3h")
 	require.Contains(t, ansi.Strip(renderRow(m, m.Sessions[1], cols)), "plain")
 }
 

@@ -398,12 +398,25 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// clearAgents zeroes the count once the agent is gone, and its
 	// subagents with it. The exit paths call it before the final meta.json
 	// write, so the file never keeps a count; the defer covers the rest.
+	waits, _ := s.cfg.Adapter.(adapter.WaitReporter) // nil unless the agent reports tool waits
 	clearAgents := func() {
 		if agents != nil {
 			_ = s.cfg.Store.SetSubagents(sess.ID, 0)
 		}
+		if waits != nil {
+			_ = s.cfg.Store.SetWaiting(sess.ID, "", time.Time{})
+		}
 	}
 	defer clearAgents()
+	// reasons is asserted once too; nil unless the agent reports why it
+	// waits. Cleared with the subagents on every exit path.
+	reasons, _ := s.cfg.Adapter.(adapter.WaitReasoner)
+	clearReason := func() {
+		if reasons != nil {
+			_ = s.cfg.Store.SetWaitReason(sess.ID, "")
+		}
+	}
+	defer clearReason()
 	defer ticker.Stop()
 	// ids is asserted once, like agents; nil unless the agent reports its
 	// conversation id while it runs.
@@ -463,6 +476,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			s.refreshScreenText(sess.ID, screen)
 			captured := captureResumeID()
 			clearAgents()
+			clearReason()
 			sess.SetExit(protocol.StateDone, nil)
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
@@ -485,6 +499,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			// persisted meta reflects the terminal state.
 			sess.SetExit(final, exitCode)
 			clearAgents()
+			clearReason()
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
 			}
@@ -518,6 +533,15 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			if agents != nil {
 				_ = s.cfg.Store.SetSubagents(sess.ID, agents.Subagents()) // broadcasts only a change
+			}
+			if reasons != nil {
+				_ = s.cfg.Store.SetWaitReason(sess.ID, reasons.WaitReason()) // broadcasts only a change
+			}
+			if waits != nil {
+				kind, since := waits.Waiting()
+				if err := s.cfg.Store.SetWaiting(sess.ID, kind, since); err != nil { // broadcasts only a change
+					slog.Warn("pty: store reported wait failed", "session", sess.ID, "err", err)
+				}
 			}
 			if ids != nil {
 				if rid := ids.ResumeID(); rid != "" {

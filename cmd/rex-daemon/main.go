@@ -19,6 +19,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
+	"github.com/tristanbietsch/rex/internal/features/overview"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
@@ -41,6 +42,7 @@ func run(args []string) error {
 	socketPath := fs.String("socket", defaultSocket, "UDS path")
 	stateDir := fs.String("state-dir", layout.DataDir, "state directory")
 	toolsPath := fs.String("tools", layout.ToolsFile, "path to tools.yaml override (optional)")
+	skillsDir := fs.String("skills-dir", layout.SkillsDir, "skill library directory (rex new -skill)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
 
@@ -162,6 +164,9 @@ func run(args []string) error {
 	context.AfterFunc(ctx, stop)
 
 	var srv *server.Server
+	// ov is set below when the summarizer runs; the callbacks read it only
+	// once Serve has started, after that assignment.
+	var ov *boot.Overview
 	srv, err = server.New(server.Config{
 		Socket:                *socketPath,
 		StateDir:              *stateDir,
@@ -173,7 +178,10 @@ func run(args []string) error {
 		AutoTrustDirs:         boot.AutoTrustDirs,
 		SkipPermissions:       boot.SkipPermissions,
 		ResumeEnabled:         boot.ResumeEnabled,
+		SkillsDir:             *skillsDir,
+		SkillsEnabled:         boot.SpawnSkillsEnabled,
 		OnShutdown:            stop,
+		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
 	})
 	if err != nil {
@@ -191,9 +199,17 @@ func run(args []string) error {
 
 	// Start summarizer worker + health probe (when enabled).
 	if summaryWorker != nil {
+		// The overview shares the summarizer's model; with overview_enabled
+		// off it holds no goroutine and makes no call.
+		ov = boot.NewOverview(ctx, overview.DefaultConfig(), store, srv, summaryWorker)
+		defer ov.Close()
+		ov.SetEnabled(boot.OverviewEnabled(settingsStore))
 		summaryWorker.SetHealthCallback(func(available bool, reason string) {
 			slog.Info("daemon: summarizer health flip", "available", available, "reason", reason)
 			srv.BroadcastSummarizerHealth(available, reason)
+			if available {
+				ov.Notify(overview.StructuralChange) // retry what waited for the backend
+			}
 		})
 		go func() {
 			if err := summaryWorker.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -202,7 +218,7 @@ func run(args []string) error {
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
 		// One settings watcher: later features add an applier here.
-		go boot.WatchSettings(ctx, settingsPath, 5*time.Second, boot.SummaryDetailApplier(summaryWorker))
+		go boot.WatchSettings(ctx, settingsPath, 5*time.Second, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
 	}
 
 	// SIGHUP → reload tools.yaml.

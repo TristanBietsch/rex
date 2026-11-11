@@ -31,6 +31,7 @@ const (
 	FocusStats
 	FocusRename
 	FocusSearch
+	FocusOverview
 )
 
 // Model is the root Bubble Tea model.
@@ -45,7 +46,11 @@ type Model struct {
 	// PendingSelectSlug is the slug of a session this TUI just asked the
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string
-	Filter            string
+	// PendingSpawn is what the wizard sent beyond what any daemon honors: a
+	// daemon that predates the name and skills fields drops them silently, so
+	// SessionAdded of PendingSelectSlug is checked against it.
+	PendingSpawn pendingSpawn
+	Filter       string
 	// Search is the board search text (/ or :search): every term must match a
 	// row. Session-only; :bg saves it.
 	Search string
@@ -117,6 +122,15 @@ type Model struct {
 	// spinnerGen / spinnerRunning track the single live spinner tick chain.
 	spinnerGen     int
 	spinnerRunning bool
+	// bannerGen / bannerRunning track the attach banner's marquee tick chain.
+	bannerGen     int
+	bannerRunning bool
+	// bannerHidden is ::banner: the attach banner is off for this run. Not
+	// persisted; attach_banner is the setting.
+	bannerHidden bool
+
+	// exporting holds the sessions with a :export still running.
+	exporting map[string]bool
 
 	// reconnect is non-nil while the daemon connection is down and the TUI
 	// is redialing it (see reconnect.go). dialDaemon overrides the redial's
@@ -128,6 +142,13 @@ type Model struct {
 	// via SummarizerHealth events.
 	BackendUnavailable       bool
 	BackendUnavailableReason string
+
+	// Overview is the daemon's board overview (headline over the buckets the
+	// TUI computes itself), from the Snapshot and Overview events. Nil
+	// until the daemon sends one, and from daemons that predate it.
+	Overview *protocol.Overview
+	// OverviewSel is the selected row of the :overview overlay.
+	OverviewSel int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
@@ -161,6 +182,9 @@ type Model struct {
 	BootDone    bool
 	BootFailed  bool
 	BootError   error
+	// QuietBoot skips the boot chimes, startup tone and boot voice, for a
+	// relaunch nobody is watching. Board sounds after boot still play.
+	QuietBoot bool
 }
 
 // audioPlayer is the subset of *audio.Player the TUI uses.
@@ -181,6 +205,10 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
 				m.SelectedID = sum.ID
 				m.PendingSelectSlug = ""
+				if msg := m.PendingSpawn.ignoredBy(sum); msg != "" {
+					m.Err = msg
+				}
+				m.PendingSpawn = pendingSpawn{}
 				if indexOfSelected(m) < 0 {
 					m.Notice = sum.Slug + " is hidden by the filter"
 				}
@@ -243,6 +271,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					marked = !wasMarked && !m.Sessions[i].RetireAt.IsZero()
 					if m.Sessions[i].Description != prevDesc {
 						m = registerDescAnim(m, m.Sessions[i].ID, prevDesc, m.Sessions[i].Description)
+						if m.Attach != nil && m.Attach.SessionID == m.Sessions[i].ID {
+							m.Attach.BannerSince = m.now() // read the new summary from its start
+						}
 					}
 					break
 				}
@@ -272,7 +303,13 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m.Sessions = snap.Sessions
+			m.Overview = snap.Overview
 			m = adoptSnapshotFilter(m, snap.Filter)
+		}
+	case protocol.EventOverview:
+		var o protocol.Overview
+		if err := json.Unmarshal(env.Data, &o); err == nil {
+			m.Overview = &o
 		}
 	case protocol.EventError:
 		var ee protocol.ErrorEvent
@@ -281,6 +318,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m.Err = "daemon: " + friendlyDaemonError(ee)
 			// A rejected spawn will never produce SessionAdded.
 			m.PendingSelectSlug = ""
+			m.PendingSpawn = pendingSpawn{}
 		}
 	case protocol.EventSummarizerHealth:
 		var h protocol.SummarizerHealth
@@ -336,6 +374,17 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if t, ok := patchTime(patch, "working_since"); ok {
 		s.WorkingSince = t
 	}
+	if v, present := patch["waiting_on"]; present {
+		// null or "" clears. A kind this version doesn't know (a newer
+		// daemon's) reads as not waiting: the session stays in Working.
+		s.WaitingOn = ""
+		if kind, _ := v.(string); protocol.ValidWaitKind(kind) {
+			s.WaitingOn = kind
+		}
+	}
+	if t, ok := patchTime(patch, "waiting_since"); ok {
+		s.WaitingSince = t
+	}
 	// Token fields come as float64 over JSON; coerce safely.
 	if v, ok := patch["tokens"].(float64); ok {
 		s.Tokens = int64(v)
@@ -345,6 +394,10 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
 		s.Subagents = int(v)
+	}
+	if raw, ok := patch["wait_reason"]; ok { // "" or null clears it
+		v, _ := raw.(string)
+		s.WaitReason = v
 	}
 	if v, ok := patch["resume_id"].(string); ok {
 		s.ResumeID = v

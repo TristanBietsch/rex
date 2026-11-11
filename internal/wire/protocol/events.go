@@ -10,7 +10,9 @@ const (
 	EventSessionRemoved   = "SessionRemoved"
 	EventSessionOutput    = "SessionOutput"
 	EventSummarizerHealth = "SummarizerHealth"
-	EventError            = "Error"
+	// EventOverview carries the board-wide overview (see Overview).
+	EventOverview = "Overview"
+	EventError    = "Error"
 	// EventAck is the success reply to an intent that carried an ID and has
 	// no more specific reply (see the package doc for the table).
 	EventAck = "Ack"
@@ -54,6 +56,17 @@ type SessionSummary struct {
 	// 0 when the last one stops.
 	Subagents int `json:"subagents,omitempty"`
 
+	// WaitingOn is what a working session's main thread is blocked on, one of
+	// WaitShell, WaitSubagent or WaitWeb (Claude Code, from its tool hooks).
+	// Empty when it is not waiting on a tool. State stays working; clients
+	// that predate the field show the session as working. Patches send null
+	// or "" to clear it, and it is always cleared when State leaves working.
+	WaitingOn string `json:"waiting_on,omitempty"`
+
+	// WaitingSince is when that tool call began. Zero unless WaitingOn is
+	// set. Clients show a session as waiting only after WaitingAfter.
+	WaitingSince time.Time `json:"waiting_since,omitzero"`
+
 	// Fleet groups related sessions under a named label.
 	Fleet string `json:"fleet,omitempty"`
 
@@ -93,7 +106,21 @@ type SessionSummary struct {
 	// TrustFolder is whether the folder was trusted for this session when it
 	// was created (NewSession.TrustFolder). Resume applies it again.
 	TrustFolder bool `json:"trust_folder,omitempty"`
+
+	// WaitReason says why a needs_input session is waiting: WaitReview (the
+	// agent finished a turn) or WaitInput (it asks for an answer or an
+	// approval). Empty means unknown, which is always the case for adapters
+	// that only read the screen.
+	WaitReason string `json:"wait_reason,omitempty"`
+	// Skills are the library skills loaded into this session (NewSession.Skills).
+	Skills []string `json:"skills,omitempty"`
 }
+
+// WaitReason values.
+const (
+	WaitReview = "review"
+	WaitInput  = "input"
+)
 
 // Snapshot is the daemon's response to Hello: full board state.
 type Snapshot struct {
@@ -102,6 +129,9 @@ type Snapshot struct {
 	// DaemonVersion is the daemon's release label. Empty from daemons that
 	// predate acks; such a daemon never sends Ack.
 	DaemonVersion string `json:"daemon_version,omitempty"`
+	// Overview is the daemon's current board overview. Nil until the daemon
+	// has published one, and from daemons that predate it.
+	Overview *Overview `json:"overview,omitempty"`
 }
 
 // Ack is the success reply to an intent that carried an envelope ID. The
@@ -147,6 +177,17 @@ type SessionOutput struct {
 type SummarizerHealth struct {
 	Available bool   `json:"available"`
 	Reason    string `json:"reason,omitempty"`
+}
+
+// Overview is the board-wide overview: one model-written headline over the
+// buckets clients compute themselves from the sessions. It is kept in the
+// daemon's memory only. Headline is untrusted model output, sanitized to at
+// most MaxOverviewRunes.
+type Overview struct {
+	// Enabled is false while the daemon has overview_enabled off.
+	Enabled     bool      `json:"enabled"`
+	Headline    string    `json:"headline,omitempty"`
+	GeneratedAt time.Time `json:"generated_at,omitzero"`
 }
 
 // ErrorEvent surfaces an error correlated to an intent's id.

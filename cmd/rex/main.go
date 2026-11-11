@@ -50,7 +50,7 @@ func run(args []string) error {
 		if err := core.Out().RequireText("rex", interactiveVerbs["rex"]); err != nil {
 			return err
 		}
-		return meta.RunTUI()
+		return meta.RunTUI(false)
 	}
 	switch args[0] {
 	case "--help", "-h":
@@ -67,6 +67,11 @@ func run(args []string) error {
 		return core.RunAgentHelp(args[1:])
 	case "errors":
 		return inspect.RunErrors(args[1:])
+	case "--quiet-boot":
+		if len(args) > 1 {
+			return core.NewExitError(core.ExitInvalidArgs, "--quiet-boot takes no arguments")
+		}
+		return meta.RunTUI(true)
 	case "--version", "-v", "version":
 		return core.RunVersion(args[1:])
 	case "status":
@@ -75,6 +80,8 @@ func run(args []string) error {
 		return session.RunLs(args[1:])
 	case "new":
 		return session.RunNew(args[1:])
+	case "skills":
+		return session.RunSkills(args[1:])
 	case "attach":
 		return session.RunAttach(args[1:])
 	case "reply":
@@ -127,6 +134,10 @@ func run(args []string) error {
 		return inspect.RunStats(args[1:])
 	case "fleet":
 		return inspect.RunFleet(args[1:])
+	case "overview":
+		return inspect.RunOverview(args[1:])
+	case "export":
+		return inspect.RunExport(args[1:])
 	default:
 		return unknownCommand(args[0])
 	}

@@ -17,8 +17,11 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 | Path | Contents |
 |------|----------|
 | `~/.config/rex/` | User configuration |
+| `~/.config/rex/skills/<name>/` | Skill library: one folder per skill, each with a `SKILL.md` (see [skills](howto/skills.md)) |
 | `~/.local/share/rex/` | Session state (default `-state-dir`) |
 | `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json` and `transcript.log` |
+| `~/.local/share/rex/sessions/<id>/plugin/` | The skills chosen for that session, copied from the library (removed with the session) |
+| `~/.local/share/rex/exports/` | Files `:export` writes, `<slug>-<shortid>.<ext>`, mode 0600 (see [export.md](export.md)) |
 | `~/.local/share/rex/daemon.lock` | Held by the running daemon; one daemon per state directory |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |
@@ -58,6 +61,7 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 | `XDG_RUNTIME_DIR` | `paths` | Default socket directory (absolute paths only) |
 | `REX_LOG_LEVEL` | `rexlog` | `debug`, `info`, `warn`, `error` (default `info`) |
 | `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files (including `cli-errors.log`) instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
+| `REX_QUIET_BOOT` | `rex` | Non-empty (not `0`): open the board without boot sounds, same as `rex --quiet-boot`. For scripted relaunches |
 | `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer. A non-local host receives the text of agents' screens |
 | `EDITOR` | `rex config edit` | Program to edit `init.lua` |
 | `GOPATH` | `rex update` | Module install path resolution |

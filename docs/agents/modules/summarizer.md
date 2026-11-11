@@ -18,7 +18,7 @@ Background worker calls local Ollama HTTP API to generate one-line `description`
 - `Client` — `NewClient`, `Generate` (the health probe's bare call), `Complete(ctx, CompleteRequest{System, Prompt, NumPredict, Stop, Temperature})`, `Tags`, `SetModel`
 - `TranscriptReader func(sessionID string, max int) []byte`
 - `Worker` — `New(cfg, store, transcript)`, `Start(ctx)`, `Channel() chan<- string`, `BackendAvailable`, `MarkAvailable`, `MarkUnavailable`, `SetHealthCallback`, `SetModel`, `Detail`, `SetDetail`, `Summarize`
-- `Kind` (`KindActivity`), `Input{Tool, Task, State, Text}`, `Prompt{System, User, MaxRunes, NumPredict}`, `BuildPrompt(kind, in, detail)`, `ErrUnavailable`
+- `Kind` (`KindActivity`, `KindFleet`), `Input{Tool, Task, State, Text}`, `Prompt{System, User, MaxRunes, NumPredict}`, `BuildPrompt(kind, in, detail)`, `ErrUnavailable`
 - `Detail` (`DetailMedium` is the zero value, `DetailShort`, `DetailLong`), `ParseDetail(string)`, `Detail.MaxRunes()`, `Detail.NumPredict()`
 - `Clean(s, maxRunes, tool) string` — the guard every model reply passes through
 - `ResolveModel(configured string, pulled []string) (string, bool)`
@@ -27,7 +27,9 @@ Background worker calls local Ollama HTTP API to generate one-line `description`
 
 `(*Worker).Summarize(ctx, kind, in)` builds the prompt, takes the shared Ollama slot, calls the model (one retry for transient errors only) and returns `Clean(reply, p.MaxRunes, in.Tool)`; `""` with a nil error means the reply cleaned to nothing. It stores nothing and is safe from any goroutine. It returns `ErrUnavailable` while the backend is down.
 
-To add a Kind (S4's fleet digest, S5's marquee): add a `Kind` constant and one `case` in `BuildPrompt`, and put the template in `prompt_<kind>.go`. Do not edit `prompt_activity.go`. The tool name never goes into a prompt. Input text is untrusted: wrap it in a delimiter and defuse the delimiter (`defuse`).
+`KindFleet` (`prompt_fleet.go`) is the board overview: `Input.Text` is the digest from `internal/features/overview` and the reply is a headline of at most `protocol.MaxOverviewRunes` (200) runes, `NumPredict` 90, whatever the detail level. Its name is internal; users see "overview", and it is unrelated to the `fleet` label. The digest sits in a `<sessions>` block whose delimiter is defused. See [overview.md](overview.md).
+
+To add a Kind (the marquee banner is next): add a `Kind` constant and one `case` in `BuildPrompt`, and put the template in `prompt_<kind>.go`. Do not edit `prompt_activity.go`. The tool name never goes into a prompt. Input text is untrusted: wrap it in a delimiter and defuse the delimiter (`defuse`).
 
 ## Internal structure
 
@@ -37,6 +39,7 @@ To add a Kind (S4's fleet digest, S5's marquee): add a `Kind` constant and one `
 - `schedule.go` — the coalescing scheduler (`pending`, `next`, `loop`) and the Ollama slot.
 - `summarize.go` — `Kind`, `Input`, `Prompt`, `BuildPrompt`, `Summarize`.
 - `prompt_activity.go` — the activity prompt (system, user, examples per detail).
+- `prompt_fleet.go` — the overview (`KindFleet`) prompt.
 - `detail.go` — `Detail` and its caps table.
 - `clean.go` — `Clean`: sanitize, labels, quotes, agent-subject openers, sentence case, word-boundary clamp.
 - `testdata/screens` (synthetic) and `testdata/prompts` (goldens; `-update`), `eval_test.go` (`ollama_eval` tag, live).

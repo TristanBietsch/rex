@@ -9,7 +9,7 @@ rex-daemon — Runtime Executive supervisor
 ## SYNOPSIS
 
 ```sh
-rex-daemon [-socket path] [-state-dir dir] [-tools path] [-max-concurrent-sessions N]
+rex-daemon [-socket path] [-state-dir dir] [-tools path] [-max-concurrent-sessions N] [-skills-dir dir]
 rex-daemon -version
 ```
 
@@ -31,6 +31,7 @@ A `done`, `failed` or `crashed` session whose tool has a `resume` block and whos
 | `-state-dir` | `~/.local/share/rex` | Session persistence root |
 | `-tools` | `~/.config/rex/tools.yaml` | Registry overlay; missing file is OK |
 | `-max-concurrent-sessions` | `16` | Live PTY cap; `0` means uncapped after `SetMaxConcurrent` |
+| `-skills-dir` | `~/.config/rex/skills` | Skill library that `NewSession` skill names resolve under (see [skills](howto/skills.md)) |
 | `-version` | — | Print `v1` and exit |
 
 `-version` prints the daemon build label. It is not the wire protocol version. Wire version is `1` in every envelope (`v` field). See [protocol.md](protocol.md).
@@ -44,7 +45,9 @@ A `done`, `failed` or `crashed` session whose tool has a `resume` block and whos
 
 `rex reload`, the TUI's `:reload` and `rex daemon stop` do not signal the process. They send `Reload` and `Shutdown` requests over the socket, so they reach exactly the daemon on that socket.
 
-Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config, with one exception: the daemon polls `config.yaml` every 5 s and applies `summary_detail` live.
+Reload does not re-read `config.yaml` or `init.lua`. Restart the daemon to reload Lua or summarizer settings from config, with one exception: the daemon polls `config.yaml` every 5 s and applies `summary_detail` and `overview_enabled` live.
+
+With `overview_enabled` on, the daemon also writes a one-line overview of the board with the summary model. It runs 3 s after a session is added, removed, changes state, is renamed or is marked, at most once every 30 s, and a changed description alone refreshes it at most every 2 minutes. It skips the call when nothing changed, when only completed sessions are left, and while no `rex` board is connected (other clients such as `rex ls` do not count). The overview lives in memory only: it is not written to disk, and its text is never logged.
 
 ## FILES
 

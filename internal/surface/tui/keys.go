@@ -49,8 +49,7 @@ var bindings = []binding{
 	{Keys: "j k", Desc: "move row selection", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"j", "k"}},
 	{Keys: "g G", Desc: "top / bottom", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"g", "G"}},
 	{Keys: "tab", Desc: "next session that needs you", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"tab"}, Line: "next"},
-	{Keys: "1 2", Desc: "jump to Needs you / Working", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2"}},
-	{Keys: "3", Desc: "jump to Done (show / hide a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"3"}},
+	{Keys: sectionKeysLabel, Desc: "jump to Needs you / Waiting / Working / Done (4 also folds a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2", "3", "4"}},
 	{Keys: "v", Desc: "simple / detailed rows (id, model, tokens, AI summary)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"v"}},
 
 	{Keys: "t", Desc: "cycle tool filter", Group: groupFilter, Ctx: ctxBoard, Press: []string{"t"}},
@@ -80,7 +79,7 @@ var bindings = []binding{
 	{Keys: "?", Desc: "this help", Group: groupModes, Ctx: ctxBoard, Press: []string{"?"}, Line: "more"},
 
 	{Keys: "qq / ctrl+]", Desc: "detach", Group: groupAttached, Ctx: ctxAttach},
-	{Keys: "::", Desc: "command bar (q detach, done, kill, name <t>)", Group: groupAttached, Ctx: ctxAttach},
+	{Keys: "::", Desc: "command bar (q detach, done, kill, name <t>, banner)", Group: groupAttached, Ctx: ctxAttach},
 	{Keys: ":::", Desc: "type a literal \"::\" into the agent", Group: groupAttached, Ctx: ctxAttach},
 	{Keys: "ctrl+pgup", Desc: "scroll back; k/j pgup/pgdn g/G, esc live", Group: groupAttached, Ctx: ctxAttach},
 }
@@ -143,6 +142,7 @@ var commands = []command{
 	{Names: []string{"complete"}, Args: "[sel]", Desc: "kill agent + mark done now", Group: groupSessionCmd, Run: runComplete},
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},
+	{Names: []string{"export"}, Args: "[sel] [fmt]", Desc: "write session to exports/", Group: groupSessionCmd, Flag: "session_export", Run: runExport},
 	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Flag: "board_filter", Run: runFilter},
 	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Flag: "search", Run: runSearch},
 
@@ -152,6 +152,7 @@ var commands = []command{
 	{Names: []string{"reload"}, Desc: "reload tools.yaml", Group: groupAppCmd, Run: runReload},
 	{Names: []string{"fail", "fails", "failed"}, Label: ":fail", Desc: "failed sessions + daemon log (:fails :failed)", Group: groupAppCmd, Run: runFail},
 	{Names: []string{"stats"}, Desc: "session statistics overlay", Group: groupAppCmd, Run: runStats},
+	{Names: []string{"overview"}, Desc: "what needs you, what is ready for review, what finished", Group: groupAppCmd, Run: runOverview},
 	{Names: []string{"help"}, Desc: "this overlay", Group: groupAppCmd, Run: runHelp},
 	{Names: []string{"settings"}, Desc: "open settings", Group: groupAppCmd, Run: runSettings},
 }

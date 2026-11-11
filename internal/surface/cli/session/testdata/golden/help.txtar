@@ -62,17 +62,20 @@ Start a session in the daemon and print its short id and slug. Put -- before a
 prompt that starts with -.
 
 Flags:
-  -cwd string     working directory for the agent (defaults to $PWD)
-  -effort string  reasoning effort
-  -fleet string   fleet name (optional; groups related sessions)
-  -model string   model id within tool (default short)
-  -no-attach      (deprecated, no effect) (default true)
-  -slug string    session slug (defaults to derived from prompt)
-  -socket path    daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else
-                  ~/.cache/rex/rex.sock)
-  -tool string    tool id (default echo)
-  -wait duration  how long to wait for the daemon to confirm the spawn (default
-                  5s)
+  -cwd string        working directory for the agent (defaults to $PWD)
+  -effort string     reasoning effort
+  -fleet string      fleet name (optional; groups related sessions)
+  -model string      model id within tool (default short)
+  -name string       display name (optional; the slug is shown when empty)
+  -no-attach         (deprecated, no effect) (default true)
+  -skill rex skills  skill from ~/.config/rex/skills to load into this session
+                     (repeatable; see rex skills)
+  -slug string       session slug (defaults to derived from prompt)
+  -socket path       daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else
+                     ~/.cache/rex/rex.sock)
+  -tool string       tool id (default echo)
+  -wait duration     how long to wait for the daemon to confirm the spawn
+                     (default 5s)
 
 Output:
   -o, --output FORMAT  text, txt, md, json, agent
@@ -87,15 +90,17 @@ Usage: rex new [flags] -- <prompt>
 Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -.
 
 # Flags
-  -cwd string     working directory for the agent (defaults to $PWD)
-  -effort string  reasoning effort
-  -fleet string   fleet name (optional; groups related sessions)
-  -model string   model id within tool (default short)
-  -no-attach      (deprecated, no effect) (default true)
-  -slug string    session slug (defaults to derived from prompt)
-  -socket path    daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
-  -tool string    tool id (default echo)
-  -wait duration  how long to wait for the daemon to confirm the spawn (default 5s)
+  -cwd string        working directory for the agent (defaults to $PWD)
+  -effort string     reasoning effort
+  -fleet string      fleet name (optional; groups related sessions)
+  -model string      model id within tool (default short)
+  -name string       display name (optional; the slug is shown when empty)
+  -no-attach         (deprecated, no effect) (default true)
+  -skill rex skills  skill from ~/.config/rex/skills to load into this session (repeatable; see rex skills)
+  -slug string       session slug (defaults to derived from prompt)
+  -socket path       daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
+  -tool string       tool id (default echo)
+  -wait duration     how long to wait for the daemon to confirm the spawn (default 5s)
 
 # Output
   -o, --output FORMAT  text, txt, md, json, agent
@@ -109,14 +114,16 @@ flag name=-cwd desc="working directory for the agent (defaults to $PWD)" arg=str
 flag name=-effort desc="reasoning effort" arg=string default=""
 flag name=-fleet desc="fleet name (optional; groups related sessions)" arg=string default=""
 flag name=-model desc="model id within tool (default short)" arg=string default=short
+flag name=-name desc="display name (optional; the slug is shown when empty)" arg=string default=""
 flag name=-no-attach desc="(deprecated, no effect) (default true)" arg="" default=true
+flag name=-skill desc="skill from ~/.config/rex/skills to load into this session (repeatable; see rex skills)" arg="rex skills" default=""
 flag name=-slug desc="session slug (defaults to derived from prompt)" arg=string default=""
 flag name=-socket desc="daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)" arg=path default=""
 flag name=-tool desc="tool id (default echo)" arg=string default=echo
 flag name=-wait desc="how long to wait for the daemon to confirm the spawn (default 5s)" arg=duration default=5s
-ok cmd=help count=9 usage="rex new [flags] -- <prompt>" desc="Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -."
+ok cmd=help count=11 usage="rex new [flags] -- <prompt>" desc="Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -."
 -- new.json --
-{"v":1,"cmd":"help","data":{"command":"new","usage":"rex new [flags] -- <prompt>","desc":"Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -.","flags":[{"name":"-cwd","arg":"string","desc":"working directory for the agent (defaults to $PWD)"},{"name":"-effort","arg":"string","desc":"reasoning effort"},{"name":"-fleet","arg":"string","desc":"fleet name (optional; groups related sessions)"},{"name":"-model","arg":"string","default":"short","desc":"model id within tool"},{"name":"-no-attach","default":"true","desc":"(deprecated, no effect)"},{"name":"-slug","arg":"string","desc":"session slug (defaults to derived from prompt)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-tool","arg":"string","default":"echo","desc":"tool id"},{"name":"-wait","arg":"duration","default":"5s","desc":"how long to wait for the daemon to confirm the spawn"}],"formats":["text","txt","md","json","agent"],"example":"rex new -tool claude -model opus -- fix the failing test"}}
+{"v":1,"cmd":"help","data":{"command":"new","usage":"rex new [flags] -- <prompt>","desc":"Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -.","flags":[{"name":"-cwd","arg":"string","desc":"working directory for the agent (defaults to $PWD)"},{"name":"-effort","arg":"string","desc":"reasoning effort"},{"name":"-fleet","arg":"string","desc":"fleet name (optional; groups related sessions)"},{"name":"-model","arg":"string","default":"short","desc":"model id within tool"},{"name":"-name","arg":"string","desc":"display name (optional; the slug is shown when empty)"},{"name":"-no-attach","default":"true","desc":"(deprecated, no effect)"},{"name":"-skill","arg":"rex skills","desc":"skill from ~/.config/rex/skills to load into this session (repeatable; see rex skills)"},{"name":"-slug","arg":"string","desc":"session slug (defaults to derived from prompt)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-tool","arg":"string","default":"echo","desc":"tool id"},{"name":"-wait","arg":"duration","default":"5s","desc":"how long to wait for the daemon to confirm the spawn"}],"formats":["text","txt","md","json","agent"],"example":"rex new -tool claude -model opus -- fix the failing test"}}
 -- rm.text --
 Usage: rex rm <sel> [-force]
 

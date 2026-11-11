@@ -1,0 +1,74 @@
+# rex new -name / -skill and rex skills.
+
+daemon-start
+
+# The library lists in every format.
+exec rex skills
+stdout 'review'
+stdout 'Review a diff'
+exec rex skills -o agent
+stdout '^skill name=docs description="Write docs"$'
+stdout '^skill name=review description="Review a diff"$'
+stdout '^ok cmd=skills count=2 '
+exec rex -o json skills
+stdout '"cmd":"skills"'
+
+# A display name and two skills reach the session.
+exec rex new x --tool echo --model short --slug sk1 -name '  My   agent ' -skill review -skill docs
+stdout '^[0-9a-f]{4}\tsk1$'
+! stderr 'ignored'
+exec rex ls -json
+stdout '"name":"My agent"'
+stdout '"skills":\["review","docs"\]'
+exec rex wait -until done -timeout 20s sk1
+
+# -name alone derives the slug when there is no prompt.
+exec rex new --tool echo --model short -name 'Only a name'
+stdout '^[0-9a-f]{4}\tonly-a-name$'
+
+# Bad input is exit 5 before the daemon is asked.
+exitcode 5 rex new x --tool echo --model short -skill ../x
+stderr 'new: -skill: invalid skill name'
+exitcode 5 rex new x --tool echo --model short -skill review -skill review
+stderr 'duplicate skill'
+
+# The daemon refuses a skill that is not in the library, and a tool that
+# cannot load skills (Antigravity has no per-session plugin flag).
+exitcode 5 rex new x --tool echo --model short --slug sk2 -skill nope
+stderr 'spawn failed: skills: skill "nope" not found in the library'
+exitcode 5 rex new x --tool antigravity --model gemini-3.8-flash --slug sk3 -skill review
+stderr 'spawn failed: tool antigravity cannot load skills per session'
+
+# With the feature off: -skill and rex skills exit 5 with the Features
+# message, and -name keeps working.
+exec rex config set spawn_skills false
+exitcode 5 rex new x --tool echo --model short --slug sk4 -skill review
+stderr '^rex: off: enable in Settings → Features \(rex config set spawn_skills true\)$'
+exitcode 5 rex skills
+stderr '^rex: off: enable in Settings → Features \(rex config set spawn_skills true\)$'
+exec rex new x --tool echo --model short --slug sk5 -name fine
+stdout '^[0-9a-f]{4}\tsk5$'
+
+exec rex wait -until done -timeout 20s sk5
+exec rex wait -until done -timeout 20s only-a-name
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false
+-- home/.config/rex/tools.yaml --
+tools:
+  - id: echo
+    skill_args: ["--plugin-dir", "{plugin_dir}"]
+-- home/.config/rex/skills/review/SKILL.md --
+---
+name: review
+description: Review a diff
+---
+Review the diff.
+-- home/.config/rex/skills/docs/SKILL.md --
+---
+name: docs
+description: Write docs
+---
+Write the docs.

@@ -4,6 +4,8 @@ rex — Runtime Executive for Agents  v1
 Usage:
   rex
     open the board (TUI)
+  rex --quiet-boot
+    open the board without boot sounds
   rex <command> [flags]
 
 Sessions:
@@ -57,6 +59,12 @@ Insights:
   errors [-n N] [-since 24h] [-clear]
     failed rex commands from the error
     log
+  overview [flags]
+    one-screen summary of every session
+    by what needs you
+  export <sel> [flags]
+    write a session as a readable
+    document
   digest [flags]
     today's sessions, time and totals
   stats [flags]
@@ -78,6 +86,9 @@ Lifecycle:
     remove rex and optional state
 
 Other:
+  skills [flags]
+    list the skills library
+    (~/.config/rex/skills)
   config list|get|set|reset|edit
     view and change settings
   render [flags]
@@ -109,6 +120,7 @@ rex — Runtime Executive for Agents  v1
 
 Usage:
   rex                    open the board (TUI)
+  rex --quiet-boot       open the board without boot sounds
   rex <command> [flags]
 
 Sessions:
@@ -140,6 +152,8 @@ Daemon:
 Insights:
   errors [-n N] [-since 24h] [-clear]
                            failed rex commands from the error log
+  overview [flags]         one-screen summary of every session by what needs you
+  export <sel> [flags]     write a session as a readable document
   digest [flags]           today's sessions, time and totals
   stats [flags]            lifetime usage by model and tool
   fleet ls|show|set|unset  list or edit session fleets
@@ -151,6 +165,7 @@ Lifecycle:
   uninstall [flags]  remove rex and optional state
 
 Other:
+  skills [flags]                  list the skills library (~/.config/rex/skills)
   config list|get|set|reset|edit  view and change settings
   render [flags]                  render an event stream from stdin
   completion bash|zsh|fish        print a shell completion script
@@ -170,6 +185,7 @@ rex — Runtime Executive for Agents  v1
 
 Usage:
   rex                    open the board (TUI)
+  rex --quiet-boot       open the board without boot sounds
   rex <command> [flags]
 
 Sessions:
@@ -200,6 +216,8 @@ Daemon:
 Insights:
   errors [-n N] [-since 24h] [-clear]
                            failed rex commands from the error log
+  overview [flags]         one-screen summary of every session by what needs you
+  export <sel> [flags]     write a session as a readable document
   digest [flags]           today's sessions, time and totals
   stats [flags]            lifetime usage by model and tool
   fleet ls|show|set|unset  list or edit session fleets
@@ -211,6 +229,7 @@ Lifecycle:
   uninstall [flags]  remove rex and optional state
 
 Other:
+  skills [flags]                  list the skills library (~/.config/rex/skills)
   config list|get|set|reset|edit  view and change settings
   render [flags]                  render an event stream from stdin
   completion bash|zsh|fish        print a shell completion script
@@ -230,6 +249,7 @@ Run "rex <command> -h" for flags · agents: rex agent-help
 
 ␛[1;38;2;230;230;230mUsage:␛[0m
   ␛[1;38;2;91;141;239mrex␛[0m                    ␛[38;2;121;127;140mopen the board (TUI)␛[0m
+  ␛[1;38;2;91;141;239mrex --quiet-boot␛[0m       ␛[38;2;121;127;140mopen the board without boot sounds␛[0m
   ␛[1;38;2;91;141;239mrex <command> [flags]␛[0m
 
 ␛[1;38;2;230;230;230mSessions:␛[0m
@@ -261,6 +281,8 @@ Run "rex <command> -h" for flags · agents: rex agent-help
 ␛[1;38;2;230;230;230mInsights:␛[0m
   ␛[1;38;2;91;141;239merrors [-n N] [-since 24h] [-clear]␛[0m
                            ␛[38;2;121;127;140mfailed rex commands from the error log␛[0m
+  ␛[1;38;2;91;141;239moverview [flags]␛[0m         ␛[38;2;121;127;140mone-screen summary of every session by what needs you␛[0m
+  ␛[1;38;2;91;141;239mexport <sel> [flags]␛[0m     ␛[38;2;121;127;140mwrite a session as a readable document␛[0m
   ␛[1;38;2;91;141;239mdigest [flags]␛[0m           ␛[38;2;121;127;140mtoday's sessions, time and totals␛[0m
   ␛[1;38;2;91;141;239mstats [flags]␛[0m            ␛[38;2;121;127;140mlifetime usage by model and tool␛[0m
   ␛[1;38;2;91;141;239mfleet ls|show|set|unset␛[0m  ␛[38;2;121;127;140mlist or edit session fleets␛[0m
@@ -272,6 +294,7 @@ Run "rex <command> -h" for flags · agents: rex agent-help
   ␛[1;38;2;91;141;239muninstall [flags]␛[0m  ␛[38;2;121;127;140mremove rex and optional state␛[0m
 
 ␛[1;38;2;230;230;230mOther:␛[0m
+  ␛[1;38;2;91;141;239mskills [flags]␛[0m                  ␛[38;2;121;127;140mlist the skills library (~/.config/rex/skills)␛[0m
   ␛[1;38;2;91;141;239mconfig list|get|set|reset|edit␛[0m  ␛[38;2;121;127;140mview and change settings␛[0m
   ␛[1;38;2;91;141;239mrender [flags]␛[0m                  ␛[38;2;121;127;140mrender an event stream from stdin␛[0m
   ␛[1;38;2;91;141;239mcompletion bash|zsh|fish␛[0m        ␛[38;2;121;127;140mprint a shell completion script␛[0m
@@ -289,6 +312,7 @@ Run "rex <command> -h" for flags · agents: rex agent-help
 -- txt --
 # Usage
   rex                    open the board (TUI)
+  rex --quiet-boot       open the board without boot sounds
   rex <command> [flags]
 
 # Sessions
@@ -316,6 +340,8 @@ Run "rex <command> -h" for flags · agents: rex agent-help
 
 # Insights
   errors [-n N] [-since 24h] [-clear]  failed rex commands from the error log
+  overview [flags]         one-screen summary of every session by what needs you
+  export <sel> [flags]     write a session as a readable document
   digest [flags]           today's sessions, time and totals
   stats [flags]            lifetime usage by model and tool
   fleet ls|show|set|unset  list or edit session fleets
@@ -327,6 +353,7 @@ Run "rex <command> -h" for flags · agents: rex agent-help
   uninstall [flags]  remove rex and optional state
 
 # Other
+  skills [flags]                  list the skills library (~/.config/rex/skills)
   config list|get|set|reset|edit  view and change settings
   render [flags]                  render an event stream from stdin
   completion bash|zsh|fish        print a shell completion script
@@ -351,6 +378,7 @@ Run "rex <command> -h" for flags · agents: rex agent-help
 | Name | Description |
 | --- | --- |
 | `rex` | open the board (TUI) |
+| `rex --quiet-boot` | open the board without boot sounds |
 | `rex <command> [flags]` |  |
 
 #### Sessions
@@ -387,6 +415,8 @@ Run "rex <command> -h" for flags · agents: rex agent-help
 | Name | Description |
 | --- | --- |
 | `errors [-n N] [-since 24h] [-clear]` | failed rex commands from the error log |
+| `overview [flags]` | one-screen summary of every session by what needs you |
+| `export <sel> [flags]` | write a session as a readable document |
 | `digest [flags]` | today's sessions, time and totals |
 | `stats [flags]` | lifetime usage by model and tool |
 | `fleet ls|show|set|unset` | list or edit session fleets |
@@ -404,6 +434,7 @@ Run "rex <command> -h" for flags · agents: rex agent-help
 
 | Name | Description |
 | --- | --- |
+| `skills [flags]` | list the skills library (\~/.config/rex/skills) |
 | `config list|get|set|reset|edit` | view and change settings |
 | `render [flags]` | render an event stream from stdin |
 | `completion bash|zsh|fish` | print a shell completion script |
@@ -422,7 +453,7 @@ Selectors: short id (4+ hex), slug or full id.
 
 Run "rex &lt;command&gt; -h" for flags · agents: rex agent-help
 -- json --
-{"v":1,"cmd":"help","data":{"version":"v1","commands":[{"name":"ls","section":"Sessions","args":"[flags]","desc":"list sessions","class":"query"},{"name":"new","section":"Sessions","args":"[flags] -- <prompt>","desc":"start a session (-tool -model -cwd)","class":"action"},{"name":"attach","section":"Sessions","args":"<sel> [flags]","desc":"open a session (ctrl+] detaches)","class":"interactive"},{"name":"reply","section":"Sessions","args":"<sel> [flags] -- <text>","desc":"answer a session that needs input","class":"action"},{"name":"send","section":"Sessions","args":"<sel> [flags] -- <text>","desc":"send raw input (stdin when no text)","class":"action"},{"name":"wait","section":"Sessions","args":"<sel> [flags]","desc":"block until a session reaches a state","class":"action"},{"name":"rename","section":"Sessions","args":"<sel> <slug>","desc":"change a session's slug","class":"action"},{"name":"name","section":"Sessions","args":"<sel> [-clear] [-- <text>]","desc":"set, show or clear the display name","class":"action"},{"name":"done","aliases":["retire"],"section":"Sessions","args":"<sel> [-after 72h]","desc":"mark done; cleared after retire_after_hours","class":"action"},{"name":"undone","aliases":["unretire"],"section":"Sessions","args":"<sel>","desc":"cancel a pending done","class":"action"},{"name":"archive","section":"Sessions","args":"<sel>","desc":"archive a session","class":"action"},{"name":"resume","section":"Sessions","args":"<sel> [-print]","desc":"respawn an exited session (-print: only the resume id)","class":"action"},{"name":"complete","section":"Sessions","args":"<sel>","desc":"stop a session now and mark it done","class":"action"},{"name":"rm","section":"Sessions","args":"<sel> [-force]","desc":"delete a session (-force without a terminal)","class":"action"},{"name":"prune","section":"Sessions","args":"[-dry-run] [-yes]","desc":"delete Completed sessions","class":"action"},{"name":"log","section":"Sessions","args":"<sel> [flags]","desc":"print a session's transcript (-f follows)","class":"content"},{"name":"status","section":"Daemon","args":"[flags]","desc":"session counts; exit 1 if one needs input","class":"query"},{"name":"daemon","section":"Daemon","args":"start|stop|restart|status|logs","desc":"manage the rex-daemon","class":"action"},{"name":"reload","section":"Daemon","args":"[flags]","desc":"reload tools.yaml in the daemon","class":"action"},{"name":"errors","section":"Insights","args":"[-n N] [-since 24h] [-clear]","desc":"failed rex commands from the error log","class":"query"},{"name":"digest","section":"Insights","args":"[flags]","desc":"today's sessions, time and totals","class":"query"},{"name":"stats","section":"Insights","args":"[flags]","desc":"lifetime usage by model and tool","class":"query"},{"name":"fleet","section":"Insights","args":"ls|show|set|unset","desc":"list or edit session fleets","class":"query"},{"name":"setup","section":"Lifecycle","args":"[flags]","desc":"guided first-run wizard (-yes for defaults)","class":"interactive"},{"name":"doctor","section":"Lifecycle","args":"[flags]","desc":"check the install; exit 1 if a check fails","class":"query"},{"name":"update","section":"Lifecycle","args":"[flags]","desc":"upgrade rex in place (-check only looks)","class":"action"},{"name":"uninstall","section":"Lifecycle","args":"[flags]","desc":"remove rex and optional state","class":"action"},{"name":"config","section":"Other","args":"list|get|set|reset|edit","desc":"view and change settings","class":"query"},{"name":"render","section":"Other","args":"[flags]","desc":"render an event stream from stdin","class":"content"},{"name":"completion","section":"Other","args":"bash|zsh|fish","desc":"print a shell completion script","class":"content"},{"name":"version","section":"Other","args":"","desc":"print the version","class":"query"},{"name":"agent-help","section":"Other","args":"","desc":"the usage card for LLM agents","class":"query"}]}}
+{"v":1,"cmd":"help","data":{"version":"v1","commands":[{"name":"ls","section":"Sessions","args":"[flags]","desc":"list sessions","class":"query"},{"name":"new","section":"Sessions","args":"[flags] -- <prompt>","desc":"start a session (-tool -model -cwd)","class":"action"},{"name":"attach","section":"Sessions","args":"<sel> [flags]","desc":"open a session (ctrl+] detaches)","class":"interactive"},{"name":"reply","section":"Sessions","args":"<sel> [flags] -- <text>","desc":"answer a session that needs input","class":"action"},{"name":"send","section":"Sessions","args":"<sel> [flags] -- <text>","desc":"send raw input (stdin when no text)","class":"action"},{"name":"wait","section":"Sessions","args":"<sel> [flags]","desc":"block until a session reaches a state","class":"action"},{"name":"rename","section":"Sessions","args":"<sel> <slug>","desc":"change a session's slug","class":"action"},{"name":"name","section":"Sessions","args":"<sel> [-clear] [-- <text>]","desc":"set, show or clear the display name","class":"action"},{"name":"done","aliases":["retire"],"section":"Sessions","args":"<sel> [-after 72h]","desc":"mark done; cleared after retire_after_hours","class":"action"},{"name":"undone","aliases":["unretire"],"section":"Sessions","args":"<sel>","desc":"cancel a pending done","class":"action"},{"name":"archive","section":"Sessions","args":"<sel>","desc":"archive a session","class":"action"},{"name":"resume","section":"Sessions","args":"<sel> [-print]","desc":"respawn an exited session (-print: only the resume id)","class":"action"},{"name":"complete","section":"Sessions","args":"<sel>","desc":"stop a session now and mark it done","class":"action"},{"name":"rm","section":"Sessions","args":"<sel> [-force]","desc":"delete a session (-force without a terminal)","class":"action"},{"name":"prune","section":"Sessions","args":"[-dry-run] [-yes]","desc":"delete Completed sessions","class":"action"},{"name":"log","section":"Sessions","args":"<sel> [flags]","desc":"print a session's transcript (-f follows)","class":"content"},{"name":"status","section":"Daemon","args":"[flags]","desc":"session counts; exit 1 if one needs input","class":"query"},{"name":"daemon","section":"Daemon","args":"start|stop|restart|status|logs","desc":"manage the rex-daemon","class":"action"},{"name":"reload","section":"Daemon","args":"[flags]","desc":"reload tools.yaml in the daemon","class":"action"},{"name":"errors","section":"Insights","args":"[-n N] [-since 24h] [-clear]","desc":"failed rex commands from the error log","class":"query"},{"name":"overview","section":"Insights","args":"[flags]","desc":"one-screen summary of every session by what needs you","class":"query"},{"name":"export","section":"Insights","args":"<sel> [flags]","desc":"write a session as a readable document","class":"content"},{"name":"digest","section":"Insights","args":"[flags]","desc":"today's sessions, time and totals","class":"query"},{"name":"stats","section":"Insights","args":"[flags]","desc":"lifetime usage by model and tool","class":"query"},{"name":"fleet","section":"Insights","args":"ls|show|set|unset","desc":"list or edit session fleets","class":"query"},{"name":"setup","section":"Lifecycle","args":"[flags]","desc":"guided first-run wizard (-yes for defaults)","class":"interactive"},{"name":"doctor","section":"Lifecycle","args":"[flags]","desc":"check the install; exit 1 if a check fails","class":"query"},{"name":"update","section":"Lifecycle","args":"[flags]","desc":"upgrade rex in place (-check only looks)","class":"action"},{"name":"uninstall","section":"Lifecycle","args":"[flags]","desc":"remove rex and optional state","class":"action"},{"name":"skills","section":"Other","args":"[flags]","desc":"list the skills library (~/.config/rex/skills)","class":"query"},{"name":"config","section":"Other","args":"list|get|set|reset|edit","desc":"view and change settings","class":"query"},{"name":"render","section":"Other","args":"[flags]","desc":"render an event stream from stdin","class":"content"},{"name":"completion","section":"Other","args":"bash|zsh|fish","desc":"print a shell completion script","class":"content"},{"name":"version","section":"Other","args":"","desc":"print the version","class":"query"},{"name":"agent-help","section":"Other","args":"","desc":"the usage card for LLM agents","class":"query"}]}}
 -- agent.lines --
 command name=ls desc="list sessions" class=query
 command name=new desc="start a session (-tool -model -cwd)" class=action
@@ -444,6 +475,8 @@ command name=status desc="session counts; exit 1 if one needs input" class=query
 command name=daemon desc="manage the rex-daemon" class=action
 command name=reload desc="reload tools.yaml in the daemon" class=action
 command name=errors desc="failed rex commands from the error log" class=query
+command name=overview desc="one-screen summary of every session by what needs you" class=query
+command name=export desc="write a session as a readable document" class=content
 command name=digest desc="today's sessions, time and totals" class=query
 command name=stats desc="lifetime usage by model and tool" class=query
 command name=fleet desc="list or edit session fleets" class=query
@@ -451,9 +484,10 @@ command name=setup desc="guided first-run wizard (-yes for defaults)" class=inte
 command name=doctor desc="check the install; exit 1 if a check fails" class=query
 command name=update desc="upgrade rex in place (-check only looks)" class=action
 command name=uninstall desc="remove rex and optional state" class=action
+command name=skills desc="list the skills library (~/.config/rex/skills)" class=query
 command name=config desc="view and change settings" class=query
 command name=render desc="render an event stream from stdin" class=content
 command name=completion desc="print a shell completion script" class=content
 command name=version desc="print the version" class=query
 command name=agent-help desc="the usage card for LLM agents" class=query
-ok cmd=help count=32
+ok cmd=help count=35

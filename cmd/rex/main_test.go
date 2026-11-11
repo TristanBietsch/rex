@@ -18,7 +18,7 @@ var helpCommands = []string{
 	"status", "ls", "new", "attach", "reply", "send", "log", "wait", "rm",
 	"prune", "rename", "name", "done", "undone", "archive", "resume", "complete",
 	"reload", "completion", "setup", "doctor", "update", "uninstall",
-	"digest", "stats", "fleet", "errors",
+	"digest", "stats", "fleet", "errors", "skills", "export",
 }
 
 func TestRun_HelpFlagExitsZero(t *testing.T) {
@@ -52,6 +52,37 @@ func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
 	_, err = core.InitOutput([]string{"--no-color", "attach"}, nil)
 	require.NoError(t, err)
 	require.False(t, core.Out().Flags.Explicit(), "--no-color alone is not a format request")
+}
+
+// rex overview is on the kit: an output flag before it is accepted (it then
+// fails on the missing daemon, exit 4, not on the flag, exit 5).
+func TestRun_OverviewAcceptsOutputFlags(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	rest, err := core.InitOutput([]string{"-o", "json", "overview", "-socket", "/nonexistent/rex.sock"}, nil)
+	t.Cleanup(func() { core.SetOut(nil) })
+	require.NoError(t, err)
+	err = run(rest)
+	require.Error(t, err)
+	require.Equal(t, core.ExitDaemonUnreachable, exitCodeFor(err))
+}
+
+// rex export is a kit verb: --agent before it is accepted (it then fails on
+// the missing daemon, exit 4), while a format flag before it is refused by
+// the command itself (exit 5), because -o after the command is the export
+// format.
+func TestRun_ExportAcceptsAgentFlagAndRefusesFormatFlag(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(func() { core.SetOut(nil) })
+	rest, err := core.InitOutput([]string{"--agent", "export", "-socket", "/nonexistent/rex.sock", "p1"}, nil)
+	require.NoError(t, err)
+	err = run(rest)
+	require.Equal(t, core.ExitDaemonUnreachable, exitCodeFor(err))
+
+	rest, err = core.InitOutput([]string{"-o", "md", "export", "-socket", "/nonexistent/rex.sock", "p1"}, nil)
+	require.NoError(t, err)
+	err = run(rest)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
+	require.Contains(t, err.Error(), "after the command")
 }
 
 func TestRun_UnknownCommandSuggests(t *testing.T) {

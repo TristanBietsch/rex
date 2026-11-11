@@ -17,6 +17,7 @@ func helpView() View {
 		Section{Title: "Usage"},
 		Defs{Items: []Def{
 			{Name: "rex", Desc: "open the board (TUI)"},
+			{Name: "rex --quiet-boot", Desc: "open the board without boot sounds"},
 			{Name: "rex <command> [flags]"},
 		}},
 	}

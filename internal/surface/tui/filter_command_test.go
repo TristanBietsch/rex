@@ -26,21 +26,24 @@ func TestFilterCommandSections(t *testing.T) {
 		err    string
 	}{
 		{name: "hide by id", line: "filter hide done", hidden: hidden("done"), filter: "all"},
-		{name: "hide by prefix", line: "filter hide w", hidden: hidden("working"), filter: "all"},
+		{name: "hide by prefix", line: "filter hide wo", hidden: hidden("working"), filter: "all"},
 		{name: "hide by number", line: "filter hide 1", hidden: hidden("needs"), filter: "all"},
+		{name: "hide waiting by number", line: "filter hide 2", hidden: hidden("waiting"), filter: "all"},
+		{name: "hide waiting by id", line: "filter hide waiting", hidden: hidden("waiting"), filter: "all"},
+		{name: "w is ambiguous", line: "filter hide w", err: "unknown section"},
 		{name: "hide by title", line: "filter hide Needs", hidden: hidden("needs"), filter: "all"},
 		{name: "hide several", line: "filter hide needs working", hidden: hidden("needs", "working"), filter: "all"},
 		{name: "show", setup: "filter hide needs done", line: "filter show done", hidden: hidden("needs"), filter: "all"},
 		{name: "show all", setup: "filter hide needs done", line: "filter show all", hidden: nil, filter: "all"},
-		{name: "only", line: "filter only working", hidden: hidden("needs", "done"), filter: "all"},
-		{name: "only two", line: "filter only needs working", hidden: hidden("done"), filter: "all"},
+		{name: "only", line: "filter only working", hidden: hidden("needs", "waiting", "done"), filter: "all"},
+		{name: "only two", line: "filter only needs working", hidden: hidden("waiting", "done"), filter: "all"},
 		{name: "bare clears sections and tool", setup: "filter hide done", line: "filter", hidden: nil, filter: "all"},
 		{name: "bare clears tool", setup: "filter claude", line: "filter", hidden: nil, filter: "all"},
 		{name: "unknown section", line: "filter hide nope", err: `filter: unknown section "nope"`},
 		{name: "hide needs a section", line: "filter hide", err: "filter: hide needs a section"},
 		{name: "only needs a section", line: "filter only", err: "filter: only needs a section"},
 		{name: "two words", line: "filter claude codex", err: "filter: unknown tool or subcommand claude codex"},
-		{name: "hide every section", line: "filter hide needs working done", err: "filter: can't hide every section"},
+		{name: "hide every section", line: "filter hide needs waiting working done", err: "filter: can't hide every section"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

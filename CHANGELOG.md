@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- TUI: one space between an icon and the number after it, so the board is
+  less crowded: the subagent count (`⋔ 3`), the long-running badge
+  (`▴ 42m`) and the `glyphs` header style (`◆ 4  ◷ 1  ⟳ 2  ● 7`, `✕ 2`).
+  The subagent and badge columns are one cell wider.
+- TUI: the number keys follow the screen, which now has four sections: `1`
+  Needs you, `2` Waiting, `3` Working, `4` Done. `2` and `3` used to jump to
+  Working and Done, and `4` is now the key that folds a long Done column.
+  `z1`-`z4` hide and show the same sections, and `:filter` accepts `waiting`
+  (`wa`); a bare `w` is now ambiguous. With the `waiting_section` feature off
+  the keys are `1` `2` `3` as before.
+
 ### Added
 
 - Agent mode switches on by itself when `CLAUDECODE=1` and stdout is not a
@@ -40,6 +53,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Setting `timestamps` (Features, on by default): switches off the TUI's
   start→end span column and the `rex ls -wide` time columns. The end time
   is still recorded.
+- `rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]`
+  writes one session as a readable document: its metadata plus the
+  transcript as clean text, never raw PTY bytes. Full-screen agents are
+  replayed through the terminal emulator into screen frames (cut at each
+  clear-screen and alternate-screen switch, repeats dropped); `echo` and
+  `ollama` are escape-stripped. `json` is the default (`version: 1`), `yaml`
+  is the same document. Output goes to stdout or `--out` (mode 0600, refuses
+  to replace a file without `--force`; the format follows the extension).
+  `--from-agent-log` reads Claude Code's own log for the session's resume id
+  (roles and text, one line per tool call) and falls back to frames with a
+  notice. A running session is read up to its current end. Nothing is
+  uploaded. See [docs/export.md](docs/export.md).
+- TUI: `:export [sel] [fmt]` writes the session to
+  `~/.local/share/rex/exports/<slug>-<shortid>.<ext>` (0600) in the
+  background and shows the path when done; the board stays responsive.
+- `session_export` in Settings → Features (on). Off, `rex export` exits 5
+  and `:export` answers the usual off message.
+- TUI: a banner above the agent in the attach popup: what it is doing (the
+  AI description, else the task or the question it asks), where (folder),
+  for how long (working, waiting, ended) and how fresh the description is.
+  With the overview on it also shows what the other sessions need
+  (`elsewhere: 2 to review · 1 needs you`). Long text scrolls as a ticker.
+  `attach_banner` is `marquee` (default), `static` or `off`; `reduce_motion`
+  makes it static, `::banner` hides or shows it for this run, and it gives way
+  below 25 rows. The agent's terminal is one row shorter while it shows.
+  `rex attach` from a shell has no banner.
+- TUI: a Waiting section below Needs you for working sessions that are
+  blocked on a shell command, a subagent or a web call, not on you (Claude
+  Code). A session moves there after 3 seconds on the call. It has its own
+  `◷` marker, which turns once a second (still with `reduce_motion`), a
+  count in the header (`N need you · N waiting · N working · N done`) and on
+  the screensaver, and `shell 42s` in the detailed view. No sound, no
+  notification. Switchable in Settings → Features (`waiting_section`); off,
+  those sessions stay in Working.
+- Sessions carry `waiting_on` (`shell`, `subagent`, `web`) and
+  `waiting_since` while a working session waits on a tool (snapshots,
+  patches, `meta.json`). The state stays `working`, so older clients show
+  those sessions in Working. The daemon records them even with
+  `waiting_section` off.
+- Claude Code hooks: `PostToolUseFailure` joins the state hooks, and tool
+  waits are bounded: a failed tool call, any other main-thread tool and a new
+  prompt all end a Waiting state. Parallel subagents keep it until the last
+  one stops.
+- `rex ls` shows `waiting (shell)` in the STATE column (text and md) for a
+  session in Waiting, and counts it in the header. `-o txt` and the agent
+  `state=` key keep `working`; `rex status` is unchanged.
+
+- Skills per session: `NewSession` takes `name` and `skills`. Skills come
+  from a library at `~/.config/rex/skills/<name>/SKILL.md`; the daemon copies
+  the chosen ones into the session's own folder and starts Claude Code with
+  `--plugin-dir`, so nothing is written to `~/.claude`. The registry gains
+  `skill_args` (with `{plugin_dir}`; built-in `claude` only, Antigravity has
+  no per-session plugin flag), and `rex-daemon` a `-skills-dir` flag. A
+  resumed session loads its skills again. Switchable in Settings → Features
+  (`spawn_skills`): off, skills are refused and no `--plugin-dir` is added.
+- CLI: `rex new -name "text" -skill a -skill b` sets the display name and
+  loads skills for that session (exit 5 for an unknown skill, a tool that
+  cannot load skills, or when `spawn_skills` is off). `rex skills` lists the
+  library in every output format. See `docs/howto/skills.md`.
 - TUI: a dim preview line under the board shows the selected session's full
   AI summary and how old it is (`↳ Editing api/webhooks.go … · 12s`), in
   both views, while any session has a summary. In the detailed view it only
@@ -209,6 +281,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rex doctor` shows the installed agy version (`agy 1.5.5`, a `-verbose`
   row) and warns below 1.5.5 (untested). It shows nothing when agy is not
   installed, and gives up after 2 s.
+- Overview (`overview_enabled`, off by default): a header line, `:overview`
+  and `rex overview` show what needs you, what is ready for review and what
+  finished, with a one-line summary from the local model. The counts and
+  lists come from rules over session fields; only the headline is model
+  text. It runs at most about twice a minute, only while a `rex` board is
+  open, and off it starts nothing. Claude sessions that finished a turn now
+  count as ready for review (`wait_reason`, from the Stop and Notification
+  hooks).
+- Wire (additive, `v` stays 1): an `Overview` event, `Snapshot.overview` and
+  `wait_reason` on sessions; `Hello.client` `rex-tui` now marks a board
+  viewer. Older clients ignore them.
 
 ### Changed
 
@@ -249,6 +332,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   follow `-o` (`txt` in a pipe, `md`, `json`, `agent`). A flag error prints
   the error and a one-line `Usage:` hint instead of the whole flag list. The
   completion scripts now list the same commands as `--help`.
+- TUI: the new-session wizard (`n`, `:new`) has a model step again. It is
+  skipped for a tool with one model, and starts on `default_spawn_model` when
+  the tool is `default_spawn_tool`. It used to pick the first model silently.
+- TUI: the wizard has an optional name step (after effort). `enter` on an
+  empty field skips it; the name is checked as you type. With no task, the
+  name also gives the session's slug.
+- TUI: the wizard has an optional skills step (after the name): a checklist
+  of `~/.config/rex/skills` that loads the chosen skills into that session
+  only. Hidden for tools that cannot load skills (Antigravity), for an empty
+  library, and when `spawn_skills` is off.
 - `rex setup` now suggests trusting the project's own folder (the git root
   of where you ran it, or the folder itself when it is not a checkout)
   instead of the folder above it. Still never your home folder or anything
@@ -345,6 +438,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   its own, and nothing uses a shared renderer.
 - `rex digest` and `rex stats` read their colors from the theme instead of
   copied hex values that ignored `color_scheme`.
+- TUI: `b` on the wizard's describe step now goes back when the field is
+  empty, as the footer says. It used to be typed into the text.
 - `auto_trust_dirs` and the per-session trust request now also refuse a case
   variant of the home folder on a case-insensitive filesystem (macOS,
   Windows), and any folder that holds the home folder (`/Users`, `/home`).

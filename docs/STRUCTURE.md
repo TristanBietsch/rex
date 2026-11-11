@@ -60,7 +60,10 @@ internal/
 │   ├── redact/             # argv redaction shared by the daemon log and the CLI error log
 │   └── rexlog/             # file-backed slog for daemon/TUI
 ├── features/               # optional enhancements
+│   ├── skills/             # skill library + per-session plugin staging
 │   ├── summarizer/         # Ollama descriptions
+│   ├── overview/           # board buckets, digest, headline runner
+│   ├── export/             # session export: transcript frames, formatters, agent log
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)

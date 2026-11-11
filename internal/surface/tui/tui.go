@@ -16,7 +16,9 @@ import (
 // boardPad is the side margin we leave so content isn't flush against the terminal edges.
 const boardPad = 0
 
-func Run(socket string) error {
+// Run opens the board. quietBoot silences the boot splash (see
+// Model.QuietBoot).
+func Run(socket string, quietBoot bool) error {
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
 	store, _, _ := settings.LoadDefault()
@@ -39,6 +41,7 @@ func Run(socket string) error {
 		BootStart: time.Now(),
 		idleDone:  idleDone,
 		keepAwake: awake,
+		QuietBoot: quietBoot,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -90,7 +93,7 @@ func (m Model) View() string {
 	case FocusWizard:
 		return centerOverlay(w, h, renderWizard(m), renderFullScreen(m, w, h))
 	case FocusHelp:
-		return centerOverlayBox(w, h, renderHelp(w, h), renderFullScreen(m, w, h))
+		return centerOverlayBox(w, h, renderHelp(m, w, h), renderFullScreen(m, w, h))
 	case FocusSettings:
 		return centerOverlayBox(w, h, renderSettings(m, w), renderFullScreen(m, w, h))
 	case FocusAttach:
@@ -99,6 +102,8 @@ func (m Model) View() string {
 		return centerOverlay(w, h, renderFail(m), renderFullScreen(m, w, h))
 	case FocusStats:
 		return centerOverlay(w, h, renderStatsOverlay(m), renderFullScreen(m, w, h))
+	case FocusOverview:
+		return centerOverlay(w, h, renderOverviewOverlay(m), renderFullScreen(m, w, h))
 	case FocusCommand:
 		// A command bar opened from inside the attach popup (::) keeps the
 		// popup on screen; the bar renders in its footer.

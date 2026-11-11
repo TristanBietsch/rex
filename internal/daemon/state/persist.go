@@ -61,6 +61,10 @@ func safeSessionDir(root, id string) (string, error) {
 	return dir, nil
 }
 
+// SessionDir returns <root>/sessions/<id>, failing with ErrUnsafeSessionID
+// for an id that is not a single path element.
+func SessionDir(root, id string) (string, error) { return safeSessionDir(root, id) }
+
 // RemoveSessionDir deletes a session's persisted directory (transcript + meta).
 // Used on session delete so the session doesn't reappear after a daemon restart.
 // Prefer RemoveSession when the *Session is at hand: it also fences off
@@ -396,6 +400,26 @@ func TranscriptTail(root, id string, max int) ([]byte, error) {
 	return buf[:n], nil
 }
 
+// maxSkills mirrors the per-session cap of the skills package, which state
+// does not import.
+const maxSkills = 16
+
+// sanitizeSkills makes persisted skill names display-safe and bounded.
+// meta.json is not trusted: the names are validated again, strictly, when
+// they are used to stage a plugin.
+func sanitizeSkills(in []string) []string {
+	var out []string
+	for _, n := range in {
+		if len(out) == maxSkills {
+			break
+		}
+		if n = protocol.SanitizeDisplayText(n, 64); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // fromSummary rebuilds a session from its persisted summary. Free-text
 // display fields are sanitized again: meta written before ingest
 // sanitization (S-03) may still hold escapes or newlines.
@@ -415,5 +439,6 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 		Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
 		WorkingSince: sum.WorkingSince, EndedAt: sum.EndedAt,
 		ResumeID: resumeID, TrustFolder: sum.TrustFolder,
+		Skills: sanitizeSkills(sum.Skills),
 	}
 }

@@ -3,16 +3,20 @@ package tui
 import (
 	"fmt"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/features/overview"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// renderHeader renders the two-line header (logo+counts row, chips row),
+// renderHeader renders the header (logo+counts row, chips row, overview line,
 // padded to `width` columns. The counts follow the board columns, so every
 // session lands in exactly one bucket and they add up to the stats
 // overlay's total: queued counts as working (its column). The screensaver
 // shows the same numbers (columnCounts).
 func renderHeader(m Model, width int) string {
-	cols, failed := columnCounts(m.Sessions)
+	cols, failed := columnCounts(m.Sessions, rowFilterOf(m).ctx)
 
 	marked := 0
 	for _, s := range m.Sessions {
@@ -22,7 +26,7 @@ func renderHeader(m Model, width int) string {
 	}
 
 	logo := styleHeaderApp.Render("∴ REX")
-	counts := renderHeaderCounts(m, cols[groupNeeds], cols[groupWorking], cols[groupDone], failed)
+	counts := renderHeaderCounts(m, cols[groupNeeds], cols[groupWaiting], cols[groupWorking], cols[groupDone], failed)
 	if marked > 0 && m.Detailed { // marked rows already count as done
 		counts += styleDim.Render(fmt.Sprintf("  · %d marked done", marked))
 	}
@@ -45,6 +49,9 @@ func renderHeader(m Model, width int) string {
 		}
 		out += "\n" + padLine("  "+chips, width)
 	}
+	if showOverviewLine(m) {
+		out += "\n" + renderOverviewLine(m, width)
+	}
 
 	if m.BackendUnavailable {
 		reason := protocol.FlattenDisplayText(m.BackendUnavailableReason) // daemon-supplied
@@ -65,6 +72,60 @@ func renderHeader(m Model, width int) string {
 
 	return out
 }
+
+// overviewOn reports whether the overview_enabled setting is on. The default
+// (no store) is off.
+func overviewOn(m Model) bool {
+	if m.Store == nil {
+		return false
+	}
+	on, _ := m.Store.Get("overview_enabled").(bool)
+	return on
+}
+
+// showOverviewLine reports whether the header carries the overview line. It
+// is reserved whenever the setting is on, so the board does not jump when a
+// headline arrives or goes.
+func showOverviewLine(m Model) bool { return overviewOn(m) }
+
+// overviewLead prefixes the overview line.
+const overviewLead = "  » "
+
+// renderOverviewLine renders the overview line: how many sessions are ready
+// for review (counted here, from the sessions, so it is true even when the
+// headline is stale or wrong), then the daemon's headline and its age. The
+// headline is untrusted model text: flattened and cut to the room left. When
+// the daemon has sent none (older daemon, overview off there, nothing to say
+// yet) only the count shows.
+func renderOverviewLine(m Model, width int) string {
+	review := len(overview.Group(m.Sessions)[overview.Review])
+	count := "nothing to review"
+	countStyle := styleDim
+	if review > 0 {
+		count = fmt.Sprintf("%d ready for review", review)
+		countStyle = lipgloss.NewStyle().Foreground(colorNeeds)
+	}
+	line := styleDim.Render(overviewLead) + countStyle.Render(count)
+	if o := m.Overview; o != nil && o.Enabled {
+		if headline := protocol.FlattenDisplayText(o.Headline); headline != "" {
+			age := ""
+			if !o.GeneratedAt.IsZero() {
+				age = " · " + durationAgoAt(m.now(), o.GeneratedAt)
+			}
+			room := width - ansi.StringWidth(overviewLead+count) - 2 - ansi.StringWidth(age)
+			if room >= minHeadlineCells {
+				line += "  " + styleHeaderMeta.Render(truncateWords(headline, room))
+				if age != "" {
+					line += styleMuted.Render(age)
+				}
+			}
+		}
+	}
+	return padLine(line, width)
+}
+
+// minHeadlineCells is the least room worth showing a headline in.
+const minHeadlineCells = 8
 
 // showFilterChips reports whether the tool filter row is worth a line: some
 // filter is active (a tool, or a hidden section), or sessions run more than
@@ -89,10 +150,12 @@ func showFilterChips(m Model) bool {
 }
 
 // renderHeaderCounts formats the counts segment of the header per header_style.
-// verbose: "  4 need you · 2 working · 7 done"
-// glyphs:  "  ◆4 ⟳2 ●7"
-// numbers: "  4·2·7"
-func renderHeaderCounts(m Model, needs, working, done, failed int) string {
+// verbose: "  4 need you · 1 waiting · 2 working · 7 done"
+// glyphs:  "  ◆ 4  ◷ 1  ⟳ 2  ● 7"
+// numbers: "  4 · 3 · 7" (waiting folded into working: a bare number has no
+// label to say it is a fourth bucket)
+// The waiting count is left out while it is 0.
+func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) string {
 	style := "verbose"
 	if m.Store != nil {
 		if v, _ := m.Store.Get("header_style").(string); v != "" {
@@ -102,18 +165,26 @@ func renderHeaderCounts(m Model, needs, working, done, failed int) string {
 	var s string
 	switch style {
 	case "glyphs":
-		s = fmt.Sprintf("    ◆%d  ⟳%d  ●%d", needs, working, done)
+		wait := ""
+		if waiting > 0 {
+			wait = fmt.Sprintf("%s %d  ", waitingGlyph, waiting)
+		}
+		s = fmt.Sprintf("    ◆ %d  %s⟳ %d  ● %d", needs, wait, working, done)
 	case "numbers":
-		s = fmt.Sprintf("    %d · %d · %d", needs, working, done)
+		s = fmt.Sprintf("    %d · %d · %d", needs, working+waiting, done)
 	default:
-		s = fmt.Sprintf("    %d need you · %d working · %d done", needs, working, done)
+		wait := ""
+		if waiting > 0 {
+			wait = fmt.Sprintf(" · %d %s", waiting, boardGroups[groupWaiting].Count)
+		}
+		s = fmt.Sprintf("    %d need you%s · %d working · %d done", needs, wait, working, done)
 	}
 	out := styleHeaderMeta.Render(s)
 	if failed > 0 {
 		if style == "verbose" {
 			out += styleStateFailed.Render(fmt.Sprintf("  · %d failed", failed))
 		} else {
-			out += styleStateFailed.Render(fmt.Sprintf("  ✕%d", failed))
+			out += styleStateFailed.Render(fmt.Sprintf("  ✕ %d", failed))
 		}
 	}
 	return out

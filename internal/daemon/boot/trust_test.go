@@ -52,6 +52,22 @@ func TestAutoTrustDirs(t *testing.T) {
 	require.Nil(t, AutoTrustDirs(), "no home: trust nothing")
 }
 
+func TestSpawnSkillsEnabled(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.True(t, SpawnSkillsEnabled(), "no config: the default is on")
+
+	cfg := filepath.Join(home, ".config", "rex", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
+	require.NoError(t, os.WriteFile(cfg, []byte("spawn_skills: false\n"), 0o600))
+	require.False(t, SpawnSkillsEnabled())
+
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	require.True(t, SpawnSkillsEnabled(), "no home: defaults")
+}
+
 func TestResumeEnabled(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

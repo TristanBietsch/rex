@@ -48,7 +48,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Type | Implemented | Payload summary |
 |------|-------------|-----------------|
 | `Hello` | yes | `client_version` (release label; older clients sent their name here), `client` (program name, optional) |
-| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet`, `trust_folder` |
+| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills` |
 | `Subscribe` | yes | `session_id`, `replay`, `mode_sync`, `repaint` |
 | `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
@@ -72,9 +72,13 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Field | Required |
 |-------|----------|
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
-| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder` | no |
+| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills` | no |
 
 `trust_folder` (bool, default false) trusts `cwd` for this session as if it were listed in `auto_trust_dirs`: the agent's folder-trust dialog is answered (or avoided with `trust_args`) and `skip_permissions` may apply. `cwd` must be absolute, without `..`, and neither a filesystem root nor the home folder; otherwise the intent is `bad_intent` with a `trust_folder: ...` message. The choice is stored in `meta.json` and shown as `trust_folder` in session summaries, and `Resume` applies it again (re-checking the stored `cwd`; a folder that no longer passes is not trusted). Nothing is written to the agent's own config by rex.
+
+`name` is the display name, normalized like `SetSessionName` (whitespace collapsed, control characters dropped, at most 64 characters; too long is `bad_intent`). Empty shows the slug.
+
+`skills` is a list of skill names (at most 16, unique, each `[a-z0-9][a-z0-9-]{0,63}`) from the daemon's skill library (`-skills-dir`, default `~/.config/rex/skills`). The daemon copies them into `sessions/<id>/plugin` (regular files only, at most 256 files and 4 MiB; a symlink is an error) and adds the tool's `skill_args` with `{plugin_dir}` after the resume args and before the hook args. It never takes a path from a client. The intent is `bad_intent` when the `spawn_skills` setting is off (`skills are off`), the tool has no `skill_args` (`tool X cannot load skills per session`), a name is invalid or missing from the library, or a limit is exceeded; nothing is created then. The names are stored in `meta.json`, shown as `skills` in session summaries, and `Resume` loads the same plugin folder again (staging it from the library if it is gone). A daemon that predates these fields ignores them silently, so a client that sent `skills` should check the `SessionAdded` summary for them.
 
 `cwd` must be an absolute path (`bad_intent` otherwise); the daemon never resolves it against its own working directory.
 
@@ -131,18 +135,19 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks) |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it) |
 | `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
 | `SessionRemoved` | `session_id`, `reason` (`user` \| `retired`; empty from older daemons) |
 | `SessionOutput` | `session_id`, `bytes` (base64), `repaint` (true only on the one that answers `Subscribe` `repaint`; omitted otherwise) |
 | `SummarizerHealth` | `available`, `reason` |
+| `Overview` | `enabled`, `headline` (sanitized model text, at most 200 runes), `generated_at`. Sent to every connection that has sent `Hello`; the latest value is also in `Snapshot.overview` |
 | `Error` | `id`, `code`, `message` |
 
 ### SessionSummary fields
 
-`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `retired_at` (RFC 3339; when the session was marked done; omitted when not marked and for marks persisted before the field existed), `working_since` (start of the current working stretch; omitted unless working), `ended_at` (RFC 3339; the first time the session reached done, failed or crashed; omitted while live; a daemon that predates it never sends it, so clients fall back to `last_event_at` for terminal sessions), `subagents` (subagents the agent is running now; Claude Code only; omitted when 0, and patches send `0` when the last one stops), `description_at` (RFC 3339; when `description` was last written by the summarizer; omitted until the first summary, and a daemon that predates it never sends it; patches for `description` carry it too), `resume_id` (the agent's own conversation id, a canonical UUID in lowercase; omitted when unknown; a patch carries it when it becomes known or changes; an older client ignores it), `trust_folder` (true when the folder was trusted for the session at creation; omitted otherwise).
+`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `retired_at` (RFC 3339; when the session was marked done; omitted when not marked and for marks persisted before the field existed), `working_since` (start of the current working stretch; omitted unless working), `ended_at` (RFC 3339; the first time the session reached done, failed or crashed; omitted while live; a daemon that predates it never sends it, so clients fall back to `last_event_at` for terminal sessions), `subagents` (subagents the agent is running now; Claude Code only; omitted when 0, and patches send `0` when the last one stops), `waiting_on` (`shell`, `subagent` or `web`: what a **working** session's main thread is blocked on, from Claude Code's tool hooks; omitted when not waiting; the state stays `working`, so a client that predates the field shows the session as working; patches send `null` to clear it, and the daemon clears it whenever the state leaves `working`; clients ignore a kind they do not know), `waiting_since` (RFC 3339; when that tool call began; omitted unless `waiting_on` is set; patched together with `waiting_on`; the TUI shows the session as waiting only after 3 seconds), `description_at` (RFC 3339; when `description` was last written by the summarizer; omitted until the first summary, and a daemon that predates it never sends it; patches for `description` carry it too), `resume_id` (the agent's own conversation id, a canonical UUID in lowercase; omitted when unknown; a patch carries it when it becomes known or changes; an older client ignores it), `trust_folder` (true when the folder was trusted for the session at creation; omitted otherwise), `skills` (names of the library skills loaded into the session; omitted when none), `wait_reason` (why a `needs_input` session waits: `review` when the agent finished a turn, `input` when it asks for an answer or approval; omitted when unknown, which is always so for tools without hooks; cleared when the session works again; unrelated to `waiting_on`, which is only for working sessions).
 
 `last_event_at` is the last real activity — a state change, a new screen line, or the child's exit; stats and digest treat it as a finished session's end. Metadata edits (`rename`, fleet, `name`, retire, AI `description`) leave it unchanged and their patches omit it.
 
@@ -173,6 +178,8 @@ Nothing is sent for a session that is not running.
 ### Compatibility
 
 Additive changes (new optional fields, new intents, new events, new patch keys) keep `v: 1`; both sides ignore unknown fields and event types. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
+
+The overview is in the daemon's memory only. An `Overview` published between a client's `Snapshot` and the start of its event stream is missed until the next publish. An older client ignores the event and `snapshot.overview`; against an older daemon a newer client sees neither and shows only what it computes itself.
 
 A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
 

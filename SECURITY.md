@@ -58,6 +58,13 @@ filesystem permissions.
   send text, `config set` values, folders, socket paths, stdin, environment
   values or transcripts. Anything of that kind appearing in it is in scope.
   Turn it off with `cli_error_log: false` or `REX_ERROR_LOG=0`.
+  The overview headline (`overview_enabled`) is the same kind of text, a
+  model paraphrase of several sessions' output at once, so one session can
+  try to steer what it says about the others. Its counts and lists come from
+  rules over session fields, never from that text, and it drives no action.
+  The digest it is built from (every session's name, task, description and
+  question line) goes to `OLLAMA_HOST`: if that points off this machine, so
+  do those titles and statuses.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the
