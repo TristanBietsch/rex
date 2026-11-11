@@ -113,6 +113,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- TUI: `:filter <tool>` now moves the selection off a row the filter hides
+  (before, `enter` did nothing) and rejects a tool that is neither a filter
+  chip nor on the board, with `filter: unknown tool or subcommand x`.
 - A partial `tools.yaml` entry for a retired built-in tool (codex, gemini,
   ollama, grok, deepseek, kimi) no longer stops the daemon from starting.
   It is dropped with a warning in the daemon log and on the TUI splash.

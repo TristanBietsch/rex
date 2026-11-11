@@ -195,12 +195,7 @@ func runSettings(m Model, _ cmdCall) (Model, tea.Cmd) { return openSettings(m) }
 
 func runReload(m Model, _ cmdCall) (Model, tea.Cmd) { return m, reloadDaemonCmd(m) }
 
-func runFilter(m Model, c cmdCall) (Model, tea.Cmd) {
-	if len(c.Args) == 1 {
-		m.Filter = c.Args[0]
-	}
-	return m, nil
-}
+func runFilter(m Model, c cmdCall) (Model, tea.Cmd) { return filterCommand(m, c.Args), nil }
 
 func runPrune(m Model, _ cmdCall) (Model, tea.Cmd) { return openPrune(m) }
 
