@@ -41,10 +41,15 @@ until:
 ### UI
 - Parent card `⟳ fix-until-green 3/8` with children indented; `p` pause/resume, `x` stop. `:loop <name>`; `rex loop ls|start|pause|stop|log`.
 
+## Feature flag
+- `loops` (off). Off = runner not started, loop files not read, `rex loop` / `:loop` refuse.
+- Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
+- Flag lands in step R12-1.
+
 ## Plan
 1. **R12-1 Loop file format + validator.** Tests: schema table, check command must be argv (no shell string), caps enforced.
 2. **R12-2 Runner: repeat kind.** Tests with echo tool: completes on marker; stops at max iterations; check command exit codes; pause on needs_input with no auto answer; daemon restart → paused.
-3. **R12-3 Runner: chain kind** (if D1 includes chains). Tests: step 2 receives step 1 description; failed step stops chain with state failed.
+3. **R12-3 Runner: chain kind (deferred, D1).** Tests: step 2 receives step 1 description; failed step stops chain with state failed.
 4. **R12-4 Wire + persistence.** Tests: late-joining TUI; old daemon `bad_intent` → "update daemon".
 5. **R12-5 TUI cards + keys.** Goldens; R09 stage moves do not break loop children.
 6. **R12-6 CLI + docs + SECURITY.md.**
@@ -56,10 +61,10 @@ until:
 - Cost runaway: caps hit → loop stops with a notice and a sound.
 - Two loops in the same cwd editing the same files: warn at start.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Loop kinds | (a) repeat-until first, chains in a later phase · (b) both now · (c) chains only |
-| D2 | Definition format | (a) YAML files in `~/.config/rex/loops/` (and `.rex/loops/` with R06) · (b) Lua functions via R05/init.lua (`rex.loop{...}`) · (c) only ad-hoc flags: `rex loop start --until "make check" --max 8 -- "prompt"` |
-| D3 | Stop condition default | (a) check command exit 0, with max-iterations cap · (b) completion marker in output · (c) user marks done (loop only re-sends on stop) |
+| D1 | Kinds | Repeat-until in round 2; chains later (R12-3 deferred). |
+| D2 | Format | YAML in `~/.config/rex/loops/` (+ `.rex/loops/` in trusted workspaces). |
+| D3 | Stop default | Check command exits 0, plus max-iterations cap. |

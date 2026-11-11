@@ -26,6 +26,11 @@
 - Colors: U1 tokens `success < 60% ≤ warn < 85% ≤ danger`. Drops cleanly when width is short (counts win over meter).
 - `rex usage` CLI with P4 `-o` formats.
 
+## Feature flag
+- `usage_meter` (`off|compact|full`, default `compact`); `usage_statusline_tap` (on): off = Claude spawned without the tap, Claude usage falls back to the estimate.
+- Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
+- Flag lands in step R10-5.
+
 ## Plan
 1. **R10-1 Capture.** Record Claude status-line JSON from a sandboxed session (scratchpad only); record `grok usage` output. Update the field table here.
 2. **R10-2 Sources.** `usage` package, Claude tap (`rex-daemon statusline-tap`), Grok poller, estimate fallback. Tests: tap passes stdin through byte-for-byte to a stub user command and preserves its exit code; parse fixtures (synthetic, shaped like captures); missing fields → Stale; grok poll stops when no grok session is live.
@@ -40,10 +45,10 @@
 - Plan with no rate limit (API key billing): show cost instead of %.
 - Field names change in a Claude update: Stale, never crash; `rex doctor` reports it.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Usage source | (a) real plan usage: Claude status-line tap + `grok usage` poll, estimate fallback for others · (b) rex estimates only (tokens/cost from its own counters; simple, inaccurate) · (c) parse each tool's local logs (e.g. `~/.claude/projects/*.jsonl`, ccusage-style) |
-| D2 | Default | (a) `compact`, only for tools with a live session · (b) off until enabled · (c) `full` |
-| D3 | Wrapping the user's Claude status line | (a) tap execs the user's status line so it stays the same · (b) tap replaces it with a rex status line · (c) don't touch status line; Claude usage only via (c) logs |
+| D1 | Source | Claude status-line tap + `grok usage` poll; rex token estimate (`~`) for other tools. |
+| D2 | Default | `compact`, only tools with a live session. |
+| D3 | User's Claude status line | Tap passes stdin through to the user's own status line command; it looks unchanged. |

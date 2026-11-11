@@ -53,6 +53,7 @@ Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
 | D12 | Gates | Go toolchain: user upgrades (`brew upgrade go`); until then `make vuln` stdlib advisories are non-blocking. Coverage: no-regression rule for audio, cli/core, cli/inspect, cli/session, cli/setup (must not drop below base 61.2/43.6/36.3/27.9/60.6); all other floors enforced. |
 | D13 | Scope after TODO.md edit (2026-11-11) | **U3 dropped** (keep merged retired-tool guard 76c58a9; no agent removal, no `filterToolIDs`; T1 validates `:filter <tool>` against the existing `filterTools` list ∪ tool ids present on the board; U3-5 unknown-tool bad_intent dropped). Kept: S4, S5, P1, P2, P3, P4, all T*, S1–S3, U1, U2, U4–U6, A1. Progress tracked here only; TODO.md is the user's list (tick a line only when fully done). |
 | D14 | U4–U6 (2026-11-11) | U4: border off by default (`:border` per run, settings persist), random = stable per launch folder (`:border next` re-rolls), block frame `█`/`▀▄`, Pantone-inspired ids, hidden on splash/screensaver, `:border` not persisted. U5: breakpoint fixed widths (wide/normal/narrow/mobile), always-reserved sometimes-empty columns, mobile auto ≤60 cols with 2-line rows + attach sheet, no width knobs. U6: keep inherited TERM, fix vt10x (REP capped, tab stops on grow, DECST8C), spawn at popup size, clamp Resize/NewSession sizes (fixes daemon OOM via 65535×65535 Resize), live check folded into A1's D2 capture, hand-written fixtures. |
+| D15 | Feature flags (2026-11-11) | Every round-1 **feature** gets an on/off toggle in Settings (same rule as round 2, `docs/plans/r2/00-roadmap.md` → "Feature flags"). Bug fixes, refactors and CLI hardening get none. New task **FF0** (lane C, first in wave 3) adds `SectionFeatures` ("Features", after Behavior), `settings.FeatureOn(store, id) bool`, and a registry test (every Features row is bool/enum with help text). Off = inert: no goroutine, subprocess, network, file write or argv addition; keys unbound; `:`/CLI commands answer `off: enable in Settings → Features (rex config set <flag> true)`, CLI exit 5. Each flag's owning step adds an off-is-inert test. Existing toggles keep their id and section. Table: "Feature flags" below. |
 | — | Agents | claude + antigravity visible; echo hidden (tests). Others deleted, with U3's retired-tool guard. |
 | — | `/ob` | Ignored. |
 | — | Remote | Keep local. No push, no PR. |
@@ -91,11 +92,32 @@ Lane A = TUI, B = daemon/registry/protocol, C = CLI/settings/summarizer. Steps w
 |---|---|---|---|
 | 1 | F1-1..3 → T4-1 (`:undone` fix) → U1-2 (arrow color, theme race, NO_COLOR cursor) | T3-1+A1-1 (spawn spec) → U3-1 (retired-tool guard) → T2-1 (`ended_at`) → K1 (opt-in skip-permissions) | P3-1 → P3-2 (`ParseArgs`, `-h`) → P3-3 (H1) → U2-2 (sparse Save) |
 | 2 | U3-4 → U1-7 (command table) → T1-1..8 → T2-2 | U3-2,3,5,6 → T3-2..4 | S1-1 → A1-3 (agy fixtures) → S1-2..4 → S3-1 → S2-1,2 |
-| 3 | T5-1..5 → T4-2 | T3-5..7 → T2-3 → T4-3 → A1-2 | S1-5,6 → S2-3,4 → S3-2..7 → S1-7, S2-5 |
+| 3 | FF-T1 → T5-1..5 → T4-2 | T3-5..7 → T2-3 → T4-3 → A1-2 | FF0 (Features section, D15) → S1-5,6 → S2-3,4 → S3-2..7 → S1-7, S2-5 |
 | 4 | P1-1..8 | S4-1..9 | P3-4..11 |
 | 5 | P2-1..6 | S5-1..6 | A1 capture (D2) → A1-4..7 |
 | 6 | U1-1, U1-3..6, U1-8..12 (single builder) | — | — |
 | 7 | U2 (YAML scope per D1) | — | — |
+
+## Feature flags (D15)
+
+FF0 must merge before any step below that adds a flag. Steps already merged before D15 get a small retrofit step (`FF-<task>`) in the same lane.
+
+| Flag | Feature | Default | Lands in | Off means |
+|---|---|---|---|---|
+| `board_filter` | T1 chips row, `:filter`, `:hide` / `:show` | on | FF-T1 (lane A, wave 3, after T1 merges) | no chip row, commands refuse; `board_hidden_sections` ignored |
+| `timestamps` | T2 start/complete times (TUI detail column, `rex ls` columns) | on | T2-3 (also gates T2-2's column) | times hidden; `ended_at` is still recorded (data, not a feature) |
+| `resume` | T3 resume ids, resume column, `:rid`, Resume intent | on | T3-6 (also gates T3-2..4 capture) | no `--session-id` preassign, no capture, no column, Resume → `bad_intent` "resume is off" |
+| `undo_complete` | T4 `uc`, `:uc`, `:resume` | on | T4-2 | chord and commands refuse; the `:undone` fix (T4-1) stays, it is a bug fix |
+| `search` | T5 `/` search and `:search` | on | T5-1 | `/` unbound, `:search` refuses |
+| `summary_preview` | S3 preview line under the board | on | S3 step that adds the line | no preview line, row accounting as before |
+| `live_reload` | U2 settings poller / SettingsHub auto-apply | on | U2-8 | no polling; `rex reload`, `:reload` and SIGHUP still reload by hand |
+| `spawn_skills` | P1 skills step in the wizard + `rex new -skill` + `--plugin-dir` | on | P1 step that adds skills | skills step hidden, `-skill` refuses, no `--plugin-dir` argv |
+| `cli_agent_auto` | P4 auto agent mode when `CLAUDECODE=1` and stdout is not a TTY | on | P4 step that adds auto detection | only explicit `--agent` / `-o agent` / `REX_AGENT=1` |
+
+Existing toggles stay where they are (same id, same section); Settings search (U1) finds them:
+`overview_enabled` (S4, off), `attach_banner` (S5), `summary_enabled` (S1–S3), `skip_permissions` (K1, off), `window_border` (U4, off), `column_layout` `fixed|fit` (U5), `cli_error_log` (P4), `auto_trust_dirs` (P2, empty = off), `screensaver_enabled`, theme `classic` (U1's old look).
+
+No flag (fixes, refactors, hardening): F1, U1-2, T4-1, P3, U6, A1 (tool support; the tool is enabled per tool in Settings → Onboarding), S2 (internal, under `summary_enabled`), U1 help/settings content.
 
 ## Per-task pipeline (every builder)
 

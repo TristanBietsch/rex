@@ -36,6 +36,11 @@
 ### ToDo backlog (Decision D3)
 - Recommended: a **draft** session: `NewSession` with `draft: true` stores prompt/tool/model/cwd in meta, state `draft` (new protocol state, additive), no process. `enter`/`s` on a draft spawns it. Survives daemon restarts (not remapped to crashed).
 
+## Feature flag
+- `board_preset` enum is the toggle: `simple` (default) = today's board, no stages, no drafts; `kanban` / `custom` turn on stages and drafts.
+- Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
+- Flag lands in step R09-2.
+
 ## Plan
 1. **R09-1 Section spec type.** `internal/catalog/board`: `Section`, `Match`, `Resolve(s SessionSummary, bucket overview.Bucket, secs []Section) int`. Tests: table over every state × stage; fallback invariant property test (every input maps to some index).
 2. **R09-2 Setting + presets.** `board_preset` enum (`simple|kanban|custom`) + `board_sections` list (custom). Validation: unique ids, ≥1 completed section, ≤9 sections. Tests: invalid lists rejected with the offending entry.
@@ -52,10 +57,10 @@
 - Mouse hit-testing (`board_mouse.go`) with 6 sections in a short terminal.
 - Mixed versions: new TUI + old daemon must render with `simple` behavior.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Where stage comes from | (a) hybrid: auto from state, user can pin a stage per card · (b) manual only: every card moved by hand · (c) auto only: sections are just relabeled state groups (no Testing/Release unless rules) |
-| D2 | Default after upgrade | (a) keep `simple` (3 sections), `kanban` is opt-in · (b) switch everyone to `kanban` · (c) ask once on first launch |
-| D3 | ToDo column | (a) draft sessions (prompt saved, not spawned; start later) · (b) ToDo = queued sessions only (no new state) · (c) ToDo = imported issues only (R11) |
+| D1 | Stage source | Hybrid: auto from state; user can pin any card to any stage. |
+| D2 | Default | `simple` (3 sections) stays default; `board_preset` in Settings switches to `kanban` or `custom`. |
+| D3 | ToDo column | Draft sessions (new `draft` state, survives restarts). |

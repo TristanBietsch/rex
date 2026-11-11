@@ -9,32 +9,38 @@
 - Ollama is already wired for summaries (`features/summarizer/client.go`, `/api/generate`), optional, local.
 
 ## Design
-- New setting value `default_spawn_model: auto` (and `default_spawn_tool: auto`).
+- New flag `auto_model` (Settings → Features). When on, quick spawn routes the model; the tool stays `default_spawn_tool`.
 - `internal/features/route`: `Route(ctx, prompt string, avail []registry.Tool) (Choice, Reason, error)`; `Choice{Tool, Model, Effort string}`.
-- Router per Decision D1. Recommended: **rules first, then optional Ollama**:
-  - Rules table (YAML/Lua via R05): keyword/regex → class (`quick`, `standard`, `deep`, `research`), plus length thresholds. Example: `^(fix typo|rename|format)` → quick; `(architect|design|refactor .* across|plan)` → deep.
-  - Class → model map, per user (`route_map: {quick: claude/haiku/low, standard: claude/sonnet/medium, deep: claude/opus/high}`), only installed tools (R02).
-  - If no rule hits and `route_llm` is on and Ollama is reachable: one classification call with a 1.5 s timeout, output constrained to one of the class names; anything else → `standard`.
-- UX: prompt line shows `→ sonnet · medium (rule: "refactor")` as you type (debounced 150 ms, rules only; LLM runs on enter). `enter` spawns; `tab` cycles classes; `ctrl+enter` spawns with defaults (no routing).
-- Logged into the audit record (R06) as `route_reason` so the user can tune rules.
+- Router (D1): **Ollama only**. One `/api/generate` call through the existing summarizer client, `format: json`, 1.5 s timeout, prompt truncated to the first 4 KiB, output constrained to one class name (`quick`, `standard`, `deep`). Anything else → `standard`.
+- Class → model map, per user (`route_map: {quick: haiku/low, standard: sonnet/medium, deep: opus/high}`), within `default_spawn_tool` (D3), validated against installed models (R02).
+- Ollama down, slow or model missing (D4): spawn with `default_spawn_*` and show "auto unavailable: <reason>".
+- UX (D2): rex classifies 600 ms after typing stops and shows `→ sonnet · medium (deep)` on the prompt line. `enter` spawns with the shown pick (if a classify is still in flight, it waits up to the 1.5 s cap). `tab` cycles the class by hand. `ctrl+enter` skips routing.
+- Logged into the audit record (R06) as `route_reason` so the user can tune `route_map`.
+
+## Feature flag
+- `auto_model` (off). Off = quick spawn uses `default_spawn_*` exactly as today, no Ollama call.
+- Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
+- Flag lands in step R13-2.
 
 ## Plan
-1. **R13-1 Route package, rules only.** Tests: table of prompts → class; unavailable tool in map → next installed fallback; empty prompt → standard.
-2. **R13-2 Settings.** `auto` option, `route_map`, `route_rules`, `route_llm`. Validation: every class maps to an existing tool/model.
+1. **R13-1 Route package.** `Route` with an injected `Classifier` interface. Tests with a stub classifier: class → model map; model missing from tool → default with notice; empty prompt → standard.
+2. **R13-2 Settings.** `auto_model` flag, `route_map`. Validation: every class maps to a model of `default_spawn_tool`.
 3. **R13-3 Prompt-line preview + overrides.** Goldens; `tab` cycles; `ctrl+enter` bypasses.
-4. **R13-4 Ollama classifier (if D1 = a/b).** Tests with stub HTTP server: timeout → standard; junk output → standard; prompt never logged.
+4. **R13-4 Ollama classifier.** Tests with stub HTTP server: timeout → standard; junk output → standard; prompt never logged.
 5. **R13-5 Docs + CHANGELOG.**
 
 ## Review focus
-- Prompt contains secrets: never sent anywhere except local Ollama, and only when `route_llm` is on.
+- Prompt contains secrets: sent only to local Ollama (`OLLAMA_HOST` pointing off-machine gets a one-time warning), and only when `auto_model` is on.
 - Ollama slow/down: spawn is never delayed more than the 1.5 s cap.
-- Routed model removed from the tool since rules were written: fall back with a notice, don't fail the spawn.
-- Very long pasted prompt: rules run on the first 4 KiB only.
+- Model in `route_map` no longer offered by the tool: fall back with a notice, don't fail the spawn.
+- Very long pasted prompt: classifier sees the first 4 KiB only.
+- Fast typing: debounce means at most one in-flight classify; stale results (prompt changed since) are dropped.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Router | (a) rules first, local Ollama classifier as optional fallback · (b) Ollama only · (c) rules only |
-| D2 | Confirmation | (a) inline preview, `enter` spawns immediately · (b) always confirm the pick with a second `enter` · (c) silent: just spawn |
-| D3 | What auto may change | (a) model + effort within the default tool · (b) tool too (e.g. claude ↔ agy) · (c) model only |
+| D1 | Router | Ollama only (no rules table). |
+| D2 | Confirmation | Inline preview after classify; `enter` spawns, `tab` cycles class. |
+| D3 | What auto changes | Model + effort within `default_spawn_tool`. |
+| D4 | Ollama down/slow | After the 1.5 s cap, spawn with `default_spawn_*` and show "auto unavailable". |

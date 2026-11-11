@@ -23,8 +23,8 @@ TODO: "multiplayer?". Decide whether more than one person (or one person on seve
 ## Exit
 - Recommendation + threat model in this file. **Gate:** user approves an option before any build spec.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | What "multiplayer" should mean | (a) you on several devices: read-only remote view (A) + SSH docs (B) · (b) teammates sharing one board with roles (C) · (c) drop the item |
+| D1 | Meaning | **Deferred.** Treated as a future epic; no spike in round 2. |

@@ -33,6 +33,11 @@
 ### Errors
 - Syntax/runtime error or timeout: keep the last good values, show one notice in the TUI header and in `rex doctor`. Never fall back silently to defaults.
 
+## Feature flag
+- `lua_config` (on; inert without a `config.lua`). Off = file ignored, rows unlocked, no evaluator runs in any process.
+- Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
+- Flag lands in step R05-3.
+
 ## Plan
 1. **R05-1 Evaluator core.** Sandbox, limits, `rex.set`. Tests: `TestEvalSet`, `TestEvalTimeout` (infinite loop returns within 300 ms), `TestEvalNoOS` (`os.execute` is nil), `TestEvalNormalize` (bad `auto_trust_dirs` rejected with the same message as `rex config set`), fuzz `FuzzEval` on random scripts (no panic).
 2. **R05-2 Themes from Lua.** `rex.theme(name, tbl)` → `theme.Palette` via U2's YAML validator. Tests: missing token falls back to default's token with a warning.
@@ -49,11 +54,11 @@
 - `rex --help` must stay fast with a slow `config.lua`: CLI paths that only need colors cap eval at 50 ms then use YAML values.
 - Windows paths in `rex.set("auto_trust_dirs", {"C:\\dev"})`.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Lua API shape | (a) imperative `rex.set(key, value)` + `rex.theme(...)` (logic friendly, line numbers per key) · (b) declarative `rex.config = { theme = ..., spawn = { ... } }` nested table like ANTI §3.3 · (c) both |
-| D2 | Modules | (a) allow `require` of files under `~/.config/rex/lua/` only · (b) no `require`, single file · (c) full `package` lib like init.lua |
-| D3 | Editing a Lua-locked row in the TUI | (a) refuse with "set in config.lua:12 — press e to open" · (b) TUI rewrites the `rex.set` line in config.lua · (c) TUI writes YAML anyway and warns it is shadowed |
-| D4 | Long-term YAML | (a) keep YAML as TUI write target forever · (b) after R05 ships, TUI writes a generated `config.lua` and YAML becomes import-only · (c) remove YAML in a later major version |
+| D1 | Lua API shape | Imperative `rex.set(key, value)` + `rex.theme(name, tbl)`. |
+| D2 | Modules | `require` allowed only from `~/.config/rex/lua/`. |
+| D3 | Editing a locked row | Refuse with "set in config.lua:N — press e to open". |
+| D4 | Long-term YAML | Keep `config.yaml` as the TUI write target. |

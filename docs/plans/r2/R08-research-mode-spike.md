@@ -18,8 +18,8 @@ The TODO line is ambiguous. Readings:
 2. For A: check which installed CLIs can run with web search but no write tools (claude `--allowedTools`, agy, omp `--tools`, qwen). For B: check fork flags per tool and T3's resume block.
 3. Write the build spec for the chosen option.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Meaning | (a) research preset that writes cited notes (A) · (b) fork an existing session into a side research session (B) · (c) both A and B |
+| D1 | Meaning | **Deferred.** Ignored for round 2. |

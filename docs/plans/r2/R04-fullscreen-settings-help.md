@@ -14,16 +14,21 @@
 
 ## Design
 - New `FocusPage` mode with `pageKind ∈ {settings, help}`. The page owns the whole screen: header row (`∴ REX › SETTINGS`, breadcrumb, right-aligned config source), divider, body, footer hints. Board is not drawn.
-- Body layout per Decision D1 (ANTI §6 options 1–3).
+- Body layout (D1): two-pane inspector: categories left, rows right, inspector box at the bottom (ANTI §6 option 1).
 - Keys: `S` / `:settings` and `?` / `:help` open the page; `esc` / `q` back to board; `tab` cycles panes; `/` filter (U1 filter reused); `1–9` jump to section.
 - Narrow terminals (< 60 cols): single column, panes stacked, same keys. U5 owns breakpoints; R04 reads `layoutClass(m)` from U5.
 - Themes: add `dracula`, `tokyo_night`, `pantone_safe` as **built-in YAML theme files** (U2 format) embedded with `go:embed`, so they ship as data, not code. Each passes U1's contrast test. `pantone_safe` reuses U4's colorblind-safe swatch list (Decision D2).
 - ANTI's new settings rows that other plans own are not added here: border (U4), fixed columns (U5), workspace scope + id (R06), soundset/volume (Decision D3).
 - "Config source" slot in the header shows `config.yaml` now; R05 and R06 extend it to `config.lua` / `.rex/config.lua`.
 
+## Feature flag
+- `fullscreen_pages` (on). Off = U1 overlays, unchanged.
+- Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
+- Flag lands in step R04-1.
+
 ## Plan
 1. **R04-1 Page frame.** `page.go`: `renderPage(m, kind, w, h)`, header/footer helpers, `FocusPage` routing in `update.go`. Overlays removed; `centerOverlayBox` stays for wizard/stats/fail. Tests: golden at 120×40 and 60×20 for both pages; `esc` returns to board with selection unchanged.
-2. **R04-2 Body layout (D1).** Option 1: `settingsPanes{cats, list, inspector}` with focus index; help reuses the same two-pane frame (groups left, rows right). Tests: `tab` focus cycle; filter narrows both panes; inspector shows id/default/options for the selected row.
+2. **R04-2 Body layout (D1).** `settingsPanes{cats, list, inspector}` with focus index; help reuses the same two-pane frame (groups left, rows right). Tests: `tab` focus cycle; filter narrows both panes; inspector shows id/default/options for the selected row.
 3. **R04-3 Themes.** Embedded YAML for the three ANTI themes. Tests: each theme loads, passes `TestThemeContrast` (U1), appears in the theme picker.
 4. **R04-4 Audio rows (if D3 = a).** `soundset` enum backed by existing `features/audio` packs only; `master_volume` 0–1 step 0.1. Tests: registry contiguity test (round-1 rule), volume clamps.
 5. **R04-5 Docs.** `docs/tui.md`, `docs/settings.md`, CHANGELOG; remove "Proposed" from ANTI spec and mark it superseded by U1/U2/R04/R05/R06.
@@ -35,10 +40,10 @@
 - Filter with zero hits shows an empty-state line, not a blank page.
 - 80×24 default terminal: every setting reachable without horizontal clipping.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Page layout (ANTI §6) | (a) Two-pane inspector: categories left, rows right, inspector box bottom (lazygit-like; matches U1's detail pane) · (b) Tabbed studio: tab bar + card grid, toggle pills, sliders · (c) Visual list + live `config.lua` buffer (needs R05 first) |
-| D2 | Extra themes | (a) add dracula, tokyo_night, pantone_safe as embedded YAML · (b) only pantone_safe (colorblind-safe), rest as user-theme examples in docs · (c) none, U1's four are enough |
-| D3 | ANTI audio rows (soundset, master volume) | (a) volume now, soundset only if more than one pack exists · (b) both now, add packs · (c) skip |
+| D1 | Page layout | Two-pane inspector: categories left, rows right, inspector box bottom. |
+| D2 | Extra themes | dracula, tokyo_night, pantone_safe as embedded YAML. |
+| D3 | Audio rows | `master_volume` now; `soundset` only once a second sound pack exists. |

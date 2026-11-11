@@ -25,8 +25,8 @@ TODO: "steal the best ideas from opencode and implement them in rex (like the ka
 - A ranked list (top 5) with sizes, written into this file.
 - **Gate:** user picks which become R01-x build specs. Nothing is built from this spike directly.
 
-## Decisions
+## Decisions (answered 2026-11-11)
 
-| # | Question | Options (recommended first) |
+| # | Question | Answer |
 |---|---|---|
-| D1 | Spike breadth | (a) feature survey + top 5 ranked by value/effort · (b) deep dive on one area you name (e.g. undo/redo snapshots) · (c) skip the spike, pick from the candidate table now |
+| D1 | Spike breadth | Survey + top 5 ranked by value/effort; user picks which become build specs. |
