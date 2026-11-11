@@ -53,3 +53,17 @@
 | D1 | PTY bytes to text | vt10x replay for full-screen tools, ANSI strip for line tools. |
 | D2 | Claude's own log | Opt-in `--from-agent-log`; frames by default. |
 | D3 | Default format | `json`. Also `md`, `txt` and `yaml`. |
+
+## Build notes
+
+Built on `integration/todo` (branch `feat/r01-5-export`). Where the code differs from the plan above:
+
+- **No registry attach mode.** The tool registry has no per-tool attach mode. `export.LineTool` names the line tools (`echo`, `ollama`); every other tool, including a user-added one, is replayed through vt10x. This mirrors the attach code's `redrawKickTools`, which is also a list in code.
+- **Cut points are byte offsets, not times.** The transcript has no timestamps, so `Frames(r, cols, rows, cuts []int64)` takes transcript byte offsets and `Frame.At` is the offset. The R01-1 turn ledger does not exist yet: `Options.Cuts` is the hook for it, and nothing sets it today.
+- **Scrolled-off lines are kept.** The vt10x scrollback hook feeds each frame the lines that scrolled off the primary screen since the previous cut, so a line-by-line session does not lose its top rows.
+- **Fixed replay size.** The transcript records no resizes and `meta.json` holds no PTY size, so the replay uses the daemon default, 120 x 32.
+- **`rex export` has its own `-o`** (json, yaml, md, txt), not the output kit's. The kit is used for the `--out` report (agent line, json envelope) and for errors. Stdout carries the bare document in every mode. A kit `-o` before the command is refused.
+- **`yaml` is produced from the JSON** (read as YAML, re-emitted in block style), so both always carry the same keys.
+- **`--from-agent-log` for non-Claude tools or sessions without a resume id** falls back to frames with a notice, like a missing file, instead of failing.
+- **The TUI `:export`** runs on the UI goroutine: it reads the transcript synchronously. A very large transcript (hundreds of MB) can stall the board for a moment; `rex export --max-frames` has no TUI counterpart.
+- **Help overlay test height** in `internal/surface/tui/help_test.go` went from 60 to 64 rows: the new command row pushes the last help group out of a 60-row box.

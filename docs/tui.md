@@ -244,6 +244,8 @@ The headline is written by the local summary model from the sessions' task title
 
 ---
 
+**Export.** `:export [sel] [json|yaml|md|txt]` writes the session as a readable document to `~/.local/share/rex/exports/` and shows the path ([export.md](export.md)). It belongs to the `session_export` feature.
+
 ## NEW-SESSION WIZARD
 
 `n` or `:new` opens a short flow. Steps that do not apply are skipped, in both directions, so the common path is a few Enter presses:
