@@ -4,7 +4,7 @@ Docs start at [docs/index.md](docs/index.md).
 
 ## Prerequisites
 
-- Go 1.26.10 or newer (`go.mod` pins the minimum).
+- Go 1.26.11 or newer (`go.mod` pins the minimum).
 - Linux: ALSA headers for the TUI's sound support (oto links ALSA via cgo).
   On Debian or Ubuntu, `sudo apt-get install libasound2-dev`.
 - `make` and a POSIX shell. Lint and vulnerability tools run through

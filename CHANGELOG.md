@@ -157,6 +157,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- rex now requires Go 1.26.11: it fixes GO-2026-6859 in `net/http`,
+  which govulncheck reports as reachable from rex.
 - The daemon's state directory, socket and logs are owner-only (0700
   directories, 0600 files), and existing ones are tightened. Connections
   from other users are rejected. The TUI state file, the daemon log the
