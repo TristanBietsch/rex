@@ -16,7 +16,7 @@ Defines the newline-delimited JSON wire format between `rex` clients and `rex-da
 - `ProtocolVersion = 1`
 - `KindIntent`, `KindEvent` (`Kind` type)
 - Intent types: `IntentHello`, `IntentSubscribe`, `IntentNewSession`, `IntentOpenSession`, `IntentSendInput`, `IntentReply`, `IntentRename`, `IntentDelete`, `IntentResize`, `IntentFocusFilter`, `IntentShutdown`, `IntentSetMaxConcurrent`, `IntentSetSessionFleet`, `IntentComplete`
-- Event types: `EventSnapshot`, `EventSessionAdded`, `EventSessionUpdated`, `EventSessionRemoved`, `EventSessionOutput`, `EventSummarizerHealth`, `EventError`
+- Event types: `EventSnapshot`, `EventSessionAdded`, `EventSessionUpdated`, `EventSessionRemoved`, `EventSessionOutput`, `EventSummarizerHealth`, `EventOverview`, `EventError`
 - States: `StateQueued`, `StateWorking`, `StateNeedsInput`, `StateDone`, `StateFailed`, `StateCrashed`
 - Error codes: `ErrCodeBadIntent`, `ErrCodeUnknownSession`, `ErrCodeAmbiguousID`, `ErrCodeRegistry`, `ErrCodeSpawn`, `ErrCodeTooManySessions`, `ErrCodeBadState`
 

@@ -58,7 +58,7 @@ An unknown command exits **5** and, when a real command is within two edits, nam
 
 ## OUTPUT FORMATS
 
-`rex ls`, `rex status` and `rex skills` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
+`rex ls`, `rex status` and `rex skills` and `rex overview` (and the commands migrated after them) render through one output kit. Choose a format with `-o FORMAT` or `--output FORMAT`, anywhere on the command line or before the command (`rex -o json ls`).
 
 | Format | What it is |
 |--------|------------|
@@ -91,6 +91,20 @@ rex status [-socket path] [-o FORMAT] [--agent] [-json]
 Exits **1** when at least one session is `needs_input` (even with no other error).
 
 `txt` is the line shell prompts parse (`0 awaiting input · 1 working · 2 completed`). `agent` prints `ok cmd=status needs_input=1 working=1 queued=0 done=2 failed=0`; `failed` includes crashed sessions.
+
+---
+
+## rex overview
+
+What needs you, what is ready for review, what failed, what is working and what finished.
+
+```sh
+rex overview [-socket path] [-o FORMAT] [--agent]
+```
+
+Prints the daemon's one-line headline with its age (when `overview_enabled` is on and the daemon has written one), the counts, then one table per non-empty bucket: **Ready for review**, **Needs you**, **Failed**, **Working** and **Completed (last 24 h)**. The buckets are computed from the sessions, never from the headline: a session you marked done is Completed; `failed` and `crashed` are Failed; `done` is Ready for review; a Claude session that finished a turn and whose last line is not a question is Ready for review, otherwise a `needs_input` session is Needs you; the rest are Working. With the setting off the lists still print, with a note naming the setting. Exits 0.
+
+`json` is `{"v":1,"cmd":"overview","data":{"overview":{"enabled":…,"headline":…,"generated_at":…}|null,"buckets":{"review":[ids],"needs_you":[ids],"failed":[ids],"working":[ids],"completed":[ids]}}}` with full session ids (`overview` is `null` from a daemon without one). `agent` prints an `overview headline=… generated_at=…` line when there is a headline, one `session bucket=… id=… name=… state=… status=… age_s=…` line per session, then `ok cmd=overview count=N review=… needs_you=… failed=… working=… completed=…`. The headline is model text: it is cut to one line and stripped of escape sequences, but it can be wrong.
 
 ---
 

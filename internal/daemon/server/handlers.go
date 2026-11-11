@@ -51,9 +51,18 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		Sessions:      c.srv.cfg.Store.Snapshot(),
 		Filter:        "all",
 		DaemonVersion: version.Version,
+		// An overview published between this read and subscribed.Store below
+		// is missed until the next one (documented in protocol.md).
+		Overview: c.srv.Overview(),
+	}
+	if p.Client == protocol.ClientTUI {
+		c.joinBoard()
 	}
 	c.sendEvent(protocol.EventSnapshot, env.ID, snap)
 	c.subscribed.Store(true)
+	if p.Client == protocol.ClientTUI && c.srv.cfg.OnBoardClient != nil {
+		c.srv.cfg.OnBoardClient()
+	}
 	return outcome{replied: true}, nil
 }
 

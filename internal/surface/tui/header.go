@@ -3,10 +3,14 @@ package tui
 import (
 	"fmt"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/features/overview"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// renderHeader renders the two-line header (logo+counts row, chips row),
+// renderHeader renders the header (logo+counts row, chips row, overview line,
 // padded to `width` columns. The counts follow the board columns, so every
 // session lands in exactly one bucket and they add up to the stats
 // overlay's total: queued counts as working (its column). The screensaver
@@ -45,6 +49,9 @@ func renderHeader(m Model, width int) string {
 		}
 		out += "\n" + padLine("  "+chips, width)
 	}
+	if showOverviewLine(m) {
+		out += "\n" + renderOverviewLine(m, width)
+	}
 
 	if m.BackendUnavailable {
 		reason := protocol.FlattenDisplayText(m.BackendUnavailableReason) // daemon-supplied
@@ -65,6 +72,60 @@ func renderHeader(m Model, width int) string {
 
 	return out
 }
+
+// overviewOn reports whether the overview_enabled setting is on. The default
+// (no store) is off.
+func overviewOn(m Model) bool {
+	if m.Store == nil {
+		return false
+	}
+	on, _ := m.Store.Get("overview_enabled").(bool)
+	return on
+}
+
+// showOverviewLine reports whether the header carries the overview line. It
+// is reserved whenever the setting is on, so the board does not jump when a
+// headline arrives or goes.
+func showOverviewLine(m Model) bool { return overviewOn(m) }
+
+// overviewLead prefixes the overview line.
+const overviewLead = "  » "
+
+// renderOverviewLine renders the overview line: how many sessions are ready
+// for review (counted here, from the sessions, so it is true even when the
+// headline is stale or wrong), then the daemon's headline and its age. The
+// headline is untrusted model text: flattened and cut to the room left. When
+// the daemon has sent none (older daemon, overview off there, nothing to say
+// yet) only the count shows.
+func renderOverviewLine(m Model, width int) string {
+	review := len(overview.Group(m.Sessions)[overview.Review])
+	count := "nothing to review"
+	countStyle := styleDim
+	if review > 0 {
+		count = fmt.Sprintf("%d ready for review", review)
+		countStyle = lipgloss.NewStyle().Foreground(colorNeeds)
+	}
+	line := styleDim.Render(overviewLead) + countStyle.Render(count)
+	if o := m.Overview; o != nil && o.Enabled {
+		if headline := protocol.FlattenDisplayText(o.Headline); headline != "" {
+			age := ""
+			if !o.GeneratedAt.IsZero() {
+				age = " · " + durationAgoAt(m.now(), o.GeneratedAt)
+			}
+			room := width - ansi.StringWidth(overviewLead+count) - 2 - ansi.StringWidth(age)
+			if room >= minHeadlineCells {
+				line += "  " + styleHeaderMeta.Render(truncateWords(headline, room))
+				if age != "" {
+					line += styleMuted.Render(age)
+				}
+			}
+		}
+	}
+	return padLine(line, width)
+}
+
+// minHeadlineCells is the least room worth showing a headline in.
+const minHeadlineCells = 8
 
 // showFilterChips reports whether the tool filter row is worth a line: some
 // filter is active (a tool, or a hidden section), or sessions run more than

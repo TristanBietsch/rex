@@ -40,6 +40,8 @@ func BuildPrompt(kind Kind, in Input, d Detail) (Prompt, error) {
 	switch kind {
 	case KindActivity:
 		return activityPrompt(in, d), nil
+	case KindFleet:
+		return fleetPrompt(in), nil
 	default:
 		return Prompt{}, fmt.Errorf("summarizer: unknown kind %q", kind)
 	}

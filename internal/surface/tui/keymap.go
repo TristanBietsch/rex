@@ -183,7 +183,7 @@ func selectedBoardLine(m Model) int {
 
 // Screen layout around the board (see renderFullScreen):
 //
-//	1 blank · header (2 lines, +1 with the summarizer banner) · blank · HR · blank
+//	1 blank · header (top row, +1 chip row, +1 overview line, +1 summarizer banner) · blank · HR · blank
 //	board
 //	HR · prompt · helpline
 const (
@@ -199,6 +199,9 @@ func boardBottomRows(m Model) int { return previewRows(m) + baseBottomRows }
 func headerHeight(m Model) int {
 	n := 1
 	if showFilterChips(m) {
+		n++
+	}
+	if showOverviewLine(m) {
 		n++
 	}
 	if m.BackendUnavailable {

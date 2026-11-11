@@ -241,6 +241,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		m.Sessions = msg.Snap.Sessions
+		m.Overview = msg.Snap.Overview
 		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
@@ -467,6 +468,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusFail {
 		return updateFailKey(m, k)
+	}
+	if m.Focus == FocusOverview {
+		return updateOverviewKey(m, k)
 	}
 	if m.Focus == FocusStats {
 		switch k.String() {

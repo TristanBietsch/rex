@@ -37,6 +37,9 @@ type Session struct {
 	// restored from meta.json: subagents do not outlive the daemon.
 	Subagents int
 
+	// WaitReason is why a needs_input session waits (protocol.WaitReview or
+	// protocol.WaitInput), "" when unknown. Not restored from meta.json.
+	WaitReason string
 	// WaitingOn and WaitingSince say what a working session is blocked on
 	// (protocol.WaitShell and friends) and since when. Both are zero unless
 	// State is working; Store.Transition, SetExit and SetWaiting keep it so.
@@ -117,6 +120,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		Tokens:        s.Tokens,
 		OutputBytes:   s.OutputBytes,
 		Subagents:     s.Subagents,
+		WaitReason:    s.WaitReason,
 		WaitingOn:     s.WaitingOn,
 		WaitingSince:  s.WaitingSince,
 		Fleet:         s.Fleet,

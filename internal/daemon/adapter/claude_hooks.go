@@ -37,8 +37,8 @@ var claudeHookStates = []struct {
 	{"PreToolUse", true, protocol.StateWorking},
 	{"PostToolUse", true, protocol.StateWorking},
 	{"PostToolUseFailure", true, protocol.StateWorking},
-	{"Notification", false, protocol.StateNeedsInput}, // permission / idle prompt
-	{"Stop", false, protocol.StateNeedsInput},         // turn finished, waiting on user
+	{"Notification", false, protocol.StateNeedsInput}, // permission / idle prompt; writes a notify line
+	{"Stop", false, protocol.StateNeedsInput},         // turn finished, waiting on user; writes turn-done
 }
 
 // Subagent lines in the hook file, next to the state words:
@@ -48,18 +48,29 @@ var claudeHookStates = []struct {
 //	agent~ <agent_id>  PostToolUse of a subagent's tool call (still running)
 //	agents-reset       SessionStart of a new or cleared conversation
 //	sid <session_id>   SessionStart: the conversation id (resume id)
+//	turn-done          Stop: the agent finished a turn (wait_reason review)
+//	notify <type>      Notification: notification_type, "" if absent
 //	wait+ <kind>       PreToolUse of a main-thread shell, subagent or web
 //	                   tool (kind: shell, subagent, web)
 //	wait-              PostToolUse of a main-thread tool call
+//
+// The wait reason lines follow the needs_input word of their own event, so
+// the word itself never clears the reason.
 const (
 	hookAgentStart  = "agent+"
 	hookAgentStop   = "agent-"
 	hookAgentSeen   = "agent~"
 	hookAgentsReset = "agents-reset"
 	hookSessionID   = "sid"
+	hookTurnDone    = "turn-done"
+	hookNotify      = "notify"
 	hookWaitStart   = "wait+"
 	hookWaitEnd     = "wait-"
 )
+
+// notifyIdle is the Notification type Claude fires after about 60 seconds
+// idle. It must not turn a finished turn into a question.
+const notifyIdle = "idle_prompt"
 
 // subagentQuiet is how long a subagent may go without a start or a tool
 // call before it stops counting. It bounds a count stuck by a lost
@@ -109,6 +120,11 @@ func claudeHookCommand(event string, state protocol.State) string {
 	case "PostToolUse", "PostToolUseFailure":
 		return `in=$(cat); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; ` +
 			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookAgentSeen+` %s\n' "$id"; else printf '`+st+`\n`+hookWaitEnd+`\n'; fi`)
+	case "Stop":
+		return hookAppend(`printf '` + st + `\n` + hookTurnDone + `\n'`)
+	case "Notification":
+		return `in=$(cat); ty=$(` + hookJSONField("notification_type") + hookSafeID + `); ` +
+			hookAppend(`printf '`+st+`\n`+hookNotify+` %s\n' "$ty"`)
 	case "PreToolUse":
 		// Only a main-thread call (no agent_id) can mark the session as
 		// waiting. The kind is picked by a shell case, so only the three
@@ -165,6 +181,14 @@ type ResumeIDReporter interface {
 	ResumeID() string
 }
 
+// WaitReasoner is implemented by adapters that know why a needs_input
+// session waits.
+type WaitReasoner interface {
+	// WaitReason is protocol.WaitReview or protocol.WaitInput, "" when
+	// unknown or while the agent works.
+	WaitReason() string
+}
+
 // WaitReporter is implemented by adapters that know when a working agent is
 // blocked on a tool (a shell command, a subagent, a web call).
 type WaitReporter interface {
@@ -187,6 +211,7 @@ type ClaudeHooks struct {
 	last    protocol.State
 	agents  map[string]time.Time // running subagents by agent_id: last sign of life
 	sid     string               // latest valid session_id from a sid line
+	reason  string               // why the agent waits (protocol.Wait*), "" if unknown
 	// waitOn and waitSince are the main thread's current tool wait (wait+
 	// line); one slot, last writer wins.
 	waitOn    string
@@ -265,6 +290,15 @@ func (a *ClaudeHooks) ResumeID() string {
 	return a.sid
 }
 
+// WaitReason implements WaitReasoner: review after a Stop, input after a
+// Notification other than idle_prompt, which keeps what was there.
+func (a *ClaudeHooks) WaitReason() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.read()
+	return a.reason
+}
+
 // IsReadyForInput implements Adapter. Claude receives its first prompt on argv,
 // so the PTY paste path is never used.
 func (a *ClaudeHooks) IsReadyForInput(_ []byte, _ time.Duration) bool {
@@ -322,7 +356,9 @@ func (a *ClaudeHooks) apply(line string) {
 		return
 	case string(protocol.StateWorking), string(protocol.StateNeedsInput):
 		a.last = protocol.State(word)
-		if a.last != protocol.StateWorking { // Stop, Notification, SessionStart end any wait
+		if a.last == protocol.StateWorking {
+			a.reason = ""
+		} else { // Stop, Notification, SessionStart end any tool wait
 			a.clearWait()
 		}
 		slog.Debug("adapter: claude hook state", "path", a.path, "state", a.last)
@@ -353,6 +389,13 @@ func (a *ClaudeHooks) apply(line string) {
 		}
 	case hookAgentsReset:
 		clear(a.agents)
+		a.reason = ""
+	case hookTurnDone:
+		a.reason = protocol.WaitReview
+	case hookNotify:
+		if arg != notifyIdle {
+			a.reason = protocol.WaitInput
+		}
 	case hookSessionID:
 		// The latest wins (/clear and in-app /resume start new conversations).
 		// An invalid or missing id is ignored: it ends up on an argv.

@@ -49,6 +49,13 @@ filesystem permissions.
   AI summaries are written by a local model from what an agent printed, so
   they can be wrong or steered by that output ("Waiting: run curl … | sh").
   They are one line of display-safe text, length-capped, and never acted on.
+  The overview headline (`overview_enabled`) is the same kind of text, a
+  model paraphrase of several sessions' output at once, so one session can
+  try to steer what it says about the others. Its counts and lists come from
+  rules over session fields, never from that text, and it drives no action.
+  The digest it is built from (every session's name, task, description and
+  question line) goes to `OLLAMA_HOST`: if that points off this machine, so
+  do those titles and statuses.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the

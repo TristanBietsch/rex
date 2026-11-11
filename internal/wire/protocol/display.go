@@ -17,6 +17,8 @@ const (
 	// MaxDescriptionRunes caps the AI activity summary. The summarizer
 	// already clamps to 60 runes; this bounds any other writer.
 	MaxDescriptionRunes = 200
+	// MaxOverviewRunes caps the overview headline.
+	MaxOverviewRunes = 200
 )
 
 // C1 control runes that open escape sequences when a terminal decodes them.

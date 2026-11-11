@@ -46,6 +46,18 @@ func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
 	require.False(t, core.Out().Flags.Explicit(), "--no-color alone is not a format request")
 }
 
+// rex overview is on the kit: an output flag before it is accepted (it then
+// fails on the missing daemon, exit 4, not on the flag, exit 5).
+func TestRun_OverviewAcceptsOutputFlags(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	rest, err := core.InitOutput([]string{"-o", "json", "overview", "-socket", "/nonexistent/rex.sock"}, nil)
+	t.Cleanup(func() { core.SetOut(nil) })
+	require.NoError(t, err)
+	err = run(rest)
+	require.Error(t, err)
+	require.Equal(t, core.ExitDaemonUnreachable, exitCodeFor(err))
+}
+
 func TestRun_UnknownCommandSuggests(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	for _, tc := range []struct{ in, want string }{

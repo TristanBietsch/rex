@@ -61,6 +61,7 @@ internal/
 ├── features/               # optional enhancements
 │   ├── skills/             # skill library + per-session plugin staging
 │   ├── summarizer/         # Ollama descriptions
+│   ├── overview/           # board buckets, digest, headline runner
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)

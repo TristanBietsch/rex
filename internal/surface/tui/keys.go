@@ -151,6 +151,7 @@ var commands = []command{
 	{Names: []string{"reload"}, Desc: "reload tools.yaml", Group: groupAppCmd, Run: runReload},
 	{Names: []string{"fail", "fails", "failed"}, Label: ":fail", Desc: "failed sessions + daemon log (:fails :failed)", Group: groupAppCmd, Run: runFail},
 	{Names: []string{"stats"}, Desc: "session statistics overlay", Group: groupAppCmd, Run: runStats},
+	{Names: []string{"overview"}, Desc: "what needs you, what is ready for review, what finished", Group: groupAppCmd, Run: runOverview},
 	{Names: []string{"help"}, Desc: "this overlay", Group: groupAppCmd, Run: runHelp},
 	{Names: []string{"settings"}, Desc: "open settings", Group: groupAppCmd, Run: runSettings},
 }

@@ -136,6 +136,7 @@ func TestScreensaverOnlyOverTheBareBoard(t *testing.T) {
 		"search":         func(m Model) Model { m.Focus = FocusSearch; return m },
 		"help":           func(m Model) Model { m.Focus = FocusHelp; return m },
 		"stats":          func(m Model) Model { m.Focus = FocusStats; return m },
+		"overview":       func(m Model) Model { m.Focus = FocusOverview; return m },
 		"confirm quit":   func(m Model) Model { m.Focus = FocusConfirmQuit; return m },
 		"confirm delete": func(m Model) Model { m.Focus = FocusConfirmDelete; return m },
 		"settings": func(m Model) Model {

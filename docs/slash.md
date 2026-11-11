@@ -40,6 +40,7 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `complete` | `[sel]` | Kill now and mark done |
 | `fail`, `fails`, `failed` | — | Failed-session inspector |
 | `stats` | — | Toggle stats overlay |
+| `overview` | — | Toggle the overview overlay: the headline and the sessions that need you, are ready for review, failed, work or finished (works with `overview_enabled` off; then lists only) |
 
 `<sel>` resolves against the current board: full session id, then `slug`, then `short_id`. A slug shared by several sessions (restored from an older daemon) is reported as `ambiguous: … use short id`. `:rename` to a slug another session holds is rejected by the daemon; the error shows on the status line.
 

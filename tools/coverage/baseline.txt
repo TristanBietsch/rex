@@ -3,18 +3,19 @@
 # Each floor is the measured coverage rounded down. Raise a floor when
 # coverage goes up. Lower one only with a reason in the commit message.
 github.com/tristanbietsch/rex/cmd/rex 73
-github.com/tristanbietsch/rex/cmd/rex-daemon 32
+github.com/tristanbietsch/rex/cmd/rex-daemon 80
 github.com/tristanbietsch/rex/internal/catalog/registry 91
-github.com/tristanbietsch/rex/internal/catalog/settings 85
+github.com/tristanbietsch/rex/internal/catalog/settings 87
 github.com/tristanbietsch/rex/internal/catalog/theme 100
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
-github.com/tristanbietsch/rex/internal/daemon/boot 38
+github.com/tristanbietsch/rex/internal/daemon/boot 49
 github.com/tristanbietsch/rex/internal/daemon/pty 88
-github.com/tristanbietsch/rex/internal/daemon/server 90
+github.com/tristanbietsch/rex/internal/daemon/server 91
 github.com/tristanbietsch/rex/internal/daemon/state 85
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
 github.com/tristanbietsch/rex/internal/features/audio 65
 github.com/tristanbietsch/rex/internal/features/lua 89
+github.com/tristanbietsch/rex/internal/features/overview 98
 github.com/tristanbietsch/rex/internal/features/skills 86
 github.com/tristanbietsch/rex/internal/features/summarizer 93
 github.com/tristanbietsch/rex/internal/runtime/daemonctl 88
@@ -22,7 +23,7 @@ github.com/tristanbietsch/rex/internal/runtime/ids 75
 github.com/tristanbietsch/rex/internal/runtime/paths 100
 github.com/tristanbietsch/rex/internal/runtime/rexlog 87
 github.com/tristanbietsch/rex/internal/surface/cli/core 93
-github.com/tristanbietsch/rex/internal/surface/cli/inspect 47
+github.com/tristanbietsch/rex/internal/surface/cli/inspect 53
 github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
 github.com/tristanbietsch/rex/internal/surface/cli/meta 35
 github.com/tristanbietsch/rex/internal/surface/cli/session 56

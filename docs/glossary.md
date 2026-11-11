@@ -38,6 +38,14 @@ User action (`cc`, `rex done`) that schedules a session to be cleared after `ret
 
 User-chosen display label shown instead of the slug on the board. Free text, max 64 characters; never a selector.
 
+## overview
+
+One line at the top of the board, the `:overview` overlay and `rex overview`: which sessions need you, which are ready for review, which failed, work or finished. The counts and lists come from rules over session fields; only the one-line headline is written by the local summary model, when `overview_enabled` is on. Not the `fleet` label. See [tui.md](tui.md).
+
+## ready for review
+
+An overview bucket: a session that is `done` and not marked done, or a Claude session that finished a turn (`wait_reason: review`) and whose last line is not a question. See [tui.md](tui.md).
+
 ## registry
 
 Merged tool catalog: embedded `builtin.yaml` plus optional `~/.config/rex/tools.yaml`.

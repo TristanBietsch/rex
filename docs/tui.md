@@ -68,6 +68,7 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 | Settings | `S` or `:settings` | `esc` |
 | Help | `?` or `:help` | `esc`, `?` |
 | Stats | `:stats` | `esc`, `:` |
+| Overview | `:overview` | `esc`, `q`, `:overview` |
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
@@ -216,6 +217,32 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 - Hiding is per run. The `board_hidden_sections` setting ([settings.md](settings.md#behavior)) sets what starts hidden, and `:bg` saves the current choice for the next start (see DETACH WITHOUT QUITTING).
 - `:prune` ignores filters: it clears every Done session, and its confirmation says so while a filter is active.
 - The tool filter survives a daemon reconnect.
+
+## OVERVIEW
+
+What needs you, what is ready for review and what finished, at a glance. Three places show it: a header line, the `:overview` overlay and `rex overview` ([cli.md](cli.md)).
+
+**Header line.** With `overview_enabled` on (Settings → AI summary, off by default), one line follows the chip row (and comes before the summary-backend banner):
+
+```
+  » 2 ready for review  billing-tests and api docs are ready for review; deploy asks a question · 40s
+```
+
+The count is computed in the TUI from the sessions, so it is true even when the headline is stale or wrong; it reads `nothing to review` at zero. The headline is the daemon's one-line summary of the whole board, cut on a word boundary, with its age. Until the daemon has written one (or against an older daemon, or with the daemon's setting still switching on, which takes about 5 s) only the count shows. The row is reserved while the setting is on, so the board does not jump. Off, the header is exactly as before.
+
+**Buckets.** Every session is in exactly one, decided in code by these rules, in order:
+
+1. Marked done: **Completed**.
+2. `failed` or `crashed`: **Failed**.
+3. `done`: **Ready for review**. The agent says it finished and you have not marked it.
+4. Waiting for input (`needs_input`): **Ready for review** when the agent finished a turn (Claude's Stop hook, `wait_reason: review`) and the last line is not a question (does not end in `?`, the same rule as the row text); otherwise **Needs you**. Claude's idle reminder does not turn a finished turn into a question. Tools without hooks have no `wait_reason`, so a waiting session is always Needs you.
+5. `working` or `queued`: **Working**.
+
+**`:overview` overlay.** The headline, wrapped, then the sections READY FOR REVIEW, NEEDS YOU, FAILED, WORKING and COMPLETED (last 24 h) with `marker name status age` rows; empty sections are left out. `j`/`k` (or arrows) select, `g`/`G` jump, `enter` attaches to the selected session, `esc` or `q` closes. It works with the setting off too: you get the lists and a line pointing at the setting.
+
+The headline is written by the local summary model from the sessions' task titles, descriptions and question lines, so it can be wrong and can be steered by what an agent printed. It is one line of display-safe text, never acted on, and the lists next to it never come from it.
+
+---
 
 ## NEW-SESSION WIZARD
 

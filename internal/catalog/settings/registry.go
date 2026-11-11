@@ -201,6 +201,11 @@ var Registry = []Setting{
 		Options: []string{"typewriter", "decode", "wipe", "off"},
 		Help:    "Animation effect when the AI description changes.",
 	},
+	{
+		ID: "overview_enabled", Label: "Overview", Section: SectionSummary,
+		Type: TypeBool, Default: false,
+		Help: "Header line + :overview: what needs you, what is ready for review, what finished. Uses the summary model (one call at most every 30 s while rex is open). Applies within seconds.",
+	},
 
 	// Audio
 	{

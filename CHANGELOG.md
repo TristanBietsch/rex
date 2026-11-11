@@ -223,6 +223,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rex doctor` shows the installed agy version (`agy 1.5.5`, a `-verbose`
   row) and warns below 1.5.5 (untested). It shows nothing when agy is not
   installed, and gives up after 2 s.
+- Overview (`overview_enabled`, off by default): a header line, `:overview`
+  and `rex overview` show what needs you, what is ready for review and what
+  finished, with a one-line summary from the local model. The counts and
+  lists come from rules over session fields; only the headline is model
+  text. It runs at most about twice a minute, only while a `rex` board is
+  open, and off it starts nothing. Claude sessions that finished a turn now
+  count as ready for review (`wait_reason`, from the Stop and Notification
+  hooks).
+- Wire (additive, `v` stays 1): an `Overview` event, `Snapshot.overview` and
+  `wait_reason` on sessions; `Hello.client` `rex-tui` now marks a board
+  viewer. Older clients ignore them.
 
 ### Changed
 

@@ -1,0 +1,240 @@
+-- text.w50 --
+Overview  updated 40s ago
+
+  Headline  billing-tests is ready for review;
+            deploy asks a question and migrate-db
+            failed
+
+2 ready for review   1 needs you   1 failed   1 working   1 completed
+
+Ready for review:
+
+     ID    NAME           STATUS               AGE
+  ●  r1ab  billing-tests  Done: 48 tests pass   3m
+  ◆  r2cd  api docs       write api docs        9m
+
+Needs you:
+
+     ID    NAME      STATUS           AGE
+  ◆  n1ef  deploy    Deploy to prod?  40s
+
+Failed:
+
+     ID    NAME        STATUS                  AGE
+  ✕  f1gh  migrate-db  Failed: migration 004…   2h
+
+Working:
+
+     ID    NAME        STATUS              AGE
+  ⠋  w1ij  perf-audit  Running benchmarks   5s
+
+Completed (last 24 h):
+
+     ID    NAME       STATUS        AGE
+  ●  c1kl  old-spike  spike          2h
+
+› rex attach <id>  open a session
+-- text.w80 --
+Overview  updated 40s ago
+
+  Headline  billing-tests is ready for review; deploy asks a question and
+            migrate-db failed
+
+2 ready for review   1 needs you   1 failed   1 working   1 completed
+
+Ready for review:
+
+     ID    NAME           STATUS               AGE
+  ●  r1ab  billing-tests  Done: 48 tests pass   3m
+  ◆  r2cd  api docs       write api docs        9m
+
+Needs you:
+
+     ID    NAME      STATUS           AGE
+  ◆  n1ef  deploy    Deploy to prod?  40s
+
+Failed:
+
+     ID    NAME        STATUS                            AGE
+  ✕  f1gh  migrate-db  Failed: migration 0042 timed out   2h
+
+Working:
+
+     ID    NAME        STATUS              AGE
+  ⠋  w1ij  perf-audit  Running benchmarks   5s
+
+Completed (last 24 h):
+
+     ID    NAME       STATUS        AGE
+  ●  c1kl  old-spike  spike          2h
+
+› rex attach <id>  open a session
+-- text.w120 --
+Overview  updated 40s ago
+
+  Headline  billing-tests is ready for review; deploy asks a question and migrate-db failed
+
+2 ready for review   1 needs you   1 failed   1 working   1 completed
+
+Ready for review:
+
+     ID    NAME           STATUS               AGE
+  ●  r1ab  billing-tests  Done: 48 tests pass   3m
+  ◆  r2cd  api docs       write api docs        9m
+
+Needs you:
+
+     ID    NAME      STATUS           AGE
+  ◆  n1ef  deploy    Deploy to prod?  40s
+
+Failed:
+
+     ID    NAME        STATUS                            AGE
+  ✕  f1gh  migrate-db  Failed: migration 0042 timed out   2h
+
+Working:
+
+     ID    NAME        STATUS              AGE
+  ⠋  w1ij  perf-audit  Running benchmarks   5s
+
+Completed (last 24 h):
+
+     ID    NAME       STATUS        AGE
+  ●  c1kl  old-spike  spike          2h
+
+› rex attach <id>  open a session
+-- text.color.w80 --
+␛[1;38;2;230;230;230mOverview␛[0m  ␛[38;2;121;127;140mupdated 40s ago␛[0m
+
+  ␛[38;2;121;127;140mHeadline␛[0m  billing-tests is ready for review; deploy asks a question and
+            migrate-db failed
+
+␛[38;2;73;222;128m2 ready for review␛[0m   ␛[38;2;229;179;65m1 needs you␛[0m   ␛[38;2;239;68;68m1 failed␛[0m   ␛[38;2;91;141;239m1 working␛[0m   ␛[38;2;73;222;128m1 completed␛[0m
+
+␛[1;38;2;230;230;230mReady for review:␛[0m
+
+     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m           ␛[38;2;121;127;140mSTATUS␛[0m               ␛[38;2;121;127;140mAGE␛[0m
+  ␛[38;2;73;222;128m●␛[0m  r1ab  billing-tests  Done: 48 tests pass   ␛[38;2;121;127;140m3m␛[0m
+  ␛[38;2;73;222;128m◆␛[0m  r2cd  api docs       write api docs        ␛[38;2;121;127;140m9m␛[0m
+
+␛[1;38;2;230;230;230mNeeds you:␛[0m
+
+     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m      ␛[38;2;121;127;140mSTATUS␛[0m           ␛[38;2;121;127;140mAGE␛[0m
+  ␛[38;2;229;179;65m◆␛[0m  n1ef  deploy    Deploy to prod?  ␛[38;2;121;127;140m40s␛[0m
+
+␛[1;38;2;230;230;230mFailed:␛[0m
+
+     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m        ␛[38;2;121;127;140mSTATUS␛[0m                            ␛[38;2;121;127;140mAGE␛[0m
+  ␛[38;2;239;68;68m✕␛[0m  f1gh  migrate-db  Failed: migration 0042 timed out   ␛[38;2;121;127;140m2h␛[0m
+
+␛[1;38;2;230;230;230mWorking:␛[0m
+
+     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m        ␛[38;2;121;127;140mSTATUS␛[0m              ␛[38;2;121;127;140mAGE␛[0m
+  ␛[38;2;91;141;239m⠋␛[0m  w1ij  perf-audit  Running benchmarks   ␛[38;2;121;127;140m5s␛[0m
+
+␛[1;38;2;230;230;230mCompleted (last 24 h):␛[0m
+
+     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m       ␛[38;2;121;127;140mSTATUS␛[0m        ␛[38;2;121;127;140mAGE␛[0m
+  ␛[38;2;73;222;128m●␛[0m  c1kl  old-spike  spike          ␛[38;2;121;127;140m2h␛[0m
+
+␛[1;38;2;91;141;239m› rex attach <id>␛[0m  ␛[38;2;121;127;140mopen a session␛[0m
+-- txt --
+Headline  billing-tests is ready for review; deploy asks a question and migrate-db failed
+
+2 review · 1 needs_you · 1 failed · 1 working · 1 completed
+
+# Ready for review
+
+ID     NAME                      STATE        STATUS               AGE
+r1ab   billing-tests             done         Done: 48 tests pass   3m
+r2cd   api docs                  needs_input  write api docs        9m
+
+# Needs you
+
+ID     NAME                      STATE        STATUS           AGE
+n1ef   deploy                    needs_input  Deploy to prod?  40s
+
+# Failed
+
+ID     NAME                      STATE   STATUS                            AGE
+f1gh   migrate-db                failed  Failed: migration 0042 timed out   2h
+
+# Working
+
+ID     NAME                      STATE    STATUS              AGE
+w1ij   perf-audit                working  Running benchmarks   5s
+
+# Completed (last 24 h)
+
+ID     NAME                      STATE  STATUS  AGE
+c1kl   old-spike                 done   spike    2h
+-- md --
+### Overview
+
+*updated 40s ago*
+
+| Key | Value |
+| --- | --- |
+| Headline | billing-tests is ready for review; deploy asks a question and migrate-db failed |
+
+| Key | Value |
+| --- | --- |
+| ready for review | 2 |
+| needs you | 1 |
+| failed | 1 |
+| working | 1 |
+| completed | 1 |
+
+#### Ready for review
+
+| ID | Name | State | Status | Age |
+| --- | --- | --- | --- | ---: |
+| r1ab | billing-tests | done | Done: 48 tests pass | 3m |
+| r2cd | api docs | needs\_input | write api docs | 9m |
+
+#### Needs you
+
+| ID | Name | State | Status | Age |
+| --- | --- | --- | --- | ---: |
+| n1ef | deploy | needs\_input | Deploy to prod? | 40s |
+
+#### Failed
+
+| ID | Name | State | Status | Age |
+| --- | --- | --- | --- | ---: |
+| f1gh | migrate-db | failed | Failed: migration 0042 timed out | 2h |
+
+#### Working
+
+| ID | Name | State | Status | Age |
+| --- | --- | --- | --- | ---: |
+| w1ij | perf-audit | working | Running benchmarks | 5s |
+
+#### Completed (last 24 h)
+
+| ID | Name | State | Status | Age |
+| --- | --- | --- | --- | ---: |
+| c1kl | old-spike | done | spike | 2h |
+
+`rex attach <id>` open a session
+-- json --
+{"v":1,"cmd":"overview","data":{"overview":{"enabled":true,"headline":"billing-tests is ready for review; deploy asks a question and migrate-db failed","generated_at":"2026-11-11T11:59:20Z"},"buckets":{"completed":["c1-full"],"failed":["f1-full"],"needs_you":["n1-full"],"review":["r1-full","r2-full"],"working":["w1-full"]}}}
+-- agent --
+overview headline="billing-tests is ready for review; deploy asks a question and migrate-db failed" generated_at=2026-11-11T11:59:20Z
+session bucket=review id=r1ab name=billing-tests state=done status="Done: 48 tests pass" age_s=180
+session bucket=review id=r2cd name="api docs" state=needs_input status="write api docs" age_s=540
+session bucket=needs_you id=n1ef name=deploy state=needs_input status="Deploy to prod?" age_s=40
+session bucket=failed id=f1gh name=migrate-db state=failed status="Failed: migration 0042 timed out" age_s=7200
+session bucket=working id=w1ij name=perf-audit state=working status="Running benchmarks" age_s=5
+session bucket=completed id=c1kl name=old-spike state=done status=spike age_s=7200
+ok cmd=overview count=6 review=2 needs_you=1 failed=1 working=1 completed=1
+-- empty.text --
+Overview
+
+no headline: overview is off (rex config set overview_enabled true)
+
+0 ready for review   0 needs you   0 failed   0 working   0 completed
+-- empty.agent --
+ok cmd=overview review=0 needs_you=0 failed=0 working=0 completed=0
+-- empty.json --
+{"v":1,"cmd":"overview","data":{"overview":null,"buckets":{"completed":[],"failed":[],"needs_you":[],"review":[],"working":[]}}}

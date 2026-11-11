@@ -29,6 +29,20 @@ type client struct {
 	// cleanups run when the connection ends (output sinks registered by
 	// Subscribe). Handler goroutine only.
 	cleanups []func()
+	// viewer is set once this connection said Hello as a board viewer and
+	// counted in Server.boardClients. Handler goroutine only.
+	viewer bool
+}
+
+// joinBoard counts the connection as a board viewer (once, however many
+// Hellos it sends) and releases the count when the connection ends.
+func (c *client) joinBoard() {
+	if c.viewer {
+		return
+	}
+	c.viewer = true
+	c.srv.boardClients.Add(1)
+	c.cleanups = append(c.cleanups, func() { c.srv.boardClients.Add(-1) })
 }
 
 // intentHandler serves one intent type. It runs on the connection's handler
@@ -95,7 +109,7 @@ func protocolErrorCode(err error) (code string, ok bool) {
 	}
 }
 
-// subscribeBoard forwards store events and SummarizerHealth to this client,
+// subscribeBoard forwards store events, SummarizerHealth and Overview to this client,
 // both gated on subscribed so nothing arrives before the Hello snapshot.
 func (c *client) subscribeBoard() {
 	c.cleanups = append(c.cleanups,
@@ -107,6 +121,11 @@ func (c *client) subscribeBoard() {
 		c.srv.SubscribeSummarizerHealth(func(h protocol.SummarizerHealth) {
 			if c.subscribed.Load() {
 				c.sendEvent(protocol.EventSummarizerHealth, "", h)
+			}
+		}),
+		c.srv.SubscribeOverview(func(o protocol.Overview) {
+			if c.subscribed.Load() {
+				c.sendEvent(protocol.EventOverview, "", o)
 			}
 		}),
 	)

@@ -283,7 +283,7 @@ func TestBoardMouse_IgnoredWhenDisabled(t *testing.T) {
 // board underneath.
 func TestBoardMouse_OverlaysDoNotLeak(t *testing.T) {
 	foci := map[string]Focus{
-		"help": FocusHelp, "stats": FocusStats, "wizard": FocusWizard, "fail": FocusFail,
+		"help": FocusHelp, "stats": FocusStats, "overview": FocusOverview, "wizard": FocusWizard, "fail": FocusFail,
 		"confirm-delete": FocusConfirmDelete, "confirm-quit": FocusConfirmQuit,
 		"prompt": FocusPrompt, "command": FocusCommand, "rename": FocusRename,
 		"settings": FocusSettings, "boot": FocusBoot,

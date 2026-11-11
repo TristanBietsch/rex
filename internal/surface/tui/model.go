@@ -31,6 +31,7 @@ const (
 	FocusStats
 	FocusRename
 	FocusSearch
+	FocusOverview
 )
 
 // Model is the root Bubble Tea model.
@@ -132,6 +133,13 @@ type Model struct {
 	// via SummarizerHealth events.
 	BackendUnavailable       bool
 	BackendUnavailableReason string
+
+	// Overview is the daemon's board overview (headline over the buckets the
+	// TUI computes itself), from the Snapshot and Overview events. Nil
+	// until the daemon sends one, and from daemons that predate it.
+	Overview *protocol.Overview
+	// OverviewSel is the selected row of the :overview overlay.
+	OverviewSel int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
@@ -280,7 +288,13 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m.Sessions = snap.Sessions
+			m.Overview = snap.Overview
 			m = adoptSnapshotFilter(m, snap.Filter)
+		}
+	case protocol.EventOverview:
+		var o protocol.Overview
+		if err := json.Unmarshal(env.Data, &o); err == nil {
+			m.Overview = &o
 		}
 	case protocol.EventError:
 		var ee protocol.ErrorEvent
@@ -365,6 +379,10 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
 		s.Subagents = int(v)
+	}
+	if raw, ok := patch["wait_reason"]; ok { // "" or null clears it
+		v, _ := raw.(string)
+		s.WaitReason = v
 	}
 	if v, ok := patch["resume_id"].(string); ok {
 		s.ResumeID = v

@@ -408,6 +408,15 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		}
 	}
 	defer clearAgents()
+	// reasons is asserted once too; nil unless the agent reports why it
+	// waits. Cleared with the subagents on every exit path.
+	reasons, _ := s.cfg.Adapter.(adapter.WaitReasoner)
+	clearReason := func() {
+		if reasons != nil {
+			_ = s.cfg.Store.SetWaitReason(sess.ID, "")
+		}
+	}
+	defer clearReason()
 	defer ticker.Stop()
 	// ids is asserted once, like agents; nil unless the agent reports its
 	// conversation id while it runs.
@@ -467,6 +476,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			s.refreshScreenText(sess.ID, screen)
 			captured := captureResumeID()
 			clearAgents()
+			clearReason()
 			sess.SetExit(protocol.StateDone, nil)
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
@@ -489,6 +499,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			// persisted meta reflects the terminal state.
 			sess.SetExit(final, exitCode)
 			clearAgents()
+			clearReason()
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
 				return fmt.Errorf("write final meta: %w", err)
 			}
@@ -522,6 +533,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			if agents != nil {
 				_ = s.cfg.Store.SetSubagents(sess.ID, agents.Subagents()) // broadcasts only a change
+			}
+			if reasons != nil {
+				_ = s.cfg.Store.SetWaitReason(sess.ID, reasons.WaitReason()) // broadcasts only a change
 			}
 			if waits != nil {
 				kind, since := waits.Waiting()
