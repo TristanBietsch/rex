@@ -11,6 +11,7 @@
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
+//	    snapshots/<key>/           SnapshotsDir: turn-snapshot shadow stores, 0700
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
 //	    <name>.log                 rexlog files (daemon, tui, setup, ...)
@@ -53,6 +54,7 @@ const (
 	luaInitFileName  = "init.lua"
 	skillsDirName    = "skills"
 	sessionsDirName  = "sessions"
+	snapshotsDirName = "snapshots"
 	daemonLockName   = "daemon.lock"
 	daemonLogName    = "daemon.log"
 	tuiStateFileName = "tui-state.json"
@@ -76,6 +78,7 @@ type Layout struct {
 	SkillsDir    string // ~/.config/rex/skills
 	DataDir      string // ~/.local/share/rex
 	SessionsDir  string // ~/.local/share/rex/sessions
+	SnapshotsDir string // ~/.local/share/rex/snapshots
 	DaemonLock   string // ~/.local/share/rex/daemon.lock
 	LogDir       string // ~/.local/state/rex
 	DaemonLog    string // ~/.local/state/rex/daemon.log
@@ -100,6 +103,7 @@ func ForHome(home string) Layout {
 		SkillsDir:    filepath.Join(config, skillsDirName),
 		DataDir:      data,
 		SessionsDir:  filepath.Join(data, sessionsDirName),
+		SnapshotsDir: filepath.Join(data, snapshotsDirName),
 		DaemonLock:   filepath.Join(data, daemonLockName),
 		LogDir:       logs,
 		DaemonLog:    filepath.Join(logs, daemonLogName),
@@ -182,6 +186,10 @@ func SkillsDir() (string, error) { return field(func(l Layout) string { return l
 // DataDir returns ~/.local/share/rex, the durable session data root
 // (rex-daemon -state-dir default).
 func DataDir() (string, error) { return field(func(l Layout) string { return l.DataDir }) }
+
+// SnapshotsDir returns ~/.local/share/rex/snapshots, the root of the turn
+// snapshot shadow stores (one folder store per working folder, 0700).
+func SnapshotsDir() (string, error) { return field(func(l Layout) string { return l.SnapshotsDir }) }
 
 // SessionsDir returns ~/.local/share/rex/sessions, which holds one
 // directory per session.
