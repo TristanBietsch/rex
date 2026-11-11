@@ -26,6 +26,7 @@ type Worker struct {
 	client     *Client
 	transcript TranscriptReader
 
+	subscribed chan struct{} // closed by Start once it is subscribed to the store (tests wait on it)
 	retryDelay time.Duration // pause before the one transient retry
 	detail     atomic.Int32  // a Detail; the zero value is DetailShort, so New stores medium
 
@@ -46,6 +47,13 @@ type Worker struct {
 type sessionMeta struct {
 	lastSubmittedAt time.Time
 	lastHash        uint64
+	// final is set once a terminal-state (done, failed, crashed) summary has
+	// been produced; it is cleared when the session goes live again.
+	final bool
+}
+
+func isTerminal(s protocol.State) bool {
+	return s == protocol.StateDone || s == protocol.StateFailed || s == protocol.StateCrashed
 }
 
 // preferredFallbacks are small, fast, non-"thinking" models suited to a
@@ -97,6 +105,7 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		client:     NewClient(cfg),
 		transcript: transcript,
 		ch:         make(chan string, 64),
+		subscribed: make(chan struct{}),
 		retryDelay: 500 * time.Millisecond,
 		wake:       make(chan struct{}, 1),
 		slot:       make(chan struct{}, 1),
@@ -165,13 +174,30 @@ func (w *Worker) Start(ctx context.Context) error {
 	// The callback follows the store contract: it takes a mutex and returns.
 	unsub := w.store.Subscribe(w.onEvent)
 	defer unsub()
+	close(w.subscribed)
 	return w.loop(ctx)
 }
 
-// onEvent prunes what the worker holds for a removed session.
+// onEvent reacts to the store: a removed session is forgotten; a state change
+// queues the session ahead of ordinary requests, because the state changes
+// what the description should say. A move to done, failed or crashed queues
+// the one final summary; a move back to a live state (a resume, or undoing
+// done) re-arms it. It runs on the store's goroutines, so it only takes a
+// mutex and returns.
 func (w *Worker) onEvent(e state.Event) {
-	if e.Kind == state.EventRemoved {
+	switch {
+	case e.Kind == state.EventRemoved:
 		w.forget(e.SessionID)
+	case e.Kind == state.EventUpdated && e.NewState != nil:
+		if !isTerminal(*e.NewState) {
+			w.mu.Lock()
+			if m := w.perSess[e.SessionID]; m != nil {
+				m.final = false
+			}
+			w.mu.Unlock()
+		}
+		w.enqueue(e.SessionID, time.Now(), true)
+		w.wakeup()
 	}
 }
 
@@ -181,15 +207,18 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		return
 	}
 	snap := sess.Summary()
-	if snap.State == protocol.StateDone || snap.State == protocol.StateFailed || snap.State == protocol.StateCrashed {
-		return
-	}
+	terminal := isTerminal(snap.State)
 
 	w.mu.Lock()
 	meta := w.perSess[id]
 	if meta == nil {
 		meta = &sessionMeta{}
 		w.perSess[id] = meta
+	}
+	if terminal && meta.final {
+		// One final summary per run of the session, then nothing more.
+		w.mu.Unlock()
+		return
 	}
 	w.mu.Unlock()
 
@@ -217,7 +246,10 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 	hash := h.Sum64()
 
 	w.mu.Lock()
-	if hash == meta.lastHash && meta.lastHash != 0 {
+	if hash == meta.lastHash && meta.lastHash != 0 && !req.prio {
+		if terminal {
+			meta.final = true
+		}
 		w.mu.Unlock()
 		slog.Debug("summarizer: skipped_unchanged", "session", id)
 		return
@@ -263,6 +295,9 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 
 	w.mu.Lock()
 	meta.lastHash = hash
+	if terminal {
+		meta.final = true
+	}
 	w.mu.Unlock()
 
 	if err := w.store.UpdateDescription(id, cleaned); err != nil {

@@ -77,6 +77,7 @@ func startWorker(t *testing.T, cfg Config, st *state.Store, tr TranscriptReader)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Start(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
+	<-w.subscribed
 	return w
 }
 

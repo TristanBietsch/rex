@@ -99,31 +99,6 @@ func TestWorkerSkipsIfUnchangedHash(t *testing.T) {
 	}
 }
 
-func TestWorkerSkipsTerminalState(t *testing.T) {
-	var calls int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&calls, 1)
-		_, _ = io.WriteString(w, `{"response":"x"}`)
-	}))
-	defer srv.Close()
-	st, sess := newTestStoreWithSession("sess-cccc")
-	sess.State = protocol.StateDone
-
-	cfg := Defaults()
-	cfg.BaseURL = srv.URL
-	cfg.MinInterval = 0
-	w := New(cfg, st, transcriptStub("anything"))
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _ = w.Start(ctx) }()
-
-	w.Channel() <- "sess-cccc"
-	time.Sleep(150 * time.Millisecond)
-	if got := atomic.LoadInt32(&calls); got != 0 {
-		t.Fatalf("expected 0 calls (terminal state), got %d", got)
-	}
-}
-
 // transcriptStub is the TranscriptReader fixture used by the tests: returns the
 // same bytes regardless of session/max.
 func transcriptStub(s string) TranscriptReader {
