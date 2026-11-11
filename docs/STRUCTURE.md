@@ -60,6 +60,7 @@ internal/
 │   └── rexlog/             # file-backed slog for daemon/TUI
 ├── features/               # optional enhancements
 │   ├── summarizer/         # Ollama descriptions
+│   ├── overview/           # board buckets, digest, headline runner
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)

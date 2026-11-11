@@ -21,6 +21,7 @@ Session lifecycle / IO registration (used by `client.go` handlers and supervisor
 - `TryAcquireSession`, `ReleaseSession`, `SetMaxConcurrentSessions`, `MaxConcurrentSessions`
 - `RegisterInputChannel`, `UnregisterInputChannel`, `InputChannel`
 - `SubscribeSessionOutput`, `SubscribeSummarizerHealth`, `BroadcastSummarizerHealth`
+- `SetOverview` (sanitizes the headline again, stores it in memory, fans it out as an `Overview` event), `Overview`, `SubscribeOverview`, `BoardClients` (open connections that said Hello as `protocol.ClientTUI`), `Config.OnBoardClient`
 - `RegisterResize`, `UnregisterResize`, `Resize`
 - `RegisterModePreamble`, `UnregisterModePreamble`, `ModePreamble`
 - `RegisterAttach`, `UnregisterAttach` — the supervisor's output-hold hook; `handleSubscribe` sends replay/repaint and registers its sink inside it (`withOutputHeld`)
