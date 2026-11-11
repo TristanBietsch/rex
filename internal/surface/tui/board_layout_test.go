@@ -198,7 +198,7 @@ func TestBoardLayout_NoneAlignsWithIDColumn(t *testing.T) {
 	m := layoutModel(now, 120, layoutSessions(now)[0])
 	var noneLine, rowLine string
 	for _, line := range strings.Split(ansi.Strip(renderBoard(m, 120, 0)), "\n") {
-		if strings.Contains(line, emptyGroupText[groupWorking]) && noneLine == "" {
+		if strings.Contains(line, boardGroups[groupWorking].Empty) && noneLine == "" {
 			noneLine = line
 		}
 		if strings.Contains(line, "7d4f") {
@@ -210,5 +210,5 @@ func TestBoardLayout_NoneAlignsWithIDColumn(t *testing.T) {
 		require.GreaterOrEqual(t, i, 0, "board has no line containing %q", needle)
 		return ansi.StringWidth(line[:i])
 	}
-	require.Equal(t, x(rowLine, "7d4f"), x(noneLine, emptyGroupText[groupWorking]))
+	require.Equal(t, x(rowLine, "7d4f"), x(noneLine, boardGroups[groupWorking].Empty))
 }

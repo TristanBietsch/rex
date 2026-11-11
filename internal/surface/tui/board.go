@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 // navigation, jump-to-section) reads from boardGroups so the three views stay
 // in sync. Adding a new state means updating exactly one place.
 type boardGroup struct {
+	// ID is the stable handle for the section ("needs", "working", "done").
+	ID    string
 	Title string
 	// Count names the column's sessions after a number, as on the
 	// screensaver ("2 working").
@@ -23,7 +26,12 @@ type boardGroup struct {
 	// Alert marks a column that wants the user: its title and count are
 	// highlighted while it holds any session.
 	Alert bool
-	Match func(protocol.SessionSummary) bool
+	// Empty is the line an empty column shows.
+	Empty string
+	// Completed marks the column that holds finished work (it folds past
+	// doneCollapseAt rows).
+	Completed bool
+	Match     func(protocol.SessionSummary) bool
 }
 
 // isMarkedDone reports whether the user marked the session done (it then
@@ -37,13 +45,13 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 // agent not started yet; marker ◌): every state must land in some group, or
 // the session is invisible and unreachable by keyboard.
 var boardGroups = []boardGroup{
-	{Title: "Needs you", Count: "need you", Alert: true, Match: func(s protocol.SessionSummary) bool {
+	{ID: "needs", Title: "Needs you", Count: "need you", Alert: true, Empty: "nothing waiting on you", Match: func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
 	}},
-	{Title: "Working", Count: "working", Match: func(s protocol.SessionSummary) bool {
+	{ID: "working", Title: "Working", Count: "working", Empty: "nothing running", Match: func(s protocol.SessionSummary) bool {
 		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued)
 	}},
-	{Title: "Done", Count: "done", Match: inCompleted},
+	{ID: "done", Title: "Done", Count: "done", Empty: "nothing finished yet", Completed: true, Match: inCompleted},
 }
 
 // styleAlert highlights an Alert column's title and count while it holds
@@ -99,8 +107,34 @@ func visibleRows(m Model, gi int) []protocol.SessionSummary {
 	return filterByGroup(m.Sessions, boardGroups[gi], m.Filter)
 }
 
-// emptyGroupText is the line an empty column shows.
-var emptyGroupText = []string{"nothing waiting on you", "nothing running", "nothing finished yet"}
+// resolveSection maps a user reference to a boardGroups index: an ID, a
+// unique ID prefix, the title with spaces ignored, or a 1-based number.
+func resolveSection(ref string) (int, error) {
+	r := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(ref), " ", ""))
+	if n, err := strconv.Atoi(r); err == nil {
+		if n >= 1 && n <= len(boardGroups) {
+			return n - 1, nil
+		}
+	} else if r != "" {
+		prefix, hits := 0, 0
+		for i, g := range boardGroups {
+			if r == g.ID || r == strings.ToLower(strings.ReplaceAll(g.Title, " ", "")) {
+				return i, nil
+			}
+			if strings.HasPrefix(g.ID, r) {
+				prefix, hits = i, hits+1
+			}
+		}
+		if hits == 1 {
+			return prefix, nil
+		}
+	}
+	ids := make([]string, len(boardGroups))
+	for i, g := range boardGroups {
+		ids[i] = g.ID
+	}
+	return 0, fmt.Errorf("unknown section %q: use %s or 1-%d", ref, strings.Join(ids, ", "), len(boardGroups))
+}
 
 // inCompleted reports whether a session sits in the Done column.
 func inCompleted(s protocol.SessionSummary) bool {
@@ -319,7 +353,7 @@ func renderBoard(m Model, width, height int) string {
 		case slotTitle:
 			lines = append(lines, groupTitle(m, sl.group, width))
 		case slotNone:
-			lines = append(lines, noneIndent+styleMuted.Render(emptyGroupText[sl.group]))
+			lines = append(lines, noneIndent+styleMuted.Render(boardGroups[sl.group].Empty))
 		case slotRow:
 			lines = append(lines, renderRow(m, sl.sess, cols))
 		}
