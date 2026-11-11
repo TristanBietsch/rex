@@ -120,10 +120,64 @@ tools:
           default: medium
           arg_template: "-c model_reasoning_effort={value}"
 
+  # Antigravity CLI (agy): Google's successor to Gemini CLI, which was
+  # retired 2026-06-18. A full-screen TUI. Model slugs come from
+  # `agy models`; a Gemini slug carries its effort, so the effort picks it.
+  - id: antigravity
+    name: "Antigravity CLI"
+    category: paid
+    command: ["agy"]
+    detect:
+      kind: heuristic
+      # agy keeps its ">" input line on screen while it works, so only the
+      # footer tells the states apart: "? for shortcuts" when idle, "esc to
+      # cancel" (with a "Generating..." spinner) while working. busy_regex
+      # wins when it came after the last prompt match, so a quiet stretch in
+      # a turn stays working; a screen frozen 15 s still reads as waiting
+      # (a permission question). The trust dialog matches neither and reads
+      # as waiting after 15 s too.
+      prompt_regex: "\\? for shortcuts"
+      busy_regex: "esc to cancel"
+      idle_ms: 1200
+    # Folders in auto_trust_dirs: agy trusts them itself for this session
+    # (--settings is session-only and never saved), so no dialog shows.
+    trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
+    icon: "◈"
+    color: "#4285F4"
+    models:
+      - id: gemini-3.8-flash
+        name: "Gemini 3.8 Flash"
+        args: ["--model=gemini-3.8-flash-high"]
+        effort:
+          options: [low, medium, high]
+          default: high
+          arg_template: "--model=gemini-3.8-flash-{value}"
+      - id: claude-sonnet-4-6
+        name: "Claude Sonnet 4.6"
+        args: ["--model=claude-sonnet-4-6"]
+        effort:
+          options: [low, medium, high, xhigh, max]
+          default: medium
+          arg_template: "--effort={value}"
+      - id: claude-opus-4-6
+        name: "Claude Opus 4.6"
+        args: ["--model=claude-opus-4-6-thinking"]
+        effort:
+          options: [low, medium, high, xhigh, max]
+          default: medium
+          arg_template: "--effort={value}"
+      - id: gpt-oss-120b
+        name: "GPT-OSS 120B"
+        args: ["--model=gpt-oss-120b-medium"]
+
+  # Gemini CLI, retired 2026-06-18 in favor of antigravity. Kept hidden (not
+  # in the wizard) so an existing install, a partial `gemini` overlay in
+  # tools.yaml, or a saved default_spawn_tool keeps working.
   - id: gemini
     name: "Gemini CLI"
     category: paid
     command: ["gemini"]
+    enabled_by_default: false
     detect:
       kind: heuristic
       # [ \t] not \s: \s matches newlines and lets ">" span lines.

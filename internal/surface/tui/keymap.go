@@ -211,7 +211,7 @@ func jumpToSection(m Model, groupIdx int) Model {
 }
 
 // filterTools is the filter chip order (header chips and the t cycle).
-var filterTools = []string{"all", "claude", "codex", "gemini", "ollama"}
+var filterTools = []string{"all", "claude", "codex", "antigravity", "ollama"}
 
 func cycleFilter(m Model) Model {
 	next := 0

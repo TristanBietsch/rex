@@ -16,7 +16,7 @@ func benchSessions(n int) []protocol.SessionSummary {
 		protocol.StateWorking,
 		protocol.StateDone,
 	}
-	tools := []string{"claude", "codex", "gemini", "ollama", "echo"}
+	tools := []string{"claude", "codex", "antigravity", "ollama", "echo"}
 	out := make([]protocol.SessionSummary, n)
 	for i := 0; i < n; i++ {
 		out[i] = protocol.SessionSummary{

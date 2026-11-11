@@ -73,7 +73,7 @@ The **text** is the task you gave the session. A session that needs you shows th
 | `1`, `2` | Jump to Needs you / Working |
 | `3` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
-| `t` | Cycle tool filter (`all`, `claude`, `codex`, `gemini`, `ollama`) |
+| `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
 | `i` | Focus bottom prompt (quick-spawn) |
@@ -144,7 +144,7 @@ Agents on the primary screen (codex inline, ollama, echo, Claude Code without fu
 
 Scrolling back down to the bottom also returns to live output, as does the agent switching to the alternate screen. The title shows `SCROLL ↑N/total`. New output keeps the view where it is and the footer counts it (`↓ N new · G/esc to resume`). `ctrl+]` still detaches and `::` still opens the command bar. Kept lines are shown at their original width: wider lines are cut, narrower ones padded (no reflow after a resize).
 
-Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, gemini, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept.
+Line-oriented agents (ollama, echo) are attached with transcript replay, so their scrollback includes output from before the popup opened. Full-screen tools in rex's list (claude, codex, antigravity, …) are attached without replay, so for those only lines that scroll off while the popup is open are kept.
 
 ## RENAME
 

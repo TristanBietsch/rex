@@ -163,3 +163,52 @@ func TestHeuristic_StaleSilenceIsNeedsInput(t *testing.T) {
 	require.Equal(t, protocol.StateWorking, h.Detect(dialog, 2*time.Second))
 	require.Equal(t, protocol.StateNeedsInput, h.Detect(dialog, staleWorking))
 }
+
+// agy-style turn, built from the escape patterns its TUI writes (no real
+// session data): the idle footer, a turn that swaps the footer to "esc to
+// cancel" with a spinner, then the idle footer again.
+var (
+	agyIdleFooter = "\x1b[?25l\r\x1b[2A\x1b[K\n\n\n\n\x1b[90m? for shortcuts\x1b[m\x1b[2A\x1b[13D\x1b[?25h"
+	agyBusyFooter = "\x1b[?25l\r\x1b[2A\xe2\xa3\xb7  \x1b[90mGenerating...\x1b[m\r\n\n\n\n\x1b[90mesc to cancel\x1b[m  \x1b[2A\x1b[13D\x1b[?25h"
+	agyInputLine  = "\x1b[20;1H\x1b[K> \x1b[20;3H"
+)
+
+func agyHeuristic(t *testing.T) *HeuristicCLI {
+	t.Helper()
+	h, err := NewHeuristic(`\? for shortcuts`, "", 1200*time.Millisecond)
+	require.NoError(t, err)
+	require.NoError(t, h.setBusy("esc to cancel"))
+	return h
+}
+
+func TestHeuristic_BusyFooterAfterPromptIsWorking(t *testing.T) {
+	h := agyHeuristic(t)
+	idle := []byte(agyInputLine + agyIdleFooter)
+	require.Equal(t, protocol.StateNeedsInput, h.Detect(idle, 2*time.Second), "idle footer")
+
+	turn := append(append([]byte{}, idle...), []byte(agyBusyFooter+agyInputLine)...)
+	require.Equal(t, protocol.StateWorking, h.Detect(turn, 2*time.Second),
+		"a quiet stretch mid-turn: the old idle footer is still in the window")
+	require.Equal(t, protocol.StateNeedsInput, h.Detect(turn, staleWorking),
+		"frozen 15 s with the busy footer: waiting on the user (e.g. a permission question)")
+
+	done := append(append([]byte{}, turn...), []byte("  1\r\n  2\r\n"+agyIdleFooter)...)
+	require.Equal(t, protocol.StateNeedsInput, h.Detect(done, 2*time.Second), "turn over: idle footer last")
+}
+
+// Without the busy pattern the same quiet stretch reads as waiting: the
+// regression busy_regex fixes.
+func TestHeuristic_WithoutBusyQuietTurnLooksIdle(t *testing.T) {
+	h, err := NewHeuristic(`\? for shortcuts`, "", 1200*time.Millisecond)
+	require.NoError(t, err)
+	turn := []byte(agyInputLine + agyIdleFooter + agyBusyFooter + agyInputLine)
+	require.Equal(t, protocol.StateNeedsInput, h.Detect(turn, 2*time.Second))
+}
+
+func TestHeuristic_BusyRegexMustCompile(t *testing.T) {
+	h, err := NewHeuristic(`x`, "", time.Second)
+	require.NoError(t, err)
+	require.Error(t, h.setBusy("("))
+	require.NoError(t, h.setBusy(""))
+	require.Nil(t, h.busy)
+}

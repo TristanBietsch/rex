@@ -54,13 +54,14 @@ filesystem permissions.
   daemon with your privileges and is not sandboxed. Anyone who can edit it
   can already run code as you. The same applies to `tools.yaml` and
   `config.yaml`, which choose the programs rex spawns.
-- What the agent CLIs themselves do (Claude Code, Codex, Gemini and others),
+- What the agent CLIs themselves do (Claude Code, Codex, Antigravity and others),
   including the commands they run in your repository.
 - Folders you list in the `auto_trust_dirs` setting. For sessions there,
-  rex accepts the agent's "trust this folder" dialog, so the repository's
-  own agent settings apply without that prompt. The setting is empty by
-  default, and `rex setup` sets it only when you answer yes or pass
-  `-auto-trust`. rex accepting the dialog for a folder you did not list is
+  rex starts the agent with the folder trusted (Antigravity, for that
+  session only) or answers its "trust this folder" dialog (Claude Code),
+  so the repository's own agent settings apply without that prompt. The
+  setting is empty by default, and `rex setup` sets it only when you
+  answer yes or pass `-auto-trust`. rex trusting a folder you did not list is
   in scope.
 - An attacker who already runs code as your user, or as root.
 - Vulnerabilities in third-party dependencies that rex does not reach. Use
