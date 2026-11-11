@@ -95,7 +95,8 @@ func rewriteLedger(dir string, entries []Entry) error {
 
 // progress is one session's place in its turn history, folded from the
 // ledger. cursor is how many turns are currently applied; starts holds the
-// start tree of each turn still in the history; undone is the stack of
+// start tree of each turn still in the history (empty when its capture
+// failed: the turn is not undoable); undone is the stack of
 // safety captures redo pops.
 type progress struct {
 	cursor int
@@ -122,7 +123,9 @@ func fold(entries []Entry, session string) progress {
 			p.starts[e.Turn] = e.Tree
 			p.cursor = e.Turn
 			p.undone = nil
-			p.last = e.Tree
+			if e.Tree != "" {
+				p.last = e.Tree
+			}
 		case PhaseEnd, PhasePreRedo:
 			p.last = e.Tree
 		case PhaseSafety:
@@ -139,4 +142,15 @@ func fold(entries []Entry, session string) progress {
 		}
 	}
 	return p
+}
+
+// Entries returns the ledger of cwd's folder store in order (nil when the
+// folder has no store).
+func (s *Store) Entries(cwd string) ([]Entry, error) {
+	if err := checkCWD(cwd); err != nil {
+		return nil, err
+	}
+	dir := s.dirFor(cwd)
+	defer s.lock(dir)()
+	return readLedger(dir)
 }

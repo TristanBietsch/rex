@@ -125,3 +125,26 @@ func (s *Store) MarkRemoved(cwd, session string) error {
 	}
 	return appendLedger(dir, Entry{SessionID: session, Phase: phaseRemoved, At: s.now().UTC()})
 }
+
+// MarkMissed records that session's turn start could not be captured, so
+// that turn is reported as not undoable instead of an earlier turn being
+// undone in its place.
+func (s *Store) MarkMissed(cwd, session string) error {
+	if err := checkCWD(cwd); err != nil {
+		return err
+	}
+	if err := checkSession(session); err != nil {
+		return err
+	}
+	dir := s.dirFor(cwd)
+	defer s.lock(dir)()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	entries, err := readLedger(dir)
+	if err != nil {
+		return err
+	}
+	p := fold(entries, session)
+	return appendLedger(dir, Entry{SessionID: session, Turn: p.cursor + 1, Phase: PhaseStart, At: s.now().UTC()})
+}

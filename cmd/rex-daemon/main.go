@@ -20,6 +20,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/features/overview"
+	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
@@ -163,6 +164,16 @@ func run(args []string) error {
 	// shutdown is stuck instead of being swallowed.
 	context.AfterFunc(ctx, stop)
 
+	// Turn snapshots: inert (no goroutine, no file, no subprocess) while the
+	// turn_snapshots setting is off. The store lives under the state dir.
+	snapStore := snapshot.NewStore(filepath.Join(*stateDir, "snapshots"))
+	snaps := boot.NewSnapshots(ctx, snapStore, store)
+	defer snaps.Close()
+	snaps.SetEnabled(settings.FeatureOn(settingsStore, "turn_snapshots"))
+	go retainSnapshots(ctx, snapStore, store)
+	// One settings watcher: every feature adds its applier to this list.
+	appliers := []func(*settings.Store){snaps.Applier()}
+
 	var srv *server.Server
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
@@ -217,9 +228,9 @@ func run(args []string) error {
 			}
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
-		// One settings watcher: later features add an applier here.
-		go boot.WatchSettings(ctx, settingsPath, 5*time.Second, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
+		appliers = append(appliers, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
 	}
+	go boot.WatchSettings(ctx, settingsPath, 5*time.Second, appliers...)
 
 	// SIGHUP → reload tools.yaml.
 	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
@@ -233,6 +244,25 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
+}
+
+// retainSnapshots applies the snapshot retention rules once at start: refs of
+// sessions removed more than 7 days ago go, a store over 2 GiB loses its
+// oldest sessions, and a store is garbage collected at most once a day. It
+// runs whether or not the feature is on: turning it off keeps old snapshots
+// only until retention removes them.
+func retainSnapshots(ctx context.Context, st *snapshot.Store, sessions *state.Store) {
+	rep, err := st.Retain(ctx, snapshot.RetainOpts{Live: func(id string) bool {
+		_, ok := sessions.Get(id)
+		return ok
+	}})
+	if err != nil && ctx.Err() == nil {
+		slog.Warn("daemon: snapshot retention failed", "err", err)
+		return
+	}
+	if len(rep.Dropped) > 0 || rep.GCRuns > 0 {
+		slog.Info("daemon: snapshot retention", "dropped_sessions", len(rep.Dropped), "gc_runs", rep.GCRuns)
+	}
 }
 
 // lockError explains a failed state-dir lock. When another daemon holds it,

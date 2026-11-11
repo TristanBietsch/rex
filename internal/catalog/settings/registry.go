@@ -152,6 +152,12 @@ var Registry = []Setting{
 		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
 	},
 
+	{
+		ID: "turn_snapshots", Label: "Turn snapshots and undo", Section: SectionFeatures,
+		Type: TypeBool, Default: false,
+		Help: "Snapshot a session's folder at the start and end of every agent turn into a private store under ~/.local/share/rex/snapshots, so rex undo can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as .env unless they are gitignored. Off: no snapshot, no git call, and rex undo refuses.",
+	},
+
 	// Spawn
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,

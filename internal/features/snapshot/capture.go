@@ -90,7 +90,11 @@ func (s *Store) capture(ctx context.Context, dir, cwd, session string, phase Pha
 	if err != nil {
 		return "", err
 	}
-	env := gitEnv(shadowOf(dir), cwd, filepath.Join(shadowOf(dir), "index-"+session))
+	index := filepath.Join(shadowOf(dir), "index-"+session)
+	env := gitEnv(shadowOf(dir), cwd, index)
+	// An earlier capture killed at its time limit can leave its index lock
+	// behind; this folder's lock means nobody else holds it.
+	_ = os.Remove(index + ".lock")
 	if err := s.ensure(ctx, dir, cwd, exclude, nil); err != nil {
 		return "", err
 	}
