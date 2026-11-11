@@ -14,6 +14,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -88,6 +89,11 @@ type Config struct {
 	// at each spawn and Resume. Off: skills are refused at NewSession and no
 	// plugin folder is added. nil: on.
 	SkillsEnabled func() bool
+	// Snapshots is the turn-snapshot store behind Undo and Redo, and
+	// SnapshotsEnabled reports whether the turn_snapshots feature is on
+	// (called per Undo/Redo). Off or nil: both intents are refused.
+	Snapshots        *snapshot.Store
+	SnapshotsEnabled func() bool
 	// UsageTap returns the statusLine command to add to a Claude session's
 	// --settings (the usage status-line tap), or "" for none. Called at each
 	// spawn and Resume with the session id. nil: none.

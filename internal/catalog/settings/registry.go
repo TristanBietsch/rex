@@ -165,6 +165,12 @@ var Registry = []Setting{
 	},
 
 	{
+		ID: "turn_snapshots", Label: "Turn snapshots and undo", Section: SectionFeatures,
+		Type: TypeBool, Default: false,
+		Help: "Snapshot a session's folder at the start and end of every agent turn into a private store under ~/.local/share/rex/snapshots, so rex undo can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as .env unless they are gitignored. Off: no snapshot, no git call, and rex undo refuses.",
+	},
+
+	{
 		ID: "usage", Label: "Usage tracking", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "Track agent usage: a ledger of tokens and cost per session (~/.local/share/rex/usage.jsonl) for rex usage, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written, nothing is polled, and rex usage refuses.",

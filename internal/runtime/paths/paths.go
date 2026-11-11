@@ -12,6 +12,7 @@
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
+//	    snapshots/<key>/           SnapshotsDir: turn-snapshot shadow stores, 0700
 //	    exports/                   ExportsDir: files :export writes (0600)
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
@@ -55,6 +56,7 @@ const (
 	luaInitFileName  = "init.lua"
 	skillsDirName    = "skills"
 	sessionsDirName  = "sessions"
+	snapshotsDirName = "snapshots"
 	exportsDirName   = "exports"
 	daemonLockName   = "daemon.lock"
 	usageLedgerName  = "usage.jsonl"
@@ -80,6 +82,7 @@ type Layout struct {
 	SkillsDir    string // ~/.config/rex/skills
 	DataDir      string // ~/.local/share/rex
 	SessionsDir  string // ~/.local/share/rex/sessions
+	SnapshotsDir string // ~/.local/share/rex/snapshots
 	ExportsDir   string // ~/.local/share/rex/exports
 	DaemonLock   string // ~/.local/share/rex/daemon.lock
 	UsageLedger  string // ~/.local/share/rex/usage.jsonl
@@ -106,6 +109,7 @@ func ForHome(home string) Layout {
 		SkillsDir:    filepath.Join(config, skillsDirName),
 		DataDir:      data,
 		SessionsDir:  filepath.Join(data, sessionsDirName),
+		SnapshotsDir: filepath.Join(data, snapshotsDirName),
 		ExportsDir:   filepath.Join(data, exportsDirName),
 		DaemonLock:   filepath.Join(data, daemonLockName),
 		UsageLedger:  filepath.Join(data, usageLedgerName),
@@ -190,6 +194,10 @@ func SkillsDir() (string, error) { return field(func(l Layout) string { return l
 // DataDir returns ~/.local/share/rex, the durable session data root
 // (rex-daemon -state-dir default).
 func DataDir() (string, error) { return field(func(l Layout) string { return l.DataDir }) }
+
+// SnapshotsDir returns ~/.local/share/rex/snapshots, the root of the turn
+// snapshot shadow stores (one folder store per working folder, 0700).
+func SnapshotsDir() (string, error) { return field(func(l Layout) string { return l.SnapshotsDir }) }
 
 // SessionsDir returns ~/.local/share/rex/sessions, which holds one
 // directory per session.

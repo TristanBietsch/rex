@@ -27,6 +27,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Turn snapshots and undo, off by default (Settings → Features,
+  `turn_snapshots`). The daemon snapshots a session's folder at the start
+  and end of every agent turn into a private store under
+  `~/.local/share/rex/snapshots` (only folders inside a git repo; your repo
+  is never touched), and `rex undo <sel> [-turns N] [-force] [-yes]` puts the
+  files back the way they were before the last turn, `rex redo <sel>` brings
+  them back. Undo refuses while the session is working or another live
+  session shares the folder (unless `-force`), asks first with file counts
+  (`-yes` without a terminal), and does not undo shell side effects. The
+  agent is not told. Snapshots keep file contents, including untracked
+  secrets such as `.env`, so read [docs/snapshots.md](docs/snapshots.md)
+  before turning it on. Kept 7 days after a session is removed, at most
+  2 GiB per folder. It follows what git ignores in your repo (also for a
+  session in a repo subfolder), refuses an undo that would overwrite
+  anything no snapshot holds (a nested clone, a big file, an ignored
+  folder) and needs git 2.32 or newer. `rex doctor` shows the store size per folder, whether
+  `git` is found and warns about untracked `.env*` files. New `Undo` and
+  `Redo` intents with an `UndoResult` reply (additive). The TUI `:undo`
+  dialog comes later.
 - Usage tracking, first part (the `usage` feature, on by default):
   `rex-daemon statusline-tap`, a Claude Code status line that sends plan
   rate-limit, cost and model fields to the daemon and then runs your own
