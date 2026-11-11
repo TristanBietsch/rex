@@ -20,7 +20,7 @@ func renderDeleteConfirm(m Model, width int) string {
 		// :prune ignores the board's filters: say so, so nobody reads the
 		// count as "what is visible".
 		scope := ""
-		if rowFilterOf(m).rowsActive() || len(m.Hidden) > 0 {
+		if rowFilterOf(m).rowsActive() || len(rowFilterOf(m).hidden) > 0 {
 			scope = " (all Done sessions, filters ignored)"
 		}
 		line := styleArrowYellow.Render("?") + " " +

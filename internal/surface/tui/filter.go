@@ -106,7 +106,7 @@ func setSectionHidden(m Model, id string, hide bool) Model {
 // jump aimed at it would have nowhere to go.
 func hiddenNotice(m *Model, gi int) bool {
 	g := boardGroups[gi]
-	if !m.Hidden[g.ID] {
+	if !rowFilterOf(*m).hidden[g.ID] {
 		return false
 	}
 	hint := "z" + strconv.Itoa(gi+1)
@@ -225,10 +225,11 @@ func searchStatus(m Model) string {
 
 // hiddenStatus names the hidden sections ("done hidden (zh)"), or "".
 func hiddenStatus(m Model) string {
+	hidden := rowFilterOf(m).hidden
 	var names []string
 	var first int
 	for i, g := range boardGroups {
-		if m.Hidden[g.ID] {
+		if hidden[g.ID] {
 			if len(names) == 0 {
 				first = i
 			}
@@ -250,7 +251,7 @@ func hiddenStatus(m Model) string {
 
 // hiddenSectionsFrom reads the board_hidden_sections setting.
 func hiddenSectionsFrom(st *settings.Store) map[string]bool {
-	if st == nil {
+	if st == nil || !settings.FeatureOn(st, "board_filter") {
 		return nil
 	}
 	raw, _ := st.Get("board_hidden_sections").(string)

@@ -58,7 +58,12 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 
 One on/off switch per optional feature. A feature that is off is inert: no background work, no file writes, its keys do nothing and its commands refuse with `off: enable in Settings → Features (rex config set <flag> true)`. Existing toggles (`summary_enabled`, `skip_permissions`, …) stay in their own sections. Code reads a switch with `settings.FeatureOn(store, id)`, which panics for an id outside this section.
 
-_No switches yet._
+| ID | Type | Default | Notes |
+|----|------|---------|-------|
+| `board_filter` | bool | `true` | Tool filter chips, `:filter`, section hiding (`zh`, `z1`-`z9`) and `board_hidden_sections`. Off: no chip row, `t` and the `z` chords do nothing, `:filter` refuses, and hidden sections, `board_hidden_sections` and a saved tool filter are ignored. See [tui.md](tui.md#filter-and-search) |
+| `search` | bool | `true` | Board search: `/` and `:search`. Off: `/` does nothing, `:search` refuses, and a saved or stale query is ignored |
+| `undo_complete` | bool | `true` | The `uc` key and `:uc` / `:resume`, which take a session out of Done. Off: `uc` does nothing and the commands refuse; `:undone` (unmark only) still works |
+| `resume` | bool | `true` | Track each session's agent conversation id (resume id) so an exited session can be resumed: the resume id column, `:rid` and the `Resume` intent. Off: no `--session-id` is preassigned, no id is captured from hooks or `capture_regex`, the column and `:rid` go away, and `Resume` is refused with `bad_intent` `resume is off`. The daemon reads it at each spawn and `Resume`; the TUI at each frame. Ids already stored stay in `meta.json` |
 
 ### Spawn
 

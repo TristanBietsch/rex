@@ -25,6 +25,9 @@ func handleResume(c *client, env protocol.Envelope) (outcome, error) {
 		return outcome{}, err
 	}
 	srv := c.srv
+	if !srv.resumeOn() {
+		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "resume is off")
+	}
 	sess, ok := srv.cfg.Store.Get(p.SessionID)
 	if !ok {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not found")

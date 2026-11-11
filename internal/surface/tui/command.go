@@ -24,6 +24,9 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 		m.Err = "unknown command: " + call.Verb + " (try :help)"
 		return m, nil
 	}
+	if c.Flag != "" && refuseOff(&m, c.Flag) {
+		return m, nil
+	}
 	return c.Run(m, call)
 }
 

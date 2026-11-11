@@ -35,12 +35,17 @@ Commands run in the TUI process. Some call the daemon; `:reload` sends a `Reload
 | `name` | `[text…]` | Set selected session's display name; no text opens the editor |
 | `done` | `[sel]` | Mark done, or undo the mark (default: selected) |
 | `undone` | `[sel]` | Undo the mark only; an unmarked session gets the notice "is not marked done" |
-| `uc` | `[sel]` | Undo done (same as the `uc` key): unmark a running session marked done. A session that is not in Done gets the notice "isn't done"; one that has exited gets an error, since it can't be brought back yet |
+| `rid` | `[sel]` | Show the full resume id (the agent's conversation id) of the session on the status line. Needs the `resume` feature (Settings → Features); an error when the session has no id |
+| `uc`, `resume` | `[sel]` | Undo done (same as the `uc` key): unmark a running session marked done, or resume an exited one in place with its resume id (`resuming <name> (resume id 1a2b3c4d…)`). A session that is not in Done gets the notice "isn't done"; an exited one with no resume id gets an error (`<name> has exited and <tool> can't be resumed`), and so does any exited one while the `resume` feature is off |
 | `complete` | `[sel]` | Kill now and mark done |
 | `fail`, `fails`, `failed` | — | Failed-session inspector |
 | `stats` | — | Toggle stats overlay |
 
 `<sel>` resolves against the current board: full session id, then `slug`, then `short_id`. A slug shared by several sessions (restored from an older daemon) is reported as `ambiguous: … use short id`. `:rename` to a slug another session holds is rejected by the daemon; the error shows on the status line.
+
+`:filter` needs the `board_filter` feature (Settings → Features); while it is off it answers `off: enable in Settings → Features (rex config set board_filter true)`.
+
+`:search` needs the `search` feature (Settings → Features); while it is off it answers `off: enable in Settings → Features (rex config set search true)`.
 
 A `<sec>` for `:filter` is a section id (`needs`, `working`, `done`), a unique prefix of one, its title (`Needs`), or a 1-based number. `:filter` refuses a change that would hide every section and changes nothing when a section is not recognised. A hidden section is gone from the board (no rows, no navigation); the header counts stay global.
 

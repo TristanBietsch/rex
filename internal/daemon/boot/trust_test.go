@@ -51,3 +51,19 @@ func TestAutoTrustDirs(t *testing.T) {
 	t.Setenv("USERPROFILE", "")
 	require.Nil(t, AutoTrustDirs(), "no home: trust nothing")
 }
+
+func TestResumeEnabled(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.True(t, ResumeEnabled(), "no config: the default is on")
+
+	cfg := filepath.Join(home, ".config", "rex", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
+	require.NoError(t, os.WriteFile(cfg, []byte("resume: false\n"), 0o600))
+	require.False(t, ResumeEnabled())
+
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	require.True(t, ResumeEnabled(), "no home: defaults")
+}

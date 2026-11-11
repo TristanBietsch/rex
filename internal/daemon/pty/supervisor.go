@@ -77,6 +77,9 @@ type SupervisorConfig struct {
 	// last output when the child exits: the last match's group 1 on the
 	// normalized screen text, kept only if it is a valid resume id.
 	ResumeCapture *regexp.Regexp
+	// NoResumeIDs turns off every resume-id source (the adapter's hook
+	// reports and ResumeCapture): the feature flag "resume" is off.
+	NoResumeIDs bool
 }
 
 // transcriptWriter persists the raw PTY output (*state.TranscriptFile in
@@ -404,12 +407,15 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	defer ticker.Stop()
 	// ids is asserted once, like agents; nil unless the agent reports its
 	// conversation id while it runs.
-	ids, _ := s.cfg.Adapter.(adapter.ResumeIDReporter)
+	var ids adapter.ResumeIDReporter
+	if !s.cfg.NoResumeIDs {
+		ids, _ = s.cfg.Adapter.(adapter.ResumeIDReporter)
+	}
 	// captureResumeID reads the id from the last output (ResumeCapture) and
 	// stores it, without broadcasting. It reports whether the id changed; the
 	// caller writes meta.json and then sends the resume_id patch.
 	captureResumeID := func() bool {
-		if s.cfg.ResumeCapture == nil {
+		if s.cfg.ResumeCapture == nil || s.cfg.NoResumeIDs {
 			return false
 		}
 		windowMu.Lock()

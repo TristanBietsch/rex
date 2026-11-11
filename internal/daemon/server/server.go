@@ -76,6 +76,10 @@ type Config struct {
 	// skip_permissions_args (setting skip_permissions). Called at each
 	// spawn. nil: never.
 	SkipPermissions func() bool
+	// ResumeEnabled reports whether the resume feature is on (setting
+	// resume). Called at each spawn and Resume. Off: no conversation id is
+	// preassigned or captured, and a Resume intent is refused. nil: on.
+	ResumeEnabled func() bool
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
@@ -87,6 +91,9 @@ type Config struct {
 	// tools.yaml and swap the registry, same as SIGHUP.
 	OnReload func() error
 }
+
+// resumeOn reports whether the resume feature is on.
+func (s *Server) resumeOn() bool { return s.cfg.ResumeEnabled == nil || s.cfg.ResumeEnabled() }
 
 // Server owns the UDS listener and accepts clients.
 type Server struct {

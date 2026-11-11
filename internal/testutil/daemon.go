@@ -41,6 +41,14 @@ func StartDaemon(t *testing.T) *Daemon {
 // register a fake agent program. Empty toolsYAML means builtins only.
 func StartDaemonWithTools(t *testing.T, toolsYAML string) *Daemon {
 	t.Helper()
+	return StartDaemonWithConfig(t, toolsYAML, nil)
+}
+
+// StartDaemonWithConfig is StartDaemonWithTools with tweak applied to the
+// server config before the daemon starts (nil leaves it alone), for example
+// to switch a feature off.
+func StartDaemonWithConfig(t *testing.T, toolsYAML string, tweak func(*server.Config)) *Daemon {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "rex-test")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
@@ -53,12 +61,16 @@ func StartDaemonWithTools(t *testing.T, toolsYAML string) *Daemon {
 	}
 	reg, err := registry.Load(toolsPath)
 	require.NoError(t, err)
-	srv, err := server.New(server.Config{
+	cfg := server.Config{
 		Socket:   sock,
 		StateDir: dir,
 		Registry: reg,
 		Store:    state.NewStore(),
-	})
+	}
+	if tweak != nil {
+		tweak(&cfg)
+	}
+	srv, err := server.New(cfg)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

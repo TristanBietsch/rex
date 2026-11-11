@@ -19,6 +19,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   paths, `..`, a filesystem root and the home folder. The choice is saved in
   `meta.json` (`trust_folder` in summaries) and kept when the session is
   resumed. The CLI and TUI controls follow.
+- Setting `board_filter` (Features, on by default): switches off the tool
+  filter chips, `:filter`, `t`, the `z` chords and `board_hidden_sections`.
+  Off, there is no chip row and `:filter` answers `off: enable in Settings
+  → Features (rex config set board_filter true)`.
+- Setting `search` (Features, on by default): switches off board search.
+  Off, `/` does nothing, `:search` answers the off message, and a saved
+  query is ignored.
+- Setting `undo_complete` (Features, on by default): switches off `uc` and
+  `:uc`. Off, the chord is unbound and the command answers the off message;
+  `:undone` still unmarks.
+- Setting `resume` (Features, on by default): switches off resume ids. Off,
+  the daemon assigns and captures no id, the column and `:rid` go away, and
+  `Resume` is refused with `resume is off`.
+- TUI: the detailed view shows each session's resume id (first 8 characters)
+  in a column that is the first to go on a narrow terminal, and `:rid [sel]`
+  shows the full id on the status line.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current
@@ -26,7 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   found and used in a new `resume` registry block (`args`, `new_args`,
   `capture_regex`, with `{id}` as the placeholder); see `docs/registry.md`.
   Only canonical UUIDs are accepted, since the id ends up on a command line.
-  Nothing uses it yet: resuming an exited session comes next.
+ 
 - TUI: the detailed view (`v`) has a start→end span column (`14:02→15:30`,
   `14:02→` while live). The end is when the row entered Done: the earlier of
   marking it done and the session ending. It is the first column to go on a
@@ -51,10 +67,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   sections. A search unfolds a long Done column. `:search [text]` does the
   same from the command line (`::search` from attach), and `:bg` saves the
   search for the next start.
-- TUI: `uc` and `:uc [sel]` undo done: they unmark a running session that
-  was marked done (`cc`, `:done`). A session that is not in Done gets a
-  notice, and one that has already exited is explained rather than touched.
-  `u` then `c` never arms `cc`.
+- TUI: `uc` and `:uc [sel]` (also `:resume [sel]`) undo done: they unmark a
+  running session that was marked done (`cc`, `:done`), and resume an exited
+  one (done, failed, crashed, or completed with `C`) in place with its
+  resume id: same row, slug, start time and transcript, back in Working. An
+  exited session whose tool can't be resumed is explained rather than
+  touched. A session that is not in Done gets a notice. `u` then `c` never
+  arms `cc`.
 - TUI: section titles read `n/total` (`WORKING  1/4`) while a tool filter or
   search narrows the rows.
 - TUI: hide board sections. `zh` hides or shows the completed (Done)

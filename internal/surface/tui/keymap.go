@@ -65,7 +65,7 @@ func keepSelectionVisible(m Model) Model {
 		m.DoneExpanded = false
 	}
 	// Cheap exit: nothing narrows the board, so the selection is visible.
-	if m.SelectedID == "" || (len(m.Hidden) == 0 && !doneCollapsed(m) && !rowFilterOf(m).rowsActive()) {
+	if m.SelectedID == "" || (len(rowFilterOf(m).hidden) == 0 && !doneCollapsed(m) && !rowFilterOf(m).rowsActive()) {
 		return m
 	}
 	if _, live := findSession(m.Sessions, m.SelectedID); !live || indexOfSelected(m) >= 0 {

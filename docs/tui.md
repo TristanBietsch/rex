@@ -41,12 +41,13 @@ The **text** is the task you gave the session. A session that needs you shows th
 ```
 
 - **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps.
+- **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view, only while some row has one, and is the first column to go on a narrow terminal. Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
 - **name**, **model · effort**, and **tokens** are as wide as their widest value on the board (name capped at 22, model at 24). Tokens are right-aligned.
 - The **subagent** column (`⋔3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
 - The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
 - **last event** is right-aligned against the edge; `-` means no event yet.
 - The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
-- On narrow terminals, columns give way in this order until the description has 20 columns: the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
+- On narrow terminals, columns give way in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
 
 ## FOCUS MODES
 
@@ -90,7 +91,7 @@ The **text** is the task you gave the session. A session that needs you shows th
 | `i` | Focus bottom prompt (quick-spawn) |
 | `r` | Rename selected (display name; empty resets to slug) |
 | `cc` | Mark selected done / undo (see MARK DONE) |
-| `uc` | Undo done: unmark the selected session (see MARK DONE) |
+| `uc` | Undo done: unmark a running session, or resume an exited one (see MARK DONE) |
 | `C` | Complete now: kill the agent and mark it done |
 | `dd` | Delete selected (confirm) |
 | `:` | Command mode |
@@ -164,6 +165,10 @@ Line-oriented agents (ollama, echo) are attached with transcript replay, so thei
 
 ## FILTER AND SEARCH
 
+The tool filter and hidden sections belong to the `board_filter` feature (Settings → Features, on by default). Off, the chip row is gone, `t` and the `z` chords do nothing, `:filter` answers `off: enable in Settings → Features (rex config set board_filter true)`, and `board_hidden_sections` and saved filter state are ignored. A search still shows its status on the filter row.
+
+Search belongs to the `search` feature (on by default). Off, `/` does nothing, `:search` answers `off: enable in Settings → Features (rex config set search true)`, and a saved or stale query is ignored.
+
 Three things narrow the board: the **tool filter** (`t` cycles it, `:filter <tool>` sets it, a click on a chip sets it), **hidden sections**, and a **search**. While any of them narrows the rows, section titles read `n/total` (`WORKING  1/4`).
 
 ### Search
@@ -216,7 +221,8 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 `cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state. The detailed view's span column shows when it was marked, and its header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
 
 - `cc` again undoes the mark. `uc` (or `:uc [sel]`) does the same without ever marking: it unmarks a session that is still running and says `<name> isn't done` for one that is not in Done.
-- `uc` on a session that has exited (done, failed or crashed, including after `C`) cannot bring it back yet: the status line says `uc: <name> has exited; it can't be brought back yet`, and the row stays in Done.
+- `uc` and `:uc` belong to the `undo_complete` feature (Settings → Features, on by default). Off, `u` is unbound and `:uc` answers `off: enable in Settings → Features (rex config set undo_complete true)`; `:undone` still unmarks.
+- `uc` on a session that has exited (done, failed or crashed, including after `C`) resumes it in place when it has a resume id (the `resume id` column): the status line says `resuming <name> (resume id 1a2b3c4d…)`, the row keeps its slug, start time and transcript, leaves Done for Working, and the agent is started again with its own resume arguments (`claude --resume <id>`). The daemon clears a done mark when it respawns. A session whose tool can't be resumed (no id) gets `uc: <name> has exited and <tool> can't be resumed` and stays in Done; with the `resume` feature off it says `resume is off`. A row already being cleared answers `too late — session is already being cleared`. `:resume [sel]` is the same as `:uc [sel]`.
 - Typing into the session (attach, `rex reply`, `rex send`) cancels the mark: using it again means it isn't done. Just viewing does not.
 - A session still **working** at the deadline is not cleared; it is cleared as soon as it settles (the attach footer reads `clears when idle`).
 - `cc` again moves the row back to the column its live state belongs to.

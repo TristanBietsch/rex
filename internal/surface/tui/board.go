@@ -365,7 +365,7 @@ func renderBoard(m Model, width, height int) string {
 	if end > len(slots) {
 		end = len(slots)
 	}
-	cols := layoutSlots(slots, m.now(), width, m.Detailed)
+	cols := layoutSlots(slots, m.now(), width, m.Detailed, m.featureOn("resume"))
 	// An empty column's text starts where row content does.
 	noneIndent := strings.Repeat(" ", rowIndent+colMarker+colGap)
 	searching := rowFilterOf(m).searching()
@@ -396,7 +396,7 @@ func renderBoard(m Model, width, height int) string {
 
 // Row grid. Left to right:
 //
-//	indent marker  [id]  name  text  [model·effort  tokens]  subagents  run-badge  time
+//	indent marker  [id]  name  text  [model·effort  tokens  span  resume-id]  subagents  run-badge  time
 //
 // The bracketed columns only show in the detailed view (v). indent, marker,
 // id and time are fixed. name, model and tokens are sized to
@@ -425,13 +425,13 @@ const (
 // rowCols holds the per-frame column widths. 0 hides id, model, tokens,
 // span, agents and run (no cell, no gap).
 type rowCols struct {
-	id, slug, desc, model, tokens, span, agents, run int
+	id, slug, desc, model, tokens, span, resume, agents, run int
 }
 
 // used is the row width of everything except the description cell.
 func (c rowCols) used() int {
 	w := rowIndent + colMarker + colGap + c.slug + colGap + colGap + colTime
-	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.agents, c.run} {
+	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.resume, c.agents, c.run} {
 		if x > 0 {
 			w += colGap + x
 		}
@@ -442,26 +442,27 @@ func (c rowCols) used() int {
 // boardLayout sizes the columns for every row the board renders (all
 // sections, not just the scrolled window, so scrolling never shifts columns).
 func boardLayout(m Model, width int) rowCols {
-	return layoutSlots(boardSlots(m), m.now(), width, m.Detailed)
+	return layoutSlots(boardSlots(m), m.now(), width, m.Detailed, m.featureOn("resume"))
 }
 
-func layoutSlots(slots []boardSlot, now time.Time, width int, detailed bool) rowCols {
+func layoutSlots(slots []boardSlot, now time.Time, width int, detailed, resume bool) rowCols {
 	rows := make([]protocol.SessionSummary, 0, len(slots))
 	for _, sl := range slots {
 		if sl.kind == slotRow {
 			rows = append(rows, sl.sess)
 		}
 	}
-	return layoutRows(rows, now, width, detailed)
+	return layoutRows(rows, now, width, detailed, resume)
 }
 
 // layoutRows sizes columns to content, then degrades for narrow widths in a
-// fixed order until the description gets descMin: drop the start→end span,
+// fixed order until the description gets descMin: drop the resume id, drop
+// the start→end span,
 // drop tokens, shrink model
 // (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
 // long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
-func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed bool) rowCols {
+func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume bool) rowCols {
 	var c rowCols
 	if detailed {
 		c.id = colID
@@ -480,6 +481,9 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		}
 		if detailed {
 			c.span = max(c.span, ansi.StringWidth(spanText(now, s)))
+			if resume && resumeIDShown(s) != "" {
+				c.resume = colResume
+			}
 		}
 	}
 	c.slug = min(c.slug, colSlug)
@@ -498,7 +502,8 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		}
 	}
 	steps := []func(){
-		func() { c.span = 0 }, // the least glanceable column goes first
+		func() { c.resume = 0 }, // an id to copy, not to glance at: first to go
+		func() { c.span = 0 },
 		func() { c.tokens = 0 },
 		func() { shrink(&c.model, modelMin) },
 		func() { shrink(&c.slug, slugMin) },
@@ -593,6 +598,9 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	}
 	if c.span > 0 {
 		b.WriteString(gap + cell(dim, spanText(now, s), c.span))
+	}
+	if c.resume > 0 {
+		b.WriteString(gap + resumeCell(s, c.resume))
 	}
 	if c.agents > 0 {
 		b.WriteString(gap + subagentCell(s, c.agents, retiring && !selected))

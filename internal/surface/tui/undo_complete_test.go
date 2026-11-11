@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"errors"
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
@@ -59,17 +61,104 @@ func TestUC_NotDone_Notice(t *testing.T) {
 	require.Empty(t, fr.retired)
 }
 
-func TestUC_Exited_ExplainsAndTouchesNothing(t *testing.T) {
+// runMsg runs cmd and returns its message (nil for a nil cmd).
+func runMsg(cmd tea.Cmd) tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	return cmd()
+}
+
+// ucModel's exited rows (c, d) have no resume id: nothing to resume with.
+func TestUC_Exited_NoResumeID_ExplainsAndTouchesNothing(t *testing.T) {
 	for id, name := range map[string]string{"c": "gamma", "d": "delta"} { // unmarked done, marked failed
 		m, fr := ucModel()
+		res := &fakeResumer{}
+		m.resumer = res
+		m.Sessions[2].ToolID, m.Sessions[3].ToolID = "claude", "claude"
 		m.SelectedID = id
 		m = typeKeys(m, "u")
 		m, cmd := updateKey(m, key("c"))
 		runCmd(cmd)
-		require.Equal(t, "uc: "+name+" has exited; it can't be brought back yet", m.Err)
+		require.Equal(t, "uc: "+name+" has exited and claude can't be resumed", m.Err)
 		require.Empty(t, fr.unretired, id)
 		require.Empty(t, fr.retired, id)
+		require.Empty(t, res.resumed, id)
 	}
+}
+
+// An exited row with a resume id is respawned with the Resume intent, marked
+// or not (the daemon clears the mark).
+func TestUC_Exited_WithResumeID_SendsResume(t *testing.T) {
+	for id, name := range map[string]string{"c": "gamma", "d": "delta"} {
+		m, fr := ucModel()
+		res := &fakeResumer{}
+		m.resumer = res
+		m.Sessions[2].ResumeID, m.Sessions[3].ResumeID = ridA, ridA
+		m.SelectedID = id
+		m = typeKeys(m, "u")
+		m, cmd := updateKey(m, key("c"))
+		require.NotNil(t, cmd)
+		require.Nil(t, runMsg(cmd))
+		require.Empty(t, m.Err)
+		require.Equal(t, "resuming "+name+" (resume id 1a2b3c4d…)", m.Notice)
+		require.Equal(t, []string{id}, res.resumed)
+		require.Equal(t, []string{"resume-" + id}, res.reqIDs)
+		require.Empty(t, fr.unretired, "the daemon clears the mark; the TUI sends one intent")
+		require.Empty(t, fr.retired)
+	}
+}
+
+func TestUC_Exited_ResumeIDInvalid_IsNotResumable(t *testing.T) {
+	m, _ := ucModel()
+	res := &fakeResumer{}
+	m.resumer = res
+	m.Sessions[2].ResumeID = "-x --flag"
+	m.SelectedID = "c"
+	m, cmd := executeCommand(m, "uc")
+	require.Nil(t, cmd)
+	require.Contains(t, m.Err, "has exited and")
+	require.Empty(t, res.resumed)
+}
+
+func TestUC_Exited_ResumeFeatureOff(t *testing.T) {
+	m, _ := ucModel()
+	res := &fakeResumer{}
+	m.resumer = res
+	m.Store = flagOff(t, "resume")
+	m.Sessions[2].ResumeID = ridA
+	m.SelectedID = "c"
+	m, cmd := executeCommand(m, "uc")
+	require.Nil(t, cmd)
+	require.Equal(t, "uc: gamma has exited; resume is off (rex config set resume true)", m.Err)
+	require.Empty(t, res.resumed)
+
+	// Unmarking a running session needs no resume id: it still works.
+	m, fr := ucModel()
+	m.Store = flagOff(t, "resume")
+	m, cmd = executeCommand(m, "uc alpha")
+	runCmd(cmd)
+	require.Equal(t, []string{"a"}, fr.unretired)
+}
+
+func TestUC_Exited_NoDaemon(t *testing.T) {
+	m, _ := ucModel()
+	m.Sessions[2].ResumeID = ridA
+	m.SelectedID = "c"
+	m, cmd := executeCommand(m, "uc")
+	require.Nil(t, cmd)
+	require.Equal(t, "uc: not connected to the daemon", m.Err)
+}
+
+func TestUC_ResumeSendFailureShowsError(t *testing.T) {
+	m, _ := ucModel()
+	m.resumer = &fakeResumer{err: errors.New("boom")}
+	m.Sessions[2].ResumeID = ridA
+	m.SelectedID = "c"
+	m, cmd := executeCommand(m, "uc")
+	msg, ok := runMsg(cmd).(CmdErrMsg)
+	require.True(t, ok)
+	require.Equal(t, "resume", msg.Op)
 }
 
 func TestUC_CompletesInsteadOfArmingCC(t *testing.T) {
@@ -136,19 +225,32 @@ func TestUC_CommandAliases(t *testing.T) {
 	require.Equal(t, "no match for nope", next.Err)
 
 	next, _ = executeCommand(m, "uc gamma")
-	require.Contains(t, next.Err, "gamma has exited")
+	require.Contains(t, next.Err, "gamma has exited and")
 
 	next, _ = executeCommand(Model{Focus: FocusBoard}, "uc")
 	require.Equal(t, "uc: no session selected", next.Err)
 
-	next, _ = executeCommand(m, "resume alpha")
-	require.Contains(t, next.Err, "unknown command: resume", ":resume lands with T3")
+	// :resume is the same command (override #3).
+	m, fr = ucModel()
+	next, cmd = executeCommand(m, "resume alpha")
+	runCmd(cmd)
+	require.Equal(t, []string{"a"}, fr.unretired)
+	require.Contains(t, next.Notice, "unmarked alpha")
+}
+
+func TestUC_ResumeAliasInTable(t *testing.T) {
+	c, ok := lookupCommand("resume")
+	require.True(t, ok)
+	uc, _ := lookupCommand("uc")
+	require.Equal(t, uc.Desc, c.Desc, "one table row serves both names")
+	require.Equal(t, ":uc :resume [sel]", c.helpKey())
+	require.Equal(t, "undo_complete", c.Flag)
 }
 
 func TestUC_HelpListsIt(t *testing.T) {
 	plain := ansi.Strip(renderHelp(120, 60))
 	require.Contains(t, plain, "uc")
-	require.Contains(t, plain, ":uc [sel]")
+	require.Contains(t, plain, ":uc :resume [sel]")
 }
 
 func TestScreensaverClearsPendingU(t *testing.T) {

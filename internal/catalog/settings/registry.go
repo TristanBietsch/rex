@@ -115,6 +115,26 @@ var Registry = []Setting{
 	// Off means inert: no goroutine, subprocess, network, file write or argv
 	// addition, keys unbound, commands refuse. Rows are added by the step
 	// that adds the feature; each must be a bool or enum with help text.
+	{
+		ID: "board_filter", Label: "Board filters", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Tool filter chips, :filter, section hiding (zh, z1-z9) and board_hidden_sections. Off: no chip row, the t key and the z chords do nothing, :filter refuses, and hidden sections and the saved tool filter are ignored.",
+	},
+	{
+		ID: "search", Label: "Board search", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Search the board with / and :search. Off: / does nothing, :search refuses, and a saved or stale query is ignored.",
+	},
+	{
+		ID: "undo_complete", Label: "Undo done (uc)", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "The uc key and :uc / :resume, which take a session out of Done. Off: uc does nothing and the commands refuse; :undone still unmarks a session marked done.",
+	},
+	{
+		ID: "resume", Label: "Resume ids", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Track each session's agent conversation id so an exited session can be resumed: the resume id column, :rid and the Resume intent (used by uc / :resume). Off: no id is assigned or captured, the column and :rid go away, and Resume is refused. Read at each spawn.",
+	},
 
 	// Spawn
 	{

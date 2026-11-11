@@ -64,7 +64,7 @@ var bindings = []binding{
 	{Keys: "n", Desc: "new-agent wizard", Group: groupActions, Ctx: ctxBoard, Press: []string{"n"}},
 	{Keys: "r", Desc: "rename selected (empty = slug)", Group: groupActions, Ctx: ctxBoard, Press: []string{"r"}},
 	{Keys: "cc", Desc: "mark done / undo", Group: groupActions, Ctx: ctxBoard, Press: []string{"c", "c"}, Line: "done"},
-	{Keys: "uc", Desc: "undo done (unmark a session marked done)", Group: groupActions, Ctx: ctxBoard, Press: []string{"u", "c"}},
+	{Keys: "uc", Desc: "undo done (unmark, or resume an exited session)", Group: groupActions, Ctx: ctxBoard, Press: []string{"u", "c"}},
 	{Keys: "C", Desc: "complete now (kill agent, mark done)", Group: groupActions, Ctx: ctxBoard, Press: []string{"C"}},
 	{Keys: "dd", Desc: "delete selected", Group: groupActions, Ctx: ctxBoard, Press: []string{"d", "d"}},
 	{Keys: "i", Desc: "focus λ prompt (new-session text)", Group: groupActions, Ctx: ctxBoard, Press: []string{"i"}, Line: "new"},
@@ -115,6 +115,7 @@ type command struct {
 	Label string // help key override; default ":" + Names joined by " :" + Args
 	Desc  string
 	Group string
+	Flag  string // Features switch that gates the command ("" = always on)
 	Run   func(m Model, c cmdCall) (Model, tea.Cmd)
 }
 
@@ -137,12 +138,13 @@ var commands = []command{
 	{Names: []string{"rename"}, Args: "<s> <slug>", Desc: "change slug", Group: groupSessionCmd, Run: runRename},
 	{Names: []string{"done"}, Args: "[sel]", Desc: "mark done", Group: groupSessionCmd, Run: runDone},
 	{Names: []string{"undone"}, Args: "[sel]", Desc: "undo done", Group: groupSessionCmd, Run: runUndone},
-	{Names: []string{"uc"}, Args: "[sel]", Desc: "undo done: unmark a session marked done", Group: groupSessionCmd, Run: runUC},
+	{Names: []string{"uc", "resume"}, Args: "[sel]", Desc: "undo done: unmark a running session, or resume an exited one", Group: groupSessionCmd, Flag: "undo_complete", Run: runUC},
+	{Names: []string{"rid"}, Args: "[sel]", Desc: "show the full resume id", Group: groupSessionCmd, Flag: "resume", Run: runRID},
 	{Names: []string{"complete"}, Args: "[sel]", Desc: "kill agent + mark done now", Group: groupSessionCmd, Run: runComplete},
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},
-	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Run: runFilter},
-	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Run: runSearch},
+	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Flag: "board_filter", Run: runFilter},
+	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Flag: "search", Run: runSearch},
 
 	{Names: []string{"q", "quit"}, Desc: "quit (confirm)", Group: groupAppCmd, Run: runQuit},
 	{Names: []string{"q!"}, Desc: "force quit", Group: groupAppCmd, Run: runForceQuit},

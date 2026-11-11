@@ -171,6 +171,7 @@ func run(args []string) error {
 		RetireDefaultTTL:      retireTTL,
 		AutoTrustDirs:         boot.AutoTrustDirs,
 		SkipPermissions:       boot.SkipPermissions,
+		ResumeEnabled:         boot.ResumeEnabled,
 		OnShutdown:            stop,
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
 	})
