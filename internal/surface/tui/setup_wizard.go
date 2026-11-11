@@ -216,7 +216,7 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 		trustDir, trustYes = v, true
 	} else if strings.TrimSpace(trustDir) == "" {
 		cwd, _ := os.Getwd()
-		trustDir = suggestTrustDir(cwd)
+		trustDir = settings.SuggestTrustDir(cwd)
 	}
 
 	// shell RC
@@ -737,40 +737,6 @@ func (m SetupWizardModel) withAutoTrust(folders string) SetupWizardModel {
 		m.trustYes, m.trustDir = true, folders
 	}
 	return m
-}
-
-// suggestTrustDir offers the folder that holds the current project: the
-// parent of cwd when cwd is the root of a git checkout. The suggestion must
-// pass the checks a typed value does and, with symlinks resolved, lie
-// inside the home folder. It never offers the home folder itself or
-// anything outside it (such as /tmp), and returns "" when nothing fits.
-func suggestTrustDir(cwd string) string {
-	if cwd == "" {
-		return ""
-	}
-	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
-		return ""
-	}
-	short := tildePath(filepath.Dir(cwd))
-	// A name holding the list separator would be read back as two folders,
-	// and one with outer spaces would be trimmed into another folder.
-	if !paths.IsHomeRelative(short) || strings.ContainsRune(short, filepath.ListSeparator) {
-		return ""
-	}
-	if v, err := settings.CheckAutoTrustDirs(short); err != nil || v != short {
-		return ""
-	}
-	// Compare resolved paths: a link such as ~/code -> /Volumes/x/code reads
-	// as inside home but is not.
-	dir, err := settings.TrustDir(short)
-	if err != nil {
-		return ""
-	}
-	home, err := settings.CanonicalHome()
-	if err != nil || !strings.HasPrefix(dir, home+string(filepath.Separator)) {
-		return ""
-	}
-	return short
 }
 
 func (m SetupWizardModel) keyShell(k tea.KeyMsg) (tea.Model, tea.Cmd) {

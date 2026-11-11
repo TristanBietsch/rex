@@ -141,8 +141,9 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, e
 		Model:  model,
 		Effort: sum.Effort,
 		CWD:    sum.CWD,
-		// Trust is recomputed from the current config, as for a new session.
-		Trust:           s.trustDecisionFor(tool, sum.CWD),
+		// Trust is recomputed from the current config and the session's own
+		// trust request (re-validated against the stored folder).
+		Trust:           s.trustDecisionFor(tool, sum.CWD, sum.TrustFolder),
 		SkipPermissions: cfg.SkipPermissions != nil && cfg.SkipPermissions(),
 		HookFile:        hookFile,
 		SessionID:       sess.ID,

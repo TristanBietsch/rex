@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   per optional feature. A feature that is off is inert: it starts nothing,
   writes nothing, its keys do nothing and its commands refuse. No switches
   yet; each feature adds its own. `settings.FeatureOn(store, id)` reads one.
+- `NewSession.trust_folder` (daemon protocol): trusts the session's folder
+  for that session only, as if it were in `auto_trust_dirs`. The daemon
+  answers the agent's trust dialog (or passes `trust_args`), and
+  `skip_permissions` applies there. Refused (`bad_intent`) for relative
+  paths, `..`, a filesystem root and the home folder. The choice is saved in
+  `meta.json` (`trust_folder` in summaries) and kept when the session is
+  resumed. The CLI and TUI controls follow.
 - The daemon tracks a resume id per session (`resume_id` in snapshots,
   state patches and `meta.json`). A Claude Code session is started with
   `--session-id <uuid>`, and its SessionStart hook keeps the id current
@@ -137,6 +144,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `rex setup` now suggests trusting the project's own folder (the git root
+  of where you ran it, or the folder itself when it is not a checkout)
+  instead of the folder above it. Still never your home folder or anything
+  outside it. The logic moved to `settings.SuggestTrustDir`, with
+  `settings.AppendTrustDir` and `settings.RemoveTrustDir` beside it.
 - TUI: an unknown `:` command now says `(try :help)`. Commands and key
   help come from one table, so `?` can no longer drift from what `:` runs.
 - `rex ls` and `rex status` on a terminal use the new human layout (state
@@ -186,6 +198,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `auto_trust_dirs` and the per-session trust request now also refuse a case
+  variant of the home folder on a case-insensitive filesystem (macOS,
+  Windows), and any folder that holds the home folder (`/Users`, `/home`).
+  Folders are compared by identity on disk, and ancestors by whole path
+  elements, so `/Users2` is still fine.
 - TUI: `::undone` in the attach popup only unmarks; on a session that is not
   marked done it shows a notice instead of marking it done.
 - The settings page showed a second "Spawn" section for
