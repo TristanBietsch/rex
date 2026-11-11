@@ -22,7 +22,7 @@ Per-task plans: `docs/plans/<ID>-*.md`. Independent review: `00-review.md`.
 | S5 | marquee banner above agent, toggle | M |
 | U1 | remake UI, colors, help, settings | L |
 | U2 | settings hackable + themes | M (YAML only, see D1) |
-| U3 | rm other agents from settings | M |
+| U3 | rm other agents from settings | DROPPED (D13); step 1 guard merged |
 | P1 | setup step: name, model, skills | L |
 | P2 | rm "yes, i trust" | M |
 | P3 | harden the CLI | L |
@@ -51,6 +51,7 @@ Out of scope: unstarred items, incl. "(epic) insert mode auto chooses model".
 | D10 | New TODO lines from 29ca4e9 | Top-level unstarred lines: out of scope; U3 and D1 stand. **Correction:** the 3 lines added under `*** ## UI / settings` ARE in scope → U4 window border cmd, U5 fixed-width responsive columns + mobile layout, U6 agy logo centered in the attach window. |
 | D11 | P4 CLI output | agy command-output structure (Usage-first, Title-case sections, aligned, no banners, color for meaning); agent mode = 1 line per record + `ok` trailer, errors one stderr line; auto agent mode when CLAUDECODE=1 and stdout not a TTY (REX_AGENT=0 disables); `-json` stays legacy alias, `-o json` versioned; pipes default `txt`; viewer `rex errors`; error log on, 1 MiB + 1 backup, opt-out `cli_error_log`. P4-1..5 wave 2 lane C first; P4-6..13 wave 4 lane C after P3-11. |
 | D12 | Gates | Go toolchain: user upgrades (`brew upgrade go`); until then `make vuln` stdlib advisories are non-blocking. Coverage: no-regression rule for audio, cli/core, cli/inspect, cli/session, cli/setup (must not drop below base 61.2/43.6/36.3/27.9/60.6); all other floors enforced. |
+| D13 | Scope after TODO.md edit (2026-11-11) | **U3 dropped** (keep merged retired-tool guard 76c58a9; no agent removal, no `filterToolIDs`; T1 validates `:filter <tool>` against the existing `filterTools` list ∪ tool ids present on the board; U3-5 unknown-tool bad_intent dropped). Kept: S4, S5, P1, P2, P3, P4, all T*, S1–S3, U1, U2, U4–U6, A1. Progress tracked here only; TODO.md is the user's list (tick a line only when fully done). |
 | — | Agents | claude + antigravity visible; echo hidden (tests). Others deleted, with U3's retired-tool guard. |
 | — | `/ob` | Ignored. |
 | — | Remote | Keep local. No push, no PR. |
@@ -105,3 +106,10 @@ Lane A = TUI, B = daemon/registry/protocol, C = CLI/settings/summarizer. Steps w
 6. Verify (orchestrator): `make check` re-run, then `dev/sandbox.sh` manual run of the changed flow in the real TUI.
 7. Merge into the integration branch in wave order; next branch in the lane rebases.
 8. Tick the TODO.md line when its last step merges.
+
+## Status (updated by orchestrator)
+
+| Wave | State |
+|---|---|
+| 1 | **Merged** into integration/todo @ 2c0be13: F1-1..3, T4-1, U1-2 (+review fixes), T3-1+A1-1 spawn spec, U3-1 guard, T2-1 `ended_at`, K1, P3-1/2/3 (H11, H2+H3, H1), U2-2 sparse Save (+wizard reset fix). `make check` green (lint 0, vuln clean, floors pass). Sandbox TUI check: board, arrow color, `:undone`, `cc`, help OK. |
+| 2 | Lane A: U1-7 → T1-1..8 → T2-2. Lane B: T3-2 → T3-3 → T3-4. Lane C: P4-1..5, then S1-1 → A1-3 → S1-2..4. |
