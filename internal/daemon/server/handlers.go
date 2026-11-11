@@ -32,6 +32,7 @@ func defaultHandlers() map[string]intentHandler {
 		protocol.IntentSetSessionName:   handleSetSessionName,
 		protocol.IntentRetire:           handleRetire,
 		protocol.IntentUnretire:         handleUnretire,
+		protocol.IntentResume:           handleResume,
 		protocol.IntentSetSessionFleet:  handleSetSessionFleet,
 		protocol.IntentFocusFilter:      handleFocusFilter,
 		protocol.IntentSetMaxConcurrent: handleSetMaxConcurrent,

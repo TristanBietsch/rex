@@ -21,6 +21,8 @@ The daemon loads the tool registry, restores persisted sessions from disk, accep
 
 On startup, sessions that were `queued`, `working`, or `needs_input` are remapped to `crashed` because child processes do not survive daemon exit.
 
+A `done`, `failed` or `crashed` session whose tool has a `resume` block and whose `resume_id` is known can be brought back with the `Resume` intent (see [protocol.md](protocol.md#resume)): the daemon reuses the same row, id, slug and transcript and starts the agent with its resume arguments, with folder trust recomputed from the current config. That includes sessions stranded as `crashed` by a daemon restart.
+
 ## OPTIONS
 
 | Flag | Default | Description |

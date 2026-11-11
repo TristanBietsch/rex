@@ -152,6 +152,10 @@ type Server struct {
 
 	stopMu    sync.Mutex
 	stopFuncs map[string]func()
+	// reserved holds the placeholder reservations in stopFuncs (see
+	// reserveStop), so unreserveStop and promoteStop can tell their own
+	// placeholder from a real stop func.
+	reserved map[string]*stopReservation
 
 	completeMu    sync.Mutex
 	completeFuncs map[string]func()
@@ -582,6 +586,65 @@ func (s *Server) UnregisterStop(sessionID string) {
 	delete(s.stopFuncs, sessionID)
 }
 
+// stopReservation holds a session's stop slot between the decision to
+// respawn it and the supervisor's registration. StopSession on the slot
+// (a Delete) cancels the reservation instead of blocking.
+type stopReservation struct {
+	cancelled atomic.Bool
+}
+
+// reserveStop atomically claims id's stop slot with a placeholder. It
+// reports false, and changes nothing, when the slot is taken: a live
+// supervisor or another resume already holds it. hasStop is true while
+// reserved, so a second Resume sees a live session and spawns nothing.
+func (s *Server) reserveStop(id string) (*stopReservation, bool) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.stopFuncs[id] != nil {
+		return nil, false
+	}
+	r := &stopReservation{}
+	if s.stopFuncs == nil {
+		s.stopFuncs = make(map[string]func())
+	}
+	if s.reserved == nil {
+		s.reserved = make(map[string]*stopReservation)
+	}
+	s.stopFuncs[id] = func() {} // marks the slot taken; StopSession cancels r itself
+	s.reserved[id] = r
+	return r, true
+}
+
+// unreserveStop releases r's placeholder if it still holds the slot (a
+// promoted or already-released reservation is left alone).
+func (s *Server) unreserveStop(id string, r *stopReservation) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.reserved[id] != r {
+		return
+	}
+	delete(s.reserved, id)
+	delete(s.stopFuncs, id)
+}
+
+// promoteStop swaps r's placeholder for the real stop func, atomically with
+// the cancelled check: it reports false, with the slot released, when a
+// Delete cancelled the reservation first. The supervisor must then not start.
+func (s *Server) promoteStop(id string, r *stopReservation, stop func()) bool {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.reserved[id] != r {
+		return false
+	}
+	delete(s.reserved, id)
+	if r.cancelled.Load() {
+		delete(s.stopFuncs, id)
+		return false
+	}
+	s.stopFuncs[id] = stop
+	return true
+}
+
 // hasStop reports whether a session has a live supervisor.
 func (s *Server) hasStop(sessionID string) bool {
 	s.stopMu.Lock()
@@ -600,6 +663,15 @@ func (s *Server) dropOutputSubs(sessionID string) {
 // Blocks until the supervisor goroutine has exited.
 func (s *Server) StopSession(sessionID string) {
 	s.stopMu.Lock()
+	if r := s.reserved[sessionID]; r != nil {
+		// A resume holds the slot: cancel it under the lock, so a promote
+		// either happened before this (and the real stop is used below) or
+		// sees the flag. Calling a copied placeholder after unlocking could
+		// land after the swap and be lost.
+		r.cancelled.Store(true)
+		s.stopMu.Unlock()
+		return
+	}
 	stop := s.stopFuncs[sessionID]
 	s.stopMu.Unlock()
 	if stop != nil {

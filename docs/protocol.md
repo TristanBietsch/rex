@@ -61,6 +61,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `SetSessionName` | yes | `session_id`, `name` (always sent; `""` clears; normalized, max 64 runes) |
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
+| `Resume` | yes | `session_id`. Makes the session live and not marked done; see [Resume](#resume) |
 | `FocusFilter` | no-op | Accepted (and acked); not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
@@ -74,6 +75,22 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `effort`, `title`, `initial_prompt`, `fleet` | no |
 
 `slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
+
+### Resume
+
+`Resume{session_id}` means "make this session live and not marked done".
+
+- **Running session** (including one that is starting): clears a done mark (`retire_at` and `retired_at` patch `null`, as `Unretire` does) and acks. Nothing is spawned. An unmarked running session just acks.
+- **Exited session** (done, failed or crashed): respawned in place with the tool's `resume.args` and the stored `resume_id`. The row keeps its id, slug, start time, tokens, description and transcript, and the transcript gains the new run. The daemon:
+  1. checks the tool and model are still in the registry (`bad_intent` `tool <tool>/<model> not in registry`, the same error `NewSession` gives), the stored effort is still offered and the tool has a `resume` block and the session has a valid `resume_id` (`bad_state` `session exited and <tool> cannot be resumed`), and the working directory is still a directory (`spawn_failed`);
+  2. takes the session's slot atomically, so concurrent `Resume`s start one process and the others ack as for a running session, then a concurrency slot (`too_many_sessions`);
+  3. moves the session to `queued` and broadcasts one patch, `{state: "queued", last_event_at, ended_at: null, exit_code: null, retire_at: null, retired_at: null}`, after writing `meta.json`;
+  4. truncates the session's hook file, recomputes folder trust from the current config, and starts the agent without an initial prompt. The usual state patches follow (`working`, ...), and `ended_at` is set again when the run ends.
+- `bad_state` `session is already being cleared` when the retire sweep has claimed the session (also for a running one).
+- A `Delete` that lands while a resume is starting wins: the session is removed, no process is started and no directory is left behind. The `Resume` fails with `unknown_session`.
+- If the agent cannot start, the session ends `failed` and the `Resume` fails with `spawn_failed`. An agent that starts but cannot find its conversation (never saved) fails after the ack, like any exit.
+
+Clients: `(*client.Client).Resume(sessionID, reqID)`. An older daemon answers `bad_intent` "intent not implemented".
 
 ## Replies
 
@@ -89,6 +106,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `Rename`, `SetSessionName` | `Ack` | The `SessionUpdated` broadcast arrives first |
 | `SetSessionFleet` | `Ack` | |
 | `Retire`, `Unretire` | `Ack` | Also when nothing changed |
+| `Resume` | `Ack` | The `queued` patch arrives first when an exited session respawns; also when it was already running |
 | `Delete` | `Ack` | The `SessionRemoved` broadcast arrives first |
 | `Complete` | `Ack` | Termination requested, not finished |
 | `Resize` | `Ack` | Also for the ignored 0×0 size |
@@ -122,7 +140,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 `last_event_at` is the last real activity — a state change, a new screen line, or the child's exit; stats and digest treat it as a finished session's end. Metadata edits (`rename`, fleet, `name`, retire, AI `description`) leave it unchanged and their patches omit it.
 
-Patches for `name` always carry the key (`""` = cleared). Patches for `retire_at`, `retired_at`, `working_since` and `ended_at` send `null` to clear (`ended_at` clears when a session goes live again; every terminal state change carries it); a mark patches `retire_at` and `retired_at` together.
+Patches for `name` always carry the key (`""` = cleared). Patches for `retire_at`, `retired_at`, `working_since` and `ended_at` send `null` to clear (`ended_at` clears when a session goes live again; every terminal state change carries `ended_at` and `working_since: null`; a `Resume` of an exited session also patches `exit_code: null`); a mark patches `retire_at` and `retired_at` together.
 
 On disk the same shape is stored in `meta.json`. See [paths.md](paths.md).
 
@@ -158,13 +176,13 @@ A daemon that predates `repaint` ignores the field and answers `mode_sync` as be
 
 | Code | Emitted when |
 |------|----------------|
-| `bad_intent` | Wrong kind, parse error, unimplemented intent, invalid/missing fields (incl. `NewSession`), slug already in use (`NewSession`, `Rename`) |
-| `unknown_session` | No such session (or input buffer full) |
-| `spawn_failed` | `NewSession` failed after validation (unknown tool/model, effort, PTY start) |
+| `bad_intent` | Wrong kind, parse error, unimplemented intent, invalid/missing fields (incl. `NewSession`), slug already in use (`NewSession`, `Rename`), tool or model not in the registry (`NewSession`, `Resume`) |
+| `unknown_session` | No such session (or input buffer full); `Resume` of a session deleted while it started |
+| `spawn_failed` | `NewSession` failed after validation (effort, PTY start); `Resume` with a missing working directory or an agent that did not start |
 | `too_many_sessions` | Concurrency cap |
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
-| `bad_state` | `Unretire` after the reaper started clearing the session |
+| `bad_state` | `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
 | `line_too_long` | A line exceeded 16 MiB; the daemon closes the connection |
 | `unsupported_version` | The envelope's `v` is not `1`; the daemon closes the connection |
 | `internal_error` | A daemon bug while handling the intent; the daemon closes the connection |

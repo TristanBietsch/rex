@@ -45,6 +45,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `REX_ASCII` are honored, and stderr is never colored by stdout's
   terminal. New environment: `REX_OUTPUT`, `REX_AGENT`, `REX_ASCII`. The
   existing `-json` stays as a legacy alias with its current shapes.
+  Nothing in the UI uses it yet.
+- New `Resume` intent (`client.Resume`). On a running session it removes the
+  done mark. On a done, failed or crashed session, including ones stranded by
+  a daemon restart, it starts the agent again in the same row with the tool's
+  resume arguments, keeping the id, slug, start time and transcript; folder
+  trust is recomputed from the current config. It fails with `bad_state` when
+  the tool has no resume support or no resume id is known, and with
+  `too_many_sessions` at the session cap. A `Delete` racing a resume leaves no
+  process and no directory behind. See `docs/protocol.md`.
 - The daemon records `ended_at` for every session: the first time it reached
   done, failed or crashed. It is in `meta.json`, in snapshots and in state
   patches, and older sessions get it from their last event.
@@ -113,6 +122,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   help come from one table, so `?` can no longer drift from what `:` runs.
 - `rex ls` and `rex status` on a terminal use the new human layout (state
   markers, color, width-aware columns). Piped output is unchanged.
+- The `skip_permissions` setting now applies only in folders under
+  `auto_trust_dirs` (also when a session is resumed). In any other folder
+  agents start without `--dangerously-skip-permissions` and the daemon log
+  says so.
+- `NewSession` for a tool or model that is not in the registry now fails
+  with `bad_intent` (it was `spawn_failed`), the same error `Resume` gives.
 - Skipping agent permission prompts is now opt-in. Claude Code and
   Antigravity no longer start with `--dangerously-skip-permissions` unless
   you set `skip_permissions: true` (default off; read at each spawn). The
@@ -160,6 +175,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   chip nor on the board, with `filter: unknown tool or subcommand x`.
 - `rex ls` no longer prints raw slugs and names: control and bidi
   characters are flattened, like in the TUI.
+- The attach popup draws Antigravity (and other ultraviolet-based agents
+  under a tmux, ghostty or kitty `TERM`) correctly: the logo is centered and
+  no row is cut off on the right. rex's terminal emulator ignored the "repeat
+  last character" sequence (`CSI n b`) and lost its tab stops beyond the
+  width a screen was first created with, so every later cell on a row was
+  drawn too far left or jammed at the right edge. It now handles both, and
+  `CSI ? 5 W`.
+- A session that ends now always sends `working_since: null` in its final
+  state patch, as the protocol says. It was lost on the path where the child
+  exits or is completed, so a client could keep a stale working timer.
 - A partial `tools.yaml` entry for a retired built-in tool (codex, gemini,
   ollama, grok, deepseek, kimi) no longer stops the daemon from starting.
   It is dropped with a warning in the daemon log and on the TUI splash.

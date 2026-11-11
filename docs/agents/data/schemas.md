@@ -87,6 +87,14 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | initial_prompt | string | no |
 | fleet | string | no |
 
+## Resume intent
+
+| Field | JSON | Required |
+|-------|------|----------|
+| session_id | string | yes |
+
+Running session: clears the done mark. Exited session: respawns in place (see `docs/protocol.md`, Resume).
+
 ## On-disk layout
 
 ```

@@ -138,6 +138,7 @@ type State struct {
 	str           strEscape
 	csi           csiEscape
 	numlock       bool
+	lastc         rune // last graphic rune received, for REP; 0 = none
 	tabs          []bool
 	title         string
 	colorOverride map[Color]Color
@@ -379,15 +380,21 @@ func (t *State) defaultCursor() Cursor {
 	return c
 }
 
-func (t *State) reset() {
-	t.cur = t.defaultCursor()
-	t.saveCursor()
+// resetTabs puts a tab stop at every multiple of tabspaces (DECST8C, reset).
+func (t *State) resetTabs() {
 	for i := range t.tabs {
 		t.tabs[i] = false
 	}
 	for i := tabspaces; i < len(t.tabs); i += tabspaces {
 		t.tabs[i] = true
 	}
+}
+
+func (t *State) reset() {
+	t.cur = t.defaultCursor()
+	t.saveCursor()
+	t.lastc = 0
+	t.resetTabs()
 	t.top = 0
 	t.bottom = t.rows - 1
 	t.mode = ModeWrap
@@ -434,12 +441,10 @@ func (t *State) resize(cols, rows int) bool {
 	}
 	copy(t.tabs, tabs)
 	if cols > t.cols {
-		i := t.cols - 1
-		for i > 0 && !tabs[i] {
-			i--
-		}
-		for i += tabspaces; i < len(tabs); i += tabspaces {
-			tabs[i] = true
+		// Default stops for the new columns only. (Upstream wrote them into
+		// the old slice, so a grown screen had no stops past its old width.)
+		for i := (t.cols + tabspaces - 1) / tabspaces * tabspaces; i < len(t.tabs); i += tabspaces {
+			t.tabs[i] = true
 		}
 	}
 

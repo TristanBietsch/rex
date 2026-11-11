@@ -31,5 +31,6 @@ github.com/tristanbietsch/rex/internal/testutil 0
 github.com/tristanbietsch/rex/internal/testutil/golden 88
 github.com/tristanbietsch/rex/internal/testutil/testenv 42
 github.com/tristanbietsch/rex/internal/testutil/testperm 80
+github.com/tristanbietsch/rex/internal/testutil/uvfixture 100
 github.com/tristanbietsch/rex/internal/wire/client 95
 github.com/tristanbietsch/rex/internal/wire/protocol 96

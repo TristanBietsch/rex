@@ -111,7 +111,7 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 
 		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ToolID: "echo", ModelID: "short", Slug: "fresh", CWD: e.dir}, want: ack, session: "*"},
 		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ModelID: "short", Slug: "x", CWD: e.dir}, want: fail, code: bad},
-		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ToolID: "nope", ModelID: "x", Slug: "y", CWD: e.dir}, want: fail, code: protocol.ErrCodeSpawn},
+		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ToolID: "nope", ModelID: "x", Slug: "y", CWD: e.dir}, want: fail, code: bad},
 
 		{intent: protocol.IntentSubscribe, payload: protocol.Subscribe{}, want: ack},
 		{intent: protocol.IntentSubscribe, payload: protocol.Subscribe{SessionID: "s1", ModeSync: true}, want: ack, session: "s1"},
@@ -151,6 +151,9 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 				require.Len(t, claimed, 1)
 			},
 		},
+		{intent: protocol.IntentResume, payload: protocol.Resume{SessionID: "zz"}, want: fail, code: unknown},
+		{intent: protocol.IntentResume, payload: protocol.Resume{SessionID: "s3"}, want: fail, code: bad}, // seed has no model
+		{intent: protocol.IntentResume, payload: protocol.Resume{SessionID: "../x"}, want: fail, code: bad},
 
 		{intent: protocol.IntentResize, payload: protocol.Resize{SessionID: "s1", Cols: 80, Rows: 24}, want: ack, session: "s1"},
 		{intent: protocol.IntentResize, payload: protocol.Resize{SessionID: "s1"}, want: ack, session: "s1"}, // 0x0 is ignored
