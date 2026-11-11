@@ -2,47 +2,50 @@ package adapter
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func settingsOf(t *testing.T, args []string) map[string]json.RawMessage {
+// goldenSettings is the --settings JSON exactly as integration/todo built it
+// before the usage tap existed (testdata/claude_settings_integration.json).
+// A change to the hooks on purpose regenerates this file; a change by the
+// tap must never.
+func goldenSettings(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile("testdata/claude_settings_integration.json")
+	require.NoError(t, err)
+	return string(b)
+}
+
+func settingsArgs(t *testing.T, args []string) string {
 	t.Helper()
 	require.Len(t, args, 2)
 	require.Equal(t, "--settings", args[0])
-	var cfg map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal([]byte(args[1]), &cfg))
-	return cfg
+	return args[1]
 }
 
-func TestClaudeSettingsArgs_NoStatusLineIsTheHookArgs(t *testing.T) {
-	require.Equal(t, ClaudeHookArgs(), ClaudeSettingsArgs(""))
-	require.NotContains(t, settingsOf(t, ClaudeSettingsArgs("")), "statusLine")
+func TestClaudeSettingsArgs_WithoutStatusLineIsByteIdenticalToTheGolden(t *testing.T) {
+	want := goldenSettings(t)
+	require.Equal(t, want, settingsArgs(t, ClaudeSettingsArgs("")))
+	require.Equal(t, want, settingsArgs(t, ClaudeHookArgs()))
 }
 
-func TestClaudeSettingsArgs_AddsStatusLineAndKeepsEveryHook(t *testing.T) {
+func TestClaudeSettingsArgs_StatusLineAddsOnlyThatKey(t *testing.T) {
 	const cmd = "/opt/rex-daemon statusline-tap --session abc"
-	cfg := settingsOf(t, ClaudeSettingsArgs(cmd))
+	var got, want map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(settingsArgs(t, ClaudeSettingsArgs(cmd))), &got))
+	require.NoError(t, json.Unmarshal([]byte(goldenSettings(t)), &want))
 
 	var sl struct{ Type, Command string }
-	require.NoError(t, json.Unmarshal(cfg["statusLine"], &sl))
+	require.NoError(t, json.Unmarshal(got["statusLine"], &sl))
 	require.Equal(t, "command", sl.Type)
 	require.Equal(t, cmd, sl.Command)
 
-	// The hooks are byte-identical with and without the tap.
-	plain := settingsOf(t, ClaudeHookArgs())
-	require.JSONEq(t, string(plain["hooks"]), string(cfg["hooks"]))
-
-	// Spot-check that the lines other features rely on are still written:
-	// T3 sid, S4 turn-done and notify, R14 wait+ / wait-, subagents.
-	hooks := string(cfg["hooks"])
-	for _, want := range []string{
-		"sid ", hookTurnDone, hookNotify, hookWaitStart, hookWaitEnd,
-		hookAgentStart, hookAgentStop, hookAgentSeen, hookAgentsReset,
-		"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
-		"Notification", "Stop", "SubagentStart", "SubagentStop",
-	} {
-		require.Contains(t, hooks, want)
+	delete(got, "statusLine")
+	require.Equal(t, len(want), len(got), "no key other than statusLine was added")
+	for k, v := range want {
+		require.JSONEq(t, string(v), string(got[k]), "key %q is unchanged", k)
 	}
 }
