@@ -42,7 +42,11 @@ type Detect struct {
 	Format      string `yaml:"format,omitempty"` // when kind=hooks (e.g. "claude")
 	PromptRegex string `yaml:"prompt_regex,omitempty"`
 	DoneRegex   string `yaml:"done_regex,omitempty"` // optional; flips heuristic to StateDone after idle
-	IdleMs      int    `yaml:"idle_ms,omitempty"`
+	// BusyRegex is optional text the agent shows only while it works (e.g.
+	// "esc to cancel"). When it appeared after the last prompt match, a quiet
+	// stretch shorter than the 15 s stale rule stays working.
+	BusyRegex string `yaml:"busy_regex,omitempty"`
+	IdleMs    int    `yaml:"idle_ms,omitempty"`
 }
 
 // Model is one variant of a tool.

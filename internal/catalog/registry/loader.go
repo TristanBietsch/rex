@@ -168,6 +168,11 @@ func validate(tools []Tool) error {
 					return fmt.Errorf("tool %q: done_regex compile failed: %w", t.ID, err)
 				}
 			}
+			if t.Detect.BusyRegex != "" {
+				if _, err := regexp.Compile("(?m)" + t.Detect.BusyRegex); err != nil {
+					return fmt.Errorf("tool %q: busy_regex compile failed: %w", t.ID, err)
+				}
+			}
 		default:
 			return fmt.Errorf("tool %q: unknown detect.kind %q", t.ID, t.Detect.Kind)
 		}

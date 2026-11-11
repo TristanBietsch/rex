@@ -42,6 +42,7 @@ State detection (`detect`) selects an adapter that classifies PTY output into se
 3. Merge is by tool `id`. User fields replace builtin scalars when non-empty.
 4. Models merge by model `id` (replace or append).
 5. `enabled_by_default` is **not** merged from user YAML; it applies only on builtin entries.
+6. `trust_prompt` and `trust_args` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead.
 
 Duplicate tool or model ids are rejected at load time.
 
@@ -63,8 +64,10 @@ Duplicate tool or model ids are rejected at load time.
 
 | `kind` | Required fields | Behavior |
 |--------|-----------------|----------|
-| `heuristic` | `prompt_regex`, `idle_ms` (>0) | Regex on sanitized output; optional `done_regex` |
+| `heuristic` | `prompt_regex`, `idle_ms` (>0) | Regex on sanitized output; optional `done_regex` and `busy_regex` |
 | `hooks` | `format` | Agent hooks report state; only `claude` is implemented |
+
+`busy_regex` (heuristic, optional) is text the agent shows only while it works, such as `agy`'s `esc to cancel` footer. Detection reads raw output, where an old idle footer can linger after the agent swaps it, so busy wins when its last match comes after the last `prompt_regex` match. A quiet stretch mid-turn then stays `working`. A screen frozen for 15 s still reads as waiting, which covers a permission question.
 
 `hooks` / `claude`: at spawn the daemon adds `--settings <json>` with Claude Code hooks and sets `REX_HOOK_FILE` in the child env. Each hook appends a state word to `sessions/<id>/hooks.log`:
 
@@ -106,6 +109,8 @@ While `shown` matches, the daemon sends `move` (at most 4 times, 300 ms apart) u
 
 Extra arguments that make the agent trust the session folder itself, so no dialog shows. They are added only for sessions under a folder in `auto_trust_dirs`, and one argument must contain `{cwd_list}`. That placeholder expands to a JSON array holding the folder as given and, when different, as resolved through symlinks. Prefer this to `trust_prompt` when the agent supports it: nothing is typed into the agent.
 
+When a tool sets both, both apply: the arguments make the dialog unnecessary, and the answerer stays armed as a fallback. If your `command` or model `args` already pass the same flag (for `agy`, your own `--settings`), the agent gets it twice and which one wins is up to the agent.
+
 The built-in `antigravity` entry uses `agy`'s session-only settings, which are never saved to its `settings.json`:
 
 ```yaml
@@ -137,7 +142,7 @@ effort:
 
 Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `ollama`, `grok`, `deepseek`, `kimi`. The last three default to `enabled_by_default: false`.
 
-`antigravity` runs the Antigravity CLI (`agy`), Google's successor to Gemini CLI, which was retired on 2026-06-18 and is no longer built in. A `gemini` entry in your `tools.yaml` still works. The Gemini model's effort picks its slug (`--model=gemini-3.8-flash-<effort>`); the other models take `--effort`. Model slugs come from `agy models` and depend on your account.
+`antigravity` runs the Antigravity CLI (`agy`), Google's successor to Gemini CLI, which was retired on 2026-06-18. `gemini` stays built in but hidden (`enabled_by_default: false`), so an existing install, a partial `gemini` overlay in `tools.yaml`, or a saved `default_spawn_tool: gemini` keeps working. The Gemini model's effort picks its slug (`--model=gemini-3.8-flash-<effort>`); the other models take `--effort`. Model slugs come from `agy models` and depend on your account.
 
 ## Reload
 

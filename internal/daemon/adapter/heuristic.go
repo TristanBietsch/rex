@@ -18,7 +18,34 @@ var ErrUnknownDetect = errors.New("unknown detect kind")
 type HeuristicCLI struct {
 	prompt *regexp.Regexp
 	done   *regexp.Regexp // nil = no auto-done; manual completion or process exit only
+	busy   *regexp.Regexp // nil = none; text shown only while the agent works
 	idle   time.Duration
+}
+
+// setBusy sets the optional busy pattern ("" clears it).
+func (h *HeuristicCLI) setBusy(busyRegex string) error {
+	if busyRegex == "" {
+		h.busy = nil
+		return nil
+	}
+	busy, err := compileMultilineRegex(busyRegex)
+	if err != nil {
+		return fmt.Errorf("compile busy regex %q: %w", busyRegex, err)
+	}
+	h.busy = busy
+	return nil
+}
+
+// lastMatch is where re last matches s, or -1.
+func lastMatch(re *regexp.Regexp, s string) int {
+	if re == nil {
+		return -1
+	}
+	all := re.FindAllStringIndex(s, -1)
+	if len(all) == 0 {
+		return -1
+	}
+	return all[len(all)-1][0]
 }
 
 // NewHeuristic builds a HeuristicCLI. promptRegex is required; doneRegex is optional
@@ -61,8 +88,16 @@ func (h *HeuristicCLI) cleanTail(window []byte) string {
 // REPL whose prompt the regex doesn't know.
 const staleWorking = 15 * time.Second
 
-// Detect implements Adapter. Precedence after the idle gate: done > prompt >
-// stale silence > working.
+// Detect implements Adapter. Precedence after the idle gate: done > busy
+// shown after the last prompt (until stale) > prompt > stale silence >
+// working.
+//
+// The window is raw output, not the screen: a full-screen agent that swaps
+// its footer ("? for shortcuts" → "esc to cancel") leaves the old text in the
+// window, so the busy pattern wins only when it appeared after the last
+// prompt match. It does not outlast the stale-silence rule: a working agent
+// keeps animating a spinner, so a screen frozen that long with the busy
+// footer is waiting on the user (a permission question, say).
 func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State {
 	if idle < h.idle {
 		return protocol.StateWorking
@@ -71,7 +106,11 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 	if h.done != nil && h.done.MatchString(clean) {
 		return protocol.StateDone
 	}
-	if h.prompt.MatchString(clean) {
+	prompt := lastMatch(h.prompt, clean)
+	if busy := lastMatch(h.busy, clean); busy > prompt && idle < staleWorking {
+		return protocol.StateWorking
+	}
+	if prompt >= 0 {
 		return protocol.StateNeedsInput
 	}
 	if idle >= staleWorking {

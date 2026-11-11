@@ -68,3 +68,23 @@ func TestFor_HeuristicIdleDuration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 500*time.Millisecond, h.idle)
 }
+
+func TestFor_AntigravityUsesBusyFooter(t *testing.T) {
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	tool, ok := reg.Find("antigravity")
+	require.True(t, ok)
+	ad, err := For(tool, "")
+	require.NoError(t, err)
+	h, ok := ad.(*HeuristicCLI)
+	require.True(t, ok)
+	require.NotNil(t, h.busy)
+
+	_, err = For(registry.Tool{ID: "x", Detect: registry.Detect{Kind: "heuristic", PromptRegex: "x", BusyRegex: "(", IdleMs: 100}}, "")
+	require.Error(t, err)
+}
+
+func TestFor_HeuristicPromptCompileErrorWithBusy(t *testing.T) {
+	_, err := For(registry.Tool{ID: "x", Detect: registry.Detect{Kind: "heuristic", PromptRegex: "(", BusyRegex: "ok", IdleMs: 100}}, "")
+	require.Error(t, err)
+}

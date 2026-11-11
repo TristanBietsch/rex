@@ -79,16 +79,17 @@ func TestDeriveAgentSlug(t *testing.T) {
 
 func TestToolShort(t *testing.T) {
 	cases := map[string]string{
-		"claude":   "cc",
-		"codex":    "cx",
-		"gemini":   "gm",
-		"ollama":   "ol",
-		"grok":     "gk",
-		"deepseek": "ds",
-		"kimi":     "km",
-		"echo":     "ec",
-		"x":        "x",
-		"abc":      "ab",
+		"claude":      "cc",
+		"codex":       "cx",
+		"gemini":      "gm",
+		"antigravity": "ag",
+		"ollama":      "ol",
+		"grok":        "gk",
+		"deepseek":    "ds",
+		"kimi":        "km",
+		"echo":        "ec",
+		"x":           "x",
+		"abc":         "ab",
 	}
 	for in, want := range cases {
 		got := toolShort(in)

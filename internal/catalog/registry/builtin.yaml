@@ -129,10 +129,15 @@ tools:
     command: ["agy"]
     detect:
       kind: heuristic
-      # The empty input line or the idle footer. [ \t] not \s: \s matches
-      # newlines. The trust dialog's "> Yes, I trust this folder" does not
-      # match, so a session stuck there reads as waiting (frozen screen).
-      prompt_regex: "(?m)^[ \\t]*>[ \\t]*$|\\? for shortcuts"
+      # agy keeps its ">" input line on screen while it works, so only the
+      # footer tells the states apart: "? for shortcuts" when idle, "esc to
+      # cancel" (with a "Generating..." spinner) while working. busy_regex
+      # wins when it came after the last prompt match, so a quiet stretch in
+      # a turn stays working; a screen frozen 15 s still reads as waiting
+      # (a permission question). The trust dialog matches neither and reads
+      # as waiting after 15 s too.
+      prompt_regex: "\\? for shortcuts"
+      busy_regex: "esc to cancel"
       idle_ms: 1200
     # Folders in auto_trust_dirs: agy trusts them itself for this session
     # (--settings is session-only and never saved), so no dialog shows.
@@ -164,6 +169,29 @@ tools:
       - id: gpt-oss-120b
         name: "GPT-OSS 120B"
         args: ["--model=gpt-oss-120b-medium"]
+
+  # Gemini CLI, retired 2026-06-18 in favor of antigravity. Kept hidden (not
+  # in the wizard) so an existing install, a partial `gemini` overlay in
+  # tools.yaml, or a saved default_spawn_tool keeps working.
+  - id: gemini
+    name: "Gemini CLI"
+    category: paid
+    command: ["gemini"]
+    enabled_by_default: false
+    detect:
+      kind: heuristic
+      # [ \t] not \s: \s matches newlines and lets ">" span lines.
+      prompt_regex: "(?m)^[ \\t]*>[ \\t]"
+      idle_ms: 1200
+    icon: "◈"
+    color: "#4285F4"
+    models:
+      - id: 2.5-pro
+        name: "Gemini 2.5 Pro"
+        args: ["--model", "gemini-2.5-pro"]
+      - id: 2.5-flash
+        name: "Gemini 2.5 Flash"
+        args: ["--model", "gemini-2.5-flash"]
 
   - id: ollama
     name: "Ollama (local)"

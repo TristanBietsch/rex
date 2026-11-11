@@ -80,8 +80,12 @@ func TestBuiltinAntigravity(t *testing.T) {
 	require.Equal(t, []string{"agy"}, agy.Command)
 	require.Nil(t, agy.TrustPrompt, "agy trusts the folder from --settings; no keystrokes")
 	require.Equal(t, []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}, agy.TrustArgs)
-	_, ok = reg.Find("gemini")
-	require.False(t, ok, "Gemini CLI was retired; antigravity replaces it")
+	gemini, ok := reg.Find("gemini")
+	require.True(t, ok, "kept so partial overlays and saved defaults still work")
+	require.NotNil(t, gemini.EnabledByDefault)
+	require.False(t, *gemini.EnabledByDefault, "retired: hidden from the wizard")
+	require.Equal(t, `\? for shortcuts`, agy.Detect.PromptRegex)
+	require.Equal(t, "esc to cancel", agy.Detect.BusyRegex)
 
 	_, flash, ok := reg.FindModel("antigravity", "gemini-3.8-flash")
 	require.True(t, ok)
@@ -104,4 +108,12 @@ func TestMergeTrustArgs(t *testing.T) {
 	require.Equal(t, []string{"--new", "{cwd_list}"}, merged.TrustArgs)
 	kept := mergeOne(Tool{ID: "a", TrustArgs: []string{"--old", "{cwd_list}"}}, Tool{ID: "a", Name: "x"})
 	require.Equal(t, []string{"--old", "{cwd_list}"}, kept.TrustArgs)
+}
+
+func TestValidateBusyRegex(t *testing.T) {
+	tool := Tool{ID: "x", Models: []Model{{ID: "m"}},
+		Detect: Detect{Kind: "heuristic", PromptRegex: "p", IdleMs: 100, BusyRegex: "("}}
+	require.ErrorContains(t, validate([]Tool{tool}), "busy_regex")
+	tool.Detect.BusyRegex = "esc to cancel"
+	require.NoError(t, validate([]Tool{tool}))
 }

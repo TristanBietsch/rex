@@ -14,8 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Sonnet/Opus 4.6, GPT-OSS 120B) and takes the first prompt with
   `--prompt-interactive`. Under `auto_trust_dirs` it starts with the folder
   trusted for that session only (`--settings`, never saved), so no trust
-  question shows. Tools can declare this with the new `trust_args`. A
-  `gemini` entry in `tools.yaml` keeps working.
+  question shows. Tools can declare this with the new `trust_args`. Its
+  state comes from the screen's footer, using the new optional
+  `busy_regex` so a quiet stretch mid-turn stays working. `gemini` stays
+  built in but hidden, so existing setups keep working.
 - TUI: a Claude Code session running subagents shows how many in its row
   (`⋔3`). The daemon tracks them with Claude's `SubagentStart` and
   `SubagentStop` hooks; the wire gains an optional `subagents` field.
