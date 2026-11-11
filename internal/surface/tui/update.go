@@ -328,6 +328,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusRename {
 		return updateRenameKey(m, k)
 	}
+	if m.Focus == FocusSearch {
+		return updateSearchKey(m, k)
+	}
 	// Focused prompt: characters are input.
 	if m.Focus == FocusPrompt {
 		return updatePromptKey(m, k)
@@ -413,6 +416,14 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 			return chooseAttach(m, m.SelectedID)
+		case "/":
+			return openSearch(m)
+		case "esc":
+			if m.Search == "" {
+				return m, nil
+			}
+			m.Search = ""
+			return refilter(m), nil
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""
