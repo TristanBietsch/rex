@@ -34,7 +34,7 @@ func benchAttachModel(tb testing.TB, cols, rows int) Model {
 	st.Term = newAttachTerm(st, cols, rows, 5000)
 	m.Attach = st
 	m.Focus = FocusAttach
-	if gc, gr := attachPopupInnerSize(m.Width, m.Height); gc != cols || gr != rows {
+	if gc, gr := attachPopupInnerSize(m.Width, m.Height, 0); gc != cols || gr != rows {
 		tb.Fatalf("popup is %dx%d, want %dx%d", gc, gr, cols, rows)
 	}
 	return m

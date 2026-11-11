@@ -39,7 +39,7 @@ func attachWithTerm(t *testing.T, w, h int, setup string) Model {
 	t.Helper()
 	m := boardModel(protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateNeedsInput})
 	m.Width, m.Height = w, h
-	cols, rows := attachPopupInnerSize(w, h)
+	cols, rows := attachPopupInnerSize(w, h, 0)
 	term := vt10x.New(vt10x.WithSize(cols, rows))
 	_, _ = term.Write([]byte(setup))
 	m.Attach = &AttachState{SessionID: "a", Term: term, Cols: cols, Rows: rows}
