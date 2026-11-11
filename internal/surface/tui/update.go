@@ -558,7 +558,8 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		m.PendingSelectSlug = quickSpawnSlug(m.Store, m.Sessions, text)
-		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text)
+		cols, rows := spawnSizeOf(m)
+		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text, cols, rows)
 	case tea.KeyBackspace:
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
@@ -576,8 +577,9 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 // configured default tool/model/effort from the settings store and uses the
 // wizard's existing slug helpers so a quick-spawned session is indistinguishable
 // from one created via the full wizard. Daemon-side validation surfaces errors
-// for unknown tool/model IDs via the existing DaemonErrMsg path.
-func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string) tea.Cmd {
+// for unknown tool/model IDs via the existing DaemonErrMsg path. cols and
+// rows are the PTY size to start at (spawnSizeOf; 0 = daemon default).
+func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
 	return func() tea.Msg {
 		toolID, _ := store.Get("default_spawn_tool").(string)
 		modelID, _ := store.Get("default_spawn_model").(string)
@@ -596,6 +598,8 @@ func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protoco
 			Title:         prompt,
 			CWD:           cwd,
 			InitialPrompt: prompt,
+			Cols:          cols,
+			Rows:          rows,
 		}); err != nil {
 			slog.Warn("tui: quick-spawn NewSession failed", "err", err, "slug", slug)
 			return CmdErrMsg{Op: "spawn", Err: err}

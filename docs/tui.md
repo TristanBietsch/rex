@@ -155,6 +155,8 @@ Detach with `qq` (two quick `q`s), **Ctrl+]** (ASCII 0x1d) or `::q`. The session
 
 The popup is never wider than the screen: its agent terminal is 40 columns wide at least while the popup fits, and follows the screen below that. In the mobile layout (60 columns or fewer, see [Mobile layout](#mobile-layout)) the popup becomes a sheet: it fills the screen with only its border, no margin and no padding, so the agent gets `columns - 2` columns. Crossing the breakpoint while attached resizes the agent.
 
+New agents (quick-spawn `i` and the wizard) start at the size the popup will give them, so the first attach needs no resize; agents that lay their screen out once, like Antigravity, stay correct. Until the terminal size is known the daemon default (120x32) is used.
+
 `rex attach <sel>` from a shell uses the same detach key. It has no banner (see [Banner](#banner)): the agent draws straight on your terminal.
 
 ### Command bar (`::`)

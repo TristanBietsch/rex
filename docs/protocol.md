@@ -54,7 +54,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
 | `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Broadcast as `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
 | `Delete` | yes | `session_id` |
-| `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored) |
+| `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored; clamped to 20-1000 columns and 5-500 rows) |
 | `SetSessionFleet` | yes | `session_id`, `fleet` |
 | `SetMaxConcurrent` | yes | `n` (`n <= 0` uncaps) |
 | `Complete` | yes | `session_id` |
@@ -72,9 +72,11 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Field | Required |
 |-------|----------|
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
-| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills` | no |
+| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills`, `cols`, `rows` | no |
 
 `trust_folder` (bool, default false) trusts `cwd` for this session as if it were listed in `auto_trust_dirs`: the agent's folder-trust dialog is answered (or avoided with `trust_args`) and `skip_permissions` may apply. `cwd` must be absolute, without `..`, and neither a filesystem root nor the home folder; otherwise the intent is `bad_intent` with a `trust_folder: ...` message. The choice is stored in `meta.json` and shown as `trust_folder` in session summaries, and `Resume` applies it again (re-checking the stored `cwd`; a folder that no longer passes is not trusted). Nothing is written to the agent's own config by rex.
+
+`cols` and `rows` (numbers, default 0) are the PTY size to start the agent at, so a client that will attach at a known size needs no first `Resize`. The daemon clamps them to 20-1000 columns and 5-500 rows; 0 means the default, 120x32. A daemon that predates the fields ignores them and starts at 120x32.
 
 `name` is the display name, normalized like `SetSessionName` (whitespace collapsed, control characters dropped, at most 64 characters; too long is `bad_intent`). Empty shows the slug.
 
