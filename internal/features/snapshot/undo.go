@@ -32,6 +32,16 @@ type UndoResult struct {
 // The caller checks that the session is not working and that no other live
 // session shares the folder.
 func (s *Store) Undo(ctx context.Context, cwd, session string, turns int) (UndoResult, error) {
+	return s.undo(ctx, cwd, session, turns, false)
+}
+
+// PlanUndo is Undo without doing it: it lists the files Undo would write and
+// delete and changes nothing in the folder or its history (Safety is empty).
+func (s *Store) PlanUndo(ctx context.Context, cwd, session string, turns int) (UndoResult, error) {
+	return s.undo(ctx, cwd, session, turns, true)
+}
+
+func (s *Store) undo(ctx context.Context, cwd, session string, turns int, dry bool) (UndoResult, error) {
 	if turns < 1 {
 		return UndoResult{}, fmt.Errorf("snapshot: turns must be at least 1, got %d", turns)
 	}
@@ -62,6 +72,9 @@ func (s *Store) Undo(ctx context.Context, cwd, session string, turns int) (UndoR
 	if !ok || to == "" {
 		return UndoResult{}, ErrNotUndoable
 	}
+	if dry {
+		return s.planTo(ctx, dir, cwd, session, to)
+	}
 	safety, err := s.capture(ctx, dir, cwd, session, PhaseSafety)
 	if err != nil {
 		return UndoResult{}, err
@@ -80,6 +93,15 @@ func (s *Store) Undo(ctx context.Context, cwd, session string, turns int) (UndoR
 // Redo brings back the state that the latest Undo replaced. History after a
 // new turn started is gone: Redo then fails with ErrNothingToRedo.
 func (s *Store) Redo(ctx context.Context, cwd, session string) (UndoResult, error) {
+	return s.redo(ctx, cwd, session, false)
+}
+
+// PlanRedo is Redo without doing it, as PlanUndo is to Undo.
+func (s *Store) PlanRedo(ctx context.Context, cwd, session string) (UndoResult, error) {
+	return s.redo(ctx, cwd, session, true)
+}
+
+func (s *Store) redo(ctx context.Context, cwd, session string, dry bool) (UndoResult, error) {
 	if err := checkCWD(cwd); err != nil {
 		return UndoResult{}, err
 	}
@@ -100,6 +122,9 @@ func (s *Store) Redo(ctx context.Context, cwd, session string) (UndoResult, erro
 		return UndoResult{}, ErrNothingToRedo
 	}
 	top := p.undone[len(p.undone)-1]
+	if dry {
+		return s.planTo(ctx, dir, cwd, session, top.Tree)
+	}
 	cur, err := s.capture(ctx, dir, cwd, session, PhasePreRedo)
 	if err != nil {
 		return UndoResult{}, err
@@ -153,4 +178,18 @@ func (s *Store) MarkMissed(cwd, session string) error {
 	}
 	p := fold(entries, session)
 	return appendLedger(dir, Entry{SessionID: session, Turn: p.cursor + 1, Phase: PhaseStart, At: s.now().UTC()})
+}
+
+// planTo lists what restoring to would write and delete from the folder's
+// current state. The current state is written as a tree that no ref keeps.
+func (s *Store) planTo(ctx context.Context, dir, cwd, session string, to Tree) (UndoResult, error) {
+	cur, env, err := s.writeTree(ctx, dir, cwd, session)
+	if err != nil {
+		return UndoResult{}, err
+	}
+	write, del, err := s.plan(ctx, env, cwd, cur, to)
+	if err != nil {
+		return UndoResult{}, err
+	}
+	return UndoResult{Restored: write, Deleted: del}, nil
 }

@@ -86,43 +86,15 @@ func (s *Store) Capture(ctx context.Context, cwd, session string, phase Phase) (
 
 // capture is Capture with the folder lock held.
 func (s *Store) capture(ctx context.Context, dir, cwd, session string, phase Phase) (Tree, error) {
-	exclude, err := repoExclude(ctx, cwd)
+	tree, env, err := s.writeTree(ctx, dir, cwd, session)
 	if err != nil {
 		return "", err
 	}
-	index := filepath.Join(shadowOf(dir), "index-"+session)
-	env := gitEnv(shadowOf(dir), cwd, index)
-	// An earlier capture killed at its time limit can leave its index lock
-	// behind; this folder's lock means nobody else holds it.
-	_ = os.Remove(index + ".lock")
-	if err := s.ensure(ctx, dir, cwd, exclude, nil); err != nil {
-		return "", err
-	}
-	big, err := s.bigUntracked(ctx, env, cwd)
-	if err != nil {
-		return "", err
-	}
-	if len(big) > 0 {
-		if err := s.ensure(ctx, dir, cwd, exclude, big); err != nil {
-			return "", err
-		}
-	}
-	g := func(stdin []byte, args ...string) ([]byte, error) {
-		return run(ctx, env, cwd, stdin, append(safeConfig(), args...)...)
-	}
-	if _, err := g(nil, "add", "-A", "--", "."); err != nil {
-		return "", err
-	}
-	out, err := g(nil, "write-tree")
-	if err != nil {
-		return "", err
-	}
-	tree := Tree(strings.TrimSpace(string(out)))
 	n, err := s.nextSeq(ctx, env, cwd, session)
 	if err != nil {
 		return "", err
 	}
-	if _, err := g(nil, "update-ref", refName(session, n), string(tree)); err != nil {
+	if _, err := run(ctx, env, cwd, nil, append(safeConfig(), "update-ref", refName(session, n), string(tree))...); err != nil {
 		return "", err
 	}
 	entries, err := readLedger(dir)
@@ -145,6 +117,44 @@ func (s *Store) capture(ctx context.Context, dir, cwd, session string, phase Pha
 		return "", err
 	}
 	return tree, nil
+}
+
+// writeTree stages the folder into the session's private index and writes
+// the tree. Nothing keeps the tree alive yet: no ref, no ledger line. It
+// also returns the environment for the session's shadow calls.
+func (s *Store) writeTree(ctx context.Context, dir, cwd, session string) (Tree, []string, error) {
+	exclude, err := repoExclude(ctx, cwd)
+	if err != nil {
+		return "", nil, err
+	}
+	index := filepath.Join(shadowOf(dir), "index-"+session)
+	env := gitEnv(shadowOf(dir), cwd, index)
+	// An earlier capture killed at its time limit can leave its index lock
+	// behind; this folder's lock means nobody else holds it.
+	_ = os.Remove(index + ".lock")
+	if err := s.ensure(ctx, dir, cwd, exclude, nil); err != nil {
+		return "", nil, err
+	}
+	big, err := s.bigUntracked(ctx, env, cwd)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(big) > 0 {
+		if err := s.ensure(ctx, dir, cwd, exclude, big); err != nil {
+			return "", nil, err
+		}
+	}
+	g := func(args ...string) ([]byte, error) {
+		return run(ctx, env, cwd, nil, append(safeConfig(), args...)...)
+	}
+	if _, err := g("add", "-A", "--", "."); err != nil {
+		return "", nil, err
+	}
+	out, err := g("write-tree")
+	if err != nil {
+		return "", nil, err
+	}
+	return Tree(strings.TrimSpace(string(out))), env, nil
 }
 
 func refName(session string, n int) string {

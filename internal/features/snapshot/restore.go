@@ -107,22 +107,8 @@ func (s *Store) restore(ctx context.Context, dir, cwd string, to Tree, opts Rest
 	g := func(stdin []byte, args ...string) ([]byte, error) {
 		return run(ctx, env, cwd, stdin, append(safeConfig(), args...)...)
 	}
-	changes, err := s.changed(ctx, env, cwd, opts.From, to)
+	write, del, err := s.plan(ctx, env, cwd, opts.From, to)
 	if err != nil {
-		return Result{}, err
-	}
-	var write, del []string
-	for _, c := range changes {
-		if !filepath.IsLocal(filepath.FromSlash(c.Path)) {
-			return Result{}, fmt.Errorf("snapshot: refusing path %q in a tree", c.Path)
-		}
-		if c.Status == "D" {
-			del = append(del, c.Path)
-		} else {
-			write = append(write, c.Path)
-		}
-	}
-	if del, err = s.dropIgnored(ctx, env, cwd, del); err != nil {
 		return Result{}, err
 	}
 	for _, p := range del {
@@ -141,9 +127,31 @@ func (s *Store) restore(ctx context.Context, dir, cwd string, to Tree, opts Rest
 			return Result{}, err
 		}
 	}
+	return Result{Restored: write, Deleted: del}, nil
+}
+
+// plan lists what restoring to would write and delete from the state from.
+func (s *Store) plan(ctx context.Context, env []string, cwd string, from, to Tree) (write, del []string, err error) {
+	changes, err := s.changed(ctx, env, cwd, from, to)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, c := range changes {
+		if !filepath.IsLocal(filepath.FromSlash(c.Path)) {
+			return nil, nil, fmt.Errorf("snapshot: refusing path %q in a tree", c.Path)
+		}
+		if c.Status == "D" {
+			del = append(del, c.Path)
+		} else {
+			write = append(write, c.Path)
+		}
+	}
+	if del, err = s.dropIgnored(ctx, env, cwd, del); err != nil {
+		return nil, nil, err
+	}
 	slices.Sort(write)
 	slices.Sort(del)
-	return Result{Restored: write, Deleted: del}, nil
+	return write, del, nil
 }
 
 // dropIgnored removes from paths those the folder's ignore rules cover:

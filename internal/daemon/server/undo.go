@@ -36,8 +36,12 @@ func handleUndo(c *client, env protocol.Envelope) (outcome, error) {
 		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, fmt.Sprintf("turns must be 1 to %d", maxUndoTurns))
 	}
 	turns := max(p.Turns, 1)
+	st := c.srv.cfg.Snapshots
 	return c.srv.undoRedo(c, env, p.SessionID, p.Force, func(ctx context.Context, cwd string) (snapshot.UndoResult, error) {
-		return c.srv.cfg.Snapshots.Undo(ctx, cwd, p.SessionID, turns)
+		if p.DryRun {
+			return st.PlanUndo(ctx, cwd, p.SessionID, turns)
+		}
+		return st.Undo(ctx, cwd, p.SessionID, turns)
 	})
 }
 
@@ -46,8 +50,12 @@ func handleRedo(c *client, env protocol.Envelope) (outcome, error) {
 	if err != nil {
 		return outcome{}, err
 	}
+	st := c.srv.cfg.Snapshots
 	return c.srv.undoRedo(c, env, p.SessionID, p.Force, func(ctx context.Context, cwd string) (snapshot.UndoResult, error) {
-		return c.srv.cfg.Snapshots.Redo(ctx, cwd, p.SessionID)
+		if p.DryRun {
+			return st.PlanRedo(ctx, cwd, p.SessionID)
+		}
+		return st.Redo(ctx, cwd, p.SessionID)
 	})
 }
 

@@ -48,6 +48,8 @@ func RunHelp() error {
 				{"name <sel> [text]", "set/show display name (-clear resets to slug)"},
 				{"done <sel>", "mark done: cleared after retire_after_hours (-after 72h)"},
 				{"undone <sel>", "cancel a pending done"},
+				{"undo <sel>", "restore the folder to before the last turn (-turns N, -yes; needs turn_snapshots)"},
+				{"redo <sel>", "bring back what undo replaced"},
 				{"rm <sel>", "delete a session"},
 				{"prune", "delete Completed sessions, keeping any still working (-dry-run, -yes)"},
 				{"archive <sel>", "archive a session"},

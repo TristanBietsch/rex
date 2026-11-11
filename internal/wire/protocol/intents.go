@@ -200,6 +200,9 @@ type Undo struct {
 	// Force undoes although another live session works in the same folder
 	// (its changes are reverted too).
 	Force bool `json:"force,omitempty"`
+	// DryRun makes no change: the reply lists what would be restored and
+	// deleted, and has no safety tree. The same refusals apply.
+	DryRun bool `json:"dry_run,omitempty"`
 }
 
 // Redo brings back the state the latest Undo replaced. The reply is an
@@ -208,6 +211,7 @@ type Undo struct {
 // redone.
 type Redo struct {
 	SessionID string `json:"session_id"`
-	// Force: as for Undo.
-	Force bool `json:"force,omitempty"`
+	// Force and DryRun: as for Undo.
+	Force  bool `json:"force,omitempty"`
+	DryRun bool `json:"dry_run,omitempty"`
 }
