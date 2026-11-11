@@ -55,7 +55,7 @@ func TestErrLog_RecordsAndRedacts(t *testing.T) {
 	require.Equal(t, ExitGeneric, r.Exit)
 	require.Equal(t, "error", r.Kind)
 	require.Contains(t, r.Error, "<redacted>")
-	require.Equal(t, []string{"boom"}, r.Chain)
+	require.Equal(t, []string{"*errors.errorString"}, r.Chain)
 	require.Equal(t, "rex ls", r.Hint)
 	require.Equal(t, Version, r.Version)
 	require.NotEmpty(t, r.OS)
@@ -191,7 +191,7 @@ func TestErrLog_RecordIsCappedAt4KiB(t *testing.T) {
 func TestErrChainWalksWrappedAndJoinedErrors(t *testing.T) {
 	a, b := errors.New("a"), errors.New("b")
 	chain := errChain(fmt.Errorf("top: %w", errors.Join(a, fmt.Errorf("wrapped: %w", b))))
-	require.Equal(t, []string{"a wrapped: b", "a", "wrapped: b", "b"}, chain)
+	require.Equal(t, []string{"*errors.joinError", "*errors.errorString", "*fmt.wrapError", "*errors.errorString"}, chain)
 
 	deep := errors.New("end")
 	for i := range 20 {

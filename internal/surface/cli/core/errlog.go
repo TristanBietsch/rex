@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -61,23 +62,30 @@ type ErrLogTTY struct {
 	Out bool `json:"out"`
 }
 
+// secretPattern is one shape of secret. keepKey patterns are key=value: the
+// key stays and only the value goes.
+type secretPattern struct {
+	re      *regexp.Regexp
+	keepKey bool
+}
+
 // secretPatterns are scrubbed from error text before it is written: defense
 // in depth on top of the allowlist that keeps values out of the arguments.
-var secretPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`sk-[A-Za-z0-9_-]{8,}`),
-	regexp.MustCompile(`(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{8,}`),
-	regexp.MustCompile(`github_pat_[A-Za-z0-9_]{8,}`),
-	regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
-	regexp.MustCompile(`xox[abps]-[A-Za-z0-9-]{8,}`),
-	regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._~+/=-]{8,}`),
-	regexp.MustCompile(`(?i)\b(password|passwd|token|secret|api[_-]?key)=\S+`),
+var secretPatterns = []secretPattern{
+	{regexp.MustCompile(`sk-[A-Za-z0-9_-]{8,}`), false},
+	{regexp.MustCompile(`(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{8,}`), false},
+	{regexp.MustCompile(`github_pat_[A-Za-z0-9_]{8,}`), false},
+	{regexp.MustCompile(`AKIA[0-9A-Z]{16}`), false},
+	{regexp.MustCompile(`xox[abps]-[A-Za-z0-9-]{8,}`), false},
+	{regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._~+/=-]{8,}`), false},
+	{regexp.MustCompile(`(?i)\b(password|passwd|token|secret|api[_-]?key)=\S+`), true},
 }
 
 // Scrub replaces secrets in s with <redacted>.
 func Scrub(s string) string {
-	for _, re := range secretPatterns {
-		s = re.ReplaceAllStringFunc(s, func(m string) string {
-			if i := strings.Index(m, "="); i > 0 && !strings.HasPrefix(m, "sk-") {
+	for _, sp := range secretPatterns {
+		s = sp.re.ReplaceAllStringFunc(s, func(m string) string {
+			if i := strings.Index(m, "="); sp.keepKey && i > 0 {
 				return m[:i+1] + "<redacted>"
 			}
 			return "<redacted>"
@@ -86,9 +94,34 @@ func Scrub(s string) string {
 	return s
 }
 
-// logMessage makes an error message loggable: one line, scrubbed, capped.
-func logMessage(s string) string {
-	s = Scrub(flat(s))
+// pathPattern finds absolute, ~/ and drive paths: they name folders, sockets
+// and files of the user, which the log never keeps.
+var pathPattern = regexp.MustCompile(`(^|[\s"'(=:\[])(?:[A-Za-z]:[\\/]|~[\\/]|/)[^\s"'()<>,;\]]*`)
+
+// stripPaths replaces every path in s, and the home folder wherever it
+// appears, with <path>.
+func stripPaths(s string) string {
+	if home, err := os.UserHomeDir(); err == nil && len(home) > 1 {
+		s = strings.ReplaceAll(s, home, "<path>")
+	}
+	s = pathPattern.ReplaceAllString(s, "${1}<path>")
+	return homeTail.ReplaceAllString(s, "<path>") // what followed the home folder
+}
+
+var homeTail = regexp.MustCompile(`<path>[\\/][^\s"'()<>,;\]]*`)
+
+// stripValues replaces each value (an argument the redactor hid) found in s.
+func stripValues(s string, values []string) string {
+	for _, v := range values {
+		s = strings.ReplaceAll(s, v, "<arg>")
+	}
+	return s
+}
+
+// logMessage makes an error message loggable: one line, without the
+// argument values that were redacted and without paths, scrubbed, capped.
+func logMessage(s string, hidden ...string) string {
+	s = Scrub(stripPaths(stripValues(flat(s), hidden)))
 	if utf8.RuneCountInString(s) > errLogMaxMessage {
 		r := []rune(s)
 		s = string(r[:errLogMaxMessage-1]) + "…"
@@ -96,14 +129,15 @@ func logMessage(s string) string {
 	return s
 }
 
-// errChain lists the causes under err (not err itself), walking Unwrap and
-// Unwrap() []error, up to errLogMaxChain messages.
+// errChain lists the Go types of the causes under err (not err itself),
+// walking Unwrap and Unwrap() []error, up to errLogMaxChain entries. Only the
+// kind is kept: the text of a dial or OS error carries paths and values.
 func errChain(err error) []string {
 	var out []string
 	var visit func(e error)
 	visit = func(e error) {
 		for e != nil && len(out) < errLogMaxChain {
-			out = append(out, logMessage(e.Error()))
+			out = append(out, fmt.Sprintf("%T", e))
 			switch u := e.(type) { //nolint:errorlint // walking the chain by hand is the point.
 			case interface{ Unwrap() []error }:
 				for _, c := range u.Unwrap() {
@@ -223,26 +257,95 @@ func buildRecord(args []string, err error, now time.Time) ErrLogRecord {
 	info := Describe(err)
 	p := Out()
 	rest, _, _ := stripGlobalFlags(args)
-	verb := "rex"
+	verb := "?" // a name rex does not know may be a prompt typed by mistake
 	var after []string
 	if len(rest) > 0 {
-		verb, after = rest[0], rest[1:]
+		if _, known := FindCommand(rest[0]); known || rest[0] == "help" {
+			verb = rest[0]
+		}
+		after = rest[1:]
 	}
+	policy := cliPolicy(verb, after)
+	if verb == "?" && len(rest) > 0 {
+		policy = redact.Policy{FreeTextFrom: 1}
+		policy.KeepValues = cliKeepValues
+	}
+	logArgs := redact.Argv(append([]string{"rex"}, args...), policy)[1:]
+	hidden := hiddenValues(args, logArgs)
+	if verb == "?" && len(rest) > 0 {
+		hidden = append(hidden, rest[0])
+		sortLongestFirst(hidden)
+	}
+
 	format := p.Format.String()
 	if p.Legacy {
 		format = "json-legacy"
 	}
+	text := info.Msg
+	var ee ExitError
+	if errors.As(err, &ee) && ee.Err != nil {
+		// The wrapped cause (a dial or OS error) is in Msg too; its text
+		// carries paths and values, so only the part before it is kept.
+		text = strings.TrimRight(strings.TrimSuffix(text, ee.Err.Error()), ": ")
+	}
+	msg, chain := logMessage(text, hidden...), errChain(err)
+	if verb == "config" && len(after) > 0 && after[0] == "set" {
+		// The value being set is what failed; the text cannot be trusted to omit it.
+		msg, chain = "config set: rejected ("+info.Kind+")", nil
+	}
 	rec := ErrLogRecord{
 		V: 1, Time: now.UTC().Format("2006-01-02T15:04:05.000Z"),
 		Version: Version, OS: runtime.GOOS + "/" + runtime.GOARCH, PID: os.Getpid(),
-		Cmd: verb, Args: redact.Argv(append([]string{"rex"}, args...), cliPolicy(verb, after))[1:],
+		Cmd: verb, Args: logArgs,
 		Format: format, AgentAuto: p.AgentAuto, TTY: ErrLogTTY{In: p.InTTY, Out: p.OutTTY},
-		Exit: info.Code, Kind: info.Kind, Error: logMessage(info.Msg), Chain: errChain(err), Hint: logMessage(info.Hint),
+		Exit: info.Code, Kind: info.Kind, Error: msg, Chain: chain, Hint: logHint(info.Hint, hidden),
 	}
 	if rec.Args == nil {
 		rec.Args = []string{}
 	}
 	return rec
+}
+
+// hiddenValues are the argument values the redactor replaced (whole
+// arguments, or the value after "="), longest first, so the same text is
+// removed from error messages. Values under three bytes are skipped: they
+// would mangle ordinary words.
+func hiddenValues(args, logged []string) []string {
+	var out []string
+	for i, a := range args {
+		if i >= len(logged) || a == logged[i] {
+			continue
+		}
+		v := a
+		if strings.HasPrefix(a, "-") {
+			_, val, ok := strings.Cut(a, "=")
+			if !ok {
+				continue
+			}
+			v = val
+		}
+		if len(v) >= 3 {
+			out = append(out, v)
+		}
+	}
+	sortLongestFirst(out)
+	return out
+}
+
+func sortLongestFirst(v []string) {
+	sort.SliceStable(v, func(i, j int) bool { return len(v[i]) > len(v[j]) })
+}
+
+// logHint redacts a suggested command the way arguments are: it is built
+// from what the user typed (`rex rm <sel> -force`).
+func logHint(hint string, hidden []string) string {
+	f := strings.Fields(hint)
+	if len(f) >= 2 && f[0] == "rex" {
+		if _, known := FindCommand(f[1]); known {
+			return logMessage(strings.Join(redact.Argv(f, cliPolicy(f[1], f[2:])), " "), hidden...)
+		}
+	}
+	return logMessage(hint, hidden...)
 }
 
 // appendErrLog writes one record, rotating first when the log is full. The

@@ -43,5 +43,6 @@ func TestRun_ErrorsAreRecorded(t *testing.T) {
 
 	out := capturePrinter(t, "txt")
 	require.NoError(t, run([]string{"errors"}))
-	require.Contains(t, out.String(), "frobnicate")
+	require.Contains(t, out.String(), "unknown command")
+	require.NotContains(t, out.String(), "frobnicate", "an unknown command name is never logged")
 }
