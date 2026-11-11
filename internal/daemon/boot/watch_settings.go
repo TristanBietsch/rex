@@ -22,10 +22,19 @@ import (
 // file applies the registry defaults. Appliers run on this goroutine, one
 // after another, and must not block. Blocks until ctx is canceled.
 func WatchSettings(ctx context.Context, path string, every time.Duration, apply ...func(*settings.Store)) {
+	watchSettings(ctx, path, every, nil, apply...)
+}
+
+// watchSettings is WatchSettings with a test seam: onBaseline, when non-nil,
+// is called once right after the baseline stat, before the first poll.
+func watchSettings(ctx context.Context, path string, every time.Duration, onBaseline func(), apply ...func(*settings.Store)) {
 	if path == "" || every <= 0 || len(apply) == 0 {
 		return
 	}
 	last := statSig(path)
+	if onBaseline != nil {
+		onBaseline()
+	}
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
