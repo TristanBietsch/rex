@@ -87,6 +87,11 @@ func TestChildEnvFor(t *testing.T) {
 	require.Equal(t, []string{"REX_SESSION_ID=abc"},
 		childEnvFor(spawnSpec{Tool: registry.Tool{}, HookFile: hf, SessionID: "abc"}),
 		"no hook env for tools that are not hook-detected")
+
+	osc := registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}}
+	require.Equal(t, []string{"AGY_CLI_OSC7501=on", "REX_SESSION_ID=abc"},
+		childEnvFor(spawnSpec{Tool: osc, HookFile: hf, SessionID: "abc"}),
+		"status osc7501 turns the channel on, and no hook env")
 }
 
 func TestBuildArgvSkipPermissions(t *testing.T) {

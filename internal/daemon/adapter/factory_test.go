@@ -76,9 +76,9 @@ func TestFor_AntigravityUsesBusyFooter(t *testing.T) {
 	require.True(t, ok)
 	ad, err := For(tool, "")
 	require.NoError(t, err)
-	h, ok := ad.(*HeuristicCLI)
+	o, ok := ad.(*OSCStatus)
 	require.True(t, ok)
-	require.NotNil(t, h.busy)
+	require.NotNil(t, o.inner.busy)
 
 	_, err = For(registry.Tool{ID: "x", Detect: registry.Detect{Kind: "heuristic", PromptRegex: "x", BusyRegex: "(", IdleMs: 100}}, "")
 	require.Error(t, err)

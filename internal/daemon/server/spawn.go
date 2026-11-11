@@ -252,6 +252,10 @@ func childEnvFor(spec spawnSpec) []string {
 		// C:/... paths without backslash escapes. Go opens either form.
 		env = append(env, adapter.HookFileEnv+"="+filepath.ToSlash(spec.HookFile))
 	}
+	if spec.Tool.Detect.Status == registry.StatusOSC7501 {
+		// Appended after os.Environ, so it wins over a user's "off".
+		env = append(env, adapter.OSC7501Env+"=on")
+	}
 	return append(env, "REX_SESSION_ID="+spec.SessionID)
 }
 
