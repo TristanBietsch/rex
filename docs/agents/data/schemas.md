@@ -54,6 +54,7 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | Sessions | `sessions` | `SessionSummary[]` |
 | Filter | `filter` | string | cosmetic per-client |
 | Overview | `overview` | `Overview` | optional; absent until the daemon publishes one |
+| Usage | `usage` | `Usage` | optional; live quotas, absent while `usage` is off or before the first one |
 
 ## Overview event
 
@@ -64,6 +65,25 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | GeneratedAt | `generated_at` | RFC3339 time | optional |
 
 In memory only; never persisted. See `docs/protocol.md`.
+
+## Usage event
+
+`Usage` in `internal/wire/protocol/usage.go`; memory only, never persisted.
+
+| Field | JSON | Type | Notes |
+|-------|------|------|-------|
+| Enabled | `enabled` | bool | false: `usage` was switched off, drop held quotas |
+| Quotas | `quotas` | `UsageQuota[]` | latest reading per tool and window |
+
+`UsageQuota`: `tool`, `model` (empty = plan-wide), `window` (`5h`, `week`, a spend period), `used_pct`, `resets_at`, `used_usd`, `limit_usd` (all optional), `at`, `stale`.
+
+## UsageSample intent (status-line tap, no reply)
+
+`session_id`, `claude_session_id`, `five_hour` / `seven_day` (`used_pct`, `resets_at` epoch seconds), `spend_limit` (`used_pct`, `resets_at`, `used_usd`, `limit_usd`, `period`), `cost_usd`, `model_id`, `model_name`. All but `session_id` optional.
+
+## UsageQuery intent and UsageResult
+
+Intent: `range` (`today` | `7d` | `30d`), `tool` (optional). Reply event `UsageResult` (`UsageReport`): `range`, `since`, `tool`, `total`, `tools[]` (`tool`, row fields, `models[]` with `model` and row fields), `quotas[]`. Row: `sessions`, `tokens`, `tokens_estimated`, `cost_usd` (optional).
 
 ## SessionUpdated patch
 

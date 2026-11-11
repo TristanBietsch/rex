@@ -24,7 +24,7 @@ func usageSession(id string) *state.Session {
 func TestUsage_SessionEndAndPruneReachTheLedger(t *testing.T) {
 	dir := t.TempDir()
 	store := state.NewStore()
-	u := NewUsage(context.Background(), dir, store)
+	u := NewUsage(context.Background(), dir, store, nil)
 	t.Cleanup(u.Close)
 	u.SetEnabled(true)
 
@@ -45,7 +45,7 @@ func TestUsage_SessionEndAndPruneReachTheLedger(t *testing.T) {
 func TestUsage_OffIsInert(t *testing.T) {
 	dir := t.TempDir()
 	store := state.NewStore()
-	u := NewUsage(context.Background(), dir, store)
+	u := NewUsage(context.Background(), dir, store, nil)
 	u.SetEnabled(false)
 
 	require.NoError(t, store.Add(usageSession("aaaa1111")))
@@ -61,7 +61,7 @@ func TestUsage_OffIsInert(t *testing.T) {
 
 func TestUsage_ApplierFollowsTheSetting(t *testing.T) {
 	store := state.NewStore()
-	u := NewUsage(context.Background(), t.TempDir(), store)
+	u := NewUsage(context.Background(), t.TempDir(), store, nil)
 	t.Cleanup(u.Close)
 
 	st := settings.NewStore()

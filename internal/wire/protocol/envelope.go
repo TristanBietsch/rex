@@ -27,6 +27,8 @@
 //	FocusFilter       Ack
 //	SetMaxConcurrent  Ack
 //	Reload            Ack                           after the new registry is in use
+//	UsageQuery        UsageResult (UsageReport)     not an Ack; bad_intent "usage is off" while the setting is off
+//	UsageSample       none (Ack if it had an ID)    sent by the status-line tap with no ID; dropped quietly when unusable
 //	Shutdown          Ack                           best effort, see below
 //	anything else     Error bad_intent              "intent not implemented"
 //

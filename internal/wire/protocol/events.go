@@ -132,6 +132,9 @@ type Snapshot struct {
 	// Overview is the daemon's current board overview. Nil until the daemon
 	// has published one, and from daemons that predate it.
 	Overview *Overview `json:"overview,omitempty"`
+	// Usage is the daemon's live usage quotas. Nil while usage is off or
+	// nothing was published yet, and from daemons that predate it.
+	Usage *Usage `json:"usage,omitempty"`
 }
 
 // Ack is the success reply to an intent that carried an envelope ID. The

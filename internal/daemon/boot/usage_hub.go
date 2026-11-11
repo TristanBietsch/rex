@@ -8,6 +8,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/usage"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // Usage wires the usage hub to the store. It is inert while the usage
@@ -19,11 +20,14 @@ type Usage struct {
 }
 
 // NewUsage builds the usage hub for store, keeping its ledger in stateDir.
-// Call SetEnabled with the initial setting, and Close when done.
-func NewUsage(ctx context.Context, stateDir string, store *state.Store) *Usage {
+// publish receives the live usage state whenever a quota changes or the hub
+// is switched on or off (nil: nobody listens). Call SetEnabled with the
+// initial setting, and Close when done.
+func NewUsage(ctx context.Context, stateDir string, store *state.Store, publish func(protocol.Usage)) *Usage {
 	hub := usage.NewHub(ctx, usage.HubConfig{
 		Ledger:   usage.OpenLedger(filepath.Join(stateDir, paths.UsageLedgerFileName)),
 		Sessions: store.Snapshot,
+		OnUsage:  publish,
 	})
 	u := &Usage{Hub: hub}
 	// The callback only queues work (Hub.Observe never touches a file), as

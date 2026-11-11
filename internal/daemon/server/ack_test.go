@@ -173,6 +173,23 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		{intent: protocol.IntentReload, payload: struct{}{}, want: fail, code: bad, before: func() { e.failNext.Store(true) }},
 		{intent: protocol.IntentShutdown, payload: struct{}{}, want: ack},
 
+		{intent: protocol.IntentUsageQuery, payload: protocol.UsageQuery{}, want: fail, code: bad}, // no hook: not implemented
+		{
+			intent: protocol.IntentUsageQuery, payload: protocol.UsageQuery{Range: "7d"}, want: protocol.EventUsageResult,
+			before: func() {
+				e.srv.cfg.UsageQuery = func(protocol.UsageQuery) (protocol.UsageReport, error) {
+					return protocol.UsageReport{Range: "7d", Tools: []protocol.UsageToolRow{}}, nil
+				}
+			},
+		},
+		{intent: protocol.IntentUsageQuery, payload: protocol.UsageQuery{Range: "year"}, want: fail, code: bad},
+		{intent: protocol.IntentUsageSample, payload: protocol.UsageSample{SessionID: "s1"}, want: fail, code: bad}, // no hook
+		{
+			intent: protocol.IntentUsageSample, payload: protocol.UsageSample{SessionID: "s1", ModelID: "m"}, want: ack, session: "s1",
+			before: func() { e.srv.cfg.OnUsageSample = func(protocol.UsageSample) {} },
+		},
+		{intent: protocol.IntentUsageSample, payload: "not an object", want: fail, code: bad},
+
 		{intent: protocol.IntentOpenSession, payload: protocol.OpenSession{SessionID: "s1"}, want: fail, code: bad},
 		{intent: "Bogus", payload: struct{}{}, want: fail, code: bad},
 	}

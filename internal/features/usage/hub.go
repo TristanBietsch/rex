@@ -31,6 +31,10 @@ type HubConfig struct {
 	Now func() time.Time
 	// Tick, FlushEvery and Retain override the defaults (tests).
 	Tick, FlushEvery, Retain time.Duration
+	// OnUsage is called with the new Usage state when a quota changed or the
+	// hub was switched on or off. It must not block (the server fans it out
+	// without I/O). nil: nobody listens.
+	OnUsage func(protocol.Usage)
 }
 
 // Hub is the daemon's usage state: the live sessions' totals and the ledger
@@ -58,6 +62,7 @@ type Hub struct {
 	live    map[string]*liveSession
 	prior   map[string]Record // the ledger's latest line per session at first enable
 	queue   []Record          // lines waiting for the goroutine to write
+	quotas  map[quotaKey]protocol.UsageQuota
 }
 
 // liveSession is what the hub knows about one session still on the board.
@@ -101,8 +106,12 @@ func (h *Hub) SetEnabled(on bool) {
 	if !on {
 		clear(h.live)
 		h.queue = nil
+		h.quotas = nil
 	}
 	h.mu.Unlock()
+	if on != was {
+		h.publish(protocol.Usage{Enabled: on})
+	}
 	if !on || was {
 		return
 	}
@@ -266,6 +275,10 @@ func (h *Hub) Report(sessionID, conversationID string, costUSD *float64, modelID
 	if !h.enabled || !ok {
 		return
 	}
+	h.reportLocked(l, conversationID, costUSD, modelID)
+}
+
+func (h *Hub) reportLocked(l *liveSession, conversationID string, costUSD *float64, modelID string) {
 	if costUSD != nil {
 		if l.costs == nil {
 			l.costs = map[string]float64{}

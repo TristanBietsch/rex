@@ -37,6 +37,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the file is trimmed to 90 days when the daemon starts. It holds ids, tool
   and model names, estimated tokens and cost, never prompts or output. See
   [docs/paths.md](docs/paths.md).
+- Protocol (additive, `ProtocolVersion` unchanged): `Usage` event and
+  `Snapshot.usage` with the live plan quotas, the `UsageQuery` intent
+  (replies `UsageResult`: totals per tool, per model and overall over
+  `today`, `7d` or `30d`) and the `UsageSample` intent the status-line tap
+  sends. An older daemon answers `UsageQuery` with `bad_intent`, and the CLI
+  tells you to run `rex daemon restart`. See [docs/protocol.md](docs/protocol.md).
 - TUI: a Waiting section below Needs you for working sessions that are
   blocked on a shell command, a subagent or a web call, not on you (Claude
   Code). A session moves there after 3 seconds on the call. It has its own

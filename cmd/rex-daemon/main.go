@@ -26,6 +26,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/version"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 func main() {
@@ -186,14 +187,14 @@ func run(args []string) error {
 	// shutdown is stuck instead of being swallowed.
 	context.AfterFunc(ctx, stop)
 
-	// Usage tracking: inert while the usage setting is off.
-	usageHub := boot.NewUsage(ctx, *stateDir, store)
+	var srv *server.Server
+	// Usage tracking: inert while the usage setting is off. Its callbacks
+	// read srv only once Serve has started, after that assignment.
+	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
 	defer usageHub.Close()
-	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
 	// One settings watcher: every feature adds an applier here.
 	appliers := []func(*settings.Store){usageHub.Applier()}
 
-	var srv *server.Server
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
 	var ov *boot.Overview
@@ -211,6 +212,8 @@ func run(args []string) error {
 		SkillsDir:             *skillsDir,
 		SkillsEnabled:         boot.SpawnSkillsEnabled,
 		UsageTap:              boot.UsageTap(*socketPath),
+		OnUsageSample:         usageHub.Hub.Sample,
+		UsageQuery:            usageHub.Hub.Query,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
@@ -218,6 +221,9 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
+
+	// Started only now: switching usage on publishes its state through srv.
+	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
 	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)

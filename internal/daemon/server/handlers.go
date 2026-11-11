@@ -38,6 +38,8 @@ func defaultHandlers() map[string]intentHandler {
 		protocol.IntentSetMaxConcurrent: handleSetMaxConcurrent,
 		protocol.IntentShutdown:         handleShutdown,
 		protocol.IntentReload:           handleReload,
+		protocol.IntentUsageSample:      handleUsageSample,
+		protocol.IntentUsageQuery:       handleUsageQuery,
 	}
 }
 
@@ -54,6 +56,9 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		// An overview published between this read and subscribed.Store below
 		// is missed until the next one (documented in protocol.md).
 		Overview: c.srv.Overview(),
+		// Same race as the overview: a change between this read and the
+		// subscription below is missed until the next one.
+		Usage: c.srv.Usage(),
 	}
 	if p.Client == protocol.ClientTUI {
 		c.joinBoard()
@@ -419,4 +424,45 @@ func handleReload(c *client, env protocol.Envelope) (outcome, error) {
 		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
 	}
 	return outcome{}, nil
+}
+
+// handleUsageSample takes the usage fields of one Claude status-line render
+// from a tap. It is fire and forget (the tap sends no ID); a sample for an
+// unknown session, or one that carries nothing, is dropped quietly.
+func handleUsageSample(c *client, env protocol.Envelope) (outcome, error) {
+	if c.srv.cfg.OnUsageSample == nil {
+		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "intent not implemented")
+	}
+	p, err := decodeIntent[protocol.UsageSample](env)
+	if err != nil {
+		return outcome{}, err
+	}
+	if p.SessionID == "" || p.Empty() {
+		return outcome{}, nil
+	}
+	if _, ok := c.srv.cfg.Store.Get(p.SessionID); !ok {
+		return outcome{}, nil
+	}
+	c.srv.cfg.OnUsageSample(p)
+	return outcome{sessionID: p.SessionID}, nil
+}
+
+// handleUsageQuery answers with a UsageResult event carrying the aggregates.
+func handleUsageQuery(c *client, env protocol.Envelope) (outcome, error) {
+	if c.srv.cfg.UsageQuery == nil {
+		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "intent not implemented")
+	}
+	p, err := decodeIntent[protocol.UsageQuery](env)
+	if err != nil {
+		return outcome{}, err
+	}
+	if p.Range != "" && !protocol.ValidUsageRange(p.Range) {
+		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "range must be today, 7d or 30d")
+	}
+	rep, err := c.srv.cfg.UsageQuery(p)
+	if err != nil {
+		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
+	}
+	c.sendEvent(protocol.EventUsageResult, env.ID, rep)
+	return outcome{replied: true}, nil
 }
