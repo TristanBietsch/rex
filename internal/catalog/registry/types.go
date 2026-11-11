@@ -77,7 +77,15 @@ type Detect struct {
 	// stretch shorter than the 15 s stale rule stays working.
 	BusyRegex string `yaml:"busy_regex,omitempty"`
 	IdleMs    int    `yaml:"idle_ms,omitempty"`
+	// Status names a per-session status channel the agent reports its state
+	// on, layered over the heuristic (kind=heuristic only). "osc7501" is
+	// Antigravity's terminal status sequence; the daemon turns it on through
+	// the child's environment. "" means none.
+	Status string `yaml:"status,omitempty"`
 }
+
+// StatusOSC7501 is the Detect.Status value for OSC 7501 terminal status.
+const StatusOSC7501 = "osc7501"
 
 // Model is one variant of a tool.
 type Model struct {

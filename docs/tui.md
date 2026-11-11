@@ -44,15 +44,42 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
      state  id  name        description                          model · effort         tokens   badge  last event
 ```
 
-- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps. The `timestamps` feature (Settings → Features, on by default) switches the span column off; the end time is still recorded.
-- **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view, only while some row has one, and is the first column to go on a narrow terminal. Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
-- **name**, **model · effort**, and **tokens** are as wide as their widest value on the board (name capped at 22, model at 24). Tokens are right-aligned.
+- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps. The `timestamps` feature (Settings → Features, on by default) switches the span column off in both the fixed and the fit layouts; the end time is still recorded.
+- **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view on a wide terminal (150+ columns). Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
+- **name**, **model · effort**, and **tokens** have fixed widths (see below). Tokens are right-aligned.
 - The **waiting** detail: in the detailed view a row in WAITING starts its text with the reason and how long it has waited (`shell 42s · Running the test suite`). The attach header chip reads `◷ waiting (shell)`.
-- The **subagent** column (`⋔ 3`: running subagents) only appears while some Claude Code session is running subagents, in both views. Counts above 99 show as 99.
-- The **badge** column only appears while some row has a long-running badge. The **tokens** column only appears while some row has a token count.
+- The **subagent** column (`⋔ 3`: running subagents) shows how many subagents a Claude Code session is running, in both views. Counts above 99 show as 99. The **badge** column shows the long-running badge. Both columns are always reserved, blank on rows that have nothing to show, so nothing shifts when a subagent starts.
 - **last event** is right-aligned against the edge; `-` means no event yet.
 - The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
-- On narrow terminals, columns give way in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
+
+### Column widths
+
+Column widths never depend on what the rows contain: a long name, a first subagent or a token count moves nothing. They change only when the terminal crosses a breakpoint, and each breakpoint drops whole columns:
+
+| Terminal width | Simple view | Detailed view (`v`) adds |
+|----------------|-------------|--------------------------|
+| 150+ (wide) | name 22 · subagents · badge · age | id · model 24 · tokens · span · resume id |
+| 110–149 (normal) | name 20 · subagents · badge · age | id · model 16 · tokens |
+| below 110 (narrow) | name 16 · subagents · badge · age | nothing; the text is the AI summary |
+
+A column that a class shows is always reserved, even when every row's cell is empty. With the `resume` feature off the resume column is gone.
+
+`column_layout` in Settings → Appearance switches the default `fixed` for `fit`, which sizes name, model and tokens to their widest value on the board (name capped at 22, model at 24), shows the subagent, badge, tokens, span and resume columns only while some row has a value, and gives way on narrow terminals in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
+
+### Mobile layout
+
+At 60 columns or fewer (a phone over SSH) the board stacks each session on two lines. `mobile_layout` in Settings → Appearance sets when: `auto` (the default) uses it at 60 columns or fewer, `always` forces it, `off` never uses it (the narrow columns then squeeze to fit).
+
+```
+ ▸ ◆  release-notes     ⋔ 2  ▴ 42m  11m
+      Which feature should lead: sea…
+```
+
+- Line 1 is the state, name, subagent count, long-run badge and age. The subagent and badge cells go below 36 columns.
+- Line 2 is the text (simple view) or the AI summary (detailed view), cut on a word boundary. Clicking either line selects the session, and scrolling keeps both lines on screen.
+- The header shows the short counts (`◆ 4  ⟳ 2  ● 7`) whatever `header_style` says, without `· detailed (v)`. The backend banner is shortened.
+- The help line lists three keys: `enter open · i new · ? help`.
+- There is no summary preview line, since line 2 already shows the text.
 
 ## FOCUS MODES
 
@@ -74,7 +101,7 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's ful
 
 ### Help overlay
 
-`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
+`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`, at most `w-2` on a narrow terminal). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
 
 ## KEYS (board focus)
 
@@ -125,6 +152,8 @@ Capturing the mouse turns off the terminal's own text selection. Hold Option (iT
 `enter` opens an in-TUI attach view. Output streams from the daemon; keyboard input goes to the session PTY.
 
 Detach with `qq` (two quick `q`s), **Ctrl+]** (ASCII 0x1d) or `::q`. The session keeps running. Like `::`, a lone `q` is held for 400 ms and forwarded to the agent if no second `q` follows (or as soon as another key arrives); pasted text is never intercepted. In scroll mode `q` keeps its own meaning (back to live output).
+
+The popup is never wider than the screen: its agent terminal is 40 columns wide at least while the popup fits, and follows the screen below that. In the mobile layout (60 columns or fewer, see [Mobile layout](#mobile-layout)) the popup becomes a sheet: it fills the screen with only its border, no margin and no padding, so the agent gets `columns - 2` columns. Crossing the breakpoint while attached resizes the agent.
 
 `rex attach <sel>` from a shell uses the same detach key. It has no banner (see [Banner](#banner)): the agent draws straight on your terminal.
 

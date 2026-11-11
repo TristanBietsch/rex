@@ -88,6 +88,9 @@ var bindings = []binding{
 // binding that has a Line label.
 var helpLineKeys = []string{"enter", "i", "cc", "tab", "?"}
 
+// helpLineKeysMobile is the help line in the mobile layout.
+var helpLineKeysMobile = []string{"enter", "i", "?"}
+
 // bindingsIn returns the bindings of one help group as help rows, in table
 // order.
 func bindingsIn(group string) helpGroup {

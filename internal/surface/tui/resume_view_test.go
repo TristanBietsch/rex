@@ -71,16 +71,19 @@ func TestBoardResumeColumn(t *testing.T) {
 		out := ansi.Strip(renderBoard(resumeModel(160, false), 160, 0))
 		require.NotContains(t, out, "1a2b3c4d")
 	})
-	t.Run("only while some row has an id", func(t *testing.T) {
+	t.Run("fixed reserves it, fit only while some row has an id", func(t *testing.T) {
 		none := spanModel(160, true)
-		require.Zero(t, boardLayout(none, 160).resume)
-		require.Positive(t, boardLayout(m, 160).resume)
+		require.Positive(t, boardLayout(none, 160).resume)
+		require.Zero(t, boardLayout(fitModel(t, none), 160).resume)
+		require.Positive(t, boardLayout(fitModel(t, m), 160).resume)
 	})
 	t.Run("an invalid id is not shown", func(t *testing.T) {
 		bad := resumeModel(160, true)
 		bad.Sessions[0].ResumeID = "-x --flag"
 		bad.Sessions[1].ResumeID = ""
-		require.Zero(t, boardLayout(bad, 160).resume)
+		require.Zero(t, boardLayout(fitModel(t, bad), 160).resume)
+		out := ansi.Strip(renderBoard(bad, 160, 0))
+		require.NotContains(t, out, "-x --flag")
 	})
 }
 
@@ -88,12 +91,12 @@ func TestBoardResumeColumn(t *testing.T) {
 // tokens survive it.
 func TestBoardLayout_ResumeDropsFirst(t *testing.T) {
 	sessions := resumeSessions()
-	full := layoutRows(sessions, timesNow, 160, true, true, true)
+	full := layoutFit(sessions, timesNow, 160, true, true, true)
 	require.Equal(t, 8, full.resume)
 	require.Positive(t, full.span)
 	require.Positive(t, full.tokens)
 	for w := 160; w > 40; w-- {
-		c := layoutRows(sessions, timesNow, w, true, true, true)
+		c := layoutFit(sessions, timesNow, w, true, true, true)
 		if c.resume == 0 {
 			require.Positive(t, c.span, "width %d: resume dropped before span", w)
 			require.Positive(t, c.tokens, "width %d: resume dropped before tokens", w)

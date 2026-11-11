@@ -85,7 +85,7 @@ func TestPreview_RowReservationRules(t *testing.T) {
 func TestPreview_TwoLinesWrapAndCut(t *testing.T) {
 	m := previewModel(40, described("a", strings.Repeat("alpha beta gamma ", 12)))
 	require.NoError(t, m.Store.Set("summary_detail", "long"))
-	m.Width = 60
+	m.Width = 61 // 60 and below is the mobile layout, which has no preview line
 	lines := plain(m, 40)
 	require.Len(t, lines, 40)
 	var rows []string

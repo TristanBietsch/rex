@@ -308,6 +308,9 @@ const (
 	slotTitle
 	slotNone
 	slotRow
+	// slotRowCont is the second line of a stacked (mobile) row; it carries
+	// the same session as the slotRow above it.
+	slotRowCont
 )
 
 // boardSlot is one line of the unscrolled board. renderBoard, scrolling
@@ -321,6 +324,7 @@ type boardSlot struct {
 
 func boardSlots(m Model) []boardSlot {
 	gapBetween := densityGap(m)
+	stacked := mobileLayout(m)
 	collapsed := doneCollapsed(m)
 	f := rowFilterOf(m)
 	var slots []boardSlot
@@ -344,6 +348,9 @@ func boardSlots(m Model) []boardSlot {
 		}
 		for _, s := range rows {
 			slots = append(slots, boardSlot{kind: slotRow, group: i, sess: s})
+			if stacked {
+				slots = append(slots, boardSlot{kind: slotRowCont, group: i, sess: s})
+			}
 		}
 	}
 	return slots
@@ -405,10 +412,11 @@ func renderBoard(m Model, width, height int) string {
 	if end > len(slots) {
 		end = len(slots)
 	}
-	cols := layoutSlots(slots, m.now(), width, m.Detailed, m.featureOn("resume"), m.featureOn("timestamps"))
+	cols := layoutSlots(slots, m.now(), width, layoutOptsOf(m))
 	// An empty column's text starts where row content does.
 	noneIndent := strings.Repeat(" ", rowIndent+colMarker+colGap)
 	searching := rowFilterOf(m).searching()
+	stacked := mobileLayout(m)
 	lines := make([]string, 0, height)
 	for _, sl := range slots[off:end] {
 		switch sl.kind {
@@ -424,7 +432,15 @@ func renderBoard(m Model, width, height int) string {
 			none = ansi.Truncate(none, max(width-ansi.StringWidth(noneIndent), 0), "…")
 			lines = append(lines, noneIndent+styleMuted.Render(none))
 		case slotRow:
-			lines = append(lines, renderRow(m, sl.sess, cols))
+			if stacked {
+				name, _ := renderRowStacked(m, sl.sess, width)
+				lines = append(lines, name)
+			} else {
+				lines = append(lines, renderRow(m, sl.sess, cols))
+			}
+		case slotRowCont:
+			_, text := renderRowStacked(m, sl.sess, width)
+			lines = append(lines, text)
 		}
 	}
 
@@ -483,27 +499,27 @@ func (c rowCols) used() int {
 // boardLayout sizes the columns for every row the board renders (all
 // sections, not just the scrolled window, so scrolling never shifts columns).
 func boardLayout(m Model, width int) rowCols {
-	return layoutSlots(boardSlots(m), m.now(), width, m.Detailed, m.featureOn("resume"), m.featureOn("timestamps"))
+	return layoutSlots(boardSlots(m), m.now(), width, layoutOptsOf(m))
 }
 
-func layoutSlots(slots []boardSlot, now time.Time, width int, detailed, resume, times bool) rowCols {
+func layoutSlots(slots []boardSlot, now time.Time, width int, o layoutOpts) rowCols {
 	rows := make([]protocol.SessionSummary, 0, len(slots))
 	for _, sl := range slots {
 		if sl.kind == slotRow {
 			rows = append(rows, sl.sess)
 		}
 	}
-	return layoutRows(rows, now, width, detailed, resume, times)
+	return layoutRows(rows, now, width, o)
 }
 
-// layoutRows sizes columns to content, then degrades for narrow widths in a
+// layoutFit sizes columns to content, then degrades for narrow widths in a
 // fixed order until the description gets descMin: drop the resume id, drop
 // the start→end span,
 // drop tokens, shrink model
 // (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
 // long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
-func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume, times bool) rowCols {
+func layoutFit(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume, times bool) rowCols {
 	var c rowCols
 	if detailed {
 		c.id = colID
@@ -574,13 +590,13 @@ func cell(style lipgloss.Style, s string, w int) string {
 	return style.Width(w).Render(truncate(s, w))
 }
 
-func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
-	selected := m.SelectedID == s.ID
-
+// rowLead is a row's left edge: the 3-column indent (selection arrow, fleet
+// bar or blank) and the state marker, plus whether the row shows as waiting.
+func rowLead(m Model, s protocol.SessionSummary) (indent, marker string, waiting bool) {
 	// Marker is the only indicator for the selected row — no bg fill,
 	// avoids the chunky highlight artifacts.
 	var markerPrefix string
-	if selected {
+	if m.SelectedID == s.ID {
 		markerPrefix = styleArrow.Render("▸")
 	} else if s.Fleet != "" {
 		// Fleet indicator: tinted left border using the fleet's stable color.
@@ -588,47 +604,68 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	} else {
 		markerPrefix = " "
 	}
-
-	now := m.now()
-	retiring := !s.RetireAt.IsZero()
-	dim := lipgloss.NewStyle().Foreground(colorFgDim)
 	state := s.State
-	if retiring {
+	if !s.RetireAt.IsZero() {
 		state = protocol.StateDone // marked done reads green whatever the live state
 	}
-	marker := stateMarkerCellFor(m, state, m.SpinnerTick, false)
-	waiting := waitingKindOf(m, s) != ""
+	marker = stateMarkerCellFor(m, state, m.SpinnerTick, false)
+	waiting = waitingKindOf(m, s) != ""
 	if waiting {
 		marker = waitingMarkerCell(m, false)
 	}
-	// A marked-done row recedes: muted name and description.
-	slugStyle := lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
-	if retiring && !selected {
-		slugStyle = dim
+	return " " + markerPrefix + " ", marker, waiting // indent: 3 chars
+}
+
+// rowNameStyle is the name's style: a marked-done row recedes.
+func rowNameStyle(s protocol.SessionSummary, selected bool) lipgloss.Style {
+	if !s.RetireAt.IsZero() && !selected {
+		return lipgloss.NewStyle().Foreground(colorFgDim)
 	}
-	slug := cell(slugStyle, displayName(s), c.slug)
-	descColor := colorFgDim
-	if selected {
-		descColor = colorFgPrimary
-	} else if retiring {
-		descColor = colorFgMuted
+	return lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
+}
+
+// rowDescColor is the text's color: the selected row reads first, then a
+// session that needs you (simple view), while a marked-done row recedes.
+func rowDescColor(m Model, s protocol.SessionSummary, selected bool) lipgloss.TerminalColor {
+	switch {
+	case selected:
+		return colorFgPrimary
+	case !s.RetireAt.IsZero():
+		return colorFgMuted
+	case !m.Detailed && s.State == protocol.StateNeedsInput:
+		return colorFgPrimary // what needs you reads first
 	}
-	descSource := rowText(s)
-	if m.Detailed {
-		descSource = rowDescription(s)
-		if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
-			descSource = renderAnimFrame(anim, c.desc, now)
-		}
-		if waiting { // the reason and how long: "shell 42s · summary"
-			descSource = strings.TrimSuffix(waitingLabel(m, s)+" · "+descSource, " · ")
-		}
-	} else if !retiring && s.State == protocol.StateNeedsInput && !selected {
-		descColor = colorFgPrimary // what needs you reads first
+	return colorFgDim
+}
+
+// rowDescText is the text column's content before it is cut to descW: the
+// task (simple view) or the AI summary, animated while it types in, with the
+// waiting reason in front (detailed view).
+func rowDescText(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
+	if !m.Detailed {
+		return rowText(s)
 	}
-	desc := lipgloss.NewStyle().Foreground(descColor).Width(c.desc).Render(truncateWords(descSource, c.desc))
+	now := m.now()
+	src := rowDescription(s)
+	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
+		src = renderAnimFrame(anim, descW, now)
+	}
+	if waiting { // the reason and how long: "shell 42s · summary"
+		src = strings.TrimSuffix(waitingLabel(m, s)+" · "+src, " · ")
+	}
+	return src
+}
+
+func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
+	selected := m.SelectedID == s.ID
+	now := m.now()
+	retiring := !s.RetireAt.IsZero()
+	dim := lipgloss.NewStyle().Foreground(colorFgDim)
+	indent, marker, waiting := rowLead(m, s)
+	slug := cell(rowNameStyle(s, selected), displayName(s), c.slug)
+	desc := lipgloss.NewStyle().Foreground(rowDescColor(m, s, selected)).Width(c.desc).Render(truncateWords(rowDescText(m, s, c.desc, waiting), c.desc))
 
 	gap := strings.Repeat(" ", colGap)
-	indent := " " + markerPrefix + " " // 3 chars total: marker arrow indent
 
 	var b strings.Builder
 	b.WriteString(indent + marker + gap)
@@ -659,14 +696,21 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		b.WriteString(gap + longRunCell(now, s, c.run))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
-	row := b.String()
+	return blinkRow(m, s.ID, b.String())
+}
 
-	if blinkEnabled(m) {
-		if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
-			if time.Now().UnixMilli()/200%2 == 0 {
-				row = lipgloss.NewStyle().Foreground(colorDone).Render(row)
-			}
-		}
+// blinkNow is the blink clock; tests pin it.
+var blinkNow = time.Now
+
+// blinkRow flashes a just-completed row green on every other 200 ms while
+// its BlinkUntil lasts. A stacked row applies it to both lines.
+func blinkRow(m Model, id, row string) string {
+	if !blinkEnabled(m) {
+		return row
+	}
+	now := blinkNow()
+	if until, ok := m.BlinkUntil[id]; ok && now.Before(until) && now.UnixMilli()/200%2 == 0 {
+		return lipgloss.NewStyle().Foreground(colorDone).Render(row)
 	}
 	return row
 }
