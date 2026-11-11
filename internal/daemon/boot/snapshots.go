@@ -187,9 +187,9 @@ func (s *Snapshots) do(ctx context.Context, cwd string, j snapJob) {
 		}
 		return
 	}
-	cctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
-	_, err := s.store.Capture(cctx, cwd, j.session, j.phase)
+	// The limit starts once the folder's lock is held, so waiting behind an
+	// undo does not abandon the capture.
+	_, err := s.store.CaptureWithin(ctx, cwd, j.session, j.phase, s.timeout)
 	switch {
 	case err == nil:
 	case errors.Is(err, snapshot.ErrNotGitWorktree), errors.Is(err, snapshot.ErrNoGit):

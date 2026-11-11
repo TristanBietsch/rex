@@ -49,13 +49,16 @@ type Store struct {
 	now  func() time.Time
 
 	mu    sync.Mutex
-	locks map[string]*sync.Mutex
+	locks map[string]chan struct{}
+
+	// beforeDelete, when set by a test, runs just before a restore deletes.
+	beforeDelete func()
 }
 
 // NewStore returns a Store rooted at root (~/.local/share/rex/snapshots).
 // Nothing is created until the first capture.
 func NewStore(root string) *Store {
-	return &Store{root: root, now: time.Now, locks: map[string]*sync.Mutex{}}
+	return &Store{root: root, now: time.Now, locks: map[string]chan struct{}{}}
 }
 
 // Root is the directory holding every folder store.
@@ -94,17 +97,28 @@ func (s *Store) dirFor(cwd string) string { return filepath.Join(s.root, folderK
 func shadowOf(dir string) string { return filepath.Join(dir, "git") }
 func ledgerOf(dir string) string { return filepath.Join(dir, "turns.jsonl") }
 
-// lock serializes work on one folder store directory and returns the unlock.
-func (s *Store) lock(dir string) func() {
+// lockCtx serializes work on one folder store directory and returns the
+// unlock. Waiting for the lock ends with ctx.
+func (s *Store) lockCtx(ctx context.Context, dir string) (func(), error) {
 	s.mu.Lock()
-	l, ok := s.locks[dir]
+	ch, ok := s.locks[dir]
 	if !ok {
-		l = &sync.Mutex{}
-		s.locks[dir] = l
+		ch = make(chan struct{}, 1)
+		s.locks[dir] = ch
 	}
 	s.mu.Unlock()
-	l.Lock()
-	return l.Unlock
+	select {
+	case ch <- struct{}{}:
+		return func() { <-ch }, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("snapshot: waiting for the folder store: %w", ctx.Err())
+	}
+}
+
+// lock is lockCtx that waits as long as it takes.
+func (s *Store) lock(dir string) func() {
+	unlock, _ := s.lockCtx(context.Background(), dir)
+	return unlock
 }
 
 // ensure creates the folder store and its shadow git dir (0700) when

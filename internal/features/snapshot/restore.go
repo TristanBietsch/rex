@@ -111,12 +111,8 @@ func (s *Store) restore(ctx context.Context, dir, cwd string, to Tree, opts Rest
 	if err != nil {
 		return Result{}, err
 	}
-	for _, p := range del {
-		abs := filepath.Join(cwd, filepath.FromSlash(p))
-		if err := os.Remove(abs); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return Result{}, fmt.Errorf("snapshot: delete %s: %w", p, err)
-		}
-		removeEmptyParents(cwd, filepath.Dir(abs))
+	if err := s.deleteAll(cwd, del); err != nil {
+		return Result{}, err
 	}
 	if len(write) > 0 {
 		if _, err := g(nil, "read-tree", string(to)); err != nil {
@@ -151,6 +147,9 @@ func (s *Store) plan(ctx context.Context, env []string, cwd string, from, to Tre
 	}
 	slices.Sort(write)
 	slices.Sort(del)
+	if err := preflight(ctx, env, cwd, from, write, del); err != nil {
+		return nil, nil, err
+	}
 	return write, del, nil
 }
 
@@ -187,13 +186,32 @@ func (s *Store) dropIgnored(ctx context.Context, env []string, cwd string, paths
 	return keep, nil
 }
 
-// removeEmptyParents removes dir and its parents while they are empty, never
-// reaching root itself.
-func removeEmptyParents(root, dir string) {
-	for dir != root && strings.HasPrefix(dir, root) {
-		if err := os.Remove(dir); err != nil {
-			return
-		}
-		dir = filepath.Dir(dir)
+// deleteAll removes paths (slash, relative to cwd) and the directories they
+// leave empty, through a root handle on cwd: no path is resolved through a
+// symlink, so a parent swapped for a link to somewhere else cannot send a
+// delete outside the folder.
+func (s *Store) deleteAll(cwd string, paths []string) error {
+	if len(paths) == 0 {
+		return nil
 	}
+	root, err := os.OpenRoot(cwd)
+	if err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	defer root.Close()
+	if s.beforeDelete != nil {
+		s.beforeDelete()
+	}
+	for _, p := range paths {
+		rel := filepath.FromSlash(p)
+		if err := root.Remove(rel); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("snapshot: delete %s: %w", p, err)
+		}
+		for dir := filepath.Dir(rel); dir != "." && dir != string(filepath.Separator); dir = filepath.Dir(dir) {
+			if root.Remove(dir) != nil {
+				break
+			}
+		}
+	}
+	return nil
 }

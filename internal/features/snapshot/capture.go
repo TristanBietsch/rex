@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // repoIgnores checks that cwd is inside a git worktree and returns exclude
@@ -83,6 +84,13 @@ func excludeLine(rel string) string {
 // It fails with ErrNotGitWorktree for a folder outside a git worktree. It
 // never writes to the user's repo.
 func (s *Store) Capture(ctx context.Context, cwd, session string, phase Phase) (Tree, error) {
+	return s.CaptureWithin(ctx, cwd, session, phase, 0)
+}
+
+// CaptureWithin is Capture with a time limit that starts once the folder's
+// lock is held: waiting behind an undo or another capture does not use it
+// up. A limit of 0 means none beyond ctx.
+func (s *Store) CaptureWithin(ctx context.Context, cwd, session string, phase Phase, limit time.Duration) (Tree, error) {
 	if err := checkCWD(cwd); err != nil {
 		return "", err
 	}
@@ -95,7 +103,16 @@ func (s *Store) Capture(ctx context.Context, cwd, session string, phase Phase) (
 		return "", fmt.Errorf("snapshot: bad capture phase %q", phase)
 	}
 	dir := s.dirFor(cwd)
-	defer s.lock(dir)()
+	unlock, err := s.lockCtx(ctx, dir)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+	if limit > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, limit)
+		defer cancel()
+	}
 	return s.capture(ctx, dir, cwd, session, phase)
 }
 
@@ -150,6 +167,9 @@ func (s *Store) writeTree(ctx context.Context, dir, cwd, session string) (Tree, 
 	if err := s.ensure(ctx, dir, cwd, exclude, nil); err != nil {
 		return "", nil, err
 	}
+	if err := s.dropDirConflicts(ctx, env, cwd); err != nil {
+		return "", nil, err
+	}
 	big, err := s.bigUntracked(ctx, env, cwd)
 	if err != nil {
 		return "", nil, err
@@ -193,6 +213,32 @@ func (s *Store) nextSeq(ctx context.Context, env []string, cwd, session string) 
 		}
 	}
 	return top + 1, nil
+}
+
+// dropDirConflicts removes from the session's index the files that are now
+// directories on disk (a file replaced by a folder, a clone, a nested repo),
+// so the folder is then judged as untracked content, not as an update of
+// that file.
+func (s *Store) dropDirConflicts(ctx context.Context, env []string, cwd string) error {
+	out, err := run(ctx, env, cwd, nil, append(safeConfig(), "ls-files", "-z")...)
+	if err != nil {
+		return err
+	}
+	var gone []byte
+	for p := range bytes.SplitSeq(out, []byte{0}) {
+		if len(p) == 0 {
+			continue
+		}
+		if fi, err := os.Lstat(filepath.Join(cwd, filepath.FromSlash(string(p)))); err == nil && fi.IsDir() {
+			gone = append(gone, p...)
+			gone = append(gone, 0)
+		}
+	}
+	if len(gone) == 0 {
+		return nil
+	}
+	_, err = run(ctx, env, cwd, gone, append(safeConfig(), "update-index", "--force-remove", "-z", "--stdin")...)
+	return err
 }
 
 // bigUntracked lists the untracked, not-ignored files over MaxUntrackedBytes
