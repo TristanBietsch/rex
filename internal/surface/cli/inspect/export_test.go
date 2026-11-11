@@ -343,3 +343,17 @@ func TestExport_fromAgentLogMissingFallsBackWithNotice(t *testing.T) {
 	require.Contains(t, d.Notice, "showing frames")
 	require.Contains(t, e.err.String(), "rex: export: agent log")
 }
+
+func TestExportFailure_mapping(t *testing.T) {
+	for err, code := range map[error]int{
+		export.ErrTooLarge:     core.ExitOperationRefused,
+		export.ErrSymlink:      core.ExitOperationRefused,
+		export.ErrExists:       core.ExitOperationRefused,
+		export.ErrNoTranscript: core.ExitGeneric,
+		io.ErrUnexpectedEOF:    core.ExitGeneric,
+	} {
+		var ec core.ExitCoder
+		require.ErrorAs(t, exportFailure(err), &ec)
+		require.Equal(t, code, ec.ExitCode(), err.Error())
+	}
+}

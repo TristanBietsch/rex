@@ -159,7 +159,10 @@ func exportFailure(err error) error {
 	case errors.Is(err, export.ErrOutputTooLarge):
 		return core.Errorf(core.ExitOperationRefused, "rex export <session> --max-frames 50",
 			"export: %w; keep only the last frames with --max-frames N", err)
-	case errors.Is(err, export.ErrExists):
+	case errors.Is(err, export.ErrTooLarge):
+		return core.Errorf(core.ExitOperationRefused, "rex log <session>",
+			"export: %w (over 512 MiB of transcript or 200000 agent-log messages); read it with rex log instead", err)
+	case errors.Is(err, export.ErrSymlink), errors.Is(err, export.ErrExists):
 		return core.Errorf(core.ExitOperationRefused, "", "export: %w", err)
 	}
 	return core.Errorf(core.ExitGeneric, "", "%w", err)
