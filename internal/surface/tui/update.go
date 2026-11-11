@@ -322,41 +322,11 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 
 	// Board focus: navigation, mode switches, single-key actions, and 'dd'/'cc' chords.
 	if m.Focus == FocusBoard {
-		// Chord handling — only the first 'd' arms the chord; second 'd' opens
-		// the delete confirmation prompt.
-		if k.String() == "d" {
-			if m.PendingChord == "d" {
-				m.PendingChord = ""
-				if m.SelectedID != "" && indexOfSelected(m) >= 0 {
-					m.PendingDeleteID = m.SelectedID
-					m.PendingPrune, m.PendingPruneKept = nil, 0
-					m.Focus = FocusConfirmDelete
-					if m.Audio != nil {
-						m.Audio.Play(audio.EventOpen)
-					}
-				}
-				return m, nil
-			}
-			m.PendingChord = "d"
-			return m, nil
+		var cmd tea.Cmd
+		var consumed bool
+		if m, cmd, consumed = handleBoardChord(m, k.String()); consumed {
+			return m, cmd
 		}
-		// 'cc' is the soft "mark done": the session keeps running, moves to
-		// Done, and is cleared after retire_after_hours; 'cc' again undoes it.
-		if k.String() == "c" {
-			if m.PendingChord == "c" {
-				m.PendingChord = ""
-				if m.SelectedID == "" || indexOfSelected(m) < 0 {
-					slog.Debug("tui: 'cc' pressed with no selection — no-op")
-					return m, nil
-				}
-				return toggleRetire(m, m.SelectedID)
-			}
-			m.PendingChord = "c"
-			return m, nil
-		}
-		// Any other key clears the pending chord and the transient notice.
-		m.PendingChord = ""
-		m.Notice = ""
 
 		switch k.String() {
 		case "ctrl+c":

@@ -35,6 +35,7 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `update.go` | Update loop, daemon intents, spawn |
 | `board.go` | Kanban columns render; section registry (`boardGroups`, `resolveSection`) |
 | `rowfilter.go` | `rowFilter`: the one predicate every board view applies |
+| `chords.go` | Board chord table (`dd`, `cc`; first key to handler) |
 | `header.go` | Aggregate counts |
 | `prompt.go` | Bottom prompt |
 | `command.go` | `/` command palette |
