@@ -209,6 +209,7 @@ func lastFailedStep(m Model) string {
 func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	m.Focus = FocusBoard
 	m.BootLog = nil
+	m.lastInput = m.now() // the screensaver's idle time starts with the board
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventStartup)
 		// Voice self-schedules after the startup tone and no-ops when boot_voice is off.

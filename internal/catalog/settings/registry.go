@@ -113,6 +113,22 @@ var Registry = []Setting{
 		Min: 0, Max: 50000,
 		Help: "Lines the attach popup keeps after they scroll off a primary-screen agent (ctrl+pgup / wheel to view). 0 disables. Capped at 8 MiB per popup; applies on next attach.",
 	},
+	{
+		ID: "screensaver_enabled", Label: "Screensaver", Section: SectionBehavior,
+		Type: TypeBool, Default: true,
+		Help: "When the board gets no key or click for a while, show a small ∴ rex with the counts. Any key or click wakes it and does nothing else.",
+	},
+	{
+		ID: "screensaver_after_minutes", Label: "Screensaver after (min)", Section: SectionBehavior,
+		Type: TypeInt, Default: 5,
+		Min: 1, Max: 120,
+		Help: "Minutes without a key or click on the board before the screensaver shows. A change applies within a minute.",
+	},
+	{
+		ID: "screensaver_keep_awake", Label: "Screensaver keep awake", Section: SectionBehavior,
+		Type: TypeBool, Default: true,
+		Help: "macOS: keep the display from sleeping while the screensaver shows (caffeinate -d). Does nothing on other systems.",
+	},
 
 	// AI summary
 	{

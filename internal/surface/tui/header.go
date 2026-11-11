@@ -9,27 +9,10 @@ import (
 // renderHeader renders the two-line header (logo+counts row, chips row),
 // padded to `width` columns. The counts follow the board columns, so every
 // session lands in exactly one bucket and they add up to the stats
-// overlay's total: queued counts as working (its column).
+// overlay's total: queued counts as working (its column). The screensaver
+// shows the same numbers (columnCounts).
 func renderHeader(m Model, width int) string {
-	var working, needsInput, done, failed, crashed int
-	for _, s := range m.Sessions {
-		if isMarkedDone(s) { // lives in Done whatever its state
-			done++
-			continue
-		}
-		switch s.State {
-		case protocol.StateWorking, protocol.StateQueued:
-			working++
-		case protocol.StateNeedsInput:
-			needsInput++
-		case protocol.StateDone:
-			done++
-		case protocol.StateFailed:
-			failed++
-		case protocol.StateCrashed:
-			crashed++
-		}
-	}
+	cols, failed := columnCounts(m.Sessions)
 
 	marked := 0
 	for _, s := range m.Sessions {
@@ -39,7 +22,7 @@ func renderHeader(m Model, width int) string {
 	}
 
 	logo := styleHeaderApp.Render("∴ REX")
-	counts := renderHeaderCounts(m, needsInput, working, done, failed+crashed)
+	counts := renderHeaderCounts(m, cols[groupNeeds], cols[groupWorking], cols[groupDone], failed)
 	if marked > 0 && m.Detailed { // marked rows already count as done
 		counts += styleDim.Render(fmt.Sprintf("  · %d marked done", marked))
 	}

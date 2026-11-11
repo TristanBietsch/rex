@@ -45,7 +45,8 @@ func scheduleDescTick() tea.Cmd {
 // working, an input bar opened, a done row started flashing) — arming at one
 // choke point means no branch can forget it and freeze the animation. The
 // same choke point enforces the focus invariant (normalizeFocus), so no
-// branch can leave the TUI focused on a component that doesn't exist.
+// branch can leave the TUI focused on a component that doesn't exist. It
+// also keeps the screensaver's idle timer armed (armIdle).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.dispatch(msg)
 	nm, ok := next.(Model)
@@ -56,6 +57,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	nm = keepSelectionVisible(nm)
 	var arm tea.Cmd
 	if nm, arm = armSpinner(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
+	if nm, arm = armIdle(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
 	return nm, cmd
@@ -93,7 +97,9 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// selection; keep the selected row on screen.
 		m = ensureVisible(m.applyEvent(msg.Env))
 		cmds := []tea.Cmd{listenDaemon(m.Client)}
-		if len(m.DescAnim) > 0 && !m.descTickPending {
+		// No 30 FPS ticks for rows the screensaver hides (wakeSaver drops
+		// the animations).
+		if len(m.DescAnim) > 0 && !m.descTickPending && !m.saverOn {
 			m.descTickPending = true
 			cmds = append(cmds, scheduleDescTick())
 		}
@@ -234,9 +240,19 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handOffToBoard()
 		}
 		return m, nil
+	case idleTickMsg:
+		return handleIdleTick(m, msg), nil
 	case tea.KeyMsg:
+		m.lastInput = m.now()
+		if m.saverOn {
+			return wakeSaver(m, "key"), nil // the waking key does nothing else
+		}
 		return updateKey(m, msg)
 	case tea.MouseMsg:
+		m.lastInput = m.now()
+		if m.saverOn {
+			return wakeSaver(m, "mouse"), nil
+		}
 		return updateMouse(m, msg)
 	}
 	return m, nil
