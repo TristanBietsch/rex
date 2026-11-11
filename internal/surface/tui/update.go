@@ -311,7 +311,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		if k.String() == "d" {
 			if m.PendingChord == "d" {
 				m.PendingChord = ""
-				if m.SelectedID != "" {
+				if m.SelectedID != "" && indexOfSelected(m) >= 0 {
 					m.PendingDeleteID = m.SelectedID
 					m.PendingPrune, m.PendingPruneKept = nil, 0
 					m.Focus = FocusConfirmDelete

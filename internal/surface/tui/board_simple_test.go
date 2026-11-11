@@ -194,3 +194,66 @@ func TestHelpBarHasFiveKeys(t *testing.T) {
 	line := strings.TrimSpace(ansi.Strip(renderHelpLine(m, 200)))
 	require.Equal(t, "enter open · i new · cc done · tab next · ? more", line)
 }
+
+// 3 on a short Done column keeps its old meaning: jump to Done.
+func TestThreeOnShortDoneJumps(t *testing.T) {
+	m := simpleBoard(doneSessions(2)...)
+	m.SelectedID = "live"
+	m, _ = updateKey(m, key("3"))
+	require.Equal(t, "d0", m.SelectedID)
+	require.False(t, m.DoneExpanded)
+}
+
+// An expanded Done column that shrinks back to doneCollapseAt folds again
+// the next time it grows.
+func TestDoneFoldsAgainAfterShrinking(t *testing.T) {
+	m := simpleBoard(doneSessions(doneCollapseAt + 1)...)
+	m, _ = updateKey(m, key("3"))
+	require.True(t, m.DoneExpanded)
+
+	m.Sessions = m.Sessions[:len(m.Sessions)-2] // e.g. two pruned
+	next, _ := m.Update(SpinnerTickMsg{Gen: -1})
+	m = next.(Model)
+	require.False(t, m.DoneExpanded, "short again: back to folding")
+
+	m.Sessions = simpleBoard(doneSessions(doneCollapseAt + 1)...).Sessions
+	require.True(t, doneCollapsed(m))
+}
+
+// The folded title stays one board-width line on narrow terminals.
+func TestFoldedTitleFitsWidth(t *testing.T) {
+	m := simpleBoard(doneSessions(doneCollapseAt + 2)...)
+	for _, w := range []int{20, 30, 44, 80} {
+		title := groupTitle(m, groupDone, w)
+		require.NotContains(t, title, "\n")
+		require.Equal(t, w, ansi.StringWidth(title), "width %d", w)
+	}
+	for _, line := range strings.Split(renderBoard(m, 30, 0), "\n") {
+		require.LessOrEqual(t, ansi.StringWidth(line), 30)
+	}
+}
+
+// With the chip row hidden, a click on header row 1 (the summary banner,
+// whose text contains "all") must not reset the filter.
+func TestHeaderClickWithoutChipRow(t *testing.T) {
+	m := simpleBoard(protocol.SessionSummary{ID: "a", ToolID: "claude", State: protocol.StateWorking})
+	m.BackendUnavailable = true
+	m.BackendUnavailableReason = "ollama unreachable"
+	require.False(t, showFilterChips(m))
+	banner := ansi.Strip(strings.Split(renderHeader(m, 140), "\n")[1])
+	x := strings.Index(banner, "all")
+	require.GreaterOrEqual(t, x, 0, "the banner contains \"all\" (in install)")
+	require.Equal(t, "", headerHitAt(m, x, 2))
+}
+
+// j/k on a board with a folded Done column never select a hidden row.
+func TestNavigationSkipsFoldedRows(t *testing.T) {
+	m := simpleBoard(doneSessions(doneCollapseAt + 3)...)
+	m.SelectedID = "live"
+	for range 5 {
+		m, _ = updateKey(m, key("j"))
+		require.Equal(t, "live", m.SelectedID)
+	}
+	m, _ = updateKey(m, key("G"))
+	require.Equal(t, "live", m.SelectedID)
+}

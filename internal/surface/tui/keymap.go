@@ -49,8 +49,14 @@ func toggleDone(m Model) Model {
 
 // keepSelectionVisible moves the selection off a row the board no longer
 // shows because the Done column folded (e.g. the row was just marked done),
-// to the first row shown. Other selections are left alone.
+// to the first row shown: the top of the board, which is what needs you
+// first. Other selections are left alone. It also drops an expanded Done
+// column back to folding once it is short again, so it folds the next time
+// it grows past doneCollapseAt.
 func keepSelectionVisible(m Model) Model {
+	if m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) <= doneCollapseAt {
+		m.DoneExpanded = false
+	}
 	if m.SelectedID == "" || !doneCollapsed(m) || indexOfSelected(m) >= 0 {
 		return m
 	}

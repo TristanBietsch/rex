@@ -129,7 +129,7 @@ func TestBoardRendersDescriptionAnimating(t *testing.T) {
 	}
 }
 
-func TestBoardSnapshot_FailedAndCrashedRenderUnderCompleted(t *testing.T) {
+func TestBoardSnapshot_FailedAndCrashedRenderUnderDone(t *testing.T) {
 	now := time.Now()
 	sessions := []protocol.SessionSummary{
 		{ID: "w1", ShortID: "w1", ToolID: "claude", ModelID: "opus",

@@ -224,8 +224,13 @@ func boardSlots(m Model) []boardSlot {
 }
 
 // groupTitle renders a column title: NAME, its count, and for a long Done
-// column how to show, hide or clear it.
-func groupTitle(m Model, gi int) string {
+// column how to show, hide or clear it. It is cut and padded to width: a
+// wrapped title would push every row below it off the layout math.
+func groupTitle(m Model, gi, width int) string {
+	return padLine(groupTitleText(m, gi), width)
+}
+
+func groupTitleText(m Model, gi int) string {
 	n := len(filterByGroup(m.Sessions, boardGroups[gi], m.Filter))
 	title := styleSectionTitle.Render(strings.ToUpper(boardGroups[gi].Title))
 	if gi == groupNeeds && n > 0 {
@@ -278,7 +283,7 @@ func renderBoard(m Model, width, height int) string {
 		case slotGap:
 			lines = append(lines, "")
 		case slotTitle:
-			lines = append(lines, groupTitle(m, sl.group))
+			lines = append(lines, groupTitle(m, sl.group, width))
 		case slotNone:
 			lines = append(lines, noneIndent+styleMuted.Render(emptyGroupText[sl.group]))
 		case slotRow:

@@ -155,8 +155,8 @@ func sessionAtScreenRow(m Model, y int) string {
 // rendered header text, so it can't drift from the layout.
 func headerHitAt(m Model, x, y int) string {
 	row := y - 1
-	if row != 1 {
-		return ""
+	if row != 1 || !showFilterChips(m) {
+		return "" // no chip row: row 1 may be the summary banner
 	}
 	w := m.Width
 	if w <= 0 {
