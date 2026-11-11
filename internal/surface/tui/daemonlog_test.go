@@ -3,7 +3,6 @@ package tui
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -41,14 +40,8 @@ func daemonLogPath(t *testing.T) string {
 func requirePrivateLog(t *testing.T, path string) {
 	t.Helper()
 	require.Equal(t, daemonLogPath(t), path)
-	if runtime.GOOS == "windows" {
-		return
-	}
-	for p, want := range map[string]os.FileMode{filepath.Dir(path): 0o700, path: 0o600} {
-		info, err := os.Stat(p)
-		require.NoError(t, err)
-		require.Equal(t, want, info.Mode().Perm(), p)
-	}
+	testperm.RequireMode(t, filepath.Dir(path), 0o700)
+	testperm.RequireMode(t, path, 0o600)
 }
 
 // FU-12 (S-01): the boot splash and the setup wizard opened daemon.log
@@ -79,6 +72,7 @@ func TestDaemonSpawns_reportLogError(t *testing.T) {
 	// A file where the log directory belongs.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".local"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".local", "state"), nil, 0o600))
 	sock := filepath.Join(t.TempDir(), "rex.sock")
