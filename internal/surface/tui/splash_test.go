@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/features/audio"
 )
 
 // recordingAudio is a recording audioPlayer fake.
@@ -77,6 +79,35 @@ func TestBootHandOffWaitsForLastStep(t *testing.T) {
 	mi, _ = m.appendBootStep(bootStepMsg{Name: "b", Status: stepOK})
 	m = mi.(Model)
 	require.Equal(t, FocusBoard, m.Focus, "handoff fires on last step")
+}
+
+// A loud boot plays a chime per step plus the startup tone and voice; a
+// quiet one (rex --quiet-boot, REX_QUIET_BOOT) plays none of them.
+func TestBootSounds_QuietBootSilencesSplash(t *testing.T) {
+	for _, quiet := range []bool{false, true} {
+		m := newBootModelWithSeq(2)
+		m.QuietBoot = quiet
+		rec := m.Audio.(*recordingAudio)
+		mi, _ := m.update(bootMinElapsedMsg{})
+		m = mi.(Model)
+		mi, _ = m.appendBootStep(bootStepMsg{Name: "a", Status: stepWarn})
+		m = mi.(Model)
+		mi, _ = m.appendBootStep(bootStepMsg{Name: "b", Status: stepOK})
+		m = mi.(Model)
+		require.Equal(t, FocusBoard, m.Focus)
+		if quiet {
+			require.Empty(t, rec.Events, "quiet boot")
+		} else {
+			require.Equal(t, []string{audio.EventBootWarn, audio.EventBootOK,
+				audio.EventStartup, audio.EventBootVoice}, rec.Events)
+		}
+	}
+
+	m := newBootModelWithSeq(1)
+	m.QuietBoot = true
+	rec := m.Audio.(*recordingAudio)
+	m.appendBootStep(bootStepMsg{Name: "x", Status: stepFail, Err: errors.New("boom")})
+	require.Empty(t, rec.Events, "quiet boot failure")
 }
 
 func TestBootFailureBlocksHandOff(t *testing.T) {

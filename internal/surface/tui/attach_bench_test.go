@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
@@ -34,7 +36,7 @@ func benchAttachModel(tb testing.TB, cols, rows int) Model {
 	st.Term = newAttachTerm(st, cols, rows, 5000)
 	m.Attach = st
 	m.Focus = FocusAttach
-	if gc, gr := attachPopupInnerSize(m.Width, m.Height); gc != cols || gr != rows {
+	if gc, gr := attachPopupInnerSize(m.Width, m.Height, 0); gc != cols || gr != rows {
 		tb.Fatalf("popup is %dx%d, want %dx%d", gc, gr, cols, rows)
 	}
 	return m
@@ -85,6 +87,38 @@ func repeatRune(r rune, n int) string {
 func BenchmarkAttachView(b *testing.B) {
 	m := benchAttachModel(b, benchAttachCols, benchAttachRows)
 	_, _ = m.Attach.Term.Write(claudeLikeFrame(0, benchAttachCols, benchAttachRows))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = m.View()
+	}
+}
+
+// benchAttachBannerModel is benchAttachModel with the banner row on and a
+// description too long for it, so the marquee scrolls. The agent keeps the
+// same cols×rows, so the frame is directly comparable.
+func benchAttachBannerModel(tb testing.TB, cols, rows int) Model {
+	tb.Helper()
+	m := benchAttachModel(tb, cols, rows)
+	m.Height++ // the banner row is one more row of chrome
+	m.Sessions[0].Description = strings.Repeat("Rewriting the invoice rounding tests and the proration edge cases. ", 5)
+	m.Sessions[0].CWD = "/work/code/rex"
+	m.Attach.BannerRows = 1
+	m.Attach.BannerSince = time.Unix(0, 0)
+	if !bannerOverflows(m) {
+		tb.Fatal("bench banner must overflow so it scrolls")
+	}
+	return m
+}
+
+// BenchmarkAttachView_BannerMarquee is BenchmarkAttachView with a scrolling
+// banner whose window moves every frame. It must stay within about 10% of the
+// no-banner frame.
+func BenchmarkAttachView_BannerMarquee(b *testing.B) {
+	m := benchAttachBannerModel(b, benchAttachCols, benchAttachRows)
+	_, _ = m.Attach.Term.Write(claudeLikeFrame(0, benchAttachCols, benchAttachRows))
+	var tick int
+	m.Clock = func() time.Time { tick++; return time.Unix(0, 0).Add(bannerPause + time.Duration(tick)*bannerStep) }
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {

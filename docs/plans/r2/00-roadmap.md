@@ -93,7 +93,7 @@ Lane A = TUI, B = daemon/registry/protocol, C = CLI/settings/features.
 | 2 | R09-1..4 stage model + view | R09-5..6 stage on wire/meta | R05-5..7 TUI lock, `rex config` |
 | 3 | R10-5..6 page + header meter | R10-1..4 sources, ledger, wire | R13 auto model → R10-7 CLI |
 | 4b | R09-6 drafts UI | R11-1..4 Linear client, pull, push | R11-5..6 UI + docs |
-| 4 | R06 W0–W4 (own orchestration file after W0 gate; W5 deferred, W6 dropped) | | |
+| 4 | R06 W1 → W2 ([plan](R06-00-plan.md); W0 passed) | R06 W4 audit (parallel with W1) | — |
 | 5 | R12 repeat loops (chains deferred) | | |
 | 6 | R01-2 diff page, R01-3 templates | R01-1 snapshots + undo | R01-4 presets, R01-5 export |
 

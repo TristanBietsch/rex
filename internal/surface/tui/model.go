@@ -122,6 +122,12 @@ type Model struct {
 	// spinnerGen / spinnerRunning track the single live spinner tick chain.
 	spinnerGen     int
 	spinnerRunning bool
+	// bannerGen / bannerRunning track the attach banner's marquee tick chain.
+	bannerGen     int
+	bannerRunning bool
+	// bannerHidden is ::banner: the attach banner is off for this run. Not
+	// persisted; attach_banner is the setting.
+	bannerHidden bool
 
 	// reconnect is non-nil while the daemon connection is down and the TUI
 	// is redialing it (see reconnect.go). dialDaemon overrides the redial's
@@ -173,6 +179,9 @@ type Model struct {
 	BootDone    bool
 	BootFailed  bool
 	BootError   error
+	// QuietBoot skips the boot chimes, startup tone and boot voice, for a
+	// relaunch nobody is watching. Board sounds after boot still play.
+	QuietBoot bool
 }
 
 // audioPlayer is the subset of *audio.Player the TUI uses.
@@ -259,6 +268,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					marked = !wasMarked && !m.Sessions[i].RetireAt.IsZero()
 					if m.Sessions[i].Description != prevDesc {
 						m = registerDescAnim(m, m.Sessions[i].ID, prevDesc, m.Sessions[i].Description)
+						if m.Attach != nil && m.Attach.SessionID == m.Sessions[i].ID {
+							m.Attach.BannerSince = m.now() // read the new summary from its start
+						}
 					}
 					break
 				}

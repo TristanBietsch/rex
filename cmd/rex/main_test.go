@@ -112,3 +112,9 @@ func TestRun_EveryCommandIsKnown(t *testing.T) {
 		require.Contains(t, cases, c, "commands lists %q but run does not handle it", c)
 	}
 }
+
+func TestRun_QuietBootRejectsArguments(t *testing.T) {
+	err := run([]string{"--quiet-boot", "extra"})
+	require.Error(t, err)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
+}

@@ -153,7 +153,7 @@ Capturing the mouse turns off the terminal's own text selection. Hold Option (iT
 
 Detach with `qq` (two quick `q`s), **Ctrl+]** (ASCII 0x1d) or `::q`. The session keeps running. Like `::`, a lone `q` is held for 400 ms and forwarded to the agent if no second `q` follows (or as soon as another key arrives); pasted text is never intercepted. In scroll mode `q` keeps its own meaning (back to live output).
 
-`rex attach <sel>` from a shell uses the same detach key.
+`rex attach <sel>` from a shell uses the same detach key. It has no banner (see [Banner](#banner)): the agent draws straight on your terminal.
 
 ### Command bar (`::`)
 
@@ -165,7 +165,32 @@ Typing `:` twice quickly (within 400 ms) inside the popup opens rex's command ba
 | `done` | Mark this session done / undo |
 | `kill`, `complete` | Kill the agent now and mark it done |
 | `name <text>` | Set this session's display name (`name` alone clears it) |
+| `banner` | Hide or show the [banner](#banner) for this run (not saved) |
 | anything else | Close the popup and run it as a board `:` command |
+
+### Banner
+
+One row between the title bar and the agent's screen says what the session is doing without you leaving it:
+
+```
+↳ Rewriting the invoice rounding tests        code/rex · working 12m · updated 40s ago
+```
+
+- **Lead** (after `↳`): the AI description; without one, `task: ` and the task you gave it; without that, the question a waiting session is asking. Nothing otherwise.
+- **Meta**, in order: the folder (`~` for your home directory, otherwise the last two path elements); `working 12m` (since the current stretch began), `waiting 3m` (needs you) or `ended 14:02` (when it finished); `updated 40s ago` (age of the description, dim past 2 minutes, left out without one).
+- **With `overview_enabled` on:** `elsewhere: 2 to review · 1 needs you · 1 failed` (the other sessions, never this one; `quiet` when none needs anything), then the overview headline.
+
+`attach_banner` (Settings → AI summary) picks how long text is shown:
+
+| Value | Behavior |
+|-------|----------|
+| `marquee` (default) | Text that does not fit scrolls as a ticker: it rests 2 s at the start, moves one cell per 120 ms, and rests again at the start of each pass. The loop restarts when the popup opens and when this session's description changes. Text that fits stays still and costs nothing |
+| `static` | Cut at a word boundary (`…`); the right side keeps as many meta items as fit in half the row, none below 60 columns |
+| `off` | No banner |
+
+`reduce_motion` turns `marquee` into `static`. Below 25 terminal rows the banner gives way, so the agent never drops to its minimum height because of it. `::banner` hides or shows it for this run; `attach_banner` is the saved switch. The banner is rex's own row above the rule, so the agent cannot draw into it, and clicks or the wheel on it never reach the agent. Everything in it comes from the session (description, task, question, folder, headline) and is stripped of control characters and escape sequences before it is drawn.
+
+The agent's terminal is one row shorter while the banner shows, as for any resize: full-screen agents redraw at the new size. Agents on the primary screen push their top row into rex's scrollback when the banner appears; it is not pulled back when the banner goes (no reflow, as for a window resize). `rex attach` from a shell shows no banner.
 
 ### Mouse
 
