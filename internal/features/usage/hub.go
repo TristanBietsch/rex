@@ -54,7 +54,8 @@ type Hub struct {
 	done   chan struct{}
 	wake   chan struct{} // cap 1: the queue has lines
 
-	wmu sync.Mutex // serializes drain: the queue is written in order, once
+	wmu       sync.Mutex // serializes drain: the queue is written in order, once
+	publishMu sync.Mutex // orders OnUsage calls (see publishAndUnlock)
 
 	mu      sync.Mutex
 	enabled bool
@@ -108,9 +109,10 @@ func (h *Hub) SetEnabled(on bool) {
 		h.queue = nil
 		h.quotas = nil
 	}
-	h.mu.Unlock()
 	if on != was {
-		h.publish(protocol.Usage{Enabled: on})
+		h.publishAndUnlock(protocol.Usage{Enabled: on})
+	} else {
+		h.mu.Unlock()
 	}
 	if !on || was {
 		return
@@ -283,8 +285,10 @@ func (h *Hub) reportLocked(l *liveSession, conversationID string, costUSD *float
 		if l.costs == nil {
 			l.costs = map[string]float64{}
 		}
-		l.costs[conversationID] = *costUSD
-		l.hasCost = true
+		if _, had := l.costs[conversationID]; had || len(l.costs) < maxConvs {
+			l.costs[conversationID] = *costUSD
+			l.hasCost = true
+		}
 	}
 	if modelID != "" {
 		l.model = modelID

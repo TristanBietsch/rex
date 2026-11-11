@@ -55,7 +55,7 @@ func window(m map[string]any) *protocol.UsageWindow {
 		return nil
 	}
 	w := &protocol.UsageWindow{UsedPct: num(m, "used_percentage")}
-	if r := num(m, "resets_at"); r != nil && *r > 0 && *r < 1e12 {
+	if r := num(m, "resets_at"); r != nil && *r > 0 && *r <= 253402300799 {
 		w.ResetsAt = int64(*r)
 	}
 	if w.UsedPct == nil && w.ResetsAt == 0 {

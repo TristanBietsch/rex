@@ -2,6 +2,7 @@ package usage
 
 import (
 	"errors"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -17,8 +18,44 @@ var (
 	ErrBadRange = errors.New("range must be today, 7d or 30d")
 )
 
-// maxModelRunes caps a model id taken from the tap.
-const maxModelRunes = 64
+// Bounds on what a sample may carry. A sample comes from a process that
+// reads a JSON document an agent's environment can influence, so every
+// number and string is bounded before it is stored, summed or encoded.
+const (
+	maxModelRunes  = 128          // a model id
+	maxPeriodRunes = 32           // a spend period
+	maxMoney       = 1e9          // a cost or limit, USD
+	maxResetsAt    = 253402300799 // 9999-12-31T23:59:59Z, the last second time.Time encodes
+	maxQuotas      = 32           // distinct quota windows kept
+	maxConvs       = 64           // conversations whose cost one session sums
+)
+
+// cleanPct keeps a finite percentage, clamped to 0-100; nil otherwise.
+func cleanPct(p *float64) *float64 {
+	if p == nil || math.IsNaN(*p) || math.IsInf(*p, 0) {
+		return nil
+	}
+	v := min(max(*p, 0), 100)
+	return &v
+}
+
+// cleanMoney keeps a finite amount between 0 and maxMoney; nil otherwise.
+func cleanMoney(p *float64) *float64 {
+	if p == nil || math.IsNaN(*p) || math.IsInf(*p, 0) || *p < 0 || *p > maxMoney {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
+// cleanReset keeps a Unix-seconds reset time that time.Time can encode, 0
+// (unknown) otherwise.
+func cleanReset(v int64) int64 {
+	if v < 1 || v > maxResetsAt {
+		return 0
+	}
+	return v
+}
 
 // quotaKey identifies one quota window.
 type quotaKey struct{ tool, model, window string }
@@ -43,21 +80,25 @@ func (h *Hub) Sample(s protocol.UsageSample) {
 	if len(conv) > 128 {
 		conv = conv[:128]
 	}
-	h.reportLocked(l, conv, s.CostUSD, protocol.SanitizeDisplayText(s.ModelID, maxModelRunes))
+	h.reportLocked(l, conv, cleanMoney(s.CostUSD), protocol.SanitizeDisplayText(s.ModelID, maxModelRunes))
 	at := h.cfg.Now().UTC()
 	changed := false
 	set := func(window string, w *protocol.UsageWindow, used, limit *float64) {
 		q := protocol.UsageQuota{Tool: l.sum.ToolID, Window: window, At: at, UsedUSD: used, LimitUSD: limit}
+		q.UsedUSD, q.LimitUSD = cleanMoney(used), cleanMoney(limit)
 		if w != nil {
-			q.UsedPct = w.UsedPct
-			if w.ResetsAt > 0 {
-				q.ResetsAt = time.Unix(w.ResetsAt, 0).UTC()
+			q.UsedPct = cleanPct(w.UsedPct)
+			if r := cleanReset(w.ResetsAt); r > 0 {
+				q.ResetsAt = time.Unix(r, 0).UTC()
 			}
 		}
 		if q.UsedPct == nil && q.UsedUSD == nil && q.LimitUSD == nil && q.ResetsAt.IsZero() {
 			return
 		}
 		k := quotaKey{q.Tool, "", window}
+		if _, had := h.quotas[k]; !had && len(h.quotas) >= maxQuotas {
+			return
+		}
 		if old, had := h.quotas[k]; !had || !sameQuota(old, q) {
 			changed = true
 		}
@@ -71,14 +112,22 @@ func (h *Hub) Sample(s protocol.UsageSample) {
 	if sp := s.Spend; sp != nil {
 		set(spendWindow(sp.Period), &sp.UsageWindow, sp.UsedUSD, sp.LimitUSD)
 	}
-	var ev protocol.Usage
-	if changed {
-		ev = h.usageLocked()
+	if !changed {
+		h.mu.Unlock()
+		return
 	}
+	ev := h.usageLocked()
+	h.publishAndUnlock(ev)
+}
+
+// publishAndUnlock hands ev to OnUsage and releases h.mu. publishMu is taken
+// before h.mu is released, so two changes reach OnUsage in the order they
+// were made and the last event is always the latest state. Callers hold h.mu.
+func (h *Hub) publishAndUnlock(ev protocol.Usage) {
+	h.publishMu.Lock()
 	h.mu.Unlock()
-	if changed {
-		h.publish(ev)
-	}
+	defer h.publishMu.Unlock()
+	h.publish(ev)
 }
 
 // spendWindow names a spend limit's window from its period: a short,
@@ -86,7 +135,7 @@ func (h *Hub) Sample(s protocol.UsageSample) {
 // period is untrusted text from Claude's JSON.
 func spendWindow(period string) string {
 	p := strings.ToLower(strings.TrimSpace(period))
-	if p == "" || len(p) > 16 {
+	if p == "" || len(p) > maxPeriodRunes {
 		return WindowMonth
 	}
 	for _, r := range p {
