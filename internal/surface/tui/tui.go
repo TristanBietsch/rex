@@ -16,7 +16,9 @@ import (
 // boardPad is the side margin we leave so content isn't flush against the terminal edges.
 const boardPad = 0
 
-func Run(socket string) error {
+// Run opens the board. quietBoot silences the boot splash (see
+// Model.QuietBoot).
+func Run(socket string, quietBoot bool) error {
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
 	store, _, _ := settings.LoadDefault()
@@ -39,6 +41,7 @@ func Run(socket string) error {
 		BootStart: time.Now(),
 		idleDone:  idleDone,
 		keepAwake: awake,
+		QuietBoot: quietBoot,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

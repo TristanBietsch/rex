@@ -708,12 +708,12 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 	if msg.Status == stepFail {
 		m.BootFailed = true
 		m.BootError = msg.Err
-		if m.Audio != nil {
+		if m.Audio != nil && !m.QuietBoot {
 			m.Audio.Play(audio.EventBootFail)
 		}
 		return m, nil
 	}
-	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil {
+	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil && !m.QuietBoot {
 		m.Audio.Play(ev)
 	}
 	m.BootStep++

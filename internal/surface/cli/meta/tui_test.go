@@ -17,7 +17,7 @@ func TestRunTUI_NoHome(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", "")
 	t.Setenv("REX_LOG_DIR", t.TempDir())
 
-	err := RunTUI()
+	err := RunTUI(false)
 	var ee core.ExitError
 	require.True(t, errors.As(err, &ee), "%v", err)
 	require.Equal(t, core.ExitGeneric, ee.Code)

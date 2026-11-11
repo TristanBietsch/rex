@@ -173,6 +173,9 @@ type Model struct {
 	BootDone    bool
 	BootFailed  bool
 	BootError   error
+	// QuietBoot skips the boot chimes, startup tone and boot voice, for a
+	// relaunch nobody is watching. Board sounds after boot still play.
+	QuietBoot bool
 }
 
 // audioPlayer is the subset of *audio.Player the TUI uses.
