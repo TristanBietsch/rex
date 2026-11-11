@@ -88,21 +88,38 @@ func TestUserRepoLocalConfigNeverRuns(t *testing.T) {
 	write(t, repo, "b.txt", "filtered?\n")
 	write(t, repo, ".env", "S=1\n")
 
-	// Sanity: git itself runs the configured programs, so the test can fail.
-	gitIn(t, repo, "add", "-A")
-	fired, _ := filepath.Glob(filepath.Join(markers, "*.ran"))
-	if len(fired) == 0 {
-		t.Fatal("the markers never fire for plain git; the test proves nothing")
-	}
-	for _, f := range fired {
-		_ = os.Remove(f)
-	}
-	gitIn(t, repo, "reset", "-q")
-	if again, _ := filepath.Glob(filepath.Join(markers, "*.ran")); len(again) > 0 {
-		for _, f := range again {
+	// Sanity: plain git runs each configured program, one by one, so each
+	// check below can fail. Every marker must fire for the operation named.
+	clearMarkers := func() {
+		old, _ := filepath.Glob(filepath.Join(markers, "*.ran"))
+		for _, f := range old {
 			_ = os.Remove(f)
 		}
 	}
+	mustFire := func(what string, markerNames ...string) {
+		t.Helper()
+		for _, m := range markerNames {
+			if _, err := os.Stat(filepath.Join(markers, m+".ran")); err != nil {
+				t.Fatalf("plain git %s did not run %s; the test would prove nothing", what, m)
+			}
+		}
+		clearMarkers()
+	}
+	gitIn(t, repo, "status", "--short")
+	mustFire("status", "fsmonitor")
+	write(t, repo, "b.txt", "changed for the clean filter\n")
+	gitIn(t, repo, "add", "b.txt")
+	mustFire("add", "clean", "post-index-change")
+	gitIn(t, repo, "update-ref", "refs/probe/x", "HEAD")
+	mustFire("update-ref", "reference-transaction")
+	if err := os.Remove(filepath.Join(repo, "b.txt")); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, repo, "checkout", "--", "b.txt")
+	mustFire("checkout", "smudge")
+	gitIn(t, repo, "reset", "-q")
+	clearMarkers()
+	write(t, repo, "b.txt", "filtered?\n")
 
 	s := newStore(t)
 	ctx := context.Background()

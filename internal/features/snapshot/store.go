@@ -51,8 +51,10 @@ type Store struct {
 	mu    sync.Mutex
 	locks map[string]chan struct{}
 
-	// beforeDelete, when set by a test, runs just before a restore deletes.
+	// beforeDelete, when set by a test, runs just before a restore deletes;
+	// afterPlan just after its plan and before its guard.
 	beforeDelete func()
+	afterPlan    func()
 }
 
 // NewStore returns a Store rooted at root (~/.local/share/rex/snapshots).

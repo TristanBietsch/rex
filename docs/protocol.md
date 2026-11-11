@@ -119,7 +119,7 @@ Checks, in order:
 5. The folder is inside a git worktree (git 2.32 or newer), and there is a turn to undo (or an undo to redo): else `bad_state` with the reason ("snapshots need a git repo", "nothing to undo", "nothing to redo", "that turn was not captured, so it cannot be undone").
 6. Nothing a restore would overwrite or remove is missing from the snapshots (a nested repo or clone, a file over 2 MiB, an ignored folder or a symlink at a path it must write): else `bad_state` naming the blocking paths, with nothing changed. `force` does not override it.
 
-The restore runs on a context detached from the connection, so a client that disconnects does not stop it half way. If it fails part way, the `bad_state` message says `rex redo` brings back the state from before.
+The restore runs on a context detached from the connection, so a client that disconnects does not stop it half way. After the final check the restore and its verification run without a deadline. If it fails part way, the `bad_state` message says `rex redo` brings back the state from before. A session whose folder ledger was found corrupt and reset gets a `bad_state` "history for this folder was reset at <time> (the old ledger is kept as <file>); older turns can't be undone".
 
 Snapshots are taken by the daemon at turn boundaries and are not an intent. Redo history is dropped when a session starts another turn. Clients: `(*client.Client).Do(ctx, protocol.IntentUndo, protocol.Undo{...})`.
 

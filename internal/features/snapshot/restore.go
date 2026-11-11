@@ -26,7 +26,17 @@ type RestoreOpts struct {
 	// From is the tree of the folder as it is now (a fresh capture). Files
 	// in From but not in the target are deleted; required.
 	From Tree
+	// Guard, when set, runs after the plan and preflight and just before the
+	// first file is touched; an error aborts with nothing changed.
+	Guard Guard
 }
+
+// notStarted wraps an error returned before the restore changed anything: a
+// refused plan or a tripped guard.
+type notStarted struct{ err error }
+
+func (e *notStarted) Error() string { return e.err.Error() }
+func (e *notStarted) Unwrap() error { return e.err }
 
 // Result lists what Restore did, as slash paths relative to the folder.
 type Result struct {
@@ -117,8 +127,19 @@ func (s *Store) restore(ctx context.Context, dir, cwd string, to Tree, opts Rest
 	}
 	write, del, err := s.plan(ctx, env, cwd, opts.From, to)
 	if err != nil {
-		return Result{}, err
+		return Result{}, &notStarted{err}
 	}
+	if s.afterPlan != nil {
+		s.afterPlan()
+	}
+	if opts.Guard != nil {
+		if gerr := opts.Guard(); gerr != nil {
+			return Result{}, &notStarted{gerr}
+		}
+	}
+	// Past this point the restore runs to the end: no deadline and no
+	// cancellation of the caller's context stops it half way.
+	ctx = context.WithoutCancel(ctx)
 	if err := s.deleteAll(cwd, del); err != nil {
 		return Result{}, err
 	}

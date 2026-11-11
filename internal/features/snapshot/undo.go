@@ -177,28 +177,20 @@ func (s *Store) apply(ctx context.Context, dir, cwd, session string, to Tree, sa
 	if err != nil {
 		return UndoResult{}, err
 	}
-	if o.guard != nil {
-		if gerr := o.guard(); gerr != nil {
-			if safetyPhase == PhaseSafety {
-				// Drop the unused safety capture from the redo stack.
-				_ = appendLedger(dir, Entry{SessionID: session, Turn: cursor, Phase: phaseRedo, Tree: safety, At: s.now().UTC()})
-			}
-			return UndoResult{}, gerr
-		}
-	}
-	res, err := s.restore(ctx, dir, cwd, to, RestoreOpts{Session: session, From: safety})
+	res, err := s.restore(ctx, dir, cwd, to, RestoreOpts{Session: session, From: safety, Guard: o.guard})
 	if err != nil {
-		var be *BlockedError
-		if errors.As(err, &be) {
+		var ns *notStarted
+		if errors.As(err, &ns) {
+			// Nothing changed: drop the unused safety capture from the redo stack.
 			if safetyPhase == PhaseSafety {
 				_ = appendLedger(dir, Entry{SessionID: session, Turn: cursor, Phase: phaseRedo, Tree: safety, At: s.now().UTC()})
 			}
-			return UndoResult{}, err
+			return UndoResult{}, ns.err
 		}
 		return UndoResult{}, fmt.Errorf("%w; the folder may be half restored: its state before is saved, run rex redo to bring it back", err)
 	}
 	out := UndoResult{Restored: res.Restored, Deleted: res.Deleted, Safety: safety}
-	out.Warnings = s.verify(ctx, dir, cwd, session, to, o)
+	out.Warnings = s.verify(context.WithoutCancel(ctx), dir, cwd, session, to, o)
 	return out, nil
 }
 

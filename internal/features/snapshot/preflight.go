@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -71,6 +72,16 @@ func preflight(ctx context.Context, env []string, cwd string, from Tree, write, 
 		delSet[p] = true
 	}
 	blocked := map[string]bool{}
+	// On a case-insensitive filesystem (macOS, Windows) a Foo -> foo rename
+	// shows as one path deleted and another written, yet both names are the
+	// same file: index the captured paths by lowercase to tell.
+	var fold map[string]string
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		fold = make(map[string]string, len(modes))
+		for p := range modes {
+			fold[strings.ToLower(p)] = p
+		}
+	}
 	abs := func(p string) string { return filepath.Join(cwd, filepath.FromSlash(p)) }
 
 	for _, p := range write {
@@ -101,6 +112,14 @@ func preflight(ctx context.Context, env []string, cwd string, from Tree, write, 
 			}
 		default:
 			mode, ok := modes[p]
+			if !ok && fold != nil {
+				// The same file under another spelling, which is deleted first.
+				if alt, has := fold[strings.ToLower(p)]; has && alt != p && delSet[alt] {
+					if afi, aerr := os.Lstat(abs(alt)); aerr == nil && os.SameFile(fi, afi) {
+						mode, ok = modes[alt], true
+					}
+				}
+			}
 			if !ok || (fi.Mode()&fs.ModeSymlink != 0) != (mode == "120000") {
 				blocked[p] = true
 			}

@@ -73,7 +73,7 @@
 Built 2026-11-11 on `feat/r01-1-snapshots` (daemon and CLI; TUI deferred).
 
 - **Package** `internal/features/snapshot`: `Store` (`Capture`, `Restore`, `Changed`, plus `Undo`, `Redo`, `PlanUndo`, `PlanRedo`, `MarkRemoved`, `MarkMissed`, `Retain`, `Usage`, `Entries`, `UntrackedEnvFiles`), one `gitEnv` builder, `ErrNotGitWorktree`. Per-folder lock serializes captures, undo, redo and retention on one folder.
-- **Daemon**: `boot.Snapshots` subscribes to the store and keeps a queue and one worker goroutine per folder (the goroutine exits when the queue drains). Off: only in-memory state tracking, no goroutine, no file, no git call (`TestSnapshots_FlagOffCreatesNothing`). It follows the setting through the `WatchSettings` applier list, which is now started once after the summarizer block instead of inside it. Retention runs once at start, flag on or off, only when a store exists.
+- **Daemon**: `boot.Snapshots` subscribes to the store and keeps a queue and one worker goroutine per folder (the goroutine exits when the queue drains). Off: only in-memory state tracking, no goroutine, no file, no git call (`TestSnapshots_FlagOffCreatesNothing`). It follows the setting through the `WatchSettings` applier list, which is now started once after the summarizer block instead of inside it. Retention runs once at daemon start and only while the flag is on (with it off nothing under the store is touched).
 - **Protocol**: `Undo{session_id, turns, force, dry_run}`, `Redo{session_id, force, dry_run}`, reply event `UndoResult{session_id, restored, deleted, safety}`. Additive, no `ProtocolVersion` bump.
 - **CLI**: `rex undo` / `rex redo`, kit commands, `-yes` without a TTY.
 - **Doctor**: size per folder, git lookup, untracked `.env*` warning; creates nothing.
@@ -88,7 +88,7 @@ Deviations from the spec:
 - Retention clock: the daemon appends a `removed` ledger line when a session leaves the board. A session in a ledger that is not on the board and has no such line (daemon crash) is marked removed at the next retention run.
 - The store lives under `<state-dir>/snapshots` (the daemon's `-state-dir`, default `~/.local/share/rex`). `paths.SnapshotsDir()` gives the default for `rex doctor`; a daemon on a custom `-state-dir` keeps its store there and doctor reports the default one.
 - Retention and the cap run at daemon start only. `git gc --prune=now` runs during retention at most once a day per store, and after each oldest-session drop while over the cap.
-- The folder's `.git/info/exclude` is honored by copying it into the shadow's `info/exclude`; a global gitignore and `.gitignore` files above the session folder (when it is a subfolder of the repo) are not read.
+- Ignore rules come from the user's repo, read only: before each capture rex lists what git ignores under the folder (`ls-files -o -i --exclude-standard --directory`) and writes it as anchored patterns into the shadow `info/exclude`. That covers the repo's `.gitignore` files above the folder, `.git/info/exclude` and git's default global ignore file; `core.excludesFile` set in global config is not read (global config is off for every call).
 - A nested repository is skipped by excluding its directory (git would otherwise fail on one with no commit, or record a link).
 - Not run on Windows here: the null-device and path code compiles and is unit tested; the git-backed tests run wherever `git` is installed (CI Windows has it).
 
@@ -102,3 +102,11 @@ Deviations from the spec:
 - **Folders (MED 7)**: overlap means same, nested or symlink-equal folders.
 - **LOW**: `Retain` does not run while the flag is off; git older than 2.32 disables snapshots (daemon log once, doctor row); dubious ownership has its own error.
 - Not done: a tool-written `safe.directory` allowance (the shadow calls ignore global config by design, so such a folder is reported, not snapshotted).
+
+### Second review fixes (2026-11-11)
+
+- **Corrupt ledger**: only the write paths (capture, undo, redo, retention) set a corrupt ledger aside; `Usage`, `Entries`, dry runs and `rex doctor` report it (`ErrLedgerCorrupt`) and change nothing. Setting it aside writes `ledger-reset` (time and file name). A store with a reset marker or a `.corrupt-*` file is never deleted by retention until 7 days after the reset; refs with no ledger session ("orphans") are kept for the same time and are the first size-cap candidates. Undo and redo for a session that lost its history return a `ResetError` naming the file and the time. `rex doctor` shows a row for both states.
+- **Deadlines**: the 2 minute limit covers lock wait, plan, preflight and the safety capture. After the guard passes the restore and its verification run on `context.WithoutCancel`, so neither a deadline nor a client disconnect can stop them half way. The guard now runs inside the restore, right after the plan and just before the first delete.
+- **Names**: `excludeLine` writes `?` for a newline (over-matches, the safe side). A case-only rename (macOS, Windows) is recognized by lowercase path and `os.SameFile` and is not a blocker.
+- **Performance** (`TestCapturePerformanceWithManyIgnoredFiles`, 50,000 individually ignored `*.o` files in 500 folders, one repo, macOS APFS): first capture about 2.8 s, a later capture about 1.5 s, a dry-run plan about 1.5 s. git matches the literal exclude lines quickly, so lines are not collapsed by parent folder.
+- `begin` checks the worktree with `rev-parse` only; the ignore listing runs once per capture or plan.
