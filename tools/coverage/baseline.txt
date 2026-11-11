@@ -27,7 +27,7 @@ github.com/tristanbietsch/rex/internal/runtime/rexlog 87
 github.com/tristanbietsch/rex/internal/surface/cli/core 94
 github.com/tristanbietsch/rex/internal/surface/cli/inspect 81
 github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
-github.com/tristanbietsch/rex/internal/surface/cli/meta 66
+github.com/tristanbietsch/rex/internal/surface/cli/meta 65
 github.com/tristanbietsch/rex/internal/surface/cli/session 75
 github.com/tristanbietsch/rex/internal/surface/cli/setup 70
 github.com/tristanbietsch/rex/internal/surface/tui 79
