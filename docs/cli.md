@@ -251,9 +251,10 @@ rex redo <sel> [-force] [-yes|-y] [-socket path] [-o ...]
 - The command first asks the daemon what it would do (a dry run), so a refusal comes before any question. Then it asks `undo <slug> (N turn(s)): restore X file(s), delete Y file(s)`, adds `shell side effects (installs, databases, files outside the folder) are not undone`, and waits for `y`/`yes`. Anything else exits **6** with nothing changed.
 - Without a terminal on stdin it exits **6** unless `-yes` (alias `-y`) is given, the same rule as `rm` and `prune`.
 - The daemon refuses (exit **6**) while the session is working, and while another live session shares the folder unless `-force`. It also refuses a folder outside a git repo ("snapshots need a git repo"), a session with no recorded turn ("nothing to undo"), a turn whose capture failed, and a `redo` with nothing to redo.
+- The daemon also refuses (exit **6**, nothing changed) when the restore would overwrite or remove content that no snapshot holds: a nested repo or `git clone` where a file must be written, a file over 2 MiB, an ignored folder, a symlink. The message lists the paths; move them away and run it again. `-force` does not override this. Warnings from the daemon (the folder changed while it ran) are shown after the file lists and are in `-o json` as `warnings`.
 - Before it restores, the daemon captures the current folder (your own edits included), which `rex redo` brings back. Redo history is dropped when the session starts another turn.
 - The agent is not told; the output suggests telling it yourself.
-- `-o json` data: `{session, op, turns, restored[], deleted[], safety}`; paths are relative to the session's folder. The text views list at most 20 files per list.
+- `-o json` data: `{session, op, turns, restored[], deleted[], safety, warnings[]}`; paths are relative to the session's folder. The text views list at most 20 files per list.
 
 Exit codes: 2 selector not found, 5 usage error or feature off, 6 refused, 1 any other failure. An older daemon answers `bad_intent` and the command says to run `rex daemon restart`.
 

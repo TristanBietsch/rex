@@ -25,15 +25,19 @@ The daemon watches session state. A turn **starts** when a session moves into `w
 
 1. Refuses while the session is `working`: wait until the agent stops, or press `esc` to interrupt it.
 2. Refuses when **another live session** (not done, failed or crashed) works in the same folder, because its work would be reverted too. `--force` goes ahead.
-3. Takes a **safety capture** of the folder as it is now, so the undo can itself be redone. Your own uncommitted edits are in it.
-4. Restores: files the target state has are written; files that exist now but not in the target are deleted, except files that your `.gitignore` files or `.git/info/exclude` ignore, which are never deleted. Empty folders left behind are removed.
+3. **Checks the whole plan before changing anything.** If it would have to overwrite or remove something that no snapshot holds, it stops with nothing changed and names the paths: a nested repository or a `git clone` where it needs to write a file, a file over 2 MiB, a folder your `.gitignore` covers, a symbolic link where a folder is needed. Move those paths out of the way and run it again. `--force` does not override this.
+4. Takes a **safety capture** of the folder as it is now, so the undo can itself be redone. Your own uncommitted edits are in it. The folder is locked for rex's own captures from here until the restore ends, and the session is checked once more (still not working, no other live session) just before the first file is touched.
+5. Restores: files the target state has are written; files that exist now but not in the target are deleted, except files that git ignores in your repo, which are never deleted. Deletes never follow a symbolic link. Empty folders left behind are removed.
+6. Captures the folder again and compares it with the target. If something changed the folder meanwhile, or the session started working during the restore, the reply carries a warning.
+
+A client that disconnects does not stop a restore: it runs to the end on its own. If it fails part way (a disk error), the error says so: `rex redo` brings back the state saved in step 4.
 
 Only the files inside the session's folder come back. Shell side effects are **not** undone: installed packages, databases, network calls, files outside the folder.
 
 ## What it stores
 
-- **Only folders inside a git worktree** are captured. Elsewhere nothing is captured and `rex undo` answers "snapshots need a git repo". The setting can stay on for other sessions.
-- Tracked files **and untracked files**, honoring the folder's `.gitignore` files and `.git/info/exclude` (a global gitignore is not read). Untracked files over 2 MiB are skipped. The folder's own `.git` is never captured; nested repositories and submodules are skipped, not entered.
+- **Only folders inside a git worktree** are captured. Elsewhere nothing is captured and `rex undo` answers "snapshots need a git repo". The setting can stay on for other sessions. A folder git refuses as owned by another user ("dubious ownership") is reported as that, not as "not a repo". Snapshots need **git 2.32 or newer**; with an older git they are off, with a notice in the daemon log and in `rex doctor`.
+- Tracked files **and untracked files**, minus whatever **git ignores in your repo for that folder**: before each capture rex asks your repo (read only) which untracked files it ignores under the session's folder and applies exactly that list. So a session in a subfolder (`repo/web`) honors the `.gitignore` at the repo root, `.git/info/exclude` and nested `.gitignore` files: `node_modules`, build output and `.env` that git ignores are not captured and undo never deletes them. Your global gitignore is not read. Untracked files over 2 MiB are skipped. The folder's own `.git` is never captured. Nested repositories (a `git clone` inside the folder) and submodules are skipped whole, not entered; if one sits where undo must write a file, undo refuses (see above).
 - Snapshots hold **file contents**. An untracked `.env` with secrets that git does not ignore is copied into the store. The store is created owner-only (0700) and never leaves the machine, but anything that can read your home folder can read it. `rex doctor` warns about untracked `.env*` files in snapshotted folders. Add them to `.gitignore`.
 - Nothing is written to your repository: not `HEAD`, the index, branches, stash, hooks or config. A test compares the whole `.git` folder before and after.
 
@@ -57,16 +61,16 @@ The ledger line is `{"session_id", "turn", "phase", "tree", "at", "files_changed
 ## Retention
 
 - A session's captures are kept while it is on the board and for **7 days** after it was removed, then its refs are deleted.
-- A store is capped at **2 GiB**. Over the cap, the oldest sessions' refs are dropped first (the daemon runs `git gc` to reclaim space).
+- A store is capped at **2 GiB**. Over the cap, the oldest sessions that have left the board are dropped first (the daemon runs `git gc` to reclaim space). Live sessions' snapshots go only as a last resort, never the newest live session's, and `rex doctor` then warns that undo is gone for them.
 - `git gc --prune=now` runs on each store at most once a day, when the daemon starts.
 - A store with no sessions left is deleted.
-- Turning the setting off keeps existing snapshots until retention removes them. With it off, rex makes no git call and creates no file.
+- With the setting off rex does nothing at all: no git call, no file written, and retention does not run either. Existing snapshots stay untouched until the setting is on again and the daemon next starts.
 
-Retention runs when the daemon starts, so a long-running daemon applies it at its next restart.
+Retention runs when the daemon starts with the setting on, so a long-running daemon applies it at its next restart. A damaged ledger is handled without losing the folder: a torn last line is ignored, and a ledger damaged elsewhere is renamed `turns.jsonl.corrupt-<time>` and started afresh (older snapshots in that folder can then no longer be undone).
 
 ## Check it
 
-`rex doctor` shows whether snapshots are on, whether `git` is found, each folder store's size and session count, and untracked `.env*` files in snapshotted folders.
+`rex doctor` shows whether snapshots are on, whether `git` is found and new enough, each folder store's size and session count, and untracked `.env*` files in snapshotted folders.
 
 ## Not in this version
 

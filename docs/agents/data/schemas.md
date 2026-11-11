@@ -119,7 +119,7 @@ Running session: clears the done mark. Exited session: respawns in place (see `d
 | force | bool | no |
 | dry_run | bool | no |
 
-Reply event `UndoResult`: `session_id`, `restored` []string, `deleted` []string (relative slash paths, never null), `safety` string (tree id; empty on `dry_run`). See `docs/protocol.md`, Undo and Redo.
+Reply event `UndoResult`: `session_id`, `restored` []string, `deleted` []string (relative slash paths, never null), `safety` string (tree id; empty on `dry_run`), `warnings` []string (omitted when empty). See `docs/protocol.md`, Undo and Redo.
 
 ## Turn snapshot ledger
 

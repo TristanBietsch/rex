@@ -108,15 +108,18 @@ Clients: `(*client.Client).Resume(sessionID, reqID)`. An older daemon answers `b
 
 `Undo{session_id, turns, force, dry_run}` restores the session's folder to how it was before its last `turns` agent turns, from the turn snapshots (the `turn_snapshots` setting; see [snapshots](snapshots.md)). `Redo{session_id, force, dry_run}` restores the capture `Undo` took first. Both are additive: no `ProtocolVersion` bump, and an older daemon answers `bad_intent` "intent not implemented".
 
-The reply is an `UndoResult` event (not an `Ack`): `session_id`, `restored` and `deleted` (sorted slash paths relative to the session's folder, never null) and `safety`, the tree id of the capture taken just before the restore. The folder is already changed when the reply is sent. With `dry_run` nothing changes and nothing is captured: the same checks run and the reply lists what would be restored and deleted, with an empty `safety`.
+The reply is an `UndoResult` event (not an `Ack`): `session_id`, `restored` and `deleted` (sorted slash paths relative to the session's folder, never null), `safety`, the tree id of the capture taken just before the restore, and `warnings` (absent when empty): the folder changed while the restore ran, or the session started working during it. The folder is already changed when the reply is sent. With `dry_run` nothing changes and nothing is captured: the same checks run and the reply lists what would be restored and deleted, with an empty `safety`.
 
 Checks, in order:
 
 1. The feature is on, else `bad_intent` "off: enable turn_snapshots in Settings → Features". `turns` outside 0 to 1000 is `bad_intent`.
 2. The session exists (`unknown_session`).
 3. It is not `working` (`bad_state`).
-4. No other live session (state not `done`, `failed` or `crashed`) has the same `cwd`, unless `force` (`bad_state`, naming the others' slugs).
-5. The folder is inside a git worktree, and there is a turn to undo (or an undo to redo): else `bad_state` with the reason ("snapshots need a git repo", "nothing to undo", "nothing to redo", "that turn was not captured, so it cannot be undone").
+4. No other live session (state not `done`, `failed` or `crashed`) has a `cwd` that is the same folder, inside it or around it (paths cleaned and symlink-resolved), unless `force` (`bad_state`, naming the others' slugs). Checks 3 and 4 run again after the safety capture, just before the first file changes; `force` never overrides check 3.
+5. The folder is inside a git worktree (git 2.32 or newer), and there is a turn to undo (or an undo to redo): else `bad_state` with the reason ("snapshots need a git repo", "nothing to undo", "nothing to redo", "that turn was not captured, so it cannot be undone").
+6. Nothing a restore would overwrite or remove is missing from the snapshots (a nested repo or clone, a file over 2 MiB, an ignored folder or a symlink at a path it must write): else `bad_state` naming the blocking paths, with nothing changed. `force` does not override it.
+
+The restore runs on a context detached from the connection, so a client that disconnects does not stop it half way. If it fails part way, the `bad_state` message says `rex redo` brings back the state from before.
 
 Snapshots are taken by the daemon at turn boundaries and are not an intent. Redo history is dropped when a session starts another turn. Clients: `(*client.Client).Do(ctx, protocol.IntentUndo, protocol.Undo{...})`.
 

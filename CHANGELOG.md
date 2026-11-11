@@ -33,7 +33,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   agent is not told. Snapshots keep file contents, including untracked
   secrets such as `.env`, so read [docs/snapshots.md](docs/snapshots.md)
   before turning it on. Kept 7 days after a session is removed, at most
-  2 GiB per folder. `rex doctor` shows the store size per folder, whether
+  2 GiB per folder. It follows what git ignores in your repo (also for a
+  session in a repo subfolder), refuses an undo that would overwrite
+  anything no snapshot holds (a nested clone, a big file, an ignored
+  folder) and needs git 2.32 or newer. `rex doctor` shows the store size per folder, whether
   `git` is found and warns about untracked `.env*` files. New `Undo` and
   `Redo` intents with an `UndoResult` reply (additive). The TUI `:undo`
   dialog comes later.
