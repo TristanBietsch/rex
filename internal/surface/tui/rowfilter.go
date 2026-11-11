@@ -29,6 +29,11 @@ func (f rowFilter) showsSection(g boardGroup) bool {
 	return !f.hidden[g.ID]
 }
 
+// searching reports whether a search narrows the rows.
+func (f rowFilter) searching() bool {
+	return len(f.terms) > 0
+}
+
 // rowsActive reports whether any filter narrows the rows.
 func (f rowFilter) rowsActive() bool {
 	return (f.tool != "" && f.tool != "all") || len(f.terms) > 0

@@ -94,8 +94,22 @@ const (
 const doneCollapseAt = 5
 
 // doneCollapsed reports whether the Done column shows only its title line.
+// A search unfolds it: hits are never folded away.
 func doneCollapsed(m Model) bool {
-	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) > doneCollapseAt
+	f := rowFilterOf(m)
+	if f.searching() {
+		return false
+	}
+	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], f)) > doneCollapseAt
+}
+
+// doneRowCount is the Done column's length under the tool filter, ignoring
+// the search: whether the column is long enough to fold must not change as
+// the query narrows it.
+func doneRowCount(m Model) int {
+	f := rowFilterOf(m)
+	f.terms = nil
+	return len(filterByGroup(m.Sessions, boardGroups[groupDone], f))
 }
 
 // visibleRows is group gi's rows as the board shows them: none while Done
@@ -303,13 +317,18 @@ func groupTitle(m Model, gi, width int) string {
 }
 
 func groupTitleText(m Model, gi int) string {
-	n := len(filterByGroup(m.Sessions, boardGroups[gi], rowFilterOf(m)))
+	f := rowFilterOf(m)
+	n := len(filterByGroup(m.Sessions, boardGroups[gi], f))
 	title := styleSectionTitle.Render(strings.ToUpper(boardGroups[gi].Title))
 	if boardGroups[gi].Alert && n > 0 {
 		title = styleAlert().Render(strings.ToUpper(boardGroups[gi].Title))
 	}
-	out := "  " + title + styleDim.Render(fmt.Sprintf("  %d", n))
-	if gi != groupDone || n <= doneCollapseAt {
+	count := fmt.Sprintf("  %d", n)
+	if f.rowsActive() { // a filter or search narrows the rows: show n of the section's total
+		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{})))
+	}
+	out := "  " + title + styleDim.Render(count)
+	if gi != groupDone || n <= doneCollapseAt || f.searching() {
 		return out
 	}
 	sep := styleMuted.Render("  ·  ")
@@ -349,6 +368,7 @@ func renderBoard(m Model, width, height int) string {
 	cols := layoutSlots(slots, m.now(), width, m.Detailed)
 	// An empty column's text starts where row content does.
 	noneIndent := strings.Repeat(" ", rowIndent+colMarker+colGap)
+	searching := rowFilterOf(m).searching()
 	lines := make([]string, 0, height)
 	for _, sl := range slots[off:end] {
 		switch sl.kind {
@@ -357,7 +377,11 @@ func renderBoard(m Model, width, height int) string {
 		case slotTitle:
 			lines = append(lines, groupTitle(m, sl.group, width))
 		case slotNone:
-			lines = append(lines, noneIndent+styleMuted.Render(boardGroups[sl.group].Empty))
+			none := boardGroups[sl.group].Empty
+			if searching {
+				none = "no matches"
+			}
+			lines = append(lines, noneIndent+styleMuted.Render(none))
 		case slotRow:
 			lines = append(lines, renderRow(m, sl.sess, cols))
 		}

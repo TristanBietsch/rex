@@ -187,10 +187,43 @@ func showAllSections(m Model) Model {
 	return refilter(m)
 }
 
-// renderFilterStatus is the dim note after the filter chips naming what is
-// hidden ("done hidden (zh)"), or "" when no section is hidden. It sits
-// after the chips so headerHitAt still finds every chip.
+// renderFilterStatus is the dim note after the filter chips: which sections
+// are hidden ("done hidden (zh)") and the active search ("/auth · 3 matches
+// · esc clear"), or "" when neither applies. It sits after the chips so
+// headerHitAt still finds every chip.
 func renderFilterStatus(m Model) string {
+	var notes []string
+	if hidden := hiddenStatus(m); hidden != "" {
+		notes = append(notes, hidden)
+	}
+	if search := searchStatus(m); search != "" {
+		notes = append(notes, search)
+	}
+	if len(notes) == 0 {
+		return ""
+	}
+	return styleDim.Render(strings.Join(notes, " · "))
+}
+
+// searchStatus is the search part of the filter status: the query, how many
+// rows match, a hint to clear it (the editor has its own hints), and how
+// many more matches sit in hidden sections.
+func searchStatus(m Model) string {
+	if !rowFilterOf(m).searching() {
+		return ""
+	}
+	parts := []string{"/" + truncate(strings.TrimSpace(m.Search), 24), matchesLabel(searchMatchCount(m))}
+	if m.Focus != FocusSearch {
+		parts = append(parts, "esc clear")
+	}
+	if n := searchHiddenCount(m); n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d in hidden sections (z0)", n))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// hiddenStatus names the hidden sections ("done hidden (zh)"), or "".
+func hiddenStatus(m Model) string {
 	var names []string
 	var first int
 	for i, g := range boardGroups {
@@ -211,7 +244,7 @@ func renderFilterStatus(m Model) string {
 			hint = "zh"
 		}
 	}
-	return styleDim.Render(strings.Join(names, ", ") + " hidden (" + hint + ")")
+	return strings.Join(names, ", ") + " hidden (" + hint + ")"
 }
 
 // hiddenSectionsFrom reads the board_hidden_sections setting.

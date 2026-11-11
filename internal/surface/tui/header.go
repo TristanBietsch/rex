@@ -64,7 +64,7 @@ func renderHeader(m Model, width int) string {
 // filter is active (a tool, or a hidden section), or sessions run more than
 // one tool.
 func showFilterChips(m Model) bool {
-	if (m.Filter != "" && m.Filter != "all") || len(m.Hidden) > 0 {
+	if (m.Filter != "" && m.Filter != "all") || len(m.Hidden) > 0 || rowFilterOf(m).searching() {
 		return true
 	}
 	first := ""

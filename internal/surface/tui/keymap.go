@@ -43,7 +43,7 @@ func toggleDone(m Model) Model {
 	if hiddenNotice(&m, groupDone) {
 		return m
 	}
-	if len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) <= doneCollapseAt {
+	if doneRowCount(m) <= doneCollapseAt || rowFilterOf(m).searching() {
 		return jumpToSection(m, groupDone)
 	}
 	m.DoneExpanded = !m.DoneExpanded
@@ -61,7 +61,7 @@ func toggleDone(m Model) Model {
 // column back to folding once it is short again, so it folds the next time
 // it grows past doneCollapseAt.
 func keepSelectionVisible(m Model) Model {
-	if m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], rowFilterOf(m))) <= doneCollapseAt {
+	if m.DoneExpanded && doneRowCount(m) <= doneCollapseAt {
 		m.DoneExpanded = false
 	}
 	// Cheap exit: nothing narrows the board, so the selection is visible.

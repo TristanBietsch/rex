@@ -173,6 +173,18 @@ func searchMatchCount(m Model) int {
 	return n
 }
 
+// searchHiddenCount is how many rows match the query in hidden sections.
+func searchHiddenCount(m Model) int {
+	f := rowFilterOf(m)
+	n := 0
+	for _, g := range boardGroups {
+		if !f.showsSection(g) {
+			n += len(filterByGroup(m.Sessions, g, f))
+		}
+	}
+	return n
+}
+
 // matchesLabel is "3 matches", "1 match" or "no matches".
 func matchesLabel(n int) string {
 	switch n {
