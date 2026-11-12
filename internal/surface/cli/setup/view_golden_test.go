@@ -193,7 +193,7 @@ func TestUpdateCheckGolden(t *testing.T) {
 	var secs []golden.Section
 	for _, f := range []string{"text", "txt", "md", "json", "agent"} {
 		p, out, _ := viewPrinter(t, f, 80, false)
-		require.NoError(t, runUpdateCheck(p))
+		require.NoError(t, emitUpdateCheck(p, updateCheckData{Version: "v2.0.0", Remote: "v2.1.0", Status: statusAvailable}))
 		secs = append(secs, golden.Section{Name: f, Body: out.String()})
 	}
 	golden.Check(t, "testdata/golden/update_check.txtar", secs...)

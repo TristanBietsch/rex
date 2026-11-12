@@ -1,15 +1,22 @@
 -- text --
-  version  dev
-  remote   (version check not yet wired — no remote lookup performed)
+  version  v2.0.0
+  remote   v2.1.0
+  status   update-available
+
+› rex update  install it
 -- txt --
-version  dev
-remote   (version check not yet wired — no remote lookup performed)
+version  v2.0.0
+remote   v2.1.0
+status   update-available
 -- md --
 | Key | Value |
 | --- | --- |
-| version | dev |
-| remote | (version check not yet wired — no remote lookup performed) |
+| version | v2.0.0 |
+| remote | v2.1.0 |
+| status | update-available |
+
+`rex update` install it
 -- json --
-{"v":1,"cmd":"update","data":{"version":"dev","remote":null}}
+{"v":1,"cmd":"update","data":{"version":"v2.0.0","remote":"v2.1.0","status":"update-available"}}
 -- agent --
-ok cmd=update version=dev remote=""
+ok cmd=update version=v2.0.0 remote=v2.1.0 status=update-available

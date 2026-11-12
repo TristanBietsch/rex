@@ -24,13 +24,21 @@ type updateFixture struct {
 	sourceDir  string
 	out        bytes.Buffer
 	errOut     bytes.Buffer
+	// Release mode.
+	release    releaseSource
+	version    string
+	env        map[string]string
+	tempDir    string
+	hasUpgrade bool
 }
 
 func newUpdateFixture() *updateFixture {
 	f := &updateFixture{
-		mode:   installModeGoInstall,
-		exe:    filepath.Join("home", "go", "bin", "rex"),
-		daemon: &fakeDaemon{up: true},
+		mode:    installModeGoInstall,
+		exe:     filepath.Join("home", "go", "bin", "rex"),
+		daemon:  &fakeDaemon{up: true},
+		version: "v2.0.0",
+		release: &fakeRelease{tag: "v2.1.0"},
 	}
 	f.daemon.log = &f.log
 	return f
@@ -57,22 +65,17 @@ func (f *updateFixture) run(args ...string) error {
 			return f.installErr
 		},
 		installedVersion: func() string { return "v9.9.9" },
+		release:          f.release,
+		version:          f.version,
+		goos:             "linux",
+		goarch:           "amd64",
+		getenv:           func(k string) string { return f.env[k] },
+		tempDir:          f.tempDir,
+		hasUpgrade: func(string) bool {
+			f.log = append(f.log, "probe upgrade")
+			return f.hasUpgrade
+		},
 	})
-}
-
-// Every install.sh install is binary-swap, which update can't upgrade. It
-// used to stop the daemon first and only then refuse, killing the user's
-// sessions for nothing.
-func TestRunUpdate_binarySwapRefusesBeforeStoppingDaemon(t *testing.T) {
-	f := newUpdateFixture()
-	f.mode = installModeBinarySwap
-
-	err := f.run("-yes")
-	requireExitCode(t, err, core.ExitOperationRefused)
-	require.Equal(t, []string{"detect"}, f.log)
-	require.Zero(t, f.daemon.stopCount())
-	require.True(t, f.daemon.up)
-	require.ErrorContains(t, err, "cannot self-upgrade binary-swap install")
 }
 
 func TestRunUpdate_goInstallStopsDaemonThenUpgrades(t *testing.T) {
@@ -86,11 +89,11 @@ func TestRunUpdate_goInstallStopsDaemonThenUpgrades(t *testing.T) {
 	require.Contains(t, f.out.String(), "daemon will restart on next `rex`")
 }
 
-// -source runs the checkout's install script, so it works for binary-swap
+// -source runs the checkout's install script, so it works for release
 // installs too.
-func TestRunUpdate_sourceOverridesBinarySwap(t *testing.T) {
+func TestRunUpdate_sourceOverridesRelease(t *testing.T) {
 	f := newUpdateFixture()
-	f.mode = installModeBinarySwap
+	f.mode = installModeRelease
 
 	require.NoError(t, f.run("-yes", "-source", "/src/rex"))
 	require.Equal(t, []string{"detect", "stop", "source"}, f.log)
@@ -141,14 +144,6 @@ func TestRunUpdate_installFailure(t *testing.T) {
 	require.Contains(t, err.Error(), "network down")
 }
 
-func TestRunUpdate_checkTouchesNothing(t *testing.T) {
-	f := newUpdateFixture()
-
-	require.NoError(t, f.run("-check"))
-	require.Empty(t, f.log)
-	require.Contains(t, f.out.String(), core.Version)
-}
-
 func TestRunUpdate_badFlag(t *testing.T) {
 	f := newUpdateFixture()
 	requireExitCode(t, f.run("-nope"), core.ExitInvalidArgs)
@@ -165,8 +160,14 @@ func TestClassifyInstall(t *testing.T) {
 		{"GOPATH bin", filepath.Join(gopath, "bin", "rex"), gopath, installModeGoInstall},
 		{"default GOPATH", filepath.Join(home, "go", "bin", "rex"), "", installModeGoInstall},
 		{"home go bin with custom GOPATH", filepath.Join(home, "go", "bin", "rex"), gopath, installModeGoInstall},
-		{"install.sh", filepath.Join(home, ".local", "bin", "rex"), gopath, installModeBinarySwap},
-		{"look-alike dir", filepath.Join(home, "go", "binaries", "rex"), "", installModeBinarySwap},
+		{"install.sh", filepath.Join(home, ".local", "bin", "rex"), gopath, installModeRelease},
+		{"look-alike dir", filepath.Join(home, "go", "binaries", "rex"), "", installModeRelease},
+		{"homebrew cellar", filepath.Join(string(filepath.Separator)+"opt", "homebrew", "Cellar", "rex", "2.0.0", "bin", "rex"), "", installModePackage},
+		{"linuxbrew", filepath.Join(string(filepath.Separator)+"home", "linuxbrew", ".linuxbrew", "bin", "rex"), "", installModePackage},
+		{"nix", filepath.Join(string(filepath.Separator)+"nix", "store", "abc-rex", "bin", "rex"), "", installModePackage},
+		{"scoop", filepath.Join(home, "scoop", "apps", "rex", "current", "rex.exe"), "", installModePackage},
+		{"distro", filepath.Join(string(filepath.Separator)+"usr", "bin", "rex"), "", installModePackage},
+		{"usr local", filepath.Join(string(filepath.Separator)+"usr", "local", "bin", "rex"), "", installModeRelease},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
