@@ -1629,7 +1629,11 @@ func rewriteShellBlock(content, block string) string {
 func RunSetupWizard(configPath, socket, autoTrust string) error {
 	slog.Info("setup: launching TUI wizard", "config_path", configPath, "socket", socket)
 	model := NewSetupWizardModel(configPath, socket).withAutoTrust(autoTrust)
-	// Draw the wizard in the user's own theme, not the built-in default.
+	// Draw the wizard in the user's own theme and accent, not the
+	// built-in default.
+	st := settings.NewStore()
+	_ = st.Load(configPath)
+	accentChoice = st.String("accent_color")
 	applyThemeFrom(model.themes, model.themeOptions[model.themeIdx])
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := p.Run()

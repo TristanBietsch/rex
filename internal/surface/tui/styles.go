@@ -100,10 +100,14 @@ func init() {
 	applyTheme(theme.DefaultName)
 }
 
-// applyTheme swaps the live palette and rebuilds all style vars. An unknown
-// name falls back to the default palette and returns false. It writes package
-// globals, so call it from Update, never from a tea.Cmd goroutine.
-func applyTheme(name string) bool { return applyThemeFrom(nil, name) }
+// applyTheme swaps the live palette, without an accent_color override, and
+// rebuilds all style vars. An unknown name falls back to the default palette
+// and returns false. It writes package globals, so call it from Update,
+// never from a tea.Cmd goroutine.
+func applyTheme(name string) bool {
+	accentChoice = ""
+	return applyThemeFrom(nil, name)
+}
 
 // applyThemeFrom is applyTheme with the user's theme files: cat (nil means
 // built-ins only) is searched first.

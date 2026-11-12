@@ -85,6 +85,9 @@ func settingEditKey(m Model, k tea.KeyMsg) Model {
 	case tea.KeyEnter:
 		if settingLocked(&m, e.ID) {
 			m.Settings.Edit = nil
+			if e.ID == "accent_color" {
+				applyThemeNamed(&m, m.Store.String("theme")) // drop the preview
+			}
 			return m
 		}
 		if err := m.Store.Set(e.ID, e.ed.Text); err != nil {
