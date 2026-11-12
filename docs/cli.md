@@ -671,10 +671,10 @@ How rex upgrades depends on where the running `rex` lives:
 |---------|-------------------|
 | Release build (`install.sh`'s `~/.local/bin`, `install.ps1`, an unpacked archive) | downloads the release from GitHub and swaps the binaries; the daemon keeps running |
 | `go install` (`$GOPATH/bin`, `~/go/bin`) | stops the daemon, runs `go install …@latest` (the newest `master` commit) |
-| Homebrew, Scoop, Nix, Snap, `/usr/bin` | refuses (exit **6**) and names the package manager's command |
+| Homebrew, MacPorts, Scoop, Nix, Snap, Flatpak, `/usr/bin` | refuses (exit **6**) and names the package manager's command |
 | A binary inside a source checkout | refuses (exit **6**); rebuild there or use `-source` |
 
-`-source DIR` runs `git pull` and `./install.sh --from-source` (`install.ps1 -FromSource` on Windows) in that checkout, for any install.
+A `go install` build always moves to the latest `master`, so `-version` (or `REX_VERSION`) is refused there (exit **5**). `-source DIR` runs `git pull` and `./install.sh --from-source` (`install.ps1 -FromSource` on Windows) in that checkout, for any install.
 
 **Release update.** rex asks the GitHub API for the latest release (`-version vX.Y.Z` or `REX_VERSION` pins one instead; `GITHUB_TOKEN`, when set, is sent to the API only). It compares the release with the running version and refuses, with exit **6**, a release older than the running one (a downgrade) and a running `dev` or Go pseudo-version build that it cannot compare; `-force` installs anyway. The same version prints `rex vX is up to date` and changes nothing (`-force` reinstalls). Then it downloads `rex_<ver>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `SHA256SUMS`, checks the archive against its line, extracts `rex` and `rex-daemon` next to the installed ones as temp files, syncs them and renames them over the old binaries (on Windows the old `.exe` is first renamed to `.exe.old`). A running daemon is not touched: it keeps its sessions on the old binary, and the result says how to switch it (`rex upgrade` when the new build has it, without ending sessions; otherwise `rex daemon restart`, which ends them). The `-o json` result carries it as `next`.
 

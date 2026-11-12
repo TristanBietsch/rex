@@ -208,9 +208,32 @@ func (st *Staged) Cleanup() {
 // .old from an earlier update is removed first).
 func (st *Staged) Install() error {
 	defer st.Cleanup()
+	windows := st.goos == "windows"
+	// Back up every target before swapping any, so a failure on the second
+	// binary can put the first one back: no new daemon with an old rex.
+	backups := map[string]string{}
+	defer func() {
+		if !windows {
+			for _, bk := range backups {
+				_ = os.Remove(bk)
+			}
+		}
+	}()
 	for _, b := range st.order {
 		target := filepath.Join(st.dir, b)
-		if err := replace(st.tmp[b], target, st.goos == "windows"); err != nil {
+		bk, err := backup(target, windows)
+		if err != nil {
+			st.restore(backups)
+			return fmt.Errorf("installing %s: %w", target, err)
+		}
+		if bk != "" {
+			backups[target] = bk
+		}
+	}
+	for _, b := range st.order {
+		target := filepath.Join(st.dir, b)
+		if err := os.Rename(st.tmp[b], target); err != nil {
+			st.restore(backups)
 			return fmt.Errorf("installing %s: %w", target, err)
 		}
 		delete(st.tmp, b)
@@ -219,28 +242,53 @@ func (st *Staged) Install() error {
 	return nil
 }
 
-func replace(tmp, target string, aside bool) error {
-	if !aside {
-		return os.Rename(tmp, target)
+// backup keeps the current target. On Unix it hard-links it to a unique
+// name (the target stays in place, so the swap stays atomic). On Windows a
+// running .exe cannot be replaced but can be renamed, so the target is
+// moved to <name>.old, or to a unique .old name when a stale .old is still
+// locked by a running process. "" means there was no target.
+func backup(target string, windows bool) (string, error) {
+	if _, err := os.Lstat(target); errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	if !windows {
+		f, err := os.CreateTemp(filepath.Dir(target), ".rex-backup-*")
+		if err != nil {
+			return "", err
+		}
+		name := f.Name()
+		_ = f.Close()
+		_ = os.Remove(name)
+		if err := os.Link(target, name); err != nil {
+			// No hard links on this filesystem: install without a backup.
+			return "", nil //nolint:nilerr // backup is best effort on Unix
+		}
+		return name, nil
 	}
 	old := target + ".old"
 	if err := os.Remove(old); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("removing %s: %w", old, err)
-	}
-	moved := false
-	if _, err := os.Lstat(target); err == nil {
-		if err := os.Rename(target, old); err != nil {
-			return err
+		f, cerr := os.CreateTemp(filepath.Dir(target), filepath.Base(target)+".*.old")
+		if cerr != nil {
+			return "", fmt.Errorf("removing %s: %w", old, err)
 		}
-		moved = true
+		old = f.Name()
+		_ = f.Close()
+		_ = os.Remove(old)
 	}
-	if err := os.Rename(tmp, target); err != nil {
-		if moved {
-			_ = os.Rename(old, target)
-		}
-		return err
+	if err := os.Rename(target, old); err != nil {
+		return "", err
 	}
-	return nil
+	return old, nil
+}
+
+// restore puts backed-up targets back after a failed install.
+func (st *Staged) restore(backups map[string]string) {
+	for target, bk := range backups {
+		_ = os.Rename(bk, target)
+		delete(backups, target)
+	}
 }
 
 // syncDir makes the renames durable (best effort; not possible on Windows).

@@ -176,3 +176,27 @@ func TestRunHelpTopics(t *testing.T) {
 	require.Equal(t, ExitInvalidArgs, code(RunAgentHelp([]string{"x"})))
 	SetOut(nil)
 }
+
+// A command group's help comes from the table, in the requested format.
+func TestRunGroupHelp(t *testing.T) {
+	for _, a := range []string{"-h", "-help", "--help", "help"} {
+		require.True(t, IsHelpArg(a), a)
+	}
+	require.False(t, IsHelpArg("start"))
+	var out bytes.Buffer
+	p, err := NewPrinter(FormatFlags{}, Env{Getenv: envOf(), Width: 80, Scheme: "default", GOOS: "linux"}, &out, io.Discard)
+	require.NoError(t, err)
+	SetOut(p)
+	t.Cleanup(func() { SetOut(nil) })
+	require.ErrorIs(t, RunGroupHelp("daemon", []string{"-o", "json"}), ErrHelpShown)
+	require.Contains(t, out.String(), `"usage":"rex daemon start|stop|restart|status|logs"`)
+	require.Equal(t, ExitInvalidArgs, exitCodeOf(RunGroupHelp("daemon", []string{"-bogus"})))
+}
+
+func exitCodeOf(err error) int {
+	var e ExitCoder
+	if errors.As(err, &e) {
+		return e.ExitCode()
+	}
+	return -1
+}

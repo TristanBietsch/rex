@@ -266,3 +266,9 @@ func TestDaemonRestart_stopFailureDoesNotStart(t *testing.T) {
 	requireExitCode(t, err, core.ExitGeneric)
 	require.Equal(t, []string{"shutdown"}, f.calls)
 }
+
+func TestRunDaemon_help(t *testing.T) {
+	for _, a := range []string{"-h", "--help", "help"} {
+		require.ErrorIs(t, RunDaemon([]string{a}), core.ErrHelpShown, a)
+	}
+}

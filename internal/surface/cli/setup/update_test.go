@@ -167,11 +167,29 @@ func TestClassifyInstall(t *testing.T) {
 		{"nix", filepath.Join(string(filepath.Separator)+"nix", "store", "abc-rex", "bin", "rex"), "", installModePackage},
 		{"scoop", filepath.Join(home, "scoop", "apps", "rex", "current", "rex.exe"), "", installModePackage},
 		{"distro", filepath.Join(string(filepath.Separator)+"usr", "bin", "rex"), "", installModePackage},
+		{"macports", filepath.Join(string(filepath.Separator)+"opt", "local", "bin", "rex"), "", installModePackage},
 		{"usr local", filepath.Join(string(filepath.Separator)+"usr", "local", "bin", "rex"), "", installModeRelease},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			require.Equal(t, c.want, classifyInstall(c.exe, home, c.gopath))
+			require.Equal(t, c.want, classifyInstall(c.exe, home, c.gopath, ""))
 		})
 	}
+}
+
+func TestClassifyInstall_gobin(t *testing.T) {
+	gobin := filepath.Join(string(filepath.Separator)+"opt", "gobin")
+	require.Equal(t, installModeGoInstall, classifyInstall(filepath.Join(gobin, "rex"), "/h", "", gobin))
+}
+
+// go install builds @latest; a pin is refused, not ignored.
+func TestRunUpdate_goInstallRefusesVersionPin(t *testing.T) {
+	f := newUpdateFixture()
+	requireExitCode(t, f.run("-yes", "-version", "v2.0.0"), core.ExitInvalidArgs)
+	require.Equal(t, []string{"detect"}, f.log)
+	require.Zero(t, f.daemon.stopCount())
+
+	f = newUpdateFixture()
+	f.env = map[string]string{"REX_VERSION": "v2.0.0"}
+	requireExitCode(t, f.run("-yes"), core.ExitInvalidArgs)
 }

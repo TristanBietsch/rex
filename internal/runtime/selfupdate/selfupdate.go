@@ -40,12 +40,12 @@ const (
 
 	// DefaultMaxArchive caps a downloaded archive.
 	DefaultMaxArchive = 256 << 20
-	// DefaultMaxEntry caps one extracted file.
-	DefaultMaxEntry = 256 << 20
+	// DefaultMaxEntry caps one archive entry (rex is ~30 MB).
+	DefaultMaxEntry = 128 << 20
 
 	maxSums     = 64 << 10
 	maxAPIBody  = 4 << 20
-	maxEntries  = 64
+	maxEntries  = 16
 	maxRedirect = 10
 )
 

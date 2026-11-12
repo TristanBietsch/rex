@@ -47,7 +47,7 @@ $Repo = 'TristanBietsch/rex'
 $BinDir = Join-Path $Prefix 'bin'
 $RepoRoot = $PSScriptRoot
 # Largest file accepted from a release zip.
-$MaxEntryBytes = 256MB
+$MaxEntryBytes = 128MB
 
 function Ok($msg)   { Write-Host "  $([char]0x2713) $msg" -ForegroundColor Green }
 function Step($msg) { Write-Host "  -> $msg" -ForegroundColor DarkGray }
@@ -61,8 +61,10 @@ if ($build -lt 17763) {
 }
 if ($SkipBuild) { $FromSource = $true }
 
-# Run the given rex.exe with plain output; returns its exit code.
+# Run the given rex.exe with plain output; returns its exit code. Native
+# stderr must not turn into a terminating error under 'Stop' (5.1 does that).
 function Invoke-Rex([string]$Exe, [string[]]$Arguments) {
+  $ErrorActionPreference = 'Continue'
   $saved = $env:REX_AGENT
   $env:REX_AGENT = '0'
   try {
@@ -75,56 +77,139 @@ function Invoke-Rex([string]$Exe, [string[]]$Arguments) {
   }
 }
 
+# Install rex-daemon.exe then rex.exe from $SourceDir into $BinDir.
 # Windows locks a running .exe against overwrite but allows renaming it, so
-# an open rex TUI or a running daemon does not block the upgrade. The old
-# binary is moved to <name>.old (removed on the next install), then the new
-# one, already copied next to it as <name>.new, is renamed into place.
-function Install-Binary([string]$Source, [string]$Name) {
-  $dest = Join-Path $BinDir $Name
-  $new = "$dest.new"
-  $old = "$dest.old"
-  Copy-Item -LiteralPath $Source -Destination $new -Force
-  if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue }
-  if (Test-Path -LiteralPath $dest) {
-    try { Move-Item -LiteralPath $dest -Destination $old -Force }
-    catch {
-      Remove-Item -LiteralPath $new -Force -ErrorAction SilentlyContinue
-      Fail "cannot replace $dest ($_). Close rex and try again."
+# an open rex TUI or a running daemon does not block the upgrade: each old
+# binary is moved aside to <name>.old (or a unique .old name when a stale
+# one is still locked), then the new one, copied next to it under a unique
+# name, is renamed into place. Every copy and move-aside happens before the
+# first swap, and a failed swap puts the old binaries back, so a failure
+# never leaves a new rex-daemon next to an old rex.
+function Install-Binaries([string]$SourceDir) {
+  $names = 'rex-daemon.exe', 'rex.exe'
+  $staged = @{}
+  $aside = @{}
+  $id = [Guid]::NewGuid().ToString('N')
+  try {
+    foreach ($n in $names) {
+      $new = Join-Path $BinDir ".$n.$id.new"
+      Copy-Item -LiteralPath (Join-Path $SourceDir $n) -Destination $new
+      $staged[$n] = $new
     }
-  }
-  try { Move-Item -LiteralPath $new -Destination $dest -Force }
-  catch {
-    if (Test-Path -LiteralPath $old) { Move-Item -LiteralPath $old -Destination $dest -Force -ErrorAction SilentlyContinue }
-    Fail "cannot install $dest ($_)."
+    foreach ($n in $names) {
+      $dest = Join-Path $BinDir $n
+      if (-not (Test-Path -LiteralPath $dest)) { continue }
+      $old = "$dest.old"
+      if (Test-Path -LiteralPath $old) {
+        try { Remove-Item -LiteralPath $old -Force } catch { $old = "$dest.$id.old" }
+      }
+      Move-Item -LiteralPath $dest -Destination $old
+      $aside[$n] = $old
+    }
+    foreach ($n in $names) {
+      Move-Item -LiteralPath $staged[$n] -Destination (Join-Path $BinDir $n)
+      $staged.Remove($n)
+    }
+  } catch {
+    $err = $_
+    foreach ($n in $names) {
+      $dest = Join-Path $BinDir $n
+      if ($aside.ContainsKey($n)) {
+        if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue }
+        Move-Item -LiteralPath $aside[$n] -Destination $dest -ErrorAction SilentlyContinue
+      }
+    }
+    foreach ($f in $staged.Values) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
+    Fail "cannot install into $BinDir ($err). Close rex and try again; the old binaries were kept."
   }
 }
 
 # ---- release download -------------------------------------------------------
 
-# Download Url to OutFile over https only (file:// for a local test mirror).
-function Get-Download([string]$Url, [string]$OutFile) {
+# Hosts downloads and their redirects may go to.
+$AllowedHosts = @('github.com', 'api.github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com')
+$MaxDownloadBytes = 256MB
+
+# Download Url to OutFile: https only, every redirect checked against
+# $AllowedHosts (plus the REX_DOWNLOAD_URL host), at most $MaxBytes.
+# file:// is allowed for a local test mirror.
+function Get-Download([string]$Url, [string]$OutFile, [long]$MaxBytes = $MaxDownloadBytes) {
   if ($Url -like 'file://*') {
-    Copy-Item -LiteralPath ([Uri]$Url).LocalPath -Destination $OutFile -Force
+    $src = ([Uri]$Url).LocalPath
+    if ((Get-Item -LiteralPath $src).Length -gt $MaxBytes) { throw "$Url is too large" }
+    Copy-Item -LiteralPath $src -Destination $OutFile -Force
     return
   }
-  if ($Url -notlike 'https://*') { Fail "refusing to download over a non-https URL: $Url" }
-  $saved = $ProgressPreference
-  $ProgressPreference = 'SilentlyContinue'  # the progress bar makes 5.1 very slow
+  Add-Type -AssemblyName System.Net.Http
+  $handler = New-Object System.Net.Http.HttpClientHandler
+  $handler.AllowAutoRedirect = $false
+  $client = New-Object System.Net.Http.HttpClient($handler)
+  $client.Timeout = [TimeSpan]::FromMinutes(10)
+  $client.DefaultRequestHeaders.UserAgent.ParseAdd('rex-installer')
   try {
-    Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -MaximumRedirection 5
+    $uri = [Uri]$Url
+    for ($hop = 0; ; $hop++) {
+      if ($uri.Scheme -ne 'https') { throw "refusing non-https URL $uri" }
+      if ($script:AllowedHosts -notcontains $uri.Host -or -not $uri.IsDefaultPort) {
+        throw "$($uri.Authority) is not an allowed download host"
+      }
+      $resp = $client.GetAsync($uri, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+      $code = [int]$resp.StatusCode
+      if ($code -ge 300 -and $code -lt 400 -and $resp.Headers.Location) {
+        if ($hop -ge 5) { throw 'too many redirects' }
+        $loc = $resp.Headers.Location
+        if (-not $loc.IsAbsoluteUri) { $loc = New-Object Uri($uri, $loc) }
+        $resp.Dispose()
+        $uri = $loc
+        continue
+      }
+      if ($code -ne 200) { throw "GET $uri : $code $($resp.ReasonPhrase)" }
+      $len = $resp.Content.Headers.ContentLength
+      if ($len -and $len -gt $MaxBytes) { throw "$uri is too large ($len bytes)" }
+      $in = $resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+      $out = [IO.File]::Open($OutFile, [IO.FileMode]::CreateNew)
+      try {
+        $buf = New-Object byte[] 81920
+        $total = 0
+        while (($n = $in.Read($buf, 0, $buf.Length)) -gt 0) {
+          $total += $n
+          if ($total -gt $MaxBytes) { throw "$uri is too large (over $MaxBytes bytes)" }
+          $out.Write($buf, 0, $n)
+        }
+      } finally {
+        $out.Dispose(); $in.Dispose(); $resp.Dispose()
+      }
+      return
+    }
   } finally {
-    $ProgressPreference = $saved
+    $client.Dispose()
+  }
+}
+
+# Copy one zip entry to Path, reading at most $Max bytes whatever its
+# header claims.
+function Expand-Entry($Entry, [string]$Path, [long]$Max) {
+  $in = $Entry.Open()
+  $out = [IO.File]::Open($Path, [IO.FileMode]::CreateNew)
+  try {
+    $buf = New-Object byte[] 81920
+    $total = 0
+    while (($n = $in.Read($buf, 0, $buf.Length)) -gt 0) {
+      $total += $n
+      if ($total -gt $Max) { throw "$($Entry.FullName) is too large" }
+      $out.Write($buf, 0, $n)
+    }
+  } finally {
+    $out.Dispose(); $in.Dispose()
   }
 }
 
 function Install-Release {
-  # Windows PowerShell 5.1 may default to TLS 1.0; GitHub needs 1.2+.
-  try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-  } catch { }
-  try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls13
-  } catch { }
+  # Windows PowerShell 5.1 may default to TLS 1.0; allow 1.2 (and 1.3
+  # where the OS has it) and nothing older.
+  $proto = [Net.SecurityProtocolType]::Tls12
+  try { $proto = $proto -bor [Net.SecurityProtocolType]::Tls13 } catch { }
+  try { [Net.ServicePointManager]::SecurityProtocol = $proto } catch { }
 
   # REX_DOWNLOAD_URL points at a mirror of the release downloads (it must
   # have <url>/latest/download/<file> and <url>/download/<tag>/<file>).
@@ -133,6 +218,8 @@ function Install-Release {
   if ($downloadUrl -notmatch '^(https|file)://') {
     Fail "REX_DOWNLOAD_URL must start with https:// (got: $downloadUrl)"
   }
+  # A mirror is trusted fully: it serves both the zip and its checksum.
+  if ($downloadUrl -like 'https://*') { $script:AllowedHosts += ([Uri]$downloadUrl).Host }
 
   # rex ships windows/amd64; Windows on ARM runs it under emulation.
   $arch = $env:PROCESSOR_ARCHITEW6432
@@ -169,6 +256,9 @@ function Install-Release {
     if ($entries.Count -gt 1) { Fail 'SHA256SUMS lists more than one Windows build; refusing to guess.' }
     $want = $entries[0].Hash
     $file = $entries[0].File
+    if ($Version -and $file -cne "rex_$($tag.Substring(1))_windows_amd64.zip") {
+      Fail "SHA256SUMS of $tag lists $file, not the build for $tag"
+    }
     $dir = $file.Substring(0, $file.Length - 4)  # strip .zip
     $label = 'v' + ($dir -replace '^rex_', '' -replace '_windows_amd64$', '')
 
@@ -195,7 +285,8 @@ function Install-Release {
         $found = @($zip.Entries | Where-Object { $_.FullName -ceq "$dir/$name" })
         if ($found.Count -ne 1) { Fail "$file does not contain $dir/$name" }
         if ($found[0].Length -gt $MaxEntryBytes) { Fail "$name in $file is too large" }
-        [IO.Compression.ZipFileExtensions]::ExtractToFile($found[0], (Join-Path $stage $name), $true)
+        try { Expand-Entry $found[0] (Join-Path $stage $name) $MaxEntryBytes }
+        catch { Fail "${file}: $_" }
       }
     } finally {
       $zip.Dispose()
@@ -203,9 +294,7 @@ function Install-Release {
 
     New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
     Step "installing to $BinDir"
-    # rex-daemon first, rex last (as install.sh).
-    Install-Binary (Join-Path $stage 'rex-daemon.exe') 'rex-daemon.exe'
-    Install-Binary (Join-Path $stage 'rex.exe') 'rex.exe'
+    Install-Binaries $stage
     return $label
   } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -249,8 +338,7 @@ function Install-FromSource {
 
   New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
   Step "installing to $BinDir"
-  Install-Binary (Join-Path $RepoRoot 'rex-daemon.exe') 'rex-daemon.exe'
-  Install-Binary (Join-Path $RepoRoot 'rex.exe') 'rex.exe'
+  Install-Binaries $RepoRoot
 
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
   $onUserPath = ($userPath -split ';' | Where-Object { $_ -and ($_.TrimEnd('\') -ieq $BinDir.TrimEnd('\')) })

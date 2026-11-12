@@ -101,7 +101,8 @@ Each is described in full under **Changed** below.
   the result names the next step (`rex upgrade` when the new build has it,
   else `rex daemon restart`, which ends sessions). `-version vX.Y.Z` or
   `REX_VERSION` pins a release; a downgrade, a reinstall and a `dev` build
-  need `-force`. Homebrew, Scoop, Nix and distro installs are refused with
+  need `-force` (a `go install` build refuses `-version`). Homebrew,
+  MacPorts, Scoop, Nix, Flatpak and distro installs are refused with
   their own upgrade command. `rex update -check` looks up the latest
   release and prints `status` (`up-to-date`, `update-available`,
   `running-newer` or `unknown`); `GITHUB_TOKEN` is sent to the GitHub API

@@ -90,13 +90,31 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Error 'release install failed'; exit 1 }
           if (-not (Test-Path "$prefix\bin\rex.exe")) { Write-Error 'rex.exe not installed'; exit 1 }
           if (-not (Test-Path "$prefix\bin\rex-daemon.exe")) { Write-Error 'rex-daemon.exe not installed'; exit 1 }
-          Set-Content -Path (Join-Path $dl 'SHA256SUMS') -Value ("0" * 64 + "  $name.zip")
+          # A second install goes over the first (old binaries moved aside).
+          $log = pwsh -NoProfile -File ./install.ps1 -Version "v$ver" -Prefix $prefix *>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { Write-Error "reinstall failed: $log"; exit 1 }
+          if (-not (Test-Path "$prefix\bin\rex.exe.old")) { Write-Error 'old rex.exe was not moved aside'; exit 1 }
+          # A zip without rex-daemon.exe installs nothing.
+          $sumsGood = Get-Content (Join-Path $dl 'SHA256SUMS')
+          $half = Join-Path $env:RUNNER_TEMP "half\$name"
+          New-Item -ItemType Directory -Force -Path $half | Out-Null
+          Copy-Item .\rex.exe $half
+          $hzip = Join-Path $env:RUNNER_TEMP 'half.zip'
+          [IO.Compression.ZipFile]::CreateFromDirectory($half, $hzip, 'Optimal', $true)
+          Copy-Item $zip "$zip.good"; Copy-Item $hzip $zip -Force
+          Set-Content -Path (Join-Path $dl 'SHA256SUMS') -Value ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  $name.zip")
           $bad = Join-Path $env:RUNNER_TEMP 'rex-bad'
-          pwsh -NoProfile -File ./install.ps1 -Version "v$ver" -Prefix $bad
-          if ($LASTEXITCODE -eq 0) { Write-Error 'bad checksum was accepted'; exit 1 }
+          $log = pwsh -NoProfile -File ./install.ps1 -Version "v$ver" -Prefix $bad *>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $log -notmatch 'does not contain') { Write-Error "missing entry not refused: $log"; exit 1 }
+          if (Test-Path "$bad\bin\rex.exe") { Write-Error 'incomplete zip installed rex.exe'; exit 1 }
+          Copy-Item "$zip.good" $zip -Force
+          Set-Content -Path (Join-Path $dl 'SHA256SUMS') -Value ("0" * 64 + "  $name.zip")
+          $log = pwsh -NoProfile -File ./install.ps1 -Version "v$ver" -Prefix $bad *>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $log -notmatch 'checksum mismatch') { Write-Error "bad checksum not refused: $log"; exit 1 }
           if (Test-Path "$bad\bin\rex.exe") { Write-Error 'bad checksum installed rex.exe'; exit 1 }
-          pwsh -NoProfile -File ./install.ps1 -Version 'v9.9.9' -Prefix $bad
-          if ($LASTEXITCODE -eq 0) { Write-Error 'missing release was accepted'; exit 1 }
+          Set-Content -Path (Join-Path $dl 'SHA256SUMS') -Value $sumsGood
+          $log = pwsh -NoProfile -File ./install.ps1 -Version 'v9.9.9' -Prefix $bad *>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $log -notmatch 'could not download') { Write-Error "missing release not refused: $log"; exit 1 }
           exit 0
 
       - name: Smoke (daemon start, echo session, stop)

@@ -481,3 +481,28 @@ func TestNormalizeTag(t *testing.T) {
 	_, err = NormalizeTag("v2.1.0;rm")
 	require.Error(t, err)
 }
+
+// When the second binary cannot be installed, the first is put back: no
+// new rex-daemon next to an old rex.
+func TestInstall_rollsBackOnFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("renaming over a directory behaves differently on Windows")
+	}
+	r := newRelease(t, "v2.1.0")
+	r.publish(t, goodEntries("rex_2.1.0_linux_amd64"))
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex-daemon"), []byte("old daemon"), 0o600))
+	// A non-empty directory where rex goes makes its rename fail.
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "rex", "x"), 0o700))
+	a, err := r.source().Fetch(context.Background(), "v2.1.0", "linux", "amd64", t.TempDir())
+	require.NoError(t, err)
+	st, err := a.Stage(dir)
+	require.NoError(t, err)
+	require.Error(t, st.Install())
+	got, err := os.ReadFile(filepath.Join(dir, "rex-daemon"))
+	require.NoError(t, err)
+	require.Equal(t, "old daemon", string(got))
+	ents, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, ents, 2, "no temp or backup files left")
+}

@@ -146,6 +146,13 @@ func runUpdate(args []string, d updateDeps) error {
 		}
 	}
 
+	if o.source == "" && o.version != "" {
+		// go install always builds @latest (the module path has no /v2,
+		// so Go ignores release tags); refuse rather than ignore the pin.
+		return core.Errorf(core.ExitInvalidArgs, "rex update",
+			"update: -version and REX_VERSION apply to release installs; a go install build updates to the latest master")
+	}
+
 	daemonRunning := d.daemon.running()
 	printUpdatePlan(p, exePath, o.source, mode, daemonRunning)
 
@@ -297,9 +304,11 @@ func detectInstallMode() (installMode, string, error) {
 	}
 	// Resolve symlinks so we compare real paths (a Homebrew bin link
 	// resolves into the Cellar).
+	// An unresolved link could hide a package manager's file, so a
+	// failure here refuses rather than guessing.
 	real, err := filepath.EvalSymlinks(exe)
 	if err != nil {
-		real = exe
+		return 0, "", fmt.Errorf("resolving %s: %w", exe, err)
 	}
 	gopath := os.Getenv("GOPATH")
 	home, err := paths.Home()
@@ -308,18 +317,22 @@ func detectInstallMode() (installMode, string, error) {
 		// nothing meaningful.
 		return 0, "", err
 	}
-	return classifyInstall(real, home, gopath), real, nil
+	return classifyInstall(real, home, gopath, os.Getenv("GOBIN")), real, nil
 }
 
 // classifyInstall reports go-install mode when exe is under $GOPATH/bin
 // (default ~/go/bin) or ~/go/bin, package mode when a package manager owns
 // it, and release mode otherwise.
-func classifyInstall(exe, home, gopath string) installMode {
+func classifyInstall(exe, home, gopath, gobin string) installMode {
 	if gopath == "" {
 		gopath = filepath.Join(home, "go")
 	}
-	for _, binDir := range []string{filepath.Join(gopath, "bin"), filepath.Join(home, "go", "bin")} {
-		if strings.HasPrefix(exe, binDir+string(os.PathSeparator)) {
+	dirs := []string{filepath.Join(gopath, "bin"), filepath.Join(home, "go", "bin")}
+	if gobin != "" {
+		dirs = append(dirs, gobin)
+	}
+	for _, binDir := range dirs {
+		if hasPathPrefix(exe, binDir) {
 			return installModeGoInstall
 		}
 	}
@@ -327,6 +340,16 @@ func classifyInstall(exe, home, gopath string) installMode {
 		return installModePackage
 	}
 	return installModeRelease
+}
+
+// hasPathPrefix reports whether p is inside dir. Windows paths compare
+// case-insensitively.
+func hasPathPrefix(p, dir string) bool {
+	prefix := filepath.Clean(dir) + string(os.PathSeparator)
+	if runtime.GOOS == "windows" {
+		return strings.HasPrefix(strings.ToLower(p), strings.ToLower(prefix))
+	}
+	return strings.HasPrefix(p, prefix)
 }
 
 // packageManagers maps a path fragment (slash-separated, lower case) to the
@@ -337,6 +360,8 @@ var packageManagers = []struct{ frag, name string }{
 	{"/linuxbrew/", "Homebrew"},
 	{"/nix/store/", "Nix"},
 	{"/snap/", "Snap"},
+	{"/flatpak/", "Flatpak"},
+	{"/opt/local/", "MacPorts"},
 	{"/scoop/", "Scoop"},
 	{"/chocolatey/", "Chocolatey"},
 	{"/winget/", "WinGet"},
