@@ -108,7 +108,6 @@ type SetupWizardModel struct {
 	tools         []registry.Tool
 	toolIdx       int
 	defaultModel  string // free text
-	modelCursor   int    // cursor position in modelInput
 	effortOptions []string
 	effortIdx     int
 	defaultsField defaultsField
@@ -534,7 +533,6 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if len(m.tools[m.toolIdx].Models) > 0 {
 					m.defaultModel = m.tools[m.toolIdx].Models[0].ID
 				}
-				m.modelCursor = len(m.defaultModel)
 			}
 		case defaultsEffort:
 			if m.effortIdx+1 < len(m.effortOptions) {
@@ -553,7 +551,6 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if len(m.tools[m.toolIdx].Models) > 0 {
 					m.defaultModel = m.tools[m.toolIdx].Models[0].ID
 				}
-				m.modelCursor = len(m.defaultModel)
 			}
 		case defaultsEffort:
 			if m.effortIdx > 0 {
@@ -566,17 +563,13 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.defaultsField == defaultsModel {
 			m.touched = true
 			switch k.Type {
+			// The field draws its cursor at the end: edit there, by rune.
 			case tea.KeyBackspace:
-				if m.modelCursor > 0 {
-					m.defaultModel = m.defaultModel[:m.modelCursor-1] + m.defaultModel[m.modelCursor:]
-					m.modelCursor--
-				}
+				m.defaultModel = dropLastRune(m.defaultModel)
 			case tea.KeyRunes:
-				m.defaultModel = m.defaultModel[:m.modelCursor] + string(k.Runes) + m.defaultModel[m.modelCursor:]
-				m.modelCursor += len([]rune(string(k.Runes)))
+				m.defaultModel += typedText(k.Runes)
 			case tea.KeySpace:
-				m.defaultModel = m.defaultModel[:m.modelCursor] + " " + m.defaultModel[m.modelCursor:]
-				m.modelCursor++
+				m.defaultModel += " "
 			}
 		}
 	}
