@@ -323,7 +323,9 @@ Context from rex (read before starting):
 - Daemon: `InitialPrompt` over 96 KiB → `bad_intent`, nothing spawned; `ContextSummary` round-trips and an old daemon ignores it.
 - Off-is-inert test per the roadmap rule.
 
-## Decisions (open, recommended answer first)
+## Decisions
+
+All D1–D12 accepted as recommended (2026-11-11, user).
 
 | # | Question | Recommendation |
 |---|---|---|
