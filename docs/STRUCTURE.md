@@ -46,7 +46,7 @@ internal/
 │   ├── state/              # in-memory store + disk persistence
 │   ├── pty/                # per-session PTY supervisor
 │   ├── adapter/            # PTY output → session state
-│   └── boot/               # daemon wiring (Lua, Ollama, SIGHUP reload)
+│   └── boot/               # daemon wiring (Lua, Ollama, SettingsHub, SIGHUP reload)
 ├── wire/                   # client ↔ daemon contract
 │   ├── protocol/           # JSONL types, codec
 │   └── client/             # dial, intents, event stream

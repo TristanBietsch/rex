@@ -30,6 +30,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex config set` / `reset`, the Settings page and `rex setup` tell a running
+  daemon to reload when they change `skip_permissions` or `auto_trust_dirs`,
+  so revoking either applies at once. Hand edits of `config.yaml` still apply
+  within 5 s (or on `rex reload` with `live_reload` off).
+- Daemon: while `config.yaml` does not parse, `skip_permissions` and
+  `auto_trust_dirs` read as off and empty (fail closed); other settings keep
+  their previous values until the file is fixed.
+- Daemon: one settings hub replaces the scattered reads of `config.yaml`.
+  `rex reload`, `:reload` and `SIGHUP` now reload `config.yaml` as well as
+  `tools.yaml`, and the 5 s poll feeds the same hub. Settings read at each
+  spawn (`skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`,
+  `usage_statusline_tap`) now follow the hub, so they apply within 5 s of an
+  edit or at a reload. The `live_reload` feature (Settings → Features, on by
+  default) switches the polling off; manual reload still works. See
+  [settings](docs/settings.md#which-settings-apply-live).
+
 - `rex ws init|id|ls|rename|color`: workspaces. A folder with a `.rex/`
   (id, name, color) is a workspace; `rex ws init` creates it, registers it in
   `~/.local/share/rex/workspaces.json` and adds `/.rex/` to the repo's

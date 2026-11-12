@@ -2,9 +2,11 @@ package setup
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
@@ -176,6 +179,7 @@ func configSet(args []string) error {
 	if err := store.Save(path); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
+	reloadDaemonForTrust(rest[0])
 	return emitConfigChange("set", rest[0], store.String(rest[0]))
 }
 
@@ -199,7 +203,22 @@ func configReset(args []string) error {
 	if err := store.Save(path); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
+	reloadDaemonForTrust(rest[0])
 	return emitConfigChange("reset", rest[0], store.String(rest[0]))
+}
+
+// reloadDaemonForTrust tells a running daemon to re-read config.yaml right
+// after rex changed id, when id is one of the trust settings, so revoking
+// skip_permissions or auto_trust_dirs does not wait for the daemon's poll.
+// It is best effort: no daemon running means nothing to tell (it reads the
+// file at start), and any failure leaves the command's outcome alone.
+func reloadDaemonForTrust(id string) {
+	if !settings.IsTrustSetting(id) {
+		return
+	}
+	if err := daemonctl.Reload(); err != nil && !errors.Is(err, daemonctl.ErrNotRunning) {
+		slog.Warn("config: could not tell the daemon to reload (it applies the change within 5 s)", "id", id, "err", err)
+	}
 }
 
 // emitConfigChange reports a set or reset. txt stays silent, as it always
