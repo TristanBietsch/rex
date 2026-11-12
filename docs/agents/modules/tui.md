@@ -52,6 +52,7 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `command.go` | `:` command line: parse and look up in `commands` |
 | `keys.go` | `commands` table (names, args, help text, `Run`) and `bindings` table (help rows, board help line); add a `:` command here |
 | `wizard.go` | New-session wizard |
+| `newagent*.go`, `composer.go` | New-agent page behind `new_agent_page` (`openNew` picks it or the wizard): state and keys (`newagent.go`), view incl. narrow strip (`newagent_view.go`), Agent screen, context list, import picker and `@`, preview, launch; `Composer` is the multi-line task editor. Prompt assembly and path rules live in `internal/features/spawnctx` |
 | `attach.go` | Full-screen attach (vt10x) |
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |
 | `attach_scroll.go` | Popup scrollback ring + scroll mode (primary-screen agents) |

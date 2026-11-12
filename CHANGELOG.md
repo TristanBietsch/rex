@@ -6,60 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added (new-agent context)
+### Added (new-agent page)
 
-- `internal/features/spawnctx` builds a new session's first prompt from the
-  task plus context items (pastes, file and folder references, URLs) in one
-  fixed format, with per-paste (32 KiB), all-paste (64 KiB), prompt (96 KiB)
-  and item (32) caps. Its sanitizer keeps newlines and tabs and drops
-  escape sequences, other control characters and bidi controls.
+- `n` and `:new` open a full-screen new-agent page instead of the popup
+  wizard: the agent, a multi-line task, context and folder trust on one
+  screen, with a step rail (Agent, Task, Context, Trust, each with a mark
+  and a word) that becomes a one-line strip under 60 columns. It opens in
+  the task editor with the agent you launched last. `enter` launches from
+  the editor, `ctrl+s` from anywhere, `ctrl+j` / `alt+enter` add a line,
+  `ctrl+e` edits the task in `$EDITOR`, `ctrl+g` opens the Agent screen
+  (agents, models with a `/` filter, effort, skills), `ctrl+t` / `ctrl+a`
+  trust the folder as in the wizard, and `?` outside the editor shows the
+  page's keys. Setting `new_agent_page` (Features, on) turns it off to get
+  the wizard back; turning it off while the page is open keeps the draft.
+- Context: a paste of more than 8 lines or 1 KiB becomes a `paste N` item
+  with a `[paste N · L lines]` placeholder in the task (a paste never
+  launches); `@` in the task completes workspace paths; `ctrl+o` opens an
+  import picker over the workspace (`git ls-files` in a repo, so
+  gitignored files stay out; at most 10,000 entries or 300 ms). Items can
+  be previewed (`enter`), renamed (`r`), removed (`x`) and, for pastes,
+  edited in `$EDITOR`. The agent gets one first prompt: the task, then
+  `Context from rex (read before starting):` with a `- file:` / `- dir:` /
+  `- url:` line per reference and each paste in a `<pasted …>` block.
+  Files are referenced by workspace-relative path, never copied.
+- Safety: a path must resolve, through every symlink, inside the session
+  folder and be a regular file or folder (FIFOs, sockets and devices are
+  refused unopened); names that look like secrets (`.env`, `*.pem`,
+  `id_rsa*`, …) need a `y`. Pasted and typed text loses escape sequences,
+  control, bidi, zero-width and tag characters, and `</pasted>` inside a
+  paste is escaped. Caps: 32 KiB per paste, 64 KiB of pasted text, 32
+  items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt);
+  the last row shows the prompt's size against the cap.
+- Launch checks every cap and path again, then the page stays open with
+  `⠋ starting…` until the daemon answers. A failure shows
+  `✗ launch failed: … Your draft is kept.`; `esc` keeps the draft in
+  memory for the next `n` (nothing is written to disk).
+- `NewSession` takes an optional `context_summary` (kind, name and size of
+  each item, no content); older daemons ignore it.
+
+### Changed (daemon)
+
 - The daemon refuses a `NewSession` whose `initial_prompt` is over 96 KiB
   with `bad_intent` before anything is spawned, instead of a failed exec.
-  `NewSession` takes an optional `context_summary` (kind, name, size of each
-  item; no content), which older daemons ignore.
-- On the new-agent page a paste of more than 8 lines or 1 KiB becomes a
-  `paste N` context item with a `[paste N · L lines]` placeholder in the
-  task. The Context section lists items with their kind in words, name and
-  size; `enter` previews one (`j`/`k` scroll), `x` removes, `r` renames.
-  `e` in a paste's preview and `ctrl+e` in the task editor edit the text in
-  `$EDITOR` (run directly, never through a shell) via a private temp file
-  that is removed when the editor exits. A binary paste or one over a cap is
-  refused with a `✗` line. The last row shows the prompt's size against the
-  cap (16 KiB for agents that take a pasted prompt) and the slug. The launch
-  sends the assembled prompt and the context summary.
-- The sanitizer also drops Unicode Tag characters and zero-width characters,
-  every case and spacing of `</pasted` is escaped inside a paste, and item
-  names with control characters or line separators are refused.
-- The new-agent page imports workspace files and folders as context.
-  When the page opens it lists the session folder in the background (`git
-  ls-files -co --exclude-standard` in a repo, so gitignored files stay out;
-  a plain walk elsewhere that skips `.git` and never enters a symlinked
-  folder), stopping at 10,000 entries or 300 ms; closing the page cancels
-  it. `ctrl+o` opens the import picker: type to fuzzy-match, `space` marks,
-  `enter` adds, `→`/`←` browse folders. `@` at a word start in the task
-  editor opens a six-row completion list; `enter`/`tab` puts `@path` in
-  the task and adds the item, `esc` keeps the typed text. A path must
-  resolve, through every symlink, inside the session folder, and be a
-  regular file or folder (FIFOs, sockets and devices are refused unopened);
-  a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added
-  only after `y`. Files over 1 MiB get a warning. File previews read at most
-  64 KiB and 200 lines; folder previews list the folder's entries.
-- Launching from the new-agent page checks everything first: the caps,
-  every file and folder again against the session folder (a link swapped
-  to point outside, a file gone, or a draft made in another folder is
-  refused, naming the item), and the prompt against the agent's limit
-  (16 KiB for agents that take a pasted prompt, else 96 KiB), with errors
-  in KB and a hint. The page then stays open with `⠋ starting…` until the
-  daemon answers: success closes it, selects the new card and clears the
-  draft; a failure shows `✗ launch failed: … Your draft is kept.` on the
-  page and keeps the task and context. `esc` while starting closes the page
-  and keeps the draft. Errors wrap at words instead of being cut. The
-  Trust section, when focused, lists each key with the exact folder it
-  trusts, as the wizard does; a trust refusal shows on the page. While the
-  workspace is still being listed, CONTEXT shows the indexing count.
-- Turning `new_agent_page` off while the page is open closes it on the
-  next update and keeps the draft; the older wizard then starts with the
-  task text only and says how many context items it left out.
 
 ### Added (row icons)
 

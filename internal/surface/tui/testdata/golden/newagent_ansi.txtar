@@ -1,0 +1,92 @@
+-- plain.80x24 --
+                                                                                
+  ∴ REX › NEW AGENT    ~/dev/rex                                         draft  
+────────────────────────────────────────────────────────────────────────────────
+ STEPS           │ AGENT                                                        
+ ✓ Agent         │ ◆ Claude Code  ·  opus  ·  effort max         ctrl+g change  
+ ✓ Task          │                                                              
+ ▸ Context    3  │ TASK                                                         
+ ✓ Trust   sess  │ ┌─────────────────────────────────────────────────────────┐  
+                 │ │ the auth test is flaky on CI, see the paste. fix it and │  
+                 │ │  add a regression test. [paste 1 · 38 lines]            │  
+                 │ │                                                         │  
+                 │ └─────────────────────────────────────────────────────────┘  
+                 │ CONTEXT                                    3 items · 7.1 KB  
+                 │   file   internal/auth/auth_test.go                  4.2 KB  
+                 │   dir    internal/auth/testdata/                   12 files  
+                 │ ▸ paste  paste 1  "--- FAIL: TestLogin (…"  38 lines 1.8 KB  
+                 │                                                              
+                 │ TRUST                                                        
+                 │   trusted for this session only                              
+                 │   ctrl+t this session only · ctrl+a always (~/dev/rex)       
+                 │                                                              
+                 │ prompt 2.0 KB of 96 KB · slug cc.opus.the-auth-test-is-fla…  
+────────────────────────────────────────────────────────────────────────────────
+  enter preview · x remove · r rename · tab next · ctrl+s launch · esc close    
+-- plain.50x20 --
+                                                  
+  ∴ REX › NEW AGENT                        draft  
+──────────────────────────────────────────────────
+  ‹ Agent · Task · [Context 3] · Trust ›          
+  ◆ Claude Code · opus · max                      
+  CONTEXT                         3 items · 7.1 KB
+    file   internal/auth/auth_test.go       4.2 KB
+    dir    internal/auth/testdata/        12 files
+  ▸ paste  paste 1  "--- FAIL: …"  38 lines 1.8 KB
+  trust: sess                                     
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+──────────────────────────────────────────────────
+  enter preview · x remove · esc close            
+-- styled.80x24 --
+                                                                                
+  ␛[1;35m∴ REX␛[0m␛[2m › NEW AGENT␛[0m    ␛[2m~/dev/rex␛[0m                                         ␛[2mdraft␛[0m  
+␛[2m────────────────────────────────────────────────────────────────────────────────␛[0m
+ ␛[1mSTEPS␛[0m          ␛[2m │ ␛[0m␛[1mAGENT␛[0m                                                        
+ ␛[32m✓␛[0m Agent        ␛[2m │ ␛[0m␛[38;2;217;119;87m◆␛[0m Claude Code␛[2m  ·  ␛[0m␛[1mopus␛[0m␛[2m  ·  ␛[0m␛[2meffort ␛[0m␛[1mmax␛[0m         ␛[1mctrl+g␛[0m␛[2m change␛[0m  
+ ␛[32m✓␛[0m Task         ␛[2m │ ␛[0m                                                             
+ ␛[35m▸ ␛[0m␛[1;7mContext␛[0m    ␛[2m3␛[0m ␛[2m │ ␛[0m␛[1mTASK␛[0m                                                         
+ ␛[32m✓␛[0m Trust   ␛[2msess␛[0m ␛[2m │ ␛[0m␛[2m┌─────────────────────────────────────────────────────────┐␛[0m  
+                ␛[2m │ ␛[0m␛[2m│ ␛[0mthe auth test is flaky on CI, see the paste. fix it and␛[2m │␛[0m  
+                ␛[2m │ ␛[0m␛[2m│ ␛[0m add a regression test. [paste 1 · 38 lines]           ␛[2m │␛[0m  
+                ␛[2m │ ␛[0m␛[2m│ ␛[0m                                                       ␛[2m │␛[0m  
+                ␛[2m │ ␛[0m␛[2m└─────────────────────────────────────────────────────────┘␛[0m  
+                ␛[2m │ ␛[0m␛[35mCONTEXT␛[0m                                    ␛[2m3 items · 7.1 KB␛[0m  
+                ␛[2m │ ␛[0m  ␛[2mfile  ␛[0m internal/auth/auth_test.go                  ␛[2m4.2 KB␛[0m  
+                ␛[2m │ ␛[0m  ␛[2mdir   ␛[0m internal/auth/testdata/                   ␛[2m12 files␛[0m  
+                ␛[2m │ ␛[0m␛[35m▸ ␛[0m␛[2mpaste ␛[0m ␛[1;7mpaste 1␛[0m  ␛[2m"--- FAIL: TestLogin (…"␛[0m  ␛[2m38 lines 1.8 KB␛[0m  
+                ␛[2m │ ␛[0m                                                             
+                ␛[2m │ ␛[0m␛[1mTRUST␛[0m                                                        
+                ␛[2m │ ␛[0m  ␛[32mtrusted for this session only␛[0m                              
+                ␛[2m │ ␛[0m  ␛[1mctrl+t␛[0m␛[2m this session only␛[0m␛[2m · ␛[0m␛[1mctrl+a␛[0m␛[2m always (~/dev/rex)␛[0m       
+                ␛[2m │ ␛[0m                                                             
+                ␛[2m │ ␛[0m␛[2mprompt ␛[0m2.0 KB␛[2m of 96 KB␛[0m␛[2m · slug ␛[0m␛[1mcc.opus.the-auth-test-is-fla…␛[0m  
+␛[2m────────────────────────────────────────────────────────────────────────────────␛[0m
+  ␛[1menter␛[0m␛[2m preview␛[0m␛[2m · ␛[0m␛[1mx␛[0m␛[2m remove␛[0m␛[2m · ␛[0m␛[1mr␛[0m␛[2m rename␛[0m␛[2m · ␛[0m␛[1mtab␛[0m␛[2m next␛[0m␛[2m · ␛[0m␛[1mctrl+s␛[0m␛[2m launch␛[0m␛[2m · ␛[0m␛[1mesc␛[0m␛[2m close␛[0m    
+-- styled.50x20 --
+                                                  
+  ␛[1;35m∴ REX␛[0m␛[2m › NEW AGENT␛[0m                        ␛[2mdraft␛[0m  
+␛[2m──────────────────────────────────────────────────␛[0m
+  ␛[35m‹ ␛[0m␛[2mAgent␛[0m␛[2m · ␛[0m␛[2mTask␛[0m␛[2m · ␛[0m␛[1m[Context 3]␛[0m␛[2m · ␛[0m␛[2mTrust␛[0m␛[35m ›␛[0m          
+  ␛[38;2;217;119;87m◆␛[0m Claude Code␛[2m · ␛[0m␛[1mopus␛[0m␛[2m · ␛[0m␛[1mmax␛[0m                      
+  ␛[35mCONTEXT␛[0m                         ␛[2m3 items · 7.1 KB␛[0m
+    ␛[2mfile  ␛[0m internal/auth/auth_test.go       ␛[2m4.2 KB␛[0m
+    ␛[2mdir   ␛[0m internal/auth/testdata/        ␛[2m12 files␛[0m
+  ␛[35m▸ ␛[0m␛[2mpaste ␛[0m ␛[1;7mpaste 1␛[0m  ␛[2m"--- FAIL: …"␛[0m  ␛[2m38 lines 1.8 KB␛[0m
+  ␛[2mtrust: ␛[0m␛[32msess␛[0m                                     
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+␛[2m──────────────────────────────────────────────────␛[0m
+  ␛[1menter␛[0m␛[2m preview␛[0m␛[2m · ␛[0m␛[1mx␛[0m␛[2m remove␛[0m␛[2m · ␛[0m␛[1mesc␛[0m␛[2m close␛[0m            

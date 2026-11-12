@@ -135,6 +135,7 @@ func adoptDaemonTools(m Model, infos []protocol.ToolInfo) Model {
 // adoptSnapshotTools takes the tool list of a Snapshot: none (a daemon that
 // predates it) means the list is unknown.
 func adoptSnapshotTools(m Model, infos []protocol.ToolInfo) Model {
+	m.toolsSnap = true
 	if len(infos) == 0 {
 		m.DaemonTools, m.toolsKnown = nil, false
 		return refreshPickers(m)

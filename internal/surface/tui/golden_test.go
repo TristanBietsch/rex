@@ -193,6 +193,8 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"newagent_import":        {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_loading":       {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_errors":        {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_frame":         {{80, 24}},
+	"newagent_ansi":          {{80, 24}, {50, 20}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -436,16 +438,12 @@ func goldenScreens() []goldenScreen {
 			m = sendKey(m, key("/"))
 			return typeText(m, "son")
 		}},
-		{"newagent_filled", true, func(t *testing.T, sz goldenSize) Model {
-			return goldenNewAgentFilled(t, sz)
-		}},
+		{"newagent_filled", true, goldenNewAgentFilled},
 		{"newagent_preview", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenNewAgentFilled(t, sz)
 			return sendKey(m, key("enter"))
 		}},
-		{"newagent_import", false, func(t *testing.T, sz goldenSize) Model {
-			return goldenNewAgentImport(t, sz)
-		}},
+		{"newagent_import", false, goldenNewAgentImport},
 		{"newagent_errors", true, func(t *testing.T, sz goldenSize) Model {
 			// Mockup F: the workspace still indexing under CONTEXT, and a
 			// launch the daemon refused, with the draft kept.
@@ -464,6 +462,19 @@ func goldenScreens() []goldenScreen {
 			m, _ = executeCommand(m, "new") // the walk never comes back
 			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
 			m.NewAgent.indexCount.Store(3812)
+			return m
+		}},
+		{"newagent_frame", true, func(t *testing.T, sz goldenSize) Model {
+			return framedGolden(t, goldenNewAgentFilled(t, sz), sz)
+		}},
+		{"newagent_ansi", true, func(t *testing.T, sz goldenSize) Model {
+			// Last: the theme is global until the test ends.
+			m := goldenNewAgentFilled(t, sz)
+			if err := m.Store.Set("theme", "ansi"); err != nil {
+				t.Fatal(err)
+			}
+			applyThemeNamed(&m, "ansi")
+			t.Cleanup(func() { applyTheme("default") })
 			return m
 		}},
 	}

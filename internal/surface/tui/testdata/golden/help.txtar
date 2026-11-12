@@ -18,7 +18,7 @@
     │                                                                      │
   DO│   ── Actions ─────────────────────────────────────────────────────   │    
    ●│   enter  attach to selected session                                  │  9d
-   ✕│   n      new-agent wizard                                            │   -
+   ✕│   n      new agent                                                   │   -
   ↳ │   ↓ more                                                             │    
 ────│                                                                      │────
   λ │   j/k scroll · / filter · esc close                                  │    
@@ -26,7 +26,7 @@
 -- plain.120x40 --
      ┌─ HELP ──────────────────────────────────────────────────────────────────────────────────────────── rex v1 ─┐
   ∴ R│   ── Navigation ───────────────────────────────────    ── Session commands ─────────────────────────────   │     
-  all│   j k  move row selection                              :new                    new-agent wizard            │     
+  all│   j k  move row selection                              :new                    new agent                   │     
      │   g G  top / bottom                                    :name [text]            rename selected (no text:   │
 ─────│   tab  next Ready session                                                      open editor)                │─────
      │   1-4  jump to Ready / Waiting / Working / Done (4     :rename <s> <slug>      change slug                 │
@@ -44,7 +44,7 @@
   DON│                                                        :complete [sel]         kill agent + mark done      │     
    ● │   ── Actions ──────────────────────────────────────                            now                         │   9d
    ✕ │   enter  attach to selected session                    :rm <sel>               delete                      │    -
-   ✕ │   n      new-agent wizard                              :prune                  clear Done (keeps           │    -
+   ✕ │   n      new agent                                     :prune                  clear Done (keeps           │    -
      │   r      rename selected (empty = slug)                                        sessions still working)     │
      │   cc     mark done / undo                              :export [sel] [fmt]     write session to exports/   │
      │   uc     undo done (unmark, or resume an exited        :loop pause|resume|st…  pause, resume or stop a     │

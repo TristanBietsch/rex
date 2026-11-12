@@ -224,6 +224,7 @@ type Model struct {
 	// from a daemon that predates it: then every tool counts as installed).
 	DaemonTools []protocol.ToolInfo
 	toolsKnown  bool
+	toolsSnap   bool // a Snapshot came: an unknown list now means an old daemon
 
 	// Overview is the daemon's board overview (headline over the buckets the
 	// TUI computes itself), from the Snapshot and Overview events. Nil

@@ -256,6 +256,8 @@ func updateNewAgentAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	moved := false
 	switch k.String() {
+	case "?":
+		return openNewAgentHelp(m), nil
 	case "esc":
 		if st.Filter != "" {
 			st.Filter = ""
@@ -396,7 +398,10 @@ func naAgentHints(st *NewAgentState, narrow bool) [][2]string {
 	}
 	noun := map[naAgentPane]string{naPaneAgents: "agent", naPaneModels: "model", naPaneSkills: "skill"}[st.Pane]
 	next := strings.ToLower(naPaneNames[st.nextPane(1)])
-	hints := [][2]string{{"j/k", noun}, {"tab", next}, {"/", "filter"}, {"h/l", "effort"}}
+	hints := [][2]string{{"j/k", noun}, {"tab", next}, {"/", "filter"}}
+	if len(st.selection().effortOptions()) > 0 {
+		hints = append(hints, [2]string{"h/l", "effort"})
+	}
 	if st.selection().skillsApply() {
 		hints = append(hints, [2]string{"space", "skill"})
 	}

@@ -51,7 +51,7 @@ func renderNewAgent(m Model, w, h int) string {
 		foot := pageFooter(m, naAgentHints(st, narrow), w, helpBarOn(m))
 		return composePage(head, naAgentBody(m, st, w, bh), foot, w, h)
 	}
-	head := pageHeader("NEW AGENT", middle, styleDim.Render("draft"), w)
+	head := naHeader("NEW AGENT", middle, styleDim.Render("draft"), w)
 	var body []string
 	hints := naHints(&NewAgentState{Section: naTask}, narrow)
 	if st != nil {
@@ -82,6 +82,23 @@ func renderNewAgent(m Model, w, h int) string {
 		}
 	}
 	return composePage(head, body, pageFooter(m, hints, w, helpBarOn(m)), w, h)
+}
+
+// naHeader is pageHeader, but under pageNarrowW the folder gives way so
+// the right word still fits (mockup G: "draft" stays).
+func naHeader(title, middle, right string, w int) []string {
+	if !pageNarrow(w) {
+		return pageHeader(title, middle, right, w)
+	}
+	head := pageHeader(title, "", "", w)
+	rightW := ansi.StringWidth(right)
+	left := strings.TrimRight(ansi.Strip(head[1]), " ")
+	if rightW == 0 || ansi.StringWidth(left)+1+rightW+pageRightMargin > w {
+		return head
+	}
+	row := ansi.Truncate(head[1], w-pageRightMargin-rightW, "") + right
+	head[1] = padLine(row, w)
+	return head
 }
 
 // naHints is the footer for the focused section.
@@ -174,8 +191,8 @@ func naTitle(title string, focused bool) string {
 }
 
 // naAgentLine is the chosen agent: brand glyph, name, model and effort; sep
-// sits between them.
-func naAgentLine(st *NewAgentState, sep string) string {
+// sits between them. The narrow line (mockup G) drops the word "effort".
+func naAgentLine(st *NewAgentState, sep string, narrow bool) string {
 	w := st.selection()
 	t := w.selectedTool()
 	glyph := ""
@@ -187,7 +204,12 @@ func naAgentLine(st *NewAgentState, sep string) string {
 		line += styleMuted.Render(sep) + styleSlug.Render(protocol.FlattenDisplayText(md.ID))
 	}
 	if e := w.currentEffort(); e != "" {
-		line += styleMuted.Render(sep) + styleDim.Render("effort ") + styleSlug.Render(protocol.FlattenDisplayText(e))
+		if !narrow {
+			line += styleMuted.Render(sep) + styleDim.Render("effort ")
+		} else {
+			line += styleMuted.Render(sep)
+		}
+		line += styleSlug.Render(protocol.FlattenDisplayText(e))
 	}
 	return line
 }
@@ -267,8 +289,11 @@ func naNotice(st *NewAgentState) []string {
 func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 	notice := naNotice(st)
 	errs := naErrLines(st, fw)
-	agent := naAgentLine(st, "  ·  ")
+	agent := naAgentRow(m, st, "  ·  ", false, fw)
 	change := styleKey.Render("ctrl+g") + styleDim.Render(" change")
+	if naToolsLoading(m) {
+		change = ""
+	}
 	if gap := fw - ansi.StringWidth(agent) - ansi.StringWidth(change); gap >= 2 {
 		agent += strings.Repeat(" ", gap) + change
 	}
@@ -496,15 +521,19 @@ func naLaunchSummary(m Model, st *NewAgentState) string {
 	return lead + size + styleDim.Render(" of "+naBytes(limit)) + tail
 }
 
-// naStrip is the narrow page's section strip: ‹ Agent · [Task] · … ›, the
-// focused section bracketed and bold.
+// naStrip is the narrow page's section strip: ‹ Agent · [Task] · Context 2
+// · Trust ›, the focused section bracketed and bold, the context counted.
 func naStrip(st *NewAgentState) string {
 	parts := make([]string, naSectionCount)
 	for s := range naSectionCount {
+		name := naSectionNames[s]
+		if s == naContext && len(st.Items) > 0 {
+			name += " " + strconv.Itoa(len(st.Items))
+		}
 		if s == st.Section {
-			parts[s] = styleBold.Render("[" + naSectionNames[s] + "]")
+			parts[s] = styleBold.Render("[" + name + "]")
 		} else {
-			parts[s] = styleDim.Render(naSectionNames[s])
+			parts[s] = styleDim.Render(name)
 		}
 	}
 	return "  " + styleArrow.Render("‹ ") + strings.Join(parts, styleMuted.Render(" · ")) + styleArrow.Render(" ›")
@@ -525,7 +554,7 @@ func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []strin
 		trust = append(trust, "  "+naStartingLine(m))
 	}
 	rows := max(1, min(8, bh-7-len(trust)-len(notice)-len(naErrLines(st, w-2))-len(comp)))
-	lines := []string{naStrip(st), "  " + naAgentLine(st, " · ")}
+	lines := []string{naStrip(st), "  " + naAgentRow(m, st, " · ", true, w-2)}
 	lines = append(lines, indentLines(notice, 2)...)
 	if st.Section == naContext && len(st.Items) > 0 {
 		lines = append(lines, indentLines(naContextLines(m, st, max(w-2, 1), rows+2), 2)...)
@@ -545,4 +574,18 @@ func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []strin
 		lines[i] = ansi.Truncate(l, w, "…")
 	}
 	return lines
+}
+
+// naToolsLoading reports whether the daemon's tool list is still on its way:
+// no Snapshot yet. A Snapshot without one is an old daemon, and every tool
+// counts as installed (pickerTools), so the agent shows.
+func naToolsLoading(m Model) bool { return !m.toolsKnown && !m.toolsSnap }
+
+// naAgentRow is the AGENT section's row: the chosen agent, or while the
+// daemon's tool list is unknown the spinner and words of mockup F.
+func naAgentRow(m Model, st *NewAgentState, sep string, narrow bool, w int) string {
+	if naToolsLoading(m) {
+		return ansi.Truncate(styleArrow.Render(naSpinner(m))+styleDim.Render(" checking which agents are installed…"), max(w, 1), "…")
+	}
+	return naAgentLine(st, sep, narrow)
 }

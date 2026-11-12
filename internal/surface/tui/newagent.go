@@ -317,6 +317,14 @@ func newAgentTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, 
 	return trustRequest(m, m.NewAgent.Trust, cwd, req)
 }
 
+// openNewAgentHelp is ? on the page: help on the new-agent group alone;
+// esc or ? there comes back to the page as it was.
+func openNewAgentHelp(m Model) Model {
+	m = openHelp(m)
+	m.Help.Only = groupNewAgent
+	return m
+}
+
 // naHasPaths reports whether items hold a file or a folder.
 func naHasPaths(items []spawnctx.Item) bool {
 	return slices.ContainsFunc(items, func(it spawnctx.Item) bool {
@@ -371,6 +379,9 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		if m, cmd, ok := naCompleteKey(m, k); ok {
 			return m, cmd
 		}
+	}
+	if st.Section != naTask && isRune(k, '?') {
+		return openNewAgentHelp(m), nil
 	}
 	switch k.Type {
 	case tea.KeyEsc:

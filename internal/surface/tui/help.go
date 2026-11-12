@@ -41,6 +41,8 @@ type HelpState struct {
 	// Pane its focused pane (fullscreen_pages on).
 	Group int
 	Pane  pagePane
+	// Only shows that group alone (the new-agent page's ?).
+	Only string
 }
 
 const (
@@ -94,6 +96,12 @@ var helpRight = []helpGroup{
 	commandsIn(groupSessionCmd),
 	commandsIn(groupAppCmd),
 	bindingsIn(groupAttached),
+}
+
+// helpOnly is the groups help shows only when opened on them (HelpState.Only):
+// the new-agent page's keys, from its ?.
+var helpOnly = []helpGroup{
+	bindingsIn(groupNewAgent),
 }
 
 // helpLegend is the marker legend, drawn with the styles the board uses, so
@@ -154,7 +162,21 @@ func rowIconLegend(m Model) []helpRow {
 // flagged: the left column's groups, the legend, then the right column's.
 func helpGroups(m Model) []helpGroup {
 	all := append(append(helpLeft(m), helpLegend(m)), helpRight...)
-	return markOff(m, all)
+	return markOff(m, onlyGroup(m, all))
+}
+
+// onlyGroup is the group help was opened on (HelpState.Only), or groups.
+func onlyGroup(m Model, groups []helpGroup) []helpGroup {
+	if m.Help == nil || m.Help.Only == "" {
+		return groups
+	}
+	var out []helpGroup
+	for _, g := range append(append([]helpGroup(nil), groups...), helpOnly...) {
+		if g.Title == m.Help.Only {
+			out = append(out, g)
+		}
+	}
+	return out
 }
 
 // markOff flags the rows whose feature switch is off.
@@ -285,6 +307,9 @@ func helpBody(m Model, bw, cols int) []string {
 	}
 	left := filterGroups(markOff(m, append(helpLeft(m), helpLegend(m))), compileQuery(filter))
 	right := filterGroups(markOff(m, helpRight), compileQuery(filter))
+	if m.Help != nil && m.Help.Only != "" {
+		left, right = filterGroups(helpGroups(m), compileQuery(filter)), nil
+	}
 	if len(left)+len(right) == 0 {
 		return []string{styleDim.Render("  no match for “" + protocol.FlattenDisplayText(filter) + "”")}
 	}
@@ -398,6 +423,9 @@ func openHelp(m Model) Model {
 
 func closeHelp(m Model) Model {
 	m.Focus = FocusBoard
+	if m.NewAgent != nil {
+		m.Focus = FocusNewAgent // opened from the page: back to it
+	}
 	m.Help = nil
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventClose)
