@@ -16,7 +16,7 @@ func legacyKeep(filter string, s protocol.SessionSummary) bool {
 
 func TestRowFilterToolMatchesLegacy(t *testing.T) {
 	sessions := demoSessions(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
-	tools := append([]string{""}, filterTools...)
+	tools := append([]string{""}, filterTools(Model{})...)
 	for _, tool := range tools {
 		parts := partitionSessions(sessions, rowFilter{tool: tool})
 		for gi, g := range boardGroups {

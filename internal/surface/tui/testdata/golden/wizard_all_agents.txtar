@@ -1,7 +1,7 @@
 -- plain.80x24 --
 
   ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
-  all · claude · codex · antigravity · ollama                                   
+  all · claude · codex · antigravity · ollama · qwen · cursor · grok            
 
 ┌─ which provider?                                                          … ─┐
 │                                                                           …  │
@@ -9,9 +9,9 @@
 │      ◇  OpenAI Codex                                                      …  │
 │      ◈  Antigravity CLI                                                   …  │
 │      ◉  Ollama (local)                                                    …  │
-│      ◇  Qwen Code                                                         …  │
-│      ▶  Cursor CLI                                                        …  │
-│      ⬢  Grok Build                                                        …  │
+│      ▣  Qwen Code                                                         …  │
+│      ▲  Cursor CLI                                                        …  │
+│      ◢  Grok Build                                                        …  │
 │                                                                           …  │
 │                                                                           …  │
 │                                                                           …  │
@@ -26,7 +26,7 @@
 -- plain.120x40 --
 
   ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
-  all · claude · codex · antigravity · ollama                                                                           
+  all · claude · codex · antigravity · ollama · qwen · cursor · grok                                                    
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -42,9 +42,9 @@
    ⠋  payment-migr│      ◇  OpenAI Codex                                                             │       ▴ 7h     2h
                   │      ◈  Antigravity CLI                                                          │
   DONE  3         │      ◉  Ollama (local)                                                           │                  
-   ●  test-coverag│      ◇  Qwen Code                                                                │                9d
-   ✕  no-model    │      ▶  Cursor CLI                                                               │                 -
-   ✕  failing-job │      ⬢  Grok Build                                                               │                 -
+   ●  test-coverag│      ▣  Qwen Code                                                                │                9d
+   ✕  no-model    │      ▲  Cursor CLI                                                               │                 -
+   ✕  failing-job │      ◢  Grok Build                                                               │                 -
                   │                                                                                  │
                   │                                                                                  │
                   │                                                                                  │

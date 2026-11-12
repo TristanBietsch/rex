@@ -174,7 +174,7 @@ func headerHitAt(m Model, x, y int) string {
 	}
 	line := ansi.Strip(lines[row])
 	from := 0
-	for _, t := range filterTools {
+	for _, t := range filterTools(m) {
 		lo, hi, next, ok := cellSpan(line, t, from)
 		if !ok {
 			return ""

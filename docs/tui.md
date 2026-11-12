@@ -18,7 +18,7 @@ Four sections group sessions, top to bottom: **READY**, **WAITING**, **WORKING**
 
 **WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as READY while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`. `show_help_bar` in Settings → Appearance turns these hints off; errors and notices still show on that line.
 
-The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
+The filter bar (`all · claude · codex …`, cycled with `t`) has a chip per agent the daemon reports installed, in registry order (not `echo`, not an opt-in built-in such as `gemini`; a `tools.yaml` tool counts; `qwen`, `cursor` and `grok` only while `extra_agents` is on). Against a daemon that sends no tool list it shows `claude`, `codex`, `antigravity` and `ollama`. It only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
 A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden`), and its keys join the end of the help line (`… ? more · 4 show · :prune clear`). `4` shows and hides it; `:prune` clears it ([slash.md](slash.md)). On a narrow line `:prune clear` drops first, then `4 show`; the five board keys always stay. When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
@@ -138,7 +138,7 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 | `1`, `2`, `3` | Jump to Ready / Waiting / Working |
 | `4` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
-| `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
+| `t` | Cycle tool filter (`all`, then each installed agent, e.g. `claude`, `codex`, `qwen`, `cursor`, `grok`) |
 | `/` | Search the board (see FILTER AND SEARCH) |
 | `esc` | Clear the search |
 | `zh` | Hide / show every completed section (Done) |

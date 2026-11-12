@@ -29,6 +29,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The board filter chips (and `t`, chip clicks, `:filter`) come from the
+  daemon's tool list: one chip per installed agent, so `qwen`, `cursor` and
+  `grok` are filterable too. Opt-in built-ins (`gemini`, `deepseek`, `kimi`)
+  and the `echo` test tool get no chip.
+- New agent icons, so every built-in has its own: `qwen` `▣` (was Codex's
+  `◇`), `cursor` `▲` (was `▶`, an emoji-capable arrow), `grok` `◢` (was
+  `⬢`, missing from many terminal fonts), `gemini` `□`, `echo` `◎`.
 - TUI settings page: values sit flush right in the list, with the modified
   bullet just before them. A switch's `on` is drawn in the primary text color
   and `off` in the dim one, in every theme (`on` was the accent color).
