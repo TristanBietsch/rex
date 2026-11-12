@@ -104,7 +104,7 @@ func TestImport_WalkOnlyWithTheFlag(t *testing.T) {
 
 	// Closing the page cancels the walk's context.
 	require.NoError(t, (*ctx).Err())
-	m, _ = naKey(m, key("esc"))
+	m, _ = naClose(m)
 	require.Equal(t, FocusBoard, m.Focus)
 	require.ErrorIs(t, (*ctx).Err(), context.Canceled)
 	_ = off
@@ -114,7 +114,7 @@ func TestImport_StaleWalkIgnored(t *testing.T) {
 	m := naModel(t)
 	m, first := naKey(m, key("n"))
 	stale := indexMsg(t, first)
-	m, _ = naKey(m, key("esc"))
+	m, _ = naClose(m)
 	m, _ = naKey(m, key("n")) // a new page, a new walk
 	next, _ := m.Update(stale)
 	m = next.(Model)
@@ -334,6 +334,9 @@ func TestAt_EscKeepsText(t *testing.T) {
 	require.Nil(t, m.NewAgent.Complete)
 	require.Equal(t, "see @read", m.NewAgent.Task.String())
 	require.Empty(t, m.NewAgent.Items)
+	m, _ = naKey(m, key("esc"))
+	require.Equal(t, FocusNewAgent, m.Focus, "then the editor")
+	require.False(t, m.NewAgent.Editing)
 	m, _ = naKey(m, key("esc"))
 	require.Equal(t, FocusBoard, m.Focus)
 }

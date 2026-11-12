@@ -7,7 +7,7 @@
  · Task          │   [ ] internal/auth/                                                                            dir  
  ▸ Context    1  │ ▸ [ ] internal/auth/auth_test.go                                                             4.2 KB  
  ? Trust    ask  │   [x] cmd/rex/auth_test_helpers.go                                                           1.1 KB  
-                 │   [ ] internal/auth/testdata/                                                                   dir  
+ › Launch        │   [ ] internal/auth/testdata/                                                                   dir  
                  │   [ ] internal/auth/testdata/login.json                                                       210 B  
                  │   ! internal/auth/testdata/server.pem                                      looks like secrets: skip  
                  │                                                                                                      
@@ -48,7 +48,7 @@
  · Task          │   [ ] internal/auth/                                    dir  
  ▸ Context    1  │ ▸ [ ] internal/auth/auth_test.go                     4.2 KB  
  ? Trust    ask  │   [x] cmd/rex/auth_test_helpers.go                   1.1 KB  
-                 │   [ ] internal/auth/testdata/                           dir  
+ › Launch        │   [ ] internal/auth/testdata/                           dir  
                  │   [ ] internal/auth/testdata/login.json               210 B  
                  │   ! internal/auth/testdata/server.pem    looks like secrets  
                  │                                                              

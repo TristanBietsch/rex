@@ -220,32 +220,6 @@ func renameItem(s *NewAgentState, i int, name string) error {
 	return nil
 }
 
-// naContextKey is a key in the Compose context list; ok false leaves it to
-// the page (tab, digits, esc).
-func naContextKey(m Model, k tea.KeyMsg) (Model, tea.Cmd, bool) {
-	st := m.NewAgent
-	if len(st.Items) == 0 {
-		return m, nil, false
-	}
-	switch {
-	case k.Type == tea.KeyDown || isRune(k, 'j'):
-		st.ItemIdx = min(st.ItemIdx+1, len(st.Items)-1)
-	case k.Type == tea.KeyUp || isRune(k, 'k'):
-		st.ItemIdx = max(st.ItemIdx-1, 0)
-	case k.Type == tea.KeyEnter:
-		st.Screen, st.PrevScroll = naPreview, 0
-		naLoadPreview(st)
-		playNav(m)
-	case k.Type == tea.KeyDelete || isRune(k, 'x'):
-		removeItem(st, st.ItemIdx)
-	case isRune(k, 'r'):
-		naStartRename(st)
-	default:
-		return m, nil, false
-	}
-	return m, nil, true
-}
-
 // isRune reports a plain key typing r.
 func isRune(k tea.KeyMsg, r rune) bool {
 	return k.Type == tea.KeyRunes && !k.Alt && len(k.Runes) == 1 && k.Runes[0] == r

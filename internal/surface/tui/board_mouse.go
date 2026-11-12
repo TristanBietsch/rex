@@ -60,6 +60,8 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 		return updateSettingsMouse(m, msg), nil
 	case FocusHelp:
 		return updateHelpMouse(m, msg), nil
+	case FocusNewAgent:
+		return updateNewAgentMouse(m, msg), nil
 	default:
 		// Overlays and prompts own input; handled below.
 	}
@@ -126,8 +128,8 @@ func clickRow(m Model, id string) (Model, tea.Cmd) {
 }
 
 // updateSettingsMouse lets the wheel move the settings cursor (on a page,
-// the section when the section pane is focused, else the row within the
-// page's list); clicks are ignored (the rows are too dense to target
+// the section over the section pane, else the row as j/k move it);
+// clicks are ignored (the rows are too dense to target
 // reliably).
 func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
 	if m.Settings == nil || m.Settings.Edit != nil {
@@ -143,13 +145,18 @@ func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
 		return m
 	}
 	st := m.Settings
-	if pagesOn(m) && st.Pane == paneSections && !pageNarrow(m.Width) {
-		// The section pane: the wheel moves the section (clamped). A narrow
-		// page hides that pane, so the wheel moves rows there.
+	if !pagesOn(m) {
+		st.CursorID = settingsStep(m, delta)
+		return m
+	}
+	// The page: one step on the pane under the pointer, as j/k there (a
+	// narrow page has no section pane).
+	defer settingsRememberRow(st)
+	if !pageNarrow(m.Width) && msg.X-frameInset(m) < sectionPaneWidth(settingsPageItems(m))+1 {
 		st.CursorID = settingsSectionMove(st, delta)
 		return m
 	}
-	st.CursorID = settingsStep(m, delta)
+	m, _ = settingsRowsNav(m, map[int]string{-1: "k", 1: "j"}[delta])
 	return m
 }
 

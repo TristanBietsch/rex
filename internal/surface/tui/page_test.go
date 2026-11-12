@@ -234,7 +234,7 @@ func TestSettingsPageNarrowHintsNoTab(t *testing.T) {
 	}
 	m = pageModel(t, 120, 40, FocusSettings)
 	lines = viewLines(m)
-	if foot := lines[len(lines)-1]; !strings.Contains(foot, "tab sections") {
-		t.Errorf("wide footer lacks tab: %q", foot)
+	if foot := lines[len(lines)-1]; !strings.Contains(foot, "h sections") {
+		t.Errorf("wide footer lacks h: %q", foot)
 	}
 }

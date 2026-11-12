@@ -100,7 +100,7 @@ func TestNewAgent_NoColorOnlyState(t *testing.T) {
 
 // naSpecKeys is every key of the spec's Keys table (R16 "Keys").
 var naSpecKeys = []string{
-	"n", ":new", "tab", "shift+tab", "1-4", "ctrl+g", "enter", "ctrl+s", "ctrl+j", "alt+enter",
+	"n", ":new", "tab", "shift+tab", "1-5", "ctrl+g", "enter", "ctrl+s", "ctrl+j", "alt+enter",
 	"paste", "@", "ctrl+o", "ctrl+e", "ctrl+u", "ctrl+w", "alt+backspace", "←", "→", "home", "end",
 	"↑", "↓", "j", "k", "x", "delete", "r", "ctrl+t", "ctrl+a", "/", "h", "l", "space", "esc", "?",
 }
@@ -180,7 +180,7 @@ func TestNewAgent_NarrowMockupG(t *testing.T) {
 	require.Contains(t, lines[1], "∴ REX › NEW AGENT")
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[1], " "), "draft"), "%q", lines[1])
 	require.NotContains(t, lines[1], "~/dev/proj")
-	require.Contains(t, out, "‹ Agent · [Task] · Context 2 · Trust ›")
+	require.Contains(t, out, "‹ Agent · [Task] · Context 2 · Trust · Launch ›")
 	require.Contains(t, out, "◆ Claude Code · opus · max")
 	require.NotContains(t, out, "effort")
 	require.Contains(t, out, "2 context items")

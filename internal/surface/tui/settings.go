@@ -34,6 +34,12 @@ type SettingsState struct {
 	Onboarding []onboardRow
 	// Pane is the focused pane of the page (fullscreen_pages on).
 	Pane pagePane
+	// rowsView is the rows pane's window (nav.go), lastRow the row each
+	// section was left on (the sections pane, [ ] and 1–9 come back to it),
+	// gPending the first g of gg.
+	rowsView listView
+	lastRow  map[settings.Section]string
+	gPending bool
 	// preSearch is CursorID when / opened on the page; esc while typing
 	// restores it.
 	preSearch string
@@ -427,35 +433,16 @@ func settingsFirstHit(st *SettingsState, sec settings.Section) (string, bool) {
 	return "", false
 }
 
-// settingsHitSection is the first hit of the nearest section in direction
-// dir (±1) that has hits under the kept search, skipping sections without
-// any. wrap cycles past the ends; otherwise it clamps. The cursor id when no
-// such section exists.
-func settingsHitSection(st *SettingsState, dir int, wrap bool) string {
-	secs := settingsSections(st)
-	n, cur := len(secs), settingsSectionIndex(st)
-	for i := 1; i < n; i++ {
-		idx := cur + dir*i
-		if wrap {
-			idx = (idx%n + n) % n
-		} else if idx < 0 || idx >= n {
-			break
-		}
-		if id, ok := settingsFirstHit(st, secs[idx]); ok {
-			return id
-		}
-	}
-	return st.CursorID
-}
-
-// settingsSectionMove is the cursor after a left-pane step of dir (±1)
-// through the sections, clamped: the next section's first row, or under a
-// kept search the first hit of the next section that has hits.
+// settingsSectionMove is the cursor after a section step of dir (±1),
+// clamped (no wrap): the next section's remembered row (else its first),
+// or under a kept search the next section that has hits.
 func settingsSectionMove(st *SettingsState, dir int) string {
-	if st.Search != "" {
-		return settingsHitSection(st, dir, false)
+	cur := settingsSectionIndex(st)
+	to := min(max(cur+dir, 0), len(settingsSections(st))-1)
+	if to == cur {
+		return st.CursorID
 	}
-	return settingsGoSection(st, settingsSectionIndex(st)+dir)
+	return settingsSectionStep(st, to, cur)
 }
 
 // settingsModifiedIn counts the rows of sec whose value differs from the
@@ -470,15 +457,18 @@ func settingsModifiedIn(m Model, sec settings.Section) int {
 	return n
 }
 
-// settingsPageKey handles the keys the page adds or changes (fullscreen_pages
-// on, no search or edit open). ok false hands the key to the shared rows
-// keys in settingsKey.
+// settingsPageKey handles the page's keys (fullscreen_pages on, no search
+// or edit open): the shared list navigator (nav.go) on both panes, h/l
+// between them, and the section keys. ok false hands the key to the shared
+// row keys in settingsKey (enter, ←/→ on a value, +/-, r, e, ?, esc, q).
 func settingsPageKey(m Model, k tea.KeyMsg) (Model, bool) {
 	st := m.Settings
+	defer settingsRememberRow(st)
 	key := k.String()
+	narrow := pageNarrow(m.Width)
 	switch key {
 	case "tab", "shift+tab":
-		if !pageNarrow(m.Width) {
+		if !narrow {
 			if st.Pane == paneRows {
 				st.Pane = paneSections
 			} else {
@@ -487,33 +477,18 @@ func settingsPageKey(m Model, k tea.KeyMsg) (Model, bool) {
 		}
 		return m, true
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
-		secs := settingsSections(st)
-		n := int(key[0] - '1')
-		switch {
-		case n >= len(secs):
-		case st.Search != "":
-			// A kept search: the section's first hit; no hits, no move.
-			if id, ok := settingsFirstHit(st, secs[n]); ok {
+		if secs := settingsSections(st); int(key[0]-'1') < len(secs) {
+			if id, ok := settingsSectionRow(st, secs[key[0]-'1']); ok {
 				st.CursorID = id
 			}
-		default:
-			st.CursorID = settingsGoSection(st, n)
 		}
 		return m, true
 	case "[", "]":
-		n := len(settingsSections(st))
-		if n == 0 {
-			return m, true
-		}
 		dir := 1
 		if key == "[" {
 			dir = -1
 		}
-		if st.Search != "" {
-			st.CursorID = settingsHitSection(st, dir, true)
-		} else {
-			st.CursorID = settingsGoSection(st, (settingsSectionIndex(st)+dir+n)%n)
-		}
+		st.CursorID = settingsSectionMove(st, dir)
 		return m, true
 	case "/":
 		st.Searching, st.Pane, st.preSearch = true, paneRows, st.CursorID
@@ -522,26 +497,156 @@ func settingsPageKey(m Model, k tea.KeyMsg) (Model, bool) {
 		return m, false // settingsKey: clear a kept search, else close
 	}
 	// A narrow page hides the section pane (and tab can't reach it), so
-	// a left-pane focus left over from a wider terminal acts as rows.
-	if st.Pane == paneSections && !pageNarrow(m.Width) {
+	// a left-pane focus left over from a wider terminal acts as rows, and
+	// h/l step the section instead.
+	if narrow {
 		switch key {
-		case "j", "down":
-			st.CursorID = settingsSectionMove(st, +1)
-		case "k", "up":
-			st.CursorID = settingsSectionMove(st, -1)
+		case "h", "l":
+			dir := 1
+			if key == "h" {
+				dir = -1
+			}
+			st.CursorID = settingsSectionMove(st, dir)
+			return m, true
+		}
+		return settingsRowsNav(m, key)
+	}
+	if st.Pane == paneSections {
+		secs := settingsSections(st)
+		switch mv := vimMotion(key, &st.gPending); mv {
+		case navNone:
+		case navPending:
+			return m, true
+		default:
+			cur := settingsSectionIndex(st)
+			if to := navTarget(mv, cur, len(secs), len(secs)); to != cur {
+				st.CursorID = settingsSectionStep(st, to, cur)
+			}
+			return m, true
+		}
+		switch key {
 		case "enter", "l", "right":
 			st.Pane = paneRows
 		}
 		return m, true
 	}
-	if key == "h" {
-		// Only h is a no-op on a fixed row; left, - and _ still change values.
-		// A row config.lua locks falls through, so h explains the lock.
-		if s, ok := settings.Find(st.CursorID); !ok || !settingAdjustable(m, s) && settingLockedAt(m, s.ID) == "" {
-			return m, true
+	switch key {
+	case "h":
+		st.Pane = paneSections
+		return m, true
+	case "l":
+		return m, true // already on the rows
+	case "left", "right":
+		// ←/→ change a row with a value (the value contract); elsewhere ←
+		// goes back to the sections as h does.
+		if s, ok := settings.Find(st.CursorID); ok && settingsHasValue(m, s) {
+			return m, false
+		}
+		if key == "left" {
+			st.Pane = paneSections
+		}
+		return m, true
+	}
+	return settingsRowsNav(m, key)
+}
+
+// settingsRowsNav moves the rows cursor by the list motion key is, across
+// the sections (the section pane follows); ok false when key is no motion.
+func settingsRowsNav(m Model, key string) (Model, bool) {
+	st := m.Settings
+	switch mv := vimMotion(key, &st.gPending); mv {
+	case navNone:
+		return m, false
+	case navPending:
+		return m, true
+	default:
+		list := settingsNavList(m)
+		cur := settingsCursorIndex(list, st.CursorID) - 1
+		if to := navTarget(mv, max(cur, 0), len(list), st.rowsView.H); len(list) > 0 {
+			st.CursorID = list[to].ID
+		}
+		return m, true
+	}
+}
+
+// settingsNavList is the rows j/k walk on the page: every section's rows in
+// section order, or the search hits as listed.
+func settingsNavList(m Model) []settings.Setting {
+	st := m.Settings
+	if st.Search != "" {
+		return settingsList(st)
+	}
+	all := settingsList(st)
+	out := make([]settings.Setting, 0, len(all))
+	for _, sec := range settingsSections(st) {
+		for _, s := range all {
+			if s.Section == sec {
+				out = append(out, s)
+			}
 		}
 	}
-	return m, false
+	return out
+}
+
+// settingsHasValue reports whether ← and → act on row s: a value to step
+// (an enum, a number, a bool, a picker), or a lock to explain.
+func settingsHasValue(m Model, s settings.Setting) bool {
+	if settingLockedAt(m, s.ID) != "" {
+		return true
+	}
+	return !s.ReadOnly && (settingAdjustable(m, s) || s.Type == settings.TypeBool)
+}
+
+// settingsRememberRow notes the cursor as the row its section was left on.
+func settingsRememberRow(st *SettingsState) {
+	if st.lastRow == nil {
+		st.lastRow = map[settings.Section]string{}
+	}
+	if s, ok := settingsFind(st, st.CursorID); ok {
+		st.lastRow[s.Section] = s.ID
+	}
+}
+
+// settingsFind is the listed (unfiltered) row id, onboarding rows included.
+func settingsFind(st *SettingsState, id string) (settings.Setting, bool) {
+	for _, s := range settingsList(&SettingsState{Onboarding: st.Onboarding}) {
+		if s.ID == id {
+			return s, true
+		}
+	}
+	return settings.Setting{}, false
+}
+
+// settingsSectionRow is the row to land on in sec: the row it was left on
+// while it is still listed (a search hit under a kept search), else its
+// first listed row. ok false when sec lists nothing.
+func settingsSectionRow(st *SettingsState, sec settings.Section) (string, bool) {
+	if id, ok := st.lastRow[sec]; ok && settingsListed(st, id) {
+		return id, true
+	}
+	return settingsFirstHit(st, sec)
+}
+
+// settingsSectionStep is the cursor for section index to, coming from
+// section index from: under a kept search the nearest section that way with
+// hits (none: the cursor stays).
+func settingsSectionStep(st *SettingsState, to, from int) string {
+	secs := settingsSections(st)
+	dir := 1
+	if to < from {
+		dir = -1
+	}
+	for i := to; i >= 0 && i < len(secs); i += dir {
+		if id, ok := settingsSectionRow(st, secs[i]); ok {
+			return id
+		}
+	}
+	for i := to - dir; i != from && i >= 0 && i < len(secs); i -= dir {
+		if id, ok := settingsSectionRow(st, secs[i]); ok {
+			return id
+		}
+	}
+	return st.CursorID
 }
 
 // settingsSectionJump moves the cursor to the first row of the next section

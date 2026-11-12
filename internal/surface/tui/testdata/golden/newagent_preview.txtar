@@ -7,7 +7,7 @@
  ✓ Task          │ │ --- FAIL: TestLogin (0.31s)                                                                     │  
  ▸ Context    3  │ │     auth_test.go:88: token expired: got 401, want 200                                           │  
  ✓ Trust   sess  │ │ FAIL                                                                                            │  
-                 │ │ FAIL  example.com/app/internal/auth 1.204s                                                      │  
+ › Launch        │ │ FAIL  example.com/app/internal/auth 1.204s                                                      │  
                  │ │     trace 01: example.com/app/internal/auth.check                                               │  
                  │ │     trace 02: example.com/app/internal/auth.check                                               │  
                  │ │     trace 03: example.com/app/internal/auth.check                                               │  
@@ -48,7 +48,7 @@
  ✓ Task          │ │ --- FAIL: TestLogin (0.31s)                             │  
  ▸ Context    3  │ │     auth_test.go:88: token expired: got 401, want 200   │  
  ✓ Trust   sess  │ │ FAIL                                                    │  
-                 │ │ FAIL  example.com/app/internal/auth 1.204s              │  
+ › Launch        │ │ FAIL  example.com/app/internal/auth 1.204s              │  
                  │ │     trace 01: example.com/app/internal/auth.check       │  
                  │ │     trace 02: example.com/app/internal/auth.check       │  
                  │ │     trace 03: example.com/app/internal/auth.check       │  

@@ -126,7 +126,9 @@ func TestContextList_RemoveRenamePreview(t *testing.T) {
 	m = naType(m, "j")
 	require.Equal(t, 1, m.NewAgent.ItemIdx)
 	m = naType(m, "j")
-	require.Equal(t, 1, m.NewAgent.ItemIdx, "the cursor stops at the last item")
+	require.Equal(t, naTrust, m.NewAgent.Section, "j past the last item goes on to trust")
+	m = naType(m, "k")
+	require.Equal(t, 1, m.NewAgent.ItemIdx, "k comes back to the last item")
 
 	// r renames: the name and its placeholder in the task.
 	m = naType(m, "r")

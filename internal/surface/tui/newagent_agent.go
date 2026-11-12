@@ -28,12 +28,13 @@ type naAgentPane int
 const (
 	naPaneAgents naAgentPane = iota
 	naPaneModels
+	naPaneEffort
 	naPaneSkills
 	naPaneCount
 )
 
 // naPaneNames are the narrow strip's words.
-var naPaneNames = [naPaneCount]string{"Agents", "Models", "Skills"}
+var naPaneNames = [naPaneCount]string{"Agents", "Models", "Effort", "Skills"}
 
 // naFilterMax caps the model filter, in runes.
 const naFilterMax = 64
@@ -111,9 +112,22 @@ func (st *NewAgentState) setTool(i int) {
 	st.choose(c)
 	st.Filter, st.Filtering = "", false
 	st.SkillCur = 0
-	if st.Pane == naPaneSkills && !st.selection().skillsApply() {
+	if !st.paneShown(st.Pane) {
 		st.Pane = naPaneAgents
 	}
+}
+
+// paneShown reports whether pane p can take the focus: effort only while
+// the model has options, skills only while the agent can load them.
+func (st *NewAgentState) paneShown(p naAgentPane) bool {
+	switch p {
+	case naPaneEffort:
+		return len(st.selection().effortOptions()) > 0
+	case naPaneSkills:
+		return st.selection().skillsApply()
+	case naPaneAgents, naPaneModels, naPaneCount:
+	}
+	return true
 }
 
 // refilter keeps the model cursor on the same id while it still matches,
@@ -126,39 +140,28 @@ func (st *NewAgentState) refilter() {
 	st.setModel(idx[0])
 }
 
-// nextPane is the pane after (delta 1) or before (-1) the focused one; the
-// skills pane only while the selected agent can load skills.
+// nextPane is the pane after (delta 1) or before (-1) the focused one,
+// cycling past the ends; panes paneShown leaves out are skipped.
 func (st *NewAgentState) nextPane(delta int) naAgentPane {
 	p := st.Pane
 	for range naPaneCount {
 		p = (p + naAgentPane(delta) + naPaneCount) % naPaneCount
-		if p != naPaneSkills || st.selection().skillsApply() {
+		if st.paneShown(p) {
 			return p
 		}
 	}
 	return st.Pane
 }
 
-// moveAgent moves the agent cursor: through the offered agents, then onto
-// the not installed header, never onto a missing agent.
-func (st *NewAgentState) moveAgent(delta int) bool {
-	switch {
-	case st.OnMissing && delta < 0:
-		st.OnMissing = false
-		return true
-	case st.OnMissing:
-		return false
+// stepPane is the pane delta (±1) from the focused one without cycling:
+// the focused one at either end.
+func (st *NewAgentState) stepPane(delta int) naAgentPane {
+	for p := int(st.Pane) + delta; p >= 0 && p < int(naPaneCount); p += delta {
+		if st.paneShown(naAgentPane(p)) {
+			return naAgentPane(p)
+		}
 	}
-	next := st.ToolIdx + delta
-	switch {
-	case next >= 0 && next < len(st.Tools):
-		st.setTool(next)
-		return true
-	case next >= len(st.Tools) && len(st.Missing) > 0:
-		st.OnMissing = true
-		return true
-	}
-	return false
+	return st.Pane
 }
 
 // moveModel moves the model cursor within the filtered models.
@@ -184,16 +187,6 @@ func (st *NewAgentState) moveEffort(delta int) bool {
 		return false
 	}
 	st.EffortIdx = next
-	return true
-}
-
-// moveSkill moves the skills cursor.
-func (st *NewAgentState) moveSkill(delta int) bool {
-	next := st.SkillCur + delta
-	if next < 0 || next >= len(st.Skills) {
-		return false
-	}
-	st.SkillCur = next
 	return true
 }
 
@@ -254,11 +247,13 @@ func updateNewAgentAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		next.NewAgent.Trust = mode
 		return next, nil
 	}
+	key := k.String()
+	narrow := pageNarrow(m.Width)
 	moved := false
-	switch k.String() {
+	switch key {
 	case "?":
 		return openNewAgentHelp(m), nil
-	case "esc":
+	case "esc", "q":
 		if st.Filter != "" {
 			st.Filter = ""
 			playNav(m)
@@ -278,37 +273,113 @@ func updateNewAgentAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		st.Pane, st.OnMissing, moved = st.nextPane(1), false, true
 	case "shift+tab":
 		st.Pane, st.OnMissing, moved = st.nextPane(-1), false, true
+	case "[", "]":
+		dir := 1
+		if key == "[" {
+			dir = -1
+		}
+		st.Pane, moved = st.stepPane(dir), true
+		st.OnMissing = st.OnMissing && st.Pane == naPaneAgents
+	case "1", "2", "3", "4":
+		if p := naAgentPane(key[0] - '1'); st.paneShown(p) {
+			st.Pane, moved = p, true
+			st.OnMissing = st.OnMissing && p == naPaneAgents
+		}
 	case "/":
 		st.Pane, st.Filtering, st.OnMissing = naPaneModels, true, false
 		moved = true
-	case "h", "left":
-		moved = st.moveEffort(-1)
-	case "l", "right":
+	case "+", "=":
 		moved = st.moveEffort(1)
+	case "-", "_":
+		moved = st.moveEffort(-1)
+	case "h", "l", "left", "right":
+		dir := 1
+		if key == "h" || key == "left" {
+			dir = -1
+		}
+		switch {
+		case st.Pane == naPaneEffort && (key == "left" || key == "right"):
+			moved = st.moveEffort(dir) // ←/→ change the effort, the row's value
+		case narrow:
+			st.Pane, moved = st.stepPane(dir), true
+		case dir < 0:
+			st.Pane, moved = naPaneAgents, st.Pane != naPaneAgents
+		case st.Pane == naPaneAgents:
+			st.Pane, st.OnMissing, moved = naPaneModels, false, true
+		}
 	case " ":
 		if st.Pane == naPaneSkills && st.selection().skillsApply() {
 			st.toggleSkill()
 			moved = true
 		}
-	case "j", "down", "k", "up":
-		delta := 1
-		if s := k.String(); s == "k" || s == "up" {
-			delta = -1
-		}
-		switch st.Pane {
-		case naPaneAgents:
-			moved = st.moveAgent(delta)
-		case naPaneModels:
-			moved = st.moveModel(delta)
-		case naPaneSkills:
-			moved = st.moveSkill(delta)
-		default:
+	default:
+		if mv := vimMotion(key, &st.gPending); mv != navNone && mv != navPending {
+			naAgentMove(m, mv)
 		}
 	}
 	if moved {
 		playNav(m)
 	}
 	return m, nil
+}
+
+// naAgentMove moves the focused pane's cursor by mv (the shared
+// navigator). The right column is one list: j past the last model goes on
+// to effort, then to skills; k comes back the same way.
+func naAgentMove(m Model, mv navMove) {
+	st := m.NewAgent
+	moved := false
+	switch st.Pane {
+	case naPaneAgents:
+		n := len(st.Tools)
+		if len(st.Missing) > 0 {
+			n++ // the not installed header
+		}
+		cur := st.ToolIdx
+		if st.OnMissing {
+			cur = len(st.Tools)
+		}
+		if to := navTarget(mv, cur, n, st.agentsView.H); to != cur {
+			moved = true
+			st.OnMissing = to >= len(st.Tools)
+			if !st.OnMissing {
+				st.setTool(to)
+			}
+		}
+	case naPaneModels:
+		idx := st.filteredIdx()
+		pos := max(slices.Index(idx, st.modelIdx()), 0)
+		switch to := navTarget(mv, pos, len(idx), st.modelsView.H); {
+		case mv == navDown && pos == len(idx)-1:
+			st.Pane = st.stepPane(1)
+			moved = st.Pane != naPaneModels
+		case len(idx) > 0 && (to != pos || idx[to] != st.modelIdx()):
+			st.setModel(idx[to])
+			moved = true
+		}
+	case naPaneEffort:
+		switch mv {
+		case navDown, navHalfDown, navPageDown, navLast:
+			st.Pane = st.stepPane(1)
+		case navUp, navHalfUp, navPageUp, navFirst:
+			st.Pane = st.stepPane(-1)
+		case navNone, navPending:
+		}
+		moved = st.Pane != naPaneEffort
+	case naPaneSkills:
+		if mv == navUp && st.SkillCur == 0 {
+			st.Pane = st.stepPane(-1)
+			moved = true
+			break
+		}
+		if to := navTarget(mv, st.SkillCur, len(st.Skills), st.skillsView.H); to != st.SkillCur {
+			st.SkillCur, moved = to, true
+		}
+	case naPaneCount:
+	}
+	if moved {
+		playNav(m)
+	}
 }
 
 // naFilterKey is a key while typing the model filter: text edits it, arrows
@@ -394,18 +465,23 @@ func naAgentHints(st *NewAgentState, narrow bool) [][2]string {
 	case st.OnMissing:
 		return [][2]string{{"enter", "onboarding"}, {"k", "agents"}, {"esc", "back"}}
 	case narrow:
-		return [][2]string{{"j/k", "move"}, {"tab", "pane"}, {"enter", "done"}}
+		return [][2]string{{"j/k", "move"}, {"h/l", "pane"}, {"enter", "done"}}
 	}
-	noun := map[naAgentPane]string{naPaneAgents: "agent", naPaneModels: "model", naPaneSkills: "skill"}[st.Pane]
-	next := strings.ToLower(naPaneNames[st.nextPane(1)])
-	hints := [][2]string{{"j/k", noun}, {"tab", next}, {"/", "filter"}}
-	if len(st.selection().effortOptions()) > 0 {
-		hints = append(hints, [2]string{"h/l", "effort"})
+	noun := map[naAgentPane]string{naPaneAgents: "agent", naPaneModels: "model", naPaneEffort: "move", naPaneSkills: "skill"}[st.Pane]
+	hints := [][2]string{{"j/k", noun}}
+	switch st.Pane {
+	case naPaneAgents:
+		hints = append(hints, [2]string{"l", "models"})
+	case naPaneEffort:
+		hints = append(hints, [2]string{"←/→", "effort"}, [2]string{"h", "agents"})
+	default:
+		hints = append(hints, [2]string{"h", "agents"})
 	}
-	if st.selection().skillsApply() {
+	hints = append(hints, [2]string{"/", "filter"})
+	if st.Pane == naPaneSkills {
 		hints = append(hints, [2]string{"space", "skill"})
 	}
-	return append(hints, [2]string{"enter", "done"})
+	return append(hints, [2]string{"enter", "done"}, [2]string{"esc", "back"})
 }
 
 // naMarkCol is the cursor column of a list row: ▸ on the cursor, else two
@@ -454,7 +530,7 @@ func naAgentsPane(st *NewAgentState, w, h, indent int) []string {
 			rows = append(rows, left+styleMuted.Render(name))
 		}
 	}
-	out := append([]string{title}, windowLines(rows, cur, max(h-1, 1))...)
+	out := append([]string{title}, st.agentsView.window("agents", rows, cur, max(h-1, 1), pad+"  ")...)
 	for i, l := range out {
 		out[i] = ansi.Truncate(l, w, "…")
 	}
@@ -530,7 +606,7 @@ func naModelRows(st *NewAgentState, rows int) []string {
 		}
 		out[n] = row
 	}
-	return windowLines(out, pos, rows)
+	return st.modelsView.window(st.selection().selectedTool().ID+"/"+st.Filter, out, pos, rows, "  ")
 }
 
 // strconvQuote quotes the filter for a message, flattened for display.
@@ -539,7 +615,7 @@ func strconvQuote(s string) string { return "“" + protocol.FlattenDisplayText(
 // naEffortLine is EFFORT and the model's options in a row, the chosen one
 // bracketed and bold (not color only).
 func naEffortLine(st *NewAgentState) string {
-	head := naTitle("EFFORT", false) + "  "
+	head := naTitle("EFFORT", st.Pane == naPaneEffort) + "  "
 	w := st.selection()
 	opts := w.effortOptions()
 	if len(opts) == 0 {
@@ -548,7 +624,9 @@ func naEffortLine(st *NewAgentState) string {
 	parts := make([]string, len(opts))
 	for i, o := range opts {
 		o = protocol.FlattenDisplayText(o)
-		if i == st.EffortIdx {
+		if i == st.EffortIdx && st.Pane == naPaneEffort {
+			parts[i] = styleArrow.Render("◂ ") + selectedStyle(stylePrimary).Bold(true).Render("["+o+"]") + styleArrow.Render(" ▸")
+		} else if i == st.EffortIdx {
 			parts[i] = styleBold.Render("[" + o + "]")
 		} else {
 			parts[i] = styleDim.Render(o)
@@ -578,7 +656,7 @@ func naSkillLines(st *NewAgentState, rows int) []string {
 		}
 		out[i] = row
 	}
-	return windowLines(out, st.SkillCur, rows)
+	return st.skillsView.window("skills", out, st.SkillCur, rows, "  ")
 }
 
 // naAgentRight is the right pane fw wide and bh tall: models (filter line,
@@ -635,6 +713,8 @@ func naAgentNarrow(m Model, st *NewAgentState, w, bh int) []string {
 		body = append(body, padOrTrim(naModelRows(st, area), max(1, min(area, len(st.filteredIdx()))))...)
 		body = append(body, "", naEffortLine(st))
 		lines = append(lines, indentLines(body, 2)...)
+	case naPaneEffort:
+		lines = append(lines, indentLines([]string{naEffortLine(st)}, 2)...)
 	case naPaneSkills:
 		body := []string{"no skills for this agent"}
 		if st.selection().skillsApply() {

@@ -30,11 +30,12 @@ const (
 	naTask
 	naContext
 	naTrust
+	naLaunchRow
 	naSectionCount
 )
 
 // naSectionNames are the rail's and the narrow strip's words.
-var naSectionNames = [naSectionCount]string{"Agent", "Task", "Context", "Trust"}
+var naSectionNames = [naSectionCount]string{"Agent", "Task", "Context", "Trust", "Launch"}
 
 // naScreen is the page's screen: Compose, the Agent screen (agents,
 // models, effort and skills; newagent_agent.go), one context item's
@@ -54,6 +55,16 @@ const (
 type NewAgentState struct {
 	Section naSection
 	Screen  naScreen
+	// Editing is true while keys type into the task editor (insert mode);
+	// esc leaves it for navigation, where j/k/h/l move and i or enter on
+	// the task come back (newagent_nav.go). OnRail is true while the step
+	// rail has the focus (h), gPending holds the first g of gg.
+	Editing  bool
+	OnRail   bool
+	gPending bool
+	// The lists' windows (nav.go): the context items, and on the Agent
+	// screen the agents, models and skills.
+	itemsView, agentsView, modelsView, skillsView listView
 	// Tools are the agents offered (pickerTools) and Missing the ones left
 	// out because they are not installed. ToolIdx indexes Tools, ModelIdx
 	// the tool's models and EffortIdx the model's effort options.
@@ -269,6 +280,7 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 	st.ItemsRoot = spawnCWD(m)
 	if d := m.newAgentDraft; d != nil {
 		st.Section, st.Task, st.Trust, st.SkillSel = d.Section, d.Task, d.Trust, d.SkillSel
+		st.OnRail = d.OnRail
 		st.Items, st.ItemIdx, st.PasteSeq = d.Items, d.ItemIdx, d.PasteSeq
 		st.Launching, st.launchGen = d.Launching, d.launchGen
 		if naHasPaths(d.Items) {
@@ -292,6 +304,7 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 		st.Notice = notice
 	}
 	st.Remembered = st.choice()
+	st.Editing = st.Section == naTask && !st.OnRail // the task types right away
 	m.NewAgent = st
 	m.newAgentDraft = nil
 	m.Focus = FocusNewAgent
@@ -396,7 +409,8 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return naPreviewKey(m, k)
 	}
 	if k.Paste {
-		st.Section, st.Complete = naTask, nil
+		// A paste always lands in the task editor, and keeps typing there.
+		st.Section, st.Editing, st.OnRail, st.Complete = naTask, true, false, nil
 		if err := addPaste(st, string(k.Runes)); err != nil {
 			st.Err = naFail(err)
 		}
@@ -410,52 +424,11 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return next, nil
 	}
-	if st.Complete != nil && st.Section == naTask {
-		if m, cmd, ok := naCompleteKey(m, k); ok {
-			return m, cmd
-		}
+	if st.Editing && st.Section == naTask {
+		return naInsertKey(m, k)
 	}
-	if st.Section != naTask && isRune(k, '?') {
-		return openNewAgentHelp(m), nil
-	}
-	switch k.Type {
-	case tea.KeyEsc:
-		return closeNewAgent(m, true), nil
-	case tea.KeyCtrlO:
-		return openImport(m), nil
-	case tea.KeyTab:
-		st.Section = (st.Section + 1) % naSectionCount
-		playNav(m)
-		return m, nil
-	case tea.KeyShiftTab:
-		st.Section = (st.Section + naSectionCount - 1) % naSectionCount
-		playNav(m)
-		return m, nil
-	case tea.KeyCtrlS:
-		return launchNewAgent(m)
-	case tea.KeyCtrlG:
-		return openAgentScreen(m), nil
-	}
-	if st.Section == naTask {
-		m, cmd := newAgentEditKey(m, k)
-		if m.NewAgent != nil {
-			naSyncComplete(m.NewAgent, k)
-		}
-		return m, cmd
-	}
-	if st.Section == naContext {
-		if m, cmd, ok := naContextKey(m, k); ok {
-			return m, cmd
-		}
-	}
-	if st.Section == naAgent && k.Type == tea.KeyEnter {
-		return openAgentScreen(m), nil
-	}
-	if k.Type == tea.KeyRunes && len(k.Runes) == 1 && k.Runes[0] >= '1' && k.Runes[0] <= '4' {
-		st.Section = naSection(k.Runes[0] - '1')
-		playNav(m)
-	}
-	return m, nil
+	st.Editing = false
+	return naNormalKey(m, k)
 }
 
 // newAgentEditKey is a key in the task editor.

@@ -20,6 +20,9 @@ const (
 	groupSessionCmd = "Session commands"
 	groupAppCmd     = "App commands"
 	groupNewAgent   = "New-agent page"
+	// groupPages rows join the Modes group on the help page only (the
+	// overlay drawn with fullscreen_pages off keeps its rows).
+	groupPages = "Pages"
 )
 
 // ctxMask says where a binding applies.
@@ -30,6 +33,7 @@ const (
 	ctxAttach
 	ctxMouse
 	ctxNewAgent
+	ctxPage
 )
 
 // binding describes one key (or gesture) for the help overlay and the help
@@ -88,13 +92,26 @@ var bindings = []binding{
 	{Keys: ":::", Desc: "type a literal \"::\" into the agent", Group: groupAttached, Ctx: ctxAttach},
 	{Keys: "ctrl+pgup", Desc: "scroll back; k/j pgup/pgdn g/G, esc live", Group: groupAttached, Ctx: ctxAttach},
 
-	{Keys: "n, :new", Desc: "open the page (the draft comes back)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "tab, shift+tab", Desc: "next / previous section", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "1-4", Desc: "Agent / Task / Context / Trust (not in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "ctrl+g", Desc: "agent, model, effort and skills", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "enter", Desc: "launch (in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "ctrl+s", Desc: "launch from any section", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "j k, ↓ ↑", Desc: "pages: move a row, on into the next section", Group: groupPages, Ctx: ctxPage},
+	{Keys: "h l", Desc: "pages: sections pane / rows pane", Group: groupPages, Ctx: ctxPage},
+	{Keys: "gg G", Desc: "pages: first / last row", Group: groupPages, Ctx: ctxPage},
+	{Keys: "ctrl+d ctrl+u", Desc: "pages: half a window down / up (ctrl+f ctrl+b: a whole one)", Group: groupPages, Ctx: ctxPage},
+	{Keys: "[ ] 1-9", Desc: "pages: previous / next section, section N", Group: groupPages, Ctx: ctxPage},
+	{Keys: "← → + -", Desc: "settings: change the row's value (← elsewhere: sections)", Group: groupPages, Ctx: ctxPage},
+	{Keys: "wheel", Desc: "pages: one row on the pane under the pointer", Group: groupPages, Ctx: ctxPage},
+
+	{Keys: "n, :new", Desc: "open the page, typing in the task (the draft comes back)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "esc", Desc: "close the innermost thing: @ list, editor, picker, preview, Agent screen, page (keeps the draft)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "i, a, A, enter", Desc: "type in the task again (enter on the task step)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "enter", Desc: "in the task: launch; elsewhere: open the step (agent, preview, trust, launch)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+s", Desc: "launch from anywhere", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 	{Keys: "ctrl+j, alt+enter", Desc: "new line in the task", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "j k, ↓ ↑", Desc: "out of the task: agent, task, each context item, trust, launch", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "h l", Desc: "step rail / form (narrow: previous / next step)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "gg G", Desc: "the agent row / the launch row", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "tab, shift+tab", Desc: "next / previous step (leaves the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "1-5, [ ]", Desc: "Agent / Task / Context / Trust / Launch; previous / next (not in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+g", Desc: "agent, model, effort and skills", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 	{Keys: "paste", Desc: "insert; over 8 lines or 1 KiB becomes a context item", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 	{Keys: "@", Desc: "add a workspace file (completion)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 	{Keys: "ctrl+o", Desc: "import picker: workspace files and folders", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
@@ -102,11 +119,10 @@ var bindings = []binding{
 	{Keys: "ctrl+u", Desc: "clear the line; on an empty task, the draft", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 	{Keys: "ctrl+w, alt+backspace", Desc: "delete a word", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 	{Keys: "← → ↑ ↓ home end", Desc: "move the cursor in the task", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "j k enter", Desc: "context list: move, preview", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "x, delete, r", Desc: "context list: remove, rename", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "ctrl+t, ctrl+a", Desc: "trust the folder this session / always", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "/ h l space", Desc: "agent screen: model filter, effort, skill", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
-	{Keys: "esc", Desc: "close the innermost thing; the page keeps the draft", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "x, d, delete, r, e", Desc: "context item: remove, rename, edit a paste", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+t, ctrl+a", Desc: "trust the folder this session / always (enter or space on Trust cycles)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "h l, j k", Desc: "agent screen: agents / right column; models, effort, skills", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "/ ← → space", Desc: "agent screen: model filter, effort, skill", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 	{Keys: "?", Desc: "this help (not in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 }
 

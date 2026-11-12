@@ -69,18 +69,18 @@ func longGroup(t *testing.T, w, h int) int {
 func TestHelpPageScrollResetsOnGroup(t *testing.T) {
 	m := pageHelp(t, 80, 24)
 	g := longGroup(t, 80, 24)
-	m = helpPagePress(m, strconv.Itoa(g+1), "G")
+	m = navPress(m, strconv.Itoa(g+1), "ctrl+f")
 	require.Positive(t, m.Help.Scroll, "group %d is longer than the page at 80x24", g+1)
 	m = helpPagePress(m, "]")
 	require.Equal(t, g+1, m.Help.Group)
 	require.Zero(t, m.Help.Scroll)
 
-	m = helpPagePress(m, "[", "G", "9")
+	m = navPress(m, "[", "ctrl+f", "9")
 	require.Zero(t, m.Help.Scroll, "1-9 also resets the scroll")
 	m = helpPagePress(m, "]")
-	require.Zero(t, m.Help.Group, "] wraps to the first group")
-	m = helpPagePress(m, "[")
-	require.Equal(t, 8, m.Help.Group, "[ wraps to the last group")
+	require.Equal(t, 8, m.Help.Group, "] clamps at the last group")
+	m = helpPagePress(m, "1", "[")
+	require.Zero(t, m.Help.Group, "[ clamps at the first group")
 }
 
 func TestHelpPageLeftPaneKeys(t *testing.T) {
@@ -180,24 +180,20 @@ func TestHelpPageNarrow(t *testing.T) {
 func TestHelpPageWheel(t *testing.T) {
 	m := pageHelp(t, 80, 24)
 	require.NoError(t, m.Store.Set("mouse_enabled", true))
-	m.Help.Pane = paneSections
-	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, 1, m.Help.Group, "wheel on the sections: next group")
+	m, _ = updateMouse(m, wheelAt(true, 4, 8))
+	require.Equal(t, 1, m.Help.Group, "wheel over the groups: next group")
 	require.Zero(t, m.Help.Scroll)
 
 	g := longGroup(t, 80, 24)
 	m = helpPagePress(m, strconv.Itoa(g+1))
-	m.Help.Pane = paneRows
-	ms := helpLayoutFor(m, 80, 24).maxScroll
-	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, min(3, ms), m.Help.Scroll, "wheel on the rows scrolls")
-	require.Positive(t, m.Help.Scroll)
+	m, _ = updateMouse(m, wheelAt(true, 60, 8))
+	require.Equal(t, 1, m.Help.Scroll, "wheel over the rows scrolls one row, as j")
 	require.Equal(t, g, m.Help.Group)
 }
 
 func TestHelpPageMaxScrollIsRightPane(t *testing.T) {
 	m := pageHelp(t, 120, 40)
-	m = helpPagePress(m, "2", "G")
+	m = navPress(m, "2", "ctrl+f")
 	require.Zero(t, m.Help.Scroll, "Filter fits the page; the other groups do not count")
 }
 

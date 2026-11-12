@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,8 @@ type HelpState struct {
 	// Pane its focused pane (fullscreen_pages on).
 	Group int
 	Pane  pagePane
+	// gPending is the first g of gg (the page's shared navigator).
+	gPending bool
 	// Only shows that group alone (the new-agent page's ?).
 	Only string
 }
@@ -160,7 +163,13 @@ func rowIconLegend(m Model) []helpRow {
 // helpGroups is every help group in page order, rows of off features
 // flagged: the left column's groups, the legend, then the right column's.
 func helpGroups(m Model) []helpGroup {
-	all := append(append(helpLeft(m), helpLegend(m)), helpRight...)
+	left := helpLeft(m)
+	for i, g := range left {
+		if g.Title == groupModes { // the page's own keys (nav.go)
+			left[i].Rows = append(slices.Clone(g.Rows), bindingsIn(groupPages).Rows...)
+		}
+	}
+	all := append(append(left, helpLegend(m)), helpRight...)
 	return markOff(m, onlyGroup(m, all))
 }
 
@@ -474,7 +483,7 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if pagesOn(m) && helpPageKey(&st, k.String(), pageNarrow(w), len(helpGroups(m))) {
+	if pagesOn(m) && helpPageKey(m, &st, k.String()) {
 		m.Help = &st
 		return m, nil
 	}
@@ -513,13 +522,18 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// helpPageKey handles the keys the page adds (fullscreen_pages on, not
-// filtering) on st, for a page of n groups; false hands the key to the
-// shared keys in updateHelpKey. A narrow page hides the group pane, so tab is a no-op there and a
-// group-pane focus left over from a wider page acts as rows.
-func helpPageKey(st *HelpState, key string, narrow bool, n int) bool {
+// helpPageKey handles the page's keys (fullscreen_pages on, not
+// filtering) on st; false hands the key to the shared keys in
+// updateHelpKey (esc, q, ?). The rows pane is a pager over the selected
+// group that j/k carry on into the next or previous group at its ends; the
+// group pane is a list; h/l move between them. A narrow page hides the
+// group pane: tab is a no-op there, h/l step the group, and a group-pane
+// focus left over from a wider page acts as rows.
+func helpPageKey(m Model, st *HelpState, key string) bool {
+	w, _ := helpSize(m)
+	narrow, n := pageNarrow(w), len(helpGroups(m))
 	setGroup := func(g int) {
-		if g != st.Group {
+		if g = min(max(g, 0), n-1); g != st.Group {
 			st.Group, st.Scroll = g, 0
 		}
 	}
@@ -538,11 +552,12 @@ func helpPageKey(st *HelpState, key string, narrow bool, n int) bool {
 			setGroup(g)
 		}
 		return true
-	case "[":
-		setGroup((st.Group - 1 + n) % n)
-		return true
-	case "]":
-		setGroup((st.Group + 1) % n)
+	case "[", "]":
+		dir := 1
+		if key == "[" {
+			dir = -1
+		}
+		setGroup(st.Group + dir)
 		return true
 	case "/":
 		st.Filtering, st.Pane = true, paneRows
@@ -550,22 +565,75 @@ func helpPageKey(st *HelpState, key string, narrow bool, n int) bool {
 	case "esc", "q", "?":
 		return false
 	}
-	if st.Pane == paneSections && !narrow {
-		switch key {
-		case "j", "down":
-			setGroup(min(st.Group+1, n-1))
-		case "k", "up":
-			setGroup(max(st.Group-1, 0))
-		case "enter", "l", "right":
+	switch {
+	case narrow && (key == "h" || key == "l"):
+		dir := 1
+		if key == "h" {
+			dir = -1
+		}
+		setGroup(st.Group + dir)
+		return true
+	case narrow:
+	case st.Pane == paneSections:
+		switch mv := vimMotion(key, &st.gPending); mv {
+		case navNone:
+		case navPending:
+		default:
+			setGroup(navTarget(mv, st.Group, n, n))
+			return true
+		}
+		if key == "enter" || key == "l" || key == "right" {
 			st.Pane = paneRows
 		}
 		return true
+	case key == "h" || key == "left":
+		st.Pane = paneSections
+		return true
+	case key == "l" || key == "right":
+		return true
 	}
-	return false
+	mv := vimMotion(key, &st.gPending)
+	if mv == navNone {
+		return false // space and the rest: the shared keys
+	}
+	if mv != navPending {
+		helpPageMove(m, st, mv)
+	}
+	return true
 }
 
-// updateHelpMouse scrolls the help overlay with the wheel; on a page with
-// the group pane focused, the wheel moves the group (clamped).
+// helpPageMove scrolls the page's rows by mv: j/k one row, carrying on into
+// the next group past the end of one (and back into the previous one's end
+// above its top) while no filter is set; gg and G the first group's top and
+// the last group's end; ctrl+d/u half a window, ctrl+f/b a window.
+func helpPageMove(m Model, st *HelpState, mv navMove) {
+	w, h := helpSize(m)
+	layout := func() helpLayout {
+		c := m
+		c.Help = st
+		return helpLayoutFor(c, w, h)
+	}
+	n := len(helpGroups(m))
+	whole := st.Filter == "" // the groups read as one text
+	lay := layout()
+	switch {
+	case mv == navDown && st.Scroll >= lay.maxScroll && whole && st.Group < n-1:
+		st.Group, st.Scroll = st.Group+1, 0
+	case mv == navUp && st.Scroll <= 0 && whole && st.Group > 0:
+		st.Group, st.Scroll = st.Group-1, 0
+		st.Scroll = layout().maxScroll
+	case mv == navFirst && whole:
+		st.Group, st.Scroll = 0, 0
+	case mv == navLast && whole:
+		st.Group = n - 1
+		st.Scroll = layout().maxScroll
+	default:
+		st.Scroll = navTarget(mv, st.Scroll, lay.maxScroll+1, lay.page+1)
+	}
+}
+
+// updateHelpMouse scrolls the help overlay with the wheel; on a page the
+// wheel steps the pane under the pointer as j/k there.
 func updateHelpMouse(m Model, msg tea.MouseMsg) Model {
 	if !tea.MouseEvent(msg).IsWheel() {
 		return m
@@ -575,17 +643,15 @@ func updateHelpMouse(m Model, msg tea.MouseMsg) Model {
 		st = *m.Help
 	}
 	w, h := helpSize(m)
-	delta := 0
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		delta = -1
-	case tea.MouseButtonWheelDown:
-		delta = +1
-	default:
-	}
-	if pagesOn(m) && st.Pane == paneSections && !pageNarrow(w) {
-		if g := min(max(st.Group+delta, 0), len(helpGroups(m))-1); g != st.Group {
-			st.Group, st.Scroll = g, 0
+	delta := wheelDelta(msg)
+	if pagesOn(m) {
+		groups := helpGroups(m)
+		if !pageNarrow(w) && msg.X-frameInset(m) < sectionPaneWidth(helpPageItems(&st, groups))+1 {
+			if g := min(max(st.Group+delta, 0), len(groups)-1); g != st.Group {
+				st.Group, st.Scroll = g, 0
+			}
+		} else if mv := wheelMotion(msg); mv != navNone {
+			helpPageMove(m, &st, mv)
 		}
 		m.Help = &st
 		return m

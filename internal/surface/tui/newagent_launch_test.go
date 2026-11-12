@@ -518,7 +518,7 @@ func TestNewAgent_DraftFromAnotherFolder(t *testing.T) {
 	naFiles(t, map[string]string{"a.go": "package old\n"})
 	m = naIndexed(t, m)
 	require.NoError(t, addPath(m.NewAgent, "a.go", false))
-	m, _ = naKey(m, key("esc"))
+	m, _ = naClose(m)
 
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
