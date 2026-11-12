@@ -8,7 +8,7 @@ The TUI settings page (`S`), `rex config`, and the daemon read the same registry
 
 Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`, then (in rex commands run inside a workspace you trusted, and on its board) the workspace's `.rex/config.lua` ([workspaces.md](workspaces.md#workspace-settings)). A broken `config.lua` (either one) keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again. Saving those two from `rex trust`, `:trust` or the wizard edits the list `config.yaml` holds, so a broken `config.lua` never makes them drop the folders already there.
 
-A workspace `.rex/config.lua` may set only display settings: `theme`, `spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `window_border`, `window_border_color`, `column_layout`, `mobile_layout`, `mouse_enabled`, `attach_scrollback_lines`, `screensaver_enabled`, `screensaver_after_minutes`, `board_filter`, `search`, `timestamps`, `summary_preview`, `waiting_section`, `usage_meter`, `summary_detail`, `desc_animation` and `attach_banner`. Every other setting is refused with a warning.
+A workspace `.rex/config.lua` may set only display settings: `theme`, `spinner`, `waiting_spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `window_border`, `window_border_color`, `column_layout`, `mobile_layout`, `mouse_enabled`, `attach_scrollback_lines`, `screensaver_enabled`, `screensaver_after_minutes`, `board_filter`, `search`, `timestamps`, `summary_preview`, `waiting_section`, `usage_meter`, `summary_detail`, `desc_animation` and `attach_banner`. Every other setting is refused with a warning.
 
 ## Files
 
@@ -90,6 +90,7 @@ The three bundled themes are theme files that ship inside rex; a file of your ow
 |----|------|---------|---------|
 | `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors), the bundled `dracula`, `tokyo_night` and `pantone_safe` (colorblind-safe state colors), `auto` (`default` or `paper` by the terminal's background, TUI only), or a file in `~/.config/rex/themes` ([themes.md](themes.md)). An unknown name uses `default`. Applies to the TUI and to CLI output. Formerly `color_scheme`, still read |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
+| `waiting_spinner` | enum | `clock` | The Waiting marker (label Waiting icon), one step a second, still under `reduce_motion`: `clock` `◴ ◷ ◶ ◵` (still `◷`), `hourglass` `⧖ ⧑ ⧖ ⧒` (turns over; still `⧖`), `sand` `⣀ ⣄ ⣤ ⣦ ⣶ ⣷ ⣿` (still `⣤`), `orbit` `◜ ◝ ◞ ◟` (still `◜`), `pendulum` `⠂ ⡀ ⢀ ⠐ ⢀ ⡀` (still `⡀`), `pulse` `∘ ◦ ⊚ ◦` (still `◦`). The header counts and the legend show the still glyph |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
 | `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
 | `reduce_motion` | bool | `false` | |
