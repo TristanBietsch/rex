@@ -56,6 +56,8 @@ func OverviewRelevance(e state.Event) overview.Relevance {
 			return overview.StructuralChange
 		}
 		return overview.PatchRelevance(e.Patch)
+	case state.EventReopened:
+		// The state patch that follows carries the change.
 	}
 	return overview.Ignored
 }
