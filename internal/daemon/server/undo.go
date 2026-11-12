@@ -43,7 +43,7 @@ func handleUndo(c *client, env protocol.Envelope) (outcome, error) {
 		if p.DryRun {
 			return st.PlanUndo(ctx, cwd, p.SessionID, turns)
 		}
-		return st.Undo(ctx, cwd, p.SessionID, turns, snapshot.WithGuard(g))
+		return st.Undo(ctx, cwd, p.SessionID, turns, snapshot.WithGuard(g), snapshot.WithExpect(snapshot.Tree(p.Expect)))
 	})
 }
 
@@ -57,7 +57,7 @@ func handleRedo(c *client, env protocol.Envelope) (outcome, error) {
 		if p.DryRun {
 			return st.PlanRedo(ctx, cwd, p.SessionID)
 		}
-		return st.Redo(ctx, cwd, p.SessionID, snapshot.WithGuard(g))
+		return st.Redo(ctx, cwd, p.SessionID, snapshot.WithGuard(g), snapshot.WithExpect(snapshot.Tree(p.Expect)))
 	})
 }
 
@@ -92,6 +92,7 @@ func (s *Server) undoRedo(c *client, env protocol.Envelope, id string, force boo
 			Restored:  nonNil(res.Restored),
 			Deleted:   nonNil(res.Deleted),
 			Safety:    string(res.Safety),
+			Target:    string(res.Target),
 			Warnings:  res.Warnings,
 		})
 	}
@@ -155,7 +156,7 @@ func undoError(err error) error {
 	case errors.Is(err, snapshot.ErrNotGitWorktree), errors.Is(err, snapshot.ErrNothingToUndo),
 		errors.Is(err, snapshot.ErrNothingToRedo), errors.Is(err, snapshot.ErrNotUndoable),
 		errors.Is(err, snapshot.ErrNoGit), errors.Is(err, snapshot.ErrGitTooOld),
-		errors.Is(err, snapshot.ErrDubiousOwnership):
+		errors.Is(err, snapshot.ErrDubiousOwnership), errors.Is(err, snapshot.ErrPreviewStale):
 		return err
 	}
 	var blocked *snapshot.BlockedError

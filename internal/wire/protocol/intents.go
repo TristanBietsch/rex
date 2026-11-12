@@ -209,6 +209,10 @@ type Undo struct {
 	// DryRun makes no change: the reply lists what would be restored and
 	// deleted, and has no safety tree. The same refusals apply.
 	DryRun bool `json:"dry_run,omitempty"`
+	// Expect is the Target of the dry run the user confirmed. When set and
+	// the turn to go back to is now a different one (the session ran another
+	// turn), the daemon refuses with bad_state and changes nothing.
+	Expect string `json:"expect,omitempty"`
 }
 
 // Redo brings back the state the latest Undo replaced. The reply is an
@@ -220,4 +224,6 @@ type Redo struct {
 	// Force and DryRun: as for Undo.
 	Force  bool `json:"force,omitempty"`
 	DryRun bool `json:"dry_run,omitempty"`
+	// Expect: as for Undo.
+	Expect string `json:"expect,omitempty"`
 }
