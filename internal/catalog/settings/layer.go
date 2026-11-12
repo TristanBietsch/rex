@@ -2,6 +2,7 @@ package settings
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -28,6 +29,9 @@ type LayerReport struct {
 	// last good evaluation, if LastGood.
 	Err      error
 	LastGood bool
+	// FailClosed lists trust settings the layer refused a value for: they
+	// read their defaults, whatever config.yaml says.
+	FailClosed []string
 }
 
 // Layer evaluates the user's Lua config on demand. It must be cheap when
@@ -92,13 +96,15 @@ func LoadLayered(path string) (*Store, LayerReport, error) {
 // applyLayer overlays rep. When the layer failed, the trust settings fall
 // back to their registry defaults whatever config.yaml says (fail closed:
 // the file may be the one that revokes trust), and only the last good
-// values stay on top.
+// values stay on top. The ids in rep.FailClosed (a refused rex.set) fall
+// back the same way.
 func (s *Store) applyLayer(rep LayerReport) {
 	s.Overlay(rep.Values, rep.SetAt)
-	if rep.Err == nil {
-		return
+	closed := rep.FailClosed
+	if rep.Err != nil {
+		closed = TrustSettingIDs
 	}
-	for _, id := range TrustSettingIDs {
+	for _, id := range closed {
 		if def, ok := Find(id); ok {
 			s.values[id] = def.Default
 			s.src[id] = SourceDefault
@@ -109,7 +115,8 @@ func (s *Store) applyLayer(rep LayerReport) {
 
 // StackLayers returns one layer that evaluates layers in order, each on top
 // of the ones before it: a later layer's values, locations and themes win
-// (a workspace .rex/config.lua over the user's config.lua). Warnings and
+// (a workspace .rex/config.lua over the user's config.lua), and a later
+// layer's FailClosed removes an earlier layer's value. Warnings and
 // theme issues add up. Any layer's error is the stack's error, so the trust
 // settings fail closed whichever file broke. The reports are not changed.
 func StackLayers(layers ...Layer) Layer {
@@ -124,6 +131,14 @@ func StackLayers(layers ...Layer) Layer {
 					out.Values, out.SetAt = map[string]any{}, map[string]string{}
 				}
 				out.Values[id], out.SetAt[id] = v, r.SetAt[id]
+				out.FailClosed = slices.DeleteFunc(out.FailClosed, func(c string) bool { return c == id })
+			}
+			for _, id := range r.FailClosed {
+				delete(out.Values, id)
+				delete(out.SetAt, id)
+				if !slices.Contains(out.FailClosed, id) {
+					out.FailClosed = append(out.FailClosed, id)
+				}
 			}
 			for n, p := range r.Themes {
 				if out.Themes == nil {

@@ -526,3 +526,32 @@ func TestEvalSet_WindowsPathList(t *testing.T) {
 	require.Empty(t, r.Warnings)
 	require.Equal(t, `C:\dev;D:\work`, r.Values["auto_trust_dirs"])
 }
+
+// A refused rex.set of a trust setting fails that setting closed: the user
+// meant to change it, so neither config.yaml's value nor an earlier call's
+// may stay in force. A later valid call wins again. A Deny refusal is a
+// policy, not a mistake, and does not close anything.
+func TestEvalSet_RefusedTrustValueFailsClosed(t *testing.T) {
+	r := evalScript(t, `
+rex.set("skip_permissions", true)
+rex.set("skip_permissions", "false")
+rex.set("auto_trust_dirs", { "relative/dir" })
+rex.set("theme", 3)
+`)
+	require.NoError(t, r.Err)
+	require.Len(t, r.Warnings, 3)
+	require.NotContains(t, r.Values, "skip_permissions")
+	require.NotContains(t, r.SetAt, "skip_permissions")
+	require.ElementsMatch(t, []string{"skip_permissions", "auto_trust_dirs"}, r.FailClosed)
+
+	r = evalScript(t, `
+rex.set("skip_permissions", 0)
+rex.set("skip_permissions", false)
+`)
+	require.Empty(t, r.FailClosed, "the later valid call wins")
+	require.Equal(t, false, r.Values["skip_permissions"])
+
+	f := newFixture(t, `rex.set("auto_trust_dirs", { "~/dev" })`)
+	f.opts.Deny = []string{"auto_trust_dirs"}
+	require.Empty(t, f.eval().FailClosed)
+}

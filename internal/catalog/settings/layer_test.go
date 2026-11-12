@@ -248,3 +248,30 @@ func TestStackStamps(t *testing.T) {
 	require.Equal(t, "a|b", StackStamps(a, b)())
 	require.Equal(t, "a|", StackStamps(a, nil)())
 }
+
+// A layer that refused a trust value closes that setting: config.yaml's
+// value does not survive the user's failed attempt to change it.
+func TestLoadLayered_FailClosedIDsReadDefaults(t *testing.T) {
+	path := writeYAML(t, "skip_permissions: true\nauto_trust_dirs: ~/dev\n")
+	installLayer(t, LayerReport{Exists: true, FailClosed: []string{"skip_permissions"}, Warnings: []string{"w"}})
+	s, _, err := LoadLayered(path)
+	require.NoError(t, err)
+	require.Equal(t, false, s.Get("skip_permissions"))
+	require.Equal(t, SourceDefault, s.Source("skip_permissions"))
+	require.Equal(t, "~/dev", s.Get("auto_trust_dirs"), "only the refused id closes")
+}
+
+func TestStackLayers_FailClosedFollowsLaterLayers(t *testing.T) {
+	user := func() LayerReport {
+		return LayerReport{Exists: true, Values: map[string]any{"auto_trust_dirs": "~/dev"}, SetAt: map[string]string{"auto_trust_dirs": "config.lua:1"},
+			FailClosed: []string{"skip_permissions"}}
+	}
+	ws := func() LayerReport {
+		return LayerReport{Exists: true, Values: map[string]any{"skip_permissions": false}, SetAt: map[string]string{"skip_permissions": ".rex/config.lua:1"},
+			FailClosed: []string{"auto_trust_dirs"}}
+	}
+	rep := StackLayers(user, ws)()
+	require.Equal(t, []string{"auto_trust_dirs"}, rep.FailClosed)
+	require.NotContains(t, rep.Values, "auto_trust_dirs", "a later refusal closes an earlier layer's value")
+	require.Equal(t, false, rep.Values["skip_permissions"], "a later valid value reopens")
+}

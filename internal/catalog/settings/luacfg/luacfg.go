@@ -88,6 +88,11 @@ type Result struct {
 	// ThemeIssues are the problems and notes about Lua themes (File is the
 	// "config.lua:12" position).
 	ThemeIssues []theme.Issue
+	// FailClosed lists the trust settings (settings.TrustSettingIDs) whose
+	// last rex.set was refused as invalid: the layer puts them back to
+	// their defaults, whatever config.yaml says, since the user meant to
+	// change them.
+	FailClosed []string
 	// Warnings are refused rex.set calls and the like, at most MaxWarnings
 	// plus a "N more" line. They are safe to print.
 	Warnings []string
@@ -234,6 +239,7 @@ func (ev *evaluator) run(ctx context.Context, src []byte) Result {
 	return Result{
 		Exists: true, Values: ev.values, SetAt: ev.setAt,
 		Themes: ev.themes, ThemeIssues: ev.issues, Warnings: ev.warnings(),
+		FailClosed: ev.failClosed(),
 	}
 }
 

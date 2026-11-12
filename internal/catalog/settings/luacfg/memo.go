@@ -118,6 +118,7 @@ func Load(ctx context.Context, o Opts) Result {
 		e.good = &res
 	case e.good != nil:
 		res.Values, res.SetAt, res.Themes, res.ThemeIssues = e.good.Values, e.good.SetAt, e.good.Themes, e.good.ThemeIssues
+		res.FailClosed = e.good.FailClosed
 		res.LastGood = true
 	}
 	e.stamp, e.res = stamp, res

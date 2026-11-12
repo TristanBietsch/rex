@@ -35,7 +35,7 @@ func LayerFor(opts func() (Opts, error)) settings.Layer {
 		return settings.LayerReport{
 			Exists: r.Exists, Values: r.Values, SetAt: r.SetAt,
 			Themes: r.Themes, ThemeIssues: r.ThemeIssues, Warnings: r.Warnings,
-			Err: r.Err, LastGood: r.LastGood,
+			Err: r.Err, LastGood: r.LastGood, FailClosed: r.FailClosed,
 		}
 	}
 }

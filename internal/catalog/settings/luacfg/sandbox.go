@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -34,6 +35,7 @@ type evaluator struct {
 	heap    atomic.Bool // the heap watchdog stopped the script
 	values  map[string]any
 	setAt   map[string]string
+	closed  map[string]bool // trust ids whose last rex.set was refused
 	themes  map[string]theme.Palette
 	issues  []theme.Issue
 	warns   []string
@@ -48,6 +50,7 @@ func newEvaluator(o Opts, mainSize int) *evaluator {
 		opts:    o,
 		values:  map[string]any{},
 		setAt:   map[string]string{},
+		closed:  map[string]bool{},
 		themes:  map[string]theme.Palette{},
 		loaded:  map[string]lua.LValue{},
 		loading: map[string]bool{},
@@ -206,12 +209,30 @@ func (ev *evaluator) set(L *lua.LState) int {
 		raw, err = settings.Validate(key, raw)
 	}
 	if err != nil {
-		ev.warn("%s: %q: %v (ignored)", at, key, err)
+		if !settings.IsTrustSetting(key) {
+			ev.warn("%s: %q: %v (ignored)", at, key, err)
+		} else {
+			// Fail closed: neither config.yaml's value nor an earlier
+			// call's stays in force after a refused change.
+			ev.warn("%s: %q: %v (ignored; it reads its default until fixed)", at, key, err)
+			delete(ev.values, key)
+			delete(ev.setAt, key)
+			ev.closed[key] = true
+		}
 		return 0
 	}
 	ev.values[key] = raw
 	ev.setAt[key] = at
+	delete(ev.closed, key)
 	return 0
+}
+
+// failClosed is the sorted list of ids set closes.
+func (ev *evaluator) failClosed() []string {
+	if len(ev.closed) == 0 {
+		return nil
+	}
+	return slices.Sorted(maps.Keys(ev.closed))
 }
 
 // luaToSetting converts a Lua value to the Go value for setting st. The
