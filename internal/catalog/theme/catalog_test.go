@@ -102,7 +102,7 @@ func TestLoadDir_BadFileDoesNotHideGoodOnes(t *testing.T) {
 	require.Empty(t, c.WhySkipped("good"))
 	require.Empty(t, c.WhySkipped("warn"), "loaded with a warning")
 	require.Empty(t, c.WhySkipped("ghost"))
-	require.Equal(t, "Upper.yaml: "+issueFor(c, "Upper.yaml"), c.Issues[0].String())
+	require.Equal(t, `"Upper.yaml": `+issueFor(c, "Upper.yaml"), c.Issues[0].String())
 }
 
 func TestLoadDir_FileLimits(t *testing.T) {
@@ -233,4 +233,25 @@ func TestStampDanglingLink(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.Symlink("gone.yaml", filepath.Join(dir, "x.yaml")))
 	require.Equal(t, "x.yaml:?;", Stamp(dir))
+}
+
+func TestLoadDir_IssuesCarryNoControlCharacters(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows file names cannot hold control characters")
+	}
+	dir := t.TempDir()
+	writeTheme(t, dir, "a\x1b[2Jb.yaml", "colors: {}")
+	writeTheme(t, dir, "ok.yaml", "colors: {fleet: [\"\\u001b[2J\"], accent: \"\\u001b]0;x\\u0007\"}")
+	writeTheme(t, dir, "v.yaml", "colors: {accent: [1]}")
+	writeTheme(t, dir, "z.yaml", "sparkle\u202e: 1")
+	c := LoadDir(dir)
+	require.GreaterOrEqual(t, len(c.Issues), 4)
+	for _, i := range c.Issues {
+		for _, bad := range []string{"\x1b", "\x07", "\u202e"} {
+			require.NotContains(t, i.String(), bad, "%q", i.String())
+		}
+	}
+	require.Contains(t, c.Issues[0].String(), `"a\x1b[2Jb.yaml"`, "the file name is quoted")
+	require.Contains(t, issueFor(c, "v.yaml"), "[]interface {} is not a color", "the type, not the value")
+	require.Equal(t, "a?b?c d?", printable("a\x1bb\u202ec d\x00"))
 }

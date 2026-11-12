@@ -86,7 +86,7 @@ func TestThemeList(t *testing.T) {
 	text, err := themeRun(t, "text", func() error { return themeList(nil) })
 	require.NoError(t, err)
 	require.Contains(t, text, "Themes")
-	require.Contains(t, text, "bad.yaml: colors.accent", "a skipped file is reported")
+	require.Contains(t, text, `"bad.yaml": colors.accent`, "a skipped file is reported")
 	require.Contains(t, text, "rex theme show <name>")
 
 	agent, err := themeRun(t, "agent", func() error { return themeList(nil) })
@@ -283,4 +283,19 @@ func TestThemeList_SurvivesABrokenConfig(t *testing.T) {
 	out, err := themeRun(t, "text", func() error { return themeList(nil) })
 	require.NoError(t, err)
 	require.Contains(t, out, "current: default")
+}
+
+func TestThemeList_HostileFilesNeverPutEscapesInOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows file names cannot hold control characters")
+	}
+	dir := themeHome(t)
+	writeUserTheme(t, dir, "a\x1b[2Jb", "colors: {}")
+	writeUserTheme(t, dir, "ok", `colors: {fleet: ["\u001b[2J"]}`)
+	for _, format := range []string{"text", "txt", "md", "json", "agent"} {
+		out, err := themeRun(t, format, func() error { return themeList(nil) })
+		require.NoError(t, err, format)
+		require.NotContains(t, out, "\x1b", format)
+		require.Contains(t, out, "default", format)
+	}
 }

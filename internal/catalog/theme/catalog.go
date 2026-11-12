@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // Issue is something wrong with one theme file, or a note about it.
@@ -21,8 +22,22 @@ type Issue struct {
 	Warn bool
 }
 
-// String is "name.yaml: message".
-func (i Issue) String() string { return i.File + ": " + i.Msg }
+// String is `"name.yaml": message`. The file name is quoted (it is a raw
+// directory entry, and may hold anything), so the result never carries a
+// control character.
+func (i Issue) String() string { return fmt.Sprintf("%q: %s", i.File, i.Msg) }
+
+// printable replaces every control, bidirectional or non-printing character
+// in s with '?'. Issue messages can echo file names and values from a file
+// someone else wrote, and they reach the screen.
+func printable(s string) string {
+	return strings.Map(func(r rune) rune {
+		if isBidi(r) || unicode.IsControl(r) || !unicode.IsPrint(r) && r != ' ' {
+			return '?'
+		}
+		return r
+	}, s)
+}
 
 // Catalog is the user's theme files, loaded from one directory. A nil
 // *Catalog holds no user themes.
@@ -102,6 +117,14 @@ func (c *Catalog) UserNames() []string {
 //   - on unix, nothing owned by another user or writable by group or others,
 //     the directory included.
 func LoadDir(dir string) *Catalog {
+	c := loadDir(dir)
+	for i := range c.Issues {
+		c.Issues[i].Msg = printable(c.Issues[i].Msg)
+	}
+	return c
+}
+
+func loadDir(dir string) *Catalog {
 	c := &Catalog{user: map[string]Palette{}}
 	if dir == "" {
 		return c

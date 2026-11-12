@@ -271,7 +271,7 @@ func parseColor(v any) (string, error) {
 	case string:
 		return NormalizeColor(c)
 	}
-	return "", fmt.Errorf("%v is not a color: use \"#RRGGBB\", \"#RGB\", \"0\"-\"255\" or \"\"", v)
+	return "", fmt.Errorf("a %T is not a color: use \"#RRGGBB\", \"#RGB\", \"0\"-\"255\" or \"\"", v)
 }
 
 // NormalizeColor validates a color string (see parseColor) and returns its

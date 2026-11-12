@@ -73,7 +73,7 @@ func TestBootBadThemeFileWarnsAndTheTUIStillStarts(t *testing.T) {
 
 	m, step := bootThemeStep(t, Model{Store: store, StorePath: cfg})
 	require.Equal(t, stepWarn, step.Status)
-	require.Contains(t, step.Desc, "1 loaded, 1 skipped: bad.yaml")
+	require.Contains(t, step.Desc, "1 loaded, 1 skipped: \"bad.yaml\"")
 	require.Equal(t, []string{"ok"}, m.Themes.UserNames())
 
 	next, _ := m.Update(stepThemeApply(m)())
