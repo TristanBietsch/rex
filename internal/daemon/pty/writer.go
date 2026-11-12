@@ -13,6 +13,14 @@ import (
 type writeUnit struct {
 	parts [][]byte
 	gap   time.Duration
+	// guard, when set, is called after each gap, right before the next part
+	// is written. When it returns false the rest of the unit is dropped (what
+	// was written stays written).
+	guard func() bool
+	// res, when set (buffered, size 1), gets true once every part was
+	// written, and false when the guard dropped the rest or the writer ended
+	// first.
+	res chan bool
 }
 
 // ptyWriter is the only place that writes to the child's PTY. Input from
@@ -40,8 +48,11 @@ func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWrit
 				return
 			case u := <-pw.ch:
 				pw.busy.Store(true)
-				err := pw.write(u)
+				ok, err := pw.write(u)
 				pw.busy.Store(false)
+				if u.res != nil {
+					u.res <- ok && err == nil
+				}
 				if err != nil {
 					close(pw.dead)
 					if onErr != nil {
@@ -55,20 +66,25 @@ func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWrit
 	return pw
 }
 
-func (p *ptyWriter) write(u writeUnit) error {
+// write writes the unit's parts back to back. ok is false when the guard
+// dropped the rest of the unit or the writer ended during a gap.
+func (p *ptyWriter) write(u writeUnit) (ok bool, err error) {
 	for i, part := range u.parts {
 		if i > 0 && u.gap > 0 {
 			select {
 			case <-p.done:
-				return nil
+				return false, nil
 			case <-time.After(u.gap):
 			}
 		}
+		if i > 0 && u.guard != nil && !u.guard() {
+			return false, nil
+		}
 		if _, err := p.w.Write(part); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // Send queues a unit behind earlier ones and returns false if ctx or the

@@ -157,12 +157,12 @@ func TestLoops_IntentsWhenOn(t *testing.T) {
 	require.False(t, off.Runner.Enabled())
 }
 
-// Only a tool that says why it waits may run loops; an OSC 7501 tool opts in
-// when its adapter reports a reason, not before.
+// Only a tool whose adapter says why it waits may run loops: Claude hooks and
+// OSC 7501 status do; a plain heuristic tool does not.
 func TestToolReportsReason(t *testing.T) {
 	require.True(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "hooks", Format: "claude"}}))
 	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "heuristic"}}))
-	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}}))
+	require.True(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}}))
 	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "hooks", Format: "other"}}))
 }
 

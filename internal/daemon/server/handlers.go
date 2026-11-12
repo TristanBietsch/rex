@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/version"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -223,15 +224,14 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 	if !p.Synthetic {
 		c.srv.userInput(p.SessionID) // a loop holds its re-sends
 	}
-	select {
-	case ch <- p.Bytes:
-		if !p.Synthetic {
-			c.srv.cancelRetireOnInput(p.SessionID, "SendInput")
-		}
-		return outcome{sessionID: p.SessionID}, nil
-	default:
-		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
+	// Queued on the session's single writer, as one unit.
+	if _, err := c.srv.writeInput(p.SessionID, pty.WriteUnit{Parts: [][]byte{p.Bytes}}, inputQueueTimeout); err != nil {
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
+	if !p.Synthetic {
+		c.srv.cancelRetireOnInput(p.SessionID, "SendInput")
+	}
+	return outcome{sessionID: p.SessionID}, nil
 }
 
 func handleReply(c *client, env protocol.Envelope) (outcome, error) {
@@ -245,43 +245,15 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	defer c.srv.lockInput(p.SessionID)()
 	c.srv.userInput(p.SessionID) // a loop holds its re-sends
-	if _, err := typeText(ch, p.Text, nil); err != nil {
+	// The text and its Enter are one unit on the session's writer: no loop
+	// text, client byte or terminal reply lands between them.
+	unit := pty.WriteUnit{Parts: [][]byte{[]byte(p.Text), {'\r'}}, Gap: replySubmitDelay, Wait: true}
+	if _, err := c.srv.writeInput(p.SessionID, unit, inputWaitTimeout); err != nil {
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
 	c.srv.cancelRetireOnInput(p.SessionID, "Reply")
 	return outcome{sessionID: p.SessionID}, nil
-}
-
-// typeText sends text, then Enter as a separate write. Terminals send Enter
-// as \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
-// Claude Code insert a newline on \n instead of submitting, and treat
-// text+\r in one burst as a paste.
-//
-// guard (nil: always) is called before the text and again right before the
-// Enter, after the pause: a session can change in that gap (a permission
-// prompt appears). When it says false the text, if already typed, stays
-// unsubmitted and sent is false.
-func typeText(ch chan []byte, text string, guard func() bool) (sent bool, err error) {
-	errFull := errors.New("input buffer full")
-	if guard != nil && !guard() {
-		return false, nil
-	}
-	select {
-	case ch <- []byte(text):
-	default:
-		return false, errFull
-	}
-	time.Sleep(replySubmitDelay)
-	if guard != nil && !guard() {
-		return false, nil
-	}
-	select {
-	case ch <- []byte{'\r'}:
-		return true, nil
-	default:
-		return false, errFull
-	}
 }
 
 func handleRename(c *client, env protocol.Envelope) (outcome, error) {

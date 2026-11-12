@@ -6,11 +6,12 @@ wrote, and sends the follow-up prompt if the check does not pass yet. The
 daemon owns the loop, so it keeps going when the TUI is closed.
 
 Loops need an agent that **reports why it is waiting**, so that a permission
-prompt can never be mistaken for a finished turn. Today that is Claude Code
-only (its hooks). Other tools are refused at `rex loop start` with `loops need
-an agent that reports why it is waiting (Claude hooks or OSC 7501 status);
-<tool> can't, so a loop could answer its permission prompts`; an OSC 7501 tool
-joins once its adapter reports a reason.
+prompt can never be mistaken for a finished turn. That is Claude Code (its
+hooks) and the tools that report their status over OSC 7501. Any other tool is
+refused at `rex loop start` with `loops need an agent that reports why it is
+waiting (Claude hooks or OSC 7501 status); <tool> can't, so a loop could answer
+its permission prompts`. A tool qualifies when its adapter reports a wait
+reason; there is no list.
 
 Only the **repeat** kind exists. Chains of steps (plan, build, review) are
 planned, not built. There are no loop cards or keys in the TUI yet: use
@@ -120,8 +121,10 @@ States: `running`, `paused`, `done`, `capped`, `stopped`, `failed`.
   gone idle again. If you type a draft and never send it, the loop waits;
   `rex loop resume` ends the wait. The text, the delay and the Enter of a
   loop's prompt are sent under a per-session lock that your keystrokes also
-  take, so they never interleave. The daemon checks the session again right
-  before the text and again right before the Enter: if a prompt appeared or
+  take, so they never interleave. The text and Enter go to the session as one
+  unit on its single PTY writer, so no client byte, Lua send or terminal
+  status reply (OSC 7501) is written between them. The daemon checks the
+  session again right before the text and again right before the Enter: if a prompt appeared or
   you typed in between, the Enter is not sent, the loop pauses
   (`state_changed`, or `user_input`) and the text it typed stays in the
   input box, so clear it before you answer.

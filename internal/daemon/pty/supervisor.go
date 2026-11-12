@@ -46,6 +46,10 @@ type SupervisorConfig struct {
 	OutputSink     func(b []byte)  // called with every chunk read from PTY; non-blocking
 	SummaryRequest chan<- string   // optional: session IDs needing AI summary; nil disables
 	InputCh        chan []byte     // optional: stdin bytes from clients
+	// RegisterWriter hands the server the session's UnitWriter once the
+	// writer runs, UnregisterWriter takes it back at exit. Optional.
+	RegisterWriter   func(w UnitWriter)
+	UnregisterWriter func()
 	// CompleteCh signals a clean shutdown — supervisor kills the child and
 	// transitions to StateDone. Distinct from ctx cancel, which means StateFailed.
 	// Buffered size 1; sender should use a non-blocking send.
@@ -155,6 +159,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	pw := newPTYWriter(f, writerDone, func(err error) {
 		slog.Debug("pty: write to child failed; writer exiting", "session", sess.ID, "err", err)
 	})
+	if s.cfg.RegisterWriter != nil {
+		s.cfg.RegisterWriter(unitWriter(pw))
+		if s.cfg.UnregisterWriter != nil {
+			defer s.cfg.UnregisterWriter()
+		}
+	}
 	slog.Info("pty: started", append([]any{"session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows},
 		argvLogAttrs(sess, s.cfg.Command)...)...)
 

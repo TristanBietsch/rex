@@ -5,6 +5,7 @@ import (
 	"context"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -108,4 +109,110 @@ func TestSupervisor_QueryFloodDoesNotBlockReader(t *testing.T) {
 	require.NoError(t, sup.Run(ctx, sess))
 	tail, _ := state.TranscriptTail(stateDir, "flood1", 1<<20)
 	require.Contains(t, string(tail), "END")
+}
+
+// A unit's guard is asked after the gap, right before the next part: false
+// drops the Enter, and no terminal-query reply is squeezed in during the gap.
+func TestPTYWriter_GuardBeforeEnterAndNoReplyInTheGap(t *testing.T) {
+	rec := &recorder{}
+	done := make(chan struct{})
+	defer close(done)
+	pw := newPTYWriter(rec, done, nil)
+	uw := unitWriter(pw)
+	ctx := context.Background()
+
+	var replyAccepted atomic.Bool
+	calls := 0
+	sent, err := uw(ctx, WriteUnit{Parts: [][]byte{[]byte("go on"), {'\r'}}, Gap: 80 * time.Millisecond, Wait: true,
+		Guard: func() bool {
+			calls++
+			return false
+		}})
+	require.NoError(t, err)
+	require.False(t, sent, "the guard dropped the Enter")
+	require.Equal(t, 1, calls)
+	require.Equal(t, []string{"go on"}, rec.got(), "the text stays typed, no Enter")
+	require.Eventually(t, func() bool { return !pw.busy.Load() }, time.Second, 5*time.Millisecond)
+
+	// A terminal query arrives during the gap of the next unit: it is dropped.
+	rec2 := &recorder{}
+	pw2 := newPTYWriter(rec2, done, nil)
+	uw2 := unitWriter(pw2)
+	go func() {
+		time.Sleep(30 * time.Millisecond) // inside the 80 ms gap
+		replyAccepted.Store(pw2.TrySendReply([]byte("\x1b[?1;2c")))
+	}()
+	sent, err = uw2(ctx, WriteUnit{Parts: [][]byte{[]byte("go on"), {'\r'}}, Gap: 80 * time.Millisecond, Wait: true,
+		Guard: func() bool { return true }})
+	require.NoError(t, err)
+	require.True(t, sent)
+	require.False(t, replyAccepted.Load(), "a reply never lands between the text and its Enter")
+	require.Equal(t, []string{"go on", "\r"}, rec2.got())
+
+	// Without Wait the unit is only queued.
+	sent, err = uw2(ctx, WriteUnit{Parts: [][]byte{[]byte("x")}})
+	require.NoError(t, err)
+	require.True(t, sent)
+	require.Eventually(t, func() bool { return len(rec2.got()) == 3 }, time.Second, 5*time.Millisecond)
+}
+
+func TestUnitWriter_ClosedWriter(t *testing.T) {
+	rec := &recorder{}
+	done := make(chan struct{})
+	pw := newPTYWriter(rec, done, nil)
+	uw := unitWriter(pw)
+	close(done)
+	_, err := uw(context.Background(), WriteUnit{Parts: [][]byte{[]byte("x")}, Wait: true})
+	require.Error(t, err)
+}
+
+// End to end through a real supervisor: an OSC 7501 status query arrives from
+// the agent in the 120 ms gap between a loop's text and its Enter. The writer
+// is busy with the unit, so the reply is dropped: the child reads exactly
+// "go on" then Enter, with no reply bytes in between.
+func TestSupervisor_OSCQueryInTheGapNeverLandsBetweenTextAndEnter(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses bash and a Unix tty")
+	}
+	h, err := adapter.NewHeuristic(`x`, "", 0)
+	require.NoError(t, err)
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{ID: "gap1", ShortID: "gap1", ToolID: "qwen", Slug: "gap",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+
+	var uw atomic.Pointer[UnitWriter]
+	// Raw tty: read the 5 typed characters, ask a status query, then echo
+	// whatever else arrives so the transcript shows the order of the input.
+	script := `stty raw -echo; read -r -n5 x; printf '\033]7501;?\007'; cat`
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store, Command: []string{"bash", "-c", script},
+		Adapter: adapter.NewOSCStatus(h), IdleTick: 20 * time.Millisecond,
+		RegisterWriter:   func(w UnitWriter) { uw.Store(&w) },
+		UnregisterWriter: func() {},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runDone := make(chan error, 1)
+	go func() { runDone <- sup.Run(ctx, sess) }()
+
+	require.Eventually(t, func() bool { return uw.Load() != nil }, 10*time.Second, 10*time.Millisecond)
+	time.Sleep(300 * time.Millisecond) // the shell is at its read
+	sent, err := (*uw.Load())(ctx, WriteUnit{Parts: [][]byte{[]byte("go on"), {'\r'}}, Gap: 120 * time.Millisecond,
+		Wait: true, Guard: func() bool { return true }})
+	require.NoError(t, err)
+	require.True(t, sent)
+
+	require.Eventually(t, func() bool {
+		tail, _ := state.TranscriptTail(stateDir, "gap1", 1<<16)
+		return bytes.Contains(tail, []byte("\r"))
+	}, 10*time.Second, 20*time.Millisecond)
+	time.Sleep(300 * time.Millisecond) // a late reply would show up by now
+	tail, _ := state.TranscriptTail(stateDir, "gap1", 1<<16)
+	// The child's own query is the one OSC 7501 sequence; a reply written to
+	// its stdin would be echoed back as a second one.
+	require.Equal(t, 1, bytes.Count(tail, []byte("]7501;")), "no reply reached the child: %q", tail)
+	cancel()
+	<-runDone
 }

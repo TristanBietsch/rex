@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/loop"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -280,4 +282,55 @@ func TestSendRaw_WaitsForALoopSendInProgress(t *testing.T) {
 	full := make(chan []byte)
 	srv.RegisterInputChannel("s2", full)
 	require.ErrorContains(t, srv.SendRaw("s2", []byte("x"), 30*time.Millisecond), "timed out")
+}
+
+// With a session's writer registered, every input is one unit on it: a
+// Reply and a loop send carry their text and Enter together, client bytes are
+// a single part.
+func TestInput_GoesThroughTheSessionWriterAsUnits(t *testing.T) {
+	srv, sock, _ := newTestServer(t, state.NewStore())
+	serveTest(t, srv)
+	srv.RegisterInputChannel("s1", make(chan []byte, 1)) // present, but never used
+	var mu sync.Mutex
+	var units []pty.WriteUnit
+	srv.unitWriters.Store("s1", pty.UnitWriter(func(_ context.Context, u pty.WriteUnit) (bool, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		units = append(units, u)
+		return u.Guard == nil || u.Guard(), nil
+	}))
+	conn := dialTest(t, sock)
+	w, r, _ := helloAs(t, conn, "rex-tui")
+
+	require.NoError(t, w.WriteIntent(protocol.IntentSendInput, "i1", protocol.SendInput{SessionID: "s1", Bytes: []byte("y")}))
+	waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.ID == "i1" })
+	require.NoError(t, w.WriteIntent(protocol.IntentReply, "i2", protocol.Reply{SessionID: "s1", Text: "ok"}))
+	waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.ID == "i2" })
+	sent, err := srv.SendText("s1", "go on", func() bool { return true })
+	require.NoError(t, err)
+	require.True(t, sent)
+	require.NoError(t, srv.SendRaw("s1", []byte("raw"), time.Second))
+	sent, err = srv.SendText("s1", "no", func() bool { return false })
+	require.NoError(t, err)
+	require.False(t, sent, "the initial guard stops it before any unit")
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, units, 4)
+	require.Equal(t, [][]byte{[]byte("y")}, units[0].Parts)
+	require.False(t, units[0].Wait)
+	require.Equal(t, [][]byte{[]byte("ok"), {'\r'}}, units[1].Parts)
+	require.True(t, units[1].Wait)
+	require.Equal(t, replySubmitDelay, units[1].Gap)
+	require.Equal(t, [][]byte{[]byte("go on"), {'\r'}}, units[2].Parts)
+	require.NotNil(t, units[2].Guard, "the guard rides with the unit, for the check before Enter")
+	require.Equal(t, [][]byte{[]byte("raw")}, units[3].Parts)
+
+	// A writer that fails reports it to the client.
+	srv.unitWriters.Store("s1", pty.UnitWriter(func(context.Context, pty.WriteUnit) (bool, error) {
+		return false, errors.New("session input is closed")
+	}))
+	require.NoError(t, w.WriteIntent(protocol.IntentSendInput, "i3", protocol.SendInput{SessionID: "s1", Bytes: []byte("z")}))
+	env := waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.ID == "i3" })
+	require.Equal(t, protocol.EventError, env.Type)
 }

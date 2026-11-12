@@ -138,8 +138,8 @@ func (l *Loops) Output(id string) string {
 
 // ReportsReason says whether the tool tells a finished turn from a prompt
 // that needs the user, which is what a loop needs to never answer a prompt.
-// Today that is Claude Code's hooks only. A tool opts in here once its
-// adapter reports a wait reason (the OSC 7501 tools, with R02).
+// A tool qualifies when its adapter reports a wait reason (Claude's hooks and
+// the OSC 7501 tools).
 func (l *Loops) ReportsReason(toolID string) bool {
 	tool, ok := l.srv.Registry().Find(toolID)
 	return ok && toolReportsReason(tool)
@@ -147,8 +147,8 @@ func (l *Loops) ReportsReason(toolID string) bool {
 
 // toolReportsReason is derived from the tool's adapter: it reports why a
 // session waits exactly when the adapter implements WaitReasoner. So a tool
-// opts in by its adapter learning to report a reason (Claude's hooks today,
-// OSC 7501 tools when theirs does), with no list to keep here.
+// opts in by its adapter learning to report a reason (Claude's hooks and
+// OSC 7501 status), with no list to keep here.
 func toolReportsReason(t registry.Tool) bool {
 	a, err := adapter.For(t, "")
 	if err != nil {

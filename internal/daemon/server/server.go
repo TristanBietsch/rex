@@ -209,6 +209,10 @@ type Server struct {
 	// every write of input to its PTY channel so a multi-part send (text,
 	// delay, Enter) is never interleaved with another writer's bytes.
 	inputLocks sync.Map
+	// unitWriters holds each running session's pty.UnitWriter (its single
+	// PTY writer). Input goes through it as units; a session without one
+	// (tests with a bare channel) falls back to the input channel.
+	unitWriters sync.Map
 
 	outputSubsMu sync.RWMutex
 	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
@@ -592,6 +596,7 @@ func (s *Server) UnregisterInputChannel(sessionID string) {
 	defer s.inputMu.Unlock()
 	delete(s.inputChannels, sessionID)
 	s.inputLocks.Delete(sessionID)
+	s.unitWriters.Delete(sessionID)
 }
 
 // InputChannel returns the channel for a session, or nil if none registered.

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/loop"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -99,7 +100,57 @@ func (s *Server) SendText(sessionID, text string, guard func() bool) (sent bool,
 		return false, errors.New("session not running")
 	}
 	defer s.lockInput(sessionID)()
-	return typeText(ch, text, guard)
+	if guard != nil && !guard() {
+		return false, nil
+	}
+	// One unit on the session's writer: the text, the pause, the guard once
+	// more, then Enter, with nothing else written in between.
+	return s.writeInput(sessionID, pty.WriteUnit{
+		Parts: [][]byte{[]byte(text), {'\r'}}, Gap: replySubmitDelay, Guard: guard, Wait: true,
+	}, inputWaitTimeout)
+}
+
+// How long a unit may wait for room in the writer's queue (a client's bytes),
+// or to be written (a text and its Enter, which includes the 120 ms pause).
+const (
+	inputQueueTimeout = 2 * time.Second
+	inputWaitTimeout  = 15 * time.Second
+)
+
+// writeInput writes u to the session through its single PTY writer, and
+// reports whether it was written (or, without Wait, queued): false when the
+// guard dropped it. A session without a writer (a bare input channel, as in
+// tests) gets the same parts, gap and guard over the channel.
+func (s *Server) writeInput(sessionID string, u pty.WriteUnit, timeout time.Duration) (bool, error) {
+	if v, ok := s.unitWriters.Load(sessionID); ok {
+		if w, ok := v.(pty.UnitWriter); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			sent, err := w(ctx, u)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return false, errors.New("send timed out")
+			}
+			return sent, err
+		}
+	}
+	ch := s.InputChannel(sessionID)
+	if ch == nil {
+		return false, errors.New("session not running")
+	}
+	for i, part := range u.Parts {
+		if i > 0 {
+			time.Sleep(u.Gap)
+			if u.Guard != nil && !u.Guard() {
+				return false, nil
+			}
+		}
+		select {
+		case ch <- part:
+		case <-time.After(timeout):
+			return false, errors.New("send timed out")
+		}
+	}
+	return true, nil
 }
 
 // SendRaw writes payload to a session's input under its input lock, so it is
@@ -107,17 +158,12 @@ func (s *Server) SendText(sessionID, text string, guard func() bool) (sent bool,
 // Enter), waiting up to timeout for room. It is not the user's activity: no
 // loop or pending retire reacts to it.
 func (s *Server) SendRaw(sessionID string, payload []byte, timeout time.Duration) error {
-	ch := s.InputChannel(sessionID)
-	if ch == nil {
+	if s.InputChannel(sessionID) == nil {
 		return fmt.Errorf("session %q has no input channel", sessionID)
 	}
 	defer s.lockInput(sessionID)()
-	select {
-	case ch <- payload:
-		return nil
-	case <-time.After(timeout):
-		return errors.New("send timed out")
-	}
+	_, err := s.writeInput(sessionID, pty.WriteUnit{Parts: [][]byte{payload}}, timeout)
+	return err
 }
 
 // SetSessionLoop records the loop and turn on a session and persists it.
