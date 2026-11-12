@@ -498,12 +498,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   start, and it does not start a second daemon if the first will not stop.
 
 ### Fixed
+
+- Daemon: a transient error accepting a client connection (for example
+  "too many open files") no longer shuts the daemon down and stops every
+  running session. It retries with backoff (5 ms up to 1 s) and logs it.
 - TUI: a delete confirmation, rename or attach popup for a session that
   another client deleted (or that is gone after a reconnect) now closes
   with a note, instead of acting on an id the daemon no longer knows. A
   session that arrives in both a snapshot and its own add event is listed
   once.
-
 - `rex update` reads the new version with plain output, so `CLAUDECODE`,
   `REX_AGENT` or `REX_OUTPUT` in the caller no longer turn it into an agent
   or json line.
