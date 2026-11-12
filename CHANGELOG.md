@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (Windows prompt delivery)
+
+- Windows: an agent installed as an npm `.cmd` shim (`claude.cmd`,
+  `qwen.cmd`) got its task through `cmd.exe`, so `&`, `|`, `%VAR%`, `^`,
+  quotes or a line break in a task could run commands. The daemon now
+  starts the program the shim runs (`node.exe` and the script, or the
+  package's `.exe`) directly. A shim it cannot resolve gets the task
+  pasted into the agent instead, with plain arguments only, and anything
+  else is refused with an error that names the shim. A `command` that is
+  `cmd.exe` never gets the task on its command line either.
+- Windows: a task that would make the command line longer than Windows
+  allows (32,767 characters; rex stops at 32,000) is pasted instead of
+  failing the launch.
+
 ### Added (new-agent page)
 
 - `n` and `:new` open a full-screen new-agent page instead of the popup
