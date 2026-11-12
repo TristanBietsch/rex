@@ -291,7 +291,7 @@ func run(args []string) error {
 		StateDir:              *stateDir,
 		Registry:              reg,
 		Store:                 store,
-		MaxConcurrentSessions: *maxConcurrent,
+		MaxConcurrentSessions: maxConcurrentFrom(fs, *maxConcurrent, settingsStore),
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
 		SkillsDir:             *skillsDir,
@@ -407,6 +407,22 @@ func retainSnapshots(ctx context.Context, st *snapshot.Store, sessions *state.St
 	if len(rep.Dropped) > 0 || rep.GCRuns > 0 {
 		slog.Info("daemon: snapshot retention", "dropped_sessions", len(rep.Dropped), "gc_runs", rep.GCRuns)
 	}
+}
+
+// maxConcurrentFrom is the session cap to start with: the
+// -max-concurrent-sessions flag when it was given, else the
+// max_concurrent_sessions setting (the TUI saves it to config.yaml, and
+// clients start the daemon without flags), else the flag's default.
+func maxConcurrentFrom(fs *flag.FlagSet, flagVal int, st *settings.Store) int {
+	explicit := false
+	fs.Visit(func(f *flag.Flag) { explicit = explicit || f.Name == "max-concurrent-sessions" })
+	if explicit || st == nil {
+		return flagVal
+	}
+	if n, ok := st.Get("max_concurrent_sessions").(int); ok && n > 0 {
+		return n
+	}
+	return flagVal
 }
 
 // lockError explains a failed state-dir lock. When another daemon holds it,

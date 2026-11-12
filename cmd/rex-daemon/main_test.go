@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/testutil/testenv"
@@ -106,4 +108,25 @@ func realGoCaches() []string {
 		return nil
 	}
 	return []string{"GOMODCACHE=" + lines[0], "GOCACHE=" + lines[1], "GOPROXY=off"}
+}
+
+// The TUI saves max_concurrent_sessions to config.yaml, but clients start
+// the daemon without flags: the saved cap must apply unless the flag was
+// given explicitly.
+func TestMaxConcurrentFrom(t *testing.T) {
+	st := settings.NewStore()
+	require.NoError(t, st.Set("max_concurrent_sessions", 3))
+
+	parse := func(args ...string) (*flag.FlagSet, *int) {
+		fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
+		n := fs.Int("max-concurrent-sessions", 16, "")
+		require.NoError(t, fs.Parse(args))
+		return fs, n
+	}
+	fs, n := parse()
+	require.Equal(t, 3, maxConcurrentFrom(fs, *n, st), "the saved setting")
+	fs, n = parse("-max-concurrent-sessions", "5")
+	require.Equal(t, 5, maxConcurrentFrom(fs, *n, st), "an explicit flag wins")
+	fs, n = parse()
+	require.Equal(t, 16, maxConcurrentFrom(fs, *n, settings.NewStore()), "the default when nothing is saved")
 }
