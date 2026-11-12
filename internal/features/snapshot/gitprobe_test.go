@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -40,9 +41,15 @@ func TestCheckGitProbeTimeoutIsNotCached(t *testing.T) {
 	old := gitProbeTimeout
 	gitProbeTimeout = 200 * time.Millisecond
 	t.Cleanup(func() { gitProbeTimeout = old })
+	// PATH holds only the fake git below, so the script calls sleep by its
+	// full path (a bare sleep is not found and the probe returns at once).
+	sleepBin, lookErr := exec.LookPath("sleep")
+	if lookErr != nil {
+		t.Skip("no sleep binary")
+	}
 	bin := t.TempDir()
 	flag := filepath.Join(bin, "fast")
-	script := "#!/bin/sh\nif [ ! -e '" + flag + "' ]; then sleep 3; fi\necho 'git version 2.30.2'\n"
+	script := "#!/bin/sh\nif [ ! -e '" + flag + "' ]; then '" + sleepBin + "' 3; fi\necho 'git version 2.30.2'\n"
 	//nolint:gosec // a fake git must be executable
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o700); err != nil {
 		t.Fatal(err)

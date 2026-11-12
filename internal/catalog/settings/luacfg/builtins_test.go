@@ -2,6 +2,7 @@ package luacfg
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -74,12 +75,18 @@ assert(("%d-%d"):format(1, 2) == "1-2")
 
 // gsub is rebuilt in Go-linear time: a whole-subject replace must finish
 // well inside the deadline (gopher-lua's own copies the buffer per match).
+// A -race build runs several times slower, so it replaces a quarter as many
+// matches; a quadratic gsub still blows the deadline at that size.
 func TestEvalGsubLinear(t *testing.T) {
+	n := 200000
+	if raceOn {
+		n = 50000
+	}
 	start := time.Now()
-	luaOK(t, `
-local r, n = string.gsub(string.rep("a", 200000), "a", "b")
-assert(n == 200000 and #r == 200000 and r:sub(1, 3) == "bbb", "gsub")
-`)
+	luaOK(t, fmt.Sprintf(`
+local r, n = string.gsub(string.rep("a", %[1]d), "a", "b")
+assert(n == %[1]d and #r == %[1]d and r:sub(1, 3) == "bbb", "gsub")
+`, n))
 	require.Less(t, time.Since(start), Timeout)
 }
 
