@@ -5,6 +5,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
 
 func TestWindowSizeSetsTermAndLayoutSize(t *testing.T) {
@@ -30,4 +32,28 @@ func TestTranslateMouseNoFrameIsIdentity(t *testing.T) {
 	out, ok := translateMouse(m, in)
 	require.True(t, ok)
 	require.Equal(t, in, out)
+}
+
+func TestTranslateMouseOnFrame(t *testing.T) {
+	m := Model{Focus: FocusBoard, Store: settings.NewStore(), TermW: 120, TermH: 40}
+	require.NoError(t, m.Store.Set("window_border", true))
+	m = syncLayout(m)
+	require.Equal(t, 118, m.Width, "frame shown")
+	ev := func(x, y int, a tea.MouseAction) tea.MouseMsg {
+		return tea.MouseMsg(tea.MouseEvent{X: x, Y: y, Action: a, Button: tea.MouseButtonLeft})
+	}
+
+	_, ok := translateMouse(m, ev(0, 5, tea.MouseActionPress))
+	require.False(t, ok, "a press on the frame is dropped")
+
+	// A drag released on the frame still reaches the agent, at the edge.
+	out, ok := translateMouse(m, ev(119, 39, tea.MouseActionRelease))
+	require.True(t, ok)
+	require.Equal(t, m.Width-1, out.X)
+	require.Equal(t, m.Height-1, out.Y)
+
+	out, ok = translateMouse(m, ev(0, 0, tea.MouseActionMotion))
+	require.True(t, ok)
+	require.Equal(t, 0, out.X)
+	require.Equal(t, 0, out.Y)
 }

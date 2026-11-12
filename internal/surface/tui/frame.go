@@ -85,7 +85,8 @@ func syncLayout(m Model) Model {
 }
 
 // translateMouse maps a mouse event from screen to layout coordinates. It
-// reports false for an event on the frame (or outside the layout area).
+// reports false for a press or wheel on the frame (or outside the layout
+// area); motion and release there clamp to the edge of the layout area.
 func translateMouse(m Model, msg tea.MouseMsg) (tea.MouseMsg, bool) {
 	inset := frameInset(m)
 	if inset == 0 {
@@ -94,7 +95,12 @@ func translateMouse(m Model, msg tea.MouseMsg) (tea.MouseMsg, bool) {
 	ev := tea.MouseEvent(msg)
 	x, y := ev.X-inset, ev.Y-inset
 	if x < 0 || y < 0 || x >= m.Width || y >= m.Height {
-		return msg, false
+		// A drag that ends or moves over the frame still owes the agent its
+		// motion and release, so those clamp to the nearest inner cell.
+		if ev.Action != tea.MouseActionRelease && ev.Action != tea.MouseActionMotion {
+			return msg, false
+		}
+		x, y = clampInt(x, 0, m.Width-1), clampInt(y, 0, m.Height-1)
 	}
 	ev.X, ev.Y = x, y
 	return tea.MouseMsg(ev), true

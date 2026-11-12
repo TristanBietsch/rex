@@ -36,7 +36,7 @@ Keys and defaults: [settings.md](../settings.md).
 | `soundset` | UI sound catalog |
 | `reduce_motion` | Disable animations |
 
-`:border [on|off|next|<color>]` changes the frame for one run without touching the settings.
+`:border [on|off|next|random|<color>]` changes the frame for one run without touching the settings.
 
 Colors, glyphs and density apply as soon as you change them; audio initializes at TUI start. The settings page tells you per row when a change applies.
 
