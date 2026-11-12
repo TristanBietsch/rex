@@ -180,6 +180,8 @@ func (e env) id(pos []string) error {
 	if w == nil {
 		return core.Errorf(core.ExitSelectorNotFound, "rex ws init", "ws id: no .rex/ here — run `rex ws init`")
 	}
+	// Best effort: a workspace seen at a new folder moves its registry root.
+	_ = e.reg.Seen(w)
 	data := info{ID: w.ID, Name: w.Name, Color: w.Color, Root: w.Root}
 	return core.Out().Emit(core.Result{Cmd: "ws id", Data: data, View: core.View{infoKV(data)}})
 }

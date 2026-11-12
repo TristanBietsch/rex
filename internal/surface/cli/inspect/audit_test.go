@@ -289,3 +289,23 @@ func TestSpanText(t *testing.T) {
 		require.Equal(t, want, spanText(in))
 	}
 }
+
+func TestAudit_WsByIDFollowsAMovedFolderOnceItIsSeenThere(t *testing.T) {
+	r := newAuditRig(t, "workspaces: true\n")
+	w, root := wsSetup(t, r)
+	moved := filepath.Join(r.home, "dev", "moved")
+	require.NoError(t, os.Rename(root, moved))
+	t.Chdir(r.home)
+	require.Error(t, r.run(t, "json", "--ws", w.ID), "the registry still points at the old folder")
+
+	regPath, err := paths.WorkspacesFile()
+	require.NoError(t, err)
+	reg, err := workspace.OpenRegistry(regPath)
+	require.NoError(t, err)
+	got, err := workspace.Find(moved, r.home) // what `rex ws id` does there
+	require.NoError(t, err)
+	require.NoError(t, reg.Seen(got))
+
+	require.NoError(t, r.run(t, "json", "--ws", w.ID))
+	require.Equal(t, []string{"aaaa1111"}, ids(decodeAudit(t, r)))
+}

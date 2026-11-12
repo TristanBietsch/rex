@@ -277,3 +277,29 @@ func TestWs_OversizedWorkspaceJSONRefused(t *testing.T) {
 	err := RunWs([]string{"id"})
 	require.Equal(t, core.ExitOperationRefused, exitCode(t, err))
 }
+
+func TestWs_IDInAMovedFolderUpdatesTheRegistry(t *testing.T) {
+	r := newRig(t, true)
+	proj := r.project(t, "p")
+	t.Chdir(proj)
+	r.printer(t, core.FormatFlags{Output: "json"})
+	require.NoError(t, RunWs([]string{"init"}))
+	id := decode[info](t, r).ID
+
+	moved := filepath.Join(r.home, "dev", "moved")
+	t.Chdir(r.home)
+	require.NoError(t, os.Rename(proj, moved))
+	require.Equal(t, core.ExitSelectorNotFound, exitCode(t, RunWs([]string{"rename", id, "x"})))
+
+	t.Chdir(moved)
+	require.NoError(t, RunWs([]string{"id"}))
+	r.out.Reset()
+	// By id works again from anywhere, and ls shows the new folder.
+	t.Chdir(r.home)
+	require.NoError(t, RunWs([]string{"rename", id, "back"}))
+	r.out.Reset()
+	require.NoError(t, RunWs([]string{"ls"}))
+	rows := decode[[]lsRow](t, r)
+	require.Equal(t, moved, rows[0].Root)
+	require.True(t, rows[0].Present)
+}
