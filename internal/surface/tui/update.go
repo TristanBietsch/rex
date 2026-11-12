@@ -159,6 +159,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleReconnectResult(m, msg)
 	case exportDoneMsg:
 		return applyExportDone(m, msg), nil
+	case undoReplyMsg:
+		return applyUndoReply(m, msg), nil
 	case usageReportMsg:
 		return applyUsageReport(m, msg), nil
 	case pruneDoneMsg:
@@ -331,6 +333,8 @@ func (m Model) focusStateMissing() bool {
 		return m.Rename == nil
 	case FocusUsage:
 		return m.UsagePage == nil
+	case FocusUndo:
+		return m.Undo == nil
 	default:
 		return false // stateless foci (help, stats, prompts, confirms)
 	}
@@ -504,6 +508,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusUsage {
 		return updateUsageKey(m, k)
+	}
+	if m.Focus == FocusUndo {
+		return updateUndoKey(m, k)
 	}
 	if m.Focus == FocusStats {
 		switch k.String() {

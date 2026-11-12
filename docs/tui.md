@@ -97,6 +97,7 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Stats | `:stats` | `esc`, `:` |
 | Overview | `:overview` | `esc`, `q`, `:overview` |
 | Usage | `:usage`, or a click on the header meter | `esc`, `q`, `:` |
+| Undo / redo dialog | `:undo`, `:redo` | `esc`, `n`, or `esc` after the result |
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
@@ -345,6 +346,20 @@ antigravity              1     ~40k         — wk ▰▰▰▰▰  91%  as of 1
 - Errors say why there is no table: `update daemon: run 'rex daemon restart'` for a daemon that predates `UsageQuery`, the off message when the daemon has usage off, `not connected to the daemon` while it is down.
 
 **Header meter.** `usage_meter` (`off` | `compact` | `full`, default `compact`; Settings → Features) draws the right end of the header's top row: for each agent with a live session, the worst of its quota windows as a 5-cell bar and a percent (`claude ▰▰▱▱▱ 42% · codex ▰▰▰▰▱ 72%`). `full` lists every window with its reset time. Colors follow the same thresholds as the page, and a stale reading is dim. The counts always win: the meter drops agents from the right, then disappears, before the counts are cut. It is also hidden against a daemon that sends no quotas. A click on it opens `:usage`.
+
+## UNDO AND REDO
+
+`:undo [sel] [-turns N]` and `:redo [sel]` put a session's folder back from the turn snapshots ([snapshots.md](snapshots.md)); they are the TUI side of `rex undo` / `rex redo` ([cli.md](cli.md#rex-undo--rex-redo)). `sel` defaults to the selected row. They belong to the `turn_snapshots` feature (Settings → Features, **off by default**): off, both answer `off: enable in Settings → Features (rex config set turn_snapshots true)` and send nothing.
+
+The dialog never changes a file until you confirm:
+
+1. The TUI asks the daemon for a **dry run** (`Undo` / `Redo` with `dry_run`), showing `checking what would change…` meanwhile (`esc` lets go of it).
+2. It shows `restore N files, delete M files` with the first few paths, and the line `shell side effects (installs, databases, files outside the folder) are not undone`. `y` or `enter` runs it, `n` or `esc` cancels.
+3. After the run it shows what was restored and deleted, then any `UndoResult.Warnings` (the folder changed while the restore ran, the session started working), then a reminder that the agent was not told and `:redo` brings the changes back. `esc` closes. If the run itself fails, the message stays in the dialog, since the folder may be part way, and `:redo` recovers it.
+
+**Another live session in the same folder.** The daemon refuses an undo that would revert a second live session's files. Only in that case the dialog opens on the refusal (it names the other sessions) with `f force`; `f` asks for a new dry run with force and the confirmation then says `forced: the other live session in this folder is reverted too (...)`. Nothing else offers a force option.
+
+**Refusals** (the session is working, the folder is not inside a repository, nothing to undo or redo, blocked paths, an old daemon) close the dialog and show the daemon's message on the status line, prefixed with `undo:` or `redo:`. `-turns` takes 1 to 1000 and belongs to `:undo` only.
 
 ## NEW-SESSION WIZARD
 

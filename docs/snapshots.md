@@ -11,6 +11,8 @@ rex undo fix-auth --turns 2            # two turns back
 rex redo fix-auth                      # bring back what undo replaced
 ```
 
+In the TUI, `:undo` and `:redo` do the same through a confirm dialog ([tui.md](tui.md#undo-and-redo)).
+
 `rex undo` asks first and lists how many files it will restore and delete, then adds a reminder that shell side effects are not undone. Without a terminal it needs `-yes`. See [rex undo](cli.md#rex-undo--rex-redo) for every flag and exit code.
 
 Repeated `rex undo` walks further back: each call goes one more turn (or `--turns N` more) before the last. `rex redo` pops the most recent undo. Redo history is dropped as soon as the session starts another turn.
@@ -74,5 +76,4 @@ Retention runs when the daemon starts with the setting on, so a long-running dae
 
 ## Not in this version
 
-- The TUI `:undo` / `:redo` dialog. Use `rex undo` / `rex redo` for now.
 - Windows is built and unit tested (null device `NUL`, path handling), but the git-backed tests run where `git` is installed.

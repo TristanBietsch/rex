@@ -58,6 +58,10 @@ func (sc goldenScreen) sizesOf() []goldenSize {
 var goldenScreenSizes = map[string][]goldenSize{
 	"usage":        {{80, 24}, {120, 40}, goldenMobile},
 	"header_meter": {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm": {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":  {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":  {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":    {{80, 24}, {120, 40}, goldenMobile},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -120,6 +124,10 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"usage", true, func(t *testing.T, sz goldenSize) Model { return usageModelAt(t, sz) }},
 		{"header_meter", true, func(t *testing.T, sz goldenSize) Model { return meterModel(t, sz) }},
+		{"undo_confirm", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "confirm") }},
+		{"undo_shared", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "shared") }},
+		{"undo_forced", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "forced") }},
+		{"undo_done", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "done") }},
 		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
 			return framedGolden(t, goldenBoard(t, sz, false), sz)
 		}},

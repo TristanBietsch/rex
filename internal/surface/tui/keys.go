@@ -142,6 +142,8 @@ var commands = []command{
 	{Names: []string{"undone"}, Args: "[sel]", Desc: "undo done", Group: groupSessionCmd, Run: runUndone},
 	{Names: []string{"uc", "resume"}, Args: "[sel]", Desc: "undo done: unmark a running session, or resume an exited one", Group: groupSessionCmd, Flag: "undo_complete", Run: runUC},
 	{Names: []string{"rid"}, Args: "[sel]", Desc: "show the full resume id", Group: groupSessionCmd, Flag: "resume", Run: runRID},
+	{Names: []string{"undo"}, Args: "[sel] [-turns N]", Desc: "restore the folder to before the agent's last turn (asks first)", Group: groupSessionCmd, Flag: "turn_snapshots", Run: runUndo},
+	{Names: []string{"redo"}, Args: "[sel]", Desc: "bring back what :undo replaced", Group: groupSessionCmd, Flag: "turn_snapshots", Run: runRedo},
 	{Names: []string{"complete"}, Args: "[sel]", Desc: "kill agent + mark done now", Group: groupSessionCmd, Run: runComplete},
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},

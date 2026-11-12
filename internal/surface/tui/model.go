@@ -34,6 +34,7 @@ const (
 	FocusSearch
 	FocusOverview
 	FocusUsage
+	FocusUndo
 )
 
 // Model is the root Bubble Tea model.
@@ -96,7 +97,9 @@ type Model struct {
 	Fail   *FailState
 	// UsagePage is the :usage page's state; set while FocusUsage.
 	UsagePage *UsageState
-	Rename    *RenameState
+	// Undo is the :undo / :redo dialog; set while FocusUndo.
+	Undo   *UndoState
+	Rename *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
 
@@ -182,6 +185,10 @@ type Model struct {
 	// numbers its requests so a late reply for a closed page is dropped.
 	usager   usageQuerier
 	usageSeq int
+	// undoer carries the :undo / :redo calls (nil: Client); undoSeq numbers
+	// them so a late reply for a closed dialog is dropped.
+	undoer  undoDoer
+	undoSeq int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int

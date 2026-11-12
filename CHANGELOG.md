@@ -67,6 +67,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: `:undo [sel] [-turns N]` and `:redo [sel]` (feature `turn_snapshots`).
+  A confirm dialog built on the daemon's dry run: file counts to restore and
+  delete, the "shell side effects are not undone" line, and the other live
+  session in the folder with a force option for that case only. It shows the
+  run's warnings, and the daemon's refusals as status-line notices.
 - TUI: `:usage` page with usage per agent and model, a total row, the quota
   bar with percent and reset time, ranges today/7d/30d (`←`/`→` or `1`/`2`/`3`),
   `r` refresh and `/` filter. Estimates are marked `~`, stale readings are dim.
