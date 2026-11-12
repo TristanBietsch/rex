@@ -50,7 +50,7 @@ func TestStore_LoadOverridesDefaults(t *testing.T) {
 	s := NewStore()
 	require.NoError(t, s.Load(path))
 	require.Equal(t, "pulse", s.Get("spinner"))
-	require.Equal(t, 0.5, s.Get("master_volume"))
+	require.Equal(t, 25, s.Get("master_volume"), "a legacy 0.5 reads as 25 of 50")
 }
 
 func TestLoadDefault(t *testing.T) {

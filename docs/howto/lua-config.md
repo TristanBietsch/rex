@@ -56,7 +56,7 @@ The TUI and the daemon pick up a save within a few seconds (with `live_reload` o
 
 | Name | What it does |
 |------|--------------|
-| `rex.set(id, value)` | Set a setting from `rex config list`. The value must have the setting's type (a whole number for an integer, `true`/`false` for a switch); a list setting also takes a list of strings |
+| `rex.set(id, value)` | Set a setting from `rex config list`. The value must have the setting's type (a whole number for an integer, `true`/`false` for a switch; `master_volume` also takes an old 0–1 fraction such as `0.8`, read as that share of 50); a list setting also takes a list of strings |
 | `rex.theme(name, table)` | Define a theme with the theme file schema: `extends`, `dark`, `colors`, `glyphs` ([themes.md](../themes.md)) |
 | `rex.platform` | `"darwin"`, `"linux"` or `"windows"` |
 | `require("a.b")` | Run `~/.config/rex/lua/a/b.lua` once and return its result. Names are lower-case words joined by dots |

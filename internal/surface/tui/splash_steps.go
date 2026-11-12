@@ -182,17 +182,17 @@ func stepAudioInit(m Model) tea.Cmd {
 		}
 		enabled, _ := m.Store.Get("sound_enabled").(bool)
 		soundset, _ := m.Store.Get("soundset").(string)
-		vol, _ := m.Store.Get("master_volume").(float64)
+		vol := m.Store.Display("master_volume")
 		if !enabled || soundset == "off" {
 			m.Audio.SetEnabled(false)
 			return stepSkip, "muted", nil
 		}
 		m.Audio.SetEnabled(true)
-		m.Audio.SetVolume(vol)
+		m.Audio.SetVolume(settings.VolumeGain(m.Store.Get("master_volume")))
 		voice, _ := m.Store.Get("boot_voice").(bool)
 		m.Audio.SetBootVoice(voice)
 		slog.Info("tui: audio init", "soundset", soundset, "volume", vol, "boot_voice", voice)
-		return stepOK, fmt.Sprintf("soundset=%s · vol=%.2f · voice=%t", soundset, vol, voice), nil
+		return stepOK, fmt.Sprintf("soundset=%s · vol=%s · voice=%t", soundset, vol, voice), nil
 	})
 }
 

@@ -5,6 +5,8 @@
 // the same Registry and Store.
 package settings
 
+import "fmt"
+
 // Type discriminates the value shape of a Setting.
 type Type string
 
@@ -63,6 +65,36 @@ type Setting struct {
 	// this separator. Lua's config.lua may then pass an array of strings,
 	// which is joined with ListSep before validation.
 	ListSep string
+	// MaxText, when set on a TypeInt or TypeFloat, is what the settings
+	// page and `rex config` (human formats) show for a value equal to Max,
+	// such as "max". Stored and JSON values stay numeric.
+	MaxText string
+	// Migrate, when set, rewrites a raw value before type coercion, so an
+	// older encoding (a config.yaml from before a scale change) loads as
+	// the current one. It must pass current values through unchanged; an
+	// error refuses the value as coercion would.
+	Migrate func(raw any) (any, error)
+}
+
+// Display is v as the settings page and human CLI output show it: MaxText
+// for a number equal to Max, else v printed plainly.
+func (s Setting) Display(v any) string {
+	if s.MaxText != "" && s.Max > s.Min {
+		switch n := v.(type) {
+		case int:
+			if float64(n) == s.Max {
+				return s.MaxText
+			}
+		case float64:
+			if n == s.Max {
+				return s.MaxText
+			}
+		}
+	}
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 // ApplyMode says when a changed setting takes effect.

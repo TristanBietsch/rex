@@ -37,7 +37,8 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 
 ## Internal structure
 
-- `types.go` — `Setting`, `Type`, sections.
+- `types.go` — `Setting`, `Type`, sections. `Setting.MaxText` (shown for a value equal to `Max`, via `Setting.Display` / `Store.Display`) and `Setting.Migrate` (rewrites an older encoding before coercion).
+- `volume.go` — `master_volume` (0–50): `migrateVolume` (old 0.0–1.0 floats → round(v×50)), `VolumeGain` (value/50, clamped).
 - `registry.go` — `Registry` slice.
 - `store.go` — YAML persistence.
 - `registry_test.go`, `store_test.go`

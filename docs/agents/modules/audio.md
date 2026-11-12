@@ -47,7 +47,7 @@ Init failure degrades to silent no-op; no error returned from `New`.
 
 ## Gotchas
 
-TUI maps settings `sound_enabled`, `soundset`, `master_volume` into `Config`. `notify_on_state_change` is read by the TUI (`internal/surface/tui/notify.go`), not the Player: it gates `EventAttention`/`EventResume` and debounces them per session (1.5 s). Every catalog must define every event; `TestBakeNonEmpty` enforces it. Headless CI typically gets no-op player.
+TUI maps settings `sound_enabled`, `soundset`, `master_volume` into `Config` (`master_volume` is 0–50; `settings.VolumeGain` turns it into the 0–1 `Volume`). `notify_on_state_change` is read by the TUI (`internal/surface/tui/notify.go`), not the Player: it gates `EventAttention`/`EventResume` and debounces them per session (1.5 s). Every catalog must define every event; `TestBakeNonEmpty` enforces it. Headless CI typically gets no-op player.
 
 ## See also
 

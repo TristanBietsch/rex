@@ -124,7 +124,7 @@ func TestConfigValueViews(t *testing.T) {
 	for _, f := range []string{"text", "txt", "md", "json", "agent"} {
 		p, out, _ := viewPrinter(t, f, 80, false)
 		core.SetOut(p)
-		require.NoError(t, emitConfigChange("set", "spinner", "moon"))
+		require.NoError(t, emitConfigChange("set", "spinner", "moon", "moon"))
 		got := out.String()
 		switch f {
 		case "txt":
