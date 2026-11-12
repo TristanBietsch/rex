@@ -55,7 +55,7 @@ func (s *Server) deleteSession(id, reason string) error {
 		return errSessionNotFound
 	}
 	live := s.hasStop(id)
-	slog.Info("session: delete", "session", id, "slug", sess.Slug, "reason", reason, "live", live)
+	slog.Info("session: delete", "session", id, "slug", sess.Summary().Slug, "reason", reason, "live", live)
 	// Mark first: the supervisor's exit transition checks this under the
 	// session lock, so it can't broadcast failed while we tear down.
 	s.cfg.Store.BeginDelete(id)
