@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (audio settings)
+
+- Turning `sound_enabled` on now plays sound right away on a board that
+  started muted. Before, a board opened with sound off or `soundset: off`
+  never opened the audio device, so turning sound on, picking a soundset or
+  changing `master_volume` did nothing until rex was restarted. A soundset
+  picked while muted is the one you hear when sound comes back on.
+- Audio settings changed with `rex config set`, in `config.yaml` or
+  `config.lua`, or on another board, reach every open board within a few
+  seconds (`live_reload`). Builds before the live reload applied them only
+  on the board where you changed them.
+
 ### Added (waiting icon)
 
 - `waiting_spinner` (Settings → Appearance, "Waiting icon") picks the

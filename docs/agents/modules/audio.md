@@ -19,23 +19,23 @@ Soundsets: `SoundsetFactorio`, `SoundsetEvangelion`, `SoundsetBell`, `SoundsetCh
 
 ### Types
 
-- `Config` — `Enabled`, `Volume` (0–1), `Soundset`.
-- `Player` — `New(cfg Config) *Player`, `Play(event string)`, `SetEnabled`, `SetVolume`, `SetSoundset`.
+- `Config` — `Enabled`, `Volume` (0–1), `Soundset`, `BootVoice`.
+- `Player` — `New(cfg Config) *Player`, `Play(event string)`, `SetEnabled`, `SetVolume`, `SetSoundset`, `SetBootVoice`. Every setter applies live.
 
 ## Internal structure
 
-- `audio.go` — `Player`, playback goroutine.
+- `audio.go` — `Player`; `device` seam (`otoDevice` in production, a fake in tests via `newPlayer`); playback goroutine.
 - `synth.go` — tone generation.
 - `factorio.go`, `evangelion.go`, `bell.go`, `chiptune.go` — event→burst catalogs.
 - `audio_test.go`
 
 ## Invariants
 
-`New` always returns non-nil `Player`; init failure → no-op `Play`. `SetSoundset` unknown name leaves prior catalog (silence via `Enabled`).
+`New` always returns non-nil `Player`; init failure → no-op `Play`. The catalog is baked even while muted, and `SetSoundset` re-bakes muted or not. The device opens the first time sound is on (`New` with `Enabled`, or a later `SetEnabled(true)`), at most once; a failed open is not retried. `SetSoundset` unknown name leaves prior catalog (silence via `Enabled`).
 
 ## Side effects
 
-Audio device open (oto). Background goroutine per `Play` until sample completes.
+Audio device open (oto), lazily on first enable (one oto context per process). Background goroutine per `Play` until sample completes.
 
 ## Error handling
 
@@ -43,7 +43,7 @@ Init failure degrades to silent no-op; no error returned from `New`.
 
 ## Tests
 
-`audio_test.go` — catalog presence, degraded player.
+`audio_test.go` — catalog presence, degraded player. `live_test.go` — fake device records event/sample/gain: enable after a muted start, soundset and volume changes while muted and live, boot voice, open failure.
 
 ## Gotchas
 

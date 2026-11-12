@@ -37,7 +37,7 @@ func pcmDuration(pcm []byte) time.Duration {
 // must not hold p.mu.
 func (p *Player) playBootVoice() {
 	p.mu.Lock()
-	on := p.enabled && p.cfg.Enabled && p.cfg.BootVoice
+	on := p.dev != nil && p.cfg.Enabled && p.cfg.BootVoice
 	delay := pcmDuration(p.pcm[EventStartup])
 	p.mu.Unlock()
 	if !on {
