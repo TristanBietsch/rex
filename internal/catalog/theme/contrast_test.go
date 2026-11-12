@@ -126,32 +126,47 @@ func TestStateHuesDistinct(t *testing.T) {
 	}
 }
 
-// ansi borrows the terminal's own 16 colors: every color is an index, and
+// ansi borrows the terminal's own colors. It uses only the six normal hues
+// (1-6): the bright variants and index 8 are not safe, because palettes such
+// as Solarized map them to background and gray shades (8 is the Solarized
+// Dark background). Neutral tones are the terminal default drawn faint, and
 // the selection is reverse video.
 func TestAnsiThemeIndices(t *testing.T) {
 	p := Builtin["ansi"]
 	require.True(t, p.SelReverse)
+	require.True(t, p.Faint)
 	require.False(t, isHex(p.Fg))
 	for name, v := range map[string]string{
-		"FgDim": p.FgDim, "FgMuted": p.FgMuted, "Border": p.Border, "BorderFocus": p.BorderFocus,
 		"Accent": p.Accent, "Working": p.Working, "Queued": p.Queued, "Needs": p.Needs, "Done": p.Done,
-		"Failed": p.Failed, "Crashed": p.Crashed, "Warn": p.Warn, "Danger": p.Danger, "Success": p.Success,
-		"Info": p.Info,
+		"Failed": p.Failed, "Warn": p.Warn, "Danger": p.Danger, "Success": p.Success, "Info": p.Info,
 	} {
 		n, err := strconv.Atoi(v)
 		require.NoError(t, err, "ansi.%s=%q is an index", name, v)
-		require.True(t, n >= 0 && n <= 15, "ansi.%s=%d is one of the terminal's 16 colors", name, n)
+		require.True(t, n >= 1 && n <= 6, "ansi.%s=%d is a normal hue (1-6), never black, gray or bright", name, n)
 	}
+	for name, v := range map[string]string{
+		"Fg": p.Fg, "FgDim": p.FgDim, "FgMuted": p.FgMuted, "Border": p.Border, "BorderFocus": p.BorderFocus,
+		"BgSel": p.BgSel, "Crashed": p.Crashed,
+	} {
+		require.Empty(t, v, "ansi.%s is the terminal default (dim ones are drawn faint)", name)
+	}
+	require.NotEmpty(t, p.Fleet)
 	for _, f := range p.Fleet {
 		n, err := strconv.Atoi(f)
 		require.NoError(t, err)
-		require.True(t, n >= 0 && n <= 15)
+		require.True(t, n >= 1 && n <= 6, "fleet color %d", n)
 	}
 	require.Equal(t, "1", p.Failed)
 	require.Equal(t, "2", p.Done)
 	require.Equal(t, "3", p.Needs)
 	require.Equal(t, "4", p.Working)
 	require.Equal(t, "5", p.Accent)
+}
+
+func TestFaintOnlyOnAnsi(t *testing.T) {
+	for _, name := range Names() {
+		require.Equal(t, name == "ansi", Builtin[name].Faint, name)
+	}
 }
 
 func TestSelReverseOnlyOnAnsi(t *testing.T) {

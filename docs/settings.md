@@ -45,7 +45,7 @@ The settings page shows this per row (the detail pane under the list), and the r
 | `noir` | Deeper, quieter dark |
 | `paper` | Light terminals |
 | `high-contrast` | Pure black and white with bright state colors |
-| `ansi` | Your terminal's own 16 colors (a Solarized or Gruvbox terminal theme gives a matching rex); the selection is reverse video. Also a good fallback on a 16-color terminal |
+| `ansi` | Your terminal's own six normal hues (a Solarized or Gruvbox terminal theme gives a matching rex); dim text is the default color drawn faint, since no fixed index is safe (8 is the Solarized Dark background); the selection is reverse video. Also a good fallback on a 16-color terminal |
 
 Every scheme with real colors is tested against its own background: text 7:1, state colors, accent and dim text 4.5:1, focus border 3:1, and the four state colors stay distinct from one another (also after a 256-color terminal quantizes them).
 

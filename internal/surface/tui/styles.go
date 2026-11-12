@@ -34,6 +34,7 @@ var (
 	colorSuccess     lipgloss.Color
 	colorInfo        lipgloss.Color
 	colorFleet       []lipgloss.Color
+	faintTones       bool // dim, muted and border tones are drawn faint (theme.Palette.Faint)
 	selReverse       bool // the selection is reverse video (theme.Palette.SelReverse)
 )
 
@@ -106,6 +107,7 @@ func applyTheme(name string) {
 	colorBorderFocus = c(p.BorderFocus)
 	colorBgSel = c(p.BgSel)
 	selReverse = p.SelReverse
+	faintTones = p.Faint
 	colorAccent = c(p.Accent)
 	colorWorking = c(p.Working)
 	colorQueued = c(p.Queued)
@@ -127,19 +129,22 @@ func applyTheme(name string) {
 func rebuildStyles() {
 	fg := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
 	bold := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Bold(true).Foreground(c) }
+	// quiet is fg for the dim, muted and border tones: a scheme with no
+	// color of its own for them draws the terminal default faint.
+	quiet := func(c lipgloss.Color) lipgloss.Style { return fg(c).Faint(faintTones) }
 
 	styleLogo = bold(colorAccent)
 	styleKey = bold(colorFgPrimary)
 	styleKbd = bold(colorAccent)
 	styleCmd = bold(colorAccent)
 	styleBold = lipgloss.NewStyle().Bold(true)
-	styleHeaderMeta = fg(colorFgDim)
+	styleHeaderMeta = quiet(colorFgDim)
 	styleSectionTitle = bold(colorFgPrimary)
 	styleSlug = bold(colorFgPrimary)
 	stylePrimary = fg(colorFgPrimary)
-	styleDim = fg(colorFgDim)
-	styleMuted = fg(colorFgMuted)
-	styleBorderFg = fg(colorBorder)
+	styleDim = quiet(colorFgDim)
+	styleMuted = quiet(colorFgMuted)
+	styleBorderFg = quiet(colorBorder)
 	styleBorderFocus = fg(colorBorderFocus)
 	styleSelected = selectedStyle(fg(colorFgPrimary))
 	styleCursor = lipgloss.NewStyle().Reverse(true)
@@ -163,7 +168,7 @@ func rebuildStyles() {
 		bold(colorDanger).Reverse(true),
 		bold(colorDanger),
 		fg(colorWarn),
-		fg(colorFgDim),
+		quiet(colorFgDim),
 	}
 	styleFleet = make([]lipgloss.Style, len(colorFleet))
 	for i, c := range colorFleet {
@@ -171,15 +176,15 @@ func rebuildStyles() {
 	}
 
 	styleChipActive = fg(colorFgPrimary)
-	styleChipDim = fg(colorFgDim)
-	styleChipSep = fg(colorFgMuted)
+	styleChipDim = quiet(colorFgDim)
+	styleChipSep = quiet(colorFgMuted)
 
 	styleBootOK = bold(colorSuccess)
 	styleBootFail = bold(colorDanger)
 	styleBootWarn = fg(colorWarn)
-	styleBootSkip = fg(colorFgMuted)
+	styleBootSkip = quiet(colorFgMuted)
 	styleBootRun = fg(colorInfo)
-	styleBootBracket = fg(colorFgMuted)
+	styleBootBracket = quiet(colorFgMuted)
 	styleBootHeader = bold(colorFgPrimary)
 	styleBootReady = fg(colorSuccess)
 	styleBootCause = fg(colorDanger)

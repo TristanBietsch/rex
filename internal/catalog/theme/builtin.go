@@ -67,16 +67,18 @@ var highContrast = Palette{
 	Fleet: fleetColors,
 }
 
-// ansi uses only the terminal's own 16 colors, so a Solarized or Gruvbox
-// terminal theme gives rex a matching look, and it is the natural fallback on
-// a 16-color terminal. Text and background stay the terminal's defaults ("")
-// and the selection is reverse video.
+// ansi uses only the terminal's own six normal hues, so a Solarized or
+// Gruvbox terminal theme gives rex a matching look, and it is the natural
+// fallback on a 16-color terminal. Text, background and the neutral tones are
+// the terminal's defaults (""): dim and muted text and borders are the default
+// color drawn faint (Faint), because no fixed index is safe for them. Index 8
+// is the Solarized Dark background, and the bright indexes are grays there.
+// The selection is reverse video.
 var ansi = Palette{
-	Name: "ansi", Dark: true,
-	FgDim: "8", FgMuted: "8", Border: "8", BorderFocus: "7",
+	Name: "ansi", Dark: true, Faint: true,
 	Accent:  "5",
-	Working: "4", Queued: "4", Needs: "3", Done: "2", Failed: "1", Crashed: "8",
+	Working: "4", Queued: "4", Needs: "3", Done: "2", Failed: "1",
 	Warn: "3", Danger: "1", Success: "2", Info: "4",
-	Fleet:      []string{"4", "3", "2", "1", "5", "6", "12", "11", "10", "13"},
+	Fleet:      []string{"4", "3", "2", "1", "5", "6"},
 	SelReverse: true,
 }

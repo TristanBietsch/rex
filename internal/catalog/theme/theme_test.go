@@ -7,6 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// ansi leaves the neutral tones to the terminal default.
+var ansiNeutral = map[string]bool{"Bg": true, "Fg": true, "FgDim": true, "FgMuted": true, "BgSel": true, "Border": true, "BorderFocus": true, "Crashed": true}
+
 func TestEveryBuiltinComplete(t *testing.T) {
 	for _, name := range Names() {
 		p := Builtin[name]
@@ -17,7 +20,7 @@ func TestEveryBuiltinComplete(t *testing.T) {
 			switch f.Type.Kind() {
 			case reflect.String:
 				// ansi leaves text, background and selection to the terminal.
-				if name == "ansi" && (f.Name == "Bg" || f.Name == "Fg" || f.Name == "BgSel") {
+				if name == "ansi" && ansiNeutral[f.Name] {
 					continue
 				}
 				require.NotEmpty(t, v.Field(i).String(), "%s.%s is empty", name, f.Name)

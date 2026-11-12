@@ -58,3 +58,24 @@ func TestSelectionReverseOnAnsi(t *testing.T) {
 		require.NotContains(t, stateMarkerCellFor(Model{}, protocol.StateDone, 0, false), ";7;")
 	})
 }
+
+// Under ansi the dim tones are the terminal's default color drawn faint, not
+// color index 8 (the background in Solarized Dark), which would vanish.
+func TestAnsiDimTonesAreFaintNotIndex8(t *testing.T) {
+	t.Cleanup(func() { applyTheme("default") })
+	withProfile(termenv.TrueColor, func() {
+		applyTheme("ansi")
+		for name, st := range map[string]lipgloss.Style{
+			"dim": styleDim, "muted": styleMuted, "border": styleBorderFg, "meta": styleHeaderMeta,
+			"chip dim": styleChipDim, "chip sep": styleChipSep, "boot skip": styleBootSkip, "long run 10m": styleLongRun[3],
+		} {
+			out := st.Render("x")
+			require.Contains(t, out, "\x1b[2m", "%s is faint", name)
+			require.NotContains(t, out, "38;5;8", name)
+			require.NotContains(t, out, "[90m", name)
+			require.NotContains(t, out, "38;2", name, "no fixed color")
+		}
+		applyTheme("default")
+		require.NotContains(t, styleDim.Render("x"), "\x1b[2m")
+	})
+}

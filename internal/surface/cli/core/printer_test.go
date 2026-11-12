@@ -9,7 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
 func envOf(kv ...string) func(string) string {
@@ -434,4 +438,17 @@ func TestOutputFlags(t *testing.T) {
 		require.Contains(t, usage.String(), "-o format")
 		require.Contains(t, usage.String(), "-agent")
 	})
+}
+
+// The ansi scheme has no color for its dim tones: they are the terminal
+// default drawn faint (index 8 would vanish on Solarized Dark).
+func TestCLIAnsiSchemeDimIsFaint(t *testing.T) {
+	r := lipgloss.NewRenderer(io.Discard)
+	r.SetColorProfile(termenv.TrueColor)
+	st := NewStyles(theme.Builtin["ansi"], r)
+	for name, s := range map[string]lipgloss.Style{"dim": st.Dim, "muted": st.Muted, "hr": st.HR} {
+		require.Contains(t, s.Render("x"), "\x1b[2m", name)
+	}
+	st = NewStyles(theme.Builtin["default"], r)
+	require.NotContains(t, st.Dim.Render("x"), "\x1b[2m")
 }

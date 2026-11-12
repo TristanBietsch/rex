@@ -31,6 +31,9 @@ type Palette struct {
 	Fleet                       []string
 	// SelReverse draws the selection in reverse video instead of BgSel.
 	SelReverse bool
+	// Faint draws FgDim, FgMuted and Border faint (SGR 2) on the terminal
+	// default color: for a scheme that has no color of its own for them.
+	Faint bool
 }
 
 // DefaultName is the palette used when a name is unknown or unset.
