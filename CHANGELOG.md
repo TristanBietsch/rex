@@ -67,6 +67,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Sessions carry `cost_usd` on the wire (Claude Code, from the usage hub;
   sent when it moved by a cent, at most every 2 s; kept across restarts).
 
+### Fixed (render and cleanup port)
+
+- Attach popup rows with CJK or emoji text stay exactly the popup's width,
+  so the popup no longer shifts and clicks land on the right cells.
+- Popups drawn over wide board text keep straight borders, and a popup
+  wider than the terminal is clipped instead of wrapping.
+- Pasting multi-line text into the command bar or the `λ` prompt no longer
+  pushes the help line off the screen. The `λ` prompt and the wizard's task
+  keep the pasted line breaks for the agent; escapes are dropped.
+- On a short terminal the board gives up rows; the prompt and help line
+  stay on screen.
+- The done flash is visible again.
+- A quick-spawned session is selected even when another session goes away
+  before it starts.
+- Detaching from a busy agent no longer leaks a reader; re-attaching to
+  the same session can't be marked ended by the old popup.
+- `:stats` closes on `esc` only; typing `:stats` over it no longer runs
+  board keys. The setup wizard's model field edits at its end, and its
+  daemon hint says `rex daemon start`. A daemon that fails to start points
+  at `daemon.log` unless `rex-daemon` is missing.
+- `rex new` reports the session it spawned when two spawns race.
+- `rex uninstall` exits 1 when a removal fails. `rex doctor` and
+  `rex uninstall` find `rex-daemon` next to `rex`, as `rex daemon start`
+  does. `rex config edit` opens the `lua_config_path` file and accepts an
+  `$EDITOR` with arguments (`code -w`).
+- The initial prompt and `rex reply` text are typed without escape
+  sequences or control characters, so a prompt can't close its own paste.
+- The daemon keeps `max_concurrent_sessions` from `config.yaml` across
+  restarts, removes subscriptions of closed connections, no longer drops a
+  change made while a client's snapshot is taken, replays a cut transcript
+  from a clean boundary, removes leftover `meta-*.tmp` files at startup and
+  drops bidi controls from `last_line`. Log records carry the process id.
+
 ### Fixed (Lua volume warning)
 
 - `rex doctor` warns when `config.lua` (or a trusted workspace's
