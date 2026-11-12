@@ -88,6 +88,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   daemon hint says `rex daemon start`. A daemon that fails to start points
   at `daemon.log` unless `rex-daemon` is missing.
 - `rex new` reports the session it spawned when two spawns race.
+  `rex fleet set` and `unset` report a fleet the daemon rejects instead of
+  printing success.
 - `rex uninstall` exits 1 when a removal fails. `rex doctor` and
   `rex uninstall` find `rex-daemon` next to `rex`, as `rex daemon start`
   does. `rex config edit` opens the `lua_config_path` file and accepts an
