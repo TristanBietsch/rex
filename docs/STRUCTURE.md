@@ -66,8 +66,10 @@ internal/
 │   ├── snapshot/           # turn snapshots: shadow git store, undo/redo, retention
 │   ├── usage/              # usage ledger, Claude status-line tap, quotas
 │   ├── export/             # session export: transcript frames, formatters, agent log
+│   ├── audit/              # audit trail: Record, Append, Read (jsonl, 0600, symlink-safe)
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
+├── workspace/              # workspace identity: .rex/ discovery, Init, registry, git exclude
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)
 ```
 
@@ -101,6 +103,7 @@ Add user-facing setting             → catalog/settings/registry.go only
 Add UI sound                        → features/audio/
 Add Ollama/summary behavior         → features/summarizer/
 Add Lua hook                        → features/lua/ + daemon/boot/
+Add audit/workspace behavior        → features/audit/, workspace/ (+ daemon/boot/audit.go)
 ```
 
 ## Conventions

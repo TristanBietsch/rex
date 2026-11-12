@@ -193,6 +193,42 @@ Replays the session's transcript through the terminal emulator (full-screen agen
 
 ---
 
+## rex ws
+
+Workspaces: mark a project folder with a `.rex/` identity (id, name, color). See [workspaces.md](workspaces.md).
+
+```sh
+rex ws init [path] [--name N]
+rex ws id [path]
+rex ws ls
+rex ws rename <id|path> <name>
+rex ws color <id|path> <#RRGGBB|1-7>
+```
+
+`init` creates `<path>/.rex/workspace.json` (default: the current folder), registers it in `~/.local/share/rex/workspaces.json` and adds `/.rex/` and `/.rex/audit.jsonl` to the repository's `.git/info/exclude`; on a folder that already is a workspace it keeps the id. `$HOME` and `/` are refused (exit 5). `id` prints the workspace around a folder, `ls` the known ones (with `(missing)` when the folder is gone). `<id|path>` is an 8-hex id or any folder inside the workspace. `color` takes `#RRGGBB` or a swatch number from the colorblind-safe palette (1-7). All take `-o text|txt|md|json|agent`.
+
+`json` is `{"v":1,"cmd":"ws init","data":{"id","name","color","root","created","git_excluded"}}` (`ws id`, `rename` and `color` carry the same fields without the last two); `ws ls` data is an array of `{"id","name","color","root","last_seen","present"}`.
+
+Exit **5** with `off: enable in Settings → Features (rex config set workspaces true)` while `workspaces` is off (nothing is read or written), and for `init` on `$HOME` or `/`. Exit **2** when no workspace matches, **6** for an unsafe or invalid `.rex/` (a symlink, writable by others, owned by another user, or an oversized or malformed `workspace.json`).
+
+---
+
+## rex audit
+
+One line per finished session, from the audit trail. See [workspaces.md](workspaces.md#audit-trail).
+
+```sh
+rex audit [--ws <id|path> | --all] [--since 7d] [--tool T] [--state S] [-o FORMAT] [--agent]
+```
+
+Reads the files itself (the daemon only writes them), newest first. With no scope flag it reads the workspace around the current folder when `workspaces` is on, else the global trail (`~/.local/share/rex/audit.jsonl`). `--ws` reads one workspace's trail and needs `workspaces` on; `--all` reads the global trail and every known workspace's. `--since` is `7d`, `12h`, `90m` or a date; `--state` is `done`, `failed` or `crashed`. A trail that cannot be read (a symlink, an unsafe `.rex/`) is skipped with a warning line.
+
+`json` is `{"v":1,"cmd":"audit","data":[{"ts","workspace_id","session_id","short_id","name","tool","model","prompt_first_line","prompt","state","started_at","ended_at","duration_s","resume_id","description"}]}`; `prompt` appears only when `audit_full_prompt` was on for that session. `agent` prints one `audit …` line per record, then `ok cmd=audit count=N`.
+
+Exit **5** with `off: enable in Settings → Features (rex config set audit_trail true)` while `audit_trail` is off, for a bad `--since` or `--state`, and for `--ws` while `workspaces` is off. Exit **2** for an unknown `--ws`.
+
+---
+
 ## rex usage
 
 What the agents used: tokens, cost and plan quota, per agent, per model and in total.

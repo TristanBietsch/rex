@@ -116,10 +116,26 @@ type Config struct {
 	// OnReload handles a Reload intent (nil = intent rejected): re-read
 	// tools.yaml and swap the registry, same as SIGHUP.
 	OnReload func() error
+	// Audit receives the audit-trail hooks (nil: no audit trail). Begin runs
+	// at spawn with the initial prompt; End runs in the shared teardown path
+	// before a session's directory is removed.
+	Audit AuditHook
 	// OnBoardClient runs after a board viewer (Hello.Client ==
 	// protocol.ClientTUI) completed its Hello and was counted. nil: nothing.
 	// It runs on the connection's goroutine and must not block.
 	OnBoardClient func()
+}
+
+// AuditHook is how the server feeds the audit trail (see package audit).
+// Implementations are inert while the audit_trail setting is off.
+type AuditHook interface {
+	// Begin hands over a new session's initial prompt ("" when none) before
+	// the session starts. It keeps only what it needs, in memory.
+	Begin(sess *state.Session, prompt string)
+	// End writes the session's audit record unless it is already written.
+	// The server calls it before it removes the session's directory, and
+	// keeps the session when it fails.
+	End(sess *state.Session) error
 }
 
 // resumeOn reports whether the resume feature is on.
@@ -145,6 +161,8 @@ type Server struct {
 	cfg  Config
 	reg  atomic.Pointer[registry.Registry]
 	gate *concurrencyGate
+	// removeSession deletes a session's directory (state.RemoveSession; a test seam).
+	removeSession func(root string, s *state.Session) error
 	// wg tracks the connection handlers and the retire reaper. Serve waits
 	// for it before it waits for sessions, so no handler can start a
 	// supervisor (sessions.Add) once sessions.Wait has begun.
@@ -259,10 +277,11 @@ func New(cfg Config) (*Server, error) {
 		cfg.RetireSweepInterval = defaultRetireSweepInterval
 	}
 	s := &Server{
-		cfg:      cfg,
-		gate:     &concurrencyGate{max: cfg.MaxConcurrentSessions},
-		handlers: defaultHandlers(),
-		ownerUID: os.Getuid(),
+		cfg:           cfg,
+		gate:          &concurrencyGate{max: cfg.MaxConcurrentSessions},
+		handlers:      defaultHandlers(),
+		ownerUID:      os.Getuid(),
+		removeSession: state.RemoveSession,
 	}
 	s.reg.Store(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through

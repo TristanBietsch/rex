@@ -11,6 +11,8 @@
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
+//	    workspaces.json            WorkspacesFile: registry of workspace ids and folders (workspaces feature)
+//	    audit.jsonl                AuditFile: one line per finished session outside a workspace (audit_trail)
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
 //	    snapshots/<key>/           SnapshotsDir: turn-snapshot shadow stores, 0700
 //	    exports/                   ExportsDir: files :export writes (0600)
@@ -61,6 +63,8 @@ const (
 	exportsDirName   = "exports"
 	daemonLockName   = "daemon.lock"
 	usageLedgerName  = "usage.jsonl"
+	workspacesName   = "workspaces.json"
+	auditFileName    = "audit.jsonl"
 	daemonLogName    = "daemon.log"
 	tuiStateFileName = "tui-state.json"
 	socketName       = "rex.sock"
@@ -75,22 +79,24 @@ var ErrNoHome = errors.New("cannot determine the home directory (set HOME)")
 // with ForHome, or Resolve for the current user. The socket is not part of
 // it because it also depends on $XDG_RUNTIME_DIR; see Socket.
 type Layout struct {
-	Home         string // the home directory the layout derives from
-	ConfigDir    string // ~/.config/rex
-	ConfigFile   string // ~/.config/rex/config.yaml
-	ToolsFile    string // ~/.config/rex/tools.yaml
-	LuaInitFile  string // ~/.config/rex/init.lua
-	SkillsDir    string // ~/.config/rex/skills
-	DataDir      string // ~/.local/share/rex
-	SessionsDir  string // ~/.local/share/rex/sessions
-	SnapshotsDir string // ~/.local/share/rex/snapshots
-	ExportsDir   string // ~/.local/share/rex/exports
-	DaemonLock   string // ~/.local/share/rex/daemon.lock
-	UsageLedger  string // ~/.local/share/rex/usage.jsonl
-	LogDir       string // ~/.local/state/rex
-	DaemonLog    string // ~/.local/state/rex/daemon.log
-	TUIStateFile string // ~/.local/state/rex/tui-state.json
-	CacheDir     string // ~/.cache/rex
+	Home           string // the home directory the layout derives from
+	ConfigDir      string // ~/.config/rex
+	ConfigFile     string // ~/.config/rex/config.yaml
+	ToolsFile      string // ~/.config/rex/tools.yaml
+	LuaInitFile    string // ~/.config/rex/init.lua
+	SkillsDir      string // ~/.config/rex/skills
+	DataDir        string // ~/.local/share/rex
+	SessionsDir    string // ~/.local/share/rex/sessions
+	SnapshotsDir   string // ~/.local/share/rex/snapshots
+	ExportsDir     string // ~/.local/share/rex/exports
+	DaemonLock     string // ~/.local/share/rex/daemon.lock
+	UsageLedger    string // ~/.local/share/rex/usage.jsonl
+	WorkspacesFile string // ~/.local/share/rex/workspaces.json
+	AuditFile      string // ~/.local/share/rex/audit.jsonl
+	LogDir         string // ~/.local/state/rex
+	DaemonLog      string // ~/.local/state/rex/daemon.log
+	TUIStateFile   string // ~/.local/state/rex/tui-state.json
+	CacheDir       string // ~/.cache/rex
 }
 
 // ForHome returns the layout under home. It is pure: it neither reads the
@@ -102,22 +108,24 @@ func ForHome(home string) Layout {
 	data := filepath.Join(home, ".local", "share", appDir)
 	logs := filepath.Join(home, ".local", "state", appDir)
 	return Layout{
-		Home:         home,
-		ConfigDir:    config,
-		ConfigFile:   filepath.Join(config, configFileName),
-		ToolsFile:    filepath.Join(config, toolsFileName),
-		LuaInitFile:  filepath.Join(config, luaInitFileName),
-		SkillsDir:    filepath.Join(config, skillsDirName),
-		DataDir:      data,
-		SessionsDir:  filepath.Join(data, sessionsDirName),
-		SnapshotsDir: filepath.Join(data, snapshotsDirName),
-		ExportsDir:   filepath.Join(data, exportsDirName),
-		DaemonLock:   filepath.Join(data, daemonLockName),
-		UsageLedger:  filepath.Join(data, usageLedgerName),
-		LogDir:       logs,
-		DaemonLog:    filepath.Join(logs, daemonLogName),
-		TUIStateFile: filepath.Join(logs, tuiStateFileName),
-		CacheDir:     filepath.Join(home, ".cache", appDir),
+		Home:           home,
+		ConfigDir:      config,
+		ConfigFile:     filepath.Join(config, configFileName),
+		ToolsFile:      filepath.Join(config, toolsFileName),
+		LuaInitFile:    filepath.Join(config, luaInitFileName),
+		SkillsDir:      filepath.Join(config, skillsDirName),
+		DataDir:        data,
+		SessionsDir:    filepath.Join(data, sessionsDirName),
+		SnapshotsDir:   filepath.Join(data, snapshotsDirName),
+		ExportsDir:     filepath.Join(data, exportsDirName),
+		DaemonLock:     filepath.Join(data, daemonLockName),
+		UsageLedger:    filepath.Join(data, usageLedgerName),
+		WorkspacesFile: filepath.Join(data, workspacesName),
+		AuditFile:      filepath.Join(data, auditFileName),
+		LogDir:         logs,
+		DaemonLog:      filepath.Join(logs, daemonLogName),
+		TUIStateFile:   filepath.Join(logs, tuiStateFileName),
+		CacheDir:       filepath.Join(home, ".cache", appDir),
 	}
 }
 
@@ -219,6 +227,20 @@ func UsageLedger() (string, error) { return field(func(l Layout) string { return
 // UsageLedgerFileName is the ledger's file name inside a state directory,
 // for a daemon started with a -state-dir other than DataDir.
 const UsageLedgerFileName = usageLedgerName
+
+// AuditFileName is the audit file's name inside a state directory, for a
+// daemon started with a -state-dir other than DataDir.
+const AuditFileName = auditFileName
+
+// WorkspacesFile returns ~/.local/share/rex/workspaces.json, the registry of
+// workspace ids and the folders they were last seen at.
+func WorkspacesFile() (string, error) {
+	return field(func(l Layout) string { return l.WorkspacesFile })
+}
+
+// AuditFile returns ~/.local/share/rex/audit.jsonl, the audit trail of
+// sessions that ran outside any workspace (mode 0600).
+func AuditFile() (string, error) { return field(func(l Layout) string { return l.AuditFile }) }
 
 // LogDir returns ~/.local/state/rex, the directory of logs and ephemeral
 // TUI state. It ignores REX_LOG_DIR, which only rexlog honors.
