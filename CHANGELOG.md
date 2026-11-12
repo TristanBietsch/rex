@@ -70,6 +70,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
+  changed target is refused before anything is touched. `rex undo` and the
+  TUI dialog send it on confirm.
 - TUI: the new-session wizard lists only installed agents and shows the
   daemon's merged model list with a `detected` tag (it follows the daemon's
   `Snapshot.tools` and `ToolsChanged`, so an open wizard updates in place).
