@@ -89,7 +89,11 @@ func TestTakeOver(t *testing.T) {
 	_ = l.Close()
 	lockF, err := os.Create(filepath.Join(dir, state.LockFileName))
 	require.NoError(t, err)
-	lfd, lockFD := int(lf.Fd()), int(lockF.Fd()) //nolint:gosec // G115: test fds.
+	// takeOver owns what it is handed: give it duplicates, so the test's
+	// own *os.File values never close a descriptor a second time.
+	lfd, lockFD := dupFD(t, lf), dupFD(t, lockF)
+	_ = lf.Close()
+	_ = lockF.Close()
 	path := handoff.Path(dir, os.Getpid())
 	require.NoError(t, handoff.Write(path, handoff.File{Format: handoff.Format, PID: os.Getpid(), UID: os.Getuid(),
 		Socket: sock, ListenerFD: lfd, LockFD: lockFD,
@@ -132,7 +136,7 @@ func TestAdoptionsKillsOrphan(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	defer w.Close()
-	tk := &takeover{sessions: map[string]handoff.Session{"gone": {ID: "gone", PID: child.Process.Pid, FD: int(r.Fd())}}} //nolint:gosec // G115: test fd.
+	tk := &takeover{sessions: map[string]handoff.Session{"gone": {ID: "gone", PID: child.Process.Pid, FD: dupFD(t, r)}}}
 	require.Empty(t, tk.adoptions(state.NewStore()))
 	select {
 	case <-done:
@@ -147,9 +151,22 @@ func TestAdoptionsPairsStoredSession(t *testing.T) {
 	defer w.Close()
 	store := state.NewStore()
 	require.NoError(t, store.Add(&state.Session{ID: "s1", ShortID: "s1", Slug: "s1", ToolID: "echo"}))
-	tk := &takeover{sessions: map[string]handoff.Session{"s1": {ID: "s1", PID: os.Getpid(), FD: int(r.Fd()), Cols: 80, Rows: 24}}} //nolint:gosec // G115: test fd.
+	tk := &takeover{sessions: map[string]handoff.Session{"s1": {ID: "s1", PID: os.Getpid(), FD: dupFD(t, r), Cols: 80, Rows: 24}}}
 	got := tk.adoptions(store)
 	require.Len(t, got, 1)
 	require.Equal(t, uint16(80), got[0].Cols)
 	_ = got[0].Adopted.File.Close()
+}
+
+// dupFD duplicates f's descriptor for code that takes ownership of it.
+func dupFD(t *testing.T, f *os.File) int {
+	t.Helper()
+	rc, err := f.SyscallConn()
+	require.NoError(t, err)
+	nfd := -1
+	var derr error
+	require.NoError(t, rc.Control(func(fd uintptr) { nfd, derr = syscall.Dup(int(fd)) })) //nolint:gosec // G115: descriptors fit an int.
+	require.NoError(t, derr)
+	syscall.CloseOnExec(nfd)
+	return nfd
 }
