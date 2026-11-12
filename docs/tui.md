@@ -139,19 +139,33 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 
 Settings and help open as full-screen pages that look like the board: the same blank top row and `∴ REX` logo (`∴ REX › SETTINGS`, `∴ REX › HELP`), a divider, the body, a divider and a hint row. The board is not drawn behind them, and the window border frames them as it frames the board. The hint row follows `show_help_bar`; errors, such as a refused edit, show there even when it is off.
 
-- **Panes.** The body has two panes: a list of sections or groups on the left (at most 24 columns wide) and the rows on the right. `tab` / `shift+tab` switch the focused pane; a page opens with the rows focused. The mouse wheel acts on the focused pane.
-- **Narrow terminals.** Under 60 columns the left pane folds into a one-line strip under the header (`‹ Appearance ›`); `1`–`9` and `[` / `]` still switch, and `tab` does nothing.
+- **Panes.** The body has two panes: a list of sections or groups on the left (at most 24 columns wide) and the rows on the right. `h` focuses the left pane and `l` (or `enter`) the rows; `tab` / `shift+tab` switch too. A page opens with the rows focused.
+- **Moving (vim-style, the same on every page).** Settings, help and the new-agent page share one list navigator:
+
+  | Key | Does |
+  |---|---|
+  | `j` `k`, `↓` `↑` | one row; on the rows pane it goes on into the next or previous section (the left pane follows); clamps at the ends, never wraps |
+  | `h` `l` | left pane / rows pane |
+  | `gg` / `G` (`home` / `end`) | first / last row |
+  | `ctrl+d` / `ctrl+u` | half a window down / up |
+  | `ctrl+f` / `ctrl+b` (`pgdn` / `pgup`) | a whole window down / up |
+  | `[` / `]` | previous / next section (clamps); each section keeps the row you left it on |
+  | `1`–`9` | section N |
+  | mouse wheel | one row, as `j` / `k`, on the pane under the pointer |
+
+  A list scrolls one row at a time and keeps 2 rows of context above and below the cursor; the `↑ more` / `↓ more` markers take rows of their own, so they never hide a row. Counts (`5j`) are not supported: the digits jump to a section.
+- **Narrow terminals.** Under 60 columns the left pane folds into a one-line strip under the header (`‹ Appearance ›`); `j` `k` move rows, `h` / `l` and `[` / `]` change the section, `1`–`9` jump, and `tab` does nothing.
 - **Close.** `esc` (it clears a search or filter first) or `q`; `?` also closes help.
 - **While attached.** `::settings` and `::help` detach first, then open the page; a page is never drawn over a running agent.
 
-`fullscreen_pages` (Features, on by default) turns the pages off: settings and help then open as the older floating overlays over the dimmed board (a square box with its title set into the top border, `┌─ HELP ──── rex v1 ─┐`), as stats, failures, overview, `:usage` and the wizard always do. In the overlays `tab` / `shift+tab` jump to the next / previous section of settings, and the page keys (`q`, `1`–`9`, `[`, `]`) do nothing. The change applies on the next frame, with the cursor kept. The attach popup uses the same square corners but keeps the board's colors around it.
+`fullscreen_pages` (Features, on by default) turns the pages off: settings and help then open as the older floating overlays over the dimmed board (a square box with its title set into the top border, `┌─ HELP ──── rex v1 ─┐`), as stats, failures, overview, `:usage` and the wizard always do. In the overlays `tab` / `shift+tab` jump to the next / previous section of settings, and the page keys (`q`, `1`–`9`, `[`, `]`) do nothing; `j` `k` `h` `l` and the wheel keep their overlay meaning (rows within the list, `h` / `l` step a value). The change applies on the next frame, with the cursor kept. The attach popup uses the same square corners but keeps the board's colors around it.
 
 ### Help page
 
 `?` / `:help` opens the help page. The left pane lists the groups: Navigation, Filter & search, Actions, Mouse, Modes, Legend, Session commands, App commands and Attached session. The right pane shows the selected group's rows at full height. It lists every `:` command, including `:settings` and `:undone`.
 
-- **Groups.** `1`–`9` pick a group, `[` / `]` step through them (they wrap), and on the left pane `j` `k` move. `enter` or `l` moves to the rows. A new group starts at the top.
-- **Scroll.** On the rows pane a group that does not fit scrolls under `↑ more` / `↓ more` markers: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel. The wheel on the left pane changes the group.
+- **Groups.** `1`–`9` pick a group, `[` / `]` step through them (they stop at the ends), and on the left pane `j` `k` move. `enter` or `l` moves to the rows, `h` back. A new group starts at the top.
+- **Scroll.** The rows pane reads as one text: `j` `k` (or arrows, or the wheel) scroll one row, and past the end of a group go on into the next one (`k` above the top goes back to the end of the previous one). `ctrl+d` / `ctrl+u` scroll half a window, `ctrl+f` / `ctrl+b`, `pgdn` / `pgup` and `space` a whole one; `gg` and `G` go to the first group's top and the last group's end. A group that does not fit scrolls under `↑ more` / `↓ more` markers. Under a filter the hits are one list and `j` / `k` stop at its ends.
 - **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`), from every group at once; groups with no hit are dimmed on the left, and no hit at all reads `no match for “…”`. `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The header shows the query.
 - **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, the `waiting_spinner` still glyph (`◷` by default) for waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, the row icon strip while `row_icons` is on (`✦` finished since you last looked, `? asks`, `sh 42s` while `waiting_section` is on, `⟳ 3/8` while `loops` is on, `$0.42` while `usage` is on; the ASCII forms with `ascii_glyphs`), and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
 - **Features that are off.** Keys and commands behind a Features switch (`t`, `/`, `esc` for search, `z…`, `uc`, `:filter`, `:search`, `:uc`, `:rid`, `:export`) stay listed, dimmed and tagged `(off)`.
@@ -160,7 +174,8 @@ Settings and help open as full-screen pages that look like the board: the same b
 
 `S` / `:settings` opens the settings page. The left pane lists the sections, each with a dim count of its rows that differ from the default; the right pane lists the selected section's rows; the inspector under them is the detail pane below. The header shows the cursor row (`Appearance › Theme`) and the config file. `rex config` lists the same registry (it also shows the one hidden row, `keybind_preset`, which the page hides until a second preset exists).
 
-- **Sections.** `1`–`9` pick a section, `[` / `]` step through them (they wrap). On the left pane `j` `k` move the section and `enter` or `l` moves to the rows; on the rows pane `j` `k` stay inside the section, and `h` on a row with no values to step through does nothing.
+- **Sections.** `1`–`9` pick a section, `[` / `]` step through them (they stop at the ends). On the left pane `j` `k` move the section and `enter`, `l` or `→` move to the rows; on the rows pane `j` `k` go on into the next or previous section, and `h` goes back to the sections. Each section keeps the row you left it on.
+- **Values.** `←` / `→` (and `+` / `-`) step the row's value, as before: an enum, a number, a picker, a switch (`←` off, `→` on). On a row with no value to step (read only, an Onboarding row) `←` goes to the sections like `h`. `h` and `l` only move focus; they never change a value.
 - **Search.** `/` filters live over label, id, section and help text (`spin` leaves Spinner type and Waiting icon), across every section: the right pane lists the hits grouped by section under a match count, or `no setting matches “…”`. `enter` keeps the filter, `esc` clears it, a second `esc` closes. `esc` while you type goes back to the row you were on; after `enter` it keeps the row you picked. While you type, `j` `k` and the rest type; `ctrl+u` clears.
 - **Reload.** `R` reloads every layer, like `:reload`: the daemon's `tools.yaml`, `config.yaml`, `config.lua` and `init.lua`, and this board's `config.yaml` and themes. The status line shows `reloaded · changed: theme · needs daemon restart: summary_model`, or the first failed layer as `reload: file:line: message`.
 - **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. Values sit flush right; a switch's `on` is drawn in the primary text color and `off` in the dim one.
@@ -412,7 +427,7 @@ The dialog never changes a file until you confirm:
 
 ## NEW-AGENT PAGE
 
-`n` or `:new` opens one full-screen page (`new_agent_page`, Features, on by default) with everything a new agent needs: the agent, a multi-line task, context and folder trust. It lands in the task editor with the agent you launched last (else `default_spawn_tool` / `_model` / `_effort`).
+`n` or `:new` opens one full-screen page (`new_agent_page`, Features, on by default) with everything a new agent needs: the agent, a multi-line task, context and folder trust. It lands typing in the task editor with the agent you launched last (else `default_spawn_tool` / `_model` / `_effort`), so the common path stays `n`, type, `enter`.
 
 ```
   ∴ REX › NEW AGENT                 ~/dev/rex                       draft
@@ -422,23 +437,39 @@ The dialog never changes a file until you confirm:
   ▸ Task         │ TASK
   · Context      │ ┌──────────────────────────────────────────────────┐
   ? Trust   ask  │ │ fix the flaky auth test█                         │
-                 │ └──────────────────────────────────────────────────┘
+  › Launch       │ └──────────────────────────────────────────────────┘
                  │ CONTEXT
                  │   none yet: type @path, paste, or ctrl+o to import
                  │ TRUST
                  │   folder not trusted: the agent will ask
+                 │
+                 │   launch  ·  prompt 23 B of 96 KB · slug cc.opus.fix-the-flaky
 ──────────────────────────────────────────────────────────────────────────
-  enter launch · ctrl+j newline · @ file · ctrl+o import · tab next · esc close
+  enter launch · ctrl+j newline · @ file · ctrl+o import · esc navigate · tab next
 ```
 
-- **Steps.** The left rail lists Agent, Task, Context and Trust, each with a mark and a word (`✓`, `·` empty, the item count, `ask` / `sess` / `always` / `trusted`); `tab` / `shift+tab` move between sections and `1`–`4` jump (outside the editor). Under 60 columns the rail becomes a strip, `‹ Agent · [Task] · Context 2 · Trust ›`, the header keeps `draft` and drops the folder, and the form is one column.
-- **Agent.** `ctrl+g` (or `enter` on the agent row) opens the Agent screen: agents on the left with their brand glyph (missing ones dimmed under `not installed`; `enter` there opens Settings → Onboarding), models on the right with a `/` filter, effort as `low  [medium]  high` (`h` / `l`) and skills (`space`). `esc` comes back. Until the daemon has said which agents are installed, the AGENT section reads `⠋ checking which agents are installed…`; against a daemon that predates the tool list every tool counts as installed.
+The page has two modes, as in vim:
+
+- **Editing** (where it opens): keys type into the task. `enter` launches, `ctrl+j` / `alt+enter` add a line, `esc` leaves the editor (an open `@` list closes first), `tab` / `shift+tab` leave it for the next or previous step. `ctrl+s`, `ctrl+g`, `ctrl+o`, `ctrl+t` and `ctrl+a` work here too.
+- **Navigating**: the form is one list, Agent, Task, each context item, Trust, Launch. `j` / `k` walk it (clamped), `gg` / `G` go to the agent row and the launch row, `h` focuses the step rail (`j` / `k` there move a step at a time, `l` or `enter` come back), `[` / `]` and `1`–`5` jump a step. `i`, `a`, `A` (end of line) or `enter` on the task type again. `enter` acts on the step: the Agent screen, the item's preview, the next trust choice (`space` too: ask, this session, always), or the launch. `esc` or `q` closes the page and keeps the draft.
+
+| Key | Editing | Navigating |
+|---|---|---|
+| letters, digits | type | page keys (`j` `k` `h` `l` `g` `G` `i` `a` `x` `d` `r` `e` `q` `1`–`5` …) |
+| `enter` | launch | act on the step |
+| `esc` | leave the editor | close the page |
+| `tab` / `shift+tab` | leave the editor: next / previous step | next / previous step (wraps) |
+| `ctrl+s` | launch | launch |
+
+- **Steps.** The left rail lists Agent, Task, Context, Trust and Launch, each with a mark and a word (`✓`, `·` empty, the item count, `ask` / `sess` / `always` / `trusted`); `tab` / `shift+tab` move between steps and `1`–`5` jump (outside the editor). Under 60 columns the rail becomes a strip, `‹ Agent · [Task] · Context 2 · Trust · Launch ›`, `h` / `l` step through it, the header keeps `draft` and drops the folder, and the form is one column.
+- **Agent.** `ctrl+g` (or `enter` on the agent row) opens the Agent screen: agents on the left with their brand glyph (missing ones dimmed under `not installed`; `enter` there opens Settings → Onboarding), and on the right models with a `/` filter, effort as `low  [medium]  high` and skills. `h` / `l` move between the agents and the right column; `j` / `k` move within: on the right they go from the last model on to effort, then to skills, and back. `gg` / `G` and `ctrl+d` / `ctrl+u` work on the agents, models and skills lists (a tool with 200 models scrolls one row at a time). On the effort row `←` / `→` change it (`+` / `-` change it from any pane); `space` toggles a skill; `tab` / `shift+tab` and `1`–`4` pick agents, models, effort or skills. While you type the filter, keys type and `↑` / `↓` move through the matches; `enter` keeps the filter and `j` / `k` then move through the matches; `esc` clears it. `enter` is done and `esc` (or `q`) comes back. Until the daemon has said which agents are installed, the AGENT section reads `⠋ checking which agents are installed…`; against a daemon that predates the tool list every tool counts as installed.
 - **Task.** `enter` launches; `ctrl+j` or `alt+enter` adds a line; `ctrl+w` / `alt+backspace` delete a word; `ctrl+u` clears the line, and on an empty editor drops the whole draft; `ctrl+e` edits the task in `$EDITOR`. A paste never launches: one of more than 8 lines or 1 KiB becomes a `paste N` context item with a `[paste N · L lines]` placeholder in the task.
-- **Context.** Pastes, workspace files and folders. `@` at a word start opens a completion list of workspace paths; `ctrl+o` opens the import picker (type to match, `space` marks, `enter` adds, `→` / `←` browse folders). In the list `j` / `k` move, `enter` previews, `x` or `delete` removes and `r` renames. A path must resolve inside the session folder and be a regular file or folder; a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added only after `y`. Limits: 32 KiB per paste, 64 KiB of pasted text, 32 items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt). Ollama takes its prompt as typed lines, so it only launches a one-line prompt with no context. A draft whose files were added in another folder shows `! files from <folder>, not this folder` and takes no new paths until `x` removes them. The last row shows the prompt's size against that limit and the slug.
-- **Trust.** `ctrl+t` trusts the folder for this session only, `ctrl+a` saves it to `auto_trust_dirs` at launch; the focused section names the exact folder each key trusts (as in the wizard below).
-- **Launch.** `enter` in the editor or `ctrl+s` anywhere. The page checks every cap and path first, then stays open with `⠋ starting…` until the daemon answers: success closes it and selects the new card; a failure shows `✗ launch failed: …` and keeps the task and context.
-- **Draft.** `esc` closes the innermost thing (completion, picker, preview, Agent screen, then the page). Leaving the page keeps the draft in memory for the next `n`; nothing of it is written to disk. A board swap (`:swap`, `rex upgrade`) never carries it: the swap waits while the page is open, `auto_swap` waits while a draft is kept, and an explicit swap over a kept draft drops it and the new board says so.
+- **Context.** Pastes, workspace files and folders. `@` at a word start opens a completion list of workspace paths; `ctrl+o` opens the import picker (type to match, `space` marks, `enter` adds, `→` / `←` browse folders). In the list `j` / `k` move (on past the last item to Trust), `enter` previews, `x`, `d` or `delete` removes, `r` renames and `e` edits a paste in `$EDITOR`. The preview scrolls with `j` / `k`, `gg` / `G` and `ctrl+d` / `ctrl+u`; `esc`, `q` or `h` go back. A path must resolve inside the session folder and be a regular file or folder; a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added only after `y`. Limits: 32 KiB per paste, 64 KiB of pasted text, 32 items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt). Ollama takes its prompt as typed lines, so it only launches a one-line prompt with no context. A draft whose files were added in another folder shows `! files from <folder>, not this folder` and takes no new paths until `x` removes them. The last row shows the prompt's size against that limit and the slug.
+- **Trust.** `ctrl+t` trusts the folder for this session only, `ctrl+a` saves it to `auto_trust_dirs` at launch; `enter` or `space` on the Trust step cycles ask, this session, always. The focused section names the exact folder each key trusts (as in the wizard below).
+- **Launch.** `enter` in the editor, `enter` on the Launch row (the last row: `▸ launch · prompt 2.0 KB of 96 KB · slug …`), or `ctrl+s` anywhere. The page checks every cap and path first, then stays open with `⠋ starting…` until the daemon answers: success closes it and selects the new card; a failure shows `✗ launch failed: …` and keeps the task and context.
+- **Draft.** `esc` closes the innermost thing (completion, editor, picker, preview, Agent screen, then the page). Leaving the page keeps the draft in memory for the next `n`; nothing of it is written to disk. A board swap (`:swap`, `rex upgrade`) never carries it: the swap waits while the page is open, `auto_swap` waits while a draft is kept, and an explicit swap over a kept draft drops it and the new board says so.
 - **Help.** `?` outside the editor opens help on the page's keys alone; `esc` comes back.
+- **Mouse.** The wheel moves one row, as `j` / `k`, on the pane under the pointer (the rail or the form; on the Agent screen the agents or the right column); it leaves the editor.
 
 Every state has a glyph or a word besides its color: `▸` on the cursor, `[x]` marks, the bracketed effort, `✓` / `·` / `?` rail marks, `✗` errors and `!` warnings.
 

@@ -146,6 +146,38 @@ Each is described in full under **Changed** below.
   leaves a running daemon alone. `-FromSource` keeps the old build from a
   checkout.
 
+### Fixed (page navigation)
+
+- The full-screen pages (settings, help, new agent) now move the same
+  vim-style way. `j` / `k` move one row and stop at the ends; `gg` / `G`
+  go to the first and last row; `ctrl+d` / `ctrl+u` move half a window and
+  `ctrl+f` / `ctrl+b` a whole one; `h` / `l` move between the left pane
+  and the rows; the mouse wheel moves one row on the pane under the
+  pointer. Lists scroll one row at a time with 2 rows of context around
+  the cursor, and the `↑ more` / `↓ more` markers no longer hide a row
+  (help used to skip one on the first scroll).
+- Settings: `j` / `k` go on from a section's last row into the next
+  section instead of stopping; each section keeps the row you left it on;
+  `h` focuses the sections (it did nothing) and `l` no longer changes a
+  value. `←` / `→` and `+` / `-` still step values. `[` / `]` stop at the
+  first and last section instead of wrapping.
+- Help: `j` past a group's end goes on into the next group, `ctrl+d` scrolls
+  half a window (it scrolled a whole one), `g` waits for `gg`, the wheel
+  scrolls one row (it scrolled three), `h` / `l` switch panes, and `[` / `]`
+  stop at the ends.
+- New-agent page: `esc` in the task editor now leaves the editor for
+  navigation instead of closing the page (a second `esc` closes it, the
+  draft kept). Out of the editor `j` / `k` walk the agent, the task, each
+  context item, trust and a new Launch row (`enter` launches); `h` focuses
+  the step rail; `i`, `a`, `A` or `enter` type in the task again; `d`
+  removes and `e` edits a context item; `enter` or `space` on Trust cycle
+  ask, this session, always. `enter` in the editor still launches. On the
+  Agent screen `h` / `l` move between the agents and the right column
+  instead of changing the effort, `j` / `k` go from the models on to
+  effort and skills, the effort row takes `←` / `→`, and the 200-model
+  list of some agents takes `gg`, `G` and `ctrl+d`. The wheel works on the
+  page.
+
 ### Fixed (help for command groups)
 
 - `rex help daemon` printed `daemon: unknown subcommand "-h"`. `rex help

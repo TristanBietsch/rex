@@ -113,6 +113,55 @@ Status: design revised 2026-11-11 against `integration/todo` after round 1 (U1, 
 | D10 | `:usage` | Stays a floating overlay; full-screen usage is out of R04. (2026-11-11, user) |
 | D7 | Overlay code | Kept behind the flag; R04-1's "overlays removed" dropped (contradicted the flag). (agent call) |
 
+## Decision: page navigation (2026-11-12)
+
+2026-11-12 (user): "the new fullscreens are nice, but the vim movement is broken. remake it so that it is more fluid and natural", "esp for the new agent screen". One vim-style model, shared by settings, help and the R16 new-agent page through one navigator (`internal/surface/tui/nav.go`). Supersedes the Keys section above where they differ (h no-op, `[`/`]` wrap, the wheel on the focused pane).
+
+Defects found (each has a failing-first test in `page_nav_test.go`):
+
+| # | Page | Defect | Test |
+|---|---|---|---|
+| N1 | settings | `j`/`k` stop at a section's last/first row | `TestPageNav_SettingsJKCrossSections` |
+| N2 | settings | `h` is a no-op and `l` changes the value: no key goes from the rows to the sections | `TestPageNav_SettingsHLMovePanes` |
+| N3 | settings | the sections pane, `[`/`]` and `1`–`9` always land on a section's first row: the place is lost | `TestPageNav_SettingsRemembersRowPerSection` |
+| N4 | settings | no `gg`/`G`, `ctrl+d`/`ctrl+u`, `ctrl+f`/`ctrl+b` | `TestPageNav_SettingsTopBottomAndPages` |
+| N5 | settings, help | `[`/`]` wrap while `j`/`k` clamp | `TestPageNav_SettingsBracketsClamp`, `TestPageNav_HelpHLAndBrackets` |
+| N6 | settings, R16 lists | the window recenters on the cursor (`windowLines`) instead of a scroll margin | `TestPageNav_SettingsScrollOff`, `TestNav_ScrollKeepsContextAndMovesOneRow` |
+| N7 | settings, help | the wheel acts on the focused pane, not the one under the pointer | `TestPageNav_SettingsWheelUnderPointer` |
+| N8 | help | the `↑ more` marker overwrites a row: the first `j` hides two rows | `TestPageNav_HelpJScrollsOneRowNoneHidden`, `TestNav_WindowMarkersHideNoRow` |
+| N9 | help | `ctrl+d` scrolls a whole page; a single `g` jumps to the top | `TestPageNav_HelpHalfPageAndGg` |
+| N10 | help | `j` stops at a group's end | `TestPageNav_HelpJCrossesGroups` |
+| N11 | help | `h` does nothing; the wheel scrolls 3 rows, `j` 1 | `TestPageNav_HelpHLAndBrackets`, `TestPageNav_HelpWheelIsOneRow` |
+| N12 | new agent | `esc` in the task editor closes the page; no way to leave the editor and move with `j`/`k` | `TestPageNav_NAEscLeavesTheEditorFirst`, `TestPageNav_NAIAndEnterEdit` |
+| N13 | new agent | `j`/`k` do nothing on Agent and Trust, and stop at the last context item | `TestPageNav_NAJKCrossSections` |
+| N14 | new agent | the step rail cannot take the focus | `TestPageNav_NARailFocus` |
+| N15 | new agent | context items: no `d`, no `e` outside the preview | `TestPageNav_NAContextKeys` |
+| N16 | new agent | no launch row; trust only by `ctrl+t`/`ctrl+a` | `TestPageNav_NAEnterOnLaunchRow`, `TestPageNav_NATrustCycles` |
+| N17 | new agent | the wheel does nothing on the page; narrow `h`/`l` do nothing | `TestPageNav_NAWheel`, `TestPageNav_NANarrowHL` |
+| N18 | new agent, Agent screen | `h`/`l` change the effort, not the column; `j` stops at the last model; effort has no focus | `TestPageNav_NAAgentHLColumns`, `TestPageNav_NAAgentJIntoEffort` |
+| N19 | new agent, Agent screen | 200 models: no `gg`/`G`/`ctrl+d`, centered window | `TestPageNav_NAAgentManyModels` |
+
+The model (all three pages):
+
+| Key | Does |
+|---|---|
+| `j` `k`, `↓` `↑` | one row in the focused pane; the rows pane goes on into the next/previous section (the section list follows); clamps, never wraps |
+| `h` `l` | sections pane / rows pane (narrow: previous / next section) |
+| `←` `→` | settings: step the row's value where it has one (the existing contract), else `←` = `h`; R16 Agent screen: the effort row's value, else as `h`/`l` |
+| `gg` / `G`, `home` / `end` | first / last row |
+| `ctrl+d` / `ctrl+u` | half a window |
+| `ctrl+f` / `ctrl+b`, `pgdn` / `pgup` | a whole window |
+| `tab` / `shift+tab` | switch panes (kept, D5); R16 Compose: next / previous step (wraps, as R16) |
+| `[` / `]`, `1`–`9` | previous / next section (clamps), section N; each section keeps the row it was left on |
+| `/` | search: keys type; `enter` keeps it and `j`/`k` move through the hits; `esc` clears |
+| wheel | one row, as `j`/`k`, on the pane under the pointer |
+
+- Scrolling: a scrolloff of 2 rows, one row per step; the `↑ more`/`↓ more` markers take rows of their own.
+- Counts (`5j`): not supported; the digits are section jumps on every page.
+- Board keys: unchanged. The overlays (`fullscreen_pages` off): unchanged.
+- R16 Compose keeps two modes: **editing** (keys type; `enter` launches per R16 D2, `ctrl+j`/`alt+enter` newline; `esc` leaves the editor; `tab` leaves it for the next step) and **navigating** (`j`/`k` walk agent, task, each context item, trust, launch; `h` focuses the rail; `i`/`a`/`A`/`enter` on the task edit; `esc`/`q` close, keeping the draft). D2 does not conflict: `enter` launches only while editing. The one change to R16's table: `esc` in the editor no longer closes the page (it is the innermost thing now). A Launch step joins the rail (`5`), so `enter` launches from it.
+- R16 Agent screen: columns are agents | models, effort, skills; `h`/`l` between columns, `j`/`k` within and across models → effort → skills; effort is its own focus with `←`/`→` (`+`/`-` from any pane); `tab` cycles all four.
+
 ## Revision notes (2026-11-11)
 - Old R04-4 (audio rows) removed: rows exist.
 - Old "Overlays removed" in R04-1 contradicted "flag off = overlays unchanged"; overlays now stay.

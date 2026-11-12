@@ -330,7 +330,7 @@ All D1–D12 accepted as recommended (2026-11-11, user).
 | # | Question | Recommendation |
 |---|---|---|
 | D1 | Land on Compose with remembered agent, or on the Agent screen? | **Compose.** One screen for the common path; `ctrl+g` for the rest. |
-| D2 | `enter` in the task editor: launch or newline? | **Launch** (keeps today's habit and `i`'s); `ctrl+j`/`alt+enter` newline; `ctrl+s` launches from anywhere. |
+| D2 | `enter` in the task editor: launch or newline? | **Launch** (keeps today's habit and `i`'s); `ctrl+j`/`alt+enter` newline; `ctrl+s` launches from anywhere. 2026-11-12 (user): kept under the vim-style modes of R04 "Decision: page navigation": `esc` leaves the editor instead of closing the page, `j`/`k`/`h`/`l` navigate outside it, a Launch step takes `enter`. |
 | D3 | Remember the last agent/model/effort from the page, or always start from `default_spawn_*`? | **Remember the last launch** (in memory per TUI run, falling back to `default_spawn_*`); no new setting. |
 | D4 | Keep an unsent draft after `esc`/failure? | **Yes, in memory only** (never written to disk: it may hold pasted secrets). |
 | D5 | Big-paste threshold for turning a paste into a chip | **8 lines or 1 KiB.** Below that it is just text in the task. |
