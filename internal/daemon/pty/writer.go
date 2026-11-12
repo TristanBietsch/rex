@@ -72,13 +72,21 @@ func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWrit
 
 // write writes the unit's parts back to back. ok is false when the guard
 // dropped the rest of the unit or the writer ended during a gap.
-func (p *ptyWriter) write(u writeUnit) (ok bool, err error) {
+func (p *ptyWriter) write(u writeUnit) (bool, error) {
 	var callerGone <-chan struct{}
 	if u.ctx != nil {
 		callerGone = u.ctx.Done() // nil channel (never ready) when there is no ctx
 	}
+	gone := func() bool {
+		select {
+		case <-callerGone:
+			return true
+		default:
+			return false
+		}
+	}
 	for i, part := range u.parts {
-		if u.ctx != nil && u.ctx.Err() != nil {
+		if gone() {
 			return false, nil
 		}
 		if i > 0 && u.gap > 0 {
@@ -90,7 +98,7 @@ func (p *ptyWriter) write(u writeUnit) (ok bool, err error) {
 			case <-time.After(u.gap):
 			}
 		}
-		if i > 0 && u.ctx != nil && u.ctx.Err() != nil {
+		if i > 0 && gone() {
 			return false, nil
 		}
 		if i > 0 && u.guard != nil && !u.guard() {
