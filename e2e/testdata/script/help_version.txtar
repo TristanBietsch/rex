@@ -13,17 +13,17 @@ exec rex -h
 stdout '^# Usage$'
 
 exec rex version
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 ! stderr .
 
 exec rex --version
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 
 exec rex -v
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 
 exec rex-daemon -version
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 
 # An unknown verb is invalid args; a near miss names the real command.
 exitcode 5 rex frobnicate
@@ -64,11 +64,11 @@ stderr 'help: unknown topic "nonsense"'
 
 # version, update -check and config on the kit.
 exec rex version -o json
-stdout '^\{"v":1,"cmd":"version","data":\{"version":"v1"\}\}$'
+stdout '^\{"v":1,"cmd":"version","data":\{"version":"v0.0.0-e2e"\}\}$'
 exec rex --agent version
-stdout '^ok cmd=version version=v1$'
+stdout '^ok cmd=version version=v0.0.0-e2e$'
 exec rex update -check -o agent
-stdout '^ok cmd=update version=v1 remote='
+stdout '^ok cmd=update version=v0.0.0-e2e remote='
 exec rex config get spinner --agent
 stdout '^ok cmd=config id=spinner value=braille source=default$'
 exec rex config list -o agent

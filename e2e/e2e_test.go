@@ -24,6 +24,9 @@ import (
 // script copies them into its own $WORK/bin before use.
 var binDir string
 
+// e2eVersion is stamped into the binaries the scripts run (see TestMain).
+const e2eVersion = "v0.0.0-e2e"
+
 // systemPath is the PATH tail scripts see after their bin dir. It
 // deliberately omits the caller's PATH so a script can never pick up an
 // installed rex or rex-daemon (for example from ~/.local/bin).
@@ -47,7 +50,9 @@ func runMain(m *testing.M) int {
 	}
 	defer os.RemoveAll(dir)
 	for _, pkg := range []string{"./cmd/rex", "./cmd/rex-daemon"} {
-		cmd := exec.Command("go", "build", "-o", dir, pkg)
+		// The version is pinned so the scripts can match it, and so the
+		// -ldflags path release builds use is covered.
+		cmd := exec.Command("go", "build", "-ldflags", "-X github.com/tristanbietsch/rex/internal/version.Version="+e2eVersion, "-o", dir, pkg)
 		cmd.Dir = ".." // module root; `go test` runs this package from e2e/
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
