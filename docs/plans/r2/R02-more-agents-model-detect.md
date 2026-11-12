@@ -182,7 +182,21 @@ Done: R02-2a, R02-2, R02-3, the data side of R02-4, R02-5, the two flags, R02-7.
 - **Reload.** `boot.ReloadRegistry`/`ReloadOnHUP` became `boot.Catalog` (`Reload`, `ReloadDefault`, `Refresh`, `Applier`). A reload swaps the new registry in at once (static models plus the cache) and refreshes models in the background; `rex reload` and SIGHUP force a refresh, daemon start and a settings change do not. A refresh that a newer reload overtook drops its result. The settings watcher turns the flags on and off within about 5 s.
 - **Commits.** R02-2 and R02-3 are one commit; R02-4's server test already uses `WithModels` from the next commit.
 
+### Review fixes (same branch)
+
+- One PTY writer goroutine (`pty/writer.go`) now carries all input to the child: client input, the initial paste with its Enter as one unit, the trust answerer and OSC replies. A reply is dropped if the writer is busy or has input queued, and `OSCStatus` answers at most once per `Observe` call with a token bucket (burst 3, one per second).
+- A task that starts with `-` gets one space in front when `{prompt}` is its own argv element with no `--` before it; qwen uses `--prompt-interactive={prompt}`.
+- qwen and cursor join the attach repaint tool maps (`tui/attach.go`, `cli/session/attach.go`), the only TUI-package edit.
+- qwen, cursor and grok are `enabled_by_default: false` until the TUI gates on `extra_agents` and `Installed`; with the flag off a spawn says `off: enable in Settings → Features (...)`.
+- The model command runs in `os.TempDir()` in its own process group (killed whole on timeout); a failed refresh keeps the last good list while the binary and command are unchanged; cancellation is not a failure and writes no cache.
+- `boot.Catalog` swaps under one mutex and each refresh has a cancelable context, canceled by a reload and when `model_autodetect` turns off.
+- cursor's idle status-line match was removed (it read busy as idle in repaint order).
+- `trust_args` needs `{cwd_list}` unless `trust_args_global: true` (qwen).
+- `ToolsChanged` event on every registry swap.
+
 ### Not done / follow-ups
+
+- TUI follow-up (after U1): handle `ToolsChanged` (and `Snapshot.tools`) to refresh the wizard and pickers live; gate the wizard on `extra_agents` and `installed`; then flip the three tools back to `enabled_by_default` on.
 
 - The TUI parts above.
 - agy now also gets the status-query reply (it has `status: osc7501`); it already worked through `AGY_CLI_OSC7501=on`, so this is only redundant.

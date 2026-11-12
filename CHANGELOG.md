@@ -35,8 +35,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Qwen Code (`qwen`), Cursor CLI (`cursor`, binary `cursor-agent`) and Grok
   Build (`grok`) as built-in agents, shown only when their binary is on
-  `PATH` (Settings → Features → Extra agents, on). The old `grok` entry is
-  replaced. Check each agent's own permission settings: grok's and cursor's
+  `PATH`. They stay hidden in the wizard until enabled in Settings →
+  Onboarding (the TUI does not yet read Settings → Features → Extra agents or
+  your `PATH`); with Extra agents off the daemon refuses to spawn them. The
+  old `grok` entry is replaced. Check each agent's own permission settings: grok's and cursor's
   default modes can edit files or run commands without asking, and rex never
   answers their folder-trust dialogs (qwen has a session-only switch, used
   for folders in `auto_trust_dirs`).
@@ -52,7 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Registry fields `models_cmd`, `model_arg_template`, `model_effort`,
   `prompt_args`, `prompt_paste`, `login_regex` and `status_env`, and an
   `installed` flag plus the merged model list on each tool of the `Snapshot`
-  (additive). The wizard and Settings pickers use them in a later release.
+  and a `ToolsChanged` event (both additive). The wizard and Settings pickers use them in a later release.
 - `rex ws init|id|ls|rename|color`: workspaces. A folder with a `.rex/`
   (id, name, color) is a workspace; `rex ws init` creates it, registers it in
   `~/.local/share/rex/workspaces.json` and adds `/.rex/` to the repo's

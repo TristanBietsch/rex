@@ -223,7 +223,7 @@ effort:
 
 Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `qwen`, `cursor`, `grok`, `ollama`, `deepseek`, `kimi`. `deepseek` and `kimi` default to `enabled_by_default: false`.
 
-`qwen` (Qwen Code), `cursor` (Cursor CLI, binary `cursor-agent`) and `grok` (Grok Build) are on by default and shown only when their binary is on `PATH`. `qwen` and `grok` report their state on OSC 7501; `cursor` has no status channel, so it uses screen patterns only.
+`qwen` (Qwen Code), `cursor` (Cursor CLI, binary `cursor-agent`) and `grok` (Grok Build) are `enabled_by_default: false` for now: the wizard hides them until you enable them in Settings → Onboarding, because the TUI does not yet check `extra_agents` or whether the binary is on `PATH` (the daemon does; see the `installed` flag in [protocol.md](protocol.md)). `qwen` and `grok` report their state on OSC 7501; `cursor` has no status channel, so it uses screen patterns only.
 
 **Permissions and trust of the new agents.** Check the agent's own safety settings before you point it at a folder you care about:
 

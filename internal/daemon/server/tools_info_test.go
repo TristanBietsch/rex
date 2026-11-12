@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -58,7 +59,13 @@ func TestHello_SnapshotCarriesTools(t *testing.T) {
 	reg = reg.WithModels(map[string][]registry.Model{
 		"cursor": {{ID: "auto", Name: "auto", Args: cursor.ModelArgsFor("auto"), Detected: true}},
 	})
+	conn := dialTest(t, sock)
+	_, r, _ := helloAs(t, conn, "rex-tui")
 	srv.SetRegistry(reg)
+	env := waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.Type == protocol.EventToolsChanged })
+	var changed protocol.ToolsChanged
+	require.NoError(t, json.Unmarshal(env.Data, &changed))
+	require.True(t, toolByID(t, changed.Tools, "cursor").Installed, "a running client is told about the new list")
 	_, _, snap = helloAs(t, dialTest(t, sock), "rex-tui")
 	got := toolByID(t, snap.Tools, "cursor")
 	require.True(t, got.Installed)
