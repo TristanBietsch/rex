@@ -121,7 +121,7 @@ func TestLoginNoticeClearsAfterSignIn(t *testing.T) {
 	n := ad.(Noticer)
 	require.Equal(t, protocol.StateNeedsInput, ad.Detect([]byte(cursorSign), 2*time.Second))
 	require.NotEmpty(t, n.Notice())
-	require.Equal(t, protocol.StateNeedsInput, ad.Detect([]byte(cursorSign+cursorIdle), 2*time.Second))
+	require.Equal(t, protocol.StateWorking, ad.Detect([]byte(cursorSign+cursorIdle+cursorBusy), 2*time.Second))
 	require.Empty(t, n.Notice())
 }
 

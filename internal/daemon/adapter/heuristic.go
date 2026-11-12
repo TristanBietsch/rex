@@ -149,7 +149,7 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 		// Signed out only while the login text is the latest screen: a prompt
 		// after it means the agent got past it.
 		login := lastMatch(h.login, clean)
-		h.loginShown.Store(login >= 0 && login > prompt)
+		h.loginShown.Store(login >= 0 && login > prompt && login > lastMatch(h.busy, clean))
 		if h.loginShown.Load() {
 			return protocol.StateNeedsInput
 		}
