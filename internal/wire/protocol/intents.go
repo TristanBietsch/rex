@@ -102,6 +102,28 @@ type NewSession struct {
 	// predates the fields ignores them.
 	Cols uint16 `json:"cols,omitempty"`
 	Rows uint16 `json:"rows,omitempty"`
+	// ContextSummary lists the context items the client folded into
+	// InitialPrompt (kind, name, size; never content), for the card detail
+	// and audit. Metadata only: the daemon accepts it and does not store it
+	// yet. A daemon that predates the field ignores it.
+	ContextSummary []ContextRef `json:"context_summary,omitempty"`
+}
+
+// MaxInitialPromptBytes caps NewSession.InitialPrompt (UTF-8 bytes). It
+// stays under Linux's 128 KiB per-argv-element limit (MAX_ARG_STRLEN), so a
+// prompt that is too big is bad_intent instead of a failed exec.
+const MaxInitialPromptBytes = 96 << 10
+
+// ContextRef describes one context item of a new session's first prompt.
+type ContextRef struct {
+	// Kind is "paste", "file", "dir" or "url".
+	Kind string `json:"kind"`
+	// Name is "paste N", a workspace-relative path (a dir ends in "/") or
+	// the URL.
+	Name string `json:"name"`
+	// Bytes is the paste or file size, the listed files' total for a dir,
+	// 0 for a URL.
+	Bytes int `json:"bytes,omitempty"`
 }
 
 // SetSessionFleet updates the fleet label of an existing session.

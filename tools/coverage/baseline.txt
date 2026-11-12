@@ -10,7 +10,7 @@ github.com/tristanbietsch/rex/internal/catalog/theme 100
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
 github.com/tristanbietsch/rex/internal/daemon/boot 84
 github.com/tristanbietsch/rex/internal/daemon/pty 88
-github.com/tristanbietsch/rex/internal/daemon/server 91
+github.com/tristanbietsch/rex/internal/daemon/server 92
 github.com/tristanbietsch/rex/internal/daemon/state 87
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
 github.com/tristanbietsch/rex/internal/features/audio 85
@@ -20,6 +20,7 @@ github.com/tristanbietsch/rex/internal/features/lua 89
 github.com/tristanbietsch/rex/internal/features/overview 98
 github.com/tristanbietsch/rex/internal/features/skills 86
 github.com/tristanbietsch/rex/internal/features/snapshot 86
+github.com/tristanbietsch/rex/internal/features/spawnctx 100
 github.com/tristanbietsch/rex/internal/features/summarizer 94
 github.com/tristanbietsch/rex/internal/features/usage 91
 github.com/tristanbietsch/rex/internal/runtime/daemonctl 88

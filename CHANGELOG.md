@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (new-agent context)
+
+- `internal/features/spawnctx` builds a new session's first prompt from the
+  task plus context items (pastes, file and folder references, URLs) in one
+  fixed format, with per-paste (32 KiB), all-paste (64 KiB), prompt (96 KiB)
+  and item (32) caps. Its sanitizer keeps newlines and tabs and drops
+  escape sequences, other control characters and bidi controls.
+- The daemon refuses a `NewSession` whose `initial_prompt` is over 96 KiB
+  with `bad_intent` before anything is spawned, instead of a failed exec.
+  `NewSession` takes an optional `context_summary` (kind, name, size of each
+  item; no content), which older daemons ignore.
+
 ### Added (row icons)
 
 - Board rows show a strip of fixed icon slots after the name in place of
