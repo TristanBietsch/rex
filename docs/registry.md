@@ -94,25 +94,29 @@ Duplicate tool or model ids are rejected at load time.
 
 | Hook | State |
 |------|-------|
-| `SessionStart`, `Notification`, `Stop` | `needs_input` |
+| `SessionStart` (not after a compaction), `Notification`, `Stop`, `StopFailure` | `needs_input` |
 | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure` | `working` |
 
 Tool waits are tracked in the same file (they feed the board's Waiting section):
 
 - A main-thread `PreToolUse` (no `agent_id` in the hook JSON) of `Bash`, `Task` / `Agent` or `WebFetch` / `WebSearch` appends `wait+ shell`, `wait+ subagent` or `wait+ web` after the state word, in the same write. Any other main-thread tool appends `wait-`; a subagent's tool call appends neither.
-- A main-thread `PostToolUse` or `PostToolUseFailure`, and `UserPromptSubmit`, append `wait-`. `Stop`, `Notification` and `SessionStart` end a wait through their `needs_input` word.
+- A main-thread `PostToolUse` or `PostToolUseFailure` appends `wait-`; for an `Agent` / `Task` call that returned at once (`async_launched`, a background subagent) `wait- launch`. `UserPromptSubmit` appends `prompt`, which ends the last turn's wait. `Stop`, `StopFailure` and `SessionStart` end a wait through their `needs_input` word.
+- `Notification` appends `notify <notification_type>`; the type decides, not the word. `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, `agent_needs_input`, `quota_auto_resume_stale` and a missing type are questions (READY at once; an open wait goes on after the answer). `idle_prompt` and `quota_auto_resume_disabled` end the turn. Every other type, including ones newer than rex, changes nothing.
 - A `wait-` while other subagents still run leaves a `subagent` wait on until the last one stops (several `Task` calls in parallel).
 
 Subagents are tracked in the same file:
 
 - `SubagentStart` appends `agent+ <agent_id>` and `SubagentStop` appends `agent- <agent_id>`. The id comes from the hook JSON's top-level `agent_id`; nested objects, arrays and pretty-printing are handled. Events without an `agent_type` are Claude's internal helpers and are skipped.
-- `PostToolUse` of a subagent's tool call (its JSON has an `agent_id`) also appends `agent~ <agent_id>` as a sign of life.
-- `SessionStart` writes `agents-reset` first for a new or cleared conversation, but not after a compaction (`source: compact`), when subagents may still be running.
+- `PostToolUse` of a subagent's tool call (its JSON has an `agent_id`) also appends `agent~ <agent_id>` as a sign of life. A sign of life for a subagent that already stopped is ignored.
+- `PreToolUse` of a subagent's own `Agent` / `Task` call appends `nest+`: the next subagent started is nested and reports to its parent.
+- `Stop` and `StopFailure` append `bg-agents <n>` when the hook input has `background_tasks`: `n` counts its `"type": "subagent"` entries. Running subagents above `n` (oldest sign of life first) are dropped: their `SubagentStop` was lost.
+- A background subagent that ends owes the main agent a report, which Claude delivers as a `UserPromptSubmit`; each `prompt` line pays one.
+- `SessionStart` writes `agents-reset` first for a new or cleared conversation. After a compaction (`source: compact`) it writes `compacted` instead of a state word: subagents may still be running and an auto-compaction happens mid-turn.
 - `SessionStart` (every source, compaction included) ends with `sid <session_id>`, the conversation's resume id. The adapter keeps the latest valid one (a canonical UUID; anything else is ignored); it is not a state change.
 
 The adapter counts a set of ids: a resumed subagent starts again with the same id. An id with no start or tool call for 15 minutes stops counting, which bounds a count stuck by a lost `SubagentStop`. Its next tool call counts it again. The board shows the count as the subagent column, and it drops to 0 when the agent exits.
 
-A `working` state with no visible PTY output for 15s becomes `needs_input` (an Esc-interrupted turn fires no `Stop`). Heuristic tools apply the same rule when `prompt_regex` doesn't match: a screen frozen for 15s (auth, trust or menu dialog) is waiting on you; working agents always stream output or animate a spinner.
+A Claude turn with no hook and no visible PTY output for 30 s (15 min with a tool wait open, never while a subagent runs) becomes `needs_input` (an Esc-interrupted turn fires no `Stop`; the Esc key itself ends it sooner, see [tui.md](tui.md)). Heuristic tools apply the same rule when `prompt_regex` doesn't match: a screen frozen for 15s (auth, trust or menu dialog) is waiting on you; working agents always stream output or animate a spinner.
 
 State semantics for all kinds: a finished agent turn is `needs_input` (waiting on you). `done` comes from process exit (code 0), the `Complete` intent, or a heuristic `done_regex` match; once `done`, later output can't move the session back.
 
