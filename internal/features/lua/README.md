@@ -64,6 +64,10 @@ These bounds protect the daemon's **liveness**, not its security. They do not li
 - `rex.send` can type arbitrary text, and therefore commands, into any session's PTY.
 - Only load a script you wrote or reviewed. The timeouts above keep a buggy script from hanging the daemon; they do not contain a malicious one.
 
+## Not to be confused with `config.lua`
+
+`~/.config/rex/config.lua` (settings and themes, read by every rex process) is evaluated by `internal/catalog/settings/luacfg`, not by this runtime: a fresh, restricted state per evaluation with only `rex.set`, `rex.theme`, `rex.platform` and a `require` limited to `~/.config/rex/lua/`. See `docs/howto/lua-config.md`.
+
 ## Wiring (daemon integration)
 
 `boot.StartLuaRuntime` does this for the daemon:

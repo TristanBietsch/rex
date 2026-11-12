@@ -45,7 +45,9 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 |------|------------|---------|
 | `~/.config/rex/config.yaml` | `rex setup`, TUI settings, `rex config` | User settings (flat keys) |
 | `~/.config/rex/tools.yaml` | User | Tool registry overlay |
-| `~/.config/rex/init.lua` | User | Optional Lua hooks |
+| `~/.config/rex/init.lua` | User | Optional Lua hooks (daemon only) |
+| `~/.config/rex/config.lua` | User, `rex config edit -lua` (template, 0600) | Optional settings and themes in Lua, read by every rex process while `lua_config` is on ([howto/lua-config.md](howto/lua-config.md)). Must be owned by you and not group- or world-writable |
+| `~/.config/rex/lua/` | User | Modules `config.lua` may `require` (`a.b` is `lua/a/b.lua`); same ownership rule |
 | `~/.local/share/rex/usage.jsonl` | `rex-daemon` (when `usage` is on) | Usage ledger: one JSON line per session snapshot (session id, tool, model, tokens, cost, estimate flag, time), written when a session ends and at most every 10 minutes for a live one. The latest line per session wins when totals are computed. Trimmed to the last 90 days when the daemon starts; unreadable lines are skipped with one warning. No prompts or output. Never created while `usage` is off |
 | `~/.local/share/rex/audit.jsonl` | `rex-daemon` (when `audit_trail` is on) | Audit trail: one JSON line per finished session (ids, name, tool, model, first line of the prompt, end state, start and end time, duration, resume id, description), written when a session first ends, and before it is cleared if that has not happened. A resumed session adds a line at its next end. The first prompt line only; the whole prompt with `audit_full_prompt`. 0600, append-only, never followed through a symlink. Never created while `audit_trail` is off |
 | `<workspace>/.rex/workspace.json` | `rex ws` | A workspace's id, name and color (0600 in a 0700 folder). Only with `workspaces` on |
@@ -76,7 +78,7 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 | `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files (including `cli-errors.log`) instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
 | `REX_QUIET_BOOT` | `rex` | Non-empty (not `0`): open the board without boot sounds, same as `rex --quiet-boot`. For scripted relaunches |
 | `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer. A non-local host receives the text of agents' screens |
-| `EDITOR` | `rex config edit` | Program to edit `init.lua` |
+| `EDITOR` | `rex config edit`, `e` on a locked settings row | Program to edit `init.lua` or `config.lua` |
 | `GOPATH` | `rex update` | Module install path resolution |
 | `SHELL` | `rex setup` | Shell profile target for PATH block |
 

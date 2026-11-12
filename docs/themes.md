@@ -48,6 +48,8 @@ glyphs:
 
 Everything you leave out comes from the base theme. An empty file is a copy of `default`. A theme extends a built-in only, not another user theme.
 
+`config.lua` can define themes too, with the same schema and the same checks: `rex.theme("mine", { extends = "noir", colors = { accent = "#B392F0" } })` ([howto/lua-config.md](howto/lua-config.md)). A Lua theme beats a file of the same name, and `rex theme list` warns about the shadowed file and shows the theme's source as `lua`.
+
 ### Colors
 
 A color is one of:

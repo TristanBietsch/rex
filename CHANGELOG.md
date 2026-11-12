@@ -99,6 +99,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   lua-export` prints `config.yaml` as a starter `config.lua`, `rex theme
   list` marks Lua themes `lua`, and `rex doctor` has a `config.lua` check.
   `rex setup -yes` refuses a setting `config.lua` sets.
+  Guide: `docs/howto/lua-config.md`.
 - `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
   changed target is refused before anything is touched. `rex undo` and the
   TUI dialog send it on confirm.

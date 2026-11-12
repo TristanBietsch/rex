@@ -45,7 +45,9 @@ Lua syntax/runtime errors from `LoadFile` propagate. `OnEvent` catches handler e
 
 Standard Lua `os`/`io` libraries are not loaded; script is still trusted code in-process. Path from setting `lua_config_path` (default `~/.config/rex/init.lua`). Daemon skips runtime entirely if load fails at startup (see `cmd/rex-daemon/main.go`).
 
+`config.lua` is a different file and a different evaluator: `internal/catalog/settings/luacfg` (fresh restricted state per evaluation, settings and themes only, every process). See `docs/howto/lua-config.md`.
+
 ## See also
 
-- `modules/settings.md` — `lua_config_path`.
+- `modules/settings.md` — `lua_config_path`, `lua_config`.
 - `internal/features/lua/README.md` — API listing for humans.
