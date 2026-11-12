@@ -70,9 +70,9 @@ stdout '^ok cmd=version version=v1$'
 exec rex update -check -o agent
 stdout '^ok cmd=update version=v1 remote='
 exec rex config get spinner --agent
-stdout '^ok cmd=config id=spinner value=braille$'
+stdout '^ok cmd=config id=spinner value=braille source=default$'
 exec rex config list -o agent
-stdout '^setting id=spinner section=Appearance value=braille default=braille$'
+stdout '^setting id=spinner section=Appearance value=braille default=braille source=default set_at=""$'
 stdout '^ok cmd=config count='
 exec rex uninstall -dry-run -o agent
 stdout '^removal kind=binaries '

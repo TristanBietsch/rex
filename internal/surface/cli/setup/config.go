@@ -227,11 +227,14 @@ func configGet(args []string) error {
 	if at != "" {
 		text = val + "  (" + sourceText(src, at) + ")"
 	}
+	fields := []core.Field{{Key: "id", Val: id}, {Key: "value", Val: val}, {Key: "source", Val: src}}
+	if at != "" {
+		fields = append(fields, core.Field{Key: "set_at", Val: at})
+	}
 	return core.Out().Emit(core.Result{
 		Cmd:  "config",
 		Data: configValueData{ID: id, Value: val, Source: src, SetAt: at},
-		View: core.ActionView(core.Line{Text: text, Txt: val}, core.Field{Key: "id", Val: id}, core.Field{Key: "value", Val: val},
-			core.Field{Key: "source", Val: src}, core.Field{Key: "set_at", Val: at}),
+		View: core.ActionView(core.Line{Text: text, Txt: val}, fields...),
 	})
 }
 
