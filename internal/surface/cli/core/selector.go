@@ -31,7 +31,7 @@ func ResolveInSnapshot(sessions []protocol.SessionSummary, sel string) (protocol
 	m := matchAll(sessions, sel)
 	switch {
 	case len(m.sessions) == 0:
-		return protocol.SessionSummary{}, NewExitError(ExitSelectorNotFound, fmt.Sprintf("no session matches %q", sel))
+		return protocol.SessionSummary{}, NewExitError(ExitSelectorNotFound, fmt.Sprintf("no session matches %q", sel)).WithID("selector_not_found")
 	case len(m.sessions) == 1:
 		return m.sessions[0], nil
 	}
@@ -47,10 +47,10 @@ func ResolveInSnapshot(sessions []protocol.SessionSummary, sel string) (protocol
 			parts[i] = s.ShortID + " (" + m.via[i] + ")"
 		}
 		return protocol.SessionSummary{}, Errorf(ExitAmbiguousSelector, "use the full session id",
-			"selector %q matches %d sessions: %s; use the full id", sel, len(m.sessions), strings.Join(parts, ", "))
+			"selector %q matches %d sessions: %s; use the full id", sel, len(m.sessions), strings.Join(parts, ", ")).WithID("selector_ambiguous")
 	}
 	return protocol.SessionSummary{}, NewExitError(ExitAmbiguousSelector,
-		fmt.Sprintf("selector %q matches %d sessions (%s); use a short id", sel, len(m.sessions), strings.Join(shorts, ", ")))
+		fmt.Sprintf("selector %q matches %d sessions (%s); use a short id", sel, len(m.sessions), strings.Join(shorts, ", "))).WithID("selector_ambiguous")
 }
 
 // selMatches is what a selector named. via says how each session matched

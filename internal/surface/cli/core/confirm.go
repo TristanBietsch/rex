@@ -40,7 +40,7 @@ func (p *Printer) Confirm(question string, r Refusal) (bool, error) {
 		if r.Extra != "" {
 			msg += ", " + r.Extra
 		}
-		return false, Errorf(ExitOperationRefused, r.Hint, "%s", msg)
+		return false, Errorf(ExitOperationRefused, r.Hint, "%s", msg).WithID("needs_confirmation")
 	}
 	choice := "[y/N]"
 	if r.DefaultYes {

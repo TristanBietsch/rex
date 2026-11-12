@@ -36,6 +36,7 @@ func ParseTextArgs(fs *flag.FlagSet, args []string, leading int) ([]string, erro
 }
 
 func parseArgs(fs *flag.FlagSet, args []string, leading int) ([]string, error) {
+	noteRegisteredFlags(fs)
 	var tail []string
 	for i, a := range args {
 		if a == "--" {
@@ -62,7 +63,7 @@ func parseArgs(fs *flag.FlagSet, args []string, leading int) ([]string, error) {
 			if leading >= 0 && len(pos) >= leading && strings.HasPrefix(msg, "flag provided but not defined") {
 				msg += "; use -- before text that starts with -"
 			}
-			return nil, NewExitError(ExitInvalidArgs, msg)
+			return nil, NewExitError(ExitInvalidArgs, msg).WithID("invalid_flag")
 		}
 		rest := fs.Args()
 		if len(rest) == 0 {

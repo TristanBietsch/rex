@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,21 +43,6 @@ func TestEmitErrIsTextOnly(t *testing.T) {
 	require.Empty(t, out.String())
 }
 
-func TestCLIPolicyPerVerb(t *testing.T) {
-	require.Equal(t, 2, cliPolicy("new", nil).FreeTextFrom)
-	for _, v := range []string{"reply", "send", "name"} {
-		p := cliPolicy(v, nil)
-		require.Equal(t, 1, p.Selectors, v)
-		require.Equal(t, 3, p.FreeTextFrom, v)
-	}
-	require.Equal(t, 4, cliPolicy("config", []string{"set", "id", "v"}).FreeTextFrom)
-	require.Zero(t, cliPolicy("config", []string{"get", "id"}).FreeTextFrom)
-	require.Equal(t, 1, cliPolicy("rm", nil).Selectors)
-	require.Zero(t, cliPolicy("ls", nil).Selectors)
-	require.True(t, cliPolicy("ls", nil).KeepValues["tool"])
-	require.False(t, cliPolicy("ls", nil).KeepValues["cwd"])
-}
-
 // Without an override the log lands in REX_LOG_DIR (a folder the user
 // chose is created but not chmodded).
 func TestErrLog_DefaultPathFollowsLogDir(t *testing.T) {
@@ -67,9 +53,9 @@ func TestErrLog_DefaultPathFollowsLogDir(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestShrinkRecordKeepsValidJSONWhenEverythingIsHuge(t *testing.T) {
-	b := shrinkRecord([]byte(`{"v":1,"cmd":"ls","error":"short","args":["` + strings.Repeat("a", 6000) + `"]}`))
-	require.LessOrEqual(t, len(b), errLogMaxRecord)
-	// Not even JSON: it is cut to the cap.
+func TestShrinkRecordFitsTheCap(t *testing.T) {
+	rec := ErrLogRecord{V: 1, Cmd: "ls", Chain: []string{strings.Repeat("x", 5000)}}
+	b, _ := json.Marshal(rec)
+	require.LessOrEqual(t, len(shrinkRecord(b)), errLogMaxRecord)
 	require.Len(t, shrinkRecord([]byte(strings.Repeat("z", errLogMaxRecord+100))), errLogMaxRecord)
 }

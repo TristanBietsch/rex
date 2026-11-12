@@ -1,15 +1,24 @@
-# A failed command leaves a record in the CLI error log; `rex errors` reads it.
+# A failed command leaves a structure-only record in the CLI error log;
+# `rex errors` reads it. No message, hint or argument value is stored.
 
 exitcode 4 rex ls
 exec rex errors -o agent
-stdout '^error_entry time=\S+ exit=4 kind=daemon_unreachable cmd=ls args=ls msg='
+stdout '^error_entry time=\S+ exit=4 cmd=ls sub="" kind=daemon_unreachable code=daemon_unreachable flags="" chain='
 stdout '^ok cmd=errors count=1$'
 
-# Prompts never reach the log.
+# Prompts and values never reach the log, even as a command name.
 exitcode 4 rex new -slug s1 -- 'my secret prompt'
+exitcode 5 rex please-fix-the-login-bug
 exec rex errors -o json
-! stdout 'secret prompt'
+! stdout 'secret'
+! stdout 'login'
+! stdout 'please'
+! stdout 's1'
+! stdout '"error":'
+! stdout '"hint"'
+! stdout '"args"'
 stdout '"cmd":"new"'
+stdout '"cmd":"\?"'
 exec rex errors -n 1 -o agent
 stdout '^ok cmd=errors count=1$'
 
@@ -17,14 +26,14 @@ stdout '^ok cmd=errors count=1$'
 exec rex ls -h
 exec rex version
 exec rex errors -o agent
-stdout '^ok cmd=errors count=2$'
+stdout '^ok cmd=errors count=3$'
 
 # Opt out with REX_ERROR_LOG=0.
 env REX_ERROR_LOG=0
 exitcode 4 rex ls
 env REX_ERROR_LOG=
 exec rex errors -o agent
-stdout '^ok cmd=errors count=2$'
+stdout '^ok cmd=errors count=3$'
 
 # Clearing needs -force without a terminal.
 exitcode 6 rex errors -clear

@@ -295,7 +295,7 @@ var Registry = []Setting{
 	{
 		ID: "cli_error_log", Label: "CLI error log", Section: SectionAdvanced,
 		Type: TypeBool, Default: true,
-		Help: "Keep a private record of failed rex commands in ~/.local/state/rex/cli-errors.log (command, redacted flags, exit code, error text; never prompts, transcripts, paths or environment). Capped at 1 MiB plus one backup. Read it with rex errors. Env REX_ERROR_LOG=0 also turns it off.",
+		Help: "Keep a private record of failed rex commands in ~/.local/state/rex/cli-errors.log: structure only (command, flag names, exit code and kind, error type names), never any message, prompt, value or path. Capped at 1 MiB plus one backup. Read it with rex errors. Env REX_ERROR_LOG=0 also turns it off.",
 	},
 }
 

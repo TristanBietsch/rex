@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,44 +32,6 @@ func readRecords(t *testing.T, path string) []ErrLogRecord {
 	return recs
 }
 
-func TestErrLog_RecordsAndRedacts(t *testing.T) {
-	opts, path := errLogOpts(t)
-	SetOut(nil)
-	args := []string{"new", "-tool", "claude", "-cwd", "/home/alice/secret-project", "--", "my secret prompt"}
-	err := Errorf(ExitGeneric, "rex ls", "spawn failed: token=sk-abcdef1234567890: %w", errors.New("boom"))
-	RecordError(args, err, opts)
-
-	raw, rerr := os.ReadFile(path)
-	require.NoError(t, rerr)
-	for _, leak := range []string{"secret prompt", "alice", "secret-project", "sk-abcdef1234567890"} {
-		require.NotContains(t, string(raw), leak, "the log must not hold %q", leak)
-	}
-	recs := readRecords(t, path)
-	require.Len(t, recs, 1)
-	r := recs[0]
-	require.Equal(t, 1, r.V)
-	require.Equal(t, "2026-11-11T09:12:03.123Z", r.Time)
-	require.Equal(t, "new", r.Cmd)
-	require.Equal(t, []string{"new", "-tool", "claude", "-cwd", "<redacted:26 bytes>", "--", "<redacted:16 bytes>"}, r.Args)
-	require.Equal(t, ExitGeneric, r.Exit)
-	require.Equal(t, "error", r.Kind)
-	require.Contains(t, r.Error, "<redacted>")
-	require.Equal(t, []string{"*errors.errorString"}, r.Chain)
-	require.Equal(t, "rex ls", r.Hint)
-	require.Equal(t, Version, r.Version)
-	require.NotEmpty(t, r.OS)
-	require.Equal(t, os.Getpid(), r.PID)
-}
-
-func TestErrLog_GlobalFlagsBeforeTheVerb(t *testing.T) {
-	opts, path := errLogOpts(t)
-	RecordError([]string{"-o", "json", "rm", "fix-auth", "-force"}, NewExitError(ExitOperationRefused, "rm: nope"), opts)
-	r := readRecords(t, path)[0]
-	require.Equal(t, "rm", r.Cmd)
-	require.Equal(t, []string{"-o", "json", "rm", "<sel:8 bytes>", "-force"}, r.Args)
-	require.Equal(t, "refused", r.Kind)
-}
-
 func TestErrLog_Mode0600(t *testing.T) {
 	opts, path := errLogOpts(t)
 	RecordError([]string{"ls"}, NewExitError(ExitDaemonUnreachable, "no daemon"), opts)
@@ -93,7 +54,7 @@ func TestErrLog_RotatesAt1MiB(t *testing.T) {
 	require.Len(t, old, errLogMaxBytes, "the full log became the backup")
 	recs := readRecords(t, path)
 	require.Len(t, recs, 1, "garbage lines in the backup are skipped")
-	require.Contains(t, recs[0].Error, "first after rotation")
+	require.Equal(t, "ls", recs[0].Cmd)
 
 	// Rotating again replaces the backup: one backup only.
 	require.NoError(t, os.WriteFile(path, bytes.Repeat([]byte("y"), errLogMaxBytes), 0o600))
@@ -173,51 +134,6 @@ func TestErrLog_ConcurrentAppend(t *testing.T) {
 	}
 }
 
-func TestErrLog_RecordIsCappedAt4KiB(t *testing.T) {
-	opts, path := errLogOpts(t)
-	long := strings.Repeat("é", 5000)
-	err := fmt.Errorf("%s: %w", long, fmt.Errorf("%s: %w", long, errors.New(long)))
-	args := make([]string, 0, 200)
-	for range 200 {
-		args = append(args, "-tool", "claude")
-	}
-	RecordError(append([]string{"ls"}, args...), ExitError{Code: ExitGeneric, Msg: long, Err: err}, opts)
-	raw, rerr := os.ReadFile(path)
-	require.NoError(t, rerr)
-	require.LessOrEqual(t, len(raw), errLogMaxRecord+1)
-	require.Len(t, readRecords(t, path), 1, "still valid JSON after shrinking")
-}
-
-func TestErrChainWalksWrappedAndJoinedErrors(t *testing.T) {
-	a, b := errors.New("a"), errors.New("b")
-	chain := errChain(fmt.Errorf("top: %w", errors.Join(a, fmt.Errorf("wrapped: %w", b))))
-	require.Equal(t, []string{"*errors.joinError", "*errors.errorString", "*fmt.wrapError", "*errors.errorString"}, chain)
-
-	deep := errors.New("end")
-	for i := range 20 {
-		deep = fmt.Errorf("level %d: %w", i, deep)
-	}
-	require.Len(t, errChain(deep), errLogMaxChain)
-	require.Nil(t, errChain(errors.New("plain")))
-}
-
-func TestScrub(t *testing.T) {
-	for in, want := range map[string]string{
-		"key sk-abcdefgh12345678 end":              "key <redacted> end",
-		"ghp_abcdefgh12345678":                     "<redacted>",
-		"github_pat_11ABCDEFG0123456789":           "<redacted>",
-		"AKIAABCDEFGHIJKLMNOP":                     "<redacted>",
-		"xoxb-12345678-abcdefgh":                   "<redacted>",
-		"Authorization: Bearer abcdefgh.ijkl-mnop": "Authorization: <redacted>",
-		"password=hunter2 next":                    "password=<redacted> next",
-		"api_key=abc and API-KEY=def":              "api_key=<redacted> and API-KEY=<redacted>",
-		"nothing secret here, sk- is not a key":    "nothing secret here, sk- is not a key",
-		"short sk-abc stays":                       "short sk-abc stays",
-	} {
-		require.Equal(t, want, Scrub(in), in)
-	}
-}
-
 func TestErrLog_ClearAndPath(t *testing.T) {
 	opts, path := errLogOpts(t)
 	RecordError([]string{"ls"}, NewExitError(ExitGeneric, "x"), opts)
@@ -240,7 +156,7 @@ func TestErrLog_ReadsNewestFirstAcrossBackup(t *testing.T) {
 	opts, path := errLogOpts(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	mk := func(msg string) string {
-		b, _ := json.Marshal(ErrLogRecord{V: 1, Cmd: "ls", Error: msg})
+		b, _ := json.Marshal(ErrLogRecord{V: 1, Cmd: msg})
 		return string(b) + "\n"
 	}
 	require.NoError(t, os.WriteFile(path+".1", []byte(mk("old1")+mk("old2")), 0o600))
@@ -248,7 +164,7 @@ func TestErrLog_ReadsNewestFirstAcrossBackup(t *testing.T) {
 	_ = opts
 	var got []string
 	for _, r := range readRecords(t, path) {
-		got = append(got, r.Error)
+		got = append(got, r.Cmd)
 	}
 	require.Equal(t, []string{"new2", "new1", "old2", "old1"}, got)
 }

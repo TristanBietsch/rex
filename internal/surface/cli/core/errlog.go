@@ -3,27 +3,31 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
+	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
-	"github.com/tristanbietsch/rex/internal/runtime/redact"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 )
 
 // The CLI error log: one JSONL record per failed command in
-// ~/.local/state/rex/cli-errors.log (0600 in a 0700 folder), so an error is
-// still there after the terminal scrolls. A record holds the command name,
-// the flags (values redacted), the exit code and kind, and scrubbed error
-// text. It never holds prompts, reply or send text, config values, working
-// folders, socket paths, stdin, the environment or transcripts.
+// ~/.local/state/rex/cli-errors.log (0600 in a 0700 folder), so a failure is
+// still known after the terminal scrolls.
+//
+// It records STRUCTURE ONLY. Nothing a person typed and no error message
+// ever reaches it: free text cannot be reliably scrubbed, so none is kept.
+// A record holds the command and subcommand when rex knows them, the NAMES
+// of the flags that command defines, how many other arguments there were, the
+// output format, the terminal state, the exit code and kind, the Go types of
+// the error and its causes, and a stable code from a fixed list. No values,
+// no selectors, no paths, no prompts, no message or hint text.
 const (
 	// errLogName is the log's name for rexlog.Path.
 	errLogName = "cli-errors"
@@ -31,29 +35,38 @@ const (
 	errLogMaxBytes = 1 << 20
 	// errLogMaxRecord caps one record, so a single write stays atomic.
 	errLogMaxRecord = 4096
-	// errLogMaxMessage caps one error message, in runes.
-	errLogMaxMessage = 512
-	// errLogMaxChain caps the wrapped-error chain.
+	// errLogMaxChain caps the wrapped-error type chain.
 	errLogMaxChain = 8
+	// errLogMaxFlags caps the flag names in one record.
+	errLogMaxFlags = 32
 )
 
 // ErrLogRecord is one line of the error log.
 type ErrLogRecord struct {
-	V         int       `json:"v"`
-	Time      string    `json:"time"`
-	Version   string    `json:"version"`
-	OS        string    `json:"os"`
-	PID       int       `json:"pid"`
-	Cmd       string    `json:"cmd"`
-	Args      []string  `json:"args"`
-	Format    string    `json:"format"`
-	AgentAuto bool      `json:"agent_auto"`
-	TTY       ErrLogTTY `json:"tty"`
-	Exit      int       `json:"exit"`
-	Kind      string    `json:"kind"`
-	Error     string    `json:"error"`
-	Chain     []string  `json:"chain,omitempty"`
-	Hint      string    `json:"hint,omitempty"`
+	V       int    `json:"v"`
+	Time    string `json:"time"`
+	Version string `json:"version"`
+	OS      string `json:"os"`
+	PID     int    `json:"pid"`
+	// Cmd is the command, "?" when rex does not know the name.
+	Cmd string `json:"cmd"`
+	// Sub is the subcommand (fleet set, config get), only when known.
+	Sub string `json:"sub,omitempty"`
+	// Flags are names (with their dashes) of flags the command defines.
+	Flags []string `json:"flags"`
+	// ArgCount is the number of arguments after the global output flags;
+	// UnknownArgs counts the dash arguments that name no flag.
+	ArgCount    int       `json:"arg_count"`
+	UnknownArgs int       `json:"unknown_args"`
+	Format      string    `json:"format"`
+	AgentAuto   bool      `json:"agent_auto"`
+	TTY         ErrLogTTY `json:"tty"`
+	Exit        int       `json:"exit"`
+	Kind        string    `json:"kind"`
+	// Code is a stable error name from errCodes, when the error has one.
+	Code string `json:"code,omitempty"`
+	// Chain is the Go type of the error and of each cause under it.
+	Chain []string `json:"chain,omitempty"`
 }
 
 // ErrLogTTY says which standard streams were terminals.
@@ -62,76 +75,47 @@ type ErrLogTTY struct {
 	Out bool `json:"out"`
 }
 
-// secretPattern is one shape of secret. keepKey patterns are key=value: the
-// key stays and only the value goes.
-type secretPattern struct {
-	re      *regexp.Regexp
-	keepKey bool
+// errCodes is the fixed list of ExitError.ID values the log keeps; anything
+// else is dropped.
+var errCodes = map[string]bool{
+	"daemon_unreachable": true, "handshake_failed": true,
+	"selector_not_found": true, "selector_ambiguous": true,
+	"unknown_command": true, "invalid_flag": true,
+	"feature_off": true, "needs_confirmation": true,
 }
 
-// secretPatterns are scrubbed from error text before it is written: defense
-// in depth on top of the allowlist that keeps values out of the arguments.
-var secretPatterns = []secretPattern{
-	{regexp.MustCompile(`sk-[A-Za-z0-9_-]{8,}`), false},
-	{regexp.MustCompile(`(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{8,}`), false},
-	{regexp.MustCompile(`github_pat_[A-Za-z0-9_]{8,}`), false},
-	{regexp.MustCompile(`AKIA[0-9A-Z]{16}`), false},
-	{regexp.MustCompile(`xox[abps]-[A-Za-z0-9-]{8,}`), false},
-	{regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._~+/=-]{8,}`), false},
-	{regexp.MustCompile(`(?i)\b(password|passwd|token|secret|api[_-]?key)=\S+`), true},
+// cliSubcommands are the subcommands rex knows, per command.
+var cliSubcommands = map[string][]string{
+	"fleet":  {"ls", "show", "set", "unset"},
+	"daemon": {"start", "stop", "status", "restart", "logs"},
+	"config": {"list", "get", "set", "reset", "edit"},
 }
 
-// Scrub replaces secrets in s with <redacted>.
-func Scrub(s string) string {
-	for _, sp := range secretPatterns {
-		s = sp.re.ReplaceAllStringFunc(s, func(m string) string {
-			if i := strings.Index(m, "="); sp.keepKey && i > 0 {
-				return m[:i+1] + "<redacted>"
-			}
-			return "<redacted>"
-		})
-	}
-	return s
+// globalFlagNames are the output flags every command takes.
+var globalFlagNames = []string{"o", "output", "agent", "no-color", "json", "h", "help"}
+
+var (
+	registeredMu    sync.Mutex
+	registeredFlags = map[string]bool{}
+)
+
+// noteRegisteredFlags remembers the flag names the command being parsed
+// defines. The error log reports only flags that name one of these, so a
+// typed prompt that starts with a dash is never mistaken for a flag.
+func noteRegisteredFlags(fs *flag.FlagSet) {
+	registeredMu.Lock()
+	defer registeredMu.Unlock()
+	fs.VisitAll(func(f *flag.Flag) { registeredFlags[f.Name] = true })
 }
 
-// pathPattern finds absolute, ~/ and drive paths: they name folders, sockets
-// and files of the user, which the log never keeps.
-var pathPattern = regexp.MustCompile(`(^|[\s"'(=:\[])(?:[A-Za-z]:[\\/]|~[\\/]|/)[^\s"'()<>,;\]]*`)
-
-// stripPaths replaces every path in s, and the home folder wherever it
-// appears, with <path>.
-func stripPaths(s string) string {
-	if home, err := os.UserHomeDir(); err == nil && len(home) > 1 {
-		s = strings.ReplaceAll(s, home, "<path>")
-	}
-	s = pathPattern.ReplaceAllString(s, "${1}<path>")
-	return homeTail.ReplaceAllString(s, "<path>") // what followed the home folder
+func flagIsRegistered(name string) bool {
+	registeredMu.Lock()
+	defer registeredMu.Unlock()
+	return registeredFlags[name] || slices.Contains(globalFlagNames, name)
 }
 
-var homeTail = regexp.MustCompile(`<path>[\\/][^\s"'()<>,;\]]*`)
-
-// stripValues replaces each value (an argument the redactor hid) found in s.
-func stripValues(s string, values []string) string {
-	for _, v := range values {
-		s = strings.ReplaceAll(s, v, "<arg>")
-	}
-	return s
-}
-
-// logMessage makes an error message loggable: one line, without the
-// argument values that were redacted and without paths, scrubbed, capped.
-func logMessage(s string, hidden ...string) string {
-	s = Scrub(stripPaths(stripValues(flat(s), hidden)))
-	if utf8.RuneCountInString(s) > errLogMaxMessage {
-		r := []rune(s)
-		s = string(r[:errLogMaxMessage-1]) + "…"
-	}
-	return s
-}
-
-// errChain lists the Go types of the causes under err (not err itself),
-// walking Unwrap and Unwrap() []error, up to errLogMaxChain entries. Only the
-// kind is kept: the text of a dial or OS error carries paths and values.
+// errChain lists the Go type of err and of each cause under it, walking
+// Unwrap and Unwrap() []error, up to errLogMaxChain entries.
 func errChain(err error) []string {
 	var out []string
 	var visit func(e error)
@@ -151,42 +135,8 @@ func errChain(err error) []string {
 			}
 		}
 	}
-	switch u := err.(type) { //nolint:errorlint // see above.
-	case interface{ Unwrap() []error }:
-		for _, c := range u.Unwrap() {
-			visit(c)
-		}
-	case interface{ Unwrap() error }:
-		visit(u.Unwrap())
-	}
+	visit(err)
 	return out
-}
-
-// cliKeepValues are the flags whose values are safe to log.
-var cliKeepValues = map[string]bool{
-	"tool": true, "model": true, "effort": true, "o": true, "output": true,
-	"until": true, "timeout": true, "state": true, "after": true, "n": true,
-	"since": true, "date": true,
-}
-
-// cliPolicy is the redaction policy for a command's arguments: the verb and
-// flag names stay, allowlisted flag values stay, selectors become sizes (or
-// stay when a short hex id), and free text is replaced.
-func cliPolicy(verb string, rest []string) redact.Policy {
-	p := redact.Policy{KeepValues: cliKeepValues}
-	switch verb {
-	case "new":
-		p.FreeTextFrom = 2
-	case "reply", "send", "name":
-		p.Selectors, p.FreeTextFrom = 1, 3
-	case "config":
-		if len(rest) > 0 && rest[0] == "set" {
-			p.FreeTextFrom = 4
-		}
-	case "attach", "wait", "rm", "rename", "done", "retire", "undone", "unretire", "archive", "resume", "complete", "log":
-		p.Selectors = 1
-	}
-	return p
 }
 
 // ErrLogOptions are the inputs RecordError cannot read from the process, so
@@ -214,10 +164,10 @@ func errLogEnabled() bool {
 	return !ok || on
 }
 
-// RecordError appends err to the error log. It records nothing for a help
-// request or a bare exit status (status found a session needing input,
-// doctor found a failure), and never changes the exit code or prints, except
-// one stderr line when REX_LOG_LEVEL=debug.
+// RecordError appends the structure of a failed command to the error log. It
+// records nothing for a help request or a bare exit status (status found a
+// session needing input, doctor found a failure), and never changes the exit
+// code or prints, except one stderr line when REX_LOG_LEVEL=debug.
 func RecordError(args []string, err error, opts ErrLogOptions) {
 	if IsSilent(err) {
 		return
@@ -253,99 +203,68 @@ func writeErrLog(args []string, err error, opts ErrLogOptions) error {
 	return appendErrLog(path, data)
 }
 
+// buildRecord reduces a failed command to its structure.
 func buildRecord(args []string, err error, now time.Time) ErrLogRecord {
 	info := Describe(err)
 	p := Out()
 	rest, _, _ := stripGlobalFlags(args)
-	verb := "?" // a name rex does not know may be a prompt typed by mistake
-	var after []string
+
+	cmd, sub := "?", ""
 	if len(rest) > 0 {
 		if _, known := FindCommand(rest[0]); known || rest[0] == "help" {
-			verb = rest[0]
+			cmd = rest[0]
+			if len(rest) > 1 {
+				sub = knownSubcommand(cmd, rest[1])
+			}
 		}
-		after = rest[1:]
 	}
-	policy := cliPolicy(verb, after)
-	if verb == "?" && len(rest) > 0 {
-		policy = redact.Policy{FreeTextFrom: 1}
-		policy.KeepValues = cliKeepValues
-	}
-	logArgs := redact.Argv(append([]string{"rex"}, args...), policy)[1:]
-	hidden := hiddenValues(args, logArgs)
-	if verb == "?" && len(rest) > 0 {
-		hidden = append(hidden, rest[0])
-		sortLongestFirst(hidden)
+
+	// Flags: names only, and only names the command (or the global output
+	// flags) defines. A dash argument that names nothing is just counted.
+	flags, unknown := []string{}, 0
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		if !strings.HasPrefix(a, "-") || a == "-" {
+			continue
+		}
+		name, _, _ := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		switch {
+		case cmd != "?" && flagIsRegistered(name):
+			f := "-" + name
+			if !slices.Contains(flags, f) && len(flags) < errLogMaxFlags {
+				flags = append(flags, f)
+			}
+		default:
+			unknown++
+		}
 	}
 
 	format := p.Format.String()
 	if p.Legacy {
 		format = "json-legacy"
 	}
-	text := info.Msg
-	var ee ExitError
-	if errors.As(err, &ee) && ee.Err != nil {
-		// The wrapped cause (a dial or OS error) is in Msg too; its text
-		// carries paths and values, so only the part before it is kept.
-		text = strings.TrimRight(strings.TrimSuffix(text, ee.Err.Error()), ": ")
-	}
-	msg, chain := logMessage(text, hidden...), errChain(err)
-	if verb == "config" && len(after) > 0 && after[0] == "set" {
-		// The value being set is what failed; the text cannot be trusted to omit it.
-		msg, chain = "config set: rejected ("+info.Kind+")", nil
-	}
 	rec := ErrLogRecord{
 		V: 1, Time: now.UTC().Format("2006-01-02T15:04:05.000Z"),
 		Version: Version, OS: runtime.GOOS + "/" + runtime.GOARCH, PID: os.Getpid(),
-		Cmd: verb, Args: logArgs,
+		Cmd: cmd, Sub: sub, Flags: flags, ArgCount: len(rest), UnknownArgs: unknown,
 		Format: format, AgentAuto: p.AgentAuto, TTY: ErrLogTTY{In: p.InTTY, Out: p.OutTTY},
-		Exit: info.Code, Kind: info.Kind, Error: msg, Chain: chain, Hint: logHint(info.Hint, hidden),
+		Exit: info.Code, Kind: info.Kind, Chain: errChain(err),
 	}
-	if rec.Args == nil {
-		rec.Args = []string{}
+	var ee ExitError
+	if errors.As(err, &ee) && errCodes[ee.ID] {
+		rec.Code = ee.ID
 	}
 	return rec
 }
 
-// hiddenValues are the argument values the redactor replaced (whole
-// arguments, or the value after "="), longest first, so the same text is
-// removed from error messages. Values under three bytes are skipped: they
-// would mangle ordinary words.
-func hiddenValues(args, logged []string) []string {
-	var out []string
-	for i, a := range args {
-		if i >= len(logged) || a == logged[i] {
-			continue
-		}
-		v := a
-		if strings.HasPrefix(a, "-") {
-			_, val, ok := strings.Cut(a, "=")
-			if !ok {
-				continue
-			}
-			v = val
-		}
-		if len(v) >= 3 {
-			out = append(out, v)
-		}
+// knownSubcommand returns word when it is a subcommand rex has for cmd.
+func knownSubcommand(cmd, word string) string {
+	if slices.Contains(cliSubcommands[cmd], word) {
+		return word
 	}
-	sortLongestFirst(out)
-	return out
-}
-
-func sortLongestFirst(v []string) {
-	sort.SliceStable(v, func(i, j int) bool { return len(v[i]) > len(v[j]) })
-}
-
-// logHint redacts a suggested command the way arguments are: it is built
-// from what the user typed (`rex rm <sel> -force`).
-func logHint(hint string, hidden []string) string {
-	f := strings.Fields(hint)
-	if len(f) >= 2 && f[0] == "rex" {
-		if _, known := FindCommand(f[1]); known {
-			return logMessage(strings.Join(redact.Argv(f, cliPolicy(f[1], f[2:])), " "), hidden...)
-		}
-	}
-	return logMessage(hint, hidden...)
+	return ""
 }
 
 // appendErrLog writes one record, rotating first when the log is full. The
@@ -385,31 +304,23 @@ func ensureLogDir(path string) error {
 	return rexlog.PrivateDir(dir)
 }
 
-// shrinkRecord drops the chain, then trims the error text, until the record
-// fits errLogMaxRecord.
+// shrinkRecord drops the chain, then the flag names, until the record fits
+// errLogMaxRecord. Every field is bounded, so this is a backstop.
 func shrinkRecord(record []byte) []byte {
 	var rec ErrLogRecord
 	if json.Unmarshal(record, &rec) != nil {
 		return record[:errLogMaxRecord]
 	}
 	rec.Chain = nil
-	for {
-		b, err := json.Marshal(rec)
-		if err != nil || len(b) <= errLogMaxRecord {
-			return b
-		}
-		r := []rune(rec.Error)
-		if len(r) < 16 {
-			rec.Args, rec.Hint = nil, ""
-			rec.Error = string(r)
-			b, _ = json.Marshal(rec)
-			if len(b) > errLogMaxRecord {
-				b = b[:errLogMaxRecord]
-			}
-			return b
-		}
-		rec.Error = string(r[:len(r)/2]) + "…"
+	if b, err := json.Marshal(rec); err == nil && len(b) <= errLogMaxRecord {
+		return b
 	}
+	rec.Flags = []string{}
+	b, err := json.Marshal(rec)
+	if err != nil || len(b) > errLogMaxRecord {
+		return record[:errLogMaxRecord]
+	}
+	return b
 }
 
 // ReadErrLog returns the records of the log and its backup, newest first.

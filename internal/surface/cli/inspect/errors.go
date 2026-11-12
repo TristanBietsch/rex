@@ -124,33 +124,39 @@ func clearErrors(p *core.Printer, path string, force bool) error {
 	}{true}, View: core.ActionView(line, core.Field{Key: "cleared", Val: true})})
 }
 
-// errorsView lists the records: TIME EXIT CMD ERROR in text, txt and md, and
-// one `error_entry` line per record in agent mode.
+// errorsView lists the records: TIME EXIT CMD KIND CODE FLAGS CHAIN in text,
+// txt and md, and one `error_entry` line per record in agent mode. The log
+// holds structure only, so there is no message to show.
 func errorsView(recs []core.ErrLogRecord) core.View {
-	human := core.SetOf(core.FormatText, core.FormatTXT, core.FormatMD)
-	agent := core.SetOf(core.FormatAgent)
 	rows := make([][]core.Cell, len(recs))
 	for i, r := range recs {
 		shown, utc := r.Time, r.Time
 		if t, err := time.Parse(time.RFC3339, r.Time); err == nil {
 			shown, utc = t.Local().Format("2006-01-02 15:04:05"), t.UTC().Format(time.RFC3339)
 		}
+		cmd := r.Cmd
+		if r.Sub != "" {
+			cmd += " " + r.Sub
+		}
 		rows[i] = []core.Cell{
-			{Text: shown}, {Text: utc}, {Text: strconv.Itoa(r.Exit), Raw: r.Exit}, {Text: r.Kind}, {Text: r.Cmd},
-			{Text: strings.Join(r.Args, " ")}, {Text: r.Error}, {Text: r.Error}, {Text: r.Hint},
+			{Text: shown, Raw: utc}, {Text: strconv.Itoa(r.Exit), Raw: r.Exit}, {Text: cmd}, {Text: r.Cmd},
+			{Text: r.Sub}, {Text: r.Kind}, {Text: r.Code}, {Text: strings.Join(r.Flags, " ")},
+			{Text: strings.Join(r.Chain, " ")},
 		}
 	}
+	text := core.SetOf(core.FormatText, core.FormatTXT, core.FormatMD)
+	agent := core.SetOf(core.FormatAgent)
 	v := core.View{core.Header{Title: "Errors", Meta: fmt.Sprintf("%d logged", len(recs))},
 		core.Table{Kind: "error_entry", Empty: "(no errors logged)", Rows: rows, Cols: []core.Col{
-			{Key: "time", Title: "Time", Formats: human},
-			{Key: "time", Title: "Time", Formats: agent},
+			{Key: "time", Title: "Time"},
 			{Key: "exit", Title: "Exit", Align: core.AlignRight},
-			{Key: "kind", Title: "Kind", Formats: agent},
-			{Key: "cmd", Title: "Cmd"},
-			{Key: "args", Title: "Args", Formats: agent},
-			{Key: "msg", Title: "Error", Flex: true, Min: 12, Formats: human},
-			{Key: "msg", Title: "Error", Formats: agent},
-			{Key: "hint", Title: "Hint", Formats: agent},
+			{Key: "cmd", Title: "Cmd", Formats: text},
+			{Key: "cmd", Title: "Cmd", Formats: agent},
+			{Key: "sub", Title: "Sub", Formats: agent},
+			{Key: "kind", Title: "Kind"},
+			{Key: "code", Title: "Code"},
+			{Key: "flags", Title: "Flags", Flex: true, Min: 8},
+			{Key: "chain", Title: "Chain", Flex: true, Min: 8},
 		}}}
 	if len(recs) > 0 {
 		v = append(v, core.Hint{Cmd: "rex errors -clear", Text: "delete the log"})

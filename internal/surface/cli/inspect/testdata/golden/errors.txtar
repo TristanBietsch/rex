@@ -1,55 +1,55 @@
 -- text.w40 --
 Errors  2 logged
 
-  TIME                 EXIT  CMD  ERROR
-  2026-11-11 09:12:03     6  rm   rm: stdin i…
-  2026-11-10 22:00:00     4  ls   rex-daemon …
+  TIME                 EXIT  CMD        KIND                CODE                FLAGS     CHAIN
+  2026-11-11 09:12:03     6  rm         refused             needs_confirmation  -force    core.Ex…
+  2026-11-10 22:00:00     4  fleet set  daemon_unreachable  daemon_unreachable            core.Ex…
 
 › rex errors -clear  delete the log
 -- text.w80 --
 Errors  2 logged
 
-  TIME                 EXIT  CMD  ERROR
-  2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to d…
-  2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.s…
+  TIME                 EXIT  CMD        KIND                CODE                FLAGS     CHAIN
+  2026-11-11 09:12:03     6  rm         refused             needs_confirmation  -force    core.Ex…
+  2026-11-10 22:00:00     4  fleet set  daemon_unreachable  daemon_unreachable            core.Ex…
 
 › rex errors -clear  delete the log
 -- text.w120 --
 Errors  2 logged
 
-  TIME                 EXIT  CMD  ERROR
-  2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to delete without asking
-  2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory
+  TIME                 EXIT  CMD        KIND                CODE                FLAGS     CHAIN
+  2026-11-11 09:12:03     6  rm         refused             needs_confirmation  -force    core.ExitError
+  2026-11-10 22:00:00     4  fleet set  daemon_unreachable  daemon_unreachable            core.ExitError *net.OpError *…
 
 › rex errors -clear  delete the log
 -- text.color.w80 --
 ␛[1;38;2;230;230;230mErrors␛[0m  ␛[38;2;121;127;140m2 logged␛[0m
 
-  ␛[38;2;121;127;140mTIME␛[0m                 ␛[38;2;121;127;140mEXIT␛[0m  ␛[38;2;121;127;140mCMD␛[0m  ␛[38;2;121;127;140mERROR␛[0m
-  2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to d…
-  2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.s…
+  ␛[38;2;121;127;140mTIME␛[0m                 ␛[38;2;121;127;140mEXIT␛[0m  ␛[38;2;121;127;140mCMD␛[0m        ␛[38;2;121;127;140mKIND␛[0m                ␛[38;2;121;127;140mCODE␛[0m                ␛[38;2;121;127;140mFLAGS␛[0m     ␛[38;2;121;127;140mCHAIN␛[0m
+  2026-11-11 09:12:03     6  rm         refused             needs_confirmation  -force    core.Ex…
+  2026-11-10 22:00:00     4  fleet set  daemon_unreachable  daemon_unreachable            core.Ex…
 
 ␛[1;38;2;91;141;239m› rex errors -clear␛[0m  ␛[38;2;121;127;140mdelete the log␛[0m
 -- txt --
-TIME                 EXIT  CMD  ERROR
-2026-11-11 09:12:03     6  rm   rm: stdin is not a terminal; pass -force to delete without asking
-2026-11-10 22:00:00     4  ls   rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory
+TIME                 EXIT  CMD        KIND                CODE                FLAGS   CHAIN
+2026-11-11 09:12:03     6  rm         refused             needs_confirmation  -force  core.ExitError
+2026-11-10 22:00:00     4  fleet set  daemon_unreachable  daemon_unreachable          core.ExitError *net.OpError *os.SyscallError syscall.Errno
 -- md --
 ### Errors
 
 *2 logged*
 
-| Time | Exit | Cmd | Error |
-| --- | ---: | --- | --- |
-| 2026-11-11 09:12:03 | 6 | rm | rm: stdin is not a terminal; pass -force to delete without asking |
-| 2026-11-10 22:00:00 | 4 | ls | rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory |
+| Time | Exit | Cmd | Kind | Code | Flags | Chain |
+| --- | ---: | --- | --- | --- | --- | --- |
+| 2026-11-11 09:12:03 | 6 | rm | refused | needs\_confirmation | -force | core.ExitError |
+| 2026-11-10 22:00:00 | 4 | fleet set | daemon\_unreachable | daemon\_unreachable |  | core.ExitError \*net.OpError \*os.SyscallError syscall.Errno |
 
 `rex errors -clear` delete the log
 -- json --
-{"v":1,"cmd":"errors","data":[{"v":1,"time":"2026-11-11T09:12:03.123Z","version":"","os":"","pid":0,"cmd":"rm","args":["rm","<sel:8 bytes>"],"format":"","agent_auto":false,"tty":{"in":false,"out":false},"exit":6,"kind":"refused","error":"rm: stdin is not a terminal; pass -force to delete without asking","hint":"rex rm <sel> -force"},{"v":1,"time":"2026-11-10T22:00:00.000Z","version":"","os":"","pid":0,"cmd":"ls","args":["ls","-o","json"],"format":"","agent_auto":false,"tty":{"in":false,"out":false},"exit":4,"kind":"daemon_unreachable","error":"rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory","hint":"rex daemon start"}]}
+{"v":1,"cmd":"errors","data":[{"v":1,"time":"2026-11-11T09:12:03.123Z","version":"","os":"","pid":0,"cmd":"rm","flags":["-force"],"arg_count":2,"unknown_args":0,"format":"","agent_auto":false,"tty":{"in":false,"out":false},"exit":6,"kind":"refused","code":"needs_confirmation","chain":["core.ExitError"]},{"v":1,"time":"2026-11-10T22:00:00.000Z","version":"","os":"","pid":0,"cmd":"fleet","sub":"set","flags":[],"arg_count":3,"unknown_args":0,"format":"","agent_auto":false,"tty":{"in":false,"out":false},"exit":4,"kind":"daemon_unreachable","code":"daemon_unreachable","chain":["core.ExitError","*net.OpError","*os.SyscallError","syscall.Errno"]}]}
 -- agent --
-error_entry time=2026-11-11T09:12:03Z exit=6 kind=refused cmd=rm args="rm <sel:8 bytes>" msg="rm: stdin is not a terminal; pass -force to delete without asking" hint="rex rm <sel> -force"
-error_entry time=2026-11-10T22:00:00Z exit=4 kind=daemon_unreachable cmd=ls args="ls -o json" msg="rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory" hint="rex daemon start"
+error_entry time=2026-11-11T09:12:03Z exit=6 cmd=rm sub="" kind=refused code=needs_confirmation flags=-force chain=core.ExitError
+error_entry time=2026-11-10T22:00:00Z exit=4 cmd=fleet sub=set kind=daemon_unreachable code=daemon_unreachable flags="" chain="core.ExitError *net.OpError *os.SyscallError syscall.Errno"
 ok cmd=errors count=2
 -- empty.text --
 Errors  0 logged

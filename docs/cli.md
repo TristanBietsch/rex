@@ -123,16 +123,31 @@ Built for LLM agents that drive rex from a shell. Turn it on with `--agent`, `-o
 
 ## ERROR LOG
 
-A failed command leaves one JSON line in `~/.local/state/rex/cli-errors.log` (`$REX_LOG_DIR/cli-errors.log` when set; 0600 in a 0700 folder), so the error is still there after the terminal scrolls:
+A failed command leaves one JSON line in `~/.local/state/rex/cli-errors.log` (`$REX_LOG_DIR/cli-errors.log` when set; 0600 in a 0700 folder), so the failure is still known after the terminal scrolls. The log is **structure only**: no text a person typed and no error message is ever stored, because free text cannot be scrubbed reliably.
 
 ```json
 {"v":1,"time":"2026-11-11T09:12:03.123Z","version":"v1","os":"darwin/arm64","pid":4242,
- "cmd":"rm","args":["rm","<sel:8 bytes>","-force"],"format":"agent","agent_auto":true,
- "tty":{"in":false,"out":false},"exit":6,"kind":"refused",
- "error":"rm: stdin is not a terminal; pass -force …","chain":["…"],"hint":"rex rm <sel> -force"}
+ "cmd":"fleet","sub":"set","flags":["-socket"],"arg_count":4,"unknown_args":0,
+ "format":"agent","agent_auto":true,"tty":{"in":false,"out":false},
+ "exit":4,"kind":"daemon_unreachable","code":"daemon_unreachable",
+ "chain":["core.ExitError","*net.OpError","*os.SyscallError","syscall.Errno"]}
 ```
 
-What it holds: the command, flag names, the values of a short list of safe flags (`-tool -model -effort -o -until -timeout -state -after -n -since -date`), selectors as short ids or sizes, the exit code and kind, and error text with paths (`/…`, `~/…`, the home folder) replaced by `<path>`, argument values that were redacted replaced by `<arg>`, and API keys, tokens and `password=` values scrubbed. The `chain` field holds only the Go error types of the causes, never the text of a dial or OS error. The command is logged only when rex knows it (`?` otherwise, so a prompt typed as a command is not kept); a `config set` failure logs no text at all. What it never holds: prompts, `reply`/`send`/`name` text, `config set` values, `-cwd` or `-socket` paths, stdin, environment values or transcripts. Help requests and bare exit statuses (`status` finding a session that needs input, `doctor` failures) are not recorded.
+Exactly what a record holds:
+
+| Field | Content |
+|-------|---------|
+| `v`, `time`, `version`, `os`, `pid` | Record version, UTC time, rex version, `GOOS/GOARCH`, process id |
+| `cmd` | The command, only when rex knows the name; `?` otherwise (so a prompt typed as a command is not kept) |
+| `sub` | The subcommand, only from rex's fixed lists (`fleet set`, `config get`, `daemon status` …) |
+| `flags` | **Names** of flags the command defines (and the global `-o`, `--agent`, `--no-color`, `-json`), never values |
+| `arg_count`, `unknown_args` | How many arguments there were, and how many dash arguments named no flag (a prompt that starts with `-` is counted, not logged) |
+| `format`, `agent_auto`, `tty` | Output format, whether `CLAUDECODE` chose agent mode, whether stdin and stdout were terminals |
+| `exit`, `kind` | Exit code and its kind (`refused`, `daemon_unreachable` …) |
+| `code` | A stable error name from a fixed list (`daemon_unreachable`, `handshake_failed`, `selector_not_found`, `selector_ambiguous`, `unknown_command`, `invalid_flag`, `feature_off`, `needs_confirmation`), when the error carries one |
+| `chain` | The Go **type** of the error and of each cause (`*net.OpError`, `*fs.PathError` …), never their text |
+
+Never stored: error messages, hints, argument or flag values, selectors, prompts, `reply`/`send`/`name` text, `config set` values, folders, socket paths, file names, stdin, environment values, transcripts. Help requests and bare exit statuses (`status` finding a session that needs input, `doctor` failures) are not recorded.
 
 The log is capped at 1 MiB plus one backup (`cli-errors.log.1`). Logging never changes an exit code and never prints (except one stderr line with `REX_LOG_LEVEL=debug`). Concurrent rex processes append whole lines; a rotation race can lose a few. Turn it off with the `cli_error_log` setting or `REX_ERROR_LOG=0`. Read it with [`rex errors`](#rex-errors); `rex doctor` has a `cli errors` row.
 
@@ -569,7 +584,7 @@ Show the CLI error log (see ERROR LOG): the failed `rex` commands, newest first.
 rex errors [-n 20] [-since 24h] [-clear [-force]] [-o FORMAT] [--agent]
 ```
 
-`-n` limits the count (0 = all); `-since` takes `90m`, `24h` or `7d`. `text`, `txt` and `md` show `TIME EXIT CMD ERROR`; `agent` gives `error_entry time=… exit=… kind=… cmd=… args="…" msg="…" hint="…"` lines then `ok cmd=errors count=N`; `-o json` carries the records. `-clear` deletes the log and its backup. It asks first on a terminal and needs `-force` (alias `-yes`, `-y`) otherwise (exit 6). `rex doctor` has a `cli errors` row: `none in 24h`, or a warning with the count of the last 24 hours.
+`-n` limits the count (0 = all); `-since` takes `90m`, `24h` or `7d`. `text`, `txt` and `md` show `TIME EXIT CMD KIND CODE FLAGS CHAIN`; `agent` gives `error_entry time=… exit=… cmd=… sub=… kind=… code=… flags="…" chain="…"` lines then `ok cmd=errors count=N`; `-o json` carries the records. There is no message to show: the log stores none. `-clear` deletes the log and its backup. It asks first on a terminal and needs `-force` (alias `-yes`, `-y`) otherwise (exit 6). `rex doctor` has a `cli errors` row: `none in 24h`, or a warning with the count of the last 24 hours.
 
 ---
 

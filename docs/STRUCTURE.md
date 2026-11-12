@@ -57,7 +57,7 @@ internal/
 ├── runtime/                # paths, process control, logging
 │   ├── daemonctl/          # spawn/check daemon, socket paths
 │   ├── ids/                # session UUID / short id
-│   ├── redact/             # argv redaction shared by the daemon log and the CLI error log
+│   ├── redact/             # argv redaction for the daemon log
 │   └── rexlog/             # file-backed slog for daemon/TUI
 ├── features/               # optional enhancements
 │   ├── skills/             # skill library + per-session plugin staging

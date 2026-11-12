@@ -32,5 +32,5 @@ func OffMessage(id string) string {
 // OffError is OffMessage as an ExitInvalidArgs error (exit 5), hinting the
 // command that switches the feature back on.
 func OffError(id string) ExitError {
-	return Errorf(ExitInvalidArgs, "rex config set "+id+" true", "%s", OffMessage(id))
+	return Errorf(ExitInvalidArgs, "rex config set "+id+" true", "%s", OffMessage(id)).WithID("feature_off")
 }

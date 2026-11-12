@@ -159,9 +159,9 @@ var commands = core.CommandNames()
 func unknownCommand(name string) error {
 	if s := core.Suggest(name, commands); s != "" {
 		return core.Errorf(core.ExitInvalidArgs, "rex "+s,
-			"unknown command %q; did you mean %q? (try `rex --help`)", name, s)
+			"unknown command %q; did you mean %q? (try `rex --help`)", name, s).WithID("unknown_command")
 	}
-	return core.Errorf(core.ExitInvalidArgs, "rex --help", "unknown command %q (try `rex --help`)", name)
+	return core.Errorf(core.ExitInvalidArgs, "rex --help", "unknown command %q (try `rex --help`)", name).WithID("unknown_command")
 }
 
 func exitCodeFor(err error) int {

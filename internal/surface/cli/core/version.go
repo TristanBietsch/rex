@@ -24,9 +24,19 @@ type ExitError struct {
 	// Hint is the command that fixes the problem ("rex daemon start"). The
 	// human and structured formats show it; it is not part of Msg.
 	Hint string
-	// Err is the underlying cause, kept for the error log and for errors.Is
-	// and errors.As. It is not part of Msg.
+	// Err is the underlying cause, kept for errors.Is and errors.As. It is
+	// not part of Msg.
 	Err error
+	// ID is a stable name for a handful of known errors (see errCodes). It is
+	// the only part of an error's identity the error log keeps besides its
+	// type; it is never formatted text.
+	ID string
+}
+
+// WithID returns e with its stable ID set.
+func (e ExitError) WithID(id string) ExitError {
+	e.ID = id
+	return e
 }
 
 // Error implements error.

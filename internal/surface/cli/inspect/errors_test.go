@@ -14,10 +14,10 @@ import (
 
 func sampleErrorRecords() []core.ErrLogRecord {
 	return []core.ErrLogRecord{
-		{V: 1, Time: "2026-11-11T09:12:03.123Z", Cmd: "rm", Args: []string{"rm", "<sel:8 bytes>"}, Exit: 6, Kind: "refused",
-			Error: "rm: stdin is not a terminal; pass -force to delete without asking", Hint: "rex rm <sel> -force"},
-		{V: 1, Time: "2026-11-10T22:00:00.000Z", Cmd: "ls", Args: []string{"ls", "-o", "json"}, Exit: 4, Kind: "daemon_unreachable",
-			Error: "rex-daemon is not running: dial unix /x/rex.sock: connect: no such file or directory", Hint: "rex daemon start"},
+		{V: 1, Time: "2026-11-11T09:12:03.123Z", Cmd: "rm", Flags: []string{"-force"}, ArgCount: 2, Exit: 6, Kind: "refused",
+			Code: "needs_confirmation", Chain: []string{"core.ExitError"}},
+		{V: 1, Time: "2026-11-10T22:00:00.000Z", Cmd: "fleet", Sub: "set", Flags: []string{}, ArgCount: 3, Exit: 4, Kind: "daemon_unreachable",
+			Code: "daemon_unreachable", Chain: []string{"core.ExitError", "*net.OpError", "*os.SyscallError", "syscall.Errno"}},
 	}
 }
 
@@ -74,7 +74,9 @@ func TestRunErrors_ReadsTheLog(t *testing.T) {
 
 	out, err := runIn(t, "agent", func() error { return RunErrors(nil) })
 	require.NoError(t, err)
-	require.Regexp(t, `(?s)^error_entry time=\S+ exit=6 kind=refused cmd=rm args="rm 7d4f" msg="new failure" hint="".*error_entry .* exit=4 kind=daemon_unreachable cmd=ls`, out)
+	require.Regexp(t, `(?s)^error_entry time=\S+ exit=6 cmd=rm sub="" kind=refused code=""[^\n]*\n.*error_entry .* exit=4 cmd=ls`, out)
+	require.NotContains(t, out, "new failure", "the log holds no message text")
+	require.NotContains(t, out, "7d4f")
 	require.Contains(t, out, "ok cmd=errors count=2\n")
 
 	out, err = runIn(t, "agent", func() error { return RunErrors([]string{"-n", "1"}) })

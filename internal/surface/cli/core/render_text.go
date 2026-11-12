@@ -56,7 +56,12 @@ func (p *Printer) renderText(v View) string {
 		case Para:
 			l.add(ansi.Wrap(b.Text, p.Width, ""))
 		case Pre:
-			l.add(p.Styles.Dim.Render(b.Text))
+			// Style line by line: lipgloss pads a multi-line string to equal widths.
+			lines := strings.Split(b.Text, "\n")
+			for i, ln := range lines {
+				lines[i] = p.Styles.Dim.Render(ln)
+			}
+			l.add(strings.Join(lines, "\n"))
 		case Defs:
 			l.add(p.textDefs(b))
 		}
