@@ -211,21 +211,13 @@ func run(args []string) error {
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
 	defer usageHub.Close()
 	// Audit trail: inert (no file, no workspace lookup, no prompt kept) while
-	// audit_trail is off. A home that cannot be found turns workspace
-	// discovery off; records then go to the global file.
-	auditHome, err := paths.Home()
-	if err != nil {
-		slog.Warn("daemon: no home directory; audit records skip workspaces", "err", err)
-		auditHome = ""
-	}
+	// audit_trail is off. Without a home directory workspace discovery is off
+	// and records go to the global file.
+	home, _ := paths.Home()
 	auditTrail := boot.NewAudit(boot.AuditConfig{
 		StateDir: *stateDir,
-		Home:     auditHome,
-		Persist: func(sess *state.Session) {
-			if err := state.WriteMeta(*stateDir, sess); err != nil {
-				slog.Error("audit: persist meta failed", "session", sess.ID, "err", err)
-			}
-		},
+		Home:     home,
+		Persist:  boot.PersistMeta(*stateDir),
 	}, store)
 	defer auditTrail.Close()
 	auditTrail.Configure(settingsStore)

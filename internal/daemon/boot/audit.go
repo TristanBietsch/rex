@@ -104,6 +104,16 @@ func (a *Audit) run() {
 	}
 }
 
+// PersistMeta returns an AuditConfig.Persist that saves a session's meta.json
+// under stateDir, logging a failure.
+func PersistMeta(stateDir string) func(*state.Session) {
+	return func(sess *state.Session) {
+		if err := state.WriteMeta(stateDir, sess); err != nil {
+			slog.Error("audit: persist meta failed", "session", sess.ID, "err", err)
+		}
+	}
+}
+
 // Configure applies the audit_trail, audit_full_prompt and workspaces
 // settings.
 func (a *Audit) Configure(s *settings.Store) {

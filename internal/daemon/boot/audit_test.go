@@ -293,3 +293,21 @@ func TestAudit_WarnOnceLogsEachKeyOnce(t *testing.T) {
 	require.Equal(t, 2, n)
 	require.True(t, strings.Contains(a.global, paths.AuditFileName))
 }
+
+func TestPersistMeta_SavesAuditWrittenAcrossARestart(t *testing.T) {
+	dir := t.TempDir()
+	store := state.NewStore()
+	a := NewAudit(AuditConfig{StateDir: dir, Persist: PersistMeta(dir)}, store)
+	a.Configure(auditSettings(t, nil))
+	s := auditSession("aaaa1111", "/w")
+	require.NoError(t, store.Add(s))
+	require.NoError(t, store.Transition("aaaa1111", protocol.StateDone))
+	a.Close()
+
+	got, err := state.LoadMeta(dir, "aaaa1111")
+	require.NoError(t, err)
+	require.True(t, got.AuditWritten, "a restarted daemon will not write the record again")
+
+	// A failing save is logged, not fatal.
+	require.NotPanics(t, func() { PersistMeta(filepath.Join(dir, "meta.json", "x"))(s) })
+}
