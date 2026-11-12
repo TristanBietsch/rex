@@ -25,6 +25,7 @@ func TestBuiltinNewAgents(t *testing.T) {
 	require.Equal(t, []string{"--prompt-interactive={prompt}"}, qwen.PromptArgs)
 	require.Equal(t, []string{"--dangerously-skip-permissions"}, qwen.SkipPermissionsArgs)
 	require.Equal(t, []string{"--settings", `{"security":{"folderTrust":{"enabled":false}}}`}, qwen.TrustArgs)
+	require.True(t, qwen.TrustArgsGlobal)
 	require.Empty(t, qwen.StatusEnv, "qwen reports once rex answers its query")
 	require.Equal(t, []string{"--list-models"}, qwen.ModelsCmd.Args)
 	require.Equal(t, "--reasoning-effort={value}", qwen.ModelEffort.ArgTemplate)

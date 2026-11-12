@@ -150,6 +150,7 @@ func mergeOne(base, over Tool) Tool {
 	}
 	if len(over.TrustArgs) > 0 {
 		merged.TrustArgs = over.TrustArgs
+		merged.TrustArgsGlobal = over.TrustArgsGlobal
 	}
 	if len(over.SkipPermissionsArgs) > 0 {
 		merged.SkipPermissionsArgs = over.SkipPermissionsArgs
@@ -271,6 +272,14 @@ func validateTool(t Tool) error {
 	}
 	if slices.Contains(t.TrustArgs, "") {
 		return fmt.Errorf("tool %q: trust_args must not hold an empty argument", t.ID)
+	}
+	if len(t.TrustArgs) > 0 && !t.TrustArgsGlobal && !slices.ContainsFunc(t.TrustArgs, func(a string) bool {
+		return strings.Contains(a, TrustArgsCWDList)
+	}) {
+		return fmt.Errorf("tool %q: trust_args must name the folder with %s (or set trust_args_global: true for a switch that covers the whole run)", t.ID, TrustArgsCWDList)
+	}
+	if t.TrustArgsGlobal && len(t.TrustArgs) == 0 {
+		return fmt.Errorf("tool %q: trust_args_global needs trust_args", t.ID)
 	}
 	if slices.Contains(t.SkipPermissionsArgs, "") {
 		return fmt.Errorf("tool %q: skip_permissions_args must not hold an empty argument", t.ID)

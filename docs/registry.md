@@ -165,7 +165,7 @@ While `shown` matches, the daemon sends `move` (at most 4 times, 300 ms apart) u
 
 ### trust_args
 
-Extra arguments that make the agent trust the session folder itself, so no dialog shows. They are added only for sessions under a folder in `auto_trust_dirs`. An argument may contain `{cwd_list}`, which expands to a JSON array holding the folder as given and, when different, as resolved through symlinks; a switch that turns the check off for the whole run needs no placeholder (`qwen`: `["--settings", "{\"security\":{\"folderTrust\":{\"enabled\":false}}}"]`, session-only, nothing saved). Prefer this to `trust_prompt` when the agent supports it: nothing is typed into the agent.
+Extra arguments that make the agent trust the session folder itself, so no dialog shows. They are added only for sessions under a folder in `auto_trust_dirs`. An argument may contain `{cwd_list}`, which expands to a JSON array holding the folder as given and, when different, as resolved through symlinks; a switch that turns the check off for the whole run needs no placeholder when the tool sets `trust_args_global: true` (without it a `trust_args` that lacks `{cwd_list}` is rejected, which catches a typo). `qwen`: `["--settings", "{\"security\":{\"folderTrust\":{\"enabled\":false}}}"]`, session-only, nothing saved). Prefer this to `trust_prompt` when the agent supports it: nothing is typed into the agent.
 
 When a tool sets both, both apply: the arguments make the dialog unnecessary, and the answerer stays armed as a fallback. If your `command` or model `args` already pass the same flag (for `agy`, your own `--settings`), the agent gets it twice and which one wins is up to the agent.
 

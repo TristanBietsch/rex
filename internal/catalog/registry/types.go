@@ -24,6 +24,10 @@ type Tool struct {
 	// turns the check off for the whole run (qwen) needs no placeholder.
 	// Preferred over TrustPrompt when the agent supports it.
 	TrustArgs []string `yaml:"trust_args,omitempty"`
+	// TrustArgsGlobal says trust_args need not name the folder because they
+	// switch the agent's trust check off for the whole run (qwen). Without it
+	// trust_args must contain {cwd_list}, which catches a typo'd placeholder.
+	TrustArgsGlobal bool `yaml:"trust_args_global,omitempty"`
 	// SkipPermissionsArgs are extra argv that make the agent run without
 	// asking for approval (for example --dangerously-skip-permissions). They
 	// are added only while the skip_permissions setting is on.

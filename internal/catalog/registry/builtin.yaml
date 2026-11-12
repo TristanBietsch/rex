@@ -288,6 +288,7 @@ tools:
     # writes nothing. Added only for folders in auto_trust_dirs; elsewhere
     # the user answers qwen's trust dialog.
     trust_args: ["--settings", "{\"security\":{\"folderTrust\":{\"enabled\":false}}}"]
+    trust_args_global: true
     # Detected ids (`qwen --list-models`: "Name (id)" per line, header MODEL).
     models_cmd:
       args: ["--list-models"]

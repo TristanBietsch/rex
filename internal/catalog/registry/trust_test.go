@@ -99,10 +99,20 @@ func TestValidateTrustArgs(t *testing.T) {
 	ok.TrustArgs = []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}
 	require.NoError(t, validate([]Tool{ok}))
 
-	// A session-only switch needs no folder (qwen turns folder trust off for the run).
+	// A typo'd placeholder (an overlay) is rejected...
+	typo := base
+	typo.TrustArgs = []string{"--settings", `{"trustedWorkspaces":{cwd-list}}`}
+	require.ErrorContains(t, validate([]Tool{typo}), "must name the folder")
+
+	// ...unless the switch covers the whole run (qwen turns folder trust off).
 	noFolder := base
 	noFolder.TrustArgs = []string{"--settings", `{"security":{"folderTrust":{"enabled":false}}}`}
+	require.ErrorContains(t, validate([]Tool{noFolder}), "trust_args_global")
+	noFolder.TrustArgsGlobal = true
 	require.NoError(t, validate([]Tool{noFolder}))
+	orphan := base
+	orphan.TrustArgsGlobal = true
+	require.ErrorContains(t, validate([]Tool{orphan}), "needs trust_args")
 
 	empty := base
 	empty.TrustArgs = []string{"--settings", ""}
