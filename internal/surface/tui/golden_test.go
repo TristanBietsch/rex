@@ -486,7 +486,7 @@ func TestGoldenScreensFillTerminal(t *testing.T) {
 func goldenSaver(t *testing.T, sz goldenSize, kv ...any) Model {
 	t.Helper()
 	m := goldenBoard(t, sz, false)
-	for i := 0; i < len(kv); i += 2 {
+	for i := 0; i+1 < len(kv); i += 2 {
 		id, _ := kv[i].(string)
 		if err := m.Store.Set(id, kv[i+1]); err != nil {
 			t.Fatal(err)

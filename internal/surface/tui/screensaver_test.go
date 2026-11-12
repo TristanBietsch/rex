@@ -636,7 +636,7 @@ func abs(n int) int {
 func saverAt(t *testing.T, w, h int, kv ...any) Model {
 	t.Helper()
 	m, now, _ := saverModel(t, saverSessions()...)
-	for i := 0; i < len(kv); i += 2 {
+	for i := 0; i+1 < len(kv); i += 2 {
 		id, ok := kv[i].(string)
 		require.True(t, ok)
 		require.NoError(t, m.Store.Set(id, kv[i+1]))
