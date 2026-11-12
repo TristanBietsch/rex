@@ -52,6 +52,7 @@ func TestRunSetup_AutoTrustRefused(t *testing.T) {
 
 func TestRunSetup_AutoTrustWritten(t *testing.T) {
 	home, cfg := setupHome(t)
+	atTerminal(t) // -auto-trust writes a trust setting: a person at a terminal only
 	sep := string(filepath.ListSeparator)
 	work := filepath.Join(home, "work")
 

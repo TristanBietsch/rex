@@ -13,10 +13,18 @@ exitcode 6 rex --agent trust $WORK/home/proj
 exitcode 6 rex trust -o json $WORK/home/proj
 ! exists home/.config/rex/config.yaml
 
-# Listed (as rex config set writes it), -ls and -rm work without a terminal.
-exec rex config set auto_trust_dirs $WORK/home/proj
+# rex config set and rex setup -auto-trust are refused the same way.
+exitcode 6 rex config set auto_trust_dirs $WORK/home/proj
+stderr 'only at a terminal'
+exitcode 6 rex setup -yes -no-shell -auto-trust $WORK/home/proj
+stderr 'only at a terminal'
+! exists home/.config/rex/config.yaml
+
+# Listed (as a person, or a hand edit, writes it), -ls and -rm work without
+# a terminal.
+mkdir home/.config/rex
+cp trusted.yaml home/.config/rex/config.yaml
 grep '^auto_trust_dirs: ' home/.config/rex/config.yaml
-grep 'proj' home/.config/rex/config.yaml
 
 exec rex trust -ls
 stdout 'proj'
@@ -35,3 +43,6 @@ stderr 'home folder'
 exec rex trust -rm $WORK/home/proj
 exec rex config get auto_trust_dirs
 ! stdout 'proj'
+
+-- trusted.yaml --
+auto_trust_dirs: ~/proj

@@ -43,6 +43,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `txt`/`md` or stdin/stdout not a terminal exit 6 and write nothing.
   Add folders yourself, at a terminal or in the TUI (`ctrl+t`,
   `:trust`). `rex trust -ls` and `-rm` are unchanged.
+- The same terminal-only rule now covers every CLI path that changes a
+  trust setting (`skip_permissions`, `auto_trust_dirs`): `rex config set`
+  and `rex config reset` of those two, and `rex setup -auto-trust` (with
+  `-yes` or the wizard; `-preview` is unchanged). They exit 6
+  (`needs_terminal`) and write nothing in agent mode, with `-o` or a pipe.
+  Other settings, `rex config get`/`list` and `rex setup -yes` without
+  `-auto-trust` stay scriptable. Scripts that set these two keys must now
+  run at a terminal (or edit `config.yaml` themselves).
+- `rex ws trust` shows the workspace's `.rex/config.lua` above its `[y/N]`
+  question: the exact bytes it hashes and trusts, each line flattened (no
+  escape, control or bidi characters), at most 40 lines with
+  `… N more lines`, plus the size and SHA-256 as before.
 
 ### Fixed (workspace trust)
 
