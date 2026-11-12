@@ -11,8 +11,8 @@ var Registry = []Setting{
 	{
 		ID: "color_scheme", Label: "Color scheme", Section: SectionAppearance,
 		Type: TypeEnum, Default: "default",
-		Options: []string{"default", "noir", "paper"},
-		Help:    "Change the color scheme.",
+		Options: []string{"default", "classic", "noir", "paper", "high-contrast", "ansi"},
+		Help:    "Change the color scheme. classic is the previous look; ansi uses your terminal's own colors.",
 	},
 	{
 		ID: "spinner", Label: "Spinner type", Section: SectionAppearance,

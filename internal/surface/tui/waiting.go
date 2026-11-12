@@ -40,7 +40,7 @@ func waitingGlyphFor(m Model) string {
 func waitingMarkerCell(m Model, selected bool) string {
 	style := styleMarker[protocol.StateWorking].Width(colMarker)
 	if selected {
-		style = style.Background(colorBgSel)
+		style = selectedStyle(style)
 	}
 	return style.Render(waitingGlyphFor(m))
 }

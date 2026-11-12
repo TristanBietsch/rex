@@ -770,7 +770,7 @@ func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) str
 	}
 	style = style.Width(colMarker)
 	if selected {
-		style = style.Background(colorBgSel)
+		style = selectedStyle(style)
 	}
 	switch st {
 	case protocol.StateWorking:

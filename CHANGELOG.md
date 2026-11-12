@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- New default color scheme with a violet accent (`#B392F0`) for the prompt
+  arrow, selection marker, focused inputs and logo, so "the cursor is here"
+  no longer looks like "working". The previous look is the `classic` scheme
+  (`rex config set color_scheme classic`). `noir` and `paper` are retuned to
+  meet contrast targets (`paper`'s amber was below 4.5:1). CLI output
+  follows `color_scheme`, so it changes with the TUI.
 - TUI: board columns have fixed widths by default and change only when the
   terminal crosses a width breakpoint (150 and 110 columns). The subagent,
   badge, tokens, span and resume columns are always reserved, so nothing
@@ -27,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Color schemes `high-contrast` (pure black and white, bright state colors)
+  and `ansi` (your terminal's own 16 colors, selection in reverse video).
 - Turn snapshots and undo, off by default (Settings → Features,
   `turn_snapshots`). The daemon snapshots a session's folder at the start
   and end of every agent turn into a private store under

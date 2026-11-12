@@ -16,6 +16,10 @@ func TestEveryBuiltinComplete(t *testing.T) {
 			f := v.Type().Field(i)
 			switch f.Type.Kind() {
 			case reflect.String:
+				// ansi leaves text, background and selection to the terminal.
+				if name == "ansi" && (f.Name == "Bg" || f.Name == "Fg" || f.Name == "BgSel") {
+					continue
+				}
 				require.NotEmpty(t, v.Field(i).String(), "%s.%s is empty", name, f.Name)
 			case reflect.Slice:
 				require.NotZero(t, v.Field(i).Len(), "%s.%s is empty", name, f.Name)
@@ -26,18 +30,20 @@ func TestEveryBuiltinComplete(t *testing.T) {
 }
 
 func TestNamesSortedAndKnown(t *testing.T) {
-	require.Equal(t, []string{"classic", "default", "noir", "paper"}, Names())
+	require.Equal(t, []string{"ansi", "classic", "default", "high-contrast", "noir", "paper"}, Names())
 }
 
-func TestDefaultIsClassic(t *testing.T) {
-	d, c := Builtin["default"], Builtin["classic"]
-	d.Name, c.Name = "", ""
-	require.Equal(t, c, d)
+func TestDefaultIsVioletAndClassicKeepsTheOldLook(t *testing.T) {
+	require.Equal(t, "#B392F0", Builtin["default"].Accent)
+	require.Equal(t, "#5B8DEF", Builtin["classic"].Accent)
+	require.Equal(t, Builtin["classic"].Working, Builtin["classic"].Accent, "classic paints the accent like working, as it always did")
+	require.NotEqual(t, Builtin["default"].Working, Builtin["default"].Accent, "the accent is not a state color")
 }
 
 func TestDarkFlags(t *testing.T) {
 	require.True(t, Builtin["default"].Dark)
 	require.True(t, Builtin["noir"].Dark)
+	require.True(t, Builtin["high-contrast"].Dark)
 	require.False(t, Builtin["paper"].Dark)
 }
 

@@ -72,29 +72,29 @@ on-disk snapshot
 
 › rex attach 7d4f  open a session
 -- text.color.w80 --
-␛[1;38;2;230;230;230mSessions␛[0m  ␛[38;2;121;127;140m1 needs you · 1 working␛[0m
+␛[1;38;2;230;232;238mSessions␛[0m  ␛[38;2;139;145;161m1 needs you · 1 working␛[0m
 
-␛[1;38;2;230;230;230mFleet:␛[0m
+␛[1;38;2;230;232;238mFleet:␛[0m
 
-  ␛[38;2;121;127;140mVersion␛[0m  v1
-  ␛[38;2;121;127;140mBinary ␛[0m  /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/termi
+  ␛[38;2;139;145;161mVersion␛[0m  v1
+  ␛[38;2;139;145;161mBinary ␛[0m  /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/termi
            nal/width/for/sure/ok
 
-     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mSTATE␛[0m      ␛[38;2;121;127;140mSLUG␛[0m                       ␛[38;2;121;127;140mN␛[0m  ␛[38;2;121;127;140mNAME␛[0m
-  ␛[38;2;229;179;65m◆␛[0m  a91c  ␛[38;2;229;179;65mneeds you␛[0m  refactor-db-with-a-real…   7
-  ␛[38;2;73;222;128m●␛[0m  0b2e  ␛[38;2;73;222;128mdone␛[0m       日本語のスラッグ          12  a|b `c` <i>
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mSTATE␛[0m      ␛[38;2;139;145;161mSLUG␛[0m                       ␛[38;2;139;145;161mN␛[0m  ␛[38;2;139;145;161mNAME␛[0m
+  ␛[38;2;245;185;73m◆␛[0m  a91c  ␛[38;2;245;185;73mneeds you␛[0m  refactor-db-with-a-real…   7
+  ␛[38;2;91;208;140m●␛[0m  0b2e  ␛[38;2;91;208;140mdone␛[0m       日本語のスラッグ          12  a|b `c` <i>
 
-  ␛[38;2;73;222;128m✓␛[0m rex binary  ~/.local/bin/rex
-  ␛[38;2;229;179;65m!␛[0m daemon      not responding
-                ␛[1;38;2;91;141;239m› rex daemon start␛[0m
-  ␛[38;2;239;68;68m✗␛[0m config      bad
-  ␛[38;2;73;79;89m·␛[0m extra       n/a
+  ␛[38;2;91;208;140m✓␛[0m rex binary  ~/.local/bin/rex
+  ␛[38;2;245;185;73m!␛[0m daemon      not responding
+                ␛[1;38;2;179;146;240m› rex daemon start␛[0m
+  ␛[38;2;242;107;107m✗␛[0m config      bad
+  ␛[38;2;89;96;112m·␛[0m extra       n/a
 
-␛[38;2;229;179;65mon-disk snapshot␛[0m
+␛[38;2;245;185;73mon-disk snapshot␛[0m
 
-␛[38;2;73;222;128m✓ started 7d4f␛[0m
+␛[38;2;91;208;140m✓ started 7d4f␛[0m
 
-␛[1;38;2;91;141;239m› rex attach 7d4f␛[0m  ␛[38;2;121;127;140mopen a session␛[0m
+␛[1;38;2;179;146;240m› rex attach 7d4f␛[0m  ␛[38;2;139;145;161mopen a session␛[0m
 -- txt --
 # Fleet
 

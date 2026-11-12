@@ -34,6 +34,7 @@ var (
 	colorSuccess     lipgloss.Color
 	colorInfo        lipgloss.Color
 	colorFleet       []lipgloss.Color
+	selReverse       bool // the selection is reverse video (theme.Palette.SelReverse)
 )
 
 // Live styles. Rebuilt by rebuildStyles().
@@ -102,6 +103,7 @@ func applyTheme(name string) {
 	colorBorder = c(p.Border)
 	colorBorderFocus = c(p.BorderFocus)
 	colorBgSel = c(p.BgSel)
+	selReverse = p.SelReverse
 	colorAccent = c(p.Accent)
 	colorWorking = c(p.Working)
 	colorQueued = c(p.Queued)
@@ -124,7 +126,7 @@ func rebuildStyles() {
 	fg := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
 	bold := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Bold(true).Foreground(c) }
 
-	styleLogo = bold(colorFgPrimary)
+	styleLogo = bold(colorAccent)
 	styleKey = bold(colorFgPrimary)
 	styleKbd = bold(colorAccent)
 	styleBold = lipgloss.NewStyle().Bold(true)
@@ -135,7 +137,7 @@ func rebuildStyles() {
 	styleDim = fg(colorFgDim)
 	styleMuted = fg(colorFgMuted)
 	styleBorderFg = fg(colorBorder)
-	styleSelected = lipgloss.NewStyle().Background(colorBgSel).Foreground(colorFgPrimary)
+	styleSelected = selectedStyle(fg(colorFgPrimary))
 	styleCursor = lipgloss.NewStyle().Reverse(true)
 
 	styleAlert = bold(colorNeeds)
@@ -189,6 +191,16 @@ func rebuildStyles() {
 // color outside the palette reaches a style.
 func brandStyle(color string) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+}
+
+// selectedStyle marks style as the selection: the palette's selection
+// background, or reverse video for a palette that leaves the colors to the
+// terminal (ansi).
+func selectedStyle(style lipgloss.Style) lipgloss.Style {
+	if selReverse {
+		return style.Reverse(true)
+	}
+	return style.Background(colorBgSel)
 }
 
 // renderHR renders a horizontal rule line of given width.

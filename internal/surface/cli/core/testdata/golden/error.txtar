@@ -1,7 +1,7 @@
 -- text.color --
-␛[1;38;2;239;68;68m✗ rex-daemon is not running␛[0m
-  ␛[38;2;121;127;140mno socket at /x/rex.sock␛[0m
-␛[1;38;2;91;141;239m› rex daemon start␛[0m
+␛[1;38;2;242;107;107m✗ rex-daemon is not running␛[0m
+  ␛[38;2;139;145;161mno socket at /x/rex.sock␛[0m
+␛[1;38;2;179;146;240m› rex daemon start␛[0m
 -- text --
 ✗ rex-daemon is not running
   no socket at /x/rex.sock

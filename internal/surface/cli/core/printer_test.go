@@ -164,17 +164,17 @@ func TestPrinterForcedColorInPipeUsesANSI256(t *testing.T) {
 func TestCLIStylesFollowTheme(t *testing.T) {
 	env := Env{Getenv: envOf(), OutTTY: true, TrueColor: true, Scheme: "paper"}
 	p, _, _ := newTestPrinter(t, FormatFlags{Output: "text"}, env)
-	// paper Fg #1A1A1A, Danger #B83333
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;26;26;26")
-	require.Contains(t, p.Styles.Err.Render("x"), "38;2;184;51;51")
+	// paper Fg #1C1D21, Danger #C23B3B
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;28;29;32")
+	require.Contains(t, p.Styles.Err.Render("x"), "38;2;194;59;59")
 
 	env.Scheme = "default"
 	p, _, _ = newTestPrinter(t, FormatFlags{Output: "text"}, env)
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;230;230")
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;232;238")
 
 	env.Scheme = "no-such-scheme"
 	p, _, _ = newTestPrinter(t, FormatFlags{Output: "text"}, env)
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;230;230", "unknown scheme falls back to default")
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;232;238", "unknown scheme falls back to default")
 }
 
 func TestPrinterReadsSchemeFromSettings(t *testing.T) {
@@ -187,7 +187,7 @@ func TestPrinterReadsSchemeFromSettings(t *testing.T) {
 	var out, errw bytes.Buffer
 	p, err := NewPrinter(FormatFlags{Output: "text"}, Env{Getenv: envOf(), OutTTY: true, TrueColor: true}, &out, &errw)
 	require.NoError(t, err)
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;26;26;26")
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;28;29;32")
 	require.Equal(t, "◐", p.Glyphs.State["working"])
 
 	// Non-text formats never read settings or color.

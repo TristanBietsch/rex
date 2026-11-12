@@ -16,7 +16,8 @@ type Palette struct {
 	Name string
 	Dark bool
 	// Bg is the assumed terminal background. It is never painted; it exists
-	// for caret and contrast decisions.
+	// for caret and contrast decisions. Bg, Fg and BgSel are empty in a
+	// scheme that leaves them to the terminal ("ansi").
 	Bg, Fg, FgDim, FgMuted string
 	BgSel, Border          string
 	BorderFocus            string
@@ -38,15 +39,12 @@ const DefaultName = "default"
 // Builtin maps scheme names to palettes. Treat it as read-only; use Get for a
 // copy that is safe to modify.
 var Builtin = map[string]Palette{
-	"default": named(classic, "default"),
-	"classic": classic,
-	"noir":    noir,
-	"paper":   paper,
-}
-
-func named(p Palette, name string) Palette {
-	p.Name = name
-	return p
+	"default":       modern,
+	"classic":       classic,
+	"noir":          noir,
+	"paper":         paper,
+	"high-contrast": highContrast,
+	"ansi":          ansi,
 }
 
 // Names returns the built-in scheme names in sorted order.

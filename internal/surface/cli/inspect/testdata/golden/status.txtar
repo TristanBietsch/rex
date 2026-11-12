@@ -1,7 +1,7 @@
 -- text --
 ◆ 1 needs you   ⠋ 1 working   ◌ 1 queued   ● 2 done   ✕ 1 failed
 -- text.color --
-␛[38;2;229;179;65m◆ 1 needs you␛[0m   ␛[38;2;91;141;239m⠋ 1 working␛[0m   ␛[38;2;91;141;239m◌ 1 queued␛[0m   ␛[38;2;73;222;128m● 2 done␛[0m   ␛[38;2;239;68;68m✕ 1 failed␛[0m
+␛[38;2;245;185;73m◆ 1 needs you␛[0m   ␛[38;2;110;168;254m⠋ 1 working␛[0m   ␛[38;2;110;168;254m◌ 1 queued␛[0m   ␛[38;2;91;208;140m● 2 done␛[0m   ␛[38;2;242;107;107m✕ 1 failed␛[0m
 -- text.quiet --
 ◆ 0 needs you   ⠋ 0 working   ● 1 done
 -- txt --
