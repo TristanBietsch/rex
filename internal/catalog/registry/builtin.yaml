@@ -29,7 +29,7 @@ tools:
     name: "Claude Code"
     category: paid
     command: ["claude"]
-    install_hint: "npm install -g @anthropic-ai/claude-code"
+    install_hint: "see https://docs.anthropic.com/en/docs/claude-code"
     prompt_args: ["--", "{prompt}"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # Skills rex stages for one session load as a plugin folder (this session only).
@@ -85,7 +85,7 @@ tools:
     name: "OpenAI Codex"
     category: paid
     command: ["codex"]
-    install_hint: "npm install -g @openai/codex"
+    install_hint: "see https://github.com/openai/codex"
     prompt_args: ["--", "{prompt}"]
     detect:
       kind: heuristic
@@ -277,7 +277,7 @@ tools:
     # PATH and the extra_agents feature is on.
     enabled_by_default: true
     command: ["qwen"]
-    install_hint: "npm install -g @qwen-code/qwen-code"
+    install_hint: "see https://github.com/QwenLM/qwen-code"
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # --prompt-interactive keeps the session interactive (a bare positional
     # prompt is one-shot); the = form keeps a prompt that starts with "-" a value.

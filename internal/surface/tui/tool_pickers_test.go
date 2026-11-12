@@ -249,7 +249,7 @@ func TestSettings_OnboardingListsMissingAgents(t *testing.T) {
 	require.Contains(t, out, "OpenAI Codex")
 	require.Contains(t, out, "not on PATH")
 	require.Contains(t, out, "command codex")
-	require.Contains(t, squash(out), squash("npm install -g @openai/codex"), "the install hint")
+	require.Contains(t, squash(out), squash("see https://github.com/openai/codex"), "the install hint")
 
 	// A tool with no hint of its own gets the generic one.
 	require.Equal(t, "install cursor-agent and put it on your PATH", onboardRow{Tool: registry.Tool{ID: "cursor", Command: []string{"cursor-agent"}}}.hint())

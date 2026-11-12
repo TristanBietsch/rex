@@ -15,7 +15,7 @@ type Tool struct {
 	Color            string   `yaml:"color"`
 	EnabledByDefault *bool    `yaml:"enabled_by_default,omitempty"`
 	// InstallHint is shown in Settings → Onboarding next to a tool whose
-	// binary is not on PATH (a command or a URL to read, never run by rex).
+	// binary is not on PATH (a pointer to the vendor's install page, never a command rex runs).
 	// Empty: "install <command> and put it on your PATH".
 	InstallHint string  `yaml:"install_hint,omitempty"`
 	Models      []Model `yaml:"models"`
