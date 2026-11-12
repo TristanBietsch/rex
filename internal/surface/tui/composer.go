@@ -90,6 +90,25 @@ func (c *Composer) ReplaceFirst(old, repl string) bool {
 	return true
 }
 
+// ReplaceSpan replaces runes [from, to) of line row with repl (one line of
+// clean text: it is not sanitized again) and puts the cursor after it. A
+// span outside the text changes nothing and reports false.
+func (c *Composer) ReplaceSpan(row, from, to int, repl string) bool {
+	c.norm()
+	if row < 0 || row >= len(c.Lines) || from < 0 || from > to || to > len(c.Lines[row]) {
+		return false
+	}
+	line := c.Lines[row]
+	rs := []rune(repl)
+	next := make([]rune, 0, len(line)-(to-from)+len(rs))
+	next = append(next, line[:from]...)
+	next = append(next, rs...)
+	next = append(next, line[to:]...)
+	c.Lines[row] = next
+	c.Row, c.Col = row, from+len(rs)
+	return true
+}
+
 // Newline splits the line at the cursor; the cursor starts the new line.
 func (c *Composer) Newline() {
 	c.norm()

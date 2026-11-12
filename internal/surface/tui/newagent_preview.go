@@ -13,9 +13,10 @@ import (
 
 // The preview (R16 mockup E): enter on a context row shows the item in the
 // right pane: its name and size over the first lines of a paste, scrolled
-// with j/k. e (or ctrl+e) edits a paste in $EDITOR, r renames it, x removes
-// the item, esc goes back to the list. File and folder previews come with
-// the import picker.
+// with j/k; a file's first lines (read once when the preview opens, at
+// most 64 KiB and 200 lines, binary refused) or a folder's entries from the
+// workspace index. e (or ctrl+e) edits a paste in $EDITOR, r renames it, x
+// removes the item, esc goes back to the list.
 
 // naPreviewKey is a key on the preview.
 func naPreviewKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
@@ -35,7 +36,7 @@ func naPreviewKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case k.Type == tea.KeyCtrlS:
 		return launchNewAgent(m)
 	case k.Type == tea.KeyDown || isRune(k, 'j'):
-		st.PrevScroll = min(st.PrevScroll+1, naPreviewMaxScroll(m, it))
+		st.PrevScroll = min(st.PrevScroll+1, naPreviewMaxScroll(m, st, it))
 	case k.Type == tea.KeyUp || isRune(k, 'k'):
 		st.PrevScroll = max(st.PrevScroll-1, 0)
 	case k.Type == tea.KeyDelete || isRune(k, 'x'):
@@ -51,15 +52,22 @@ func naPreviewKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// naPreviewLines is what the preview shows of an item, one entry a line.
-func naPreviewLines(it spawnctx.Item) []string {
-	if it.Kind == spawnctx.Paste {
+// naPreviewLines is what the preview shows of an item, one entry a line,
+// and how many more lines a file has past what was read.
+func naPreviewLines(st *NewAgentState, it spawnctx.Item) ([]string, int) {
+	switch it.Kind {
+	case spawnctx.Paste:
 		if body := strings.TrimRight(it.Text, "\n"); body != "" {
-			return strings.Split(body, "\n")
+			return strings.Split(body, "\n"), 0
 		}
-		return nil
+		return nil, 0
+	case spawnctx.File, spawnctx.Dir:
+		if st.PrevErr != "" {
+			return []string{st.PrevErr}, 0
+		}
+		return st.PrevLines, st.PrevMore
 	}
-	return []string{it.Name}
+	return []string{it.Name}, 0
 }
 
 // naPreviewMeta is the size words flush right of the preview's title.
@@ -83,12 +91,13 @@ func naPreviewTextRows(h, errLines int) int {
 }
 
 // naPreviewMaxScroll is the last first line that still fills the box.
-func naPreviewMaxScroll(m Model, it spawnctx.Item) int {
+func naPreviewMaxScroll(m Model, st *NewAgentState, it spawnctx.Item) int {
 	h := m.Height
 	if h <= 0 {
 		h = 32
 	}
-	return max(0, len(naPreviewLines(it))-naPreviewTextRows(h, 0))
+	text, _ := naPreviewLines(st, it)
+	return max(0, len(text)-naPreviewTextRows(h, 0))
 }
 
 // naPreviewBody is the preview fw wide for a body bh rows tall: title and
@@ -109,12 +118,16 @@ func naPreviewBody(m Model, st *NewAgentState, fw, bh int) []string {
 	w := max(fw, 5)
 	inner := w - 4
 	rows := naPreviewTextRows(pageChromeRows+bh, len(errs))
-	text := naPreviewLines(it)
+	text, unread := naPreviewLines(st, it)
 	start := min(st.PrevScroll, max(0, len(text)-rows))
 	shown := text[start:]
-	var more int
-	if len(shown) > rows {
-		more = len(shown) - (rows - 1)
+	more := unread
+	switch {
+	case len(shown) > rows:
+		more += len(shown) - (rows - 1)
+		shown = shown[:rows-1]
+	case unread > 0 && len(shown) == rows:
+		more++ // room for the "more" line
 		shown = shown[:rows-1]
 	}
 	border := styleBorderFg

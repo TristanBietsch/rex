@@ -1,9 +1,12 @@
 // Package spawnctx turns the new-agent page's task and context items (pastes,
 // file and folder references, URLs) into the one InitialPrompt string a new
 // session starts with, and holds the sanitizer every pasted or typed text
-// goes through first. It is pure: no file, network or terminal access. The
-// daemon delivers the result exactly like any other first prompt (one argv
-// element, or a PTY paste for prompt_paste tools).
+// goes through first. Assemble and Sanitize are pure. The workspace side
+// (paths.go, walk.go) only reads: it checks a path against the path rules,
+// lists the folder for the import picker and reads a bounded preview; it
+// never writes a file and never touches the network. The daemon delivers
+// the prompt exactly like any other first prompt (one argv element, or a
+// PTY paste for prompt_paste tools).
 package spawnctx
 
 import (

@@ -228,6 +228,7 @@ func naContextKey(m Model, k tea.KeyMsg) (Model, tea.Cmd, bool) {
 		st.ItemIdx = max(st.ItemIdx-1, 0)
 	case k.Type == tea.KeyEnter:
 		st.Screen, st.PrevScroll = naPreview, 0
+		naLoadPreview(st)
 		playNav(m)
 	case k.Type == tea.KeyDelete || isRune(k, 'x'):
 		removeItem(st, st.ItemIdx)

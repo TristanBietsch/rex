@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"context"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -34,15 +36,16 @@ const (
 var naSectionNames = [naSectionCount]string{"Agent", "Task", "Context", "Trust"}
 
 // naScreen is the page's screen: Compose, the Agent screen (agents,
-// models, effort and skills; newagent_agent.go), or one context item's
-// preview (newagent_preview.go). The import picker comes with a later R16
-// task.
+// models, effort and skills; newagent_agent.go), one context item's
+// preview (newagent_preview.go), or the import picker
+// (newagent_import.go).
 type naScreen int
 
 const (
 	naCompose naScreen = iota
 	naAgentScreen
 	naPreview
+	naImportScreen
 )
 
 // NewAgentState lives on Model while Focus == FocusNewAgent, and as
@@ -91,6 +94,33 @@ type NewAgentState struct {
 	Renaming   bool
 	RenameBuf  []rune
 	PrevScroll int
+	// PrevLines and PrevMore are a file or folder preview, read when the
+	// preview opens; PrevErr is why it could not be read.
+	PrevLines []string
+	PrevMore  int
+	PrevErr   string
+	// The workspace index (newagent_import.go): Root is the folder walked
+	// (spawnCWD when the page opened), Index the walk's result once it is
+	// in, Indexing true until then, IndexErr a failed walk. indexCount is
+	// the walk's live count, indexGen tells this page's walk from an older
+	// one, indexCancel stops it when the page closes.
+	Root        string
+	Index       spawnctx.Index
+	Indexing    bool
+	IndexErr    error
+	indexCount  *atomic.Int64
+	indexGen    int64
+	indexCancel context.CancelFunc
+	// Import is the open picker's state, Complete the open @ completion,
+	// Pending the denylisted paths waiting for y (D9).
+	Import   *naImport
+	Complete *naComplete
+	Pending  []naPending
+	// rowsKey and rowsCache keep the picker's rows until the query, the
+	// folder or the index changes; sizes the rows' file sizes.
+	rowsKey   string
+	rowsCache []string
+	sizes     map[string]string
 	// Rev counts the page's changes: every key and editor result bumps it.
 	// The launch summary's assembled size is cached at sumRev.
 	Rev      int
@@ -231,12 +261,15 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventOpen)
 	}
-	return m, nil
+	return m, startIndex(st, spawnCWD(m))
 }
 
 // closeNewAgent leaves the page for the board; keepDraft keeps the page's
 // state for the next n.
 func closeNewAgent(m Model, keepDraft bool) Model {
+	if m.NewAgent != nil {
+		stopIndex(m.NewAgent)
+	}
 	if keepDraft {
 		m.newAgentDraft = m.NewAgent
 	} else {
@@ -292,6 +325,10 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	m.Err, st.Err = "", "" // an error stays until the next key
 	st.Rev++
 	switch {
+	case len(st.Pending) > 0:
+		return naPendingKey(m, k)
+	case st.Screen == naImportScreen:
+		return naImportKey(m, k)
 	case st.Screen == naAgentScreen:
 		return updateNewAgentAgentKey(m, k)
 	case st.Renaming:
@@ -300,7 +337,7 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return naPreviewKey(m, k)
 	}
 	if k.Paste {
-		st.Section = naTask
+		st.Section, st.Complete = naTask, nil
 		if err := addPaste(st, string(k.Runes)); err != nil {
 			st.Err = naFail(err)
 		}
@@ -310,9 +347,16 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		next.NewAgent.Trust = mode
 		return next, nil
 	}
+	if st.Complete != nil && st.Section == naTask {
+		if m, cmd, ok := naCompleteKey(m, k); ok {
+			return m, cmd
+		}
+	}
 	switch k.Type {
 	case tea.KeyEsc:
 		return closeNewAgent(m, true), nil
+	case tea.KeyCtrlO:
+		return openImport(m), nil
 	case tea.KeyTab:
 		st.Section = (st.Section + 1) % naSectionCount
 		playNav(m)
@@ -327,7 +371,11 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return openAgentScreen(m), nil
 	}
 	if st.Section == naTask {
-		return newAgentEditKey(m, k)
+		m, cmd := newAgentEditKey(m, k)
+		if m.NewAgent != nil {
+			naSyncComplete(m.NewAgent, k)
+		}
+		return m, cmd
 	}
 	if st.Section == naContext {
 		if m, cmd, ok := naContextKey(m, k); ok {

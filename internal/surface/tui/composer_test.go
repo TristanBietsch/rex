@@ -193,3 +193,16 @@ func TestComposer_InsertDropsInvisibles(t *testing.T) {
 	c.Insert("a\U000E0041\u200bb")
 	require.Equal(t, "ab", c.String())
 }
+
+func TestComposer_ReplaceSpan(t *testing.T) {
+	var c Composer
+	c.Insert("see @rea and more\nline two")
+	require.True(t, c.ReplaceSpan(0, 4, 8, "@README.md"))
+	require.Equal(t, "see @README.md and more\nline two", c.String())
+	require.Equal(t, 0, c.Row)
+	require.Equal(t, 14, c.Col, "the cursor follows the new text")
+	for _, bad := range [][3]int{{-1, 0, 0}, {2, 0, 0}, {0, 5, 4}, {0, -1, 2}, {0, 0, 99}} {
+		require.False(t, c.ReplaceSpan(bad[0], bad[1], bad[2], "x"), "%v", bad)
+	}
+	require.Equal(t, "see @README.md and more\nline two", c.String())
+}

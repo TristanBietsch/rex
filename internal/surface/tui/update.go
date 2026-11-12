@@ -193,6 +193,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleLuaEditDone(m, msg)
 	case editorDoneMsg:
 		return handleEditorDone(m, msg)
+	case indexDoneMsg:
+		return handleIndexDone(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()

@@ -30,6 +30,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The sanitizer also drops Unicode Tag characters and zero-width characters,
   every case and spacing of `</pasted` is escaped inside a paste, and item
   names with control characters or line separators are refused.
+- The new-agent page imports workspace files and folders as context.
+  When the page opens it lists the session folder in the background (`git
+  ls-files -co --exclude-standard` in a repo, so gitignored files stay out;
+  a plain walk elsewhere that skips `.git` and never enters a symlinked
+  folder), stopping at 10,000 entries or 300 ms; closing the page cancels
+  it. `ctrl+o` opens the import picker: type to fuzzy-match, `space` marks,
+  `enter` adds, `→`/`←` browse folders. `@` at a word start in the task
+  editor opens a six-row completion list; `enter`/`tab` puts `@path` in
+  the task and adds the item, `esc` keeps the typed text. A path must
+  resolve, through every symlink, inside the session folder, and be a
+  regular file or folder (FIFOs, sockets and devices are refused unopened);
+  a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added
+  only after `y`. Files over 1 MiB get a warning. File previews read at most
+  64 KiB and 200 lines; folder previews list the folder's entries.
 
 ### Added (row icons)
 

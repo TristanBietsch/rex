@@ -57,8 +57,13 @@ func renderNewAgent(m Model, w, h int) string {
 	if st != nil {
 		tv := naTrustOf(m, st)
 		preview := st.Screen == naPreview && st.ItemIdx < len(st.Items)
+		picker := st.Screen == naImportScreen
 		fw := max(w-naRailW-3-pageRightMargin, 1)
 		switch {
+		case picker && narrow:
+			body = indentLines(naImportBody(m, st, max(w-2, 1), bh), 2)
+		case picker:
+			body = joinPanes(naRail(st, tv), naImportBody(m, st, fw, bh), naRailW, bh)
 		case preview && narrow:
 			body = indentLines(naPreviewBody(m, st, max(w-2, 1), bh), 2)
 		case preview:
@@ -69,7 +74,10 @@ func renderNewAgent(m Model, w, h int) string {
 			body = joinPanes(naRail(st, tv), naForm(m, st, tv, fw, bh), naRailW, bh)
 		}
 		hints = naHints(st, narrow)
-		if preview {
+		switch {
+		case picker:
+			hints = naImportHints(st, narrow)
+		case preview:
 			hints = naPreviewHints(st, narrow)
 		}
 	}
@@ -79,6 +87,9 @@ func renderNewAgent(m Model, w, h int) string {
 // naHints is the footer for the focused section.
 func naHints(st *NewAgentState, narrow bool) [][2]string {
 	section := st.Section
+	if len(st.Pending) > 0 {
+		return naPendingHints()
+	}
 	if st.Renaming {
 		return [][2]string{{"enter", "save"}, {"esc", "cancel"}}
 	}
@@ -266,7 +277,8 @@ func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 	if summary {
 		free = 2
 	}
-	budget := bh - 11 - free - len(notice) - len(errs)
+	comp := naCompleteLines(m, st, fw)
+	budget := bh - 11 - free - len(notice) - len(errs) - len(comp)
 	listRows := min(max(len(st.Items), 1), max(1, budget-1))
 	rows := max(1, min(10, budget-listRows))
 	trust := naTrustLines(tv, st)
@@ -275,6 +287,7 @@ func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 	lines = append(lines, notice...)
 	lines = append(lines, "", naTitle("TASK", st.Section == naTask))
 	lines = append(lines, naEditorBox(m, st, fw, rows, st.Section == naTask)...)
+	lines = append(lines, comp...)
 	lines = append(lines, naContextLines(m, st, fw, listRows)...)
 	lines = append(lines, errs...)
 	lines = append(lines, "", naTitle("TRUST", st.Section == naTrust))
@@ -391,14 +404,23 @@ func naRenameField(m Model, st *NewAgentState) string {
 		cursorBlock(m) + styleArrow.Render("]")
 }
 
-// naErrLines is the page's error: "✗ " and words in the failure style, a
-// hint line dimmed under it; nil for none.
+// naErrLines is the page's error: "✗ " and words in the failure style (a
+// "! " warning in the warning style), a hint line dimmed under it; and
+// first, the confirm a denylisted path waits for. Nil for none.
 func naErrLines(st *NewAgentState) []string {
+	var out []string
+	if len(st.Pending) > 0 {
+		out = append(out, naPendingLine(st))
+	}
 	if st.Err == "" {
-		return nil
+		return out
 	}
 	parts := strings.Split(st.Err, "\n")
-	out := []string{styleStateFailed.Render(protocol.FlattenDisplayText(parts[0]))}
+	style := styleStateFailed
+	if strings.HasPrefix(parts[0], "!") {
+		style = styleBootWarn
+	}
+	out = append(out, style.Render(protocol.FlattenDisplayText(parts[0])))
 	for _, p := range parts[1:] {
 		out = append(out, "  "+styleDim.Render(protocol.FlattenDisplayText(p)))
 	}
@@ -457,7 +479,8 @@ func naStrip(st *NewAgentState) string {
 // naNarrowBody is the one-column page under pageNarrowW (mockup G).
 func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []string {
 	notice := naNotice(st)
-	rows := max(1, min(8, bh-8-len(notice)-len(naErrLines(st))))
+	comp := naCompleteLines(m, st, max(w-2, 1))
+	rows := max(1, min(8, bh-8-len(notice)-len(naErrLines(st))-len(comp)))
 	trust := styleDim.Render("trust: ") + styleBootWarn.Render(tv.word)
 	if tv.ok {
 		trust = styleDim.Render("trust: ") + styleBootReady.Render(tv.word)
@@ -468,6 +491,7 @@ func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []strin
 		lines = append(lines, indentLines(naContextLines(m, st, max(w-2, 1), rows+2), 2)...)
 	} else {
 		lines = append(lines, indentLines(naEditorBox(m, st, w-2, rows, st.Section == naTask), 2)...)
+		lines = append(lines, indentLines(comp, 2)...)
 		ctx := styleDim.Render("context: none yet")
 		if n := len(st.Items); n > 0 {
 			ctx = styleDim.Render(strings.Replace(naItemsTotal(st.Items), "item", "context item", 1)) +

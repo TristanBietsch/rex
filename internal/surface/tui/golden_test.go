@@ -189,6 +189,8 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"newagent_models_filter": {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_filled":        {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_preview":       {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_import":        {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_loading":       {{120, 40}, {80, 24}, {50, 20}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -438,7 +440,56 @@ func goldenScreens() []goldenScreen {
 			m := goldenNewAgentFilled(t, sz)
 			return sendKey(m, key("enter"))
 		}},
+		{"newagent_import", false, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentImport(t, sz)
+		}},
+		{"newagent_loading", false, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentBoard(t, sz)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+			m, _ = executeCommand(m, "new") // the walk never comes back
+			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
+			m.NewAgent.indexCount.Store(3812)
+			return m
+		}},
 	}
+}
+
+// goldenNewAgentImport is mockup D: the picker over a small checkout,
+// "auth" typed, one row marked and a denylisted key file in the list, with
+// one item already in the context.
+func goldenNewAgentImport(t *testing.T, sz goldenSize) Model {
+	t.Helper()
+	m, home := goldenNewAgentBoard(t, sz)
+	repo := filepath.Join(home, "dev", "rex")
+	for name, size := range map[string]int{
+		"internal/auth/auth_test.go":        4300,
+		"internal/auth/testdata/login.json": 210,
+		"internal/auth/testdata/server.pem": 1700,
+		"cmd/rex/auth_test_helpers.go":      1126,
+		"README.md":                         2400,
+	} {
+		p := filepath.Join(repo, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(strings.Repeat("x", size)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", "") // the plain walk: the checkout is not a real repo
+	m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+	m, cmd := executeCommand(m, "new")
+	next, _ := m.Update(indexMsg(t, cmd))
+	m = next.(Model)
+	if err := addPath(m.NewAgent, "README.md", false); err != nil {
+		t.Fatal(err)
+	}
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
+	m = typeText(m, "auth")
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyDown})
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyDown})
+	m = sendKey(m, key(" "))
+	return sendKey(m, tea.KeyMsg{Type: tea.KeyUp})
 }
 
 // goldenNewAgentBoard is the golden board in a temp home with a checkout at
