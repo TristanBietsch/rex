@@ -106,11 +106,11 @@ func translateMouse(m Model, msg tea.MouseMsg) (tea.MouseMsg, bool) {
 	return tea.MouseMsg(ev), true
 }
 
-// borderPalette is the live color scheme's palette.
+// borderPalette is the live theme's palette.
 func borderPalette(m Model) theme.Palette {
 	name := theme.DefaultName
 	if m.Store != nil {
-		if s, ok := m.Store.Get("color_scheme").(string); ok {
+		if s, ok := m.Store.Get("theme").(string); ok {
 			name = s
 		}
 	}

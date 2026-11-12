@@ -209,7 +209,11 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "theme.apply", Status: stepSkip, Desc: "default", Dur: msg.Dur,
 			})
 		}
-		applyTheme(msg.Scheme)
+		if !applyTheme(msg.Scheme) {
+			return m.appendBootStep(bootStepMsg{
+				Name: "theme.apply", Status: stepWarn, Desc: fmt.Sprintf("theme %q not found (using default)", msg.Scheme), Dur: msg.Dur,
+			})
+		}
 		return m.appendBootStep(bootStepMsg{
 			Name: "theme.apply", Status: stepOK, Desc: msg.Scheme, Dur: msg.Dur,
 		})

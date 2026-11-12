@@ -42,6 +42,10 @@ type Setting struct {
 	Max      float64
 	Help     string
 	ReadOnly bool
+	// Aliases are older config.yaml keys for this setting. Load reads them
+	// when the canonical key is absent (the canonical key wins when both are
+	// present); Save writes only the canonical key and drops the aliases.
+	Aliases []string
 	// Apply says when a change takes effect.
 	Apply ApplyMode
 	// Hidden keeps the row off the TUI settings page. The setting stays in

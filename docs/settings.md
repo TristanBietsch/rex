@@ -34,9 +34,9 @@ The settings page shows this per row (the detail pane under the list), and the r
 | next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
 | after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
 
-## Color schemes
+## Themes
 
-`rex config set color_scheme <name>`; the TUI applies it at once and CLI output follows it.
+`rex config set theme <name>` or `:theme <name>` in the TUI; the TUI applies it at once and CLI output follows it. `theme` was called `color_scheme`: the old key is still read (`theme` wins if both are in the file), and the next save writes `theme`. An unknown name uses `default`.
 
 | Scheme | For |
 |--------|-----|
@@ -74,7 +74,7 @@ Every scheme with real colors is tested against its own background: text 7:1, st
 
 | ID | Type | Default | Options |
 |----|------|---------|---------|
-| `color_scheme` | enum | `default` | `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors). Applies to the TUI and to CLI output |
+| `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors). Applies to the TUI and to CLI output |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
 | `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
@@ -208,7 +208,7 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 ## Example
 
 ```yaml
-color_scheme: noir
+theme: noir
 sound_enabled: false
 default_spawn_tool: echo
 default_spawn_model: short

@@ -23,7 +23,7 @@ type Env struct {
 	GOOS                  string
 	// Width is the render width for the text format. Zero means 80.
 	Width int
-	// Scheme and Spinner override the color_scheme and spinner settings. When
+	// Scheme and Spinner override the theme and spinner settings. When
 	// both are empty and the format is text, the user's config is read.
 	Scheme, Spinner string
 	// TrueColor pins the TrueColor profile when color is on, instead of

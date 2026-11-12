@@ -65,7 +65,7 @@ func settingsDetail(m Model, s settings.Setting, inner, helpN int, expanded bool
 	// Options, or the range, or nothing.
 	l2 := ""
 	opts := s.Options
-	if o, ok := spawnPickerOptions(m, s.ID); ok {
+	if o, ok := dynamicOptions(m, s.ID); ok {
 		opts = o
 	}
 	switch s.Type {

@@ -121,7 +121,7 @@ func stepThemeApply(m Model) tea.Cmd {
 		t0 := time.Now()
 		scheme := ""
 		if m.Store != nil {
-			scheme, _ = m.Store.Get("color_scheme").(string)
+			scheme, _ = m.Store.Get("theme").(string)
 		}
 		return themeApplyMsg{Scheme: scheme, Dur: time.Since(t0)}
 	}

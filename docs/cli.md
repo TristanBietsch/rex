@@ -82,7 +82,7 @@ Shortcuts: `--agent` is `-o agent`; `--no-color` never emits ANSI; `-json` is th
 
 Precedence, highest first: flags (the last one wins), `REX_AGENT=1`, `REX_OUTPUT`, then `text` on a terminal and `txt` otherwise.
 
-Color is on only for `text`, on a terminal, with `NO_COLOR` unset or empty, `TERM` not `dumb` and no `--no-color`. `CLICOLOR_FORCE=1` forces it in a pipe (`less -R`). Each stream decides on its own, so a redirected stderr never receives ANSI. Colors follow the `color_scheme` setting. `REX_ASCII=1` switches the glyphs to ASCII.
+Color is on only for `text`, on a terminal, with `NO_COLOR` unset or empty, `TERM` not `dumb` and no `--no-color`. `CLICOLOR_FORCE=1` forces it in a pipe (`less -R`). Each stream decides on its own, so a redirected stderr never receives ANSI. Colors follow the `theme` setting. `REX_ASCII=1` switches the glyphs to ASCII.
 
 Errors go to stderr in the same format: styled in `text`, `rex: message` in `txt` and `md`, `error code=4 kind=daemon_unreachable cmd=ls msg="..."` in `agent`, and `{"v":1,"error":{"code":4,"kind":"daemon_unreachable",...}}` in `json` (nothing on stdout). Kinds: `error`, `not_found`, `ambiguous`, `daemon_unreachable`, `invalid_args`, `refused`, `timeout`.
 

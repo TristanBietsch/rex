@@ -12,7 +12,7 @@ import (
 
 // The live colors and styles below are filled from a theme.Palette by
 // applyTheme. Every renderer reads them; none builds an inline style or names
-// a hex value, so a color_scheme change restyles the whole TUI.
+// a hex value, so a theme change restyles the whole TUI.
 
 // Live palette tokens. Mutated by applyTheme.
 var (
@@ -94,11 +94,11 @@ func init() {
 	applyTheme(theme.DefaultName)
 }
 
-// applyTheme swaps the live palette and rebuilds all style vars. Unknown names
-// fall back to the default palette silently. It writes package globals, so
-// call it from Update, never from a tea.Cmd goroutine.
-func applyTheme(name string) {
-	p, _ := theme.Get(name)
+// applyTheme swaps the live palette and rebuilds all style vars. An unknown
+// name falls back to the default palette and returns false. It writes package
+// globals, so call it from Update, never from a tea.Cmd goroutine.
+func applyTheme(name string) bool {
+	p, found := theme.Get(name)
 	c := func(s string) lipgloss.Color { return lipgloss.Color(s) }
 	colorFgPrimary = c(p.Fg)
 	colorFgDim = c(p.FgDim)
@@ -124,6 +124,7 @@ func applyTheme(name string) {
 		colorFleet[i] = c(f)
 	}
 	rebuildStyles()
+	return found
 }
 
 // edgeStyle is the foreground-only style of the window frame, whose color

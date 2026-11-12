@@ -186,7 +186,7 @@ func TestPrinterReadsSchemeFromSettings(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", home+"/.config")
 	require.NoError(t, os.MkdirAll(home+"/.config/rex", 0o700))
-	require.NoError(t, os.WriteFile(home+"/.config/rex/config.yaml", []byte("color_scheme: paper\nspinner: moon\n"), 0o600))
+	require.NoError(t, os.WriteFile(home+"/.config/rex/config.yaml", []byte("theme: paper\nspinner: moon\n"), 0o600))
 
 	var out, errw bytes.Buffer
 	p, err := NewPrinter(FormatFlags{Output: "text"}, Env{Getenv: envOf(), OutTTY: true, TrueColor: true}, &out, &errw)

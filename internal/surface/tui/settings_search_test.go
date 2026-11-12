@@ -56,26 +56,26 @@ func typeInto(m Model, s string) Model {
 func TestSettingsSearch(t *testing.T) {
 	m := settingsScreen(t, 120, 40)
 	before := settingsText(m)
-	require.Contains(t, before, "Color scheme")
+	require.Contains(t, before, "Theme")
 	require.Contains(t, before, "Spinner type")
 
 	m = typeInto(settingsPress(m, "/"), "spin")
 	require.True(t, m.Settings.Searching)
 	text := settingsText(m)
 	require.Contains(t, text, "Spinner type")
-	require.NotContains(t, text, "Color scheme")
+	require.NotContains(t, text, "Theme")
 	require.Equal(t, "spinner", m.Settings.CursorID, "the cursor moves onto the match")
 	require.Contains(t, text, "/ spin", "the query shows")
 
 	m = settingsPress(m, "enter")
 	require.False(t, m.Settings.Searching)
 	require.Equal(t, "spin", m.Settings.Search)
-	require.NotContains(t, settingsText(m), "Color scheme", "the filter outlives the editor")
+	require.NotContains(t, settingsText(m), "Theme", "the filter outlives the editor")
 
 	m = settingsPress(m, "esc")
 	require.Equal(t, FocusSettings, m.Focus, "first esc clears the search")
 	require.Empty(t, m.Settings.Search)
-	require.Contains(t, settingsText(m), "Color scheme", "esc restores the list")
+	require.Contains(t, settingsText(m), "Theme", "esc restores the list")
 
 	m = settingsPress(m, "esc")
 	require.Equal(t, FocusBoard, m.Focus, "second esc closes")

@@ -34,7 +34,7 @@ func TestApplyModeLabelsAreDistinct(t *testing.T) {
 var applyModeOf = map[string]ApplyMode{
 	// Appearance and the TUI's own behavior: read on every frame or applied
 	// by applyLive.
-	"color_scheme": ApplyLive, "spinner": ApplyLive, "row_density": ApplyLive, "prompt_glyph": ApplyLive,
+	"theme": ApplyLive, "spinner": ApplyLive, "row_density": ApplyLive, "prompt_glyph": ApplyLive,
 	"reduce_motion": ApplyLive, "blinking_enabled": ApplyLive, "show_help_bar": ApplyLive,
 	"header_style": ApplyLive, "window_border": ApplyLive, "window_border_color": ApplyLive, "column_layout": ApplyLive, "mobile_layout": ApplyLive,
 	"keybind_preset": ApplyLive, "mouse_enabled": ApplyLive, "retire_after_hours": ApplyLive,
@@ -97,7 +97,7 @@ func TestHiddenSettings(t *testing.T) {
 	}
 	require.Len(t, Visible(), len(Registry)-1)
 	require.NotContains(t, visibleIDs(), "keybind_preset")
-	require.Contains(t, visibleIDs(), "color_scheme")
+	require.Contains(t, visibleIDs(), "theme")
 
 	for _, r := range Registry {
 		if r.ID != "keybind_preset" {

@@ -120,14 +120,14 @@ func streamStyles(w io.Writer, color, trueColor bool, scheme string) Styles {
 	return NewStyles(p, r)
 }
 
-// loadAppearance reads color_scheme and spinner from the user's config. Any
+// loadAppearance reads theme and spinner from the user's config. Any
 // failure means the defaults: styling must never break a command.
 func loadAppearance() (scheme, spinner string) {
 	store, _, err := settings.LoadDefault()
 	if err != nil {
 		return theme.DefaultName, ""
 	}
-	scheme, _ = store.Get("color_scheme").(string)
+	scheme, _ = store.Get("theme").(string)
 	spinner, _ = store.Get("spinner").(string)
 	return scheme, spinner
 }
