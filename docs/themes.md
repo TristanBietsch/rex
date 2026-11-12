@@ -1,6 +1,6 @@
 # Themes
 
-A theme is a named set of colors (and, optionally, state marker characters) that restyles the TUI and the colored output of the `rex` commands. rex ships six, plus `auto`, which follows your terminal's background; you can add your own as small YAML files.
+A theme is a named set of colors (and, optionally, state marker characters) that restyles the TUI and the colored output of the `rex` commands. rex ships nine (six built-ins and three bundled theme files), plus `auto`, which follows your terminal's background; you can add your own as small YAML files.
 
 Pick one with `rex config set theme <name>`, in the settings page (`S`, row **Theme**), or with `:theme <name>` in the TUI (`:theme` alone cycles). The TUI applies it at once and saves it; CLI output follows it. An unknown name uses `default` and the TUI says so on the status line.
 
@@ -16,6 +16,19 @@ The setting was called `color_scheme`. The old key is still read; if a file hold
 | `paper` | Light terminals |
 | `high-contrast` | Pure black and white with bright state colors |
 | `ansi` | Your terminal's own 16 colors; the selection is reverse video |
+
+## Bundled themes
+
+| Theme | For |
+|-------|-----|
+| `dracula` | The [Dracula](https://draculatheme.com) palette |
+| `tokyo_night` | The [Tokyo Night](https://github.com/folke/tokyonight.nvim) "night" palette |
+| `pantone_safe` | State colors from the colorblind-safe border swatches, Pantone Color of the Year inspired |
+
+These ship as theme files built into rex, written in the same format as your own. `dracula` and `tokyo_night` take their hues from the published palettes; secondary text is a little lighter than the originals so it stays readable. Two differences from the six built-ins:
+
+- They are not bases. `extends:` and `rex theme new -from` accept only the six built-ins.
+- A file of your own with the same name (`~/.config/rex/themes/dracula.yaml`) replaces the bundled theme. `rex theme new dracula` starts one from `default` (or from another built-in with `-from`), not from the bundled colors.
 
 `rex theme list` shows them all, your own included.
 
@@ -35,7 +48,7 @@ CLI output (`rex ls`, `rex --help`, ...) and `rex setup` never ask the terminal:
 
 ## Your own themes
 
-Each theme is one file, `~/.config/rex/themes/<name>.yaml`. The file name (without `.yaml`) is the theme name: lowercase letters, digits, `-` and `_`, up to 32 characters, and not the name of a built-in.
+Each theme is one file, `~/.config/rex/themes/<name>.yaml`. The file name (without `.yaml`) is the theme name: lowercase letters, digits, `-` and `_`, up to 32 characters, and not `auto` or the name of one of the six built-ins. A bundled theme's name is fine: your file replaces that theme.
 
 Start from a commented skeleton:
 

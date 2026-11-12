@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -225,4 +226,25 @@ func TestStepRegistryLoad_ValidatesUserToolsYAML(t *testing.T) {
 			t.Fatalf("status=%v desc=%q; want ok", msg.Status, msg.Desc)
 		}
 	})
+}
+
+// A user theme file named after a bundled theme is offered once by the setup
+// wizard, in the bundled theme's slot; other user files follow.
+func TestSetupWizard_ThemeOptionsNoDuplicates(t *testing.T) {
+	tools := withUserTools(t, "tools: []\n")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	dir := filepath.Join(filepath.Dir(tools), "themes")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, src := range map[string]string{"dracula.yaml": "colors: {accent: \"#123456\"}\n", "mine.yaml": ""} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := NewSetupWizardModel(filepath.Join(t.TempDir(), "config.yaml"), "")
+	want := append(slices.Clone(enumOptions("theme")), "mine")
+	if !slices.Equal(want, m.themeOptions) {
+		t.Fatalf("theme options = %v, want %v", m.themeOptions, want)
+	}
 }

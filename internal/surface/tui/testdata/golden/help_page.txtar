@@ -1,0 +1,87 @@
+-- plain.120x40 --
+                                                                                                                        
+  ∴ REX › HELP                                                                                                  rex v1  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  SECTIONS            │ ── Navigation ────────────────────────────────────────────────────────────────────────────────  
+  ▸ Navigation        │ j k  move row selection                                                                         
+    Filter & search   │ g G  top / bottom                                                                               
+    Actions           │ tab  next Ready session                                                                         
+    Mouse             │ 1-4  jump to Ready / Waiting / Working / Done (4 also folds a long Done column)                 
+    Modes             │ v    simple / detailed rows (id, model, tokens, AI summary)                                     
+    Legend            │                                                                                                 
+    Session commands  │                                                                                                 
+    App commands      │                                                                                                 
+    Attached session  │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  esc back · j/k scroll · tab groups · 1-9 group · / filter                                                             
+-- plain.80x24 --
+                                                                                
+  ∴ REX › HELP                                                          rex v1  
+────────────────────────────────────────────────────────────────────────────────
+  SECTIONS            │ ── Navigation ────────────────────────────────────────  
+  ▸ Navigation        │ j k  move row selection                                 
+    Filter & search   │ g G  top / bottom                                       
+    Actions           │ tab  next Ready session                                 
+    Mouse             │ 1-4  jump to Ready / Waiting / Working / Done (4 also   
+    Modes             │      folds a long Done column)                          
+    Legend            │ v    simple / detailed rows (id, model, tokens, AI      
+    Session commands  │      summary)                                           
+    App commands      │                                                         
+    Attached session  │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+────────────────────────────────────────────────────────────────────────────────
+  esc back · j/k scroll · tab groups · 1-9 group · / filter                     
+-- plain.50x20 --
+                                                  
+  ∴ REX › HELP                                    
+──────────────────────────────────────────────────
+                  ‹ Navigation ›                  
+  ── Navigation ────────────────────────────────  
+  j k  move row selection                         
+  g G  top / bottom                               
+  tab  next Ready session                         
+  1-4  jump to Ready / Waiting / Working / Done   
+       (4 also folds a long Done column)          
+  v    simple / detailed rows (id, model,         
+       tokens, AI summary)                        
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+──────────────────────────────────────────────────
+  esc back · j/k scroll · 1-9 group · / filter    

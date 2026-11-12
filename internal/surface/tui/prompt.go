@@ -76,16 +76,26 @@ func cursorBlock(m Model) string {
 	return styleDim.Render(" ")
 }
 
-// renderHelpLine builds the bottom help line, sized to width.
-func renderHelpLine(m Model, width int) string {
+// statusLine is the reconnect or error status that takes over the bottom
+// line (the board's and a page's) whatever show_help_bar says, and whether
+// there is one.
+func statusLine(m Model, width int) (string, bool) {
 	if m.reconnect != nil {
 		// Outranks m.Err: intents fail while disconnected, and their errors
 		// would hide why.
-		return padLine("  "+styleStateFailed.Render(reconnectStatus), width)
+		return padLine("  "+styleStateFailed.Render(reconnectStatus), width), true
 	}
 	if m.Err != "" {
 		// Errors echo daemon messages and session strings: sanitize.
-		return padLine("  "+styleStateFailed.Render("err: "+protocol.FlattenDisplayText(m.Err)), width)
+		return padLine("  "+styleStateFailed.Render("err: "+protocol.FlattenDisplayText(m.Err)), width), true
+	}
+	return "", false
+}
+
+// renderHelpLine builds the bottom help line, sized to width.
+func renderHelpLine(m Model, width int) string {
+	if line, ok := statusLine(m, width); ok {
+		return line
 	}
 	if m.Focus == FocusRename {
 		parts := []string{

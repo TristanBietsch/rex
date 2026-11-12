@@ -1,0 +1,24 @@
+# Dracula (draculatheme.com). Hues from the published palette; fg_dim is
+# lighter than the Dracula comment color so it reads at 4.5:1; bg is darker
+# than the published one (see below).
+extends: default
+dark: true
+colors:
+  bg: "#1D1E27"  # darkened from #282A36 (and #21222C) so the U4 border swatches keep 3:1
+  fg: "#F8F8F2"
+  fg_dim: "#949CC4"
+  fg_muted: "#6272A4"
+  bg_sel: "#44475A"
+  border: "#44475A"
+  border_focus: "#BFC4DC"
+  accent: "#BD93F9"
+  working: "#8BE9FD"
+  queued: "#8BE9FD"
+  needs: "#FFB86C"
+  done: "#50FA7B"
+  failed: "#FF5555"
+  crashed: "#949CC4"
+  warn: "#FFB86C"
+  danger: "#FF5555"
+  success: "#50FA7B"
+  info: "#8BE9FD"

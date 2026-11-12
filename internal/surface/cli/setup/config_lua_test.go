@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
@@ -300,4 +302,40 @@ func TestDoctor_NamesTrustSetFromLua(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Contains(t, rows[0].Detail, "set in config.lua:2")
 	require.NotContains(t, rows[0].Detail, "rex trust -rm")
+}
+
+// auto, the bundled themes, a theme file and config.lua themes each list
+// once with their own source: a file or a Lua theme named after a bundled
+// theme takes that theme's slot, other user themes follow the registry.
+func TestThemeList_AutoBundledLuaOnce(t *testing.T) {
+	luaConfigHome(t, "rex.theme('lunar', { extends = 'noir' })\nrex.theme('tokyo_night', { colors = { accent = '#654321' } })", "theme: auto\n")
+	dir, err := paths.ThemesDir()
+	require.NoError(t, err)
+	writeUserTheme(t, dir, "dracula", `colors: {accent: "#123456"}`)
+
+	out, err := themeRun(t, "json", func() error { return themeList(nil) })
+	require.NoError(t, err)
+	var env struct {
+		Data []themeRow `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &env), out)
+	got := map[string]themeRow{}
+	var names []string
+	for _, r := range env.Data {
+		_, dup := got[r.Name]
+		require.False(t, dup, "%s listed twice", r.Name)
+		got[r.Name] = r
+		names = append(names, r.Name)
+	}
+	require.Equal(t, append(append([]string(nil), mustTheme(t).Options...), "lunar"), names)
+	for name, src := range map[string]string{
+		"default": themeBuiltin, "pantone_safe": themeBuiltin, "dracula": themeFile,
+		"tokyo_night": themeLua, "lunar": themeLua, theme.AutoName: themeAuto,
+	} {
+		require.Equal(t, src, got[name].Source, name)
+	}
+	require.Equal(t, "#123456", got["dracula"].Accent)
+	require.Equal(t, "#654321", got["tokyo_night"].Accent)
+	require.Equal(t, theme.Bundled["pantone_safe"].Accent, got["pantone_safe"].Accent)
+	require.True(t, got[theme.AutoName].Current)
 }

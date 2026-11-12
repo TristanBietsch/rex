@@ -12,7 +12,8 @@ var ansiNeutral = map[string]bool{"Bg": true, "Fg": true, "FgDim": true, "FgMute
 
 func TestEveryBuiltinComplete(t *testing.T) {
 	for _, name := range Names() {
-		p := Builtin[name]
+		p, ok := Get(name)
+		require.True(t, ok, name)
 		require.Equal(t, name, p.Name)
 		v := reflect.ValueOf(p)
 		for i := range v.NumField() {
@@ -33,7 +34,7 @@ func TestEveryBuiltinComplete(t *testing.T) {
 }
 
 func TestNamesSortedAndKnown(t *testing.T) {
-	require.Equal(t, []string{"ansi", "classic", "default", "high-contrast", "noir", "paper"}, Names())
+	require.Equal(t, []string{"ansi", "classic", "default", "dracula", "high-contrast", "noir", "pantone_safe", "paper", "tokyo_night"}, Names())
 }
 
 func TestDefaultIsVioletAndClassicKeepsTheOldLook(t *testing.T) {
@@ -52,7 +53,7 @@ func TestDarkFlags(t *testing.T) {
 
 func TestSemanticAliasesMatchStates(t *testing.T) {
 	for _, name := range Names() {
-		p := Builtin[name]
+		p, _ := Get(name)
 		require.Equal(t, p.Needs, p.Warn, name)
 		require.Equal(t, p.Failed, p.Danger, name)
 		require.Equal(t, p.Done, p.Success, name)

@@ -58,14 +58,15 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `attach_cmd.go` | `::` command bar and `qq` detach inside the popup (`::banner`, `::border`) |
 | `border_cmd.go` | `:border` / `::border`: per-run frame choice (`borderRunOn`, `borderRunColor`), notices; never saved |
 | `attach_banner.go` | Attach banner row: `attachBannerRows` (the one place that decides whether it shows), `bannerParts`, static layout, `marqueeWindow`, tick chain, `::banner` |
-| `settings.go` | Settings overlay state and keys: search, section jump (`settingsSectionJump`), inline editor (`settingEdit`; saves through `Store.Set`) |
+| `settings.go` | Settings state and keys (page and overlay): search, section jump (`settingsSectionJump`), page panes and section keys (`settingsPageKey`, `settingsSections`, `settingsPageList`), inline editor (`settingEdit`; saves through `Store.Set`) |
+| `page.go` | Full-screen page frame behind `fullscreen_pages` (`pagesOn`): header, footer, `composePage`, section pane and narrow strip, `renderSettingsPage`, `layoutHelpPage`, `renderHelpPage` |
 | `settings_view.go` | Settings render: list, modified marker, fixed-height detail pane (`settingsDetail`) |
 | `lineedit.go` | `lineEditor`: one-line text editing shared by rename and the settings editor |
 | `panel.go` | `panelLines`: the titled square panel every overlay uses; `dimBoard` mutes the board behind it |
 | `setup_wizard.go` | First-run wizard |
 | `splash.go`, `splash_steps.go` | Boot splash + daemon start |
 | `keymap.go` | Key bindings |
-| `help.go` | `?` overlay: scrollable body (`layoutHelp`), `/` filter, live legend (`helpLegend`), `(off)` marks from `binding.Flag` / `command.Flag` |
+| `help.go` | `?` page and overlay: groups (`helpGroups`), scrollable body (`layoutHelp`; `helpLayoutFor` picks it or the page's `layoutHelpPage`), `/` filter, live legend (`helpLegend`), `(off)` marks from `binding.Flag` / `command.Flag` |
 | `confirm.go` | Quit/delete confirms |
 | `persist.go` | tui-state.json |
 | `styles.go`, `anim.go` | Palette tokens and prebuilt styles (see below), description animation |

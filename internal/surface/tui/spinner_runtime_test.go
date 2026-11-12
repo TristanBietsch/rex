@@ -237,6 +237,7 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 		Focus: FocusBoot, Filter: "all", BootStart: time.Now(),
 		Store: store, StorePath: filepath.Join(t.TempDir(), "settings.toml"),
 	}
+	m = overlayMode(t, m) // the board, and its spinner, stays behind help and settings
 	in := newIdleInput()
 	defer in.Close()
 	p := tea.NewProgram(probeModel{inner: m, rec: rec},

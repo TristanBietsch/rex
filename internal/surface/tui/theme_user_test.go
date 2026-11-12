@@ -72,3 +72,35 @@ func TestUnknownThemeFallsBackWithoutReason(t *testing.T) {
 	applyLive(&m, "theme", "ghost")
 	require.Equal(t, `theme "ghost" not found (using default)`, m.Err)
 }
+
+// A user file named after a bundled theme overrides it in place: the name is
+// offered once, and the file's colors win.
+func TestThemeOptionsNoDuplicates(t *testing.T) {
+	m := themeModel(t)
+	m.Themes = userThemes(t, map[string]string{
+		"dracula.yaml": "colors: {accent: \"#123456\"}\n",
+		"mine.yaml":    "",
+	})
+	opts := themeOptions(m)
+	n := 0
+	for _, o := range opts {
+		if o == "dracula" {
+			n++
+		}
+	}
+	require.Equal(t, 1, n, "%v", opts)
+	require.Equal(t, append(themeOptions(Model{}), "mine"), opts)
+
+	m, _ = executeCommand(m, "theme dracula")
+	require.Empty(t, m.Err)
+	require.Equal(t, lipgloss.Color("#123456"), colorAccent)
+}
+
+// A bundled theme applies with no theme files at all.
+func TestBundledThemeApplies(t *testing.T) {
+	m := themeModel(t)
+	require.Contains(t, themeOptions(m), "tokyo_night")
+	m, _ = executeCommand(m, "theme tokyo_night")
+	require.Empty(t, m.Err)
+	require.Equal(t, lipgloss.Color(theme.Bundled["tokyo_night"].Working), colorWorking)
+}

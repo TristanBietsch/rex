@@ -94,8 +94,8 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Search | `/` | `enter` keeps the query, `esc` restores the previous one |
 | Attach | `enter` on selected row | `qq`, `ctrl+]` or `::q` |
 | Wizard | `n` or `:new` | wizard flow |
-| Settings | `S` or `:settings` | `esc` |
-| Help | `?` or `:help` | `esc`, `?` |
+| Settings | `S` or `:settings` | `esc`, `q` (page only) |
+| Help | `?` or `:help` | `esc`, `?`, `q` (page only) |
 | Stats | `:stats` | `esc`, `:` |
 | Overview | `:overview` | `esc`, `q`, `:overview` |
 | Loops | `L` or `:loops` (needs `loops`) | `esc`, `q`, `L`, `:loops` |
@@ -105,27 +105,35 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
-### Overlay look
+### Page look
 
-Help, settings, stats, failures, overview and the wizard share one chrome: a square box with its title set into the top border (`┌─ HELP ──── rex v1 ─┐`). The board behind them is dimmed to one muted color so the overlay reads first. The attach popup uses the same square corners but keeps the board's colors around it.
+Settings and help open as full-screen pages that look like the board: the same blank top row and `∴ REX` logo (`∴ REX › SETTINGS`, `∴ REX › HELP`), a divider, the body, a divider and a hint row. The board is not drawn behind them, and the window border frames them as it frames the board. The hint row follows `show_help_bar`; errors, such as a refused edit, show there even when it is off.
 
-### Help overlay
+- **Panes.** The body has two panes: a list of sections or groups on the left (at most 24 columns wide) and the rows on the right. `tab` / `shift+tab` switch the focused pane; a page opens with the rows focused. The mouse wheel acts on the focused pane.
+- **Narrow terminals.** Under 60 columns the left pane folds into a one-line strip under the header (`‹ Appearance ›`); `1`–`9` and `[` / `]` still switch, and `tab` does nothing.
+- **Close.** `esc` (it clears a search or filter first) or `q`; `?` also closes help.
+- **While attached.** `::settings` and `::help` detach first, then open the page; a page is never drawn over a running agent.
 
-`?` / `:help` opens the panel (width `clamp(w-8, 60, 110)`, at most `w-2` on a narrow terminal). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes and the Legend on the left; Session commands, App commands and Attached session on the right. Narrower terminals get a single column with wrapped descriptions. It lists every `:` command, including `:settings` and `:undone`.
+`fullscreen_pages` (Features, on by default) turns the pages off: settings and help then open as the older floating overlays over the dimmed board (a square box with its title set into the top border, `┌─ HELP ──── rex v1 ─┐`), as stats, failures, overview, `:usage` and the wizard always do. In the overlays `tab` / `shift+tab` jump to the next / previous section of settings, and the page keys (`q`, `1`–`9`, `[`, `]`) do nothing. The change applies on the next frame, with the cursor kept. The attach popup uses the same square corners but keeps the board's colors around it.
 
-- **Scroll.** The body scrolls when it does not fit, under `↑ more` / `↓ more` markers, so no group is ever dropped: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel.
-- **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`). `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The panel shows the query in its first line.
+### Help page
+
+`?` / `:help` opens the help page. The left pane lists the groups: Navigation, Filter & search, Actions, Mouse, Modes, Legend, Session commands, App commands and Attached session. The right pane shows the selected group's rows at full height. It lists every `:` command, including `:settings` and `:undone`.
+
+- **Groups.** `1`–`9` pick a group, `[` / `]` step through them (they wrap), and on the left pane `j` `k` move. `enter` or `l` moves to the rows. A new group starts at the top.
+- **Scroll.** On the rows pane a group that does not fit scrolls under `↑ more` / `↓ more` markers: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel. The wheel on the left pane changes the group.
+- **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`), from every group at once; groups with no hit are dimmed on the left, and no hit at all reads `no match for “…”`. `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The header shows the query.
 - **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, `◷` waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
 - **Features that are off.** Keys and commands behind a Features switch (`t`, `/`, `esc` for search, `z…`, `uc`, `:filter`, `:search`, `:uc`, `:rid`, `:export`) stay listed, dimmed and tagged `(off)`.
 
-### Settings overlay
+### Settings page
 
-`S` / `:settings` lists every setting by section; `rex config` lists the same registry (it also shows the one hidden row, `keybind_preset`, which the page hides until a second preset exists).
+`S` / `:settings` opens the settings page. The left pane lists the sections, each with a dim count of its rows that differ from the default; the right pane lists the selected section's rows; the inspector under them is the detail pane below. The header shows the cursor row (`Appearance › Theme`) and the config file. `rex config` lists the same registry (it also shows the one hidden row, `keybind_preset`, which the page hides until a second preset exists).
 
-- **Search.** `/` filters live over label, id, section and help text (`spin` leaves Spinner type). `enter` keeps the filter, `esc` clears it, a second `esc` closes. While you type, `j` `k` and the rest type; `ctrl+u` clears.
-- **Sections.** `tab` / `shift+tab` jump to the next / previous section (they wrap).
-- **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. `on` shows in the accent color.
-- **Set in config.lua.** A row that `config.lua` sets shows its value dimmed with a muted `lua` after it, and the detail pane says where (`set in config.lua:12`). Enter, `←`/`→`, `r` and the inline editor refuse with `<id>: set in config.lua:12 — press e to open` on the status line; `e` opens that file at that line in `$EDITOR` (with `+N` for vi, vim, nvim, nano, emacs and micro) and reloads when the editor exits. `:theme` refuses the same way when `config.lua` sets `theme`, a quick-spawn tool or model change that would reset a model or effort `config.lua` sets is refused, and the setup wizard leaves such settings alone and lists them in its summary.
+- **Sections.** `1`–`9` pick a section, `[` / `]` step through them (they wrap). On the left pane `j` `k` move the section and `enter` or `l` moves to the rows; on the rows pane `j` `k` stay inside the section, and `h` on a row with no values to step through does nothing.
+- **Search.** `/` filters live over label, id, section and help text (`spin` leaves Spinner type), across every section: the right pane lists the hits grouped by section under a match count, or `no setting matches “…”`. `enter` keeps the filter, `esc` clears it, a second `esc` closes. `esc` while you type goes back to the row you were on; after `enter` it keeps the row you picked. While you type, `j` `k` and the rest type; `ctrl+u` clears.
+- **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. Values sit flush right; a switch's `on` is drawn in the primary text color and `off` in the dim one.
+- **Set in config.lua.** A row that `config.lua` sets shows its value dimmed with a muted `lua` after it, and the detail pane says where (`set in config.lua:12`). Enter, `←`/`→`, `r` and the inline editor refuse with `<id>: set in config.lua:12 — press e to open` on the bottom line; `e` opens that file at that line in `$EDITOR` (with `+N` for vi, vim, nvim, nano, emacs and micro) and reloads when the editor exits. `:theme` refuses the same way when `config.lua` sets `theme`, a quick-spawn tool or model change that would reset a model or effort `config.lua` sets is refused, and the setup wizard leaves such settings alone and lists them in its summary.
 - **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
 - **Onboarding.** The last section lists the agents the new-session wizard leaves out because their binary is not on the daemon's `PATH`: dimmed rows reading `not on PATH`, with the command it looks for and an install hint in the detail pane (the tool's `install_hint`, else `install <command> and put it on your PATH`). The rows are read only and not stored settings. It is empty (absent) when every agent is installed.
 - **Quick-spawn pickers.** `default_spawn_tool` cycles through the installed tools only, and `default_spawn_model` through the daemon's merged model list; the detail pane adds `detected` when the current model was reported by the tool.
@@ -156,7 +164,7 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 | `C` | Complete now: kill the agent and mark it done |
 | `dd` | Delete selected (confirm) |
 | `:` | Command mode |
-| `?` | Help overlay |
+| `?` | Help page |
 | `S` | Settings |
 | `p` | Pause / resume the selected loop (needs `loops`; see [loops.md](loops.md#on-the-board)) |
 | `x` | Stop the selected loop, after `y` / `N` (needs `loops`) |

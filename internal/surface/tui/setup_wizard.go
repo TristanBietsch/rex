@@ -192,7 +192,7 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 
 	// settings options from registry
 	themes := theme.LoadDir(themesDir())
-	themeOpts := append(enumOptions("theme"), themes.UserNames()...)
+	themeOpts := append(slices.Clone(enumOptions("theme")), themes.UserNamesExcept(enumOptions("theme"))...)
 	spinnerOpts := enumOptions("spinner")
 	rowDensityOpts := enumOptions("row_density")
 	soundsetOpts := enumOptions("soundset")

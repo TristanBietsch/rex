@@ -164,58 +164,62 @@ func settingValueStyle(s settings.Setting, val string, empty, sel bool) lipgloss
 	return settingOnStyle(sel)
 }
 
-// renderSettings returns the finished settings box for a termW-wide terminal.
-func renderSettings(m Model, termW int) string {
-	if m.Settings == nil || m.Store == nil {
-		return ""
-	}
-	st := m.Settings
-	if termW <= 0 {
-		termW = 100
-	}
+// settingsLabelW is the label column's width for a list inner cells wide.
+func settingsLabelW(inner int) int {
+	return min(30, inner*40/100)
+}
 
-	var (
-		width, padH int
-		bordered    = termW >= 40
-	)
-	switch {
-	case termW < 40:
-		width, padH = termW, 0
-	case termW < 60:
-		width, padH = termW-2, 1
-	default:
-		width, padH = termW-8, 3
-		if width < 56 {
-			width = 56
-		}
-		if width > 88 {
-			width = 88
+// settingsCursorIndex is the 1-based position of the cursor row in list (0
+// when it is not there).
+func settingsCursorIndex(list []settings.Setting, id string) int {
+	idx := 0
+	for i, s := range list {
+		if s.ID == id {
+			idx = i + 1
 		}
 	}
-	inner := width
-	if bordered {
-		inner = width - 2 - 2*padH
+	return idx
+}
+
+// settingsDetailPane is the detail pane for the cursor row of list, padded
+// to its fixed height (2 + the help lines) so the list never jumps.
+func settingsDetailPane(m Model, list []settings.Setting, inner int) []string {
+	helpN := settingsHelpLines
+	if m.Height > 0 && m.Height < settingsTallHeight {
+		helpN = settingsHelpLinesShort
 	}
-	labelW := 30
-	if lim := inner * 40 / 100; lim < labelW {
-		labelW = lim
+	var detail []string
+	if i := settingsCursorIndex(list, m.Settings.CursorID); i > 0 {
+		detail = settingsDetail(m, list[i-1], inner, helpN, m.Settings.HelpExpanded)
 	}
-	if termW < 60 {
-		labelW = inner / 2
+	for len(detail) < 2+helpN {
+		detail = append(detail, "")
 	}
+	return detail
+}
+
+// settingsBodyAt is the overlay's list and detail at inner width, the
+// label column labelW wide: rows is the list (section headers and setting
+// rows) windowed to listRows, detail the pane under it; the caller puts the
+// blank row between them.
+func settingsBodyAt(m Model, list []settings.Setting, inner, labelW, listRows int) (rows []string, detail []string) {
+	lines, focus := settingsRowsAt(m, list, inner, labelW, true)
+	return windowLines(lines, focus, listRows), settingsDetailPane(m, list, inner)
+}
+
+// settingsRowsAt is the unwindowed rows of list at inner width with the
+// label column labelW wide, and the index of the cursor's line. headers puts
+// a section header before each section's rows; an empty list is the
+// no-match line.
+func settingsRowsAt(m Model, list []settings.Setting, inner, labelW int, headers bool) (lines []string, focus int) {
+	st := m.Settings
 	ownLine := inner < 40
 	selStyle := selectedStyle(stylePrimary)
 	selBold := selStyle.Bold(true)
 
-	list := settingsList(st)
-	var lines []string
-	focus := 0
 	curSection := ""
-	cursorIdx := 0
-	var sel settings.Setting
-	haveSel := false
-	for i, s := range list {
-		if string(s.Section) != curSection {
+	for _, s := range list {
+		if headers && string(s.Section) != curSection {
 			if curSection != "" {
 				lines = append(lines, "")
 			}
@@ -277,8 +281,6 @@ func renderSettings(m Model, termW int) string {
 			continue
 		}
 
-		cursorIdx = i + 1
-		sel, haveSel = s, true
 		if locked { // keep the selection background under the badge
 			badge = selStyle.Render(" ") + selStyle.Foreground(colorFgMuted).Render("lua")
 		}
@@ -301,6 +303,48 @@ func renderSettings(m Model, termW int) string {
 	if len(list) == 0 {
 		lines = append(lines, styleDim.Render("  no setting matches “"+protocol.FlattenDisplayText(st.Search)+"”"))
 	}
+	return lines, focus
+}
+
+// renderSettings returns the finished settings box for a termW-wide terminal.
+func renderSettings(m Model, termW int) string {
+	if m.Settings == nil || m.Store == nil {
+		return ""
+	}
+	st := m.Settings
+	if termW <= 0 {
+		termW = 100
+	}
+
+	var (
+		width, padH int
+		bordered    = termW >= 40
+	)
+	switch {
+	case termW < 40:
+		width, padH = termW, 0
+	case termW < 60:
+		width, padH = termW-2, 1
+	default:
+		width, padH = termW-8, 3
+		if width < 56 {
+			width = 56
+		}
+		if width > 88 {
+			width = 88
+		}
+	}
+	inner := width
+	if bordered {
+		inner = width - 2 - 2*padH
+	}
+	labelW := settingsLabelW(inner)
+	if termW < 60 {
+		labelW = inner / 2
+	}
+
+	list := settingsList(st)
+	cursorIdx := settingsCursorIndex(list, st.CursorID)
 
 	// Header: SETTINGS left, "n of N" right. A bordered panel carries both
 	// in its top edge; the borderless narrow layout keeps a header row.
@@ -324,20 +368,8 @@ func renderSettings(m Model, termW int) string {
 		searchLine = []string{styleDim.Render("/ " + protocol.FlattenDisplayText(st.Search))}
 	}
 
-	// The detail pane has a fixed height so the list never jumps.
-	helpN := settingsHelpLines
-	if m.Height > 0 && m.Height < settingsTallHeight {
-		helpN = settingsHelpLinesShort
-	}
-	var detail []string
-	if haveSel {
-		detail = settingsDetail(m, sel, inner, helpN, st.HelpExpanded)
-	}
-	for len(detail) < 2+helpN {
-		detail = append(detail, "")
-	}
 	hints := settingsHints
-	if haveSel && settingLockedAt(m, sel.ID) != "" {
+	if cursorIdx > 0 && settingLockedAt(m, list[cursorIdx-1].ID) != "" {
 		hints = settingsLockedHints
 	}
 	if st.Edit != nil {
@@ -347,19 +379,21 @@ func renderSettings(m Model, termW int) string {
 
 	// Non-body rows: search line, blank, detail, blank, footer, plus two
 	// more: the borderless layout's header and blank, or a bordered panel's
-	// two border rows (its title sits in the top one).
-	chrome := len(searchLine) + 1 + len(detail) + 1 + len(footer) + 2
+	// two border rows (its title sits in the top one). The detail pane has
+	// a fixed height so the list never jumps.
+	chrome := len(searchLine) + 1 + len(settingsDetailPane(m, list, inner)) + 1 + len(footer) + 2
 	maxRows := 0
 	if m.Height > 0 {
 		maxRows = max(m.Height-chrome, 3)
 	}
+	rows, detail := settingsBodyAt(m, list, inner, labelW, maxRows)
 
 	var out []string
 	if !bordered {
 		out = append(out, header, "")
 	}
 	out = append(out, searchLine...)
-	out = append(out, windowLines(lines, focus, maxRows)...)
+	out = append(out, rows...)
 	out = append(out, "")
 	out = append(out, detail...)
 	out = append(out, "")

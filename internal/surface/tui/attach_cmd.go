@@ -165,6 +165,8 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 	case "border":
 		return borderCommand(m, parts[1:]), nil
 	}
+	// Everything else, :settings and :help included, detaches first: a page
+	// or overlay is never drawn over the attach PTY.
 	m, off := detach(m)
 	m, cmd := executeCommand(m, line)
 	return m, tea.Batch(off, cmd)

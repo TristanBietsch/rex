@@ -111,7 +111,7 @@ func TestSettingsSearchEditing(t *testing.T) {
 }
 
 func TestSettingsSectionJump(t *testing.T) {
-	m := settingsScreen(t, 120, 40)
+	m := overlayMode(t, settingsScreen(t, 120, 40)) // the overlay: tab jumps a section
 	first := func(sec settings.Section) string {
 		for _, s := range settings.Visible() {
 			if s.Section == sec {
@@ -229,7 +229,7 @@ func TestDetailHelpExpands(t *testing.T) {
 }
 
 func TestHiddenSettingNotListed(t *testing.T) {
-	m := settingsScreen(t, 120, 80)
+	m := overlayMode(t, settingsScreen(t, 120, 80)) // the overlay: j runs through every section
 	require.NotContains(t, settingsText(m), "Keybind preset")
 	_, ok := settings.Find("keybind_preset")
 	require.True(t, ok)

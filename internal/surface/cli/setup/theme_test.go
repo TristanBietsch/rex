@@ -185,6 +185,42 @@ func TestThemeNew(t *testing.T) {
 	require.Contains(t, list, "theme name=my-theme source=file")
 }
 
+// A user file named after a bundled theme overrides it: listed once, as a
+// file, in the bundled theme's registry slot.
+func TestThemeList_UserOverridesBundled(t *testing.T) {
+	dir := themeHome(t)
+	writeUserTheme(t, dir, "dracula", `colors: {accent: "#123456"}`)
+	writeUserTheme(t, dir, "mine", "")
+
+	out, err := themeRun(t, "json", func() error { return themeList(nil) })
+	require.NoError(t, err)
+	var env struct {
+		Data []themeRow `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &env), out)
+	var names []string
+	for _, r := range env.Data {
+		names = append(names, r.Name)
+		switch r.Name {
+		case "dracula":
+			require.Equal(t, themeFile, r.Source)
+			require.Equal(t, "#123456", r.Accent)
+		case "tokyo_night":
+			require.Equal(t, themeBuiltin, r.Source)
+		}
+	}
+	require.Equal(t, append(append([]string(nil), mustTheme(t).Options...), "mine"), names)
+}
+
+// `rex theme new dracula` writes an override; -from still takes only a Go
+// built-in.
+func TestThemeNew_BundledNameMakesAnOverride(t *testing.T) {
+	dir := themeHome(t)
+	_, err := themeRun(t, "text", func() error { return themeNew([]string{"dracula", "-from", "noir"}) })
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(dir, "dracula.yaml"))
+}
+
 func TestThemeNew_RefusesOverwriteWithoutForce(t *testing.T) {
 	dir := themeHome(t)
 	writeUserTheme(t, dir, "mine", "# precious\n")
@@ -226,15 +262,16 @@ func TestThemeNew_ForceReplacesALinkInsteadOfFollowingIt(t *testing.T) {
 func TestThemeNew_BadArguments(t *testing.T) {
 	themeHome(t)
 	for name, args := range map[string][]string{
-		"no name":      nil,
-		"two names":    {"a", "b"},
-		"bad name":     {"Not Valid"},
-		"path name":    {"../x"},
-		"builtin name": {"noir"},
-		"auto name":    {"auto"},
-		"bad -from":    {"mine", "-from", "ghost"},
-		"user -from":   {"mine", "-from", "mine"},
-		"unknown flag": {"mine", "-bogus"},
+		"no name":       nil,
+		"two names":     {"a", "b"},
+		"bad name":      {"Not Valid"},
+		"path name":     {"../x"},
+		"builtin name":  {"noir"},
+		"auto name":     {"auto"},
+		"bad -from":     {"mine", "-from", "ghost"},
+		"bundled -from": {"mine", "-from", "dracula"},
+		"user -from":    {"mine", "-from", "mine"},
+		"unknown flag":  {"mine", "-bogus"},
 	} {
 		_, err := themeRun(t, "text", func() error { return themeNew(args) })
 		requireExit(t, err, core.ExitInvalidArgs)

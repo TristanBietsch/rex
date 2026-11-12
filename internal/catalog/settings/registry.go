@@ -26,9 +26,9 @@ var Registry = []Setting{
 	{
 		ID: "theme", Label: "Theme", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "default", Aliases: []string{"color_scheme"},
-		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi", "auto"},
+		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi", "dracula", "tokyo_night", "pantone_safe", "auto"},
 		Normalize: normalizeThemeName,
-		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors; auto is default on a dark terminal, paper on a light one) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
+		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors; dracula, tokyo_night and pantone_safe ship as theme files; auto is default on a dark terminal, paper on a light one) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
 	},
 	{
 		ID: "spinner", Label: "Spinner type", Section: SectionAppearance, Apply: ApplyLive,
@@ -253,6 +253,11 @@ var Registry = []Setting{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
+	},
+	{
+		ID: "fullscreen_pages", Label: "Full-screen settings and help", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Settings and help open as full-screen pages with a section list on the left, like the board. Off: they open as the older floating overlays, and the page keys (tab between panes, 1-9, [ and ], q) do nothing.",
 	},
 	{
 		ID: "workspaces", Label: "Workspaces", Section: SectionFeatures, Apply: ApplyLive,

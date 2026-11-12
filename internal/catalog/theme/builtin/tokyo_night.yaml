@@ -1,0 +1,23 @@
+# Tokyo Night (github.com/folke/tokyonight.nvim, "night"). Hues from the
+# published palette; fg_dim is lighter than dark5 so it reads at 4.5:1.
+extends: default
+dark: true
+colors:
+  bg: "#1A1B26"
+  fg: "#C0CAF5"
+  fg_dim: "#868EB8"
+  fg_muted: "#565F89"
+  bg_sel: "#283457"
+  border: "#3B4261"
+  border_focus: "#737AA2"
+  accent: "#BB9AF7"
+  working: "#7AA2F7"
+  queued: "#7AA2F7"
+  needs: "#E0AF68"
+  done: "#9ECE6A"
+  failed: "#F7768E"
+  crashed: "#868EB8"
+  warn: "#E0AF68"
+  danger: "#F7768E"
+  success: "#9ECE6A"
+  info: "#7AA2F7"

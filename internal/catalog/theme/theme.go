@@ -53,8 +53,23 @@ var Builtin = map[string]Palette{
 	"ansi":          ansi,
 }
 
-// Names returns the built-in scheme names in sorted order.
+// Names returns every scheme rex ships, the Go built-ins and the bundled
+// themes, in sorted order.
 func Names() []string {
+	names := make([]string, 0, len(Builtin)+len(Bundled))
+	for n := range Builtin {
+		names = append(names, n)
+	}
+	for n := range Bundled {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// builtinNames returns only the Go built-in names, sorted: the themes a file
+// may extend.
+func builtinNames() []string {
 	names := make([]string, 0, len(Builtin))
 	for n := range Builtin {
 		names = append(names, n)
@@ -63,10 +78,14 @@ func Names() []string {
 	return names
 }
 
-// Get returns a copy of the named palette. An unknown name returns the
-// default palette and false. AutoName returns the default palette and true.
+// Get returns a copy of the named palette: a Go built-in, else a bundled
+// theme. An unknown name returns the default palette and false. AutoName
+// returns the default palette and true.
 func Get(name string) (Palette, bool) {
 	p, ok := Builtin[name]
+	if !ok {
+		p, ok = Bundled[name]
+	}
 	if !ok {
 		p = Builtin[DefaultName]
 		ok = name == AutoName // auto without a terminal to ask: the dark default

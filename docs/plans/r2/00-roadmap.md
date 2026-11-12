@@ -18,7 +18,7 @@ Scope rules agreed 2026-11-11:
 | R01 | steal the best ideas from opencode | spike done → 5 builds | L total | [R01](R01-opencode-ideas-spike.md): [R01-1](R01-1-turn-snapshots-undo.md) turn snapshots + undo (L), [R01-2](R01-2-session-diff.md) session diff (M), [R01-3](R01-3-prompt-templates.md) prompt templates (M), [R01-4](R01-4-spawn-presets.md) spawn presets (S–M), [R01-5](R01-5-session-export.md) session export (S) |
 | R02 | add qwen code, cursor cli, grok build (no oh-my-pi); auto-detect models | build | L | [R02](R02-more-agents-model-detect.md) |
 | R03 | "master agent" project manager (top-level line) | dup | — | Closed: duplicate of round-1 **S4**. |
-| R04 | settings + help as full-screen pages (ANTI) | build | M | [R04](R04-fullscreen-settings-help.md) |
+| R04 | settings + help as full-screen pages (ANTI) | build: done (R04-1..5 on `feat/r04-fullscreen-pages`, awaiting merge) | M | [R04](R04-fullscreen-settings-help.md), [plan](R04-00-plan.md) |
 | R05 | settings config in Lua | build | L | [R05](R05-lua-config.md) |
 | R06 | per-workspace `.rex` folder (+ id, edge color, system-wide rex, sync, audit trail, CLI) | epic | XL | [R06](R06-workspaces.md) |
 | R07 | multiplayer? | deferred | — | Deferred epic ([R07](R07-multiplayer-spike.md) kept as notes). |

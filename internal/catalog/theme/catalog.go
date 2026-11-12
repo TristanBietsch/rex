@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -76,7 +77,8 @@ func (c *Catalog) WhySkipped(name string) string {
 	return ""
 }
 
-// Get returns the named theme: a user theme, else a built-in. An unknown name
+// Get returns the named theme: a user theme, else a built-in or bundled one
+// (so a user file overrides a bundled theme of the same name). An unknown name
 // returns the default palette and false. The result is a copy.
 func (c *Catalog) Get(name string) (Palette, bool) {
 	if c != nil {
@@ -146,13 +148,27 @@ func (c *Catalog) UserNames() []string {
 	return sortedNames(c.user)
 }
 
+// UserNamesExcept returns the user theme names that are not in known, sorted.
+// A theme picker passes the names it already lists, so a user file that
+// overrides a bundled theme is offered once, in the bundled theme's place.
+func (c *Catalog) UserNamesExcept(known []string) []string {
+	var out []string
+	for _, n := range c.UserNames() {
+		if !slices.Contains(known, n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // LoadDir reads every <name>.yaml in dir. It never fails: a missing
 // directory is an empty catalog, and anything unusable is skipped with an
 // Issue so one bad file cannot hide the others or break the program. The
 // rules, each of which skips a file:
 //
 //   - at most MaxFiles files, each at most MaxFileSize bytes;
-//   - the name must pass ValidName and must not be a built-in;
+//   - the name must pass ValidName and must not be a Go built-in (a bundled
+//     name is fine: the file overrides that theme);
 //   - a symlink is followed (a stow link into a dotfiles repo is fine), but
 //     what it resolves to must be a regular file that passes the same checks
 //     as a file in dir; a dangling link or a link to anything else is

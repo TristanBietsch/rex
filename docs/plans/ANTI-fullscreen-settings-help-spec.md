@@ -1,5 +1,7 @@
 # Specification: Full-Screen Settings & Help Pages with Workspace Config Persistence (ANTI)
 
+Status: superseded by U1, U2, R04, R05, R06
+
 **Status:** Proposed / Under Review  
 **Author:** Pair Programming Agent & Tristan Bietsch  
 **Related TODO Items:**
