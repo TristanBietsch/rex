@@ -256,7 +256,9 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	c.srv.userInput(p.SessionID) // a loop holds its re-sends
 	// The text and its Enter are one unit on the session's writer: no loop
 	// text, client byte or terminal reply lands between them.
-	unit := pty.WriteUnit{Parts: [][]byte{[]byte(p.Text), {'\r'}}, Gap: replySubmitDelay, Wait: true}
+	// The text is typed text: escapes or a CR in it would act as keys
+	// (pty.TypedText).
+	unit := pty.WriteUnit{Parts: [][]byte{[]byte(pty.TypedText(p.Text)), {'\r'}}, Gap: replySubmitDelay, Wait: true}
 	if _, err := c.srv.writeInput(p.SessionID, unit, inputWaitTimeout); err != nil {
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}

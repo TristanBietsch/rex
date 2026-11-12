@@ -392,7 +392,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						// Then a SEPARATE write of \r commits the input. Sending text
 						// and Enter in one chunk lets the TUI treat the whole thing as
 						// a paste and never trigger submit.
-						paste := []byte(prompt)
+						// Typed text only: an ESC[201~ in the prompt would
+						// close the paste early (TypedText).
+						paste := []byte(TypedText(prompt))
 						if !s.cfg.PlainPaste {
 							paste = append([]byte("\x1b[200~"), paste...)
 							paste = append(paste, []byte("\x1b[201~")...)

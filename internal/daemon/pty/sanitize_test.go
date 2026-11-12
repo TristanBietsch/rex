@@ -65,3 +65,23 @@ func TestHasVisibleText(t *testing.T) {
 		})
 	}
 }
+
+// Text typed into an agent (the initial prompt, a Reply) must not carry
+// terminal input of its own: an ESC[201~ in it closed the bracketed paste
+// early and the rest reached the agent as keystrokes. Line breaks and tabs
+// stay; "\r\n" and "\r" become "\n".
+func TestTypedText(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"plain prompt", "plain prompt"},
+		{"list:\n- a\n\t- b", "list:\n- a\n\t- b"},
+		{"crlf\r\nline\rend", "crlf\nline\nend"},
+		{"before\x1b[201~after\r", "beforeafter\n"},
+		{"osc\x1b]0;title\x07 bell\x07 del\x7f c1\u0085 x", "osc bell del c1 x"},
+		{"bad\xffutf8", "badutf8"},
+	}
+	for _, c := range cases {
+		if got := TypedText(c.in); got != c.want {
+			t.Errorf("TypedText(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

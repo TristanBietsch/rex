@@ -82,3 +82,19 @@ func sanitizeForDisplay(line string) string {
 	}
 	return strings.TrimRight(b.String(), " ")
 }
+
+// TypedText makes text safe to type into an agent's PTY (the initial
+// prompt, a Reply): escape sequences, C0 controls other than newline and
+// tab, DEL, C1 controls and invalid UTF-8 are dropped, and "\r\n" and "\r"
+// become "\n". Without this, an ESC[201~ in a prompt closed the bracketed
+// paste early and everything after it reached the agent as keystrokes (a
+// "\r" there submits, other controls act as key bindings).
+func TypedText(s string) string {
+	s = strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(strings.ToValidUTF8(s, ""))
+	return strings.Map(func(r rune) rune {
+		if r != '\n' && r != '\t' && unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, ansi.Strip(s))
+}
