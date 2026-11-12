@@ -918,9 +918,7 @@ func applyLive(m *Model, id string, value any) {
 		}
 	case "master_volume":
 		if m.Audio != nil {
-			if v, ok := value.(float64); ok {
-				m.Audio.SetVolume(v)
-			}
+			m.Audio.SetVolume(settings.VolumeGain(value))
 		}
 	case "extra_agents":
 		*m = refreshPickers(*m) // the open wizard and pickers drop or regain qwen, cursor, grok
@@ -996,7 +994,7 @@ func settingValueText(m Model, s settings.Setting) string {
 	if _, ok := onboardRowOf(m.Settings, s.ID); ok {
 		return "not on PATH"
 	}
-	v := m.Store.String(s.ID)
+	v := m.Store.Display(s.ID)
 	if s.Type == settings.TypeBool {
 		if b, _ := m.Store.Get(s.ID).(bool); b {
 			return "on"

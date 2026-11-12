@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed (volume scale)
+
+- `master_volume` is now a whole number from 0 to 50 (default 40, the old
+  0.80). The gain is the value / 50. At 50 the settings page and
+  `rex config get`/`list` show `max` (txt, agent and JSON output keep 50).
+  ◂ ▸ on the settings page step by 1. An existing config converts on load:
+  a decimal from 0 to 1 (`0.8`, `1.0`, `0.0`) reads as round(value × 50),
+  a whole number (`1`, `40`) as the new scale. In `config.lua` only a
+  fraction (`0.8`) is the old scale, since Lua cannot tell `1` from `1.0`.
+  `rex config set master_volume NaN` is now refused.
+
 ### Added (workspace settings)
 
 - A workspace can carry `.rex/config.lua` (needs `workspaces` and

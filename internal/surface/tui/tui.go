@@ -27,7 +27,7 @@ func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
 	store, _, _ := settings.LoadDefault()
 	soundEnabled, _ := store.Get("sound_enabled").(bool)
 	soundset, _ := store.Get("soundset").(string)
-	volume, _ := store.Get("master_volume").(float64)
+	volume := settings.VolumeGain(store.Get("master_volume"))
 	bootVoice, _ := store.Get("boot_voice").(bool)
 	if soundset == "off" {
 		soundEnabled = false

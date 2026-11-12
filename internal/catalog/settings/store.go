@@ -245,6 +245,17 @@ func (s *Store) String(id string) string {
 	return fmt.Sprintf("%v", v)
 }
 
+// Display is id's value as the settings page and human CLI output show it
+// (Setting.Display): "max" for master_volume at 50, say. String stays the
+// plain value for scripts and JSON.
+func (s *Store) Display(id string) string {
+	setting, ok := Find(id)
+	if !ok {
+		return s.String(id)
+	}
+	return setting.Display(s.values[id])
+}
+
 // FileString is id's value in config.yaml's own layer, as a string: what
 // Load read or Set stored, else the registry default. Unlike String it never
 // shows a config.lua value or a trust setting that a broken config.lua
@@ -397,6 +408,12 @@ func (s *Store) WithDefaults(ids ...string) *Store {
 // coerce converts raw input (typically string-from-CLI or interface{}-from-YAML) into the
 // concrete Go type expected by the setting and validates it against options/range.
 func coerce(setting Setting, raw any) (any, error) {
+	if setting.Migrate != nil {
+		var err error
+		if raw, err = setting.Migrate(raw); err != nil {
+			return nil, err
+		}
+	}
 	switch setting.Type {
 	case TypeBool:
 		switch v := raw.(type) {

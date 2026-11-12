@@ -255,6 +255,12 @@ func luaToSetting(st settings.Setting, v lua.LValue) (any, error) {
 		}
 		switch st.Type {
 		case settings.TypeInt:
+			if f != math.Trunc(f) && st.Migrate != nil {
+				// A fraction may be an older scale's value (master_volume
+				// 0.8); Validate runs Migrate on it. A whole number is
+				// always the current scale, as Lua cannot tell 1 from 1.0.
+				return f, nil
+			}
 			if f != math.Trunc(f) || math.Abs(f) > 1<<40 {
 				return nil, fmt.Errorf("%v is not a whole number", f)
 			}
