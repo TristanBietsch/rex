@@ -128,6 +128,12 @@ type LoopSummary struct {
 	// MaxIterations is the cap.
 	Iteration     int `json:"iteration"`
 	MaxIterations int `json:"max_iterations"`
+	// MaxMinutes is the cap on running time; ElapsedSeconds the running time
+	// when UpdatedAt was written (pauses and daemon downtime excluded), so
+	// a client adds the time since UpdatedAt while the loop runs. Both are
+	// absent from daemons that predate them.
+	MaxMinutes     int   `json:"max_minutes,omitempty"`
+	ElapsedSeconds int64 `json:"elapsed_s,omitempty"`
 	// LastCheckExit is the exit status of the latest check run; nil before
 	// the first run or when it did not exit (timeout, start failure).
 	LastCheckExit *int      `json:"last_check_exit,omitempty"`
