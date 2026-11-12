@@ -16,20 +16,38 @@ var TrustSettingIDs = []string{"skip_permissions", "auto_trust_dirs"}
 // IsTrustSetting reports whether id is one of TrustSettingIDs.
 func IsTrustSetting(id string) bool { return slices.Contains(TrustSettingIDs, id) }
 
+// WorkspaceAllowIDs are the only settings a workspace's .rex/config.lua
+// may set, even in a workspace the user trusted (rex ws trust): display
+// settings that change how rex looks, never what runs, what is recorded,
+// what is heard or what gets deleted. Everything else is denied, so a
+// setting added later is denied until it is listed here on purpose.
+var WorkspaceAllowIDs = []string{
+	"theme", "spinner", "row_density", "prompt_glyph", "reduce_motion",
+	"blinking_enabled", "show_help_bar", "header_style", "window_border",
+	"window_border_color", "column_layout", "mobile_layout",
+	"mouse_enabled", "attach_scrollback_lines",
+	"screensaver_enabled", "screensaver_after_minutes",
+	"board_filter", "search", "timestamps", "summary_preview",
+	"waiting_section", "usage_meter",
+	"summary_detail", "desc_animation", "attach_banner",
+}
+
 // WorkspaceDenyIDs are the settings a workspace's .rex/config.lua can never
-// set, even in a workspace the user trusted (rex ws trust): the trust
-// settings, and the ones that would let a cloned repo pick a more
-// permissive agent, quiet or widen the audit trail, or switch the features
-// that gate .rex/ and config.lua themselves. A denied rex.set is a warning
-// and leaves the value alone (it does not fail closed).
-var WorkspaceDenyIDs = append(slices.Clone(TrustSettingIDs),
-	"default_spawn_tool",
-	"extra_agents",
-	"audit_trail",
-	"audit_full_prompt",
-	"workspaces",
-	"lua_config",
-)
+// set: every registry setting not in WorkspaceAllowIDs. Among them the
+// trust settings, which agent and model run, the audit trail, sounds, the
+// done timer, the features that run commands or write files, and the
+// switches that gate .rex/ and config.lua (workspaces, lua_config,
+// live_reload). A denied rex.set is a warning and leaves the value alone
+// (it does not fail closed).
+var WorkspaceDenyIDs = func() []string {
+	var out []string
+	for _, s := range Registry {
+		if !slices.Contains(WorkspaceAllowIDs, s.ID) {
+			out = append(out, s.ID)
+		}
+	}
+	return out
+}()
 
 // WorkspaceDenied reports whether id is one of WorkspaceDenyIDs.
 func WorkspaceDenied(id string) bool { return slices.Contains(WorkspaceDenyIDs, id) }

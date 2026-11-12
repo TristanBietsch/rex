@@ -3,6 +3,7 @@ package workspace
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -20,6 +21,9 @@ type trustInfo struct {
 	Root    string `json:"root,omitempty"`
 	// Config is true when the workspace has a .rex/config.lua now.
 	Config bool `json:"config"`
+	// SHA256 and Size are the trusted config.lua's ("" and 0 for none).
+	SHA256 string `json:"sha256,omitempty"`
+	Size   int    `json:"size,omitempty"`
 	// Denied lists the settings a workspace config.lua can never set.
 	Denied []string `json:"denied"`
 }
@@ -61,13 +65,29 @@ func (e env) trust(pos []string, rm bool) error {
 	if rerr != nil {
 		return wsError("ws trust", rerr)
 	}
-	was := ts.Trusted(w)
-	if err := ts.Trust(w); err != nil {
+	// The bytes trusted are the bytes shown and hashed here: a later edit
+	// (a git pull, an agent) is not run until trusted again.
+	body, err := wsp.ReadConfig(w.Root)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		body = nil
+	case err != nil:
+		return wsError("ws trust", err)
+	}
+	sha := wsp.ConfigHash(body)
+	prev, was := ts.TrustedHash(w)
+	was = was && prev == sha
+	if !was {
+		if err := confirmTrust(w, body, sha); err != nil {
+			return err
+		}
+	}
+	if err := ts.Trust(w, sha); err != nil {
 		return wsError("ws trust", err)
 	}
 	_ = e.reg.Seen(w) // best effort, as rex ws id
 	data := trustInfo{Action: "trust", Changed: !was, ID: w.ID, Name: w.Name, Root: w.Root,
-		Config: wsp.HasConfig(w.Root), Denied: settings.WorkspaceDenyIDs}
+		Config: body != nil, SHA256: sha, Size: len(body), Denied: settings.WorkspaceDenyIDs}
 	text := "trusted"
 	tone := core.ToneOK
 	if was {
@@ -78,14 +98,39 @@ func (e env) trust(pos []string, rm bool) error {
 		infoKV(info{ID: w.ID, Name: w.Name, Color: w.Color, Root: w.Root}),
 	}
 	if data.Config {
-		v = append(v, core.Note{Tone: core.ToneDim, Text: "its .rex/config.lua now applies when rex runs in this folder: " + flat(wsp.ConfigPath(w.Root))})
+		v = append(v, core.Note{Tone: core.ToneDim, Text: fmt.Sprintf("its .rex/config.lua (%d bytes, sha256 %s) now applies when rex runs in this folder; after any edit, run rex ws trust again", len(body), sha[:12])})
 	} else {
-		v = append(v, core.Note{Tone: core.ToneDim, Text: "no .rex/config.lua yet; one added later applies without asking again"})
+		v = append(v, core.Note{Tone: core.ToneDim, Text: "no .rex/config.lua yet; one added later needs rex ws trust again"})
 	}
 	v = append(v,
-		core.Note{Tone: core.ToneDim, Text: "a workspace config.lua can never set: " + strings.Join(settings.WorkspaceDenyIDs, ", ")},
+		core.Note{Tone: core.ToneDim, Text: "a workspace config.lua may only set: " + strings.Join(settings.WorkspaceAllowIDs, ", ")},
 		core.Hint{Cmd: "rex ws trust -rm " + w.ID, Text: "undo"})
 	return core.Out().Emit(core.Result{Cmd: "ws trust", Data: data, View: v})
+}
+
+// confirmTrust asks the person at the terminal before trusting. It refuses
+// in agent mode, in a data format and without a terminal on stdin and
+// stderr, with no flag to skip it: an agent working in the repo could
+// otherwise write .rex/config.lua and trust it itself.
+func confirmTrust(w *wsp.Workspace, body []byte, sha string) error {
+	p := core.Out()
+	if p.Format != core.FormatText || !p.InTTY || !p.ErrTTY {
+		return core.Errorf(core.ExitOperationRefused, "", "ws trust: asks you at a terminal (not in agent mode, -o or a pipe); run it yourself after reading %s",
+			flat(wsp.ConfigPath(w.Root))).WithID("needs_confirmation")
+	}
+	q := fmt.Sprintf("trust workspace %s %s at %s? its .rex/config.lua is %d bytes (sha256 %s); read it first",
+		w.ID, flat(w.Name), flat(w.Root), len(body), sha)
+	if body == nil {
+		q = fmt.Sprintf("trust workspace %s %s at %s? it has no .rex/config.lua yet", w.ID, flat(w.Name), flat(w.Root))
+	}
+	ok, err := p.Confirm(q, core.Refusal{Cmd: "ws trust"})
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return core.Errorf(core.ExitOperationRefused, "", "ws trust: not confirmed, nothing trusted")
+	}
+	return nil
 }
 
 // revoke removes trust for the workspace ref names. A workspace that moved

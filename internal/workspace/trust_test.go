@@ -30,7 +30,7 @@ func TestTrust_TrustRevokeAndPrivateFile(t *testing.T) {
 	w := loadWS(t, mkWS(t, filepath.Join(t.TempDir(), "p"), goodJSON))
 	require.False(t, s.Trusted(w), "nothing is trusted by default")
 
-	require.NoError(t, s.Trust(w))
+	require.NoError(t, s.Trust(w, ""))
 	require.True(t, s.Trusted(w))
 	fi, err := os.Stat(s.Path())
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestTrust_TrustRevokeAndPrivateFile(t *testing.T) {
 func TestTrust_BoundToFolderAndID(t *testing.T) {
 	s := newTrust(t)
 	trusted := loadWS(t, mkWS(t, filepath.Join(t.TempDir(), "a"), goodJSON))
-	require.NoError(t, s.Trust(trusted))
+	require.NoError(t, s.Trust(trusted, ""))
 
 	clone := loadWS(t, mkWS(t, filepath.Join(t.TempDir(), "b"), goodJSON))
 	require.Equal(t, trusted.ID, clone.ID)
@@ -71,11 +71,11 @@ func TestTrust_BoundToFolderAndID(t *testing.T) {
 func TestTrust_RevokeByIDOrFolderAlone(t *testing.T) {
 	s := newTrust(t)
 	w := loadWS(t, mkWS(t, filepath.Join(t.TempDir(), "a"), goodJSON))
-	require.NoError(t, s.Trust(w))
+	require.NoError(t, s.Trust(w, ""))
 	changed, err := s.Revoke(w.ID, "")
 	require.NoError(t, err)
 	require.True(t, changed, "by id, when the folder is gone")
-	require.NoError(t, s.Trust(w))
+	require.NoError(t, s.Trust(w, ""))
 	changed, err = s.Revoke("", w.Root)
 	require.NoError(t, err)
 	require.True(t, changed, "by folder")
@@ -88,7 +88,7 @@ func TestTrust_SymlinkedPathMatchesRealFolder(t *testing.T) {
 	root := mkWS(t, filepath.Join(t.TempDir(), "a"), goodJSON)
 	link := filepath.Join(t.TempDir(), "link")
 	require.NoError(t, os.Symlink(root, link))
-	require.NoError(t, s.Trust(loadWS(t, link)))
+	require.NoError(t, s.Trust(loadWS(t, link), ""))
 	require.True(t, s.Trusted(loadWS(t, root)), "trust records the real folder")
 }
 
@@ -98,28 +98,28 @@ func TestTrust_UnsafeOrBadFileTrustsNothing(t *testing.T) {
 	w := loadWS(t, mkWS(t, filepath.Join(t.TempDir(), "a"), goodJSON))
 
 	s := newTrust(t)
-	require.NoError(t, s.Trust(w))
+	require.NoError(t, s.Trust(w, ""))
 	require.NoError(t, os.WriteFile(s.Path(), []byte("{not json"), 0o600))
 	require.False(t, s.Trusted(w))
-	require.Error(t, s.Trust(w), "a broken file is not overwritten")
+	require.Error(t, s.Trust(w, ""), "a broken file is not overwritten")
 
 	if skipModeChecks {
 		return
 	}
 	s = newTrust(t)
-	require.NoError(t, s.Trust(w))
+	require.NoError(t, s.Trust(w, ""))
 	testperm.Loosen(t, s.Path(), 0o622)
 	require.False(t, s.Trusted(w), "group/world-writable")
 
 	s = newTrust(t)
-	require.NoError(t, s.Trust(w))
+	require.NoError(t, s.Trust(w, ""))
 	real := s.Path() + ".real"
 	require.NoError(t, os.Rename(s.Path(), real))
 	require.NoError(t, os.Symlink(real, s.Path()))
 	require.False(t, s.Trusted(w), "a symlink")
 
 	s = newTrust(t)
-	require.NoError(t, s.Trust(w))
+	require.NoError(t, s.Trust(w, ""))
 	prev := ownedByMe
 	t.Cleanup(func() { ownedByMe = prev })
 	ownedByMe = func(fi os.FileInfo) bool { return fi.IsDir() }
@@ -130,9 +130,21 @@ func TestTrust_BadArgs(t *testing.T) {
 	_, err := OpenTrust("rel.json")
 	require.Error(t, err)
 	s := newTrust(t)
-	require.Error(t, s.Trust(&Workspace{ID: "bad", Root: "/x"}))
-	require.Error(t, s.Trust(&Workspace{ID: "7f3b89a2", Root: "rel"}))
+	require.Error(t, s.Trust(&Workspace{ID: "bad", Root: "/x"}, ""))
+	require.Error(t, s.Trust(&Workspace{ID: "7f3b89a2", Root: "rel"}, ""))
 	require.False(t, s.Trusted(nil))
 	_, err = s.Revoke("", "")
 	require.Error(t, err)
+}
+
+func TestTrust_RecordsHash(t *testing.T) {
+	s := newTrust(t)
+	w := loadWS(t, mkWS(t, filepath.Join(t.TempDir(), "a"), goodJSON))
+	h := ConfigHash([]byte("x"))
+	require.Len(t, h, 64)
+	require.Empty(t, ConfigHash(nil))
+	require.NoError(t, s.Trust(w, h))
+	got, ok := s.TrustedHash(w)
+	require.True(t, ok)
+	require.Equal(t, h, got)
 }

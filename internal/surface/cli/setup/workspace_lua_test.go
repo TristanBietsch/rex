@@ -36,7 +36,7 @@ func wsLuaHome(t *testing.T, userLua, wsLua string, trust bool) string {
 		require.NoError(t, err)
 		ts, err := workspace.OpenTrust(p)
 		require.NoError(t, err)
-		require.NoError(t, ts.Trust(w))
+		require.NoError(t, ts.Trust(w, currentHash(t, w.Root)))
 	}
 	wsconfig.Install(root)
 	t.Cleanup(func() { wsconfig.SetDir("") })
@@ -104,4 +104,14 @@ func TestDoctor_WorkspaceConfigRow(t *testing.T) {
 	luaConfigHome(t, "", "")
 	wsconfig.Install(root)
 	require.Empty(t, checkWorkspaceConfig(), "workspaces off: no row")
+}
+
+// currentHash is the hash of root's .rex/config.lua now ("" when none).
+func currentHash(t *testing.T, root string) string {
+	t.Helper()
+	b, err := workspace.ReadConfig(root)
+	if err != nil {
+		return ""
+	}
+	return workspace.ConfigHash(b)
 }

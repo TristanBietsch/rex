@@ -62,8 +62,8 @@ func TestEval_ReadSourceIsCapped(t *testing.T) {
 	require.ErrorContains(t, r.Err, "larger than")
 }
 
-// One test per denied key: a workspace file (Deny = WorkspaceDenyIDs) cannot
-// set any of them, even to a valid value, and the refusal neither stores
+// One test per security-critical denied key: a workspace file (Deny =
+// WorkspaceDenyIDs) cannot set any of them, even to a valid value, and the refusal neither stores
 // nor fails anything closed.
 func TestEval_WorkspaceDenyRefusesEveryKey(t *testing.T) {
 	valid := map[string]string{
@@ -76,8 +76,10 @@ func TestEval_WorkspaceDenyRefusesEveryKey(t *testing.T) {
 		"workspaces":         `false`,
 		"lua_config":         `false`,
 	}
-	require.Len(t, valid, len(settings.WorkspaceDenyIDs), "a value for every denied key")
-	for _, id := range settings.WorkspaceDenyIDs {
+	for id := range valid {
+		require.True(t, settings.WorkspaceDenied(id), id)
+	}
+	for id := range valid {
 		t.Run(id, func(t *testing.T) {
 			lit, ok := valid[id]
 			require.True(t, ok, "add a valid value for %s", id)

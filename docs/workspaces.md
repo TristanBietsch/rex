@@ -87,8 +87,8 @@ A workspace can carry its own `.rex/config.lua`: the same Lua as `~/.config/rex/
 
 ```lua
 -- ~/dev/myproject/.rex/config.lua
-rex.set("default_spawn_model", "sonnet")
 rex.set("theme", "paper")
+rex.set("row_density", "compact")
 ```
 
 Precedence, lowest first: registry defaults, `config.yaml`, your `config.lua`, the workspace's `.rex/config.lua`.
@@ -105,9 +105,11 @@ rex ws trust -rm         # stop trusting it (also: rex ws trust -rm <id|folder>)
 
 Until then rex shows one notice where `config.lua` problems show (`rex config list`, `rex doctor`, the TUI's boot row): `<folder>/.rex/config.lua: not applied: workspace not trusted`.
 
-Trust is kept in `~/.local/share/rex/workspace-trust.json`, outside every `.rex/`, so a repository cannot ship it. It is bound to the **real folder** (symlinks resolved) **and the workspace id** together: the same id in another folder (a copy of a committed `workspace.json`), a different id in the trusted folder, or the workspace moved to a new folder are all untrusted until you run `rex ws trust` again. Trust is per workspace, not per file version: once trusted, later edits to `.rex/config.lua` (yours, or ones a `git pull` brings) apply without asking again. A trusted workspace with no `config.lua` yet applies one added later.
+Trust is kept in `~/.local/share/rex/workspace-trust.json`, outside every `.rex/`, so a repository cannot ship it. It is bound to the **real folder** (symlinks resolved) **and the workspace id** together: the same id in another folder (a copy of a committed `workspace.json`), a different id in the trusted folder, or the workspace moved to a new folder are all untrusted until you run `rex ws trust` again. Trust also covers the **exact bytes** of `.rex/config.lua` you trusted (its SHA-256): after any edit (yours, a `git pull`, an agent) the file is not run, with the notice `changed since you trusted it`, until you read it and run `rex ws trust` again. A workspace trusted with no `config.lua` does not run one added later either. The hash is checked on the very bytes that are evaluated.
 
-**What it can never set**, trusted or not: `skip_permissions` and `auto_trust_dirs` (trust), `default_spawn_tool` and `extra_agents` (which agents run), `audit_trail` and `audit_full_prompt` (the audit trail), and the switches `workspaces` and `lua_config`. Each such `rex.set` is ignored with a warning (`"auto_trust_dirs" cannot be set from Lua (ignored)`) and leaves your value alone. Workspace files also cannot `require` modules.
+`rex ws trust` asks before it trusts (`[y/N]`, showing the file's size and hash) and only at a terminal: in agent mode, with `-o`, or with stdin or stderr not a terminal it refuses (exit 6), and no flag skips the question, so an agent working in the repository cannot trust its own `config.lua`. Re-running it on an unchanged, already trusted file asks nothing.
+
+**What it may set**, and nothing else: display settings, `theme`, `spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `window_border`, `window_border_color`, `column_layout`, `mobile_layout`, `mouse_enabled`, `attach_scrollback_lines`, `screensaver_enabled`, `screensaver_after_minutes`, `board_filter`, `search`, `timestamps`, `summary_preview`, `waiting_section`, `usage_meter`, `summary_detail`, `desc_animation` and `attach_banner`. Every other setting is refused: among them `skip_permissions` and `auto_trust_dirs` (trust), the quick-spawn tool, model and effort and `extra_agents` (what runs), `audit_trail` and `audit_full_prompt`, sounds, `retire_after_hours`, features that run commands or write files, and the switches `workspaces`, `lua_config` and `live_reload`. A setting added to rex later is refused until it is allowed on purpose. Each refused `rex.set` is ignored with a warning (`"auto_trust_dirs" cannot be set from Lua (ignored)`) and leaves your value alone. Workspace files also cannot `require` modules.
 
 **When it fails.** A trusted `.rex/config.lua` that is refused (see below), has a syntax or runtime error, or runs out of time keeps its last good values in that process and puts `skip_permissions` and `auto_trust_dirs` back to their defaults until it runs again, as a broken `~/.config/rex/config.lua` does.
 
@@ -157,7 +159,7 @@ rex has no sync of its own. `.rex/` lives in your project folder, so it moves wi
 - rex never follows a symlinked `.rex/`, `workspace.json`, `sessions.jsonl` or `audit.jsonl`, and refuses a `.rex/` that other users can write to or that another user owns (error: `unsafe .rex`, exit 6 on the CLI).
 - `workspace.json` is read as data only: files over 64 KiB are rejected, the name is cut to 40 characters and stripped of control characters, a color that is not `#RRGGBB` is dropped, and an id that is not 8 hex digits is refused. Nothing in it changes how rex behaves.
 - Every file rex writes under `.rex/` is readable by you only (`0600`, folders `0700`).
-- A repository cloned from the internet can ship a `.rex/`. Opening it shows its workspace name and id, nothing more. Its `.rex/config.lua` is not read until you run `rex ws trust`, and even then it can never set the settings listed under "Workspace settings".
+- A repository cloned from the internet can ship a `.rex/`. Opening it shows its workspace name and id, nothing more. Its `.rex/config.lua` is not read until you run `rex ws trust`, and even then it may set only the display settings listed under "Workspace settings", and runs only while its bytes match the ones you trusted.
 - `.rex/config.lua` is read with the strictest checks: it is opened once without following a symlink (even one to a file of yours), and the opened file must be a regular file you own, not group- or world-writable, without other hard links, and at most 256 KiB. The `.rex/` around it must pass the checks above. A refused file fails the trust settings closed (see "When it fails").
 - `rex ws init` refuses `$HOME` and `/`.
 - `rex ws init` writes outside `.rex/` once: two lines in `.git/info/exclude`, under the checks described above.

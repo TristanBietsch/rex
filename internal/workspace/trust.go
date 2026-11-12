@@ -1,6 +1,8 @@
 package workspace
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,11 +21,23 @@ const trustVersion = 1
 const maxTrustBytes = 1 << 20
 
 // TrustEntry is one workspace the user trusted: the real folder (symlinks
-// resolved) and the id its workspace.json held then.
+// resolved), the id its workspace.json held then, and the SHA-256 of the
+// .rex/config.lua the user trusted ("" when there was none).
 type TrustEntry struct {
 	ID        string    `json:"id"`
 	Root      string    `json:"root"`
+	SHA256    string    `json:"sha256"`
 	TrustedAt time.Time `json:"trusted_at"`
+}
+
+// ConfigHash is the hex SHA-256 of a .rex/config.lua's bytes; "" for nil
+// (no file).
+func ConfigHash(b []byte) string {
+	if b == nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 type trustFile struct {
@@ -34,7 +48,7 @@ type trustFile struct {
 // TrustStore is ~/.local/share/rex/workspace-trust.json: the workspaces
 // whose .rex/config.lua rex evaluates (rex ws trust). It lives outside every
 // .rex/, so a cloned repo cannot ship its own trust. Trust binds the real
-// folder and the id together: the same id in another folder (a copy of a
+// folder, the id and the config.lua bytes together (TrustedHash): the same id in another folder (a copy of a
 // committed workspace.json), another id in the trusted folder, or the
 // trusted workspace moved elsewhere are all untrusted until trusted again.
 //
@@ -106,27 +120,43 @@ func (s *TrustStore) write(tf trustFile) error {
 }
 
 // Trusted reports whether w (its real folder and id) is trusted. Any
-// problem reading the store answers false.
+// problem reading the store answers false. It says nothing about the
+// config.lua content: TrustedHash does.
 func (s *TrustStore) Trusted(w *Workspace) bool {
+	_, ok := s.TrustedHash(w)
+	return ok
+}
+
+// TrustedHash returns the config.lua hash recorded when w (its real folder
+// and id) was trusted, and whether it is trusted at all. Only those exact
+// bytes may run: a file that changed since, or one added to a workspace
+// trusted without one, needs rex ws trust again.
+func (s *TrustStore) TrustedHash(w *Workspace) (string, bool) {
 	if w == nil || !ValidID(w.ID) {
-		return false
+		return "", false
 	}
 	root, err := realRoot(w.Root)
 	if err != nil {
-		return false
+		return "", false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tf, err := s.read()
 	if err != nil {
-		return false
+		return "", false
 	}
-	return slices.ContainsFunc(tf.Trusted, func(e TrustEntry) bool { return e.Root == root && e.ID == w.ID })
+	for _, e := range tf.Trusted {
+		if e.Root == root && e.ID == w.ID {
+			return e.SHA256, true
+		}
+	}
+	return "", false
 }
 
-// Trust records w as trusted, replacing whatever its folder held before.
-// A store file that cannot be read is an error and is left alone.
-func (s *TrustStore) Trust(w *Workspace) error {
+// Trust records w as trusted with the config.lua whose hash is sha (see
+// ConfigHash; "" for none), replacing whatever its folder held before. A
+// store file that cannot be read is an error and is left alone.
+func (s *TrustStore) Trust(w *Workspace, sha string) error {
 	if w == nil || !ValidID(w.ID) {
 		return errors.New("workspace: trust needs a workspace with a valid id")
 	}
@@ -141,7 +171,7 @@ func (s *TrustStore) Trust(w *Workspace) error {
 		return err
 	}
 	tf.Trusted = slices.DeleteFunc(tf.Trusted, func(e TrustEntry) bool { return e.Root == root })
-	tf.Trusted = append(tf.Trusted, TrustEntry{ID: w.ID, Root: root, TrustedAt: time.Now().UTC()})
+	tf.Trusted = append(tf.Trusted, TrustEntry{ID: w.ID, Root: root, SHA256: sha, TrustedAt: time.Now().UTC()})
 	return s.write(tf)
 }
 

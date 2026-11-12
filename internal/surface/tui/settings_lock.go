@@ -14,6 +14,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
+	"github.com/tristanbietsch/rex/internal/workspace/wsconfig"
 )
 
 // Settings that config.lua sets are locked: the TUI shows them but never
@@ -75,10 +76,18 @@ func luaFileOf(at string) (path string, line int, ok bool) {
 		return "", 0, false
 	}
 	rel := at[:i]
-	// A workspace's .rex/config.lua: the absolute path rex itself put in
-	// the position (wsconfig), never one a script chose.
-	if filepath.IsAbs(rel) && settings.WorkspaceSetAt(at) && strings.HasSuffix(rel, string(filepath.Separator)+"config.lua") {
-		return rel, line, true
+	// A workspace's .rex/config.lua: only the file of the workspace this
+	// process applies, taken from wsconfig (never parsed back out of the
+	// flattened position), and never a symlink.
+	if settings.WorkspaceSetAt(at) {
+		file := workspaceConfigFile()
+		if file == "" || rel != protocol.FlattenDisplayText(file) {
+			return "", 0, false
+		}
+		if fi, err := os.Lstat(file); err != nil || !fi.Mode().IsRegular() {
+			return "", 0, false
+		}
+		return file, line, true
 	}
 	l, err := paths.Resolve()
 	if err != nil {
@@ -98,6 +107,10 @@ func luaFileOf(at string) (path string, line int, ok bool) {
 	}
 	return "", 0, false
 }
+
+// workspaceConfigFile is the .rex/config.lua path of the workspace this
+// process applies ("" for none). Tests replace it.
+var workspaceConfigFile = func() string { return wsconfig.Current().File }
 
 // lineEditors take +N to open a file at line N.
 var lineEditors = map[string]bool{"vi": true, "vim": true, "nvim": true, "nano": true, "emacs": true, "micro": true}

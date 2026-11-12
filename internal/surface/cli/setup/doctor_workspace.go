@@ -17,7 +17,7 @@ import (
 // flattened.
 func checkWorkspaceConfig() []checkResult {
 	const name = "workspace config.lua"
-	if s, _, err := settings.LoadDefault(); err == nil && !settings.LuaConfigOn(s) {
+	if s, _, _ := settings.LoadDefault(); s == nil || !settings.LuaConfigOn(s) {
 		return nil
 	}
 	info := wsconfig.Current()

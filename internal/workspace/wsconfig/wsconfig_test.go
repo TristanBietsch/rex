@@ -65,7 +65,7 @@ func (e *env) trust() {
 	e.t.Helper()
 	s, err := openTrust()
 	require.NoError(e.t, err)
-	require.NoError(e.t, s.Trust(e.ws))
+	require.NoError(e.t, s.Trust(e.ws, currentHash(e.t, e.root)))
 }
 
 func (e *env) load() (*settings.Store, settings.LayerReport) {
@@ -222,4 +222,56 @@ func TestStampChangesWhenTrustedOrEdited(t *testing.T) {
 	require.NotEqual(t, a, b, "trusting is seen by a poll")
 	require.NoError(t, os.WriteFile(workspace.ConfigPath(e.root), []byte("rex.set('theme', 'paper')  -- longer\n"), 0o600))
 	require.NotEqual(t, b, settings.LayerStamp(true))
+}
+
+// currentHash is the hash of root's .rex/config.lua now ("" when none).
+func currentHash(t *testing.T, root string) string {
+	t.Helper()
+	b, err := workspace.ReadConfig(root)
+	if err != nil {
+		return ""
+	}
+	return workspace.ConfigHash(b)
+}
+
+// Trust covers the bytes the user read: an edit after trusting (a git pull,
+// an agent) is not run until trusted again, and a workspace trusted with no
+// file does not run one added later.
+func TestEditedAfterTrustIsNotApplied(t *testing.T) {
+	e := newEnv(t, wsOn+"skip_permissions: true\n", "", "rex.set('theme', 'noir')\n")
+	e.trust()
+	s, _ := e.load()
+	require.Equal(t, "noir", s.Get("theme"))
+
+	require.NoError(t, os.WriteFile(workspace.ConfigPath(e.root), []byte("rex.set('theme', 'paper')\n"), 0o600))
+	s, rep := e.load()
+	require.NotEqual(t, "paper", s.Get("theme"))
+	require.NotEqual(t, "noir", s.Get("theme"), "the old values do not linger either")
+	require.Equal(t, StateUntrusted, Current().State)
+	require.Contains(t, strings.Join(rep.Warnings, "\n"), "changed since you trusted it")
+	require.Equal(t, true, s.Get("skip_permissions"), "an untrusted edit fails nothing closed")
+
+	e.trust()
+	s, _ = e.load()
+	require.Equal(t, "paper", s.Get("theme"), "trusting again applies it")
+}
+
+func TestFileAddedAfterTrustIsNotApplied(t *testing.T) {
+	e := newEnv(t, wsOn, "", "")
+	e.trust()
+	require.Equal(t, StateNone, Current().State)
+	require.NoError(t, os.WriteFile(workspace.ConfigPath(e.root), []byte("rex.set('theme', 'noir')\n"), 0o600))
+	s, _ := e.load()
+	require.NotEqual(t, "noir", s.Get("theme"))
+	require.Equal(t, StateUntrusted, Current().State)
+}
+
+func TestLuaConfigOffIsInertEvenTrusted(t *testing.T) {
+	e := newEnv(t, wsOn+"lua_config: false\n", "", "rex.set('theme', 'noir')\n")
+	e.trust()
+	l, r := looks.Load(), reads.Load()
+	s, _ := e.load()
+	require.NotEqual(t, "noir", s.Get("theme"))
+	require.Equal(t, l, looks.Load())
+	require.Equal(t, r, reads.Load())
 }

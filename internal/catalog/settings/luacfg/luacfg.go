@@ -9,9 +9,12 @@
 // the files and the platform, so the daemon, the TUI and the CLI always
 // agree, and it is memoised per process by file stamp (Load).
 //
-// The restrictions are for liveness and for keeping Lua text off the
-// terminal, not a security boundary: config.lua is trusted user code, owned
-// by the user and not writable by others (package privfile). Evaluation is
+// For the user's own config.lua the restrictions are for liveness and for
+// keeping Lua text off the terminal, not a security boundary: it is trusted
+// user code, owned by the user and not writable by others (package
+// privfile). A workspace's .rex/config.lua (package wsconfig) is repo
+// content: there the sandbox, the empty module directory, Opts.Deny and
+// the trust gate (exact bytes the user trusted) together are the boundary. Evaluation is
 // bounded by a wall-clock timeout, size caps and a heap-growth watchdog; a
 // script stuck inside a Go built-in is abandoned at the deadline.
 package luacfg

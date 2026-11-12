@@ -118,7 +118,12 @@ func luaNotice(rep settings.LayerReport) string {
 	if rep.LastGood {
 		suffix = " (kept its last good values)"
 	}
-	return configNotice("config.lua", strings.TrimPrefix(rep.Err.Error(), "config.lua: "), suffix)
+	text := rep.Err.Error()
+	if settings.WorkspaceSetAt(text) {
+		// The workspace's .rex/config.lua: its error starts with the path.
+		return configNotice("workspace config.lua", text, suffix)
+	}
+	return configNotice("config.lua", strings.TrimPrefix(text, "config.lua: "), suffix)
 }
 
 // loadConfig re-reads config.yaml and the theme files. With manual false it

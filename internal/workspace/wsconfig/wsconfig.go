@@ -7,8 +7,9 @@
 // evaluated only when all of these hold, and is otherwise never read:
 //   - the workspaces feature is on (config.yaml or the user's config.lua),
 //     and lua_config is on (settings.LoadLayered checks that one);
-//   - the user trusted that workspace, its real folder and id together,
-//     with rex ws trust (workspace.TrustStore);
+//   - the user trusted that workspace, its real folder, id and the exact
+//     bytes of its config.lua together, with rex ws trust
+//     (workspace.TrustStore); a file that changed since is not run;
 //   - the file passes workspace.ReadConfig's checks (no symlink, yours,
 //     not group- or world-writable, 256 KiB).
 //
@@ -138,10 +139,11 @@ func stampFor(user settings.Layer) string {
 	if !workspace.HasConfig(w.Root) {
 		return "none"
 	}
-	if !trusted(w) {
+	want, ok := trustedHash(w)
+	if !ok {
 		return "untrusted"
 	}
-	return "trusted:" + luacfg.Stamp(opts(w))
+	return "trusted:" + want + ":" + luacfg.Stamp(opts(w, nil, nil))
 }
 
 // Current reports the workspace config of the current folder, evaluating
@@ -192,14 +194,19 @@ func evaluate(u settings.LayerReport) Info {
 		return info
 	}
 	shown := protocol.FlattenDisplayText(info.File)
-	if !trusted(w) {
-		info.State = StateUntrusted
-		info.Report = settings.LayerReport{Exists: true, Warnings: []string{
-			shown + ": not applied: workspace not trusted (rex ws trust, after reading it)",
-		}}
-		return info
+	want, ok := trustedHash(w)
+	if !ok {
+		return untrusted(info, shown+": not applied: workspace not trusted (rex ws trust, after reading it)")
 	}
-	r := luacfg.Load(context.Background(), opts(w))
+	// Read once and check the hash on these bytes; only they are evaluated
+	// (opts hands them to luacfg), so nothing can change between the check
+	// and the run. A refused read is a failure (fail closed), not a notice.
+	reads.Add(1)
+	data, rerr := workspace.ReadConfig(w.Root)
+	if rerr == nil && workspace.ConfigHash(data) != want {
+		return untrusted(info, shown+": not applied: changed since you trusted it (read it, then rex ws trust again)")
+	}
+	r := luacfg.Load(context.Background(), opts(w, data, rerr))
 	info.Report = settings.LayerReport{
 		Exists: true, Values: r.Values, SetAt: r.SetAt,
 		Themes: r.Themes, ThemeIssues: r.ThemeIssues, Warnings: r.Warnings,
@@ -212,19 +219,23 @@ func evaluate(u settings.LayerReport) Info {
 	return info
 }
 
-// opts evaluates w's config.lua with the workspace rules: the workspace
-// package's read, the deny list, no modules, positions naming the path.
-func opts(w *workspace.Workspace) luacfg.Opts {
-	root := w.Root
-	file := workspace.ConfigPath(root)
+// untrusted is info in StateUntrusted with one notice.
+func untrusted(info Info, notice string) Info {
+	info.State = StateUntrusted
+	info.Report = settings.LayerReport{Exists: true, Warnings: []string{notice}}
+	return info
+}
+
+// opts evaluates w's config.lua with the workspace rules: the bytes (or
+// the error) evaluate already read and hash-checked, the deny list, no
+// modules, positions naming the path.
+func opts(w *workspace.Workspace, data []byte, err error) luacfg.Opts {
+	file := workspace.ConfigPath(w.Root)
 	return luacfg.Opts{
 		File:  file,
 		Chunk: file,
 		Deny:  settings.WorkspaceDenyIDs,
-		Read: func() ([]byte, error) {
-			reads.Add(1)
-			return workspace.ReadConfig(root)
-		},
+		Read:  func() ([]byte, error) { return data, err },
 	}
 }
 
@@ -254,7 +265,10 @@ func openTrust() (*workspace.TrustStore, error) {
 	return workspace.OpenTrust(p)
 }
 
-func trusted(w *workspace.Workspace) bool {
+func trustedHash(w *workspace.Workspace) (string, bool) {
 	s, err := openTrust()
-	return err == nil && s.Trusted(w)
+	if err != nil {
+		return "", false
+	}
+	return s.TrustedHash(w)
 }

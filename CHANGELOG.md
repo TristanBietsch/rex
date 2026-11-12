@@ -12,12 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `lua_config`): the same Lua as `~/.config/rex/config.lua`, on top of it in
   rex commands run inside the workspace and on its board (`rex here`,
   `rex ws open`), never on the system-wide board or in the daemon. It is not
-  read until you run `rex ws trust` (stored in
-  `~/.local/share/rex/workspace-trust.json`, bound to the real folder and
-  the workspace id; `rex ws trust -rm` revokes). Even trusted it can never
-  set `skip_permissions`, `auto_trust_dirs`, `default_spawn_tool`,
-  `extra_agents`, `audit_trail`, `audit_full_prompt`, `workspaces` or
-  `lua_config`, and cannot `require`. It is read without following
+  read until you run `rex ws trust` at a terminal (it asks, showing the
+  file's size and SHA-256; refused for agents and pipes). Trust is stored
+  in `~/.local/share/rex/workspace-trust.json`, bound to the real folder,
+  the workspace id and the file's bytes: after any edit it is not run until
+  trusted again. `rex ws trust -rm` revokes. Even trusted it may set only
+  display settings (theme, layout, animation and the like; see
+  docs/workspaces.md), never trust, spawn, audit, sound or feature
+  switches, and cannot `require`. It is read without following
   symlinks, and must be yours, not group/world-writable, one link, 256 KiB
   at most. A broken one fails the trust settings closed. Its values show
   as `workspace <path>:N` in `rex config list`, `ws` on the settings page,

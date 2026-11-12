@@ -81,7 +81,7 @@ func TestInstallLuaLayer_WorkspaceConfigOnlyOffTheSystemBoard(t *testing.T) {
 		require.NoError(t, err)
 		ts, err := workspace.OpenTrust(tp)
 		require.NoError(t, err)
-		require.NoError(t, ts.Trust(w))
+		require.NoError(t, ts.Trust(w, currentHash(t, w.Root)))
 		t.Chdir(root)
 
 		installLuaLayer(tc.args)
@@ -89,4 +89,14 @@ func TestInstallLuaLayer_WorkspaceConfigOnlyOffTheSystemBoard(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, tc.want, s.Get("theme"), tc.args)
 	}
+}
+
+// currentHash is the hash of root's .rex/config.lua now ("" when none).
+func currentHash(t *testing.T, root string) string {
+	t.Helper()
+	b, err := workspace.ReadConfig(root)
+	if err != nil {
+		return ""
+	}
+	return workspace.ConfigHash(b)
 }

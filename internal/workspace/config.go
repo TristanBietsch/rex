@@ -49,7 +49,21 @@ func ReadConfig(root string) ([]byte, error) {
 		}
 		return nil, err
 	}
-	return readPrivate(filepath.Join(rexDir, ConfigFileName), MaxConfigBytes)
+	before, err := os.Lstat(rexDir)
+	if err != nil {
+		return nil, err
+	}
+	b, err := readPrivate(filepath.Join(rexDir, ConfigFileName), MaxConfigBytes)
+	if err != nil {
+		return nil, err
+	}
+	// The open follows the .rex/ component: it must still be the folder
+	// checked above (not swapped for a link while the file was opened).
+	after, err := os.Lstat(rexDir)
+	if err != nil || !os.SameFile(before, after) || checkDir(rexDir) != nil {
+		return nil, fmt.Errorf("%w: %s changed while reading", ErrUnsafe, DirName)
+	}
+	return b, nil
 }
 
 // readPrivate reads path, refusing anything but a plain private file of

@@ -126,15 +126,17 @@ filesystem permissions.
 - **A workspace's `.rex/config.lua`** is untrusted input: a cloned
   repository can ship one. rex never reads it before `rex ws trust` (trust
   lives in `~/.local/share/rex/workspace-trust.json`, outside every `.rex/`,
-  bound to the real folder and the workspace id), opens it without
-  following a symlink, and checks the opened file (yours, not group- or
-  world-writable, one hard link, 256 KiB). Even trusted it runs with no
-  `require` and can never set `skip_permissions`, `auto_trust_dirs`,
-  `default_spawn_tool`, `extra_agents`, `audit_trail`, `audit_full_prompt`,
-  `workspaces` or `lua_config`. Running an untrusted workspace file, a
-  workspace file granting or widening trust, or a crafted repository
-  getting itself trusted are in scope. What a workspace you trusted sets
-  among the remaining settings (theme, models, sounds and the like) is not.
+  bound to the real folder, the workspace id and the SHA-256 of the file
+  you trusted; `rex ws trust` asks at a terminal and refuses agents and
+  pipes), opens it without following a symlink, and checks the opened file
+  (yours, not group- or world-writable, one hard link, 256 KiB). Even
+  trusted it runs with no `require` and may set only an allow-list of
+  display settings. Running an untrusted or edited-since-trusted workspace
+  file, a workspace file setting anything outside the allow-list, or a
+  crafted repository getting itself trusted are in scope. What a trusted
+  workspace sets among the allowed display settings is not. On Windows
+  the owner, mode and hard-link checks do not apply (ACLs are out of
+  scope, as for `config.lua`).
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the

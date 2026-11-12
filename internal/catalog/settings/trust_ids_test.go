@@ -27,25 +27,54 @@ func TestWorkspaceDenyIDs_CoverTrust(t *testing.T) {
 		require.True(t, ok, "%s is a setting", id)
 	}
 	require.False(t, WorkspaceDenied("theme"))
-	require.False(t, WorkspaceDenied("default_spawn_model"))
+	require.True(t, WorkspaceDenied("default_spawn_model"))
 }
 
-// The settings beyond the trust pair that a cloned repo must not control,
-// each with why. A new security-sensitive setting must be added both to
-// WorkspaceDenyIDs and to this table.
-func TestWorkspaceDenyIDs_Exact(t *testing.T) {
-	want := map[string]string{
-		"skip_permissions":   "starts agents with permission prompts off",
-		"auto_trust_dirs":    "answers the agent's folder-trust dialog",
-		"default_spawn_tool": "picks which agent runs (some edit and run commands without asking)",
-		"extra_agents":       "turns on agents whose defaults act without asking",
-		"audit_trail":        "turning it off hides finished work from the audit trail",
-		"audit_full_prompt":  "copies whole prompts (secrets) into .rex/audit.jsonl, which a repo may sync or commit",
-		"workspaces":         "the switch that gates .rex/ itself",
-		"lua_config":         "the switch that gates every config.lua",
+// The allow list is exact, each entry with why it is safe for a cloned
+// repo to set. Adding a setting here is a security decision.
+func TestWorkspaceAllowIDs_Exact(t *testing.T) {
+	why := map[string]string{
+		"theme": "colors", "spinner": "animation", "row_density": "layout",
+		"prompt_glyph": "a glyph", "reduce_motion": "animation",
+		"blinking_enabled": "animation", "show_help_bar": "layout",
+		"header_style": "layout", "window_border": "layout",
+		"window_border_color": "colors", "column_layout": "layout",
+		"mobile_layout": "layout", "mouse_enabled": "input",
+		"attach_scrollback_lines": "display buffer",
+		"screensaver_enabled":     "display", "screensaver_after_minutes": "display",
+		"board_filter": "display", "search": "display", "timestamps": "display",
+		"summary_preview": "display", "waiting_section": "grouping only",
+		"usage_meter": "display", "summary_detail": "description length",
+		"desc_animation": "animation", "attach_banner": "display",
 	}
-	require.Len(t, WorkspaceDenyIDs, len(want))
-	for id := range want {
+	require.ElementsMatch(t, keys(why), WorkspaceAllowIDs)
+	for _, id := range WorkspaceAllowIDs {
+		_, ok := Find(id)
+		require.True(t, ok, "%s is a setting", id)
+		require.False(t, WorkspaceDenied(id), id)
+	}
+}
+
+// Every registry setting is either allowed or denied, and the ones that
+// must never be allowed are denied.
+func TestWorkspaceDenyIDs_EverythingElse(t *testing.T) {
+	require.Len(t, WorkspaceDenyIDs, len(Registry)-len(WorkspaceAllowIDs))
+	for _, id := range []string{
+		"skip_permissions", "auto_trust_dirs", "default_spawn_tool", "default_spawn_model",
+		"default_spawn_effort", "extra_agents", "audit_trail", "audit_full_prompt",
+		"workspaces", "lua_config", "live_reload", "board_hidden_sections",
+		"sound_enabled", "soundset", "master_volume", "notify_on_state_change",
+		"retire_after_hours", "turn_snapshots", "loops", "session_export", "usage",
+		"cli_error_log", "summary_model", "screensaver_keep_awake",
+	} {
 		require.True(t, WorkspaceDenied(id), id)
 	}
+}
+
+func keys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
