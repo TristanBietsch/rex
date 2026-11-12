@@ -386,7 +386,14 @@ type stateRestoreResultMsg struct {
 	Dur   time.Duration
 }
 
-func stepStateRestore(_ Model) tea.Cmd {
+func stepStateRestore(m Model) tea.Cmd {
+	if st := m.swapIn; st != nil {
+		// A swap carries the view itself; tui-state.json stays for a
+		// normal start.
+		hidden := append([]string{}, st.Hidden...)
+		ps := persistedState{Selection: st.Selection, Filter: st.Filter, Search: st.Search, HiddenSections: &hidden}
+		return func() tea.Msg { return stateRestoreResultMsg{State: ps, OK: true} }
+	}
 	return func() tea.Msg {
 		t0 := time.Now()
 		st, ok := LoadTUIState()

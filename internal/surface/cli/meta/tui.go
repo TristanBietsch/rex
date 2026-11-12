@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 
@@ -31,11 +32,33 @@ func RunTUIScoped(quietBoot bool, scope *tui.WorkspaceScope) error {
 		return err
 	}
 	slog.Info("tui: starting", "socket", socket, "quiet_boot", quietBoot)
-	err = tui.RunScoped(socket, quietBoot, scope)
+	opts := tui.RunOptions{QuietBoot: quietBoot, Scope: scope, SwapState: os.Getenv(tui.SwapEnv)}
+	if opts.SwapState != "" {
+		_ = os.Unsetenv(tui.SwapEnv)
+		slog.Info("tui: started by a hot swap")
+	}
+	err = swapLoop(opts, func(o tui.RunOptions) error { return tui.RunWith(socket, o) }, execSwap)
 	if err != nil {
 		slog.Error("tui: exited with error", "err", err)
 	} else {
 		slog.Info("tui: exited cleanly")
 	}
 	return err
+}
+
+// swapLoop runs the board; when it quits to swap, it execs the installed
+// binary (exec returns only on failure) and otherwise runs the board again
+// in this build with the same view and a notice.
+func swapLoop(opts tui.RunOptions, run func(tui.RunOptions) error, exec func(string) error) error {
+	for {
+		err := run(opts)
+		var swap *tui.SwapRequest
+		if !errors.As(err, &swap) {
+			return err
+		}
+		execErr := exec(swap.Path)
+		slog.Error("tui: hot swap failed; staying on this build", "err", execErr)
+		opts = tui.RunOptions{QuietBoot: true, Scope: opts.Scope, SwapState: swap.Path,
+			Notice: "swap failed: " + execErr.Error()}
+	}
 }

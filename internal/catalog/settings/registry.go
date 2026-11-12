@@ -288,6 +288,11 @@ var Registry = []Setting{
 		Help: "The daemon and the TUI notice edits to config.yaml within a few seconds and apply the settings that can change live (see docs/settings.md); the TUI also picks up edits to theme files. Off: no polling; rex reload, :reload and SIGHUP still reload by hand.",
 	},
 	{
+		ID: "auto_swap", Label: "Load new rex builds", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "When a new rex build is installed (make install, rex update), the board says so on the status line and, once it has been idle for a minute on the board, re-execs itself into the new binary keeping its view (selection, filter, open page). :swap does it at once. Off: status line only.",
+	},
+	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
@@ -296,6 +301,11 @@ var Registry = []Setting{
 		ID: "fullscreen_pages", Label: "Full-screen settings and help", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Settings and help open as full-screen pages with a section list on the left, like the board. Off: they open as the older floating overlays, and the page keys (tab between panes, 1-9, [ and ], q) do nothing.",
+	},
+	{
+		ID: "new_agent_page", Label: "New-agent page", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "n opens the new-agent page: task, context (paste, @file, import) and trust on one full-screen page. Off: the older popup wizard.",
 	},
 	{
 		ID: "workspaces", Label: "Workspaces", Section: SectionFeatures, Apply: ApplyLive,

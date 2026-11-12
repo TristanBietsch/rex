@@ -102,3 +102,18 @@ func TestStatsOverlay_Render(t *testing.T) {
 	require.NotEmpty(t, out)
 	require.Contains(t, out, "Stats")
 }
+
+// Only esc closes the overlay. ':' used to close it at once, and the rest
+// of a typed ":stats" then ran as board keys ('t' cycled the tool filter).
+func TestStatsOverlay_SwallowsOtherKeys(t *testing.T) {
+	m := simpleBoardStore(t, true)
+	m.Focus = FocusStats
+	filter := m.Filter
+	for _, r := range ":stats" {
+		m, _ = updateKey(m, key(string(r)))
+		require.Equal(t, FocusStats, m.Focus, "after %q", r)
+	}
+	require.Equal(t, filter, m.Filter)
+	require.Contains(t, renderStatsOverlay(m), "esc to close")
+	require.NotContains(t, renderStatsOverlay(m), ":stats")
+}

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"runtime/debug"
+	"sync"
 	"sync/atomic"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -26,6 +27,13 @@ type client struct {
 	// subscribed gates store and health events until the Hello snapshot has
 	// been sent. Read by broadcast callbacks, so atomic.
 	subscribed atomic.Bool
+	// From the start of Hello until its Snapshot is queued, board events
+	// are held (in order) instead of dropped: a change made after the
+	// Snapshot read would otherwise reach neither the Snapshot nor the
+	// client. gateMu guards holding and held.
+	gateMu  sync.Mutex
+	holding bool
+	held    []func()
 	// cleanups run when the connection ends (output sinks registered by
 	// Subscribe). Handler goroutine only.
 	cleanups []func()
@@ -109,39 +117,95 @@ func protocolErrorCode(err error) (code string, ok bool) {
 	}
 }
 
+// boardEvent delivers one board event that arrived before the client was
+// live: held while Hello is taking its Snapshot, dropped before Hello, sent
+// when the client went live meanwhile.
+func (c *client) boardEvent(send func()) {
+	if c.subscribed.Load() {
+		send()
+		return
+	}
+	c.gateMu.Lock()
+	if c.holding {
+		c.held = append(c.held, send)
+		c.gateMu.Unlock()
+		return
+	}
+	live := c.subscribed.Load() // went live while we waited for the lock
+	c.gateMu.Unlock()
+	if live {
+		send()
+	}
+}
+
+// holdBoard starts holding board events; Hello calls it before reading the
+// Snapshot.
+func (c *client) holdBoard() {
+	c.gateMu.Lock()
+	defer c.gateMu.Unlock()
+	if !c.subscribed.Load() {
+		c.holding = true
+	}
+}
+
+// goLive sends the held events (after the Snapshot, which the caller has
+// queued) and lets later ones through. A change can land in both the
+// Snapshot and a held event; clients apply them idempotently.
+func (c *client) goLive() {
+	c.gateMu.Lock()
+	defer c.gateMu.Unlock()
+	for _, send := range c.held {
+		send()
+	}
+	c.held, c.holding = nil, false
+	c.subscribed.Store(true)
+}
+
 // subscribeBoard forwards store events, SummarizerHealth, Overview and Usage to this client,
 // both gated on subscribed so nothing arrives before the Hello snapshot.
 func (c *client) subscribeBoard() {
 	c.cleanups = append(c.cleanups,
 		c.srv.cfg.Store.Subscribe(func(e state.Event) {
-			if c.subscribed.Load() {
+			if c.subscribed.Load() { // fast path: no closure once live
 				c.emitStoreEvent(e)
+				return
 			}
+			c.boardEvent(func() { c.emitStoreEvent(e) })
 		}),
 		c.srv.SubscribeSummarizerHealth(func(h protocol.SummarizerHealth) {
-			if c.subscribed.Load() {
+			if c.subscribed.Load() { // fast path: no closure once live
 				c.sendEvent(protocol.EventSummarizerHealth, "", h)
+				return
 			}
+			c.boardEvent(func() { c.sendEvent(protocol.EventSummarizerHealth, "", h) })
 		}),
 		c.srv.SubscribeOverview(func(o protocol.Overview) {
-			if c.subscribed.Load() {
+			if c.subscribed.Load() { // fast path: no closure once live
 				c.sendEvent(protocol.EventOverview, "", o)
+				return
 			}
+			c.boardEvent(func() { c.sendEvent(protocol.EventOverview, "", o) })
 		}),
 		c.srv.SubscribeTools(func(m protocol.ToolsChanged) {
-			if c.subscribed.Load() {
+			if c.subscribed.Load() { // fast path: no closure once live
 				c.sendEvent(protocol.EventToolsChanged, "", m)
+				return
 			}
+			c.boardEvent(func() { c.sendEvent(protocol.EventToolsChanged, "", m) })
 		}),
 		c.srv.SubscribeUsage(func(u protocol.Usage) {
-			if c.subscribed.Load() {
+			if c.subscribed.Load() { // fast path: no closure once live
 				c.sendEvent(protocol.EventUsage, "", u)
+				return
 			}
+			c.boardEvent(func() { c.sendEvent(protocol.EventUsage, "", u) })
 		}),
 		c.srv.SubscribeLoops(func(l protocol.LoopSummary) {
-			if c.subscribed.Load() {
+			if c.subscribed.Load() { // fast path: no closure once live
 				c.sendEvent(protocol.EventLoop, "", l)
+				return
 			}
+			c.boardEvent(func() { c.sendEvent(protocol.EventLoop, "", l) })
 		}),
 	)
 }

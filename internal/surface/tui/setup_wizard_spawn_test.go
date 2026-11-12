@@ -1,10 +1,14 @@
 package tui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -115,4 +119,37 @@ func TestApplyDefaults_RefusesASettingConfigLuaSets(t *testing.T) {
 	require.ErrorContains(t, err, "config.lua:4")
 	_, statErr := os.Stat(cfg)
 	require.True(t, os.IsNotExist(statErr))
+}
+
+// The model field draws its cursor at the end of the prefilled model, so
+// typing appends there and backspace drops the last rune (whole runes, not
+// bytes).
+func TestSetupWizardDefaults_ModelFieldEditsAtEnd(t *testing.T) {
+	m := NewSetupWizardModel(spawnConfig(t, ""), "")
+	m.step = setupStepDefaults
+	m.defaultsField = defaultsModel
+	m.defaultModel = "opus"
+	press := func(k tea.KeyMsg) {
+		out, _ := m.keyDefaults(k)
+		m = out.(SetupWizardModel)
+	}
+	press(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	require.Equal(t, "opusx", m.defaultModel)
+	press(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("é")})
+	require.Equal(t, "opusxé", m.defaultModel)
+	press(tea.KeyMsg{Type: tea.KeyBackspace})
+	require.Equal(t, "opusx", m.defaultModel)
+	press(tea.KeyMsg{Type: tea.KeyBackspace})
+	press(tea.KeyMsg{Type: tea.KeyBackspace})
+	require.Equal(t, "opu", m.defaultModel)
+}
+
+// A failed daemon start suggests a command that exists: bare `rex daemon`
+// only prints its usage.
+func TestSetupWizardDaemon_StartFailureHintsDaemonStart(t *testing.T) {
+	m := NewSetupWizardModel(spawnConfig(t, ""), "")
+	m.daemonChecked = true
+	m.daemonStartErr = errors.New("boom")
+	_, body, _ := m.renderDaemon()
+	require.Contains(t, ansi.Strip(strings.Join(body, "\n")), "rex daemon start")
 }

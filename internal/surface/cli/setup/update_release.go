@@ -159,7 +159,7 @@ func runReleaseUpdate(p *core.Printer, d updateDeps, o updateFlags, exe string) 
 	if daemonRunning {
 		if d.hasUpgrade != nil && d.hasUpgrade(exe) {
 			data.Next = "rex upgrade"
-			v = append(v, core.Note{Text: "the running daemon still uses the old binary; `rex upgrade` switches it without ending sessions"},
+			v = append(v, core.Note{Text: "the running daemon still uses the old binary; `rex upgrade` switches it, keeping sessions where hot restart works (it asks before ending any)"},
 				core.Hint{Cmd: "rex upgrade", Text: "switch the daemon to the new binary"})
 		} else {
 			data.Next = "rex daemon restart"

@@ -41,6 +41,10 @@ type SettingsHub struct {
 
 	// wake tells Watch the live_reload flag may have changed.
 	wake chan struct{}
+	// lastLuaErr and lastWarnings are config.lua's result at the last
+	// reload (under mu).
+	lastLuaErr   error
+	lastWarnings []string
 }
 
 type hubSub struct {
@@ -96,12 +100,41 @@ func (h *SettingsHub) Subscribe(ids []string, fn func(*settings.Store)) {
 // error: the previous values stay in force, except skip_permissions and
 // auto_trust_dirs, which fail closed (off, empty) until the file parses.
 func (h *SettingsHub) Reload() error {
+	_, err := h.ReloadReport()
+	return err
+}
+
+// HubReport is what a manual reload changed: the setting ids whose value
+// moved, config.lua's error (rep.Err, its text starts with file:line) and
+// warnings.
+type HubReport struct {
+	Changed  []string
+	LuaErr   error
+	Warnings []string
+}
+
+// ReloadReport is Reload, reporting what changed.
+func (h *SettingsHub) ReloadReport() (HubReport, error) {
 	if h.path == "" {
-		return errors.New("settings reload: no config file path (home directory unknown)")
+		return HubReport{}, errors.New("settings reload: no config file path (home directory unknown)")
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.reloadLocked()
+	old := h.cur.Load()
+	err := h.reloadLocked()
+	rep := HubReport{Changed: changedIDs(old, h.cur.Load()), LuaErr: h.lastLuaErr, Warnings: h.lastWarnings}
+	return rep, err
+}
+
+// changedIDs lists the registry ids whose value differs between a and b.
+func changedIDs(a, b *settings.Store) []string {
+	var ids []string
+	for _, s := range settings.Registry {
+		if !reflect.DeepEqual(a.Get(s.ID), b.Get(s.ID)) {
+			ids = append(ids, s.ID)
+		}
+	}
+	return ids
 }
 
 func (h *SettingsHub) reloadLocked() error {
@@ -120,6 +153,7 @@ func (h *SettingsHub) reloadLocked() error {
 		h.notify(old, closed)
 		return fmt.Errorf("settings reload: %w", err)
 	}
+	h.lastLuaErr, h.lastWarnings = rep.Err, rep.Warnings
 	if rep.Err != nil {
 		// The text is flattened by the evaluator; trust settings already
 		// read their defaults (settings.LoadLayered).
@@ -267,4 +301,19 @@ func (h *SettingsHub) WireSpawnReads(cfg *server.Config, socket string) {
 	cfg.SkillsEnabled = func() bool { return SpawnSkillsEnabled(h.Current()) }
 	cfg.SnapshotsEnabled = func() bool { return TurnSnapshotsEnabled(h.Current()) }
 	cfg.UsageTap = UsageTap(socket, h.Current)
+}
+
+// RetireTTL is the retire_after_hours setting as a duration (0 = unset).
+func RetireTTL(s *settings.Store) time.Duration {
+	if h, ok := s.Get("retire_after_hours").(int); ok && h > 0 {
+		return time.Duration(h) * time.Hour
+	}
+	return 0
+}
+
+// RetireTTLApplier returns a SettingsHub subscriber that keeps srv's default
+// retire ttl in step with retire_after_hours (R20 audit: it was read once at
+// daemon start although the setting is live).
+func RetireTTLApplier(srv *server.Server) func(*settings.Store) {
+	return func(s *settings.Store) { srv.SetRetireDefaultTTL(RetireTTL(s)) }
 }

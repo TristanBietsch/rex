@@ -10,6 +10,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/testutil"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // hubDaemon starts a test daemon whose spawn-time reads and Reload intent go
@@ -22,7 +23,13 @@ func hubDaemon(t *testing.T) *boot.SettingsHub {
 	hub := boot.NewSettingsHub(path, st)
 	d := testutil.StartDaemonWithConfig(t, "", func(c *server.Config) {
 		hub.WireSpawnReads(c, "")
-		c.OnReload = hub.Reload
+		c.OnReload = func() protocol.ReloadReport {
+			var rep protocol.ReloadReport
+			if err := hub.Reload(); err != nil {
+				rep.Errors = []string{err.Error()}
+			}
+			return rep
+		}
 	})
 	t.Setenv("XDG_RUNTIME_DIR", filepath.Dir(d.Socket))
 	return hub

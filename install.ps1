@@ -387,7 +387,7 @@ if ($script:DaemonStopped) {
   Write-Host ''
   Warn 'the running daemon still uses the old binary.'
   if ((Invoke-Rex $installedRex @('help', 'upgrade')) -eq 0) {
-    Write-Host '    run rex upgrade to switch without ending sessions' -ForegroundColor DarkGray
+    Write-Host '    run rex upgrade when your sessions are done (Windows restarts the daemon cold; it asks first)' -ForegroundColor DarkGray
   } else {
     Write-Host '    run rex daemon restart when your sessions are done (it ends them)' -ForegroundColor DarkGray
   }

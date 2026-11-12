@@ -146,6 +146,8 @@ func run(args []string) error {
 		return lifecycle.RunReload(args[1:])
 	case "daemon":
 		return lifecycle.RunDaemon(args[1:])
+	case "upgrade":
+		return lifecycle.RunUpgrade(args[1:])
 	case "completion":
 		return meta.RunCompletion(args[1:])
 	case "render":

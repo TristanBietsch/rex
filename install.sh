@@ -336,7 +336,7 @@ esac
 if [ "$DAEMON_WAS_RUNNING" -eq 1 ]; then
   printf "\n  %s⚠%s the running daemon still uses the old binary.\n" "$C_WARN" "$C_RESET"
   if REX_AGENT=0 "$BIN_DIR/rex" help upgrade >/dev/null 2>&1; then
-    printf "    %srun%s %srex upgrade%s %sto switch without ending sessions%s\n" \
+    printf "    %srun%s %srex upgrade%s %sto switch (keeps sessions; asks first if the old daemon cannot hot-restart)%s\n" \
       "$C_MUTED" "$C_RESET" "$C_ACCENT" "$C_RESET" "$C_MUTED" "$C_RESET"
   else
     printf "    %srun%s %srex daemon restart%s %swhen your sessions are done (it ends them)%s\n" \

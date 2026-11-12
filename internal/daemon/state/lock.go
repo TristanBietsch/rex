@@ -76,6 +76,18 @@ func AcquireLock(root string) (*Lock, error) {
 // Path is the lock file's path.
 func (l *Lock) Path() string { return l.path }
 
+// FD is the lock file's descriptor, kept open across a hot restart: the
+// flock belongs to the open file description, so the new image holds it.
+func (l *Lock) FD() int { return int(l.f.Fd()) } //nolint:gosec // G115: descriptors fit an int.
+
+// AdoptLock wraps the lock descriptor fd inherited from the previous daemon
+// image (hot restart). The lock is already held; no flock is taken (a
+// second flock on a new open would conflict with it).
+func AdoptLock(root string, fd int) *Lock {
+	path := filepath.Join(root, LockFileName)
+	return &Lock{f: os.NewFile(uintptr(fd), path), path: path} //nolint:gosec // G115: fd >= 0 checked by the caller.
+}
+
 // Release drops the lock. Call it once, after the daemon has stopped
 // touching the state dir.
 func (l *Lock) Release() error {

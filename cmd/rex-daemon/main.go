@@ -17,6 +17,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
+	"github.com/tristanbietsch/rex/internal/daemon/handoff"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
@@ -80,6 +81,8 @@ func run(args []string) error {
 	loopsDir := fs.String("loops-dir", layout.LoopsDir, "loop workflow files directory (rex loop)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
+	handoffPath := fs.String("handoff", "", "take over from the previous image of this process (hot restart; internal)")
+	handoffCheck := fs.String("handoff-check", "", "check that this build can take over a handoff file, then exit (internal)")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -88,6 +91,10 @@ func run(args []string) error {
 		fmt.Println(version.Version)
 		return nil
 	}
+	if *handoffCheck != "" {
+		return runHandoffCheck(*handoffCheck)
+	}
+	startedAt := time.Now().UTC()
 	if err := requireDefaults(fs, map[string]error{
 		"socket": socketErr, "state-dir": homeErr, "tools": homeErr,
 	}); err != nil {
@@ -104,8 +111,18 @@ func run(args []string) error {
 	}
 	// One daemon per state dir, held for the process lifetime: taken before
 	// any state is read, released last (defers run in reverse).
-	lock, err := state.AcquireLock(*stateDir)
-	if err != nil {
+	// A hot restart hands the lock, the listener and the live PTYs over
+	// in this same process; otherwise take the lock as usual.
+	var hot *takeover
+	var lock *state.Lock
+	var err error
+	if *handoffPath != "" {
+		if hot, err = takeOver(*handoffPath, *stateDir, *socketPath); err != nil {
+			slog.Error("daemon: hot restart takeover failed", "err", err)
+			return fmt.Errorf("hot restart: %w", err)
+		}
+		lock = hot.lock
+	} else if lock, err = state.AcquireLock(*stateDir); err != nil {
 		return lockError(err, *socketPath)
 	}
 	defer func() {
@@ -124,7 +141,10 @@ func run(args []string) error {
 	}
 
 	store := state.NewStore()
-	prior, err := state.LoadAll(*stateDir)
+	// Under the state lock and before any writer (a hot restart replaced
+	// the old daemon in this process): no live WriteMeta owns a temp file.
+	state.RemoveStaleMetaTemps(*stateDir)
+	prior, err := state.LoadAllKeep(*stateDir, hot.liveIDs())
 	if err != nil {
 		slog.Error("daemon: load prior sessions failed", "state_dir", *stateDir, "err", err)
 		return fmt.Errorf("load prior sessions: %w", err)
@@ -152,6 +172,13 @@ func run(args []string) error {
 	// The registry follows two settings (extra_agents, model_autodetect), so it
 	// loads once the hub holds the settings.
 	reg, err := boot.LoadRegistry(*toolsPath, hub.Current())
+	if err != nil && hot != nil {
+		// After a hot restart, exiting would close every handed-over PTY:
+		// serve with the built-in registry instead (rex reload retries).
+		slog.Error("daemon: registry load failed after a hot restart; using the built-in tools until tools.yaml loads", "tools", *toolsPath, "err", err)
+		fmt.Fprintf(os.Stderr, "rex-daemon: %v (using the built-in tools)\n", err)
+		reg, err = boot.LoadRegistry("", hub.Current())
+	}
 	if err != nil {
 		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
 		return fmt.Errorf("registry: %w", err)
@@ -165,8 +192,8 @@ func run(args []string) error {
 	}
 	slog.Info("daemon: summarizer config", "enabled", summaryEnabled, "model", summaryModel)
 	retireTTL := server.DefaultRetireTTL
-	if h, ok := settingsStore.Get("retire_after_hours").(int); ok && h > 0 {
-		retireTTL = time.Duration(h) * time.Hour
+	if d := boot.RetireTTL(settingsStore); d > 0 {
+		retireTTL = d
 	}
 	slog.Info("daemon: retire config", "default_ttl", retireTTL)
 
@@ -219,6 +246,8 @@ func run(args []string) error {
 	// cat is set once srv exists; the reload callbacks read it only after Serve
 	// has started.
 	var cat *boot.Catalog
+	// luaHost is set once srv exists, like cat.
+	var luaHost *boot.LuaHost
 	// Usage tracking: inert while the usage setting is off. Its callbacks
 	// read srv only once Serve has started, after that assignment.
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
@@ -265,7 +294,7 @@ func run(args []string) error {
 		StateDir:              *stateDir,
 		Registry:              reg,
 		Store:                 store,
-		MaxConcurrentSessions: *maxConcurrent,
+		MaxConcurrentSessions: maxConcurrentFrom(fs, *maxConcurrent, settingsStore),
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
 		SkillsDir:             *skillsDir,
@@ -277,7 +306,27 @@ func run(args []string) error {
 		Workspaces:            wsTags,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
-		OnReload:              func() error { return boot.ReloadAll(ctx, cat, hub) },
+		OnReload:              func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) },
+		Build:                 handoff.BuildID(),
+		StartedAt:             startedAt,
+		Adopt:                 hot.adoptions(store),
+	}
+	if hot != nil {
+		srvCfg.Listener = hot.listener
+	}
+	if handoff.Supported {
+		if exe, exeErr := os.Executable(); exeErr == nil {
+			flagArgs := args
+			srvCfg.Hot = &server.HotConfig{
+				Exe:       exe,
+				LockFD:    lock.FD(),
+				Argv:      func(p string) []string { return handoffArgv(flagArgs, p) },
+				Preflight: preflight,
+				Exec:      handoff.Exec,
+			}
+		} else {
+			slog.Warn("daemon: hot restart off: executable path unknown", "err", exeErr)
+		}
 	}
 	hub.WireSpawnReads(&srvCfg, *socketPath)
 	srv, err = server.New(srvCfg)
@@ -291,6 +340,7 @@ func run(args []string) error {
 	defer cat.Wait()
 	cat.Refresh(ctx, hub.Current(), false)
 	hub.Subscribe([]string{"extra_agents", "model_autodetect"}, cat.Applier(ctx, hub.Current()))
+	hub.Subscribe([]string{"retire_after_hours"}, boot.RetireTTLApplier(srv))
 
 	// Started only now: switching usage on publishes its state through srv.
 	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
@@ -298,13 +348,8 @@ func run(args []string) error {
 	loops.SetEnabled(settings.FeatureOn(settingsStore, "loops"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
-	luaRT, luaCancel := boot.StartLuaRuntime(srv, store, hub.Current())
-	if luaCancel != nil {
-		defer luaCancel()
-	}
-	if luaRT != nil {
-		defer luaRT.Close()
-	}
+	luaHost = boot.StartLuaHost(srv, store, hub.Current())
+	defer luaHost.Close()
 
 	// Start summarizer worker + health probe (when enabled).
 	if summaryWorker != nil {
@@ -335,7 +380,7 @@ func run(args []string) error {
 	go hub.Watch(ctx, 5*time.Second)
 
 	// SIGHUP → reload tools.yaml, then config.yaml.
-	go boot.ReloadOnHUP(ctx, func() error { return boot.ReloadAll(ctx, cat, hub) })
+	go boot.ReloadOnHUP(ctx, func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) })
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version.Version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)
@@ -365,6 +410,22 @@ func retainSnapshots(ctx context.Context, st *snapshot.Store, sessions *state.St
 	if len(rep.Dropped) > 0 || rep.GCRuns > 0 {
 		slog.Info("daemon: snapshot retention", "dropped_sessions", len(rep.Dropped), "gc_runs", rep.GCRuns)
 	}
+}
+
+// maxConcurrentFrom is the session cap to start with: the
+// -max-concurrent-sessions flag when it was given, else the
+// max_concurrent_sessions setting (the TUI saves it to config.yaml, and
+// clients start the daemon without flags), else the flag's default.
+func maxConcurrentFrom(fs *flag.FlagSet, flagVal int, st *settings.Store) int {
+	explicit := false
+	fs.Visit(func(f *flag.Flag) { explicit = explicit || f.Name == "max-concurrent-sessions" })
+	if explicit || st == nil {
+		return flagVal
+	}
+	if n, ok := st.Get("max_concurrent_sessions").(int); ok && n > 0 {
+		return n
+	}
+	return flagVal
 }
 
 // lockError explains a failed state-dir lock. When another daemon holds it,

@@ -1,16 +1,21 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/features/spawnctx"
 	"github.com/tristanbietsch/rex/internal/testutil/golden"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -167,21 +172,32 @@ func (sc goldenScreen) sizesOf() []goldenSize {
 // goldenScreenSizes overrides the sizes of the screens that are pinned at
 // others than goldenSizes.
 var goldenScreenSizes = map[string][]goldenSize{
-	"usage":                {{80, 24}, {120, 40}, goldenMobile},
-	"header_meter":         {{60, 24}, {80, 24}, {120, 40}},
-	"undo_confirm":         {{80, 24}, {120, 40}, goldenMobile},
-	"undo_shared":          {{80, 24}, {120, 40}, goldenMobile},
-	"undo_forced":          {{80, 24}, {120, 40}, goldenMobile},
-	"undo_done":            {{80, 24}, {120, 40}, goldenMobile},
-	"board_done_fold":      {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
-	"settings_page":        {{120, 40}, {80, 24}, {50, 20}},
-	"help_page":            {{120, 40}, {80, 24}, {50, 20}},
-	"help_page_narrow":     {{50, 20}},
-	"settings_page_frame":  {{80, 24}},
-	"settings_page_narrow": {{50, 20}},
-	"screensaver":          {{80, 24}, {40, 6}},
-	"screensaver_vertical": {{80, 24}, {40, 12}, {40, 6}, {40, 4}},
-	"board_icons_detailed": {{80, 24}, {120, 40}, {150, 40}},
+	"usage":                  {{80, 24}, {120, 40}, goldenMobile},
+	"header_meter":           {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm":           {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":            {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":            {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":              {{80, 24}, {120, 40}, goldenMobile},
+	"board_done_fold":        {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
+	"settings_page":          {{120, 40}, {80, 24}, {50, 20}},
+	"help_page":              {{120, 40}, {80, 24}, {50, 20}},
+	"help_page_narrow":       {{50, 20}},
+	"settings_page_frame":    {{80, 24}},
+	"settings_page_narrow":   {{50, 20}},
+	"screensaver":            {{80, 24}, {40, 6}},
+	"screensaver_vertical":   {{80, 24}, {40, 12}, {40, 6}, {40, 4}},
+	"board_icons_detailed":   {{80, 24}, {120, 40}, {150, 40}},
+	"newagent_empty":         {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_agent":         {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_models_filter": {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_filled":        {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_preview":       {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_import":        {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_loading":       {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_errors":        {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_frame":         {{80, 24}},
+	"newagent_ansi":          {{80, 24}, {50, 20}},
+	"newagent_highcontrast":  {{80, 24}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -288,6 +304,7 @@ func goldenScreens() []goldenScreen {
 		{"undo_done", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "done") }},
 		{"wizard_models", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = wizardFlag(t, m)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
 			m, _ = executeCommand(m, "new")
 			m = sendKey(m, key("j"))
@@ -295,6 +312,7 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"wizard_all_agents", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = wizardFlag(t, m)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"), true
 			m, _ = executeCommand(m, "new")
 			return m
@@ -401,7 +419,184 @@ func goldenScreens() []goldenScreen {
 		{"attach", false, func(t *testing.T, sz goldenSize) Model {
 			return bannerModel(t, sz.w, sz.h, bannerSession())
 		}},
+		{"newagent_empty", true, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentBoard(t, sz)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+			m, _ = executeCommand(m, "new")
+			m.NewAgent.Indexing = false // indexed: mockup A ("none yet"), not mockup F's loading row
+			return m
+		}},
+		{"newagent_agent", true, func(t *testing.T, sz goldenSize) Model {
+			m, home := goldenNewAgentBoard(t, sz)
+			writeHomeSkill(t, home, "go-testing", "table-driven tests and goldens")
+			writeHomeSkill(t, home, "release", "cut a release branch")
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "ollama", "cursor", "grok"), true
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
+			m.NewAgent.SkillSel = map[string]bool{"go-testing": true}
+			return m
+		}},
+		{"newagent_models_filter", false, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentBoard(t, sz)
+			m.DaemonTools, m.toolsKnown = cursorModels(t), true
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
+			m = sendKey(m, key("j")) // Cursor CLI
+			m = sendKey(m, key("/"))
+			return typeText(m, "son")
+		}},
+		{"newagent_filled", true, goldenNewAgentFilled},
+		{"newagent_preview", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenNewAgentFilled(t, sz)
+			return sendKey(m, key("enter"))
+		}},
+		{"newagent_import", false, goldenNewAgentImport},
+		{"newagent_errors", true, func(t *testing.T, sz goldenSize) Model {
+			// Mockup F: the workspace still indexing under CONTEXT, and a
+			// launch the daemon refused, with the draft kept.
+			m, _ := goldenNewAgentBoard(t, sz)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+			m, _ = executeCommand(m, "new") // the walk never comes back
+			m.NewAgent.indexCount.Store(3812)
+			m = typeText(m, "fix the flaky auth test")
+			m.NewAgent.Launching, m.NewAgent.launchGen = true, -1
+			m, _ = handleNewAgentLaunched(m, newAgentLaunchedMsg{Err: errors.New("daemon is not running (rex daemon start)"), gen: -1})
+			return m
+		}},
+		{"newagent_loading", false, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentBoard(t, sz)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+			m, _ = executeCommand(m, "new") // the walk never comes back
+			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
+			m.NewAgent.indexCount.Store(3812)
+			return m
+		}},
+		{"newagent_frame", true, func(t *testing.T, sz goldenSize) Model {
+			return framedGolden(t, goldenNewAgentFilled(t, sz), sz)
+		}},
+		{"newagent_ansi", true, func(t *testing.T, sz goldenSize) Model {
+			// Last: the theme is global until the test ends.
+			m := goldenNewAgentFilled(t, sz)
+			if err := m.Store.Set("theme", "ansi"); err != nil {
+				t.Fatal(err)
+			}
+			applyThemeNamed(&m, "ansi")
+			t.Cleanup(func() { applyTheme("default") })
+			return m
+		}},
+		{"newagent_highcontrast", true, func(t *testing.T, sz goldenSize) Model {
+			// Last too, for the same reason.
+			m := goldenNewAgentFilled(t, sz)
+			if err := m.Store.Set("theme", "high-contrast"); err != nil {
+				t.Fatal(err)
+			}
+			applyThemeNamed(&m, "high-contrast")
+			t.Cleanup(func() { applyTheme("default") })
+			return m
+		}},
 	}
+}
+
+// goldenNewAgentImport is mockup D: the picker over a small checkout,
+// "auth" typed, one row marked and a denylisted key file in the list, with
+// one item already in the context.
+func goldenNewAgentImport(t *testing.T, sz goldenSize) Model {
+	t.Helper()
+	m, home := goldenNewAgentBoard(t, sz)
+	repo := filepath.Join(home, "dev", "rex")
+	for name, size := range map[string]int{
+		"internal/auth/auth_test.go":        4300,
+		"internal/auth/testdata/login.json": 210,
+		"internal/auth/testdata/server.pem": 1700,
+		"cmd/rex/auth_test_helpers.go":      1126,
+		"README.md":                         2400,
+	} {
+		p := filepath.Join(repo, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(strings.Repeat("x", size)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", "") // the plain walk: the checkout is not a real repo
+	m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+	m, cmd := executeCommand(m, "new")
+	next, _ := m.Update(indexMsg(t, cmd))
+	m = next.(Model)
+	if err := addPath(m.NewAgent, "README.md", false); err != nil {
+		t.Fatal(err)
+	}
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
+	m = typeText(m, "auth")
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyDown})
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyDown})
+	m = sendKey(m, key(" "))
+	return sendKey(m, tea.KeyMsg{Type: tea.KeyUp})
+}
+
+// goldenNewAgentBoard is the golden board in a temp home with a checkout at
+// ~/dev/rex as the board's workspace (not a chdir: the golden file is
+// written relative to the package): the page names it, and the trust
+// section offers it. It returns the home too.
+func goldenNewAgentBoard(t *testing.T, sz goldenSize) (Model, string) {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	home := t.TempDir()
+	if r, err := filepath.EvalSymlinks(home); err == nil {
+		home = r
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	repo := filepath.Join(home, "dev", "rex")
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Store.Set("workspaces", true); err != nil {
+		t.Fatal(err)
+	}
+	m.WS = &WorkspaceScope{ID: wsA, Name: "rex", Root: repo}
+	return m, home
+}
+
+// goldenNewAgentFilled is mockup B: a task, a file, a folder and a 38-line
+// paste (the file and folder set directly until the import picker), the
+// folder trusted for the session, the paste under the context cursor.
+func goldenNewAgentFilled(t *testing.T, sz goldenSize) Model {
+	t.Helper()
+	m, _ := goldenNewAgentBoard(t, sz)
+	m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+	m, _ = executeCommand(m, "new")
+	m = typeText(m, "the auth test is flaky on CI, see the paste. fix it and add a regression test. ")
+	m.NewAgent.Items = []spawnctx.Item{
+		{Kind: spawnctx.File, Name: "internal/auth/auth_test.go", Bytes: 4300},
+		{Kind: spawnctx.Dir, Name: "internal/auth/testdata", Files: 12, Bytes: 1100},
+	}
+	log := "--- FAIL: TestLogin (0.31s)\n" +
+		"    auth_test.go:88: token expired: got 401, want 200\n" +
+		"FAIL\n" +
+		"FAIL  example.com/app/internal/auth 1.204s\n"
+	for i := range 34 {
+		log += fmt.Sprintf("    trace %02d: example.com/app/internal/auth.check\n", i+1)
+	}
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(log), Paste: true})
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlT})
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyTab}) // Context
+	m = sendKey(m, key("j"))
+	return sendKey(m, key("j"))
+}
+
+// wizardFlag turns new_agent_page off, so n and :new open the popup wizard.
+func wizardFlag(t *testing.T, m Model) Model {
+	t.Helper()
+	if m.Store == nil {
+		m.Store = settings.NewStore()
+	}
+	if err := m.Store.Set("new_agent_page", false); err != nil {
+		t.Fatal(err)
+	}
+	return m
 }
 
 // sizeGolden gives a model the golden size; one that already has a terminal

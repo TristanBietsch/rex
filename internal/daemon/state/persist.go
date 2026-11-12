@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -165,7 +166,12 @@ func LoadMeta(root, id string) (*Session, error) {
 // LoadAll loads every session under root/sessions/. Any session whose persisted
 // state was "working", "queued", or "needs_input" gets reloaded as "crashed"
 // because the live PTY didn't survive whatever caused the daemon to stop.
-func LoadAll(root string) ([]*Session, error) {
+func LoadAll(root string) ([]*Session, error) { return LoadAllKeep(root, nil) }
+
+// LoadAllKeep is LoadAll, except that the sessions named in live keep
+// their persisted state: their PTYs were handed over by a daemon hot
+// restart and are still running.
+func LoadAllKeep(root string, live map[string]bool) ([]*Session, error) {
 	dir := filepath.Join(root, "sessions")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -191,6 +197,10 @@ func LoadAll(root string) ([]*Session, error) {
 			slog.Warn("state: meta id/dir mismatch; skipped", "dir", e.Name(), "id", sess.ID)
 			continue
 		}
+		if live[sess.ID] && !isTerminal(sess.State) {
+			out = append(out, sess)
+			continue
+		}
 		switch sess.State {
 		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
 			sess.State = protocol.StateCrashed
@@ -206,6 +216,25 @@ func LoadAll(root string) ([]*Session, error) {
 		out = append(out, sess)
 	}
 	return out, nil
+}
+
+// RemoveStaleMetaTemps deletes the meta-*.tmp files a WriteMeta cut off
+// before its rename (a crash, power loss) left in the session dirs under
+// root. Only the daemon may call it, at startup, holding the state lock and
+// before any writer: a reader such as the CLI's disk fallback would race a
+// live daemon's WriteMeta.
+func RemoveStaleMetaTemps(root string) {
+	stale, err := filepath.Glob(filepath.Join(root, "sessions", "*", "meta-*.tmp"))
+	if err != nil {
+		return
+	}
+	for _, p := range stale {
+		if err := os.Remove(p); err != nil {
+			slog.Warn("state: could not remove stale meta temp file", "path", p, "err", err)
+			continue
+		}
+		slog.Info("state: removed stale meta temp file", "path", p)
+	}
 }
 
 // TranscriptFile is a kept-open transcript handle for the lifetime of one PTY session.
@@ -371,42 +400,76 @@ func AppendTranscript(root, id string, b []byte) error {
 	return tf.Write(b)
 }
 
+// ReplayTail is TranscriptTail for replaying into a terminal emulator
+// (attach). A tail cut from the middle of the transcript starts at an
+// arbitrary byte, and a start inside an escape sequence or a UTF-8 rune
+// garbles the screen: a cut tail starts just after its first newline or at
+// its first ESC, whichever comes first, else at its first rune start.
+func ReplayTail(root, id string, max int) ([]byte, error) {
+	b, cut, err := transcriptTail(root, id, max)
+	if err != nil || !cut {
+		return b, err
+	}
+	for i, c := range b {
+		switch c {
+		case '\n':
+			return b[i+1:], nil
+		case 0x1b:
+			return b[i:], nil
+		}
+	}
+	for i := range b {
+		if utf8.RuneStart(b[i]) {
+			return b[i:], nil
+		}
+	}
+	return nil, nil
+}
+
 // TranscriptTail returns the last max bytes of a session's transcript.log
 // (or all of it, if smaller). Missing files return (nil, nil).
 func TranscriptTail(root, id string, max int) ([]byte, error) {
+	b, _, err := transcriptTail(root, id, max)
+	return b, err
+}
+
+// transcriptTail is TranscriptTail that also reports whether the tail was
+// cut from a longer file.
+func transcriptTail(root, id string, max int) (tail []byte, cut bool, err error) {
 	dir, err := safeSessionDir(root, id)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	path := filepath.Join(dir, "transcript.log")
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, false, nil
 		}
-		return nil, fmt.Errorf("open transcript: %w", err)
+		return nil, false, fmt.Errorf("open transcript: %w", err)
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("stat transcript: %w", err)
+		return nil, false, fmt.Errorf("stat transcript: %w", err)
 	}
 	size := info.Size()
-	if int64(max) > size {
+	cut = int64(max) < size
+	if !cut {
 		max = int(size)
 	}
 	if max <= 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	if _, err := f.Seek(-int64(max), io.SeekEnd); err != nil {
-		return nil, fmt.Errorf("seek transcript: %w", err)
+		return nil, false, fmt.Errorf("seek transcript: %w", err)
 	}
 	buf := make([]byte, max)
 	n, err := io.ReadFull(f, buf)
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return nil, fmt.Errorf("read transcript: %w", err)
+		return nil, false, fmt.Errorf("read transcript: %w", err)
 	}
-	return buf[:n], nil
+	return buf[:n], cut, nil
 }
 
 // maxSkills mirrors the per-session cap of the skills package, which state

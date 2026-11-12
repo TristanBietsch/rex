@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"log/slog"
 	"strings"
 	"time"
 
@@ -22,6 +23,24 @@ func Run(socket string, quietBoot bool) error { return RunScoped(socket, quietBo
 // RunScoped is Run for a board fixed to one workspace (`rex here`); a nil
 // scope is the ordinary board.
 func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
+	return RunWith(socket, RunOptions{QuietBoot: quietBoot, Scope: scope})
+}
+
+// RunOptions are RunWith's options.
+type RunOptions struct {
+	QuietBoot bool
+	Scope     *WorkspaceScope
+	// SwapState is the swap state file a hot swap left (SwapEnv); the board
+	// restores that view. Empty for a normal start.
+	SwapState string
+	// Notice is shown on the status line once the board is up.
+	Notice string
+}
+
+// RunWith opens the board. It returns a *SwapRequest when the board quit to
+// swap into a new binary.
+func RunWith(socket string, opts RunOptions) error {
+	quietBoot, scope := opts.QuietBoot, opts.Scope
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
 	store, _, _ := settings.LoadDefault()
@@ -57,6 +76,17 @@ func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
 	if scope != nil && scope.Root != "" {
 		m.BorderSeed = scope.Root // a workspace keeps its color even without one set
 	}
+	if b, ok := ownBinary(); ok {
+		m.bin = b
+	}
+	if opts.SwapState != "" {
+		if st, err := readSwapState(opts.SwapState); err != nil {
+			slog.Warn("tui: swap state not restored", "err", err)
+		} else {
+			m.swapIn = &st
+		}
+	}
+	m.Notice = opts.Notice
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	return runProgram(p.Run, awake, idleDone)
@@ -74,6 +104,9 @@ func runProgram(run func() (tea.Model, error), awake *displayAwake, idleDone cha
 	}
 	if fm, ok := final.(Model); ok && fm.BootFailed {
 		return fm.BootError
+	}
+	if fm, ok := final.(Model); ok && fm.swapPath != "" {
+		return &SwapRequest{Path: fm.swapPath}
 	}
 	return nil
 }
@@ -148,6 +181,12 @@ func (m Model) view(w, h int) string {
 		return renderSplash(m, w, h)
 	case FocusWizard:
 		return centerPanel(w, h, fitOverlay(renderWizard(m), w), dimBoard(renderFullScreen(m, w, h)))
+	case FocusNewAgent:
+		if !m.featureOn("new_agent_page") { // turned off: closed on the next Update
+			m.Focus = FocusBoard
+			return m.view(w, h)
+		}
+		return renderNewAgent(m, w, h)
 	case FocusHelp:
 		if pagesOn(m) {
 			return renderHelpPage(m, w, h)
@@ -227,12 +266,23 @@ func renderFullScreen(m Model, w, h int) string {
 	lines = append(lines, "", hr, "")
 	lines = append(lines, strings.Split(board, "\n")...)
 	lines = append(lines, renderDescPreview(m, cw)...)
-	lines = append(lines, strings.Split(bottom, "\n")...)
+	return pinBottom(lines, strings.Split(bottom, "\n"), h)
+}
 
-	// Hard cap: never produce more than h lines (the alt-screen window).
-	if len(lines) > h {
-		lines = lines[:h]
+// pinBottom joins top and bottom into exactly h lines with bottom (the
+// rule, prompt and help line) always on the last lines. When they don't
+// fit, top gives up its last lines: on a short terminal the board (whose
+// minimum height can exceed the room left) shrinks, never the bars.
+func pinBottom(top, bottom []string, h int) string {
+	if len(bottom) > h {
+		bottom = bottom[len(bottom)-h:]
 	}
+	if room := h - len(bottom); len(top) > room {
+		top = top[:room]
+	}
+	lines := make([]string, 0, h)
+	lines = append(lines, top...)
+	lines = append(lines, bottom...)
 	for len(lines) < h {
 		lines = append(lines, "")
 	}
@@ -318,6 +368,9 @@ func compositeOverlay(w, h int, popupLines []string, popupW int, bg string) stri
 	for len(bgLines) < h {
 		bgLines = append(bgLines, "")
 	}
+	// A popup wider than the screen is clipped: a line past the right edge
+	// wraps and shifts every row below it.
+	popupW = min(popupW, max(w, 0))
 	popupH := len(popupLines)
 
 	x := (w - popupW) / 2
@@ -339,12 +392,38 @@ func compositeOverlay(w, h int, popupLines []string, popupW int, bg string) stri
 		if bgW < x+popupW {
 			bgLine += strings.Repeat(" ", x+popupW-bgW)
 		}
-		left := ansi.Truncate(bgLine, x, "")
-		right := ansi.TruncateLeft(bgLine, x+popupW, "")
-		bgLines[row] = left + pl + right
+		// Exact columns on both sides: a wide board rune straddling an edge
+		// used to shift the popup row (left cut) or widen the line (right
+		// cut) by one column.
+		bgLines[row] = fitColumns(bgLine, x) + fitColumns(pl, popupW) + cutLeft(bgLine, x+popupW)
 	}
 
 	return strings.Join(bgLines, "\n")
+}
+
+// fitColumns cuts s to at most n columns and pads it to exactly n; a wide
+// rune straddling column n is dropped and its column padded.
+func fitColumns(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	s = ansi.Truncate(s, n, "")
+	if w := ansi.StringWidth(s); w < n {
+		s += strings.Repeat(" ", n-w)
+	}
+	return s
+}
+
+// cutLeft drops the first n columns of s and keeps exactly the width that
+// remains; a wide rune straddling column n becomes a space (ansi.TruncateLeft
+// keeps it, one column too many).
+func cutLeft(s string, n int) string {
+	want := max(ansi.StringWidth(s)-n, 0)
+	r := ansi.TruncateLeft(s, n, "")
+	if ansi.StringWidth(r) > want {
+		r = " " + ansi.TruncateLeft(s, n+1, "")
+	}
+	return r
 }
 
 // overlayBox draws content in a square border with one blank line above and

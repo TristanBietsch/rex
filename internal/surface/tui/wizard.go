@@ -432,7 +432,7 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			playNav(m)
 			return m, nil
 		}
-		m.Wizard.TaskText += string(k.Runes)
+		m.Wizard.TaskText += typedPromptText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.Wizard.TaskText += " "
@@ -781,7 +781,8 @@ func wizSkillLines(w *WizardState) []string {
 // wizInputBoxLines renders the task input box as a slice of lines (so it
 // composes cleanly into the fixed-line body).
 func wizInputBoxLines(value string, m Model) []string {
-	content := styleSlug.Render(value) + cursorBlock(m)
+	// The task text keeps pasted line breaks for the agent; draw it flat.
+	content := styleSlug.Render(protocol.FlattenDisplayText(value)) + cursorBlock(m)
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorAccent).

@@ -39,17 +39,29 @@ The first release since v1. Details for every change follow the summary.
   default), and `uc` to undo marking a session done.
 - **Usage**: a `:usage` page, a header usage meter and `rex usage`.
 - **Waiting icon and screensaver settings**: `waiting_spinner`, and the
-  screensaver's counts layout, clock and drift.
+  screensaver's counts layout, clock and drift (`screensaver_counts`,
+  `screensaver_clock`, `screensaver_drift`).
 - **Sound**: `master_volume` is 0–50, and audio settings apply live on every
   open board.
 - **The hints footer**: the bottom line holds the key hints (Done column
   keys included); `show_help_bar` hides only the hints.
 - **Release builds**: prebuilt binaries for macOS, Linux and Windows on the
   GitHub release page, and an installer that fetches and verifies them.
-- TODO-hot-reload: one line for daemon hot restart, `rex upgrade` and
-  `:swap` once feat/hot-reload lands; delete this line otherwise.
-- TODO-r16: one line for the new-agent page once
-  feat/r16-new-agent-page lands; delete this line otherwise.
+- **Hot reload**: upgrade without killing sessions. `rex upgrade` loads a
+  newly installed build: the daemon hot-restarts in place (every agent
+  keeps its process, PTY and screen) and every board swaps into the new
+  binary. `rex daemon restart` is hot too; `-cold` keeps the old stop and
+  start (Windows always restarts cold). `rex reload` reloads every layer,
+  `init.lua` included.
+- **New-agent page**: `n` opens a full-screen page with the agent, a
+  multi-line task, context (large pastes, `@` paths, `ctrl+o` import),
+  `$EDITOR` editing and folder trust on one screen.
+- **Windows prompt safety**: agents installed as npm `.cmd` shims no longer
+  get their task through `cmd.exe`, so `&`, `|` or `%VAR%` in a task can't
+  run commands; over-long tasks are pasted instead of failing.
+- **Render fixes**: popups stay straight with CJK and emoji text,
+  multi-line pastes keep the help line on screen, short terminals keep the
+  prompt, and prompts are typed without escape sequences.
 
 ### Breaking changes
 
@@ -84,6 +96,22 @@ Each is described in full under **Changed** below.
   builds the checkout) and no longer stops a running daemon.
 - `rex --version` prints the release tag (`v2.0.0`); builds without one
   print the Go module version or `dev`.
+- `n` and `:new` open the full-screen new-agent page (`new_agent_page`,
+  on); turn the setting off to get the popup wizard back.
+- `rex daemon restart` is a hot restart (sessions keep running); `-cold`
+  gives the old stop and start, which asks first when it would kill
+  sessions (`-yes` without a terminal, else exit 6).
+- Boards swap themselves into a newly installed build after a minute idle
+  on the board (`auto_swap`, on); set it off to swap only with `:swap` or
+  `rex upgrade`.
+- `rex reload` (and `:reload`, `SIGHUP`) also reloads `init.lua`, and
+  `rex reload` exits 1 when a layer failed to load.
+- Windows: an agent installed as an npm `.cmd` shim is started through the
+  program the shim runs, not `cmd.exe`. A shim rex cannot resolve (or a
+  `command` that is `cmd.exe`) gets its task pasted, and the launch is
+  refused unless every other argument is plain.
+- The daemon refuses an `initial_prompt` over 96 KiB (`bad_intent`) before
+  spawning anything.
 
 ### Added (release builds)
 
@@ -135,6 +163,102 @@ Each is described in full under **Changed** below.
 - `install.ps1` without flags installs the latest release; building from
   the checkout needs `-FromSource`.
 
+### Fixed (Windows prompt delivery)
+
+- Windows: an agent installed as an npm `.cmd` shim (`claude.cmd`,
+  `qwen.cmd`) got its task through `cmd.exe`, so `&`, `|`, `%VAR%`, `^`,
+  quotes or a line break in a task could run commands. The daemon now
+  starts the program the shim runs (`node.exe` and the script, or the
+  package's `.exe`) directly. A shim it cannot resolve, or a `command`
+  that is `cmd.exe`, gets the task pasted into the agent instead and starts
+  only when every argument (folder paths and JSON included) is plain; else
+  the launch is refused with an error naming the shim and the argument.
+- Windows: a task that would make the command line longer than Windows
+  allows (32,767 characters, 8,191 through `cmd.exe`; rex stops at 32,000
+  and 8,000) is pasted instead of failing the launch.
+
+### Added (new-agent page)
+
+- `n` and `:new` open a full-screen new-agent page instead of the popup
+  wizard: the agent, a multi-line task, context and folder trust on one
+  screen, with a step rail (Agent, Task, Context, Trust, each with a mark
+  and a word) that becomes a one-line strip under 60 columns. It opens in
+  the task editor with the agent you launched last. `enter` launches from
+  the editor, `ctrl+s` from anywhere, `ctrl+j` / `alt+enter` add a line,
+  `ctrl+e` edits the task in `$EDITOR`, `ctrl+g` opens the Agent screen
+  (agents, models with a `/` filter, effort, skills), `ctrl+t` / `ctrl+a`
+  trust the folder as in the wizard, and `?` outside the editor shows the
+  page's keys. Setting `new_agent_page` (Features, on) turns it off to get
+  the wizard back; turning it off while the page is open keeps the draft.
+- Context: a paste of more than 8 lines or 1 KiB becomes a `paste N` item
+  with a `[paste N · L lines]` placeholder in the task (a paste never
+  launches); `@` in the task completes workspace paths; `ctrl+o` opens an
+  import picker over the workspace (`git ls-files` in a repo, so
+  gitignored files stay out; at most 10,000 entries or 300 ms). Items can
+  be previewed (`enter`), renamed (`r`), removed (`x`) and, for pastes,
+  edited in `$EDITOR`. The agent gets one first prompt: the task, then
+  `Context from rex (read before starting):` with a `- file:` or `- dir:`
+  line per reference and each paste in a `<pasted …>` block. Files are
+  referenced by workspace-relative path, never copied. A draft whose files
+  were added in another folder says so (`!`) and takes no new paths until
+  they are removed.
+- Safety: a path must resolve, through every symlink, inside the session
+  folder and be a regular file or folder (FIFOs, sockets and devices are
+  refused unopened); names that look like secrets (`.env`, `*.pem`,
+  `id_rsa*`, …) need a `y`. Pasted and typed text loses escape sequences,
+  control, bidi, zero-width, tag and variation-selector characters and the
+  invisible math operators, and `</pasted>` inside a paste is escaped. Caps: 32 KiB per paste, 64 KiB of pasted text, 32
+  items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt);
+  the last row shows the prompt's size against the cap. Ollama, which
+  takes its prompt as typed lines, only launches a one-line prompt with no
+  context.
+- Launch checks every cap and path again, then the page stays open with
+  `⠋ starting…` until the daemon answers. A failure shows
+  `✗ launch failed: … Your draft is kept.`; `esc` keeps the draft in
+  memory for the next `n` (nothing is written to disk).
+- A board swap (`:swap`, `rex upgrade`) waits while the page is open and
+  never writes the draft to its swap file: `auto_swap` waits while a draft
+  is kept, and an explicit swap over one drops it with a notice.
+- `NewSession` takes an optional `context_summary` (kind, name and size of
+  each item, no content); older daemons ignore it.
+
+### Changed (daemon)
+
+- The daemon refuses a `NewSession` whose `initial_prompt` is over 96 KiB
+  with `bad_intent` before anything is spawned, instead of a failed exec.
+
+### Added (hot reload, board swap, daemon hot restart)
+
+- `rex daemon restart` is now a hot restart: the daemon re-execs itself in
+  place (same PID) and every running agent keeps its process, PTY, screen
+  and output. Before the exec the new binary must pass a preflight
+  (`rex-daemon -handoff-check`); a binary that fails it, or a failed exec,
+  leaves the old daemon running and the sessions untouched. `-cold` keeps
+  the old stop and start, and asks first when it would kill running
+  sessions (`-yes` without a terminal, exit 6). Not on Windows (cold
+  restart with the same question).
+- `rex upgrade`: after installing a new build, hot-restart the daemon,
+  then have every board swap into the new binary; reports each process.
+- `:swap` re-execs the board into a newly installed build keeping
+  selection, scroll, filter, search, the open page and the attach popup.
+  The board notices a new build within 10 s; with `auto_swap` (new, on by
+  default) it swaps by itself after a minute idle on the board.
+- An attach popup re-attaches after a daemon hot restart instead of
+  showing the session as ended.
+- `rex reload`, `:reload`, `SIGHUP` and the Settings page's new `R` also
+  reload `init.lua` (a broken one keeps the previous handlers) and report
+  what changed, what needs a daemon restart, and each failed layer as
+  `file:line: message`. `rex reload` exits 1 when a layer failed.
+
+### Fixed (settings that said they apply live)
+
+- `mouse_enabled` changed in `config.yaml` (or by `rex config set`) now
+  turns mouse capture on or off at once, not at the next attach.
+- `retire_after_hours` now changes the daemon's default linger time
+  without a restart.
+- `max_concurrent_sessions` edited in `config.yaml` is pushed to the
+  daemon on the board's next reload, as documented.
+
 ### Added (screensaver settings)
 
 - `screensaver_counts` (Settings → Behavior, "Screensaver counts"):
@@ -147,6 +271,7 @@ Each is described in full under **Changed** below.
   without turning on `reduce_motion` everywhere.
 - All three apply live and can be set from `config.lua` and from a trusted
   workspace's `.rex/config.lua` (display only).
+
 ### Added (row icons)
 
 - Board rows show a strip of fixed icon slots after the name in place of
@@ -163,6 +288,41 @@ Each is described in full under **Changed** below.
   `ascii_glyphs` draws them in plain ASCII (`* + @ Y ^`).
 - Sessions carry `cost_usd` on the wire (Claude Code, from the usage hub;
   sent when it moved by a cent, at most every 2 s; kept across restarts).
+
+### Fixed (render and cleanup port)
+
+- Attach popup rows with CJK or emoji text stay exactly the popup's width,
+  so the popup no longer shifts and clicks land on the right cells.
+- Popups drawn over wide board text keep straight borders, and a popup
+  wider than the terminal is clipped instead of wrapping.
+- Pasting multi-line text into the command bar or the `λ` prompt no longer
+  pushes the help line off the screen. The `λ` prompt and the wizard's task
+  keep the pasted line breaks for the agent; escapes are dropped.
+- On a short terminal the board gives up rows; the prompt and help line
+  stay on screen.
+- The done flash is visible again.
+- A quick-spawned session is selected even when another session goes away
+  before it starts.
+- Detaching from a busy agent no longer leaks a reader; re-attaching to
+  the same session can't be marked ended by the old popup.
+- `:stats` closes on `esc` only; typing `:stats` over it no longer runs
+  board keys. The setup wizard's model field edits at its end, and its
+  daemon hint says `rex daemon start`. A daemon that fails to start points
+  at `daemon.log` unless `rex-daemon` is missing.
+- `rex new` reports the session it spawned when two spawns race.
+  `rex fleet set` and `unset` report a fleet the daemon rejects instead of
+  printing success.
+- `rex uninstall` exits 1 when a removal fails. `rex doctor` and
+  `rex uninstall` find `rex-daemon` next to `rex`, as `rex daemon start`
+  does. `rex config edit` opens the `lua_config_path` file and accepts an
+  `$EDITOR` with arguments (`code -w`).
+- The initial prompt and `rex reply` text are typed without escape
+  sequences or control characters, so a prompt can't close its own paste.
+- The daemon keeps `max_concurrent_sessions` from `config.yaml` across
+  restarts, removes subscriptions of closed connections, no longer drops a
+  change made while a client's snapshot is taken, replays a cut transcript
+  from a clean boundary, removes leftover `meta-*.tmp` files at startup and
+  drops bidi controls from `last_line`. Log records carry the process id.
 
 ### Fixed (Lua volume warning)
 

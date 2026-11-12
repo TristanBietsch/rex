@@ -31,6 +31,11 @@ func validateNewSession(p protocol.NewSession) error {
 	if strings.TrimSpace(p.ModelID) == "" {
 		return fmt.Errorf("model_id required")
 	}
+	// Before anything is made: a prompt past one argv element's room would
+	// only fail later, at exec.
+	if n := len(p.InitialPrompt); n > protocol.MaxInitialPromptBytes {
+		return fmt.Errorf("initial_prompt is %d bytes; the limit is %d", n, protocol.MaxInitialPromptBytes)
+	}
 	if err := protocol.ValidateSlug(p.Slug); err != nil {
 		return err
 	}

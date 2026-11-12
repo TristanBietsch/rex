@@ -223,6 +223,9 @@ type spawnSpec struct {
 	// Cols and Rows are the PTY's initial size (already clamped; 0 = the
 	// supervisor's 120x32 default).
 	Cols, Rows uint16
+	// Adopt is a child handed over by the previous daemon image (hot
+	// restart): supervised instead of spawned.
+	Adopt *pty.Adopted
 }
 
 // resumeArgs asks buildArgv for the tool's resume.new_args (New: a fresh
@@ -315,10 +318,26 @@ func childEnvDropFor(spec spawnSpec) []string {
 // cancelled it first, startSupervisor returns errResumeCancelled and starts
 // nothing, so a delete racing a resume leaves no process and no directory.
 func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec spawnSpec, argv, env []string, ptyPrompt string, delivery promptDelivery, res *stopReservation) error {
+	if spec.Adopt == nil {
+		if err := srv.startGuard(); err != nil {
+			return err
+		}
+		// Windows: no prompt through cmd.exe, no command line over its cap.
+		var err error
+		if argv, ptyPrompt, delivery, err = planLaunch(launchEnv, sess.ID, argv, ptyPrompt, delivery); err != nil {
+			return err
+		}
+	}
 	cfg := srv.cfg
 	ad, err := adapter.For(spec.Tool, spec.HookFile)
 	if err != nil {
-		return fmt.Errorf("build adapter: %w", err)
+		if spec.Adopt == nil {
+			return fmt.Errorf("build adapter: %w", err)
+		}
+		// A handed-over session whose tool left the registry still runs;
+		// it only loses state detection.
+		slog.Warn("adopt: no adapter; state detection off", "session", sess.ID, "tool", spec.Tool.ID, "err", err)
+		ad = nil
 	}
 	resumeOn := srv.resumeOn()
 	var resumeCapture *regexp.Regexp
@@ -379,6 +398,13 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		},
 		UnregisterAttach: func() {
 			srv.UnregisterAttach(sess.ID)
+		},
+		Adopt: spec.Adopt,
+		RegisterFreeze: func(fn pty.FreezeFunc) {
+			srv.RegisterFreeze(sess.ID, fn)
+		},
+		UnregisterFreeze: func() {
+			srv.UnregisterFreeze(sess.ID)
 		},
 	})
 
@@ -460,4 +486,36 @@ func (s *Server) resumePlugin(tool registry.Tool, id string, names []string) (st
 		return "", errors.New("no skills library configured")
 	}
 	return skills.Stage(s.cfg.SkillsDir, sessDir, names)
+}
+
+// adoptSession supervises a session handed over by the previous daemon
+// image: same child, same PTY, adapter and registrations rebuilt from the
+// registry. The concurrency cap does not apply (the session already runs).
+func adoptSession(ctx context.Context, srv *Server, a AdoptSession) error {
+	sess := a.Session
+	tool, model, ok := srv.Registry().FindModel(sess.ToolID, sess.ModelID)
+	if !ok {
+		tool = registry.Tool{ID: sess.ToolID}
+	}
+	hookFile, err := state.HookFile(srv.cfg.StateDir, sess.ID)
+	if err != nil {
+		return fmt.Errorf("hook file: %w", err)
+	}
+	srv.gate.Force()
+	adopted := a.Adopted
+	spec := spawnSpec{
+		Tool: tool, Model: model, Effort: sess.Effort, CWD: sess.CWD,
+		HookFile: hookFile, SessionID: sess.ID,
+		Cols: a.Cols, Rows: a.Rows, Adopt: &adopted,
+	}
+	argv := append([]string{}, tool.Command...)
+	if len(argv) == 0 {
+		argv = []string{sess.ToolID}
+	}
+	if err := startSupervisor(ctx, srv, sess, spec, argv, nil, "", promptDelivery{}, nil); err != nil {
+		srv.ReleaseSession()
+		return err
+	}
+	slog.Info("adopt: session handed over", "session", sess.ID, "pid", adopted.PID)
+	return nil
 }

@@ -107,3 +107,42 @@ func TestLiveRowCache(t *testing.T) {
 		t.Fatalf("row 1 = %q", got)
 	}
 }
+
+// vt10x gives every rune one cell, but a terminal draws CJK and emoji over
+// two columns: a painted row must still be exactly cols columns wide, or the
+// popup re-centers and mouse hit-testing lands on the wrong cells.
+func TestGlyphPainterWideRunesFitCols(t *testing.T) {
+	p := newGlyphPainter(termenv.TrueColor)
+	cases := []struct{ name, input, want string }{
+		{"written in sequence", "你好世界abc", "你好世界abc"},
+		{"placed by column", "你\x1b[1;3H好\x1b[1;5Hx", "你好x"},
+		{"wider than the row", strings.Repeat("日", 20), strings.Repeat("日", 10)},
+		{"straddles the edge", "a" + strings.Repeat("日", 10), "a" + strings.Repeat("日", 9)},
+		{"emoji with selector", "❤️ ok", "❤️ ok"},
+		{"narrow only", "abc", "abc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			row := paintedRow(t, p, tc.input, 20, -1)
+			if w := ansi.StringWidth(row); w != 20 {
+				t.Fatalf("row(%q) is %d columns, want 20: %q", tc.input, w, row)
+			}
+			if got := strings.TrimRight(ansi.Strip(row), " "); got != tc.want {
+				t.Fatalf("row(%q) shows %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+// The cursor cell right after a wide rune is blank but is never taken as
+// the rune's right half: the cursor stays visible.
+func TestGlyphPainterCursorAfterWideRune(t *testing.T) {
+	p := newGlyphPainter(termenv.TrueColor)
+	row := paintedRow(t, p, "你", 6, 1)
+	if !strings.Contains(row, "\x1b[7m ") {
+		t.Fatalf("cursor cell not drawn: %q", row)
+	}
+	if w := ansi.StringWidth(row); w != 6 {
+		t.Fatalf("row is %d columns, want 6: %q", w, row)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/hinshun/vt10x"
 	"github.com/muesli/termenv"
 )
@@ -106,12 +107,33 @@ const sgrReset = termenv.CSI + termenv.ResetSeq + "m"
 // does the reversing once: drawing the swapped colors with SGR 7 inverted
 // colored text twice, and drawing them without it lost reverse on
 // default-colored text (an agent's own cursor).
+//
+// The row is always exactly len(cells) terminal columns. vt10x gives every
+// rune one cell, but a terminal draws a wide (CJK, emoji) rune over two
+// columns: a blank cell after a wide rune is taken as its right half (apps
+// that place text by column leave it empty) and skipped, a rune that would
+// cross the right edge ends the row, and the row is padded to width.
+// Without this a row came out wider than the popup, which then re-centered
+// and threw mouse hit-testing off.
 func (p *glyphPainter) row(cells []vt10x.Glyph, cursorX int) string {
+	cols := len(cells)
 	var out strings.Builder
-	out.Grow(len(cells) * 2)
+	out.Grow(cols * 2)
 	var prev sgrKey
 	cur, open := "", false
-	for x, g := range cells {
+	width := 0     // columns drawn so far
+	simple := true // every rune drawn is one column wide
+	for x := 0; x < cols; x++ {
+		g := cells[x]
+		r := g.Char
+		if r == 0 {
+			r = ' '
+		}
+		w := runeCols(r)
+		if width+w > cols {
+			break
+		}
+		simple = simple && w == 1
 		k := sgrKey{fg: g.FG, bg: g.BG, mode: g.Mode & attrMask}
 		if k.mode&vt10x.AttrReverse != 0 {
 			k.fg, k.bg = k.bg, k.fg
@@ -129,16 +151,43 @@ func (p *glyphPainter) row(cells []vt10x.Glyph, cursorX int) string {
 			}
 			prev = k
 		}
-		r := g.Char
-		if r == 0 {
-			r = ' '
-		}
 		out.WriteRune(r)
+		width += w
+		if w == 2 && x+1 < cols && x+1 != cursorX && isBlankGlyph(cells[x+1]) {
+			x++
+		}
 	}
 	if open {
 		out.WriteString(sgrReset)
 	}
-	return out.String()
+	s := out.String()
+	if !simple {
+		// Per-rune widths undercount a grapheme cluster split over cells
+		// (emoji + variation selector): measure what was drawn.
+		if width = ansi.StringWidth(s); width > cols {
+			s = ansi.Truncate(s, cols, "")
+			width = ansi.StringWidth(s)
+		}
+	}
+	if width < cols {
+		s += strings.Repeat(" ", cols-width)
+	}
+	return s
+}
+
+// runeCols is how many terminal columns r takes: 1 below U+0300 (no wide or
+// zero-width runes there), else what the terminal measures.
+func runeCols(r rune) int {
+	if r < 0x300 {
+		return 1
+	}
+	return ansi.StringWidth(string(r))
+}
+
+// isBlankGlyph reports whether g draws nothing: an empty or space cell with
+// no background and no reverse video.
+func isBlankGlyph(g vt10x.Glyph) bool {
+	return (g.Char == 0 || g.Char == ' ') && g.BG == vt10x.DefaultBG && g.Mode&vt10x.AttrReverse == 0
 }
 
 // attachRowCache is one popup row's last rendered output and the cells and

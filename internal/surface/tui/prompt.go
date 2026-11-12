@@ -24,7 +24,8 @@ func renderPrompt(m Model, width int) string {
 	case FocusSearch:
 		return renderSearchPrompt(m, width)
 	case FocusPrompt:
-		body := stylePrimary.Render(m.PromptText) + cursorBlock(m)
+		// PromptText keeps pasted line breaks; the bar is one row.
+		body := stylePrimary.Render(protocol.FlattenDisplayText(m.PromptText)) + cursorBlock(m)
 		if m.PromptText == "" {
 			body = cursorBlock(m) + styleDim.Render("type then enter to spawn a session — esc to cancel")
 		}
@@ -32,7 +33,7 @@ func renderPrompt(m Model, width int) string {
 	case FocusAttach:
 		line = styleArrow.Render(glyph) + " " + styleDim.Render("attached — ^] to detach")
 	default:
-		body := m.PromptText
+		body := protocol.FlattenDisplayText(m.PromptText)
 		if body == "" {
 			body = styleDim.Render("press i to describe a task for a new session")
 		} else {
@@ -162,4 +163,30 @@ func helpLineLabel(k string) string {
 		}
 	}
 	return ""
+}
+
+// typedText is what a key event's runes add to a one-line input (the
+// command bars). A bracketed paste delivers newlines, tabs and escapes
+// verbatim; they are flattened as typed so the bar never wraps onto extra
+// rows.
+func typedText(rs []rune) string {
+	return protocol.FlattenDisplayText(string(rs))
+}
+
+// typedPromptText is what a key event's runes add to the λ prompt or the
+// wizard's task text. Those become the agent's initial prompt, so a pasted
+// list or code block keeps its line breaks and tabs ("\r\n" and "\r" become
+// "\n"); escape sequences, other controls, bidi overrides and invalid UTF-8
+// are dropped. Draw the result flattened (protocol.FlattenDisplayText).
+func typedPromptText(rs []rune) string {
+	s := strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(string(rs))
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		cells := strings.Split(l, "\t")
+		for j, c := range cells {
+			cells[j] = protocol.FlattenDisplayText(c)
+		}
+		lines[i] = strings.Join(cells, "\t")
+	}
+	return strings.Join(lines, "\n")
 }

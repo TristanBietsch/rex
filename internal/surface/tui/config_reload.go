@@ -173,12 +173,12 @@ func handleConfigTick(m Model) (Model, tea.Cmd) {
 	return m, loadConfig(m.StorePath, themesDir(), m.configStamp, false)
 }
 
-// changedLiveSettings lists the ids of settings that apply live and differ
-// between old and cur.
+// changedLiveSettings lists the ids of settings that apply live (or are
+// pushed to the daemon from the TUI) and differ between old and cur.
 func changedLiveSettings(old, cur *settings.Store) []string {
 	var ids []string
 	for _, s := range settings.Registry {
-		if s.Apply == settings.ApplyLive && !reflect.DeepEqual(old.Get(s.ID), cur.Get(s.ID)) {
+		if (s.Apply == settings.ApplyLive || s.Apply == settings.ApplyFromTUI) && !reflect.DeepEqual(old.Get(s.ID), cur.Get(s.ID)) {
 			ids = append(ids, s.ID)
 		}
 	}
@@ -228,5 +228,9 @@ func handleConfigReloaded(m Model, msg configReloadedMsg) (Model, tea.Cmd) {
 			applyLive(&m, id, m.Store.Get(id))
 		}
 	}
-	return next(m)
+	// mouse_enabled is live: the terminal's capture follows it now, not at
+	// the next attach or detach (R20 audit).
+	m, mc := syncMouse(m, "config")
+	m, nc := next(m)
+	return m, tea.Batch(mc, nc)
 }

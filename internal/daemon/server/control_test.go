@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,7 +18,7 @@ import (
 
 // startControlServer starts a server with Shutdown/Reload hooks and returns
 // its socket plus the serve context (canceled by OnShutdown).
-func startControlServer(t *testing.T, onReload func() error) (string, context.Context) {
+func startControlServer(t *testing.T, onReload func() protocol.ReloadReport) (string, context.Context) {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "rex-ctl")
 	require.NoError(t, err)
@@ -61,15 +60,14 @@ func TestIntentShutdown_CancelsServe(t *testing.T) {
 
 func TestIntentReload_CallsHookAndReportsError(t *testing.T) {
 	calls := make(chan struct{}, 2)
-	fail := errors.New("bad tools.yaml")
 	n := 0
-	sock, _ := startControlServer(t, func() error {
+	sock, _ := startControlServer(t, func() protocol.ReloadReport {
 		calls <- struct{}{}
 		n++
 		if n == 2 {
-			return fail
+			return protocol.ReloadReport{Errors: []string{"tools.yaml:3: bad"}}
 		}
-		return nil
+		return protocol.ReloadReport{Reloaded: []string{"tools.yaml"}, Changed: []string{"theme"}}
 	})
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
@@ -81,20 +79,22 @@ func TestIntentReload_CallsHookAndReportsError(t *testing.T) {
 	require.NoError(t, w.WriteIntent(protocol.IntentReload, "r2", struct{}{}))
 	<-calls
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
-	// The successful reload is acked (FU-13: it used to get no reply)...
+	// R20: each reload answers with its report (FU-13: it used to get no
+	// reply); a failed layer is listed in the report's errors.
 	env, err := r.Read()
 	require.NoError(t, err)
-	require.Equal(t, protocol.EventAck, env.Type)
+	require.Equal(t, protocol.EventReloaded, env.Type)
 	require.Equal(t, "r1", env.ID)
-	// ...and the failed one is an Error carrying the load error.
+	var rep protocol.ReloadReport
+	require.NoError(t, json.Unmarshal(env.Data, &rep))
+	require.Equal(t, []string{"theme"}, rep.Changed)
 	env, err = r.Read()
 	require.NoError(t, err)
-	require.Equal(t, protocol.EventError, env.Type)
+	require.Equal(t, protocol.EventReloaded, env.Type)
 	require.Equal(t, "r2", env.ID)
-	var ee protocol.ErrorEvent
-	require.NoError(t, json.Unmarshal(env.Data, &ee))
-	require.Equal(t, protocol.ErrCodeBadIntent, ee.Code)
-	require.Equal(t, "bad tools.yaml", ee.Message)
+	rep = protocol.ReloadReport{}
+	require.NoError(t, json.Unmarshal(env.Data, &rep))
+	require.Equal(t, []string{"tools.yaml:3: bad"}, rep.Errors)
 }
 
 func TestIntentShutdown_RejectedWithoutHook(t *testing.T) {
@@ -109,4 +109,24 @@ func TestIntentShutdown_RejectedWithoutHook(t *testing.T) {
 	env, err := r.Read()
 	require.NoError(t, err)
 	require.Equal(t, protocol.EventError, env.Type)
+}
+
+// R20 audit: retire_after_hours is live: the default ttl of a Retire with
+// none follows the setting without a restart.
+func TestSetRetireDefaultTTL(t *testing.T) {
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	dir := t.TempDir()
+	srv, err := New(Config{Socket: filepath.Join(dir, "s"), StateDir: dir, Registry: reg, Store: state.NewStore()})
+	require.NoError(t, err)
+	_, ttl, err := srv.retireDeadline(0)
+	require.NoError(t, err)
+	require.Equal(t, DefaultRetireTTL, ttl)
+	srv.SetRetireDefaultTTL(3 * time.Hour)
+	_, ttl, err = srv.retireDeadline(0)
+	require.NoError(t, err)
+	require.Equal(t, 3*time.Hour, ttl)
+	srv.SetRetireDefaultTTL(0)
+	_, ttl, _ = srv.retireDeadline(0)
+	require.Equal(t, DefaultRetireTTL, ttl, "0 means the default")
 }

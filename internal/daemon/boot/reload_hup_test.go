@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 func TestReloadOnHUP_CallsReload(t *testing.T) {
@@ -28,7 +30,10 @@ func TestReloadOnHUP_CallsReload(t *testing.T) {
 	var n atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { defer close(done); ReloadOnHUP(ctx, func() error { n.Add(1); return nil }) }()
+	go func() {
+		defer close(done)
+		ReloadOnHUP(ctx, func() protocol.ReloadReport { n.Add(1); return protocol.ReloadReport{} })
+	}()
 	t.Cleanup(func() { cancel(); <-done })
 
 	require.Eventually(t, func() bool {

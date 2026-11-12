@@ -2,8 +2,10 @@ package boot
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -439,5 +441,40 @@ func reloadAll(t *testing.T, srv *server.Server, tools string, h *SettingsHub) e
 	t.Setenv("PATH", t.TempDir())
 	cat := NewCatalog(srv, tools)
 	defer cat.Wait()
-	return ReloadAll(context.Background(), cat, h)
+	rep := ReloadAll(context.Background(), cat, h, nil)
+	if len(rep.Errors) > 0 {
+		return errors.New(strings.Join(rep.Errors, "; "))
+	}
+	return nil
+}
+
+// R20: the reload report lists the changed ids, the ones that need a
+// daemon restart, and the layers read.
+func TestReloadAll_ReportsChangedAndRestart(t *testing.T) {
+	t0 := time.Now().Add(-time.Hour)
+	h, cfg := newHub(t, "summary_detail: short\n", t0)
+	srv, tools := newReloadServer(t, "")
+	write(t, cfg, "summary_detail: long\nsummary_model: other-model\n", t0.Add(time.Minute))
+	t.Setenv("PATH", t.TempDir())
+	cat := NewCatalog(srv, tools)
+	defer cat.Wait()
+	rep := ReloadAll(context.Background(), cat, h, nil)
+	require.Empty(t, rep.Errors)
+	require.ElementsMatch(t, []string{"summary_detail", "summary_model"}, rep.Changed)
+	require.Equal(t, []string{"summary_model"}, rep.Restart)
+	require.Contains(t, rep.Reloaded, "tools.yaml")
+	require.Contains(t, rep.Reloaded, "config.yaml")
+
+	rep = ReloadAll(context.Background(), cat, h, nil)
+	require.Empty(t, rep.Changed, "a second reload with no edit changes nothing")
+}
+
+func TestRetireTTLApplier_FollowsTheHub(t *testing.T) {
+	t0 := time.Now().Add(-time.Hour)
+	h, path := newHub(t, "retire_after_hours: 2\n", t0)
+	srv, _ := newReloadServer(t, "")
+	h.Subscribe([]string{"retire_after_hours"}, RetireTTLApplier(srv))
+	write(t, path, "retire_after_hours: 5\n", t0.Add(time.Minute))
+	require.NoError(t, h.Reload())
+	require.Equal(t, 5*time.Hour, srv.RetireDefaultTTL())
 }

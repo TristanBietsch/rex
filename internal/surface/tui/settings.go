@@ -205,6 +205,9 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return applySettingsAction(m, +1), nil
 	case "-", "_", "h", "left":
 		return applySettingsAction(m, -1), nil
+	case "R":
+		// Reload every layer, like :reload; the page stays open.
+		return runReload(m, cmdCall{Verb: "reload"})
 	case "r":
 		s, ok := settings.Find(m.Settings.CursorID)
 		if ok && !settingLocked(&m, s.ID) {
@@ -937,7 +940,7 @@ func applyLive(m *Model, id string, value any) {
 }
 
 // settingsHints are the footer key hints, in display order.
-var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "/ search", "tab section", "r reset", "? help", "esc close"}
+var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "/ search", "tab section", "r reset", "R reload", "? help", "esc close"}
 
 // settingsLockedHints replace settingsHints on a row config.lua sets.
 var settingsLockedHints = []string{"↑↓ select", "e open config.lua", "/ search", "tab section", "? help", "esc close"}

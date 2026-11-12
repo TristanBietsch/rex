@@ -339,6 +339,18 @@ func emitConfigChange(verb, id, value, display string) error {
 	})
 }
 
+// luaInitPath is the init.lua the daemon loads: the lua_config_path
+// setting (a leading ~/ is the home directory), resolved as the daemon
+// does, else the default.
+func luaInitPath() (string, error) {
+	if st, _, err := loadStore(); err == nil {
+		if raw := st.String("lua_config_path"); raw != "" {
+			return paths.ExpandHome(raw)
+		}
+	}
+	return paths.LuaInitFile()
+}
+
 func configEdit(args []string) error {
 	fs := flag.NewFlagSet("config edit", flag.ContinueOnError)
 	out := core.AddOutputFlags(fs, core.TextFormats)
@@ -354,7 +366,7 @@ func configEdit(args []string) error {
 		}
 		path, err = ensureLuaConfig()
 	} else {
-		path, err = paths.LuaInitFile()
+		path, err = luaInitPath()
 	}
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
@@ -362,15 +374,16 @@ func configEdit(args []string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "vi"
+	// $EDITOR may carry arguments ("code -w").
+	editor := strings.Fields(os.Getenv("EDITOR"))
+	if len(editor) == 0 {
+		editor = []string{"vi"}
 		if runtime.GOOS == "windows" {
-			editor = "notepad"
+			editor = []string{"notepad"}
 		}
 	}
 	p := core.Out()
-	cmd := exec.Command(editor, path) //nolint:gosec,noctx // G702: $EDITOR is the user's own program; noctx: the editor runs until the user quits it.
+	cmd := exec.Command(editor[0], append(editor[1:], path)...) //nolint:gosec,noctx // G702: $EDITOR is the user's own program; noctx: the editor runs until the user quits it.
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = p.Out
 	cmd.Stderr = p.Err

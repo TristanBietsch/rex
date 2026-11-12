@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hinshun/vt10x"
@@ -97,6 +98,13 @@ type SupervisorConfig struct {
 	// NoResumeIDs turns off every resume-id source (the adapter's hook
 	// reports and ResumeCapture): the feature flag "resume" is off.
 	NoResumeIDs bool
+	// Adopt, when set, is a child the previous daemon image handed over
+	// (hot restart): Run supervises it instead of spawning Command.
+	Adopt *Adopted
+	// RegisterFreeze exposes the session's FreezeFunc to the server for a
+	// hot restart; UnregisterFreeze takes it back at exit. Optional.
+	RegisterFreeze   func(freeze FreezeFunc)
+	UnregisterFreeze func()
 }
 
 // transcriptWriter persists the raw PTY output (*state.TranscriptFile in
@@ -146,13 +154,6 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		return errors.New("supervisor: empty command")
 	}
 
-	cmd := exec.CommandContext(ctx, s.cfg.Command[0], s.cfg.Command[1:]...)
-	if s.cfg.CWD != "" {
-		cmd.Dir = s.cfg.CWD
-	}
-	if len(s.cfg.Env) > 0 || len(s.cfg.DropEnv) > 0 {
-		cmd.Env = append(envWithout(os.Environ(), s.cfg.DropEnv), s.cfg.Env...)
-	}
 	cols := s.cfg.InitialCols
 	rows := s.cfg.InitialRows
 	if cols == 0 {
@@ -161,7 +162,21 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if rows == 0 {
 		rows = 32
 	}
-	f, err := startConsole(cmd, cols, rows)
+	var cmd *exec.Cmd
+	var f console
+	var err error
+	if s.cfg.Adopt != nil {
+		cmd, f, err = adoptConsole(s.cfg.Adopt, s.cfg.Command)
+	} else {
+		cmd = exec.CommandContext(ctx, s.cfg.Command[0], s.cfg.Command[1:]...)
+		if s.cfg.CWD != "" {
+			cmd.Dir = s.cfg.CWD
+		}
+		if len(s.cfg.Env) > 0 || len(s.cfg.DropEnv) > 0 {
+			cmd.Env = append(envWithout(os.Environ(), s.cfg.DropEnv), s.cfg.Env...)
+		}
+		f, err = startConsole(cmd, cols, rows)
+	}
 	if err != nil {
 		slog.Error("pty: start failed", append([]any{"session", sess.ID, "err", err}, argvLogAttrs(sess, s.cfg.Command)...)...)
 		_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
@@ -199,10 +214,28 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// readable text (last_line, summarizer input) must come from an emulated
 	// screen, not from escape-stripped bytes.
 	screen := vt10x.New(vt10x.WithSize(int(cols), int(rows)))
+	if s.cfg.Adopt != nil && len(s.cfg.Adopt.Screen) > 0 {
+		_, _ = screen.Write(s.cfg.Adopt.Screen) // the previous image's screen
+	}
+	// size is the PTY size as last set, for a freeze.
+	var sizeMu sync.Mutex
+	size := [2]uint16{cols, rows}
+	// frz parks the loops below during a hot-restart freeze.
+	frz := newGate()
+	runDone := make(chan struct{})
+	defer close(runDone)
 
 	// Expose a resize callback to subscribers (attach clients).
 	if s.cfg.RegisterResize != nil {
 		s.cfg.RegisterResize(func(c, r uint16) error {
+			if frz.active() {
+				// The handoff carries the size and screen taken at the
+				// freeze; the client resizes again once it reconnects.
+				return errFrozen
+			}
+			sizeMu.Lock()
+			size = [2]uint16{c, r}
+			sizeMu.Unlock()
 			screen.Resize(int(c), int(r))
 			return f.Resize(c, r)
 		})
@@ -251,9 +284,23 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		interrupts, _ := s.cfg.Adapter.(adapter.InterruptObserver)
 		go func() {
 			for {
+				frz.park("input", inputDone)
 				select {
 				case <-inputDone:
 					return
+				case <-frz.wake():
+					// A freeze: hand over what clients already queued
+					// (they are disconnected first), then park.
+					for drained := false; !drained; {
+						select {
+						case b := <-s.cfg.InputCh:
+							if !pw.Send(ctx, writeUnit{parts: [][]byte{b}}) {
+								return
+							}
+						default:
+							drained = true
+						}
+					}
 				case b := <-s.cfg.InputCh:
 					if interrupts != nil && isInterruptKey(b) {
 						interrupts.UserInterrupt()
@@ -266,8 +313,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		}()
 	}
 
-	if err := s.cfg.Store.Transition(sess.ID, protocol.StateWorking); err != nil {
-		return err
+	// A handed-over session keeps its state: the adapter confirms it, and
+	// a working→ready flip here would replay the READY sound.
+	if s.cfg.Adopt == nil {
+		if err := s.cfg.Store.Transition(sess.ID, protocol.StateWorking); err != nil {
+			return err
+		}
 	}
 	// Persist meta for live sessions too, so a daemon crash reloads them as
 	// crashed instead of silently dropping them.
@@ -297,11 +348,16 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// — each agent has its own signal (Claude/Codex/Gemini's input box ready,
 	// Ollama's `>>>` prompt, etc.). Without an adapter we have no reliable
 	// signal so the paste is skipped entirely.
+	// promptPending is set while the initial prompt waits to be typed; a
+	// freeze is refused meanwhile (errStarting).
+	var promptPending atomic.Bool
 	if s.cfg.InitialPrompt != "" {
 		if s.cfg.Adapter == nil {
 			slog.Warn("pty: initial_prompt set but no adapter; cannot detect readiness", "session", sess.ID)
 		} else {
+			promptPending.Store(true)
 			go func(prompt string) {
+				defer promptPending.Store(false)
 				deadline := time.NewTimer(30 * time.Second)
 				defer deadline.Stop()
 				poll := time.NewTicker(200 * time.Millisecond)
@@ -336,7 +392,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						// Then a SEPARATE write of \r commits the input. Sending text
 						// and Enter in one chunk lets the TUI treat the whole thing as
 						// a paste and never trigger submit.
-						paste := []byte(prompt)
+						// Typed text only: an ESC[201~ in the prompt would
+						// close the paste early (TypedText).
+						paste := []byte(TypedText(prompt))
 						if !s.cfg.PlainPaste {
 							paste = append([]byte("\x1b[200~"), paste...)
 							paste = append(paste, []byte("\x1b[201~")...)
@@ -384,9 +442,21 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// when the child hung up the PTY, otherwise the read error, after which
 	// the child is still running. Transcript write errors pause the
 	// transcript (pausingTranscript) and never end the reader.
+	fd, hasFD := fdOf(f)
+	freezable := hasFD && canWaitReadable(fd)
 	go func() {
 		buf := make([]byte, 4096)
 		for {
+			// With a descriptor that can be watched, read only once it is
+			// readable, so a freeze never finds the reader inside a
+			// blocking read: every byte it took was handled.
+			for freezable {
+				frz.park("reader", runDone)
+				ready, werr := waitReadable(fd, readyWait)
+				if ready || werr != nil {
+					break
+				}
+			}
 			n, rerr := f.Read(buf)
 			if n > 0 {
 				chunk := buf[:n]
@@ -525,9 +595,48 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		s.cfg.Store.BroadcastPatch(sess.ID, map[string]any{"resume_id": sess.Summary().ResumeID})
 	}
 
+	if s.cfg.RegisterFreeze != nil && freezable {
+		s.cfg.RegisterFreeze(func(fctx context.Context) (Frozen, func(), error) {
+			if promptPending.Load() {
+				return Frozen{}, nil, errStarting
+			}
+			if !frz.request() {
+				return Frozen{}, nil, errors.New("session is already frozen")
+			}
+			thaw := sync.OnceFunc(frz.release)
+			if s.cfg.InputCh != nil {
+				if err := frz.waitParked(fctx, "input"); err != nil {
+					thaw()
+					return Frozen{}, nil, fmt.Errorf("freeze input: %w", err)
+				}
+			}
+			if err := pw.pause(fctx, frz.thawCh()); err != nil {
+				thaw()
+				return Frozen{}, nil, fmt.Errorf("freeze writer: %w", err)
+			}
+			if err := frz.waitParked(fctx, "reader"); err != nil {
+				thaw()
+				return Frozen{}, nil, fmt.Errorf("freeze reader: %w", err)
+			}
+			outMu.Lock()
+			screen.Lock()
+			snap := append(ModePreamble(screen.Mode()), Repaint(screen)...)
+			screen.Unlock()
+			outMu.Unlock()
+			sizeMu.Lock()
+			c, r := size[0], size[1]
+			sizeMu.Unlock()
+			return Frozen{FD: fd, PID: cmd.Process.Pid, Cols: c, Rows: r, Screen: snap}, thaw, nil
+		})
+		if s.cfg.UnregisterFreeze != nil {
+			defer s.cfg.UnregisterFreeze()
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
+			frz.release() // a session deleted while frozen: let the reader drain
 			cause := context.Cause(ctx)
 			slog.Info("pty: ctx canceled, killing child", "session", sess.ID, "pid", cmd.Process.Pid, "cause", cause)
 			s.killAndReap(sess.ID, cmd, f, errc)
@@ -538,6 +647,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			_ = s.cfg.Store.Transition(sess.ID, protocol.StateFailed)
 			return ctx.Err()
 		case <-s.cfg.CompleteCh:
+			frz.release()
 			slog.Info("pty: complete signal received, killing child cleanly",
 				"session", sess.ID, "pid", cmd.Process.Pid)
 			s.killAndReap(sess.ID, cmd, f, errc)
@@ -584,6 +694,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			return nil
 		case <-ticker.C:
+			if frz.active() {
+				continue // frozen for a hot restart: the screen is not moving
+			}
 			retryReply() // a reply that waited for the writer
 			// Readable screen → last_line + summarizer input. Sampled on the
 			// tick (not per chunk) so spinner repaints don't flood patches.

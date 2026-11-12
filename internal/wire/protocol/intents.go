@@ -21,8 +21,14 @@ const (
 	IntentUnretire         = "Unretire"
 	IntentResume           = "Resume"
 	IntentReload           = "Reload"
-	IntentUndo             = "Undo"
-	IntentRedo             = "Redo"
+	// IntentRestart asks the daemon to restart; see Restart.
+	IntentRestart = "Restart"
+	// IntentSwapBoards asks every connected board to re-exec into the
+	// installed binary (a swap event); IntentBoards lists board connections.
+	IntentSwapBoards = "SwapBoards"
+	IntentBoards     = "Boards"
+	IntentUndo       = "Undo"
+	IntentRedo       = "Redo"
 )
 
 // Hello is the first message a client sends after connect. The daemon
@@ -36,6 +42,41 @@ type Hello struct {
 	// the daemon log and, for ClientTUI, to count a board viewer. Empty from
 	// older clients.
 	Client string `json:"client,omitempty"`
+	// PID and Build identify the client process and its binary build (R20
+	// rex upgrade reports per process). Optional.
+	PID   int    `json:"pid,omitempty"`
+	Build string `json:"build,omitempty"`
+}
+
+// RestartHot is Restart.Mode for a hot restart: the daemon re-execs itself
+// in place and every running session survives. The only mode the daemon
+// takes; a cold restart is a Shutdown plus a start, done by the client.
+const RestartHot = "hot"
+
+// Restart is the payload of IntentRestart. On success the daemon never
+// replies: the connection closes when the new image takes over, and the
+// client confirms through a new Hello (Snapshot.DaemonStartedAt changes).
+// A refused or failed restart replies with an Error and the old daemon
+// keeps running.
+type Restart struct {
+	Mode string `json:"mode"`
+}
+
+// BoardInfo is one board connection (IntentBoards, IntentSwapBoards).
+type BoardInfo struct {
+	PID   int    `json:"pid,omitempty"`
+	Build string `json:"build,omitempty"`
+}
+
+// Boards is the Ack payload of IntentBoards and IntentSwapBoards.
+type Boards struct {
+	Boards []BoardInfo `json:"boards"`
+}
+
+// SwapBoards is the payload of IntentSwapBoards: boards whose build is not
+// Build re-exec into their installed binary.
+type SwapBoards struct {
+	Build string `json:"build,omitempty"`
 }
 
 // ClientTUI is the Hello.Client of the rex board. The daemon counts only
@@ -102,6 +143,28 @@ type NewSession struct {
 	// predates the fields ignores them.
 	Cols uint16 `json:"cols,omitempty"`
 	Rows uint16 `json:"rows,omitempty"`
+	// ContextSummary lists the context items the client folded into
+	// InitialPrompt (kind, name, size; never content), for the card detail
+	// and audit. Metadata only: the daemon accepts it and does not store it
+	// yet. A daemon that predates the field ignores it.
+	ContextSummary []ContextRef `json:"context_summary,omitempty"`
+}
+
+// MaxInitialPromptBytes caps NewSession.InitialPrompt (UTF-8 bytes). It
+// stays under Linux's 128 KiB per-argv-element limit (MAX_ARG_STRLEN), so a
+// prompt that is too big is bad_intent instead of a failed exec.
+const MaxInitialPromptBytes = 96 << 10
+
+// ContextRef describes one context item of a new session's first prompt.
+type ContextRef struct {
+	// Kind is "paste", "file", "dir" or "url".
+	Kind string `json:"kind"`
+	// Name is "paste N", a workspace-relative path (a dir ends in "/") or
+	// the URL.
+	Name string `json:"name"`
+	// Bytes is the paste or file size, the listed files' total for a dir,
+	// 0 for a URL.
+	Bytes int `json:"bytes,omitempty"`
 }
 
 // SetSessionFleet updates the fleet label of an existing session.

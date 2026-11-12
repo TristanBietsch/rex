@@ -22,6 +22,7 @@ const (
 	FocusPrompt
 	FocusCommand
 	FocusWizard
+	FocusNewAgent
 	FocusHelp
 	FocusConfirmQuit
 	FocusConfirmDelete
@@ -121,6 +122,14 @@ type Model struct {
 	SpinnerTick int
 	Quitting    bool
 
+	// NewAgent is the new-agent page (newagent.go), set while
+	// FocusNewAgent; newAgentDraft is the page left with esc, restored by
+	// the next n (memory only, R16 D4). lastSpawn is the agent, model and
+	// effort of the last launch from the page (D3).
+	NewAgent      *NewAgentState
+	newAgentDraft *NewAgentState
+	lastSpawn     *quickChoice
+
 	Wizard   *WizardState
 	Settings *SettingsState
 	// Help is the help overlay's scroll and filter; nil reads as the top,
@@ -147,6 +156,10 @@ type Model struct {
 	// nil means daemonctl.ReloadDaemon; tests swap it so no real daemon is
 	// reached.
 	reloader func(ctx context.Context, socket string) error
+	// reportReloader sends :reload's (and the Settings page's R) Reload
+	// intent and returns the daemon's report. nil means
+	// daemonctl.ReloadDaemonReport.
+	reportReloader func(ctx context.Context, socket string) (protocol.ReloadReport, error)
 
 	// Store is the live settings store. Renderers read from it; the settings
 	// page mutates it and triggers live-apply side effects.
@@ -215,6 +228,7 @@ type Model struct {
 	// from a daemon that predates it: then every tool counts as installed).
 	DaemonTools []protocol.ToolInfo
 	toolsKnown  bool
+	toolsSnap   bool // a Snapshot came: an unknown list now means an old daemon
 
 	// Overview is the daemon's board overview (headline over the buckets the
 	// TUI computes itself), from the Snapshot and Overview events. Nil
@@ -260,6 +274,21 @@ type Model struct {
 	idleArmed  bool
 	idleDone   <-chan struct{}
 	keepAwake  *displayAwake
+
+	// Hot swap (swap.go). bin is the executable this board runs, checked
+	// every binCheckEvery; newBuild is set once another build is
+	// installed. swapIn is the view a swap carried over (applied when the
+	// board is up); swapPath is set when the board quit to swap.
+	// swapWanted is a rex upgrade request waiting for a safe moment.
+	// reattachFor is the session an attach popup re-attaches to after the
+	// daemon dropped its connection.
+	bin         binStamp
+	binTicking  bool
+	newBuild    bool
+	swapWanted  bool
+	swapIn      *swapState
+	swapPath    string
+	reattachFor string
 
 	// Boot / splash state.
 	BootLog     []bootLine
@@ -327,7 +356,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			if m.SelectedID == rem.SessionID {
 				m.SelectedID = neighborOf(m, rem.SessionID)
 			}
-			out := m.Sessions[:0]
+			// A new slice: Model copies (and Cmds) made before this event
+			// share the old backing array.
+			out := make([]protocol.SessionSummary, 0, len(m.Sessions))
 			for _, s := range m.Sessions {
 				if s.ID != rem.SessionID {
 					out = append(out, s)

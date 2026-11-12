@@ -548,13 +548,13 @@ rex complete <sel> [-socket path]
 
 ## rex reload
 
-Send a `Reload` request to the daemon over its socket. The daemon re-reads **tools.yaml**, then **config.yaml** (see [daemon.md](daemon.md)). Exits 4 when no daemon answers on the socket.
+Send a `Reload` request to the daemon over its socket. The daemon re-reads **tools.yaml** (and model lists), **config.yaml** with **config.lua** on top, and **init.lua** (see [daemon.md](daemon.md)), and answers with a report. Exits 4 when no daemon answers on the socket, 1 when a layer failed (the failed layers on stderr as `rex: rex-daemon could not reload: file:line: message`, the rest of the report on stdout).
 
 ```sh
 rex reload
 ```
 
-Does not reload `init.lua`. Silent in `txt`; `agent` gives `ok cmd=reload reloaded=true`.
+Prints `changed: theme, usage`, `needs a daemon restart: summary_model (rex daemon restart keeps sessions)`; a failed layer keeps its previous values. In `txt` the success line stays silent, as it always was; `-o json` and `agent` carry `reloaded`, `changed`, `restart`, `errors` and `warnings`. Against a daemon from before reload reports it prints only that it reloaded.
 
 ---
 
@@ -564,13 +564,25 @@ Does not reload `init.lua`. Silent in `txt`; `agent` gives `ok cmd=reload reload
 rex daemon start
 rex daemon stop
 rex daemon status    # exit 4 if not running
-rex daemon restart
+rex daemon restart [-cold] [-yes]
 rex daemon logs [-f]
 ```
+
+`restart` is a **hot restart** by default: the daemon re-execs in place, running agents keep their process and PTY, and it prints `rex-daemon hot-restarted (pid 123, 4 session(s) kept, build abc → def)` (see [daemon.md](daemon.md#hot-restart)). When hot restart is not possible (Windows, a daemon from before it, or the new binary refused the handoff) it says why and falls back to a cold restart. `-cold` stops and starts; a cold restart with running sessions asks `a cold restart kills N running session(s). Restart anyway?` at a terminal and needs `-yes` otherwise (exit 6).
 
 `stop`, `status` and `restart` act on whatever daemon answers on the socket. `stop` sends it a `Shutdown` request and returns once the daemon has removed its socket; no process is looked up by name or signaled. The PID shown is for information only and reads `unknown` when it cannot be determined (for example, two daemons on different sockets). `restart` does not start a second daemon if the first one will not stop.
 
 `logs` reads `~/.local/state/rex/daemon.log` and prints content (`text`, `txt`, `agent`). The other subcommands take `-o` and `--agent`: `txt` keeps the line each always printed, `agent` gives `ok cmd=daemon action=status state=running socket=… pid=…`, and `status` of a stopped daemon is `fail cmd=daemon … state=not_running` (exit 4).
+
+---
+
+## rex upgrade
+
+```sh
+rex upgrade [-cold] [-yes] [-o FORMAT]
+```
+
+Load a newly installed build everywhere, after `make install` or `rex update`: hot-restart the daemon (as `rex daemon restart`), then ask every connected board on another build to swap into the new binary, wait up to 10 s, and report each process: `daemon pid 123: hot-restarted, 4 session(s) kept (build abc → def)`, `board pid 456: swapped to build def`, or `board pid 789: still on build abc` (it swaps when idle, or `:swap`). `-cold` and `-yes` are passed to the daemon restart. Exit 4 when no daemon answers. It never installs anything.
 
 ---
 
@@ -676,7 +688,7 @@ How rex upgrades depends on where the running `rex` lives:
 
 A `go install` build always moves to the latest `master`, so `-version` (or `REX_VERSION`) is refused there (exit **5**). `-source DIR` runs `git pull` and `./install.sh --from-source` (`install.ps1 -FromSource` on Windows) in that checkout, for any install.
 
-**Release update.** rex asks the GitHub API for the latest release (`-version vX.Y.Z` or `REX_VERSION` pins one instead; `GITHUB_TOKEN`, when set, is sent to the API only). It compares the release with the running version and refuses, with exit **6**, a release older than the running one (a downgrade) and a running `dev` or Go pseudo-version build that it cannot compare; `-force` installs anyway. The same version prints `rex vX is up to date` and changes nothing (`-force` reinstalls). Then it downloads `rex_<ver>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `SHA256SUMS`, checks the archive against its line, extracts `rex` and `rex-daemon` next to the installed ones as temp files, syncs them and renames them over the old binaries (on Windows the old `.exe` is first renamed to `.exe.old`). A running daemon is not touched: it keeps its sessions on the old binary, and the result says how to switch it (`rex upgrade` when the new build has it, without ending sessions; otherwise `rex daemon restart`, which ends them). The `-o json` result carries it as `next`.
+**Release update.** rex asks the GitHub API for the latest release (`-version vX.Y.Z` or `REX_VERSION` pins one instead; `GITHUB_TOKEN`, when set, is sent to the API only). It compares the release with the running version and refuses, with exit **6**, a release older than the running one (a downgrade) and a running `dev` or Go pseudo-version build that it cannot compare; `-force` installs anyway. The same version prints `rex vX is up to date` and changes nothing (`-force` reinstalls). Then it downloads `rex_<ver>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `SHA256SUMS`, checks the archive against its line, extracts `rex` and `rex-daemon` next to the installed ones as temp files, syncs them and renames them over the old binaries (on Windows the old `.exe` is first renamed to `.exe.old`). A running daemon is not touched: it keeps its sessions on the old binary, and the result says how to switch it (`rex upgrade` when the new build has it, which keeps sessions where hot restart works and asks before ending any; otherwise `rex daemon restart`, which ends them). The `-o json` result carries it as `next`.
 
 **`-check`** changes nothing. It prints the running `version`, the `remote` release and a `status`: `up-to-date`, `update-available`, `running-newer` or `unknown` (a `dev` or pseudo-version build). A failed lookup exits **1**.
 

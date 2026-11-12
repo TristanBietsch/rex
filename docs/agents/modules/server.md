@@ -43,6 +43,8 @@ Per-connection handling lives in unexported `client.go` (`handleClient`, intent 
 
 Concurrent session cap enforced at spawn via `TryAcquireSession`.
 
+On Windows `startSupervisor` runs the launch plan first (`launch_plan.go`, `internal/daemon/winlaunch`): an npm `.cmd` shim becomes the program it runs, an unresolvable shim or `cmd.exe` gets the prompt pasted (safe arguments only, rex-added ones included), a command line over 32,000 UTF-16 units (8,000 through cmd.exe) moves the prompt to the paste path, anything else is refused. `winlaunch.Plan` is pure over an `Env`, so it is tested on every platform.
+
 ## Side effects
 
 Unix socket listen. Spawns supervisor goroutines per session. Unlinks socket path on shutdown.
