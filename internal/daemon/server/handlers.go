@@ -244,7 +244,7 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	defer c.srv.lockInput(p.SessionID)()
 	c.srv.userInput(p.SessionID) // a loop holds its re-sends
-	if err := typeText(ch, p.Text); err != nil {
+	if _, err := typeText(ch, p.Text, nil); err != nil {
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
@@ -256,19 +256,30 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 // as \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
 // Claude Code insert a newline on \n instead of submitting, and treat
 // text+\r in one burst as a paste.
-func typeText(ch chan []byte, text string) error {
+//
+// guard (nil: always) is called before the text and again right before the
+// Enter, after the pause: a session can change in that gap (a permission
+// prompt appears). When it says false the text, if already typed, stays
+// unsubmitted and sent is false.
+func typeText(ch chan []byte, text string, guard func() bool) (sent bool, err error) {
 	errFull := errors.New("input buffer full")
+	if guard != nil && !guard() {
+		return false, nil
+	}
 	select {
 	case ch <- []byte(text):
 	default:
-		return errFull
+		return false, errFull
 	}
 	time.Sleep(replySubmitDelay)
+	if guard != nil && !guard() {
+		return false, nil
+	}
 	select {
 	case ch <- []byte{'\r'}:
-		return nil
+		return true, nil
 	default:
-		return errFull
+		return false, errFull
 	}
 }
 

@@ -233,3 +233,27 @@ func TestSendText_IsNotInterleavedWithClientInput(t *testing.T) {
 	_, err = srv.SendText("nope", "x", nil)
 	require.ErrorContains(t, err, "not running")
 }
+
+// The guard is asked again after the pause before Enter: if the session
+// changed in that gap (a permission prompt appeared), the text stays typed
+// and no Enter is written.
+func TestSendText_GuardIsCheckedAgainBeforeEnter(t *testing.T) {
+	srv, _, _ := newTestServer(t, state.NewStore())
+	ch := make(chan []byte, 8)
+	srv.RegisterInputChannel("s1", ch)
+
+	calls := 0
+	sent, err := srv.SendText("s1", "go on", func() bool { calls++; return calls == 1 })
+	require.NoError(t, err)
+	require.False(t, sent, "the second look said no")
+	require.Equal(t, 2, calls, "once before the text, once before Enter")
+	require.Equal(t, []byte("go on"), <-ch)
+	require.Empty(t, ch, "no Enter was written")
+
+	calls = 0
+	sent, err = srv.SendText("s1", "again", func() bool { calls++; return true })
+	require.NoError(t, err)
+	require.True(t, sent)
+	require.Equal(t, []byte("again"), <-ch)
+	require.Equal(t, []byte{'\r'}, <-ch)
+}

@@ -88,21 +88,17 @@ func (s *Server) lockInput(sessionID string) func() {
 // SendText types text into a session and presses Enter, as a Reply does,
 // without counting as the user's activity. It holds the session's input lock
 // for the whole send, and calls guard (nil: always send) once the lock is
-// held: when guard says false nothing is sent and sent is false. The loop
-// runner uses it to give up if the user typed in the meantime.
+// held, and again right before Enter after the short pause that separates
+// text from Enter: when it says false nothing more is sent and sent is false
+// (text already typed stays unsubmitted). The loop runner's guard says the
+// session is still at a finished turn and the user has not typed.
 func (s *Server) SendText(sessionID, text string, guard func() bool) (sent bool, err error) {
 	ch := s.InputChannel(sessionID)
 	if ch == nil {
 		return false, errors.New("session not running")
 	}
 	defer s.lockInput(sessionID)()
-	if guard != nil && !guard() {
-		return false, nil
-	}
-	if err := typeText(ch, text); err != nil {
-		return false, err
-	}
-	return true, nil
+	return typeText(ch, text, guard)
 }
 
 // SetSessionLoop records the loop and turn on a session and persists it.
