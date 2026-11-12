@@ -37,6 +37,15 @@ type ptyWriter struct {
 	busy atomic.Bool // a unit is being written now
 	done <-chan struct{}
 	dead chan struct{} // closed when a write failed: the child is gone
+	// pauseCh parks the writer for a hot restart (pause).
+	pauseCh chan pauseReq
+}
+
+// pauseReq asks the writer to finish its queue and park until resume
+// closes. ack is closed once it has parked.
+type pauseReq struct {
+	ack    chan struct{}
+	resume <-chan struct{}
 }
 
 const writerQueue = 64
@@ -44,24 +53,33 @@ const writerQueue = 64
 // newPTYWriter starts the writer goroutine; it stops when done closes (a
 // write already blocked in the kernel ends when the PTY is closed).
 func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWriter {
-	pw := &ptyWriter{w: w, ch: make(chan writeUnit, writerQueue), done: done, dead: make(chan struct{})}
+	pw := &ptyWriter{w: w, ch: make(chan writeUnit, writerQueue), done: done, dead: make(chan struct{}), pauseCh: make(chan pauseReq)}
 	go func() {
 		for {
 			select {
 			case <-done:
 				return
 			case u := <-pw.ch:
-				pw.busy.Store(true)
-				ok, err := pw.write(u)
-				pw.busy.Store(false)
-				if u.res != nil {
-					u.res <- ok && err == nil
+				if !pw.run(u, onErr) {
+					return
 				}
-				if err != nil {
-					close(pw.dead)
-					if onErr != nil {
-						onErr(err)
+			case req := <-pw.pauseCh:
+				// Write what is queued, so no unit is left behind, then park.
+				for drained := false; !drained; {
+					select {
+					case u := <-pw.ch:
+						if !pw.run(u, onErr) {
+							close(req.ack)
+							return
+						}
+					default:
+						drained = true
 					}
+				}
+				close(req.ack)
+				select {
+				case <-req.resume:
+				case <-done:
 					return
 				}
 			}
@@ -72,6 +90,46 @@ func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWrit
 
 // write writes the unit's parts back to back. ok is false when the guard
 // dropped the rest of the unit or the writer ended during a gap.
+// run writes one unit and reports it; false means the writer must end (a
+// write failed: the child is gone).
+func (p *ptyWriter) run(u writeUnit, onErr func(error)) bool {
+	p.busy.Store(true)
+	ok, err := p.write(u)
+	p.busy.Store(false)
+	if u.res != nil {
+		u.res <- ok && err == nil
+	}
+	if err != nil {
+		close(p.dead)
+		if onErr != nil {
+			onErr(err)
+		}
+		return false
+	}
+	return true
+}
+
+// pause has the writer write everything queued, then park until resume
+// closes. It returns once the writer has parked, or with ctx's error.
+func (p *ptyWriter) pause(ctx context.Context, resume <-chan struct{}) error {
+	req := pauseReq{ack: make(chan struct{}), resume: resume}
+	select {
+	case p.pauseCh <- req:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-p.done:
+		return errInputClosed
+	case <-p.dead:
+		return errInputClosed
+	}
+	select {
+	case <-req.ack:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (p *ptyWriter) write(u writeUnit) (bool, error) {
 	var callerGone <-chan struct{}
 	if u.ctx != nil {
