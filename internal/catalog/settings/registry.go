@@ -175,6 +175,22 @@ var Registry = []Setting{
 	},
 
 	{
+		ID: "turn_snapshots", Label: "Turn snapshots and undo", Section: SectionFeatures,
+		Type: TypeBool, Default: false,
+		Help: "Snapshot a session's folder at the start and end of every agent turn into a private store under ~/.local/share/rex/snapshots, so rex undo can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as .env unless they are gitignored. Off: no snapshot, no git call, and rex undo refuses.",
+	},
+
+	{
+		ID: "usage", Label: "Usage tracking", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Track agent usage: a ledger of tokens and cost per session (~/.local/share/rex/usage.jsonl) for rex usage, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written, nothing is polled, and rex usage refuses.",
+	},
+	{
+		ID: "usage_statusline_tap", Label: "Claude status-line tap", Section: SectionFeatures,
+		Type: TypeEnum, Default: "auto", Options: []string{"auto", "on", "off"},
+		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
+	},
+	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",

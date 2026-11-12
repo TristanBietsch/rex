@@ -136,6 +136,12 @@ func run(args []string) error {
 		return inspect.RunFleet(args[1:])
 	case "overview":
 		return inspect.RunOverview(args[1:])
+	case "undo":
+		return session.RunUndo(args[1:])
+	case "redo":
+		return session.RunRedo(args[1:])
+	case "usage":
+		return inspect.RunUsage(args[1:])
 	case "export":
 		return inspect.RunExport(args[1:])
 	default:

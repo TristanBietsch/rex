@@ -59,6 +59,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Setting `timestamps` (Features, on by default): switches off the TUI's
   start→end span column and the `rex ls -wide` time columns. The end time
   is still recorded.
+- Turn snapshots and undo, off by default (Settings → Features,
+  `turn_snapshots`). The daemon snapshots a session's folder at the start
+  and end of every agent turn into a private store under
+  `~/.local/share/rex/snapshots` (only folders inside a git repo; your repo
+  is never touched), and `rex undo <sel> [-turns N] [-force] [-yes]` puts the
+  files back the way they were before the last turn, `rex redo <sel>` brings
+  them back. Undo refuses while the session is working or another live
+  session shares the folder (unless `-force`), asks first with file counts
+  (`-yes` without a terminal), and does not undo shell side effects. The
+  agent is not told. Snapshots keep file contents, including untracked
+  secrets such as `.env`, so read [docs/snapshots.md](docs/snapshots.md)
+  before turning it on. Kept 7 days after a session is removed, at most
+  2 GiB per folder. It follows what git ignores in your repo (also for a
+  session in a repo subfolder), refuses an undo that would overwrite
+  anything no snapshot holds (a nested clone, a big file, an ignored
+  folder) and needs git 2.32 or newer. `rex doctor` shows the store size per folder, whether
+  `git` is found and warns about untracked `.env*` files. New `Undo` and
+  `Redo` intents with an `UndoResult` reply (additive). The TUI `:undo`
+  dialog comes later.
+- Usage tracking, first part (the `usage` feature, on by default):
+  `rex-daemon statusline-tap`, a Claude Code status line that sends plan
+  rate-limit, cost and model fields to the daemon and then runs your own
+  status line with the same input, so yours looks the same. The
+  `usage_statusline_tap` setting (`auto`, `on`, `off`; Settings → Features)
+  decides when rex adds it: `auto` only when you already have a status line
+  (a status line makes Claude hide its footer hints, which rex never does on
+  its own), `on` always, `off` never. `usage` off adds no tap and writes
+  nothing. See [docs/settings.md](docs/settings.md) and SECURITY.md.
+- Usage ledger: with `usage` on, the daemon keeps
+  `~/.local/share/rex/usage.jsonl` (mode 0600, append-only): one line per
+  session when it ends or is pruned, and at most every 10 minutes for a live
+  one. The latest line per session counts, so nothing is counted twice, and
+  the file is trimmed to 90 days when the daemon starts. It holds ids, tool
+  and model names, estimated tokens and cost, never prompts or output. See
+  [docs/paths.md](docs/paths.md).
+- `rex usage [-range today|7d|30d] [-tool ID] [-by tool|model] [-o FORMAT]`:
+  tokens, cost and plan quota per agent, per model and in total. Token
+  counts are rex's own estimate and show `~`; cost comes from Claude Code's
+  status line; quota windows show percent used and time to reset. Exits 5
+  while `usage` is off. See [docs/cli.md](docs/cli.md).
+- Protocol (additive, `ProtocolVersion` unchanged): `Usage` event and
+  `Snapshot.usage` with the live plan quotas, the `UsageQuery` intent
+  (replies `UsageResult`: totals per tool, per model and overall over
+  `today`, `7d` or `30d`) and the `UsageSample` intent the status-line tap
+  sends. An older daemon answers `UsageQuery` with `bad_intent`, and the CLI
+  tells you to run `rex daemon restart`. See [docs/protocol.md](docs/protocol.md).
 - Antigravity: a question or the trust dialog shows as waiting at once, not
   after 15 s. rex asks agy for its terminal status (`AGY_CLI_OSC7501=on`,
   per session, nothing written to `~/.gemini`) and falls back to the footer
@@ -67,6 +113,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `uc` and `:resume` work for agy sessions (`resume` block with
   `--conversation={id}`), and a `trust_prompt` fallback answers agy's trust
   dialog in trusted folders.
+- Agents start at the size of the attach popup (TUI quick-spawn and the
+  wizard) or of your terminal (`rex new` on a terminal), so the first attach
+  needs no resize. `NewSession` gained `cols` and `rows`; without them the
+  agent starts at 120x32 as before.
 - `rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]`
   writes one session as a readable document: its metadata plus the
   transcript as clean text, never raw PTY bytes. Full-screen agents are
@@ -456,6 +506,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   its own, and nothing uses a shared renderer.
 - `rex digest` and `rex stats` read their colors from the theme instead of
   copied hex values that ignored `color_scheme`.
+- Daemon: `Resize` and `NewSession` sizes are clamped to 20-1000 columns and
+  5-500 rows. A client asking for 65535x65535 made the daemon allocate about
+  4 GB for its screen mirror and could run it out of memory.
 - TUI: the attach popup is no longer wider than a narrow terminal (it was
   clipped below 54 columns), and in the mobile layout (60 columns or fewer)
   it is a full-screen sheet with no margin or padding.

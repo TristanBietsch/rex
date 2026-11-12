@@ -59,7 +59,7 @@ Exit **2** if no match. Exit **3** if multiple match: a slug shared by several s
 | 3 | Ambiguous selector |
 | 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
 | 5 | Invalid arguments: a bad flag or value, a missing argument, or an unknown command |
-| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` or `rex prune` confirmation; also a prompt that cannot be asked (a non-text format, or stderr not a terminal) |
+| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` or `rex prune` confirmation; `rex undo` / `rex redo` without a terminal and without `-yes`, a declined confirmation, or a daemon refusal (session working, another live session in the folder, nothing to undo or redo, folder not in a git repo); also a prompt that cannot be asked (a non-text format, or stderr not a terminal) |
 | 7 | `rex wait` timed out |
 
 An unknown command exits **5** and, when a real command is within two edits, names it: `unknown command "lss"; did you mean "ls"?`. A session removed while `rex wait` runs exits **2**.
@@ -175,6 +175,24 @@ rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [
 ```
 
 Replays the session's transcript through the terminal emulator (full-screen agents) or strips it (line tools) and writes the metadata plus clean text as `json` (default, `version: 1`), `yaml` (the same document), `md` or `txt`. Output goes to stdout, or to `--out FILE` (mode 0600; refuses to replace a file without `--force`, exit 6; the format is taken from the extension when `-o` is absent). `--max-frames N` keeps the last N frames. `--from-agent-log` reads Claude Code's own log for the session's resume id instead; a missing log falls back to frames with a notice. A running session is read up to its current end. Needs the `session_export` feature (exit 5 when off). Exports can hold secrets. Details: [export.md](export.md).
+
+---
+
+## rex usage
+
+What the agents used: tokens, cost and plan quota, per agent, per model and in total.
+
+```sh
+rex usage [-range today|7d|30d] [-tool ID] [-by tool|model] [-socket path] [-o FORMAT] [--agent]
+```
+
+Asks the daemon, which counts each session once from its usage ledger (`~/.local/share/rex/usage.jsonl`, see [paths.md](paths.md)) overlaid with the live sessions, so a session still running counts as it is now. A session belongs to the range its latest ledger line falls in. `-range` is `today` (since local midnight, the default), `7d` or `30d`. `-tool` limits it to one tool id. Default rows are one per tool with its models under it; `-by tool` shows only the tool rows and `-by model` one flat row per tool and model. `-by` changes the human rows only: `json` always carries the whole report.
+
+Columns: sessions, tokens and cost. **Tokens are rex's own estimate** (`output_bytes / 4`) and show a `~` in front (`~1.2M`); **cost** is what Claude Code reports for the session through its status line, `—` when the tool reported none (every tool but Claude today, and Claude when the tap is off, see `usage_statusline_tap` in [settings.md](settings.md)). A **Quota** table follows when a tool reports plan limits (Claude, through the status-line tap): window (`5h`, `week` or a spend period), percent used (green under 60, yellow under 85, red from there), when it resets, and `(as of HH:MM)` when the reading is older than 15 minutes. A plan without rate limits (API-key billing) shows cost and no quota table. Grok's `grok usage` is not read yet.
+
+`json` is `{"v":1,"cmd":"usage","data":{"range","since","tool","total":{"sessions","tokens","tokens_estimated","cost_usd"},"tools":[{"tool",…row,"models":[{"model",…row}]}],"quotas":[{"tool","window","used_pct","resets_at","used_usd","limit_usd","at","stale"}]}}`; `cost_usd` is absent when no counted session reported one. `agent` prints one `usage level=tool|model tool=… model=… sessions=… tokens=… estimated=… cost_usd=…` line per row (`cost_usd=none` when unknown), one `quota tool=… window=… used=… resets_at=… stale=…` line per window, then `ok cmd=usage count=N sessions=… tokens=… cost_usd=…`.
+
+Exit **5** with `off: enable in Settings → Features (rex config set usage true)` while the `usage` setting is off (checked before any connection), and for a bad `-range` or `-by`. Exit **4** when the daemon is not running. Against a `rex-daemon` older than this command it exits **6** with ``run `rex daemon restart` ``.
 
 ---
 
@@ -307,6 +325,30 @@ rex rm <sel> [-socket path] [-force|-yes|-y]
 ```
 
 On a terminal it asks `delete <id> (<slug>)? [y/N]`; anything but `y`/`yes` exits **6**. Without a terminal on stdin (a script, a pipe, `< /dev/null`) it refuses with exit **6** unless `-force` (alias `-yes`, `-y`) is given, the same rule as `prune`.
+
+---
+
+## rex undo / rex redo
+
+Put a session's folder back the way it was before the agent's last turn, from the [turn snapshots](snapshots.md). Needs the `turn_snapshots` feature (off by default); without it both commands exit **5** with `off: enable in Settings → Features (rex config set turn_snapshots true)`.
+
+```sh
+rex undo <sel> [-turns N] [-force] [-yes|-y] [-socket path] [-o text|txt|md|json|agent]
+rex redo <sel> [-force] [-yes|-y] [-socket path] [-o ...]
+```
+
+- `-turns N` (undo only, default 1, at most 1000) goes back N turns. Repeating `rex undo` walks further back.
+- The command first asks the daemon what it would do (a dry run), so a refusal comes before any question. Then it asks `undo <slug> (N turn(s)): restore X file(s), delete Y file(s)`, adds `shell side effects (installs, databases, files outside the folder) are not undone`, and waits for `y`/`yes`. Anything else exits **6** with nothing changed.
+- Without a terminal on stdin it exits **6** unless `-yes` (alias `-y`) is given, the same rule as `rm` and `prune`.
+- The daemon refuses (exit **6**) while the session is working, and while another live session shares the folder unless `-force`. It also refuses a folder outside a git repo ("snapshots need a git repo"), a session with no recorded turn ("nothing to undo"), a turn whose capture failed, and a `redo` with nothing to redo.
+- The daemon also refuses (exit **6**, nothing changed) when the restore would overwrite or remove content that no snapshot holds: a nested repo or `git clone` where a file must be written, a file over 2 MiB, an ignored folder, a symlink. The message lists the paths; move them away and run it again. `-force` does not override this. Warnings from the daemon (the folder changed while it ran) are shown after the file lists and are in `-o json` as `warnings`.
+- Before it restores, the daemon captures the current folder (your own edits included), which `rex redo` brings back. Redo history is dropped when the session starts another turn.
+- The agent is not told; the output suggests telling it yourself.
+- `-o json` data: `{session, op, turns, restored[], deleted[], safety, warnings[]}`; paths are relative to the session's folder. The text views list at most 20 files per list.
+
+Exit codes: 2 selector not found, 5 usage error or feature off, 6 refused, 1 any other failure. An older daemon answers `bad_intent` and the command says to run `rex daemon restart`.
+
+The TUI `:undo` / `:redo` dialog is not available yet.
 
 ---
 

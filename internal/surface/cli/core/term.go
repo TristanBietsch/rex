@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"os"
 	"strconv"
 
@@ -36,6 +37,21 @@ func fileWidth(f *os.File, getenv func(string) string) int {
 		return clampWidth(c)
 	}
 	return defaultWidth
+}
+
+// StdoutSize returns stdout's terminal size in columns and rows, or 0, 0
+// when stdout is not a terminal or its size is unknown.
+func StdoutSize() (cols, rows uint16) { return fileSize(os.Stdout) }
+
+func fileSize(f *os.File) (cols, rows uint16) {
+	if !IsTerminal(f) {
+		return 0, 0
+	}
+	w, h, err := term.GetSize(int(f.Fd()))
+	if err != nil || w <= 0 || h <= 0 {
+		return 0, 0
+	}
+	return uint16(min(w, math.MaxUint16)), uint16(min(h, math.MaxUint16)) //nolint:gosec // G115: bounded by the min above.
 }
 
 func clampWidth(w int) int { return min(max(w, minWidth), maxWidth) }

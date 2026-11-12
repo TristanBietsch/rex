@@ -63,6 +63,8 @@ internal/
 │   ├── skills/             # skill library + per-session plugin staging
 │   ├── summarizer/         # Ollama descriptions
 │   ├── overview/           # board buckets, digest, headline runner
+│   ├── snapshot/           # turn snapshots: shadow git store, undo/redo, retention
+│   ├── usage/              # usage ledger, Claude status-line tap, quotas
 │   ├── export/             # session export: transcript frames, formatters, agent log
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting

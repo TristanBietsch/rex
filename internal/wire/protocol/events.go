@@ -12,7 +12,9 @@ const (
 	EventSummarizerHealth = "SummarizerHealth"
 	// EventOverview carries the board-wide overview (see Overview).
 	EventOverview = "Overview"
-	EventError    = "Error"
+	// EventUndoResult is the success reply to Undo and Redo.
+	EventUndoResult = "UndoResult"
+	EventError      = "Error"
 	// EventAck is the success reply to an intent that carried an ID and has
 	// no more specific reply (see the package doc for the table).
 	EventAck = "Ack"
@@ -132,6 +134,9 @@ type Snapshot struct {
 	// Overview is the daemon's current board overview. Nil until the daemon
 	// has published one, and from daemons that predate it.
 	Overview *Overview `json:"overview,omitempty"`
+	// Usage is the daemon's live usage quotas. Nil while usage is off or
+	// nothing was published yet, and from daemons that predate it.
+	Usage *Usage `json:"usage,omitempty"`
 }
 
 // Ack is the success reply to an intent that carried an envelope ID. The
@@ -211,3 +216,17 @@ const (
 	ErrCodeUnsupportedVersion = "unsupported_version" // envelope "v" is not ProtocolVersion
 	ErrCodeInternal           = "internal_error"      // a daemon bug while handling the intent
 )
+
+// UndoResult is the reply to Undo and Redo: the files written and deleted
+// (slash paths relative to the session's folder, sorted), and the tree id of
+// the capture taken just before, which Redo restores after an Undo.
+type UndoResult struct {
+	SessionID string   `json:"session_id"`
+	Restored  []string `json:"restored"`
+	Deleted   []string `json:"deleted"`
+	Safety    string   `json:"safety"`
+	// Warnings are things to show the user: the folder changed while the
+	// restore ran, or the session started working during it. Absent from
+	// daemons that predate the field.
+	Warnings []string `json:"warnings,omitempty"`
+}

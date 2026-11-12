@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -20,17 +21,46 @@ import (
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
 	"github.com/tristanbietsch/rex/internal/features/overview"
+	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
+	"github.com/tristanbietsch/rex/internal/features/usage"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/version"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == usage.TapSubcommand {
+		os.Exit(runTap(os.Args[2:]))
+	}
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "rex-daemon:", err)
 		os.Exit(1)
 	}
+}
+
+// runTap is `rex-daemon statusline-tap --session <id> [--socket path] [--user-settings path]`, the
+// status-line command rex gives Claude Code. Its stdout is Claude's status
+// line, so it never prints a message of its own; a flag it cannot parse only
+// means no usage is sent. It does not start logging or touch any state.
+func runTap(args []string) int {
+	fs := flag.NewFlagSet(usage.TapSubcommand, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	session := fs.String("session", "", "rex session id")
+	socket := fs.String("socket", "", "daemon socket (default: the standard one)")
+	userSettings := fs.String("user-settings", "", "absolute path of the user-level Claude settings file")
+	if err := fs.Parse(args); err != nil {
+		*session = "" // run the user's command, send nothing
+	}
+	// Claude stops a status line with a signal; it must stop the user's
+	// command with it, not leave it running.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	return usage.RunTap(ctx, usage.TapOptions{
+		Session: *session, Socket: *socket, UserSettings: *userSettings,
+		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
+	})
 }
 
 func run(args []string) error {
@@ -163,7 +193,26 @@ func run(args []string) error {
 	// shutdown is stuck instead of being swallowed.
 	context.AfterFunc(ctx, stop)
 
+	// Turn snapshots: inert (no goroutine, no file, no subprocess) while the
+	// turn_snapshots setting is off. The store lives under the state dir.
+	snapStore := snapshot.NewStore(filepath.Join(*stateDir, "snapshots"))
+	snaps := boot.NewSnapshots(ctx, snapStore, store)
+	defer snaps.Close()
+	snaps.SetEnabled(settings.FeatureOn(settingsStore, "turn_snapshots"))
+	// Retention touches the store (ledgers, refs, gc), so with the feature off
+	// it does not run at all.
+	if settings.FeatureOn(settingsStore, "turn_snapshots") {
+		go retainSnapshots(ctx, snapStore, store)
+	}
+
 	var srv *server.Server
+	// Usage tracking: inert while the usage setting is off. Its callbacks
+	// read srv only once Serve has started, after that assignment.
+	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
+	defer usageHub.Close()
+	// One settings watcher: every feature adds its applier to this list.
+	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier()}
+
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
 	var ov *boot.Overview
@@ -180,6 +229,11 @@ func run(args []string) error {
 		ResumeEnabled:         boot.ResumeEnabled,
 		SkillsDir:             *skillsDir,
 		SkillsEnabled:         boot.SpawnSkillsEnabled,
+		Snapshots:             snapStore,
+		SnapshotsEnabled:      boot.TurnSnapshotsEnabled,
+		UsageTap:              boot.UsageTap(*socketPath),
+		OnUsageSample:         usageHub.Hub.Sample,
+		UsageQuery:            usageHub.Hub.Query,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
@@ -187,6 +241,9 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
+
+	// Started only now: switching usage on publishes its state through srv.
+	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
 	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)
@@ -217,9 +274,9 @@ func run(args []string) error {
 			}
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
-		// One settings watcher: later features add an applier here.
-		go boot.WatchSettings(ctx, settingsPath, 5*time.Second, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
+		appliers = append(appliers, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
 	}
+	go boot.WatchSettings(ctx, settingsPath, 5*time.Second, appliers...)
 
 	// SIGHUP → reload tools.yaml.
 	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
@@ -233,6 +290,25 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
+}
+
+// retainSnapshots applies the snapshot retention rules once at start: refs of
+// sessions removed more than 7 days ago go, a store over 2 GiB loses its
+// oldest sessions, and a store is garbage collected at most once a day. It
+// runs only while turn_snapshots is on at daemon start: with it off nothing
+// under the store is touched, so old snapshots wait until it is on again.
+func retainSnapshots(ctx context.Context, st *snapshot.Store, sessions *state.Store) {
+	rep, err := st.Retain(ctx, snapshot.RetainOpts{Live: func(id string) bool {
+		_, ok := sessions.Get(id)
+		return ok
+	}})
+	if err != nil && ctx.Err() == nil {
+		slog.Warn("daemon: snapshot retention failed", "err", err)
+		return
+	}
+	if len(rep.Dropped) > 0 || rep.GCRuns > 0 {
+		slog.Info("daemon: snapshot retention", "dropped_sessions", len(rep.Dropped), "gc_runs", rep.GCRuns)
+	}
 }
 
 // lockError explains a failed state-dir lock. When another daemon holds it,

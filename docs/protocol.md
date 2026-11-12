@@ -54,7 +54,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
 | `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Broadcast as `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
 | `Delete` | yes | `session_id` |
-| `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored) |
+| `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored; clamped to 20-1000 columns and 5-500 rows) |
 | `SetSessionFleet` | yes | `session_id`, `fleet` |
 | `SetMaxConcurrent` | yes | `n` (`n <= 0` uncaps) |
 | `Complete` | yes | `session_id` |
@@ -62,9 +62,13 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
 | `Resume` | yes | `session_id`. Makes the session live and not marked done; see [Resume](#resume) |
+| `Undo` | yes | `session_id`, `turns` (0 = 1; at most 1000), `force`, `dry_run`. Restores the folder from the turn snapshots; see [Undo and Redo](#undo-and-redo) |
+| `Redo` | yes | `session_id`, `force`, `dry_run`. Brings back what the last `Undo` replaced |
 | `FocusFilter` | no-op | Accepted (and acked); not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
+| `UsageSample` | no | Sent by `rex-daemon statusline-tap`, fire and forget (no `id`, no reply, no `Hello`). `session_id` (the rex session), optional `claude_session_id`, `five_hour` and `seven_day` (`used_pct`, `resets_at` in Unix epoch seconds), `spend_limit` (the same plus `used_usd`, `limit_usd`, `period`), `cost_usd`, `model_id`, `model_name`. Every field may be absent. A sample for an unknown session, one with nothing in it, or one that arrives while `usage` is off is dropped without an error. Nothing else of Claude's status-line JSON is ever sent |
+| `UsageQuery` | yes | `range` (`today`, `7d` or `30d`; empty is `today`) and optional `tool`. Reply is a `UsageResult` event with the intent's `id` (see below); `bad_intent` `usage is off` while the setting is off, and for a bad range. `(*client.Client).UsageQuery(ctx, q)` |
 | `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP. `Ack` once the new registry is in use; `bad_intent` with the load error on failure |
 
 ### NewSession fields
@@ -72,9 +76,11 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Field | Required |
 |-------|----------|
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
-| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills` | no |
+| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills`, `cols`, `rows` | no |
 
 `trust_folder` (bool, default false) trusts `cwd` for this session as if it were listed in `auto_trust_dirs`: the agent's folder-trust dialog is answered (or avoided with `trust_args`) and `skip_permissions` may apply. `cwd` must be absolute, without `..`, and neither a filesystem root nor the home folder; otherwise the intent is `bad_intent` with a `trust_folder: ...` message. The choice is stored in `meta.json` and shown as `trust_folder` in session summaries, and `Resume` applies it again (re-checking the stored `cwd`; a folder that no longer passes is not trusted). Nothing is written to the agent's own config by rex.
+
+`cols` and `rows` (numbers, default 0) are the PTY size to start the agent at, so a client that will attach at a known size needs no first `Resize`. The daemon clamps them to 20-1000 columns and 5-500 rows; 0 means the default, 120x32. A daemon that predates the fields ignores them and starts at 120x32.
 
 `name` is the display name, normalized like `SetSessionName` (whitespace collapsed, control characters dropped, at most 64 characters; too long is `bad_intent`). Empty shows the slug.
 
@@ -102,6 +108,25 @@ While the `resume` feature is off (Settings → Features) the daemon answers eve
 
 Clients: `(*client.Client).Resume(sessionID, reqID)`. An older daemon answers `bad_intent` "intent not implemented".
 
+### Undo and Redo
+
+`Undo{session_id, turns, force, dry_run}` restores the session's folder to how it was before its last `turns` agent turns, from the turn snapshots (the `turn_snapshots` setting; see [snapshots](snapshots.md)). `Redo{session_id, force, dry_run}` restores the capture `Undo` took first. Both are additive: no `ProtocolVersion` bump, and an older daemon answers `bad_intent` "intent not implemented".
+
+The reply is an `UndoResult` event (not an `Ack`): `session_id`, `restored` and `deleted` (sorted slash paths relative to the session's folder, never null), `safety`, the tree id of the capture taken just before the restore, and `warnings` (absent when empty): the folder changed while the restore ran, or the session started working during it. The folder is already changed when the reply is sent. With `dry_run` nothing changes and nothing is captured: the same checks run and the reply lists what would be restored and deleted, with an empty `safety`.
+
+Checks, in order:
+
+1. The feature is on, else `bad_intent` "off: enable turn_snapshots in Settings → Features". `turns` outside 0 to 1000 is `bad_intent`.
+2. The session exists (`unknown_session`).
+3. It is not `working` (`bad_state`).
+4. No other live session (state not `done`, `failed` or `crashed`) has a `cwd` that is the same folder, inside it or around it (paths cleaned and symlink-resolved), unless `force` (`bad_state`, naming the others' slugs). Checks 3 and 4 run again after the safety capture, just before the first file changes; `force` never overrides check 3.
+5. The folder is inside a git worktree (git 2.32 or newer), and there is a turn to undo (or an undo to redo): else `bad_state` with the reason ("snapshots need a git repo", "nothing to undo", "nothing to redo", "that turn was not captured, so it cannot be undone").
+6. Nothing a restore would overwrite or remove is missing from the snapshots (a nested repo or clone, a file over 2 MiB, an ignored folder or a symlink at a path it must write): else `bad_state` naming the blocking paths, with nothing changed. `force` does not override it.
+
+The restore runs on a context detached from the connection, so a client that disconnects does not stop it half way. After the final check the restore and its verification run without a deadline. If it fails part way, the `bad_state` message says `rex redo` brings back the state from before. A session whose folder ledger was found corrupt and reset gets a `bad_state` "history for this folder was reset at <time> (the old ledger is kept as <file>); older turns can't be undone".
+
+Snapshots are taken by the daemon at turn boundaries and are not an intent. Redo history is dropped when a session starts another turn. Clients: `(*client.Client).Do(ctx, protocol.IntentUndo, protocol.Undo{...})`.
+
 ## Replies
 
 An intent whose envelope carries a non-empty `id` gets exactly one terminal reply, an event with the same `id`:
@@ -121,8 +146,11 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `Complete` | `Ack` | Termination requested, not finished |
 | `Resize` | `Ack` | Also for the ignored 0×0 size |
 | `FocusFilter`, `SetMaxConcurrent` | `Ack` | |
+| `Undo`, `Redo` | `UndoResult` | The folder is changed before the reply; with `dry_run` it is not |
 | `Reload` | `Ack` | After the new registry is in use |
 | `Shutdown` | `Ack` | Queued before shutdown starts; the daemon may close the connection first, so treat the close as success |
+| `UsageQuery` | `UsageResult` | Not an `Ack`: the payload is the aggregates |
+| `UsageSample` | `Ack` only if it carried an `id` | The tap sends none |
 | `OpenSession`, unknown types | — | `Error` `bad_intent` "intent not implemented" |
 
 - Any failure is an `Error` event with the intent's `id` instead.
@@ -135,7 +163,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it) |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it) |
 | `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
@@ -143,6 +171,8 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `SessionOutput` | `session_id`, `bytes` (base64), `repaint` (true only on the one that answers `Subscribe` `repaint`; omitted otherwise) |
 | `SummarizerHealth` | `available`, `reason` |
 | `Overview` | `enabled`, `headline` (sanitized model text, at most 200 runes), `generated_at`. Sent to every connection that has sent `Hello`; the latest value is also in `Snapshot.overview` |
+| `Usage` | `enabled`, `quotas[]`: the latest plan-quota reading per tool and window, `{tool, model, window, used_pct, resets_at, used_usd, limit_usd, at, stale}`. Window is `5h`, `week` or a spend period such as `month`; `model` is empty for a plan-wide quota; `resets_at` is RFC 3339 and omitted when unknown; every number may be absent (an API-key plan has no quota). Sent to every connection that has sent `Hello` when a quota changes (a reading that repeats the same numbers is not republished) and when `usage` is switched on or off (`enabled: false`: drop what you hold). A reading with `at` older than 15 minutes is stale. The latest value is also in `Snapshot.usage` |
+| `UsageResult` | Reply to `UsageQuery`: `range`, `since`, `tool`, `total`, `tools[]` (each with `models[]`) and `quotas[]`. A row is `{sessions, tokens, tokens_estimated, cost_usd}`; `cost_usd` is absent when no counted session reported a cost. Rows count each session once, by its latest ledger line (or its live totals) falling inside the range |
 | `Error` | `id`, `code`, `message` |
 
 ### SessionSummary fields
@@ -181,6 +211,8 @@ Additive changes (new optional fields, new intents, new events, new patch keys) 
 
 The overview is in the daemon's memory only. An `Overview` published between a client's `Snapshot` and the start of its event stream is missed until the next publish. An older client ignores the event and `snapshot.overview`; against an older daemon a newer client sees neither and shows only what it computes itself.
 
+Usage is the same: the quotas are in the daemon's memory only, and a `Usage` published between a client's `Snapshot` and the start of its event stream is missed until the next change. An older daemon answers `UsageQuery` with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`) and ignores `UsageSample`, so a tap talking to it just loses its usage; an older client ignores the `Usage` event and `snapshot.usage`. `ProtocolVersion` is unchanged.
+
 A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
 
 A daemon that predates `repaint` ignores the field and answers `mode_sync` as before. A client tells by the `Subscribe`'s reply: send it with an `id`, and if the `Ack` arrives with no `repaint: true` output before it, there was no repaint. A daemon that predates acks sends no reply at all, so wait for it only briefly. rex's attach clients (`client.RepaintWatch`: 250 ms, or 2 s after a replay) then fall back to the `^L` redraw nudge. Clients that do not set `repaint` get exactly what they got before, and no `repaint` key on the wire.
@@ -195,7 +227,7 @@ A daemon that predates `repaint` ignores the field and answers `mode_sync` as be
 | `too_many_sessions` | Concurrency cap |
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
-| `bad_state` | `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
+| `bad_state` | `Undo` or `Redo` refused (session working, another live session in the folder without `force`, folder not in a git repo, nothing to undo or redo, a turn that was not captured); `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
 | `line_too_long` | A line exceeded 16 MiB; the daemon closes the connection |
 | `unsupported_version` | The envelope's `v` is not `1`; the daemon closes the connection |
 | `internal_error` | A daemon bug while handling the intent; the daemon closes the connection |

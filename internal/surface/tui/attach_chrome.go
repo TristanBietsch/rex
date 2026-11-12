@@ -1,5 +1,11 @@
 package tui
 
+import (
+	"math"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
+)
+
 // attachChrome is the frame around the attached agent's terminal, the single
 // source of the popup's geometry: attachChromeOf(m).innerSize sizes the PTY,
 // boxPad shapes the box renderAttach is drawn in, and origin finds the
@@ -33,6 +39,17 @@ func attachChromeOf(m Model) attachChrome {
 	c := attachChrome{sheet: mobileLayout(m)}
 	c.banner = attachBannerRowsFor(m, c)
 	return c
+}
+
+// spawnSizeOf is the PTY size a session spawned now should start at: the
+// size openAttach would give it, so the first attach needs no resize. 0, 0
+// (the daemon's default) while the terminal size is not yet known.
+func spawnSizeOf(m Model) (cols, rows uint16) {
+	if m.Width <= 0 || m.Height <= 0 {
+		return 0, 0
+	}
+	c, r := attachChromeOf(m).innerSize(m.Width, m.Height)
+	return protocol.ClampTermSize(uint16(min(c, math.MaxUint16)), uint16(min(r, math.MaxUint16))) //nolint:gosec // G115: bounded by the min above.
 }
 
 // withBanner is c with an explicit banner row count (the rows a live popup

@@ -119,6 +119,13 @@ func (d *pruneDaemon) serve(conn net.Conn) {
 // gets the text format (the only one that asks); a pipe gets txt.
 func withPruneIO(t *testing.T, stdin string, interactive bool) (*bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
+	return withPruneIOFormat(t, stdin, interactive, "")
+}
+
+// withPruneIOFormat is withPruneIO with the output format chosen (empty:
+// text on a terminal, txt on a pipe).
+func withPruneIOFormat(t *testing.T, stdin string, interactive bool, format string) (*bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
 	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
 	env := core.Env{
 		Getenv: func(k string) string {
@@ -131,7 +138,11 @@ func withPruneIO(t *testing.T, stdin string, interactive bool) (*bytes.Buffer, *
 	}
 	p, err := core.NewPrinter(core.FormatFlags{}, env, out, errOut)
 	require.NoError(t, err)
-	if interactive {
+	switch {
+	case format != "":
+		p, err = core.NewPrinter(core.FormatFlags{Output: format}, env, out, errOut)
+		require.NoError(t, err)
+	case interactive:
 		p, err = core.NewPrinter(core.FormatFlags{Output: "text"}, env, out, errOut)
 		require.NoError(t, err)
 	}

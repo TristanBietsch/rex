@@ -442,6 +442,7 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyEnter:
 		cwd, _ := os.Getwd()
 		req := m.Wizard.request(cwd, existingSlugs(m))
+		req.Cols, req.Rows = spawnSizeOf(m)
 		m.PendingSelectSlug = req.Slug
 		m.PendingSpawn = pendingSpawn{Name: req.Name, Skills: req.Skills}
 		return closeWizard(m), wizardLaunchCmd(m.Client, req)

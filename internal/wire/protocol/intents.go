@@ -21,6 +21,8 @@ const (
 	IntentUnretire         = "Unretire"
 	IntentResume           = "Resume"
 	IntentReload           = "Reload"
+	IntentUndo             = "Undo"
+	IntentRedo             = "Redo"
 )
 
 // Hello is the first message a client sends after connect. The daemon
@@ -94,6 +96,12 @@ type NewSession struct {
 	// spawn_skills setting must be on, else the intent is bad_intent. Names
 	// only: the daemon never takes a path from a client.
 	Skills []string `json:"skills,omitempty"`
+	// Cols and Rows are the PTY size to start the agent at, so a client that
+	// will attach at a known size needs no first resize. The daemon clamps
+	// them (see ClampTermSize); 0 means the default (120x32). A daemon that
+	// predates the fields ignores them.
+	Cols uint16 `json:"cols,omitempty"`
+	Rows uint16 `json:"rows,omitempty"`
 }
 
 // SetSessionFleet updates the fleet label of an existing session.
@@ -182,4 +190,34 @@ type Unretire struct {
 // started clearing it, and with too_many_sessions at the concurrency cap.
 type Resume struct {
 	SessionID string `json:"session_id"`
+}
+
+// Undo restores a session's folder to how it was before its last Turns
+// agent turns (default 1), from the turn snapshots (setting turn_snapshots).
+// The daemon first captures the folder's current state, so Redo can bring it
+// back. The reply is an UndoResult. It fails with bad_intent when turn
+// snapshots are off, and with bad_state when the session is working, when
+// another live session shares the folder (unless Force), when the folder is
+// not inside a repository, or when there is no recorded turn to undo.
+type Undo struct {
+	SessionID string `json:"session_id"`
+	// Turns is how many turns to go back. 0 means 1.
+	Turns int `json:"turns,omitempty"`
+	// Force undoes although another live session works in the same folder
+	// (its changes are reverted too).
+	Force bool `json:"force,omitempty"`
+	// DryRun makes no change: the reply lists what would be restored and
+	// deleted, and has no safety tree. The same refusals apply.
+	DryRun bool `json:"dry_run,omitempty"`
+}
+
+// Redo brings back the state the latest Undo replaced. The reply is an
+// UndoResult. Redo history is dropped when the session starts another turn.
+// The failures are Undo's, plus bad_state when nothing is waiting to be
+// redone.
+type Redo struct {
+	SessionID string `json:"session_id"`
+	// Force and DryRun: as for Undo.
+	Force  bool `json:"force,omitempty"`
+	DryRun bool `json:"dry_run,omitempty"`
 }

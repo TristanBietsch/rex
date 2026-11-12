@@ -145,7 +145,12 @@ func claudeHookCommand(event string, state protocol.State) string {
 // hook event to the file named by $REX_HOOK_FILE, plus the subagent lines.
 // Each hook writes its lines with one printf, so lines from hooks running in
 // parallel never interleave.
-func ClaudeHookArgs() []string {
+func ClaudeHookArgs() []string { return ClaudeSettingsArgs("") }
+
+// ClaudeSettingsArgs is ClaudeHookArgs plus, when statusLine is not empty, a
+// "statusLine" entry running that command (the usage tap, see package
+// usage). The hooks are the same either way; "" adds no statusLine.
+func ClaudeSettingsArgs(statusLine string) []string {
 	type hookCmd struct {
 		Type    string `json:"type"`
 		Command string `json:"command"`
@@ -164,7 +169,11 @@ func ClaudeHookArgs() []string {
 	}
 	hooks["SubagentStart"] = []matcherGroup{{Hooks: []hookCmd{{Type: "command", Command: subagentHookCommand(hookAgentStart)}}}}
 	hooks["SubagentStop"] = []matcherGroup{{Hooks: []hookCmd{{Type: "command", Command: subagentHookCommand(hookAgentStop)}}}}
-	b, _ := json.Marshal(map[string]any{"hooks": hooks})
+	cfg := map[string]any{"hooks": hooks}
+	if statusLine != "" {
+		cfg["statusLine"] = map[string]string{"type": "command", "command": statusLine}
+	}
+	b, _ := json.Marshal(cfg)
 	return []string{"--settings", string(b)}
 }
 

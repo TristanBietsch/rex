@@ -1,0 +1,200 @@
+-- text.w50 --
+Usage  last 7 days
+
+  AGENT / MODEL  SESSIONS  TOKENS    COST
+  claude               14   ~1.2M  $18.40
+    sonnet             11   ~790k   $6.50
+    opus                3   ~410k  $11.90
+  grok                  2    ~88k       —
+    grok-build          2    ~88k       —
+  antigravity           1     940       —
+    (unknown)           1     940       —
+
+Total:
+17 sessions   ~1.3M tokens   $19.10 cost
+
+Quota:
+  TOOL    WINDOW               USED  RESETS IN
+  claude  5h                    42%      2h10m
+  claude  week    88% (as of 10:00)         4d
+  claude  month     $5.00 of $50.00          —
+
+~ = estimate from rex's own token count; cost is only what the tool reports
+-- text.w80 --
+Usage  last 7 days
+
+  AGENT / MODEL  SESSIONS  TOKENS    COST
+  claude               14   ~1.2M  $18.40
+    sonnet             11   ~790k   $6.50
+    opus                3   ~410k  $11.90
+  grok                  2    ~88k       —
+    grok-build          2    ~88k       —
+  antigravity           1     940       —
+    (unknown)           1     940       —
+
+Total:
+17 sessions   ~1.3M tokens   $19.10 cost
+
+Quota:
+  TOOL    WINDOW               USED  RESETS IN
+  claude  5h                    42%      2h10m
+  claude  week    88% (as of 10:00)         4d
+  claude  month     $5.00 of $50.00          —
+
+~ = estimate from rex's own token count; cost is only what the tool reports
+-- text.w120 --
+Usage  last 7 days
+
+  AGENT / MODEL  SESSIONS  TOKENS    COST
+  claude               14   ~1.2M  $18.40
+    sonnet             11   ~790k   $6.50
+    opus                3   ~410k  $11.90
+  grok                  2    ~88k       —
+    grok-build          2    ~88k       —
+  antigravity           1     940       —
+    (unknown)           1     940       —
+
+Total:
+17 sessions   ~1.3M tokens   $19.10 cost
+
+Quota:
+  TOOL    WINDOW               USED  RESETS IN
+  claude  5h                    42%      2h10m
+  claude  week    88% (as of 10:00)         4d
+  claude  month     $5.00 of $50.00          —
+
+~ = estimate from rex's own token count; cost is only what the tool reports
+-- text.by-tool --
+Usage  last 7 days
+
+  AGENT / MODEL  SESSIONS  TOKENS    COST
+  claude               14   ~1.2M  $18.40
+  grok                  2    ~88k       —
+  antigravity           1     940       —
+
+Total:
+17 sessions   ~1.3M tokens   $19.10 cost
+
+Quota:
+  TOOL    WINDOW               USED  RESETS IN
+  claude  5h                    42%      2h10m
+  claude  week    88% (as of 10:00)         4d
+  claude  month     $5.00 of $50.00          —
+
+~ = estimate from rex's own token count; cost is only what the tool reports
+-- text.by-model --
+Usage  last 7 days
+
+  AGENT / MODEL            SESSIONS  TOKENS    COST
+  claude / sonnet                11   ~790k   $6.50
+  claude / opus                   3   ~410k  $11.90
+  grok / grok-build               2    ~88k       —
+  antigravity / (unknown)         1     940       —
+
+Total:
+17 sessions   ~1.3M tokens   $19.10 cost
+
+Quota:
+  TOOL    WINDOW               USED  RESETS IN
+  claude  5h                    42%      2h10m
+  claude  week    88% (as of 10:00)         4d
+  claude  month     $5.00 of $50.00          —
+
+~ = estimate from rex's own token count; cost is only what the tool reports
+-- text.color --
+␛[1;38;2;230;230;230mUsage␛[0m  ␛[38;2;121;127;140mlast 7 days␛[0m
+
+  ␛[38;2;121;127;140mAGENT / MODEL␛[0m  ␛[38;2;121;127;140mSESSIONS␛[0m  ␛[38;2;121;127;140mTOKENS␛[0m    ␛[38;2;121;127;140mCOST␛[0m
+  claude               14   ~1.2M  $18.40
+    sonnet             11   ~790k   $6.50
+    opus                3   ~410k  $11.90
+  grok                  2    ~88k       ␛[38;2;121;127;140m—␛[0m
+    grok-build          2    ~88k       ␛[38;2;121;127;140m—␛[0m
+  antigravity           1     940       ␛[38;2;121;127;140m—␛[0m
+    (unknown)           1     940       ␛[38;2;121;127;140m—␛[0m
+
+␛[1;38;2;230;230;230mTotal:␛[0m
+17 sessions   ~1.3M tokens   $19.10 cost
+
+␛[1;38;2;230;230;230mQuota:␛[0m
+  ␛[38;2;121;127;140mTOOL␛[0m    ␛[38;2;121;127;140mWINDOW␛[0m               ␛[38;2;121;127;140mUSED␛[0m  ␛[38;2;121;127;140mRESETS IN␛[0m
+  claude  5h                    ␛[38;2;73;222;128m42%␛[0m      ␛[38;2;121;127;140m2h10m␛[0m
+  claude  week    ␛[38;2;121;127;140m88% (as of 10:00)␛[0m         ␛[38;2;121;127;140m4d␛[0m
+  claude  month     $5.00 of $50.00          ␛[38;2;121;127;140m—␛[0m
+
+␛[38;2;121;127;140m~ = estimate from rex's own token count; cost is only what the tool reports␛[0m
+-- txt --
+AGENT / MODEL  SESSIONS  TOKENS    COST
+claude               14   ~1.2M  $18.40
+  sonnet             11   ~790k   $6.50
+  opus                3   ~410k  $11.90
+grok                  2    ~88k       -
+  grok-build          2    ~88k       -
+antigravity           1     940       -
+  (unknown)           1     940       -
+
+# Total
+total: 17 sessions · ~1.3M tokens · $19.10
+
+# Quota
+TOOL    WINDOW               USED  RESETS IN
+claude  5h                    42%      2h10m
+claude  week    88% (as of 10:00)         4d
+claude  month     $5.00 of $50.00          -
+
+~ = estimate from rex's own token count; cost is only what the tool reports
+-- md --
+### Usage
+
+*last 7 days*
+
+| Agent / model | Sessions | Tokens | Cost |
+| --- | ---: | ---: | ---: |
+| claude | 14 | \~1.2M | $18.40 |
+|   sonnet | 11 | \~790k | $6.50 |
+|   opus | 3 | \~410k | $11.90 |
+| grok | 2 | \~88k | — |
+|   grok-build | 2 | \~88k | — |
+| antigravity | 1 | 940 | — |
+|   (unknown) | 1 | 940 | — |
+
+#### Total
+
+| Key | Value |
+| --- | --- |
+| sessions | 17 |
+| tokens | \~1.3M |
+| cost | $19.10 |
+
+#### Quota
+
+| Tool | Window | Used | Resets in |
+| --- | --- | ---: | ---: |
+| claude | 5h | 42% | 2h10m |
+| claude | week | 88% (as of 10:00) | 4d |
+| claude | month | $5.00 of $50.00 | — |
+
+> \~ = estimate from rex's own token count; cost is only what the tool reports
+-- json --
+{"v":1,"cmd":"usage","data":{"range":"7d","since":"2026-11-04T12:00:00Z","total":{"sessions":17,"tokens":1300000,"tokens_estimated":true,"cost_usd":19.1},"tools":[{"tool":"claude","sessions":14,"tokens":1200000,"tokens_estimated":true,"cost_usd":18.4,"models":[{"model":"sonnet","sessions":11,"tokens":790000,"tokens_estimated":true,"cost_usd":6.5},{"model":"opus","sessions":3,"tokens":410000,"tokens_estimated":true,"cost_usd":11.9}]},{"tool":"grok","sessions":2,"tokens":88000,"tokens_estimated":true,"models":[{"model":"grok-build","sessions":2,"tokens":88000,"tokens_estimated":true}]},{"tool":"antigravity","sessions":1,"tokens":940,"models":[{"model":"","sessions":1,"tokens":940}]}],"quotas":[{"tool":"claude","window":"5h","used_pct":42,"resets_at":"2026-11-11T14:10:00Z","at":"2026-11-11T11:59:00Z"},{"tool":"claude","window":"week","used_pct":88,"resets_at":"2026-11-15T12:00:00Z","at":"2026-11-11T10:00:00Z","stale":true},{"tool":"claude","window":"month","used_usd":5,"limit_usd":50,"at":"2026-11-11T12:00:00Z"}]}}
+-- agent --
+usage level=tool tool=claude model="" sessions=14 tokens=1200000 estimated=true cost_usd=18.40
+usage level=model tool=claude model=sonnet sessions=11 tokens=790000 estimated=true cost_usd=6.50
+usage level=model tool=claude model=opus sessions=3 tokens=410000 estimated=true cost_usd=11.90
+usage level=tool tool=grok model="" sessions=2 tokens=88000 estimated=true cost_usd=none
+usage level=model tool=grok model=grok-build sessions=2 tokens=88000 estimated=true cost_usd=none
+usage level=tool tool=antigravity model="" sessions=1 tokens=940 estimated=false cost_usd=none
+usage level=model tool=antigravity model="" sessions=1 tokens=940 estimated=false cost_usd=none
+quota tool=claude window=5h used=42 resets_at=2026-11-11T14:10:00Z stale=false
+quota tool=claude window=week used=88 resets_at=2026-11-15T12:00:00Z stale=true
+quota tool=claude window=month used=5.00 resets_at=none stale=false
+ok cmd=usage count=10 sessions=17 tokens=1300000 cost_usd=19.10
+-- empty.text --
+Usage  today
+
+  no usage recorded in this range
+
+Total:
+0 sessions   0 tokens   — cost
+-- empty.agent --
+ok cmd=usage count=0 sessions=0 tokens=0 cost_usd=none
