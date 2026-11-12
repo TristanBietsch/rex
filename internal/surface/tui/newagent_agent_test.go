@@ -114,6 +114,34 @@ func TestAgentScreen_ListsMissingDimmedUnselectable(t *testing.T) {
 	require.NotNil(t, m.newAgentDraft, "the draft survives the detour")
 }
 
+func TestAgentScreen_OnMissingClearsOnPaneChange(t *testing.T) {
+	m := naModel(t)
+	m.DaemonTools = daemonTools(t, "claude", "cursor")
+	m = naAgentOpen(t, m)
+	for range 5 {
+		m, _ = naKey(m, key("j"))
+	}
+	require.True(t, m.NewAgent.OnMissing)
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
+	require.False(t, m.NewAgent.OnMissing)
+	require.Equal(t, naPaneModels, m.NewAgent.Pane)
+	m, _ = naKey(m, key("enter"))
+	require.NotEqual(t, FocusSettings, m.Focus, "enter off the agents pane returns to Compose")
+	require.Nil(t, m.Settings)
+	require.NotContains(t, naView(m), "k agents")
+}
+
+func TestAgentScreen_CtrlSLaunchesWhileFiltering(t *testing.T) {
+	m := naModel(t)
+	m.DaemonTools = cursorModels(t)
+	m = naAgentOpen(t, m)
+	m, _ = naKey(m, key("/"))
+	require.True(t, m.NewAgent.Filtering)
+	m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	require.NotNil(t, cmd, "ctrl+s launches while the filter is active")
+	require.Nil(t, m.NewAgent)
+}
+
 func TestAgentScreen_ModelFilterKeepsCursorByID(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools = cursorModels(t)

@@ -242,6 +242,9 @@ func naOpenOnboarding(m Model) (Model, tea.Cmd) {
 func updateNewAgentAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
 	if st.Filtering {
+		if k.String() == "ctrl+s" {
+			return launchNewAgent(m)
+		}
 		return naFilterKey(m, k), nil
 	}
 	if k.Paste {
@@ -270,9 +273,9 @@ func updateNewAgentAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return closeAgentScreen(m), nil
 	case "tab":
-		st.Pane, moved = st.nextPane(1), true
+		st.Pane, st.OnMissing, moved = st.nextPane(1), false, true
 	case "shift+tab":
-		st.Pane, moved = st.nextPane(-1), true
+		st.Pane, st.OnMissing, moved = st.nextPane(-1), false, true
 	case "/":
 		st.Pane, st.Filtering, st.OnMissing = naPaneModels, true, false
 		moved = true
