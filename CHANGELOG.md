@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed (tests)
+
+- Tests: hot restart (R20) refusals and rollbacks are covered: restart mode
+  validation, a refused preflight, a session that starts during the freeze,
+  a failed meta write, handoff file or fd inheritance, and the restarting
+  flag refusing spawn, resume, delete and complete of frozen sessions.
+  Handoff file validation errors, Boards/SwapBoards replies and partial
+  Reloaded reports are covered too. Coverage floors: `internal/daemon/server`
+  92 (was 91, which `make check` missed at random), new
+  `internal/daemon/handoff` 86.
+
 ### Changed (board polish)
 
 - Board rows no longer paint a background on the selected row (the patchy
