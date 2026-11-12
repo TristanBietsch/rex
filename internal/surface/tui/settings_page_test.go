@@ -3,12 +3,16 @@ package tui
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
 // pageSettings is the settings page (fullscreen_pages on, the default) on
@@ -339,4 +343,141 @@ func TestSettingsPageNarrowAfterTab(t *testing.T) {
 	require.NoError(t, m.Store.Set("mouse_enabled", true))
 	m, _ = updateMouse(m, wheel(true))
 	require.Equal(t, rows[2].ID, m.Settings.CursorID, "narrow: the wheel moves rows")
+}
+
+// pageView is the settings page's View() split into lines.
+func pageView(m Model) []string { return strings.Split(ansi.Strip(m.View()), "\n") }
+
+func TestSettingsPageTwoPane(t *testing.T) {
+	m := pageModel(t, 120, 40, FocusSettings)
+	lines := pageView(m)
+	body := strings.Join(lines[3:38], "\n")
+	require.Contains(t, body, "SECTIONS")
+	require.Contains(t, body, " │ ")
+	bar := strings.Index(lines[3], "│")
+	require.Greater(t, bar, 0)
+	require.LessOrEqual(t, ansi.StringWidth(lines[3][:bar]), pageSectionsMaxW+3, "left pane at most 24 + 3 wide")
+	left := ""
+	for _, l := range lines[3:38] {
+		if i := strings.Index(l, "│"); i >= 0 {
+			left += l[:i] + "\n"
+		}
+	}
+	for _, sec := range settingsSections(m.Settings) {
+		require.Contains(t, left, string(sec), "section %s in the left pane", sec)
+	}
+}
+
+// leftRow is the left-pane line naming sec.
+func leftRow(t *testing.T, m Model, sec settings.Section) string {
+	t.Helper()
+	for _, l := range pageView(m)[3:] {
+		if i := strings.Index(l, "│"); i >= 0 && strings.Contains(l[:i], string(sec)) {
+			return strings.TrimRight(l[:i], " ")
+		}
+	}
+	t.Fatalf("no left row for %s", sec)
+	return ""
+}
+
+func TestSettingsPageBadge(t *testing.T) {
+	m := pageModel(t, 120, 40, FocusSettings)
+	require.False(t, strings.HasSuffix(leftRow(t, m, settings.SectionAppearance), "1"))
+	require.NoError(t, m.Store.Set("spinner", "moon"))
+	require.True(t, strings.HasSuffix(leftRow(t, m, settings.SectionAppearance), "1"),
+		"badge: %q", leftRow(t, m, settings.SectionAppearance))
+	m.Settings.CursorID = "spinner"
+	m = settingsPress(m, "r")
+	require.Equal(t, "braille", m.Store.Get("spinner"))
+	require.False(t, strings.HasSuffix(leftRow(t, m, settings.SectionAppearance), "1"), "reset drops the badge")
+}
+
+func TestSettingsPageAllRowsReachable80x24(t *testing.T) {
+	m := pageModel(t, 80, 24, FocusSettings)
+	for _, s := range settingsList(&SettingsState{}) {
+		m.Settings.CursorID = s.ID
+		lines := pageView(m)
+		require.Len(t, lines, 24)
+		for i, l := range lines {
+			require.LessOrEqual(t, ansi.StringWidth(l), 80, "%s line %d", s.ID, i)
+		}
+		body := strings.Join(lines[3:22], "\n")
+		if strings.Contains(body, s.Label) {
+			continue
+		}
+		r := []rune(s.Label)
+		require.Greater(t, len(r), 20, "%s: label %q cut though it fits the column", s.ID, s.Label)
+		require.Contains(t, body, string(r[:10]), "%s: label %q not shown", s.ID, s.Label)
+		require.Contains(t, body, "…", "%s: cut label without …", s.ID)
+	}
+}
+
+func TestSettingsPageNarrowStrip(t *testing.T) {
+	m := pageModel(t, 50, 20, FocusSettings)
+	m.Settings.CursorID = sectionRows(settings.SectionAppearance)[0].ID
+	lines := pageView(m)
+	require.Contains(t, lines[3], "‹ Appearance ›")
+	require.NotContains(t, strings.Join(lines, "\n"), " │ ")
+	m = settingsPress(m, "]")
+	next := settingsSections(m.Settings)[1]
+	require.Contains(t, pageView(m)[3], "‹ "+string(next)+" ›")
+}
+
+func TestSettingsPageEmptySearch(t *testing.T) {
+	m := pageModel(t, 120, 40, FocusSettings)
+	m = settingsPress(m, "/", "z", "z", "z", "z")
+	require.Contains(t, ansi.Strip(m.View()), "no setting matches")
+}
+
+func TestSettingsPageThemeLive(t *testing.T) {
+	t.Cleanup(func() { applyTheme("default") })
+	applyTheme("default")
+	m := pageModel(t, 120, 40, FocusSettings)
+	m.Settings.CursorID = "theme"
+	old := theme.Builtin["default"].Accent
+	next, cmd := m.Update(key("l"))
+	_ = cmd // the restyle must not wait on a Cmd
+	m = next.(Model)
+	require.Equal(t, "classic", m.Store.Get("theme"))
+	neu := theme.Builtin["classic"].Accent
+	require.NotEqual(t, old, neu, "test needs two distinct accents")
+	sgr := func(hex string) string { return termenv.TrueColor.Color(hex).Sequence(false) }
+	withProfile(termenv.TrueColor, func() {
+		v := m.View()
+		require.Contains(t, v, sgr(neu))
+		require.NotContains(t, v, sgr(old))
+	})
+}
+
+// dividerRow is the index of the line holding the pane divider's ┴.
+func dividerRow(t *testing.T, m Model) int {
+	t.Helper()
+	for i, l := range pageView(m) {
+		if strings.Contains(l, "┴") {
+			return i
+		}
+	}
+	t.Fatal("no pane divider")
+	return -1
+}
+
+func TestSettingsPageInspectorFixed(t *testing.T) {
+	long, short := "", ""
+	for _, s := range settingsList(&SettingsState{}) {
+		if long == "" || len(s.Help) > len(mustFind(t, long).Help) {
+			long = s.ID
+		}
+		if short == "" || len(s.Help) < len(mustFind(t, short).Help) {
+			short = s.ID
+		}
+	}
+	require.NotEmpty(t, long)
+	require.NotEmpty(t, short)
+	for _, sz := range []goldenSize{{120, 40}, {80, 24}} {
+		m := pageModel(t, sz.w, sz.h, FocusSettings)
+		m.Settings.CursorID = long
+		at := dividerRow(t, m)
+		m.Settings.CursorID = short
+		require.Equal(t, at, dividerRow(t, m), "%dx%d", sz.w, sz.h)
+	}
 }

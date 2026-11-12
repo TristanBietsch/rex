@@ -195,26 +195,28 @@ func settingsDetailPane(m Model, list []settings.Setting, inner int) []string {
 	return detail
 }
 
-// settingsBody is the list + blank + detail of renderSettings at inner width, list
-// windowed to listRows; renderSettings wraps it in its search line, footer and box.
-// rows is the windowed list (section headers and setting rows), detail the
-// pane under it; the caller puts the blank row between them.
-func settingsBody(m Model, list []settings.Setting, inner, listRows int) (rows []string, detail []string) {
-	return settingsBodyAt(m, list, inner, settingsLabelW(inner), listRows)
+// settingsBodyAt is the overlay's list and detail at inner width, the
+// label column labelW wide: rows is the list (section headers and setting
+// rows) windowed to listRows, detail the pane under it; the caller puts the
+// blank row between them.
+func settingsBodyAt(m Model, list []settings.Setting, inner, labelW, listRows int) (rows []string, detail []string) {
+	lines, focus := settingsRowsAt(m, list, inner, labelW, true)
+	return windowLines(lines, focus, listRows), settingsDetailPane(m, list, inner)
 }
 
-// settingsBodyAt is settingsBody with the label column labelW wide.
-func settingsBodyAt(m Model, list []settings.Setting, inner, labelW, listRows int) (rows []string, detail []string) {
+// settingsRowsAt is the unwindowed rows of list at inner width with the
+// label column labelW wide, and the index of the cursor's line. headers puts
+// a section header before each section's rows; an empty list is the
+// no-match line.
+func settingsRowsAt(m Model, list []settings.Setting, inner, labelW int, headers bool) (lines []string, focus int) {
 	st := m.Settings
 	ownLine := inner < 40
 	selStyle := selectedStyle(stylePrimary)
 	selBold := selStyle.Bold(true)
 
-	var lines []string
-	focus := 0
 	curSection := ""
 	for _, s := range list {
-		if string(s.Section) != curSection {
+		if headers && string(s.Section) != curSection {
 			if curSection != "" {
 				lines = append(lines, "")
 			}
@@ -286,7 +288,7 @@ func settingsBodyAt(m Model, list []settings.Setting, inner, labelW, listRows in
 	if len(list) == 0 {
 		lines = append(lines, styleDim.Render("  no setting matches “"+protocol.FlattenDisplayText(st.Search)+"”"))
 	}
-	return windowLines(lines, focus, listRows), settingsDetailPane(m, list, inner)
+	return lines, focus
 }
 
 // renderSettings returns the finished settings box for a termW-wide terminal.
