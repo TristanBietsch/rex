@@ -47,17 +47,24 @@ func settingLocked(m *Model, id string) bool {
 }
 
 // settingLockBadge is the muted marker a locked row shows next to its
-// value, "" for other rows. It is the only lock rendering, so a settings
-// page rewrite has one helper to port.
+// value, "" for other rows: "lua" for the user's config.lua, "ws" for a
+// workspace's .rex/config.lua (at most 3 cells, the room the page keeps).
+// It is the only lock rendering, so a settings page rewrite has one helper
+// to port.
 func settingLockBadge(m Model, s settings.Setting) string {
-	if settingLockedAt(m, s.ID) == "" {
+	at := settingLockedAt(m, s.ID)
+	switch {
+	case at == "":
 		return ""
+	case settings.WorkspaceSetAt(at):
+		return styleMuted.Render("ws")
 	}
 	return styleMuted.Render("lua")
 }
 
-// luaFileOf maps a config.lua position ("config.lua:12", "lua/ui.lua:3") to
-// the file's path and line. ok is false for anything else.
+// luaFileOf maps a config.lua position ("config.lua:12", "lua/ui.lua:3", or
+// a workspace's "/path/.rex/config.lua:3") to the file's path and line. ok
+// is false for anything else.
 func luaFileOf(at string) (path string, line int, ok bool) {
 	i := strings.LastIndexByte(at, ':')
 	if i <= 0 {
@@ -68,6 +75,11 @@ func luaFileOf(at string) (path string, line int, ok bool) {
 		return "", 0, false
 	}
 	rel := at[:i]
+	// A workspace's .rex/config.lua: the absolute path rex itself put in
+	// the position (wsconfig), never one a script chose.
+	if filepath.IsAbs(rel) && settings.WorkspaceSetAt(at) && strings.HasSuffix(rel, string(filepath.Separator)+"config.lua") {
+		return rel, line, true
+	}
 	l, err := paths.Resolve()
 	if err != nil {
 		return "", 0, false

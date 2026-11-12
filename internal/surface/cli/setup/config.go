@@ -90,7 +90,8 @@ type configRow struct {
 	Default any    `json:"default"`
 	// Source is "default", "file" (config.yaml) or "lua" (config.lua).
 	Source string `json:"source"`
-	// SetAt is where config.lua sets it ("config.lua:12"), for source lua.
+	// SetAt is where config.lua sets it ("config.lua:12", or the
+	// workspace's "/path/.rex/config.lua:3"), for source lua.
 	SetAt string `json:"set_at,omitempty"`
 }
 
@@ -109,6 +110,9 @@ func sourceText(src, at string) string {
 	case settings.SourceFile:
 		return "config.yaml"
 	case settings.SourceLua:
+		if settings.WorkspaceSetAt(at) {
+			return "workspace " + at
+		}
 		return strings.TrimSpace("lua " + at)
 	case settings.SourceDefault:
 	}

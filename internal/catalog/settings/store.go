@@ -52,6 +52,9 @@ type ErrManagedByLua struct {
 }
 
 func (e *ErrManagedByLua) Error() string {
+	if WorkspaceSetAt(e.At) {
+		return fmt.Sprintf("%s is set in %s; edit it there, or run rex outside the workspace", e.ID, e.At)
+	}
 	return fmt.Sprintf("%s is set in %s; edit it there (rex config edit -lua)", e.ID, e.At)
 }
 
