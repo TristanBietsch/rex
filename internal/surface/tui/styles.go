@@ -156,7 +156,7 @@ func rebuildStyles() {
 	// color of its own for them draws the terminal default faint.
 	quiet := func(c lipgloss.Color) lipgloss.Style { return fg(c).Faint(faintTones) }
 
-	styleLogo = bold(colorAccent)
+	styleLogo = bold(colorFgPrimary) // white on dark schemes, ink on light ones
 	styleKey = bold(colorFgPrimary)
 	styleKbd = bold(colorAccent)
 	styleAccent = fg(colorAccent)

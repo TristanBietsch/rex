@@ -6,18 +6,18 @@
 ────────────────────────────────────────────────────────────────────────────────
 
   READY  2                                                                      
-   ◆  dark-mode             *  ? asks                     $0.31               4m
-   ◆  release-notes            + review                   $2.10              11m
+   ◆  dark-mode                 *  ? asks                     $0.31           4m
+   ◆  release-notes                                           $2.10          11m
   WAITING  2                                                                    
-   ◷  invoice-rounding-te…     sh 42s                     $0.84  ^ 12m       40s
-   ◷  api-research             sub 3m              Y 2    $1.07               2m
+   ◷  invoice-rounding-tests       sh 42s                     $0.84  ^ 12m   40s
+   ◷  api-research                 sub 3m              Y 2    $1.07           2m
   WORKING  3                                                                    
- ▸ ⠋  payment-migration-v2               @ 3/8     Y 3    $4.92  ^ 45m        1m
+ ▸ ⠋  payment-migration-v2                   @ 3/8     Y 3    $4.92  ^ 45m    1m
    ⠋  docs-sweep                                                              7s
-   ⠋  i18n-strings-extrac…                                       ^ 2h         3m
+   ⠋  i18n-strings-extraction…                                       ^ 2h     3m
   DONE  2                                                                       
-   ●  test-coverage         *                             $3.40               9m
-   ✕  failing-job           *                                                  -
+   ●  test-coverage             *                             $3.40           9m
+   ✕  failing-job               *                                              -
 
   ↳ porting billing to the new processor: 12 of 14 handlers moved, webhooks next
 ────────────────────────────────────────────────────────────────────────────────
@@ -31,21 +31,21 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  2                                                                                                              
-   ◆  dark-mode                 *  ? asks                     $0.31                                                   4m
-   ◆  release-notes                + review                   $2.10                                                  11m
+   ◆  dark-mode                                                         *  ? asks                     $0.31           4m
+   ◆  release-notes                                                                                   $2.10          11m
 
   WAITING  2                                                                                                            
-   ◷  invoice-rounding-tests       sh 42s                     $0.84  ^ 12m                                           40s
-   ◷  api-research                 sub 3m              Y 2    $1.07                                                   2m
+   ◷  invoice-rounding-tests                                               sh 42s                     $0.84  ^ 12m   40s
+   ◷  api-research                                                         sub 3m              Y 2    $1.07           2m
 
   WORKING  3                                                                                                            
- ▸ ⠋  payment-migration-v2                   @ 3/8     Y 3    $4.92  ^ 45m                                            1m
+ ▸ ⠋  payment-migration-v2                                                           @ 3/8     Y 3    $4.92  ^ 45m    1m
    ⠋  docs-sweep                                                                                                      7s
-   ⠋  i18n-strings-extraction…                                       ^ 2h                                             3m
+   ⠋  i18n-strings-extraction-pass                                                                           ^ 2h     3m
 
   DONE  2                                                                                                               
-   ●  test-coverage             *                             $3.40                                                   9m
-   ✕  failing-job               *                                                                                      -
+   ●  test-coverage                                                     *                             $3.40           9m
+   ✕  failing-job                                                       *                                              -
 
 
 

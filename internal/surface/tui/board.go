@@ -474,7 +474,8 @@ const (
 //
 // With icons set (row_icons on) the row is the icon strip instead of the
 // text column: slots holds each iconSlot's width (0 = absent, no gap),
-// spacer takes what is left, and desc, agents and run stay 0.
+// spacer is the room left, added to the name cell (the strip is
+// right-anchored next to the age), and desc, agents and run stay 0.
 type rowCols struct {
 	id, slug, desc, model, tokens, span, resume, agents, run int
 
@@ -709,10 +710,12 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	return blinkRow(m, s.ID, b.String())
 }
 
-// renderRowIcons is renderRow with row_icons on: the icon strip and a blank
-// spacer in place of the text column. Grid:
+// renderRowIcons is renderRow with row_icons on: the icon strip in place of
+// the text column, right-anchored next to the age. The name takes the blank
+// room the text column left (its cell is slug+spacer wide), then the detail
+// columns, then the strip. Grid:
 //
-//	indent marker  [id]  name {gap slot}… spacer {gap detail}…  age
+//	indent marker  [id]  name‹+spacer›  {gap detail}…  {gap slot}…  age
 func renderRowIcons(m Model, s protocol.SessionSummary, c rowCols) string {
 	selected := m.SelectedID == s.ID
 	now := m.now()
@@ -724,14 +727,13 @@ func renderRowIcons(m Model, s protocol.SessionSummary, c rowCols) string {
 	if c.id > 0 {
 		b.WriteString(cell(styleMuted, s.ShortID, c.id) + gap)
 	}
-	b.WriteString(cell(rowNameStyle(s, selected), displayName(s), c.slug))
+	b.WriteString(cell(rowNameStyle(s, selected), displayName(s), c.slug+c.spacer))
+	b.WriteString(rowDetailCells(m, s, c))
 	for slot, w := range c.slots {
 		if w > 0 {
 			b.WriteString(gap + slotCell(m, s, iconSlot(slot), w, selected))
 		}
 	}
-	b.WriteString(strings.Repeat(" ", c.spacer))
-	b.WriteString(rowDetailCells(m, s, c))
 	b.WriteString(gap + cell(styleDim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
 	return blinkRow(m, s.ID, b.String())
 }

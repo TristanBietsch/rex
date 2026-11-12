@@ -28,8 +28,8 @@ The first release since v1. Details for every change follow the summary.
   subagents run, after notifications that need nobody, mid compaction or
   after Esc; a Waiting section for sessions busy on a shell command,
   subagent or web request.
-- **Row icons**: fixed icon slots on each board row (finished, asks, review,
-  what it waits on, loop turn, subagents, cost).
+- **Row icons**: fixed icon slots on each board row (finished, asks, what
+  it waits on, loop turn, subagents, cost), right-aligned next to the age.
 - **More agents**: Qwen Code, Cursor CLI and Grok Build, and Antigravity
   (`agy`) in place of the retired Gemini CLI.
 - **Workspaces and loops**: `rex here` / `rex ws open` boards for one
@@ -79,8 +79,10 @@ Each is described in full under **Changed** below.
   show on the bottom line.
 - Glyphs: new agent icons (`qwen` `▣`, `cursor` `▲`, `grok` `◢`, `gemini`
   `□`, `echo` `◎`), one space between an icon and its number (`⋔ 3`,
-  `▴ 42m`), and row icons in place of the task text (`row_icons` off
-  restores it).
+  `▴ 42m`), and row icons in place of the task text, right-aligned next to
+  the age (`row_icons` off restores it). No `✓ review` mark; the selected
+  row has no background (the `▸` arrow marks it); the `∴ REX` logo is the
+  theme's primary text color, not the accent.
 - "Needs you" is shown as "Ready"; the number keys follow four sections
   (`1` Ready, `2` Waiting, `3` Working, `4` Done).
 - Antigravity CLI (`agy`) replaces Gemini CLI.
@@ -162,6 +164,31 @@ Each is described in full under **Changed** below.
   -FromSource` on Windows).
 - `install.ps1` without flags installs the latest release; building from
   the checkout needs `-FromSource`.
+
+### Changed (board polish)
+
+- Board rows no longer paint a background on the selected row (the patchy
+  bar behind its icon cells). The `▸` arrow marks the selection.
+- The `∴ REX` logo (board header, settings and help page headers,
+  screensaver) is drawn in the theme's primary text color instead of the
+  accent: white on dark themes, dark on light ones.
+- The row icon strip is right-aligned: it ends next to the age, and the
+  name takes the room on the left, so long names are no longer cut while
+  there is space.
+- A Ready row whose turn simply finished no longer shows `✓ review`; the
+  why slot shows only `? asks` and the waiting reasons. The legend drops
+  the `✓ review` row.
+
+### Changed (tests)
+
+- Tests: hot restart (R20) refusals and rollbacks are covered: restart mode
+  validation, a refused preflight, a session that starts during the freeze,
+  a failed meta write, handoff file or fd inheritance, and the restarting
+  flag refusing spawn, resume, delete and complete of frozen sessions.
+  Handoff file validation errors, Boards/SwapBoards replies and partial
+  Reloaded reports are covered too. Coverage floors: `internal/daemon/server`
+  92 (was 91, which `make check` missed at random), new
+  `internal/daemon/handoff` 86.
 
 ### Fixed (Windows prompt delivery)
 

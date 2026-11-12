@@ -21,8 +21,8 @@ type Palette struct {
 	Bg, Fg, FgDim, FgMuted string
 	BgSel, Border          string
 	BorderFocus            string
-	// Accent marks the prompt arrow, the focused input, the logo and command
-	// names in help.
+	// Accent marks the prompt arrow, the focused input and command names in
+	// help. The logo takes Fg.
 	Accent string
 	// Per-state colors, matching the TUI legend.
 	Working, Queued, Needs, Done, Failed, Crashed string

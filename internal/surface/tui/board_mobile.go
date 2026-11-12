@@ -16,7 +16,7 @@ import (
 //
 // Line 1 is the indent, state marker, name (the flexible cell), the subagent
 // and long-run cells and the age. With row_icons on, the unseen mark and the
-// 1-cell why glyph (? or ✓) follow the name: "dark-mode  ✦ ?". Line 2 is the
+// 1-cell why glyph (?) follow the name: "dark-mode  ✦ ?". Line 2 is the
 // text under the name.
 const (
 	mobileTextIndent = rowIndent + colMarker + colGap // line 2 starts under the name

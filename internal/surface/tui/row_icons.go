@@ -41,7 +41,6 @@ const longRunGlyph = "▴"
 var iconGlyphs = map[string][2]string{
 	"unseen":    {"✦", "*"},
 	"asks":      {"?", "?"},
-	"review":    {"✓", "+"},
 	"loop":      {loopDefault, "@"},
 	"subagents": {subagentGlyph, "Y"},
 	"spend":     {"$", "$"},
@@ -228,7 +227,7 @@ func reasonText(m Model, s protocol.SessionSummary) (string, lipgloss.Style) {
 		case protocol.WaitInput:
 			return iconGlyph(m, "asks") + " asks", styleNeeds
 		case protocol.WaitReview:
-			return iconGlyph(m, "review") + " review", styleDone
+			return "", styleDim // a finished turn: nothing to say (2026-11-12)
 		case "":
 			if rowQuestion(s) != "" {
 				return iconGlyph(m, "asks") + " asks", styleNeeds
@@ -345,9 +344,6 @@ func slotCell(m Model, s protocol.SessionSummary, slot iconSlot, w int, selected
 			c = strings.Replace(c, longRunGlyph, iconGlyph(m, "longrun"), 1)
 		}
 		return c
-	}
-	if selected {
-		style = selectedStyle(style)
 	}
 	return style.Width(w).Align(align).Render(ansi.Truncate(text, w, "…"))
 }

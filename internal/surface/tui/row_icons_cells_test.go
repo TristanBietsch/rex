@@ -29,7 +29,7 @@ func TestReasonCell(t *testing.T) {
 	s.WaitReason = protocol.WaitInput
 	require.Equal(t, "? asks  ", plainCell(m, s, slotReason, 8))
 	s.WaitReason = protocol.WaitReview
-	require.Equal(t, "✓ review", plainCell(m, s, slotReason, 8))
+	require.Equal(t, "        ", plainCell(m, s, slotReason, 8), "a finished turn shows nothing (2026-11-12)")
 	s = ni
 	s.LastLine = "Proceed?"
 	require.Equal(t, "? asks  ", plainCell(m, s, slotReason, 8))
@@ -54,7 +54,7 @@ func TestReasonCell(t *testing.T) {
 	s.WaitReason = protocol.WaitInput
 	require.Equal(t, "?", plainCell(m, s, slotReason, 1))
 	s.WaitReason = protocol.WaitReview
-	require.Equal(t, "✓", plainCell(m, s, slotReason, 1))
+	require.Equal(t, " ", plainCell(m, s, slotReason, 1))
 	require.Equal(t, " ", plainCell(m, w, slotReason, 1))
 }
 
@@ -109,7 +109,7 @@ func TestSlotCell_ASCII(t *testing.T) {
 		State: protocol.StateNeedsInput, WaitReason: protocol.WaitReview,
 		LoopID: "l1", Subagents: 3,
 	}
-	require.Equal(t, "+ review", plainCell(m, s, slotReason, 8))
+	require.Equal(t, "        ", plainCell(m, s, slotReason, 8))
 	require.Equal(t, "@ 3/8   ", plainCell(m, s, slotLoop, 8))
 	require.Equal(t, "Y 3 ", plainCell(m, s, slotSubagents, 4))
 	w := protocol.SessionSummary{State: protocol.StateWorking, WorkingSince: cellNow.Add(-45 * time.Minute)}

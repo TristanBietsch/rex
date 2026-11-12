@@ -52,7 +52,7 @@ func TestMobile_IconsLine1(t *testing.T) {
 	require.Contains(t, second, "pick the theme toggle", "line 2 keeps the task")
 
 	rFirst, _ := mobileLines(t, m, 50, "release-notes")
-	require.Contains(t, rFirst, "✓")
+	require.NotContains(t, rFirst, "✓", "a finished turn shows no why glyph")
 	require.NotContains(t, rFirst, "✦", "seen row: no unseen mark")
 
 	t.Run("ascii glyphs", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestMobile_IconsLine1(t *testing.T) {
 		require.NotContains(t, f, "✦")
 		require.Contains(t, f, "* ?")
 		r, _ := mobileLines(t, a, 50, "release-notes")
-		require.Contains(t, r, "+")
+		require.NotContains(t, r, "+")
 	})
 
 	t.Run("row_icons off is the old line 1", func(t *testing.T) {
@@ -101,7 +101,6 @@ func TestLegend_RowIcons(t *testing.T) {
 	base := []string{
 		"✦ finished since you last looked",
 		"? asks waiting on your answer",
-		"✓ review turn finished",
 		"sh 42s waiting on a shell (web, sub)",
 	}
 	m := helpModel(120, 60)
@@ -128,10 +127,11 @@ func TestLegend_RowIcons(t *testing.T) {
 	require.NoError(t, m.Store.Set("ascii_glyphs", true))
 	ascii := legendKeys(m)
 	for _, want := range []string{"* finished since you last looked", "? asks waiting on your answer",
-		"+ review turn finished", "@ 3/8 loop turn", "$0.42 spend so far (Claude)"} {
+		"@ 3/8 loop turn", "$0.42 spend so far (Claude)"} {
 		require.Contains(t, ascii, want)
 	}
 	require.NotContains(t, strings.Join(ascii, "\n"), "✦")
+	require.NotContains(t, strings.Join(ascii, "\n"), "review", "a finished turn has no row mark (2026-11-12)")
 
 	require.NoError(t, m.Store.Set("row_icons", false))
 	off := strings.Join(legendKeys(m), "\n")

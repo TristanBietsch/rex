@@ -107,7 +107,7 @@ Top set: **why, unseen, loop, subagents, spend, long-run** (phase 1), then failu
 - No clash with state markers (`◆ ⠋… ◷ ◴ ◶ ◵ ◌ ● ✕ ○`), the fleet bar `▍`, the select arrow `▸` (or the theme's), the agent icons (`◎ ◆ ◇ ◈ □ ◉ ▣ ▲ ◢ ⊙ ◗`), the logo `∴`, prompt `λ`, lead `↳`, overview `»`, rename `✎`, meter `▰ ▱`. A test enforces it (Task 1).
 - Every slot has text next to its glyph, so no meaning is color-only. Color reinforces.
 - Nothing in the strip animates. `reduce_motion` changes nothing here; `✦` never blinks.
-- `ascii_glyphs` (Appearance, off): `✦→*`, `✓→+`, `⟳→@`, `⋔→Y`, `▴→^`, `↯→!`, `◔→%`; `?` and `$` stay. Only the strip and the legend use it in this spec.
+- `ascii_glyphs` (Appearance, off): `✦→*`, ~~`✓→+`~~ (dropped 2026-11-12), `⟳→@`, `⋔→Y`, `▴→^`, `↯→!`, `◔→%`; `?` and `$` stay. Only the strip and the legend use it in this spec.
 
 ## 5. Slots
 
@@ -116,7 +116,7 @@ Fixed widths. A slot that exists is always reserved, blank when empty. Order lef
 | Slot | id | Width | Text | Style token |
 |---|---|---|---|---|
 | unseen | `unseen` | 1 | `✦` | `accent` |
-| why | `reason` | 8 | `? asks` (needs `styleNeeds`), `✓ review` (`styleDone`), `sh 42s` / `web 9s` / `sub 3m` (`styleWorking`, dim) | as listed |
+| why | `reason` | 8 | `? asks` (needs `styleNeeds`), ~~`✓ review` (`styleDone`)~~ (dropped 2026-11-12), `sh 42s` / `web 9s` / `sub 3m` (`styleWorking`, dim) | as listed |
 | loop | `loop` | 8 | `⟳ 3/8` running; `⟳ paused`, `⟳ capped`, `⟳ done`, `⟳ failed`, `⟳ stop` otherwise | `loopStyle` |
 | subagents | `subagents` | 4 | `⋔ 3` | `styleWorking`, muted when marked done |
 | spend | `spend` | 6, right-aligned | `$0.42` (< $10: 2 decimals), `$12.3` (< $100), `$123` (< $1000), `$1.2k` | `fg_dim`; ≥ $5 `styleLongRun[1]`; ≥ $20 `styleLongRun[0]` |
@@ -124,7 +124,7 @@ Fixed widths. A slot that exists is always reserved, blank when empty. Order lef
 
 Rules per slot:
 
-- **why.** Ready: `WaitReason == input` → `? asks`; `review` → `✓ review`; empty reason and `LastLine` ends in `?` → `? asks`; else blank. Waiting (only while `waiting_section` is on and the row is in Waiting): `sh|web|sub` + `durationAgoAt(now, WaitingSince)`. Working, Done: blank. Marked-done rows: blank.
+- **why.** Ready: `WaitReason == input` → `? asks`; `review` → blank (was `✓ review`; dropped 2026-11-12); empty reason and `LastLine` ends in `?` → `? asks`; else blank. Waiting (only while `waiting_section` is on and the row is in Waiting): `sh|web|sub` + `durationAgoAt(now, WaitingSince)`. Working, Done: blank. Marked-done rows: blank.
 - **unseen.** Shown on a Ready or Done row (not marked done) whose `enteredAt` (the TUI's clock reading when it saw the row enter that section) is after `seenAt` (last attach to that session, or `cc`). On the first start with no saved state every row counts as seen. `seenAt` is saved in `tui-state.json` (`seen: {id: time}`), pruned to live session ids on save.
 - **loop.** Only while `loops` is on; the slot does not exist otherwise. The `withLoopChip` prefix is gone from rows (`loopChip` stays for the loops overlay).
 - **spend.** Only while `usage` is on. Blank when the daemon sent no `cost_usd` (all non-Claude tools, older daemons).
@@ -134,8 +134,10 @@ Rules per slot:
 Row grid with `row_icons` on:
 
 ```
-indent marker  [id]  name  unseen why [loop] subagents spend longrun  ‹spacer›  [model·effort tokens span resume]  age
+indent marker  [id]  name‹+spacer›  [model·effort tokens span resume]  unseen why [loop] subagents spend longrun  age
 ```
+
+(Grid as of 2026-11-12: the strip is right-anchored next to the age and the name cell takes the spacer. The original grid had the strip right after the name and the spacer before the detail columns.)
 
 - No column reads row content (`column_layout: fixed`). The spacer is blank and takes what is left; it replaces `rowCols.desc`.
 - Name widths: simple 32 / 24 / 20 (wide / normal / narrow), detailed 24 / 18 / 20. Narrow detailed = narrow simple (no detail columns), as today.
@@ -148,11 +150,11 @@ indent marker  [id]  name  unseen why [loop] subagents spend longrun  ‹spacer�
 | 61–109 | name 20 · strip · age | nothing |
 | ≤ 60 (mobile) | stacked; see below | — |
 
-Squeeze (only below the class minimum, e.g. `mobile_layout: off` at 50 columns): the spacer goes to 0 first; then drop spend, long-run, loop, subagents in that order; then the why slot shrinks to 1 cell (`?` or `✓`; waiting rows blank, the `◷` marker already says waiting); then the name shrinks to 12; the unseen slot goes last.
+Squeeze (only below the class minimum, e.g. `mobile_layout: off` at 50 columns): the spacer goes to 0 first; then drop spend, long-run, loop, subagents in that order; then the why slot shrinks to 1 cell (`?`; `✓` dropped 2026-11-12; waiting rows blank, the `◷` marker already says waiting); then the name shrinks to 12; the unseen slot goes last.
 
 `column_layout: fit`: a slot exists only while some row on the board has a value for it; gives way in the order above.
 
-**Mobile (≤ 60).** Line 1: state, name, unseen, why glyph only (`?`/`✓`), subagents, long-run, age (subagents and long-run go below 36 columns, as today). Line 2 keeps the text (task / summary), since the mobile layout has no preview line.
+**Mobile (≤ 60).** Line 1: state, name, unseen, why glyph only (`?`; `✓` dropped 2026-11-12), subagents, long-run, age (subagents and long-run go below 36 columns, as today). Line 2 keeps the text (task / summary), since the mobile layout has no preview line.
 
 ## 7. The kept bottom line
 
@@ -185,9 +187,11 @@ With `row_icons` on, the `↳` line is the only place a row's words show, so:
 
 ## 10. Legend and help
 
-`helpLegend` (`help.go:97`) gains, after the existing `⋔ 3` row and only while `row_icons` is on: `✦ finished since you last looked`, `? asks: waiting on your answer`, `✓ review: turn finished`, `sh 42s: waiting on a shell (web, sub)`, `⟳ 3/8 loop turn` (only while `loops` is on), `$0.42 spend so far (Claude)` (only while `usage` is on). With `ascii_glyphs` on the legend shows the ASCII forms. `docs/tui.md` ROW COLUMNS, Column widths and Mobile layout are rewritten for the strip; CHANGELOG entry under `[Unreleased]`.
+`helpLegend` (`help.go:97`) gains, after the existing `⋔ 3` row and only while `row_icons` is on: `✦ finished since you last looked`, `? asks: waiting on your answer`, ~~`✓ review: turn finished`~~ (dropped 2026-11-12), `sh 42s: waiting on a shell (web, sub)`, `⟳ 3/8 loop turn` (only while `loops` is on), `$0.42 spend so far (Claude)` (only while `usage` is on). With `ascii_glyphs` on the legend shows the ASCII forms. `docs/tui.md` ROW COLUMNS, Column widths and Mobile layout are rewritten for the strip; CHANGELOG entry under `[Unreleased]`.
 
 ## 11. Mockups
+
+As drafted 2026-11-11. Since 2026-11-12 the strip is right-anchored next to the age, rows have no `✓ review`, and the selected row has no background (see Decisions); the goldens under `internal/surface/tui/testdata/golden/board_icons_*.txtar` show the current board.
 
 Synthetic sessions. Spend shows only on Claude rows. `loops` on (the loop slot), `usage` on.
 
@@ -317,13 +321,15 @@ Accepted 2026-11-11 (user): D1–D12 as recommended. Phase 1 icons confirmed: wh
 
 2026-11-12 (user): the phase 2 context-used glyph is `◔` (U+25D4, EAW `N`, not emoji), not `⧗`, which reads as the waiting-icon hourglass set (`⧖ ⧑ ⧒`, `feat/waiting-spinner`). Checked against the state markers, agent icons, the strip glyphs (`⋔ ⟳ ✦ ▴ $ ↯`), the spinner frames and every waiting set (`◴◷◶◵ ⧖⧑⧒ ⣀⣄⣤⣦⣶⣷⣿ ◜◝◞◟ ⠂⡀⢀⠐ ∘◦⊚`). `◑` was rejected: EAW `A`. ASCII fallback stays `%`.
 
+2026-11-12 (user): board polish (`feat/board-polish`). (1) D3 reversed: the strip is right-anchored, ending one gap before the age; the detail columns sit between the name and the strip; the name cell takes the old spacer (class widths 32/24/20 and 24/18/20 become minimums). Widths still never read row content; squeeze order, mobile, `row_icons` off and `ascii_glyphs` unchanged. (2) No row background: strip cells of the selected row lose the `bg_sel` fill (the "per line highlighting"); the `▸` arrow is the selection. (3) `✓ review` is dropped from rows, the mobile line and the legend: a finished turn leaves the why slot blank (`WaitReview` wins over a `?` last line, as before, so it stays blank); `? asks` and the waiting reasons stay; the `review` glyph and its `+` ASCII form are gone. The header overview's "to review" count is unchanged. (4) Outside this spec: the `∴ REX` logo takes `fg` instead of `accent`.
+
 Recommendation first.
 
 | # | Question | Recommendation | Alternatives |
 |---|---|---|---|
 | D1 | Which module is "middle" | The row text column (task / AI summary in every row) | The header overview `»` line |
 | D2 | Row words after the change | Gone from rows in both views; the `↳` line carries question → summary → task for the selected row | Keep a short task column on 150+ only |
-| D3 | Freed width | Strip left-anchored right after the name, blank spacer before the detail columns; names widen (32/24/20) | Strip right-anchored next to the age |
+| D3 | Freed width | ~~Strip left-anchored right after the name, blank spacer before the detail columns; names widen (32/24/20)~~ Superseded 2026-11-12: strip right-anchored next to the age; the name takes the freed width | Strip left-anchored after the name |
 | D4 | Spend source | Real cost from the Claude status-line tap only (`cost_usd`); blank for other tools | Estimate from tokens × a price table, shown as `~$` |
 | D5 | Spend colors | Fixed: dim, ≥ $5 warm, ≥ $20 hot | A setting for the thresholds |
 | D6 | When does `✦` clear | Attach or `cc`; saved in `tui-state.json` | Also after the row is selected for 2 s |

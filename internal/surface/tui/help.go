@@ -144,7 +144,6 @@ func rowIconLegend(m Model) []helpRow {
 	rows := []helpRow{
 		{Key: styleAccent.Render(iconGlyph(m, "unseen")), Desc: "finished since you last looked"},
 		{Key: styleNeeds.Render(iconGlyph(m, "asks") + " asks"), Desc: "waiting on your answer"},
-		{Key: styleDone.Render(iconGlyph(m, "review") + " review"), Desc: "turn finished"},
 	}
 	if m.featureOn("waiting_section") { // the why slot names the tool only on Waiting rows
 		rows = append(rows, helpRow{Key: styleWorking.Render("sh 42s"), Desc: "waiting on a shell (web, sub)"})

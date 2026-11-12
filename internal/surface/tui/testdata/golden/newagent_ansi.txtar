@@ -46,7 +46,7 @@
   enter preview · x remove · esc close            
 -- styled.80x24 --
                                                                                 
-  ␛[1;35m∴ REX␛[0m␛[2m › NEW AGENT␛[0m    ␛[2m~/dev/rex␛[0m                                         ␛[2mdraft␛[0m  
+  ␛[1m∴ REX␛[0m␛[2m › NEW AGENT␛[0m    ␛[2m~/dev/rex␛[0m                                         ␛[2mdraft␛[0m  
 ␛[2m────────────────────────────────────────────────────────────────────────────────␛[0m
  ␛[1mSTEPS␛[0m          ␛[2m │ ␛[0m␛[1mAGENT␛[0m                                                        
  ␛[32m✓␛[0m Agent        ␛[2m │ ␛[0m␛[38;2;217;119;87m◆␛[0m Claude Code␛[2m  ·  ␛[0m␛[1mopus␛[0m␛[2m  ·  ␛[0m␛[2meffort ␛[0m␛[1mmax␛[0m         ␛[1mctrl+g␛[0m␛[2m change␛[0m  
@@ -71,7 +71,7 @@
   ␛[1menter␛[0m␛[2m preview␛[0m␛[2m · ␛[0m␛[1mx␛[0m␛[2m remove␛[0m␛[2m · ␛[0m␛[1mr␛[0m␛[2m rename␛[0m␛[2m · ␛[0m␛[1mtab␛[0m␛[2m next␛[0m␛[2m · ␛[0m␛[1mctrl+s␛[0m␛[2m launch␛[0m␛[2m · ␛[0m␛[1mesc␛[0m␛[2m close␛[0m    
 -- styled.50x20 --
                                                   
-  ␛[1;35m∴ REX␛[0m␛[2m › NEW AGENT␛[0m                        ␛[2mdraft␛[0m  
+  ␛[1m∴ REX␛[0m␛[2m › NEW AGENT␛[0m                        ␛[2mdraft␛[0m  
 ␛[2m──────────────────────────────────────────────────␛[0m
   ␛[35m‹ ␛[0m␛[2mAgent␛[0m␛[2m · ␛[0m␛[2mTask␛[0m␛[2m · ␛[0m␛[1m[Context 3]␛[0m␛[2m · ␛[0m␛[2mTrust␛[0m␛[35m ›␛[0m          
   ␛[38;2;217;119;87m◆␛[0m Claude Code␛[2m · ␛[0m␛[1mopus␛[0m␛[2m · ␛[0m␛[1mmax␛[0m                      
