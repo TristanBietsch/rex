@@ -37,6 +37,10 @@ type Session struct {
 	// restored from meta.json: subagents do not outlive the daemon.
 	Subagents int
 
+	// Prompts is how many prompts the user sent the agent (Claude Code's
+	// UserPromptSubmit hook), 0 when unknown. Not restored from meta.json.
+	Prompts int
+
 	// WaitReason is why a needs_input session waits (protocol.WaitReview or
 	// protocol.WaitInput), "" when unknown. Not restored from meta.json.
 	WaitReason string
@@ -145,6 +149,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		Tokens:        s.Tokens,
 		OutputBytes:   s.OutputBytes,
 		Subagents:     s.Subagents,
+		Prompts:       s.Prompts,
 		WaitReason:    s.WaitReason,
 		WaitingOn:     s.WaitingOn,
 		WaitingSince:  s.WaitingSince,

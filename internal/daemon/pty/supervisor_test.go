@@ -152,6 +152,7 @@ func TestSupervisor_NeedsInputToWorkingRegression(t *testing.T) {
 	sup := New(SupervisorConfig{
 		StateDir: stateDir, Store: store,
 		Command:  []string{"sleep", "0.5"},
+		ReadyHold: -1, // not about the hold
 		Adapter:  stub,
 		IdleTick: 10 * time.Millisecond,
 	})

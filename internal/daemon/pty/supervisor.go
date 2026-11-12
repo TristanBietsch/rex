@@ -53,8 +53,13 @@ type SupervisorConfig struct {
 	// CompleteCh signals a clean shutdown — supervisor kills the child and
 	// transitions to StateDone. Distinct from ctx cancel, which means StateFailed.
 	// Buffered size 1; sender should use a non-blocking send.
-	CompleteCh       chan struct{}
-	IdleTick         time.Duration // how often we sample idle for the adapter (default 200ms)
+	CompleteCh chan struct{}
+	IdleTick   time.Duration // how often we sample idle for the adapter (default 200ms)
+	// ReadyHold is how long a working→needs_input change must hold before
+	// it is published (default readyHoldDefault; negative publishes at once).
+	ReadyHold time.Duration
+	// Now is the clock for the ready hold (default time.Now).
+	Now              func() time.Time
 	InitialCols      uint16        // initial PTY width (0 = default)
 	InitialRows      uint16        // initial PTY height (0 = default)
 	InitialPrompt    string        // optional: typed into the agent once its TUI settles
@@ -111,6 +116,12 @@ func New(cfg SupervisorConfig) *Supervisor {
 	}
 	if cfg.StopDrainTimeout == 0 {
 		cfg.StopDrainTimeout = defaultStopDrainTimeout
+	}
+	if cfg.ReadyHold == 0 {
+		cfg.ReadyHold = readyHoldDefault
+	}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
 	}
 	return &Supervisor{cfg: cfg, openTranscript: openStateTranscript}
 }
@@ -449,6 +460,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// reasons is asserted once too; nil unless the agent reports why it
 	// waits. Cleared with the subagents on every exit path.
 	reasons, _ := s.cfg.Adapter.(adapter.WaitReasoner)
+	prompts, _ := s.cfg.Adapter.(adapter.PromptCounter) // nil unless the agent counts prompts
+	hold := readyHold{hold: max(s.cfg.ReadyHold, 0)}
 	noticer, _ := s.cfg.Adapter.(adapter.Noticer)
 	var lastNotice string
 	clearReason := func() {
@@ -588,17 +601,38 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				current, ok := s.cfg.Store.CurrentState(sess.ID)
 				// done is terminal: once the adapter reports it (done_regex),
 				// later frames can't pull the session back to working.
-				if next != "" && ok && next != current && current != protocol.StateDone {
-					slog.Info("pty: state transition", "session", sess.ID, "from", current, "to", next, "idle_ms", idle.Milliseconds())
-					_ = s.cfg.Store.Transition(sess.ID, next)
-					s.persistMeta(sess)
+				if next != "" && ok && current != protocol.StateDone {
+					// A question (permission, elicitation) is READY at once;
+					// any other entry into needs_input must hold first.
+					question := reasons != nil && reasons.WaitReason() == protocol.WaitInput
+					publish, why := hold.admit(current, next, question, s.cfg.Now())
+					switch {
+					case publish:
+						slog.Info("pty: state transition", "session", sess.ID, "from", current, "to", next,
+							"reason", why, "idle_ms", idle.Milliseconds())
+						_ = s.cfg.Store.Transition(sess.ID, next)
+						s.persistMeta(sess)
+					case why == "hold":
+						slog.Debug("pty: ready held", "session", sess.ID, "hold_ms", s.cfg.ReadyHold.Milliseconds())
+					case why == "flap":
+						slog.Info("pty: ready flap suppressed", "session", sess.ID, "state", current)
+					}
 				}
 			}
 			if agents != nil {
 				_ = s.cfg.Store.SetSubagents(sess.ID, agents.Subagents()) // broadcasts only a change
 			}
+			if prompts != nil {
+				_ = s.cfg.Store.SetPrompts(sess.ID, prompts.Prompts()) // broadcasts only a change
+			}
 			if reasons != nil {
-				_ = s.cfg.Store.SetWaitReason(sess.ID, reasons.WaitReason()) // broadcasts only a change
+				// No reason while a READY entry waits out its hold: the
+				// session still shows as working.
+				reason := reasons.WaitReason()
+				if hold.pending() {
+					reason = ""
+				}
+				_ = s.cfg.Store.SetWaitReason(sess.ID, reason) // broadcasts only a change
 			}
 			if waits != nil {
 				kind, since := waits.Waiting()
