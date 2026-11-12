@@ -38,3 +38,21 @@ func TestStoreSubscribe_CancelRemoves(t *testing.T) {
 	defer st.subsMu.RUnlock()
 	require.Zero(t, st.subscribers.Len())
 }
+
+// A nil list (a session nobody subscribed to) is empty; a range can stop
+// early.
+func TestSubs_NilAndEarlyStop(t *testing.T) {
+	var none *Subs[func()]
+	require.Zero(t, none.Len())
+	for range none.All() {
+		t.Fatal("nil list yielded")
+	}
+	var s Subs[int]
+	s.Add(1)
+	s.Add(2)
+	for v := range s.All() {
+		require.Equal(t, 1, v)
+		break
+	}
+	require.Equal(t, []int{1, 2}, s.Clone())
+}

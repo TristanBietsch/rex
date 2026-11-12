@@ -149,3 +149,20 @@ func TestReplayTail_StartsAtASafeBoundary(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, " bbb", string(b))
 }
+
+// A cut tail of only UTF-8 continuation bytes has no safe start; a missing
+// transcript replays nothing.
+func TestReplayTail_EdgeCases(t *testing.T) {
+	dir := t.TempDir()
+	b, err := ReplayTail(dir, "none", 64)
+	require.NoError(t, err)
+	require.Nil(t, b)
+
+	require.NoError(t, AppendTranscript(dir, "id1", []byte("a日")))
+	b, err = ReplayTail(dir, "id1", 2) // the last two bytes of 日
+	require.NoError(t, err)
+	require.Empty(t, b)
+
+	_, err = ReplayTail(dir, "../escape", 64)
+	require.Error(t, err)
+}
