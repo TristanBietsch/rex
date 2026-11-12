@@ -22,6 +22,9 @@ type persistedState struct {
 	HiddenSections *[]string `json:"hidden_sections,omitempty"`
 	// Search is the board search text, restored once on the next start.
 	Search string `json:"search,omitempty"`
+	// Seen is when you last looked at each session (attach or cc), for the
+	// unseen mark. Written only with row_icons on, pruned to live sessions.
+	Seen map[string]time.Time `json:"seen,omitempty"`
 }
 
 // SaveTUIState writes selection + filter to paths.TUIStateFile
@@ -47,6 +50,7 @@ func SaveTUIState(m Model) error {
 		SavedAt:        time.Now().UTC(),
 		HiddenSections: &hidden,
 		Search:         m.Search,
+		Seen:           pruneSeen(m),
 	}, "", "  ")
 	if err != nil {
 		return err

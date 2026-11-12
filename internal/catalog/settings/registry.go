@@ -37,6 +37,12 @@ var Registry = []Setting{
 		Help:    "Change the spinner type for loading animations.",
 	},
 	{
+		ID: "waiting_spinner", Label: "Waiting icon", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeEnum, Default: "clock",
+		Options: []string{"clock", "hourglass", "sand", "orbit", "pendulum", "pulse"},
+		Help:    "Change the marker of a session waiting on a tool (Waiting section): a clock hand, an hourglass turning over, sand piling up, an orbit, a pendulum or a slow pulse. It steps once a second; reduce_motion holds it still.",
+	},
+	{
 		ID: "row_density", Label: "Row density", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "normal",
 		Options: []string{"compact", "normal", "roomy"},
@@ -89,6 +95,16 @@ var Registry = []Setting{
 		Help:    "fixed: board columns have set widths that change only at breakpoints. fit: columns size to their content.",
 	},
 	{
+		ID: "row_icon_set", Label: "Row icon set", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeString, Default: "unseen,reason,loop,subagents,spend,longrun", ListSep: ",",
+		Help: "Which icon slots a row shows, comma-separated ids: unseen, reason, loop, subagents, spend, longrun. Unknown ids are ignored. Slots keep a fixed order; this removes slots, it cannot reorder them. Needs row_icons on.",
+	},
+	{
+		ID: "ascii_glyphs", Label: "ASCII glyphs", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeBool, Default: false,
+		Help: "Draw the row icons with plain ASCII (* + @ Y ^) for fonts that lack the symbols. Off: the symbol forms.",
+	},
+	{
 		ID: "mobile_layout", Label: "Mobile layout", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "auto",
 		Options: []string{"auto", "always", "off"},
@@ -135,6 +151,23 @@ var Registry = []Setting{
 		Type: TypeInt, Default: 5,
 		Min: 1, Max: 120,
 		Help: "Minutes without a key or click before the screensaver shows. A change applies within a minute.",
+	},
+	{
+		ID: "screensaver_counts", Label: "Screensaver counts", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeEnum, Default: "horizontal",
+		Options: []string{"horizontal", "vertical", "off"},
+		Help:    "How the screensaver shows the counts: horizontal on one line, vertical one per line under the logo (back to one line when the terminal is too short), or off.",
+	},
+	{
+		ID: "screensaver_clock", Label: "Screensaver clock", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeEnum, Default: "off",
+		Options: []string{"off", "24h", "12h"},
+		Help:    "Show the time under the screensaver's logo, as 14:05 (24h) or 2:05 PM (12h). It updates on the minute.",
+	},
+	{
+		ID: "screensaver_drift", Label: "Screensaver drift", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Move the screensaver a little once a minute so no image stays in one place for hours. Off keeps it centered; reduce_motion also keeps it centered.",
 	},
 	{
 		ID: "screensaver_keep_awake", Label: "Screensaver keep awake", Section: SectionBehavior, Apply: ApplyLive,
@@ -189,7 +222,12 @@ var Registry = []Setting{
 	{
 		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
+		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. With row_icons on, this line is where a row's task and summary show. Off: no line, the board uses the row.",
+	},
+	{
+		ID: "row_icons", Label: "Row icons", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Board rows show an icon strip (finished and unseen, why it needs you, loop, subagents, spend, long run) in place of the task text column. Off: rows show the task and summary text as before, and nothing is written about which rows you have seen.",
 	},
 	{
 		ID: "summary_schedule", Label: "Scheduled summaries", Section: SectionFeatures, Apply: ApplyLive,
@@ -205,7 +243,7 @@ var Registry = []Setting{
 	{
 		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "A Waiting section below Ready for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Ready / Working / Done again. The daemon still records the wait.",
+		Help: "A Waiting section below Ready for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own marker (◷ by default; Waiting icon picks another) and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Ready / Working / Done again. The daemon still records the wait.",
 	},
 
 	{

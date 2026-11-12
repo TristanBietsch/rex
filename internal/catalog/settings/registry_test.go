@@ -71,7 +71,24 @@ func TestRegistry_Screensaver(t *testing.T) {
 	require.Equal(t, TypeBool, awake.Type)
 	require.Equal(t, true, awake.Default)
 
-	for _, s := range []Setting{on, after, awake} {
+	counts, ok := findEntry("screensaver_counts")
+	require.True(t, ok)
+	require.Equal(t, TypeEnum, counts.Type)
+	require.Equal(t, "horizontal", counts.Default, "today's one-line counts")
+	require.Equal(t, []string{"horizontal", "vertical", "off"}, counts.Options)
+
+	clock, ok := findEntry("screensaver_clock")
+	require.True(t, ok)
+	require.Equal(t, TypeEnum, clock.Type)
+	require.Equal(t, "off", clock.Default)
+	require.Equal(t, []string{"off", "24h", "12h"}, clock.Options)
+
+	drift, ok := findEntry("screensaver_drift")
+	require.True(t, ok)
+	require.Equal(t, TypeBool, drift.Type)
+	require.Equal(t, true, drift.Default)
+
+	for _, s := range []Setting{on, after, awake, counts, clock, drift} {
 		require.Equal(t, SectionBehavior, s.Section, s.ID)
 		require.NotEmpty(t, s.Help, s.ID)
 		require.False(t, s.ReadOnly, s.ID)

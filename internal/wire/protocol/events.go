@@ -61,6 +61,11 @@ type SessionSummary struct {
 	// 0 when the last one stops.
 	Subagents int `json:"subagents,omitempty"`
 
+	// CostUSD is what the session has cost so far in US dollars (Claude
+	// Code, from the usage hub). Nil means unknown; it is never sent while
+	// the usage setting is off.
+	CostUSD *float64 `json:"cost_usd,omitempty"`
+
 	// Prompts is how many prompts the user sent the agent (Claude Code, from
 	// its UserPromptSubmit hook); it only goes up. 0 means unknown. Clients
 	// use it to play the READY sound once per turn.

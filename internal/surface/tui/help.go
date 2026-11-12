@@ -106,7 +106,7 @@ func helpLegend(m Model) helpGroup {
 		{Key: mark(protocol.StateWorking, frames[m.SpinnerTick%len(frames)]), Desc: "working"},
 	}
 	if m.featureOn("waiting_section") {
-		rows = append(rows, helpRow{Key: mark(protocol.StateWorking, waitingGlyph), Desc: "waiting on a tool, not on you"})
+		rows = append(rows, helpRow{Key: mark(protocol.StateWorking, waitingStillFor(m)), Desc: "waiting on a tool, not on you"})
 	}
 	rows = append(rows,
 		helpRow{Key: mark(protocol.StateQueued, stateGlyph(protocol.StateQueued)), Desc: "queued, agent not started"},
@@ -115,12 +115,39 @@ func helpLegend(m Model) helpGroup {
 		helpRow{Key: mark(protocol.StateCrashed, stateGlyph(protocol.StateCrashed)), Desc: "crashed"},
 		helpRow{Key: styleFleet[0].Render("▍"), Desc: "fleet member (color per fleet)"},
 		helpRow{Key: styleWorking.Render(subagentGlyph + " 3"), Desc: "subagents running"},
+	)
+	rows = append(rows, rowIconLegend(m)...)
+	rows = append(rows,
 		helpRow{Key: styleLongRun[3].Render("▴ 10m"), Desc: "working 10 minutes or more"},
 		helpRow{Key: styleLongRun[2].Render("▴ 30m"), Desc: "working 30 minutes or more"},
 		helpRow{Key: styleLongRun[1].Render("▴ 2h"), Desc: "working 2 hours or more"},
 		helpRow{Key: styleLongRun[0].Render("▴ 6h"), Desc: "working 6 hours or more"},
 	)
 	return helpGroup{Title: helpGroupLegend, Rows: rows, Styled: true}
+}
+
+// rowIconLegend is the legend of the row icon strip, after the subagent row:
+// nothing with row_icons off; the loop and spend rows only while loops and
+// usage are on; ASCII forms with ascii_glyphs on.
+func rowIconLegend(m Model) []helpRow {
+	if !m.featureOn("row_icons") {
+		return nil
+	}
+	rows := []helpRow{
+		{Key: styleAccent.Render(iconGlyph(m, "unseen")), Desc: "finished since you last looked"},
+		{Key: styleNeeds.Render(iconGlyph(m, "asks") + " asks"), Desc: "waiting on your answer"},
+		{Key: styleDone.Render(iconGlyph(m, "review") + " review"), Desc: "turn finished"},
+	}
+	if m.featureOn("waiting_section") { // the why slot names the tool only on Waiting rows
+		rows = append(rows, helpRow{Key: styleWorking.Render("sh 42s"), Desc: "waiting on a shell (web, sub)"})
+	}
+	if m.featureOn("loops") {
+		rows = append(rows, helpRow{Key: styleWorking.Render(iconGlyph(m, "loop") + " 3/8"), Desc: "loop turn"})
+	}
+	if m.featureOn("usage") {
+		rows = append(rows, helpRow{Key: styleDim.Render(spendText(0.42)), Desc: "spend so far (Claude)"})
+	}
+	return rows
 }
 
 // helpGroups is every help group in page order, rows of off features

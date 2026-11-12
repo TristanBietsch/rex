@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -90,15 +93,31 @@ type layoutOpts struct {
 	resume   bool // the resume feature is on: the resume column exists
 	times    bool // the timestamps feature is on: the span column exists
 	fit      bool // column_layout: fit
+
+	// icons is the icon strip's slots in layout order (row_icons on, not
+	// mobile). nil is the off path: the text column, today's layout.
+	icons []iconSlot
+	// slotShown reports whether a row has a value for a slot (fit layout).
+	slotShown func(protocol.SessionSummary, iconSlot) bool
 }
 
 func layoutOptsOf(m Model) layoutOpts {
-	return layoutOpts{
+	o := layoutOpts{
 		detailed: m.Detailed,
 		resume:   m.featureOn("resume"),
 		times:    m.featureOn("timestamps"),
 		fit:      m.Store != nil && m.Store.String("column_layout") == columnLayoutFit,
 	}
+	if rowIconsOn(m) {
+		o.icons = iconSlots(m)
+		if o.icons == nil {
+			o.icons = []iconSlot{} // every slot removed: still the strip path
+		}
+		o.slotShown = func(s protocol.SessionSummary, slot iconSlot) bool {
+			return strings.TrimSpace(ansi.Strip(slotCell(m, s, slot, slotWidth[slot], false))) != ""
+		}
+	}
+	return o
 }
 
 // colSet is the widths of one view in one class. 0 means no column (no
@@ -129,8 +148,29 @@ var classSpecs = [...]classSpec{
 	},
 }
 
+// iconClassSpecs is classSpecs with row_icons on: the name widths of the
+// icon layout and the same detail columns. Subagents and the long-run badge
+// are strip slots there, not columns.
+var iconClassSpecs = [...]classSpec{
+	classWide: {
+		simple:   colSet{slug: 32},
+		detailed: colSet{slug: 24, id: colID, model: 24, tokens: colTokens, span: colSpan, resume: colResume},
+	},
+	classNormal: {
+		simple:   colSet{slug: 24},
+		detailed: colSet{slug: 18, id: colID, model: 16, tokens: colTokens},
+	},
+	classNarrow: {
+		simple:   colSet{slug: 20},
+		detailed: colSet{slug: 20},
+	},
+}
+
 // layoutRows sizes the row columns for a content width.
 func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, o layoutOpts) rowCols {
+	if o.icons != nil {
+		return layoutIcons(rows, now, width, o)
+	}
 	if o.fit {
 		return layoutFit(rows, now, width, o.detailed, o.resume, o.times)
 	}
@@ -171,4 +211,112 @@ func layoutFixed(width int, o layoutOpts) rowCols {
 	}
 	c.desc = max(width-c.used(), 0)
 	return c
+}
+
+// layoutIcons sizes the icon layout. fixed: the class table and the slot
+// widths alone, no row content read. fit: every column and slot is at most
+// its fixed width, sized to content, and a slot exists only while some row
+// has a value for it. Then the squeeze, only when the spacer would go
+// negative (see squeezeIcons).
+func layoutIcons(rows []protocol.SessionSummary, now time.Time, width int, o layoutOpts) rowCols {
+	class := classForWidth(width)
+	if class == classMobile {
+		class = classNarrow // mobile_layout: off keeps the narrow widths
+	}
+	set := iconClassSpecs[class].simple
+	if o.detailed {
+		set = iconClassSpecs[class].detailed
+	}
+	c := rowCols{icons: true, id: set.id, slug: set.slug, model: set.model,
+		tokens: set.tokens, span: set.span, resume: set.resume}
+	if !o.resume {
+		c.resume = 0
+	}
+	if !o.times {
+		c.span = 0
+	}
+	for _, s := range o.icons {
+		c.slots[s] = slotWidth[s]
+	}
+	if o.fit {
+		fitIcons(&c, rows, now, o)
+	}
+	squeezeIcons(&c, width)
+	c.spacer = max(width-c.used(), 0)
+	return c
+}
+
+// fitIcons shrinks the fixed icon layout to the rows' content.
+func fitIcons(c *rowCols, rows []protocol.SessionSummary, now time.Time, o layoutOpts) {
+	var slug, model, tokens, span, resume int
+	var shown [len(slotWidth)]bool
+	for _, s := range rows {
+		slug = max(slug, ansi.StringWidth(displayName(s)))
+		model = max(model, ansi.StringWidth(modelEffortLabel(s)))
+		if s.Tokens > 0 {
+			tokens = max(tokens, ansi.StringWidth(formatTokens(s.Tokens)))
+		}
+		span = max(span, ansi.StringWidth(spanText(now, s)))
+		if resumeIDShown(s) != "" {
+			resume = colResume
+		}
+		for _, slot := range o.icons {
+			if !shown[slot] && o.slotShown != nil && o.slotShown(s, slot) {
+				shown[slot] = true
+			}
+		}
+	}
+	c.slug = min(c.slug, slug)
+	c.model = min(c.model, model)
+	c.tokens = min(c.tokens, tokens)
+	c.span = min(c.span, span)
+	c.resume = min(c.resume, resume)
+	for i := range c.slots {
+		if !shown[i] {
+			c.slots[i] = 0
+		}
+	}
+}
+
+// squeezeIcons runs only below the class minimum (the spacer would be
+// negative): drop spend, long-run, loop, subagents in that order, then the
+// why slot shrinks to its glyph, then the name to slugMin, then the unseen
+// slot goes. A dropped slot takes its gap with it. Past that the name gives
+// way to 0.
+func squeezeIcons(c *rowCols, width int) {
+	short := func() int { return c.used() - width }
+	for _, s := range []iconSlot{slotSpend, slotLongRun, slotLoop, slotSubagents} {
+		if short() <= 0 {
+			return
+		}
+		c.slots[s] = 0
+	}
+	if short() > 0 && c.slots[slotReason] > 1 {
+		c.slots[slotReason] = 1
+	}
+	if n := short(); n > 0 && c.slug > slugMin {
+		c.slug = max(c.slug-n, slugMin)
+	}
+	if short() > 0 {
+		c.slots[slotUnseen] = 0
+	}
+	if n := short(); n > 0 {
+		c.slug = max(c.slug-n, 0)
+	}
+}
+
+// usedIcons is used() on the icons path: everything but the spacer.
+func (c rowCols) usedIcons() int {
+	w := rowIndent + colMarker + colGap + c.slug + colGap + colTime
+	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.resume, c.agents, c.run} {
+		if x > 0 {
+			w += colGap + x
+		}
+	}
+	for _, x := range c.slots {
+		if x > 0 {
+			w += colGap + x
+		}
+	}
+	return w
 }

@@ -14,7 +14,7 @@ import (
 )
 
 func simpleBoard(sessions ...protocol.SessionSummary) Model {
-	m := boardModel(sessions...)
+	m := rowIconsOff(boardModel(sessions...)) // pins the text column
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	m.Clock = func() time.Time { return now }
 	return m

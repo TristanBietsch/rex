@@ -42,6 +42,7 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `model.go` | Model struct and Init |
 | `update.go` | Update loop, daemon intents, spawn |
 | `board.go` | Kanban columns render; section registry (`boardGroups`, `resolveSection`) |
+| `row_icons.go` | Row icon strip behind `row_icons`: slots (`iconSlots`, `slotWidth`), glyphs (`iconGlyph`, ASCII forms), `slotCell`, unseen tracking (`markSeen`, `isUnseen`, `SeenAt`/`EnteredAt`); grid in `board_columns.go`, mobile line 1 in `board_mobile.go` (`mobileIcons`), legend in `help.go` (`rowIconLegend`) |
 | `rowfilter.go` | `rowFilter`: the one predicate every board view applies |
 | `filter.go` | `:filter` grammar, hidden sections (`setSectionHidden`, `z` chord, `board_hidden_sections`), filter-bar status |
 | `chords.go` | Board chord table (`dd`, `cc`; first key to handler) |

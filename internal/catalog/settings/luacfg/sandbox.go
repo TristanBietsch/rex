@@ -35,7 +35,8 @@ type evaluator struct {
 	heap    atomic.Bool // the heap watchdog stopped the script
 	values  map[string]any
 	setAt   map[string]string
-	closed  map[string]bool // trust ids whose last rex.set was refused
+	given   map[string]float64 // the Lua number of each kept numeric rex.set
+	closed  map[string]bool    // trust ids whose last rex.set was refused
 	themes  map[string]theme.Palette
 	issues  []theme.Issue
 	warns   []string
@@ -50,6 +51,7 @@ func newEvaluator(o Opts, mainSize int) *evaluator {
 		opts:    o,
 		values:  map[string]any{},
 		setAt:   map[string]string{},
+		given:   map[string]float64{},
 		closed:  map[string]bool{},
 		themes:  map[string]theme.Palette{},
 		loaded:  map[string]lua.LValue{},
@@ -221,12 +223,18 @@ func (ev *evaluator) set(L *lua.LState) int {
 			ev.warn("%s: %q: %v (ignored; it reads its default until fixed)", at, key, err)
 			delete(ev.values, key)
 			delete(ev.setAt, key)
+			delete(ev.given, key)
 			ev.closed[key] = true
 		}
 		return 0
 	}
 	ev.values[key] = raw
 	ev.setAt[key] = at
+	if n, isNum := val.(lua.LNumber); isNum {
+		ev.given[key] = float64(n)
+	} else {
+		delete(ev.given, key)
+	}
 	delete(ev.closed, key)
 	return 0
 }

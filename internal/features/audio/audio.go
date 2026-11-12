@@ -2,9 +2,10 @@
 //
 // Catalogs (soundsets) live in sibling files (factorio.go, bell.go, …) and
 // expose a map[event][]burst. The Player bakes the active catalog to PCM at
-// startup and re-bakes on SetSoundset. Playback is fire-and-forget via a
-// background goroutine that keeps the oto.Player alive until the sample
-// completes.
+// startup and re-bakes on SetSoundset. The device opens the first time sound
+// is on, so a Player started muted plays once it is turned on. Playback is
+// fire-and-forget via a background goroutine that keeps the oto.Player alive
+// until the sample completes.
 package audio
 
 import (
@@ -68,24 +69,61 @@ type Config struct {
 // If audio device init fails (no device, headless CI), the Player becomes a
 // no-op; Play() silently returns.
 type Player struct {
-	cfg      Config
-	ctx      *oto.Context
-	enabled  bool
+	cfg Config
+	// open opens the device; it runs once, when sound is first on.
+	open     func() (device, error)
+	dev      device // nil while no device is open: muted
+	opened   bool   // open was tried
 	soundset string
 	pcm      map[string][]byte
 	mu       sync.Mutex
 }
 
+// device plays one baked sample at a gain. The oto context implements it;
+// tests use a fake.
+type device interface {
+	play(event string, pcm []byte, gain float64)
+}
+
 // New initializes a Player. Returns a non-nil *Player even on init failure; it
 // just no-ops in degraded mode.
-func New(cfg Config) *Player {
+func New(cfg Config) *Player { return newPlayer(cfg, openOto) }
+
+func newPlayer(cfg Config, open func() (device, error)) *Player {
 	if cfg.Soundset == "" {
 		cfg.Soundset = SoundsetFactorio
 	}
-	p := &Player{cfg: cfg, pcm: make(map[string][]byte)}
-	if !cfg.Enabled {
-		return p
+	p := &Player{cfg: cfg, open: open, pcm: make(map[string][]byte)}
+	// Bake even while muted: turning sound on later must have samples.
+	p.bake(cfg.Soundset)
+	if cfg.Enabled {
+		p.openDevice()
 	}
+	return p
+}
+
+// openDevice opens the audio device the first time sound is on. A failure
+// (no device, headless CI) leaves the player muted and is not retried.
+// Caller holds p.mu, or the player is not yet shared.
+func (p *Player) openDevice() {
+	if p.dev != nil || p.opened {
+		return
+	}
+	p.opened = true
+	if p.open == nil {
+		return
+	}
+	dev, err := p.open()
+	if err != nil {
+		slog.Warn("audio: device init failed; running muted", "err", err)
+		return
+	}
+	p.dev = dev
+	slog.Info("audio: player ready", "soundset", p.cfg.Soundset, "volume", p.cfg.Volume, "boot_voice", p.cfg.BootVoice)
+}
+
+// openOto opens the process's one oto context.
+func openOto() (device, error) {
 	op := &oto.NewContextOptions{
 		SampleRate:   sampleRate,
 		ChannelCount: channels,
@@ -93,15 +131,28 @@ func New(cfg Config) *Player {
 	}
 	ctx, ready, err := oto.NewContext(op)
 	if err != nil {
-		slog.Warn("audio: device init failed; running muted", "err", err)
-		return p
+		return nil, err
 	}
 	<-ready
-	p.ctx = ctx
-	p.enabled = true
-	p.bake(cfg.Soundset)
-	slog.Info("audio: player ready", "soundset", cfg.Soundset, "volume", cfg.Volume, "boot_voice", cfg.BootVoice)
-	return p
+	return otoDevice{ctx}, nil
+}
+
+// otoDevice plays samples on an oto context.
+type otoDevice struct{ ctx *oto.Context }
+
+// play is fire-and-forget: a goroutine keeps the oto player alive until the
+// sample ends.
+func (d otoDevice) play(event string, pcm []byte, gain float64) {
+	go func() {
+		pl := d.ctx.NewPlayer(bytes.NewReader(pcm))
+		pl.SetVolume(gain)
+		pl.Play()
+		// Keep the player alive until playback finishes; oto v3.4+ auto-cleans on GC.
+		for pl.IsPlaying() {
+			time.Sleep(10 * time.Millisecond)
+		}
+		slog.Debug("audio: playback finished", "event", event)
+	}()
 }
 
 // SetVolume adjusts playback volume (0.0–1.0).
@@ -117,15 +168,22 @@ func (p *Player) SetVolume(v float64) {
 	p.cfg.Volume = v
 }
 
-// SetEnabled flips playback on/off. Off plays = no-op.
+// SetEnabled flips playback on/off. Off plays = no-op. The first time sound
+// turns on, the audio device opens, so a player started muted plays once
+// sound_enabled is turned on, without a restart.
 func (p *Player) SetEnabled(b bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.cfg.Enabled = b
+	if b {
+		p.openDevice()
+	}
 }
 
-// SetSoundset swaps the active catalog and re-bakes PCM. Unknown or "off"
-// names leave the existing catalog in place (the enabled flag governs silence).
+// SetSoundset swaps the active catalog and re-bakes PCM, muted or not, so the
+// set picked while muted is the one heard when sound turns on. Unknown or
+// "off" names leave the existing catalog in place (the enabled flag governs
+// silence).
 func (p *Player) SetSoundset(name string) {
 	if name == "" || name == SoundsetOff {
 		return
@@ -136,9 +194,7 @@ func (p *Player) SetSoundset(name string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.cfg.Soundset = name
-	if p.enabled {
-		p.bake(name)
-	}
+	p.bake(name)
 }
 
 // Play kicks off an asynchronous render of the named event.
@@ -156,26 +212,17 @@ func (p *Player) Play(event string) {
 // playPCM plays pcm if the player is enabled; volume is read at call time.
 func (p *Player) playPCM(event string, pcm []byte) {
 	p.mu.Lock()
-	if !p.enabled || !p.cfg.Enabled {
+	if p.dev == nil || !p.cfg.Enabled {
 		p.mu.Unlock()
 		return
 	}
 	vol := p.cfg.Volume
-	ctx := p.ctx
+	dev := p.dev
 	p.mu.Unlock()
-	if pcm == nil || ctx == nil {
+	if pcm == nil || dev == nil {
 		return
 	}
-	go func() {
-		pl := ctx.NewPlayer(bytes.NewReader(pcm))
-		pl.SetVolume(vol)
-		pl.Play()
-		// Keep the player alive until playback finishes; oto v3.4+ auto-cleans on GC.
-		for pl.IsPlaying() {
-			time.Sleep(10 * time.Millisecond)
-		}
-		slog.Debug("audio: playback finished", "event", event)
-	}()
+	dev.play(event, pcm, vol)
 }
 
 // bake renders every event in the named catalog into the pcm map. Caller holds

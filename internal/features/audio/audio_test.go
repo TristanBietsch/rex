@@ -58,13 +58,13 @@ func TestPlayDegradedNoop(t *testing.T) {
 func TestNewDisabledIsNoop(t *testing.T) {
 	p := New(Config{Enabled: false})
 	require.NotNil(t, p)
-	require.False(t, p.enabled)
+	require.Nil(t, p.dev, "muted start opens no device")
 	p.Play(EventStartup)
 }
 
 // TestSetSoundsetRebakes verifies that swapping the catalog replaces PCM.
 func TestSetSoundsetRebakes(t *testing.T) {
-	p := &Player{pcm: make(map[string][]byte), enabled: true}
+	p := &Player{pcm: make(map[string][]byte)}
 	p.bake(SoundsetFactorio)
 	factorioDelete := p.pcm[EventDelete]
 	p.SetSoundset(SoundsetEvangelion)
@@ -74,7 +74,7 @@ func TestSetSoundsetRebakes(t *testing.T) {
 
 // TestSetSoundsetIgnoresOff confirms "off" / unknown names don't wipe state.
 func TestSetSoundsetIgnoresOff(t *testing.T) {
-	p := &Player{pcm: make(map[string][]byte), enabled: true}
+	p := &Player{pcm: make(map[string][]byte)}
 	p.bake(SoundsetFactorio)
 	p.SetSoundset(SoundsetOff)
 	require.Equal(t, SoundsetFactorio, p.soundset)

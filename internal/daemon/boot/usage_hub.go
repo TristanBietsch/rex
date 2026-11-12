@@ -28,6 +28,9 @@ func NewUsage(ctx context.Context, stateDir string, store *state.Store, publish 
 		Ledger:   usage.OpenLedger(filepath.Join(stateDir, paths.UsageLedgerFileName)),
 		Sessions: store.Snapshot,
 		OnUsage:  publish,
+		// Called outside the hub's lock; the store broadcast reaches the
+		// subscriber below, which calls Hub.Observe.
+		OnSessionCost: func(id string, usd float64) { _ = store.SetCost(id, usd) },
 	})
 	u := &Usage{Hub: hub}
 	// The callback only queues work (Hub.Observe never touches a file), as

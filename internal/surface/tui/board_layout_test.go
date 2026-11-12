@@ -37,11 +37,28 @@ func layoutSessions(now time.Time) []protocol.SessionSummary {
 }
 
 // layoutModel is the detailed view (v): the column layout tests exercise
-// the id, model and token columns, which the simple view hides.
+// the id, model and token columns, which the simple view hides. row_icons
+// is off: these tests and the goldens pin the text-column layout.
 func layoutModel(now time.Time, width int, sessions ...protocol.SessionSummary) Model {
+	store := settings.NewStore()
+	if err := store.Set("row_icons", false); err != nil {
+		panic(err)
+	}
 	m := Model{Sessions: sessions, Filter: "all", SelectedID: "2", Width: width, Height: 30,
-		Focus: FocusBoard, Store: settings.NewStore(), Detailed: true}
+		Focus: FocusBoard, Store: store, Detailed: true}
 	m.Clock = func() time.Time { return now }
+	return m
+}
+
+// rowIconsOff turns row_icons off (a store with defaults if m has none): the
+// fixture of a test that pins the text-column row.
+func rowIconsOff(m Model) Model {
+	if m.Store == nil {
+		m.Store = settings.NewStore()
+	}
+	if err := m.Store.Set("row_icons", false); err != nil {
+		panic(err)
+	}
 	return m
 }
 

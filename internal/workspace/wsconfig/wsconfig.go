@@ -217,7 +217,7 @@ func evaluate(u settings.LayerReport) Info {
 	}
 	r := luacfg.Load(context.Background(), o)
 	info.Report = settings.LayerReport{
-		Exists: true, Values: r.Values, SetAt: r.SetAt,
+		Exists: true, Values: r.Values, SetAt: r.SetAt, Given: r.Given,
 		Themes: r.Themes, ThemeIssues: r.ThemeIssues, Warnings: r.Warnings,
 		Err: r.Err, LastGood: r.LastGood, FailClosed: r.FailClosed,
 	}

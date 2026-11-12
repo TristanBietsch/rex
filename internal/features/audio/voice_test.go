@@ -18,13 +18,13 @@ func TestBootVoiceAsset(t *testing.T) {
 }
 
 // TestBootVoiceGating confirms the voice no-ops unless enabled + boot_voice,
-// and never panics without a device (ctx nil).
+// and never panics without a device (dev nil).
 func TestBootVoiceGating(t *testing.T) {
 	p := &Player{pcm: make(map[string][]byte)}
 	p.bake(SoundsetFactorio)
 	p.Play(EventBootVoice) // degraded: not enabled
 
-	p = &Player{pcm: make(map[string][]byte), enabled: true, cfg: Config{Enabled: true}}
+	p = &Player{pcm: make(map[string][]byte), dev: &fakeDevice{}, cfg: Config{Enabled: true}}
 	p.bake(SoundsetFactorio)
 	p.Play(EventBootVoice) // boot voice off: skipped, no timer
 	p.SetBootVoice(true)

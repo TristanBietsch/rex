@@ -10,8 +10,8 @@ import (
 )
 
 // TestExtraAgentGlyphsAvoidMarkers: the icons of qwen, cursor and grok are
-// not a state marker, the selection arrow, the loop mark or a spinner frame,
-// so a row or picker never reads as a state.
+// not a state marker, the selection arrow, the loop mark, a spinner frame or
+// a waiting frame, so a row or picker never reads as a state.
 func TestExtraAgentGlyphsAvoidMarkers(t *testing.T) {
 	markers := map[string]bool{selectDefault: true, loopDefault: true, queuedGlyph: true}
 	for _, st := range []protocol.State{
@@ -22,6 +22,11 @@ func TestExtraAgentGlyphsAvoidMarkers(t *testing.T) {
 	}
 	for _, frames := range spinnerFrameSets {
 		for _, f := range frames {
+			markers[f] = true
+		}
+	}
+	for _, set := range waitingSets {
+		for _, f := range set.Frames {
 			markers[f] = true
 		}
 	}
