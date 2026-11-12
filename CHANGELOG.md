@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (row icons)
+
+- Board rows show a strip of fixed icon slots after the name in place of
+  the task text: `✦` for a row that finished since you last looked at it,
+  why it needs you (`? asks`, `✓ review`) or what it waits on (`sh 42s`,
+  `web 9s`, `sub 3m`), the loop turn (`⟳ 3/8`, with `loops` on), subagents
+  (`⋔ 3`), what a Claude session has cost so far (`$0.42`, with `usage`
+  on) and the long-run badge. Slots keep their place, so nothing shifts.
+  The preview line under the board shows the selected row's question,
+  summary or task. On a phone-width board line 1 gets `✦` and `?` / `✓`;
+  line 2 keeps the text. The help legend lists the new marks.
+- Settings: `row_icons` (Features, on) turns the strip on; off restores the
+  earlier board with the text column. `row_icon_set` picks the slots and
+  `ascii_glyphs` draws them in plain ASCII (`* + @ Y ^`).
+- Sessions carry `cost_usd` on the wire (Claude Code, from the usage hub;
+  sent when it moved by a cent, at most every 2 s; kept across restarts).
+
 ### Fixed (READY while subagents run)
 
 - A Claude Code session waiting on subagents no longer turns READY, chimes,

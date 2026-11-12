@@ -55,6 +55,77 @@ func goldenLoops(t *testing.T, sz goldenSize, focus Focus) Model {
 	return m
 }
 
+// usd is a cost_usd value.
+func usd(v float64) *float64 { return &v }
+
+// goldenIconSessions is the row-icon board of spec §11: a question and a review in
+// Ready, a shell and a subagent wait, a loop, spend on the Claude rows only,
+// long runs, and finished rows.
+func goldenIconSessions(now time.Time) []protocol.SessionSummary {
+	exit := 1
+	ago := func(d time.Duration) time.Time { return now.Add(-d) }
+	resume := func(n int) string { return fmt.Sprintf("%08x-0000-4000-8000-000000000000", n) }
+	return []protocol.SessionSummary{
+		{ID: "i1", ShortID: "7d4f", ToolID: "claude", ModelID: "opus", Effort: "high", Tokens: 12345, CostUSD: usd(0.31),
+			Slug: "dark-mode", Title: "system theme or an explicit toggle?", LastLine: "Should the toggle follow the system theme?",
+			State: protocol.StateNeedsInput, WaitReason: protocol.WaitInput, ResumeID: resume(0x1a2b3c4d),
+			StartedAt: ago(time.Hour), LastEventAt: ago(4 * time.Minute)},
+		{ID: "i2", ShortID: "b203", ToolID: "claude", ModelID: "opus", Effort: "max", Tokens: 123456, CostUSD: usd(2.10),
+			Slug: "release-notes", Title: "draft the 0.9 notes", State: protocol.StateNeedsInput, WaitReason: protocol.WaitReview,
+			ResumeID: resume(0x5e6f7a8b), StartedAt: ago(2*time.Hour + 20*time.Minute), LastEventAt: ago(11 * time.Minute)},
+		{ID: "i3", ShortID: "3c8a", ToolID: "claude", ModelID: "sonnet", Effort: "medium", Tokens: 48000, CostUSD: usd(0.84),
+			Slug: "invoice-rounding-tests", Title: "run the rounding suite", State: protocol.StateWorking,
+			WaitingOn: protocol.WaitShell, WaitingSince: ago(42 * time.Second), WorkingSince: ago(12 * time.Minute),
+			ResumeID: resume(0x9c0d1e2f), StartedAt: ago(29 * time.Minute), LastEventAt: ago(40 * time.Second)},
+		{ID: "i4", ShortID: "9e51", ToolID: "claude", ModelID: "opus", Effort: "high", Tokens: 77000, CostUSD: usd(1.07),
+			Slug: "api-research", Title: "compare the rate-limit headers", State: protocol.StateWorking, Subagents: 2,
+			WaitingOn: protocol.WaitSubagent, WaitingSince: ago(3 * time.Minute), WorkingSince: ago(5 * time.Minute),
+			ResumeID: resume(0x3a4b5c6d), StartedAt: ago(12 * time.Minute), LastEventAt: ago(2 * time.Minute)},
+		{ID: "i5", ShortID: "c4d1", ToolID: "claude", ModelID: "opus", Effort: "max", Tokens: 310000, CostUSD: usd(4.92),
+			Slug: "payment-migration-v2", Title: "port billing to the new processor", State: protocol.StateWorking, Subagents: 3,
+			Description:  "porting billing to the new processor: 12 of 14 handlers moved, webhooks next",
+			WorkingSince: ago(45 * time.Minute), ResumeID: resume(0x7e8f9a0b), StartedAt: ago(time.Hour + 2*time.Minute),
+			LastEventAt: ago(time.Minute), LoopID: loopA, LoopIter: 3},
+		{ID: "i6", ShortID: "e0f2", ToolID: "codex", ModelID: "gpt-5-codex", Effort: "medium", Tokens: 22000,
+			Slug: "docs-sweep", Title: "sweep the docs for dead links", State: protocol.StateWorking,
+			WorkingSince: ago(5 * time.Minute), StartedAt: ago(5 * time.Minute), LastEventAt: ago(7 * time.Second)},
+		{ID: "i7", ShortID: "a913", ToolID: "ollama", ModelID: "qwen3-coder", Tokens: 900,
+			Slug: "i18n-strings-extraction-pass", Title: "extract the UI strings", State: protocol.StateWorking,
+			WorkingSince: ago(2*time.Hour + 9*time.Minute), StartedAt: ago(2*time.Hour + 9*time.Minute), LastEventAt: ago(3 * time.Minute)},
+		{ID: "i8", ShortID: "2b7e", ToolID: "claude", ModelID: "haiku", Tokens: 88000, CostUSD: usd(3.40),
+			Slug: "test-coverage", Title: "raise billing coverage", State: protocol.StateDone, ResumeID: resume(0xaa11bb22),
+			StartedAt: ago(3 * time.Hour), EndedAt: ago(10 * time.Minute), LastEventAt: ago(9 * time.Minute)},
+		{ID: "i9", ShortID: "ff01", ToolID: "claude", ModelID: "opus", Slug: "failing-job", Title: "run the migration",
+			State: protocol.StateFailed, ExitCode: &exit, LastLine: "error: migration 0042 timed out",
+			StartedAt: ago(20 * time.Minute), EndedAt: ago(8 * time.Minute)},
+	}
+}
+
+// goldenIcons is the row-icon board on the golden clock: row_icons on,
+// usage on, the loop running, three rows unseen (pinned EnteredAt after
+// SeenAt) and one seen. Compact rows at 24 lines so the board fits.
+func goldenIcons(t *testing.T, sz goldenSize, detailed bool, kv ...any) Model {
+	t.Helper()
+	t.Setenv("HOME", "/home/dev")
+	m := layoutModel(goldenNow, sz.w, goldenIconSessions(goldenNow)...)
+	m.Height, m.Detailed, m.SpinnerTick, m.SelectedID = sz.h, detailed, 0, "i5"
+	set := append([]any{"row_icons", true, "usage", true}, kv...)
+	if sz.h <= 24 {
+		set = append(set, "row_density", "compact")
+	}
+	for i := 0; i+1 < len(set); i += 2 {
+		if err := m.Store.Set(set[i].(string), set[i+1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m.Loops = testLoops()[:1]
+	m.Loops[0].SessionID = "i5"
+	seen, entered := goldenNow.Add(-time.Hour), goldenNow.Add(-2*time.Minute)
+	m.SeenAt = map[string]time.Time{"i1": seen, "i2": goldenNow, "i8": seen, "i9": seen}
+	m.EnteredAt = map[string]time.Time{"i1": entered, "i2": entered, "i8": entered, "i9": entered}
+	return m
+}
+
 // goldenDoneFold is the golden board with a Done column long enough to fold:
 // its keys sit at the end of the help line.
 func goldenDoneFold(t *testing.T, sz goldenSize) Model {
@@ -108,6 +179,7 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"help_page_narrow":     {{50, 20}},
 	"settings_page_frame":  {{80, 24}},
 	"settings_page_narrow": {{50, 20}},
+	"board_icons_detailed": {{80, 24}, {120, 40}, {150, 40}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -117,6 +189,14 @@ func goldenScreens() []goldenScreen {
 	return []goldenScreen{
 		{"board_simple", true, func(t *testing.T, sz goldenSize) Model { return goldenBoard(t, sz, false) }},
 		{"board_detailed", false, func(t *testing.T, sz goldenSize) Model { return goldenBoard(t, sz, true) }},
+		{"board_icons_simple", true, func(t *testing.T, sz goldenSize) Model { return goldenIcons(t, sz, false) }},
+		{"board_icons_detailed", false, func(t *testing.T, sz goldenSize) Model { return goldenIcons(t, sz, true) }},
+		{"board_icons_ascii", false, func(t *testing.T, sz goldenSize) Model {
+			return goldenIcons(t, sz, false, "ascii_glyphs", true, "loops", true)
+		}},
+		{"board_icons_loops", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenIcons(t, sz, false, "loops", true)
+		}},
 		{"board_done_fold", false, goldenDoneFold},
 		{"board_hints_off", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenDoneFold(t, sz)

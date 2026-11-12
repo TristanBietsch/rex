@@ -28,56 +28,83 @@ The daemon auto-starts if the socket is unreachable (boot splash).
 
 ## ROW COLUMNS
 
-By default a row shows four things: state, name, text and age.
+By default (`row_icons` on) a row shows state, name, a strip of fixed icon slots, and age. No row text: the preview line under the board carries it.
+
+```
+   ◆  dark-mode             ✦  ? asks                     $0.31               4m
+   ◷  api-research             sub 3m              ⋔ 2    $1.07               2m
+ ▸ ⠋  payment-migration-v2               ⟳ 3/8     ⋔ 3    $4.92  ▴ 45m        1m
+     state name             unseen why     loop  subagents spend long-run  last event
+```
+
+The strip's slots, left to right after the name. A slot that exists is always reserved, blank on rows with nothing to show, so nothing shifts when a value appears:
+
+| Slot | Width | Shows |
+|------|-------|-------|
+| unseen | 1 | `✦`: a Ready or Done row that finished since you last looked at it (last attach or `cc`). On the first start every row counts as seen. Marked-done rows never show it |
+| why | 8 | Ready: `? asks` (the agent asks for an answer or approval, or its last line is a question), `✓ review` (it finished a turn). Waiting: what it waits on and for how long (`sh 42s`, `web 9s`, `sub 3m`). Blank otherwise |
+| loop | 8 | `⟳ 3/8` while the loop runs; `⟳ paused`, `⟳ capped`, `⟳ done`, `⟳ failed`, `⟳ stop` otherwise. Only while `loops` is on |
+| subagents | 4 | `⋔ 3`: subagents the session runs now (Claude Code). Counts above 99 show as 99 |
+| spend | 6 | What the session has cost so far, right-aligned: `$0.42`, `$12.3`, `$123`, `$1.2k`. Warmer from $5, red from $20. Only while `usage` is on, and only for sessions the daemon sends a `cost_usd` for (Claude Code); blank otherwise, never `$0.00` |
+| long-run | 5 | The long-running badge (`▴ 45m`, see [LONG-RUNNING BADGE](#long-running-badge)) |
+
+`row_icon_set` (Settings → Appearance) removes slots: a comma-separated list of `unseen`, `reason`, `loop`, `subagents`, `spend`, `longrun` (unknown ids are ignored; the order is fixed). `ascii_glyphs` swaps the strip's glyphs for ASCII: `✦→*`, `✓→+`, `⟳→@`, `⋔→Y`, `▴→^`; `?` and `$` stay. Every glyph has text next to it, so no meaning is color-only, and nothing in the strip animates.
+
+Under the board, a dim preview line (`↳ …`) shows the selected session's lead, first that exists: the question it waits on, its AI summary (with its age, `· 12s`), or `task: ` and the task you gave it. It takes one row (two on a terminal 30+ rows tall with `summary_detail: long`, none below 20 rows), reserved for the whole board so the layout does not move as the selection does. `summary_preview` in Settings → Features turns it off. For Antigravity sessions the board's last line skips agy's `Generating...` spinner and the text in its input box.
+
+`v` switches to the detailed view, which adds the short id, model · effort, tokens, the start→end span and the resume id after the strip, and adds `· N marked done` to the header:
+
+```
+ ▸ ⠋  c4d1  payment-migration…               ⋔ 3    $4.92  ▴ 45m      opus · max         310K tk    1m
+     state  id  name                 strip                            model · effort     tokens   last event
+```
+
+- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps. The `timestamps` feature (Settings → Features, on by default) switches the span column off in both the fixed and the fit layouts; the end time is still recorded.
+- **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view on a wide terminal (150+ columns). Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
+- **name**, **model · effort**, and **tokens** have fixed widths (see below). Tokens are right-aligned.
+- **last event** is right-aligned against the edge; `-` means no event yet.
+- A blank spacer between the strip (or the detail columns) and the age takes the remaining width. Rows always fill the terminal width exactly and never wrap.
+
+### Without the strip (`row_icons` off)
+
+`row_icons` in Settings → Features turns the strip off and brings back the earlier board, a row with a text column:
 
 ```
  ▸ ◆  release-notes   Which feature should lead: search or export?          11m
      state name       text                                                  last event
 ```
 
-The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary. When the text does not fit, it is cut on a word boundary and ends in `…`.
-
-Under the board, a dim preview line (`↳ …`) shows the selected session's full AI summary and its age (`· 12s`), in both views, while any session has a summary. In the detailed view it appears only when the row cuts the text. It takes one row (two on a terminal 30+ rows tall with `summary_detail: long`, none below 20 rows), reserved for the whole board so the layout does not move as the selection does. `summary_preview` in Settings → Features turns it off. For Antigravity sessions the board's last line skips agy's `Generating...` spinner and the text in its input box.
-
-`v` switches to the detailed view, which adds the short id, model · effort, tokens and the start→end span, shows the AI summary as the text, and adds `· N marked done` to the header:
-
-```
- ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴ 45m   11m
-     state  id  name        description                          model · effort         tokens   badge  last event
-```
-
-- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps. The `timestamps` feature (Settings → Features, on by default) switches the span column off in both the fixed and the fit layouts; the end time is still recorded.
-- **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view on a wide terminal (150+ columns). Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
-- **name**, **model · effort**, and **tokens** have fixed widths (see below). Tokens are right-aligned.
-- The **waiting** detail: in the detailed view a row in WAITING starts its text with the reason and how long it has waited (`shell 42s · Running the test suite`). The attach header chip reads `◷ waiting (shell)`.
-- The **subagent** column (`⋔ 3`: running subagents) shows how many subagents a Claude Code session is running, in both views. Counts above 99 show as 99. The **badge** column shows the long-running badge. Both columns are always reserved, blank on rows that have nothing to show, so nothing shifts when a subagent starts.
-- **last event** is right-aligned against the edge; `-` means no event yet.
-- The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
+The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary. When the text does not fit, it is cut on a word boundary and ends in `…`. The detailed view shows the AI summary as the text, and a row in WAITING starts it with the reason and how long it has waited (`shell 42s · Running the test suite`). With `loops` on, a loop's row starts its text with the loop chip in both views. The subagent and long-run columns sit before the age. The preview line shows the selected session's full AI summary, and in the detailed view only when the row cuts it. Nothing is tracked for the unseen mark and no `seen` key is written to `tui-state.json`. The attach header chip reads `◷ waiting (shell)` either way.
 
 ### Column widths
 
-Column widths never depend on what the rows contain: a long name, a first subagent or a token count moves nothing. They change only when the terminal crosses a breakpoint, and each breakpoint drops whole columns:
+Column widths never depend on what the rows contain: a long name, a first subagent or a cost moves nothing. They change only when the terminal crosses a breakpoint, and each breakpoint drops whole columns:
 
 | Terminal width | Simple view | Detailed view (`v`) adds |
 |----------------|-------------|--------------------------|
-| 150+ (wide) | name 22 · subagents · badge · age | id · model 24 · tokens · span · resume id |
-| 110–149 (normal) | name 20 · subagents · badge · age | id · model 16 · tokens |
-| below 110 (narrow) | name 16 · subagents · badge · age | nothing; the text is the AI summary |
+| 150+ (wide) | name 32 · strip · age | id · name 24 · model 24 · tokens · span · resume id |
+| 110–149 (normal) | name 24 · strip · age | id · name 18 · model 16 · tokens |
+| 61–109 (narrow) | name 20 · strip · age | nothing |
+| 60 or fewer | the mobile layout, see below | |
 
-A column that a class shows is always reserved, even when every row's cell is empty. With the `resume` feature off the resume column is gone.
+The strip is 42 columns with its gaps (32 with `loops` off: the loop slot and its gap go). A slot or column that a class shows is always reserved, even when every row's cell is empty. With the `resume` feature off the resume column is gone.
 
-`column_layout` in Settings → Appearance switches the default `fixed` for `fit`, which sizes name, model and tokens to their widest value on the board (name capped at 22, model at 24), shows the subagent, badge, tokens, span and resume columns only while some row has a value, and gives way on narrow terminals in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
+Below a class's minimum (`mobile_layout: off` on a small terminal) the row squeezes in this order: the spacer goes to 0; spend, long-run, loop and subagents go, in that order; the why slot shrinks to its glyph (`?` or `✓`; a waiting row is blank there, since its `◷` marker already says it waits); the name shrinks to 12; the unseen slot goes last.
+
+`column_layout` in Settings → Appearance switches the default `fixed` for `fit`, which sizes name, model and tokens to their widest value on the board, and shows a slot or the span, tokens and resume columns only while some row has a value for it. It gives way on narrow terminals in the order above.
+
+With `row_icons` off the widths are those of the text-column board: name 22 / 20 / 16 (wide / normal / narrow) with the subagent and badge columns, and `fit` gives way in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
 
 ### Mobile layout
 
-At 60 columns or fewer (a phone over SSH) the board stacks each session on two lines. `mobile_layout` in Settings → Appearance sets when: `auto` (the default) uses it at 60 columns or fewer, `always` forces it, `off` never uses it (the narrow columns then squeeze to fit).
+At 60 columns or fewer (a phone over SSH) the board stacks each session on two lines. `mobile_layout` in Settings → Appearance sets when: `auto` (the default) uses it at 60 columns or fewer, `always` forces it, `off` never uses it (the narrow columns then squeeze to fit, as above).
 
 ```
- ▸ ◆  release-notes     ⋔ 2  ▴ 42m  11m
-      Which feature should lead: sea…
+ ▸ ◆  release-notes   ✦ ✓  ⋔ 2  ▴ 42m  11m
+      draft the 0.9 release notes
 ```
 
-- Line 1 is the state, name, subagent count, long-run badge and age. The subagent and badge cells go below 36 columns.
+- Line 1 is the state, name, the unseen mark and the why glyph (`?` or `✓` only, each one cell; with `row_icons` on), subagent count, long-run badge and age. The subagent and badge cells go below 36 columns. Loop and spend are not shown.
 - Line 2 is the text (simple view) or the AI summary (detailed view), cut on a word boundary. Clicking either line selects the session, and scrolling keeps both lines on screen.
 - The header shows the short counts (`◆ 4  ⟳ 2  ● 7`) whatever `header_style` says, without `· detailed (v)`. The backend banner is shortened.
 - The help line lists three keys: `enter open · i new · ? help`.
@@ -123,7 +150,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 - **Groups.** `1`–`9` pick a group, `[` / `]` step through them (they wrap), and on the left pane `j` `k` move. `enter` or `l` moves to the rows. A new group starts at the top.
 - **Scroll.** On the rows pane a group that does not fit scrolls under `↑ more` / `↓ more` markers: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel. The wheel on the left pane changes the group.
 - **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`), from every group at once; groups with no hit are dimmed on the left, and no hit at all reads `no match for “…”`. `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The header shows the query.
-- **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, `◷` waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
+- **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, `◷` waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, the row icon strip while `row_icons` is on (`✦` finished since you last looked, `? asks`, `✓ review`, `sh 42s` while `waiting_section` is on, `⟳ 3/8` while `loops` is on, `$0.42` while `usage` is on; the ASCII forms with `ascii_glyphs`), and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
 - **Features that are off.** Keys and commands behind a Features switch (`t`, `/`, `esc` for search, `z…`, `uc`, `:filter`, `:search`, `:uc`, `:rid`, `:export`) stay listed, dimmed and tagged `(off)`.
 
 ### Settings page
