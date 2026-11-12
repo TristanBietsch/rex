@@ -200,7 +200,7 @@ func checkDir(rexDir string) error {
 	if fi.Mode().Perm()&0o022 != 0 {
 		return fmt.Errorf("%w: %s is group- or world-writable", ErrUnsafe, rexDir)
 	}
-	if !ownedByCurrentUser(fi) {
+	if !ownedByMe(fi) {
 		return fmt.Errorf("%w: %s is owned by another user", ErrUnsafe, rexDir)
 	}
 	return nil

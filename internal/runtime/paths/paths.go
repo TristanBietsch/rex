@@ -16,6 +16,7 @@
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
 //	    workspaces.json            WorkspacesFile: registry of workspace ids and folders (workspaces feature)
+//	    workspace-trust.json       WorkspaceTrustFile: workspaces whose .rex/config.lua runs (rex ws trust)
 //	    audit.jsonl                AuditFile: one line per finished session outside a workspace (audit_trail)
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
 //	    snapshots/<key>/           SnapshotsDir: turn-snapshot shadow stores, 0700
@@ -59,26 +60,27 @@ import (
 // File and directory names inside the layout. They are part of the on-disk
 // contract: changing one strands existing user data.
 const (
-	appDir           = "rex"
-	configFileName   = "config.yaml"
-	toolsFileName    = "tools.yaml"
-	luaInitFileName  = "init.lua"
-	luaConfigName    = "config.lua"
-	luaModuleDirName = "lua"
-	skillsDirName    = "skills"
-	loopsDirName     = "loops"
-	themesDirName    = "themes"
-	sessionsDirName  = "sessions"
-	snapshotsDirName = "snapshots"
-	exportsDirName   = "exports"
-	daemonLockName   = "daemon.lock"
-	usageLedgerName  = "usage.jsonl"
-	workspacesName   = "workspaces.json"
-	auditFileName    = "audit.jsonl"
-	daemonLogName    = "daemon.log"
-	tuiStateFileName = "tui-state.json"
-	modelsCacheName  = "models-cache.json"
-	socketName       = "rex.sock"
+	appDir             = "rex"
+	configFileName     = "config.yaml"
+	toolsFileName      = "tools.yaml"
+	luaInitFileName    = "init.lua"
+	luaConfigName      = "config.lua"
+	luaModuleDirName   = "lua"
+	skillsDirName      = "skills"
+	loopsDirName       = "loops"
+	themesDirName      = "themes"
+	sessionsDirName    = "sessions"
+	snapshotsDirName   = "snapshots"
+	exportsDirName     = "exports"
+	daemonLockName     = "daemon.lock"
+	usageLedgerName    = "usage.jsonl"
+	workspacesName     = "workspaces.json"
+	workspaceTrustName = "workspace-trust.json"
+	auditFileName      = "audit.jsonl"
+	daemonLogName      = "daemon.log"
+	tuiStateFileName   = "tui-state.json"
+	modelsCacheName    = "models-cache.json"
+	socketName         = "rex.sock"
 )
 
 // ErrNoHome reports that the home directory is unset, empty or not an
@@ -108,10 +110,12 @@ type Layout struct {
 	DaemonLock     string // ~/.local/share/rex/daemon.lock
 	UsageLedger    string // ~/.local/share/rex/usage.jsonl
 	WorkspacesFile string // ~/.local/share/rex/workspaces.json
-	AuditFile      string // ~/.local/share/rex/audit.jsonl
-	LogDir         string // ~/.local/state/rex
-	DaemonLog      string // ~/.local/state/rex/daemon.log
-	TUIStateFile   string // ~/.local/state/rex/tui-state.json
+	// WorkspaceTrustFile is ~/.local/share/rex/workspace-trust.json.
+	WorkspaceTrustFile string
+	AuditFile          string // ~/.local/share/rex/audit.jsonl
+	LogDir             string // ~/.local/state/rex
+	DaemonLog          string // ~/.local/state/rex/daemon.log
+	TUIStateFile       string // ~/.local/state/rex/tui-state.json
 	// ModelsCacheFile is ~/.local/state/rex/models-cache.json.
 	ModelsCacheFile string
 	CacheDir        string // ~/.cache/rex
@@ -126,30 +130,31 @@ func ForHome(home string) Layout {
 	data := filepath.Join(home, ".local", "share", appDir)
 	logs := filepath.Join(home, ".local", "state", appDir)
 	return Layout{
-		Home:            home,
-		ConfigDir:       config,
-		ConfigFile:      filepath.Join(config, configFileName),
-		ToolsFile:       filepath.Join(config, toolsFileName),
-		LuaInitFile:     filepath.Join(config, luaInitFileName),
-		LuaConfigFile:   filepath.Join(config, luaConfigName),
-		LuaModuleDir:    filepath.Join(config, luaModuleDirName),
-		SkillsDir:       filepath.Join(config, skillsDirName),
-		LoopsDir:        filepath.Join(config, loopsDirName),
-		LoopStateDir:    filepath.Join(data, loopsDirName),
-		ThemesDir:       filepath.Join(config, themesDirName),
-		DataDir:         data,
-		SessionsDir:     filepath.Join(data, sessionsDirName),
-		SnapshotsDir:    filepath.Join(data, snapshotsDirName),
-		ExportsDir:      filepath.Join(data, exportsDirName),
-		DaemonLock:      filepath.Join(data, daemonLockName),
-		UsageLedger:     filepath.Join(data, usageLedgerName),
-		WorkspacesFile:  filepath.Join(data, workspacesName),
-		AuditFile:       filepath.Join(data, auditFileName),
-		LogDir:          logs,
-		DaemonLog:       filepath.Join(logs, daemonLogName),
-		TUIStateFile:    filepath.Join(logs, tuiStateFileName),
-		ModelsCacheFile: filepath.Join(logs, modelsCacheName),
-		CacheDir:        filepath.Join(home, ".cache", appDir),
+		Home:               home,
+		ConfigDir:          config,
+		ConfigFile:         filepath.Join(config, configFileName),
+		ToolsFile:          filepath.Join(config, toolsFileName),
+		LuaInitFile:        filepath.Join(config, luaInitFileName),
+		LuaConfigFile:      filepath.Join(config, luaConfigName),
+		LuaModuleDir:       filepath.Join(config, luaModuleDirName),
+		SkillsDir:          filepath.Join(config, skillsDirName),
+		LoopsDir:           filepath.Join(config, loopsDirName),
+		LoopStateDir:       filepath.Join(data, loopsDirName),
+		ThemesDir:          filepath.Join(config, themesDirName),
+		DataDir:            data,
+		SessionsDir:        filepath.Join(data, sessionsDirName),
+		SnapshotsDir:       filepath.Join(data, snapshotsDirName),
+		ExportsDir:         filepath.Join(data, exportsDirName),
+		DaemonLock:         filepath.Join(data, daemonLockName),
+		UsageLedger:        filepath.Join(data, usageLedgerName),
+		WorkspacesFile:     filepath.Join(data, workspacesName),
+		WorkspaceTrustFile: filepath.Join(data, workspaceTrustName),
+		AuditFile:          filepath.Join(data, auditFileName),
+		LogDir:             logs,
+		DaemonLog:          filepath.Join(logs, daemonLogName),
+		TUIStateFile:       filepath.Join(logs, tuiStateFileName),
+		ModelsCacheFile:    filepath.Join(logs, modelsCacheName),
+		CacheDir:           filepath.Join(home, ".cache", appDir),
 	}
 }
 
@@ -288,6 +293,14 @@ const WorkspacesFileName = workspacesName
 // workspace ids and the folders they were last seen at.
 func WorkspacesFile() (string, error) {
 	return field(func(l Layout) string { return l.WorkspacesFile })
+}
+
+// WorkspaceTrustFile returns ~/.local/share/rex/workspace-trust.json: the
+// workspaces (folder and id) the user trusted with rex ws trust, whose
+// .rex/config.lua rex evaluates. It never lives inside a .rex/, so a cloned
+// repo cannot ship its own trust.
+func WorkspaceTrustFile() (string, error) {
+	return field(func(l Layout) string { return l.WorkspaceTrustFile })
 }
 
 // AuditFile returns ~/.local/share/rex/audit.jsonl, the audit trail of
