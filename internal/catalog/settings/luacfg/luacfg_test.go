@@ -360,8 +360,8 @@ func TestEvalHugeTableStops(t *testing.T) {
 func TestEvalRefusesEscapeBytesInValues(t *testing.T) {
 	r := evalScript(t, `
 rex.set("summary_model", "\27]52;c;Zm9v\7")
-rex.set("summary_model", "a`+"‮"+`b")
-rex.set("summary_model", "a`+"​"+`b")
+rex.set("summary_model", "a`+"\u202e"+`b")
+rex.set("summary_model", "a`+"\u200b"+`b")
 rex.set("summary_model", "a\nb")
 rex.set("summary_model", "\255\254")
 rex.set("summary_model", string.rep("x", 5000))
@@ -371,7 +371,7 @@ rex.set("summary_model", string.rep("x", 5000))
 	require.Len(t, r.Warnings, 6)
 	for _, w := range r.Warnings {
 		require.NotContains(t, w, "\x1b")
-		require.NotContains(t, w, "‮")
+		require.NotContains(t, w, "\u202e")
 	}
 }
 

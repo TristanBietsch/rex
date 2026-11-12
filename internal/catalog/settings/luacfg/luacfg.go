@@ -128,10 +128,10 @@ func Eval(ctx context.Context, o Opts) Result {
 		if errors.Is(err, fs.ErrNotExist) {
 			return Result{}
 		}
-		return fail(fmt.Errorf("%s: %s", name, err))
+		return fail(fmt.Errorf("%s: %w", name, err))
 	}
 	if err := privfile.CheckDir(fi, dir); err != nil {
-		return fail(fmt.Errorf("config directory: %s", err))
+		return fail(fmt.Errorf("config directory: %w", err))
 	}
 	return evalSource(ctx, o, data)
 }

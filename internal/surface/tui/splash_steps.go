@@ -120,7 +120,7 @@ func stepLuaConfig(m Model) tea.Cmd {
 		case !rep.Exists:
 			return stepSkip, "no config.lua", nil
 		case rep.Err != nil:
-			return stepWarn, luaNotice(rep), nil
+			return stepWarn, luaNotice(rep), rep.Err
 		}
 		desc := fmt.Sprintf("%d setting(s), %d theme(s)", len(rep.Values), len(rep.Themes))
 		if n := len(rep.Warnings); n > 0 {

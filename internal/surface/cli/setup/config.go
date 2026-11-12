@@ -110,6 +110,7 @@ func sourceText(src, at string) string {
 		return "config.yaml"
 	case settings.SourceLua:
 		return strings.TrimSpace("lua " + at)
+	case settings.SourceDefault:
 	}
 	return src
 }

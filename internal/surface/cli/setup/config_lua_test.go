@@ -209,7 +209,7 @@ func TestConfigLuaExport(t *testing.T) {
 }
 
 func TestLuaQuote(t *testing.T) {
-	require.Equal(t, `"a\"b\\c\n\r\0001\027x\226\128\174"`, luaQuote("a\"b\\c\n\r\x001\x1bx‮"))
+	require.Equal(t, `"a\"b\\c\n\r\0001\027x\226\128\174"`, luaQuote("a\"b\\c\n\r\x001\x1bx\u202e"))
 }
 
 func TestConfigLuaCommandsRefuseWhenOff(t *testing.T) {

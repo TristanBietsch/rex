@@ -231,8 +231,9 @@ func luaToSetting(st settings.Setting, v lua.LValue) (any, error) {
 			return int(f), nil
 		case settings.TypeFloat:
 			return f, nil
+		default:
+			return nil, fmt.Errorf("expects %s, got a number", st.Type)
 		}
-		return nil, fmt.Errorf("expects %s, got a number", st.Type)
 	case lua.LString:
 		if st.Type != settings.TypeString && st.Type != settings.TypeEnum {
 			return nil, fmt.Errorf("expects %s, got a string", st.Type)
@@ -268,7 +269,7 @@ func joinList(sep string, t *lua.LTable) (string, error) {
 			return "", fmt.Errorf("list entry %d is not a string", i)
 		}
 		if err := checkString(string(s)); err != nil {
-			return "", fmt.Errorf("list entry %d: %v", i, err)
+			return "", fmt.Errorf("list entry %d: %w", i, err)
 		}
 		if strings.Contains(string(s), sep) {
 			return "", fmt.Errorf("list entry %d contains the separator %q", i, sep)
