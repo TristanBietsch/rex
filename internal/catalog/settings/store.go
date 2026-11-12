@@ -3,6 +3,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -466,6 +467,9 @@ func coerce(setting Setting, raw any) (any, error) {
 			f = parsed
 		default:
 			return nil, fmt.Errorf("%s: expected float, got %T", setting.ID, raw)
+		}
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return nil, fmt.Errorf("%s: %v is not a number", setting.ID, f)
 		}
 		if setting.Max > setting.Min && (f < setting.Min || f > setting.Max) {
 			return nil, fmt.Errorf("%s: %v out of range [%v, %v]", setting.ID, f, setting.Min, setting.Max)
