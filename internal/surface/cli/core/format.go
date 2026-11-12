@@ -62,6 +62,9 @@ var (
 	AllFormats = SetOf(FormatText, FormatTXT, FormatMD, FormatJSON, FormatAgent)
 	// TextFormats suits content and interactive commands.
 	TextFormats = SetOf(FormatText, FormatTXT)
+	// ContentFormats suits commands that print raw content: agent mode
+	// behaves like txt (the content, no trailer).
+	ContentFormats = SetOf(FormatText, FormatTXT, FormatAgent)
 )
 
 // Has reports whether f is in the set.

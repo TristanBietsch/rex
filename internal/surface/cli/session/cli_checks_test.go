@@ -1,30 +1,13 @@
 package session
 
 import (
-	"io"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-)
 
-// captureStderr runs fn with os.Stderr redirected and returns what it wrote.
-func captureStderr(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	saved := os.Stderr
-	os.Stderr = w
-	done := make(chan string)
-	go func() {
-		b, _ := io.ReadAll(r)
-		done <- string(b)
-	}()
-	fn()
-	os.Stderr = saved
-	require.NoError(t, w.Close())
-	return <-done
-}
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
+)
 
 // With no text and a terminal on stdin, reply would block on ReadAll.
 func TestRunReply_TTYNoText(t *testing.T) {
@@ -49,12 +32,17 @@ func TestRunReply_NoTTYNoTextReachesTheSocket(t *testing.T) {
 
 // The flags kept only so old scripts still parse say they do nothing.
 func TestUsage_DeprecatedFlagsMarked(t *testing.T) {
-	ls := captureStderr(t, func() { _ = RunLs([]string{"-h"}) })
-	require.Regexp(t, `(?s)-short\b[^\n]*\n[^\n]*deprecated, no effect`, ls)
-	require.Regexp(t, `(?s)-show-archived\b[^\n]*\n[^\n]*deprecated, no effect`, ls)
-
-	nw := captureStderr(t, func() { _ = RunNew([]string{"-h"}) })
-	require.Regexp(t, `(?s)-no-attach\b[^\n]*\n[^\n]*deprecated, no effect`, nw)
+	help := func(run func([]string) error) string {
+		p, out := lsPrinter(t, "txt", 80, false)
+		core.SetOut(p)
+		t.Cleanup(func() { core.SetOut(nil) })
+		require.ErrorIs(t, run([]string{"-h"}), core.ErrHelpShown)
+		return out.String()
+	}
+	ls := help(RunLs)
+	require.Regexp(t, `-short\s+\(deprecated, no effect\)`, ls)
+	require.Regexp(t, `-show-archived\s+\(deprecated, no effect\)`, ls)
+	require.Regexp(t, `-no-attach\s+\(deprecated, no effect\)`, help(RunNew))
 }
 
 // A daemon that takes the intent but never reports the session: a message

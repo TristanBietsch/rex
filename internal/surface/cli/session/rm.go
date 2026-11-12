@@ -3,7 +3,6 @@ package session
 import (
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
@@ -13,11 +12,12 @@ import (
 func RunRm(args []string) error {
 	fs := flag.NewFlagSet("rm", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	var force bool
 	fs.BoolVar(&force, "force", false, "do not ask (required when stdin is not a terminal)")
 	fs.BoolVar(&force, "yes", false, "alias for -force")
 	fs.BoolVar(&force, "y", false, "alias for -force")
-	rest, err := core.ParseArgs(fs, args)
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -37,14 +37,12 @@ func RunRm(args []string) error {
 	}
 
 	if !force {
-		if !pruneIO.interactive() {
-			return core.Errorf(core.ExitOperationRefused, "rex rm -force "+sel,
-				"rm: stdin is not a terminal; pass -force to delete without asking")
+		ok, err := core.Out().Confirm(fmt.Sprintf("delete %s (%s)?", sess.ShortID, sess.Slug), core.Refusal{
+			Cmd: "rm", Flag: "-force", What: "delete", Hint: "rex rm " + sel + " -force"})
+		if err != nil {
+			return err
 		}
-		fmt.Fprintf(pruneIO.errOut, "delete %s (%s)? [y/N] ", sess.ShortID, sess.Slug)
-		var ans string
-		_, _ = fmt.Fscanln(pruneIO.in, &ans)
-		if a := strings.ToLower(ans); a != "y" && a != "yes" {
+		if !ok {
 			return core.Errorf(core.ExitOperationRefused, "", "rm: not confirmed, nothing deleted")
 		}
 	}
@@ -52,5 +50,5 @@ func RunRm(args []string) error {
 	if err := c.Delete(sess.ID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	return nil
+	return emitAction("rm", refOf(sess), "deleted "+sess.ShortID+" "+sess.Slug, "", sessionFields(sess))
 }

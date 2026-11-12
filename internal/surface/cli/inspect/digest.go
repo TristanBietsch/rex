@@ -6,44 +6,16 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
-
-// digestStyles matches the lipgloss palette from help.go.
-var (
-	digestAccent  = lipgloss.NewStyle().Foreground(lipgloss.Color("#5B8DEF"))
-	digestDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	digestMuted   = lipgloss.NewStyle().Foreground(lipgloss.Color("#4A4F5A"))
-	digestHR      = lipgloss.NewStyle().Foreground(lipgloss.Color("#262A36"))
-	digestBold    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E6E6E6"))
-	digestNeutral = lipgloss.NewStyle().Foreground(lipgloss.Color("#E6E6E6"))
-)
-
-// digestStateColor maps session state to a display color.
-func digestStateColor(state protocol.State) lipgloss.Style {
-	switch state {
-	case protocol.StateDone:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#4CAF82"))
-	case protocol.StateWorking:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#5B8DEF"))
-	case protocol.StateNeedsInput:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#F0A04B"))
-	case protocol.StateFailed, protocol.StateCrashed:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#E05C5C"))
-	default:
-		return digestDim
-	}
-}
 
 // digestRange describes a time window (one or more days).
 type digestRange struct {
@@ -241,7 +213,7 @@ func parseDigestRange(dateFlag, sinceFlag string) (digestRange, error) {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	if sinceFlag != "" && dateFlag != "" {
-		return digestRange{}, fmt.Errorf("digest: --date and --since are mutually exclusive")
+		return digestRange{}, fmt.Errorf("digest: -date and -since are mutually exclusive")
 	}
 
 	if sinceFlag != "" {
@@ -249,7 +221,7 @@ func parseDigestRange(dateFlag, sinceFlag string) (digestRange, error) {
 		var n int
 		var unit string
 		if _, err := fmt.Sscanf(sinceFlag, "%d%s", &n, &unit); err != nil || n <= 0 {
-			return digestRange{}, fmt.Errorf("digest: --since must be like 7d or 24h, got %q", sinceFlag)
+			return digestRange{}, fmt.Errorf("digest: -since must be like 7d or 24h, got %q", sinceFlag)
 		}
 		switch unit {
 		case "d":
@@ -259,7 +231,7 @@ func parseDigestRange(dateFlag, sinceFlag string) (digestRange, error) {
 			start := now.Add(-time.Duration(n) * time.Hour)
 			return digestRange{start: start, end: now.Add(time.Minute)}, nil
 		default:
-			return digestRange{}, fmt.Errorf("digest: --since unit must be d or h, got %q", unit)
+			return digestRange{}, fmt.Errorf("digest: -since unit must be d or h, got %q", unit)
 		}
 	}
 
@@ -291,13 +263,13 @@ func RunDigest(args []string) error {
 	socket := core.AddSocketFlag(fs)
 	dateFlag := fs.String("date", "", "specific day: YYYY-MM-DD or 'yesterday'")
 	sinceFlag := fs.String("since", "", "relative window: 7d or 24h")
-	asJSON := fs.Bool("json", false, "emit JSON")
-	_, err := core.ParseArgs(fs, args)
+	out := core.AddOutputFlags(fs, core.AllFormats, core.WithLegacyJSON())
+	_, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
 
-	slog.Debug("digest: starting", "date", *dateFlag, "since", *sinceFlag, "json", *asJSON)
+	slog.Debug("digest: starting", "date", *dateFlag, "since", *sinceFlag)
 
 	dr, err := parseDigestRange(*dateFlag, *sinceFlag)
 	if err != nil {
@@ -372,12 +344,19 @@ func RunDigest(args []string) error {
 	// Label date: for --since multi-day we still label the earliest day.
 	labelDate := dr.start
 
-	out := buildDigestOutput(filtered, labelDate)
+	result := buildDigestOutput(filtered, labelDate)
 
-	if *asJSON {
-		return writeDigestJSON(os.Stdout, out)
+	p := core.Out()
+	r := core.Result{
+		Cmd:    "digest",
+		Data:   digestResultData(result),
+		View:   digestView(result, daemonDown, dr, p.Glyphs),
+		Legacy: func(w io.Writer) error { return writeDigestJSON(w, result) },
 	}
-	return writeDigestTable(os.Stdout, out, daemonDown, dr)
+	if daemonDown {
+		r.Meta = map[string]any{"source": "disk"}
+	}
+	return p.Emit(r)
 }
 
 func writeDigestJSON(w io.Writer, out digestOutput) error {
@@ -386,111 +365,5 @@ func writeDigestJSON(w io.Writer, out digestOutput) error {
 		return fmt.Errorf("digest: marshal json: %w", err)
 	}
 	_, err = fmt.Fprintln(w, string(b))
-	return err
-}
-
-func writeDigestTable(w io.Writer, out digestOutput, daemonDown bool, dr digestRange) error {
-	var b strings.Builder
-
-	dateLabel := dr.start.Format("2006-01-02")
-	if !dr.end.Equal(dr.start.AddDate(0, 0, 1)) {
-		// multi-day range
-		end := dr.end.AddDate(0, 0, -1)
-		dateLabel = fmt.Sprintf("%s → %s", dr.start.Format("2006-01-02"), end.Format("2006-01-02"))
-	}
-
-	b.WriteString("\n")
-	b.WriteString("  " + digestAccent.Render("∴") + " " + digestBold.Render("rex digest") + digestDim.Render(" — "+dateLabel) + "\n")
-	b.WriteString("  " + digestHR.Render(strings.Repeat("─", 44)) + "\n")
-
-	if daemonDown {
-		b.WriteString("  " + digestMuted.Render("·") + " " + digestDim.Render("daemon not running, showing on-disk snapshot only") + "\n")
-	}
-
-	if out.Totals.Count == 0 {
-		b.WriteString("  " + digestMuted.Render("·") + " " + digestDim.Render("no sessions on "+dateLabel) + "\n\n")
-		_, err := fmt.Fprint(w, b.String())
-		return err
-	}
-
-	// totals line
-	totalsParts := []string{
-		digestNeutral.Render(fmt.Sprintf("%d", out.Totals.Count)) + digestDim.Render(" sessions"),
-		digestNeutral.Render(out.Totals.ActiveStr) + digestDim.Render(" active"),
-	}
-	if out.Totals.Done > 0 {
-		totalsParts = append(totalsParts, digestNeutral.Render(fmt.Sprintf("%d done", out.Totals.Done)))
-	}
-	if out.Totals.NeedsInput > 0 {
-		totalsParts = append(totalsParts, digestNeutral.Render(fmt.Sprintf("%d needs input", out.Totals.NeedsInput)))
-	}
-	if out.Totals.Failed > 0 {
-		totalsParts = append(totalsParts, digestNeutral.Render(fmt.Sprintf("%d failed", out.Totals.Failed)))
-	}
-	if out.Totals.Working > 0 {
-		totalsParts = append(totalsParts, digestNeutral.Render(fmt.Sprintf("%d working", out.Totals.Working)))
-	}
-	b.WriteString("  " + digestDim.Render("totals") + "    " + strings.Join(totalsParts, digestDim.Render(" · ")) + "\n")
-
-	// by tool
-	if len(out.ByToolJSON) > 0 {
-		b.WriteString("\n  " + digestDim.Render("by tool") + "\n")
-		for _, g := range out.ByToolJSON {
-			noun := "sessions"
-			if g.Count == 1 {
-				noun = "session "
-			}
-			b.WriteString("    " + digestNeutral.Render(fmt.Sprintf("%-10s", g.Key)) +
-				digestDim.Render(fmt.Sprintf("%d %s · %s", g.Count, noun, g.ActiveDuration)) + "\n")
-		}
-	}
-
-	// by model
-	if len(out.ByModelJSON) > 0 {
-		b.WriteString("\n  " + digestDim.Render("by model") + "\n")
-		for _, g := range out.ByModelJSON {
-			noun := "sessions"
-			if g.Count == 1 {
-				noun = "session "
-			}
-			b.WriteString("    " + digestNeutral.Render(fmt.Sprintf("%-12s", g.Key)) +
-				digestDim.Render(fmt.Sprintf("%d %s · %s", g.Count, noun, g.ActiveDuration)) + "\n")
-		}
-	}
-
-	// sessions list
-	b.WriteString("\n  " + digestDim.Render("sessions") + "\n")
-	for _, s := range out.Sessions {
-		shortID := s.ShortID
-		if shortID == "" {
-			shortID = s.ID
-			if len(shortID) > 6 {
-				shortID = shortID[:6]
-			}
-		}
-		slug := s.Slug
-		if slug == "" {
-			slug = "(no slug)"
-		}
-		tool := s.ToolID
-		model := s.ModelID
-		toolModel := tool
-		if model != "" {
-			toolModel = tool + "·" + model
-		}
-		active := formatDuration(sessionActiveDuration(s))
-		stateStr := digestStateColor(s.State).Render(string(s.State))
-
-		fmt.Fprintf(&b, "    %s  %-20s  %-18s  %-8s  %s\n",
-			digestDim.Render(shortID),
-			digestNeutral.Render(core.Truncate(slug, 20)),
-			digestDim.Render(core.Truncate(toolModel, 18)),
-			digestDim.Render(active),
-			stateStr,
-		)
-	}
-
-	b.WriteString("\n")
-	_, err := fmt.Fprint(w, b.String())
 	return err
 }

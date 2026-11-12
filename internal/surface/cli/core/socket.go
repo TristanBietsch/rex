@@ -80,9 +80,9 @@ func DaemonUnreachable(socket string, err error) error {
 		ee := Errorf(ExitDaemonUnreachable, "rex daemon start",
 			"rex-daemon is not running (no socket at %s); start it with `rex daemon start`", socket)
 		ee.Err = err
-		return ee
+		return ee.WithID("daemon_unreachable")
 	}
-	return NewExitError(ExitDaemonUnreachable, err.Error())
+	return NewExitError(ExitDaemonUnreachable, err.Error()).WithID("daemon_unreachable")
 }
 
 // HelloFailed is the exit-4 error for a handshake that failed with err: the
@@ -90,7 +90,7 @@ func DaemonUnreachable(socket string, err error) error {
 func HelloFailed(err error) error {
 	ee := Errorf(ExitDaemonUnreachable, "rex daemon status", "daemon did not answer the handshake: %s", err)
 	ee.Err = err
-	return ee
+	return ee.WithID("handshake_failed")
 }
 
 // DefaultSocket returns the daemon's default socket (paths.Socket). When it

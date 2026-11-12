@@ -18,11 +18,12 @@ import (
 func RunLog(args []string) error {
 	fs := flag.NewFlagSet("log", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.ContentFormats)
 	stateDir := fs.String("state-dir", "", "state dir (default ~/.local/share/rex; rarely needed)")
 	follow := fs.Bool("f", false, "follow the transcript (like tail -f)")
 	tailN := fs.Int("n", 0, "show only the last N lines (0 = all)")
 	asBytes := fs.Bool("bytes", false, "print raw bytes (including ANSI)")
-	rest, err := core.ParseArgs(fs, args)
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -53,7 +54,7 @@ func RunLog(args []string) error {
 	path := filepath.Join(root, "sessions", sess.ID, "transcript.log")
 	// -f runs until the process is interrupted; the default SIGINT handler
 	// ends it, so no cancellation is wired here.
-	if err := streamFile(context.Background(), path, os.Stdout, *follow, *tailN, *asBytes); err != nil {
+	if err := streamFile(context.Background(), path, core.Out().Out, *follow, *tailN, *asBytes); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	return nil

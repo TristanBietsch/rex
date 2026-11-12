@@ -90,15 +90,14 @@ func runUndoRedo(op string, args []string) error {
 		return err
 	}
 	if !yes {
-		if !pruneIO.interactive() {
-			return core.Errorf(core.ExitOperationRefused, "rex "+op+" -yes "+rest[0],
-				"%s: stdin is not a terminal; pass -yes to restore files without asking", op)
-		}
-		fmt.Fprintf(pruneIO.errOut, "%s %s: restore %d file(s), delete %d file(s)\n%s\nproceed? [y/N] ",
+		question := fmt.Sprintf("%s %s: restore %d file(s), delete %d file(s)\n%s\nproceed?",
 			op, undoSubject(sess, op, turns), len(plan.Restored), len(plan.Deleted), shellEffectsNote)
-		var ans string
-		_, _ = fmt.Fscanln(pruneIO.in, &ans)
-		if a := strings.ToLower(ans); a != "y" && a != "yes" {
+		ok, err := core.Out().Confirm(question, core.Refusal{Cmd: op, Flag: "-yes", What: "restore files",
+			Hint: "rex " + op + " -yes " + rest[0]})
+		if err != nil {
+			return err
+		}
+		if !ok {
 			return core.Errorf(core.ExitOperationRefused, "", "%s: not confirmed, nothing changed", op)
 		}
 	}

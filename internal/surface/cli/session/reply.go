@@ -13,8 +13,9 @@ import (
 func RunReply(args []string) error {
 	fs := flag.NewFlagSet("reply", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	raw := fs.Bool("raw", false, "do not append newline")
-	rest, err := core.ParseTextArgs(fs, args, 1)
+	rest, err := out.ParseText(fs, args, 1)
 	if err != nil {
 		return err
 	}
@@ -28,7 +29,7 @@ func RunReply(args []string) error {
 		text = strings.Join(rest[1:], " ")
 	} else {
 		// A terminal would block here until the user types ctrl+d.
-		if pruneIO.interactive() {
+		if core.Out().InTTY {
 			return core.NewExitError(core.ExitInvalidArgs,
 				"reply: no text; pass it as arguments or pipe it on stdin (`rex reply <sel> -- text`)")
 		}
@@ -50,7 +51,21 @@ func RunReply(args []string) error {
 	}
 
 	if *raw {
-		return c.SendInput(sess.ID, []byte(text))
+		err = c.SendInput(sess.ID, []byte(text))
+	} else {
+		err = c.Reply(sess.ID, text)
 	}
-	return c.Reply(sess.ID, text)
+	if err != nil {
+		return err
+	}
+	return emitAction("reply", replyData{refOf(sess), len(text), *raw}, "replied to "+sess.Slug, "",
+		sessionFields(sess, core.Field{Key: "bytes", Val: len(text)}))
+}
+
+// replyData is the `-o json` payload of rex reply. Bytes is the length of
+// the text, without the newline reply adds.
+type replyData struct {
+	actionData
+	Bytes int  `json:"bytes"`
+	Raw   bool `json:"raw"`
 }

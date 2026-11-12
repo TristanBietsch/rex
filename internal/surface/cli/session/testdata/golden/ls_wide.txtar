@@ -1,0 +1,61 @@
+-- text.w80 --
+Sessions  1 needs you · 1 working · 1 done
+
+     ID    STATE      TOOL         MODEL        SLUG          IDLE  NAME
+  ◆  a91c  needs you  antigravity  gemini-3-p…  refactor-db    12s
+  ⠋  7d4f  working    claude       opus · high  fix-auth-fl…    2m  Auth fix
+  ●  0b2e  done       claude       sonnet · m…  write-tests     1h  Tests ✓done
+  ◌  1111  queued     echo         short        a-slug-that…     -  日本語の名前
+  ✕  2222  failed     echo         a-model-na…  日本語のス…     2d
+
+› rex attach <id>  open a session
+-- text.w120 --
+Sessions  1 needs you · 1 working · 1 done
+
+     ID    STATE      TOOL         MODEL          SLUG            IDLE  STARTED           ENDED             NAME
+  ◆  a91c  needs you  antigravity  gemini-3-pro   refactor-db      12s  2026-11-11 11:40  -
+  ⠋  7d4f  working    claude       opus · high    fix-auth-flow     2m  2026-11-11 09:05  -                 Auth fix
+  ●  0b2e  done       claude       sonnet · med…  write-tests       1h  2026-11-10 22:00  2026-11-11 11:00  Tests ✓done
+  ◌  1111  queued     echo         short          a-slug-that-i…     -  -                 -                 日本語の名前
+  ✕  2222  failed     echo         a-model-name…  日本語のスラ…     2d  2026-11-09 08:00  2026-11-09 08:30
+
+› rex attach <id>  open a session
+-- text.w160 --
+Sessions  1 needs you · 1 working · 1 done
+
+     ID    STATE      TOOL         MODEL           SLUG             IDLE  STARTED           ENDED             RESUME ID                             NAME
+  ◆  a91c  needs you  antigravity  gemini-3-pro    refactor-db       12s  2026-11-11 11:40  -                 -
+  ⠋  7d4f  working    claude       opus · high     fix-auth-flow      2m  2026-11-11 09:05  -                 7d4f3c8a-1234-4abc-89ab-cdefabcdef01  Auth fix
+  ●  0b2e  done       claude       sonnet · medi…  write-tests        1h  2026-11-10 22:00  2026-11-11 11:00  0b2e9f10-5678-4def-8abc-0123456789ab  Tests ✓done
+  ◌  1111  queued     echo         short           a-slug-that-is…     -  -                 -                 -                                     日本語の名前
+  ✕  2222  failed     echo         a-model-name-…  日本語のスラッ…    2d  2026-11-09 08:00  2026-11-09 08:30  -
+
+› rex attach <id>  open a session
+-- txt --
+ID     STATE         TOOL       MODEL                 SLUG                      LAST EVENT  STARTED           ENDED             RESUME ID                             NAME
+a91c   needs_input   antigravity  gemini-3-pro          refactor-db               12s ago     2026-11-11 11:40  -                 -                                     
+7d4f   working       claude     opus · high           fix-auth-flow             2m ago      2026-11-11 09:05  -                 7d4f3c8a-1234-4abc-89ab-cdefabcdef01  Auth fix
+0b2e   done          claude     sonnet · medium       write-tests               1h ago      2026-11-10 22:00  2026-11-11 11:00  0b2e9f10-5678-4def-8abc-0123456789ab  Tests ✓done
+1111   queued        echo       short                 a-slug-that-is-much-lon…  -           -                 -                 -                                     日本語の名前
+2222   failed        echo       a-model-name-longer…  日本語のスラッグ日本語…   2d ago      2026-11-09 08:00  2026-11-09 08:30  -                                     
+-- md --
+### Sessions
+
+*1 needs you · 1 working · 1 done*
+
+| ID | State | Tool | Model | Slug | Idle | Started | Ended | Resume ID | Name |
+| --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- |
+| a91c | needs you | antigravity | gemini-3-pro | refactor-db | 12s | 2026-11-11 11:40 | - | - |  |
+| 7d4f | working | claude | opus · high | fix-auth-flow | 2m | 2026-11-11 09:05 | - | 7d4f3c8a-1234-4abc-89ab-cdefabcdef01 | Auth fix |
+| 0b2e | done | claude | sonnet · medium | write-tests | 1h | 2026-11-10 22:00 | 2026-11-11 11:00 | 0b2e9f10-5678-4def-8abc-0123456789ab | Tests |
+| 1111 | queued | echo | short | a-slug-that-is-much-longer-than-twenty-four-cells | - | - | - | - | 日本語の名前 |
+| 2222 | failed | echo | a-model-name-longer-than-20-cells | 日本語のスラッグ日本語のスラッグ日本語のスラッグ | 2d | 2026-11-09 08:00 | 2026-11-09 08:30 | - |  |
+
+`rex attach <id>` open a session
+-- agent --
+session id=a91c state=needs_input tool=antigravity model=gemini-3-pro effort="" slug=refactor-db idle_s=12 started=2026-11-11T11:40:00Z ended="" resume_id="" name=""
+session id=7d4f state=working tool=claude model=opus effort=high slug=fix-auth-flow idle_s=120 started=2026-11-11T09:05:00Z ended="" resume_id=7d4f3c8a-1234-4abc-89ab-cdefabcdef01 name="Auth fix"
+session id=0b2e state=done tool=claude model=sonnet effort=medium slug=write-tests idle_s=3600 started=2026-11-10T22:00:00Z ended=2026-11-11T11:00:00Z resume_id=0b2e9f10-5678-4def-8abc-0123456789ab name=Tests
+session id=1111 state=queued tool=echo model=short effort="" slug=a-slug-that-is-much-longer-than-twenty-four-cells idle_s=-1 started="" ended="" resume_id="" name="日本語の名前"
+session id=2222 state=failed tool=echo model=a-model-name-longer-than-20-cells effort="" slug="日本語のスラッグ日本語のスラッグ日本語のスラッグ" idle_s=185400 started=2026-11-09T08:00:00Z ended=2026-11-09T08:30:00Z resume_id="" name=""
+ok cmd=ls count=5

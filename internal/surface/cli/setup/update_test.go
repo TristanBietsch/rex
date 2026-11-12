@@ -37,6 +37,7 @@ func newUpdateFixture() *updateFixture {
 }
 
 func (f *updateFixture) run(args ...string) error {
+	installPrinter(f.stdin != "") // a scripted answer means a terminal
 	return runUpdate(args, updateDeps{
 		out:    &f.out,
 		errOut: &f.errOut,
@@ -71,7 +72,7 @@ func TestRunUpdate_binarySwapRefusesBeforeStoppingDaemon(t *testing.T) {
 	require.Equal(t, []string{"detect"}, f.log)
 	require.Zero(t, f.daemon.stopCount())
 	require.True(t, f.daemon.up)
-	require.Contains(t, f.out.String(), "cannot self-upgrade binary-swap install")
+	require.ErrorContains(t, err, "cannot self-upgrade binary-swap install")
 }
 
 func TestRunUpdate_goInstallStopsDaemonThenUpgrades(t *testing.T) {

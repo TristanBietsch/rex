@@ -73,16 +73,16 @@ cmp stderr want/json_state.txt
 # Human formats keep the flag package's usage on a parse error.
 exitcode 5 rex ls -bogus
 stderr '^flag provided but not defined: -bogus$'
-stderr '^Usage of ls:$'
+stderr '^Usage: rex ls \[flags\]'
 stderr '^rex: flag provided but not defined: -bogus$'
 exitcode 5 rex ls -o md -bogus
-stderr '^Usage of ls:$'
+stderr '^Usage: rex ls \[flags\]'
 
 # -h prints the usage and exits 0 in every format.
 exitcode 0 rex ls -h
-stderr '^Usage of ls:$'
+stdout '^Usage: rex ls \[flags\]'
 exitcode 0 rex ls --agent -h
-stderr '^Usage of ls:$'
+stdout '^ok cmd=help count='
 
 # =false turns a flag off.
 exec rex ls -json=false
@@ -91,8 +91,8 @@ exec rex ls --agent=false
 stdout '^ID +STATE '
 exitcode 5 rex attach -o json s1
 stderr 'attach'
-exitcode 5 rex -o json doctor
-stderr 'doctor: -o, --agent and -json are not supported yet'
+exitcode 5 rex -o json attach s1
+stderr 'attach: interactive; -o, --agent and -json do not apply'
 
 exitcode 5 rex ls -o json -state
 ! stdout .
