@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
 // Key-sequence tests of the full-screen pages' vim-style navigation (the
@@ -514,4 +515,31 @@ func TestPageNav_NAAgentManyModels(t *testing.T) {
 	require.Contains(t, naView(m), "model-199")
 	m = navPress(m, "/", "s", "o", "n", "enter", "j")
 	require.Equal(t, "sonnet-4.6-thinking", m.NewAgent.choice().Model, "j after enter moves through the matches")
+}
+
+// The accent row (feat/accent-color) keeps its keys under the navigator:
+// ←/→ cycle the names, e and # open the inline editor, h/l only move focus.
+func TestPageNav_SettingsAccentRowKeys(t *testing.T) {
+	t.Cleanup(func() { applyTheme("default") })
+	m := accentPage(t)
+	m = navPress(m, "right")
+	require.Equal(t, theme.AccentIDs()[0], m.Store.Get("accent_color"), "→ cycles to the first name")
+	m = navPress(m, "left")
+	require.Equal(t, "theme", m.Store.Get("accent_color"), "← back")
+	m = navPress(m, "l")
+	require.Equal(t, "theme", m.Store.Get("accent_color"), "l never changes it")
+	m = navPress(m, "e")
+	require.NotNil(t, m.Settings.Edit, "e opens the editor")
+	m = navPress(m, "j", "k", "h")
+	require.Equal(t, "jkh", m.Settings.Edit.Text(), "in the editor keys type, the navigator stays out")
+	m = navPress(m, "esc")
+	require.Nil(t, m.Settings.Edit)
+	m = navPress(m, "#", "1", "2", "3", "enter")
+	require.Nil(t, m.Settings.Edit)
+	require.Equal(t, "#123", m.Store.Get("accent_color"), "# types a color and enter saves it")
+	m = navPress(m, "h")
+	require.Equal(t, paneSections, m.Settings.Pane, "h focuses the sections")
+	require.Equal(t, "accent_color", m.Settings.CursorID)
+	m = navPress(m, "l")
+	require.Equal(t, "accent_color", m.Settings.CursorID, "and l comes back to the row")
 }
