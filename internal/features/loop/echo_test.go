@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,4 +42,25 @@ func TestMarkerMatches_IgnoresWrappedPromptEcho(t *testing.T) {
 	none, err := Parse([]byte(goodYAML), "fix")
 	require.NoError(t, err)
 	require.False(t, none.MarkerMatches("anything"))
+}
+
+// The window Output returns is only the end of the screen: a long prompt's
+// echo can start before it. The cut-off head of the echo, even cut in the
+// middle of a word, must not leave a wrapped marker row behind.
+func TestStripEcho_EchoCutAtTheStartOfTheWindow(t *testing.T) {
+	prompt := "Refactor the parser carefully, run the whole test suite and then print <promise>DONE</promise> once everything is green"
+	full := "> Refactor the parser carefully, run the whole\n  test suite and then print\n  <promise>DONE</promise>\n  once everything is green\n"
+	// Cut the window in the middle of "whole" (the echo's head is gone).
+	i := strings.Index(full, "ole\n")
+	window := full[i:]
+	got := stripEcho(window, prompt)
+	require.NotContains(t, got, "promise")
+
+	d, err := Parse([]byte("name: x\nkind: repeat\ntool: claude\nmodel: sonnet\nprompt: \""+prompt+"\"\nuntil:\n  marker: '<promise>DONE</promise>'\n"), "x")
+	require.NoError(t, err)
+	require.False(t, d.MarkerMatches(window), "no early stop from a cut-off echo")
+	require.True(t, d.MarkerMatches(window+"all green\n<promise>DONE</promise>\n"))
+
+	// Output that merely starts with some of the same words is kept.
+	require.Contains(t, stripEcho("plain\n<promise>DONE</promise>\n", prompt), "<promise>DONE</promise>")
 }

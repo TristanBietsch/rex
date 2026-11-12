@@ -8,8 +8,37 @@ import "strings"
 // output are compared as runs of non-space text, so wrapping, indentation and
 // line breaks do not matter. Each removed echo is replaced by a line break,
 // so text around it stays on its own lines.
+type span struct{ start, end int }
+
+
+// echoTailLen returns how many leading tokens of output are the tail of the
+// prompt words (the longest such run, at least 2 tokens or 1 whole word), 0
+// if none. The first token may be a suffix of the word it was cut from.
+func echoTailLen(output string, toks []span, words []string) int {
+	for k := min(len(words), len(toks)); k >= 1; k-- {
+		first := words[len(words)-k]
+		tok0 := output[toks[0].start:toks[0].end]
+		if !strings.HasSuffix(first, tok0) {
+			continue
+		}
+		if k == 1 && tok0 != first && len(tok0) < 4 {
+			continue // a lone short fragment proves nothing
+		}
+		ok := true
+		for j := 1; j < k; j++ {
+			if output[toks[j].start:toks[j].end] != words[len(words)-k+j] {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			return k
+		}
+	}
+	return 0
+}
+
 func stripEcho(output string, prompts ...string) string {
-	type span struct{ start, end int }
 	var toks []span
 	start := -1
 	for i, r := range output {
@@ -26,6 +55,17 @@ func stripEcho(output string, prompts ...string) string {
 		toks = append(toks, span{start, len(output)})
 	}
 	remove := make([]bool, len(toks))
+	// The output may be only the end of the screen, so it can begin in the
+	// middle of an echo: drop a leading run that is a tail of a prompt (its
+	// first word may itself be cut).
+	for _, p := range prompts {
+		words := strings.Fields(p)
+		if k := echoTailLen(output, toks, words); k > 0 {
+			for j := 0; j < k; j++ {
+				remove[j] = true
+			}
+		}
+	}
 	seen := map[string]bool{}
 	for _, p := range prompts {
 		words := strings.Fields(p)
