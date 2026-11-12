@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -399,42 +400,76 @@ func AppendTranscript(root, id string, b []byte) error {
 	return tf.Write(b)
 }
 
+// ReplayTail is TranscriptTail for replaying into a terminal emulator
+// (attach). A tail cut from the middle of the transcript starts at an
+// arbitrary byte, and a start inside an escape sequence or a UTF-8 rune
+// garbles the screen: a cut tail starts just after its first newline or at
+// its first ESC, whichever comes first, else at its first rune start.
+func ReplayTail(root, id string, max int) ([]byte, error) {
+	b, cut, err := transcriptTail(root, id, max)
+	if err != nil || !cut {
+		return b, err
+	}
+	for i, c := range b {
+		switch c {
+		case '\n':
+			return b[i+1:], nil
+		case 0x1b:
+			return b[i:], nil
+		}
+	}
+	for i := range b {
+		if utf8.RuneStart(b[i]) {
+			return b[i:], nil
+		}
+	}
+	return nil, nil
+}
+
 // TranscriptTail returns the last max bytes of a session's transcript.log
 // (or all of it, if smaller). Missing files return (nil, nil).
 func TranscriptTail(root, id string, max int) ([]byte, error) {
+	b, _, err := transcriptTail(root, id, max)
+	return b, err
+}
+
+// transcriptTail is TranscriptTail that also reports whether the tail was
+// cut from a longer file.
+func transcriptTail(root, id string, max int) (tail []byte, cut bool, err error) {
 	dir, err := safeSessionDir(root, id)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	path := filepath.Join(dir, "transcript.log")
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, false, nil
 		}
-		return nil, fmt.Errorf("open transcript: %w", err)
+		return nil, false, fmt.Errorf("open transcript: %w", err)
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("stat transcript: %w", err)
+		return nil, false, fmt.Errorf("stat transcript: %w", err)
 	}
 	size := info.Size()
-	if int64(max) > size {
+	cut = int64(max) < size
+	if !cut {
 		max = int(size)
 	}
 	if max <= 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	if _, err := f.Seek(-int64(max), io.SeekEnd); err != nil {
-		return nil, fmt.Errorf("seek transcript: %w", err)
+		return nil, false, fmt.Errorf("seek transcript: %w", err)
 	}
 	buf := make([]byte, max)
 	n, err := io.ReadFull(f, buf)
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return nil, fmt.Errorf("read transcript: %w", err)
+		return nil, false, fmt.Errorf("read transcript: %w", err)
 	}
-	return buf[:n], nil
+	return buf[:n], cut, nil
 }
 
 // maxSkills mirrors the per-session cap of the skills package, which state

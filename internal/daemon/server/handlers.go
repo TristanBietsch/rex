@@ -158,7 +158,7 @@ func handleSubscribe(c *client, env protocol.Envelope) (outcome, error) {
 	// and on the screen, or live through the sink.
 	srv.withOutputHeld(p.SessionID, func(repaint func() []byte) {
 		if p.Replay {
-			tail, err := state.TranscriptTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax)
+			tail, err := state.ReplayTail(srv.TranscriptDir(), p.SessionID, transcriptReplayMax)
 			if err != nil {
 				slog.Warn("server: transcript replay failed", "session", p.SessionID, "err", err)
 			}
