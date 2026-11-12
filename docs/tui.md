@@ -20,7 +20,7 @@ Four sections group sessions, top to bottom: **READY**, **WAITING**, **WORKING**
 
 **WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known gap: a background shell command (`run_in_background`) has no completion hook, so a session whose turn ends while one runs shows as READY; when the command finishes Claude wakes the agent, which turns WORKING and then READY again, silently (one sound per turn). Known limitation: a command that first needed a permission prompt shows as READY while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`. `show_help_bar` in Settings → Appearance turns these hints off; errors and notices still show on that line.
 
-The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
+The filter bar (`all · claude · codex …`, cycled with `t`) has a chip per agent the daemon reports installed, in registry order (not `echo`, not an opt-in built-in such as `gemini`; a `tools.yaml` tool counts; `qwen`, `cursor` and `grok` only while `extra_agents` is on). Against a daemon that sends no tool list it shows `claude`, `codex`, `antigravity` and `ollama`. It only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
 A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden`), and its keys join the end of the help line (`… ? more · 4 show · :prune clear`). `4` shows and hides it; `:prune` clears it ([slash.md](slash.md)). On a narrow line `:prune clear` drops first, then `4 show`; the five board keys always stay. When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
@@ -140,7 +140,7 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 | `1`, `2`, `3` | Jump to Ready / Waiting / Working |
 | `4` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
-| `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
+| `t` | Cycle tool filter (`all`, then each installed agent, e.g. `claude`, `codex`, `qwen`, `cursor`, `grok`) |
 | `/` | Search the board (see FILTER AND SEARCH) |
 | `esc` | Clear the search |
 | `zh` | Hide / show every completed section (Done) |
@@ -378,9 +378,14 @@ The dialog never changes a file until you confirm:
 2. **Model**: the tool's model, from the daemon's merged list: the models the tool itself reported first, each tagged `detected`, then the built-in ones it did not list. A long list scrolls. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
 3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
 4. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
-5. **Describe**: the task. `enter` launches. The slug comes from the task.
+5. **Describe**: the task. `enter` launches. The slug comes from the task. Under the input a trust line says whether the session's folder is trusted:
+   - `folder not trusted` with two choices, each followed by the exact folder it trusts: `ctrl+t` trusts the folder the session starts in for this session only (nothing is saved), `ctrl+a` saves the repo folder (the root of the git checkout, or the folder itself; never its parent) to `auto_trust_dirs` when you launch, and trusts the session. Press the key again to take the choice back. Nothing is trusted unless you press one.
+   - `trusted (auto_trust_dirs)` when a listed folder already covers it.
+   - `home folder: start rex in a project folder to trust it` when rex was started in your home folder (or a folder that holds it): neither key works there.
 
 The wizard does not ask for a name; press `r` on the board to give a session a display name, or use `rex new -name`.
+
+`:trust [folder]` on the board does the same as `ctrl+a` without starting a session: it saves the repo folder of the selected session's folder (or of the folder rex runs in, or the folder you name) to `auto_trust_dirs` and says which folder it trusted. Sessions already running keep asking; new ones skip the dialog. A refused folder shows why on the status line. `rex trust` does the same from the shell.
 
 `b` goes back (on the describe step only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the skills field, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
 

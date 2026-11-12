@@ -265,18 +265,16 @@ func jumpToSection(m Model, groupIdx int) Model {
 	return ensureVisible(m)
 }
 
-// filterTools is the filter chip order (header chips and the t cycle).
-var filterTools = []string{"all", "claude", "codex", "antigravity", "ollama"}
-
 func cycleFilter(m Model) Model {
+	tools := filterTools(m)
 	next := 0
-	for i, t := range filterTools {
+	for i, t := range tools {
 		if t == m.Filter {
-			next = (i + 1) % len(filterTools)
+			next = (i + 1) % len(tools)
 			break
 		}
 	}
-	return setFilter(m, filterTools[next])
+	return setFilter(m, tools[next])
 }
 
 // setFilter switches the tool filter, keeping a still-visible selection.

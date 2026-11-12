@@ -85,6 +85,11 @@ type SupervisorConfig struct {
 	// TrustPrompt, when set, accepts the agent's folder-trust dialog (the
 	// session's folder is under auto_trust_dirs). nil leaves it to the user.
 	TrustPrompt *TrustAnswer
+	// TrustDetect is the agent's trust-dialog text (its trust_prompt.shown),
+	// passed even when TrustPrompt is nil. When it matches within the first
+	// 60 s and nothing answers it, the supervisor logs once that the folder
+	// is not trusted. Ignored while TrustPrompt is set.
+	TrustDetect *regexp.Regexp
 	// ResumeCapture, when set, reads the agent's conversation id from its
 	// last output when the child exits: the last match's group 1 on the
 	// normalized screen text, kept only if it is a valid resume id.
@@ -443,6 +448,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// Adapter classification ticker.
 	ticker := time.NewTicker(s.cfg.IdleTick)
 	trust := newTrustAnswerer(s.cfg.TrustPrompt, time.Now())
+	var unanswered *unansweredDetector
+	if trust == nil {
+		unanswered = newUnansweredDetector(s.cfg.TrustDetect, time.Now())
+	}
 	agents, _ := s.cfg.Adapter.(adapter.SubagentCounter) // nil unless the agent reports subagents
 	// clearAgents zeroes the count once the agent is gone, and its
 	// subagents with it. The exit paths call it before the final meta.json
@@ -666,6 +675,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						slog.Warn("pty: trust prompt not sent", "session", sess.ID)
 					}
 				}
+			}
+
+			if unanswered != nil && !unanswered.done && unanswered.next(screen.String(), time.Now()) {
+				slog.Info("pty: trust dialog shown; folder not trusted (rex trust, or ctrl+t in the wizard)", "session", sess.ID)
 			}
 
 			// Summary trigger (additive — independent of adapter).

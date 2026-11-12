@@ -64,11 +64,12 @@ func Names() []string {
 }
 
 // Get returns a copy of the named palette. An unknown name returns the
-// default palette and false.
+// default palette and false. AutoName returns the default palette and true.
 func Get(name string) (Palette, bool) {
 	p, ok := Builtin[name]
 	if !ok {
 		p = Builtin[DefaultName]
+		ok = name == AutoName // auto without a terminal to ask: the dark default
 	}
 	p.Fleet = slices.Clone(p.Fleet)
 	return p, ok

@@ -50,7 +50,7 @@ func TestDynamicThemeOptions(t *testing.T) {
 	m := themeModel(t)
 	opts, ok := dynamicOptions(m, "theme")
 	require.True(t, ok)
-	require.ElementsMatch(t, theme.Names(), opts)
+	require.ElementsMatch(t, append(theme.Names(), theme.AutoName), opts)
 	require.Equal(t, "default", opts[0])
 }
 
@@ -59,4 +59,20 @@ func TestApplyLiveUnknownThemeNotesAndFallsBack(t *testing.T) {
 	applyLive(&m, "theme", "ghost")
 	require.Contains(t, m.Err, `"ghost" not found`)
 	require.Equal(t, lipgloss.Color(theme.Builtin["default"].Working), colorWorking)
+}
+
+func TestThemeCommandAutoUsesTheBootResult(t *testing.T) {
+	m := themeModel(t)
+	m.termLight = true // the boot-time query found a light background
+	m, _ = executeCommand(m, "theme auto")
+	require.Empty(t, m.Err)
+	require.Equal(t, "auto", m.Store.Get("theme"))
+	require.Equal(t, lipgloss.Color(theme.Builtin["paper"].Working), colorWorking)
+	require.False(t, borderPalette(m).Dark)
+
+	m.termLight = false
+	applyLive(&m, "theme", "auto")
+	require.Empty(t, m.Err)
+	require.Equal(t, lipgloss.Color(theme.Builtin["default"].Working), colorWorking)
+	require.True(t, borderPalette(m).Dark)
 }

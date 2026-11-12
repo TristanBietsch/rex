@@ -231,6 +231,7 @@ func TestThemeNew_BadArguments(t *testing.T) {
 		"bad name":     {"Not Valid"},
 		"path name":    {"../x"},
 		"builtin name": {"noir"},
+		"auto name":    {"auto"},
 		"bad -from":    {"mine", "-from", "ghost"},
 		"user -from":   {"mine", "-from", "mine"},
 		"unknown flag": {"mine", "-bogus"},
@@ -298,4 +299,32 @@ func TestThemeList_HostileFilesNeverPutEscapesInOutput(t *testing.T) {
 		require.NotContains(t, out, "\x1b", format)
 		require.Contains(t, out, "default", format)
 	}
+}
+
+func TestThemeList_AutoIsListedAsTheDarkDefault(t *testing.T) {
+	dir := themeHome(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(dir), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(dir), "config.yaml"), []byte("theme: auto\n"), 0o600))
+
+	out, err := themeRun(t, "json", func() error { return themeList(nil) })
+	require.NoError(t, err)
+	var env struct {
+		Data []themeRow `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &env), out)
+	var auto *themeRow
+	for i := range env.Data {
+		if env.Data[i].Name == theme.AutoName {
+			auto = &env.Data[i]
+		}
+	}
+	require.NotNil(t, auto, "auto is listed")
+	require.Equal(t, themeAuto, auto.Source)
+	require.True(t, auto.Current)
+	require.True(t, auto.Dark, "the CLI never asks the terminal: auto is the dark default")
+	require.Equal(t, theme.Builtin[theme.DefaultName].Accent, auto.Accent)
+
+	text, err := themeRun(t, "text", func() error { return themeShow([]string{"auto"}) })
+	require.NoError(t, err)
+	require.Contains(t, text, "paper on a light one")
 }

@@ -271,31 +271,36 @@ func AppendTrustDir(cur, dir string) (string, bool, error) {
 }
 
 // RemoveTrustDir drops from the auto_trust_dirs value cur every entry that
-// resolves to dir, and reports whether any did. The result may be empty
-// (always ask). dir must pass TrustDir.
+// resolves to dir (by identity on disk, so a case variant on a
+// case-insensitive filesystem counts) or is written exactly as dir, and
+// reports whether any did. The text match lets an entry the daemon ignores
+// (rex doctor names it) be removed, and other ignored entries never block a
+// removal. The result may be empty (always ask). A dir that matches no entry
+// by text must pass TrustDir.
 func RemoveTrustDir(cur, dir string) (string, bool, error) {
-	want, err := TrustDir(dir)
-	if err != nil {
-		return "", false, err
-	}
-	if strings.TrimSpace(cur) == "" {
-		return "", false, nil
-	}
-	tidy, err := CheckAutoTrustDirs(cur)
-	if err != nil {
-		return "", false, err
-	}
+	entry := strings.TrimSpace(dir)
+	want, wantErr := TrustDir(entry)
 	var keep []string
 	removed := false
-	for _, e := range filepath.SplitList(tidy) {
-		if got, err := TrustDir(e); err == nil && got == want {
+	for _, e := range filepath.SplitList(cur) {
+		e = strings.TrimSpace(e)
+		if e == "" {
+			continue
+		}
+		if e == entry || (wantErr == nil && resolvesTo(e, want)) {
 			removed = true
 			continue
 		}
 		keep = append(keep, e)
 	}
-	if !removed {
-		return tidy, false, nil
+	if !removed && wantErr != nil {
+		return "", false, wantErr
 	}
-	return strings.Join(keep, string(filepath.ListSeparator)), true, nil
+	return strings.Join(keep, string(filepath.ListSeparator)), removed, nil
+}
+
+// resolvesTo reports whether entry passes TrustDir and names the folder want.
+func resolvesTo(entry, want string) bool {
+	got, err := TrustDir(entry)
+	return err == nil && (got == want || sameFolder(got, want))
 }

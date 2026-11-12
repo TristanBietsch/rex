@@ -125,6 +125,8 @@ func run(args []string) error {
 		return setup.RunConfig(args[1:])
 	case "theme":
 		return setup.RunTheme(args[1:])
+	case "trust":
+		return setup.RunTrust(args[1:])
 	case "setup":
 		return setup.RunSetup(args[1:])
 	case "doctor":

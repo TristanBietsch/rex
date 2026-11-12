@@ -214,7 +214,7 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 
 func renderFilterChips(m Model) string {
 	out := ""
-	for i, t := range filterTools {
+	for i, t := range filterTools(m) {
 		if i > 0 {
 			out += styleChipSep.Render(" · ")
 		}
