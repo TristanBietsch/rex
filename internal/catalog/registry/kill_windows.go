@@ -3,6 +3,7 @@
 package registry
 
 import (
+	"context"
 	"os/exec"
 	"strconv"
 )
@@ -14,7 +15,7 @@ func configureKill(c *exec.Cmd) {
 		if c.Process == nil {
 			return nil
 		}
-		kill := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(c.Process.Pid)) //nolint:gosec // pid of our own child
+		kill := exec.CommandContext(context.Background(), "taskkill", "/T", "/F", "/PID", strconv.Itoa(c.Process.Pid)) //nolint:gosec // pid of our own child
 		if err := kill.Run(); err != nil {
 			return c.Process.Kill()
 		}

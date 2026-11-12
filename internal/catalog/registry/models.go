@@ -155,7 +155,7 @@ func runModelsCmd(ctx context.Context, tool Tool) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, path, argv...) //nolint:gosec // the command is fixed in the registry
 	cmd.Stdin = nil                                // /dev/null
 	cmd.Dir = os.TempDir()                         // a neutral folder, never the daemon's working directory
-	configureKill(cmd)
+	configureKill(cmd)                             //nolint:contextcheck // Cancel runs after ctx is done, so the tree kill needs its own context
 	cmd.WaitDelay = waitDelay
 	out := &cappedBuffer{limit: MaxModelsOutput, cancel: cancel}
 	cmd.Stdout = out
