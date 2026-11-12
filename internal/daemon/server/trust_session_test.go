@@ -192,3 +192,21 @@ func TestNewSession_TrustFolderPersistsAndTrusts(t *testing.T) {
 	require.Equal(t, protocol.ErrCodeBadIntent, code)
 	require.Contains(t, msg, "absolute path", "a relative cwd is refused before the trust check")
 }
+
+// Over the wire, trust_folder for the home folder is a bad intent and starts
+// nothing.
+func TestNewSession_TrustFolderHomeIsBadIntent(t *testing.T) {
+	e := startResumeServer(t, sessionTrustTools, 0)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	conn, w, r := e.dial(t)
+	code, msg := call(t, conn, w, r, "NewSession", protocol.NewSession{
+		ToolID: "echo", ModelID: "argv", Slug: "home", CWD: home, TrustFolder: true,
+	})
+	require.Equal(t, protocol.ErrCodeBadIntent, code, msg)
+	require.Contains(t, msg, "trust_folder")
+	for _, sum := range e.store.Snapshot() {
+		require.NotEqual(t, "home", sum.Slug, "nothing was started")
+	}
+}

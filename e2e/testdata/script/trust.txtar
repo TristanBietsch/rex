@@ -1,0 +1,26 @@
+# rex trust edits auto_trust_dirs in $HOME/.config/rex/config.yaml. No daemon
+# is needed.
+
+mkdir home/proj
+exec rex trust $WORK/home/proj
+stdout 'proj'
+grep '^auto_trust_dirs: ' home/.config/rex/config.yaml
+grep 'proj' home/.config/rex/config.yaml
+
+exec rex trust -ls
+stdout 'proj'
+
+# Refusals exit 5 and leave the file alone.
+exitcode 5 rex trust $WORK/home
+stderr 'home folder'
+exitcode 5 rex trust $WORK/home/proj/../x
+stderr '\.\.'
+exitcode 5 rex trust proj
+stderr 'absolute'
+exitcode 5 rex trust -ls -rm $WORK/home/proj
+exitcode 5 rex new -trust -cwd $WORK/home -- hi
+stderr 'home folder'
+
+exec rex trust -rm $WORK/home/proj
+exec rex config get auto_trust_dirs
+! stdout 'proj'

@@ -124,7 +124,7 @@ func GlyphTokens() []string {
 // Parse reads one theme file's bytes into a palette named name. It returns
 // warnings (unknown keys, low contrast) and an error for anything that makes
 // the file unusable (bad YAML, unknown base, bad color or glyph). name must
-// pass ValidName and must not be a built-in.
+// pass ValidName and must not be a built-in or AutoName.
 func Parse(name string, data []byte) (Palette, []string, error) {
 	var zero Palette
 	if err := checkName(name); err != nil {
@@ -151,6 +151,9 @@ func checkName(name string) error {
 	}
 	if _, ok := Builtin[name]; ok {
 		return fmt.Errorf("theme name %q is a built-in; pick another name", name)
+	}
+	if name == AutoName {
+		return fmt.Errorf("theme name %q is reserved (it follows the terminal background); pick another name", name)
 	}
 	return nil
 }

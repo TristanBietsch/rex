@@ -27,7 +27,7 @@ Keys and defaults: [settings.md](../settings.md). Your own colors and marker gly
 
 | ID | Effect |
 |----|--------|
-| `theme` | `default`, `classic`, `noir`, `paper`, `high-contrast`, `ansi` |
+| `theme` | `default`, `classic`, `noir`, `paper`, `high-contrast`, `ansi`, `auto` |
 | `row_density` | `compact`, `normal`, `roomy` |
 | `header_style` | `verbose`, `glyphs`, `numbers` |
 | `window_border` | Thick colored frame around the screen (off by default) |
@@ -50,6 +50,7 @@ Colors, glyphs and density apply as soon as you change them; audio initializes a
 | `paper` | Your terminal background is light |
 | `high-contrast` | Pure black and white, brightest state colors; for low vision or glare |
 | `ansi` | You want rex to use your terminal theme's own 16 colors (Solarized, Gruvbox, ...); the selection is reverse video |
+| `auto` | You switch between light and dark terminals: `default` on dark, `paper` on light, decided when the TUI starts ([themes.md](../themes.md#auto)) |
 
 The schemes with real colors meet contrast targets against their own background (text 7:1, state colors and accent 4.5:1), so pick `paper` on a light terminal rather than forcing a dark scheme. CLI output (`rex --help`, `rex ls`, ...) follows the same scheme.
 

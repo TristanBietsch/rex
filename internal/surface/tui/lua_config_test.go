@@ -11,6 +11,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
 // luaModel is reloadModel with the config.lua layer installed. It returns
@@ -116,4 +117,26 @@ func TestBootConfigLuaRow(t *testing.T) {
 	require.Contains(t, row.Desc, "off")
 	require.Equal(t, before, luacfg.Touches())
 	_ = m
+}
+
+// config.lua sets theme auto next to its own themes: auto resolves by the
+// boot-time background (paper on a light terminal), and the Lua theme is
+// still there to switch to.
+func TestConfigReloadLuaAutoTheme(t *testing.T) {
+	m, cfg, dir, lua := luaModel(t)
+	m.termLight = true
+	writeFile(t, lua, "rex.theme('lunar', { extends = 'noir' })\nrex.set('theme', 'auto')\n")
+	m, _ = runConfigCmd(t, m, loadConfig(cfg, dir, m.configStamp, false))
+	require.Empty(t, m.Err)
+	require.Equal(t, "auto", m.Store.Get("theme"))
+	require.True(t, m.Store.Locked("theme"))
+	require.True(t, m.Themes.IsLua("lunar"))
+	require.Equal(t, theme.Builtin["paper"].Accent, borderPalette(m).Accent, "auto is paper on a light terminal")
+
+	m.termLight = false
+	require.Equal(t, theme.Builtin[theme.DefaultName].Accent, borderPalette(m).Accent)
+
+	writeFile(t, lua, "rex.theme('lunar', { extends = 'noir', colors = { accent = '#B392F0' } })\nrex.set('theme', 'lunar')\n")
+	m, _ = runConfigCmd(t, m, loadConfig(cfg, dir, m.configStamp, false))
+	require.Equal(t, "#B392F0", borderPalette(m).Accent)
 }

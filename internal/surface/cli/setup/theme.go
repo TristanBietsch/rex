@@ -38,7 +38,25 @@ const (
 	themeBuiltin = "builtin"
 	themeFile    = "file"
 	themeLua     = "lua"
+	// themeAuto is the auto theme: default or paper by the terminal's
+	// background. The TUI asks the terminal; the CLI never does, so here it
+	// is listed and shown as default.
+	themeAuto = "auto"
 )
+
+// themeSourceOf says where the named theme comes from.
+func themeSourceOf(cat *theme.Catalog, name string) string {
+	switch {
+	case cat.IsLua(name):
+		return themeLua
+	case cat.IsUser(name):
+		return themeFile
+	case name == theme.AutoName:
+		return themeAuto
+	default:
+		return themeBuiltin
+	}
+}
 
 // loadThemes reads the user's theme files and the current theme name. Neither
 // failing stops the command: an unreadable config means the default theme,
@@ -81,14 +99,7 @@ func themeRows(cat *theme.Catalog, current string) []themeRow {
 	var rows []themeRow
 	for _, name := range themeNames(cat) {
 		p, _ := cat.Get(name)
-		src := themeBuiltin
-		switch {
-		case cat.IsLua(name):
-			src = themeLua
-		case cat.IsUser(name):
-			src = themeFile
-		}
-		rows = append(rows, themeRow{Name: name, Source: src, Current: name == current, Dark: p.Dark, Accent: p.Accent})
+		rows = append(rows, themeRow{Name: name, Source: themeSourceOf(cat, name), Current: name == current, Dark: p.Dark, Accent: p.Accent})
 	}
 	return rows
 }
@@ -194,16 +205,21 @@ func themeShow(args []string) error {
 		return core.Errorf(core.ExitInvalidArgs, "rex theme list", "theme show: unknown theme %q", name)
 	}
 	p, _ := cat.Get(name)
-	data := themeShowData{Name: name, Source: themeBuiltin, Dark: p.Dark, Fleet: p.Fleet,
+	data := themeShowData{Name: name, Source: themeSourceOf(cat, name), Dark: p.Dark, Fleet: p.Fleet,
 		Colors: map[string]string{}, Glyphs: map[string]string{}, Warnings: []string{}}
 	if data.Fleet == nil {
 		data.Fleet = []string{}
 	}
 	meta := "built-in"
+	if name == theme.AutoName {
+		meta = "auto: default on a dark terminal, paper on a light one (the TUI checks; shown here as default)"
+	}
 	if cat.IsUser(name) {
-		data.Source = themeFile
 		data.Path = filepath.Join(dir, name+".yaml")
 		meta = data.Path
+	}
+	if cat.IsLua(name) {
+		meta = "config.lua"
 	}
 	for _, i := range cat.Issues {
 		if i.Warn && i.File == name+".yaml" {
@@ -289,7 +305,7 @@ func themeNew(args []string) error {
 	if err := theme.ValidName(name); err != nil {
 		return core.Errorf(core.ExitInvalidArgs, "", "theme new: %w", err)
 	}
-	if _, ok := theme.Builtin[name]; ok {
+	if _, ok := theme.Builtin[name]; ok || name == theme.AutoName {
 		return core.Errorf(core.ExitInvalidArgs, "rex theme new my-"+name, "theme new: %q is a built-in theme name", name)
 	}
 	base, ok := theme.Builtin[*from]

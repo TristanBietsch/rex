@@ -263,3 +263,26 @@ func TestDoctor_ConfigLuaCheck(t *testing.T) {
 	c = checkConfigLua()
 	require.Equal(t, checkInfo, c.Status)
 }
+
+// auto and Lua themes side by side: auto stays the built-in-backed "auto"
+// row (config.lua cannot define a theme named auto), a Lua theme stays
+// "lua", and theme show names config.lua for it.
+func TestThemeList_AutoAndLuaThemes(t *testing.T) {
+	luaConfigHome(t, "rex.theme('lunar', { extends = 'noir' })\nrex.theme('auto', { extends = 'paper' })\nrex.set('theme', 'auto')", "")
+	out, err := themeRun(t, "agent", func() error { return themeList(nil) })
+	require.NoError(t, err)
+	require.Contains(t, out, "theme name=lunar source=lua current=false")
+	require.Contains(t, out, "theme name=auto source=auto current=true")
+	require.NotContains(t, out, "name=auto source=lua")
+
+	_, rep, _, err := settings.LoadDefaultReport()
+	require.NoError(t, err)
+	require.NotContains(t, rep.Themes, "auto")
+	require.NotEmpty(t, rep.ThemeIssues)
+	require.Contains(t, rep.ThemeIssues[0].Msg, "reserved")
+
+	text, err := themeRun(t, "text", func() error { return themeShow([]string{"lunar"}) })
+	require.NoError(t, err)
+	require.Contains(t, text, "lunar  config.lua")
+	require.NotContains(t, text, "lunar  built-in")
+}

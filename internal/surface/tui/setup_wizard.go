@@ -1256,8 +1256,8 @@ func (m SetupWizardModel) renderTrust() (string, []string, string) {
 	folderActive := m.trustField == trustFolder
 	body := []string{
 		"",
-		"  Claude Code asks \"do you trust this folder?\" the first time it opens one.",
-		"  rex can say yes for you in the folder below and every folder inside it.",
+		"  Claude Code and Antigravity ask \"do you trust this folder?\" when they",
+		"  open one. rex can say yes in the folder below and every folder inside it.",
 		"  " + styleBootWarn.Render("Only pick folders whose code you trust."),
 		"",
 		"  " + setupLabel("skip that question?", answerActive),

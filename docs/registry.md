@@ -70,7 +70,7 @@ Duplicate tool or model ids are rejected at load time.
 | `model_arg_template` | with `models_cmd` | Argv for a detected model, `{model}` replaced by its id: `["--model", "{model}"]`. One element each, never split. Required when `models_cmd` is set |
 | `model_effort` | no | An `effort` block that detected models get (a detected model has no hand-written one). `qwen` and `grok` set it; `cursor` encodes effort in the model id and has none |
 | `detect` | yes | State classifier config |
-| `icon`, `color` | yes | TUI display |
+| `icon`, `color` | yes | TUI display (wizard, pickers). `icon` is one character one cell wide; each built-in has its own (`claude` `◆`, `codex` `◇`, `antigravity` `◈`, `ollama` `◉`, `qwen` `▣`, `cursor` `▲`, `grok` `◢`) |
 | `enabled_by_default` | no | If false, hidden from wizard until enabled |
 | `models` | yes | At least one model |
 

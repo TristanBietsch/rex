@@ -34,6 +34,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   files follow; a symlink is followed only to a file that passes. The
   refusal is one `lua: refusing init.lua` line in the daemon log, and no
   hook runs. Fix it with `chmod go-w ~/.config/rex/init.lua`.
+- The board filter chips (and `t`, chip clicks, `:filter`) come from the
+  daemon's tool list: one chip per installed agent, so `qwen`, `cursor` and
+  `grok` are filterable too. Opt-in built-ins (`gemini`, `deepseek`, `kimi`)
+  and the `echo` test tool get no chip.
+- New agent icons, so every built-in has its own: `qwen` `▣` (was Codex's
+  `◇`), `cursor` `▲` (was `▶`, an emoji-capable arrow), `grok` `◢` (was
+  `⬢`, missing from many terminal fonts), `gemini` `□`, `echo` `◎`.
 - TUI settings page: values sit flush right in the list, with the modified
   bullet just before them. A switch's `on` is drawn in the primary text color
   and `off` in the dim one, in every theme (`on` was the accent color).
@@ -103,6 +110,133 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`wa`); a bare `w` is now ambiguous. With the `waiting_section` feature off
   the keys are `1` `2` `3` as before.
 
+- Interactive commands refuse a format that cannot show them, with exit 5
+  and the query that answers the same question: bare `rex` (any format but
+  text), `rex attach` (json, md, agent) and the `rex setup` wizard.
+- `rex doctor`, `config`, `setup` (`-preview`, `-yes`), `update`, `uninstall`,
+  `daemon` and `reload` and `version` take `-o`, `--agent` and `--no-color`.
+  Their CLI colors come from the theme (`color_scheme`), not copied hex
+  values; piped `doctor` and `setup -preview` (`txt`) have no banner or
+  glyph. `-json` keeps its legacy shape (`doctor`, `config list`).
+- `rex update` and `rex uninstall` ask on stderr (they asked on stdout) and
+  need `-yes` without a terminal or in a non-text format (exit 6); a
+  declined `uninstall` question exits 6 (it was 1). Progress lines of
+  `update` go to stderr. `setup -yes` prints its report through the same
+  formats; `rex setup` (the wizard) refuses non-text formats with exit 5.
+  Suggested commands use single-dash flags (`rex new -tool … -model … --
+  "your first task"`).
+- `rex digest`, `rex stats` and `rex fleet` take `-o`/`--agent`; `rex log`
+  and `rex render` take `-o` for text and txt (md and json exit 5). Piped
+  `digest` and `stats` output (`txt`) no longer has the banner and rule:
+  label and value lines under `# Section` headings. `-json` keeps its
+  shape; `-o json` is the same data in the versioned envelope with integer
+  millisecond durations. Digest errors name `-date`/`-since` (single dash).
+- The session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`,
+  `done`, `undone`, `archive`, `complete`, `rm`, `prune`) take `-o`,
+  `--agent` and `--no-color`: `text` prints a `✓` line, `json` the result as
+  data, `agent` one `ok cmd=… id=… slug=…` line. `txt` (a pipe) prints what
+  each command always printed. Confirmation questions and warnings go to
+  stderr.
+- A declined `rex prune` question now exits 6 (it was 1), like `rex rm`.
+  `prune` and `rm` need `-yes`/`-force` in every format but `text`, and
+  whenever stdin or stderr is not a terminal.
+- Help is rebuilt in the style of `agy`: `rex --help` and `rex <command> -h`
+  start with `Usage:`, use Title-case sections with a colon, align their
+  columns and end with one hint, with no banner or rule. They are generated
+  from one command table, print to stdout (`-h` used to print on stderr) and
+  follow `-o` (`txt` in a pipe, `md`, `json`, `agent`). A flag error prints
+  the error and a one-line `Usage:` hint instead of the whole flag list. The
+  completion scripts now list the same commands as `--help`.
+- TUI: the new-session wizard (`n`, `:new`) has a model step again. It is
+  skipped for a tool with one model, and starts on `default_spawn_model` when
+  the tool is `default_spawn_tool`. It used to pick the first model silently.
+- TUI: the wizard has an optional name step (after effort). `enter` on an
+  empty field skips it; the name is checked as you type. With no task, the
+  name also gives the session's slug.
+- TUI: the wizard has an optional skills step (after the name): a checklist
+  of `~/.config/rex/skills` that loads the chosen skills into that session
+  only. Hidden for tools that cannot load skills (Antigravity), for an empty
+  library, and when `spawn_skills` is off.
+- `rex setup` now suggests trusting the project's own folder (the git root
+  of where you ran it, or the folder itself when it is not a checkout)
+  instead of the folder above it. Still never your home folder or anything
+  outside it. The logic moved to `settings.SuggestTrustDir`, with
+  `settings.AppendTrustDir` and `settings.RemoveTrustDir` beside it.
+- **Breaking:** an unknown command now exits 5 (was 1) and, when a real
+  command is within two edits, says `did you mean "ls"?`.
+- **Breaking:** `rex reply <sel>` with no text on a terminal exits 5 instead
+  of waiting for end-of-file; `rex log -n` with a negative number exits 5
+  instead of being accepted.
+- `rex new` waits for the daemon with `-wait` (default 5s). On timeout it
+  says `daemon did not confirm the spawn within 5s; check \`rex ls\`` and
+  exits 1, instead of a raw deadline error.
+- `rex setup -y` is a real alias of `-yes` (so `-y=false` works). The no-op
+  flags `rex ls -short`, `rex ls -show-archived` and `rex new -no-attach`
+  are marked "(deprecated, no effect)" in their usage; they are still
+  accepted.
+
+- **Breaking:** a selector that is a session's exact slug and also the short
+  id (or id prefix) of a different session, such as a slug `feed` and
+  another session whose id starts with `feed`, now exits 3 and lists both.
+  It used to pick the slug silently, so `rex rm feed` could delete the wrong
+  session. Use the full id.
+
+- **Breaking:** `rex rm` without a terminal on stdin now needs `-force`
+  (aliases `-yes`, `-y`) and otherwise exits 6, like `rex prune`. It used
+  to delete without asking. Declining the prompt on a terminal also exits 6
+  (was 1).
+
+- AI descriptions are more specific and use the session state: working,
+  waiting for you (they say what is needed), finished or failed. They never
+  start with the agent's name ("Claude is…"), are sentence case, and the
+  default length is longer (`summary_detail: medium`, 110 characters).
+- TUI: an unknown `:` command now says `(try :help)`. Commands and key
+  help come from one table, so `?` can no longer drift from what `:` runs.
+- `rex ls` and `rex status` on a terminal use the new human layout (state
+  markers, color, width-aware columns). Piped output is unchanged.
+- The `skip_permissions` setting now applies only in folders under
+  `auto_trust_dirs` (also when a session is resumed). In any other folder
+  agents start without `--dangerously-skip-permissions` and the daemon log
+  says so.
+- `NewSession` for a tool or model that is not in the registry now fails
+  with `bad_intent` (it was `spawn_failed`), the same error `Resume` gives.
+- Skipping agent permission prompts is now opt-in. Claude Code and
+  Antigravity no longer start with `--dangerously-skip-permissions` unless
+  you set `skip_permissions: true` (default off; read at each spawn). The
+  flag moved from the built-in `command` to a per-tool
+  `skip_permissions_args` registry field.
+- CLI: flags are now accepted anywhere among the arguments, so
+  `rex new task -tool claude`, `rex wait p1 -until done`,
+  `rex done p1 -after 72h` and `rex attach p1 -read-only` work as
+  documented. `--` ends flag parsing. **Breaking:** free text that starts
+  with `-` (in `rex new`, `rex reply`, `rex name`) now needs `--` before
+  it, for example `rex name p1 -- -clear`; an unknown `-x` after text exits 5
+  with a hint. `-h` on any command prints its usage and exits 0 instead of
+  5.
+- TUI: a simpler board. Rows show state, name, the task (or the agent's
+  question when it is waiting on you) and age; `v` brings back the id,
+  model, tokens and AI summary. Columns are NEEDS YOU / WORKING / DONE
+  with counts, the header reads `N need you · N working · N done`, and
+  the help bar lists five keys (`enter open · i new · cc done · tab next
+  · ? more`). `tab` jumps to the next session that needs you. The tool
+  filter row only shows when sessions use more than one tool. A Done
+  column longer than 5 rows folds into its title (`3` shows it). No
+  existing key changed.
+- Lint: gosec, errorlint, exhaustive, gocritic, noctx, contextcheck,
+  nilerr, bodyclose, copyloopvar and durationcheck are enabled. gosec's
+  directory and file permission checks (G301, G302, G306) are enforced:
+  golangci's `legacy` exclusion preset, which hid G301 and G302, is no
+  longer used. Lint exclusions that matched nothing are removed.
+- CI: superseded PR runs are cancelled, every job has a timeout, and the
+  Linux job runs the full `make check` gate.
+- Coverage floors in `tools/coverage/baseline.txt` are raised to the
+  measured coverage. `cmd/rex-daemon`, `internal/daemon/boot` and the test
+  helpers now have floors.
+- `rex daemon stop`, `status` and `restart` act on whatever daemon answers
+  on the socket. A PID is shown for information only, as `pid unknown`
+  when it cannot be determined. `restart` no longer sleeps between stop and
+  start, and it does not start a second daemon if the first will not stop.
+
 ### Added
 
 - `config.lua` (Settings → Features → *Lua config*, on, and inert without the
@@ -135,6 +269,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   list` marks Lua themes `lua`, and `rex doctor` has a `config.lua` check.
   `rex setup -yes` refuses a setting `config.lua` sets.
   Guide: `docs/howto/lua-config.md`.
+- Opt-in `auto` theme: `rex config set theme auto` (or `:theme auto`, or
+  the settings page) picks `default` on a dark terminal and `paper` on a
+  light one. The TUI checks `COLORFGBG`, then asks the terminal (OSC 11), once
+  at start and only when the theme is `auto`. CLI output never asks and uses
+  `default`. `default` stays the default theme.
+- Trust workflow (no more answering "yes, I trust this folder" by hand):
+  `rex trust [dir]` adds a folder to `auto_trust_dirs` (default: the repo
+  folder of the working directory, or the folder itself outside a repo; never
+  its parent) and prints the exact folder; `rex trust -ls` lists them and
+  `rex trust -rm <dir>` removes one. `rex new -trust` trusts one session's
+  folder only. The home folder, folders that hold it and relative paths are
+  refused with exit 5 and a reason.
+- TUI: the new-session wizard shows a trust line under the task input with
+  the exact folders involved: ctrl+t trusts this session only, ctrl+a saves
+  the repo folder to `auto_trust_dirs` and trusts the session. `:trust
+  [folder]` saves the selected session's repo folder (or the working
+  directory's, or the folder you name).
+- The daemon log says `trust dialog shown; folder not trusted` once when an
+  agent's trust dialog appears in a folder that is not trusted, and `rex
+  doctor` warns about `auto_trust_dirs` entries it would ignore (home folder,
+  a folder holding it, a relative path) or that do not exist.
 - `rex doctor` has `tool:` rows for the extra agents too: `qwen`,
   `cursor-agent` and `grok` (with `-verbose`).
 - `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
@@ -448,7 +603,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `skip_permissions` applies there. Refused (`bad_intent`) for relative
   paths, `..`, a filesystem root and the home folder. The choice is saved in
   `meta.json` (`trust_folder` in summaries) and kept when the session is
-  resumed. The CLI and TUI controls follow.
+  resumed. Set it with `rex new -trust`, ctrl+t in the wizard or `:trust`.
 - Setting `board_filter` (Features, on by default): switches off the tool
   filter chips, `:filter`, `t`, the `z` chords and `board_hidden_sections`.
   Off, there is no chip row and `:filter` answers `off: enable in Settings
@@ -604,135 +759,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Wire (additive, `v` stays 1): an `Overview` event, `Snapshot.overview` and
   `wait_reason` on sessions; `Hello.client` `rex-tui` now marks a board
   viewer. Older clients ignore them.
-
-### Changed
-
-- Interactive commands refuse a format that cannot show them, with exit 5
-  and the query that answers the same question: bare `rex` (any format but
-  text), `rex attach` (json, md, agent) and the `rex setup` wizard.
-- `rex doctor`, `config`, `setup` (`-preview`, `-yes`), `update`, `uninstall`,
-  `daemon` and `reload` and `version` take `-o`, `--agent` and `--no-color`.
-  Their CLI colors come from the theme (`color_scheme`), not copied hex
-  values; piped `doctor` and `setup -preview` (`txt`) have no banner or
-  glyph. `-json` keeps its legacy shape (`doctor`, `config list`).
-- `rex update` and `rex uninstall` ask on stderr (they asked on stdout) and
-  need `-yes` without a terminal or in a non-text format (exit 6); a
-  declined `uninstall` question exits 6 (it was 1). Progress lines of
-  `update` go to stderr. `setup -yes` prints its report through the same
-  formats; `rex setup` (the wizard) refuses non-text formats with exit 5.
-  Suggested commands use single-dash flags (`rex new -tool … -model … --
-  "your first task"`).
-- `rex digest`, `rex stats` and `rex fleet` take `-o`/`--agent`; `rex log`
-  and `rex render` take `-o` for text and txt (md and json exit 5). Piped
-  `digest` and `stats` output (`txt`) no longer has the banner and rule:
-  label and value lines under `# Section` headings. `-json` keeps its
-  shape; `-o json` is the same data in the versioned envelope with integer
-  millisecond durations. Digest errors name `-date`/`-since` (single dash).
-- The session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`,
-  `done`, `undone`, `archive`, `complete`, `rm`, `prune`) take `-o`,
-  `--agent` and `--no-color`: `text` prints a `✓` line, `json` the result as
-  data, `agent` one `ok cmd=… id=… slug=…` line. `txt` (a pipe) prints what
-  each command always printed. Confirmation questions and warnings go to
-  stderr.
-- A declined `rex prune` question now exits 6 (it was 1), like `rex rm`.
-  `prune` and `rm` need `-yes`/`-force` in every format but `text`, and
-  whenever stdin or stderr is not a terminal.
-- Help is rebuilt in the style of `agy`: `rex --help` and `rex <command> -h`
-  start with `Usage:`, use Title-case sections with a colon, align their
-  columns and end with one hint, with no banner or rule. They are generated
-  from one command table, print to stdout (`-h` used to print on stderr) and
-  follow `-o` (`txt` in a pipe, `md`, `json`, `agent`). A flag error prints
-  the error and a one-line `Usage:` hint instead of the whole flag list. The
-  completion scripts now list the same commands as `--help`.
-- TUI: the new-session wizard (`n`, `:new`) has a model step again. It is
-  skipped for a tool with one model, and starts on `default_spawn_model` when
-  the tool is `default_spawn_tool`. It used to pick the first model silently.
-- TUI: the wizard has an optional name step (after effort). `enter` on an
-  empty field skips it; the name is checked as you type. With no task, the
-  name also gives the session's slug.
-- TUI: the wizard has an optional skills step (after the name): a checklist
-  of `~/.config/rex/skills` that loads the chosen skills into that session
-  only. Hidden for tools that cannot load skills (Antigravity), for an empty
-  library, and when `spawn_skills` is off.
-- `rex setup` now suggests trusting the project's own folder (the git root
-  of where you ran it, or the folder itself when it is not a checkout)
-  instead of the folder above it. Still never your home folder or anything
-  outside it. The logic moved to `settings.SuggestTrustDir`, with
-  `settings.AppendTrustDir` and `settings.RemoveTrustDir` beside it.
-- **Breaking:** an unknown command now exits 5 (was 1) and, when a real
-  command is within two edits, says `did you mean "ls"?`.
-- **Breaking:** `rex reply <sel>` with no text on a terminal exits 5 instead
-  of waiting for end-of-file; `rex log -n` with a negative number exits 5
-  instead of being accepted.
-- `rex new` waits for the daemon with `-wait` (default 5s). On timeout it
-  says `daemon did not confirm the spawn within 5s; check \`rex ls\`` and
-  exits 1, instead of a raw deadline error.
-- `rex setup -y` is a real alias of `-yes` (so `-y=false` works). The no-op
-  flags `rex ls -short`, `rex ls -show-archived` and `rex new -no-attach`
-  are marked "(deprecated, no effect)" in their usage; they are still
-  accepted.
-
-- **Breaking:** a selector that is a session's exact slug and also the short
-  id (or id prefix) of a different session, such as a slug `feed` and
-  another session whose id starts with `feed`, now exits 3 and lists both.
-  It used to pick the slug silently, so `rex rm feed` could delete the wrong
-  session. Use the full id.
-
-- **Breaking:** `rex rm` without a terminal on stdin now needs `-force`
-  (aliases `-yes`, `-y`) and otherwise exits 6, like `rex prune`. It used
-  to delete without asking. Declining the prompt on a terminal also exits 6
-  (was 1).
-
-- AI descriptions are more specific and use the session state: working,
-  waiting for you (they say what is needed), finished or failed. They never
-  start with the agent's name ("Claude is…"), are sentence case, and the
-  default length is longer (`summary_detail: medium`, 110 characters).
-- TUI: an unknown `:` command now says `(try :help)`. Commands and key
-  help come from one table, so `?` can no longer drift from what `:` runs.
-- `rex ls` and `rex status` on a terminal use the new human layout (state
-  markers, color, width-aware columns). Piped output is unchanged.
-- The `skip_permissions` setting now applies only in folders under
-  `auto_trust_dirs` (also when a session is resumed). In any other folder
-  agents start without `--dangerously-skip-permissions` and the daemon log
-  says so.
-- `NewSession` for a tool or model that is not in the registry now fails
-  with `bad_intent` (it was `spawn_failed`), the same error `Resume` gives.
-- Skipping agent permission prompts is now opt-in. Claude Code and
-  Antigravity no longer start with `--dangerously-skip-permissions` unless
-  you set `skip_permissions: true` (default off; read at each spawn). The
-  flag moved from the built-in `command` to a per-tool
-  `skip_permissions_args` registry field.
-- CLI: flags are now accepted anywhere among the arguments, so
-  `rex new task -tool claude`, `rex wait p1 -until done`,
-  `rex done p1 -after 72h` and `rex attach p1 -read-only` work as
-  documented. `--` ends flag parsing. **Breaking:** free text that starts
-  with `-` (in `rex new`, `rex reply`, `rex name`) now needs `--` before
-  it, for example `rex name p1 -- -clear`; an unknown `-x` after text exits 5
-  with a hint. `-h` on any command prints its usage and exits 0 instead of
-  5.
-- TUI: a simpler board. Rows show state, name, the task (or the agent's
-  question when it is waiting on you) and age; `v` brings back the id,
-  model, tokens and AI summary. Columns are NEEDS YOU / WORKING / DONE
-  with counts, the header reads `N need you · N working · N done`, and
-  the help bar lists five keys (`enter open · i new · cc done · tab next
-  · ? more`). `tab` jumps to the next session that needs you. The tool
-  filter row only shows when sessions use more than one tool. A Done
-  column longer than 5 rows folds into its title (`3` shows it). No
-  existing key changed.
-- Lint: gosec, errorlint, exhaustive, gocritic, noctx, contextcheck,
-  nilerr, bodyclose, copyloopvar and durationcheck are enabled. gosec's
-  directory and file permission checks (G301, G302, G306) are enforced:
-  golangci's `legacy` exclusion preset, which hid G301 and G302, is no
-  longer used. Lint exclusions that matched nothing are removed.
-- CI: superseded PR runs are cancelled, every job has a timeout, and the
-  Linux job runs the full `make check` gate.
-- Coverage floors in `tools/coverage/baseline.txt` are raised to the
-  measured coverage. `cmd/rex-daemon`, `internal/daemon/boot` and the test
-  helpers now have floors.
-- `rex daemon stop`, `status` and `restart` act on whatever daemon answers
-  on the socket. A PID is shown for information only, as `pid unknown`
-  when it cannot be determined. `restart` no longer sleeps between stop and
-  start, and it does not start a second daemon if the first will not stop.
 
 ### Fixed
 
