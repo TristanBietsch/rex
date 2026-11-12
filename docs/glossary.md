@@ -8,7 +8,7 @@ Output classifier that maps PTY bytes to a session state (`working`, `needs_inpu
 
 ## board
 
-TUI kanban view: sessions grouped into Needs input, Working, and Completed columns.
+TUI kanban view: sessions grouped into Ready, Waiting, Working and Done sections. See [tui.md](tui.md).
 
 ## daemon
 
