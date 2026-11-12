@@ -17,6 +17,10 @@ type writeUnit struct {
 	// is written. When it returns false the rest of the unit is dropped (what
 	// was written stays written).
 	guard func() bool
+	// ctx, when set, is the caller's: once it ends (the caller gave up, say
+	// after a timeout) the writer writes no further part of the unit, and
+	// skips it entirely if it never got to start.
+	ctx context.Context
 	// res, when set (buffered, size 1), gets true once every part was
 	// written, and false when the guard dropped the rest or the writer ended
 	// first.
@@ -69,13 +73,25 @@ func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWrit
 // write writes the unit's parts back to back. ok is false when the guard
 // dropped the rest of the unit or the writer ended during a gap.
 func (p *ptyWriter) write(u writeUnit) (ok bool, err error) {
+	var callerGone <-chan struct{}
+	if u.ctx != nil {
+		callerGone = u.ctx.Done() // nil channel (never ready) when there is no ctx
+	}
 	for i, part := range u.parts {
+		if u.ctx != nil && u.ctx.Err() != nil {
+			return false, nil
+		}
 		if i > 0 && u.gap > 0 {
 			select {
 			case <-p.done:
 				return false, nil
+			case <-callerGone:
+				return false, nil
 			case <-time.After(u.gap):
 			}
+		}
+		if i > 0 && u.ctx != nil && u.ctx.Err() != nil {
+			return false, nil
 		}
 		if i > 0 && u.guard != nil && !u.guard() {
 			return false, nil

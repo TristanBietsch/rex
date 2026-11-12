@@ -216,3 +216,49 @@ func TestSupervisor_OSCQueryInTheGapNeverLandsBetweenTextAndEnter(t *testing.T) 
 	cancel()
 	<-runDone
 }
+
+// A caller that gave up (its timeout passed) never has its unit written
+// later: not when it was still queued behind a stalled write, and not the
+// Enter of a unit whose gap outlived the caller.
+func TestUnitWriter_AbandonedUnitIsNeverWritten(t *testing.T) {
+	rec := &recorder{block: make(chan struct{})}
+	done := make(chan struct{})
+	defer close(done)
+	pw := newPTYWriter(rec, done, nil)
+	uw := unitWriter(pw)
+
+	// The child stalls stdin: the first write blocks.
+	require.True(t, pw.Send(context.Background(), writeUnit{parts: [][]byte{[]byte("stuck")}}))
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, err := uw(ctx, WriteUnit{Parts: [][]byte{[]byte("late"), {'\r'}}, Gap: 10 * time.Millisecond, Wait: true})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	close(rec.block) // the child reads again
+	time.Sleep(200 * time.Millisecond)
+	require.Equal(t, []string{"stuck"}, rec.got(), "the abandoned unit was skipped")
+
+	// Mid-unit: the caller's context ends during the gap, so no Enter.
+	rec2 := &recorder{}
+	pw2 := newPTYWriter(rec2, done, nil)
+	uw2 := unitWriter(pw2)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel2()
+	sent, err := uw2(ctx2, WriteUnit{Parts: [][]byte{[]byte("go on"), {'\r'}}, Gap: 300 * time.Millisecond, Wait: true})
+	require.False(t, sent)
+	require.Error(t, err)
+	time.Sleep(400 * time.Millisecond)
+	require.Equal(t, []string{"go on"}, rec2.got(), "text typed, Enter never sent")
+}
+
+// The writer ending during the gap is an error (a loop pauses as send_failed),
+// not a guard refusal.
+func TestUnitWriter_WriterEndingInTheGapIsAnError(t *testing.T) {
+	rec := &recorder{}
+	done := make(chan struct{})
+	pw := newPTYWriter(rec, done, nil)
+	uw := unitWriter(pw)
+	go func() { time.Sleep(60 * time.Millisecond); close(done) }()
+	sent, err := uw(context.Background(), WriteUnit{Parts: [][]byte{[]byte("a"), {'\r'}}, Gap: 500 * time.Millisecond, Wait: true})
+	require.False(t, sent)
+	require.ErrorIs(t, err, errInputClosed)
+}

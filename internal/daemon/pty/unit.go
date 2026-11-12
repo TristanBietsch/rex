@@ -31,7 +31,7 @@ var errInputClosed = errors.New("session input is closed")
 // unitWriter is the UnitWriter over pw.
 func unitWriter(pw *ptyWriter) UnitWriter {
 	return func(ctx context.Context, u WriteUnit) (bool, error) {
-		wu := writeUnit{parts: u.Parts, gap: u.Gap, guard: u.Guard}
+		wu := writeUnit{parts: u.Parts, gap: u.Gap, guard: u.Guard, ctx: ctx}
 		if u.Wait {
 			wu.res = make(chan bool, 1)
 		}
@@ -43,7 +43,18 @@ func unitWriter(pw *ptyWriter) UnitWriter {
 		}
 		select {
 		case ok := <-wu.res:
-			return ok, nil
+			if ok {
+				return true, nil
+			}
+			// Dropped: by the guard (nil error), or because the caller gave
+			// up or the writer ended during the gap (an error).
+			if pw.closed() {
+				return false, errInputClosed
+			}
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			return false, nil
 		case <-ctx.Done():
 			return false, ctx.Err()
 		case <-pw.done:
@@ -51,5 +62,17 @@ func unitWriter(pw *ptyWriter) UnitWriter {
 		case <-pw.dead:
 			return false, errInputClosed
 		}
+	}
+}
+
+// closed reports whether the writer has ended (its context or a failed write).
+func (p *ptyWriter) closed() bool {
+	select {
+	case <-p.done:
+		return true
+	case <-p.dead:
+		return true
+	default:
+		return false
 	}
 }
