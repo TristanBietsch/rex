@@ -54,6 +54,11 @@ type clientConn struct {
 	aborted    atomic.Bool // the socket is closed; the writer discards lines
 	abortOnce  sync.Once
 	writerDone chan struct{} // closed when writeLoop returns
+
+	// board is set once the connection said Hello as a board; meta is
+	// what it said about itself (R20 rex upgrade).
+	board atomic.Bool
+	meta  boardMeta
 }
 
 // newClientConn wraps nc and starts its writer goroutine. queueLen and

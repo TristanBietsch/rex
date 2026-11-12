@@ -208,6 +208,12 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "nope"}, want: fail, code: bad},
 		{intent: protocol.IntentStartLoop, payload: "not an object", want: fail, code: bad},
 
+		{intent: protocol.IntentRestart, payload: protocol.Restart{Mode: "cold"}, want: fail, code: bad},
+		{intent: protocol.IntentRestart, payload: protocol.Restart{Mode: protocol.RestartHot}, want: fail, code: protocol.ErrCodeRestartRefused}, // no Hot config
+		{intent: protocol.IntentRestart, payload: "not an object", want: fail, code: bad},
+		{intent: protocol.IntentBoards, payload: struct{}{}, want: protocol.EventBoards},
+		{intent: protocol.IntentSwapBoards, payload: protocol.SwapBoards{Build: "x"}, want: protocol.EventBoards},
+		{intent: protocol.IntentSwapBoards, payload: "not an object", want: fail, code: bad},
 		{intent: protocol.IntentOpenSession, payload: protocol.OpenSession{SessionID: "s1"}, want: fail, code: bad},
 		{intent: "Bogus", payload: struct{}{}, want: fail, code: bad},
 	}

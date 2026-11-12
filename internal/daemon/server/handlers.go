@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -39,6 +40,9 @@ func defaultHandlers() map[string]intentHandler {
 		protocol.IntentSetMaxConcurrent: handleSetMaxConcurrent,
 		protocol.IntentShutdown:         handleShutdown,
 		protocol.IntentReload:           handleReload,
+		protocol.IntentRestart:          handleRestart,
+		protocol.IntentSwapBoards:       handleSwapBoards,
+		protocol.IntentBoards:           handleBoards,
 		protocol.IntentUndo:             handleUndo,
 		protocol.IntentRedo:             handleRedo,
 		protocol.IntentUsageSample:      handleUsageSample,
@@ -71,8 +75,12 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		Tools: c.srv.ToolInfos(),
 	}
 	snap.WorkspaceTagging = c.srv.cfg.Workspaces != nil && c.srv.cfg.Workspaces.Enabled()
+	snap.DaemonPID = os.Getpid()
+	snap.DaemonBuild = c.srv.cfg.Build
+	snap.DaemonStartedAt = c.srv.cfg.StartedAt
 	if p.Client == protocol.ClientTUI {
 		c.joinBoard()
+		c.out.setBoardInfo(protocol.BoardInfo{PID: p.PID, Build: p.Build})
 	}
 	c.sendEvent(protocol.EventSnapshot, env.ID, snap)
 	c.subscribed.Store(true)
@@ -427,6 +435,43 @@ func handleShutdown(c *client, env protocol.Envelope) (outcome, error) {
 	slog.Info("server: shutdown requested by client")
 	c.ack(env, "")
 	c.srv.cfg.OnShutdown()
+	return outcome{replied: true}, nil
+}
+
+// handleRestart runs a hot restart. On success the process image is
+// replaced and nothing replies (the connection closes); a refusal or a
+// failure is the reply, and the daemon goes on as before.
+func handleRestart(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeIntent[protocol.Restart](env)
+	if err != nil {
+		return outcome{}, err
+	}
+	if p.Mode != protocol.RestartHot {
+		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "restart mode must be \"hot\" (a cold restart is Shutdown, then a start)")
+	}
+	slog.Info("server: hot restart requested by client")
+	if err := c.srv.HotRestart(c.ctx, c.out); err != nil {
+		slog.Warn("server: hot restart refused", "err", err)
+		return outcome{}, replyErr(protocol.ErrCodeRestartRefused, err)
+	}
+	return outcome{}, nil
+}
+
+// handleBoards lists the board connections (pid, build).
+func handleBoards(c *client, env protocol.Envelope) (outcome, error) {
+	c.sendEvent(protocol.EventBoards, env.ID, protocol.Boards{Boards: c.srv.BoardInfos()})
+	return outcome{replied: true}, nil
+}
+
+// handleSwapBoards asks every board not on the given build to swap.
+func handleSwapBoards(c *client, env protocol.Envelope) (outcome, error) {
+	p, err := decodeIntent[protocol.SwapBoards](env)
+	if err != nil {
+		return outcome{}, err
+	}
+	sent := c.srv.SwapBoards(p.Build)
+	slog.Info("server: swap requested for boards", "boards", len(sent))
+	c.sendEvent(protocol.EventBoards, env.ID, protocol.Boards{Boards: sent})
 	return outcome{replied: true}, nil
 }
 

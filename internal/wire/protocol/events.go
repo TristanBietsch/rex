@@ -184,7 +184,20 @@ type Snapshot struct {
 	// PATH and each tool's models (detected ones merged with the static list).
 	// Absent from daemons that predate it; treat every tool as installed then.
 	Tools []ToolInfo `json:"tools,omitempty"`
+	// DaemonPID, DaemonBuild and DaemonStartedAt identify the daemon image
+	// (R20): a hot restart keeps the pid and changes the start time and,
+	// after an install, the build. Absent from older daemons.
+	DaemonPID       int       `json:"daemon_pid,omitempty"`
+	DaemonBuild     string    `json:"daemon_build,omitempty"`
+	DaemonStartedAt time.Time `json:"daemon_started_at,omitzero"`
 }
+
+// EventSwap asks a board to re-exec into its installed binary (rex
+// upgrade). Payload: SwapBoards.
+const EventSwap = "Swap"
+
+// EventBoards answers IntentBoards and IntentSwapBoards. Payload: Boards.
+const EventBoards = "Boards"
 
 // ToolsChanged is sent to every connection that has sent Hello when the
 // daemon's registry changed (a reload, extra_agents, detected models): the
@@ -283,6 +296,9 @@ const (
 	ErrCodeSpawn           = "spawn_failed"
 	ErrCodeTooManySessions = "too_many_sessions"
 	ErrCodeBadState        = "bad_state"
+	// ErrCodeRestartRefused: a hot restart was refused or failed; the
+	// daemon is still running as before.
+	ErrCodeRestartRefused = "restart_refused"
 	// The daemon sends these, then closes the connection.
 	ErrCodeLineTooLong        = "line_too_long"       // a line exceeded MaxLineBytes
 	ErrCodeUnsupportedVersion = "unsupported_version" // envelope "v" is not ProtocolVersion

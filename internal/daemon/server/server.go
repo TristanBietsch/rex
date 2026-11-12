@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -37,6 +38,14 @@ func (g *concurrencyGate) TryAcquire() bool {
 	}
 	g.active++
 	return true
+}
+
+// Force takes a slot even over the cap (a session handed over by a hot
+// restart is already running).
+func (g *concurrencyGate) Force() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.active++
 }
 
 func (g *concurrencyGate) Release() {
@@ -131,6 +140,17 @@ type Config struct {
 	// protocol.ClientTUI) completed its Hello and was counted. nil: nothing.
 	// It runs on the connection's goroutine and must not block.
 	OnBoardClient func()
+	// Hot enables the Restart intent (hot restart, R20); nil refuses it.
+	Hot *HotConfig
+	// Listener, when set, is the listening socket inherited from the
+	// previous daemon image; Serve uses it instead of binding Socket.
+	Listener *net.UnixListener
+	// Adopt are the sessions handed over by the previous image; Serve
+	// supervises them once it runs.
+	Adopt []AdoptSession
+	// Build and StartedAt identify this daemon image in Snapshot.
+	Build     string
+	StartedAt time.Time
 }
 
 // AuditHook is how the server feeds the audit trail (see package audit).
@@ -293,6 +313,14 @@ type Server struct {
 	// retireWaitLogged dedups the "expired but busy" log line per session.
 	retireWaitMu     sync.Mutex
 	retireWaitLogged map[string]bool
+
+	// Hot restart (hot.go).
+	freezeMu     sync.Mutex
+	freezeFuncs  map[string]pty.FreezeFunc
+	hotMu        sync.Mutex
+	listener     *net.UnixListener
+	acceptMu     sync.Mutex
+	acceptPaused chan struct{}
 }
 
 // SetRegistry atomically swaps the registry used for future spawns.
@@ -412,10 +440,20 @@ const defaultSupervisorWait = 5 * time.Second
 // return it unlinks the socket only if the path still names the socket it
 // created.
 func (s *Server) Serve(ctx context.Context) error {
-	l, ours, err := listenSocket(ctx, s.cfg.Socket)
-	if err != nil {
+	var l *net.UnixListener
+	var ours os.FileInfo
+	var err error
+	if s.cfg.Listener != nil {
+		// Inherited from the previous image: already bound and 0600.
+		l = s.cfg.Listener
+		l.SetUnlinkOnClose(false)
+		if ours, err = os.Lstat(s.cfg.Socket); err != nil {
+			return fmt.Errorf("stat inherited socket %s: %w", s.cfg.Socket, err)
+		}
+	} else if l, ours, err = listenSocket(ctx, s.cfg.Socket); err != nil {
 		return err
 	}
+	s.listener = l
 	defer func() {
 		_ = l.Close()
 		removeOwnSocket(s.cfg.Socket, ours)
@@ -439,9 +477,21 @@ func (s *Server) Serve(ctx context.Context) error {
 		defer s.wg.Done()
 		s.runRetireReaper(serveCtx)
 	}()
+	s.startAdopted(serveCtx)
 
 	for {
 		conn, err := acceptConn(serveCtx, l)
+		if err != nil && errors.Is(err, os.ErrDeadlineExceeded) && serveCtx.Err() == nil {
+			// Accepting is paused for a hot restart: wait for a resume
+			// (the restart failed) or the end of this image.
+			if gate := s.acceptGate(); gate != nil {
+				select {
+				case <-gate:
+				case <-serveCtx.Done():
+				}
+			}
+			continue
+		}
 		if err != nil {
 			requested := ctx.Err() != nil
 			cancel()
@@ -488,7 +538,7 @@ func acceptConn(ctx context.Context, l net.Listener) (net.Conn, error) {
 			}
 			return conn, nil
 		}
-		if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+		if ctx.Err() != nil || errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrDeadlineExceeded) {
 			return nil, err
 		}
 		delay = min(max(2*delay, acceptRetryMin), acceptRetryMax)

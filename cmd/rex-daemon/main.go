@@ -17,6 +17,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
+	"github.com/tristanbietsch/rex/internal/daemon/handoff"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
@@ -80,6 +81,8 @@ func run(args []string) error {
 	loopsDir := fs.String("loops-dir", layout.LoopsDir, "loop workflow files directory (rex loop)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
+	handoffPath := fs.String("handoff", "", "take over from the previous image of this process (hot restart; internal)")
+	handoffCheck := fs.String("handoff-check", "", "check that this build can take over a handoff file, then exit (internal)")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -88,6 +91,10 @@ func run(args []string) error {
 		fmt.Println(version.Version)
 		return nil
 	}
+	if *handoffCheck != "" {
+		return runHandoffCheck(*handoffCheck)
+	}
+	startedAt := time.Now().UTC()
 	if err := requireDefaults(fs, map[string]error{
 		"socket": socketErr, "state-dir": homeErr, "tools": homeErr,
 	}); err != nil {
@@ -104,8 +111,18 @@ func run(args []string) error {
 	}
 	// One daemon per state dir, held for the process lifetime: taken before
 	// any state is read, released last (defers run in reverse).
-	lock, err := state.AcquireLock(*stateDir)
-	if err != nil {
+	// A hot restart hands the lock, the listener and the live PTYs over
+	// in this same process; otherwise take the lock as usual.
+	var hot *takeover
+	var lock *state.Lock
+	var err error
+	if *handoffPath != "" {
+		if hot, err = takeOver(*handoffPath, *stateDir, *socketPath); err != nil {
+			slog.Error("daemon: hot restart takeover failed", "err", err)
+			return fmt.Errorf("hot restart: %w", err)
+		}
+		lock = hot.lock
+	} else if lock, err = state.AcquireLock(*stateDir); err != nil {
 		return lockError(err, *socketPath)
 	}
 	defer func() {
@@ -124,7 +141,7 @@ func run(args []string) error {
 	}
 
 	store := state.NewStore()
-	prior, err := state.LoadAll(*stateDir)
+	prior, err := state.LoadAllKeep(*stateDir, hot.liveIDs())
 	if err != nil {
 		slog.Error("daemon: load prior sessions failed", "state_dir", *stateDir, "err", err)
 		return fmt.Errorf("load prior sessions: %w", err)
@@ -278,6 +295,26 @@ func run(args []string) error {
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadAll(ctx, cat, hub) },
+		Build:                 handoff.BuildID(),
+		StartedAt:             startedAt,
+		Adopt:                 hot.adoptions(store),
+	}
+	if hot != nil {
+		srvCfg.Listener = hot.listener
+	}
+	if handoff.Supported {
+		if exe, exeErr := os.Executable(); exeErr == nil {
+			flagArgs := args
+			srvCfg.Hot = &server.HotConfig{
+				Exe:       exe,
+				LockFD:    lock.FD(),
+				Argv:      func(p string) []string { return handoffArgv(flagArgs, p) },
+				Preflight: preflight,
+				Exec:      handoff.Exec,
+			}
+		} else {
+			slog.Warn("daemon: hot restart off: executable path unknown", "err", exeErr)
+		}
 	}
 	hub.WireSpawnReads(&srvCfg, *socketPath)
 	srv, err = server.New(srvCfg)

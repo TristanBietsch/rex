@@ -308,8 +308,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		}()
 	}
 
-	if err := s.cfg.Store.Transition(sess.ID, protocol.StateWorking); err != nil {
-		return err
+	// A handed-over session keeps its state: the adapter confirms it, and
+	// a working→ready flip here would replay the READY sound.
+	if s.cfg.Adopt == nil {
+		if err := s.cfg.Store.Transition(sess.ID, protocol.StateWorking); err != nil {
+			return err
+		}
 	}
 	// Persist meta for live sessions too, so a daemon crash reloads them as
 	// crashed instead of silently dropping them.

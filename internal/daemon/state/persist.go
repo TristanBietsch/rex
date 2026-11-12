@@ -165,7 +165,12 @@ func LoadMeta(root, id string) (*Session, error) {
 // LoadAll loads every session under root/sessions/. Any session whose persisted
 // state was "working", "queued", or "needs_input" gets reloaded as "crashed"
 // because the live PTY didn't survive whatever caused the daemon to stop.
-func LoadAll(root string) ([]*Session, error) {
+func LoadAll(root string) ([]*Session, error) { return LoadAllKeep(root, nil) }
+
+// LoadAllKeep is LoadAll, except that the sessions named in live keep
+// their persisted state: their PTYs were handed over by a daemon hot
+// restart and are still running.
+func LoadAllKeep(root string, live map[string]bool) ([]*Session, error) {
 	dir := filepath.Join(root, "sessions")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -189,6 +194,10 @@ func LoadAll(root string) ([]*Session, error) {
 		// directory or a corrupt file could point RemoveAll somewhere else.
 		if sess.ID != e.Name() {
 			slog.Warn("state: meta id/dir mismatch; skipped", "dir", e.Name(), "id", sess.ID)
+			continue
+		}
+		if live[sess.ID] && !isTerminal(sess.State) {
+			out = append(out, sess)
 			continue
 		}
 		switch sess.State {
