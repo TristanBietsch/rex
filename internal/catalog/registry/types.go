@@ -20,9 +20,14 @@ type Tool struct {
 	TrustPrompt *TrustPrompt `yaml:"trust_prompt,omitempty"`
 	// TrustArgs are extra argv for sessions under auto_trust_dirs that make
 	// the agent trust the folder itself, so no dialog shows. {cwd_list}
-	// expands to a JSON array of the session folder's paths. Preferred over
-	// TrustPrompt when the agent supports it.
+	// expands to a JSON array of the session folder's paths; a switch that
+	// turns the check off for the whole run (qwen) needs no placeholder.
+	// Preferred over TrustPrompt when the agent supports it.
 	TrustArgs []string `yaml:"trust_args,omitempty"`
+	// TrustArgsGlobal says trust_args need not name the folder because they
+	// switch the agent's trust check off for the whole run (qwen). Without it
+	// trust_args must contain {cwd_list}, which catches a typo'd placeholder.
+	TrustArgsGlobal bool `yaml:"trust_args_global,omitempty"`
 	// SkipPermissionsArgs are extra argv that make the agent run without
 	// asking for approval (for example --dangerously-skip-permissions). They
 	// are added only while the skip_permissions setting is on.
@@ -35,6 +40,27 @@ type Tool struct {
 	// Resume says how to resume the agent's conversation and how rex learns
 	// its id. nil: the tool cannot be resumed.
 	Resume *ResumeSpec `yaml:"resume,omitempty"`
+	// StatusEnv are NAME=value entries added to the child's environment to
+	// turn its status channel on (agy: AGY_CLI_OSC7501=on). Only with
+	// detect.status; tools that answer the OSC 7501 query need none.
+	StatusEnv []string `yaml:"status_env,omitempty"`
+	// ModelsCmd asks the tool for its models; nil: static Models only.
+	ModelsCmd *ModelsCmd `yaml:"models_cmd,omitempty"`
+	// ModelEffort is the effort spec detected models get (a detected model has
+	// no hand-written effort block). nil: detected models have no effort.
+	ModelEffort *Effort `yaml:"model_effort,omitempty"`
+	// ModelArgTemplate turns a detected model id into argv ({model} is the
+	// id), since a detected model has no hand-written args.
+	ModelArgTemplate []string `yaml:"model_arg_template,omitempty"`
+	// PromptArgs carry the task text on the command line, appended after all
+	// other args: {prompt} stays one argv element (claude: ["--", "{prompt}"]).
+	// Without PromptArgs and PromptPaste the tool gets no initial prompt.
+	PromptArgs []string `yaml:"prompt_args,omitempty"`
+	// PromptPaste pastes the task text into the PTY once the TUI settles.
+	PromptPaste *PromptPaste `yaml:"prompt_paste,omitempty"`
+	// LoginRegex matches the agent's signed-out screen: the session shows
+	// needs_input with a "not signed in" notice.
+	LoginRegex string `yaml:"login_regex,omitempty"`
 }
 
 // TrustArgsCWDList is the trust_args placeholder for the session folder.
@@ -94,6 +120,8 @@ type Model struct {
 	Args       []string `yaml:"args,omitempty"`
 	ArgsPrompt string   `yaml:"args_prompt,omitempty"` // free-form value asked at launch
 	Effort     *Effort  `yaml:"effort,omitempty"`
+	// Detected marks a model found by the tool's models_cmd (never set in YAML).
+	Detected bool `yaml:"-"`
 }
 
 // Effort is an optional reasoning-effort spec.
