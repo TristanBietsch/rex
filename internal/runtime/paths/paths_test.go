@@ -44,6 +44,7 @@ func TestAccessors_UnderHome(t *testing.T) {
 		{"SkillsDir", paths.SkillsDir, j(".config", "rex", "skills")},
 		{"LoopsDir", paths.LoopsDir, j(".config", "rex", "loops")},
 		{"LoopStateDir", paths.LoopStateDir, j(".local", "share", "rex", "loops")},
+		{"ThemesDir", paths.ThemesDir, j(".config", "rex", "themes")},
 		{"DataDir", paths.DataDir, j(".local", "share", "rex")},
 		{"SessionsDir", paths.SessionsDir, j(".local", "share", "rex", "sessions")},
 		{"SnapshotsDir", paths.SnapshotsDir, j(".local", "share", "rex", "snapshots")},
@@ -116,7 +117,7 @@ func TestAccessors_NoHome(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", "")
 	accessors := map[string]func() (string, error){
 		"Home": paths.Home, "ConfigDir": paths.ConfigDir, "ConfigFile": paths.ConfigFile,
-		"ToolsFile": paths.ToolsFile, "LuaInitFile": paths.LuaInitFile, "SkillsDir": paths.SkillsDir, "DataDir": paths.DataDir,
+		"ToolsFile": paths.ToolsFile, "LuaInitFile": paths.LuaInitFile, "SkillsDir": paths.SkillsDir, "ThemesDir": paths.ThemesDir, "DataDir": paths.DataDir,
 		"SessionsDir": paths.SessionsDir, "SnapshotsDir": paths.SnapshotsDir, "DaemonLock": paths.DaemonLock, "ExportsDir": paths.ExportsDir, "UsageLedger": paths.UsageLedger, "LogDir": paths.LogDir,
 		"DaemonLog": paths.DaemonLog, "TUIStateFile": paths.TUIStateFile, "CacheDir": paths.CacheDir,
 		"Socket": paths.Socket,

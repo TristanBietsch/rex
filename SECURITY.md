@@ -130,7 +130,10 @@ filesystem permissions.
   agents run commands and edit files without asking you, but only in a
   folder under `auto_trust_dirs` or trusted for the session. Elsewhere the flag is left off. It is off
   by default. rex adding that flag while the setting is off, or in a folder
-  that is not trusted, is in scope.
+  that is not trusted, is in scope. Changes to `skip_permissions` and
+  `auto_trust_dirs` made through rex apply to the running daemon at once; hand
+  edits of `config.yaml` apply within 5 s (or on `rex reload` with
+  `live_reload` off).
 - An attacker who already runs code as your user, or as root.
 - Vulnerabilities in third-party dependencies that rex does not reach. Use
   `make vuln` (govulncheck) to check reachability first.

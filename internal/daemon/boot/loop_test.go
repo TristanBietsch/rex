@@ -125,7 +125,6 @@ func TestLoops_HostOverTheServer(t *testing.T) {
 }
 
 func TestLoops_EnabledAndApplier(t *testing.T) {
-	require.False(t, LoopsEnabled(), "off by default")
 	l, _ := loopServerHost(t)
 	st, _, err := settings.LoadDefault()
 	require.NoError(t, err)

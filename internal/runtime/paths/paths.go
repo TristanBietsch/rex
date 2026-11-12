@@ -9,6 +9,7 @@
 //	    init.lua                   LuaInitFile: optional Lua hooks
 //	    skills/<name>/SKILL.md     SkillsDir: skill library (rex new -skill)
 //	    loops/<name>.yaml          LoopsDir: loop workflow files (loops feature)
+//	    themes/<name>.yaml         ThemesDir: user color themes
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
@@ -61,6 +62,7 @@ const (
 	luaInitFileName  = "init.lua"
 	skillsDirName    = "skills"
 	loopsDirName     = "loops"
+	themesDirName    = "themes"
 	sessionsDirName  = "sessions"
 	snapshotsDirName = "snapshots"
 	exportsDirName   = "exports"
@@ -90,6 +92,7 @@ type Layout struct {
 	SkillsDir      string // ~/.config/rex/skills
 	LoopsDir       string // ~/.config/rex/loops
 	LoopStateDir   string // ~/.local/share/rex/loops
+	ThemesDir      string // ~/.config/rex/themes
 	DataDir        string // ~/.local/share/rex
 	SessionsDir    string // ~/.local/share/rex/sessions
 	SnapshotsDir   string // ~/.local/share/rex/snapshots
@@ -121,6 +124,7 @@ func ForHome(home string) Layout {
 		SkillsDir:      filepath.Join(config, skillsDirName),
 		LoopsDir:       filepath.Join(config, loopsDirName),
 		LoopStateDir:   filepath.Join(data, loopsDirName),
+		ThemesDir:      filepath.Join(config, themesDirName),
 		DataDir:        data,
 		SessionsDir:    filepath.Join(data, sessionsDirName),
 		SnapshotsDir:   filepath.Join(data, snapshotsDirName),
@@ -218,6 +222,10 @@ func LoopStateDir() (string, error) { return field(func(l Layout) string { retur
 // LoopStateDirName is the loop state folder's name inside a state directory,
 // for a daemon started with a -state-dir other than DataDir.
 const LoopStateDirName = loopsDirName
+
+// ThemesDir returns ~/.config/rex/themes, where the user's own color themes
+// live, one <name>.yaml per theme. The caller creates it.
+func ThemesDir() (string, error) { return field(func(l Layout) string { return l.ThemesDir }) }
 
 // DataDir returns ~/.local/share/rex, the durable session data root
 // (rex-daemon -state-dir default).

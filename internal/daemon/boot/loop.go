@@ -18,16 +18,6 @@ import (
 // loopOutputBytes bounds the output a marker is matched against.
 const loopOutputBytes = 16 << 10
 
-// LoopsEnabled reads the loops feature switch from config.yaml. On a read
-// error it uses the default (off).
-func LoopsEnabled() bool {
-	st, _, err := settings.LoadDefault()
-	if err != nil {
-		slog.Warn("daemon: settings load failed for loops; using the default", "err", err)
-	}
-	return settings.FeatureOn(st, "loops")
-}
-
 // Loops wires the loop runner to the daemon: it is the runner's Host over
 // the server and session store, and the server's LoopService. While the
 // loops feature is off the runner is never enabled: no goroutine, no store

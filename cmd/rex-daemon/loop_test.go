@@ -93,10 +93,14 @@ func TestRun_LoopsEndToEnd(t *testing.T) {
 	_, statErr := os.Stat(filepath.Join(dir, "loops"))
 	require.True(t, os.IsNotExist(statErr), "no loop state while off")
 
-	// On (the daemon reads the flag at each intent).
+	// On (the daemon follows config.yaml within a few seconds).
 	require.NoError(t, os.WriteFile(cfg, []byte("summary_enabled: false\nloops: true\n"), 0o600))
-	l, err := c.StartLoop(ctx, protocol.StartLoop{Name: "echoer", CWD: dir})
-	require.NoError(t, err)
+	var l protocol.LoopSummary
+	require.Eventually(t, func() bool {
+		var serr error
+		l, serr = c.StartLoop(ctx, protocol.StartLoop{Name: "echoer", CWD: dir})
+		return serr == nil
+	}, 20*time.Second, 200*time.Millisecond, "the daemon never saw loops switch on")
 	require.Equal(t, protocol.LoopRunning, l.State)
 	require.NotEmpty(t, l.SessionID)
 	fi, err := os.Stat(filepath.Join(dir, "loops", l.ID+".json"))

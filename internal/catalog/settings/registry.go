@@ -196,6 +196,11 @@ var Registry = []Setting{
 		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
 	},
 	{
+		ID: "live_reload", Label: "Live settings reload", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "The daemon notices edits to config.yaml within a few seconds and applies the settings that can change live (see docs/settings.md). Off: no polling; rex reload and SIGHUP still reload by hand.",
+	},
+	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",

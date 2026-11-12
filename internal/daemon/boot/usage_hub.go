@@ -51,7 +51,7 @@ func NewUsage(ctx context.Context, stateDir string, store *state.Store, publish 
 // SetEnabled switches usage tracking on or off.
 func (u *Usage) SetEnabled(on bool) { u.Hub.SetEnabled(on) }
 
-// Applier is the WatchSettings applier that follows the usage setting.
+// Applier is the SettingsHub subscriber that follows the usage setting.
 func (u *Usage) Applier() func(*settings.Store) {
 	return func(s *settings.Store) { u.SetEnabled(settings.FeatureOn(s, "usage")) }
 }
