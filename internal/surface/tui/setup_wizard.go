@@ -873,6 +873,7 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 	}
 	soundEnabled := m.soundEnabled
 	autoTrust := m.autoTrustValue()
+	daemonSocket := m.daemonSocket
 	soundset := ""
 	if m.soundsetIdx < len(m.soundsetOpts) {
 		soundset = m.soundsetOpts[m.soundsetIdx]
@@ -924,6 +925,8 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 			return setupWriteMsg{err: err}
 		}
 		slog.Info("setup: config written", "path", configPath)
+		// The wizard may have granted or revoked folder trust.
+		reloadDaemonForTrust(nil, daemonSocket, "auto_trust_dirs")
 
 		if installShell && shellRC != "" {
 			slog.Info("setup: installing shell block", "rc", shellRC)
@@ -1711,6 +1714,9 @@ func ApplyDefaults(configPath, socket string, toolID, modelID, effortVal, autoTr
 		return rep, fmt.Errorf("save config: %w", err)
 	}
 	slog.Info("setup: config written", "path", configPath)
+	if autoTrust != "" {
+		reloadDaemonForTrust(nil, socket, "auto_trust_dirs")
+	}
 
 	if !noShell {
 		rcPath := detectShellRC()

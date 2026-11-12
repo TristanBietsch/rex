@@ -22,4 +22,4 @@ What the agents used: per-session tokens and cost in an append-only ledger, the 
 
 ## Wiring
 
-`internal/daemon/boot/usage.go` (`UsageTap`, setting reads) and `usage_hub.go` (`NewUsage`: store subscription, `WatchSettings` applier). The server hooks are `Config.UsageTap`, `OnUsageSample` and `UsageQuery`; `Server.SetUsage` fans the `Usage` event out like the overview.
+`internal/daemon/boot/usage.go` (`UsageTap`, setting reads) and `usage_hub.go` (`NewUsage`: store subscription, `SettingsHub` subscriber). The server hooks are `Config.UsageTap`, `OnUsageSample` and `UsageQuery`; `Server.SetUsage` fans the `Usage` event out like the overview.

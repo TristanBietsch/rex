@@ -84,7 +84,7 @@ func (o *Overview) Notify(rel overview.Relevance) {
 	}
 }
 
-// Applier is the WatchSettings applier that follows overview_enabled.
+// Applier is the SettingsHub subscriber that follows overview_enabled.
 func (o *Overview) Applier() func(*settings.Store) {
 	return func(s *settings.Store) { o.SetEnabled(OverviewEnabled(s)) }
 }

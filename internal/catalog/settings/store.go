@@ -241,6 +241,26 @@ func (s *Store) Snapshot() map[string]any {
 	return out
 }
 
+// WithDefaults returns a copy of s in which each of ids holds its registry
+// default. s is not changed and the copy carries no dirty marks. An id that
+// is not a setting is a programming error and panics.
+func (s *Store) WithDefaults(ids ...string) *Store {
+	c := NewStore()
+	for k, v := range s.values {
+		c.values[k] = v
+		c.src[k] = s.src[k]
+	}
+	for _, id := range ids {
+		def, ok := Find(id)
+		if !ok {
+			panic("settings: WithDefaults: unknown setting " + id)
+		}
+		c.values[id] = def.Default
+		c.src[id] = SourceDefault
+	}
+	return c
+}
+
 // coerce converts raw input (typically string-from-CLI or interface{}-from-YAML) into the
 // concrete Go type expected by the setting and validates it against options/range.
 func coerce(setting Setting, raw any) (any, error) {
