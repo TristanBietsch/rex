@@ -108,6 +108,9 @@ func (w *Workspaces) Configure(s *settings.Store) { w.on.Store(settings.FeatureO
 // Applier is the SettingsHub subscriber that follows the setting.
 func (w *Workspaces) Applier() func(*settings.Store) { return w.Configure }
 
+// Enabled reports whether the workspaces setting is on.
+func (w *Workspaces) Enabled() bool { return w.on.Load() }
+
 // SetEnabled switches the feature (tests; the daemon uses Configure).
 func (w *Workspaces) SetEnabled(on bool) { w.on.Store(on) }
 

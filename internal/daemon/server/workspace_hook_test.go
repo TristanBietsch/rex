@@ -22,6 +22,7 @@ type fakeWS struct {
 }
 
 func (f *fakeWS) Tag(s *state.Session) { s.WorkspaceID = f.tag }
+func (f *fakeWS) Enabled() bool        { return true }
 func (f *fakeWS) Started(s *state.Session) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -73,6 +74,37 @@ func TestSpawn_ClientCannotSetWorkspaceID(t *testing.T) {
 
 	f := &fakeWS{tag: ""}
 	require.Empty(t, spawnAdded(t, f, base()).WorkspaceID, "a tagger that finds nothing leaves it empty")
+}
+
+func snapshotOf(t *testing.T, hook WorkspaceHook) protocol.Snapshot {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "rex-wss")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	cfg := Config{Socket: filepath.Join(dir, "rex.sock"), StateDir: dir, Registry: reg, Store: state.NewStore()}
+	if hook != nil {
+		cfg.Workspaces = hook
+	}
+	srv, err := New(cfg)
+	require.NoError(t, err)
+	serveTest(t, srv)
+	conn := dialTest(t, cfg.Socket)
+	w := protocol.NewWriter(conn)
+	r := protocol.NewReader(conn)
+	require.NoError(t, w.WriteIntent(protocol.IntentHello, "h", protocol.Hello{ClientVersion: "test"}))
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(2*time.Second)))
+	env, err := r.Read()
+	require.NoError(t, err)
+	var snap protocol.Snapshot
+	require.NoError(t, json.Unmarshal(env.Data, &snap))
+	return snap
+}
+
+func TestSnapshot_WorkspaceTaggingFlag(t *testing.T) {
+	require.False(t, snapshotOf(t, nil).WorkspaceTagging)
+	require.True(t, snapshotOf(t, &fakeWS{}).WorkspaceTagging)
 }
 
 func TestSpawn_TagsBeforeAnnounceAndIndexesAfterStart(t *testing.T) {

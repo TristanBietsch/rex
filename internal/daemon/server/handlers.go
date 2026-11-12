@@ -70,6 +70,7 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		Loops: c.srv.loopSnapshot(),
 		Tools: c.srv.ToolInfos(),
 	}
+	snap.WorkspaceTagging = c.srv.cfg.Workspaces != nil && c.srv.cfg.Workspaces.Enabled()
 	if p.Client == protocol.ClientTUI {
 		c.joinBoard()
 	}

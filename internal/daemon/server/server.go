@@ -151,6 +151,8 @@ type WorkspaceHook interface {
 	// Tag discovers the workspace around sess.CWD and sets sess.WorkspaceID
 	// before the session is announced. The id never comes from a client.
 	Tag(sess *state.Session)
+	// Enabled reports whether the feature is on (Snapshot.WorkspaceTagging).
+	Enabled() bool
 	// Started records the spawned session in the workspace's index.
 	Started(sess *state.Session)
 }

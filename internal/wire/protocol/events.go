@@ -169,6 +169,11 @@ type Snapshot struct {
 	// Absent while the loops feature is off and from daemons that predate
 	// it; Loop events then update a client that has seen this.
 	Loops []LoopSummary `json:"loops,omitempty"`
+	// WorkspaceTagging is true when the daemon tags sessions with their
+	// workspace (the workspaces feature is on there): every session then
+	// carries workspace_id or none belongs to a workspace. Absent from
+	// daemons that predate it and while the feature is off.
+	WorkspaceTagging bool `json:"workspace_tagging,omitempty"`
 	// Tools is the daemon's tool registry as a client needs it for the
 	// new-session wizard and Settings: whether each binary is on the daemon's
 	// PATH and each tool's models (detected ones merged with the static list).
