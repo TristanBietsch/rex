@@ -18,6 +18,7 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 |------|----------|
 | `~/.config/rex/` | User configuration |
 | `~/.config/rex/skills/<name>/` | Skill library: one folder per skill, each with a `SKILL.md` (see [skills](howto/skills.md)) |
+| `~/.config/rex/themes/<name>.yaml` | The user's own color themes |
 | `~/.local/share/rex/` | Session state (default `-state-dir`) |
 | `~/.local/share/rex/sessions/<id>/` | Per-session `meta.json` and `transcript.log` |
 | `~/.local/share/rex/sessions/<id>/plugin/` | The skills chosen for that session, copied from the library (removed with the session) |

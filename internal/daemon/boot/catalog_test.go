@@ -32,7 +32,7 @@ func catalogHome(t *testing.T, config string) (marker, cache string) {
 	// The first run of a fresh script can take seconds on a loaded machine
 	// (the OS scans it), longer than the built-in 5 s timeout: pay it now.
 	require.NoError(t, exec.Command(stub, "--warm").Run())
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin") // only the stub plus system tools: never a real agent
 	return marker, filepath.Join(home, ".local", "state", "rex", "models-cache.json")
 }
 
@@ -136,7 +136,7 @@ func TestCatalog_ReloadRefreshes(t *testing.T) {
 	cat.Wait()
 	require.NoFileExists(t, marker, "a fresh cache entry is not re-run without force")
 
-	require.NoError(t, cat.ReloadDefault(context.Background()))
+	require.NoError(t, cat.Reload(context.Background(), loadSettings(t), true))
 	cat.Wait()
 	require.FileExists(t, marker, "rex reload forces a refresh")
 }

@@ -40,7 +40,7 @@ func wizKey(m Model, keys ...string) Model {
 func TestWizard_ModelStepSkippedForSingleModel(t *testing.T) {
 	m := wizardOn(&WizardState{Tools: wizTools(), ToolIdx: 1})
 	m = wizKey(m, "enter")
-	require.Equal(t, wizName, m.Wizard.Step, "one model, no effort: straight to the name step")
+	require.Equal(t, wizDescribe, m.Wizard.Step, "one model, no effort: straight to describe")
 
 	m = wizardOn(&WizardState{Tools: wizTools(), ToolIdx: 2})
 	m = wizKey(m, "enter")
@@ -62,9 +62,9 @@ func TestWizard_ModelStepShownForSeveralModels(t *testing.T) {
 	m = wizKey(m, "k")
 	require.Equal(t, "sonnet", m.Wizard.selectedModel().ID)
 
-	// sonnet has no effort levels: the name step follows, and back returns to the model step.
+	// sonnet has no effort levels: describe follows, and back returns to the model step.
 	m = wizKey(m, "enter")
-	require.Equal(t, wizName, m.Wizard.Step)
+	require.Equal(t, wizDescribe, m.Wizard.Step)
 	m = wizKey(m, "b")
 	require.Equal(t, wizModel, m.Wizard.Step)
 	require.Equal(t, "sonnet", m.Wizard.selectedModel().ID, "the choice is kept")
@@ -134,7 +134,7 @@ func TestWizard_RequestUsesSelectedModelAndEffort(t *testing.T) {
 func TestWizard_DescribeBIsBackOnlyWhenEmpty(t *testing.T) {
 	m := wizardOn(&WizardState{Step: wizDescribe, Tools: wizTools(), ToolIdx: 1})
 	m = wizKey(m, "b")
-	require.Equal(t, wizName, m.Wizard.Step)
+	require.Equal(t, wizProvider, m.Wizard.Step)
 	require.Empty(t, m.Wizard.TaskText)
 
 	m = wizardOn(&WizardState{Step: wizDescribe, Tools: wizTools(), ToolIdx: 1})

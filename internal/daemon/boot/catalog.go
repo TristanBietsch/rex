@@ -164,18 +164,7 @@ func (c *Catalog) Reload(ctx context.Context, st *settings.Store, force bool) er
 	return nil
 }
 
-// ReloadDefault is Reload with the settings read now from config.yaml (a
-// read error uses the defaults, like the other per-action reads), and force
-// set: a reload is also how the user asks for fresh model lists.
-func (c *Catalog) ReloadDefault(ctx context.Context) error {
-	st, _, err := settings.LoadDefault()
-	if err != nil {
-		slog.Warn("daemon: settings load failed for reload; using what loaded", "err", err)
-	}
-	return c.Reload(ctx, st, true)
-}
-
-// Applier returns a WatchSettings applier that reloads the registry when
+// Applier returns a SettingsHub subscriber that reloads the registry when
 // extra_agents or model_autodetect changes. initial is the store the daemon
 // started with.
 func (c *Catalog) Applier(ctx context.Context, initial *settings.Store) func(*settings.Store) {
@@ -193,9 +182,4 @@ func (c *Catalog) Applier(ctx context.Context, initial *settings.Store) func(*se
 			slog.Warn("daemon: registry reload after a settings change failed", "err", err)
 		}
 	}
-}
-
-// ReloadOnHUP listens for SIGHUP and reloads the registry.
-func ReloadOnHUP(ctx context.Context, c *Catalog) {
-	reloadOnSignal(ctx, func() { _ = c.ReloadDefault(ctx) })
 }

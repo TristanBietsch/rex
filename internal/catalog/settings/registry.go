@@ -201,6 +201,11 @@ var Registry = []Setting{
 		Help: "Ask each installed agent for its own model list (for example qwen --list-models, grok models, cursor-agent models; a few seconds, no network call of rex's own) and cache it in ~/.local/state/rex/models-cache.json for 24 hours. Refreshed at daemon start and by rex reload. Off: no command is run and only the built-in model lists show; the cache is not read or written.",
 	},
 	{
+		ID: "live_reload", Label: "Live settings reload", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "The daemon notices edits to config.yaml within a few seconds and applies the settings that can change live (see docs/settings.md). Off: no polling; rex reload and SIGHUP still reload by hand.",
+	},
+	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",

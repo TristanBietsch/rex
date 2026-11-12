@@ -28,7 +28,7 @@ func blockingQwen(t *testing.T) (started, release string) {
 	stub := filepath.Join(bin, "qwen")
 	require.NoError(t, os.WriteFile(stub, []byte(script), 0o755)) //nolint:gosec // a test stub must be executable
 	require.NoError(t, exec.Command(stub, "--warm").Run())
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin") // only the stub plus system tools: never a real agent
 	return started, release
 }
 

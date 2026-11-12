@@ -18,16 +18,9 @@ import (
 // takes longer is abandoned and its turn is not undoable.
 const SnapshotCaptureTimeout = 10 * time.Second
 
-// TurnSnapshotsEnabled reads the turn_snapshots feature switch from
-// config.yaml. Called per Undo/Redo. On a read error it uses the default
-// (off).
-func TurnSnapshotsEnabled() bool {
-	st, _, err := settings.LoadDefault()
-	if err != nil {
-		slog.Warn("daemon: settings load failed for turn_snapshots; using the default", "err", err)
-	}
-	return settings.FeatureOn(st, "turn_snapshots")
-}
+// TurnSnapshotsEnabled reads the turn_snapshots feature switch from st
+// (normally SettingsHub.Current). Called per Undo/Redo.
+func TurnSnapshotsEnabled(st *settings.Store) bool { return settings.FeatureOn(st, "turn_snapshots") }
 
 // Snapshots captures a session's folder at turn boundaries: on a session's
 // transition into working (turn start) and out of it (turn end). It is
@@ -84,7 +77,7 @@ func (s *Snapshots) SetEnabled(on bool) {
 	s.on.Store(on)
 }
 
-// Applier is the WatchSettings applier that follows turn_snapshots.
+// Applier is the SettingsHub subscriber that follows turn_snapshots.
 func (s *Snapshots) Applier() func(*settings.Store) {
 	return func(st *settings.Store) { s.SetEnabled(settings.FeatureOn(st, "turn_snapshots")) }
 }

@@ -8,6 +8,7 @@
 //	    tools.yaml                 ToolsFile: tool registry overlay
 //	    init.lua                   LuaInitFile: optional Lua hooks
 //	    skills/<name>/SKILL.md     SkillsDir: skill library (rex new -skill)
+//	    themes/<name>.yaml         ThemesDir: user color themes
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
@@ -59,6 +60,7 @@ const (
 	toolsFileName    = "tools.yaml"
 	luaInitFileName  = "init.lua"
 	skillsDirName    = "skills"
+	themesDirName    = "themes"
 	sessionsDirName  = "sessions"
 	snapshotsDirName = "snapshots"
 	exportsDirName   = "exports"
@@ -87,6 +89,7 @@ type Layout struct {
 	ToolsFile      string // ~/.config/rex/tools.yaml
 	LuaInitFile    string // ~/.config/rex/init.lua
 	SkillsDir      string // ~/.config/rex/skills
+	ThemesDir      string // ~/.config/rex/themes
 	DataDir        string // ~/.local/share/rex
 	SessionsDir    string // ~/.local/share/rex/sessions
 	SnapshotsDir   string // ~/.local/share/rex/snapshots
@@ -118,6 +121,7 @@ func ForHome(home string) Layout {
 		ToolsFile:       filepath.Join(config, toolsFileName),
 		LuaInitFile:     filepath.Join(config, luaInitFileName),
 		SkillsDir:       filepath.Join(config, skillsDirName),
+		ThemesDir:       filepath.Join(config, themesDirName),
 		DataDir:         data,
 		SessionsDir:     filepath.Join(data, sessionsDirName),
 		SnapshotsDir:    filepath.Join(data, snapshotsDirName),
@@ -204,6 +208,10 @@ func LuaInitFile() (string, error) { return field(func(l Layout) string { return
 // SkillsDir returns ~/.config/rex/skills, the skill library: one folder per
 // skill, each holding a SKILL.md (rex-daemon -skills-dir default).
 func SkillsDir() (string, error) { return field(func(l Layout) string { return l.SkillsDir }) }
+
+// ThemesDir returns ~/.config/rex/themes, where the user's own color themes
+// live, one <name>.yaml per theme. The caller creates it.
+func ThemesDir() (string, error) { return field(func(l Layout) string { return l.ThemesDir }) }
 
 // DataDir returns ~/.local/share/rex, the durable session data root
 // (rex-daemon -state-dir default).

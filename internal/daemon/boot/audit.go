@@ -122,7 +122,7 @@ func (a *Audit) Configure(s *settings.Store) {
 	a.ws.Store(settings.FeatureOn(s, "workspaces"))
 }
 
-// Applier is the WatchSettings applier that follows the audit settings.
+// Applier is the SettingsHub subscriber that follows the audit settings.
 func (a *Audit) Applier() func(*settings.Store) { return a.Configure }
 
 // Begin keeps the first line of a new session's prompt (and the whole prompt
