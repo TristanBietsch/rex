@@ -25,5 +25,7 @@ func (c *client) emitStoreEvent(e state.Event) {
 		c.sendEvent(protocol.EventSessionRemoved, "", protocol.SessionRemoved{
 			SessionID: e.SessionID, Reason: e.Reason,
 		})
+	case state.EventReopened:
+		// Clients get the caller's state patch instead.
 	}
 }
