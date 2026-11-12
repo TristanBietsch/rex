@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 )
 
@@ -205,4 +206,45 @@ func TestLayerStamp(t *testing.T) {
 	require.Equal(t, "s1", LayerStamp(true))
 	require.Equal(t, "", LayerStamp(false))
 	require.Equal(t, 1, n, "off: the stamp is never taken")
+}
+
+func TestStackLayers_UpperWins(t *testing.T) {
+	lower := func() LayerReport {
+		return LayerReport{Exists: true,
+			Values: map[string]any{"theme": "noir", "spinner": "moon"}, SetAt: map[string]string{"theme": "config.lua:1", "spinner": "config.lua:2"},
+			Themes: map[string]theme.Palette{"a": {Name: "a"}, "b": {Name: "b", Accent: "#111111"}}, Warnings: []string{"w1"}}
+	}
+	upper := func() LayerReport {
+		return LayerReport{Exists: true,
+			Values: map[string]any{"theme": "paper"}, SetAt: map[string]string{"theme": ".rex/config.lua:4"},
+			Themes: map[string]theme.Palette{"b": {Name: "b", Accent: "#222222"}}, Warnings: []string{"w2"},
+			ThemeIssues: []theme.Issue{{File: ".rex/config.lua:5", Msg: "x"}}}
+	}
+	rep := StackLayers(lower, upper)()
+	require.True(t, rep.Exists)
+	require.Equal(t, "paper", rep.Values["theme"])
+	require.Equal(t, ".rex/config.lua:4", rep.SetAt["theme"])
+	require.Equal(t, "moon", rep.Values["spinner"])
+	require.Equal(t, "config.lua:2", rep.SetAt["spinner"])
+	require.Equal(t, "#222222", rep.Themes["b"].Accent)
+	require.Contains(t, rep.Themes, "a")
+	require.Equal(t, []string{"w1", "w2"}, rep.Warnings)
+	require.Len(t, rep.ThemeIssues, 1)
+	require.NoError(t, rep.Err)
+	require.Equal(t, "noir", lower().Values["theme"], "inputs are not changed")
+
+	broken := func() LayerReport { return LayerReport{Exists: true, Err: errors.New("boom"), LastGood: true} }
+	rep = StackLayers(lower, broken)()
+	require.ErrorContains(t, rep.Err, "boom", "any failure fails the stack: trust settings fail closed")
+	require.True(t, rep.LastGood)
+	require.Equal(t, "noir", rep.Values["theme"])
+
+	require.Equal(t, LayerReport{}, StackLayers()())
+}
+
+func TestStackStamps(t *testing.T) {
+	a := func() string { return "a" }
+	b := func() string { return "b" }
+	require.Equal(t, "a|b", StackStamps(a, b)())
+	require.Equal(t, "a|", StackStamps(a, nil)())
 }

@@ -95,3 +95,18 @@ func TestInstall_StampFollowsTheFile(t *testing.T) {
 	t.Setenv("USERPROFILE", "")
 	require.Equal(t, "", HomeStamp())
 }
+
+func TestLayerFor_OtherScope(t *testing.T) {
+	ResetMemo()
+	t.Cleanup(ResetMemo)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.lua")
+	require.NoError(t, os.WriteFile(file, []byte("rex.set('theme', 'paper')"), 0o600))
+	opts := func() (Opts, error) { return Opts{File: file, Deny: settings.TrustSettingIDs}, nil }
+	rep := LayerFor(opts)()
+	require.Equal(t, "paper", rep.Values["theme"])
+	require.NotEmpty(t, StampFor(opts)())
+	fail := func() (Opts, error) { return Opts{}, os.ErrNotExist }
+	require.Equal(t, "", StampFor(fail)())
+	require.False(t, LayerFor(fail)().Exists)
+}

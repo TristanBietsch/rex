@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"errors"
+	"strings"
 	"sync/atomic"
 
 	"github.com/tristanbietsch/rex/internal/catalog/theme"
@@ -102,5 +104,55 @@ func (s *Store) applyLayer(rep LayerReport) {
 			s.src[id] = SourceDefault
 			delete(s.setAt, id)
 		}
+	}
+}
+
+// StackLayers returns one layer that evaluates layers in order, each on top
+// of the ones before it: a later layer's values, locations and themes win
+// (a workspace .rex/config.lua over the user's config.lua). Warnings and
+// theme issues add up. Any layer's error is the stack's error, so the trust
+// settings fail closed whichever file broke. The reports are not changed.
+func StackLayers(layers ...Layer) Layer {
+	return func() LayerReport {
+		var out LayerReport
+		var errs []error
+		for _, l := range layers {
+			r := l()
+			out.Exists = out.Exists || r.Exists
+			for id, v := range r.Values {
+				if out.Values == nil {
+					out.Values, out.SetAt = map[string]any{}, map[string]string{}
+				}
+				out.Values[id], out.SetAt[id] = v, r.SetAt[id]
+			}
+			for n, p := range r.Themes {
+				if out.Themes == nil {
+					out.Themes = map[string]theme.Palette{}
+				}
+				out.Themes[n] = p
+			}
+			out.ThemeIssues = append(out.ThemeIssues, r.ThemeIssues...)
+			out.Warnings = append(out.Warnings, r.Warnings...)
+			if r.Err != nil {
+				errs = append(errs, r.Err)
+				out.LastGood = out.LastGood || r.LastGood
+			}
+		}
+		out.Err = errors.Join(errs...)
+		return out
+	}
+}
+
+// StackStamps is the stamp of a StackLayers stack: the stamps in order.
+// A nil stamp counts as empty.
+func StackStamps(stamps ...func() string) func() string {
+	return func() string {
+		parts := make([]string, len(stamps))
+		for i, s := range stamps {
+			if s != nil {
+				parts[i] = s()
+			}
+		}
+		return strings.Join(parts, "|")
 	}
 }
