@@ -75,9 +75,8 @@ func RunWs(args []string) error {
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
-	case "-h", "--help", "help":
-		fmt.Fprintln(core.Out().Err, "usage: "+usageLine)
-		return core.ErrHelpShown
+	case "-h", "-help", "--help", "help":
+		return core.RunGroupHelp("ws", rest)
 	case "open":
 		return openWs(rest)
 	case "init", "id", "ls", "rename", "color", "trust":

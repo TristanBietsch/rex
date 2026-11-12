@@ -22,6 +22,9 @@ import (
 
 // RunConfig dispatches: rex config {list|get|set|reset|edit|lua-export}
 func RunConfig(args []string) error {
+	if len(args) > 0 && core.IsHelpArg(args[0]) {
+		return core.RunGroupHelp("config", args[1:])
+	}
 	if len(args) == 0 {
 		return core.NewExitError(core.ExitInvalidArgs, "config: subcommand required (list|get|set|reset|edit|lua-export)")
 	}

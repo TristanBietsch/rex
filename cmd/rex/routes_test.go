@@ -22,12 +22,15 @@ func TestRun_OfflineCommandRoutes(t *testing.T) {
 		{[]string{"-v"}, core.Version + "\n"},
 		{[]string{"errors", "-o", "agent"}, "ok cmd=errors count=0\n"},
 		{[]string{"config", "get", "spinner"}, "braille\n"},
-		{[]string{"update", "-check", "-o", "agent"}, "ok cmd=update version=" + core.Version + " remote=\"\"\n"},
 	} {
 		out := capturePrinter(t, "txt")
 		require.NoError(t, run(tc.args), tc.args)
 		require.Equal(t, tc.want, out.String(), tc.args)
 	}
+	// A pinned -check makes no network call.
+	out := capturePrinter(t, "txt")
+	require.NoError(t, run([]string{"update", "-check", "-version", "v2.0.0", "-o", "agent"}))
+	require.Contains(t, out.String(), "ok cmd=update version="+core.Version+" remote=v2.0.0 status=")
 }
 
 // A closed log: a failed command is recorded, and the exit code is the

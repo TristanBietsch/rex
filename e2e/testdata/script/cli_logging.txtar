@@ -1,8 +1,8 @@
 # CLI commands print only their own output and real errors. slog's default
 # handler writes INFO lines to stderr, which `rex attach` paints into the
 # raw alt-screen. `update -check` logs at INFO and returns before it
-# detects, stops or installs anything.
+# detects, stops or installs anything (-version: no network call).
 
-exec rex update -check
+exec rex update -check -version v2.0.0
 stdout 'version'
 ! stderr .

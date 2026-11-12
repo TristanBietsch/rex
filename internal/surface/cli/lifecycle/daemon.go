@@ -18,6 +18,9 @@ import (
 
 // RunDaemon dispatches: rex daemon start | stop | status | restart | logs
 func RunDaemon(args []string) error {
+	if len(args) > 0 && core.IsHelpArg(args[0]) {
+		return core.RunGroupHelp("daemon", args[1:])
+	}
 	if len(args) == 0 {
 		return core.NewExitError(core.ExitInvalidArgs, "daemon: subcommand required (start|stop|status|restart|logs)")
 	}

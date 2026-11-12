@@ -59,6 +59,13 @@ stdout '^\{"v":1,"cmd":"agent-help","data":\{"card":1,'
 # rex help <command> is rex <command> -h.
 exec rex help ls
 stdout '^Usage: rex ls \[flags\]$'
+# Command groups have help too.
+exec rex help daemon
+stdout '^Usage: rex daemon start\|stop\|restart\|status\|logs$'
+exec rex daemon -h
+stdout '^Usage: rex daemon '
+exec rex help render
+stdout '^Usage: rex render '
 exitcode 5 rex help nonsense
 stderr 'help: unknown topic "nonsense"'
 
@@ -67,8 +74,9 @@ exec rex version -o json
 stdout '^\{"v":1,"cmd":"version","data":\{"version":"v0.0.0-e2e"\}\}$'
 exec rex --agent version
 stdout '^ok cmd=version version=v0.0.0-e2e$'
-exec rex update -check -o agent
-stdout '^ok cmd=update version=v0.0.0-e2e remote='
+# -version pins the release, so -check makes no network call.
+exec rex update -check -version v2.0.0 -o agent
+stdout '^ok cmd=update version=v0.0.0-e2e remote=v2.0.0 status=update-available$'
 exec rex config get spinner --agent
 stdout '^ok cmd=config id=spinner value=braille source=default$'
 exec rex config list -o agent

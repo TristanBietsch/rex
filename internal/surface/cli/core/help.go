@@ -201,3 +201,25 @@ func formatNamesOf(s FormatSet) []string {
 	}
 	return names
 }
+
+// IsHelpArg reports whether a command group's first argument asks for
+// help: -h, -help, --help or help.
+func IsHelpArg(arg string) bool {
+	switch arg {
+	case "-h", "-help", "--help", "help":
+		return true
+	}
+	return false
+}
+
+// RunGroupHelp prints the help of a command with subcommands (daemon,
+// config, theme, ws, …) from the command table, honoring output flags in
+// args, and returns ErrHelpShown. Groups call it when IsHelpArg(args[0]).
+func RunGroupHelp(name string, args []string) error {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	out := AddOutputFlags(fs, AllFormats)
+	if _, err := out.Parse(fs, append(append([]string(nil), args...), "-h")); err != nil {
+		return err
+	}
+	return ErrHelpShown
+}

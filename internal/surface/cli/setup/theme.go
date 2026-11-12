@@ -18,6 +18,9 @@ import (
 
 // RunTheme dispatches: rex theme {list|show|new}
 func RunTheme(args []string) error {
+	if len(args) > 0 && core.IsHelpArg(args[0]) {
+		return core.RunGroupHelp("theme", args[1:])
+	}
 	if len(args) == 0 {
 		return core.Errorf(core.ExitInvalidArgs, "rex theme list", "theme: subcommand required (list|show|new)")
 	}

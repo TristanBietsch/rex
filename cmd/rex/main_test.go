@@ -266,3 +266,27 @@ func TestRun_Completion(t *testing.T) {
 	capturePrinter(t, "txt")
 	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(run([]string{"completion", "tcsh"})))
 }
+
+// Every command in the table has help: `rex help <cmd>`, `rex <cmd> -h` and
+// `rex <cmd> --help` exit 0 and print its usage line. render keeps -h for
+// its height, so it takes only --help.
+func TestRun_HelpForEveryCommand(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	for _, c := range core.Commands {
+		forms := [][]string{{"help", c.Name}, {c.Name, "--help"}}
+		if c.Name != "render" {
+			forms = append(forms, []string{c.Name, "-h"})
+		}
+		for _, args := range forms {
+			t.Run(strings.Join(args, " "), func(t *testing.T) {
+				out := capturePrinter(t, "txt")
+				err := run(args)
+				require.Equal(t, 0, exitCodeFor(err), "%v: %v", args, err)
+				require.Contains(t, out.String(), "Usage: rex "+c.Name, args)
+			})
+		}
+	}
+}

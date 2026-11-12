@@ -87,10 +87,11 @@ func run(args []string) error {
 	case "--help", "-h":
 		return core.RunHelp(args[1:])
 	case "help":
-		// `rex help <command>` is `rex <command> -h`.
+		// `rex help <command>` is `rex <command> --help` (--help, not -h:
+		// render uses -h for its height).
 		if len(args) >= 2 {
 			if _, ok := core.FindCommand(args[1]); ok {
-				return run(append([]string{args[1], "-h"}, args[2:]...))
+				return run(append([]string{args[1], "--help"}, args[2:]...))
 			}
 		}
 		return core.RunHelp(args[1:])
