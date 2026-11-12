@@ -272,8 +272,9 @@ tools:
     category: paid
     command: ["qwen"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
-    # -i keeps the session interactive; a bare positional prompt is one-shot.
-    prompt_args: ["-i", "{prompt}"]
+    # --prompt-interactive keeps the session interactive (a bare positional
+    # prompt is one-shot); the = form keeps a prompt that starts with "-" a value.
+    prompt_args: ["--prompt-interactive={prompt}"]
     detect:
       kind: heuristic
       prompt_regex: "\\? for shortcuts|Apply this change\\?|Do you trust the files in this folder\\?"

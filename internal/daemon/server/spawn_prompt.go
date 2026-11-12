@@ -29,11 +29,32 @@ func initialPromptDelivery(tool registry.Tool, cmdArgs []string, prompt string) 
 		return promptDelivery{}
 	}
 	if len(tool.PromptArgs) > 0 {
-		argv := append(append([]string{}, cmdArgs...), tool.PromptArgsFor(prompt)...)
+		argv := append(append([]string{}, cmdArgs...), tool.PromptArgsFor(guardLeadingDash(tool.PromptArgs, prompt))...)
 		return promptDelivery{argv: argv}
 	}
 	if pp := tool.PromptPaste; pp != nil {
 		return promptDelivery{plainPaste: pp.Plain, readySettle: time.Duration(pp.SettleMs) * time.Millisecond}
 	}
 	return promptDelivery{}
+}
+
+// guardLeadingDash returns prompt with one space in front when it starts with
+// "-" and the template puts {prompt} in an argv element of its own with no
+// "--" before it: otherwise the CLI would read the task as an option
+// (`--always-approve x`, `--trust`). With "--" before it, or "=" inside the
+// element (`--prompt-interactive={prompt}`), the text is already a value.
+func guardLeadingDash(promptArgs []string, prompt string) string {
+	if !strings.HasPrefix(prompt, "-") {
+		return prompt
+	}
+	for i, a := range promptArgs {
+		if a != registry.PromptArgsPlaceholder {
+			continue
+		}
+		if i > 0 && promptArgs[i-1] == "--" {
+			return prompt
+		}
+		return " " + prompt
+	}
+	return prompt
 }

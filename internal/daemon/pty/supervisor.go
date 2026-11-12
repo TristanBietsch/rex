@@ -148,6 +148,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		return fmt.Errorf("pty start: %w", err)
 	}
 	defer f.Close()
+	// Everything written to the child goes through pw, so a child that stops
+	// reading its stdin stalls only the writer goroutine (it ends with the PTY).
+	writerDone := make(chan struct{})
+	defer close(writerDone)
+	pw := newPTYWriter(f, writerDone, func(err error) {
+		slog.Debug("pty: write to child failed; writer exiting", "session", sess.ID, "err", err)
+	})
 	slog.Info("pty: started", append([]any{"session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows},
 		argvLogAttrs(sess, s.cfg.Command)...)...)
 
@@ -218,8 +225,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				case <-inputDone:
 					return
 				case b := <-s.cfg.InputCh:
-					if _, err := f.Write(b); err != nil {
-						slog.Debug("pty: input write failed; forwarder exiting", "session", sess.ID, "err", err)
+					if !pw.Send(ctx, writeUnit{parts: [][]byte{b}}) {
 						return
 					}
 				}
@@ -301,24 +307,14 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 							paste = append([]byte("\x1b[200~"), paste...)
 							paste = append(paste, []byte("\x1b[201~")...)
 						}
-						if _, err := f.Write(paste); err != nil {
-							slog.Warn("pty: initial_prompt paste failed", "session", sess.ID, "err", err)
+						// One unit: the paste, a beat for the TUI to commit it to its
+						// input state (without it Claude sometimes fires Enter against
+						// an empty box), then Enter, with no other input in between.
+						if !pw.Send(ctx, writeUnit{parts: [][]byte{paste, {'\r'}}, gap: 120 * time.Millisecond}) {
+							slog.Warn("pty: initial_prompt not sent", "session", sess.ID)
 							return
 						}
-						slog.Info("pty: initial_prompt pasted", "session", sess.ID, "bytes", len(paste), "plain", s.cfg.PlainPaste, "idle_ms", idle.Milliseconds())
-						// Give the TUI a beat to commit the pasted text to its input
-						// state before we hit Enter; without this Claude sometimes
-						// fires Enter against an empty input box.
-						select {
-						case <-ctx.Done():
-							return
-						case <-time.After(120 * time.Millisecond):
-						}
-						if _, err := f.Write([]byte{'\r'}); err != nil {
-							slog.Warn("pty: initial_prompt submit failed", "session", sess.ID, "err", err)
-						} else {
-							slog.Info("pty: initial_prompt submitted", "session", sess.ID)
-						}
+						slog.Info("pty: initial_prompt queued", "session", sess.ID, "bytes", len(paste), "plain", s.cfg.PlainPaste, "idle_ms", idle.Milliseconds())
 						return
 					}
 				}
@@ -363,11 +359,10 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					observer.Observe(chunk)
 					// An agent that asks the terminal a question gets its answer
 					// straight away (OSC 7501 support query).
+					// Queued behind nothing or dropped: never blocks this reader.
 					if responder != nil {
-						if reply := responder.TakeReply(); len(reply) > 0 {
-							if _, err := f.Write(reply); err != nil {
-								slog.Warn("pty: status reply write failed", "session", sess.ID, "err", err)
-							}
+						if reply := responder.TakeReply(); len(reply) > 0 && !pw.TrySendReply(reply) {
+							slog.Debug("pty: status reply dropped (writer busy)", "session", sess.ID)
 						}
 					}
 				}
@@ -601,8 +596,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					slog.Info("pty: trust prompt", "session", sess.ID, "action", action)
 				}
 				if keys != nil {
-					if _, err := f.Write(keys); err != nil {
-						slog.Warn("pty: trust prompt write failed", "session", sess.ID, "err", err)
+					if !pw.Send(ctx, writeUnit{parts: [][]byte{keys}}) {
+						slog.Warn("pty: trust prompt not sent", "session", sess.ID)
 					}
 				}
 			}

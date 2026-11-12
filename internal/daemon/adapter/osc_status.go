@@ -68,7 +68,39 @@ type OSCStatus struct {
 	// review is set by done and kept through idle: the finished turn is unread.
 	review  bool
 	blocked bool // the latest report was blocked or error
-	replies int  // unanswered support queries
+	reply   bool // a support query is waiting for its answer
+	// Token bucket for answers: a hostile or buggy child that floods queries
+	// gets at most oscReplyBurst at once, then oscReplyEvery apart.
+	tokens   float64
+	lastFill time.Time
+	now      func() time.Time // test seam; time.Now when nil
+}
+
+const (
+	oscReplyBurst = 3
+	oscReplyEvery = time.Second
+)
+
+func (o *OSCStatus) clock() time.Time {
+	if o.now != nil {
+		return o.now()
+	}
+	return time.Now()
+}
+
+// allowReply takes a token from the bucket.
+func (o *OSCStatus) allowReply() bool {
+	now := o.clock()
+	if o.lastFill.IsZero() {
+		o.tokens, o.lastFill = oscReplyBurst, now
+	}
+	o.tokens = min(oscReplyBurst, o.tokens+float64(now.Sub(o.lastFill))/float64(oscReplyEvery))
+	o.lastFill = now
+	if o.tokens < 1 {
+		return false
+	}
+	o.tokens--
+	return true
 }
 
 // NewOSCStatus wraps a heuristic adapter.
@@ -158,7 +190,10 @@ func introPrefixTail(data []byte) []byte {
 // ignored whole.
 func (o *OSCStatus) apply(payload string) {
 	if payload == "?" {
-		o.replies++
+		// At most one pending answer however many queries a chunk holds.
+		if !o.reply && o.allowReply() {
+			o.reply = true
+		}
 		return
 	}
 	var state protocol.State
@@ -209,17 +244,17 @@ func (o *OSCStatus) apply(payload string) {
 	}
 }
 
-// TakeReply implements OutputResponder: one states reply per support query
-// seen since the last call.
+// TakeReply implements OutputResponder: one states reply when a support query
+// was seen since the last call (several in one chunk get one answer), and no
+// more than a short burst per second overall.
 func (o *OSCStatus) TakeReply() []byte {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.replies == 0 {
+	if !o.reply {
 		return nil
 	}
-	out := []byte(strings.Repeat(osc7501Reply, o.replies))
-	o.replies = 0
-	return out
+	o.reply = false
+	return []byte(osc7501Reply)
 }
 
 // WaitReason implements WaitReasoner: review after done (kept through the

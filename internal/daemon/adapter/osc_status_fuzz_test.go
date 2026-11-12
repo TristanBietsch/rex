@@ -61,8 +61,10 @@ func FuzzOSCStatusObserve(f *testing.F) {
 		if wk, sk := whole.BlockedKind(), split.BlockedKind(); wk != sk {
 			t.Fatalf("chunking changed the kind: %q vs %q", wk, sk)
 		}
-		if wq, sq := whole.TakeReply(), split.TakeReply(); !bytes.Equal(wq, sq) {
-			t.Fatalf("chunking changed the replies: %q vs %q", wq, sq)
+		// Replies are rate limited per Observe call, so they legitimately depend
+		// on chunking; they must stay bounded.
+		if r := split.TakeReply(); len(r) > len(osc7501Reply) {
+			t.Fatalf("one take returned %d bytes", len(r))
 		}
 		whole.mu.Lock()
 		defer whole.mu.Unlock()

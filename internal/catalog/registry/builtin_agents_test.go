@@ -20,7 +20,7 @@ func TestBuiltinNewAgents(t *testing.T) {
 	qwen := get("qwen")
 	require.Equal(t, []string{"qwen"}, qwen.Command)
 	require.Equal(t, StatusOSC7501, qwen.Detect.Status)
-	require.Equal(t, []string{"-i", "{prompt}"}, qwen.PromptArgs)
+	require.Equal(t, []string{"--prompt-interactive={prompt}"}, qwen.PromptArgs)
 	require.Equal(t, []string{"--dangerously-skip-permissions"}, qwen.SkipPermissionsArgs)
 	require.Equal(t, []string{"--settings", `{"security":{"folderTrust":{"enabled":false}}}`}, qwen.TrustArgs)
 	require.Empty(t, qwen.StatusEnv, "qwen reports once rex answers its query")

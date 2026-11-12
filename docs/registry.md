@@ -62,7 +62,7 @@ Duplicate tool or model ids are rejected at load time.
 | `skip_permissions_args` | no | Extra argv added only while the `skip_permissions` setting is on (the built-in `claude` and `antigravity` use `["--dangerously-skip-permissions"]`). An overlay replaces the built-in value; no argument may be empty |
 | `skill_args` | no | Extra argv that load the skills rex stages for one session. Must contain `{plugin_dir}` (the session's plugin folder, one argument); no argument may be empty. The built-in `claude` uses `["--plugin-dir", "{plugin_dir}"]`; `antigravity` has none, so it cannot load skills per session. See [skills](howto/skills.md) |
 | `status_env` | no | `NAME=value` entries added to the child's environment to turn its status channel on (`antigravity`: `["AGY_CLI_OSC7501=on"]`). Needs `detect.status`; names must be plain identifiers. Tools that answer the OSC 7501 query (`qwen`, `grok`) need none |
-| `prompt_args` | no | How the task text reaches the agent on argv, appended after every other argument. Must hold `{prompt}` exactly once; the text stays one argument whatever it holds (spaces, quotes, a leading `-`). See [Initial prompt delivery](#initial-prompt-delivery) |
+| `prompt_args` | no | How the task text reaches the agent on argv, appended after every other argument. Must hold `{prompt}` exactly once; the text stays one argument whatever it holds (spaces, quotes). When `{prompt}` is an element of its own with no `--` before it, a task that starts with `-` gets one space in front so it can never read as an option; after `--`, or inside an element such as `--prompt-interactive={prompt}`, it is passed as is. See [Initial prompt delivery](#initial-prompt-delivery) |
 | `prompt_paste` | no | `{plain: bool, settle_ms: N}`: paste the task into the PTY once output has been quiet for `settle_ms` (0-10000), for REPLs where argv would run one-shot (`ollama`). Exclusive with `prompt_args` |
 | `login_regex` | no | Regex on the screen text that shows the agent is signed out. While it is the latest thing shown (no `prompt_regex` match after it) the session is `needs_input` and its last line reads `<id>: not signed in — run `<command> login``. Must compile |
 | `models_cmd` | no | How rex asks the agent for its own model list. See [models_cmd](#models_cmd) |
@@ -123,8 +123,8 @@ The wizard / quick-spawn task reaches the agent through the tool's `prompt_args`
 |------|----------|
 | `claude`, `codex` | `prompt_args: ["--", "{prompt}"]` |
 | `antigravity`, `gemini` | `prompt_args: ["--prompt-interactive={prompt}"]` (a bare positional or `-p` is one-shot) |
-| `qwen` | `prompt_args: ["-i", "{prompt}"]` |
-| `grok`, `cursor` | `prompt_args: ["{prompt}"]` (a positional prompt starts an interactive session; a task that starts with `-` can be read as a flag, so start it with a word) |
+| `qwen` | `prompt_args: ["--prompt-interactive={prompt}"]` (the `=` form, like agy) |
+| `grok`, `cursor` | `prompt_args: ["{prompt}"]` (a positional prompt starts an interactive session). The daemon puts one space in front of a task that starts with `-`, so it never parses as an option |
 | `ollama` | `prompt_paste: {plain: true, settle_ms: 800}` (`ollama run MODEL PROMPT` answers once and exits) |
 
 ### models_cmd

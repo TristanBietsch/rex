@@ -2,7 +2,9 @@ package adapter
 
 import (
 	"encoding/base64"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -35,10 +37,32 @@ func TestOSCStatus_QuerySplitAnsweredOnce(t *testing.T) {
 	}
 }
 
-func TestOSCStatus_QueryPerQuery(t *testing.T) {
+// Several queries in one chunk get one answer, and a flood gets a burst of at
+// most three before the bucket (about one a second) runs dry.
+func TestOSCStatus_ReplyIsBounded(t *testing.T) {
 	o := newAgyOSC(t)
-	o.Observe([]byte("\x1b]7501;?\x07\x1b]7501;?\x07"))
-	require.Equal(t, statesReply+statesReply, string(o.TakeReply()))
+	now := time.Unix(1000, 0)
+	o.now = func() time.Time { return now }
+
+	o.Observe([]byte(strings.Repeat("\x1b]7501;?\x07", 400)))
+	require.Equal(t, statesReply, string(o.TakeReply()), "400 queries in one chunk: one answer")
+	require.Nil(t, o.TakeReply())
+
+	replies := 1
+	for range 400 {
+		o.Observe([]byte("\x1b]7501;?\x07"))
+		if r := o.TakeReply(); r != nil {
+			require.Equal(t, statesReply, string(r))
+			replies++
+		}
+	}
+	require.Equal(t, 3, replies, "burst of 3, then nothing while the clock stands still")
+
+	now = now.Add(1100 * time.Millisecond)
+	o.Observe([]byte("\x1b]7501;?\x07"))
+	require.Equal(t, statesReply, string(o.TakeReply()), "a token came back after a second")
+	o.Observe([]byte("\x1b]7501;?\x07"))
+	require.Nil(t, o.TakeReply())
 }
 
 // The reply we send must not be mistaken for a query when it is echoed back.
