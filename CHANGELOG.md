@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (waiting icon)
+
+- `waiting_spinner` (Settings → Appearance, "Waiting icon") picks the
+  Waiting marker, like Spinner type does for working: `clock` (default,
+  `◴ ◷ ◶ ◵`, unchanged), `hourglass` (`⧖ ⧑ ⧖ ⧒`, an hourglass turning
+  over), `sand` (`⣀`…`⣿`, piling up), `orbit` (`◜ ◝ ◞ ◟`), `pendulum`
+  (`⠂ ⡀ ⢀ ⠐`) and `pulse` (`∘ ◦ ⊚ ◦`). One step a second, still under
+  `reduce_motion`. Rows, the attach chip, the header counts and the help
+  legend follow it. It can be set from `config.lua` and from a trusted
+  workspace's `.rex/config.lua` (display only).
+
 ### Added (workspace settings)
 
 - A workspace can carry `.rex/config.lua` (needs `workspaces` and

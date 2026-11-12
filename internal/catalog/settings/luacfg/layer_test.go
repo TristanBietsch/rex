@@ -110,3 +110,12 @@ func TestLayerFor_OtherScope(t *testing.T) {
 	require.Equal(t, "", StampFor(fail)())
 	require.False(t, LayerFor(fail)().Exists)
 }
+
+func TestLayer_WaitingSpinner(t *testing.T) {
+	homeWithConfig(t, "rex.set('waiting_spinner', 'hourglass')", "")
+	s, _, _, err := settings.LoadDefaultReport()
+	require.NoError(t, err)
+	require.Equal(t, "hourglass", s.Get("waiting_spinner"))
+	require.Equal(t, "config.lua:1", s.SetAt("waiting_spinner"))
+	require.False(t, settings.WorkspaceDenied("waiting_spinner"), "display only: a workspace may set it")
+}

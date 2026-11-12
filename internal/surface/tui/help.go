@@ -106,7 +106,7 @@ func helpLegend(m Model) helpGroup {
 		{Key: mark(protocol.StateWorking, frames[m.SpinnerTick%len(frames)]), Desc: "working"},
 	}
 	if m.featureOn("waiting_section") {
-		rows = append(rows, helpRow{Key: mark(protocol.StateWorking, waitingGlyph), Desc: "waiting on a tool, not on you"})
+		rows = append(rows, helpRow{Key: mark(protocol.StateWorking, waitingStillFor(m)), Desc: "waiting on a tool, not on you"})
 	}
 	rows = append(rows,
 		helpRow{Key: mark(protocol.StateQueued, stateGlyph(protocol.StateQueued)), Desc: "queued, agent not started"},

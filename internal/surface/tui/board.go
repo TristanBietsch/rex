@@ -768,8 +768,8 @@ func blinkEnabled(m Model) bool {
 
 // waitingGlyph marks a session in Waiting: it is working, but blocked on a
 // shell command, subagent or web call (it does not need you). While it
-// waits the row marker turns through waitingFrames; this is the still form
-// (reduce_motion, snapshots, headers, legends).
+// waits the row marker turns through its waiting_spinner set; this is the
+// still form of the default set, clock (waitingSets).
 const waitingGlyph = "◷"
 
 // queuedGlyph marks a session that is spawned but whose agent hasn't

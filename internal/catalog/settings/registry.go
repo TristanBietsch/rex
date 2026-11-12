@@ -37,6 +37,12 @@ var Registry = []Setting{
 		Help:    "Change the spinner type for loading animations.",
 	},
 	{
+		ID: "waiting_spinner", Label: "Waiting icon", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeEnum, Default: "clock",
+		Options: []string{"clock", "hourglass", "sand", "orbit", "pendulum", "pulse"},
+		Help:    "Change the marker of a session waiting on a tool (Waiting section): a clock hand, an hourglass turning over, sand piling up, an orbit, a pendulum or a slow pulse. It steps once a second; reduce_motion holds it still.",
+	},
+	{
 		ID: "row_density", Label: "Row density", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "normal",
 		Options: []string{"compact", "normal", "roomy"},
