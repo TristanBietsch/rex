@@ -244,7 +244,9 @@ func TestUndo_SharedFolderOffersForce(t *testing.T) {
 }
 
 func TestUndo_ForceIsOnlyForTheSharedFolderCase(t *testing.T) {
-	fu := &fakeUndoer{reply: func(string, any) (protocol.UndoResult, error) { return protocol.UndoResult{}, badState("session is working: wait") }}
+	fu := &fakeUndoer{reply: func(string, any) (protocol.UndoResult, error) {
+		return protocol.UndoResult{}, badState("session is working: wait")
+	}}
 	m := undoBoardModel(t, fu)
 	m, cmd := undoOpen(t, m, "undo")
 	m = deliver(t, m, cmd)
