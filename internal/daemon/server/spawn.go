@@ -261,11 +261,25 @@ func childEnvFor(spec spawnSpec) []string {
 		// C:/... paths without backslash escapes. Go opens either form.
 		env = append(env, adapter.HookFileEnv+"="+filepath.ToSlash(spec.HookFile))
 	}
-	if spec.Tool.Detect.Status == registry.StatusOSC7501 {
-		// Appended after os.Environ, so it wins over a user's "off".
-		env = append(env, adapter.OSC7501Env+"=on")
+	// Appended after os.Environ, so status_env wins over a user's "off".
+	if spec.Tool.Detect.Status != "" {
+		env = append(env, spec.Tool.StatusEnv...)
 	}
 	return append(env, "REX_SESSION_ID="+spec.SessionID)
+}
+
+// statusDropEnv are the variables removed from the child's environment for a
+// tool on the OSC 7501 channel: inside tmux (or a known terminal program) some
+// agents never ask for the channel. The agent runs in rex's PTY, not tmux, so
+// removing them is also the true environment.
+var statusDropEnv = []string{"TMUX", "TMUX_PANE", "TERM_PROGRAM", "TERM_PROGRAM_VERSION"}
+
+// childEnvDropFor returns the inherited variables to remove from the child.
+func childEnvDropFor(spec spawnSpec) []string {
+	if spec.Tool.Detect.Status == registry.StatusOSC7501 {
+		return slices.Clone(statusDropEnv)
+	}
+	return nil
 }
 
 // startSupervisor builds the adapter and PTY supervisor for sess and runs it
@@ -301,6 +315,7 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		Command:        argv,
 		CWD:            spec.CWD,
 		Env:            env,
+		DropEnv:        childEnvDropFor(spec),
 		InitialCols:    spec.Cols,
 		InitialRows:    spec.Rows,
 		Adapter:        ad,

@@ -23,6 +23,8 @@ func FuzzOSCStatusObserve(f *testing.F) {
 	for _, s := range []string{
 		"\x1b]7501;state=working:app=antigravity\x07",
 		"\x1b]7501;state=idle\x1b\\",
+		"\x1b]7501;?\x07\x1b]7501;?\x1b\\x\x1b]7501;state=done:kind=auth\x07",
+		"\x1b]7501;state=blocked:kind=permission:app=qwen\x1b\\\x1b]7501;state=clear\x07",
 		"x\x1b]7501;state=blocked:kind=auth:msg=" + msg + "\x07tail",
 		"\x1b]7501;state=idle:msg=!!notbase64!!\x07",
 		"\x1b]7501;state=idle\x1b[0m rest",
@@ -53,6 +55,15 @@ func FuzzOSCStatusObserve(f *testing.F) {
 			}
 		}
 
+		if wr, sr := whole.WaitReason(), split.WaitReason(); wr != sr {
+			t.Fatalf("chunking changed the wait reason: %q vs %q", wr, sr)
+		}
+		if wk, sk := whole.BlockedKind(), split.BlockedKind(); wk != sk {
+			t.Fatalf("chunking changed the kind: %q vs %q", wk, sk)
+		}
+		if wq, sq := whole.TakeReply(), split.TakeReply(); !bytes.Equal(wq, sq) {
+			t.Fatalf("chunking changed the replies: %q vs %q", wq, sq)
+		}
 		whole.mu.Lock()
 		defer whole.mu.Unlock()
 		split.mu.Lock()

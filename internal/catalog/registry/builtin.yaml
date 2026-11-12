@@ -148,12 +148,15 @@ tools:
       prompt_regex: "\\? for shortcuts"
       busy_regex: "esc to cancel"
       idle_ms: 1200
-      # status: osc7501 makes the daemon set AGY_CLI_OSC7501=on, so agy also
+      # status: osc7501 makes the daemon answer agy's status query and set status_env, so agy also
       # reports working / idle / blocked / error on a terminal status
       # sequence. Once one arrives it decides the state at once (a trust
       # dialog or question is blocked, not working); the footer above is the
       # fallback before the first sequence.
       status: osc7501
+    # agy reports only with this env var; tools that answer the OSC 7501
+    # query on the PTY (qwen, grok) need none.
+    status_env: ["AGY_CLI_OSC7501=on"]
     # Folders in auto_trust_dirs: agy trusts them itself for this session
     # (--settings is session-only and never saved), so no dialog shows.
     trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]

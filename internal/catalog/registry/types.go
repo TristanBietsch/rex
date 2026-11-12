@@ -35,6 +35,10 @@ type Tool struct {
 	// Resume says how to resume the agent's conversation and how rex learns
 	// its id. nil: the tool cannot be resumed.
 	Resume *ResumeSpec `yaml:"resume,omitempty"`
+	// StatusEnv are NAME=value entries added to the child's environment to
+	// turn its status channel on (agy: AGY_CLI_OSC7501=on). Only with
+	// detect.status; tools that answer the OSC 7501 query need none.
+	StatusEnv []string `yaml:"status_env,omitempty"`
 }
 
 // TrustArgsCWDList is the trust_args placeholder for the session folder.

@@ -18,9 +18,18 @@ type OutputObserver interface {
 	Observe(chunk []byte)
 }
 
-// OSC7501Env is the env var that makes Antigravity report its state on OSC
-// 7501. The daemon sets it to "on" on the child.
-const OSC7501Env = "AGY_CLI_OSC7501"
+// OutputResponder is implemented by observers that answer a question the
+// agent asked the terminal. The supervisor writes TakeReply's bytes to the
+// child PTY after every Observe.
+type OutputResponder interface {
+	// TakeReply returns the bytes to write to the child (nil when none) and
+	// forgets them, so each query is answered once.
+	TakeReply() []byte
+}
+
+// osc7501Reply answers the agent's `ESC ] 7501 ; ?` support query: the states
+// rex understands. It ends with ST.
+const osc7501Reply = "\x1b]7501;?:states=idle,working,done,blocked,error\x1b\\"
 
 const (
 	// oscIntro starts an Antigravity terminal status sequence.
@@ -34,15 +43,19 @@ const (
 	maxOSCMessageRunes = 120
 )
 
-// OSCStatus reads the state Antigravity reports on OSC 7501 and falls back to
-// the footer heuristic until the first sequence arrives.
+// OSCStatus reads the state an agent reports on OSC 7501 (Antigravity, Qwen
+// Code, Grok Build) and falls back to the footer heuristic until the first
+// sequence arrives. It also answers the agent's support query (`ESC ] 7501 ;
+// ?`), which is what makes agents that ask report without any env var.
 //
 // A sequence is ESC ] 7501 ; key=value : key=value ... terminated by BEL or
-// ST. The keys used are state (working, idle, blocked, error) and msg
-// (standard base64 of untrusted text). Unknown states and keys are ignored.
-// working means working; idle (the turn ended), blocked (a question, a
-// permission or the trust dialog) and error all mean the agent waits on the
-// user. Process exit, not these, decides done and failed.
+// ST. The keys used are state (working, idle, done, blocked, error, clear),
+// kind (permission, question, auth) and msg (standard base64 of untrusted
+// text). Unknown states, kinds and keys are ignored. working means working;
+// idle (the turn ended), done, blocked (a question, a permission or the trust
+// dialog) and error all mean the agent waits on the user: done is "ready for
+// review" (WaitReview), blocked and error are WaitInput. clear changes
+// nothing. Process exit, not these, decides done and failed.
 type OSCStatus struct {
 	inner *HeuristicCLI
 
@@ -51,6 +64,11 @@ type OSCStatus struct {
 	seen  bool   // a valid state sequence arrived
 	state protocol.State
 	msg   string // sanitized message of the latest sequence, "" if none
+	kind  string // kind of the latest blocked sequence, "" if none
+	// review is set by done and kept through idle: the finished turn is unread.
+	review  bool
+	blocked bool // the latest report was blocked or error
+	replies int  // unanswered support queries
 }
 
 // NewOSCStatus wraps a heuristic adapter.
@@ -139,8 +157,12 @@ func introPrefixTail(data []byte) []byte {
 // apply handles one complete payload. A payload without a known state is
 // ignored whole.
 func (o *OSCStatus) apply(payload string) {
+	if payload == "?" {
+		o.replies++
+		return
+	}
 	var state protocol.State
-	var msg string
+	var msg, kind, name string
 	known := false
 	for _, f := range strings.Split(payload, ":") {
 		k, v, ok := strings.Cut(f, "=")
@@ -152,8 +174,16 @@ func (o *OSCStatus) apply(payload string) {
 			switch v {
 			case "working":
 				state, known = protocol.StateWorking, true
-			case "idle", "blocked", "error":
+			case "idle", "done", "blocked", "error":
 				state, known = protocol.StateNeedsInput, true
+			}
+			if known {
+				name = v
+			}
+		case "kind":
+			switch v {
+			case "permission", "question", "auth":
+				kind = v
 			}
 		case "msg":
 			if raw, err := base64.StdEncoding.DecodeString(v); err == nil {
@@ -165,6 +195,56 @@ func (o *OSCStatus) apply(payload string) {
 		return
 	}
 	o.seen, o.state, o.msg = true, state, msg
+	switch name {
+	case "done":
+		o.review = true
+	case "idle": // keeps review: the turn that ended is still unread
+	default:
+		o.review = false
+	}
+	o.blocked = name == "blocked" || name == "error"
+	o.kind = ""
+	if name == "blocked" {
+		o.kind = kind
+	}
+}
+
+// TakeReply implements OutputResponder: one states reply per support query
+// seen since the last call.
+func (o *OSCStatus) TakeReply() []byte {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.replies == 0 {
+		return nil
+	}
+	out := []byte(strings.Repeat(osc7501Reply, o.replies))
+	o.replies = 0
+	return out
+}
+
+// WaitReason implements WaitReasoner: review after done (kept through the
+// idle that follows), input after blocked or error, "" otherwise.
+func (o *OSCStatus) WaitReason() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.seen || o.state != protocol.StateNeedsInput {
+		return ""
+	}
+	if o.review {
+		return protocol.WaitReview
+	}
+	if o.blocked {
+		return protocol.WaitInput
+	}
+	return ""
+}
+
+// BlockedKind is the kind (permission, question or auth) of the latest
+// blocked report, "" when it had none or the agent is not blocked.
+func (o *OSCStatus) BlockedKind() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.kind
 }
 
 // Message is the sanitized text of the latest status sequence's msg key, ""

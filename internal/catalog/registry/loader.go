@@ -157,6 +157,9 @@ func mergeOne(base, over Tool) Tool {
 	if over.Resume != nil {
 		merged.Resume = over.Resume
 	}
+	if len(over.StatusEnv) > 0 {
+		merged.StatusEnv = over.StatusEnv
+	}
 	// Models: extend by id rather than replace.
 	if len(over.Models) > 0 {
 		mi := make(map[string]int, len(merged.Models))
@@ -234,6 +237,9 @@ func validateTool(t Tool) error {
 	default:
 		return fmt.Errorf("tool %q: unknown detect.status %q", t.ID, t.Detect.Status)
 	}
+	if err := validateStatusEnv(t); err != nil {
+		return err
+	}
 	if len(t.TrustArgs) > 0 && !slices.ContainsFunc(t.TrustArgs, func(a string) bool {
 		return strings.Contains(a, TrustArgsCWDList)
 	}) {
@@ -263,6 +269,26 @@ func validateTool(t Tool) error {
 			if _, err := regexp.Compile(re); err != nil {
 				return fmt.Errorf("tool %q: trust_prompt regex compile failed: %w", t.ID, err)
 			}
+		}
+	}
+	return nil
+}
+
+var statusEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// validateStatusEnv checks status_env: only with detect.status, each entry
+// NAME=value with a plain variable name.
+func validateStatusEnv(t Tool) error {
+	if len(t.StatusEnv) == 0 {
+		return nil
+	}
+	if t.Detect.Status == "" {
+		return fmt.Errorf("tool %q: status_env needs detect.status", t.ID)
+	}
+	for _, e := range t.StatusEnv {
+		name, _, ok := strings.Cut(e, "=")
+		if !ok || !statusEnvName.MatchString(name) {
+			return fmt.Errorf("tool %q: status_env entry %q must be NAME=value", t.ID, e)
 		}
 	}
 	return nil

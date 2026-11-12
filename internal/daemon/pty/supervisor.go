@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +41,7 @@ type SupervisorConfig struct {
 	Command        []string        // argv to spawn (command + args resolved from registry+model)
 	CWD            string          // working directory for the child
 	Env            []string        // extra KEY=VALUE entries added to the child's environment
+	DropEnv        []string        // inherited variable names removed from the child's environment
 	Adapter        adapter.Adapter // nil = no state classification (tests/echo tool)
 	OutputSink     func(b []byte)  // called with every chunk read from PTY; non-blocking
 	SummaryRequest chan<- string   // optional: session IDs needing AI summary; nil disables
@@ -127,8 +130,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if s.cfg.CWD != "" {
 		cmd.Dir = s.cfg.CWD
 	}
-	if len(s.cfg.Env) > 0 {
-		cmd.Env = append(os.Environ(), s.cfg.Env...)
+	if len(s.cfg.Env) > 0 || len(s.cfg.DropEnv) > 0 {
+		cmd.Env = append(envWithout(os.Environ(), s.cfg.DropEnv), s.cfg.Env...)
 	}
 	cols := s.cfg.InitialCols
 	rows := s.cfg.InitialRows
@@ -332,6 +335,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 
 	// observer is asserted once; nil unless the adapter reads the raw stream.
 	observer, _ := s.cfg.Adapter.(adapter.OutputObserver)
+	responder, _ := s.cfg.Adapter.(adapter.OutputResponder)
 
 	// Reader goroutine. It sends exactly one value on errc and returns: nil
 	// when the child hung up the PTY, otherwise the read or transcript
@@ -357,6 +361,15 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				outMu.Unlock()
 				if observer != nil {
 					observer.Observe(chunk)
+					// An agent that asks the terminal a question gets its answer
+					// straight away (OSC 7501 support query).
+					if responder != nil {
+						if reply := responder.TakeReply(); len(reply) > 0 {
+							if _, err := f.Write(reply); err != nil {
+								slog.Warn("pty: status reply write failed", "session", sess.ID, "err", err)
+							}
+						}
+					}
 				}
 
 				// Increment token counter and emit a patch every +500 tokens.
@@ -753,4 +766,27 @@ func (s *Supervisor) refreshScreenText(id string, screen vt10x.Terminal) {
 	if err := s.cfg.Store.UpdateLastLine(id, last); err != nil {
 		slog.Warn("pty: update last_line failed", "session", id, "err", err)
 	}
+}
+
+// envWithout returns env minus the variables named in drop.
+func envWithout(env, drop []string) []string {
+	if len(drop) == 0 {
+		return env
+	}
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if !slices.ContainsFunc(drop, func(d string) bool { return sameEnvName(d, name) }) {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+// sameEnvName compares variable names; Windows ignores case.
+func sameEnvName(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
