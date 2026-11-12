@@ -133,6 +133,11 @@ func (c *client) subscribeBoard() {
 				c.sendEvent(protocol.EventUsage, "", u)
 			}
 		}),
+		c.srv.SubscribeLoops(func(l protocol.LoopSummary) {
+			if c.subscribed.Load() {
+				c.sendEvent(protocol.EventLoop, "", l)
+			}
+		}),
 	)
 }
 

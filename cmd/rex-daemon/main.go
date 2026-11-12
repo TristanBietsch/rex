@@ -73,6 +73,7 @@ func run(args []string) error {
 	stateDir := fs.String("state-dir", layout.DataDir, "state directory")
 	toolsPath := fs.String("tools", layout.ToolsFile, "path to tools.yaml override (optional)")
 	skillsDir := fs.String("skills-dir", layout.SkillsDir, "skill library directory (rex new -skill)")
+	loopsDir := fs.String("loops-dir", layout.LoopsDir, "loop workflow files directory (rex loop)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
 
@@ -211,7 +212,11 @@ func run(args []string) error {
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
 	defer usageHub.Close()
 	// One settings watcher: every feature adds its applier to this list.
-	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier()}
+	// Loop workflows: never enabled (no goroutine, subscription or file
+	// read) while the loops setting is off.
+	loops := boot.NewLoops(*stateDir, *loopsDir, store, boot.LoopsEnabled)
+	defer loops.Close()
+	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier(), loops.Applier()}
 
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
@@ -234,6 +239,7 @@ func run(args []string) error {
 		UsageTap:              boot.UsageTap(*socketPath),
 		OnUsageSample:         usageHub.Hub.Sample,
 		UsageQuery:            usageHub.Hub.Query,
+		Loops:                 loops,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
@@ -244,6 +250,8 @@ func run(args []string) error {
 
 	// Started only now: switching usage on publishes its state through srv.
 	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
+	loops.SetServer(srv)
+	loops.SetEnabled(settings.FeatureOn(settingsStore, "loops"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
 	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)

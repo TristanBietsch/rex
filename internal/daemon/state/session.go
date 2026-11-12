@@ -81,6 +81,11 @@ type Session struct {
 	// (NewSession.Skills). Resume loads them again.
 	Skills []string
 
+	// LoopID and LoopIter name the loop that owns the session and its turn
+	// in progress ("" and 0 for an ordinary session).
+	LoopID   string
+	LoopIter int
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
 	// reaping is set once the retire sweep has claimed the session for
@@ -132,6 +137,8 @@ func (s *Session) Summary() protocol.SessionSummary {
 		ResumeID:      s.ResumeID,
 		TrustFolder:   s.TrustFolder,
 		Skills:        slices.Clone(s.Skills),
+		LoopID:        s.LoopID,
+		LoopIter:      s.LoopIter,
 	}
 }
 

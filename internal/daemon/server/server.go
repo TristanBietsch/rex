@@ -106,6 +106,9 @@ type Config struct {
 	// with its message ("usage is off", a bad range). nil: the intent is
 	// rejected as not implemented.
 	UsageQuery func(protocol.UsageQuery) (protocol.UsageReport, error)
+	// Loops serves the loop intents (the loops feature). nil: they are
+	// rejected as not implemented. See LoopService.
+	Loops LoopService
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
@@ -202,6 +205,11 @@ type Server struct {
 	usageMu   sync.RWMutex
 	usage     *protocol.Usage
 	usageSubs []func(protocol.Usage)
+
+	// loopSubs is the fan-out for Loop events (loops are kept by the
+	// service, not here). loopMu guards it.
+	loopMu   sync.RWMutex
+	loopSubs []func(protocol.LoopSummary)
 
 	// boardClients counts the connections that completed Hello as a board
 	// viewer (the rex TUI) and are still open.

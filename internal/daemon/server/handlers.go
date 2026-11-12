@@ -42,6 +42,10 @@ func defaultHandlers() map[string]intentHandler {
 		protocol.IntentRedo:             handleRedo,
 		protocol.IntentUsageSample:      handleUsageSample,
 		protocol.IntentUsageQuery:       handleUsageQuery,
+		protocol.IntentStartLoop:        handleStartLoop,
+		protocol.IntentPauseLoop:        handlePauseLoop,
+		protocol.IntentResumeLoop:       handleResumeLoop,
+		protocol.IntentStopLoop:         handleStopLoop,
 	}
 }
 
@@ -61,6 +65,8 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		// Same race as the overview: a change between this read and the
 		// subscription below is missed until the next one.
 		Usage: c.srv.Usage(),
+		// Loops are read here too; a change after this is a Loop event.
+		Loops: c.srv.loopSnapshot(),
 	}
 	if p.Client == protocol.ClientTUI {
 		c.joinBoard()
@@ -207,6 +213,9 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 	if ch == nil {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
+	if !p.Synthetic {
+		c.srv.userInput(p.SessionID) // a loop holds its re-sends
+	}
 	select {
 	case ch <- p.Bytes:
 		if !p.Synthetic {
@@ -227,23 +236,32 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	if ch == nil {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
-	// Text, then Enter as a separate write. Terminals send Enter as
-	// \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
-	// Claude Code insert a newline on \n instead of submitting, and
-	// treat text+\r in one burst as a paste.
+	c.srv.userInput(p.SessionID) // a loop holds its re-sends
+	if err := typeText(ch, p.Text); err != nil {
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
+	}
+	slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
+	c.srv.cancelRetireOnInput(p.SessionID, "Reply")
+	return outcome{sessionID: p.SessionID}, nil
+}
+
+// typeText sends text, then Enter as a separate write. Terminals send Enter
+// as \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
+// Claude Code insert a newline on \n instead of submitting, and treat
+// text+\r in one burst as a paste.
+func typeText(ch chan []byte, text string) error {
+	errFull := errors.New("input buffer full")
 	select {
-	case ch <- []byte(p.Text):
+	case ch <- []byte(text):
 	default:
-		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
+		return errFull
 	}
 	time.Sleep(replySubmitDelay)
 	select {
 	case ch <- []byte{'\r'}:
-		slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
-		c.srv.cancelRetireOnInput(p.SessionID, "Reply")
-		return outcome{sessionID: p.SessionID}, nil
+		return nil
 	default:
-		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
+		return errFull
 	}
 }
 
