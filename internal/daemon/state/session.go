@@ -98,6 +98,10 @@ type Session struct {
 	// reaping is set once the retire sweep has claimed the session for
 	// deletion; Unretire is refused from then on.
 	reaping bool
+	// deleting is set when teardown starts, before the supervisor is stopped.
+	// Transition refuses terminal states from then on, so the supervisor's
+	// exit can never broadcast failed/done for a session being deleted.
+	deleting bool
 	// removed is set when the session leaves the store; WriteMeta skips
 	// removed sessions so a late write can't resurrect a deleted session.
 	removed bool

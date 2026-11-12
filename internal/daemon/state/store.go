@@ -229,6 +229,21 @@ func (s *Store) RemoveWithReason(id, reason string) error {
 	return nil
 }
 
+// ErrDeleting is Transition's refusal of a terminal state for a session whose
+// teardown has begun.
+var ErrDeleting = errors.New("session is being deleted")
+
+// BeginDelete marks a session as being deleted. It must run before the
+// supervisor is stopped: from then on Transition (under the session lock)
+// refuses terminal states, so no failed/done patch can be broadcast.
+func (s *Store) BeginDelete(id string) {
+	if sess, ok := s.Get(id); ok {
+		sess.mu.Lock()
+		sess.deleting = true
+		sess.mu.Unlock()
+	}
+}
+
 // Transition changes a session's state and emits.
 func (s *Store) Transition(id string, newState protocol.State) error {
 	s.mu.RLock()
@@ -240,6 +255,10 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 	now := time.Now().UTC()
 	patch := map[string]any{"state": newState, "last_event_at": now}
 	sess.mu.Lock()
+	if sess.deleting && isTerminal(newState) {
+		sess.mu.Unlock()
+		return ErrDeleting
+	}
 	switch {
 	case newState == protocol.StateWorking && sess.WorkingSince.IsZero():
 		sess.WorkingSince = now
@@ -383,6 +402,7 @@ func (s *Store) ReleaseReaping(id string) {
 	if sess, ok := s.Get(id); ok {
 		sess.mu.Lock()
 		sess.reaping = false
+		sess.deleting = false
 		sess.mu.Unlock()
 	}
 }
