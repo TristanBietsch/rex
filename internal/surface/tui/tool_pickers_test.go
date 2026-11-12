@@ -146,6 +146,37 @@ func TestWizard_OffersInstalledToolsOnly(t *testing.T) {
 	require.Equal(t, "wizard: no agent is installed (see Settings → Onboarding)", none.Err)
 }
 
+// With every agent installed the provider step lists Qwen Code, Cursor CLI
+// and Grok Build after the others, in registry order; one that is not
+// installed moves to Settings → Onboarding like claude or codex would.
+func TestWizard_OffersExtraAgentsWhenInstalled(t *testing.T) {
+	all := []string{"claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"}
+	m := pickerModel(t, all...)
+	m, _ = executeCommand(m, "new")
+	require.Equal(t, FocusWizard, m.Focus)
+	require.Equal(t, all, toolIDs(m.Wizard.Tools))
+	out := ansi.Strip(m.View())
+	for _, name := range []string{"Qwen Code", "Cursor CLI", "Grok Build"} {
+		require.Contains(t, out, name)
+	}
+
+	m = pickerModel(t, "claude", "codex", "qwen", "grok")
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	offer, missing := pickerTools(m, reg)
+	require.Equal(t, []string{"claude", "codex", "qwen", "grok"}, toolIDs(offer))
+	var missingIDs []string
+	for _, r := range missing {
+		missingIDs = append(missingIDs, r.Tool.ID)
+	}
+	require.Contains(t, missingIDs, "cursor")
+	for _, r := range missing {
+		if r.Tool.ID == "cursor" {
+			require.Contains(t, r.setting().Help, "cursor-agent", "the hint names the binary to install")
+		}
+	}
+}
+
 func TestWizard_ModelStepMarksDetectedModels(t *testing.T) {
 	m := pickerModel(t, "claude", "qwen")
 	m, _ = executeCommand(m, "new")

@@ -248,6 +248,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   agent's trust dialog appears in a folder that is not trusted, and `rex
   doctor` warns about `auto_trust_dirs` entries it would ignore (home folder,
   a folder holding it, a relative path) or that do not exist.
+- `rex doctor` has `tool:` rows for the extra agents too: `qwen`,
+  `cursor-agent` and `grok` (with `-verbose`).
 - `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
   changed target is refused before anything is touched. `rex undo` and the
   TUI dialog send it on confirm.
