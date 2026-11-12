@@ -148,6 +148,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		Name:        p.Name,
 		Skills:      slices.Clone(p.Skills),
 	}
+	if cfg.Audit != nil {
+		cfg.Audit.Begin(sess, p.InitialPrompt)
+	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
 		if pluginDir != "" {

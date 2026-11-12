@@ -53,6 +53,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `prompt_args`, `prompt_paste`, `login_regex` and `status_env`, and an
   `installed` flag plus the merged model list on each tool of the `Snapshot`
   (additive). The wizard and Settings pickers use them in a later release.
+- `rex ws init|id|ls|rename|color`: workspaces. A folder with a `.rex/`
+  (id, name, color) is a workspace; `rex ws init` creates it, registers it in
+  `~/.local/share/rex/workspaces.json` and adds `/.rex/` to the repo's
+  `.git/info/exclude`. Off by default (Settings -> Features -> `workspaces`).
+  rex refuses a symlinked or writable `.rex/`, and `$HOME` or `/` as a
+  workspace. See `docs/workspaces.md`.
+- `rex audit`: an audit trail. The daemon writes one line per finished
+  session (tool, state, times, first line of the prompt) to
+  `~/.local/share/rex/audit.jsonl`, or to `<workspace>/.rex/audit.jsonl`, and
+  always before a session is cleared. `rex audit` filters it by `--ws`,
+  `--all`, `--since`, `--tool` and `--state`. On by default (`audit_trail`);
+  `audit_full_prompt` (off) also keeps the whole prompt, which can hold
+  secrets. A session is never cleared without its record: if it cannot be
+  written the session is kept and retried. `rex ws init` also ignores
+  `/.rex/audit.jsonl`; commit only `workspace.json`.
 - Agent mode switches on by itself when `CLAUDECODE=1` and stdout is not a
   terminal (a Claude Code Bash tool, including inside rex-spawned
   sessions): one line per record, an `ok` trailer, one error line on

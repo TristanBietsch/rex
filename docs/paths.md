@@ -25,6 +25,8 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 | `~/.local/share/rex/exports/` | Files `:export` writes, `<slug>-<shortid>.<ext>`, mode 0600 (see [export.md](export.md)) |
 | `~/.local/share/rex/daemon.lock` | Held by the running daemon; one daemon per state directory |
 | `~/.local/share/rex/usage.jsonl` | Usage ledger (mode 0600, append-only): see below |
+| `~/.local/share/rex/audit.jsonl` | Audit trail of sessions outside any workspace (0600, append-only): see below |
+| `~/.local/share/rex/workspaces.json` | Workspace registry: id → folder (0600), see [workspaces.md](workspaces.md) |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |
 | `$XDG_RUNTIME_DIR/rex.sock` | Socket when `XDG_RUNTIME_DIR` is set to an absolute path |
@@ -42,6 +44,10 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 | `~/.config/rex/tools.yaml` | User | Tool registry overlay |
 | `~/.config/rex/init.lua` | User | Optional Lua hooks |
 | `~/.local/share/rex/usage.jsonl` | `rex-daemon` (when `usage` is on) | Usage ledger: one JSON line per session snapshot (session id, tool, model, tokens, cost, estimate flag, time), written when a session ends and at most every 10 minutes for a live one. The latest line per session wins when totals are computed. Trimmed to the last 90 days when the daemon starts; unreadable lines are skipped with one warning. No prompts or output. Never created while `usage` is off |
+| `~/.local/share/rex/audit.jsonl` | `rex-daemon` (when `audit_trail` is on) | Audit trail: one JSON line per finished session (ids, name, tool, model, first line of the prompt, end state, start and end time, duration, resume id, description), written when a session first ends, and before it is cleared if that has not happened. A resumed session adds a line at its next end. The first prompt line only; the whole prompt with `audit_full_prompt`. 0600, append-only, never followed through a symlink. Never created while `audit_trail` is off |
+| `<workspace>/.rex/workspace.json` | `rex ws` | A workspace's id, name and color (0600 in a 0700 folder). Only with `workspaces` on |
+| `<workspace>/.rex/audit.jsonl` | `rex-daemon` (`audit_trail` and `workspaces` on) | The audit trail of sessions started inside the workspace; same format and rules as the global file |
+| `~/.local/share/rex/workspaces.json` | `rex ws` | Registry: workspace id → the folder it was last seen at, name, color. Lets a moved folder keep its id. Only with `workspaces` on |
 | `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection, tool filter, hidden sections and board search; read once on next launch, then deleted |
 | `~/.local/state/rex/models-cache.json` | `rex-daemon` (when `model_autodetect` is on) | Cache of the model ids each agent listed (`qwen --list-models` and the like): per tool the binary path and mtime, the command, the time, and the ids. Trusted for 24 h and dropped when the binary changes. Owner-only (0600), replaced atomically, safe to delete (the next daemon start or `rex reload` detects again). Holds ids only. Never created while `model_autodetect` is off |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
