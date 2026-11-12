@@ -129,6 +129,7 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		m.Err = "attach: " + err.Error()
 		return m, nil
 	}
+	markSeen(&m, sessionID)
 	chrome := attachChromeOf(m)
 	banner := chrome.banner
 	cols, rows := chrome.innerSize(m.Width, m.Height)

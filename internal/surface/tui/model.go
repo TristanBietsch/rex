@@ -102,7 +102,15 @@ type Model struct {
 	DoneExpanded bool
 	// Hidden holds the IDs of board sections hidden from view. Treat it as
 	// immutable: setSectionHidden is the only writer, and it clones.
-	Hidden       map[string]bool
+	Hidden map[string]bool
+	// EnteredAt is when this TUI saw each row enter Ready or Done; SeenAt is
+	// when you last attached to it or pressed cc (saved). A row is unseen
+	// while EnteredAt is after SeenAt. Nil until first written: use markSeen
+	// and stampEntered, and assign the Model back.
+	EnteredAt map[string]time.Time
+	SeenAt    map[string]time.Time
+	// seenInit is set once the first snapshot has seeded SeenAt.
+	seenInit     bool
 	PromptText   string
 	CmdText      string
 	PendingChord string
@@ -285,11 +293,14 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 				// Already listed (a snapshot taken after the add raced
 				// its event): refresh the row, don't show it twice. It
 				// may still be the spawn waiting to be selected.
+				before := sectionOf(m, m.Sessions[i])
 				m.Sessions[i] = sum
+				stampEntered(&m, before, sum)
 				m = m.selectIfPending(sum)
 				break
 			}
 			m.Sessions = append(m.Sessions, sum)
+			stampEntered(&m, "", sum)
 			m = m.selectIfPending(sum)
 			if m.Audio != nil && inScope(m, sum) {
 				m.Audio.Play(audio.EventCreate)
@@ -325,6 +336,8 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m.Sessions = out
 			delete(m.lastNotify, rem.SessionID)
 			delete(m.rungPrompt, rem.SessionID)
+			delete(m.EnteredAt, rem.SessionID)
+			delete(m.SeenAt, rem.SessionID)
 			if m.Audio != nil && audible {
 				m.Audio.Play(audio.EventDelete)
 			}
@@ -348,7 +361,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					prevReason = m.Sessions[i].WaitReason
 					prevDesc := m.Sessions[i].Description
 					wasMarked := !m.Sessions[i].RetireAt.IsZero()
+					beforeSection := sectionOf(m, m.Sessions[i])
 					applyPatch(&m.Sessions[i], upd.Patch)
+					stampEntered(&m, beforeSection, m.Sessions[i])
 					marked = !wasMarked && !m.Sessions[i].RetireAt.IsZero()
 					if m.Sessions[i].Description != prevDesc {
 						m = registerDescAnim(m, m.Sessions[i].ID, prevDesc, m.Sessions[i].Description)
@@ -390,7 +405,15 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSnapshot:
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
+			var before map[string]string
+			if seenOn(m) && m.seenInit {
+				before = make(map[string]string, len(m.Sessions))
+				for _, s := range m.Sessions {
+					before[s.ID] = sectionOf(m, s)
+				}
+			}
 			m = adoptSessions(m, snap.Sessions)
+			adoptSeen(&m, before)
 			m.Overview = snap.Overview
 			m.Usage = snap.Usage
 			m = adoptSnapshotTools(m, snap.Tools)

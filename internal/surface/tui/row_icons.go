@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -98,9 +99,99 @@ func iconGlyph(m Model, name string) string {
 	return g[0]
 }
 
-// isUnseen reports whether the row shows the unseen mark. Stub until the
-// seen-state tracking lands.
-func isUnseen(m Model, s protocol.SessionSummary) bool { return false }
+// seenOn reports whether the TUI tracks unseen rows: the row_icons feature.
+// Off, nothing is stamped, written or saved.
+func seenOn(m Model) bool { return m.featureOn("row_icons") }
+
+// sectionOf is the id of the board column s sits in ("" if none), by the
+// board's own grouping.
+func sectionOf(m Model, s protocol.SessionSummary) string {
+	ctx := groupCtx{now: m.now(), waiting: m.featureOn("waiting_section")}
+	for _, g := range boardGroups {
+		if g.Match(s, ctx) {
+			return g.ID
+		}
+	}
+	return ""
+}
+
+// finishedSection reports whether id is a column whose rows can be unseen.
+func finishedSection(id string) bool { return id == "needs" || id == "done" }
+
+// stampEntered records that s entered Ready or Done now, when its section
+// changed from before. A no-op with row_icons off.
+func stampEntered(m *Model, before string, s protocol.SessionSummary) {
+	if !seenOn(*m) || isMarkedDone(s) {
+		return
+	}
+	if after := sectionOf(*m, s); after != before && finishedSection(after) {
+		if m.EnteredAt == nil {
+			m.EnteredAt = map[string]time.Time{}
+		}
+		m.EnteredAt[s.ID] = m.now()
+	}
+}
+
+// markSeen records that you looked at session id now (attach, cc).
+func markSeen(m *Model, id string) {
+	if !seenOn(*m) {
+		return
+	}
+	if m.SeenAt == nil {
+		m.SeenAt = map[string]time.Time{}
+	}
+	m.SeenAt[id] = m.now()
+}
+
+// adoptSeen runs on a snapshot, given each session's section before it
+// (nil on the first). The first snapshot marks every session without a
+// saved seen time as seen now, so a restart never floods the board. Later
+// snapshots (a reconnect) stamp rows that moved into Ready or Done.
+func adoptSeen(m *Model, before map[string]string) {
+	if !seenOn(*m) {
+		return
+	}
+	if !m.seenInit {
+		m.seenInit = true
+		for _, s := range m.Sessions {
+			if _, ok := m.SeenAt[s.ID]; !ok {
+				markSeen(m, s.ID)
+			}
+		}
+		return
+	}
+	for _, s := range m.Sessions {
+		stampEntered(m, before[s.ID], s)
+	}
+}
+
+// pruneSeen is SeenAt limited to the live sessions, for saving. Nil with row
+// icons off or nothing to save.
+func pruneSeen(m Model) map[string]time.Time {
+	if !seenOn(m) || len(m.SeenAt) == 0 {
+		return nil
+	}
+	out := map[string]time.Time{}
+	for _, s := range m.Sessions {
+		if t, ok := m.SeenAt[s.ID]; ok {
+			out[s.ID] = t
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// isUnseen reports whether the row shows the unseen mark: a Ready or Done row
+// (not marked done) that entered that section after you last looked at it.
+func isUnseen(m Model, s protocol.SessionSummary) bool {
+	if !seenOn(m) || isMarkedDone(s) || !finishedSection(sectionOf(m, s)) {
+		return false
+	}
+	entered, ok := m.EnteredAt[s.ID]
+	return ok && entered.After(m.SeenAt[s.ID])
+}
 
 func asciiGlyphs(m Model) bool {
 	if m.Store == nil {

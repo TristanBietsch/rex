@@ -41,6 +41,7 @@ func toggleRetire(m Model, id string) (Model, tea.Cmd) {
 	if r == nil {
 		return m, nil
 	}
+	markSeen(&m, id) // cc counts as looking at it
 	retiring := !sum.RetireAt.IsZero()
 	ttl := retireTTL(m.Store)
 	label := displayName(sum)
