@@ -226,10 +226,10 @@ func renderSearchPrompt(m Model, width int) string {
 // searchHelpLine is the help line while the search editor is open.
 func searchHelpLine(width int) string {
 	parts := []string{
-		styleHeaderApp.Render("enter") + styleDim.Render(" keep"),
-		styleHeaderApp.Render("esc") + styleDim.Render(" cancel"),
-		styleHeaderApp.Render("ctrl+u") + styleDim.Render(" clear"),
-		styleHeaderApp.Render("ctrl+w") + styleDim.Render(" delete word"),
+		styleKey.Render("enter") + styleDim.Render(" keep"),
+		styleKey.Render("esc") + styleDim.Render(" cancel"),
+		styleKey.Render("ctrl+u") + styleDim.Render(" clear"),
+		styleKey.Render("ctrl+w") + styleDim.Render(" delete word"),
 	}
 	return padLine("  "+strings.Join(parts, styleMuted.Render(" · ")), width)
 }

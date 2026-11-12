@@ -16,7 +16,7 @@ func panelStyle(width int) lipgloss.Style {
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(colorBorderStrong).
+		BorderForeground(colorBorderFocus).
 		Padding(1, 3).
 		Width(inner)
 }

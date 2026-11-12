@@ -6,7 +6,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -292,7 +291,7 @@ func overlayBoxPad(content string, padX, padY int) ([]string, int) {
 		inner = max(inner, widths[i])
 	}
 	padded := inner + 2*padX
-	border := lipgloss.NewStyle().Foreground(colorBorder)
+	border := styleBorderFg
 	side := border.Render("│")
 	blank := side + strings.Repeat(" ", padded) + side
 	padding := strings.Repeat(" ", padX)

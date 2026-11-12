@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/features/overview"
@@ -25,7 +24,7 @@ func renderHeader(m Model, width int) string {
 		}
 	}
 
-	logo := styleHeaderApp.Render("∴ REX")
+	logo := styleLogo.Render("∴ REX")
 	counts := renderHeaderCounts(m, cols[groupNeeds], cols[groupWaiting], cols[groupWorking], cols[groupDone], failed)
 	mobile := mobileLayout(m)
 	if marked > 0 && m.Detailed && !mobile { // marked rows already count as done
@@ -106,7 +105,7 @@ func renderOverviewLine(m Model, width int) string {
 	countStyle := styleDim
 	if review > 0 {
 		count = fmt.Sprintf("%d ready for review", review)
-		countStyle = lipgloss.NewStyle().Foreground(colorNeeds)
+		countStyle = styleNeeds
 	}
 	line := styleDim.Render(overviewLead) + countStyle.Render(count)
 	if o := m.Overview; o != nil && o.Enabled {

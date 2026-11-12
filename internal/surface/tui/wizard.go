@@ -715,7 +715,7 @@ func renderWizard(m Model) string {
 		body = append(body, "")
 		body = append(body, wizInputBoxLines(m.Wizard.NameText, m)...)
 		if err := m.Wizard.nameError(); err != nil {
-			body = append(body, "", "  "+lipgloss.NewStyle().Foreground(colorFailed).Render(err.Error()))
+			body = append(body, "", "  "+styleFailed.Render(err.Error()))
 		} else {
 			body = append(body, "", styleDim.Render("  shown on the board instead of the slug"))
 		}
@@ -784,7 +784,7 @@ func wizOption(selected bool, glyph, name, glyphColor string) string {
 	var g string
 	if glyph != "" {
 		if glyphColor != "" {
-			g = lipgloss.NewStyle().Foreground(lipgloss.Color(glyphColor)).Render(glyph) + "  "
+			g = brandStyle(glyphColor).Render(glyph) + "  "
 		} else {
 			g = glyph + "  "
 		}
@@ -826,7 +826,7 @@ func wizInputBoxLines(value string, m Model) []string {
 	content := styleSlug.Render(value) + cursorBlock(m)
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorWorking).
+		BorderForeground(colorAccent).
 		Padding(0, 2).
 		Width(wizardInputCols).
 		Render(content)

@@ -5,82 +5,44 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// palette is one named color scheme. All renderers read from the package-level
-// theme/style vars below, which are rebuilt on applyTheme().
-type palette struct {
-	BgElev, BgModal              lipgloss.Color
-	FgPrimary, FgDim, FgMuted    lipgloss.Color
-	Border, BorderStrong         lipgloss.Color
-	Working, Needs, Done, Failed lipgloss.Color
-	Crashed                      lipgloss.Color
-}
+// The live colors and styles below are filled from a theme.Palette by
+// applyTheme. Every renderer reads them; none builds an inline style or names
+// a hex value, so a color_scheme change restyles the whole TUI.
 
-var palettes = map[string]palette{
-	"default": {
-		BgElev:       "#171922",
-		BgModal:      "#1B1E29",
-		FgPrimary:    "#E6E6E6",
-		FgDim:        "#7A7F8C",
-		FgMuted:      "#4A4F5A",
-		Border:       "#262A36",
-		BorderStrong: "#FFFFFF",
-		Working:      "#5B8DEF",
-		Needs:        "#E5B341",
-		Done:         "#4ADE80",
-		Failed:       "#EF4444",
-		Crashed:      "#7A7F8C",
-	},
-	"noir": {
-		BgElev:       "#0A0D14",
-		BgModal:      "#05080F",
-		FgPrimary:    "#D8DDE6",
-		FgDim:        "#6A7280",
-		FgMuted:      "#3A4150",
-		Border:       "#1A1E28",
-		BorderStrong: "#FFFFFF",
-		Working:      "#7AA6F0",
-		Needs:        "#D4B574",
-		Done:         "#5BC487",
-		Failed:       "#D85A5A",
-		Crashed:      "#6A7280",
-	},
-	"paper": {
-		BgElev:       "#F2F0EA",
-		BgModal:      "#FFFFFF",
-		FgPrimary:    "#1A1A1A",
-		FgDim:        "#5C5C5C",
-		FgMuted:      "#999999",
-		Border:       "#D0CFC9",
-		BorderStrong: "#1A1A1A",
-		Working:      "#2D5BB8",
-		Needs:        "#B58800",
-		Done:         "#2C7A48",
-		Failed:       "#B83333",
-		Crashed:      "#999999",
-	},
-}
-
-// Live palette. Mutated by applyTheme.
+// Live palette tokens. Mutated by applyTheme.
 var (
-	colorBgElev       lipgloss.Color
-	colorFgPrimary    lipgloss.Color
-	colorFgDim        lipgloss.Color
-	colorFgMuted      lipgloss.Color
-	colorBorder       lipgloss.Color
-	colorBorderStrong lipgloss.Color
-
-	colorWorking lipgloss.Color
-	colorNeeds   lipgloss.Color
-	colorDone    lipgloss.Color
-	colorFailed  lipgloss.Color
-	colorCrashed lipgloss.Color
+	colorFgPrimary   lipgloss.Color
+	colorFgDim       lipgloss.Color
+	colorFgMuted     lipgloss.Color
+	colorBorder      lipgloss.Color
+	colorBorderFocus lipgloss.Color
+	colorBgSel       lipgloss.Color
+	colorAccent      lipgloss.Color
+	colorWorking     lipgloss.Color
+	colorQueued      lipgloss.Color
+	colorNeeds       lipgloss.Color
+	colorDone        lipgloss.Color
+	colorFailed      lipgloss.Color
+	colorCrashed     lipgloss.Color
+	colorWarn        lipgloss.Color
+	colorDanger      lipgloss.Color
+	colorSuccess     lipgloss.Color
+	colorInfo        lipgloss.Color
+	colorFleet       []lipgloss.Color
 )
 
 // Live styles. Rebuilt by rebuildStyles().
 var (
-	styleHeaderApp    lipgloss.Style
+	// Text.
+	styleLogo         lipgloss.Style // "∴ REX"
+	styleKey          lipgloss.Style // bold key caps and group titles
+	styleKbd          lipgloss.Style // key caps inside the attach chrome
+	styleBold         lipgloss.Style
 	styleHeaderMeta   lipgloss.Style
 	styleSectionTitle lipgloss.Style
 	styleSlug         lipgloss.Style
@@ -89,8 +51,22 @@ var (
 	styleMuted        lipgloss.Style
 	styleBorderFg     lipgloss.Style
 	styleSelected     lipgloss.Style
+	styleCursor       lipgloss.Style // lit cursor: reverse video
 
+	// Feedback.
+	styleAlert       lipgloss.Style // bold Needs: an alert column title
+	styleNeeds       lipgloss.Style
+	styleDone        lipgloss.Style
+	styleFailed      lipgloss.Style
 	styleStateFailed lipgloss.Style
+	styleWorking     lipgloss.Style
+
+	// styleMarker is a state's bold marker style, by state; styleLongRun is
+	// the long-running badge by tier (0 = most severe), see longRunTiers.
+	styleMarker  map[protocol.State]lipgloss.Style
+	styleLongRun []lipgloss.Style
+	// styleFleet is the fleet bar's style by fleetColor index.
+	styleFleet []lipgloss.Style
 
 	styleChipActive lipgloss.Style
 	styleChipDim    lipgloss.Style
@@ -106,66 +82,113 @@ var (
 	styleBootReady   lipgloss.Style
 	styleBootCause   lipgloss.Style
 
-	styleArrow       lipgloss.Style
-	styleArrowYellow lipgloss.Style
+	styleArrow       lipgloss.Style // λ, ▸ and the wizard cursor
+	styleArrowYellow lipgloss.Style // the ':' prompt and confirms
 )
 
 func init() {
-	applyTheme("default")
+	applyTheme(theme.DefaultName)
 }
 
 // applyTheme swaps the live palette and rebuilds all style vars. Unknown names
-// fall back to "default" silently.
+// fall back to the default palette silently. It writes package globals, so
+// call it from Update, never from a tea.Cmd goroutine.
 func applyTheme(name string) {
-	p, ok := palettes[name]
-	if !ok {
-		p = palettes["default"]
+	p, _ := theme.Get(name)
+	c := func(s string) lipgloss.Color { return lipgloss.Color(s) }
+	colorFgPrimary = c(p.Fg)
+	colorFgDim = c(p.FgDim)
+	colorFgMuted = c(p.FgMuted)
+	colorBorder = c(p.Border)
+	colorBorderFocus = c(p.BorderFocus)
+	colorBgSel = c(p.BgSel)
+	colorAccent = c(p.Accent)
+	colorWorking = c(p.Working)
+	colorQueued = c(p.Queued)
+	colorNeeds = c(p.Needs)
+	colorDone = c(p.Done)
+	colorFailed = c(p.Failed)
+	colorCrashed = c(p.Crashed)
+	colorWarn = c(p.Warn)
+	colorDanger = c(p.Danger)
+	colorSuccess = c(p.Success)
+	colorInfo = c(p.Info)
+	colorFleet = make([]lipgloss.Color, len(p.Fleet))
+	for i, f := range p.Fleet {
+		colorFleet[i] = c(f)
 	}
-	colorBgElev = p.BgElev
-	colorFgPrimary = p.FgPrimary
-	colorFgDim = p.FgDim
-	colorFgMuted = p.FgMuted
-	colorBorder = p.Border
-	colorBorderStrong = p.BorderStrong
-	colorWorking = p.Working
-	colorNeeds = p.Needs
-	colorDone = p.Done
-	colorFailed = p.Failed
-	colorCrashed = p.Crashed
 	rebuildStyles()
 }
 
 func rebuildStyles() {
-	styleHeaderApp = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
-	styleHeaderMeta = lipgloss.NewStyle().Foreground(colorFgDim)
-	styleSectionTitle = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
-	styleSlug = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
-	stylePrimary = lipgloss.NewStyle().Foreground(colorFgPrimary)
-	styleDim = lipgloss.NewStyle().Foreground(colorFgDim)
-	styleMuted = lipgloss.NewStyle().Foreground(colorFgMuted)
-	styleBorderFg = lipgloss.NewStyle().Foreground(colorBorder)
-	styleSelected = lipgloss.NewStyle().Background(colorBgElev).Foreground(colorFgPrimary)
+	fg := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
+	bold := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Bold(true).Foreground(c) }
 
-	styleStateFailed = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
+	styleLogo = bold(colorFgPrimary)
+	styleKey = bold(colorFgPrimary)
+	styleKbd = bold(colorAccent)
+	styleBold = lipgloss.NewStyle().Bold(true)
+	styleHeaderMeta = fg(colorFgDim)
+	styleSectionTitle = bold(colorFgPrimary)
+	styleSlug = bold(colorFgPrimary)
+	stylePrimary = fg(colorFgPrimary)
+	styleDim = fg(colorFgDim)
+	styleMuted = fg(colorFgMuted)
+	styleBorderFg = fg(colorBorder)
+	styleSelected = lipgloss.NewStyle().Background(colorBgSel).Foreground(colorFgPrimary)
+	styleCursor = lipgloss.NewStyle().Reverse(true)
 
-	styleChipActive = lipgloss.NewStyle().Foreground(colorFgPrimary)
-	styleChipDim = lipgloss.NewStyle().Foreground(colorFgDim)
-	styleChipSep = lipgloss.NewStyle().Foreground(colorFgMuted)
+	styleAlert = bold(colorNeeds)
+	styleNeeds = fg(colorNeeds)
+	styleDone = fg(colorDone)
+	styleFailed = fg(colorFailed)
+	styleStateFailed = bold(colorFailed)
+	styleWorking = fg(colorWorking)
 
-	styleBootOK = lipgloss.NewStyle().Bold(true).Foreground(colorDone)
-	styleBootFail = lipgloss.NewStyle().Bold(true).Foreground(colorFailed)
-	styleBootWarn = lipgloss.NewStyle().Foreground(colorNeeds)
-	styleBootSkip = lipgloss.NewStyle().Foreground(colorFgMuted)
-	styleBootRun = lipgloss.NewStyle().Foreground(colorWorking)
-	styleBootBracket = lipgloss.NewStyle().Foreground(colorFgMuted)
-	styleBootHeader = lipgloss.NewStyle().Bold(true).Foreground(colorFgPrimary)
-	styleBootReady = lipgloss.NewStyle().Foreground(colorDone)
-	styleBootCause = lipgloss.NewStyle().Foreground(colorFailed)
+	styleMarker = map[protocol.State]lipgloss.Style{
+		protocol.StateWorking:    bold(colorWorking),
+		protocol.StateQueued:     bold(colorQueued),
+		protocol.StateNeedsInput: bold(colorNeeds),
+		protocol.StateDone:       bold(colorDone),
+		protocol.StateFailed:     bold(colorFailed),
+		protocol.StateCrashed:    bold(colorCrashed),
+	}
+	styleLongRun = []lipgloss.Style{
+		bold(colorDanger).Reverse(true),
+		bold(colorDanger),
+		fg(colorWarn),
+		fg(colorFgDim),
+	}
+	styleFleet = make([]lipgloss.Style, len(colorFleet))
+	for i, c := range colorFleet {
+		styleFleet[i] = fg(c)
+	}
+
+	styleChipActive = fg(colorFgPrimary)
+	styleChipDim = fg(colorFgDim)
+	styleChipSep = fg(colorFgMuted)
+
+	styleBootOK = bold(colorSuccess)
+	styleBootFail = bold(colorDanger)
+	styleBootWarn = fg(colorWarn)
+	styleBootSkip = fg(colorFgMuted)
+	styleBootRun = fg(colorInfo)
+	styleBootBracket = fg(colorFgMuted)
+	styleBootHeader = bold(colorFgPrimary)
+	styleBootReady = fg(colorSuccess)
+	styleBootCause = fg(colorDanger)
 
 	// Rebuilt with the palette: package-level initializers run before
 	// init(), when the colors are still empty.
-	styleArrow = lipgloss.NewStyle().Foreground(colorWorking)
-	styleArrowYellow = lipgloss.NewStyle().Foreground(colorNeeds)
+	styleArrow = fg(colorAccent)
+	styleArrowYellow = fg(colorWarn)
+}
+
+// brandStyle colors a tool's glyph with its registry brand color. That color
+// is tool data (tools.yaml), not a theme token, so it is the one place a
+// color outside the palette reaches a style.
+func brandStyle(color string) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
 }
 
 // renderHR renders a horizontal rule line of given width.

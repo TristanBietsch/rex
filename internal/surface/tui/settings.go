@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
@@ -586,7 +585,7 @@ func renderSettings(m Model, termW int) string {
 		if !isSel {
 			vs := styleDim
 			if !s.ReadOnly && !empty {
-				vs = lipgloss.NewStyle().Foreground(colorFgPrimary)
+				vs = stylePrimary
 			}
 			if ownLine {
 				lines = append(lines, "  "+styleDim.Render(label), "    "+vs.Render(valCell))
@@ -620,7 +619,7 @@ func renderSettings(m Model, termW int) string {
 	}
 
 	// Header: SETTINGS left, "n of N" right.
-	title := lipgloss.NewStyle().Bold(true).Render("SETTINGS")
+	title := styleBold.Render("SETTINGS")
 	pos := styleDim.Render(fmt.Sprintf("%d of %d", cursorIdx, total))
 	gap := inner - ansi.StringWidth(title) - ansi.StringWidth(pos)
 	header := title + strings.Repeat(" ", max(1, gap)) + pos

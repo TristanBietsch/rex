@@ -3,7 +3,6 @@ package tui
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -106,7 +105,7 @@ func renderDescPreview(m Model, cw int) []string {
 		last := truncate(wrapped[len(wrapped)-1], width-ageW)
 		wrapped[len(wrapped)-1] = last + age
 	}
-	dim := lipgloss.NewStyle().Foreground(colorFgDim)
+	dim := styleDim
 	for i, w := range wrapped {
 		prefix := previewIndent
 		if i == 0 {

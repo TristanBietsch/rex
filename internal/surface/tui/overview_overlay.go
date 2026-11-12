@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/features/overview"
@@ -192,7 +191,7 @@ func renderOverviewRow(m Model, r overviewRow, nameW, width int, selected bool) 
 	}
 	pointer := " "
 	if selected {
-		pointer = lipgloss.NewStyle().Bold(true).Render("›")
+		pointer = styleBold.Render("›")
 	}
 	line := pointer + " " + marker + " " + name + " " + styleDim.Render(text)
 	pad := max(width-ansi.StringWidth(line)-len(age), 1)

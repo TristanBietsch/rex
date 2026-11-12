@@ -203,7 +203,7 @@ func renderScreensaver(m Model, w, h int) string {
 // daemon is unreachable a blank and the reconnect status (the counts are
 // stale then). A short terminal drops the blanks first, then the logo.
 func saverBlock(m Model, h int) []string {
-	logo := styleHeaderApp.Render(saverLogo)
+	logo := styleLogo.Render(saverLogo)
 	counts := saverCounts(m)
 	status := ""
 	if m.reconnect != nil {
@@ -241,7 +241,7 @@ func saverCounts(m Model) string {
 		}
 		style := styleHeaderMeta
 		if g.Alert && n > 0 {
-			style = styleAlert()
+			style = styleAlert
 		}
 		parts = append(parts, style.Render(fmt.Sprintf("%d %s", n, g.Count)))
 	}

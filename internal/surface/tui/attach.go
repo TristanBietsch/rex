@@ -473,7 +473,7 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	sum, haveSum := findSession(m.Sessions, a.SessionID)
 	var stateChip string
 	if a.Ended {
-		stateChip = lipgloss.NewStyle().Bold(true).Foreground(colorFailed).Render("✕ ended")
+		stateChip = styleMarker[protocol.StateFailed].Render("✕ ended")
 	} else if haveSum {
 		stateChip = attachStateChip(m, sum.State)
 		if waitingKindOf(m, sum) != "" {
@@ -491,7 +491,7 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 			title += styleDim.Render(" · " + protocol.FlattenDisplayText(sum.Slug))
 		}
 	}
-	slug := styleHeaderApp.Render(title)
+	slug := styleKey.Render(title)
 	var meta string
 	if haveSum {
 		meta = styleDim.Render(protocol.FlattenDisplayText(sum.ToolID + " · " + modelLabel(sum)))
@@ -513,22 +513,21 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 }
 
 func attachStateChip(m Model, st protocol.State) string {
-	bold := lipgloss.NewStyle().Bold(true)
 	switch st {
 	case protocol.StateWorking:
 		frames := spinnerFramesFor(m)
 		g := frames[m.SpinnerTick%len(frames)]
-		return bold.Foreground(colorWorking).Render(g + " working")
+		return styleMarker[protocol.StateWorking].Render(g + " working")
 	case protocol.StateQueued:
-		return bold.Foreground(colorWorking).Render(queuedGlyph + " queued")
+		return styleMarker[protocol.StateQueued].Render(queuedGlyph + " queued")
 	case protocol.StateNeedsInput:
-		return bold.Foreground(colorNeeds).Render("◆ needs input")
+		return styleMarker[protocol.StateNeedsInput].Render("◆ needs input")
 	case protocol.StateDone:
-		return bold.Foreground(colorDone).Render("● done")
+		return styleMarker[protocol.StateDone].Render("● done")
 	case protocol.StateFailed:
-		return bold.Foreground(colorFailed).Render("✕ failed")
+		return styleMarker[protocol.StateFailed].Render("✕ failed")
 	case protocol.StateCrashed:
-		return bold.Foreground(colorCrashed).Render("○ crashed")
+		return styleMarker[protocol.StateCrashed].Render("○ crashed")
 	default:
 		return styleDim.Render("· " + string(st))
 	}
@@ -554,7 +553,7 @@ func attachFooter(m Model, a *AttachState, width int) string {
 		if msg == "" {
 			msg = "session ended"
 		}
-		right = lipgloss.NewStyle().Foreground(colorFailed).Render("✕ " + msg)
+		right = styleFailed.Render("✕ " + msg)
 	}
 	pad := width - lipglossWidth(left) - lipglossWidth(right)
 	if pad < 1 {
@@ -564,7 +563,7 @@ func attachFooter(m Model, a *AttachState, width int) string {
 }
 
 func kbdChip(k string) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(colorWorking).Render(k)
+	return styleKbd.Render(k)
 }
 
 func findSession(sessions []protocol.SessionSummary, id string) (protocol.SessionSummary, bool) {
