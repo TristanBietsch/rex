@@ -1,0 +1,4 @@
+# Check out every text file with LF endings, Windows included. Goldens,
+# testdata and embedded prompt templates are compared byte for byte; a CRLF
+# checkout (core.autocrlf on Windows runners) would break them.
+* text=auto eol=lf
