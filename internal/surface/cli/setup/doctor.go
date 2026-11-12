@@ -196,9 +196,10 @@ func checkSettingsLoad() checkResult {
 	return checkResult{"settings load", checkPass, path}
 }
 
-// checkToolBinaries checks each known tool binary via PATH lookup.
+// checkToolBinaries checks each known tool binary via PATH lookup, the extra
+// agents (Qwen Code, Cursor CLI, Grok Build) included.
 func checkToolBinaries() []checkResult {
-	tools := []string{"claude", "codex", "agy", "ollama"}
+	tools := []string{"claude", "codex", "agy", "ollama", "qwen", "cursor-agent", "grok"}
 	var results []checkResult
 	for _, tool := range tools {
 		path, err := exec.LookPath(tool)

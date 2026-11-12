@@ -211,3 +211,18 @@ func TestConfigEdit_createsConfigDirOwnerOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
 }
+
+// The extra agents (Qwen Code, Cursor CLI, Grok Build) get a tool row like
+// the others, by binary name.
+func TestCheckToolBinaries_ListsExtraAgents(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	var names []string
+	for _, r := range checkToolBinaries() {
+		names = append(names, r.Name)
+		require.Equal(t, "not found on PATH", r.Detail)
+	}
+	require.Equal(t, []string{
+		"tool: claude", "tool: codex", "tool: agy", "tool: ollama",
+		"tool: qwen", "tool: cursor-agent", "tool: grok",
+	}, names)
+}
