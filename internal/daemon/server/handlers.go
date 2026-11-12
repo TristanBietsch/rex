@@ -54,25 +54,29 @@ func defaultHandlers() map[string]intentHandler {
 	}
 }
 
+// helloSnapshotTaken runs between Hello's Snapshot read and the Snapshot
+// being sent; a test seam for the events that land in between.
+var helloSnapshotTaken = func() {}
+
 func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 	// The payload only feeds the log; a client that sends none still gets
 	// its snapshot, as before.
 	var p protocol.Hello
 	_ = json.Unmarshal(env.Data, &p)
 	slog.Debug("server: hello", "conn", c.out.id, "client", p.Client, "client_version", p.ClientVersion)
+	// Board events (store changes, health, overview, usage, tools, loops)
+	// are held from here and sent right after the Snapshot, so a change
+	// made after a read below is not lost; it may also be in the Snapshot,
+	// and clients apply it idempotently.
+	c.holdBoard()
 	snap := protocol.Snapshot{
 		Sessions:      c.srv.cfg.Store.Snapshot(),
 		Filter:        "all",
 		DaemonVersion: version.Version,
-		// An overview published between this read and subscribed.Store below
-		// is missed until the next one (documented in protocol.md).
-		Overview: c.srv.Overview(),
-		// Same race as the overview: a change between this read and the
-		// subscription below is missed until the next one.
-		Usage: c.srv.Usage(),
-		// Loops are read here too; a change after this is a Loop event.
-		Loops: c.srv.loopSnapshot(),
-		Tools: c.srv.ToolInfos(),
+		Overview:      c.srv.Overview(),
+		Usage:         c.srv.Usage(),
+		Loops:         c.srv.loopSnapshot(),
+		Tools:         c.srv.ToolInfos(),
 	}
 	snap.WorkspaceTagging = c.srv.cfg.Workspaces != nil && c.srv.cfg.Workspaces.Enabled()
 	snap.DaemonPID = os.Getpid()
@@ -82,8 +86,9 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		c.joinBoard()
 		c.out.setBoardInfo(protocol.BoardInfo{PID: p.PID, Build: p.Build})
 	}
+	helloSnapshotTaken()
 	c.sendEvent(protocol.EventSnapshot, env.ID, snap)
-	c.subscribed.Store(true)
+	c.goLive()
 	if p.Client == protocol.ClientTUI && c.srv.cfg.OnBoardClient != nil {
 		c.srv.cfg.OnBoardClient()
 	}
