@@ -184,6 +184,7 @@ func evaluate(u settings.LayerReport) Info {
 		return Info{State: state, Detail: detail, Report: settings.LayerReport{
 			Warnings: []string{"workspace: " + detail + "; its .rex/config.lua is not applied"},
 		}}
+	case StateUntrusted, StateApplied, StateFailed: // not from locate
 	}
 	info := Info{ID: w.ID, Name: w.Name, Root: w.Root, File: workspace.ConfigPath(w.Root)}
 	if !workspace.HasConfig(w.Root) {

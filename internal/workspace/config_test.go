@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 // mkConfig makes a workspace with .rex/config.lua holding body and returns
@@ -62,7 +64,7 @@ func TestReadConfig_SymlinkedRexDirRefused(t *testing.T) {
 func TestReadConfig_GroupWritableRefused(t *testing.T) {
 	skipWindows(t)
 	root := mkConfig(t, "x")
-	require.NoError(t, os.Chmod(ConfigPath(root), 0o620))
+	testperm.Loosen(t, ConfigPath(root), 0o620)
 	_, err := ReadConfig(root)
 	require.ErrorIs(t, err, ErrUnsafe)
 	require.ErrorContains(t, err, "writable")

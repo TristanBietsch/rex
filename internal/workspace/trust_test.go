@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
 )
 
 func newTrust(t *testing.T) *TrustStore {
@@ -106,7 +108,7 @@ func TestTrust_UnsafeOrBadFileTrustsNothing(t *testing.T) {
 	}
 	s = newTrust(t)
 	require.NoError(t, s.Trust(w))
-	require.NoError(t, os.Chmod(s.Path(), 0o622))
+	testperm.Loosen(t, s.Path(), 0o622)
 	require.False(t, s.Trusted(w), "group/world-writable")
 
 	s = newTrust(t)

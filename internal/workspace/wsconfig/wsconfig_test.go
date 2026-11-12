@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/testutil/testperm"
+
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -193,7 +195,7 @@ func TestUnsafeTrustedConfigIsRefused(t *testing.T) {
 	}
 	e := newEnv(t, wsOn+"skip_permissions: true\n", "", "rex.set('theme', 'noir')\n")
 	e.trust()
-	require.NoError(t, os.Chmod(workspace.ConfigPath(e.root), 0o666))
+	testperm.Loosen(t, workspace.ConfigPath(e.root), 0o666)
 	s, rep := e.load()
 	require.Error(t, rep.Err)
 	require.Contains(t, rep.Err.Error(), "writable")

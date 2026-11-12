@@ -38,6 +38,7 @@ func checkWorkspaceConfig() []checkResult {
 	case wsconfig.StateFailed:
 		return []checkResult{{name, checkWarn, protocol.FlattenDisplayText(rep.Err.Error()) +
 			"; trust settings read their defaults" + luaKeptSuffix(rep)}}
+	case wsconfig.StateApplied:
 	}
 	if len(rep.Warnings) > 0 {
 		return []checkResult{{name, checkWarn, fmt.Sprintf("%s: %d warning(s), first: %s", file, len(rep.Warnings), rep.Warnings[0])}}
