@@ -44,6 +44,9 @@ func printable(s string) string {
 // *Catalog holds no user themes.
 type Catalog struct {
 	user map[string]Palette
+	// lua holds the names in user that config.lua defined (they win over a
+	// theme file of the same name).
+	lua map[string]bool
 	// Issues lists every skipped file and every warning, in file order.
 	Issues []Issue
 }
@@ -85,26 +88,62 @@ func (c *Catalog) Get(name string) (Palette, bool) {
 	return Get(name)
 }
 
-// IsUser reports whether name is a user theme.
+// IsUser reports whether name is a theme file in the themes directory (not
+// one that config.lua defined; see IsLua).
 func (c *Catalog) IsUser(name string) bool {
-	if c == nil {
+	if c == nil || c.lua[name] {
 		return false
 	}
 	_, ok := c.user[name]
 	return ok
 }
 
-// UserNames returns the user theme names, sorted.
-func (c *Catalog) UserNames() []string {
-	if c == nil {
-		return nil
+// IsLua reports whether name is a theme that config.lua defined.
+func (c *Catalog) IsLua(name string) bool { return c != nil && c.lua[name] }
+
+// WithLua returns a copy of c that also holds themes (the ones config.lua
+// defined) and issues (what went wrong with others). A Lua theme beats a
+// theme file of the same name, with a warning Issue. c may be nil and is not
+// changed.
+func (c *Catalog) WithLua(themes map[string]Palette, issues []Issue) *Catalog {
+	out := &Catalog{user: map[string]Palette{}, lua: map[string]bool{}}
+	if c != nil {
+		for n, p := range c.user {
+			out.user[n] = p
+		}
+		out.Issues = append(out.Issues, c.Issues...)
 	}
-	names := make([]string, 0, len(c.user))
-	for n := range c.user {
+	for _, name := range sortedNames(themes) {
+		if _, shadows := out.user[name]; shadows {
+			out.Issues = append(out.Issues, Issue{File: name + ".yaml", Msg: "a theme of the same name in config.lua wins; this file is ignored", Warn: true})
+		}
+		out.user[name] = themes[name]
+		out.lua[name] = true
+	}
+	for _, i := range issues {
+		i.Msg = printable(i.Msg)
+		i.File = printable(i.File)
+		out.Issues = append(out.Issues, i)
+	}
+	return out
+}
+
+func sortedNames(m map[string]Palette) []string {
+	names := make([]string, 0, len(m))
+	for n := range m {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	return names
+}
+
+// UserNames returns the names of the non-built-in themes (theme files and
+// config.lua themes), sorted.
+func (c *Catalog) UserNames() []string {
+	if c == nil {
+		return nil
+	}
+	return sortedNames(c.user)
 }
 
 // LoadDir reads every <name>.yaml in dir. It never fails: a missing

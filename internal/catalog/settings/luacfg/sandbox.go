@@ -99,6 +99,7 @@ func (ev *evaluator) sandbox(L *lua.LState) {
 	rex := L.NewTable()
 	L.SetField(rex, "platform", lua.LString(platform()))
 	L.SetField(rex, "set", L.NewFunction(ev.set))
+	L.SetField(rex, "theme", L.NewFunction(ev.theme))
 	L.SetGlobal("rex", rex)
 }
 
