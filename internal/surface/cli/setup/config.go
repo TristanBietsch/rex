@@ -260,6 +260,10 @@ func configSet(args []string) error {
 	if err := store.Set(rest[0], rest[1]); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
+	// After Set, so an unknown id or a refused value exits 5 first.
+	if err := requireTerminalForSetting("config set", rest[0], "rex config set "+rest[0]+" "+rest[1]); err != nil {
+		return err
+	}
 	if err := store.Save(path); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
@@ -283,6 +287,9 @@ func configReset(args []string) error {
 	}
 	if err := store.Reset(rest[0]); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	}
+	if err := requireTerminalForSetting("config reset", rest[0], "rex config reset "+rest[0]); err != nil {
+		return err
 	}
 	if err := store.Save(path); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())

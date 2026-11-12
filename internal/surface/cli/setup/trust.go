@@ -7,7 +7,6 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 const trustSettingID = "auto_trust_dirs"
@@ -124,18 +123,11 @@ func trustAdd(dir string) error {
 }
 
 // requireTrustTerminal refuses adding a trusted folder unless a person runs
-// rex trust at a terminal: text output with stdin and stdout terminals, as
-// rex ws trust. Agent mode, -o and pipes exit 6, and no flag skips it, so an
-// agent cannot widen auto_trust_dirs through rex trust. Removing and listing
-// never grant trust and stay scriptable; ctrl+t, :trust and rex setup are
-// the person in the TUI.
+// rex trust at a terminal (requireTerminal). Removing and listing never
+// grant trust and stay scriptable; ctrl+t, :trust and rex setup are the
+// person in the TUI.
 func requireTrustTerminal(dir string) error {
-	p := core.Out()
-	if p.Format != core.FormatText || !p.InTTY || !p.OutTTY {
-		return core.Errorf(core.ExitOperationRefused, "", "trust: only at a terminal (not in agent mode, -o or a pipe); run rex trust %s yourself",
-			protocol.FlattenDisplayText(dir)).WithID("needs_terminal")
-	}
-	return nil
+	return requireTerminal("trust", "rex trust "+dir)
 }
 
 func trustRemove(dir string) error {
