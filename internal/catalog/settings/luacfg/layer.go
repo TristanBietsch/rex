@@ -33,7 +33,7 @@ func LayerFor(opts func() (Opts, error)) settings.Layer {
 		}
 		r := Load(context.Background(), o)
 		return settings.LayerReport{
-			Exists: r.Exists, Values: r.Values, SetAt: r.SetAt,
+			Exists: r.Exists, Values: r.Values, SetAt: r.SetAt, Given: r.Given,
 			Themes: r.Themes, ThemeIssues: r.ThemeIssues, Warnings: r.Warnings,
 			Err: r.Err, LastGood: r.LastGood, FailClosed: r.FailClosed,
 		}

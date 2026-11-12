@@ -33,7 +33,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 
 ### Setting IDs (from `registry.go`)
 
-`theme` (formerly `color_scheme`, read through `Setting.Aliases`; the name is checked by `theme.ValidName`), `spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `sound_enabled`, `soundset`, `master_volume`, `notify_on_state_change`, `boot_voice`, `keybind_preset`, `mouse_enabled`, `max_concurrent_sessions`, `screensaver_enabled`, `screensaver_after_minutes`, `screensaver_keep_awake` (TUI only, `screensaver.go`), `summary_enabled`, `summary_model`, `desc_animation`, `default_spawn_tool`, `default_spawn_model`, `default_spawn_effort`, `auto_trust_dirs` (read by the daemon at each spawn via `boot.AutoTrustDirs`), `lua_config_path` (read-only in registry).
+`theme` (formerly `color_scheme`, read through `Setting.Aliases`; the name is checked by `theme.ValidName`), `spinner`, `waiting_spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `sound_enabled`, `soundset`, `master_volume`, `notify_on_state_change`, `boot_voice`, `keybind_preset`, `mouse_enabled`, `max_concurrent_sessions`, `screensaver_enabled`, `screensaver_after_minutes`, `screensaver_keep_awake` (TUI only, `screensaver.go`), `summary_enabled`, `summary_model`, `desc_animation`, `default_spawn_tool`, `default_spawn_model`, `default_spawn_effort`, `auto_trust_dirs` (read by the daemon at each spawn via `boot.AutoTrustDirs`), `lua_config_path` (read-only in registry).
 
 ## Internal structure
 
@@ -63,7 +63,7 @@ Registry completeness; store round-trip; type coercion.
 
 `max_concurrent_sessions` documents "next daemon start" — live cap is `rex-daemon -max-concurrent-sessions` / `SetMaxConcurrent` intent. `lua_config_path` is read-only in UI. Adding a setting requires one `Setting` literal in `registry.go` only (comment in file).
 
-`config.lua` is a layer, not part of `Load`: `settings` cannot import `luacfg` (cycle), so a process installs it with `luacfg.Install()` (`SetLayerStamped`) and `LoadLayered`/`LoadDefault` apply it while `lua_config` (read from YAML only) is on. Lua values are `SourceLua` with `SetAt`; `Set`/`Reset` return `*ErrManagedByLua`; `Overlay` never marks dirty, so `Save` never writes them. On a layer error the trust ids read their defaults. Tests without an installed layer are YAML-only. `StackLayers` composes scopes (R06).
+`config.lua` is a layer, not part of `Load`: `settings` cannot import `luacfg` (cycle), so a process installs it with `luacfg.Install()` (`SetLayerStamped`) and `LoadLayered`/`LoadDefault` apply it while `lua_config` (read from YAML only) is on. Lua values are `SourceLua` with `SetAt`; `LayerReport.Given` keeps the Lua number `rex.set` was passed before `Validate` (read by `rex doctor`'s `master_volume` row); `Set`/`Reset` return `*ErrManagedByLua`; `Overlay` never marks dirty, so `Save` never writes them. On a layer error the trust ids read their defaults. Tests without an installed layer are YAML-only. `StackLayers` composes scopes (R06).
 
 ## See also
 

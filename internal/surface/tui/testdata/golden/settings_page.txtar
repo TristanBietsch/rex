@@ -5,11 +5,12 @@
   SECTIONS      │ Appearance                                                                                            
   ▸ Appearance  │ ▸ Theme                                                                                  ◂ default ▸  
     Behavior    │   Spinner type                                                                               braille  
-    Features    │   Row density                                                                                 normal  
-    Spawn       │   Prompt glyph                                                                                     λ  
-    AI summary  │   Reduce motion                                                                                  off  
-    Audio       │   Done blink                                                                                      on  
-    Advanced    │   Show help bar                                                                                   on  
+    Features    │   Waiting icon                                                                                 clock  
+    Spawn       │   Row density                                                                                 normal  
+    AI summary  │   Prompt glyph                                                                                     λ  
+    Audio       │   Reduce motion                                                                                  off  
+    Advanced    │   Done blink                                                                                      on  
+                │   Show help bar                                                                                   on  
                 │   Header style                                                                               verbose  
                 │   Window border                                                                                  off  
                 │   Border color                                                                                random  
@@ -17,7 +18,6 @@
                 │   Row icon set                                            unseen,reason,loop,subagents,spend,longrun  
                 │   ASCII glyphs                                                                                   off  
                 │   Mobile layout                                                                                 auto  
-                │                                                                                                       
                 │                                                                                                       
                 │                                                                                                       
                 │                                                                                                       
@@ -46,16 +46,16 @@
   SECTIONS      │ Appearance                                                    
   ▸ Appearance  │ ▸ Theme                                          ◂ default ▸  
     Behavior    │   Spinner type                                       braille  
-    Features    │   Row density                                         normal  
-    Spawn       │   Prompt glyph                                             λ  
-    AI summary  │   Reduce motion                                          off  
-    Audio       │   Done blink                                              on  
-    Advanced    │   Show help bar                                           on  
+    Features    │   Waiting icon                                         clock  
+    Spawn       │   Row density                                         normal  
+    AI summary  │   Prompt glyph                                             λ  
+    Audio       │   Reduce motion                                          off  
+    Advanced    │   Done blink                                              on  
+                │   Show help bar                                           on  
                 │   Header style                                       verbose  
                 │   Window border                                          off  
                 │   Border color                                        random  
                 │   Column layout                                        fixed  
-                │   Row icon set               unseen,reason,loop,subagents,s…  
                 │   ↓ more                                                      
 ────────────────┴───────────────────────────────────────────────────────────────
   id theme · default default · applies now                                      
@@ -72,11 +72,11 @@
   Appearance                                      
   ▸ Theme                            ◂ default ▸  
     Spinner type                         braille  
+    Waiting icon                           clock  
     Row density                           normal  
     Prompt glyph                               λ  
     Reduce motion                            off  
     Done blink                                on  
-    Show help bar                             on  
     ↓ more                                        
 ──────────────────────────────────────────────────
   id theme · default default · applies now        
@@ -92,11 +92,12 @@
   ␛[38;2;139;145;161mSECTIONS␛[0m     ␛[38;2;43;48;60m │ ␛[0m␛[1mAppearance␛[0m                                                                                            
   ␛[38;2;179;146;240m▸ Appearance␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[38;2;179;146;240m▸ ␛[0m␛[1;38;2;230;232;238;48;2;29;32;44mTheme                         ␛[0m␛[38;2;230;232;238;48;2;29;32;44m                                                       ␛[0m␛[38;2;230;232;238;48;2;29;32;44m  ␛[0m␛[38;2;230;232;238;48;2;29;32;44m◂ default ▸␛[0m␛[38;2;230;232;238;48;2;29;32;44m␛[0m  
     ␛[38;2;230;232;238mBehavior␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mSpinner type                  ␛[0m                                                           ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mbraille␛[0m  
-    ␛[38;2;230;232;238mFeatures␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow density                   ␛[0m                                                            ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mnormal␛[0m  
-    ␛[38;2;230;232;238mSpawn␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mPrompt glyph                  ␛[0m                                                                 ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mλ␛[0m  
-    ␛[38;2;230;232;238mAI summary␛[0m ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mReduce motion                 ␛[0m                                                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
-    ␛[38;2;230;232;238mAudio␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mDone blink                    ␛[0m                                                                ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
-    ␛[38;2;230;232;238mAdvanced␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mShow help bar                 ␛[0m                                                                ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
+    ␛[38;2;230;232;238mFeatures␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWaiting icon                  ␛[0m                                                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mclock␛[0m  
+    ␛[38;2;230;232;238mSpawn␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow density                   ␛[0m                                                            ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mnormal␛[0m  
+    ␛[38;2;230;232;238mAI summary␛[0m ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mPrompt glyph                  ␛[0m                                                                 ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mλ␛[0m  
+    ␛[38;2;230;232;238mAudio␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mReduce motion                 ␛[0m                                                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
+    ␛[38;2;230;232;238mAdvanced␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mDone blink                    ␛[0m                                                                ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
+               ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mShow help bar                 ␛[0m                                                                ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mHeader style                  ␛[0m                                                           ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mverbose␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWindow border                 ␛[0m                                                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mBorder color                  ␛[0m                                                            ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mrandom␛[0m  
@@ -104,7 +105,6 @@
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow icon set                  ␛[0m                        ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238munseen,reason,loop,subagents,spend,longrun␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mASCII glyphs                  ␛[0m                                                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mMobile layout                 ␛[0m                                                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mauto␛[0m  
-               ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
                ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
                ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
                ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
@@ -133,16 +133,16 @@
   ␛[38;2;139;145;161mSECTIONS␛[0m     ␛[38;2;43;48;60m │ ␛[0m␛[1mAppearance␛[0m                                                    
   ␛[38;2;179;146;240m▸ Appearance␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[38;2;179;146;240m▸ ␛[0m␛[1;38;2;230;232;238;48;2;29;32;44mTheme                   ␛[0m␛[38;2;230;232;238;48;2;29;32;44m                     ␛[0m␛[38;2;230;232;238;48;2;29;32;44m  ␛[0m␛[38;2;230;232;238;48;2;29;32;44m◂ default ▸␛[0m␛[38;2;230;232;238;48;2;29;32;44m␛[0m  
     ␛[38;2;230;232;238mBehavior␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mSpinner type            ␛[0m                         ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mbraille␛[0m  
-    ␛[38;2;230;232;238mFeatures␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow density             ␛[0m                          ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mnormal␛[0m  
-    ␛[38;2;230;232;238mSpawn␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mPrompt glyph            ␛[0m                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mλ␛[0m  
-    ␛[38;2;230;232;238mAI summary␛[0m ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mReduce motion           ␛[0m                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
-    ␛[38;2;230;232;238mAudio␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mDone blink              ␛[0m                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
-    ␛[38;2;230;232;238mAdvanced␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mShow help bar           ␛[0m                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
+    ␛[38;2;230;232;238mFeatures␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWaiting icon            ␛[0m                           ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mclock␛[0m  
+    ␛[38;2;230;232;238mSpawn␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow density             ␛[0m                          ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mnormal␛[0m  
+    ␛[38;2;230;232;238mAI summary␛[0m ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mPrompt glyph            ␛[0m                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mλ␛[0m  
+    ␛[38;2;230;232;238mAudio␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mReduce motion           ␛[0m                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
+    ␛[38;2;230;232;238mAdvanced␛[0m   ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mDone blink              ␛[0m                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
+               ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mShow help bar           ␛[0m                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mHeader style            ␛[0m                         ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mverbose␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWindow border           ␛[0m                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mBorder color            ␛[0m                          ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mrandom␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mColumn layout           ␛[0m                           ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mfixed␛[0m  
-               ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow icon set            ␛[0m ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238munseen,reason,loop,subagents,s…␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m␛[38;2;139;145;161m  ↓ more␛[0m                                                      
 ␛[38;2;43;48;60m────────────────┴───────────────────────────────────────────────────────────────␛[0m
   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m                                      
@@ -159,11 +159,11 @@
   ␛[1mAppearance␛[0m                                      
   ␛[38;2;179;146;240m▸ ␛[0m␛[1;38;2;230;232;238;48;2;29;32;44mTheme             ␛[0m␛[38;2;230;232;238;48;2;29;32;44m             ␛[0m␛[38;2;230;232;238;48;2;29;32;44m  ␛[0m␛[38;2;230;232;238;48;2;29;32;44m◂ default ▸␛[0m␛[38;2;230;232;238;48;2;29;32;44m␛[0m  
     ␛[38;2;139;145;161mSpinner type      ␛[0m                 ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mbraille␛[0m  
+    ␛[38;2;139;145;161mWaiting icon      ␛[0m                   ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mclock␛[0m  
     ␛[38;2;139;145;161mRow density       ␛[0m                  ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mnormal␛[0m  
     ␛[38;2;139;145;161mPrompt glyph      ␛[0m                       ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mλ␛[0m  
     ␛[38;2;139;145;161mReduce motion     ␛[0m                     ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
     ␛[38;2;139;145;161mDone blink        ␛[0m                      ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
-    ␛[38;2;139;145;161mShow help bar     ␛[0m                      ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
   ␛[38;2;139;145;161m  ↓ more␛[0m                                        
 ␛[38;2;43;48;60m──────────────────────────────────────────────────␛[0m
   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m        

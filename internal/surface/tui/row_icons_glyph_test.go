@@ -38,8 +38,10 @@ func TestRowIconGlyphs(t *testing.T) {
 			taken[g] = true
 		}
 	}
-	for _, f := range waitingFrames {
-		taken[f] = true
+	for _, set := range waitingSets {
+		for _, f := range set.Frames {
+			taken[f] = true
+		}
 	}
 	reg, err := registry.Load("")
 	require.NoError(t, err)

@@ -24,3 +24,24 @@ func TestEvalSet_MasterVolumeLegacyFloat(t *testing.T) {
 		require.NotContains(t, r.Values, "master_volume", in)
 	}
 }
+
+// Given keeps the Lua number rex.set was passed, before Validate, so rex
+// doctor can tell a config.lua that still writes the old scale (0.8, or 1
+// meaning full) from one that writes 40. A later non-number, a refused
+// call or a non-numeric setting leaves no entry.
+func TestEvalSet_GivenKeepsTheLuaNumber(t *testing.T) {
+	r := evalScript(t, "rex.set('master_volume', 0.8)")
+	require.Equal(t, 40, r.Values["master_volume"])
+	require.InDelta(t, 0.8, r.Given["master_volume"], 0)
+
+	r = evalScript(t, "rex.set('master_volume', 1.0)")
+	require.Equal(t, 1, r.Values["master_volume"])
+	require.InDelta(t, 1.0, r.Given["master_volume"], 0)
+
+	r = evalScript(t, "rex.set('master_volume', 0.8)\nrex.set('master_volume', 12.5)")
+	require.Equal(t, 40, r.Values["master_volume"], "a refused call keeps the earlier value")
+	require.InDelta(t, 0.8, r.Given["master_volume"], 0, "and its number")
+
+	r = evalScript(t, "rex.set('theme', 'noir')")
+	require.NotContains(t, r.Given, "theme")
+}

@@ -19,6 +19,10 @@ type LayerReport struct {
 	// "config.lua:12").
 	Values map[string]any
 	SetAt  map[string]string
+	// Given is the number the layer's file passed for an id in Values,
+	// before validation (master_volume 0.8 is stored as 40), for ids set
+	// from a number. rex doctor reads it.
+	Given map[string]float64
 	// Themes and ThemeIssues are the themes the layer defined.
 	Themes      map[string]theme.Palette
 	ThemeIssues []theme.Issue
@@ -131,11 +135,20 @@ func StackLayers(layers ...Layer) Layer {
 					out.Values, out.SetAt = map[string]any{}, map[string]string{}
 				}
 				out.Values[id], out.SetAt[id] = v, r.SetAt[id]
+				if g, ok := r.Given[id]; ok {
+					if out.Given == nil {
+						out.Given = map[string]float64{}
+					}
+					out.Given[id] = g
+				} else {
+					delete(out.Given, id)
+				}
 				out.FailClosed = slices.DeleteFunc(out.FailClosed, func(c string) bool { return c == id })
 			}
 			for _, id := range r.FailClosed {
 				delete(out.Values, id)
 				delete(out.SetAt, id)
+				delete(out.Given, id)
 				if !slices.Contains(out.FailClosed, id) {
 					out.FailClosed = append(out.FailClosed, id)
 				}
