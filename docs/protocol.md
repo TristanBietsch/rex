@@ -68,6 +68,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
 | `UsageSample` | no | Sent by `rex-daemon statusline-tap`, fire and forget (no `id`, no reply, no `Hello`). `session_id` (the rex session), optional `claude_session_id`, `five_hour` and `seven_day` (`used_pct`, `resets_at` in Unix epoch seconds), `spend_limit` (the same plus `used_usd`, `limit_usd`, `period`), `cost_usd`, `model_id`, `model_name`. Every field may be absent. A sample for an unknown session, one with nothing in it, or one that arrives while `usage` is off is dropped without an error. Nothing else of Claude's status-line JSON is ever sent |
+| `StartLoop` | yes | `name` (the loop file's name, never a path), optional `cwd` (absolute, no `..`). Starts a repeat loop and spawns its session. Reply is a `Loop` event with the intent's `id`. `bad_intent` while `loops` is off (`off: enable loops in Settings → Features`), for a bad or invalid file, a missing folder, and `too many loops` at 2 live loops; `spawn_failed` / `too_many_sessions` as for `NewSession`. `(*client.Client).StartLoop(ctx, p)` |
+| `PauseLoop`, `ResumeLoop`, `StopLoop` | yes | `loop_id`. Reply is a `Loop` event. `bad_state` unless the loop is running (pause), paused (resume) or not yet ended (stop); `bad_intent` for an unknown or malformed id. The session keeps running. `PauseLoop`, `ResumeLoop`, `StopLoop` on the client |
 | `UsageQuery` | yes | `range` (`today`, `7d` or `30d`; empty is `today`) and optional `tool`. Reply is a `UsageResult` event with the intent's `id` (see below); `bad_intent` `usage is off` while the setting is off, and for a bad range. `(*client.Client).UsageQuery(ctx, q)` |
 | `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP. `Ack` once the new registry is in use; `bad_intent` with the load error on failure |
 
@@ -150,6 +152,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `Reload` | `Ack` | After the new registry is in use |
 | `Shutdown` | `Ack` | Queued before shutdown starts; the daemon may close the connection first, so treat the close as success |
 | `UsageQuery` | `UsageResult` | Not an `Ack`: the payload is the aggregates |
+| `StartLoop`, `PauseLoop`, `ResumeLoop`, `StopLoop` | `Loop` | Not an `Ack`: the payload is the loop's new state |
 | `UsageSample` | `Ack` only if it carried an `id` | The tap sends none |
 | `OpenSession`, unknown types | — | `Error` `bad_intent` "intent not implemented" |
 
@@ -163,7 +166,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it) |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it), `loops` (the daemon's loops, running, paused and recently finished; absent while `loops` is off and from daemons that predate it) |
 | `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
@@ -172,6 +175,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `SummarizerHealth` | `available`, `reason` |
 | `Overview` | `enabled`, `headline` (sanitized model text, at most 200 runes), `generated_at`. Sent to every connection that has sent `Hello`; the latest value is also in `Snapshot.overview` |
 | `Usage` | `enabled`, `quotas[]`: the latest plan-quota reading per tool and window, `{tool, model, window, used_pct, resets_at, used_usd, limit_usd, at, stale}`. Window is `5h`, `week` or a spend period such as `month`; `model` is empty for a plan-wide quota; `resets_at` is RFC 3339 and omitted when unknown; every number may be absent (an API-key plan has no quota). Sent to every connection that has sent `Hello` when a quota changes (a reading that repeats the same numbers is not republished) and when `usage` is switched on or off (`enabled: false`: drop what you hold). A reading with `at` older than 15 minutes is stale. The latest value is also in `Snapshot.usage` |
+| `Loop` | A `LoopSummary`: `id`, `name`, `kind`, `state` (`running`, `paused`, `done`, `capped`, `stopped`, `failed`), `pause_reason`, `stop_reason`, `session_id`, `cwd`, `iteration`, `max_iterations`, `last_check_exit`, `started_at`, `updated_at`, `notice`. Sent to every connection that has sent `Hello` whenever a loop changes, and as the reply to the four loop intents. The loops are also in `Snapshot.loops` |
 | `UsageResult` | Reply to `UsageQuery`: `range`, `since`, `tool`, `total`, `tools[]` (each with `models[]`) and `quotas[]`. A row is `{sessions, tokens, tokens_estimated, cost_usd}`; `cost_usd` is absent when no counted session reported a cost. Rows count each session once, by its latest ledger line (or its live totals) falling inside the range |
 | `Error` | `id`, `code`, `message` |
 
@@ -212,6 +216,8 @@ Additive changes (new optional fields, new intents, new events, new patch keys) 
 The overview is in the daemon's memory only. An `Overview` published between a client's `Snapshot` and the start of its event stream is missed until the next publish. An older client ignores the event and `snapshot.overview`; against an older daemon a newer client sees neither and shows only what it computes itself.
 
 Usage is the same: the quotas are in the daemon's memory only, and a `Usage` published between a client's `Snapshot` and the start of its event stream is missed until the next change. An older daemon answers `UsageQuery` with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`) and ignores `UsageSample`, so a tap talking to it just loses its usage; an older client ignores the `Usage` event and `snapshot.usage`. `ProtocolVersion` is unchanged.
+
+Loops are kept by the daemon's loop runner and persisted in its state dir. A `Loop` published between a client's `Snapshot` and the start of its event stream is missed until the loop's next change. An older daemon answers the four loop intents with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`); an older client ignores the `Loop` event, `snapshot.loops` and the `loop_id` / `loop_iter` session fields. `ProtocolVersion` is unchanged.
 
 A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
 

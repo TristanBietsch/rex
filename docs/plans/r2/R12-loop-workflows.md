@@ -68,3 +68,17 @@ until:
 | D1 | Kinds | Repeat-until in round 2; chains later (R12-3 deferred). |
 | D2 | Format | YAML in `~/.config/rex/loops/` (+ `.rex/loops/` in trusted workspaces). |
 | D3 | Stop default | Check command exits 0, plus max-iterations cap. |
+
+## Build notes
+
+Built: R12-1, R12-2, R12-4 and R12-6 for the **repeat** kind. See [loops.md](../../loops.md).
+
+- **Out of scope, not built:** R12-3 (chains, deferred by D1) and **R12-5 (TUI loop cards and keys)**: round-1 U1 is restyling the TUI. The board shows a loop's session as an ordinary row; `SessionSummary.loop_id` / `loop_iter` and `Snapshot.loops` / the `Loop` event carry what the cards will need. `rex loop` is the only surface.
+- Code: `internal/features/loop` (format, validator, check runner, runner), `internal/daemon/boot/loop.go` (Host over the server and store; flag wiring), `internal/daemon/server/loop.go` (intents), `internal/wire/protocol/loop.go`, `internal/surface/cli/loopcli`.
+- `StartLoop` takes a file **name** (the stem), not a path: a client never names a path. The spec's `file|name` is name only. `.rex/loops/` in trusted workspaces (D2) is not read.
+- Turn end: Claude needs an explicit `wait_reason` review (an unexplained needs_input waits for the hook); other tools use working to needs_input. A last line ending in `?` pauses the loop for both, using the same rule as the board (`overview.IsQuestion`).
+- Pauses are either **automatic** (`needs_input`, `user_input`: the loop continues by itself after a clean turn end that followed your answer or input) or **held** (`user`, `daemon_restart`, `session_ended`, `send_failed`, `feature_off`: only `ResumeLoop` continues). A session that exits pauses the loop as `session_ended`, so a daemon shutdown leaves loops paused too.
+- Resume of a loop whose session exited uses the server's Resume path (same id, resume args); if the tool cannot resume, `ResumeLoop` fails with `bad_state` and the loop can be stopped.
+- A paused loop still counts toward the cap of 2 live loops.
+- Marker validation also refuses a marker that matches a whole line of the prompts, since the agent echoes them.
+- Known gap: a Claude turn shorter than one daemon poll may go unseen (no working state observed); `max_minutes` ends such a stalled loop. The cap "sound" in Review focus is not built (no TUI work).

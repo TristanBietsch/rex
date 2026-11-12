@@ -25,6 +25,7 @@ Go source wins when docs disagree with code.
 | [registry.md](registry.md) | `tools.yaml` schema and merge rules |
 | [protocol.md](protocol.md) | JSONL wire format, intents, events |
 | [daemon.md](daemon.md) | `rex-daemon` flags and operations |
+| [loops.md](loops.md) | Loop workflows: the file format, stop conditions, safety |
 | [paths.md](paths.md) | Files, directories, environment variables |
 | [glossary.md](glossary.md) | Terms |
 

@@ -55,6 +55,7 @@ Defined: `internal/wire/protocol/events.go` (`SessionSummary`). Persisted: `inte
 | Filter | `filter` | string | cosmetic per-client |
 | Overview | `overview` | `Overview` | optional; absent until the daemon publishes one |
 | Usage | `usage` | `Usage` | optional; live quotas, absent while `usage` is off or before the first one |
+| Loops | `loops` | `LoopSummary[]` | optional; absent while `loops` is off |
 
 ## Overview event
 
@@ -76,6 +77,26 @@ In memory only; never persisted. See `docs/protocol.md`.
 | Quotas | `quotas` | `UsageQuota[]` | latest reading per tool and window |
 
 `UsageQuota`: `tool`, `model` (empty = plan-wide), `window` (`5h`, `week`, a spend period), `used_pct`, `resets_at`, `used_usd`, `limit_usd` (all optional), `at`, `stale`.
+
+## Loop event
+
+`LoopSummary` in `internal/wire/protocol/loop.go`. Persisted by the daemon as `<state-dir>/loops/<id>.json` (0600, `features/loop.State`: the summary fields plus the validated definition) with the log in `<id>.log`.
+
+| Field | JSON | Type | Notes |
+|-------|------|------|-------|
+| ID | `id` | string | `loop-` and 8 hex digits |
+| Name | `name` | string | the loop file's name |
+| Kind | `kind` | string | `repeat` |
+| State | `state` | string | `running`, `paused`, `done`, `capped`, `stopped`, `failed` |
+| PauseReason | `pause_reason` | string | optional; `user`, `needs_input`, `user_input`, `daemon_restart`, `session_ended`, `send_failed`, `feature_off` |
+| StopReason | `stop_reason` | string | optional; `check_passed`, `marker`, `max_iterations`, `max_minutes`, `stopped`, `check_error` |
+| SessionID, CWD | `session_id`, `cwd` | string | |
+| Iteration, MaxIterations | `iteration`, `max_iterations` | int | turn in progress, cap |
+| LastCheckExit | `last_check_exit` | int | optional; absent on timeout or start failure |
+| StartedAt, UpdatedAt | `started_at`, `updated_at` | RFC3339 time | |
+| Notice | `notice` | string | optional; daemon-written text |
+
+`SessionSummary` also has `loop_id` and `loop_iter` (both optional; set only for a loop's session). Intents `StartLoop` (`name`, `cwd`), `PauseLoop`, `ResumeLoop`, `StopLoop` (`loop_id`) reply with this event.
 
 ## UsageSample intent (status-line tap, no reply)
 
