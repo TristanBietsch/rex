@@ -52,6 +52,7 @@ func installLuaLayer(args []string) {
 var interactiveVerbs = map[string]string{
 	"rex":    "rex ls",
 	"attach": "rex log <sel> -n 50",
+	"here":   "rex ws id",
 }
 
 func run(args []string) error {
@@ -171,6 +172,8 @@ func run(args []string) error {
 		return inspect.RunAudit(args[1:])
 	case "ws":
 		return workspace.RunWs(args[1:])
+	case "here":
+		return workspace.RunHere(args[1:])
 	default:
 		return unknownCommand(args[0])
 	}

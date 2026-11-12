@@ -155,7 +155,7 @@ func bannerElsewhere(m Model, self string) []bannerItem {
 		return nil
 	}
 	var others []protocol.SessionSummary
-	for _, s := range m.Sessions {
+	for _, s := range scopedSessions(m) {
 		if s.ID != self {
 			others = append(others, s)
 		}
@@ -179,7 +179,7 @@ func bannerElsewhere(m Model, self string) []bannerItem {
 		items = append(items, bannerItem{text: "elsewhere: " + strings.Join(parts, " · ")})
 	}
 	if o := m.Overview; o != nil && o.Enabled {
-		if h := strings.TrimSpace(protocol.FlattenDisplayText(o.Headline)); h != "" {
+		if h := strings.TrimSpace(protocol.FlattenDisplayText(overviewHeadline(m))); h != "" {
 			items = append(items, bannerItem{text: "» " + h})
 		}
 	}

@@ -170,11 +170,13 @@ func TestModifiedMarker(t *testing.T) {
 	require.NotContains(t, settingsText(m), "•")
 }
 
-func TestBoolOnIsAccent(t *testing.T) {
+func TestBoolOnIsPrimaryOffIsDim(t *testing.T) {
 	withProfile(termenv.TrueColor, func() {
 		m := settingsScreen(t, 120, 60)
 		out := m.View()
-		require.Contains(t, out, styleArrow.Render("on"), "on reads in the accent")
+		require.Contains(t, out, stylePrimary.Render("on"), "on reads in the primary tone")
+		require.Contains(t, out, styleDim.Render("off"), "off reads in the dim tone")
+		require.NotContains(t, out, styleArrow.Render("on"), "on is no longer the accent")
 	})
 }
 

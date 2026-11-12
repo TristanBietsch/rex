@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
+  all · claude · codex · antigravity · ollama                                   
+
+────────────────────────────────────────────────────────────────────────────────
+
+  READY  1                                                                      
+   ◆  dark-mode         ⟳ 2/5 paused: needs you · system…                     4m
+
+  WAITING  0                                                                    
+      nothing waiting on a tool
+
+  WORKING  3                                                                    
+ ▸ ⠋  release-notes     draft ready — which feature leads?           ▴ 45m   11m
+   ⠋  日本語の長いタ…   ⟳ 3/8 running · events_org_ts index…                  7s
+   ⠋  payment-migrati…  porting billing to the new processor…        ▴ 7h     2h
+
+  DONE  3                                                                       
+   ●  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
+   ✕  no-model          boot                                                   -
+  ↳ draft ready — which feature leads?                                          
+────────────────────────────────────────────────────────────────────────────────
+ ? stop loop fix-until-green (3/8)? it ends for good; the agent keeps running —…
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  READY  1                                                                                                              
+   ◆  dark-mode             ⟳ 2/5 paused: needs you · system theme vs explicit toggle — your call                     4m
+
+  WAITING  0                                                                                                            
+      nothing waiting on a tool
+
+  WORKING  3                                                                                                            
+ ▸ ⠋  release-notes         draft ready — which feature leads?                                               ▴ 45m   11m
+   ⠋  日本語の長いタスク…   ⟳ 3/8 running · events_org_ts index live — p95 38ms                                       7s
+   ⠋  payment-migration-v…  porting billing to the new processor — 12/14                                     ▴ 7h     2h
+
+  DONE  3                                                                                                               
+   ●  test-coverage         billing/ from 61% → 92% — PR #408 merged                                                  9d
+   ✕  no-model              boot                                                                                       -
+   ✕  failing-job                                                                                                      -
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↳ draft ready — which feature leads?                                                                                  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ? stop loop fix-until-green (3/8)? it ends for good; the agent keeps running — y / N                                   
+  enter open · i new · cc done · tab next · ? more                                                                      

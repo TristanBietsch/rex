@@ -440,8 +440,14 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 	if protocol.ValidLoopID(sum.LoopID) && sum.LoopIter > 0 && sum.LoopIter <= 1000 {
 		loopID, loopIter = sum.LoopID, sum.LoopIter
 	}
+	// And the workspace id, which names a registry entry.
+	wsID := ""
+	if protocol.ValidWorkspaceID(sum.WorkspaceID) {
+		wsID = sum.WorkspaceID
+	}
 	return &Session{
-		ID: sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
+		WorkspaceID: wsID,
+		ID:          sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
 		Effort: sum.Effort, Slug: sum.Slug, CWD: sum.CWD,
 		Title:         protocol.SanitizeDisplayText(sum.Title, protocol.MaxTitleRunes),
 		Description:   protocol.SanitizeDisplayText(sum.Description, protocol.MaxDescriptionRunes),

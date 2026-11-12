@@ -22,10 +22,11 @@ func renderHeader(m Model, width int) string {
 // headerTopRow is the logo and counts row with the usage meter at its right
 // end, and the meter's columns [lo, hi).
 func headerTopRow(m Model, width int) (row string, lo, hi int) {
-	cols, failed := columnCounts(m.Sessions, rowFilterOf(m).ctx)
+	scoped := scopedSessions(m)
+	cols, failed := columnCounts(scoped, rowFilterOf(m).ctx)
 
 	marked := 0
-	for _, s := range m.Sessions {
+	for _, s := range scoped {
 		if !s.RetireAt.IsZero() {
 			marked++
 		}
@@ -38,6 +39,9 @@ func headerTopRow(m Model, width int) (row string, lo, hi int) {
 		counts += styleDim.Render(fmt.Sprintf("  · %d marked done", marked))
 	}
 	topRow := "  " + logo + counts
+	if chip := renderWorkspaceChip(m); chip != "" {
+		topRow = "  " + chip + " " + logo + counts
+	}
 
 	if m.Detailed && !mobile {
 		topRow += styleDim.Render("  · detailed (v)")
@@ -113,7 +117,7 @@ const overviewLead = "  » "
 // the daemon has sent none (older daemon, overview off there, nothing to say
 // yet) only the count shows.
 func renderOverviewLine(m Model, width int) string {
-	review := len(overview.Group(m.Sessions)[overview.Review])
+	review := len(overview.Group(scopedSessions(m))[overview.Review])
 	count := "nothing to review"
 	countStyle := styleDim
 	if review > 0 {
@@ -122,7 +126,7 @@ func renderOverviewLine(m Model, width int) string {
 	}
 	line := styleDim.Render(overviewLead) + countStyle.Render(count)
 	if o := m.Overview; o != nil && o.Enabled {
-		if headline := protocol.FlattenDisplayText(o.Headline); headline != "" {
+		if headline := protocol.FlattenDisplayText(overviewHeadline(m)); headline != "" {
 			age := ""
 			if !o.GeneratedAt.IsZero() {
 				age = " · " + durationAgoAt(m.now(), o.GeneratedAt)

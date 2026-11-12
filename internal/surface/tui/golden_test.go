@@ -39,6 +39,36 @@ func goldenBoard(t *testing.T, sz goldenSize, detailed bool) Model {
 	return m
 }
 
+// goldenLoops is the golden board with two sessions owned by loops (one
+// running, one paused for you) and the loops feature on.
+func goldenLoops(t *testing.T, sz goldenSize, focus Focus) Model {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	if err := m.Store.Set("loops", true); err != nil {
+		t.Fatal(err)
+	}
+	m.Loops = testLoops()
+	m.Sessions[2].LoopID, m.Sessions[2].LoopIter = loopA, 3 // working
+	m.Sessions[0].LoopID, m.Sessions[0].LoopIter = loopB, 2 // needs you
+	m.Loops[0].SessionID, m.Loops[1].SessionID = m.Sessions[2].ID, m.Sessions[0].ID
+	m.Focus = focus
+	return m
+}
+
+// goldenDoneFold is the golden board with a Done column long enough to fold:
+// its keys sit at the end of the help line.
+func goldenDoneFold(t *testing.T, sz goldenSize) Model {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	for i := range 3 {
+		m.Sessions = append(m.Sessions, protocol.SessionSummary{
+			ID: fmt.Sprintf("d%d", i), ShortID: fmt.Sprintf("dd0%d", i), ToolID: "claude",
+			Slug: fmt.Sprintf("shipped-%d", i), State: protocol.StateDone, LastEventAt: goldenNow.Add(-time.Hour),
+		})
+	}
+	return m
+}
+
 type goldenScreen struct {
 	name   string
 	styled bool // also pin the TrueColor SGR output
@@ -56,12 +86,13 @@ func (sc goldenScreen) sizesOf() []goldenSize {
 // goldenScreenSizes overrides the sizes of the screens that are pinned at
 // others than goldenSizes.
 var goldenScreenSizes = map[string][]goldenSize{
-	"usage":        {{80, 24}, {120, 40}, goldenMobile},
-	"header_meter": {{60, 24}, {80, 24}, {120, 40}},
-	"undo_confirm": {{80, 24}, {120, 40}, goldenMobile},
-	"undo_shared":  {{80, 24}, {120, 40}, goldenMobile},
-	"undo_forced":  {{80, 24}, {120, 40}, goldenMobile},
-	"undo_done":    {{80, 24}, {120, 40}, goldenMobile},
+	"usage":           {{80, 24}, {120, 40}, goldenMobile},
+	"header_meter":    {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm":    {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":     {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":     {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":       {{80, 24}, {120, 40}, goldenMobile},
+	"board_done_fold": {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -71,6 +102,14 @@ func goldenScreens() []goldenScreen {
 	return []goldenScreen{
 		{"board_simple", true, func(t *testing.T, sz goldenSize) Model { return goldenBoard(t, sz, false) }},
 		{"board_detailed", false, func(t *testing.T, sz goldenSize) Model { return goldenBoard(t, sz, true) }},
+		{"board_done_fold", false, goldenDoneFold},
+		{"board_hints_off", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenDoneFold(t, sz)
+			if err := m.Store.Set("show_help_bar", false); err != nil {
+				t.Fatal(err)
+			}
+			return m
+		}},
 		{"help", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusHelp
@@ -151,6 +190,36 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
 			return framedGolden(t, goldenBoard(t, sz, false), sz)
+		}},
+		{"workspace_board", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			if err := m.Store.Set("workspaces", true); err != nil {
+				t.Fatal(err)
+			}
+			// Half the sessions belong to the workspace; the rest are elsewhere.
+			for i := range m.Sessions {
+				if i%2 == 0 {
+					m.Sessions[i].WorkspaceID = wsA
+				} else {
+					m.Sessions[i].WorkspaceID = wsB
+				}
+			}
+			m.WS = wsScopeA()
+			m.wsTagging = true
+			m = reselectOutOfScope(m)
+			m.TermW, m.TermH = sz.w, sz.h // the border is on by default here
+			return syncLayout(m)
+		}},
+		{"loop_rows", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenLoops(t, sz, FocusBoard)
+		}},
+		{"loops_overlay", false, func(t *testing.T, sz goldenSize) Model {
+			return goldenLoops(t, sz, FocusLoops)
+		}},
+		{"loop_stop_confirm", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenLoops(t, sz, FocusConfirmLoopStop)
+			m.PendingLoopStop = loopA
+			return m
 		}},
 		{"attach_frame", false, func(t *testing.T, sz goldenSize) Model {
 			m := bannerModel(t, sz.w, sz.h, bannerSession())

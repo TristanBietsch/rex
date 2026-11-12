@@ -16,11 +16,11 @@ rex
 
 Four sections group sessions, top to bottom: **READY**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
 
-**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as READY while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
+**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as READY while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`. `show_help_bar` in Settings → Appearance turns these hints off; errors and notices still show on that line.
 
 The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
-A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden · 4 show · :prune clear`). `4` shows and hides it; `:prune` clears it ([slash.md](slash.md)). When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
+A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden`), and its keys join the end of the help line (`… ? more · 4 show · :prune clear`). `4` shows and hides it; `:prune` clears it ([slash.md](slash.md)). On a narrow line `:prune clear` drops first, then `4 show`; the five board keys always stay. When a row folds away (for example you mark the selected session done), the selection moves to the first row shown.
 
 The daemon auto-starts if the socket is unreachable (boot splash).
 
@@ -96,6 +96,8 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Help | `?` or `:help` | `esc`, `?` |
 | Stats | `:stats` | `esc`, `:` |
 | Overview | `:overview` | `esc`, `q`, `:overview` |
+| Loops | `L` or `:loops` (needs `loops`) | `esc`, `q`, `L`, `:loops` |
+| Confirm stop loop | `x` or `:loop stop` | `y` / any other key |
 | Usage | `:usage`, or a click on the header meter | `esc`, `q`, `:` |
 | Undo / redo dialog | `:undo`, `:redo` | `esc`, `n`, or `esc` after the result |
 | Confirm quit | `:q` | `y` / `n` |
@@ -154,6 +156,9 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 | `:` | Command mode |
 | `?` | Help overlay |
 | `S` | Settings |
+| `p` | Pause / resume the selected loop (needs `loops`; see [loops.md](loops.md#on-the-board)) |
+| `x` | Stop the selected loop, after `y` / `N` (needs `loops`) |
+| `L` | List loops: state, turn, time over `max_minutes`, last check (needs `loops`) |
 | `ctrl+c`, `q` | Quit (confirm with `:q`) |
 
 ### Mouse
@@ -400,6 +405,16 @@ The wizard does not ask for a name; press `r` on the board to give a session a d
 ## SOUNDS
 
 With sound on, each soundset chimes when a session needs you (`working` → `needs_input`), when it resumes (`needs_input` → `working`), and when it finishes (→ `done`) or you mark it done (`cc`, `:done`, `rex done`). A flickering session chimes at most once every 1.5 s. Turn off the first two with `notify_on_state_change`; see [settings.md](settings.md#audio).
+
+## WORKSPACE BOARD
+
+`rex here` (or `rex ws open [path]`) opens the board fixed to one workspace ([workspaces.md](workspaces.md#sessions-and-the-workspace-board), needs `workspaces`). The filter is not a user filter: no key or command changes it, and the chip row does not mention it. Rows, header counts, the screensaver, the overview, `:prune`, `:fail`, the loops overlay, session selectors (`:rm fix-auth`, `:undo 7d4f`, …) and sounds and notifications only see that workspace's sessions. The daemon-wide overview headline is hidden, since it speaks for every workspace.
+
+- The header starts with `[<id> <name>]` in the workspace color (`[<id>]` in the mobile layout). A color that is not `#RRGGBB` is ignored and the chip uses the default style.
+- The window border is on by default and uses the workspace color while `window_border` was never set and `window_border_color` is `random`. `window_border`, an explicit `window_border_color`, and `:border` all win. `:border` says `workspace color` instead of `random` in its notice.
+- The wizard and the `i` quick spawn start in the workspace root.
+- A daemon that does not tag sessions shows every session, with the one notice ``daemon doesn't tag workspaces — `rex daemon restart` ``.
+- With `workspaces` off the scope is inert: the board shows everything, with no chip.
 
 ## WINDOW BORDER
 

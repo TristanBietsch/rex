@@ -87,7 +87,7 @@ Every scheme with real colors is tested against its own background: text 7:1, st
 | `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
 | `reduce_motion` | bool | `false` | |
 | `blinking_enabled` | bool | `true` | Completed-row blink |
-| `show_help_bar` | bool | `true` | Bottom help line |
+| `show_help_bar` | bool | `true` | The key hints on the bottom line, including a long Done column's `4 show · :prune clear`. Off blanks them (the row stays); errors, notices and prompts such as rename or search still show there |
 | `header_style` | enum | `verbose` | `verbose`, `glyphs`, `numbers` |
 | `window_border` | bool | `false` | A thick colored frame around the whole screen (see [tui.md](tui.md#window-border)). It costs 2 columns and 2 rows and gives way on small terminals |
 | `window_border_color` | string | `random` | `random` (stable per launch folder: a project keeps its color), a color name (see below), or `#rrggbb` (`#rgb` is expanded). The settings page cycles the names with the arrows and takes a typed hex with enter |

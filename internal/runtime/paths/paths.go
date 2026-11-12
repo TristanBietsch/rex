@@ -280,6 +280,10 @@ const UsageLedgerFileName = usageLedgerName
 // daemon started with a -state-dir other than DataDir.
 const AuditFileName = auditFileName
 
+// WorkspacesFileName is the registry's file name inside a state directory,
+// for a daemon started with a -state-dir other than DataDir.
+const WorkspacesFileName = workspacesName
+
 // WorkspacesFile returns ~/.local/share/rex/workspaces.json, the registry of
 // workspace ids and the folders they were last seen at.
 func WorkspacesFile() (string, error) {

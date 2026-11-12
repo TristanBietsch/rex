@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -137,6 +138,32 @@ func settingsDetail(m Model, s settings.Setting, inner, helpN int, expanded bool
 	return out
 }
 
+// settingOnStyle and settingOffStyle draw a switch's value: on in the
+// primary tone, off in the dim one, so on stands out in every theme. sel is
+// the selected row, drawn on the selection.
+func settingOnStyle(sel bool) lipgloss.Style {
+	if sel {
+		return selectedStyle(stylePrimary)
+	}
+	return stylePrimary
+}
+
+func settingOffStyle(sel bool) lipgloss.Style {
+	if sel {
+		return selectedStyle(styleDim)
+	}
+	return styleDim
+}
+
+// settingValueStyle is the style of a row's value: off, a read-only or an
+// unset value dim; on and any other value primary.
+func settingValueStyle(s settings.Setting, val string, empty, sel bool) lipgloss.Style {
+	if s.ReadOnly || empty || (s.Type == settings.TypeBool && val == "off") {
+		return settingOffStyle(sel)
+	}
+	return settingOnStyle(sel)
+}
+
 // renderSettings returns the finished settings box for a termW-wide terminal.
 func renderSettings(m Model, termW int) string {
 	if m.Settings == nil || m.Store == nil {
@@ -204,7 +231,7 @@ func renderSettings(m Model, termW int) string {
 		// The two cells before a value hold the modified bullet.
 		valAvail := inner - 2 - labelW - 1 - 2
 		if ownLine {
-			valAvail = inner - 4 - 2
+			valAvail = inner - 2 - 2 // indent, bullet: flush right like the rules
 		}
 		arrows := isSel && adjustable && !empty
 		if arrows {
@@ -224,29 +251,28 @@ func renderSettings(m Model, termW int) string {
 		if arrows {
 			valCell = "◂ " + val + " ▸"
 		}
-		on := s.Type == settings.TypeBool && val == "on"
 		bullet := "  "
 		if settingModified(m, s) {
 			bullet = "• "
 		}
 
+		// Values sit flush right, the modified bullet just before them: gap
+		// fills the cells the value leaves.
+		gap := strings.Repeat(" ", max(0, valAvail-ansi.StringWidth(val)))
+		vs := settingValueStyle(s, val, empty, isSel)
+		if locked { // config.lua sets it: drawn dim, like an off value
+			vs = settingOffStyle(isSel)
+		}
+
 		if !isSel {
-			vs := styleDim
-			switch {
-			case locked:
-			case on:
-				vs = styleArrow
-			case !s.ReadOnly && !empty:
-				vs = stylePrimary
-			}
 			b := styleDim.Render(bullet)
 			if bullet != "  " {
 				b = styleArrow.Render(bullet)
 			}
 			if ownLine {
-				lines = append(lines, "  "+styleDim.Render(label), "  "+b+vs.Render(valCell)+badge)
+				lines = append(lines, "  "+styleDim.Render(label), "  "+gap+b+vs.Render(valCell)+badge)
 			} else {
-				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+b+vs.Render(valCell)+badge)
+				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+gap+b+vs.Render(valCell)+badge)
 			}
 			continue
 		}
@@ -258,13 +284,6 @@ func renderSettings(m Model, termW int) string {
 		}
 		focus = len(lines)
 		marker := styleArrow.Render("▸ ")
-		vs := selStyle
-		switch {
-		case s.ReadOnly || empty || locked:
-			vs = selStyle.Foreground(colorFgDim)
-		case on:
-			vs = selStyle.Foreground(colorAccent)
-		}
 		b := selStyle.Render(bullet)
 		if bullet != "  " {
 			b = selStyle.Foreground(colorAccent).Render(bullet)
@@ -272,11 +291,11 @@ func renderSettings(m Model, termW int) string {
 		if ownLine {
 			first := marker + selBold.Render(label)
 			lines = append(lines, first+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(first)))))
-			second := selStyle.Render("  ") + b + vs.Render(valCell) + badge
+			second := selStyle.Render("  "+gap) + b + vs.Render(valCell) + badge
 			lines = append(lines, second+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(second)))))
 			continue
 		}
-		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" ") + b + vs.Render(valCell) + badge
+		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" "+gap) + b + vs.Render(valCell) + badge
 		lines = append(lines, row+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(row)))))
 	}
 	if len(list) == 0 {

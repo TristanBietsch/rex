@@ -71,7 +71,11 @@ func borderNotice(m Model) string {
 	c := borderEdge(m, p.Dark)
 	s := "border: " + c.ID
 	if borderColorChoice(m) == "random" {
-		s += " (random · :border next)"
+		if _, ok := wsEdge(m.wsScope()); ok {
+			s += " (workspace color · :border next)"
+		} else {
+			s += " (random · :border next)"
+		}
 	}
 	switch {
 	case m.TermW > 0 && frameInset(m) == 0:

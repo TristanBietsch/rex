@@ -62,7 +62,7 @@ var Registry = []Setting{
 	{
 		ID: "show_help_bar", Label: "Show help bar", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "When off, the bottom help line is not displayed.",
+		Help: "When off, the bottom key hints are hidden. Errors and notices still show.",
 	},
 	{
 		ID: "header_style", Label: "Header style", Section: SectionAppearance, Apply: ApplyLive,
