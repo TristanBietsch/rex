@@ -72,10 +72,16 @@ Removes root-level `rex` and `rex-daemon` binaries only.
 ## Install script
 
 ```sh
-./install.sh
+sh install.sh                 # latest GitHub release, verified against SHA256SUMS
+REX_VERSION=v2.0.0 sh install.sh
+./install.sh --from-source    # build this checkout (version from git describe)
 ```
 
-Flags: `--skip-build`, `--verbose` / `-v`, `--shell-init`, `--migrate`, `-h` / `--help`. Builds same binaries unless `--skip-build`.
+Flags: `--from-source`, `--skip-build` (copy `./rex` and `./rex-daemon`), `--verbose` / `-v`, `--shell-init`, `--migrate`, `-h` / `--help`. Env: `PREFIX`, `REX_VERSION`, `REX_DOWNLOAD_URL` (an https mirror of the release downloads). It never stops a running daemon.
+
+## Release
+
+Push a `vX.Y.Z` tag. `.github/workflows/release.yml` runs `make check`, builds the archives with `tools/release/build.sh` (darwin and linux amd64/arm64, windows amd64), writes `SHA256SUMS` and publishes the GitHub release with `docs/releases/<tag>.md` as notes (or the CHANGELOG section). `make dist VERSION=vX.Y.Z` builds what this host can into `dist/`.
 
 ## Go install (remote)
 
@@ -84,7 +90,7 @@ go install github.com/tristanbietsch/rex/cmd/rex@latest
 go install github.com/tristanbietsch/rex/cmd/rex-daemon@latest
 ```
 
-`rex update` uses these module paths.
+`rex update` uses these module paths. `@latest` is the newest `master` commit: the module path has no `/v2`, so Go ignores `v2.x` tags.
 
 ## Run TUI (default)
 

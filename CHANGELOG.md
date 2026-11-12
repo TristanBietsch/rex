@@ -6,6 +6,105 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-12
+
+The first release since v1. Details for every change follow the summary.
+
+### Highlights
+
+- **Full-screen settings and help pages** (`S`, `?`) that look like the
+  board, with a section list, search and a detail pane
+  (`fullscreen_pages`, on).
+- **Themes**: a new default with a violet accent, bundled `dracula`,
+  `tokyo_night` and `pantone_safe`, an opt-in `auto` theme, and your own
+  theme files in `~/.config/rex/themes/` (`rex theme list|show|new`).
+- **Lua config**: `~/.config/rex/config.lua` sets any setting, and a trusted
+  workspace can carry its own `.rex/config.lua` for display settings.
+- **Folder trust with guards**: `rex trust`, the wizard's trust line and
+  `auto_trust_dirs` answer agents' folder-trust dialogs for you; trust
+  changes need a person at a terminal, `skip_permissions` is opt-in and only
+  applies in trusted folders.
+- **READY and WAITING you can rely on**: no more READY flapping while
+  subagents run, after notifications that need nobody, mid compaction or
+  after Esc; a Waiting section for sessions busy on a shell command,
+  subagent or web request.
+- **Row icons**: fixed icon slots on each board row (finished, asks, review,
+  what it waits on, loop turn, subagents, cost).
+- **More agents**: Qwen Code, Cursor CLI and Grok Build, and Antigravity
+  (`agy`) in place of the retired Gemini CLI.
+- **Workspaces and loops**: `rex here` / `rex ws open` boards for one
+  workspace; loop workflows that repeat a task with a turn counter on the
+  row.
+- **Undo**: turn snapshots with `:undo` / `:redo` (`turn_snapshots`, off by
+  default), and `uc` to undo marking a session done.
+- **Usage**: a `:usage` page, a header usage meter and `rex usage`.
+- **Waiting icon and screensaver settings**: `waiting_spinner`, and the
+  screensaver's counts layout, clock and drift.
+- **Sound**: `master_volume` is 0–50, and audio settings apply live on every
+  open board.
+- **The hints footer**: the bottom line holds the key hints (Done column
+  keys included); `show_help_bar` hides only the hints.
+- **Release builds**: prebuilt binaries for macOS, Linux and Windows on the
+  GitHub release page, and an installer that fetches and verifies them.
+- TODO-hot-reload: one line for daemon hot restart, `rex upgrade` and
+  `:swap` once feat/hot-reload lands; delete this line otherwise.
+- TODO-r16: one line for the new-agent page once
+  feat/r16-new-agent-page lands; delete this line otherwise.
+
+### Breaking changes
+
+Each is described in full under **Changed** below.
+
+- `master_volume` is a whole number from 0 to 50 (was 0.0–1.0). Config
+  files convert on load, but in `config.lua` a `1` now means 1/50; write
+  `50` for full volume (`rex doctor` warns).
+- `rex trust <folder>`, and `rex config set`/`reset` or `rex setup
+  -auto-trust` of `skip_permissions` and `auto_trust_dirs`, work only for a
+  person at a terminal (exit 6 in agent mode, with `-o`, or in a pipe).
+- `skip_permissions` is opt-in (default off) and applies only in folders
+  under `auto_trust_dirs`.
+- `show_help_bar` off hides only the key hints; errors and notices still
+  show on the bottom line.
+- Glyphs: new agent icons (`qwen` `▣`, `cursor` `▲`, `grok` `◢`, `gemini`
+  `□`, `echo` `◎`), one space between an icon and its number (`⋔ 3`,
+  `▴ 42m`), and row icons in place of the task text (`row_icons` off
+  restores it).
+- "Needs you" is shown as "Ready"; the number keys follow four sections
+  (`1` Ready, `2` Waiting, `3` Working, `4` Done).
+- Antigravity CLI (`agy`) replaces Gemini CLI.
+- `color_scheme` is now `theme` (the old key is still read).
+- CLI: unknown commands exit 5; free text starting with `-` needs `--`;
+  `rex rm` without a terminal needs `-force`; declined questions exit 6; an
+  ambiguous slug/id selector exits 3; `-h` prints to stdout and exits 0.
+- User registry tools that relied on the tool id for prompt delivery must
+  set `prompt_args` or `prompt_paste`.
+- The daemon refuses an `init.lua` that another user owns or that group or
+  others can write.
+- `install.sh` installs the latest release by default (`--from-source`
+  builds the checkout) and no longer stops a running daemon.
+- `rex --version` prints the release tag (`v2.0.0`); builds without one
+  print the Go module version or `dev`.
+
+### Added (release builds)
+
+- Tagged releases publish `rex_<version>_<os>_<arch>` archives for macOS
+  and Linux (amd64, arm64) and Windows (amd64), each with `rex` and
+  `rex-daemon`, plus `SHA256SUMS` (`.github/workflows/release.yml`,
+  `tools/release/build.sh`, `make dist`).
+- `install.sh` downloads the latest release (or `REX_VERSION`), verifies it
+  against `SHA256SUMS`, and installs into `~/.local/bin` without sudo or
+  shell profile edits. `--from-source` builds a checkout (or a fresh clone).
+
+### Changed (install and version)
+
+- `rex --version`, `rex-daemon -version`, the help page and `rex doctor`
+  show the release tag set at build time. `go install` builds show the Go
+  module version; other builds show `dev`.
+- `install.sh` leaves a running daemon on the old binary instead of
+  stopping it (which ended its sessions) and prints how to switch.
+- `rex update` on a `~/.local/bin` install points at the installer;
+  `rex update -source` runs `install.sh --from-source`.
+
 ### Added (screensaver settings)
 
 - `screensaver_counts` (Settings → Behavior, "Screensaver counts"):
@@ -1215,5 +1314,6 @@ Baseline release: `rex` CLI and TUI, `rex-daemon` PTY supervisor, JSONL
 protocol over a Unix socket, tool registry, Lua hooks, and native Windows
 support (ConPTY).
 
-[Unreleased]: https://github.com/tristanbietsch/rex/commits/master
+[Unreleased]: https://github.com/TristanBietsch/rex/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/TristanBietsch/rex/releases/tag/v2.0.0
 [v1]: https://github.com/tristanbietsch/rex/commits/6a6e0a1

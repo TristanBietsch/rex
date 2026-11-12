@@ -50,6 +50,11 @@ jobs:
             echo "::error::no docs/releases/$TAG.md and no '## [$ver]' in CHANGELOG.md"
             exit 1
           fi
+          # Placeholders (TODO-hot-reload, TODO-r16, ...) must be resolved.
+          if grep -n 'TODO-[a-z0-9]' CHANGELOG.md "docs/releases/$TAG.md" 2>/dev/null; then
+            echo "::error::release notes still hold TODO- placeholders"
+            exit 1
+          fi
 
       - name: Check
         run: make check

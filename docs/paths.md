@@ -91,11 +91,12 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 
 | Method | Binaries |
 |--------|----------|
-| `./install.sh` | `$(PREFIX)/bin/rex`, `rex-daemon` (default `PREFIX=$HOME/.local`) |
+| `sh install.sh` (latest GitHub release, `REX_VERSION` to pin) | `$(PREFIX)/bin/rex`, `rex-daemon` (default `PREFIX=$HOME/.local`) |
+| `./install.sh --from-source` (build this checkout) | Same |
 | `make install PREFIX=…` | Same |
 | `go install github.com/tristanbietsch/rex/cmd/rex@latest` | `$GOPATH/bin` or `$HOME/go/bin` |
 
-`install.sh` stops a running daemon before replacing binaries. The daemon stays stopped until the next `rex` or `rex daemon start`.
+`install.sh` replaces the binaries but leaves a running daemon alone, so sessions keep going on the old binary. It prints how to switch the daemon to the new one.
 
 ## See also
 

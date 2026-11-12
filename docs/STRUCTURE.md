@@ -22,10 +22,14 @@ rex/
 ├── testdata/               # repo-root fixtures (Go convention)
 ├── docs/
 │   ├── STRUCTURE.md        # this file
+│   ├── releases/           # GitHub release notes, one file per tag
 │   └── agents/             # agent-oriented module docs
+├── tools/
+│   ├── coverage/           # coverage floors (make cover-check)
+│   └── release/            # build.sh: release archives + SHA256SUMS
 ├── Makefile
 ├── go.mod
-└── install.sh
+└── install.sh              # installs the latest release (or --from-source)
 ```
 
 ## Domain tree (`internal/`)

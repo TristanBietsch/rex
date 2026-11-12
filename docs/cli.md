@@ -665,7 +665,7 @@ With `-verbose`, an `agy version` row shows the installed Antigravity CLI versio
 rex update [-check] [-yes|-y] [-source module|binary] [-verbose] [-o FORMAT] [--agent]
 ```
 
-The plan, the `upgrade now? [Y/n]` question and the progress lines go to **stderr**; the result (`✓ rex v1 → v2`, or `ok cmd=update from=… to=…`) is the only thing on stdout. Without a terminal on stdin and stderr, or in any format but `text`, the upgrade needs `-yes` (exit **6** otherwise); a declined question exits **6**. A binary-swap install refuses with exit 6 and the command that fixes it.
+The plan, the `upgrade now? [Y/n]` question and the progress lines go to **stderr**; the result (`✓ rex v1 → v2`, or `ok cmd=update from=… to=…`) is the only thing on stdout. Without a terminal on stdin and stderr, or in any format but `text`, the upgrade needs `-yes` (exit **6** otherwise); a declined question exits **6**. A binary-swap install (`install.sh`'s `~/.local/bin`) refuses with exit 6 and the command that fixes it: re-run the installer, which fetches the latest release, or `./install.sh --from-source` in a checkout. `go install` mode runs `go install …@latest`, the newest `master` commit; `-source DIR` runs `git pull` and `./install.sh --from-source` there.
 
 ---
 
@@ -751,7 +751,7 @@ No daemon or a failed handshake exits **4**.
 rex completion bash|zsh|fish
 ```
 
-Shell script on stdout. Install via `./install.sh --shell-init`.
+Shell script on stdout. Install via `sh install.sh --shell-init`.
 
 ---
 

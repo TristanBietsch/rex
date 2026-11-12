@@ -8,7 +8,7 @@ Put `rex` on `PATH`, install completions, and show session status in your prompt
 
 ## PATH
 
-After `./install.sh`:
+After `sh install.sh`:
 
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
@@ -17,7 +17,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Or append the block from:
 
 ```sh
-./install.sh --shell-init >> ~/.zshrc
+sh install.sh --shell-init >> ~/.zshrc
 ```
 
 ## Completions

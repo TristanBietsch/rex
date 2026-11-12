@@ -6,23 +6,42 @@ Requires Go 1.26.11+ to build from source. Targets macOS, Linux, and Windows 10 
 
 ## Install
 
-From a checkout:
+macOS or Linux, latest release (no Go needed). Download the installer, read
+it, then run it:
 
 ```sh
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/TristanBietsch/rex/master/install.sh -o install.sh
+sh install.sh
+export PATH="$HOME/.local/bin:$PATH"   # if the installer says it is not on PATH
+rex setup
+```
+
+It downloads the latest [release](https://github.com/TristanBietsch/rex/releases)
+for your OS and arch, checks it against the release's `SHA256SUMS`, and
+installs `rex` and `rex-daemon` into `~/.local/bin` (`PREFIX=/some/dir` for
+another place). No sudo, and it never edits your shell profile. Pin a version
+with `REX_VERSION=v2.0.0 sh install.sh`. On Linux, sound needs ALSA
+(`libasound2`), which desktop systems already have.
+
+Run the same two lines again to upgrade. A running daemon keeps the old
+binary until you restart it; the installer prints the command.
+
+Or download an archive from the release page yourself and check it:
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing   # shasum -a 256 -c on macOS
+```
+
+From a checkout (needs the Go version in `go.mod`):
+
+```sh
+./install.sh --from-source   # or: make install PREFIX=$HOME/.local
 export PATH="$HOME/.local/bin:$PATH"
 rex setup
 ```
 
-Or:
-
-```sh
-make install PREFIX=$HOME/.local
-export PATH="$HOME/.local/bin:$PATH"
-rex setup
-```
-
-On Windows (PowerShell, from a checkout):
+On Windows (PowerShell, from a checkout), or unzip `rex_<version>_windows_amd64.zip`
+from the release page:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1   # installs to ~\.local\bin, adds it to your user PATH
@@ -31,14 +50,16 @@ rex setup
 
 Agents run on ConPTY. Claude Code's state hooks need Git for Windows (Claude runs hooks in Git Bash), and the `echo` test tool needs `bash` on PATH.
 
-Or without a clone:
+With Go, no clone:
 
 ```sh
 go install github.com/tristanbietsch/rex/cmd/rex@latest
 go install github.com/tristanbietsch/rex/cmd/rex-daemon@latest
 ```
 
-Install both binaries. Put the install directory on `PATH`.
+`@latest` builds the newest commit on `master` (the module path has no
+`/v2`, so Go ignores the `v2.x` tags). Install both binaries and put the
+install directory on `PATH`. `rex update` upgrades this kind of install.
 
 ## Use
 

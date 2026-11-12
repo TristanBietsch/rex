@@ -18,7 +18,8 @@ release. Older versions get no backports.
 | Version | Supported |
 |---------|-----------|
 | `master` (latest) | Yes |
-| `v1` (current release) | Yes |
+| `v2.0.0` (current release) | Yes |
+| `v1` | No |
 | Anything older | No |
 
 ## Threat model

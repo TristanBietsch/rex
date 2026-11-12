@@ -4,14 +4,22 @@ Goal: install Rex, spawn one test session, and read its status from the shell.
 
 End state: `rex-daemon` running, one `echo` session on the board, and a `rex status` line you can parse.
 
-Requires: macOS or Linux, Go 1.26+ if you build from source, network not required after build.
+Requires: macOS or Linux. Go (the version in `go.mod`) only if you build from source. Network not required after install.
 
-## 1. Build and install
+## 1. Install
+
+The latest release, checked against its `SHA256SUMS`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/TristanBietsch/rex/master/install.sh -o install.sh
+sh install.sh
+export PATH="$HOME/.local/bin:$PATH"
+```
 
 From a repository checkout:
 
 ```sh
-./install.sh
+./install.sh --from-source
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
