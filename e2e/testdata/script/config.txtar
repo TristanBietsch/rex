@@ -52,8 +52,20 @@ exitcode 5 rex config set auto_trust_dirs /
 stderr 'auto_trust_dirs'
 exitcode 5 rex config set auto_trust_dirs rel/dir
 cmp home/.config/rex/config.yaml before.yaml
-exec rex config set auto_trust_dirs ''
+
+# A valid value for a trust setting (skip_permissions, auto_trust_dirs) is
+# for a person at a terminal: set and reset exit 6 here (no terminal) and
+# leave the file alone. Reading stays scriptable.
+exitcode 6 rex config set auto_trust_dirs ''
+stderr 'only at a terminal'
+exitcode 6 rex config set skip_permissions true
+stderr 'only at a terminal'
+exitcode 6 rex config reset skip_permissions
+exitcode 6 rex --agent config set skip_permissions true
+cmp home/.config/rex/config.yaml before.yaml
 exec rex config get auto_trust_dirs
+exec rex config get skip_permissions
+stdout '^false$'
 
 # BUG: master_volume accepts NaN although its range is [0, 1]; flip when fixed.
 exec rex config set master_volume NaN

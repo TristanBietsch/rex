@@ -98,7 +98,7 @@ Precedence, lowest first: registry defaults, `config.yaml`, your `config.lua`, t
 **Nothing runs until you trust it.** A repository you clone can ship a `.rex/config.lua`. rex does not read it, let alone run it, until you trust that workspace:
 
 ```sh
-cat .rex/config.lua      # read it first
+cat .rex/config.lua      # read it first (rex ws trust also shows it, up to 40 lines)
 rex ws trust             # the workspace around this folder (or: rex ws trust <folder>)
 rex ws trust -rm         # stop trusting it (also: rex ws trust -rm <id|folder>)
 ```

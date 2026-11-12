@@ -45,6 +45,13 @@ func RunSetup(args []string) error {
 			return core.NewExitError(core.ExitInvalidArgs, "-auto-trust: "+err.Error())
 		}
 		*autoTrust = v
+		// -auto-trust writes auto_trust_dirs (with -yes, or pre-filled in
+		// the wizard): a person at a terminal only. -preview writes nothing.
+		if !*preview {
+			if err := requireTerminal("setup -auto-trust", "rex setup -auto-trust "+v); err != nil {
+				return err
+			}
+		}
 	}
 
 	if *configPath == "" {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -132,4 +133,79 @@ func TestWsTrust_OffAndErrors(t *testing.T) {
 	require.Equal(t, core.ExitSelectorNotFound, exitCode(t, RunWs([]string{"trust"})), "no workspace here")
 	require.Equal(t, core.ExitInvalidArgs, exitCode(t, RunWs([]string{"trust", "a", "b"})))
 	require.Equal(t, core.ExitSelectorNotFound, exitCode(t, RunWs([]string{"trust", "-rm", "nowhere"})))
+}
+
+// ttyErr is tty with the question (stderr) captured in r.err.
+func (r *rig) ttyErr(t *testing.T, ans string) {
+	t.Helper()
+	r.out.Reset()
+	r.err.Reset()
+	env := core.Env{Getenv: func(string) string { return "" }, Width: 100, GOOS: runtime.GOOS, InTTY: true, ErrTTY: true}
+	p, err := core.NewPrinter(core.FormatFlags{Output: "text"}, env, r.out, r.err)
+	require.NoError(t, err)
+	p.In = strings.NewReader(ans)
+	core.SetOut(p)
+	t.Cleanup(func() { core.SetOut(nil) })
+}
+
+// The question shows the config.lua it trusts above the [y/N]: flattened
+// (no escape, control or bidi characters reach the terminal), capped at
+// trustPreviewLines with a count of the rest, with its size and the SHA-256
+// of the same bytes that are then trusted.
+func TestWsTrust_PromptShowsConfig(t *testing.T) {
+	r := newRig(t, true)
+	proj := r.project(t, "demo")
+	t.Chdir(proj)
+	require.NoError(t, RunWs([]string{"init"}))
+	var b strings.Builder
+	b.WriteString("-- \x1b[31mred\x1b[0m \x1b]0;pwned\x07title\r\n")
+	b.WriteString("rex.set('theme', 'noir') -- \u202eevil\u202c\tok\n")
+	for i := 3; i <= trustPreviewLines+7; i++ {
+		b.WriteString("-- line " + strconv.Itoa(i) + "\n")
+	}
+	body := []byte(b.String())
+	require.NoError(t, os.WriteFile(wsp.ConfigPath(proj), body, 0o600))
+	sha := wsp.ConfigHash(body)
+
+	r.ttyErr(t, "y\n")
+	require.NoError(t, RunWs([]string{"trust"}))
+	q := r.err.String()
+	require.NotContains(t, q, "\x1b")
+	require.NotContains(t, q, "\a")
+	require.NotContains(t, q, "\r")
+	require.NotContains(t, q, "\u202e")
+	require.NotContains(t, q, "pwned", "the OSC sequence is dropped whole")
+	require.Contains(t, q, "red")
+	require.Contains(t, q, "rex.set('theme', 'noir')")
+	require.Contains(t, q, "-- line "+strconv.Itoa(trustPreviewLines)+"\n")
+	require.NotContains(t, q, "-- line "+strconv.Itoa(trustPreviewLines+1)+"\n")
+	require.Contains(t, q, "… 7 more lines")
+	require.Contains(t, q, strconv.Itoa(len(body))+" bytes")
+	require.Contains(t, q, sha)
+	require.Less(t, strings.Index(q, "-- line 3"), strings.Index(q, "[y/N]"), "the file comes before the question")
+
+	h, ok := trustStore(t).TrustedHash(mustLoad(t, proj))
+	require.True(t, ok)
+	require.Equal(t, sha, h, "the hash shown is the hash trusted")
+}
+
+// A short file is shown whole, with no "more lines" note.
+func TestWsTrust_PromptShortConfig(t *testing.T) {
+	r := newRig(t, true)
+	proj := r.project(t, "demo")
+	t.Chdir(proj)
+	require.NoError(t, RunWs([]string{"init"}))
+	require.NoError(t, os.WriteFile(wsp.ConfigPath(proj), []byte("rex.set('theme', 'noir')"), 0o600))
+	r.ttyErr(t, "n\n")
+	require.Equal(t, core.ExitOperationRefused, exitCode(t, RunWs([]string{"trust"})))
+	q := r.err.String()
+	require.Contains(t, q, "rex.set('theme', 'noir')\n")
+	require.NotContains(t, q, "more line")
+}
+
+func mustLoad(t *testing.T, root string) *wsp.Workspace {
+	t.Helper()
+	w, err := wsp.Load(root)
+	require.NoError(t, err)
+	return w
 }

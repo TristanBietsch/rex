@@ -121,8 +121,11 @@ func confirmTrust(w *wsp.Workspace, body []byte, sha string) error {
 		return core.Errorf(core.ExitOperationRefused, "", "ws trust: asks you at a terminal (not in agent mode, -o or a pipe); run it yourself after reading %s",
 			flat(wsp.ConfigPath(w.Root))).WithID("needs_confirmation")
 	}
-	q := fmt.Sprintf("trust workspace %s %s at %s? its .rex/config.lua is %d bytes (sha256 %s); read it first",
+	q := fmt.Sprintf("trust workspace %s %s at %s? its .rex/config.lua (above) is %d bytes (sha256 %s)",
 		w.ID, flat(w.Name), flat(w.Root), len(body), sha)
+	if body != nil {
+		_, _ = fmt.Fprint(p.Err, configPreview(wsp.ConfigPath(w.Root), body))
+	}
 	if body == nil {
 		q = fmt.Sprintf("trust workspace %s %s at %s? it has no .rex/config.lua yet", w.ID, flat(w.Name), flat(w.Root))
 	}
@@ -134,6 +137,45 @@ func confirmTrust(w *wsp.Workspace, body []byte, sha string) error {
 		return core.Errorf(core.ExitOperationRefused, "", "ws trust: not confirmed, nothing trusted")
 	}
 	return nil
+}
+
+// trustPreviewLines caps how much of config.lua the question shows.
+const trustPreviewLines = 40
+
+// trustPreviewWidth caps each shown line, in runes (a minified file).
+const trustPreviewWidth = 200
+
+// configPreview is the config.lua shown above the trust question: body, the
+// exact bytes that are hashed and trusted, one line per line, each flattened
+// so no escape, control or bidi character reaches the terminal, capped at
+// trustPreviewLines with a count of the lines left out.
+func configPreview(path string, body []byte) string {
+	text := strings.TrimSuffix(string(body), "\n")
+	var lines []string
+	if text != "" {
+		lines = strings.Split(text, "\n")
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s:\n", flat(path))
+	if len(lines) == 0 {
+		b.WriteString("  (empty)\n")
+	}
+	for i, l := range lines {
+		if i == trustPreviewLines {
+			n, unit := len(lines)-trustPreviewLines, "lines"
+			if n == 1 {
+				unit = "line"
+			}
+			fmt.Fprintf(&b, "  … %d more %s\n", n, unit)
+			break
+		}
+		l = flat(strings.TrimSuffix(l, "\r"))
+		if r := []rune(l); len(r) > trustPreviewWidth {
+			l = string(r[:trustPreviewWidth]) + "…"
+		}
+		b.WriteString("  │ " + l + "\n")
+	}
+	return b.String()
 }
 
 // revoke removes trust for the workspace ref names. A workspace that moved

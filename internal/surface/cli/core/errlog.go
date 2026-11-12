@@ -81,7 +81,7 @@ var errCodes = map[string]bool{
 	"daemon_unreachable": true, "handshake_failed": true,
 	"selector_not_found": true, "selector_ambiguous": true,
 	"unknown_command": true, "invalid_flag": true,
-	"feature_off": true, "needs_confirmation": true,
+	"feature_off": true, "needs_confirmation": true, "needs_terminal": true,
 }
 
 // cliSubcommands are the subcommands rex knows, per command.
