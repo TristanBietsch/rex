@@ -166,6 +166,9 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 	if cfg.Audit != nil {
 		cfg.Audit.Begin(sess, p.InitialPrompt)
 	}
+	if cfg.Workspaces != nil {
+		cfg.Workspaces.Tag(sess)
+	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
 		if pluginDir != "" {
@@ -186,6 +189,9 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 			_ = state.RemoveSessionDir(cfg.StateDir, id)
 		}
 		return "", err
+	}
+	if cfg.Workspaces != nil {
+		cfg.Workspaces.Started(sess)
 	}
 	return id, nil
 }

@@ -124,6 +124,9 @@ type Config struct {
 	// at spawn with the initial prompt; End runs in the shared teardown path
 	// before a session's directory is removed.
 	Audit AuditHook
+	// Workspaces tags new sessions with the workspace around their CWD and
+	// keeps the workspace's session index. nil: nothing is tagged.
+	Workspaces WorkspaceHook
 	// OnBoardClient runs after a board viewer (Hello.Client ==
 	// protocol.ClientTUI) completed its Hello and was counted. nil: nothing.
 	// It runs on the connection's goroutine and must not block.
@@ -140,6 +143,16 @@ type AuditHook interface {
 	// The server calls it before it removes the session's directory, and
 	// keeps the session when it fails.
 	End(sess *state.Session) error
+}
+
+// WorkspaceHook is how the server tags sessions with their workspace (see
+// the workspaces feature). Implementations are inert while it is off.
+type WorkspaceHook interface {
+	// Tag discovers the workspace around sess.CWD and sets sess.WorkspaceID
+	// before the session is announced. The id never comes from a client.
+	Tag(sess *state.Session)
+	// Started records the spawned session in the workspace's index.
+	Started(sess *state.Session)
 }
 
 // resumeOn reports whether the resume feature is on.
