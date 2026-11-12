@@ -59,7 +59,7 @@ func TestSwapStateRefusesOtherPIDAndOpenMode(t *testing.T) {
 	st.PID = os.Getpid()
 	path, err = writeSwapState(st)
 	require.NoError(t, err)
-	require.NoError(t, os.Chmod(path, 0o644))
+	require.NoError(t, os.Chmod(path, 0o644)) //nolint:gosec // G302: the test needs a group/world-readable file.
 	_, err = readSwapState(path)
 	require.Error(t, err)
 }

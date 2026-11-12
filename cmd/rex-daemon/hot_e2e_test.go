@@ -39,7 +39,7 @@ const hotTools = `tools:
 func buildDaemon(t *testing.T, dir string) string {
 	t.Helper()
 	bin := filepath.Join(dir, "rex-daemon")
-	gobin := filepath.Join(runtime.GOROOT(), "bin", "go")
+	gobin := filepath.Join(runtime.GOROOT(), "bin", "go") //nolint:staticcheck // SA1019: the test builds on the machine it runs on; PATH is isolated
 	cmd := exec.Command(gobin, "build", "-o", bin, ".")
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(gobin))
 	out, err := cmd.CombinedOutput()

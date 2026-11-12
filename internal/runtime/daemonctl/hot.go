@@ -32,7 +32,7 @@ type DaemonInfo struct {
 
 // Info dials socket and reads the daemon's identity and live session count.
 func Info(ctx context.Context, socket string) (DaemonInfo, error) {
-	c, snap, err := dialHello(ctx, socket, "rex-cli")
+	c, snap, err := dialHello(ctx, socket)
 	if err != nil {
 		return DaemonInfo{}, err
 	}
@@ -52,7 +52,7 @@ func infoOf(s *protocol.Snapshot) DaemonInfo {
 	return d
 }
 
-func dialHello(ctx context.Context, socket, name string) (*client.Client, *protocol.Snapshot, error) {
+func dialHello(ctx context.Context, socket string) (*client.Client, *protocol.Snapshot, error) {
 	dctx, cancel := context.WithTimeout(ctx, SocketDialTimeout)
 	defer cancel()
 	c, err := client.DialContext(dctx, socket)
@@ -61,7 +61,7 @@ func dialHello(ctx context.Context, socket, name string) (*client.Client, *proto
 	}
 	hctx, cancelHello := context.WithTimeout(ctx, ReloadTimeout)
 	defer cancelHello()
-	snap, err := c.HelloContext(hctx, name)
+	snap, err := c.HelloContext(hctx, "rex-cli")
 	if err != nil {
 		_ = c.Close()
 		return nil, nil, fmt.Errorf("rex-daemon hello: %w", err)
@@ -80,7 +80,7 @@ type HotResult struct {
 func HotRestart(ctx context.Context, socket string) (HotResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, HotRestartTimeout)
 	defer cancel()
-	c, snap, err := dialHello(ctx, socket, "rex-cli")
+	c, snap, err := dialHello(ctx, socket)
 	if err != nil {
 		return HotResult{}, err
 	}
@@ -102,7 +102,7 @@ func HotRestart(ctx context.Context, socket string) (HotResult, error) {
 	tick := time.NewTicker(StartPollInterval)
 	defer tick.Stop()
 	for {
-		if c2, snap2, err := dialHello(ctx, socket, "rex-cli"); err == nil {
+		if c2, snap2, err := dialHello(ctx, socket); err == nil {
 			_ = c2.Close()
 			after := infoOf(snap2)
 			if after.StartedAt.After(before.StartedAt) {
@@ -129,7 +129,7 @@ func SwapBoards(ctx context.Context, socket, build string) ([]protocol.BoardInfo
 }
 
 func boardsIntent(ctx context.Context, socket, intent string, payload any) ([]protocol.BoardInfo, error) {
-	c, _, err := dialHello(ctx, socket, "rex-cli")
+	c, _, err := dialHello(ctx, socket)
 	if err != nil {
 		return nil, err
 	}

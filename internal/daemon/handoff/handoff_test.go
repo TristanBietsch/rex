@@ -70,7 +70,7 @@ func TestReadRefusesOpenMode(t *testing.T) {
 	if err := Write(path, sample()); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(path, 0o644); err != nil {
+	if err := os.Chmod(path, 0o644); err != nil { //nolint:gosec // G302: the test needs a group/world-readable file.
 		t.Fatal(err)
 	}
 	if _, err := Read(path, os.Getpid()); err == nil {

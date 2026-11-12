@@ -62,7 +62,7 @@ func ReloadAll(ctx context.Context, cat *Catalog, hub *SettingsHub, luaHost *Lua
 		}
 	}
 	if luaHost != nil && luaHost.Path() != "" {
-		if err := luaHost.Reload(); err != nil {
+		if err := luaHost.Reload(); err != nil { //nolint:contextcheck // init.lua loads under its own lua.DefaultLoadTimeout
 			slog.Error("daemon: init.lua reload failed; previous handlers kept", "err", err)
 			rep.Errors = append(rep.Errors, err.Error()+" (kept the previous handlers)")
 		} else {
