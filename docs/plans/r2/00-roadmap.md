@@ -31,6 +31,7 @@ Scope rules agreed 2026-11-11:
 | R14 | Waiting board section (agent busy on a shell, subagent or web call, below Needs you) | build | M | [R14](R14-waiting-section.md) |
 | R15 | scheduled description refresh (every 5 min x5, then every 30 min, more descriptive later) | build | M | [R15](R15-desc-schedule.md) |
 | R16 | redesigned `n` new-agent flow: full-screen page, context by typing, pasting, importing | build | L | [R16](R16-new-agent-flow.md), [plan](R16-00-plan.md); after R04-1 and P2 |
+| R18 | row icons: drop the row text column, fixed icon strip (unseen, why, loop, subagents, spend, long-run); `↳` line keeps the words | build | M | [R18](R18-row-icons.md), [plan](R18-00-plan.md); decisions open |
 
 **R03 note.** S4 already plans the "master agent" as a daemon-side overview with buckets *needs you / ready for review / failed / working / completed* and an Ollama headline. It rejects a spawned Claude "master" on cost and cross-session prompt-injection grounds. No follow-up (R03-D1): the top-level TODO line closes when S4 merges.
 
@@ -64,6 +65,7 @@ User rule (2026-11-11): every feature, round 1 and round 2, can be turned on and
 | `waiting_section` | R14 Waiting section (off = waiting sessions show in Working; the daemon still records the fields) | on |
 | `summary_schedule` | R15 scheduled description refresh (off = output-driven refreshes, no ticks) | on |
 | `new_agent_page` | R16 new-agent page (off = popup wizard) | on |
+| `row_icons` | R18 icon strip instead of the row text column (off = text column) | on |
 | `turn_snapshots` | R01-1 per-turn snapshots + `:undo` | off |
 | `session_diff` | R01-2 diff / review page (needs `turn_snapshots`) | on |
 | `prompt_templates` | R01-3 prompt templates | on |
