@@ -452,3 +452,35 @@ func TestCLIAnsiSchemeDimIsFaint(t *testing.T) {
 	st = NewStyles(theme.Builtin["default"], r)
 	require.NotContains(t, st.Dim.Render("x"), "\x1b[2m")
 }
+
+// A user theme file colors CLI output like a built-in; a theme that cannot be
+// loaded is the default palette, with nothing written to either stream.
+func TestPrinterFollowsUserThemeFiles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", home+"/.config")
+	themes := home + "/.config/rex/themes"
+	require.NoError(t, os.MkdirAll(themes, 0o700))
+	require.NoError(t, os.WriteFile(themes+"/mine.yaml", []byte("extends: noir\ncolors: {fg: \"#102030\"}\n"), 0o600))
+	require.NoError(t, os.WriteFile(themes+"/bad.yaml", []byte("colors: {fg: \"red\"}\n"), 0o600))
+
+	build := func(which string) (*Printer, *bytes.Buffer, *bytes.Buffer) {
+		require.NoError(t, os.WriteFile(home+"/.config/rex/config.yaml", []byte("theme: "+which+"\n"), 0o600))
+		var out, errw bytes.Buffer
+		p, err := NewPrinter(FormatFlags{Output: "text"}, Env{Getenv: envOf(), OutTTY: true, ErrTTY: true, TrueColor: true}, &out, &errw)
+		require.NoError(t, err)
+		return p, &out, &errw
+	}
+
+	p, _, _ := build("mine")
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;16;32;48", "the file's fg")
+	require.Contains(t, p.ErrStyles.Bold.Render("x"), "38;2;16;32;48", "stderr too")
+
+	for _, name := range []string{"bad", "ghost"} {
+		p, out, errw := build(name)
+		require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;232;238", "%s: the default palette", name)
+		require.Empty(t, out.String())
+		require.Empty(t, errw.String(), "no warning about a theme file")
+	}
+}
