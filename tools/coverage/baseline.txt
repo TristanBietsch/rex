@@ -48,3 +48,4 @@ github.com/tristanbietsch/rex/internal/workspace 86
 github.com/tristanbietsch/rex/internal/workspace/wsconfig 90
 github.com/tristanbietsch/rex/internal/runtime/privfile 100
 github.com/tristanbietsch/rex/internal/catalog/settings/luacfg 97
+github.com/tristanbietsch/rex/internal/version 90
