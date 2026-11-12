@@ -29,6 +29,10 @@ func Run(socket string, quietBoot bool) error {
 		soundEnabled = false
 	}
 	player := audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset, BootVoice: bootVoice})
+	// The auto theme asks the terminal for its background here, before Bubble
+	// Tea reads stdin (a reply arriving later would be eaten as keys), and
+	// only when theme is auto.
+	termLight := bootTermLight(store)
 
 	awake := newDisplayAwake()
 	idleDone := make(chan struct{})
@@ -43,6 +47,7 @@ func Run(socket string, quietBoot bool) error {
 		QuietBoot: quietBoot,
 
 		BorderSeed: launchFolder(),
+		termLight:  termLight,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

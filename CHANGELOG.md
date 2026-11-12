@@ -194,6 +194,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Opt-in `auto` theme: `rex config set theme auto` (or `:theme auto`, or
+  the settings page) picks `default` on a dark terminal and `paper` on a
+  light one. The TUI checks `COLORFGBG`, then asks the terminal (OSC 11), once
+  at start and only when the theme is `auto`. CLI output never asks and uses
+  `default`. `default` stays the default theme.
 - Trust workflow (no more answering "yes, I trust this folder" by hand):
   `rex trust [dir]` adds a folder to `auto_trust_dirs` (default: the repo
   folder of the working directory, or the folder itself outside a repo; never

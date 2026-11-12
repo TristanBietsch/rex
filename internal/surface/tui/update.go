@@ -221,13 +221,18 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "theme.apply", Status: stepSkip, Desc: "default", Dur: msg.Dur,
 			})
 		}
-		if !applyThemeFrom(m.Themes, msg.Scheme) {
+		name := resolveThemeName(m, msg.Scheme)
+		if !applyThemeFrom(m.Themes, name) {
 			return m.appendBootStep(bootStepMsg{
 				Name: "theme.apply", Status: stepWarn, Desc: themeNotFound(m.Themes, msg.Scheme), Dur: msg.Dur,
 			})
 		}
+		desc := msg.Scheme
+		if name != msg.Scheme {
+			desc += " (" + name + ")"
+		}
 		return m.appendBootStep(bootStepMsg{
-			Name: "theme.apply", Status: stepOK, Desc: msg.Scheme, Dur: msg.Dur,
+			Name: "theme.apply", Status: stepOK, Desc: desc, Dur: msg.Dur,
 		})
 
 	case stateRestoreResultMsg:

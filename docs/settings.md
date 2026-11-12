@@ -46,6 +46,7 @@ The settings page shows this per row (the detail pane under the list), and the r
 | `noir` | Deeper, quieter dark |
 | `paper` | Light terminals |
 | `high-contrast` | Pure black and white with bright state colors |
+| `auto` | Opt-in: `default` on a dark terminal, `paper` on a light one. The TUI checks `COLORFGBG`, then asks the terminal (OSC 11), once at start and only when the theme is `auto`; switching to `auto` later reuses that answer (dark if it never asked). CLI output treats it as `default`. See [themes.md](themes.md#auto) |
 | `ansi` | Your terminal's own six normal hues (a Solarized or Gruvbox terminal theme gives a matching rex); dim text is the default color drawn faint, since no fixed index is safe (8 is the Solarized Dark background); the selection is reverse video. Also a good fallback on a 16-color terminal |
 
 Every scheme with real colors is tested against its own background: text 7:1, state colors, accent and dim text 4.5:1, focus border 3:1, and the four state colors stay distinct from one another (also after a 256-color terminal quantizes them).
@@ -75,7 +76,7 @@ Every scheme with real colors is tested against its own background: text 7:1, st
 
 | ID | Type | Default | Options |
 |----|------|---------|---------|
-| `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors), or a file in `~/.config/rex/themes` ([themes.md](themes.md)). An unknown name uses `default`. Applies to the TUI and to CLI output. Formerly `color_scheme`, still read |
+| `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors), `auto` (`default` or `paper` by the terminal's background, TUI only), or a file in `~/.config/rex/themes` ([themes.md](themes.md)). An unknown name uses `default`. Applies to the TUI and to CLI output. Formerly `color_scheme`, still read |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
 | `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |

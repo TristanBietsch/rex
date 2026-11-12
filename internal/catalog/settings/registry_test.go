@@ -8,12 +8,15 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
-// theme offers exactly the built-in themes, default first.
-func TestRegistry_ThemeOptionsAreTheBuiltinThemes(t *testing.T) {
+// theme offers the built-in themes, default first, then the opt-in auto
+// last; the default value stays default.
+func TestRegistry_ThemeOptionsAreTheBuiltinThemesThenAuto(t *testing.T) {
 	e, ok := findEntry("theme")
 	require.True(t, ok)
+	require.Equal(t, "default", e.Default)
 	require.Equal(t, "default", e.Options[0])
-	require.ElementsMatch(t, theme.Names(), e.Options)
+	require.Equal(t, theme.AutoName, e.Options[len(e.Options)-1])
+	require.ElementsMatch(t, append(theme.Names(), theme.AutoName), e.Options)
 	for _, name := range e.Options {
 		require.NoError(t, NewStore().Set("theme", name), name)
 	}

@@ -1,6 +1,6 @@
 # Themes
 
-A theme is a named set of colors (and, optionally, state marker characters) that restyles the TUI and the colored output of the `rex` commands. rex ships six; you can add your own as small YAML files.
+A theme is a named set of colors (and, optionally, state marker characters) that restyles the TUI and the colored output of the `rex` commands. rex ships six, plus `auto`, which follows your terminal's background; you can add your own as small YAML files.
 
 Pick one with `rex config set theme <name>`, in the settings page (`S`, row **Theme**), or with `:theme <name>` in the TUI (`:theme` alone cycles). The TUI applies it at once and saves it; CLI output follows it. An unknown name uses `default` and the TUI says so on the status line.
 
@@ -17,7 +17,21 @@ The setting was called `color_scheme`. The old key is still read; if a file hold
 | `high-contrast` | Pure black and white with bright state colors |
 | `ansi` | Your terminal's own 16 colors; the selection is reverse video |
 
-`rex theme list` shows them all, your own included. `rex theme show <name>` prints one theme's colors and glyphs.
+`rex theme list` shows them all, your own included.
+
+### auto
+
+`auto` is not a theme of its own: it is `default` on a dark terminal and `paper` on a light one. It is opt-in; `default` stays the default.
+
+```sh
+rex config set theme auto      # or :theme auto, or the settings page
+```
+
+The TUI decides once, when it starts, and only when the theme is `auto`: first from `COLORFGBG` (set by rxvt, Konsole and some others; background 7 or 9-15 is light), and when that is unset or says `default`, by asking the terminal for its background color (OSC 11). It asks before the board takes over the keyboard, so the answer can never be read as keys. A terminal that does not answer counts as dark.
+
+Switching to `auto` later (`:theme auto`, the settings page, live reload of `config.yaml`) never asks the terminal again: it reuses what was found at start, or, if the TUI started with another theme and so never asked, picks `default`. Restart the TUI to pick up a terminal whose background changed.
+
+CLI output (`rex ls`, `rex --help`, ...) and `rex setup` never ask the terminal: for them `auto` is `default`. `rex theme list` shows `auto` with source `auto`. A theme file cannot be called `auto.yaml`. `rex theme show <name>` prints one theme's colors and glyphs.
 
 ## Your own themes
 
@@ -98,7 +112,7 @@ While `live_reload` is on (the default), the TUI notices an edit to `config.yaml
 
 | Command | Does |
 |---------|------|
-| `rex theme list` | Built-in and user themes; marks the current one; reports skipped files |
+| `rex theme list` | Built-in and user themes and `auto`; marks the current one; reports skipped files |
 | `rex theme show <name>` | A theme's colors, glyphs and a sample line |
 | `rex theme new <name> [-from <builtin>] [-force]` | Write a commented skeleton; refuses to overwrite without `-force` |
 | `:theme [name]` | In the TUI: set the theme, or with no name the next one |
