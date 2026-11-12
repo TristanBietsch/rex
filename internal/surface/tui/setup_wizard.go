@@ -77,7 +77,11 @@ type setupDaemonStartMsg struct {
 	pid int
 	err error
 }
-type setupWriteMsg struct{ err error }
+type setupWriteMsg struct {
+	err error
+	// locked are the settings config.lua sets: the wizard left them alone.
+	locked []string
+}
 
 // ── Top-level model ──────────────────────────────────────────────────────────
 
@@ -144,6 +148,9 @@ type SetupWizardModel struct {
 
 	// step: done
 	writeErr error
+	// writeLocked are the settings the write left alone because config.lua
+	// sets them.
+	writeLocked []string
 
 	// esc-confirm overlay
 	confirmCancel bool
@@ -374,6 +381,7 @@ func (m SetupWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case setupWriteMsg:
 		m.writing = false
 		m.writeErr = msg.err
+		m.writeLocked = msg.locked
 		m.step = setupStepDone
 		if msg.err != nil {
 			slog.Error("setup: write failed", "err", msg.err)
@@ -922,7 +930,21 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 		// the rest of an existing config.yaml. A value the wizard cannot
 		// produce is reset (key deleted) rather than left at what the file
 		// holds, so an old setting never outlives the answer given here.
+		// Settings config.lua sets are neither written nor reset: the
+		// value lives in the Lua file. They are listed in the summary.
+		layered, _, _ := settings.LoadLayered(configPath)
+		var locked []string
+		skip := func(id string) bool {
+			if layered.Locked(id) {
+				locked = append(locked, id)
+				return true
+			}
+			return false
+		}
 		setOrReset := func(id string, v any) {
+			if skip(id) {
+				return
+			}
 			if err := store.Set(id, v); err != nil {
 				_ = store.Reset(id)
 			}
@@ -936,7 +958,7 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 		// rex would keep auto-trusting after the user said no.
 		if autoTrust != "" {
 			setOrReset("auto_trust_dirs", autoTrust)
-		} else {
+		} else if !skip("auto_trust_dirs") {
 			_ = store.Reset("auto_trust_dirs")
 		}
 
@@ -965,7 +987,7 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 			slog.Info("setup: skipping shell block install", "install", installShell, "rc", shellRC)
 		}
 
-		return setupWriteMsg{}
+		return setupWriteMsg{locked: locked}
 	}
 }
 
@@ -1370,6 +1392,10 @@ func (m SetupWizardModel) renderDone() (string, []string, string) {
 			icon = styleBootFail.Render("✗")
 		}
 		body = append(body, "  "+icon+" "+r.label)
+	}
+
+	if len(m.writeLocked) > 0 {
+		body = append(body, "  "+styleDim.Render("- kept from config.lua: "+strings.Join(m.writeLocked, ", ")))
 	}
 
 	body = append(body, "")

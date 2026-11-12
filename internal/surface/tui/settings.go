@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -68,6 +69,10 @@ func settingEditKey(m Model, k tea.KeyMsg) Model {
 	case tea.KeyEsc:
 		m.Settings.Edit = nil
 	case tea.KeyEnter:
+		if settingLocked(&m, e.ID) {
+			m.Settings.Edit = nil
+			return m
+		}
 		if err := m.Store.Set(e.ID, e.ed.Text); err != nil {
 			e.Err = err.Error()
 			return m
@@ -165,7 +170,12 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case "k", "up":
 		m.Settings.CursorID = settingsAfter(m.Settings, -1)
 		return m, nil
+	case "e":
+		return openLockedInEditor(m, m.Settings.CursorID)
 	case "enter", " ":
+		if settingLocked(&m, m.Settings.CursorID) {
+			return m, nil
+		}
 		if s, ok := settings.Find(m.Settings.CursorID); ok && settingFreeForm(s) {
 			return openSettingEdit(m, s), nil
 		}
@@ -176,7 +186,7 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return applySettingsAction(m, -1), nil
 	case "r":
 		s, ok := settings.Find(m.Settings.CursorID)
-		if ok {
+		if ok && !settingLocked(&m, s.ID) {
 			_ = m.Store.Reset(m.Settings.CursorID)
 			applyLive(&m, s.ID, m.Store.Get(s.ID))
 			_ = m.Store.Save(m.StorePath)
@@ -328,7 +338,7 @@ func settingsSectionJump(st *SettingsState, dir int) string {
 //	step = -1 → cycle enum back, step bool to false, decrement float/int
 func applySettingsAction(m Model, step int) Model {
 	s, ok := settings.Find(m.Settings.CursorID)
-	if !ok || s.ReadOnly {
+	if !ok || s.ReadOnly || settingLocked(&m, s.ID) {
 		return m
 	}
 	cur := m.Store.Get(s.ID)
@@ -534,25 +544,54 @@ func currentSpawnChoice(m Model) (registry.Tool, registry.Model, bool) {
 // ones: a new tool resets model + effort, a new model resets an effort the
 // model doesn't offer.
 func setSpawnDefault(m Model, id, value string) Model {
-	if err := m.Store.Set(id, value); err != nil {
-		m.Err = "settings: " + err.Error()
+	if settingLocked(&m, id) {
 		return m
 	}
-	_, model, _ := currentSpawnChoice(m)
-	if id == "default_spawn_tool" {
-		_ = m.Store.Set("default_spawn_model", model.ID)
+	// Run the cascade on a copy first: when it would change a setting
+	// config.lua locks, refuse the whole change.
+	trial := m
+	trial.Store = m.Store.WithDefaults()
+	if err := spawnCascade(trial, id, value); err != nil {
+		if locked, ok := errors.AsType[*settings.ErrManagedByLua](err); ok {
+			m.Err = lockMessage(locked.ID, locked.At)
+		} else {
+			m.Err = "settings: " + err.Error()
+		}
+		return m
 	}
-	effort, _ := m.Store.Get("default_spawn_effort").(string)
-	switch {
-	case model.Effort == nil:
-		_ = m.Store.Set("default_spawn_effort", "")
-	case !containsString(model.Effort.Options, effort):
-		_ = m.Store.Set("default_spawn_effort", model.Effort.Default)
-	}
+	_ = spawnCascade(m, id, value)
 	slog.Info("tui: quick-spawn default changed", "setting", id, "value", value,
 		"model", m.Store.Get("default_spawn_model"), "effort", m.Store.Get("default_spawn_effort"))
 	_ = m.Store.Save(m.StorePath)
 	return m
+}
+
+// spawnCascade sets id to value in m.Store and repairs the dependent
+// quick-spawn settings. It stops at the first refused Set.
+func spawnCascade(m Model, id, value string) error {
+	if err := m.Store.Set(id, value); err != nil {
+		return err
+	}
+	_, model, _ := currentSpawnChoice(m)
+	set := func(id string, v any) error {
+		if fmt.Sprint(m.Store.Get(id)) == fmt.Sprint(v) {
+			return nil // unchanged: a locked value that already fits stays
+		}
+		return m.Store.Set(id, v)
+	}
+	if id == "default_spawn_tool" {
+		if err := set("default_spawn_model", model.ID); err != nil {
+			return err
+		}
+	}
+	effort, _ := m.Store.Get("default_spawn_effort").(string)
+	switch {
+	case model.Effort == nil:
+		return set("default_spawn_effort", "")
+	case !containsString(model.Effort.Options, effort):
+		return set("default_spawn_effort", model.Effort.Default)
+	}
+	return nil
 }
 
 func containsString(xs []string, s string) bool {
@@ -647,6 +686,9 @@ func applyLive(m *Model, id string, value any) {
 // settingsHints are the footer key hints, in display order.
 var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "/ search", "tab section", "r reset", "? help", "esc close"}
 
+// settingsLockedHints replace settingsHints on a row config.lua sets.
+var settingsLockedHints = []string{"↑↓ select", "e open config.lua", "/ search", "tab section", "? help", "esc close"}
+
 // settingsEditHints are the footer hints while the inline editor is open.
 var settingsEditHints = []string{"enter save", "esc cancel", "ctrl+u clear"}
 
@@ -677,7 +719,7 @@ func wrapHints(hints []string, width int) []string {
 
 // settingAdjustable reports whether left/right changes the setting.
 func settingAdjustable(m Model, s settings.Setting) bool {
-	if s.ReadOnly {
+	if s.ReadOnly || settingLockedAt(m, s.ID) != "" {
 		return false
 	}
 	if _, ok := dynamicOptions(m, s.ID); ok {

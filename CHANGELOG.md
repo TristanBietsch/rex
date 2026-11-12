@@ -88,6 +88,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   The TUI follows it within about 2 s (and on `:reload`), shows Lua themes
   with the theme files, has a `config.lua` boot row, and reports a failure
   as one status-line notice.
+  Settings rows `config.lua` sets are locked: the value is dimmed with a
+  muted `lua`, edits are refused with the file and line, and `e` opens the
+  file at that line in `$EDITOR`. `:theme`, the quick-spawn cascade and the
+  setup wizard leave locked settings alone.
 - `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
   changed target is refused before anything is touched. `rex undo` and the
   TUI dialog send it on confirm.

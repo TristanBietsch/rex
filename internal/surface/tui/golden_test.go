@@ -88,6 +88,13 @@ func goldenScreens() []goldenScreen {
 			m.Help = &HelpState{Filter: "undo"}
 			return m
 		}},
+		{"settings_lua", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusSettings
+			m.Store, m.StorePath = luaLocked(t, []string{"spinner", "theme"}, "moon", "default")
+			m.Settings = &SettingsState{CursorID: "spinner", Search: "spin"}
+			return m
+		}},
 		{"settings_search", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusSettings
