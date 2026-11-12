@@ -110,3 +110,26 @@ func TestEval_ChunkWithEscapeIsFlattenedInPositions(t *testing.T) {
 	require.NotContains(t, r.SetAt["theme"], "\x1b")
 	require.Contains(t, r.SetAt["theme"], "/.rex/config.lua:1")
 }
+
+// Load reuses a memoised result only for the same Version, and evaluates
+// even when File has no stamp (here it does not exist).
+func TestLoad_VersionKeysTheMemo(t *testing.T) {
+	ResetMemo()
+	t.Cleanup(ResetMemo)
+	script := "rex.set('theme', 'noir')"
+	o := readerOpts(script, "/w/.rex/config.lua")
+	o.Version = "a"
+	require.Equal(t, "noir", Load(context.Background(), o).Values["theme"], "no stamp, still evaluated")
+
+	script = "rex.set('theme', 'paper')"
+	o.Read = func() ([]byte, error) { return []byte(script), nil }
+	require.Equal(t, "noir", Load(context.Background(), o).Values["theme"], "same version: memoised")
+	o.Version = "b"
+	require.Equal(t, "paper", Load(context.Background(), o).Values["theme"], "new version: evaluated again")
+
+	o.Version = "err"
+	o.Read = func() ([]byte, error) { return nil, errors.New("refused") }
+	r := Load(context.Background(), o)
+	require.ErrorContains(t, r.Err, "refused")
+	require.True(t, r.LastGood)
+}

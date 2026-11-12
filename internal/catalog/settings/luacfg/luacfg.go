@@ -84,6 +84,13 @@ type Opts struct {
 	// .rex/config.lua is read this way, with the workspace package's
 	// stricter checks (no symlink at all).
 	Read func() ([]byte, error)
+	// Version, when set, is part of the memo stamp (Load): a memoised
+	// result is reused only for the same Version, and Load evaluates even
+	// when File has no stamp (a dangling link). A workspace file passes
+	// the hash of the bytes Read returns, or the read error, so a result
+	// always comes from those exact bytes and a refused read is never
+	// answered from the memo.
+	Version string
 }
 
 // chunk is o.Chunk or "config.lua".

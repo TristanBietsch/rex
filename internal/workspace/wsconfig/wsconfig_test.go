@@ -275,3 +275,61 @@ func TestLuaConfigOffIsInertEvenTrusted(t *testing.T) {
 	require.Equal(t, l, looks.Load())
 	require.Equal(t, r, reads.Load())
 }
+
+// A file refused after a good load (made group-writable: size and mtime,
+// so the memo stamp, unchanged) fails closed; the memoised good run is not
+// served for it.
+func TestRefusedAfterAGoodLoadFailsClosed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no mode bits")
+	}
+	e := newEnv(t, wsOn+"skip_permissions: true\n", "", "rex.set('theme', 'noir')\n")
+	e.trust()
+	s, rep := e.load()
+	require.NoError(t, rep.Err)
+	require.Equal(t, "noir", s.Get("theme"))
+
+	testperm.Loosen(t, workspace.ConfigPath(e.root), 0o666)
+	s, rep = e.load()
+	require.Error(t, rep.Err)
+	require.Contains(t, rep.Err.Error(), "writable")
+	require.Equal(t, false, s.Get("skip_permissions"), "fails closed")
+	require.Equal(t, StateFailed, Current().State)
+}
+
+// A trusted config.lua replaced by a dangling symlink is refused and fails
+// closed (the stamp, a stat through the link, sees no file).
+func TestDanglingSymlinkConfigFailsClosed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on Windows")
+	}
+	e := newEnv(t, wsOn+"skip_permissions: true\n", "", "rex.set('theme', 'noir')\n")
+	e.trust()
+	file := workspace.ConfigPath(e.root)
+	require.NoError(t, os.Remove(file))
+	require.NoError(t, os.Symlink(filepath.Join(e.root, "nowhere.lua"), file))
+	s, rep := e.load()
+	require.Error(t, rep.Err)
+	require.Contains(t, rep.Err.Error(), "symlink")
+	require.Equal(t, false, s.Get("skip_permissions"), "fails closed")
+	require.Equal(t, StateFailed, Current().State)
+}
+
+// The memo never serves a result evaluated from other bytes: a file swapped
+// for another of the same size and mtime, then trusted, runs the new bytes.
+func TestMemoIsBoundToTheTrustedBytes(t *testing.T) {
+	e := newEnv(t, wsOn, "", "rex.set('theme', 'noir')\n")
+	e.trust()
+	s, _ := e.load()
+	require.Equal(t, "noir", s.Get("theme"))
+
+	file := workspace.ConfigPath(e.root)
+	fi, err := os.Stat(file)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, []byte("rex.set('theme', 'ansi')\n"), 0o600))
+	require.NoError(t, os.Chtimes(file, fi.ModTime(), fi.ModTime()))
+	e.trust()
+	s, rep := e.load()
+	require.NoError(t, rep.Err)
+	require.Equal(t, "ansi", s.Get("theme"), "the bytes checked are the bytes run")
+}

@@ -206,7 +206,16 @@ func evaluate(u settings.LayerReport) Info {
 	if rerr == nil && workspace.ConfigHash(data) != want {
 		return untrusted(info, shown+": not applied: changed since you trusted it (read it, then rex ws trust again)")
 	}
-	r := luacfg.Load(context.Background(), opts(w, data, rerr))
+	o := opts(w, data, rerr)
+	// The memo is keyed by these bytes' hash (or the refusal), not only by
+	// the file's size and mtime: a refused read always fails closed, and a
+	// memoised result always came from the bytes just checked.
+	if rerr != nil {
+		o.Version = "err:" + rerr.Error()
+	} else {
+		o.Version = "sha256:" + workspace.ConfigHash(data)
+	}
+	r := luacfg.Load(context.Background(), o)
 	info.Report = settings.LayerReport{
 		Exists: true, Values: r.Values, SetAt: r.SetAt,
 		Themes: r.Themes, ThemeIssues: r.ThemeIssues, Warnings: r.Warnings,
