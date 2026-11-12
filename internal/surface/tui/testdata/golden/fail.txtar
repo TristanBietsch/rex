@@ -3,9 +3,9 @@
   ∴ REX    1 need you · 3 working · 1 done  · 2 failed                          
   all · claude · codex · antigravity · ollama                                   
 
-╭──────────────────────────────────────────────────────────────────────────────╮
-│                                                                              │
-│  failed sessions                                                          …  │
+────────────────────────────────────────────────────────────────────────────────
+
+┌─ failed sessions                                                          … ─┐
 │                                                                           …  │
 │    ff01  failing-job    claude · opus · exit=1 · - ago                    …  │
 │      error: migration 0042 timed out                                      …  │
@@ -16,8 +16,8 @@
 │  daemon: session ff01 exited 1                                            …  │
 │                                                                           …  │
 │    j/k scroll · g/G top/bottom · esc close                                …  │
-│                                                                              │
-╰──────────────────────────────────────────────────────────────────────────────╯
+└──────────────────────────────────────────────────────────────────────────────┘
+   ●  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
    ✕  no-model          boot                                                   -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
@@ -36,9 +36,9 @@
   WAITING  0                                                                                                            
       nothing waiting on a tool
 
-  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮  
- ▸│                                                                                                                  │1m
-  │  failed sessions                                                                                                 │7s
+  WORKING  3                                                                                                            
+ ▸ ⠋  release-notes         draft ready — which feature leads?                                               ▴ 45m   11m
+  ┌─ failed sessions                                                                                                ─┐7s
   │                                                                                                                  │2h
   │    ff01  failing-job    claude · opus · exit=1 · - ago                                                           │
   │      error: migration 0042 timed out                                                                             │  
@@ -49,8 +49,8 @@
   │  daemon: session ff01 exited 1                                                                                   │
   │                                                                                                                  │
   │    j/k scroll · g/G top/bottom · esc close                                                                       │
-  │                                                                                                                  │
-  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
 
 
 

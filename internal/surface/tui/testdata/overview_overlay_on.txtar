@@ -6,22 +6,21 @@
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  NEEDS Y╭────────────────────────────────────────────────────────────────────────────────────────────────────╮         
-   ◆  api│                                                                                                    │       9m
-   ◆  dep│  Overview                                                                                          │      40s
+  NEEDS YOU  2                                                                                                          
+   ◆  api┌─ Overview ─────────────────────────────────────────────────────────────────────────────────────────┐       9m
+   ◆  dep│                                                                                                    │      40s
+         │  billing-tests and api docs are ready for review; deploy asks a question and migrate-db failed     │
+  WAITING│  updated 40s ago                                                                                   │         
+      not│                                                                                                    │
+         │  READY FOR REVIEW (2)                                                                              │
+  WORKING│  › ● billing-tests Done: 48 tests pass                                                         3m  │         
+   ⠋  per│    ◆ api docs      write api docs                                                              9m  │       5s
          │                                                                                                    │
-  WAITING│  billing-tests and api docs are ready for review; deploy asks a question and migrate-db failed     │         
-      not│  updated 40s ago                                                                                   │
-         │                                                                                                    │
-  WORKING│  READY FOR REVIEW (2)                                                                              │         
-   ⠋  per│  › ● billing-tests Done: 48 tests pass                                                         3m  │       5s
-         │    ◆ api docs      write api docs                                                              9m  │
-  DONE  4│                                                                                                    │         
- ▸ ●  bil│  NEEDS YOU (1)                                                                                     │       3m
-   ✕  mig│    ◆ deploy        Deploy to prod?                                                            40s  │       2h
-   ●  old│                                                                                                    │       3h
-   ●  anc│  FAILED (1)                                                                                        │       1d
-         │    ✕ migrate-db    Failed: migration 0042 timed out                                            2h  │
+  DONE  4│  NEEDS YOU (1)                                                                                     │         
+ ▸ ●  bil│    ◆ deploy        Deploy to prod?                                                            40s  │       3m
+   ✕  mig│                                                                                                    │       2h
+   ●  old│  FAILED (1)                                                                                        │       3h
+   ●  anc│    ✕ migrate-db    Failed: migration 0042 timed out                                            2h  │       1d
          │                                                                                                    │
          │  WORKING (1)                                                                                       │
          │    ⠋ perf-audit    Running benchmarks                                                          5s  │
@@ -30,8 +29,9 @@
          │    ● old-spike     spike                                                                       2h  │
          │                                                                                                    │
          │    j/k select · enter attach · esc close                                                           │
-         │                                                                                                    │
-         ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+         └────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
 
 
 

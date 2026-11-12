@@ -510,16 +510,12 @@ func renderSettings(m Model, termW int) string {
 	}
 
 	var (
-		width, padH, padV int
-		bordered          = termW >= 40
+		width, padH int
+		bordered    = termW >= 40
 	)
-	padV = 1
-	if m.Height > 0 && m.Height < 24 {
-		padV = 0
-	}
 	switch {
 	case termW < 40:
-		width, padH, padV = termW, 0, 0
+		width, padH = termW, 0
 	case termW < 60:
 		width, padH = termW-2, 1
 	default:
@@ -618,13 +614,18 @@ func renderSettings(m Model, termW int) string {
 		lines = append(lines, row+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(row)))))
 	}
 
-	// Header: SETTINGS left, "n of N" right.
-	title := styleBold.Render("SETTINGS")
-	pos := styleDim.Render(fmt.Sprintf("%d of %d", cursorIdx, total))
-	gap := inner - ansi.StringWidth(title) - ansi.StringWidth(pos)
-	header := title + strings.Repeat(" ", max(1, gap)) + pos
-	if gap < 1 {
-		header = ansi.Truncate(title, inner, "")
+	// Header: SETTINGS left, "n of N" right. A bordered panel carries both
+	// in its top edge; the borderless narrow layout keeps a header row.
+	posText := fmt.Sprintf("%d of %d", cursorIdx, total)
+	var header string
+	if !bordered {
+		title := styleBold.Render("SETTINGS")
+		pos := styleDim.Render(posText)
+		gap := inner - ansi.StringWidth(title) - ansi.StringWidth(pos)
+		header = title + strings.Repeat(" ", max(1, gap)) + pos
+		if gap < 1 {
+			header = ansi.Truncate(title, inner, "")
+		}
 	}
 
 	// Fixed 2-line help area so the layout never jumps.
@@ -643,11 +644,10 @@ func renderSettings(m Model, termW int) string {
 	}
 	footer := wrapHints(settingsHints, inner)
 
-	// Non-body rows: header, blank, blank, help(2), blank, footer, plus box chrome.
-	chrome := 1 + 1 + 1 + 2 + 1 + len(footer) + 2*padV
-	if bordered {
-		chrome += 2
-	}
+	// Non-body rows: blank, help(2), blank, footer, plus two more: the
+	// borderless layout's header and blank, or a bordered panel's two border
+	// rows (its title sits in the top one).
+	chrome := 1 + 2 + 1 + len(footer) + 2
 	maxRows := 0
 	if m.Height > 0 {
 		maxRows = m.Height - chrome
@@ -657,7 +657,9 @@ func renderSettings(m Model, termW int) string {
 	}
 
 	var out []string
-	out = append(out, header, "")
+	if !bordered {
+		out = append(out, header, "")
+	}
 	out = append(out, windowLines(lines, focus, maxRows)...)
 	out = append(out, "")
 	out = append(out, help...)
@@ -668,5 +670,6 @@ func renderSettings(m Model, termW int) string {
 	if !bordered {
 		return content
 	}
-	return panelStyle(width).Padding(padV, padH).Render(content)
+	box, _ := panelLines("SETTINGS", posText, strings.Split(content, "\n"), padH, 0, width)
+	return strings.Join(box, "\n")
 }

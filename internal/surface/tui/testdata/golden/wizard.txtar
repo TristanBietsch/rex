@@ -1,9 +1,9 @@
 -- plain.80x24 --
 
   ∴ REX    1 need you · 3 working · 1 done  · 2 failed                          
-╭──────────────────────────────────────────────────────────────────────────────╮
-│                                                                              │
-│  which provider?                                                          …  │
+  all · claude · codex · antigravity · ollama                                   
+
+┌─ which provider?                                                          … ─┐
 │                                                                           …  │
 │    ▸ Echo (test)                                                          …  │
 │      Claude Code                                                          …  │
@@ -18,8 +18,8 @@
 │                                                                           …  │
 │                                                                           …  │
 │    j/k select   enter next   esc cancel                                   …  │
-│                                                                              │
-╰──────────────────────────────────────────────────────────────────────────────╯
+└──────────────────────────────────────────────────────────────────────────────┘
+  ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
   enter open · i new · cc done · tab next · ? more                              
@@ -34,9 +34,9 @@
    ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
 
   WAITING  0                                                                                                            
-      nothing wait╭──────────────────────────────────────────────────────────────────────────────────╮
-                  │                                                                                  │
-  WORKING  3      │  which provider?                                                                 │                  
+      nothing waiting on a tool
+
+  WORKING  3      ┌─ which provider?                                                                ─┐                  
  ▸ ⠋  release-note│                                                                                  │       ▴ 45m   11m
    ⠋  日本語の長い│    ▸ Echo (test)                                                                 │                7s
    ⠋  payment-migr│      Claude Code                                                                 │       ▴ 7h     2h
@@ -51,8 +51,8 @@
                   │                                                                                  │
                   │                                                                                  │
                   │    j/k select   enter next   esc cancel                                          │
-                  │                                                                                  │
-                  ╰──────────────────────────────────────────────────────────────────────────────────╯
+                  └──────────────────────────────────────────────────────────────────────────────────┘
+
 
 
 

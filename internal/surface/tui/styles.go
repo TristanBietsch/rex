@@ -51,6 +51,7 @@ var (
 	styleDim          lipgloss.Style
 	styleMuted        lipgloss.Style
 	styleBorderFg     lipgloss.Style
+	styleBorderFocus  lipgloss.Style // overlay panel frame
 	styleSelected     lipgloss.Style
 	styleCursor       lipgloss.Style // lit cursor: reverse video
 
@@ -137,6 +138,7 @@ func rebuildStyles() {
 	styleDim = fg(colorFgDim)
 	styleMuted = fg(colorFgMuted)
 	styleBorderFg = fg(colorBorder)
+	styleBorderFocus = fg(colorBorderFocus)
 	styleSelected = selectedStyle(fg(colorFgPrimary))
 	styleCursor = lipgloss.NewStyle().Reverse(true)
 

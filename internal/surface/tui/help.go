@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/version"
 )
 
 // helpGroup is one titled block of key/command rows in the help overlay.
@@ -147,8 +149,8 @@ func helpBox(m Model, bw, cols int, drop map[string]bool, note bool) string {
 	if note {
 		footer = styleDim.Render(helpTruncNote) + "\n" + footer
 	}
-	content := styleSlug.Render("HELP") + "\n\n" + body + "\n\n" + footer
-	return panelStyle(bw).Render(content)
+	lines, _ := panelLines("HELP", "rex "+version.Version, strings.Split(body+"\n\n"+footer, "\n"), 3, 0, bw)
+	return strings.Join(lines, "\n")
 }
 
 // renderHelp returns the finished bordered help box, fitting within w x h.
