@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -27,7 +29,7 @@ const (
 	setupStepWelcome    setupStep = iota
 	setupStepDaemon               // check / start daemon
 	setupStepDefaults             // tool, model, effort
-	setupStepAppearance           // color_scheme, spinner, row_density
+	setupStepAppearance           // theme, spinner, row_density
 	setupStepAudio                // sound_enabled, soundset
 	setupStepTrust                // auto_trust_dirs: opt in, default no
 	setupStepShell                // show profile block, offer install
@@ -49,7 +51,7 @@ const (
 type appearanceField int
 
 const (
-	appearanceColorScheme appearanceField = iota
+	appearanceTheme appearanceField = iota
 	appearanceSpinner
 	appearanceRowDensity
 )
@@ -108,13 +110,14 @@ type SetupWizardModel struct {
 	defaultsField defaultsField
 
 	// step: appearance
-	colorSchemeOptions []string
-	colorSchemeIdx     int
-	spinnerOptions     []string
-	spinnerIdx         int
-	rowDensityOptions  []string
-	rowDensityIdx      int
-	appearanceField    appearanceField
+	themes            *theme.Catalog // the user's theme files
+	themeOptions      []string
+	themeIdx          int
+	spinnerOptions    []string
+	spinnerIdx        int
+	rowDensityOptions []string
+	rowDensityIdx     int
+	appearanceField   appearanceField
 
 	// step: audio
 	soundEnabled bool
@@ -182,7 +185,8 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	visible := visibleTools(all)
 
 	// settings options from registry
-	colorSchemeOpts := enumOptions("color_scheme")
+	themes := theme.LoadDir(themesDir())
+	themeOpts := append(enumOptions("theme"), themes.UserNames()...)
 	spinnerOpts := enumOptions("spinner")
 	rowDensityOpts := enumOptions("row_density")
 	soundsetOpts := enumOptions("soundset")
@@ -191,7 +195,12 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	st := settings.NewStore()
 	_ = st.Load(configPath)
 
-	colorSchemeIdx := indexIn(colorSchemeOpts, st.String("color_scheme"))
+	// A configured theme that is not on offer (its file was skipped or
+	// removed) stays selected, so finishing the wizard does not reset it.
+	if cur := st.String("theme"); !slices.Contains(themeOpts, cur) {
+		themeOpts = append(themeOpts, cur)
+	}
+	themeIdx := indexIn(themeOpts, st.String("theme"))
 	spinnerIdx := indexIn(spinnerOpts, st.String("spinner"))
 	rowDensityIdx := indexIn(rowDensityOpts, st.String("row_density"))
 	soundEnabled, _ := st.Get("sound_enabled").(bool)
@@ -244,13 +253,14 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 		effortIdx:     effortIdx,
 		defaultsField: defaultsTool,
 
-		colorSchemeOptions: colorSchemeOpts,
-		colorSchemeIdx:     colorSchemeIdx,
-		spinnerOptions:     spinnerOpts,
-		spinnerIdx:         spinnerIdx,
-		rowDensityOptions:  rowDensityOpts,
-		rowDensityIdx:      rowDensityIdx,
-		appearanceField:    appearanceColorScheme,
+		themes:            themes,
+		themeOptions:      themeOpts,
+		themeIdx:          themeIdx,
+		spinnerOptions:    spinnerOpts,
+		spinnerIdx:        spinnerIdx,
+		rowDensityOptions: rowDensityOpts,
+		rowDensityIdx:     rowDensityIdx,
+		appearanceField:   appearanceTheme,
 
 		soundEnabled: soundEnabled,
 		soundsetOpts: soundsetOpts,
@@ -552,29 +562,29 @@ func (m SetupWizardModel) keyAppearance(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "tab", "right", "enter":
 		switch m.appearanceField {
-		case appearanceColorScheme:
+		case appearanceTheme:
 			m.appearanceField = appearanceSpinner
 		case appearanceSpinner:
 			m.appearanceField = appearanceRowDensity
 		case appearanceRowDensity:
 			m.step = setupStepAudio
-			m.appearanceField = appearanceColorScheme
+			m.appearanceField = appearanceTheme
 		}
 	case "shift+tab", "left":
 		switch m.appearanceField {
-		case appearanceColorScheme:
+		case appearanceTheme:
 			m.step = setupStepDefaults
 		case appearanceSpinner:
-			m.appearanceField = appearanceColorScheme
+			m.appearanceField = appearanceTheme
 		case appearanceRowDensity:
 			m.appearanceField = appearanceSpinner
 		}
 	case "j", "down":
 		m.moved()
 		switch m.appearanceField {
-		case appearanceColorScheme:
-			if m.colorSchemeIdx+1 < len(m.colorSchemeOptions) {
-				m.colorSchemeIdx++
+		case appearanceTheme:
+			if m.themeIdx+1 < len(m.themeOptions) {
+				m.themeIdx++
 			}
 		case appearanceSpinner:
 			if m.spinnerIdx+1 < len(m.spinnerOptions) {
@@ -588,9 +598,9 @@ func (m SetupWizardModel) keyAppearance(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.moved()
 		switch m.appearanceField {
-		case appearanceColorScheme:
-			if m.colorSchemeIdx > 0 {
-				m.colorSchemeIdx--
+		case appearanceTheme:
+			if m.themeIdx > 0 {
+				m.themeIdx--
 			}
 		case appearanceSpinner:
 			if m.spinnerIdx > 0 {
@@ -859,9 +869,9 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 	if m.effortIdx < len(m.effortOptions) {
 		effortVal = m.effortOptions[m.effortIdx]
 	}
-	colorScheme := ""
-	if m.colorSchemeIdx < len(m.colorSchemeOptions) {
-		colorScheme = m.colorSchemeOptions[m.colorSchemeIdx]
+	themeName := ""
+	if m.themeIdx < len(m.themeOptions) {
+		themeName = m.themeOptions[m.themeIdx]
 	}
 	spinner := ""
 	if m.spinnerIdx < len(m.spinnerOptions) {
@@ -900,7 +910,7 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 				_ = store.Reset(id)
 			}
 		}
-		setOrReset("color_scheme", colorScheme)
+		setOrReset("theme", themeName)
 		setOrReset("spinner", spinner)
 		setOrReset("row_density", rowDensity)
 		setOrReset("sound_enabled", soundEnabled)
@@ -1148,7 +1158,7 @@ func (m SetupWizardModel) renderAppearance() (string, []string, string) {
 		idx   int
 		field appearanceField
 	}{
-		{"color_scheme", "color scheme", m.colorSchemeOptions, m.colorSchemeIdx, appearanceColorScheme},
+		{"theme", "theme", m.themeOptions, m.themeIdx, appearanceTheme},
 		{"spinner", "spinner type", m.spinnerOptions, m.spinnerIdx, appearanceSpinner},
 		{"row_density", "row density", m.rowDensityOptions, m.rowDensityIdx, appearanceRowDensity},
 	}
@@ -1380,7 +1390,7 @@ func (m SetupWizardModel) renderDone() (string, []string, string) {
 func setupOption(selected bool, glyph, name, glyphColor string) string {
 	var cursor string
 	if selected {
-		cursor = styleArrow.Render("▸") + " "
+		cursor = styleArrow.Render(selectGlyph()) + " "
 	} else {
 		cursor = "  "
 	}
@@ -1583,6 +1593,8 @@ func rewriteShellBlock(content, block string) string {
 func RunSetupWizard(configPath, socket, autoTrust string) error {
 	slog.Info("setup: launching TUI wizard", "config_path", configPath, "socket", socket)
 	model := NewSetupWizardModel(configPath, socket).withAutoTrust(autoTrust)
+	// Draw the wizard in the user's own theme, not the built-in default.
+	applyThemeFrom(model.themes, model.themeOptions[model.themeIdx])
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := p.Run()
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -95,7 +96,7 @@ type Model struct {
 	Fail   *FailState
 	// UsagePage is the :usage page's state; set while FocusUsage.
 	UsagePage *UsageState
-	Rename *RenameState
+	Rename    *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
 
@@ -115,6 +116,14 @@ type Model struct {
 	// page mutates it and triggers live-apply side effects.
 	Store     *settings.Store
 	StorePath string
+	// Themes is the user's theme files (nil: built-in themes only). It is
+	// replaced whole, on the UI goroutine, when the files are (re)loaded.
+	Themes *theme.Catalog
+	// configStamp is the state of config.yaml and the theme files as last
+	// read; live reload compares against it. configTicking says the poll
+	// timer chain is running.
+	configStamp   string
+	configTicking bool
 
 	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
 	PendingDeleteID string

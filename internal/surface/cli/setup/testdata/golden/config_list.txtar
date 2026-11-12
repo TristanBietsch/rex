@@ -1,31 +1,31 @@
 -- text.w40 --
 Appearance:
-  spinner       braille
-  color_scheme  default
+  spinner  braille
+  theme    default
 
 Behavior:
   board_hidden_sections    
   max_concurrent_sessions  16
 -- text.w80 --
 Appearance:
-  spinner       braille
-  color_scheme  default
+  spinner  braille
+  theme    default
 
 Behavior:
   board_hidden_sections    
   max_concurrent_sessions  16
 -- text.w120 --
 Appearance:
-  spinner       braille
-  color_scheme  default
+  spinner  braille
+  theme    default
 
 Behavior:
   board_hidden_sections    
   max_concurrent_sessions  16
 -- text.color.w80 --
 ␛[1;38;2;230;232;238mAppearance:␛[0m
-  ␛[38;2;139;145;161mspinner     ␛[0m  braille
-  ␛[38;2;139;145;161mcolor_scheme␛[0m  default
+  ␛[38;2;139;145;161mspinner␛[0m  braille
+  ␛[38;2;139;145;161mtheme  ␛[0m  default
 
 ␛[1;38;2;230;232;238mBehavior:␛[0m
   ␛[38;2;139;145;161mboard_hidden_sections  ␛[0m  
@@ -33,7 +33,7 @@ Behavior:
 -- txt --
 # Appearance
   spinner                    braille
-  color_scheme               default
+  theme                      default
 
 # Behavior
   board_hidden_sections      
@@ -44,7 +44,7 @@ Behavior:
 | Key | Value |
 | --- | --- |
 | spinner | braille |
-| color\_scheme | default |
+| theme | default |
 
 #### Behavior
 
@@ -53,10 +53,10 @@ Behavior:
 | board\_hidden\_sections |  |
 | max\_concurrent\_sessions | 16 |
 -- json --
-{"v":1,"cmd":"config","data":[{"id":"spinner","section":"Appearance","value":"braille","default":"braille"},{"id":"color_scheme","section":"Appearance","value":"default","default":"default"},{"id":"board_hidden_sections","section":"Behavior","value":"","default":""},{"id":"max_concurrent_sessions","section":"Behavior","value":16,"default":16}]}
+{"v":1,"cmd":"config","data":[{"id":"spinner","section":"Appearance","value":"braille","default":"braille"},{"id":"theme","section":"Appearance","value":"default","default":"default"},{"id":"board_hidden_sections","section":"Behavior","value":"","default":""},{"id":"max_concurrent_sessions","section":"Behavior","value":16,"default":16}]}
 -- agent --
 setting id=spinner section=Appearance value=braille default=braille
-setting id=color_scheme section=Appearance value=default default=default
+setting id=theme section=Appearance value=default default=default
 setting id=board_hidden_sections section=Behavior value="" default=""
 setting id=max_concurrent_sessions section=Behavior value=16 default=16
 ok cmd=config count=4

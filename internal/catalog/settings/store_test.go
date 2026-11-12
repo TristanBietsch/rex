@@ -14,7 +14,7 @@ import (
 
 func TestStore_DefaultsPopulated(t *testing.T) {
 	s := NewStore()
-	require.Equal(t, "default", s.Get("color_scheme"))
+	require.Equal(t, "default", s.Get("theme"))
 	require.Equal(t, "braille", s.Get("spinner"))
 	require.Equal(t, true, s.Get("mouse_enabled"))
 	require.Equal(t, 16, s.Get("max_concurrent_sessions"))

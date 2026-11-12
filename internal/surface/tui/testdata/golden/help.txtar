@@ -51,15 +51,15 @@
      │          session)                                      :q :quit         quit (confirm)                     │
      │   C      complete now (kill agent, mark done)          :q!              force quit                         │
      │   dd     delete selected                               :bg :detach      detach, save place                 │
-     │   i      focus λ prompt (new-session text)             :reload          reload tools.yaml                  │
-     │   S      settings                                      :fail            failed sessions + daemon log       │
-     │   q      quit (confirm)                                                 (:fails :failed)                   │
-     │                                                        :stats           session statistics overlay         │
-     │   ── Mouse ────────────────────────────────────────    :usage           usage per agent and model,         │
-     │   click         select row / filter chip                                quota, resets                      │
-     │   double-click  attach to row                          :overview        what is ready for you, what to     │
-     │   wheel         move row selection                                      review, what finished              │
-     │   hold ⌥ / ⇧    select text natively                   :border [color]  window border for this run: on,    │
+     │   i      focus λ prompt (new-session text)             :reload          reload tools.yaml, config.yaml     │
+     │   S      settings                                                       and themes                         │
+     │   q      quit (confirm)                                :fail            failed sessions + daemon log       │
+     │                                                                         (:fails :failed)                   │
+     │   ── Mouse ────────────────────────────────────────    :stats           session statistics overlay         │
+     │   click         select row / filter chip               :usage           usage per agent and model,         │
+     │   double-click  attach to row                                           quota, resets                      │
+     │   wheel         move row selection                     :overview        what is ready for you, what to     │
+     │   hold ⌥ / ⇧    select text natively                                    review, what finished              │
   ↳ d│   ↓ more                                                                                                   │     
 ─────│                                                                                                            │─────
   λ p│   j/k scroll · / filter · esc close                                                                        │     

@@ -8,6 +8,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/catalog/theme"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -116,18 +117,34 @@ func streamStyles(w io.Writer, color, trueColor bool, scheme string) Styles {
 		// Forced (CLICOLOR_FORCE) into a pipe: detection finds nothing.
 		r.SetColorProfile(termenv.ANSI256)
 	}
-	p, _ := theme.Get(scheme)
-	return NewStyles(p, r)
+	return NewStyles(resolvePalette(scheme), r)
 }
 
-// loadAppearance reads color_scheme and spinner from the user's config. Any
+// resolvePalette finds the named theme: a built-in, else one of the user's
+// theme files (~/.config/rex/themes). A name that is neither, a file that
+// failed validation, or a home directory that cannot be found all mean the
+// default palette, silently: a command's output must not change shape, or
+// grow a warning, because of a theme file. (rex theme list reports the
+// skipped files.) Built-in names skip the directory read.
+func resolvePalette(name string) theme.Palette {
+	if _, builtin := theme.Builtin[name]; !builtin {
+		if dir, err := paths.ThemesDir(); err == nil {
+			p, _ := theme.LoadDir(dir).Get(name)
+			return p
+		}
+	}
+	p, _ := theme.Get(name)
+	return p
+}
+
+// loadAppearance reads theme and spinner from the user's config. Any
 // failure means the defaults: styling must never break a command.
 func loadAppearance() (scheme, spinner string) {
 	store, _, err := settings.LoadDefault()
 	if err != nil {
 		return theme.DefaultName, ""
 	}
-	scheme, _ = store.Get("color_scheme").(string)
+	scheme, _ = store.Get("theme").(string)
 	spinner, _ = store.Get("spinner").(string)
 	return scheme, spinner
 }

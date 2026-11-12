@@ -700,7 +700,7 @@ func padOrTrim(body []string, n int) []string {
 func wizOption(selected bool, glyph, name, glyphColor string) string {
 	var cursor string
 	if selected {
-		cursor = styleArrow.Render("▸") + " "
+		cursor = styleArrow.Render(selectGlyph()) + " "
 	} else {
 		cursor = "  "
 	}
@@ -727,7 +727,7 @@ func wizSkillLines(w *WizardState) []string {
 	for i, s := range w.Skills {
 		cursor, box := "  ", "[ ]"
 		if i == w.SkillCursor {
-			cursor = styleArrow.Render("▸") + " "
+			cursor = styleArrow.Render(selectGlyph()) + " "
 		}
 		if w.SkillSel[s.Name] {
 			box = "[x]"

@@ -12,7 +12,7 @@ import (
 
 // The live colors and styles below are filled from a theme.Palette by
 // applyTheme. Every renderer reads them; none builds an inline style or names
-// a hex value, so a color_scheme change restyles the whole TUI.
+// a hex value, so a theme change restyles the whole TUI.
 
 // Live palette tokens. Mutated by applyTheme.
 var (
@@ -99,11 +99,22 @@ func init() {
 	applyTheme(theme.DefaultName)
 }
 
-// applyTheme swaps the live palette and rebuilds all style vars. Unknown names
-// fall back to the default palette silently. It writes package globals, so
-// call it from Update, never from a tea.Cmd goroutine.
-func applyTheme(name string) {
-	p, _ := theme.Get(name)
+// applyTheme swaps the live palette and rebuilds all style vars. An unknown
+// name falls back to the default palette and returns false. It writes package
+// globals, so call it from Update, never from a tea.Cmd goroutine.
+func applyTheme(name string) bool { return applyThemeFrom(nil, name) }
+
+// applyThemeFrom is applyTheme with the user's theme files: cat (nil means
+// built-ins only) is searched first.
+func applyThemeFrom(cat *theme.Catalog, name string) bool {
+	p, found := cat.Get(name)
+	applyPalette(p)
+	return found
+}
+
+// applyPalette makes p the live palette and rebuilds every style.
+func applyPalette(p theme.Palette) {
+	curGlyphs = p.Glyphs
 	c := func(s string) lipgloss.Color { return lipgloss.Color(s) }
 	colorFgPrimary = c(p.Fg)
 	colorFgDim = c(p.FgDim)

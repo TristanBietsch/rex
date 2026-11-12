@@ -9,13 +9,13 @@ Change colors, density, sounds, and header style.
 ## CLI
 
 ```sh
-rex config set color_scheme noir
+rex config set theme noir
 rex config set row_density compact
 rex config set sound_enabled false
 rex config list
 ```
 
-Keys and defaults: [settings.md](../settings.md).
+Keys and defaults: [settings.md](../settings.md). Your own colors and marker glyphs: [themes.md](../themes.md) (`rex theme new my-theme`).
 
 ## TUI
 
@@ -27,7 +27,7 @@ Keys and defaults: [settings.md](../settings.md).
 
 | ID | Effect |
 |----|--------|
-| `color_scheme` | `default`, `classic`, `noir`, `paper`, `high-contrast`, `ansi` |
+| `theme` | `default`, `classic`, `noir`, `paper`, `high-contrast`, `ansi` |
 | `row_density` | `compact`, `normal`, `roomy` |
 | `header_style` | `verbose`, `glyphs`, `numbers` |
 | `window_border` | Thick colored frame around the screen (off by default) |
@@ -40,12 +40,12 @@ Keys and defaults: [settings.md](../settings.md).
 
 Colors, glyphs and density apply as soon as you change them; audio initializes at TUI start. The settings page tells you per row when a change applies.
 
-## Color schemes
+## Themes
 
 | Scheme | Use it when |
 |--------|-------------|
 | `default` | Dark terminal; violet accent. This is what you get if you never set one |
-| `classic` | You liked the look before the violet accent (`rex config set color_scheme classic`) |
+| `classic` | You liked the look before the violet accent (`rex config set theme classic`) |
 | `noir` | You want a deeper, quieter dark |
 | `paper` | Your terminal background is light |
 | `high-contrast` | Pure black and white, brightest state colors; for low vision or glare |

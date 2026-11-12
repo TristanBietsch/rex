@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // bootLine is one rendered row in the splash log.
@@ -111,7 +112,7 @@ func renderSplashStatusLine(m Model, elapsed time.Duration) string {
 func renderBootLine(ln bootLine) string {
 	token := bootStatusToken(ln.Status)
 	cat := padCategory(ln.Name)
-	desc := ln.Desc
+	desc := protocol.FlattenDisplayText(ln.Desc) // descriptions can carry file names and file contents
 	return token + " " + stylePrimary.Render(cat) + "  " +
 		styleDim.Render("·") + " " + stylePrimary.Render(desc)
 }

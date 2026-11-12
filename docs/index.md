@@ -44,6 +44,7 @@ Go source wins when docs disagree with code.
 | [howto/shell-integration.md](howto/shell-integration.md) | PATH, completion, prompt |
 | [howto/agents.md](howto/agents.md) | Drive rex from an LLM agent (agent mode, the card) |
 | [howto/customize-appearance.md](howto/customize-appearance.md) | Colors, density, sounds |
+| [themes.md](themes.md) | Your own color themes (YAML files), `rex theme` |
 
 ## Architecture and layout
 

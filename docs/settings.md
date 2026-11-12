@@ -11,6 +11,7 @@ The TUI settings page (`S`), `rex config`, and the daemon read the same registry
 | Path | Role |
 |------|------|
 | `~/.config/rex/config.yaml` | Persisted values |
+| `~/.config/rex/themes/<name>.yaml` | Your own themes ([themes.md](themes.md)) |
 
 ## Commands
 
@@ -28,15 +29,15 @@ The settings page shows this per row (the detail pane under the list), and the r
 
 | Mode | Meaning |
 |------|---------|
-| applies now | In the TUI at once, or through the daemon's settings watcher within seconds |
+| applies now | In the TUI at once (also when you edit `config.yaml` by hand: the TUI polls it every 2 s while `live_reload` is on), or through the daemon's settings watcher within seconds |
 | next attach | Read when an attach popup opens or resizes (`attach_banner`, `attach_scrollback_lines`) |
 | applies now (set from the TUI) | `max_concurrent_sessions`: the TUI sends it to the running daemon; the daemon ignores the YAML |
 | next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
 | after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
 
-## Color schemes
+## Themes
 
-`rex config set color_scheme <name>`; the TUI applies it at once and CLI output follows it.
+`rex config set theme <name>` or `:theme <name>` in the TUI (your own theme files are in [themes.md](themes.md)); the TUI applies it at once and CLI output follows it. `theme` was called `color_scheme`: the old key is still read (`theme` wins if both are in the file), and the next save writes `theme`. An unknown name uses `default`.
 
 | Scheme | For |
 |--------|-----|
@@ -74,7 +75,7 @@ Every scheme with real colors is tested against its own background: text 7:1, st
 
 | ID | Type | Default | Options |
 |----|------|---------|---------|
-| `color_scheme` | enum | `default` | `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors). Applies to the TUI and to CLI output |
+| `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors), or a file in `~/.config/rex/themes` ([themes.md](themes.md)). An unknown name uses `default`. Applies to the TUI and to CLI output. Formerly `color_scheme`, still read |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
 | `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
@@ -209,7 +210,7 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 ## Example
 
 ```yaml
-color_scheme: noir
+theme: noir
 sound_enabled: false
 default_spawn_tool: echo
 default_spawn_model: short
@@ -236,6 +237,8 @@ Not supported: enterprise managed settings, and a `--settings` file you pass to 
 ## Which settings apply live
 
 The daemon keeps one copy of `config.yaml` and refreshes it about 5 s after an edit (or at once on `rex reload`, `:reload` or `SIGHUP`). With `live_reload` off it refreshes only on those.
+
+The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line. With `live_reload` off the TUI starts no timer and reads no file.
 
 | Applies | Settings |
 |---------|----------|

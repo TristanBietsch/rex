@@ -34,6 +34,9 @@ type Palette struct {
 	// Faint draws FgDim, FgMuted and Border faint (SGR 2) on the terminal
 	// default color: for a scheme that has no color of its own for them.
 	Faint bool
+	// Glyphs overrides the state markers; empty fields keep the built-in
+	// ones. Only user theme files set it.
+	Glyphs Glyphs
 }
 
 // DefaultName is the palette used when a name is unknown or unset.

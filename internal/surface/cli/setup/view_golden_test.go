@@ -100,7 +100,7 @@ func tallyFailsWarns(checks []checkResult) int {
 func TestConfigListViewKeepsTxtLayout(t *testing.T) {
 	rows := []configRow{
 		{ID: "spinner", Section: "Appearance", Value: "braille", Default: "braille"},
-		{ID: "color_scheme", Section: "Appearance", Value: "default", Default: "default"},
+		{ID: "theme", Section: "Appearance", Value: "default", Default: "default"},
 		{ID: "board_hidden_sections", Section: "Behavior", Value: "", Default: ""},
 		{ID: "max_concurrent_sessions", Section: "Behavior", Value: 16, Default: 16},
 	}
@@ -108,7 +108,7 @@ func TestConfigListViewKeepsTxtLayout(t *testing.T) {
 	require.NoError(t, p.Emit(core.Result{Cmd: "config", Data: rows, View: configListView(rows)}))
 	want := "# Appearance\n" +
 		"  spinner                    braille\n" +
-		"  color_scheme               default\n" +
+		"  theme                      default\n" +
 		"\n" +
 		"# Behavior\n" +
 		"  " + "board_hidden_sections" + "     " + " " + "\n" + // %-26s of the id, a space, an empty value
