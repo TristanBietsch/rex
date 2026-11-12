@@ -356,7 +356,7 @@ func themeSkeleton(name, from string, base theme.Palette) string {
 		}
 		fmt.Fprintf(&b, "#   fleet: [%s]\n", strings.Join(quoted, ", "))
 	}
-	b.WriteString("\n# glyphs: one printable character each (the values below are the built-in markers)\n# glyphs:\n")
+	b.WriteString("\n# glyphs: one printable character, exactly one cell wide, each (the values below are the built-in markers)\n# glyphs:\n")
 	b.WriteString("#   needs: \"◆\"\n#   done: \"●\"\n#   failed: \"✕\"\n#   crashed: \"○\"\n#   queued: \"◌\"\n#   select: \"▸\"\n")
 	return b.String()
 }

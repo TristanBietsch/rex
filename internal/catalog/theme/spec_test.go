@@ -83,7 +83,7 @@ func TestParse_Errors(t *testing.T) {
 		"glyph wide":         {"glyphs: {needs: \"abc\"}", "one character, got 3"},
 		"glyph empty":        {`glyphs: {needs: ""}`, "one printable character"},
 		"glyph space":        {`glyphs: {needs: " "}`, "one printable character"},
-		"glyph zero width":   {"glyphs: {needs: \"\\u0301\"}", "cells wide"},
+		"glyph zero width":   {"glyphs: {needs: \"\\u0301\"}", "exactly 1 cell wide"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := Parse("mine", []byte(tc.src))
@@ -148,11 +148,23 @@ func TestTokens(t *testing.T) {
 }
 
 func TestValidGlyph(t *testing.T) {
-	for _, ok := range []string{"!", "✓", "◆", "x", "●", "👍", "é", "👨‍👩‍👧"} {
+	for _, ok := range []string{"!", "✓", "◆", "x", "●", "é", ">"} {
 		require.NoError(t, ValidGlyph(ok), ok)
 	}
 	for _, bad := range []string{"", " ", "\x1b", "\x1b[31m", "\u202e", "\u200b", "ab", "\xff", "\n", "\u0085", "\u200f", "\u2066"} {
 		require.Error(t, ValidGlyph(bad), "%q", bad)
+	}
+	for _, wide := range []string{"✅", "👉", "👍", "👨‍👩‍👧", "日"} {
+		err := ValidGlyph(wide)
+		require.ErrorContains(t, err, "exactly 1 cell wide", wide)
+		require.ErrorContains(t, err, "is 2", wide)
+	}
+}
+
+func TestParse_WideGlyphIsRejectedWithAReason(t *testing.T) {
+	for _, g := range []string{"✅", "👉"} {
+		_, _, err := Parse("mine", []byte("glyphs: {needs: \""+g+"\"}"))
+		require.ErrorContains(t, err, "glyphs.needs: must be exactly 1 cell wide")
 	}
 }
 

@@ -303,7 +303,7 @@ func NormalizeColor(s string) (string, error) {
 }
 
 // ValidGlyph reports whether s is safe to draw as a state marker: exactly one
-// printable grapheme, one or two cells wide, with no control, escape, bidi or
+// printable grapheme exactly one cell wide, with no control, escape, bidi or
 // zero-width characters that could move the cursor or hide text.
 func ValidGlyph(s string) error {
 	if !utf8.ValidString(s) || s == "" {
@@ -325,8 +325,11 @@ func ValidGlyph(s string) error {
 	if n != 1 {
 		return fmt.Errorf("must be one character, got %d", n)
 	}
-	if w := xansi.StringWidth(s); w < 1 || w > 2 {
-		return fmt.Errorf("must be 1 or 2 cells wide, is %d", w)
+	// The board lays rows out in fixed cells (a one-cell marker column and a
+	// three-cell indent), so a wider glyph such as an emoji would split the
+	// row.
+	if w := xansi.StringWidth(s); w != 1 {
+		return fmt.Errorf("must be exactly 1 cell wide, is %d (wide characters such as emoji break the board columns)", w)
 	}
 	return nil
 }

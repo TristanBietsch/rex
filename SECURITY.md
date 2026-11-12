@@ -52,8 +52,8 @@ filesystem permissions.
 - **Theme files.** `~/.config/rex/themes/*.yaml` are treated as untrusted
   data, since people share them. They hold colors and one-character
   glyphs, never code. rex validates every color (`#RGB`, `#RRGGBB`, an ANSI
-  index or empty) and every glyph (exactly one printable character, one or two
-  cells wide, no control, escape, bidirectional or zero-width characters),
+  index or empty) and every glyph (exactly one printable character, one cell
+  wide, no control, escape, bidirectional or zero-width characters),
   caps a file at 64 KiB and the directory at 64 files, skips a symlink that
   leaves the directory, and on macOS and Linux skips a file or directory that
   another user owns or that group or others can write. A bad file is skipped
