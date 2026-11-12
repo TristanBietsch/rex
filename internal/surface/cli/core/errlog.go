@@ -88,7 +88,7 @@ var errCodes = map[string]bool{
 var cliSubcommands = map[string][]string{
 	"fleet":  {"ls", "show", "set", "unset"},
 	"daemon": {"start", "stop", "status", "restart", "logs"},
-	"config": {"list", "get", "set", "reset", "edit"},
+	"config": {"list", "get", "set", "reset", "edit", "lua-export"},
 	"theme":  {"list", "show", "new"},
 }
 

@@ -114,6 +114,15 @@ filesystem permissions.
   under the git directory, and the file to be a regular file you own under
   1 MiB; otherwise it refuses and writes nothing. A way to make rex write
   anywhere else through a crafted `.git` is in scope.
+- **`config.lua`.** `~/.config/rex/config.lua` and the modules it requires
+  from `~/.config/rex/lua/` run in every rex process that reads settings
+  (TUI, daemon, CLI) while `lua_config` is on. rex refuses a file or folder
+  another user owns or that group or others can write, on the opened file
+  (a symlink only to a target that passes), and every string it accepts from
+  Lua is checked for control, escape, bidirectional and zero-width
+  characters; errors and warnings are flattened before display. A
+  `config.lua` owned by another user being evaluated, or bytes from
+  `config.lua` reaching the terminal unflattened, are in scope.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the
@@ -125,12 +134,22 @@ filesystem permissions.
 
 - **`~/.config/rex/init.lua` is trusted user code.** It runs inside the
   daemon with your privileges and is not sandboxed. Anyone who can edit it
-  can already run code as you. The same applies to `tools.yaml` and
+  can already run code as you. The daemon refuses an `init.lua` or folder
+  another user owns or that group or others can write (the `config.lua`
+  rule), and logs why; running such a file anyway is in scope. The same applies to `tools.yaml` and
   `config.yaml`, which choose the programs rex spawns.
+- **`config.lua` and `~/.config/rex/lua/` are trusted user code** too. Their
+  restricted Lua state (no `os`, `io`, `load` or `print`; a 250 ms limit,
+  size caps and a memory watchdog) is for liveness and for keeping Lua text
+  off your terminal, not a security boundary. A script that sets
+  `auto_trust_dirs` or `skip_permissions` grants that trust, as the same
+  line in `config.yaml` would.
 - What the agent CLIs themselves do (Claude Code, Codex, Antigravity and others),
   including the commands they run in your repository.
-- Folders you list in the `auto_trust_dirs` setting or trust for one
-  session (`trust_folder`). For sessions there,
+- Folders you list in the `auto_trust_dirs` setting (`rex trust`, `:trust`,
+  the wizard's ctrl+a) or trust for one session (`trust_folder`: `rex new
+  -trust`, the wizard's ctrl+t). The folder those offer is the repo's own
+  folder, never its parent. For sessions there,
   rex starts the agent with the folder trusted (Antigravity, for that
   session only) or answers its "trust this folder" dialog (Claude Code),
   so the repository's own agent settings apply without that prompt. The

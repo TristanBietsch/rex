@@ -26,9 +26,9 @@ var Registry = []Setting{
 	{
 		ID: "theme", Label: "Theme", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "default", Aliases: []string{"color_scheme"},
-		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi", "dracula", "tokyo_night", "pantone_safe"},
+		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi", "dracula", "tokyo_night", "pantone_safe", "auto"},
 		Normalize: normalizeThemeName,
-		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
+		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors; auto is default on a dark terminal, paper on a light one) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
 	},
 	{
 		ID: "spinner", Label: "Spinner type", Section: SectionAppearance, Apply: ApplyLive,
@@ -143,13 +143,13 @@ var Registry = []Setting{
 	},
 	{
 		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior, Apply: ApplyLive,
-		Type: TypeString, Default: "",
+		Type: TypeString, Default: "", ListSep: ",",
 		Help: "Board sections hidden, comma-separated ids: needs, waiting, working, done (for example: done). Unknown ids are ignored. Applies at once and is the starting set; zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
 	},
 	{
 		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior, Apply: ApplyNextSpawn,
 		Type: TypeBool, Default: false,
-		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions, but only in folders under auto_trust_dirs. Agents then edit files and run commands without asking you first. Applies to the next session.",
+		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions, but only in trusted folders (under auto_trust_dirs, or trusted for one session with ctrl+t or rex new -trust). Agents then edit files and run commands without asking you first. Applies to the next session.",
 	},
 
 	// Features: one on/off switch per optional feature, read with FeatureOn.
@@ -275,6 +275,12 @@ var Registry = []Setting{
 		Help: "Also store each session's whole first prompt in the audit trail, not only its first line. Prompts can hold secrets; the file is private (0600) but a workspace audit.jsonl may be synced or committed. Needs audit_trail on. Applies to sessions started afterwards.",
 	},
 
+	{
+		ID: "lua_config", Label: "Lua config", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Set settings and themes in ~/.config/rex/config.lua (rex config edit -lua). Rows set there are locked in the settings page and rex config set refuses them. This switch is read from config.yaml only. Off: config.lua and ~/.config/rex/lua are never read or run, and rows are unlocked.",
+	},
+
 	// Spawn
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn, Apply: ApplyNextSpawn,
@@ -294,7 +300,7 @@ var Registry = []Setting{
 	{
 		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn, Apply: ApplyNextSpawn,
 		Type: TypeString, Default: "",
-		Free: true, Normalize: normalizeAutoTrustDirs,
+		Free: true, Normalize: normalizeAutoTrustDirs, ListSep: string(filepath.ListSeparator),
 		Help: "Sessions started in these folders (or below them) skip the agent's \"trust this folder\" question: rex starts the agent with the folder trusted, or answers the question. " +
 			"Separate folders with " + string(filepath.ListSeparator) + "; ~/ is your home. Empty: always ask. " +
 			"Only list folders whose code you trust: accepting lets a repo's own agent settings apply.",

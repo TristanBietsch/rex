@@ -108,9 +108,11 @@ func runAllChecks(socket *core.SocketFlag) []checkResult {
 	results = append(results, checkDaemonReachable(socket))
 	results = append(results, checkRexDirs()...)
 	results = append(results, checkSettingsLoad())
+	results = append(results, checkConfigLua())
 	results = append(results, checkToolBinaries()...)
 	results = append(results, checkSnapshots()...)
 	results = append(results, checkAgyVersion()...)
+	results = append(results, checkAutoTrustDirs()...)
 	results = append(results, checkGoVersion())
 	results = append(results, checkCLIErrors(time.Now()))
 
@@ -184,6 +186,44 @@ func checkDir(name, dir string) checkResult {
 	return checkResult{name, checkPass, dir}
 }
 
+// checkConfigLua reports config.lua: off, absent, failed, refused something,
+// or how many settings and themes it set. All text is flattened.
+func checkConfigLua() checkResult {
+	const name = "config.lua"
+	s, rep, _, err := settings.LoadDefaultReport()
+	switch {
+	case err != nil && s == nil:
+		return checkResult{name, checkInfo, "settings not loaded"}
+	case !settings.LuaConfigOn(s):
+		return checkResult{name, checkInfo, "off (rex config set lua_config true)"}
+	case !rep.Exists:
+		return checkResult{name, checkInfo, "none (rex config edit -lua)"}
+	case rep.Err != nil:
+		return checkResult{name, checkWarn, rep.Err.Error() + luaKeptSuffix(rep)}
+	case len(rep.Warnings) > 0:
+		return checkResult{name, checkWarn, fmt.Sprintf("%d warning(s), first: %s", len(rep.Warnings), rep.Warnings[0])}
+	case len(rep.ThemeIssues) > 0:
+		return checkResult{name, checkWarn, fmt.Sprintf("%d theme issue(s), first: %s", len(rep.ThemeIssues), rep.ThemeIssues[0])}
+	}
+	return checkResult{name, checkPass, fmt.Sprintf("%d setting(s), %d theme(s)", len(rep.Values), len(rep.Themes)) + luaTrustSuffix(rep)}
+}
+
+// luaTrustSuffix names the trust settings config.lua sets, with their
+// lines, so trust granted from Lua (or a module it requires) is never
+// invisible in rex doctor.
+func luaTrustSuffix(rep settings.LayerReport) string {
+	var parts []string
+	for _, id := range settings.TrustSettingIDs {
+		if _, ok := rep.Values[id]; ok {
+			parts = append(parts, fmt.Sprintf("%s (%s)", id, rep.SetAt[id]))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "; grants trust: " + strings.Join(parts, ", ")
+}
+
 // checkSettingsLoad attempts to load settings from the default path.
 func checkSettingsLoad() checkResult {
 	_, path, err := settings.LoadDefault()
@@ -196,9 +236,10 @@ func checkSettingsLoad() checkResult {
 	return checkResult{"settings load", checkPass, path}
 }
 
-// checkToolBinaries checks each known tool binary via PATH lookup.
+// checkToolBinaries checks each known tool binary via PATH lookup, the extra
+// agents (Qwen Code, Cursor CLI, Grok Build) included.
 func checkToolBinaries() []checkResult {
-	tools := []string{"claude", "codex", "agy", "ollama"}
+	tools := []string{"claude", "codex", "agy", "ollama", "qwen", "cursor-agent", "grok"}
 	var results []checkResult
 	for _, tool := range tools {
 		path, err := exec.LookPath(tool)

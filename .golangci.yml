@@ -69,7 +69,7 @@ linters:
       # example and doc.
       - linters:
           - gocritic
-        path: internal/features/lua/
+        path: internal/(features/lua|catalog/settings/luacfg)/
         text: "captLocal: `L' should not be capitalized"
       # Style only. The TUI is split into subpackages in a later phase; the
       # if/else chains get rewritten then rather than churned twice.

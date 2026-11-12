@@ -12,7 +12,7 @@ tools:
       kind: heuristic
       prompt_regex: "(?m)^awaiting input:"
       idle_ms: 800
-    icon: "◉"
+    icon: "◎"
     color: "#94A3B8"
     models:
       - id: short
@@ -222,7 +222,7 @@ tools:
       # [ \t] not \s: \s matches newlines and lets ">" span lines.
       prompt_regex: "(?m)^[ \\t]*>[ \\t]"
       idle_ms: 1200
-    icon: "◈"
+    icon: "□"
     color: "#4285F4"
     models:
       - id: 2.5-pro
@@ -305,7 +305,7 @@ tools:
       options: [low, medium, high]
       default: medium
       arg_template: "--reasoning-effort={value}"
-    icon: "◇"
+    icon: "▣"
     color: "#6F42C1"
     models:
       - id: default
@@ -347,7 +347,7 @@ tools:
       skip_header: 2
       timeout_ms: 8000
     model_arg_template: ["--model", "{model}"]
-    icon: "▶"
+    icon: "▲"
     color: "#1F2937"
     models:
       - id: auto
@@ -387,7 +387,7 @@ tools:
       options: [low, medium, high]
       default: medium
       arg_template: "--reasoning-effort={value}"
-    icon: "⬢"
+    icon: "◢"
     color: "#E5544D"
     models:
       - id: default

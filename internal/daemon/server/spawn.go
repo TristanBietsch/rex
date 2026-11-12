@@ -350,6 +350,7 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		ReadySettle:    delivery.readySettle,
 		SummaryRequest: cfg.SummaryRequest,
 		TrustPrompt:    spec.Trust.Answer,
+		TrustDetect:    spec.Trust.Detect,
 		ResumeCapture:  resumeCapture,
 		NoResumeIDs:    !resumeOn,
 		OutputSink: func(b []byte) {

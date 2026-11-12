@@ -2,13 +2,72 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
+
+// builtinChips are the built-in tools: all is every id, enabled the ones the
+// wizard offers by default (visibleTools), in registry order.
+type builtinChips struct {
+	all     map[string]bool
+	enabled []string
+}
+
+var loadBuiltinChips = sync.OnceValue(func() builtinChips {
+	out := builtinChips{all: map[string]bool{}}
+	reg, err := registry.Load("")
+	if err != nil {
+		slog.Warn("tui: built-in registry did not load; filter chips show only all", "err", err)
+		return out
+	}
+	for _, t := range reg.Tools {
+		out.all[t.ID] = true
+	}
+	for _, t := range visibleTools(reg.Tools) {
+		out.enabled = append(out.enabled, t.ID)
+	}
+	return out
+})
+
+// filterTools is the filter chip order (header chips, chip clicks and the t
+// cycle): "all", then the agents. With the daemon's tool list known these
+// are the installed ones, in its order, leaving out the echo test tool and
+// opt-in built-ins (gemini, deepseek, kimi); a user's own tool counts.
+// Without it (a daemon that predates the list) they are the enabled
+// built-ins less qwen, cursor and grok, which show only once known to be
+// installed. Those three also drop out while extra_agents is off.
+func filterTools(m Model) []string {
+	b := loadBuiltinChips()
+	out := []string{"all"}
+	extra := func(id string) bool { return slices.Contains(registry.ExtraAgentIDs, id) }
+	if !m.toolsKnown {
+		for _, id := range b.enabled {
+			if !extra(id) {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+	extrasOn := m.featureOn("extra_agents")
+	for _, t := range m.DaemonTools {
+		if !t.Installed || hiddenInWizard[t.ID] || extra(t.ID) && !extrasOn {
+			continue
+		}
+		if b.all[t.ID] && !slices.Contains(b.enabled, t.ID) {
+			continue
+		}
+		out = append(out, t.ID)
+	}
+	return out
+}
 
 // filterCommand runs `:filter`.
 //
@@ -130,7 +189,7 @@ func adoptSnapshotFilter(m Model, snapFilter string) Model {
 // knownFilterTool reports whether tool is a filter chip or a tool with a
 // session on the board.
 func knownFilterTool(m Model, tool string) bool {
-	for _, t := range filterTools {
+	for _, t := range filterTools(m) {
 		if t == tool {
 			return true
 		}

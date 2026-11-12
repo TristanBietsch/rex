@@ -22,7 +22,7 @@ func themeOptions(m Model) []string {
 // applyThemeNamed applies the named theme. An unknown name uses the default
 // palette and puts a notice on the status line.
 func applyThemeNamed(m *Model, name string) {
-	if !applyThemeFrom(m.Themes, name) {
+	if !applyThemeFrom(m.Themes, resolveThemeName(*m, name)) {
 		m.Err = themeNotFound(m.Themes, name)
 	}
 }
@@ -58,6 +58,9 @@ func themesLoadedStep(msg themesLoadedMsg) bootStepMsg {
 
 // setThemeSetting stores, applies and saves a theme choice.
 func setThemeSetting(m Model, name string) Model {
+	if settingLocked(&m, "theme") {
+		return m
+	}
 	if err := m.Store.Set("theme", name); err != nil {
 		m.Err = "theme: " + err.Error()
 		return m

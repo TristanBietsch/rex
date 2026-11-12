@@ -79,7 +79,8 @@ func builtinNames() []string {
 }
 
 // Get returns a copy of the named palette: a Go built-in, else a bundled
-// theme. An unknown name returns the default palette and false.
+// theme. An unknown name returns the default palette and false. AutoName
+// returns the default palette and true.
 func Get(name string) (Palette, bool) {
 	p, ok := Builtin[name]
 	if !ok {
@@ -87,6 +88,7 @@ func Get(name string) (Palette, bool) {
 	}
 	if !ok {
 		p = Builtin[DefaultName]
+		ok = name == AutoName // auto without a terminal to ask: the dark default
 	}
 	p.Fleet = slices.Clone(p.Fleet)
 	return p, ok

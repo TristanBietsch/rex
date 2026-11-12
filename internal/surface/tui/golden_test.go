@@ -135,6 +135,21 @@ func goldenScreens() []goldenScreen {
 			m.Help = &HelpState{Filter: "undo"}
 			return m
 		}},
+		{"settings_lua", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusSettings
+			m.Store, m.StorePath = luaLocked(t, []string{"spinner", "theme"}, "moon", "default")
+			m = overlayMode(t, m)
+			m.Settings = &SettingsState{CursorID: "spinner", Search: "spin"}
+			return m
+		}},
+		{"settings_page_lua", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusSettings
+			m.Store, m.StorePath = luaLocked(t, []string{"spinner", "theme"}, "moon", "default")
+			m.Settings = &SettingsState{CursorID: "spinner"}
+			return m
+		}},
 		{"settings_search", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m = overlayMode(t, m)
@@ -182,6 +197,12 @@ func goldenScreens() []goldenScreen {
 			m, _ = executeCommand(m, "new")
 			m = sendKey(m, key("j"))
 			return sendKey(m, key("enter"))
+		}},
+		{"wizard_all_agents", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"), true
+			m, _ = executeCommand(m, "new")
+			return m
 		}},
 		{"settings_onboarding", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)

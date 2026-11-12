@@ -1,6 +1,6 @@
 # Themes
 
-A theme is a named set of colors (and, optionally, state marker characters) that restyles the TUI and the colored output of the `rex` commands. rex ships nine (six built-ins and three bundled theme files); you can add your own as small YAML files.
+A theme is a named set of colors (and, optionally, state marker characters) that restyles the TUI and the colored output of the `rex` commands. rex ships nine (six built-ins and three bundled theme files), plus `auto`, which follows your terminal's background; you can add your own as small YAML files.
 
 Pick one with `rex config set theme <name>`, in the settings page (`S`, row **Theme**), or with `:theme <name>` in the TUI (`:theme` alone cycles). The TUI applies it at once and saves it; CLI output follows it. An unknown name uses `default` and the TUI says so on the status line.
 
@@ -30,11 +30,25 @@ These ship as theme files built into rex, written in the same format as your own
 - They are not bases. `extends:` and `rex theme new -from` accept only the six built-ins.
 - A file of your own with the same name (`~/.config/rex/themes/dracula.yaml`) replaces the bundled theme. `rex theme new dracula` starts one from `default` (or from another built-in with `-from`), not from the bundled colors.
 
-`rex theme list` shows them all, your own included. `rex theme show <name>` prints one theme's colors and glyphs.
+`rex theme list` shows them all, your own included.
+
+### auto
+
+`auto` is not a theme of its own: it is `default` on a dark terminal and `paper` on a light one. It is opt-in; `default` stays the default.
+
+```sh
+rex config set theme auto      # or :theme auto, or the settings page
+```
+
+The TUI decides once, when it starts, and only when the theme is `auto`: first from `COLORFGBG` (set by rxvt, Konsole and some others; background 7 or 9-15 is light), and when that is unset or says `default`, by asking the terminal for its background color (OSC 11). It asks before the board takes over the keyboard, so the answer can never be read as keys. A terminal that does not answer counts as dark.
+
+Switching to `auto` later (`:theme auto`, the settings page, live reload of `config.yaml`) never asks the terminal again: it reuses what was found at start, or, if the TUI started with another theme and so never asked, picks `default`. Restart the TUI to pick up a terminal whose background changed.
+
+CLI output (`rex ls`, `rex --help`, ...) and `rex setup` never ask the terminal: for them `auto` is `default`. `rex theme list` shows `auto` with source `auto`. A theme file cannot be called `auto.yaml`. `rex theme show <name>` prints one theme's colors and glyphs.
 
 ## Your own themes
 
-Each theme is one file, `~/.config/rex/themes/<name>.yaml`. The file name (without `.yaml`) is the theme name: lowercase letters, digits, `-` and `_`, up to 32 characters, and not the name of one of the six built-ins.
+Each theme is one file, `~/.config/rex/themes/<name>.yaml`. The file name (without `.yaml`) is the theme name: lowercase letters, digits, `-` and `_`, up to 32 characters, and not `auto` or the name of one of the six built-ins. A bundled theme's name is fine: your file replaces that theme.
 
 Start from a commented skeleton:
 
@@ -61,6 +75,8 @@ glyphs:
 ```
 
 Everything you leave out comes from the base theme. An empty file is a copy of `default`. A theme extends a built-in only, not another user theme.
+
+`config.lua` can define themes too, with the same schema and the same checks: `rex.theme("mine", { extends = "noir", colors = { accent = "#B392F0" } })` ([howto/lua-config.md](howto/lua-config.md)). A Lua theme beats a file of the same name, and `rex theme list` warns about the shadowed file and shows the theme's source as `lua`.
 
 ### Colors
 
@@ -106,13 +122,13 @@ Theme files are data, never code. They are safe to share, but rex still treats a
 
 ## Live reload
 
-While `live_reload` is on (the default), the TUI notices an edit to `config.yaml` or to a theme file within about 2 seconds and restyles without a restart. Save a theme file and the TUI changes as you type. `:reload` does the same at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the previous settings in place and says so on the status line.
+While `live_reload` is on (the default), the TUI notices an edit to `config.yaml`, to a theme file or (with `lua_config` on) to `config.lua` within about 2 seconds and restyles without a restart. Save a theme file and the TUI changes as you type. `:reload` does the same at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the previous settings in place and says so on the status line.
 
 ## Commands
 
 | Command | Does |
 |---------|------|
-| `rex theme list` | Built-in and user themes; marks the current one; reports skipped files |
+| `rex theme list` | Built-in and user themes and `auto`; marks the current one; reports skipped files |
 | `rex theme show <name>` | A theme's colors, glyphs and a sample line |
 | `rex theme new <name> [-from <builtin>] [-force]` | Write a commented skeleton; refuses to overwrite without `-force` |
 | `:theme [name]` | In the TUI: set the theme, or with no name the next one |

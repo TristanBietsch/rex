@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/cli/inspect"
 	"github.com/tristanbietsch/rex/internal/surface/cli/lifecycle"
@@ -17,6 +18,7 @@ import (
 
 func main() {
 	restoreVT := core.EnableVT(os.Stdout, os.Stderr)
+	installLuaLayer(os.Args[1:])
 	args, err := core.InitOutput(os.Args[1:], os.Environ())
 	if err == nil {
 		err = run(args)
@@ -27,6 +29,21 @@ func main() {
 		core.RecordError(os.Args[1:], err, core.ErrLogOptions{})
 		os.Exit(exitCodeFor(err))
 	}
+}
+
+// luaFreeVerbs never evaluate config.lua: they must stay instant and free of
+// side effects whatever the user's Lua does.
+var luaFreeVerbs = map[string]bool{"complete": true, "completion": true}
+
+// installLuaLayer puts config.lua on top of config.yaml for this process
+// (when the lua_config setting is on). It runs before InitOutput, which
+// already reads settings. config.lua problems stay out of command output:
+// only rex doctor, rex config, rex theme and the TUI report them.
+func installLuaLayer(args []string) {
+	if luaFreeVerbs[core.Verb(args)] {
+		return
+	}
+	luacfg.Install()
 }
 
 // interactiveVerbs are the commands that need a terminal: the board (bare
@@ -125,6 +142,8 @@ func run(args []string) error {
 		return setup.RunConfig(args[1:])
 	case "theme":
 		return setup.RunTheme(args[1:])
+	case "trust":
+		return setup.RunTrust(args[1:])
 	case "setup":
 		return setup.RunSetup(args[1:])
 	case "doctor":

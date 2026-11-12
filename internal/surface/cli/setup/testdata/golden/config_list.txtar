@@ -1,35 +1,43 @@
 -- text.w40 --
 Appearance:
-  spinner  braille
-  theme    default
+  ID       VALUE    SOURCE
+  spinner  braille  default
+  theme    default  lua config.lua:3
 
 Behavior:
-  board_hidden_sections    
-  max_concurrent_sessions  16
+  ID                       VALUE  SOURCE
+  board_hidden_sections           config.yaml
+  max_concurrent_sessions  16     default
 -- text.w80 --
 Appearance:
-  spinner  braille
-  theme    default
+  ID       VALUE    SOURCE
+  spinner  braille  default
+  theme    default  lua config.lua:3
 
 Behavior:
-  board_hidden_sections    
-  max_concurrent_sessions  16
+  ID                       VALUE  SOURCE
+  board_hidden_sections           config.yaml
+  max_concurrent_sessions  16     default
 -- text.w120 --
 Appearance:
-  spinner  braille
-  theme    default
+  ID       VALUE    SOURCE
+  spinner  braille  default
+  theme    default  lua config.lua:3
 
 Behavior:
-  board_hidden_sections    
-  max_concurrent_sessions  16
+  ID                       VALUE  SOURCE
+  board_hidden_sections           config.yaml
+  max_concurrent_sessions  16     default
 -- text.color.w80 --
 ␛[1;38;2;230;232;238mAppearance:␛[0m
-  ␛[38;2;139;145;161mspinner␛[0m  braille
-  ␛[38;2;139;145;161mtheme  ␛[0m  default
+  ␛[38;2;139;145;161mID␛[0m       ␛[38;2;139;145;161mVALUE␛[0m    ␛[38;2;139;145;161mSOURCE␛[0m
+  spinner  braille  ␛[38;2;139;145;161mdefault␛[0m
+  theme    default  ␛[38;2;139;145;161mlua config.lua:3␛[0m
 
 ␛[1;38;2;230;232;238mBehavior:␛[0m
-  ␛[38;2;139;145;161mboard_hidden_sections  ␛[0m  
-  ␛[38;2;139;145;161mmax_concurrent_sessions␛[0m  16
+  ␛[38;2;139;145;161mID␛[0m                       ␛[38;2;139;145;161mVALUE␛[0m  ␛[38;2;139;145;161mSOURCE␛[0m
+  board_hidden_sections           ␛[38;2;139;145;161mconfig.yaml␛[0m
+  max_concurrent_sessions  16     ␛[38;2;139;145;161mdefault␛[0m
 -- txt --
 # Appearance
   spinner                    braille
@@ -41,22 +49,22 @@ Behavior:
 -- md --
 #### Appearance
 
-| Key | Value |
-| --- | --- |
-| spinner | braille |
-| theme | default |
+| ID | Value | Source |
+| --- | --- | --- |
+| spinner | braille | default |
+| theme | default | lua config.lua:3 |
 
 #### Behavior
 
-| Key | Value |
-| --- | --- |
-| board\_hidden\_sections |  |
-| max\_concurrent\_sessions | 16 |
+| ID | Value | Source |
+| --- | --- | --- |
+| board\_hidden\_sections |  | config.yaml |
+| max\_concurrent\_sessions | 16 | default |
 -- json --
-{"v":1,"cmd":"config","data":[{"id":"spinner","section":"Appearance","value":"braille","default":"braille"},{"id":"theme","section":"Appearance","value":"default","default":"default"},{"id":"board_hidden_sections","section":"Behavior","value":"","default":""},{"id":"max_concurrent_sessions","section":"Behavior","value":16,"default":16}]}
+{"v":1,"cmd":"config","data":[{"id":"spinner","section":"Appearance","value":"braille","default":"braille","source":"default"},{"id":"theme","section":"Appearance","value":"default","default":"default","source":"lua","set_at":"config.lua:3"},{"id":"board_hidden_sections","section":"Behavior","value":"","default":"","source":"file"},{"id":"max_concurrent_sessions","section":"Behavior","value":16,"default":16,"source":"default"}]}
 -- agent --
-setting id=spinner section=Appearance value=braille default=braille
-setting id=theme section=Appearance value=default default=default
-setting id=board_hidden_sections section=Behavior value="" default=""
-setting id=max_concurrent_sessions section=Behavior value=16 default=16
+setting id=spinner section=Appearance value=braille default=braille source=default set_at=""
+setting id=theme section=Appearance value=default default=default source=lua set_at=config.lua:3
+setting id=board_hidden_sections section=Behavior value="" default="" source=file set_at=""
+setting id=max_concurrent_sessions section=Behavior value=16 default=16 source=default set_at=""
 ok cmd=config count=4

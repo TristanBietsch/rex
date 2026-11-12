@@ -33,6 +33,10 @@ func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
 		soundEnabled = false
 	}
 	player := audio.New(audio.Config{Enabled: soundEnabled, Volume: volume, Soundset: soundset, BootVoice: bootVoice})
+	// The auto theme asks the terminal for its background here, before Bubble
+	// Tea reads stdin (a reply arriving later would be eaten as keys), and
+	// only when theme is auto.
+	termLight := bootTermLight(store)
 
 	awake := newDisplayAwake()
 	idleDone := make(chan struct{})
@@ -47,6 +51,7 @@ func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
 		QuietBoot: quietBoot,
 
 		BorderSeed: launchFolder(),
+		termLight:  termLight,
 		WS:         scope,
 	}
 	if scope != nil && scope.Root != "" {

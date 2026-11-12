@@ -101,3 +101,18 @@ func TestSetupWizardWrite_RejectsUnknownModel(t *testing.T) {
 	_, statErr := os.Stat(cfg)
 	require.True(t, os.IsNotExist(statErr), "nothing written")
 }
+
+// rex setup -yes refuses a setting config.lua sets, naming the line, and
+// writes nothing for it.
+func TestApplyDefaults_RefusesASettingConfigLuaSets(t *testing.T) {
+	cfg := spawnConfig(t, "")
+	settings.SetLayer(func() settings.LayerReport {
+		return settings.LayerReport{Exists: true,
+			Values: map[string]any{"auto_trust_dirs": ""}, SetAt: map[string]string{"auto_trust_dirs": "config.lua:4"}}
+	})
+	t.Cleanup(func() { settings.SetLayer(nil) })
+	err := ApplyDefaultsNonInteractive(cfg, "", "", "", "", "~/dev", true)
+	require.ErrorContains(t, err, "config.lua:4")
+	_, statErr := os.Stat(cfg)
+	require.True(t, os.IsNotExist(statErr))
+}

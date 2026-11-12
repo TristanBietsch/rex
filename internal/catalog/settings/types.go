@@ -59,6 +59,10 @@ type Setting struct {
 	// (after type coercion). Load does not call it: a bad stored value stays
 	// visible so doctor can report it.
 	Normalize func(string) (string, error)
+	// ListSep, when set, marks a TypeString that holds a list joined with
+	// this separator. Lua's config.lua may then pass an array of strings,
+	// which is joined with ListSep before validation.
+	ListSep string
 }
 
 // ApplyMode says when a changed setting takes effect.

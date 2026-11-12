@@ -6,11 +6,15 @@ Saving is sparse: rex re-reads the file and writes only the keys it changed (`re
 
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
 
+Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`. A broken `config.lua` keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again.
+
 ## Files
 
 | Path | Role |
 |------|------|
 | `~/.config/rex/config.yaml` | Persisted values |
+| `~/.config/rex/config.lua` | Optional Lua settings and themes; wins over `config.yaml` while `lua_config` is on ([howto/lua-config.md](howto/lua-config.md)) |
+| `~/.config/rex/lua/` | Modules `config.lua` may `require` |
 | `~/.config/rex/themes/<name>.yaml` | Your own themes ([themes.md](themes.md)) |
 
 ## Commands
@@ -21,6 +25,8 @@ rex config get <id>...
 rex config set <id> <value>...
 rex config reset <id>...
 rex config edit          # opens init.lua in $EDITOR, not config.yaml
+rex config edit -lua     # opens config.lua (settings in Lua)
+rex config lua-export    # prints config.yaml as a starter config.lua
 ```
 
 ## When a change applies
@@ -46,6 +52,7 @@ The settings page shows this per row (the detail pane under the list), and the r
 | `noir` | Deeper, quieter dark |
 | `paper` | Light terminals |
 | `high-contrast` | Pure black and white with bright state colors |
+| `auto` | Opt-in: `default` on a dark terminal, `paper` on a light one. The TUI checks `COLORFGBG`, then asks the terminal (OSC 11), once at start and only when the theme is `auto`; switching to `auto` later reuses that answer (dark if it never asked). CLI output treats it as `default`. See [themes.md](themes.md#auto) |
 | `ansi` | Your terminal's own six normal hues (a Solarized or Gruvbox terminal theme gives a matching rex); dim text is the default color drawn faint, since no fixed index is safe (8 is the Solarized Dark background); the selection is reverse video. Also a good fallback on a 16-color terminal |
 
 Every scheme with real colors is tested against its own background: text 7:1, state colors, accent and dim text 4.5:1, focus border 3:1, and the four state colors stay distinct from one another (also after a 256-color terminal quantizes them).
@@ -75,7 +82,7 @@ Every scheme with real colors is tested against its own background: text 7:1, st
 
 | ID | Type | Default | Options |
 |----|------|---------|---------|
-| `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors), or a file in `~/.config/rex/themes` ([themes.md](themes.md)). An unknown name uses `default`. Applies to the TUI and to CLI output. Formerly `color_scheme`, still read |
+| `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors), `auto` (`default` or `paper` by the terminal's background, TUI only), or a file in `~/.config/rex/themes` ([themes.md](themes.md)). An unknown name uses `default`. Applies to the TUI and to CLI output. Formerly `color_scheme`, still read |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
 | `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
@@ -99,7 +106,7 @@ Every scheme with real colors is tested against its own background: text 7:1, st
 | `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`cc`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, so changes apply immediately; the daemon reads it at startup as its default |
 | `screensaver_enabled` | bool | `true` | | After `screensaver_after_minutes` with no key or click, show a small `∴ rex` with the counts. The key or click that wakes it does nothing else. See [tui.md](tui.md#screensaver) |
 | `screensaver_after_minutes` | int | `5` | 1–120 | Idle minutes before the screensaver shows. Overlays, prompts, the wizard and the attach popup time out too; waking returns to them. A change applies within a minute |
-| `skip_permissions` | bool | `false` | | Start Claude Code and Antigravity with `--dangerously-skip-permissions` (the tool's `skip_permissions_args`). Agents then edit files and run commands without asking you first. Only applies in a folder that is under `auto_trust_dirs`; anywhere else the flag is left off and the daemon log says `skip_permissions ignored: folder not trusted`. Off by default; read at each spawn (and each resume), so it applies to the next session. A change made through rex (`rex config set` / `reset`, the Settings page, `rex setup`) reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off. See [SECURITY.md](../SECURITY.md) |
+| `skip_permissions` | bool | `false` | | Start Claude Code and Antigravity with `--dangerously-skip-permissions` (the tool's `skip_permissions_args`). Agents then edit files and run commands without asking you first. Only applies in a trusted folder: one under `auto_trust_dirs`, or one trusted for that session (`ctrl+t` / `ctrl+a` in the wizard, `rex new -trust`); anywhere else the flag is left off and the daemon log says `skip_permissions ignored: folder not trusted`. Off by default; read at each spawn (and each resume), so it applies to the next session. A change made through rex (`rex config set` / `reset`, the Settings page, `rex setup`) reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off. See [SECURITY.md](../SECURITY.md) |
 | `screensaver_keep_awake` | bool | `true` | | macOS only: keep the display from sleeping while the screensaver shows (`caffeinate -d`, stopped when it goes away or rex exits). Does nothing on other systems. See [tui.md](tui.md#keep-awake-macos) |
 | `board_hidden_sections` | string | `""` | | Board sections hidden at startup: comma-separated ids from `needs`, `waiting`, `working`, `done` (for example `done`). Unknown ids are ignored, and a list naming every section is ignored. `zh`, `z1`-`z9` and `:filter` change it for the current run; `:bg` keeps that choice for the next start, which overrides this setting once. Read at startup only. See [tui.md](tui.md#filters) |
 
@@ -134,6 +141,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `workspaces` | bool | `false` | Workspaces: `rex ws init` marks a project folder with a `.rex/` holding an id, a name and a color; `rex audit --ws` and workspace audit files use it. Off: rex never looks for or writes a `.rex/` folder, `rex ws` exits 5 and the daemon does no workspace lookup. See [workspaces.md](workspaces.md) |
 | `audit_trail` | bool | `true` | Write one line per finished session (who, tool, state, times, first line of the prompt) to `~/.local/share/rex/audit.jsonl`, or `<workspace>/.rex/audit.jsonl` for a workspace session, for `rex audit`. Off: no file is written, the prompt is not kept in memory and `rex audit` exits 5. The daemon follows `config.yaml` within about 5 s |
 | `audit_full_prompt` | bool | `false` | Also store each session's whole first prompt (20,000 characters at most) in the audit trail. Prompts can hold secrets and a workspace `audit.jsonl` may be synced or committed. Needs `audit_trail`. Applies to sessions started after it is turned on |
+| `lua_config` | bool | `true` | Read `~/.config/rex/config.lua` on top of `config.yaml` (see [howto/lua-config.md](howto/lua-config.md)). Inert without the file. Values it sets win over `config.yaml`, are never written to it, and `rex config set` / `reset` on them exit 5 with the file and line. Read from `config.yaml` only (`config.lua` cannot turn itself off). Off: `config.lua` and `~/.config/rex/lua/` are never stat'ed, read or run, and every row is unlocked |
 
 ### Spawn
 
@@ -142,7 +150,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `default_spawn_tool` | string | `claude` | Tool id for `i` quick-spawn |
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
-| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex setup` or `rex config set`; both refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
+| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex trust`, the wizard's `ctrl+a`, `:trust`, `rex setup` or `rex config set`; all refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
 
@@ -154,10 +162,20 @@ Agents ask whether you trust a folder the first time they run in it. For a sessi
 - **Claude Code:** it asks "Is this a project you created or one you trust?" with **No, exit** selected. The daemon answers it: it moves the selection to **Yes, I trust this folder**, checks that it is selected, and confirms. It acts only within the first 60 s of the session and gives up after 4 moves. Anywhere else the dialog waits for you as before.
 
 ```sh
+rex trust                                  # the repo folder of the working directory
+rex trust ~/Documents/dev/api              # a folder you name
+rex trust -ls                              # what is trusted now
+rex trust -rm ~/Documents/dev/api          # stop trusting it
 rex config set auto_trust_dirs "~/Documents/dev"
 ```
 
-`rex setup` asks the same question once, with **no** as the default answer. When you run it from the root of a git checkout, it suggests the folder that holds that checkout, if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
+`rex trust` prints the exact folder it added and refuses the values listed below (exit 5). The TUI has the same two choices when you start a session: in the wizard's describe step `ctrl+t` trusts the session's folder for this one session only (nothing is saved) and `ctrl+a` saves the repo folder to `auto_trust_dirs` (see [tui.md](tui.md#new-session-wizard)); `:trust [folder]` saves a folder from the board. From the shell, `rex new -trust` trusts one session's folder only. The folder `ctrl+a`, `:trust` and `rex trust` offer is the repo folder: the root of the git checkout holding the working directory, or the folder itself when it is not in one. It is never the parent, so trusting one project does not trust its siblings.
+
+A per-session trust (`ctrl+t`, `rex new -trust`) acts as if the folder were listed, for that session only (and for its resumes): the dialog is answered or avoided, and `skip_permissions` may apply. The folder must pass the same checks as an entry. rex saves nothing for it. When the dialog is answered for Claude Code, Claude remembers the answer in its own config, exactly as if you had pressed yes yourself; rex never writes Claude's or Antigravity's config.
+
+If a dialog shows up in a folder that is not trusted, the session waits for you and the daemon log says `trust dialog shown; folder not trusted (rex trust, or ctrl+t in the wizard)` once. `rex doctor` warns about entries the daemon would ignore or that do not exist.
+
+`rex setup` asks the same question once, with **no** as the default answer. When you run it inside a git checkout, it suggests that checkout's root (or the folder you are in, outside a checkout), if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
 
 The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
 
@@ -239,7 +257,7 @@ Not supported: enterprise managed settings, and a `--settings` file you pass to 
 
 The daemon keeps one copy of `config.yaml` and refreshes it about 5 s after an edit (or at once on `rex reload`, `:reload` or `SIGHUP`). With `live_reload` off it refreshes only on those.
 
-The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line. With `live_reload` off the TUI starts no timer and reads no file.
+The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. While `lua_config` is on it checks `config.lua` and `~/.config/rex/lua/` too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line; a `config.lua` that fails keeps its last good values and puts one flattened line (200 characters at most) on the status line. The boot splash has a `config.lua` row: SKIP (off or no file), WARN (failed or refused something, with the reason) or OK. With `live_reload` off the TUI starts no timer and reads no file.
 
 | Applies | Settings |
 |---------|----------|

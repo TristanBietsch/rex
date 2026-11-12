@@ -1,7 +1,7 @@
 -- plain.80x24 --
 
   ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
-  all · claude · codex · antigravity · ollama                                   
+  all · claude · qwen                                                           
 
 ┌─ which model?                                                             … ─┐
 │                                                                           …  │
@@ -26,7 +26,7 @@
 -- plain.120x40 --
 
   ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
-  all · claude · codex · antigravity · ollama                                                                           
+  all · claude · qwen                                                                                                   
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 

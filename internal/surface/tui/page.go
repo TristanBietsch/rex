@@ -72,9 +72,13 @@ func pageHeader(title, middle, right string, w int) []string {
 }
 
 // pageFooter is the page's bottom: a divider and the hint row, indented 2.
-// show false (show_help_bar off, no modal prompt) keeps the row but blanks
-// it, as the board does.
-func pageFooter(hints [][2]string, w int, show bool) []string {
+// A reconnect or error status takes the row first, as on the board (a
+// locked setting's refusal shows here). show false (show_help_bar off, no
+// modal prompt) keeps the row but blanks it, as the board does.
+func pageFooter(m Model, hints [][2]string, w int, show bool) []string {
+	if line, ok := statusLine(m, w); ok {
+		return []string{renderHR(w), line}
+	}
 	row := ""
 	if show {
 		row = "  " + renderHints(hints, max(w-2, 1))
@@ -217,9 +221,10 @@ func paneDivider(leftW, w int) string {
 	return styleBorderFg.Render(strings.Repeat("─", leftW+1) + "┴" + strings.Repeat("─", w-leftW-2))
 }
 
-// settingsPageHints is the settings page's footer for its state and focused
-// pane; esc leads so a narrow page keeps it.
-func settingsPageHints(st *SettingsState, pane pagePane) [][2]string {
+// settingsPageHints is the settings page's footer for its state, focused
+// pane and whether config.lua locks the cursor row; esc leads so a narrow
+// page keeps it.
+func settingsPageHints(st *SettingsState, pane pagePane, locked bool) [][2]string {
 	switch {
 	case st.Edit != nil:
 		out := make([][2]string, len(settingsEditHints))
@@ -232,6 +237,11 @@ func settingsPageHints(st *SettingsState, pane pagePane) [][2]string {
 		return [][2]string{{"enter", "keep"}, {"esc", "cancel"}, {"ctrl+u", "clear"}}
 	case pane == paneSections:
 		return [][2]string{{"esc", "back"}, {"j/k", "section"}, {"enter", "rows"}, {"tab", "rows"}, {"/", "search"}}
+	case locked:
+		return [][2]string{
+			{"esc", "back"}, {"j/k", "move"}, {"e", "open config.lua"}, {"/", "search"},
+			{"tab", "sections"}, {"1-9", "section"}, {"?", "help"},
+		}
 	}
 	return [][2]string{
 		{"esc", "back"}, {"j/k", "move"}, {"←→", "change"}, {"enter", "toggle"}, {"/", "search"},
@@ -292,7 +302,7 @@ func renderSettingsPage(m Model, w, h int) string {
 	right = styleDim.Render(right)
 	if m.Settings == nil || m.Store == nil {
 		return composePage(pageHeader("SETTINGS", "", right, w), nil,
-			pageFooter(settingsPageHints(&SettingsState{}, paneRows), w, helpBarOn(m)), w, h)
+			pageFooter(m, settingsPageHints(&SettingsState{}, paneRows, false), w, helpBarOn(m)), w, h)
 	}
 	st := m.Settings
 	list := settingsPageList(m) // the cursor section's rows, or the search hits
@@ -336,7 +346,7 @@ func renderSettingsPage(m Model, w, h int) string {
 
 	modal := st.Edit != nil || st.Searching
 	return composePage(pageHeader("SETTINGS", middle, right, w), body,
-		pageFooter(settingsPageHints(st, pane), w, helpBarOn(m) || modal), w, h)
+		pageFooter(m, settingsPageHints(st, pane, settingLockedAt(m, st.CursorID) != ""), w, helpBarOn(m) || modal), w, h)
 }
 
 // helpPageHints is the help page's footer for its state, focused pane and
@@ -442,7 +452,7 @@ func layoutHelpPage(m Model, w, h int) helpLayout {
 	}
 	page := composePage(
 		pageHeader("HELP", middle, styleDim.Render("rex "+version.Version), w), body,
-		pageFooter(helpPageHints(st, pane, narrow), w, helpBarOn(m) || st.Filtering), w, h)
+		pageFooter(m, helpPageHints(st, pane, narrow), w, helpBarOn(m) || st.Filtering), w, h)
 	return helpLayout{box: strings.Split(page, "\n"), maxScroll: maxScroll, page: max(vh-1, 1)}
 }
 
