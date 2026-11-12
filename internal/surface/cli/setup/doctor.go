@@ -205,7 +205,23 @@ func checkConfigLua() checkResult {
 	case len(rep.ThemeIssues) > 0:
 		return checkResult{name, checkWarn, fmt.Sprintf("%d theme issue(s), first: %s", len(rep.ThemeIssues), rep.ThemeIssues[0])}
 	}
-	return checkResult{name, checkPass, fmt.Sprintf("%d setting(s), %d theme(s)", len(rep.Values), len(rep.Themes))}
+	return checkResult{name, checkPass, fmt.Sprintf("%d setting(s), %d theme(s)", len(rep.Values), len(rep.Themes)) + luaTrustSuffix(rep)}
+}
+
+// luaTrustSuffix names the trust settings config.lua sets, with their
+// lines, so trust granted from Lua (or a module it requires) is never
+// invisible in rex doctor.
+func luaTrustSuffix(rep settings.LayerReport) string {
+	var parts []string
+	for _, id := range settings.TrustSettingIDs {
+		if _, ok := rep.Values[id]; ok {
+			parts = append(parts, fmt.Sprintf("%s (%s)", id, rep.SetAt[id]))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "; grants trust: " + strings.Join(parts, ", ")
 }
 
 // checkSettingsLoad attempts to load settings from the default path.

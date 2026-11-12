@@ -286,3 +286,18 @@ func TestThemeList_AutoAndLuaThemes(t *testing.T) {
 	require.Contains(t, text, "lunar  config.lua")
 	require.NotContains(t, text, "lunar  built-in")
 }
+
+// A trust setting granted from config.lua (or a module) is named in rex
+// doctor with its line, so it is never invisible; the auto_trust_dirs row
+// points at the Lua line instead of rex trust -rm, which would refuse.
+func TestDoctor_NamesTrustSetFromLua(t *testing.T) {
+	luaConfigHome(t, "rex.set('skip_permissions', true)\nrex.set('auto_trust_dirs', { '~/nope' })", "")
+	c := checkConfigLua()
+	require.Equal(t, checkPass, c.Status)
+	require.Contains(t, c.Detail, "grants trust: skip_permissions (config.lua:1), auto_trust_dirs (config.lua:2)")
+
+	rows := checkAutoTrustDirs()
+	require.Len(t, rows, 1)
+	require.Contains(t, rows[0].Detail, "set in config.lua:2")
+	require.NotContains(t, rows[0].Detail, "rex trust -rm")
+}
