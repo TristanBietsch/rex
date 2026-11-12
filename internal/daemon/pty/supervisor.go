@@ -521,6 +521,20 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			return nil
 		case <-ticker.C:
+			// Readable screen → last_line + summarizer input. Sampled on the
+			// tick (not per chunk) so spinner repaints don't flood patches.
+			// It comes before the classification below, so a subscriber that
+			// reads last_line or the screen when a turn ends (the state
+			// change or the wait reason) sees the agent's final output, not
+			// the previous tick's.
+			windowMu.Lock()
+			refresh := screenDirty
+			screenDirty = false
+			windowMu.Unlock()
+			if refresh {
+				s.refreshScreenText(sess.ID, screen)
+			}
+
 			// Adapter classification (existing).
 			if s.cfg.Adapter != nil {
 				windowMu.Lock()
@@ -559,16 +573,6 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						announceResumeID()
 					}
 				}
-			}
-
-			// Readable screen → last_line + summarizer input. Sampled on the
-			// tick (not per chunk) so spinner repaints don't flood patches.
-			windowMu.Lock()
-			refresh := screenDirty
-			screenDirty = false
-			windowMu.Unlock()
-			if refresh {
-				s.refreshScreenText(sess.ID, screen)
 			}
 
 			// Folder-trust dialog, only for folders the user listed.
