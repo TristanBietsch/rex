@@ -49,7 +49,7 @@ func TestRunTrust_AddKeepsYAMLListWhileLuaIsBroken(t *testing.T) {
 	writeTrustYAML(t, "~/dev/other")
 	brokenLua(t)
 
-	runTrustJSON(t, project)
+	trustAddOK(t, project)
 	require.Equal(t, "~/dev/other"+string(filepath.ListSeparator)+project, yamlTrustDirs(t),
 		"the YAML entries survive; only the new folder is added")
 }

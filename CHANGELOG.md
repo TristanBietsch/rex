@@ -25,6 +25,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   as `workspace <path>:N` in `rex config list`, `ws` on the settings page,
   and in a new `workspace config.lua` row in `rex doctor`.
 
+### Changed (rex trust needs a terminal)
+
+- `rex trust <folder>` (adding to `auto_trust_dirs`) now works only for a
+  person at a terminal, like `rex ws trust`: agent mode, `-o json`/`agent`/
+  `txt`/`md` or stdin/stdout not a terminal exit 6 and write nothing.
+  Scripts that added folders this way should use `rex setup -auto-trust`
+  or the TUI (`ctrl+t`, `:trust`). `rex trust -ls` and `-rm` are
+  unchanged.
+
+### Fixed (workspace trust)
+
+- `rex ws trust` and `rex ws trust -rm` run at the same moment no longer
+  lose one another's change (a revoke could be undone): both hold a lock
+  on `workspace-trust.json` while they rewrite it.
+
 ### Fixed (trust saves)
 
 - `rex trust`, `:trust` and the wizard's `ctrl+a` no longer replace the
