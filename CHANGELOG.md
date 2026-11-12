@@ -8,8 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed (Windows)
 
-- Saving settings while another rex reads or saves `config.yaml` no longer
-  fails with "Access is denied".
+- Saving or loading settings while another rex saves `config.yaml` no
+  longer fails with "Access is denied" or a sharing violation.
 - A rejected request (an oversized line, say) gets its error reply instead
   of a reset connection.
 - With no daemon running, commands say "rex-daemon is not running" and how

@@ -28,6 +28,19 @@ func replaceFile(tmp, path string) error {
 	}
 }
 
+// readConfig reads path, retrying briefly while another save is renaming
+// over it (the open fails with a sharing violation for that moment).
+func readConfig(path string) ([]byte, error) {
+	deadline := time.Now().Add(replaceRetryFor)
+	for {
+		b, err := os.ReadFile(path)
+		if err == nil || !replaceBusy(err) || time.Now().After(deadline) {
+			return b, err
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func replaceBusy(err error) bool {
 	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION)
 }

@@ -104,7 +104,7 @@ func NewStore() *Store {
 
 // Load reads values from path and applies them on top of defaults. Missing file = no-op.
 func (s *Store) Load(path string) error {
-	raw, err := os.ReadFile(path)
+	raw, err := readConfig(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -178,7 +178,7 @@ func (s *Store) Save(path string) error {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
 	data := map[string]any{}
-	raw, err := os.ReadFile(path)
+	raw, err := readConfig(path)
 	switch {
 	case err == nil:
 		if err := yaml.Unmarshal(raw, &data); err != nil {
