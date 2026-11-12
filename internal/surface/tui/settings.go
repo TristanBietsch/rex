@@ -567,7 +567,8 @@ func setSpawnDefault(m Model, id, value string) Model {
 }
 
 // spawnCascade sets id to value in m.Store and repairs the dependent
-// quick-spawn settings. It stops at the first refused Set.
+// quick-spawn settings. It stops when id is refused or a repair would change
+// a setting config.lua sets.
 func spawnCascade(m Model, id, value string) error {
 	if err := m.Store.Set(id, value); err != nil {
 		return err
@@ -577,7 +578,12 @@ func spawnCascade(m Model, id, value string) error {
 		if fmt.Sprint(m.Store.Get(id)) == fmt.Sprint(v) {
 			return nil // unchanged: a locked value that already fits stays
 		}
-		return m.Store.Set(id, v)
+		// Only a lock stops the cascade; other refusals of a repair were
+		// always ignored.
+		if err := m.Store.Set(id, v); errors.As(err, new(*settings.ErrManagedByLua)) {
+			return err
+		}
+		return nil
 	}
 	if id == "default_spawn_tool" {
 		if err := set("default_spawn_model", model.ID); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -512,4 +513,16 @@ func BenchmarkEval50Lines(b *testing.B) {
 			b.Fatal(r.Err)
 		}
 	}
+}
+
+// Windows paths in a Lua list: a drive letter's colon is not the Windows
+// list separator (;), so the entries join as rex config set would take them.
+func TestEvalSet_WindowsPathList(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("the list separator is ';' only on Windows")
+	}
+	r := evalScript(t, `rex.set("auto_trust_dirs", { "C:\\dev", "D:\\work" })`)
+	require.NoError(t, r.Err)
+	require.Empty(t, r.Warnings)
+	require.Equal(t, `C:\dev;D:\work`, r.Values["auto_trust_dirs"])
 }
