@@ -6,7 +6,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
+
+// homeStore is the settings in force for the config usageHome wrote.
+func homeStore() func() *settings.Store {
+	st, _, _ := settings.LoadDefault()
+	return func() *settings.Store { return st }
+}
 
 func usageHome(t *testing.T, config string, userLine bool) (home string) {
 	t.Helper()
@@ -45,7 +53,7 @@ func TestUsageTap_Table(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			usageHome(t, tc.config, tc.userLine)
-			got := UsageTap("/some/other.sock")("sess-9")
+			got := UsageTap("/some/other.sock", homeStore())("sess-9")
 			if !tc.inject {
 				require.Empty(t, got)
 				return
@@ -63,7 +71,7 @@ func TestUsageTap_DefaultSocketIsNotRepeated(t *testing.T) {
 	usageHome(t, "usage_statusline_tap: \"on\"\n", false)
 	t.Setenv("XDG_RUNTIME_DIR", "")
 	def := filepath.Join(os.Getenv("HOME"), ".cache", "rex", "rex.sock")
-	got := UsageTap(def)("s")
+	got := UsageTap(def, homeStore())("s")
 	require.Contains(t, got, "statusline-tap --session s ")
 	require.NotContains(t, got, "--socket", got)
 }
@@ -72,15 +80,10 @@ func TestUsageTap_DefaultSocketIsNotRepeated(t *testing.T) {
 func TestUsageTap_OffIsInert(t *testing.T) {
 	home := usageHome(t, "usage: false\n", true)
 	before := listTree(t, home)
-	require.Empty(t, UsageTap("")("s"))
-	require.False(t, UsageEnabled())
+	require.Empty(t, UsageTap("", homeStore())("s"))
+	require.False(t, settings.FeatureOn(homeStore()(), "usage"))
 	require.Equal(t, before, listTree(t, home), "nothing was created or changed")
 	require.NoFileExists(t, filepath.Join(home, ".local", "share", "rex", "usage.jsonl"))
-}
-
-func TestUsageEnabled_DefaultOn(t *testing.T) {
-	usageHome(t, "", false)
-	require.True(t, UsageEnabled())
 }
 
 func listTree(t *testing.T, root string) []string {

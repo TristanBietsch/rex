@@ -149,3 +149,29 @@ func Read(paths []string, f Filter) ([]Record, []error)     // torn lines skippe
 - W1 → W2 run in order (one builder).
 - W4 can run in parallel with W1 (it only needs `workspace.Find` at its last step for the default scope; stub it until W1 merges).
 - Merge order: W1, W4, W2.
+
+---
+
+## Build notes (W1 + W4)
+
+Built on `feat/r06-w1-w4`. Not built: **W2** (session tagging, `rex here`, `rex ws open`, the board header chip, `sessions.jsonl` index; it touches the TUI that round-1 U1 is restyling) and **W3** (workspace `config.lua`; needs R05). The TUI `:audit` page stays deferred.
+
+**What is where**
+- `internal/workspace`: `Find`, `Load`, `Save`, `Init`, `CheckRoot`, `Resolve`, `AbsPath`, `Registry` (`OpenRegistry`, `Seen`, `Taken`, `Get`, `List`), `ExcludeInGit`, `Swatches`, `CleanName`, `ErrUnsafe`, `ErrInvalid`, `ErrRefusedRoot`, `ErrNotFound`, `ErrMoved`. U4 (window border) had no swatch list on the base (`grep window_border internal` was empty), so `Swatches` is here; if U4 lands its own, delete ours.
+- `internal/surface/cli/workspace`: `rex ws`. `internal/surface/cli/inspect/audit.go`: `rex audit`. Both are rows in `core/commands.go` (the table that replaced `kitVerbs`).
+- `internal/features/audit`: `Record`, `Append`, `Read`, `Filter`, `FromSummary`, `FirstLine`, `ParseSince`.
+- Daemon: `internal/daemon/boot/audit.go` (`Audit`, implements `server.AuditHook`), `server.Config.Audit`, the call in `deleteSession` before `removeSession`, `Begin` in the spawn path, `state.Session.AuditOnce` / `AuditWritten`.
+
+**Deviations from the plan**
+- `AuditWritten` is in `meta.json` through a `metaFile` wrapper (`protocol.SessionSummary` plus `audit_written`), so it is not on the wire. It clears in `noteStateLocked` when a session goes live again.
+- The store-subscriber half only queues (the store forbids I/O in callbacks); a writer goroutine does the append. It copies the summary at the terminal event, so the record shows that moment's state. A full queue is logged and the teardown path writes the record.
+- A workspace file that cannot be written (read-only, symlink) falls back to the global file instead of dropping the record; one log line per file per daemon run.
+- `rex ws color` takes a **1-based** swatch number.
+- `workspace.Init` itself refuses `$HOME` and `/` (the CLI maps that to exit 5), and on an existing workspace it is idempotent.
+- `rex audit` reads the files from `paths.AuditFile()` (the default data dir), not from a daemon started with another `-state-dir`.
+- Records of sessions that ended while the daemon was down (loaded as crashed) are written only when they are cleared; there is no start-up back-fill.
+- The prompt reaches the daemon only at spawn, so a daemon restart forgets it; resumed sessions write no prompt.
+
+- Review fixes: `Store.Reopen` starts a new audit run; `ExcludeInGit` is fenced (back-link, `commondir`, no symlinks, 1 MiB cap) and also ignores `/.rex/audit.jsonl`; `AuditHook.End` returns an error and a failed record keeps the session; a live session at teardown records as `failed` ("deleted while running"); audit files open with `O_NOFOLLOW` and `Read` caps at the newest 8 MiB; `rex ws id` refreshes the registry. Submodule `.git` files are refused (no back-link). Not done: a 100k-record cap (the byte cap bounds it).
+
+**For W2**: `workspace.Find` and `Registry.Seen` are ready for the daemon's spawn-time tagging; `Audit.write` already shows the discovery-gated-by-flag pattern (the stub `find` counts calls).

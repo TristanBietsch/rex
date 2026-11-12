@@ -11,6 +11,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/meta"
 	"github.com/tristanbietsch/rex/internal/surface/cli/session"
 	"github.com/tristanbietsch/rex/internal/surface/cli/setup"
+	"github.com/tristanbietsch/rex/internal/surface/cli/workspace"
 )
 
 func main() {
@@ -144,6 +145,10 @@ func run(args []string) error {
 		return inspect.RunUsage(args[1:])
 	case "export":
 		return inspect.RunExport(args[1:])
+	case "audit":
+		return inspect.RunAudit(args[1:])
+	case "ws":
+		return workspace.RunWs(args[1:])
 	default:
 		return unknownCommand(args[0])
 	}
