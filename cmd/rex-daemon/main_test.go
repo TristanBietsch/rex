@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -16,7 +17,18 @@ import (
 
 // TestMain runs against a throwaway HOME so run() never touches the
 // developer's real rex state, socket or logs.
+//
+// run() starts the daemon's model refresh (model_autodetect is on by
+// default), which runs any installed agent's model-list command found on PATH.
+// A test must never run a real agent, so PATH holds only system directories
+// (git for the repo fixtures lives there).
 func TestMain(m *testing.M) {
+	if runtime.GOOS == "windows" {
+		testenv.Run(m) // no system-dir PATH to fall back on
+	}
+	if err := os.Setenv("PATH", "/usr/bin"+string(os.PathListSeparator)+"/bin"); err != nil {
+		panic(err)
+	}
 	testenv.Run(m)
 }
 

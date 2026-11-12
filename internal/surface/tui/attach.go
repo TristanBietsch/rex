@@ -107,6 +107,8 @@ var altScreenTools = map[string]bool{
 	"antigravity": true,
 	"gemini":      true,
 	"grok":        true,
+	"qwen":        true,
+	"cursor":      true,
 	"deepseek":    true,
 	"kimi":        true,
 }

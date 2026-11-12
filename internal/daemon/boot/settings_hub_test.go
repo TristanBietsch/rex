@@ -370,7 +370,7 @@ func TestReloadAll_ReloadsRegistryThenSettings(t *testing.T) {
 	write(t, cfg, "summary_detail: long\n", t0.Add(time.Minute))
 	require.NoError(t, os.WriteFile(tools, []byte("tools: []\n"), 0o600))
 	before := srv.Registry()
-	require.NoError(t, ReloadAll(srv, tools, h))
+	require.NoError(t, reloadAll(t, srv, tools, h))
 	require.NotSame(t, before, srv.Registry(), "the registry was swapped")
 	require.Equal(t, []string{"long"}, detail.got())
 }
@@ -384,7 +384,7 @@ func TestReloadAll_RegistryErrorStillReloadsSettings(t *testing.T) {
 
 	write(t, cfg, "summary_detail: long\n", t0.Add(time.Minute))
 	require.NoError(t, os.WriteFile(tools, []byte("tools: [unclosed\n"), 0o600))
-	require.Error(t, ReloadAll(srv, tools, h))
+	require.Error(t, reloadAll(t, srv, tools, h))
 	require.Equal(t, []string{"long"}, detail.got(), "a bad tools.yaml must not hold back settings")
 }
 
@@ -393,7 +393,7 @@ func TestReloadAll_SettingsErrorIsReported(t *testing.T) {
 	h, cfg := newHub(t, "summary_detail: short\n", t0)
 	srv, tools := newReloadServer(t, "")
 	write(t, cfg, "summary_detail: [unclosed\n", t0.Add(time.Minute))
-	require.Error(t, ReloadAll(srv, tools, h))
+	require.Error(t, reloadAll(t, srv, tools, h))
 }
 
 func newReloadServer(t *testing.T, toolsBody string) (*server.Server, string) {
@@ -408,4 +408,14 @@ func newReloadServer(t *testing.T, toolsBody string) (*server.Server, string) {
 	srv, err := server.New(server.Config{Socket: filepath.Join(dir, "rex.sock"), StateDir: dir, Registry: reg, Store: state.NewStore()})
 	require.NoError(t, err)
 	return srv, tools
+}
+
+// reloadAll runs ReloadAll with a PATH that holds no agent, so the model
+// refresh a reload starts can never run a real agent binary.
+func reloadAll(t *testing.T, srv *server.Server, tools string, h *SettingsHub) error {
+	t.Helper()
+	t.Setenv("PATH", t.TempDir())
+	cat := NewCatalog(srv, tools)
+	defer cat.Wait()
+	return ReloadAll(context.Background(), cat, h)
 }

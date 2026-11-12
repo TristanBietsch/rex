@@ -67,6 +67,7 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		Usage: c.srv.Usage(),
 		// Loops are read here too; a change after this is a Loop event.
 		Loops: c.srv.loopSnapshot(),
+		Tools: c.srv.ToolInfos(),
 	}
 	if p.Client == protocol.ClientTUI {
 		c.joinBoard()

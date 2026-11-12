@@ -56,6 +56,7 @@ daemon-stop
 
 -- home/.config/rex/config.yaml --
 summary_enabled: false
+model_autodetect: false
 -- home/.config/rex/tools.yaml --
 tools:
   - id: echo
