@@ -200,6 +200,21 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
 	},
+	{
+		ID: "workspaces", Label: "Workspaces", Section: SectionFeatures,
+		Type: TypeBool, Default: false,
+		Help: "Mark a project folder as a workspace with rex ws init: a small .rex/ folder holds an id, a name and a color so sessions in that tree can be told apart. Off: rex never looks for or writes a .rex/ folder, and rex ws refuses.",
+	},
+	{
+		ID: "audit_trail", Label: "Audit trail", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Write one line per finished session (who, which tool, state, times and the first line of the prompt) to ~/.local/share/rex/audit.jsonl, or to <workspace>/.rex/audit.jsonl for a workspace session, for rex audit. Off: no audit file is written and rex audit refuses.",
+	},
+	{
+		ID: "audit_full_prompt", Label: "Audit: full prompt", Section: SectionFeatures,
+		Type: TypeBool, Default: false,
+		Help: "Also store each session's whole first prompt in the audit trail, not only its first line. Prompts can hold secrets; the file is private (0600) but a workspace audit.jsonl may be synced or committed. Needs audit_trail on. Applies to sessions started afterwards.",
+	},
 
 	// Spawn
 	{

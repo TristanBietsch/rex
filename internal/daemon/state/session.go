@@ -81,8 +81,20 @@ type Session struct {
 	// (NewSession.Skills). Resume loads them again.
 	Skills []string
 
+	// AuditWritten is whether the current run's audit record was written. It
+	// is persisted in meta.json (so a restart does not write it twice) but
+	// is not part of the wire summary, and it clears when the session goes
+	// live again, so a resumed session writes a new record at its next end.
+	AuditWritten bool
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
+	// auditMu makes the audit write for one session run one at a time.
+	auditMu sync.Mutex
+	// auditFirst and auditPrompt are the initial prompt's first line and,
+	// when the audit_full_prompt setting was on at spawn, the whole prompt.
+	// Memory only: never persisted, never sent to clients.
+	auditFirst, auditPrompt string
 	// reaping is set once the retire sweep has claimed the session for
 	// deletion; Unretire is refused from then on.
 	reaping bool
@@ -162,6 +174,7 @@ func (s *Session) noteStateLocked(newState protocol.State, now time.Time) map[st
 	}
 	if !s.EndedAt.IsZero() {
 		s.EndedAt = time.Time{}
+		s.AuditWritten = false // a new run; its end gets its own record
 		return map[string]any{"ended_at": nil}
 	}
 	return nil
@@ -191,4 +204,45 @@ func (s *Session) isRemoved() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.removed
+}
+
+// SetAuditText keeps the initial prompt for the audit trail: its first line
+// and (possibly "") the whole prompt. It lives in memory only.
+func (s *Session) SetAuditText(first, full string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.auditFirst, s.auditPrompt = first, full
+}
+
+// AuditText returns what SetAuditText stored.
+func (s *Session) AuditText() (first, full string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.auditFirst, s.auditPrompt
+}
+
+// AuditOnce runs write unless this run's audit record is already written.
+// Callers for one session run one after another, so a second caller sees
+// the first one's result. The run counts as written only when write
+// returns nil. wrote reports whether write ran and succeeded.
+func (s *Session) AuditOnce(write func() error) (wrote bool, err error) {
+	s.auditMu.Lock()
+	defer s.auditMu.Unlock()
+	if s.AuditIsWritten() {
+		return false, nil
+	}
+	if err := write(); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	s.AuditWritten = true
+	s.mu.Unlock()
+	return true, nil
+}
+
+// AuditIsWritten reports whether the current run's record was written.
+func (s *Session) AuditIsWritten() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.AuditWritten
 }

@@ -215,6 +215,18 @@ func run(args []string) error {
 	defer usageHub.Close()
 	hub.Subscribe([]string{"turn_snapshots"}, snaps.Applier())
 	hub.Subscribe([]string{"usage"}, usageHub.Applier())
+	// Audit trail: inert (no file, no workspace lookup, no prompt kept) while
+	// audit_trail is off. Without a home directory workspace discovery is off
+	// and records go to the global file.
+	home, _ := paths.Home()
+	auditTrail := boot.NewAudit(boot.AuditConfig{
+		StateDir: *stateDir,
+		Home:     home,
+		Persist:  boot.PersistMeta(*stateDir),
+	}, store)
+	defer auditTrail.Close()
+	auditTrail.Configure(settingsStore)
+	hub.Subscribe([]string{"audit_trail", "audit_full_prompt"}, auditTrail.Applier())
 
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
@@ -231,6 +243,7 @@ func run(args []string) error {
 		Snapshots:             snapStore,
 		OnUsageSample:         usageHub.Hub.Sample,
 		UsageQuery:            usageHub.Hub.Query,
+		Audit:                 auditTrail,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadAll(srv, *toolsPath, hub) },
