@@ -85,6 +85,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   run it. Turn the feature off with `rex config set lua_config false`: the
   files are then never read. The daemon polls `config.lua` and `lua/` with `config.yaml`
   and follows an edit within about 5 s; a failure is one log line.
+  The TUI follows it within about 2 s (and on `:reload`), shows Lua themes
+  with the theme files, has a `config.lua` boot row, and reports a failure
+  as one status-line notice.
 - `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
   changed target is refused before anything is touched. `rex undo` and the
   TUI dialog send it on confirm.

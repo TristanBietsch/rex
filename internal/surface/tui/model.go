@@ -127,6 +127,9 @@ type Model struct {
 	// timer chain is running.
 	configStamp   string
 	configTicking bool
+	// luaLayer is what config.lua produced at the last settings load (zero
+	// while lua_config is off or before boot).
+	luaLayer settings.LayerReport
 
 	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
 	PendingDeleteID string

@@ -91,22 +91,46 @@ type settingsResultMsg struct {
 	Err   error
 	Found bool
 	Dur   time.Duration
+	// Lua is what config.lua produced (zero while lua_config is off).
+	Lua settings.LayerReport
 }
 
 func stepSettingsLoad(_ Model) tea.Cmd {
 	return func() tea.Msg {
 		t0 := time.Now()
-		s := settings.NewStore()
 		path, err := paths.ConfigFile()
 		if err != nil {
-			return settingsResultMsg{Store: s, Found: true, Err: err, Dur: time.Since(t0)}
+			return settingsResultMsg{Store: settings.NewStore(), Found: true, Err: err, Dur: time.Since(t0)}
 		}
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return settingsResultMsg{Store: s, Path: path, Found: false, Dur: time.Since(t0)}
-		}
-		err = s.Load(path)
-		return settingsResultMsg{Store: s, Path: path, Found: true, Err: err, Dur: time.Since(t0)}
+		_, statErr := os.Stat(path)
+		s, rep, err := settings.LoadLayered(path)
+		return settingsResultMsg{Store: s, Path: path, Found: !os.IsNotExist(statErr), Err: err, Lua: rep, Dur: time.Since(t0)}
 	}
+}
+
+// stepLuaConfig is the boot row for config.lua, from what stepSettingsLoad
+// read: SKIP when lua_config is off or there is no file, WARN with the
+// (flattened) reason when it failed or refused something, else OK.
+func stepLuaConfig(m Model) tea.Cmd {
+	return emit("config.lua", func() (bootStatus, string, error) {
+		rep := m.luaLayer
+		switch {
+		case m.Store != nil && !settings.LuaConfigOn(m.Store):
+			return stepSkip, "off (Settings → Features)", nil
+		case !rep.Exists:
+			return stepSkip, "no config.lua", nil
+		case rep.Err != nil:
+			return stepWarn, luaNotice(rep), nil
+		}
+		desc := fmt.Sprintf("%d setting(s), %d theme(s)", len(rep.Values), len(rep.Themes))
+		if n := len(rep.Warnings); n > 0 {
+			return stepWarn, configNotice(desc, rep.Warnings[0], ""), nil
+		}
+		if n := len(rep.ThemeIssues); n > 0 {
+			return stepWarn, configNotice(desc, rep.ThemeIssues[0].String(), ""), nil
+		}
+		return stepOK, desc, nil
+	})
 }
 
 // themesLoadedMsg carries the user's theme files, read on a step Cmd (file
@@ -125,8 +149,8 @@ func stepThemesLoad(m Model) tea.Cmd {
 		t0 := time.Now()
 		dir := themesDir()
 		return themesLoadedMsg{
-			Themes: theme.LoadDir(dir),
-			Stamp:  configStamp(m.StorePath, dir),
+			Themes: themesWithLua(dir, m.luaLayer),
+			Stamp:  configStamp(m.StorePath, dir, m.Store == nil || settings.LuaConfigOn(m.Store)),
 			Dur:    time.Since(t0),
 		}
 	}
@@ -244,6 +268,7 @@ func init() {
 		stepPathsEnsure,
 		stepTTYProbe,
 		stepSettingsLoad,
+		stepLuaConfig,
 		stepThemesLoad,
 		stepThemeApply,
 		stepAudioInit,

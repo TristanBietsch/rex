@@ -92,7 +92,7 @@ Theme files are data, never code. They are safe to share, but rex still treats a
 
 ## Live reload
 
-While `live_reload` is on (the default), the TUI notices an edit to `config.yaml` or to a theme file within about 2 seconds and restyles without a restart. Save a theme file and the TUI changes as you type. `:reload` does the same at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the previous settings in place and says so on the status line.
+While `live_reload` is on (the default), the TUI notices an edit to `config.yaml`, to a theme file or (with `lua_config` on) to `config.lua` within about 2 seconds and restyles without a restart. Save a theme file and the TUI changes as you type. `:reload` does the same at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the previous settings in place and says so on the status line.
 
 ## Commands
 

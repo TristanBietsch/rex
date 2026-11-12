@@ -243,7 +243,7 @@ Not supported: enterprise managed settings, and a `--settings` file you pass to 
 
 The daemon keeps one copy of `config.yaml` and refreshes it about 5 s after an edit (or at once on `rex reload`, `:reload` or `SIGHUP`). With `live_reload` off it refreshes only on those.
 
-The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line. With `live_reload` off the TUI starts no timer and reads no file.
+The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. While `lua_config` is on it checks `config.lua` and `~/.config/rex/lua/` too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line; a `config.lua` that fails keeps its last good values and puts one flattened line (200 characters at most) on the status line. The boot splash has a `config.lua` row: SKIP (off or no file), WARN (failed or refused something, with the reason) or OK. With `live_reload` off the TUI starts no timer and reads no file.
 
 | Applies | Settings |
 |---------|----------|
