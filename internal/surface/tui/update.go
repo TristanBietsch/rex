@@ -97,16 +97,19 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return relayout(m), nil
 	case AttachOutputMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
+		// Only the open popup's own listener is re-armed: re-arming from an
+		// earlier popup's message would put a second listener on this one
+		// and split its chunks.
+		if !fromOpenPopup(m, msg.SessionID, msg.from) {
+			return m, nil
+		}
+		if len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
 			afterAttachOutput(m.Attach)
 		}
-		if m.Attach != nil {
-			return m, listenAttach(m.Attach)
-		}
-		return m, nil
+		return m, listenAttach(m.Attach)
 	case AttachClosedMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && msg.Err != nil && isConnClosed(msg.Err) {
+		if fromOpenPopup(m, msg.SessionID, msg.from) && msg.Err != nil && isConnClosed(msg.Err) {
 			// The daemon dropped the connection (a hot restart): the
 			// session runs on, so the popup re-attaches.
 			id := msg.SessionID
@@ -115,7 +118,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Notice = "reattaching…"
 			return m, scheduleReattach(id, 0)
 		}
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID {
+		if fromOpenPopup(m, msg.SessionID, msg.from) {
 			m.Attach.Ended = true
 			if msg.Err != nil {
 				m.Attach.EndedMsg = msg.Err.Error()
