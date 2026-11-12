@@ -143,12 +143,11 @@ func (a *Archive) stageZip(st *Staged) error {
 		return fmt.Errorf("%s: too many entries", a.Name)
 	}
 	for _, zf := range zr.File {
-		size := int64(zf.UncompressedSize64)
-		if zf.UncompressedSize64 > uint64(a.limit) {
-			size = a.limit + 1
-		}
+		// FileInfo().Size() is the declared uncompressed size; a value past
+		// int64 comes back negative, which wanted refuses. write enforces
+		// the limit on the bytes actually read.
 		mode := zf.Mode()
-		bin, err := a.wanted(st, zf.Name, mode.IsDir(), mode.IsRegular(), size)
+		bin, err := a.wanted(st, zf.Name, mode.IsDir(), mode.IsRegular(), zf.FileInfo().Size())
 		if err != nil {
 			return err
 		}

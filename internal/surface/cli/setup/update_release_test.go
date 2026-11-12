@@ -92,7 +92,7 @@ func releaseFixture(t *testing.T, latest string, tags ...string) (*updateFixture
 	f.tempDir = t.TempDir()
 	f.release = releaseServer(t, latest, tags...)
 	for _, b := range []string{"rex", "rex-daemon"} {
-		require.NoError(t, os.WriteFile(filepath.Join(bin, b), []byte(b+" old"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(bin, b), []byte(b+" old"), 0o600))
 	}
 	return f, bin
 }

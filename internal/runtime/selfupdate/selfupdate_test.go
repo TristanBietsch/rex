@@ -27,7 +27,6 @@ type entry struct {
 	body string
 	typ  byte // tar type; 0 is a regular file
 	link string
-	size int64 // header size override for tar (0: len(body))
 }
 
 func tarGz(t *testing.T, entries []entry) []byte {
@@ -101,7 +100,7 @@ func newRelease(t *testing.T, tag string) *release {
 			_, _ = fmt.Fprintf(w, `{"tag_name":%q,"assets":[]}`, r.tag)
 		case strings.HasPrefix(req.URL.Path, "/dl/o/rex/releases/download/"):
 			if r.redirect != "" {
-				http.Redirect(w, req, r.redirect+req.URL.Path, http.StatusFound)
+				http.Redirect(w, req, r.redirect+req.URL.Path, http.StatusFound) //nolint:gosec // test server redirects on purpose
 				return
 			}
 			rest := strings.TrimPrefix(req.URL.Path, "/dl/o/rex/releases/download/")
@@ -192,7 +191,7 @@ func TestFetch_goodPath(t *testing.T) {
 	s := r.source()
 	s.Token = "tok"
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex"), []byte("old rex"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex"), []byte("old rex"), 0o600))
 	a, err := s.Fetch(context.Background(), "v2.1.0", "linux", "amd64", t.TempDir())
 	require.NoError(t, err)
 	require.Equal(t, "rex_2.1.0_linux_amd64.tar.gz", a.Name)
@@ -389,8 +388,8 @@ func TestFetch_windowsZip(t *testing.T) {
 	dir := t.TempDir()
 	// A running rex.exe on Windows can be renamed but not overwritten; the
 	// old binary is moved aside to rex.exe.old.
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex.exe"), []byte("old rex"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex.exe.old"), []byte("stale"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex.exe"), []byte("old rex"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "rex.exe.old"), []byte("stale"), 0o600))
 	a, err := r.source().Fetch(context.Background(), "v2.1.0", "windows", "amd64", t.TempDir())
 	require.NoError(t, err)
 	st, err := a.Stage(dir)

@@ -141,6 +141,8 @@ func runUpdate(args []string, d updateDeps) error {
 				return refuseSourceCheckout(exePath, repo)
 			}
 			return runReleaseUpdate(p, d, o, exePath)
+		case installModeGoInstall:
+			// go install below.
 		}
 	}
 
