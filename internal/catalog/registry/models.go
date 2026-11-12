@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -153,6 +154,8 @@ func runModelsCmd(ctx context.Context, tool Tool) ([]byte, error) {
 	argv := append(append([]string{}, tool.Command[1:]...), mc.Args...)
 	cmd := exec.CommandContext(ctx, path, argv...) //nolint:gosec // the command is fixed in the registry
 	cmd.Stdin = nil                                // /dev/null
+	cmd.Dir = os.TempDir()                         // a neutral folder, never the daemon's working directory
+	configureKill(cmd)
 	cmd.WaitDelay = waitDelay
 	out := &cappedBuffer{limit: MaxModelsOutput, cancel: cancel}
 	cmd.Stdout = out
