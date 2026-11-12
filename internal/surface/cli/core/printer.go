@@ -217,6 +217,17 @@ func processEnv(environ []string) Env {
 	}
 }
 
+// Verb returns the command word of args after the leading output flags
+// (`rex -o json ls` gives "ls"), or "" when there is none or the flags do not
+// parse. It is for code that must decide something before InitOutput runs.
+func Verb(args []string) string {
+	rest, _, err := stripGlobalFlags(args)
+	if err != nil || len(rest) == 0 {
+		return ""
+	}
+	return rest[0]
+}
+
 // stripGlobalFlags consumes leading output flags. It stops at the first
 // argument that is not one, so `rex -o json ls` works and `rex -h` is left
 // for the command dispatcher.

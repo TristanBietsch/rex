@@ -37,6 +37,7 @@ func RunTheme(args []string) error {
 const (
 	themeBuiltin = "builtin"
 	themeFile    = "file"
+	themeLua     = "lua"
 	// themeAuto is the auto theme: default or paper by the terminal's
 	// background. The TUI asks the terminal; the CLI never does, so here it
 	// is listed and shown as default.
@@ -46,6 +47,8 @@ const (
 // themeSourceOf says where the named theme comes from.
 func themeSourceOf(cat *theme.Catalog, name string) string {
 	switch {
+	case cat.IsLua(name):
+		return themeLua
 	case cat.IsUser(name):
 		return themeFile
 	case name == theme.AutoName:
@@ -65,10 +68,15 @@ func loadThemes() (cat *theme.Catalog, dir, current string, err error) {
 		return nil, "", "", core.Errorf(core.ExitGeneric, "", "theme: %w", err)
 	}
 	current = theme.DefaultName
-	if store, _, lerr := settings.LoadDefault(); lerr == nil {
+	cat = theme.LoadDir(dir)
+	if store, rep, _, lerr := settings.LoadDefaultReport(); lerr == nil {
 		current = store.String("theme")
+		cat = cat.WithLua(rep.Themes, rep.ThemeIssues)
+		if rep.Err != nil {
+			cat.Issues = append(cat.Issues, theme.Issue{File: "config.lua", Msg: strings.TrimPrefix(rep.Err.Error(), "config.lua: ") + luaKeptSuffix(rep)})
+		}
 	}
-	return theme.LoadDir(dir), dir, current, nil
+	return cat, dir, current, nil
 }
 
 // themeNames is every theme name: the built-ins in the registry's order, then
@@ -209,6 +217,9 @@ func themeShow(args []string) error {
 	if cat.IsUser(name) {
 		data.Path = filepath.Join(dir, name+".yaml")
 		meta = data.Path
+	}
+	if cat.IsLua(name) {
+		meta = "config.lua"
 	}
 	for _, i := range cat.Issues {
 		if i.Warn && i.File == name+".yaml" {

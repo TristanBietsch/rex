@@ -155,6 +155,7 @@ var Commands = []Command{
 	{Name: "skills", Section: SectionOther, Args: "[flags]", Short: "list the skills library (~/.config/rex/skills)",
 		Example: "rex skills -o json", Class: ClassQuery},
 	{Name: "config", Section: SectionOther, Args: "list|get|set|reset|edit", Short: "view and change settings",
+		Long:    "List, read and change settings (config.yaml; list and get show where each value comes from). edit opens init.lua, edit -lua opens config.lua (settings in Lua). lua-export prints config.yaml's values as a starter config.lua.",
 		Example: "rex config set skip_permissions false", Class: ClassQuery},
 	{Name: "theme", Section: SectionOther, Args: "list|show|new", Short: "list, inspect and create color themes",
 		Long:    "List the built-in and user themes, show one theme's colors and glyphs, or write a commented theme file to edit (~/.config/rex/themes). Apply one with rex config set theme <name>.",

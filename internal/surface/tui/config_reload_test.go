@@ -29,7 +29,7 @@ func reloadModel(t *testing.T) (m Model, cfg, themeDir string) {
 	cfg = filepath.Join(filepath.Dir(themeDir), "config.yaml")
 	require.NoError(t, os.MkdirAll(themeDir, 0o700))
 	m = Model{Store: settings.NewStore(), StorePath: cfg, Focus: FocusBoard, idleDone: make(chan struct{})}
-	m.configStamp = configStamp(cfg, themeDir)
+	m.configStamp = configStamp(cfg, themeDir, true)
 	return m, cfg, themeDir
 }
 
@@ -205,15 +205,15 @@ func TestConfigStampSeesCreationEditAndRemoval(t *testing.T) {
 	dir := t.TempDir()
 	cfg := filepath.Join(dir, "config.yaml")
 	themeDir := filepath.Join(dir, "themes")
-	s0 := configStamp(cfg, themeDir)
+	s0 := configStamp(cfg, themeDir, true)
 	writeFile(t, cfg, "spinner: moon\n")
-	s1 := configStamp(cfg, themeDir)
+	s1 := configStamp(cfg, themeDir, true)
 	require.NotEqual(t, s0, s1)
 	writeFile(t, cfg, "spinner: moon\nrow_density: roomy\n")
-	s2 := configStamp(cfg, themeDir)
+	s2 := configStamp(cfg, themeDir, true)
 	require.NotEqual(t, s1, s2)
 	require.NoError(t, os.Remove(cfg))
-	require.Equal(t, s0, configStamp(cfg, themeDir))
+	require.Equal(t, s0, configStamp(cfg, themeDir, true))
 }
 
 // collectMsgs runs cmd and every command inside a batch, returning the

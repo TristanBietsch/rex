@@ -40,6 +40,7 @@ Go source wins when docs disagree with code.
 | [export.md](export.md) | Export a session as json, yaml, md or txt |
 | [workspaces.md](workspaces.md) | Workspaces (`rex ws`) and the audit trail (`rex audit`) |
 | [howto/lua-hooks.md](howto/lua-hooks.md) | Lua event hooks |
+| [howto/lua-config.md](howto/lua-config.md) | Settings and themes in Lua (`config.lua`) |
 | [howto/headless-ci.md](howto/headless-ci.md) | Script sessions without the TUI |
 | [howto/shell-integration.md](howto/shell-integration.md) | PATH, completion, prompt |
 | [howto/agents.md](howto/agents.md) | Drive rex from an LLM agent (agent mode, the card) |

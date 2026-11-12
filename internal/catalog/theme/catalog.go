@@ -1,14 +1,14 @@
 package theme
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/tristanbietsch/rex/internal/runtime/privfile"
 )
 
 // Issue is something wrong with one theme file, or a note about it.
@@ -44,6 +44,9 @@ func printable(s string) string {
 // *Catalog holds no user themes.
 type Catalog struct {
 	user map[string]Palette
+	// lua holds the names in user that config.lua defined (they win over a
+	// theme file of the same name).
+	lua map[string]bool
 	// Issues lists every skipped file and every warning, in file order.
 	Issues []Issue
 }
@@ -85,26 +88,62 @@ func (c *Catalog) Get(name string) (Palette, bool) {
 	return Get(name)
 }
 
-// IsUser reports whether name is a user theme.
+// IsUser reports whether name is a theme file in the themes directory (not
+// one that config.lua defined; see IsLua).
 func (c *Catalog) IsUser(name string) bool {
-	if c == nil {
+	if c == nil || c.lua[name] {
 		return false
 	}
 	_, ok := c.user[name]
 	return ok
 }
 
-// UserNames returns the user theme names, sorted.
-func (c *Catalog) UserNames() []string {
-	if c == nil {
-		return nil
+// IsLua reports whether name is a theme that config.lua defined.
+func (c *Catalog) IsLua(name string) bool { return c != nil && c.lua[name] }
+
+// WithLua returns a copy of c that also holds themes (the ones config.lua
+// defined) and issues (what went wrong with others). A Lua theme beats a
+// theme file of the same name, with a warning Issue. c may be nil and is not
+// changed.
+func (c *Catalog) WithLua(themes map[string]Palette, issues []Issue) *Catalog {
+	out := &Catalog{user: map[string]Palette{}, lua: map[string]bool{}}
+	if c != nil {
+		for n, p := range c.user {
+			out.user[n] = p
+		}
+		out.Issues = append(out.Issues, c.Issues...)
 	}
-	names := make([]string, 0, len(c.user))
-	for n := range c.user {
+	for _, name := range sortedNames(themes) {
+		if _, shadows := out.user[name]; shadows {
+			out.Issues = append(out.Issues, Issue{File: name + ".yaml", Msg: "a theme of the same name in config.lua wins; this file is ignored", Warn: true})
+		}
+		out.user[name] = themes[name]
+		out.lua[name] = true
+	}
+	for _, i := range issues {
+		i.Msg = printable(i.Msg)
+		i.File = printable(i.File)
+		out.Issues = append(out.Issues, i)
+	}
+	return out
+}
+
+func sortedNames(m map[string]Palette) []string {
+	names := make([]string, 0, len(m))
+	for n := range m {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	return names
+}
+
+// UserNames returns the names of the non-built-in themes (theme files and
+// config.lua themes), sorted.
+func (c *Catalog) UserNames() []string {
+	if c == nil {
+		return nil
+	}
+	return sortedNames(c.user)
 }
 
 // LoadDir reads every <name>.yaml in dir. It never fails: a missing
@@ -145,8 +184,8 @@ func loadDir(dir string) *Catalog {
 		c.Issues = append(c.Issues, Issue{File: here, Msg: "not a directory"})
 		return c
 	}
-	if err := checkPrivateDir(fi, dir); err != nil {
-		c.Issues = append(c.Issues, Issue{File: here, Msg: err.Error() + "; no user themes loaded"})
+	if err := privfile.CheckDir(fi, dir); err != nil {
+		c.Issues = append(c.Issues, Issue{File: here, Msg: "themes directory: " + err.Error() + "; no user themes loaded"})
 		return c
 	}
 	entries, err := os.ReadDir(dir)
@@ -164,7 +203,7 @@ func loadDir(dir string) *Catalog {
 			c.Issues = append(c.Issues, Issue{File: file, Msg: fmt.Sprintf("more than %d theme files; this and the rest are ignored", MaxFiles)})
 			break
 		}
-		data, err := readThemeFile(dir, file)
+		data, err := privfile.Read(dir, file, MaxFileSize)
 		if err != nil {
 			c.Issues = append(c.Issues, Issue{File: file, Msg: err.Error()})
 			continue
@@ -181,38 +220,6 @@ func loadDir(dir string) *Catalog {
 		}
 	}
 	return c
-}
-
-// readAll is io.ReadAll; tests replace it to fail a read.
-var readAll = io.ReadAll
-
-// readThemeFile reads one theme file. The file is opened once and every check
-// runs on that handle (fstat), so what is checked is what is read: a link
-// swapped in between cannot slip a different file past the checks. A symlink
-// is followed; its target must be a regular file, owned by you and not
-// writable by group or others, within the size cap. The open never blocks on
-// a FIFO.
-func readThemeFile(dir, file string) ([]byte, error) {
-	f, err := openThemeFile(dir, file)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open file (a dangling or looping link, or one that is not allowed): %w", err)
-	}
-	defer func() { _ = f.Close() }()
-	fi, err := f.Stat()
-	if err != nil || !fi.Mode().IsRegular() {
-		return nil, errors.New("not a regular file (or a link to one); refused")
-	}
-	if fi.Size() > MaxFileSize {
-		return nil, fmt.Errorf("file is larger than %d KiB; refused", MaxFileSize>>10)
-	}
-	if err := checkPrivateFile(fi); err != nil {
-		return nil, err
-	}
-	data, err := readAll(io.LimitReader(f, MaxFileSize+1)) // Parse refuses a file that grew past the cap
-	if err != nil {
-		return nil, fmt.Errorf("cannot read file: %w", err)
-	}
-	return data, nil
 }
 
 // Stamp summarizes the theme files in dir (names, sizes, modification times)

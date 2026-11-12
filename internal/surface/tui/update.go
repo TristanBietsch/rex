@@ -189,6 +189,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleConfigTick(m)
 	case configReloadedMsg:
 		return handleConfigReloaded(m, msg)
+	case luaEditDoneMsg:
+		return handleLuaEditDone(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()
@@ -201,6 +203,10 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Store = msg.Store
 		m.StorePath = msg.Path
 		m.Hidden = hiddenSectionsFrom(msg.Store)
+		m.luaLayer = msg.Lua
+		if msg.Lua.Err != nil {
+			m.Err = luaNotice(msg.Lua)
+		}
 		if !msg.Found {
 			return m.appendBootStep(bootStepMsg{
 				Name: "settings.load", Status: stepSkip, Desc: "no config file (defaults)", Dur: msg.Dur,

@@ -62,6 +62,8 @@ Registry completeness; store round-trip; type coercion.
 
 `max_concurrent_sessions` documents "next daemon start" — live cap is `rex-daemon -max-concurrent-sessions` / `SetMaxConcurrent` intent. `lua_config_path` is read-only in UI. Adding a setting requires one `Setting` literal in `registry.go` only (comment in file).
 
+`config.lua` is a layer, not part of `Load`: `settings` cannot import `luacfg` (cycle), so a process installs it with `luacfg.Install()` (`SetLayerStamped`) and `LoadLayered`/`LoadDefault` apply it while `lua_config` (read from YAML only) is on. Lua values are `SourceLua` with `SetAt`; `Set`/`Reset` return `*ErrManagedByLua`; `Overlay` never marks dirty, so `Save` never writes them. On a layer error the trust ids read their defaults. Tests without an installed layer are YAML-only. `StackLayers` composes scopes (R06).
+
 ## See also
 
 - `interfaces/config.md` — paths and env vars.

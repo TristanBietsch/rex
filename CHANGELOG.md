@@ -50,6 +50,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The daemon now refuses an `init.lua` (and its folder) that another user
+  owns or that group or others can write, the rule `config.lua` and theme
+  files follow; a symlink is followed only to a file that passes. The
+  refusal is one `lua: refusing init.lua` line in the daemon log, and no
+  hook runs. Fix it with `chmod go-w ~/.config/rex/init.lua`.
 - The board filter chips (and `t`, chip clicks, `:filter`) come from the
   daemon's tool list: one chip per installed agent, so `qwen`, `cursor` and
   `grok` are filterable too. Opt-in built-ins (`gemini`, `deepseek`, `kimi`)
@@ -255,6 +260,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `config.lua` (Settings → Features → *Lua config*, on, and inert without the
+  file): set settings and themes in `~/.config/rex/config.lua` with
+  `rex.set("theme", "noir")` and `rex.theme("mine", { extends = "noir",
+  colors = { accent = "#B392F0" } })`. `rex.platform` is the OS name; `require`
+  reads only `~/.config/rex/lua/`. The file runs in a restricted Lua state (no
+  `os`, `io`, `print`, `load`; 250 ms, size and memory limits) and must be
+  owned by you and not writable by others. Its values beat `config.yaml` and
+  are never written to it: `rex config set` and `rex config reset` on such a
+  key exit 5 and name the line. A broken `config.lua` keeps the last good
+  values (the trust settings `auto_trust_dirs` and `skip_permissions` fall back
+  to their defaults) and never changes plain command output. A Lua theme beats
+  a theme file with the same name. `rex complete` and `rex completion` never
+  run it. Turn the feature off with `rex config set lua_config false`: the
+  files are then never read. The daemon polls `config.lua` and `lua/` with
+  `config.yaml` and follows an edit within about 5 s; a failure is one log line.
+  The TUI follows it within about 2 s (and on `:reload`), shows Lua themes
+  with the theme files, has a `config.lua` boot row, and reports a failure
+  as one status-line notice.
+  Settings rows `config.lua` sets are locked: the value is dimmed with a
+  muted `lua`, edits are refused with the file and line, and `e` opens the
+  file at that line in `$EDITOR`. `:theme`, the quick-spawn cascade and the
+  setup wizard leave locked settings alone.
+  `rex config list` has a SOURCE column (`default`, `config.yaml`, `lua
+  config.lua:12`) and `source`/`set_at` in json and agent mode, as does
+  `rex config get`; the `txt` layout is unchanged. `rex config edit -lua`
+  opens `config.lua` (from a commented template the first time), `rex config
+  lua-export` prints `config.yaml` as a starter `config.lua`, `rex theme
+  list` marks Lua themes `lua`, and `rex doctor` has a `config.lua` check
+  that names any trust setting it grants, with its line. A refused
+  `rex.set` of a trust setting makes that setting read its default.
+  `rex setup -yes` refuses a setting `config.lua` sets.
+  Guide: `docs/howto/lua-config.md`.
 - Opt-in `auto` theme: `rex config set theme auto` (or `:theme auto`, or
   the settings page) picks `default` on a dark terminal and `paper` on a
   light one. The TUI checks `COLORFGBG`, then asks the terminal (OSC 11), once

@@ -61,6 +61,9 @@ func settingsDetail(m Model, s settings.Setting, inner, helpN int, expanded bool
 	if s.ReadOnly {
 		l1 += sep + styleMuted.Render("read-only")
 	}
+	if at := settingLockedAt(m, s.ID); at != "" {
+		l1 += sep + styleMuted.Render("set in "+protocol.FlattenDisplayText(at))
+	}
 	if r, ok := onboardRowOf(m.Settings, s.ID); ok {
 		// An Onboarding row is not a stored setting: no id or default.
 		l1 = styleDim.Render("command ") + stylePrimary.Render(r.command()) + sep + styleMuted.Render("not on PATH")
@@ -234,6 +237,12 @@ func renderSettings(m Model, termW int) string {
 		if arrows {
 			valAvail -= 4
 		}
+		badge := settingLockBadge(m, s)
+		locked := badge != ""
+		if locked {
+			valAvail -= 4 // " lua"
+			badge = " " + badge
+		}
 		if valAvail < 1 {
 			valAvail = 1
 		}
@@ -251,6 +260,9 @@ func renderSettings(m Model, termW int) string {
 		// fills the cells the value leaves.
 		gap := strings.Repeat(" ", max(0, valAvail-ansi.StringWidth(val)))
 		vs := settingValueStyle(s, val, empty, isSel)
+		if locked { // config.lua sets it: drawn dim, like an off value
+			vs = settingOffStyle(isSel)
+		}
 
 		if !isSel {
 			b := styleDim.Render(bullet)
@@ -258,15 +270,18 @@ func renderSettings(m Model, termW int) string {
 				b = styleArrow.Render(bullet)
 			}
 			if ownLine {
-				lines = append(lines, "  "+styleDim.Render(label), "  "+gap+b+vs.Render(valCell))
+				lines = append(lines, "  "+styleDim.Render(label), "  "+gap+b+vs.Render(valCell)+badge)
 			} else {
-				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+gap+b+vs.Render(valCell))
+				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+gap+b+vs.Render(valCell)+badge)
 			}
 			continue
 		}
 
 		cursorIdx = i + 1
 		sel, haveSel = s, true
+		if locked { // keep the selection background under the badge
+			badge = selStyle.Render(" ") + selStyle.Foreground(colorFgMuted).Render("lua")
+		}
 		focus = len(lines)
 		marker := styleArrow.Render("▸ ")
 		b := selStyle.Render(bullet)
@@ -276,11 +291,11 @@ func renderSettings(m Model, termW int) string {
 		if ownLine {
 			first := marker + selBold.Render(label)
 			lines = append(lines, first+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(first)))))
-			second := selStyle.Render("  "+gap) + b + vs.Render(valCell)
+			second := selStyle.Render("  "+gap) + b + vs.Render(valCell) + badge
 			lines = append(lines, second+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(second)))))
 			continue
 		}
-		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" "+gap) + b + vs.Render(valCell)
+		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" "+gap) + b + vs.Render(valCell) + badge
 		lines = append(lines, row+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(row)))))
 	}
 	if len(list) == 0 {
@@ -322,6 +337,9 @@ func renderSettings(m Model, termW int) string {
 		detail = append(detail, "")
 	}
 	hints := settingsHints
+	if haveSel && settingLockedAt(m, sel.ID) != "" {
+		hints = settingsLockedHints
+	}
 	if st.Edit != nil {
 		hints = settingsEditHints
 	}

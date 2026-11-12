@@ -127,14 +127,8 @@ func GlyphTokens() []string {
 // pass ValidName and must not be a built-in or AutoName.
 func Parse(name string, data []byte) (Palette, []string, error) {
 	var zero Palette
-	if err := ValidName(name); err != nil {
+	if err := checkName(name); err != nil {
 		return zero, nil, err
-	}
-	if _, ok := Builtin[name]; ok {
-		return zero, nil, fmt.Errorf("theme name %q is a built-in; pick another name", name)
-	}
-	if name == AutoName {
-		return zero, nil, fmt.Errorf("theme name %q is reserved (it follows the terminal background); pick another name", name)
 	}
 	if len(data) > MaxFileSize {
 		return zero, nil, fmt.Errorf("file is larger than %d KiB", MaxFileSize>>10)
@@ -146,6 +140,33 @@ func Parse(name string, data []byte) (Palette, []string, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	if err := dec.Decode(&raw); err != nil && !errors.Is(err, io.EOF) {
 		return zero, nil, fmt.Errorf("invalid YAML: %w", err)
+	}
+	return ParseMap(name, raw)
+}
+
+// checkName is the rule for a user theme's name.
+func checkName(name string) error {
+	if err := ValidName(name); err != nil {
+		return err
+	}
+	if _, ok := Builtin[name]; ok {
+		return fmt.Errorf("theme name %q is a built-in; pick another name", name)
+	}
+	if name == AutoName {
+		return fmt.Errorf("theme name %q is reserved (it follows the terminal background); pick another name", name)
+	}
+	return nil
+}
+
+// ParseMap builds a palette named name from an already decoded theme: the
+// map shape a YAML file decodes to (extends, dark, colors, glyphs). YAML
+// (Parse) and Lua (rex.theme) share this one validator. Colors may be
+// strings or ints, a fleet a []any, nested tables map[string]any. It returns
+// the same warnings and errors as Parse.
+func ParseMap(name string, raw map[string]any) (Palette, []string, error) {
+	var zero Palette
+	if err := checkName(name); err != nil {
+		return zero, nil, err
 	}
 	var warns []string
 

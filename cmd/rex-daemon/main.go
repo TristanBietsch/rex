@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -64,6 +65,9 @@ func runTap(args []string) int {
 }
 
 func run(args []string) error {
+	// config.lua goes on top of config.yaml for every settings load in this
+	// process (the hub, the boot checks), while lua_config is on.
+	luacfg.Install()
 	fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
 	// Path defaults come from package paths. Without a home directory they
 	// are empty, and requireDefaults fails unless the flag was given.

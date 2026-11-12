@@ -22,6 +22,8 @@ rex.on("session_updated", function(s)
 end)
 ```
 
+   The file and its folder must be owned by you and not writable by group or others (`chmod go-w`); otherwise the daemon logs `lua: refusing init.lua` and runs nothing.
+
 2. Restart the daemon so it loads the file:
 
 ```sh
@@ -49,7 +51,12 @@ Events: `session_added`, `session_updated`, `session_removed`.
 
 The script runs in-process as the daemon user. Load only trusted code.
 
+## `init.lua` or `config.lua`?
+
+`init.lua` is for event hooks and runs in the daemon only. Settings and themes go in `config.lua`, which every rex process reads and which can only call `rex.set` and `rex.theme`. See [lua-config.md](lua-config.md).
+
 ## See also
 
+- [lua-config.md](lua-config.md) — settings and themes in Lua
 - [internal/features/lua/README.md](../../internal/features/lua/README.md) — threading and security
 - [settings.md](../settings.md) — `lua_config_path`

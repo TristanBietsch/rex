@@ -6,11 +6,15 @@ Saving is sparse: rex re-reads the file and writes only the keys it changed (`re
 
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
 
+Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`. A broken `config.lua` keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again.
+
 ## Files
 
 | Path | Role |
 |------|------|
 | `~/.config/rex/config.yaml` | Persisted values |
+| `~/.config/rex/config.lua` | Optional Lua settings and themes; wins over `config.yaml` while `lua_config` is on ([howto/lua-config.md](howto/lua-config.md)) |
+| `~/.config/rex/lua/` | Modules `config.lua` may `require` |
 | `~/.config/rex/themes/<name>.yaml` | Your own themes ([themes.md](themes.md)) |
 
 ## Commands
@@ -21,6 +25,8 @@ rex config get <id>...
 rex config set <id> <value>...
 rex config reset <id>...
 rex config edit          # opens init.lua in $EDITOR, not config.yaml
+rex config edit -lua     # opens config.lua (settings in Lua)
+rex config lua-export    # prints config.yaml as a starter config.lua
 ```
 
 ## When a change applies
@@ -134,6 +140,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `workspaces` | bool | `false` | Workspaces: `rex ws init` marks a project folder with a `.rex/` holding an id, a name and a color; `rex audit --ws` and workspace audit files use it. Off: rex never looks for or writes a `.rex/` folder, `rex ws` exits 5 and the daemon does no workspace lookup. See [workspaces.md](workspaces.md) |
 | `audit_trail` | bool | `true` | Write one line per finished session (who, tool, state, times, first line of the prompt) to `~/.local/share/rex/audit.jsonl`, or `<workspace>/.rex/audit.jsonl` for a workspace session, for `rex audit`. Off: no file is written, the prompt is not kept in memory and `rex audit` exits 5. The daemon follows `config.yaml` within about 5 s |
 | `audit_full_prompt` | bool | `false` | Also store each session's whole first prompt (20,000 characters at most) in the audit trail. Prompts can hold secrets and a workspace `audit.jsonl` may be synced or committed. Needs `audit_trail`. Applies to sessions started after it is turned on |
+| `lua_config` | bool | `true` | Read `~/.config/rex/config.lua` on top of `config.yaml` (see [howto/lua-config.md](howto/lua-config.md)). Inert without the file. Values it sets win over `config.yaml`, are never written to it, and `rex config set` / `reset` on them exit 5 with the file and line. Read from `config.yaml` only (`config.lua` cannot turn itself off). Off: `config.lua` and `~/.config/rex/lua/` are never stat'ed, read or run, and every row is unlocked |
 
 ### Spawn
 
@@ -249,7 +256,7 @@ Not supported: enterprise managed settings, and a `--settings` file you pass to 
 
 The daemon keeps one copy of `config.yaml` and refreshes it about 5 s after an edit (or at once on `rex reload`, `:reload` or `SIGHUP`). With `live_reload` off it refreshes only on those.
 
-The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line. With `live_reload` off the TUI starts no timer and reads no file.
+The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. While `lua_config` is on it checks `config.lua` and `~/.config/rex/lua/` too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line; a `config.lua` that fails keeps its last good values and puts one flattened line (200 characters at most) on the status line. The boot splash has a `config.lua` row: SKIP (off or no file), WARN (failed or refused something, with the reason) or OK. With `live_reload` off the TUI starts no timer and reads no file.
 
 | Applies | Settings |
 |---------|----------|

@@ -12,14 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckPrivate_ForeignOwner(t *testing.T) {
-	fi, err := os.Stat(t.TempDir())
-	require.NoError(t, err)
-	require.NoError(t, checkPrivate(fi, os.Geteuid(), ""))
-	err = checkPrivate(fi, os.Geteuid()+1, "")
-	require.ErrorContains(t, err, "owned by another user")
-}
-
 func TestLoadDir_FifoIsSkippedWithoutBlocking(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, syscall.Mkfifo(filepath.Join(dir, "pipe.yaml"), 0o600))

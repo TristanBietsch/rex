@@ -23,6 +23,11 @@ func checkAutoTrustDirs() []checkResult {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
+	// Set in config.lua: rex trust -rm would refuse, so point at the line.
+	fix := func(e string) string { return "rex trust -rm " + e }
+	if at := store.SetAt("auto_trust_dirs"); at != "" {
+		fix = func(string) string { return "set in " + at }
+	}
 	entries, err := settings.SplitTrustDirs(value)
 	if err != nil {
 		return []checkResult{{name, checkWarn, "ignored: " + err.Error()}}
@@ -36,17 +41,21 @@ func checkAutoTrustDirs() []checkResult {
 		}
 		dir, err := settings.TrustDir(e)
 		if err != nil {
-			rows = append(rows, checkResult{name, checkWarn, "ignored: " + err.Error() + " (rex trust -rm)"})
+			rows = append(rows, checkResult{name, checkWarn, "ignored: " + err.Error() + " (" + fix(e) + ")"})
 			continue
 		}
 		if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
-			rows = append(rows, checkResult{name, checkWarn, fmt.Sprintf("%s does not exist (rex trust -rm %s)", dir, e)})
+			rows = append(rows, checkResult{name, checkWarn, fmt.Sprintf("%s does not exist (%s)", dir, fix(e))})
 			continue
 		}
 		good = append(good, filepath.Clean(dir))
 	}
 	if len(rows) == 0 {
-		return []checkResult{{name, checkInfo, strings.Join(good, ", ")}}
+		detail := strings.Join(good, ", ")
+		if at := store.SetAt("auto_trust_dirs"); at != "" {
+			detail += " (set in " + at + ")"
+		}
+		return []checkResult{{name, checkInfo, detail}}
 	}
 	return rows
 }

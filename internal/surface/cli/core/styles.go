@@ -130,7 +130,12 @@ func streamStyles(w io.Writer, color, trueColor bool, scheme string) Styles {
 func resolvePalette(name string) theme.Palette {
 	if _, builtin := theme.Builtin[name]; !builtin && name != theme.AutoName {
 		if dir, err := paths.ThemesDir(); err == nil {
-			p, _ := theme.LoadDir(dir).Get(name)
+			cat := theme.LoadDir(dir)
+			// config.lua's themes (memoised; its problems stay silent here).
+			if _, rep, _, err := settings.LoadDefaultReport(); err == nil && len(rep.Themes) > 0 {
+				cat = cat.WithLua(rep.Themes, nil)
+			}
+			p, _ := cat.Get(name)
 			return p
 		}
 	}
