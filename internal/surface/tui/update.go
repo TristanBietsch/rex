@@ -683,10 +683,13 @@ func spawnSessionCmd(c sessionSpawner, choice quickChoice, sessions []protocol.S
 
 // spawnSessionIn is spawnSessionCmd with the folder the session starts in
 // (a workspace board starts it at the workspace root).
+//
+// The slug is chosen here, on the caller's goroutine (Update): the Cmd runs
+// on its own, and sessions is the Model's slice, which later events change.
 func spawnSessionIn(cwd string, c sessionSpawner, choice quickChoice, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+	slug := quickSpawnSlug(choice, sessions, prompt)
 	return func() tea.Msg {
 		toolID, modelID, effort := choice.Tool, choice.Model, choice.Effort
-		slug := quickSpawnSlug(choice, sessions, prompt)
 
 		slog.Info("tui: quick-spawn",
 			"tool", toolID, "model", modelID, "effort", effort,

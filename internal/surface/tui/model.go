@@ -346,7 +346,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			if m.SelectedID == rem.SessionID {
 				m.SelectedID = neighborOf(m, rem.SessionID)
 			}
-			out := m.Sessions[:0]
+			// A new slice: Model copies (and Cmds) made before this event
+			// share the old backing array.
+			out := make([]protocol.SessionSummary, 0, len(m.Sessions))
 			for _, s := range m.Sessions {
 				if s.ID != rem.SessionID {
 					out = append(out, s)
