@@ -24,7 +24,9 @@ func RunDaemon(args []string) error {
 	switch args[0] {
 	case "start":
 		return daemonStart(args[1:])
-	case "stop", "status", "restart":
+	case "restart":
+		return daemonRestart(args[1:])
+	case "stop", "status":
 		if _, err := parseDaemonFlags(args[0], args[1:]); err != nil {
 			return err
 		}
@@ -32,19 +34,33 @@ func RunDaemon(args []string) error {
 		if err != nil {
 			return err
 		}
-		switch args[0] {
-		case "stop":
+		if args[0] == "stop" {
 			return c.stop()
-		case "status":
-			return c.status()
-		default:
-			return c.restart()
 		}
+		return c.status()
 	case "logs":
 		return daemonLogs(args[1:])
 	default:
 		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("daemon: unknown subcommand %q", args[0]))
 	}
+}
+
+// daemonRestart is `rex daemon restart [-cold] [-yes]`.
+func daemonRestart(args []string) error {
+	fs := flag.NewFlagSet("daemon restart", flag.ContinueOnError)
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	cold := fs.Bool("cold", false, "stop and start (kills running sessions) instead of a hot restart")
+	yes := fs.Bool("yes", false, "do not ask before a cold restart kills running sessions")
+	fs.BoolVar(yes, "y", false, "same as -yes")
+	if _, err := out.Parse(fs, args); err != nil {
+		return err
+	}
+	c, err := defaultDaemonCtl()
+	if err != nil {
+		return err
+	}
+	c.cold, c.yes = *cold, *yes
+	return c.restart()
 }
 
 // parseDaemonFlags parses a daemon subcommand's output flags and returns its
@@ -63,6 +79,13 @@ type daemonData struct {
 	State  string `json:"state"`
 	Socket string `json:"socket"`
 	PID    string `json:"pid,omitempty"`
+	// Mode is hot or cold (restart only).
+	Mode string `json:"mode,omitempty"`
+	// Kept is how many running sessions a hot restart kept.
+	Kept *int `json:"kept,omitempty"`
+	// FromBuild and Build are the daemon builds before and after.
+	FromBuild string `json:"from_build,omitempty"`
+	Build     string `json:"build,omitempty"`
 }
 
 // printerFor is the process Printer writing to out and errOut (the commands
@@ -81,6 +104,15 @@ func emitDaemon(p *core.Printer, d daemonData, text, txt string, failed bool) er
 	fields := []core.Field{{Key: "action", Val: d.Action}, {Key: "state", Val: d.State}, {Key: "socket", Val: d.Socket}}
 	if d.PID != "" {
 		fields = append(fields, core.Field{Key: "pid", Val: d.PID})
+	}
+	if d.Mode != "" {
+		fields = append(fields, core.Field{Key: "mode", Val: d.Mode})
+	}
+	if d.Kept != nil {
+		fields = append(fields, core.Field{Key: "kept", Val: *d.Kept})
+	}
+	if d.Build != "" {
+		fields = append(fields, core.Field{Key: "from_build", Val: d.FromBuild}, core.Field{Key: "build", Val: d.Build})
 	}
 	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: text, Txt: txt}
 	if failed {
@@ -190,6 +222,14 @@ type daemonCtl struct {
 	findPID     func() (string, error)
 	starter     daemonStarter // restart's start half
 	out, errOut io.Writer
+	// hot and info are daemonctl.HotRestart and daemonctl.Info; nil
+	// means no hot restart (tests, Windows) and no session count.
+	hot  func(ctx context.Context, socket string) (daemonctl.HotResult, error)
+	info func(ctx context.Context, socket string) (daemonctl.DaemonInfo, error)
+	// confirm asks before a cold restart kills sessions (Printer.Confirm).
+	confirm func(question string, r core.Refusal) (bool, error)
+	// cold and yes are restart's flags.
+	cold, yes bool
 }
 
 // defaultDaemonCtl targets the daemon on the default socket. It fails when
@@ -207,7 +247,18 @@ func defaultDaemonCtl() (daemonCtl, error) {
 		starter:   starter,
 		out:       core.Out().Out,
 		errOut:    core.Out().Err,
+		hot:       hotRestarter(),
+		info:      daemonctl.Info,
+		confirm:   core.Out().Confirm,
 	}, nil
+}
+
+// hotRestarter is daemonctl.HotRestart where the platform can hot restart.
+func hotRestarter() func(context.Context, string) (daemonctl.HotResult, error) {
+	if !daemonctl.HotSupported {
+		return nil
+	}
+	return daemonctl.HotRestart
 }
 
 // pid returns the daemon's PID for display, or "unknown" when the lookup
@@ -269,6 +320,33 @@ func (c daemonCtl) status() error {
 // delay is needed. A daemon that will not stop is reported and no second
 // daemon is started beside it.
 func (c daemonCtl) restart() error {
+	p := printerFor(c.out, c.errOut)
+	if c.reachable(c.socket) && !c.cold {
+		if c.hot == nil {
+			p.Warn("hot restart is not supported on this platform; doing a cold restart")
+		} else {
+			res, err := c.hot(context.Background(), c.socket)
+			if err == nil {
+				return c.emitHot(p, res)
+			}
+			if !errors.Is(err, daemonctl.ErrHotUnavailable) {
+				return core.NewExitError(core.ExitGeneric, err.Error())
+			}
+			p.Warn(err.Error() + "; falling back to a cold restart")
+		}
+	}
+	if c.reachable(c.socket) && !c.yes && c.info != nil {
+		if d, err := c.info(context.Background(), c.socket); err == nil && d.Live > 0 {
+			ok, err := c.confirm(fmt.Sprintf("a cold restart kills %d running session(s). Restart anyway?", d.Live),
+				core.Refusal{Cmd: "daemon restart", Flag: "-yes", What: "kill running sessions", Hint: "rex daemon restart -cold -yes"})
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return core.NewExitError(core.ExitOperationRefused, "daemon restart: declined; nothing was restarted")
+			}
+		}
+	}
 	if err := c.stop(); err != nil {
 		var ec core.ExitCoder
 		if !errors.As(err, &ec) || ec.ExitCode() != core.ExitDaemonUnreachable {
@@ -296,4 +374,19 @@ func daemonLogs(args []string) error {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	return nil
+}
+
+// emitHot reports a hot restart.
+func (c daemonCtl) emitHot(p *core.Printer, res daemonctl.HotResult) error {
+	pid := strconv.Itoa(res.After.PID)
+	kept := res.After.Live
+	build := ""
+	if res.Before.Build != res.After.Build {
+		build = fmt.Sprintf(", build %s → %s", res.Before.Build, res.After.Build)
+	} else if res.After.Build != "" {
+		build = ", same build " + res.After.Build
+	}
+	text := fmt.Sprintf("rex-daemon hot-restarted (pid %s, %d session(s) kept%s)", pid, kept, build)
+	return emitDaemon(p, daemonData{Action: "restart", State: "running", Socket: c.socket, PID: pid, Mode: "hot",
+		Kept: &kept, FromBuild: res.Before.Build, Build: res.After.Build}, text, text+" · socket="+c.socket, false)
 }
