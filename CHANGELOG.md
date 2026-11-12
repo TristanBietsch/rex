@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: the screensaver also starts when an overlay, prompt, the new-session
+  wizard, the settings page or the attach popup is left open (it used to
+  start only over the bare board). Waking returns to what was open, as it
+  was; the waking key still does nothing else. A terminal resize counts as
+  activity and wakes it, and turning `screensaver_enabled` off while it
+  shows hides it within a minute.
+
 - TUI: board columns have fixed widths by default and change only when the
   terminal crosses a width breakpoint (150 and 110 columns). The subagent,
   badge, tokens, span and resume columns are always reserved, so nothing

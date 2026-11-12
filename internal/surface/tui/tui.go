@@ -99,7 +99,7 @@ func clipWidth(s string, w int) string {
 }
 
 func (m Model) view(w, h int) string {
-	if m.saverOn && m.Focus == FocusBoard {
+	if m.saverOn {
 		return renderScreensaver(m, w, h)
 	}
 
