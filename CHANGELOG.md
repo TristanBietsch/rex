@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI settings page: values sit flush right in the list, with the modified
+  bullet just before them. A switch's `on` is drawn in the primary text color
+  and `off` in the dim one, in every theme (`on` was the accent color).
 - Qwen Code, Cursor CLI and Grok Build are `enabled_by_default: true` again:
   visible in the wizard when installed and `extra_agents` is on. `rex setup`
   offers them under the same rule.
