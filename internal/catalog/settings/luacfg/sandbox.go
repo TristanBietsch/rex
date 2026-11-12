@@ -154,10 +154,14 @@ func checkPattern(L *lua.LState, fname, subject, pat string) {
 }
 
 // where is the "config.lua:12" position of the Lua code that called the
-// running Go function.
+// running Go function. It is safe to print: a chunk name (a workspace
+// path) with a control or escape rune has it replaced.
 func where(L *lua.LState) string {
-	return strings.TrimRight(strings.TrimSpace(L.Where(1)), ":")
+	return flatten(strings.TrimRight(strings.TrimSpace(L.Where(1)), ":"), maxWhereRunes)
 }
+
+// maxWhereRunes caps a position, which holds a workspace path.
+const maxWhereRunes = 1024
 
 // unsafeRune reports runes that must not reach a terminal: controls
 // (including ESC), bidirectional controls, zero-width and other

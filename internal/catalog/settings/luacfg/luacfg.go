@@ -72,6 +72,23 @@ type Opts struct {
 	// Deny lists setting ids rex.set refuses, on top of the ones nothing may
 	// set (lua_config, read-only rows). R06 uses it for workspace files.
 	Deny []string
+	// Chunk names the file in positions ("<Chunk>:12") and errors. Empty
+	// is "config.lua".
+	Chunk string
+	// Read, when set, returns the script instead of a read of File through
+	// package privfile; File still keys the memo and the Stamp. An error
+	// wrapping fs.ErrNotExist means there is no file. A workspace's
+	// .rex/config.lua is read this way, with the workspace package's
+	// stricter checks (no symlink at all).
+	Read func() ([]byte, error)
+}
+
+// chunk is o.Chunk or "config.lua".
+func (o Opts) chunk() string {
+	if o.Chunk != "" {
+		return o.Chunk
+	}
+	return "config.lua"
 }
 
 // Result is what one evaluation produced. Maps are shared with the memo:
@@ -119,6 +136,9 @@ func touch() { touches.Add(1) }
 // Result (Exists false).
 func Eval(ctx context.Context, o Opts) Result {
 	touch()
+	if o.Read != nil {
+		return evalRead(ctx, o)
+	}
 	dir, name := filepath.Dir(o.File), filepath.Base(o.File)
 	fi, err := os.Stat(dir)
 	if err != nil {
@@ -140,6 +160,20 @@ func Eval(ctx context.Context, o Opts) Result {
 	return evalSource(ctx, o, data)
 }
 
+// evalRead is Eval through o.Read.
+func evalRead(ctx context.Context, o Opts) Result {
+	data, err := o.Read()
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return Result{}
+	case err != nil:
+		return fail(fmt.Errorf("%s: %w", o.chunk(), err))
+	case len(data) > MaxScript:
+		return fail(fmt.Errorf("%s: file is larger than %d KiB; refused", o.chunk(), MaxScript>>10))
+	}
+	return evalSource(ctx, o, data)
+}
+
 func fail(err error) Result {
 	return Result{Exists: true, Err: errors.New(flatten(err.Error(), maxErrRunes))}
 }
@@ -152,7 +186,7 @@ func evalSource(parent context.Context, o Opts, src []byte) Result {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				done <- Result{Exists: true, Err: fmt.Errorf("config.lua: internal error: %v", flatten(fmt.Sprint(r), 80))}
+				done <- Result{Exists: true, Err: fmt.Errorf("%s: internal error: %v", flatten(o.chunk(), maxErrRunes), flatten(fmt.Sprint(r), 80))}
 			}
 		}()
 		done <- ev.run(ctx, src)
@@ -177,13 +211,14 @@ func evalSource(parent context.Context, o Opts, src []byte) Result {
 
 // stopReason says why ctx stopped the evaluation.
 func stopReason(ev *evaluator, ctx context.Context) error {
+	name := flatten(ev.opts.chunk(), maxErrRunes)
 	switch {
 	case ev.heap.Load():
-		return fmt.Errorf("config.lua: stopped: the script grew memory by more than %d MiB", MaxHeapGrowth>>20)
+		return fmt.Errorf("%s: stopped: the script grew memory by more than %d MiB", name, MaxHeapGrowth>>20)
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return fmt.Errorf("config.lua: timed out after %s", Timeout)
+		return fmt.Errorf("%s: timed out after %s", name, Timeout)
 	}
-	return fmt.Errorf("config.lua: stopped: %w", ctx.Err())
+	return fmt.Errorf("%s: stopped: %w", name, ctx.Err())
 }
 
 // heapBytes reads the live heap size without stopping the world.
@@ -228,7 +263,7 @@ func (ev *evaluator) run(ctx context.Context, src []byte) Result {
 	defer L.Close()
 	L.SetContext(ctx)
 	ev.sandbox(L)
-	fn, err := L.Load(bytes.NewReader(src), "config.lua")
+	fn, err := L.Load(bytes.NewReader(src), ev.opts.chunk())
 	if err == nil {
 		L.Push(fn)
 		err = L.PCall(0, lua.MultRet, nil)
