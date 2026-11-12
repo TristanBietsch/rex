@@ -169,9 +169,6 @@ func TestNewAgent_LaunchKeepsPageUntilAnswer(t *testing.T) {
 
 func TestNewAgent_LaunchErrorKeepsDraft(t *testing.T) {
 	failures := map[string]func(Model) tea.Msg{
-		"CmdErrMsg": func(Model) tea.Msg {
-			return CmdErrMsg{Op: "spawn", Err: errors.New("daemon is not running (rex daemon start)")}
-		},
 		"launched": func(m Model) tea.Msg {
 			return newAgentLaunchedMsg{Err: errors.New("daemon is not running (rex daemon start)"), gen: m.NewAgent.launchGen}
 		},
@@ -427,7 +424,7 @@ func (f *naFakeSpawner) NewSession(req protocol.NewSession) error {
 }
 
 func TestNewAgentLaunchCmd(t *testing.T) {
-	msg := newAgentLaunchCmd(nil, protocol.NewSession{Slug: "a"})()
+	msg := naLaunchCmd(nil, protocol.NewSession{Slug: "a"}, 1)()
 	got, ok := msg.(newAgentLaunchedMsg)
 	require.True(t, ok)
 	require.EqualError(t, got.Err, "daemon is not running (rex daemon start)")
@@ -453,4 +450,22 @@ func TestNewAgentLaunchCmd(t *testing.T) {
 	empty := &naFakeSpawner{doErr: client.ErrNoAcks}
 	require.NoError(t, naSpawn(context.Background(), empty, protocol.NewSession{}))
 	require.Equal(t, "session", empty.sent[0].Slug)
+}
+
+func TestNewAgent_OtherSpawnErrorLeavesLaunchingDraft(t *testing.T) {
+	m := naOpen(t, naModel(t))
+	m, _ = naLaunch(t, m, "fix it")
+	gen := m.NewAgent.launchGen
+	m, _ = naKey(m, key("esc"))
+	require.True(t, m.newAgentDraft.Launching)
+	slug := m.PendingSelectSlug
+	require.NotEmpty(t, slug)
+
+	m = naUpdate(m, CmdErrMsg{Op: "spawn", Err: errors.New("quick spawn failed")})
+	require.Equal(t, "spawn: quick spawn failed", m.Err, "reported under its own name")
+	require.True(t, m.newAgentDraft.Launching, "the draft's launch is still pending")
+	require.Equal(t, slug, m.PendingSelectSlug)
+
+	m = naUpdate(m, newAgentLaunchedMsg{Slug: slug, gen: gen})
+	require.Nil(t, m.newAgentDraft, "the real answer still lands")
 }

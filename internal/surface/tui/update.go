@@ -168,9 +168,6 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleLoopAction(m, msg), nil
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
-		if nm, ok := naLaunchCmdErr(m, msg); ok {
-			return nm, nil
-		}
 		m.Err = msg.Op + ": " + msg.Err.Error()
 		return m, nil
 	case SpinnerTickMsg:

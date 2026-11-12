@@ -73,12 +73,6 @@ func naSpawn(ctx context.Context, d naSpawner, req protocol.NewSession) error {
 	return err
 }
 
-// newAgentLaunchCmd sends req and reports the answer as a
-// newAgentLaunchedMsg.
-func newAgentLaunchCmd(c *client.Client, req protocol.NewSession) tea.Cmd {
-	return naLaunchCmd(c, req, 0)
-}
-
 func naLaunchCmd(c *client.Client, req protocol.NewSession, gen int64) tea.Cmd {
 	return func() tea.Msg {
 		if c == nil {
@@ -160,21 +154,6 @@ func handleNewAgentLaunched(m Model, msg newAgentLaunchedMsg) (Model, tea.Cmd) {
 	}
 	m.newAgentDraft = nil
 	return m, nil
-}
-
-// naLaunchCmdErr routes a spawn CmdErrMsg to a launch the page is waiting
-// on, so it shows on the page and not also as a board error.
-func naLaunchCmdErr(m Model, msg CmdErrMsg) (Model, bool) {
-	if msg.Op != "spawn" {
-		return m, false
-	}
-	for _, st := range []*NewAgentState{m.NewAgent, m.newAgentDraft} {
-		if st != nil && st.Launching {
-			m, _ = handleNewAgentLaunched(m, newAgentLaunchedMsg{Err: msg.Err, gen: st.launchGen})
-			return m, true
-		}
-	}
-	return m, false
 }
 
 // naLaunchingKey is a key while the launch waits for the daemon: esc
