@@ -11,7 +11,8 @@ import (
 func RunComplete(args []string) error {
 	fs := flag.NewFlagSet("complete", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	rest, err := core.ParseArgs(fs, args)
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -32,5 +33,18 @@ func RunComplete(args []string) error {
 	if err := c.Complete(sess.ID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	return nil
+	p := core.Out()
+	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: "completed " + sess.ShortID + " " + sess.Slug, Silent: true}
+	return p.Emit(core.Result{
+		Cmd:  "complete",
+		Data: completeData{ID: sess.ID, ShortID: sess.ShortID, Slug: sess.Slug},
+		View: core.ActionView(line, core.Field{Key: "id", Val: sess.ShortID}, core.Field{Key: "slug", Val: sess.Slug}),
+	})
+}
+
+// completeData is the `-o json` payload of rex complete.
+type completeData struct {
+	ID      string `json:"id"`
+	ShortID string `json:"short_id"`
+	Slug    string `json:"slug"`
 }

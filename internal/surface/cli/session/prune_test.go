@@ -114,14 +114,41 @@ func (d *pruneDaemon) serve(conn net.Conn) {
 	}
 }
 
-// withPruneIO swaps RunPrune's terminal for buffers.
+// withPruneIO installs a Printer whose stdin is stdin and whose terminals
+// are interactive or not, with buffers for stdout and stderr. A terminal
+// gets the text format (the only one that asks); a pipe gets txt.
 func withPruneIO(t *testing.T, stdin string, interactive bool) (*bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
-	saved := pruneIO
+	return withPruneIOFormat(t, stdin, interactive, "")
+}
+
+// withPruneIOFormat is withPruneIO with the output format chosen (empty:
+// text on a terminal, txt on a pipe).
+func withPruneIOFormat(t *testing.T, stdin string, interactive bool, format string) (*bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
 	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
-	pruneIO.in, pruneIO.out, pruneIO.errOut = strings.NewReader(stdin), out, errOut
-	pruneIO.interactive = func() bool { return interactive }
-	t.Cleanup(func() { pruneIO = saved })
+	env := core.Env{
+		Getenv: func(k string) string {
+			if k == "NO_COLOR" {
+				return "1"
+			}
+			return ""
+		},
+		InTTY: interactive, ErrTTY: interactive, Width: 80, Scheme: "default", GOOS: "linux",
+	}
+	p, err := core.NewPrinter(core.FormatFlags{}, env, out, errOut)
+	require.NoError(t, err)
+	switch {
+	case format != "":
+		p, err = core.NewPrinter(core.FormatFlags{Output: format}, env, out, errOut)
+		require.NoError(t, err)
+	case interactive:
+		p, err = core.NewPrinter(core.FormatFlags{Output: "text"}, env, out, errOut)
+		require.NoError(t, err)
+	}
+	p.In = strings.NewReader(stdin)
+	core.SetOut(p)
+	t.Cleanup(func() { core.SetOut(nil) })
 	return out, errOut
 }
 

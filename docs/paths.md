@@ -46,6 +46,7 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 | `~/.local/state/rex/models-cache.json` | `rex-daemon` (when `model_autodetect` is on) | Cache of the model ids each agent listed (`qwen --list-models` and the like): per tool the binary path and mtime, the command, the time, and the ids. Trusted for 24 h and dropped when the binary changes. Owner-only (0600), replaced atomically, safe to delete (the next daemon start or `rex reload` detects again). Holds ids only. Never created while `model_autodetect` is off |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
 | `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`) |
+| `~/.local/state/rex/cli-errors.log` (+ `.1`) | `rex` | One JSONL record per failed CLI command: structure only (command, flag names, exit code and kind, error type names; no message or value). 0600, capped at 1 MiB plus one backup; read it with `rex errors`; off with `cli_error_log: false` or `REX_ERROR_LOG=0` |
 
 ## Socket
 
@@ -63,7 +64,7 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 | `HOME` (`USERPROFILE` on Windows) | `paths` | Root of every default path; required unless every path flag is given |
 | `XDG_RUNTIME_DIR` | `paths` | Default socket directory (absolute paths only) |
 | `REX_LOG_LEVEL` | `rexlog` | `debug`, `info`, `warn`, `error` (default `info`) |
-| `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
+| `REX_LOG_DIR` | `rexlog` | Directory for the `<name>.log` files (including `cli-errors.log`) instead of `~/.local/state/rex`. `daemon.log` and `tui-state.json` stay put |
 | `REX_QUIET_BOOT` | `rex` | Non-empty (not `0`): open the board without boot sounds, same as `rex --quiet-boot`. For scripted relaunches |
 | `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer. A non-local host receives the text of agents' screens |
 | `EDITOR` | `rex config edit` | Program to edit `init.lua` |

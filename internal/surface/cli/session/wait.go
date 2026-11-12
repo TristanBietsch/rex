@@ -21,9 +21,10 @@ var waitTargets = []string{"working", "needs_input", "done", "failed", "any"}
 func RunWait(args []string) error {
 	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	until := fs.String("until", "done", "target state: working | needs_input | done | failed | any")
 	timeout := fs.Duration("timeout", 0, "max wait duration (0 = no timeout)")
-	rest, err := core.ParseArgs(fs, args)
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -50,7 +51,7 @@ func RunWait(args []string) error {
 	}
 
 	if matchesState(sess.State, *until) {
-		return nil
+		return emitWait(sess, sess.State)
 	}
 
 	deadline := time.Time{}
@@ -93,7 +94,7 @@ func RunWait(args []string) error {
 			continue
 		}
 		if matchesState(protocol.State(stateStr), *until) {
-			return nil
+			return emitWait(sess, protocol.State(stateStr))
 		}
 	}
 }
@@ -109,4 +110,21 @@ func matchesState(actual protocol.State, target string) bool {
 		return false
 	}
 	return string(actual) == target
+}
+
+// waitData is the `-o json` payload of rex wait.
+type waitData struct {
+	actionData
+	State protocol.State `json:"state"`
+}
+
+// emitWait reports the state the wait ended on. txt stays silent: the exit
+// code is the answer.
+func emitWait(s protocol.SessionSummary, state protocol.State) error {
+	text := s.Slug + " is " + string(state)
+	if state == protocol.StateNeedsInput {
+		text = s.Slug + " needs you"
+	}
+	return emitAction("wait", waitData{refOf(s), state}, text, "",
+		sessionFields(s, core.Field{Key: "state", Val: string(state)}))
 }

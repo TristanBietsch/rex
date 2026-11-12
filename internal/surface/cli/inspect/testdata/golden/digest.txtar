@@ -1,0 +1,260 @@
+-- text.w40 --
+Digest  2026-11-11
+
+  sessions  3
+  active    2h 22m
+  done      1
+  failed    2
+
+By tool:
+  TOOL           SESSIONS  ACTIVE
+  claude       2 sessions  1h 24m
+  antigravity   1 session     58m
+
+By model:
+  MODEL          SESSIONS  ACTIVE
+  gemini-3-pro  1 session     58m
+  opus          1 session  1h 24m
+  sonnet        1 session    < 1m
+
+Sessions:
+     ID    SLUG      TOOL·MO…  ACTIVE  STATE
+  ●  a91c  refacto…  claude·…  1h 24m  done
+  ✕  7d4f  fix-aut…  claude·…    < 1m  failed
+  ○  0b2e  日本語…   antigra…     58m  crashed
+-- text.w80 --
+Digest  2026-11-11
+
+  sessions  3
+  active    2h 22m
+  done      1
+  failed    2
+
+By tool:
+  TOOL           SESSIONS  ACTIVE
+  claude       2 sessions  1h 24m
+  antigravity   1 session     58m
+
+By model:
+  MODEL          SESSIONS  ACTIVE
+  gemini-3-pro  1 session     58m
+  opus          1 session  1h 24m
+  sonnet        1 session    < 1m
+
+Sessions:
+     ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
+  ●  a91c  refactor-db           claude·opus         1h 24m  done
+  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
+-- text.w120 --
+Digest  2026-11-11
+
+  sessions  3
+  active    2h 22m
+  done      1
+  failed    2
+
+By tool:
+  TOOL           SESSIONS  ACTIVE
+  claude       2 sessions  1h 24m
+  antigravity   1 session     58m
+
+By model:
+  MODEL          SESSIONS  ACTIVE
+  gemini-3-pro  1 session     58m
+  opus          1 session  1h 24m
+  sonnet        1 session    < 1m
+
+Sessions:
+     ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
+  ●  a91c  refactor-db           claude·opus         1h 24m  done
+  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
+-- text.color.w80 --
+␛[1;38;2;230;230;230mDigest␛[0m  ␛[38;2;121;127;140m2026-11-11␛[0m
+
+  ␛[38;2;121;127;140msessions␛[0m  3
+  ␛[38;2;121;127;140mactive  ␛[0m  2h 22m
+  ␛[38;2;121;127;140mdone    ␛[0m  1
+  ␛[38;2;121;127;140mfailed  ␛[0m  2
+
+␛[1;38;2;230;230;230mBy tool:␛[0m
+  ␛[38;2;121;127;140mTOOL␛[0m           ␛[38;2;121;127;140mSESSIONS␛[0m  ␛[38;2;121;127;140mACTIVE␛[0m
+  claude       2 sessions  1h 24m
+  antigravity   1 session     58m
+
+␛[1;38;2;230;230;230mBy model:␛[0m
+  ␛[38;2;121;127;140mMODEL␛[0m          ␛[38;2;121;127;140mSESSIONS␛[0m  ␛[38;2;121;127;140mACTIVE␛[0m
+  gemini-3-pro  1 session     58m
+  opus          1 session  1h 24m
+  sonnet        1 session    < 1m
+
+␛[1;38;2;230;230;230mSessions:␛[0m
+     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mSLUG␛[0m                  ␛[38;2;121;127;140mTOOL·MODEL␛[0m          ␛[38;2;121;127;140mACTIVE␛[0m  ␛[38;2;121;127;140mSTATE␛[0m
+  ␛[38;2;73;222;128m●␛[0m  a91c  refactor-db           claude·opus         ␛[38;2;121;127;140m1h 24m␛[0m  ␛[38;2;73;222;128mdone␛[0m
+  ␛[38;2;239;68;68m✕␛[0m  7d4f  fix-auth-flow         claude·sonnet         ␛[38;2;121;127;140m< 1m␛[0m  ␛[38;2;239;68;68mfailed␛[0m
+  ␛[38;2;121;127;140m○␛[0m  0b2e  日本語のスラッグ日…   antigravity·gemin…     ␛[38;2;121;127;140m58m␛[0m  ␛[38;2;121;127;140mcrashed␛[0m
+-- txt --
+date      2026-11-11
+sessions  3
+active    2h 22m
+done      1
+failed    2
+
+# By tool
+TOOL           SESSIONS  ACTIVE
+claude       2 sessions  1h 24m
+antigravity   1 session     58m
+
+# By model
+MODEL          SESSIONS  ACTIVE
+gemini-3-pro  1 session     58m
+opus          1 session  1h 24m
+sonnet        1 session    < 1m
+
+# Sessions
+ID    SLUG                 TOOL·MODEL          ACTIVE  STATE
+a91c  refactor-db          claude·opus         1h 24m  done
+7d4f  fix-auth-flow        claude·sonnet         < 1m  failed
+0b2e  日本語のスラッグ日…  antigravity·gemin…     58m  crashed
+-- md --
+### Digest
+
+*2026-11-11*
+
+| Key | Value |
+| --- | --- |
+| sessions | 3 |
+| active | 2h 22m |
+| done | 1 |
+| failed | 2 |
+
+#### By tool
+
+| tool | Sessions | Active |
+| --- | ---: | ---: |
+| claude | 2 sessions | 1h 24m |
+| antigravity | 1 session | 58m |
+
+#### By model
+
+| model | Sessions | Active |
+| --- | ---: | ---: |
+| gemini-3-pro | 1 session | 58m |
+| opus | 1 session | 1h 24m |
+| sonnet | 1 session | &lt; 1m |
+
+#### Sessions
+
+| ID | Slug | Tool·Model | Active | State |
+| --- | --- | --- | ---: | --- |
+| a91c | refactor-db | claude·opus | 1h 24m | done |
+| 7d4f | fix-auth-flow | claude·sonnet | &lt; 1m | failed |
+| 0b2e | 日本語のスラッグ日本語のスラッグ日本語のスラッグ | antigravity·gemini-3-pro | 58m | crashed |
+-- json --
+{"v":1,"cmd":"digest","data":{"date":"2026-11-11","totals":{"count":3,"active_ms":8540000,"done":1,"needs_input":0,"failed":2,"working":0,"queued":0},"by_tool":[{"key":"claude","count":2,"active_ms":5060000},{"key":"antigravity","count":1,"active_ms":3480000}],"by_model":[{"key":"gemini-3-pro","count":1,"active_ms":3480000},{"key":"opus","count":1,"active_ms":5040000},{"key":"sonnet","count":1,"active_ms":20000}],"sessions":[{"id":"a91c0000","short_id":"a91c","tool_id":"claude","model_id":"opus","slug":"refactor-db","cwd":"","state":"done","started_at":"2026-11-11T08:00:00Z","last_event_at":"2026-11-11T09:24:00Z"},{"id":"7d4f0000","short_id":"7d4f","tool_id":"claude","model_id":"sonnet","slug":"fix-auth-flow","cwd":"","state":"failed","started_at":"2026-11-11T09:00:00Z","last_event_at":"2026-11-11T09:00:20Z"},{"id":"0b2e0000","short_id":"0b2e","tool_id":"antigravity","model_id":"gemini-3-pro","slug":"日本語のスラッグ日本語のスラッグ日本語のスラッグ","cwd":"","state":"crashed","started_at":"2026-11-11T10:00:00Z","last_event_at":"2026-11-11T10:58:00Z","fleet":"alpha"}]}}
+-- agent --
+tool key=claude sessions=2 active_s=5060
+tool key=antigravity sessions=1 active_s=3480
+model key=gemini-3-pro sessions=1 active_s=3480
+model key=opus sessions=1 active_s=5040
+model key=sonnet sessions=1 active_s=20
+session id=a91c slug=refactor-db tool=claude model=opus active_s=5040 state=done
+session id=7d4f slug=fix-auth-flow tool=claude model=sonnet active_s=20 state=failed
+session id=0b2e slug="日本語のスラッグ日本語のスラッグ日本語のスラッグ" tool=antigravity model=gemini-3-pro active_s=3480 state=crashed
+ok cmd=digest count=3 date=2026-11-11 sessions=3 active_s=8540 done=1 needs_input=0 failed=2 working=0 queued=0
+-- disk.text.w80 --
+Digest  2026-11-11
+
+daemon not running, showing on-disk snapshot only
+
+  sessions  3
+  active    2h 22m
+  done      1
+  failed    2
+
+By tool:
+  TOOL           SESSIONS  ACTIVE
+  claude       2 sessions  1h 24m
+  antigravity   1 session     58m
+
+By model:
+  MODEL          SESSIONS  ACTIVE
+  gemini-3-pro  1 session     58m
+  opus          1 session  1h 24m
+  sonnet        1 session    < 1m
+
+Sessions:
+     ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
+  ●  a91c  refactor-db           claude·opus         1h 24m  done
+  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
+-- disk.txt --
+daemon not running, showing on-disk snapshot only
+
+date      2026-11-11
+sessions  3
+active    2h 22m
+done      1
+failed    2
+
+# By tool
+TOOL           SESSIONS  ACTIVE
+claude       2 sessions  1h 24m
+antigravity   1 session     58m
+
+# By model
+MODEL          SESSIONS  ACTIVE
+gemini-3-pro  1 session     58m
+opus          1 session  1h 24m
+sonnet        1 session    < 1m
+
+# Sessions
+ID    SLUG                 TOOL·MODEL          ACTIVE  STATE
+a91c  refactor-db          claude·opus         1h 24m  done
+7d4f  fix-auth-flow        claude·sonnet         < 1m  failed
+0b2e  日本語のスラッグ日…  antigravity·gemin…     58m  crashed
+-- disk.json --
+{"v":1,"cmd":"digest","data":{"date":"2026-11-11","totals":{"count":3,"active_ms":8540000,"done":1,"needs_input":0,"failed":2,"working":0,"queued":0},"by_tool":[{"key":"claude","count":2,"active_ms":5060000},{"key":"antigravity","count":1,"active_ms":3480000}],"by_model":[{"key":"gemini-3-pro","count":1,"active_ms":3480000},{"key":"opus","count":1,"active_ms":5040000},{"key":"sonnet","count":1,"active_ms":20000}],"sessions":[{"id":"a91c0000","short_id":"a91c","tool_id":"claude","model_id":"opus","slug":"refactor-db","cwd":"","state":"done","started_at":"2026-11-11T08:00:00Z","last_event_at":"2026-11-11T09:24:00Z"},{"id":"7d4f0000","short_id":"7d4f","tool_id":"claude","model_id":"sonnet","slug":"fix-auth-flow","cwd":"","state":"failed","started_at":"2026-11-11T09:00:00Z","last_event_at":"2026-11-11T09:00:20Z"},{"id":"0b2e0000","short_id":"0b2e","tool_id":"antigravity","model_id":"gemini-3-pro","slug":"日本語のスラッグ日本語のスラッグ日本語のスラッグ","cwd":"","state":"crashed","started_at":"2026-11-11T10:00:00Z","last_event_at":"2026-11-11T10:58:00Z","fleet":"alpha"}]},"meta":{"source":"disk"}}
+-- disk.agent --
+tool key=claude sessions=2 active_s=5060
+tool key=antigravity sessions=1 active_s=3480
+model key=gemini-3-pro sessions=1 active_s=3480
+model key=opus sessions=1 active_s=5040
+model key=sonnet sessions=1 active_s=20
+session id=a91c slug=refactor-db tool=claude model=opus active_s=5040 state=done
+session id=7d4f slug=fix-auth-flow tool=claude model=sonnet active_s=20 state=failed
+session id=0b2e slug="日本語のスラッグ日本語のスラッグ日本語のスラッグ" tool=antigravity model=gemini-3-pro active_s=3480 state=crashed
+ok cmd=digest count=3 date=2026-11-11 sessions=3 active_s=8540 done=1 needs_input=0 failed=2 working=0 queued=0 source=disk
+-- empty.text --
+Digest  2026-11-11
+
+no sessions on 2026-11-11
+-- empty.txt --
+no sessions on 2026-11-11
+-- empty.agent --
+ok cmd=digest date=2026-11-11 sessions=0
+-- multiday.text --
+Digest  2026-11-05 → 2026-11-11
+
+  sessions  3
+  active    2h 22m
+  done      1
+  failed    2
+
+By tool:
+  TOOL           SESSIONS  ACTIVE
+  claude       2 sessions  1h 24m
+  antigravity   1 session     58m
+
+By model:
+  MODEL          SESSIONS  ACTIVE
+  gemini-3-pro  1 session     58m
+  opus          1 session  1h 24m
+  sonnet        1 session    < 1m
+
+Sessions:
+     ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
+  ●  a91c  refactor-db           claude·opus         1h 24m  done
+  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed

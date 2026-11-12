@@ -15,9 +15,10 @@ import (
 func RunRender(args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.ContentFormats)
 	widthFlag := fs.String("w", "120", "render width")
 	heightFlag := fs.String("h", "30", "render height")
-	_, err := core.ParseArgs(fs, args)
+	_, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -43,6 +44,6 @@ func RunRender(args []string) error {
 	if len(snap.Sessions) > 0 {
 		m.SelectedID = snap.Sessions[0].ID
 	}
-	fmt.Println(m.View())
-	return nil
+	_, err = fmt.Fprintln(core.Out().Out, m.View())
+	return err
 }

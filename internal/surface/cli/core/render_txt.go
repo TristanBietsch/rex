@@ -12,33 +12,66 @@ func displayWidth(s string) int { return ansi.StringWidth(s) }
 // Header or Hint blocks, no wrapping. Tables use fixed column widths (Col.Width)
 // truncated by display width.
 func (p *Printer) renderTXT(v View) string {
-	var blocks []string
+	var l blockList
 	for _, b := range v {
 		switch b := b.(type) {
 		case Section:
-			blocks = append(blocks, "# "+b.Title)
+			l.section("# " + b.Title)
 		case KV:
 			if b.Txt != "" {
-				blocks = append(blocks, b.Txt)
+				l.add(b.Txt)
 				continue
 			}
-			blocks = append(blocks, txtKV(b))
+			l.add(txtKV(b))
 		case Table:
-			blocks = append(blocks, txtTable(b))
+			l.add(txtTable(b))
 		case Checks:
-			blocks = append(blocks, p.txtChecks(b))
+			l.add(p.txtChecks(b))
 		case Note:
-			blocks = append(blocks, b.Text)
+			l.add(b.Text)
 		case Line:
-			if b.Txt != "" {
-				blocks = append(blocks, b.Txt)
-			} else {
-				blocks = append(blocks, b.Text)
+			if b.Silent {
+				continue
 			}
+			if b.Txt != "" {
+				l.add(b.Txt)
+			} else {
+				l.add(b.Text)
+			}
+		case Para, Pre:
+			l.add(blockText(b))
+		case Defs:
+			l.add(txtDefs(b))
 		case Header, Hint:
 		}
 	}
-	return joinBlocks(blocks)
+	return l.String()
+}
+
+func txtDefs(d Defs) string {
+	w := defNameWidth(d.Items)
+	lines := make([]string, len(d.Items))
+	for i, it := range d.Items {
+		switch {
+		case it.Desc == "":
+			lines[i] = "  " + it.Name
+		case displayWidth(it.Name) > defNameMax:
+			lines[i] = "  " + it.Name + "  " + it.Desc
+		default:
+			lines[i] = "  " + padRight(it.Name, w) + "  " + it.Desc
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func blockText(b Block) string {
+	switch b := b.(type) {
+	case Para:
+		return b.Text
+	case Pre:
+		return b.Text
+	}
+	return ""
 }
 
 func pairLabel(p Pair) string {
@@ -63,8 +96,25 @@ func txtKV(kv KV) string {
 
 func txtTable(t Table) string {
 	idx := visibleCols(t.Cols, FormatTXT)
+	if len(idx) == 0 {
+		return "" // every column is for another format
+	}
 	if len(t.Rows) == 0 && t.Empty != "" {
 		return t.Empty
+	}
+	if t.TxtRecords {
+		lines := make([]string, len(t.Rows))
+		for i, r := range t.Rows {
+			parts := make([]string, len(idx))
+			for n, c := range idx {
+				parts[n] = r[c].txt()
+			}
+			lines[i] = strings.Join(parts, "\t")
+		}
+		if t.TxtFoot != "" {
+			lines = append(lines, t.TxtFoot)
+		}
+		return strings.Join(lines, "\n")
 	}
 	cell := func(r []Cell, i int) string {
 		s := r[i].txt()

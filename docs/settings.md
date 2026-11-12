@@ -66,6 +66,8 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `search` | bool | `true` | Board search: `/` and `:search`. Off: `/` does nothing, `:search` refuses, and a saved or stale query is ignored |
 | `undo_complete` | bool | `true` | The `uc` key and `:uc` / `:resume`, which take a session out of Done. Off: `uc` does nothing and the commands refuse; `:undone` (unmark only) still works |
 | `resume` | bool | `true` | Track each session's agent conversation id (resume id) so an exited session can be resumed: the resume id column, `:rid` and the `Resume` intent. Off: no `--session-id` is preassigned, no id is captured from hooks or `capture_regex`, the column and `:rid` go away, and `Resume` is refused with `bad_intent` `resume is off`. The daemon reads it at each spawn and `Resume`; the TUI at each frame. Ids already stored stay in `meta.json` |
+| `timestamps` | bool | `true` | Start and end times: the start→end span column in the detailed board view and `STARTED` / `ENDED` in `rex ls -wide`. Off: no column and no such columns. The end time (`ended_at`) is still recorded. Read at each frame and each `rex ls` |
+| `cli_agent_auto` | bool | `true` | Switch rex's CLI to agent mode (one line per record, no color, no prompts) when `CLAUDECODE=1` and stdout is not a terminal. Off: only `--agent`, `-o agent` and `REX_AGENT=1` do. `REX_AGENT=0` turns it off for one run. See [cli.md](cli.md#agent-mode) |
 | `summary_preview` | bool | `true` | A line under the board with the selected session's full AI summary and its age. Shown only while some session has a summary. Off: no line and no row reserved |
 | `turn_snapshots` | bool | `false` | Snapshot a session's folder at the start and end of every agent turn into a private store under `~/.local/share/rex/snapshots`, so `rex undo` can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as `.env` unless they are gitignored. Off: no snapshot, no git call, no file written, and `rex undo` / `rex redo` refuse. Read live by the daemon (within about 5 s). See [snapshots](snapshots.md) |
 | `waiting_section` | bool | `true` | A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own `◷` marker and count. Off: those sessions stay in Working, the section, its count and its key go away, and `1` `2` `3` (and `z1`-`z3`) are Needs you / Working / Done again. The daemon still records `waiting_on` / `waiting_since`; the switch is read by the TUI and `rex ls` |
@@ -147,6 +149,7 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 | ID | Type | Default | Notes |
 |----|------|---------|-------|
 | `lua_config_path` | string | `~/.config/rex/init.lua` | Read-only in TUI; path for Lua hooks |
+| `cli_error_log` | bool | `true` | Keep a private record of failed `rex` commands in `~/.local/state/rex/cli-errors.log`: structure only (command, flag names, exit code and kind, error type names), never any message, prompt, value or path. 1 MiB plus one backup, 0600. Read with `rex errors`. `REX_ERROR_LOG=0` also turns it off |
 
 ## Example
 

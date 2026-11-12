@@ -31,7 +31,7 @@ func emitLsWaiting(t *testing.T, format string, waiting bool) string {
 	t.Helper()
 	ss := waitingSessions()
 	p, out := lsPrinter(t, format, 100, false)
-	require.NoError(t, p.Emit(core.Result{Cmd: "ls", Data: ss, View: lsView(ss, lsNow, p.Glyphs, waiting)}))
+	require.NoError(t, p.Emit(core.Result{Cmd: "ls", Data: ss, View: lsView(ss, lsNow, p.Glyphs, lsOpts{Waiting: waiting})}))
 	return out.String()
 }
 
@@ -70,7 +70,7 @@ func TestLsWaitingFlagOff(t *testing.T) {
 func TestLsJSONCarriesWaitFields(t *testing.T) {
 	ss := waitingSessions()[:1]
 	p, out := lsPrinter(t, "json", 100, false)
-	require.NoError(t, p.Emit(core.Result{Cmd: "ls", Data: ss, View: lsView(ss, lsNow, p.Glyphs, true)}))
+	require.NoError(t, p.Emit(core.Result{Cmd: "ls", Data: ss, View: lsView(ss, lsNow, p.Glyphs, lsOpts{Waiting: true})}))
 	require.Contains(t, out.String(), `"waiting_on":"shell"`)
 	require.Contains(t, out.String(), `"waiting_since":`)
 }

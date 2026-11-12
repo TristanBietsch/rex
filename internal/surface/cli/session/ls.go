@@ -22,6 +22,7 @@ func RunLs(args []string) error {
 	modelFilter := fs.String("model", "", "filter by model id")
 	showArchived := fs.Bool("show-archived", false, "(deprecated, no effect)")
 	short := fs.Bool("short", false, "(deprecated, no effect)")
+	wide := fs.Bool("wide", false, "add STARTED and ENDED columns")
 	if _, err := out.Parse(fs, args); err != nil {
 		return err
 	}
@@ -57,17 +58,22 @@ func RunLs(args []string) error {
 	return p.Emit(core.Result{
 		Cmd:    "ls",
 		Data:   filtered,
-		View:   lsView(filtered, p.Now(), p.Glyphs, settings.FeatureOn(st, "waiting_section")),
+		View:   lsView(filtered, p.Now(), p.Glyphs, lsOpts{Waiting: settings.FeatureOn(st, "waiting_section"), Wide: *wide, Times: *wide && featureOn("timestamps"), Resume: *wide && featureOn("resume")}),
 		Legacy: func(w io.Writer) error { return core.WriteSessionsJSONL(w, filtered) },
 	})
 }
 
-// stateLabel is the human name of a session state.
-func stateLabel(s protocol.State) string {
-	if s == protocol.StateNeedsInput {
-		return "needs you"
-	}
-	return string(s)
+// lsOpts selects the extra `-wide` columns.
+type lsOpts struct {
+	// Wide is -wide.
+	Wide bool
+	// Times adds STARTED and ENDED (the timestamps feature).
+	Times bool
+	// Resume adds RESUME ID (the resume feature).
+	Resume bool
+	// Waiting shows sessions waiting on a tool as "waiting (shell)" (the
+	// waiting_section feature).
+	Waiting bool
 }
 
 // waitingKind is what the session is waiting on at now ("" unless the
@@ -80,22 +86,39 @@ func waitingKind(s protocol.SessionSummary, now time.Time, on bool) string {
 	return s.WaitingFor(now)
 }
 
-func stateTone(s protocol.State) core.Tone {
-	switch s {
-	case protocol.StateNeedsInput:
-		return core.ToneNeeds
-	case protocol.StateWorking:
-		return core.ToneWorking
-	case protocol.StateQueued:
-		return core.ToneQueued
-	case protocol.StateDone:
-		return core.ToneDone
-	case protocol.StateFailed:
-		return core.ToneFailed
-	case protocol.StateCrashed:
-		return core.ToneCrashed
+// clockTime is t in now's zone as "2006-01-02 15:04", or "-" when unset.
+func clockTime(now, t time.Time) string {
+	if t.IsZero() {
+		return "-"
 	}
-	return core.ToneNone
+	return t.In(now.Location()).Format("2006-01-02 15:04")
+}
+
+// endedAt is when the session reached a terminal state. An older daemon sends
+// no ended_at, so a finished session falls back to its last event.
+func endedAt(s protocol.SessionSummary) time.Time {
+	if !s.EndedAt.IsZero() {
+		return s.EndedAt
+	}
+	switch s.State {
+	case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
+		return s.LastEventAt
+	case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
+	}
+	return time.Time{}
+}
+
+func rfc3339(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+// SessionsView is the session table of rex ls, for the other commands that
+// list sessions (rex fleet show).
+func SessionsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs) core.View {
+	return lsView(sessions, now, g, lsOpts{})
 }
 
 // lsView builds the session list. The txt columns reproduce `rex ls` as it
@@ -106,7 +129,7 @@ func stateTone(s protocol.State) core.Tone {
 // in seconds (-1 when unknown). A session waiting on a tool shows "waiting
 // (shell)" in text and md; txt and the agent state= key keep "working"
 // (scripts parse them); json carries waiting_on and waiting_since.
-func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, waitingOn bool) core.View {
+func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, opts lsOpts) core.View {
 	text, txt, md := core.SetOf(core.FormatText), core.SetOf(core.FormatTXT), core.SetOf(core.FormatMD)
 	agent := core.SetOf(core.FormatAgent)
 	human := text | md
@@ -122,14 +145,24 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, wa
 		{Key: "last_event", Title: "Last event", Width: 10, Formats: txt},
 		{Key: "idle", Title: "Idle", Align: core.AlignRight, Formats: human},
 		{Key: "idle_s", Title: "Idle s", Formats: agent},
-		// text and txt show the done marker; md, agent and json carry the real name.
-		{Key: "name", Title: "Name", Below: true, Formats: text | txt},
-		{Key: "name", Title: "Name", Formats: md | agent},
 	}
+	if opts.Wide && opts.Times {
+		// Before NAME, which stays last in txt.
+		cols = append(cols,
+			core.Col{Key: "started", Title: "Started", DropBelow: 100},
+			core.Col{Key: "ended", Title: "Ended", DropBelow: 100})
+	}
+	if opts.Wide && opts.Resume {
+		cols = append(cols, core.Col{Key: "resume_id", Title: "Resume ID", DropBelow: 140})
+	}
+	cols = append(cols,
+		// text and txt show the done marker; md, agent and json carry the real name.
+		core.Col{Key: "name", Title: "Name", Below: true, Formats: text | txt},
+		core.Col{Key: "name", Title: "Name", Formats: md | agent})
 	var needs, waiting, working, done int
 	rows := make([][]core.Cell, 0, len(sessions))
 	for _, s := range sessions {
-		wait := waitingKind(s, now, waitingOn)
+		wait := waitingKind(s, now, opts.Waiting)
 		switch s.State {
 		case protocol.StateNeedsInput:
 			needs++
@@ -156,12 +189,12 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, wa
 		if !s.LastEventAt.IsZero() {
 			idleS = int(now.Sub(s.LastEventAt).Seconds())
 		}
-		tone := stateTone(s.State)
-		label := stateLabel(s.State)
+		tone := core.StateTone(s.State)
+		label := core.StateLabel(s.State)
 		if wait != "" {
 			label = "waiting (" + wait + ")"
 		}
-		rows = append(rows, []core.Cell{
+		cells := []core.Cell{
 			{Text: g.State[s.State], Tone: tone},
 			{Text: s.ShortID},
 			{Text: label, Txt: string(s.State), Raw: string(s.State), Tone: tone},
@@ -173,9 +206,26 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, wa
 			{Text: ago},
 			{Text: strings.TrimSuffix(ago, " ago"), Tone: core.ToneDim},
 			{Text: fmt.Sprint(idleS), Raw: idleS},
-			{Text: shown},
-			{Text: s.Name},
-		})
+		}
+		if opts.Wide && opts.Times {
+			end := endedAt(s)
+			cells = append(cells,
+				core.Cell{Text: clockTime(now, s.StartedAt), Raw: rfc3339(s.StartedAt)},
+				core.Cell{Text: clockTime(now, end), Raw: rfc3339(end)})
+		}
+		if opts.Wide && opts.Resume {
+			id := "-"
+			if protocol.ValidResumeID(s.ResumeID) {
+				id = s.ResumeID
+			}
+			raw := id
+			if id == "-" {
+				raw = ""
+			}
+			cells = append(cells, core.Cell{Text: id, Raw: raw})
+		}
+		cells = append(cells, core.Cell{Text: shown}, core.Cell{Text: s.Name})
+		rows = append(rows, cells)
 	}
 	meta := []string{}
 	for _, c := range []struct {

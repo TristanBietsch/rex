@@ -2,7 +2,6 @@
 Sessions  1 needs you · 1 working
 
 Fleet:
-
   Version  v1
   Binary   /very/long/path/to/the/rex/bi
            nary/that/needs/to/wrap/aroun
@@ -28,7 +27,6 @@ on-disk snapshot
 Sessions  1 needs you · 1 working
 
 Fleet:
-
   Version  v1
   Binary   /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/termi
            nal/width/for/sure/ok
@@ -52,7 +50,6 @@ on-disk snapshot
 Sessions  1 needs you · 1 working
 
 Fleet:
-
   Version  v1
   Binary   /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/terminal/width/for/sure/ok
 
@@ -75,7 +72,6 @@ on-disk snapshot
 ␛[1;38;2;230;230;230mSessions␛[0m  ␛[38;2;121;127;140m1 needs you · 1 working␛[0m
 
 ␛[1;38;2;230;230;230mFleet:␛[0m
-
   ␛[38;2;121;127;140mVersion␛[0m  v1
   ␛[38;2;121;127;140mBinary ␛[0m  /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/termi
            nal/width/for/sure/ok
@@ -97,7 +93,6 @@ on-disk snapshot
 ␛[1;38;2;91;141;239m› rex attach 7d4f␛[0m  ␛[38;2;121;127;140mopen a session␛[0m
 -- txt --
 # Fleet
-
 Version  v1
 Binary   /very/long/path/to/the/rex/binary/that/needs/to/wrap/around/the/terminal/width/for/sure/ok
 

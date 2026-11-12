@@ -100,13 +100,13 @@ func TestBoardSpanColumn(t *testing.T) {
 // The span is the first column to go on a narrow terminal: tokens survive it.
 func TestBoardLayout_SpanDropsBeforeTokens(t *testing.T) {
 	sessions := spanSessions()
-	full := layoutFit(sessions, timesNow, 160, true, true)
+	full := layoutFit(sessions, timesNow, 160, true, true, true)
 	require.Positive(t, full.span)
 	require.Positive(t, full.tokens)
 
 	// Narrow enough that something has to give, but tokens can still stay.
 	for w := 160; w > 40; w-- {
-		c := layoutFit(sessions, timesNow, w, true, true)
+		c := layoutFit(sessions, timesNow, w, true, true, true)
 		if c.span == 0 {
 			require.Positive(t, c.tokens, "width %d: span dropped first, tokens still there", w)
 			return

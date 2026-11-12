@@ -21,6 +21,14 @@ func (p *Printer) Emit(r Result) error {
 		}
 		return r.Legacy(p.Out)
 	}
+	if r.Content != "" && p.Format != FormatJSON {
+		s := strings.TrimSuffix(r.Content, "\n") + "\n"
+		if p.Format == FormatMD {
+			s = "```text\n" + s + "```\n"
+		}
+		_, err := io.WriteString(p.Out, s)
+		return err
+	}
 	var s string
 	switch p.Format {
 	case FormatJSON:
@@ -29,7 +37,7 @@ func (p *Printer) Emit(r Result) error {
 			return err
 		}
 	case FormatAgent:
-		s = renderAgent(cmd, r.View, r.Meta)
+		s = renderAgent(cmd, r.View, r.Meta, r.Failed)
 	case FormatMD:
 		s = p.renderMD(r.View.sanitized())
 	case FormatTXT:
@@ -42,13 +50,47 @@ func (p *Printer) Emit(r Result) error {
 }
 
 // joinBlocks joins rendered blocks with one blank line and ends the output
-// with a single newline. No blocks means no output.
+// with a single newline. A block that rendered nothing (a KV whose pairs are
+// all for another format) is skipped; no blocks means no output.
 func joinBlocks(blocks []string) string {
-	if len(blocks) == 0 {
+	kept := make([]string, 0, len(blocks))
+	for _, b := range blocks {
+		if b != "" {
+			kept = append(kept, b)
+		}
+	}
+	if len(kept) == 0 {
 		return ""
 	}
-	return strings.Join(blocks, "\n\n") + "\n"
+	return strings.Join(kept, "\n\n") + "\n"
 }
+
+// blockList collects rendered blocks. A Section is attached to the block
+// after it (no blank line between the title and its body); every other
+// pair of blocks is separated by one blank line.
+type blockList struct {
+	blocks []string
+	attach bool
+}
+
+func (l *blockList) add(s string) {
+	if s == "" {
+		return
+	}
+	if l.attach && len(l.blocks) > 0 {
+		l.blocks[len(l.blocks)-1] += "\n" + s
+	} else {
+		l.blocks = append(l.blocks, s)
+	}
+	l.attach = false
+}
+
+func (l *blockList) section(s string) {
+	l.add(s)
+	l.attach = true
+}
+
+func (l *blockList) String() string { return joinBlocks(l.blocks) }
 
 // visibleCols returns the indexes of the columns shown in f.
 func visibleCols(cols []Col, f Format) []int {

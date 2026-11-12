@@ -53,6 +53,9 @@ func (p *Printer) renderMD(v View) string {
 			blocks = append(blocks, "#### "+escapeMD(b.Title))
 		case KV:
 			pairs := b.pairs(FormatMD)
+			if len(pairs) == 0 {
+				continue
+			}
 			rows := make([][]string, len(pairs))
 			for i, pr := range pairs {
 				rows[i] = []string{escapeMD(pairLabel(pr)), escapeMD(pr.Val.Text)}
@@ -60,6 +63,9 @@ func (p *Printer) renderMD(v View) string {
 			blocks = append(blocks, mdTable([]string{"Key", "Value"}, []Align{AlignLeft, AlignLeft}, rows))
 		case Table:
 			idx := visibleCols(b.Cols, FormatMD)
+			if len(idx) == 0 {
+				continue
+			}
 			if len(b.Rows) == 0 && b.Empty != "" {
 				blocks = append(blocks, escapeMD(b.Empty))
 				continue
@@ -93,6 +99,19 @@ func (p *Printer) renderMD(v View) string {
 			blocks = append(blocks, "`"+strings.ReplaceAll(b.Cmd, "`", "'")+"` "+escapeMD(b.Text))
 		case Line:
 			blocks = append(blocks, escapeMD(b.Text))
+		case Para:
+			blocks = append(blocks, escapeMD(b.Text))
+		case Pre:
+			blocks = append(blocks, "```\n"+strings.ReplaceAll(b.Text, "```", "'''")+"\n```")
+		case Defs:
+			if len(b.Items) == 0 {
+				continue
+			}
+			rows := make([][]string, len(b.Items))
+			for i, it := range b.Items {
+				rows[i] = []string{"`" + strings.ReplaceAll(it.Name, "`", "'") + "`", escapeMD(it.Desc)}
+			}
+			blocks = append(blocks, mdTable([]string{"Name", "Description"}, []Align{AlignLeft, AlignLeft}, rows))
 		}
 	}
 	return joinBlocks(blocks)

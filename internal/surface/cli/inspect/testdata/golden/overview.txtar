@@ -8,28 +8,23 @@ Overview  updated 40s ago
 2 ready for review   1 needs you   1 failed   1 working   1 completed
 
 Ready for review:
-
      ID    NAME           STATUS               AGE
   ●  r1ab  billing-tests  Done: 48 tests pass   3m
   ◆  r2cd  api docs       write api docs        9m
 
 Needs you:
-
      ID    NAME      STATUS           AGE
   ◆  n1ef  deploy    Deploy to prod?  40s
 
 Failed:
-
      ID    NAME        STATUS                  AGE
   ✕  f1gh  migrate-db  Failed: migration 004…   2h
 
 Working:
-
      ID    NAME        STATUS              AGE
   ⠋  w1ij  perf-audit  Running benchmarks   5s
 
 Completed (last 24 h):
-
      ID    NAME       STATUS        AGE
   ●  c1kl  old-spike  spike          2h
 
@@ -43,28 +38,23 @@ Overview  updated 40s ago
 2 ready for review   1 needs you   1 failed   1 working   1 completed
 
 Ready for review:
-
      ID    NAME           STATUS               AGE
   ●  r1ab  billing-tests  Done: 48 tests pass   3m
   ◆  r2cd  api docs       write api docs        9m
 
 Needs you:
-
      ID    NAME      STATUS           AGE
   ◆  n1ef  deploy    Deploy to prod?  40s
 
 Failed:
-
      ID    NAME        STATUS                            AGE
   ✕  f1gh  migrate-db  Failed: migration 0042 timed out   2h
 
 Working:
-
      ID    NAME        STATUS              AGE
   ⠋  w1ij  perf-audit  Running benchmarks   5s
 
 Completed (last 24 h):
-
      ID    NAME       STATUS        AGE
   ●  c1kl  old-spike  spike          2h
 
@@ -77,28 +67,23 @@ Overview  updated 40s ago
 2 ready for review   1 needs you   1 failed   1 working   1 completed
 
 Ready for review:
-
      ID    NAME           STATUS               AGE
   ●  r1ab  billing-tests  Done: 48 tests pass   3m
   ◆  r2cd  api docs       write api docs        9m
 
 Needs you:
-
      ID    NAME      STATUS           AGE
   ◆  n1ef  deploy    Deploy to prod?  40s
 
 Failed:
-
      ID    NAME        STATUS                            AGE
   ✕  f1gh  migrate-db  Failed: migration 0042 timed out   2h
 
 Working:
-
      ID    NAME        STATUS              AGE
   ⠋  w1ij  perf-audit  Running benchmarks   5s
 
 Completed (last 24 h):
-
      ID    NAME       STATUS        AGE
   ●  c1kl  old-spike  spike          2h
 
@@ -112,28 +97,23 @@ Completed (last 24 h):
 ␛[38;2;73;222;128m2 ready for review␛[0m   ␛[38;2;229;179;65m1 needs you␛[0m   ␛[38;2;239;68;68m1 failed␛[0m   ␛[38;2;91;141;239m1 working␛[0m   ␛[38;2;73;222;128m1 completed␛[0m
 
 ␛[1;38;2;230;230;230mReady for review:␛[0m
-
      ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m           ␛[38;2;121;127;140mSTATUS␛[0m               ␛[38;2;121;127;140mAGE␛[0m
   ␛[38;2;73;222;128m●␛[0m  r1ab  billing-tests  Done: 48 tests pass   ␛[38;2;121;127;140m3m␛[0m
   ␛[38;2;73;222;128m◆␛[0m  r2cd  api docs       write api docs        ␛[38;2;121;127;140m9m␛[0m
 
 ␛[1;38;2;230;230;230mNeeds you:␛[0m
-
      ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m      ␛[38;2;121;127;140mSTATUS␛[0m           ␛[38;2;121;127;140mAGE␛[0m
   ␛[38;2;229;179;65m◆␛[0m  n1ef  deploy    Deploy to prod?  ␛[38;2;121;127;140m40s␛[0m
 
 ␛[1;38;2;230;230;230mFailed:␛[0m
-
      ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m        ␛[38;2;121;127;140mSTATUS␛[0m                            ␛[38;2;121;127;140mAGE␛[0m
   ␛[38;2;239;68;68m✕␛[0m  f1gh  migrate-db  Failed: migration 0042 timed out   ␛[38;2;121;127;140m2h␛[0m
 
 ␛[1;38;2;230;230;230mWorking:␛[0m
-
      ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m        ␛[38;2;121;127;140mSTATUS␛[0m              ␛[38;2;121;127;140mAGE␛[0m
   ␛[38;2;91;141;239m⠋␛[0m  w1ij  perf-audit  Running benchmarks   ␛[38;2;121;127;140m5s␛[0m
 
 ␛[1;38;2;230;230;230mCompleted (last 24 h):␛[0m
-
      ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m       ␛[38;2;121;127;140mSTATUS␛[0m        ␛[38;2;121;127;140mAGE␛[0m
   ␛[38;2;73;222;128m●␛[0m  c1kl  old-spike  spike          ␛[38;2;121;127;140m2h␛[0m
 
@@ -144,28 +124,23 @@ Headline  billing-tests is ready for review; deploy asks a question and migrate-
 2 review · 1 needs_you · 1 failed · 1 working · 1 completed
 
 # Ready for review
-
 ID     NAME                      STATE        STATUS               AGE
 r1ab   billing-tests             done         Done: 48 tests pass   3m
 r2cd   api docs                  needs_input  write api docs        9m
 
 # Needs you
-
 ID     NAME                      STATE        STATUS           AGE
 n1ef   deploy                    needs_input  Deploy to prod?  40s
 
 # Failed
-
 ID     NAME                      STATE   STATUS                            AGE
 f1gh   migrate-db                failed  Failed: migration 0042 timed out   2h
 
 # Working
-
 ID     NAME                      STATE    STATUS              AGE
 w1ij   perf-audit                working  Running benchmarks   5s
 
 # Completed (last 24 h)
-
 ID     NAME                      STATE  STATUS  AGE
 c1kl   old-spike                 done   spike    2h
 -- md --

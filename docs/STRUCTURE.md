@@ -57,6 +57,7 @@ internal/
 ├── runtime/                # paths, process control, logging
 │   ├── daemonctl/          # spawn/check daemon, socket paths
 │   ├── ids/                # session UUID / short id
+│   ├── redact/             # argv redaction for the daemon log
 │   └── rexlog/             # file-backed slog for daemon/TUI
 ├── features/               # optional enhancements
 │   ├── skills/             # skill library + per-session plugin staging
@@ -81,7 +82,7 @@ internal/
 | `daemon/boot/` | Extracted from `cmd/rex-daemon` so `main` stays thin |
 | `wire/` | Shared socket protocol + client SDK |
 | `catalog/` | `tools.yaml`, `config.yaml` and color palette domains |
-| `runtime/` | Socket paths, daemon spawn, IDs, slog setup |
+| `runtime/` | Socket paths, daemon spawn, IDs, argv redaction, slog setup |
 | `features/` | Can disable Ollama/Lua/audio without breaking core kanban |
 | `testutil/` | Shared daemon fixture for integration tests |
 

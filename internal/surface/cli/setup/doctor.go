@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -16,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -68,30 +68,35 @@ type doctorOutputJSON struct {
 	OK     bool              `json:"ok"`
 }
 
-var (
-	doctorPassStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80")) // green
-	doctorWarnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FACC15")) // yellow
-	doctorFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")) // red
-	doctorInfoStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C")) // dim
-)
-
-// RunDoctor runs all diagnostic checks and prints a formatted report.
+// RunDoctor runs all diagnostic checks and prints the report. It exits 1 when
+// a check fails; the report itself is the answer, so nothing more is printed.
 func RunDoctor(args []string) error {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
-	asJSON := fs.Bool("json", false, "output JSON")
+	out := core.AddOutputFlags(fs, core.AllFormats, core.WithLegacyJSON())
 	socket := core.AddSocketFlag(fs)
 	verbose := fs.Bool("verbose", false, "include INFO-level rows")
-	_, err := core.ParseArgs(fs, args)
+	_, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
 
 	checks := runAllChecks(socket)
+	fails, warns := tally(checks)
 
-	if *asJSON {
-		return printDoctorJSON(checks)
+	p := core.Out()
+	if err := p.Emit(core.Result{
+		Cmd:    "doctor",
+		Data:   doctorResultData(checks, fails, warns),
+		View:   doctorView(p.Format, checks, *verbose, fails, warns),
+		Failed: fails > 0,
+		Legacy: func(w io.Writer) error { return printDoctorJSON(w, checks) },
+	}); err != nil {
+		return err
 	}
-	return printDoctorTable(checks, *verbose)
+	if fails > 0 {
+		return core.NewExitError(core.ExitGeneric, "")
+	}
+	return nil
 }
 
 // runAllChecks executes every diagnostic check and returns results.
@@ -107,6 +112,7 @@ func runAllChecks(socket *core.SocketFlag) []checkResult {
 	results = append(results, checkSnapshots()...)
 	results = append(results, checkAgyVersion()...)
 	results = append(results, checkGoVersion())
+	results = append(results, checkCLIErrors(time.Now()))
 
 	return results
 }
@@ -280,6 +286,31 @@ func checkAgyVersion() []checkResult {
 	return []checkResult{{name, checkInfo, "agy " + ver}}
 }
 
+// checkCLIErrors reports failed rex commands logged in the last 24 hours (see
+// core.RecordError): an info row when there are none, a warning with the
+// count and the command that shows them otherwise.
+func checkCLIErrors(now time.Time) checkResult {
+	const name = "cli errors"
+	path, err := core.ErrLogPath()
+	if err != nil {
+		return checkResult{name, checkInfo, "no log folder: " + err.Error()}
+	}
+	recs, err := core.ReadErrLog(path)
+	if err != nil {
+		return checkResult{name, checkWarn, fmt.Sprintf("cannot read %s: %v", path, err)}
+	}
+	n := 0
+	for _, r := range recs {
+		if t, err := time.Parse(time.RFC3339, r.Time); err == nil && now.Sub(t) <= 24*time.Hour {
+			n++
+		}
+	}
+	if n == 0 {
+		return checkResult{name, checkInfo, "none in 24h"}
+	}
+	return checkResult{name, checkWarn, fmt.Sprintf("%d in 24h · rex errors", n)}
+}
+
 // checkGoVersion reports the runtime Go version.
 func checkGoVersion() checkResult {
 	return checkResult{"go version", checkInfo, runtime.Version()}
@@ -300,52 +331,8 @@ func checkRexDirs() []checkResult {
 	}
 }
 
-// printDoctorJSON prints all checks as a single JSON line.
-func printDoctorJSON(checks []checkResult) error {
-	ok := true
-	out := doctorOutputJSON{
-		Checks: make([]doctorCheckJSON, 0, len(checks)),
-	}
-	for _, c := range checks {
-		if c.Status == checkFail {
-			ok = false
-		}
-		out.Checks = append(out.Checks, doctorCheckJSON{
-			Name:   c.Name,
-			Status: c.Status.String(),
-			Detail: c.Detail,
-		})
-	}
-	out.OK = ok
-
-	b, err := json.Marshal(out)
-	if err != nil {
-		return fmt.Errorf("doctor: marshal JSON: %w", err)
-	}
-	fmt.Println(string(b))
-	if !ok {
-		return core.NewExitError(core.ExitGeneric, "")
-	}
-	return nil
-}
-
-// printDoctorTable prints a formatted table to stdout.
-func printDoctorTable(checks []checkResult, verbose bool) error {
-	var b strings.Builder
-
-	b.WriteString("\n")
-	b.WriteString("  " + core.HelpAccent.Render("∴") + " " + core.HelpBold.Render("rex doctor") + "\n")
-	b.WriteString("  " + core.HelpHRStyle.Render(strings.Repeat("─", 44)) + "\n\n")
-
-	nameWidth := 0
-	for _, c := range checks {
-		if w := lipgloss.Width(c.Name); w > nameWidth {
-			nameWidth = w
-		}
-	}
-	nameWidth += 2
-
-	var fails, warns int
+// tally counts failed and warned checks.
+func tally(checks []checkResult) (fails, warns int) {
 	for _, c := range checks {
 		switch c.Status {
 		case checkFail:
@@ -353,79 +340,113 @@ func printDoctorTable(checks []checkResult, verbose bool) error {
 		case checkWarn:
 			warns++
 		case checkPass, checkInfo:
-			// Not tallied: the summary line reports only fails and warns.
+			// Not tallied: the summary reports only fails and warns.
 		}
 	}
-
-	for _, c := range checks {
-		if c.Status == checkInfo && !verbose {
-			continue
-		}
-		sym, styled := renderStatus(c.Status)
-		pad := strings.Repeat(" ", nameWidth-lipgloss.Width(c.Name))
-		fmt.Fprintf(&b, "  %s %s%s%s\n",
-			styled,
-			core.HelpCmd.Render(c.Name),
-			pad,
-			core.HelpDim.Render(c.Detail),
-		)
-		_ = sym
-	}
-
-	b.WriteString("\n")
-	b.WriteString("  " + summaryLine(fails, warns) + "\n")
-	b.WriteString("\n")
-
-	fmt.Print(b.String())
-
-	if fails > 0 {
-		return core.NewExitError(core.ExitGeneric, "")
-	}
-	return nil
+	return fails, warns
 }
 
-// renderStatus returns the symbol string and a lipgloss-styled version.
-func renderStatus(s checkStatus) (string, string) {
+// printDoctorJSON writes the legacy -json document: every check, INFO rows
+// included, as one line.
+func printDoctorJSON(w io.Writer, checks []checkResult) error {
+	out := doctorOutputJSON{Checks: make([]doctorCheckJSON, 0, len(checks)), OK: true}
+	for _, c := range checks {
+		if c.Status == checkFail {
+			out.OK = false
+		}
+		out.Checks = append(out.Checks, doctorCheckJSON{Name: c.Name, Status: c.Status.String(), Detail: c.Detail})
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return fmt.Errorf("doctor: marshal JSON: %w", err)
+	}
+	_, err = fmt.Fprintln(w, string(b))
+	return err
+}
+
+// doctorData is the `-o json` payload of rex doctor.
+type doctorData struct {
+	Checks []doctorRow `json:"checks"`
+	OK     bool        `json:"ok"`
+	Fails  int         `json:"fails"`
+	Warns  int         `json:"warns"`
+}
+
+type doctorRow struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
+func statusWord(s checkStatus) string {
 	switch s {
 	case checkPass:
-		sym := "✓"
-		return sym, doctorPassStyle.Render(sym)
+		return "pass"
 	case checkWarn:
-		sym := "!"
-		return sym, doctorWarnStyle.Render(sym)
+		return "warn"
 	case checkFail:
-		sym := "✗"
-		return sym, doctorFailStyle.Render(sym)
+		return "fail"
 	case checkInfo:
-		sym := "·"
-		return sym, doctorInfoStyle.Render(sym)
-	default:
-		sym := "?"
-		return sym, core.HelpDim.Render(sym)
+		return "info"
+	}
+	return "info"
+}
+
+func doctorResultData(checks []checkResult, fails, warns int) doctorData {
+	rows := make([]doctorRow, len(checks))
+	for i, c := range checks {
+		rows[i] = doctorRow{Name: c.Name, Status: statusWord(c.Status), Detail: c.Detail}
+	}
+	return doctorData{Checks: rows, OK: fails == 0, Fails: fails, Warns: warns}
+}
+
+// doctorPlatform is shown in the report header; tests pin it.
+var doctorPlatform = runtime.GOOS + "/" + runtime.GOARCH
+
+// doctorView renders the checks as a Checks block. The human formats hide
+// INFO rows unless -verbose; agent and json always carry them.
+func doctorView(format core.Format, checks []checkResult, verbose bool, fails, warns int) core.View {
+	human := format == core.FormatText || format == core.FormatTXT || format == core.FormatMD
+	rows := make([]core.Check, 0, len(checks))
+	for _, c := range checks {
+		if c.Status == checkInfo && human && !verbose {
+			continue
+		}
+		rows = append(rows, core.Check{Name: c.Name, Status: statusWord(c.Status), Detail: c.Detail})
+	}
+	tone := core.ToneNone
+	switch {
+	case fails > 0:
+		tone = core.ToneErr
+	case warns > 0:
+		tone = core.ToneWarn
+	}
+	return core.View{
+		core.Header{Title: "Doctor", Meta: core.Version + " · " + doctorPlatform},
+		core.Checks{Rows: rows},
+		core.Note{Tone: tone, Text: summaryLine(fails, warns)},
+		core.KV{Pairs: []core.Pair{
+			{Key: "fails", Val: core.Cell{Text: fmt.Sprint(fails), Raw: fails}, Formats: core.SetOf(core.FormatAgent)},
+			{Key: "warns", Val: core.Cell{Text: fmt.Sprint(warns), Raw: warns}, Formats: core.SetOf(core.FormatAgent)},
+		}},
 	}
 }
 
 // summaryLine builds the human-readable summary.
 func summaryLine(fails, warns int) string {
-	if fails == 0 && warns == 0 {
-		return core.HelpDim.Render("· all required checks passed")
-	}
-	if fails == 0 {
-		msg := fmt.Sprintf("· all required checks passed, %d warning", warns)
-		if warns != 1 {
-			msg += "s"
+	plural := func(n int, word string) string {
+		if n == 1 {
+			return fmt.Sprintf("%d %s", n, word)
 		}
-		return core.HelpDim.Render(msg)
+		return fmt.Sprintf("%d %ss", n, word)
 	}
-	msg := fmt.Sprintf("· %d failure", fails)
-	if fails != 1 {
-		msg += "s"
+	switch {
+	case fails == 0 && warns == 0:
+		return "all required checks passed"
+	case fails == 0:
+		return "all required checks passed, " + plural(warns, "warning")
+	case warns > 0:
+		return plural(fails, "failure") + ", " + plural(warns, "warning")
 	}
-	if warns > 0 {
-		msg += fmt.Sprintf(", %d warning", warns)
-		if warns != 1 {
-			msg += "s"
-		}
-	}
-	return doctorFailStyle.Render(msg)
+	return plural(fails, "failure")
 }

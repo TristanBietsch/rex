@@ -1,8 +1,8 @@
 package core
 
 import (
+	"bytes"
 	"io"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -67,18 +67,15 @@ func TestResolve_UppercaseShortID(t *testing.T) {
 }
 
 func TestHelp_NoAtAliases(t *testing.T) {
-	r, w, err := os.Pipe()
+	var out bytes.Buffer
+	env := Env{Getenv: func(string) string { return "" }, Width: 80, Scheme: "default", GOOS: "linux"}
+	p, err := NewPrinter(FormatFlags{Output: "txt"}, env, &out, io.Discard)
 	require.NoError(t, err)
-	saved := os.Stdout
-	os.Stdout = w
-	runErr := RunHelp()
-	os.Stdout = saved
-	require.NoError(t, w.Close())
-	require.NoError(t, runErr)
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
+	SetOut(p)
+	t.Cleanup(func() { SetOut(nil) })
+	require.NoError(t, RunHelp(nil))
 	for _, alias := range []string{"@needs", "@working", "@done"} {
-		require.NotContains(t, string(out), alias)
+		require.NotContains(t, out.String(), alias)
 	}
-	require.Contains(t, string(out), "selectors: short id, slug, full id")
+	require.Contains(t, out.String(), "Selectors: short id (4+ hex), slug or full id.")
 }

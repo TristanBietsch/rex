@@ -5,9 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -20,25 +17,20 @@ import (
 // group and drains its output before it acknowledges.
 const deleteTimeout = 15 * time.Second
 
-// pruneIO is what RunPrune and RunRm read and write; tests replace it.
-var pruneIO = struct {
-	in          io.Reader
-	out, errOut io.Writer
-	interactive func() bool
-}{os.Stdin, os.Stdout, os.Stderr, core.StdinIsTerminal}
-
 // RunPrune deletes every session in the board's Completed column (done,
 // failed, crashed, or marked done) except those whose agent is still
-// working. It asks first; -yes skips the question and is required when
-// stdin is not a terminal.
+// working. It asks first (on stderr); -yes skips the question and is
+// required without a terminal or in a non-text format, where declining or
+// being unable to ask exits 6.
 func RunPrune(args []string) error {
 	fs := flag.NewFlagSet("prune", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	dryRun := fs.Bool("dry-run", false, "list the sessions that would be cleared; delete nothing")
 	var yes bool
 	fs.BoolVar(&yes, "yes", false, "do not ask (required when stdin is not a terminal)")
 	fs.BoolVar(&yes, "y", false, "shorthand for -yes")
-	rest, err := core.ParseArgs(fs, args)
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -57,41 +49,108 @@ func RunPrune(args []string) error {
 	}
 	targets, kept := tui.PruneTargets(snap.Sessions)
 	note := tui.PruneKeptNote(kept)
-	out, errOut := pruneIO.out, pruneIO.errOut
+	p := core.Out()
 	if len(targets) == 0 {
-		fmt.Fprintln(out, "nothing to clear"+note)
-		return nil
+		return emitPruneNothing(p, kept, note)
 	}
 	if *dryRun {
-		for _, s := range targets {
-			fmt.Fprintf(out, "%s\t%s\t%s\n", s.ShortID, protocol.FlattenDisplayText(s.Slug), s.State)
-		}
-		fmt.Fprintf(out, "would clear %d%s\n", len(targets), note)
-		return nil
+		return emitPruneDryRun(p, targets, kept, note)
 	}
 	if !yes {
-		if !pruneIO.interactive() {
-			return core.NewExitError(core.ExitOperationRefused,
-				"prune: stdin is not a terminal; pass -yes to delete without asking, or -dry-run to list")
+		ok, err := p.Confirm(fmt.Sprintf("clear %d completed session(s)? this kills their agents and removes their transcripts%s", len(targets), note),
+			core.Refusal{Cmd: "prune", Flag: "-yes", What: "delete", Extra: "or -dry-run to list", Hint: "rex prune -yes"})
+		if err != nil {
+			return err
 		}
-		fmt.Fprintf(errOut, "clear %d completed session(s)? this kills their agents and removes their transcripts%s [y/N] ", len(targets), note)
-		var ans string
-		_, _ = fmt.Fscanln(pruneIO.in, &ans)
-		if a := strings.ToLower(ans); a != "y" && a != "yes" {
-			return core.NewExitError(core.ExitGeneric, "aborted")
+		if !ok {
+			return core.Errorf(core.ExitOperationRefused, "", "prune: not confirmed, nothing deleted")
 		}
 	}
 
 	var r pruneResult
 	for _, s := range targets {
 		o, err := prunePrecheckedDelete(socket, c, s)
-		r.add(o, err, s, errOut)
+		r.add(o, err, s, p)
 	}
-	fmt.Fprintln(out, r.summary()+note)
+	if err := emitPruneSummary(p, r, kept, note); err != nil {
+		return err
+	}
 	if r.failed > 0 {
 		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("prune: %d of %d failed", r.failed, len(targets)))
 	}
 	return nil
+}
+
+// pruneRow is one session in the dry-run list.
+type pruneRow struct {
+	ID      string         `json:"id"`
+	ShortID string         `json:"short_id"`
+	Slug    string         `json:"slug"`
+	State   protocol.State `json:"state"`
+}
+
+// pruneDryData is the `-o json` payload of rex prune -dry-run.
+type pruneDryData struct {
+	DryRun      bool       `json:"dry_run"`
+	WouldClear  []pruneRow `json:"would_clear"`
+	KeptWorking int        `json:"kept_working"`
+}
+
+func emitPruneNothing(p *core.Printer, kept int, note string) error {
+	line := core.Line{Text: "nothing to clear" + note}
+	return p.Emit(core.Result{
+		Cmd:  "prune",
+		Data: pruneDryData{WouldClear: []pruneRow{}, KeptWorking: kept},
+		View: core.ActionView(line, core.Field{Key: "cleared", Val: 0}, core.Field{Key: "kept_working", Val: kept}),
+	})
+}
+
+func emitPruneDryRun(p *core.Printer, targets []protocol.SessionSummary, kept int, note string) error {
+	rows := make([]pruneRow, len(targets))
+	cells := make([][]core.Cell, len(targets))
+	for i, s := range targets {
+		rows[i] = pruneRow{ID: s.ID, ShortID: s.ShortID, Slug: s.Slug, State: s.State}
+		cells[i] = []core.Cell{
+			{Text: s.ShortID}, {Text: s.Slug},
+			{Text: core.StateLabel(s.State), Txt: string(s.State), Raw: string(s.State), Tone: core.StateTone(s.State)},
+		}
+	}
+	foot := fmt.Sprintf("would clear %d%s", len(targets), note)
+	agent := core.SetOf(core.FormatAgent)
+	return p.Emit(core.Result{
+		Cmd:  "prune",
+		Data: pruneDryData{DryRun: true, WouldClear: rows, KeptWorking: kept},
+		View: core.View{
+			core.Table{Kind: "session", TxtRecords: true, TxtFoot: foot, Rows: cells, Cols: []core.Col{
+				{Key: "id", Title: "ID"}, {Key: "slug", Title: "Slug"}, {Key: "state", Title: "State"}}},
+			core.Note{Text: foot},
+			core.KV{Pairs: []core.Pair{
+				{Key: "dry_run", Val: core.Cell{Text: "true", Raw: true}, Formats: agent},
+				{Key: "kept_working", Val: core.Cell{Text: fmt.Sprint(kept), Raw: kept}, Formats: agent},
+			}},
+		},
+	})
+}
+
+// pruneData is the `-o json` payload of a rex prune that deleted.
+type pruneData struct {
+	Cleared     int `json:"cleared"`
+	Unconfirmed int `json:"unconfirmed"`
+	KeptChanged int `json:"kept_changed"`
+	Failed      int `json:"failed"`
+	KeptWorking int `json:"kept_working"`
+}
+
+func emitPruneSummary(p *core.Printer, r pruneResult, kept int, note string) error {
+	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: r.summary() + note, Txt: r.summary() + note}
+	return p.Emit(core.Result{
+		Cmd:  "prune",
+		Data: pruneData{Cleared: r.cleared, Unconfirmed: r.unconfirmed, KeptChanged: r.skipped, Failed: r.failed, KeptWorking: kept},
+		View: core.ActionView(line,
+			core.Field{Key: "cleared", Val: r.cleared}, core.Field{Key: "unconfirmed", Val: r.unconfirmed},
+			core.Field{Key: "kept_changed", Val: r.skipped}, core.Field{Key: "failed", Val: r.failed},
+			core.Field{Key: "kept_working", Val: kept}),
+	})
 }
 
 // pruneOutcome is what happened to one target.
@@ -106,7 +165,7 @@ const (
 
 type pruneResult struct{ cleared, unconfirmed, skipped, failed int }
 
-func (r *pruneResult) add(o pruneOutcome, err error, s protocol.SessionSummary, errOut io.Writer) {
+func (r *pruneResult) add(o pruneOutcome, err error, s protocol.SessionSummary, p *core.Printer) {
 	label := s.ShortID + " (" + protocol.FlattenDisplayText(s.Slug) + ")"
 	switch o {
 	case pruneCleared:
@@ -115,10 +174,10 @@ func (r *pruneResult) add(o pruneOutcome, err error, s protocol.SessionSummary, 
 		r.unconfirmed++
 	case pruneSkipped:
 		r.skipped++
-		fmt.Fprintf(errOut, "rex: prune: kept %s: it changed since the list was taken\n", label)
+		p.Warn(fmt.Sprintf("prune: kept %s: it changed since the list was taken", label))
 	case pruneFailed:
 		r.failed++
-		fmt.Fprintf(errOut, "rex: prune %s: %v\n", label, err)
+		p.Warn(fmt.Sprintf("prune %s: %v", label, err))
 	}
 }
 

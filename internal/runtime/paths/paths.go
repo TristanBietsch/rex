@@ -17,6 +17,7 @@
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
 //	    <name>.log                 rexlog files (daemon, tui, setup, ...)
+//	    cli-errors.log             CLIErrorLog: failed rex commands (+ .1 backup)
 //	    tui-state.json             TUIStateFile: board selection kept across :bg
 //	    models-cache.json          ModelsCacheFile: detected model ids per tool (model_autodetect)
 //	~/.cache/rex/                  CacheDir
