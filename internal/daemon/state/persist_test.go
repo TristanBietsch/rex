@@ -92,3 +92,30 @@ func TestTranscriptFile_TailVisibleBeforeClose(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "still running", string(b))
 }
+
+// A WriteMeta cut off between creating its temp file and the rename (a
+// crash, power loss) left meta-*.tmp behind forever. The daemon removes
+// them at startup, under the state lock and before any writer; LoadAll,
+// which the CLI also runs against a live daemon, leaves them alone.
+func TestRemoveStaleMetaTemps(t *testing.T) {
+	dir := t.TempDir()
+	sess := &Session{ID: "id1", ShortID: "id1", State: protocol.StateDone, StartedAt: time.Now().UTC()}
+	require.NoError(t, WriteMeta(dir, sess))
+	sdir := filepath.Join(dir, "sessions", "id1")
+	stale := filepath.Join(sdir, "meta-123456.tmp")
+	require.NoError(t, os.WriteFile(stale, []byte("{"), 0o600))
+	keep := filepath.Join(sdir, "notes.tmp")
+	require.NoError(t, os.WriteFile(keep, []byte("x"), 0o600))
+
+	loaded, err := LoadAll(dir)
+	require.NoError(t, err)
+	require.Len(t, loaded, 1)
+	_, err = os.Stat(stale)
+	require.NoError(t, err, "LoadAll is read-only")
+
+	RemoveStaleMetaTemps(dir)
+	_, err = os.Stat(stale)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(keep)
+	require.NoError(t, err, "only WriteMeta's temp files go")
+}

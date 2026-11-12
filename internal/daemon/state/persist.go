@@ -217,6 +217,25 @@ func LoadAllKeep(root string, live map[string]bool) ([]*Session, error) {
 	return out, nil
 }
 
+// RemoveStaleMetaTemps deletes the meta-*.tmp files a WriteMeta cut off
+// before its rename (a crash, power loss) left in the session dirs under
+// root. Only the daemon may call it, at startup, holding the state lock and
+// before any writer: a reader such as the CLI's disk fallback would race a
+// live daemon's WriteMeta.
+func RemoveStaleMetaTemps(root string) {
+	stale, err := filepath.Glob(filepath.Join(root, "sessions", "*", "meta-*.tmp"))
+	if err != nil {
+		return
+	}
+	for _, p := range stale {
+		if err := os.Remove(p); err != nil {
+			slog.Warn("state: could not remove stale meta temp file", "path", p, "err", err)
+			continue
+		}
+		slog.Info("state: removed stale meta temp file", "path", p)
+	}
+}
+
 // TranscriptFile is a kept-open transcript handle for the lifetime of one PTY session.
 // Reuse avoids open/close syscalls on every PTY read chunk. Writes are
 // unbuffered: the summarizer and attach replay read the file while the session

@@ -141,6 +141,9 @@ func run(args []string) error {
 	}
 
 	store := state.NewStore()
+	// Under the state lock and before any writer (a hot restart replaced
+	// the old daemon in this process): no live WriteMeta owns a temp file.
+	state.RemoveStaleMetaTemps(*stateDir)
 	prior, err := state.LoadAllKeep(*stateDir, hot.liveIDs())
 	if err != nil {
 		slog.Error("daemon: load prior sessions failed", "state_dir", *stateDir, "err", err)
