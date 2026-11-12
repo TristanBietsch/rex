@@ -332,6 +332,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			}
 			if hasState {
 				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
+				if m.Undo != nil && m.Undo.StateAt != next {
+					m = closeUndoIfStale(m, upd.SessionID, "undo: the session changed; run it again")
+				}
 			}
 		}
 	case protocol.EventSnapshot:
@@ -543,6 +546,7 @@ func dropTargets(m Model, id, endedMsg string) Model {
 		m.Err = "rename: session removed"
 		slog.Info("tui: rename target removed", "session", id)
 	}
+	m = closeUndoIfStale(m, id, "undo: the session was removed")
 	if m.PendingDeleteID != "" && m.PendingDeleteID == id {
 		m.PendingDeleteID = ""
 		if m.Focus == FocusConfirmDelete {
@@ -557,9 +561,14 @@ func dropTargets(m Model, id, endedMsg string) Model {
 // adoptSessions replaces the session list with a fresh snapshot. Targets of
 // sessions missing from it are dropped as if each got SessionRemoved.
 func adoptSessions(m Model, sessions []protocol.SessionSummary) Model {
-	for _, id := range []string{m.PendingDeleteID, m.renameTarget(), m.attachTarget()} {
+	for _, id := range []string{m.PendingDeleteID, m.renameTarget(), m.attachTarget(), m.undoTarget()} {
 		if id != "" && sessionIndex(sessions, id) < 0 {
 			m = dropTargets(m, id, "session deleted")
+		}
+	}
+	if m.Undo != nil {
+		if i := sessionIndex(sessions, m.Undo.SessionID); i >= 0 && sessions[i].State != m.Undo.StateAt {
+			m = closeUndoIfStale(m, m.Undo.SessionID, "undo: the session changed; run it again")
 		}
 	}
 	m.Sessions = sessions

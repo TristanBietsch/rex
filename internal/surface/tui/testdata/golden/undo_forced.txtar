@@ -11,8 +11,8 @@
   WA│    restore README.md                                                 │    
     │    delete scratch/notes.txt                                          │
     │                                                                      │
-  WO│  forced: the other live session in this folder is reverted too       │    
- ▸ ⠋│  (api-refactor, docs)                                                │ 11m
+  WO│  forced: this reverts the changes of every live session in this      │    
+ ▸ ⠋│  folder, not only this one                                           │ 11m
    ⠋│                                                                      │  7s
    ⠋│  shell side effects (installs, databases, files outside the folder)  │  2h
     │  are not undone                                                      │
@@ -44,8 +44,8 @@
   DONE  3             │    restore README.md                                                     │                      
    ●  test-coverage   │    delete scratch/notes.txt                                              │                    9d
    ✕  no-model        │                                                                          │                     -
-   ✕  failing-job     │  forced: the other live session in this folder is reverted too (api-     │                     -
-                      │  refactor, docs)                                                         │
+   ✕  failing-job     │  forced: this reverts the changes of every live session in this folder,  │                     -
+                      │  not only this one                                                       │
                       │                                                                          │
                       │  shell side effects (installs, databases, files outside the folder) are  │
                       │  not undone                                                              │
@@ -79,9 +79,9 @@
     │    restore README.md                   │
     │    delete scratch/notes.txt            │
   WO│                                        │    
- ▸ ⠋│  forced: the other live session in     │ 11m
-    │  this folder is reverted too (api-     │    
-   ⠋│  refactor, docs)                       │  7s
+ ▸ ⠋│  forced: this reverts the changes of   │ 11m
+    │  every live session in this folder,    │    
+   ⠋│  not only this one                     │  7s
     │                                        │    
    ⠋│  shell side effects (installs,         │  2h
     │  databases, files outside the folder)  │2/14

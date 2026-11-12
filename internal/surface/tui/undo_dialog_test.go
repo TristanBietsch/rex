@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -40,6 +41,14 @@ func badState(msg string) error {
 	return &client.Error{Intent: "Undo", Code: protocol.ErrCodeBadState, Message: msg}
 }
 
+// noKeyGuard lets a test confirm at once; the guard has its own tests.
+func noKeyGuard(t *testing.T) {
+	t.Helper()
+	saved := undoKeyGuard
+	undoKeyGuard = 0
+	t.Cleanup(func() { undoKeyGuard = saved })
+}
+
 var undoPlan = protocol.UndoResult{
 	Restored: []string{"internal/api/handler.go", "internal/api/handler_test.go", "README.md"},
 	Deleted:  []string{"scratch/notes.txt"},
@@ -47,6 +56,7 @@ var undoPlan = protocol.UndoResult{
 
 func undoBoardModel(t *testing.T, fu *fakeUndoer) Model {
 	t.Helper()
+	noKeyGuard(t)
 	m := goldenBoard(t, goldenSize{120, 40}, false)
 	m.undoer = fu
 	require.NoError(t, m.Store.Set("turn_snapshots", true))
@@ -57,7 +67,7 @@ func undoBoardModel(t *testing.T, fu *fakeUndoer) Model {
 // okUndoer plans undoPlan and, for the real call, returns it with warnings.
 func okUndoer(warnings ...string) *fakeUndoer {
 	return &fakeUndoer{reply: func(string, any) (protocol.UndoResult, error) {
-		return protocol.UndoResult{Restored: undoPlan.Restored, Deleted: undoPlan.Deleted, Safety: "abc", Warnings: warnings}, nil
+		return protocol.UndoResult{Restored: undoPlan.Restored, Deleted: undoPlan.Deleted, Safety: "abc", Target: "tree-1", Warnings: warnings}, nil
 	}}
 }
 
@@ -94,7 +104,7 @@ func TestUndo_DryRunThenConfirmThenResult(t *testing.T) {
 	m, cmd = updateKey(m, key("y"))
 	m = deliver(t, m, cmd)
 	require.Len(t, fu.calls, 2)
-	require.Equal(t, protocol.Undo{SessionID: "3", Turns: 1}, fu.calls[1].payload, "the real call has no dry run")
+	require.Equal(t, protocol.Undo{SessionID: "3", Turns: 1, Expect: "tree-1"}, fu.calls[1].payload, "the real call has no dry run and runs what the preview showed")
 	out = ansi.Strip(m.View())
 	require.Contains(t, out, "3 files restored, 1 deleted")
 	require.Contains(t, squash(renderUndo(m)), squash("! the folder changed while the restore ran: 1 file differs"), "warnings are shown after the run")
@@ -148,7 +158,7 @@ func TestRedo_UsesTheRedoIntent(t *testing.T) {
 	require.Contains(t, ansi.Strip(m.View()), "y redo")
 	m, cmd = updateKey(m, key("y"))
 	m = deliver(t, m, cmd)
-	require.Equal(t, protocol.Redo{SessionID: "3"}, fu.calls[1].payload)
+	require.Equal(t, protocol.Redo{SessionID: "3", Expect: "tree-1"}, fu.calls[1].payload)
 	require.NotContains(t, ansi.Strip(m.View()), "The agent was not told", "that note is for undo")
 
 	m2, cmd := undoOpen(t, undoBoardModel(t, okUndoer()), "redo -turns 2")
@@ -211,7 +221,7 @@ func sharedUndoer() *fakeUndoer {
 		if !force {
 			return protocol.UndoResult{}, badState(sharedMsg)
 		}
-		return protocol.UndoResult{Restored: undoPlan.Restored, Deleted: undoPlan.Deleted}, nil
+		return protocol.UndoResult{Restored: undoPlan.Restored, Deleted: undoPlan.Deleted, Target: "tree-1"}, nil
 	}}
 }
 
@@ -235,11 +245,11 @@ func TestUndo_SharedFolderOffersForce(t *testing.T) {
 	require.Equal(t, protocol.Undo{SessionID: "3", Turns: 1, Force: true, DryRun: true}, fu.calls[1].payload)
 	out = ansi.Strip(m.View())
 	require.Contains(t, out, "restore 3 files, delete 1 file", "the forced plan")
-	require.Contains(t, squash(renderUndo(m)), squash("forced: the other live session in this folder is reverted too (api-refactor, docs)"))
+	require.Contains(t, squash(renderUndo(m)), squash("forced: this reverts the changes of every live session in this folder, not only this one"))
 
 	m, cmd = updateKey(m, key("y"))
 	m = deliver(t, m, cmd)
-	require.Equal(t, protocol.Undo{SessionID: "3", Turns: 1, Force: true}, fu.calls[2].payload, "the real call carries force")
+	require.Equal(t, protocol.Undo{SessionID: "3", Turns: 1, Force: true, Expect: "tree-1"}, fu.calls[2].payload, "the real call carries force")
 	require.Contains(t, ansi.Strip(m.View()), "3 files restored")
 }
 
@@ -375,6 +385,7 @@ func TestUndo_UntrustedText(t *testing.T) {
 // undoDialogModel is the golden fixture: the dialog in a given phase.
 func undoDialogModel(t *testing.T, sz goldenSize, phase string) Model {
 	t.Helper()
+	noKeyGuard(t)
 	fu := okUndoer("the folder changed while the restore ran: 1 file differs")
 	if phase == "shared" || phase == "forced" {
 		fu = sharedUndoer()
@@ -394,4 +405,171 @@ func undoDialogModel(t *testing.T, sz goldenSize, phase string) Model {
 		m = deliver(t, m, cmd)
 	}
 	return m
+}
+
+// ---- review fixes ----
+
+// A refusal before anything changed is a notice; only a failed or timed-out
+// restore keeps the dialog with the "part way" advice.
+func TestUndo_PreChangeRefusalOfTheRealCallIsANotice(t *testing.T) {
+	for name, err := range map[string]error{
+		"stale preview": badState("the session changed since the preview — run it again"),
+		"working":       badState("session is working: wait"),
+		"shared":        badState(sharedMsg),
+		"unknown":       &client.Error{Code: protocol.ErrCodeUnknownSession, Message: "session not found"},
+		"off":           &client.Error{Code: protocol.ErrCodeBadIntent, Message: "off: enable turn_snapshots in Settings → Features"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			calls := 0
+			fu := &fakeUndoer{reply: func(string, any) (protocol.UndoResult, error) {
+				calls++
+				if calls == 1 {
+					return protocol.UndoResult{Restored: []string{"a.go"}, Target: "t"}, nil
+				}
+				return protocol.UndoResult{}, err
+			}}
+			m := undoBoardModel(t, fu)
+			m, cmd := undoOpen(t, m, "undo")
+			m = deliver(t, m, cmd)
+			m, cmd = updateKey(m, key("y"))
+			m = deliver(t, m, cmd)
+			require.Equal(t, FocusBoard, m.Focus)
+			require.Nil(t, m.Undo)
+			require.NotEmpty(t, m.Err)
+			require.NotContains(t, m.Err, "part way")
+		})
+	}
+	t.Run("timeout keeps the dialog", func(t *testing.T) {
+		calls := 0
+		fu := &fakeUndoer{reply: func(string, any) (protocol.UndoResult, error) {
+			calls++
+			if calls == 1 {
+				return protocol.UndoResult{Restored: []string{"a.go"}}, nil
+			}
+			return protocol.UndoResult{}, context.DeadlineExceeded
+		}}
+		m := undoBoardModel(t, fu)
+		m, cmd := undoOpen(t, m, "undo")
+		m = deliver(t, m, cmd)
+		m, cmd = updateKey(m, key("y"))
+		m = deliver(t, m, cmd)
+		require.Equal(t, FocusUndo, m.Focus)
+		require.Contains(t, ansi.Strip(renderUndo(m)), "may be part way")
+	})
+}
+
+// Held or repeated keys cannot confirm or dismiss anything unread.
+func TestUndo_KeyGuard(t *testing.T) {
+	noKeyGuard(t)
+	undoKeyGuard = 500 * time.Millisecond
+	now := goldenNow
+	fu := okUndoer()
+	m := undoBoardModel(t, fu)
+	undoKeyGuard = 500 * time.Millisecond
+	m.Clock = func() time.Time { return now }
+
+	m, cmd := undoOpen(t, m, "undo")
+	// A held y during planning does nothing, even once the plan arrives.
+	m, c := updateKey(m, key("y"))
+	require.Nil(t, c)
+	m = deliver(t, m, cmd)
+	require.Equal(t, undoConfirm, m.Undo.Phase)
+	m, c = updateKey(m, key("y"))
+	require.Nil(t, c, "y right after the plan arrived is ignored")
+	require.Len(t, fu.calls, 1)
+	require.Equal(t, undoConfirm, m.Undo.Phase)
+
+	now = now.Add(time.Second)
+	m, c = updateKey(m, key("enter"))
+	require.Nil(t, c, "enter never confirms")
+	m, c = updateKey(m, key("y"))
+	require.NotNil(t, c)
+	m = deliver(t, m, c)
+	require.Equal(t, undoDone, m.Undo.Phase)
+	require.Len(t, fu.calls, 2)
+
+	// A held y does not dismiss the result; neither does enter.
+	for _, k := range []string{"y", "n", "enter"} {
+		m, _ = updateKey(m, key(k))
+		require.Equal(t, FocusUndo, m.Focus, k)
+	}
+	m, _ = updateKey(m, key("esc"))
+	require.Equal(t, FocusBoard, m.Focus)
+
+	// f is guarded too.
+	fs := sharedUndoer()
+	m = undoBoardModel(t, fs)
+	undoKeyGuard = 500 * time.Millisecond
+	m.Clock = func() time.Time { return now }
+	m, cmd = undoOpen(t, m, "undo")
+	m = deliver(t, m, cmd)
+	m, c = updateKey(m, key("f"))
+	require.Nil(t, c)
+	now = now.Add(time.Second)
+	_, c = updateKey(m, key("f"))
+	require.NotNil(t, c)
+}
+
+// The preview no longer describes a session that was removed or changed.
+func TestUndo_DialogClosesWhenTheSessionChanges(t *testing.T) {
+	patch := func(t *testing.T, m Model, p map[string]any) Model {
+		t.Helper()
+		data, err := json.Marshal(protocol.SessionUpdated{SessionID: "2", Patch: p})
+		require.NoError(t, err)
+		return m.applyEvent(protocol.Envelope{Type: protocol.EventSessionUpdated, Data: data})
+	}
+	open := func(t *testing.T) Model {
+		t.Helper()
+		fu := okUndoer()
+		m := undoBoardModel(t, fu)
+		m.SelectedID = "5" // test-coverage: done
+		m, cmd := undoOpen(t, m, "undo")
+		return deliver(t, m, cmd)
+	}
+
+	t.Run("state change", func(t *testing.T) {
+		m := open(t)
+		require.Equal(t, FocusUndo, m.Focus)
+		m.Undo.SessionID = "2"
+		m.Undo.StateAt = protocol.StateWorking
+		m = patch(t, m, map[string]any{"state": "needs_input"})
+		require.Equal(t, FocusBoard, m.Focus)
+		require.Nil(t, m.Undo)
+		require.Contains(t, m.Notice, "run it again")
+	})
+	t.Run("same state keeps it", func(t *testing.T) {
+		m := open(t)
+		m.Undo.SessionID = "2"
+		m.Undo.StateAt = protocol.StateWorking
+		m = patch(t, m, map[string]any{"state": "working", "last_line": "x"})
+		require.Equal(t, FocusUndo, m.Focus)
+	})
+	t.Run("removed", func(t *testing.T) {
+		m := open(t)
+		data, _ := json.Marshal(protocol.SessionRemoved{SessionID: "5", Reason: "deleted"})
+		m = m.applyEvent(protocol.Envelope{Type: protocol.EventSessionRemoved, Data: data})
+		require.Equal(t, FocusBoard, m.Focus)
+		require.Contains(t, m.Notice, "removed")
+	})
+	t.Run("snapshot without it or with another state", func(t *testing.T) {
+		m := open(t)
+		m = adoptSessions(m, m.Sessions[:2])
+		require.Equal(t, FocusBoard, m.Focus)
+
+		m = open(t)
+		sessions := append([]protocol.SessionSummary(nil), m.Sessions...)
+		for i := range sessions {
+			if sessions[i].ID == "5" {
+				sessions[i].State = protocol.StateWorking
+			}
+		}
+		m = adoptSessions(m, sessions)
+		require.Equal(t, FocusBoard, m.Focus)
+	})
+	t.Run("a running restore is left alone", func(t *testing.T) {
+		m := open(t)
+		m.Undo.Phase = undoRunning
+		m = adoptSessions(m, m.Sessions[:2])
+		require.Equal(t, FocusUndo, m.Focus)
+	})
 }

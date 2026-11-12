@@ -53,9 +53,18 @@ type UndoState struct {
 	Shared    string // the daemon's refusal naming the other live sessions
 	Plan      protocol.UndoResult
 	Result    protocol.UndoResult
-	Err       string // the call failed after the dialog opened
-	seq       int
+	Err       string // the restore failed after the dialog opened
+	// StateAt is the session's state when the dialog opened; the dialog
+	// closes if it changes before the user confirms.
+	StateAt protocol.State
+	since   time.Time // when the phase began; see undoKeyGuard
+	seq     int
 }
+
+// undoKeyGuard is how long after a phase change the keys that act (y, f)
+// are ignored, so a held or repeated key cannot confirm what the user has not
+// yet read. Tests that confirm at once set it to 0.
+var undoKeyGuard = 500 * time.Millisecond
 
 // undoDoer is the one daemon call the dialog makes. *client.Client satisfies
 // it; tests swap a fake.
@@ -130,7 +139,7 @@ func startUndo(m Model, op string, c cmdCall) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.Err = ""
-	m.Undo = &UndoState{Op: op, SessionID: id, Name: displayName(sum), Turns: turns, Phase: undoPlanning}
+	m.Undo = &UndoState{Op: op, SessionID: id, Name: displayName(sum), Turns: turns, Phase: undoPlanning, StateAt: sum.State}
 	m.Focus = FocusUndo
 	return sendUndo(m, true)
 }
@@ -148,13 +157,18 @@ func sendUndo(m Model, dry bool) (Model, tea.Cmd) {
 	} else {
 		st.Phase = undoPlanning
 	}
+	st.since = m.now()
 	m.Undo = &st
 	seq, op, id, turns, force := st.seq, st.Op, st.SessionID, st.Turns, st.Force
+	expect := ""
+	if final {
+		expect = st.Plan.Target // run what the preview showed, or nothing
+	}
 	slog.Info("tui: undo call", "op", op, "session", id, "dry_run", dry, "force", force)
 	return m, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), undoTimeout)
 		defer cancel()
-		res, err := callUndo(ctx, d, op, protocol.Undo{SessionID: id, Turns: turns, Force: force, DryRun: dry})
+		res, err := callUndo(ctx, d, op, protocol.Undo{SessionID: id, Turns: turns, Force: force, DryRun: dry, Expect: expect})
 		return undoReplyMsg{seq: seq, final: final, res: res, err: err}
 	}
 }
@@ -165,7 +179,7 @@ func callUndo(ctx context.Context, d undoDoer, op string, p protocol.Undo) (prot
 	var payload any = p
 	if op == "redo" {
 		intent = protocol.IntentRedo
-		payload = protocol.Redo{SessionID: p.SessionID, Force: p.Force, DryRun: p.DryRun}
+		payload = protocol.Redo{SessionID: p.SessionID, Force: p.Force, DryRun: p.DryRun, Expect: p.Expect}
 	}
 	env, err := d.Do(ctx, intent, payload)
 	if err != nil {
@@ -220,16 +234,62 @@ func applyUndoReply(m Model, msg undoReplyMsg) Model {
 			return m
 		}
 		return closeUndoWith(m, undoErrText(st.Op, msg.err))
+	case msg.err != nil && undoRefusedFirst(msg.err):
+		// Refused before anything was touched: a notice, not a result.
+		return closeUndoWith(m, undoErrText(st.Op, msg.err))
 	case msg.err != nil:
-		// The restore itself failed (or the guard tripped at the last
-		// moment): show it in the dialog, since the folder may be part way.
-		st.Phase, st.Err = undoDone, undoErrText(st.Op, msg.err)
+		// The restore itself failed or timed out: show it in the dialog,
+		// since the folder may be part way.
+		st.Phase, st.Err, st.since = undoDone, undoErrText(st.Op, msg.err), m.now()
 		return m
 	case msg.final:
-		st.Phase, st.Result = undoDone, msg.res
+		st.Phase, st.Result, st.since = undoDone, msg.res, m.now()
 	default:
-		st.Phase, st.Plan = undoConfirm, msg.res
+		st.Phase, st.Plan, st.since = undoConfirm, msg.res, m.now()
 	}
+	return m
+}
+
+// undoRefusedFirst reports whether err is a refusal the daemon gives before
+// it changes anything: session working, shared folder, a stale preview, an
+// unknown session, or the feature off.
+func undoRefusedFirst(err error) bool {
+	var ce *client.Error
+	if !errors.As(err, &ce) {
+		return false
+	}
+	switch ce.Code {
+	case protocol.ErrCodeUnknownSession, protocol.ErrCodeBadIntent:
+		return true
+	case protocol.ErrCodeBadState:
+		for _, p := range []string{"session is working", "another live session", "changed since the preview"} {
+			if strings.Contains(ce.Message, p) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// undoTarget is the session the dialog is about, "" when it is closed.
+func (m Model) undoTarget() string {
+	if m.Undo == nil {
+		return ""
+	}
+	return m.Undo.SessionID
+}
+
+// closeUndoIfStale closes a dialog that has not started its restore when
+// its session left or changed state: the preview no longer describes it.
+func closeUndoIfStale(m Model, id string, reason string) Model {
+	if m.Undo == nil || m.Undo.SessionID != id {
+		return m
+	}
+	if m.Undo.Phase == undoRunning || m.Undo.Phase == undoDone {
+		return m
+	}
+	m = closeUndo(m)
+	m.Notice = reason
 	return m
 }
 
@@ -250,10 +310,14 @@ func closeUndo(m Model) Model {
 // updateUndoKey handles keys while the dialog is open.
 func updateUndoKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := *m.Undo
+	// y and f act; ignore them right after a phase change.
+	if s := k.String(); (s == "y" || s == "Y" || s == "f" || s == "F") && m.now().Sub(st.since) < undoKeyGuard {
+		return m, nil
+	}
 	switch st.Phase {
 	case undoConfirm:
 		switch k.String() {
-		case "y", "Y", "enter":
+		case "y", "Y":
 			return sendUndo(m, false)
 		case "n", "N", "esc", "q":
 			return closeUndo(m), nil
@@ -269,7 +333,7 @@ func updateUndoKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case undoDone:
 		switch k.String() {
-		case "esc", "enter", "q", "y", "n":
+		case "esc", "q":
 			return closeUndo(m), nil
 		}
 	case undoPlanning:
@@ -359,21 +423,12 @@ func renderUndo(m Model) string {
 	out = append(out, undoFileList("delete", st.Plan.Deleted, inner)...)
 	if st.Force {
 		out = append(out, "")
-		wrap(warn, "forced: the other live session in this folder is reverted too ("+undoOthers(st.Shared)+")")
+		wrap(warn, "forced: this reverts the changes of every live session in this folder, not only this one")
 	}
 	out = append(out, "")
 	wrap(dim, shellEffectsNote)
 	out = append(out, "", renderHints([][2]string{{"y", st.Op}, {"esc", "cancel"}}, inner))
 	return strings.Join(out, "\n")
-}
-
-// undoOthers pulls the session names out of the daemon's refusal text.
-func undoOthers(msg string) string {
-	i, j := strings.Index(msg, "("), strings.Index(msg, ")")
-	if i < 0 || j < i {
-		return "another session"
-	}
-	return msg[i+1 : j]
 }
 
 // undoFileList names up to undoListed files of one list.
