@@ -9,7 +9,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -181,7 +180,7 @@ func renderFailEntry(s protocol.SessionSummary) string {
 	}
 	// Session strings are sanitized before styling; LastLine goes through
 	// truncate, which sanitizes.
-	id := lipgloss.NewStyle().Foreground(colorFgDim).Render(protocol.FlattenDisplayText(s.ShortID))
+	id := styleDim.Render(protocol.FlattenDisplayText(s.ShortID))
 	slug := styleSlug.Render(protocol.FlattenDisplayText(s.Slug))
 	meta := styleDim.Render(protocol.FlattenDisplayText(fmt.Sprintf("%s · %s · exit=%s · %s ago", s.ToolID, s.ModelID, exit, when)))
 	line1 := fmt.Sprintf("  %s  %s    %s", id, slug, meta)

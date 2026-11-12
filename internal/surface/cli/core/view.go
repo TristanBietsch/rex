@@ -134,7 +134,7 @@ type KV struct {
 	Kind  string
 	Pairs []Pair
 	// Inline renders the pairs on one line in the text format:
-	// "◆ 1 needs you   ⠋ 1 working".
+	// "◆ 1 ready   ⠋ 1 working".
 	Inline bool
 	// Txt replaces the whole block in the txt format when non-empty (for an
 	// inline summary whose plain spelling is a stable contract).

@@ -25,7 +25,7 @@ func renderRowStacked(m Model, s protocol.SessionSummary, width int) (nameLine, 
 	selected := m.SelectedID == s.ID
 	now := m.now()
 	retiring := !s.RetireAt.IsZero()
-	dim := lipgloss.NewStyle().Foreground(colorFgDim)
+	dim := styleDim
 	gap := strings.Repeat(" ", colGap)
 	indent, marker, waiting := rowLead(m, s)
 
@@ -39,7 +39,7 @@ func renderRowStacked(m Model, s protocol.SessionSummary, width int) (nameLine, 
 	nameLine = indent + marker + gap + cell(rowNameStyle(s, selected), displayName(s), nameW) + right
 
 	textW := max(width-mobileTextIndent, 0)
-	text := lipgloss.NewStyle().Foreground(rowDescColor(m, s, selected)).Width(textW).
+	text := rowDescStyle(m, s, selected).Width(textW).
 		Render(truncateWords(rowDescText(m, s, textW, waiting), textW))
 	textLine = strings.Repeat(" ", mobileTextIndent) + text
 	return blinkRow(m, s.ID, nameLine), blinkRow(m, s.ID, textLine)

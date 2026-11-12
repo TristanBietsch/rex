@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: help, settings, stats, failures, overview and the wizard share one
+  titled square panel, and the board behind them is dimmed. The attach popup
+  gets square corners and keeps the board's colors.
+- `prompt_glyph` must be one printable character (1 or 2 cells wide):
+  `rex config set prompt_glyph` refuses control characters, spaces and
+  longer text. `keybind_preset` (one option) is hidden from the settings page
+  but still works in `rex config`.
+- New default color scheme with a violet accent (`#B392F0`) for the prompt
+  arrow, selection marker, focused inputs and logo, so "the cursor is here"
+  no longer looks like "working". The previous look is the `classic` scheme
+  (`rex config set color_scheme classic`). `noir` and `paper` are retuned to
+  meet contrast targets (`paper`'s amber was below 4.5:1). CLI output
+  follows `color_scheme`, so it changes with the TUI.
 - TUI: the new-session wizard no longer asks for a name. Effort (or skills)
   leads straight to the task; rename the session on the board, or pass
   `rex new -name`, to set one.
@@ -25,6 +38,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   activity and wakes it, and turning `screensaver_enabled` off while it
   shows hides it within a minute.
 
+- "Needs you" is now "Ready" everywhere it shows: the board section and its
+  counts, the screensaver, the attach banner, `rex status`, `rex ls`,
+  `rex wait` and the help. The overview's "Ready for review" bucket is now
+  "Review" (header line `» 2 to review`). Machine names stay: the section
+  id `needs` (`:hide needs`, `z1`), the state `needs_input` and the
+  `rex overview -o json` key `needs_you`.
 - TUI: board columns have fixed widths by default and change only when the
   terminal crosses a width breakpoint (150 and 110 columns). The subagent,
   badge, tokens, span and resume columns are always reserved, so nothing
@@ -44,6 +63,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: an optional thick colored window border (`window_border`, off by
+  default; `window_border_color`: `random`, a name or `#rrggbb`). `random`
+  picks a Pantone-inspired, colorblind-safe color per launch folder, so a
+  project keeps its color. The frame takes 2 columns and 2 rows, and is
+  hidden on the splash, the screensaver and small terminals. `:border`
+  (`::border` in the attach popup) toggles it or picks a color for one run
+  without saving.
 - Daemon: scheduled description refresh (`summary_schedule`, Settings →
   Features, on by default). Each live session gets a new AI description 5, 10,
   15, 20 and 25 minutes after its run started, then every 30 minutes, and the
@@ -52,6 +78,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   refreshes at once. Screen activity no longer triggers a refresh while the
   switch is on, except for a session with no description yet; turn it off
   for the old behavior.
+- Color schemes `high-contrast` (pure black and white, bright state colors)
+  and `ansi` (your terminal's own 16 colors, selection in reverse video).
+- Help overlay scrolls (`j`/`k`, `pgup`/`pgdn`, `g`/`G`, wheel) instead of
+  dropping groups, filters with `/`, and ends with a legend drawn in the
+  board's real styles (markers and long-running badges). Keys behind a
+  feature switch that is off are listed dimmed with `(off)`.
+- Settings page: `/` search, `tab` to jump between sections, a `•` on values
+  that differ from the default, and a detail pane with the setting's id,
+  default, options and when a change applies (live, next attach, next new
+  session, after a daemon restart). `enter` edits `auto_trust_dirs` and
+  `prompt_glyph` in place; the value goes through the same check as
+  `rex config set`.
 - Qwen Code (`qwen`), Cursor CLI (`cursor`, binary `cursor-agent`) and Grok
   Build (`grok`) as built-in agents, shown only when their binary is on
   `PATH`. They stay hidden in the wizard until enabled in Settings →

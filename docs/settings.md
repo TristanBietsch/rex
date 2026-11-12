@@ -22,20 +22,68 @@ rex config reset <id>...
 rex config edit          # opens init.lua in $EDITOR, not config.yaml
 ```
 
+## When a change applies
+
+The settings page shows this per row (the detail pane under the list), and the registry carries it as `Apply`:
+
+| Mode | Meaning |
+|------|---------|
+| applies now | In the TUI at once, or through the daemon's settings watcher within seconds |
+| next attach | Read when an attach popup opens or resizes (`attach_banner`, `attach_scrollback_lines`) |
+| applies now (set from the TUI) | `max_concurrent_sessions`: the TUI sends it to the running daemon; the daemon ignores the YAML |
+| next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
+| after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
+
+## Color schemes
+
+`rex config set color_scheme <name>`; the TUI applies it at once and CLI output follows it.
+
+| Scheme | For |
+|--------|-----|
+| `default` | Dark terminals. Violet accent for the prompt arrow, selection marker, focused inputs and logo; blue, amber, green and red stay the state colors |
+| `classic` | The previous look (blue accent) |
+| `noir` | Deeper, quieter dark |
+| `paper` | Light terminals |
+| `high-contrast` | Pure black and white with bright state colors |
+| `ansi` | Your terminal's own six normal hues (a Solarized or Gruvbox terminal theme gives a matching rex); dim text is the default color drawn faint, since no fixed index is safe (8 is the Solarized Dark background); the selection is reverse video. Also a good fallback on a 16-color terminal |
+
+Every scheme with real colors is tested against its own background: text 7:1, state colors, accent and dim text 4.5:1, focus border 3:1, and the four state colors stay distinct from one another (also after a 256-color terminal quantizes them).
+
+## Border colors
+
+`window_border_color` takes one of ten Pantone-inspired names. The hex values are approximations, not official Pantone values, and rex is not affiliated with Pantone. Each hue sits next to an Okabe-Ito (or IBM color-blind-safe) role, and every value is at least 3:1 against every scheme's background (WCAG non-text contrast); light schemes use the darker variant.
+
+| Name | Reference | Dark / light hex | Okabe-Ito role | `ansi` scheme |
+|------|-----------|------------------|----------------|---------------|
+| `tangerine` | 17-1463 Tangerine Tango | `#DD4124` | vermillion | 9 |
+| `mimosa` | 14-0848 Mimosa | `#F0C05A` / `#B18513` | orange | 3 |
+| `illuminating` | 13-0647 Illuminating | `#F5DF4D` / `#A18C00` | yellow | 11 |
+| `emerald` | 17-5641 Emerald | `#009473` | bluish green | 2 |
+| `cerulean` | 15-4020 Cerulean | `#9BB7D4` / `#758FA9` | sky blue | 14 |
+| `classic-blue` | 19-4052 Classic Blue | `#4F83C0` / `#0F4C81` | blue | 12 |
+| `very-peri` | 17-3938 Very Peri | `#6667AB` | (IBM indigo) | 13 |
+| `orchid` | 18-3224 Radiant Orchid | `#B163A3` | reddish purple | 5 |
+| `viva-magenta` | 18-1750 Viva Magenta | `#BE3455` | (IBM magenta) | 1 |
+| `ultimate-gray` | 17-5104 Ultimate Gray | `#939597` / `#8A8C8E` | neutral | 8 |
+
+`random` picks from a smaller pool whose colors stay far apart for normal vision and protan, deutan and tritan color vision (OKLab distance, Machado 2009 simulation, tested): seven colors on dark schemes (`tangerine`, `illuminating`, `cerulean`, `very-peri`, `viva-magenta`, `mimosa`, `ultimate-gray`), five on light ones (`mimosa`, `cerulean`, `very-peri`, `viva-magenta`, `classic-blue`). The other colors are only offered by name. The seed is the folder rex was started in (the repository root, inside a repository).
+
 ## Keys
 
 ### Appearance
 
 | ID | Type | Default | Options |
 |----|------|---------|---------|
-| `color_scheme` | enum | `default` | `default`, `noir`, `paper` |
+| `color_scheme` | enum | `default` | `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors). Applies to the TUI and to CLI output |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
-| `prompt_glyph` | string | `λ` | Suggested graphemes in TUI |
+| `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
 | `reduce_motion` | bool | `false` | |
 | `blinking_enabled` | bool | `true` | Completed-row blink |
 | `show_help_bar` | bool | `true` | Bottom help line |
 | `header_style` | enum | `verbose` | `verbose`, `glyphs`, `numbers` |
+| `window_border` | bool | `false` | A thick colored frame around the whole screen (see [tui.md](tui.md#window-border)). It costs 2 columns and 2 rows and gives way on small terminals |
+| `window_border_color` | string | `random` | `random` (stable per launch folder: a project keeps its color), a color name (see below), or `#rrggbb` (`#rgb` is expanded). The settings page cycles the names with the arrows and takes a typed hex with enter |
 | `column_layout` | enum | `fixed` | `fixed`, `fit`. `fixed` gives board columns set widths that change only at width breakpoints (see [tui.md](tui.md#column-widths)); `fit` sizes them to their content |
 | `mobile_layout` | enum | `auto` | `auto`, `always`, `off`. Two-line rows, a compact header and a three-key help line. `auto` uses it at 60 columns or fewer; `always` and `off` force it (see [tui.md](tui.md#mobile-layout)) |
 
@@ -43,7 +91,7 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 
 | ID | Type | Default | Range | Notes |
 |----|------|---------|-------|-------|
-| `keybind_preset` | enum | `default` | `default` only | |
+| `keybind_preset` | enum | `default` | `default` only | Hidden on the TUI settings page until a second preset exists; `rex config` still lists it |
 | `mouse_enabled` | bool | `true` | | Board and attach-popup mouse: click selects, double-click attaches, wheel moves the selection. Capturing the mouse disables the terminal's native text selection; hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) to select anyway, or turn this off. Applies live |
 | `max_concurrent_sessions` | int | `16` | 1–64 | See below |
 | `attach_scrollback_lines` | int | `5000` | 0–50000 | Lines the attach popup keeps after they scroll off a primary-screen agent (see [tui.md](tui.md#scrollback)). `0` disables. Also capped at 8 MiB per popup. Read when a popup opens |
@@ -71,7 +119,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `summary_preview` | bool | `true` | A line under the board with the selected session's full AI summary and its age. Shown only while some session has a summary. Off: no line and no row reserved |
 | `summary_schedule` | bool | `true` | Scheduled description refresh. Each running session (queued, working or needs you) gets a new AI description 5, 10, 15, 20 and 25 minutes after its run started, then every 30 minutes. From the 6th refresh on the description is one `summary_detail` level longer (short→medium, medium→long, long stays at 180 characters) and says what is finished so far plus what is happening now. A state change still refreshes at once and does not move the clock; a Resume restarts the 5-minute phase. Screen activity no longer triggers a refresh, and an unchanged screen makes no call. Applies within about 5 s with `live_reload` on (otherwise on `rex reload`), no daemon restart. Needs `summary_enabled`. A session with no description yet still refreshes on screen activity until its first description lands. Each session's clock is shifted by up to 5% of 5 minutes so sessions started together do not tick together. Off: refresh when the screen goes quiet and on state changes, as before; no timer |
 | `turn_snapshots` | bool | `false` | Snapshot a session's folder at the start and end of every agent turn into a private store under `~/.local/share/rex/snapshots`, so `rex undo` can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as `.env` unless they are gitignored. Off: no snapshot, no git call, no file written, and `rex undo` / `rex redo` refuse. Read live by the daemon (within about 5 s). See [snapshots](snapshots.md) |
-| `waiting_section` | bool | `true` | A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own `◷` marker and count. Off: those sessions stay in Working, the section, its count and its key go away, and `1` `2` `3` (and `z1`-`z3`) are Needs you / Working / Done again. The daemon still records `waiting_on` / `waiting_since`; the switch is read by the TUI and `rex ls` |
+| `waiting_section` | bool | `true` | A Waiting section below Ready for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own `◷` marker and count. Off: those sessions stay in Working, the section, its count and its key go away, and `1` `2` `3` (and `z1`-`z3`) are Ready / Working / Done again. The daemon still records `waiting_on` / `waiting_since`; the switch is read by the TUI and `rex ls` |
 | `spawn_skills` | bool | `true` | Load skills from `~/.config/rex/skills` into one session: the wizard's skills step and `rex new -skill`. Off: the step is hidden, `-skill` exits 5 (`off: enable in Settings → Features (rex config set spawn_skills true)`), `NewSession` with skills is `bad_intent` `skills are off`, and no `--plugin-dir` is added, also on resume. The daemon reads it at each spawn and `Resume`. See [howto/skills.md](howto/skills.md) |
 | `usage` | bool | `true` | Track agent usage: the per-session ledger (`~/.local/share/rex/usage.jsonl`, see [paths.md](paths.md)) behind `rex usage`, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written or trimmed, nothing is polled, and `rex usage` exits 5 (`off: enable in Settings → Features (rex config set usage true)`). The daemon reads it at each spawn and each ledger write |
 | `usage_statusline_tap` | `auto` \| `on` \| `off` | `auto` | How rex reads Claude Code's plan usage. rex gives Claude a status line (`rex-daemon statusline-tap`) that sends the usage fields to the daemon and then runs **your own** status line command with the same input, so yours looks unchanged. `auto` adds it only when you already have a user-level status line (see below), because Claude hides its footer hints (`esc to interrupt`, `? for shortcuts`) once any status line is set and rex never changes that on its own. `on` always adds it (the footer hints go away). `off` never adds it; Claude rows then use rex's own token estimate (`~`). Ignored while `usage` is off. Read at each spawn and `Resume`, and within about 5 s while the daemon runs (it follows `config.yaml`); a session already running keeps the status line it was started with |

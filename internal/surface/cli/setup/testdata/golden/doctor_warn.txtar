@@ -30,14 +30,14 @@ Doctor  v1 · linux/amd64
 
 all required checks passed, 1 warning
 -- text.color.w80 --
-␛[1;38;2;230;230;230mDoctor␛[0m  ␛[38;2;121;127;140mv1 · linux/amd64␛[0m
+␛[1;38;2;230;232;238mDoctor␛[0m  ␛[38;2;139;145;161mv1 · linux/amd64␛[0m
 
-  ␛[38;2;73;222;128m✓␛[0m rex binary        /home/u/.local/bin/rex
-  ␛[38;2;229;179;65m!␛[0m daemon reachable  socket not responding — run: rex daemon start
+  ␛[38;2;91;208;140m✓␛[0m rex binary        /home/u/.local/bin/rex
+  ␛[38;2;245;185;73m!␛[0m daemon reachable  socket not responding — run: rex daemon start
                       (socket=/home/u/.cache/rex/rex.sock)
-  ␛[38;2;73;222;128m✓␛[0m config dir        /home/u/.config/rex
+  ␛[38;2;91;208;140m✓␛[0m config dir        /home/u/.config/rex
 
-␛[38;2;229;179;65mall required checks passed, 1 warning␛[0m
+␛[38;2;245;185;73mall required checks passed, 1 warning␛[0m
 -- txt --
 v rex binary  /home/u/.local/bin/rex
 ! daemon reachable  socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)

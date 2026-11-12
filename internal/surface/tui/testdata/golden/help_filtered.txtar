@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
+  all · claude · codex · antigravity · ollama                                   
+
+────────────────────────────────────────────────────────────────────────────────
+    ┌─ HELP ────────────────────────────────────────────────────── rex v1 ─┐
+  RE│   / undo                                                             │    
+   ◆│   ── Actions ─────────────────────────────────────────────────────   │  4m
+    │   cc  mark done / undo                                               │
+  WA│   uc  undo done (unmark, or resume an exited session)                │    
+    │                                                                      │
+    │   ── Session commands ────────────────────────────────────────────   │
+  WO│   :undone [sel]      undo done                                       │    
+ ▸ ⠋│   :uc :resume [sel]  undo done: unmark a running session, or         │ 11m
+   ⠋│                      resume an exited one                            │  7s
+   ⠋│                                                                      │  2h
+    │   j/k scroll · / edit filter · esc clear                             │
+  DO└──────────────────────────────────────────────────────────────────────┘    
+   ●  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
+   ✕  no-model          boot                                                   -
+  ↳ draft ready — which feature leads?                                          
+────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  READY  1                                                                                                              
+   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+
+  WAITING  0                                                                                                            
+      nothing waiting on a tool
+
+  WORKING  3                                                                                                            
+ ▸ ⠋  release-notes         draft ready — which feature leads?                                               ▴ 45m   11m
+   ⠋  日本語の長いタスク…   events_org_ts index live — p95 38ms                                                       7s
+   ⠋ ┌─ HELP ──────────────────────────────────────────────────────────────────────────────────────────── rex v1 ─┐   2h
+     │   / undo                                                                                                   │
+  DON│   ── Actions ──────────────────────────────────────    ── Session commands ─────────────────────────────   │     
+   ● │   cc  mark done / undo                                 :undone [sel]      undo done                        │   9d
+   ✕ │   uc  undo done (unmark, or resume an exited           :uc :resume [sel]  undo done: unmark a running      │    -
+   ✕ │       session)                                                            session, or resume an exited     │    -
+     │                                                                           one                              │
+     │                                                                                                            │
+     │   j/k scroll · / edit filter · esc clear                                                                   │
+     └────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+
+
+
+
+
+  ↳ draft ready — which feature leads?                                                                                  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      

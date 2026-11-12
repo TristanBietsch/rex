@@ -83,10 +83,10 @@ func NewStyles(p theme.Palette, r *lipgloss.Renderer) Styles {
 	return Styles{
 		Bold:   fg(p.Fg).Bold(true),
 		Title:  fg(p.Fg).Bold(true),
-		Dim:    fg(p.FgDim),
-		Muted:  fg(p.FgMuted),
+		Dim:    fg(p.FgDim).Faint(p.Faint),
+		Muted:  fg(p.FgMuted).Faint(p.Faint),
 		Accent: fg(p.Accent).Bold(true),
-		HR:     fg(p.Border),
+		HR:     fg(p.Border).Faint(p.Faint),
 		OK:     fg(p.Success),
 		Warn:   fg(p.Warn),
 		Err:    fg(p.Danger),
@@ -132,11 +132,11 @@ func loadAppearance() (scheme, spinner string) {
 	return scheme, spinner
 }
 
-// StateLabel is the human name of a session state ("needs you" for
+// StateLabel is the human name of a session state ("ready" for
 // needs_input).
 func StateLabel(s protocol.State) string {
 	if s == protocol.StateNeedsInput {
-		return "needs you"
+		return "ready"
 	}
 	return string(s)
 }

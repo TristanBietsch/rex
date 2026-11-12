@@ -55,6 +55,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 	nm = normalizeFocus(nm)
+	nm = syncLayout(nm)
 	nm = keepSelectionVisible(nm)
 	var arm tea.Cmd
 	if nm, arm = armSpinner(nm); arm != nil {
@@ -73,9 +74,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
-		resizeAttach(m)
+		m.TermW, m.TermH = msg.Width, msg.Height
 		// A resize means someone is at the terminal (or a tmux client just
 		// attached): restart the idle countdown and show the real screen.
 		// The first size at startup isn't input; lastInput starts at hand-off.
@@ -85,7 +84,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m = wakeSaver(m, "resize")
 			}
 		}
-		return ensureVisible(m), nil
+		return relayout(m), nil
 	case AttachOutputMsg:
 		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
@@ -287,6 +286,10 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.saverOn {
 			return wakeSaver(m, "mouse"), nil
 		}
+		msg, ok := translateMouse(m, msg)
+		if !ok {
+			return m, nil
+		}
 		return updateMouse(m, msg)
 	}
 	return m, nil
@@ -417,11 +420,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		case "n":
 			return openWizard(m)
 		case "?":
-			m.Focus = FocusHelp
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventOpen)
-			}
-			return m, nil
+			return openHelp(m), nil
 		case "S":
 			return openSettings(m)
 		case "i":
@@ -471,14 +470,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateWizardKey(m, k)
 	}
 	if m.Focus == FocusHelp {
-		switch k.String() {
-		case "esc", "?":
-			m.Focus = FocusBoard
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventClose)
-			}
-		}
-		return m, nil
+		return updateHelpKey(m, k)
 	}
 	if m.Focus == FocusSettings {
 		return updateSettingsKey(m, k)

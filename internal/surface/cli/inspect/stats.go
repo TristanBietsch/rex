@@ -193,7 +193,8 @@ func sessionDuration(s protocol.SessionSummary) time.Duration {
 		return 0
 	}
 	end := s.LastEventAt
-	if end.IsZero() || s.State == protocol.StateWorking || s.State == protocol.StateNeedsInput {
+	// A queued session's last_event_at is its creation, not an end.
+	if end.IsZero() || s.State == protocol.StateQueued || s.State == protocol.StateWorking || s.State == protocol.StateNeedsInput {
 		end = time.Now()
 	}
 	d := end.Sub(s.StartedAt)

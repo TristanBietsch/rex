@@ -3,8 +3,6 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss"
-
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -40,9 +38,9 @@ func waitingGlyphFor(m Model) string {
 // waitingMarkerCell renders the row marker of a waiting session, in the
 // working colour (it is busy, not asking for you).
 func waitingMarkerCell(m Model, selected bool) string {
-	style := lipgloss.NewStyle().Bold(true).Width(colMarker).Foreground(colorWorking)
+	style := styleMarker[protocol.StateWorking].Width(colMarker)
 	if selected {
-		style = style.Background(colorBgElev)
+		style = selectedStyle(style)
 	}
 	return style.Render(waitingGlyphFor(m))
 }
@@ -55,6 +53,6 @@ func waitingLabel(m Model, s protocol.SessionSummary) string {
 
 // waitingChip is the attach header chip of a waiting session.
 func waitingChip(m Model, s protocol.SessionSummary) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(colorWorking).
+	return styleMarker[protocol.StateWorking].
 		Render(waitingGlyphFor(m) + " waiting (" + s.WaitingOn + ")")
 }

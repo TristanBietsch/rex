@@ -33,6 +33,21 @@ func TestNewSession_SanitizesTitleAndFleet(t *testing.T) {
 	require.Equal(t, "backend", sum.Fleet)
 }
 
+func TestNewSession_StampsLastEventAt(t *testing.T) {
+	srv, sock, dir := newTestServer(t, state.NewStore())
+	serveTest(t, srv)
+	conn := dialTest(t, sock)
+	w, r := helloOnConn(t, conn)
+	require.NoError(t, w.WriteIntent(protocol.IntentNewSession, "n", protocol.NewSession{
+		ToolID: "echo", ModelID: "short", Slug: "stamped", CWD: dir,
+	}))
+	added := waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.Type == protocol.EventSessionAdded })
+	var sum protocol.SessionSummary
+	require.NoError(t, json.Unmarshal(added.Data, &sum))
+	require.False(t, sum.LastEventAt.IsZero(), "a new session carries last_event_at")
+	require.True(t, sum.LastEventAt.Equal(sum.StartedAt), "last_event_at == started_at at creation")
+}
+
 func TestNewSession_CapsTitle(t *testing.T) {
 	srv, sock, dir := newTestServer(t, state.NewStore())
 	serveTest(t, srv)

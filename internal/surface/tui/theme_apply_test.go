@@ -9,23 +9,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
 func TestArrowStylesFollowTheme(t *testing.T) {
 	t.Cleanup(func() { applyTheme("default") })
-	for name, p := range palettes {
+	for _, name := range theme.Names() {
+		p := theme.Builtin[name]
 		applyTheme(name)
-		require.Equal(t, p.Working, styleArrow.GetForeground(), "%s: arrow uses the working color", name)
-		require.Equal(t, p.Needs, styleArrowYellow.GetForeground(), "%s: yellow arrow uses the needs color", name)
+		require.Equal(t, lipgloss.Color(p.Accent), styleArrow.GetForeground(), "%s: arrow uses the accent", name)
+		require.Equal(t, lipgloss.Color(p.Warn), styleArrowYellow.GetForeground(), "%s: yellow arrow uses the warn color", name)
 	}
-	require.NotEqual(t, "", string(palettes["default"].Working))
+	require.NotEqual(t, "", string(theme.Builtin["default"].Accent))
 }
 
 func TestStepThemeApply_DoesNotTouchGlobalsOffGoroutine(t *testing.T) {
 	t.Cleanup(func() { applyTheme("default") })
 	applyTheme("default")
 	before := colorWorking
-	require.NotEqual(t, palettes["paper"].Working, before, "test needs two distinct palettes")
+	require.NotEqual(t, lipgloss.Color(theme.Builtin["paper"].Working), before, "test needs two distinct palettes")
 
 	store := settings.NewStore()
 	require.NoError(t, store.Set("color_scheme", "paper"))
@@ -37,7 +39,7 @@ func TestStepThemeApply_DoesNotTouchGlobalsOffGoroutine(t *testing.T) {
 	require.Equal(t, "paper", tm.Scheme)
 
 	next, _ := Model{}.Update(msg)
-	require.Equal(t, palettes["paper"].Working, colorWorking, "Update applies the theme")
+	require.Equal(t, lipgloss.Color(theme.Builtin["paper"].Working), colorWorking, "Update applies the theme")
 	log := next.(Model).BootLog
 	require.Equal(t, "theme.apply", log[len(log)-1].Name)
 	require.Equal(t, stepOK, log[len(log)-1].Status)

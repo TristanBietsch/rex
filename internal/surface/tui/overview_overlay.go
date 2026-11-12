@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/features/overview"
@@ -19,8 +18,8 @@ var overviewOrder = []overview.Bucket{overview.Review, overview.NeedsYou, overvi
 
 // overviewTitles are the section titles.
 var overviewTitles = map[overview.Bucket]string{
-	overview.Review:    "READY FOR REVIEW",
-	overview.NeedsYou:  "NEEDS YOU",
+	overview.Review:    "REVIEW",
+	overview.NeedsYou:  "READY",
 	overview.Failed:    "FAILED",
 	overview.Working:   "WORKING",
 	overview.Completed: "COMPLETED (last 24 h)",
@@ -192,7 +191,7 @@ func renderOverviewRow(m Model, r overviewRow, nameW, width int, selected bool) 
 	}
 	pointer := " "
 	if selected {
-		pointer = lipgloss.NewStyle().Bold(true).Render("›")
+		pointer = styleBold.Render("›")
 	}
 	line := pointer + " " + marker + " " + name + " " + styleDim.Render(text)
 	pad := max(width-ansi.StringWidth(line)-len(age), 1)

@@ -7,6 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// ansi leaves the neutral tones to the terminal default.
+var ansiNeutral = map[string]bool{"Bg": true, "Fg": true, "FgDim": true, "FgMuted": true, "BgSel": true, "Border": true, "BorderFocus": true, "Crashed": true}
+
 func TestEveryBuiltinComplete(t *testing.T) {
 	for _, name := range Names() {
 		p := Builtin[name]
@@ -16,6 +19,10 @@ func TestEveryBuiltinComplete(t *testing.T) {
 			f := v.Type().Field(i)
 			switch f.Type.Kind() {
 			case reflect.String:
+				// ansi leaves text, background and selection to the terminal.
+				if name == "ansi" && ansiNeutral[f.Name] {
+					continue
+				}
 				require.NotEmpty(t, v.Field(i).String(), "%s.%s is empty", name, f.Name)
 			case reflect.Slice:
 				require.NotZero(t, v.Field(i).Len(), "%s.%s is empty", name, f.Name)
@@ -26,18 +33,20 @@ func TestEveryBuiltinComplete(t *testing.T) {
 }
 
 func TestNamesSortedAndKnown(t *testing.T) {
-	require.Equal(t, []string{"classic", "default", "noir", "paper"}, Names())
+	require.Equal(t, []string{"ansi", "classic", "default", "high-contrast", "noir", "paper"}, Names())
 }
 
-func TestDefaultIsClassic(t *testing.T) {
-	d, c := Builtin["default"], Builtin["classic"]
-	d.Name, c.Name = "", ""
-	require.Equal(t, c, d)
+func TestDefaultIsVioletAndClassicKeepsTheOldLook(t *testing.T) {
+	require.Equal(t, "#B392F0", Builtin["default"].Accent)
+	require.Equal(t, "#5B8DEF", Builtin["classic"].Accent)
+	require.Equal(t, Builtin["classic"].Working, Builtin["classic"].Accent, "classic paints the accent like working, as it always did")
+	require.NotEqual(t, Builtin["default"].Working, Builtin["default"].Accent, "the accent is not a state color")
 }
 
 func TestDarkFlags(t *testing.T) {
 	require.True(t, Builtin["default"].Dark)
 	require.True(t, Builtin["noir"].Dark)
+	require.True(t, Builtin["high-contrast"].Dark)
 	require.False(t, Builtin["paper"].Dark)
 }
 

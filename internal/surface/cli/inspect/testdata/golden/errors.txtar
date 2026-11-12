@@ -23,13 +23,13 @@ Errors  2 logged
 
 › rex errors -clear  delete the log
 -- text.color.w80 --
-␛[1;38;2;230;230;230mErrors␛[0m  ␛[38;2;121;127;140m2 logged␛[0m
+␛[1;38;2;230;232;238mErrors␛[0m  ␛[38;2;139;145;161m2 logged␛[0m
 
-  ␛[38;2;121;127;140mTIME␛[0m                 ␛[38;2;121;127;140mEXIT␛[0m  ␛[38;2;121;127;140mCMD␛[0m        ␛[38;2;121;127;140mKIND␛[0m                ␛[38;2;121;127;140mCODE␛[0m                ␛[38;2;121;127;140mFLAGS␛[0m     ␛[38;2;121;127;140mCHAIN␛[0m
+  ␛[38;2;139;145;161mTIME␛[0m                 ␛[38;2;139;145;161mEXIT␛[0m  ␛[38;2;139;145;161mCMD␛[0m        ␛[38;2;139;145;161mKIND␛[0m                ␛[38;2;139;145;161mCODE␛[0m                ␛[38;2;139;145;161mFLAGS␛[0m     ␛[38;2;139;145;161mCHAIN␛[0m
   2026-11-11 09:12:03     6  rm         refused             needs_confirmation  -force    core.Ex…
   2026-11-10 22:00:00     4  fleet set  daemon_unreachable  daemon_unreachable            core.Ex…
 
-␛[1;38;2;91;141;239m› rex errors -clear␛[0m  ␛[38;2;121;127;140mdelete the log␛[0m
+␛[1;38;2;179;146;240m› rex errors -clear␛[0m  ␛[38;2;139;145;161mdelete the log␛[0m
 -- txt --
 TIME                 EXIT  CMD        KIND                CODE                FLAGS   CHAIN
 2026-11-11 09:12:03     6  rm         refused             needs_confirmation  -force  core.ExitError

@@ -11,7 +11,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// RunOverview prints what needs you, what is ready for review, what failed,
+// RunOverview prints what is ready for you, what to review, what failed,
 // what is working and what finished: the daemon's one-line headline (when
 // overview_enabled is on) over buckets computed here from the sessions.
 // Exit code 0.
@@ -45,8 +45,8 @@ type overviewData struct {
 
 // overviewTitles are the section titles in the human formats.
 var overviewTitles = map[overview.Bucket]string{
-	overview.Review:    "Ready for review",
-	overview.NeedsYou:  "Needs you",
+	overview.Review:    "Review",
+	overview.NeedsYou:  "Ready",
 	overview.Failed:    "Failed",
 	overview.Working:   "Working",
 	overview.Completed: "Completed (last 24 h)",
@@ -54,8 +54,8 @@ var overviewTitles = map[overview.Bucket]string{
 
 // overviewCountLabels name the buckets in the counts line.
 var overviewCountLabels = map[overview.Bucket]string{
-	overview.Review:    "ready for review",
-	overview.NeedsYou:  "needs you",
+	overview.Review:    "review",
+	overview.NeedsYou:  "ready",
 	overview.Failed:    "failed",
 	overview.Working:   "working",
 	overview.Completed: "completed",

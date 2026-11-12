@@ -9,7 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
 func envOf(kv ...string) func(string) string {
@@ -164,17 +168,17 @@ func TestPrinterForcedColorInPipeUsesANSI256(t *testing.T) {
 func TestCLIStylesFollowTheme(t *testing.T) {
 	env := Env{Getenv: envOf(), OutTTY: true, TrueColor: true, Scheme: "paper"}
 	p, _, _ := newTestPrinter(t, FormatFlags{Output: "text"}, env)
-	// paper Fg #1A1A1A, Danger #B83333
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;26;26;26")
-	require.Contains(t, p.Styles.Err.Render("x"), "38;2;184;51;51")
+	// paper Fg #1C1D21, Danger #C23B3B
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;28;29;32")
+	require.Contains(t, p.Styles.Err.Render("x"), "38;2;194;59;59")
 
 	env.Scheme = "default"
 	p, _, _ = newTestPrinter(t, FormatFlags{Output: "text"}, env)
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;230;230")
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;232;238")
 
 	env.Scheme = "no-such-scheme"
 	p, _, _ = newTestPrinter(t, FormatFlags{Output: "text"}, env)
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;230;230", "unknown scheme falls back to default")
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;230;232;238", "unknown scheme falls back to default")
 }
 
 func TestPrinterReadsSchemeFromSettings(t *testing.T) {
@@ -187,7 +191,7 @@ func TestPrinterReadsSchemeFromSettings(t *testing.T) {
 	var out, errw bytes.Buffer
 	p, err := NewPrinter(FormatFlags{Output: "text"}, Env{Getenv: envOf(), OutTTY: true, TrueColor: true}, &out, &errw)
 	require.NoError(t, err)
-	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;26;26;26")
+	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;28;29;32")
 	require.Equal(t, "◐", p.Glyphs.State["working"])
 
 	// Non-text formats never read settings or color.
@@ -434,4 +438,17 @@ func TestOutputFlags(t *testing.T) {
 		require.Contains(t, usage.String(), "-o format")
 		require.Contains(t, usage.String(), "-agent")
 	})
+}
+
+// The ansi scheme has no color for its dim tones: they are the terminal
+// default drawn faint (index 8 would vanish on Solarized Dark).
+func TestCLIAnsiSchemeDimIsFaint(t *testing.T) {
+	r := lipgloss.NewRenderer(io.Discard)
+	r.SetColorProfile(termenv.TrueColor)
+	st := NewStyles(theme.Builtin["ansi"], r)
+	for name, s := range map[string]lipgloss.Style{"dim": st.Dim, "muted": st.Muted, "hr": st.HR} {
+		require.Contains(t, s.Render("x"), "\x1b[2m", name)
+	}
+	st = NewStyles(theme.Builtin["default"], r)
+	require.NotContains(t, st.Dim.Render("x"), "\x1b[2m")
 }

@@ -311,3 +311,22 @@ func TestPersistMeta_SavesAuditWrittenAcrossARestart(t *testing.T) {
 	// A failing save is logged, not fatal.
 	require.NotPanics(t, func() { PersistMeta(filepath.Join(dir, "meta.json", "x"))(s) })
 }
+
+// AuditSettingIDs is what main subscribes the audit applier to, so each
+// setting Configure reads must be on it: workspaces applies live only if a
+// change to it wakes the applier.
+func TestAuditSettingIDsCoverEveryFlagConfigureReads(t *testing.T) {
+	require.ElementsMatch(t, []string{"audit_trail", "audit_full_prompt", "workspaces"}, AuditSettingIDs)
+
+	t0 := time.Now().Add(-time.Hour)
+	h, path := newHub(t, "", t0)
+	a := NewAudit(AuditConfig{StateDir: t.TempDir(), Home: "/h"}, state.NewStore())
+	t.Cleanup(a.Close)
+	a.Configure(h.Current())
+	h.Subscribe(AuditSettingIDs, a.Applier())
+	require.False(t, a.ws.Load())
+
+	write(t, path, "workspaces: true\n", t0.Add(time.Minute))
+	require.NoError(t, h.Reload())
+	require.True(t, a.ws.Load(), "a workspaces edit reaches the applier")
+}

@@ -1387,7 +1387,7 @@ func setupOption(selected bool, glyph, name, glyphColor string) string {
 	var g string
 	if glyph != "" {
 		if glyphColor != "" {
-			g = lipgloss.NewStyle().Foreground(lipgloss.Color(glyphColor)).Render(glyph) + "  "
+			g = brandStyle(glyphColor).Render(glyph) + "  "
 		} else {
 			g = glyph + "  "
 		}
@@ -1405,7 +1405,7 @@ func setupInput(value string, width int) string {
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorWorking).
+		BorderForeground(colorAccent).
 		Padding(0, 1).
 		Width(width).
 		Render(stylePrimary.Render(value))

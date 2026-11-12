@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/features/overview"
@@ -25,7 +24,7 @@ func renderHeader(m Model, width int) string {
 		}
 	}
 
-	logo := styleHeaderApp.Render("∴ REX")
+	logo := styleLogo.Render("∴ REX")
 	counts := renderHeaderCounts(m, cols[groupNeeds], cols[groupWaiting], cols[groupWorking], cols[groupDone], failed)
 	mobile := mobileLayout(m)
 	if marked > 0 && m.Detailed && !mobile { // marked rows already count as done
@@ -105,8 +104,8 @@ func renderOverviewLine(m Model, width int) string {
 	count := "nothing to review"
 	countStyle := styleDim
 	if review > 0 {
-		count = fmt.Sprintf("%d ready for review", review)
-		countStyle = lipgloss.NewStyle().Foreground(colorNeeds)
+		count = fmt.Sprintf("%d to review", review)
+		countStyle = styleNeeds
 	}
 	line := styleDim.Render(overviewLead) + countStyle.Render(count)
 	if o := m.Overview; o != nil && o.Enabled {
@@ -153,7 +152,7 @@ func showFilterChips(m Model) bool {
 }
 
 // renderHeaderCounts formats the counts segment of the header per header_style.
-// verbose: "  4 need you · 1 waiting · 2 working · 7 done"
+// verbose: "  4 ready · 1 waiting · 2 working · 7 done"
 // glyphs:  "  ◆ 4  ◷ 1  ⟳ 2  ● 7"
 // numbers: "  4 · 3 · 7" (waiting folded into working: a bare number has no
 // label to say it is a fourth bucket)
@@ -183,7 +182,7 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 		if waiting > 0 {
 			wait = fmt.Sprintf(" · %d %s", waiting, boardGroups[groupWaiting].Count)
 		}
-		s = fmt.Sprintf("    %d need you%s · %d working · %d done", needs, wait, working, done)
+		s = fmt.Sprintf("    %d ready%s · %d working · %d done", needs, wait, working, done)
 	}
 	out := styleHeaderMeta.Render(s)
 	if failed > 0 {
