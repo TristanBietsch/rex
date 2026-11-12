@@ -212,6 +212,13 @@ Each is described in full under **Changed** below.
   command, including `daemon`, `config`, `theme` and `ws`, and `rex help
   render` works although `render` uses `-h` for its height.
 
+### Changed (docs)
+
+- README rewritten: what rex is first, then install, a 60-second start, how
+  it works, concepts, common tasks, configuration, security, upgrading from
+  v1 and a map of every doc. The quickstart's `rex ls` example, the board
+  header in `docs/tui.md` and the glossary's board entry match v2.
+
 ### Changed (install and version)
 
 - `rex --version`, `rex-daemon -version`, the help page and `rex doctor`

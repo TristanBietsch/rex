@@ -83,10 +83,10 @@ The `echo` tool is built in. It needs no API keys.
 rex ls
 ```
 
-Example output:
+Example output (piped; at a terminal the columns differ a little):
 
 ```text
-ID     STATE         TOOL       MODEL                 SLUG                      LAST EVENT
+ID     STATE         TOOL       MODEL                 SLUG                      LAST EVENT  NAME
 17af   working       echo       short                 quickstart-demo           0s ago
 ```
 
