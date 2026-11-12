@@ -540,13 +540,13 @@ rex complete <sel> [-socket path]
 
 ## rex reload
 
-Send a `Reload` request to the daemon over its socket. Reloads **tools.yaml** only. Exits 4 when no daemon answers on the socket.
+Send a `Reload` request to the daemon over its socket. The daemon re-reads **tools.yaml**, then **config.yaml** (see [daemon.md](daemon.md)). Exits 4 when no daemon answers on the socket.
 
 ```sh
 rex reload
 ```
 
-Does not reload `config.yaml` or `init.lua`. Silent in `txt`; `agent` gives `ok cmd=reload reloaded=true`.
+Does not reload `init.lua`. Silent in `txt`; `agent` gives `ok cmd=reload reloaded=true`.
 
 ---
 
