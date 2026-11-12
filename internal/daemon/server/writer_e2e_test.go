@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
+	"github.com/tristanbietsch/rex/internal/daemon/pty/ptytest"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -21,6 +23,7 @@ import (
 // refused, never queued into a channel nobody drains and reported as sent.
 func TestInput_RefusedWhileTheWriterIsNotReady(t *testing.T) {
 	srv, sock, _ := newTestServer(t, state.NewStore())
+	srv.writerWait = 80 * time.Millisecond
 	serveTest(t, srv)
 	ch := make(chan []byte, 8)
 	srv.RegisterInputChannel("s1", ch) // registered before the supervisor's writer
@@ -55,6 +58,21 @@ func TestInput_RefusedWhileTheWriterIsNotReady(t *testing.T) {
 
 	srv.UnregisterUnitWriter("s1") // the supervisor is exiting; the channel is still registered
 	refuse("after the writer ends")
+}
+
+// The first input of an attach arrives right behind the session: it waits for
+// the writer to come up and is then delivered in order, not refused.
+func TestInput_WaitsBrieflyForAStartingSessionsWriter(t *testing.T) {
+	srv, _, _ := newTestServer(t, state.NewStore())
+	ch := make(chan []byte, 8)
+	srv.RegisterInputChannel("s1", ch)
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		srv.RegisterUnitWriter("s1", ptytest.ChanWriter(ch))
+	}()
+	_, err := srv.writeInput("s1", pty.WriteUnit{Parts: [][]byte{[]byte("held")}}, 5*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, []byte("held"), <-ch)
 }
 
 // The whole path with a real PTY: a raw-mode cat echoes what the supervisor's

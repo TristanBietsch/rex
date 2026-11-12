@@ -213,6 +213,13 @@ type Server struct {
 	// PTY writer). All input goes through it as units; a session without one
 	// refuses input ("session input not ready"), it never queues it.
 	unitWriters sync.Map
+	// writerReady holds, per session whose input channel is registered, a
+	// channel closed once its writer has been registered. Input that arrives
+	// while the session is still starting waits on it (briefly); input after
+	// the writer is gone (the session is exiting) is refused at once.
+	writerReady sync.Map
+	// writerWait bounds that wait (0 = defaultWriterWait). Tests shrink it.
+	writerWait time.Duration
 
 	outputSubsMu sync.RWMutex
 	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
@@ -582,6 +589,7 @@ func (s *Server) MaxConcurrentSessions() int {
 // RegisterInputChannel attaches a channel for forwarding raw bytes to a session.
 // Called by the spawn handler at session creation time.
 func (s *Server) RegisterInputChannel(sessionID string, ch chan []byte) {
+	s.writerReady.Store(sessionID, make(chan struct{}))
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	if s.inputChannels == nil {
@@ -597,6 +605,7 @@ func (s *Server) UnregisterInputChannel(sessionID string) {
 	delete(s.inputChannels, sessionID)
 	s.inputLocks.Delete(sessionID)
 	s.unitWriters.Delete(sessionID)
+	s.writerReady.Delete(sessionID)
 }
 
 // InputChannel returns the channel for a session, or nil if none registered.

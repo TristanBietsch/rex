@@ -127,23 +127,63 @@ var errInputNotReady = errors.New("session input not ready")
 // does this once its writer runs. Input before that gets errInputNotReady.
 func (s *Server) RegisterUnitWriter(sessionID string, w pty.UnitWriter) {
 	s.unitWriters.Store(sessionID, w)
+	if v, ok := s.writerReady.Load(sessionID); ok {
+		if c, ok := v.(chan struct{}); ok {
+			select {
+			case <-c:
+			default:
+				close(c)
+			}
+		}
+	}
 }
+
+// defaultWriterWait is how long input waits for a starting session's writer.
+const defaultWriterWait = 3 * time.Second
 
 // UnregisterUnitWriter removes it when the session's writer ends.
 func (s *Server) UnregisterUnitWriter(sessionID string) { s.unitWriters.Delete(sessionID) }
+
+func (s *Server) unitWriter(sessionID string) (pty.UnitWriter, bool) {
+	v, ok := s.unitWriters.Load(sessionID)
+	if !ok {
+		return nil, false
+	}
+	w, ok := v.(pty.UnitWriter)
+	return w, ok
+}
 
 // writeInput writes u to the session through its single PTY writer, and
 // reports whether it was written (or, without Wait, queued): false when the
 // guard dropped it. With no writer registered it fails with errInputNotReady
 // and queues nothing.
 func (s *Server) writeInput(sessionID string, u pty.WriteUnit, timeout time.Duration) (bool, error) {
-	v, ok := s.unitWriters.Load(sessionID)
+	w, ok := s.unitWriter(sessionID)
 	if !ok {
-		return false, errInputNotReady
-	}
-	w, ok := v.(pty.UnitWriter)
-	if !ok {
-		return false, errInputNotReady
+		// A session that is still starting gets a moment to bring its
+		// writer up (the first keys of an attach arrive right behind the
+		// session); one whose writer is gone, or that never registered an
+		// input channel, is refused at once. Nothing is queued either way.
+		v, known := s.writerReady.Load(sessionID)
+		c, _ := v.(chan struct{})
+		if !known || c == nil {
+			return false, errInputNotReady
+		}
+		select {
+		case <-c:
+		default:
+			wait := s.writerWait
+			if wait <= 0 {
+				wait = defaultWriterWait
+			}
+			select {
+			case <-c:
+			case <-time.After(min(wait, timeout)):
+			}
+		}
+		if w, ok = s.unitWriter(sessionID); !ok {
+			return false, errInputNotReady
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
