@@ -149,7 +149,7 @@ var Registry = []Setting{
 	{
 		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior, Apply: ApplyNextSpawn,
 		Type: TypeBool, Default: false,
-		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions, but only in folders under auto_trust_dirs. Agents then edit files and run commands without asking you first. Applies to the next session.",
+		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions, but only in trusted folders (under auto_trust_dirs, or trusted for one session with ctrl+t or rex new -trust). Agents then edit files and run commands without asking you first. Applies to the next session.",
 	},
 
 	// Features: one on/off switch per optional feature, read with FeatureOn.
