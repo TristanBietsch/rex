@@ -184,6 +184,8 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"help_page_narrow":       {{50, 20}},
 	"settings_page_frame":    {{80, 24}},
 	"settings_page_narrow":   {{50, 20}},
+	"screensaver":            {{80, 24}, {40, 6}},
+	"screensaver_vertical":   {{80, 24}, {40, 12}, {40, 6}, {40, 4}},
 	"board_icons_detailed":   {{80, 24}, {120, 40}, {150, 40}},
 	"newagent_empty":         {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_agent":         {{120, 40}, {80, 24}, {50, 20}},
@@ -339,6 +341,10 @@ func goldenScreens() []goldenScreen {
 			}
 			m.Settings = &SettingsState{CursorID: "spinner", Search: "spin"}
 			return m
+		}},
+		{"screensaver", false, func(t *testing.T, sz goldenSize) Model { return goldenSaver(t, sz) }},
+		{"screensaver_vertical", false, func(t *testing.T, sz goldenSize) Model {
+			return goldenSaver(t, sz, "screensaver_counts", "vertical", "screensaver_clock", "24h")
 		}},
 		{"settings_page_narrow", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
@@ -668,4 +674,19 @@ func TestGoldenScreensFillTerminal(t *testing.T) {
 			}
 		}
 	}
+}
+
+// goldenSaver is the golden board under the screensaver, with the given
+// settings (id, value pairs).
+func goldenSaver(t *testing.T, sz goldenSize, kv ...any) Model {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	for i := 0; i+1 < len(kv); i += 2 {
+		id, _ := kv[i].(string)
+		if err := m.Store.Set(id, kv[i+1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m.saverOn, m.saverSince = true, m.now()
+	return m
 }

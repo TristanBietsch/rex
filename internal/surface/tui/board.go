@@ -765,14 +765,17 @@ func rowDetailCells(m Model, s protocol.SessionSummary, c rowCols) string {
 var blinkNow = time.Now
 
 // blinkRow flashes a just-completed row green on every other 200 ms while
-// its BlinkUntil lasts. A stacked row applies it to both lines.
+// its BlinkUntil lasts. A stacked row applies it to both lines. The lit
+// phase redraws the row's text in the done color: every cell of a rendered
+// row sets its own color, so wrapping the styled row only colored its
+// padding and the flash was invisible.
 func blinkRow(m Model, id, row string) string {
 	if !blinkEnabled(m) {
 		return row
 	}
 	now := blinkNow()
 	if until, ok := m.BlinkUntil[id]; ok && now.Before(until) && now.UnixMilli()/200%2 == 0 {
-		return styleDone.Render(row)
+		return styleDone.Render(ansi.Strip(row))
 	}
 	return row
 }

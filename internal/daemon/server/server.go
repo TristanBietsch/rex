@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -37,6 +38,14 @@ func (g *concurrencyGate) TryAcquire() bool {
 	}
 	g.active++
 	return true
+}
+
+// Force takes a slot even over the cap (a session handed over by a hot
+// restart is already running).
+func (g *concurrencyGate) Force() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.active++
 }
 
 func (g *concurrencyGate) Release() {
@@ -119,7 +128,7 @@ type Config struct {
 	OnShutdown func()
 	// OnReload handles a Reload intent (nil = intent rejected): re-read
 	// tools.yaml and swap the registry, same as SIGHUP.
-	OnReload func() error
+	OnReload func() protocol.ReloadReport
 	// Audit receives the audit-trail hooks (nil: no audit trail). Begin runs
 	// at spawn with the initial prompt; End runs in the shared teardown path
 	// before a session's directory is removed.
@@ -131,6 +140,17 @@ type Config struct {
 	// protocol.ClientTUI) completed its Hello and was counted. nil: nothing.
 	// It runs on the connection's goroutine and must not block.
 	OnBoardClient func()
+	// Hot enables the Restart intent (hot restart, R20); nil refuses it.
+	Hot *HotConfig
+	// Listener, when set, is the listening socket inherited from the
+	// previous daemon image; Serve uses it instead of binding Socket.
+	Listener *net.UnixListener
+	// Adopt are the sessions handed over by the previous image; Serve
+	// supervises them once it runs.
+	Adopt []AdoptSession
+	// Build and StartedAt identify this daemon image in Snapshot.
+	Build     string
+	StartedAt time.Time
 }
 
 // AuditHook is how the server feeds the audit trail (see package audit).
@@ -179,6 +199,8 @@ type Server struct {
 	// registry in reg.
 	cfg Config
 	reg atomic.Pointer[registry.Registry]
+	// retireTTL is retire_after_hours set live (ns; 0 = cfg.RetireDefaultTTL).
+	retireTTL atomic.Int64
 	// tools is the wire form of reg (installed flags, merged models), rebuilt
 	// with it so a Hello does not probe PATH.
 	tools atomic.Pointer[[]protocol.ToolInfo]
@@ -237,35 +259,35 @@ type Server struct {
 	writerWait time.Duration
 
 	outputSubsMu sync.RWMutex
-	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
+	outputSubs   map[string]*state.Subs[func([]byte)] // sessionID -> callbacks
 
 	// summarizerHealthSubs is a global fan-out for SummarizerHealth events
 	// (not tied to any single session — every connected client subscribes
 	// after Hello).
 	summarizerHealthMu   sync.RWMutex
-	summarizerHealthSubs []func(protocol.SummarizerHealth)
+	summarizerHealthSubs state.Subs[func(protocol.SummarizerHealth)]
 
 	// overview is the latest board overview (memory only, never persisted),
 	// with a global fan-out like SummarizerHealth. overviewMu guards all
 	// three.
 	overviewMu   sync.RWMutex
 	overview     *protocol.Overview
-	overviewSubs []func(protocol.Overview)
+	overviewSubs state.Subs[func(protocol.Overview)]
 
 	// toolsSubs is the global fan-out for ToolsChanged.
 	toolsSubsMu sync.RWMutex
-	toolsSubs   []func(protocol.ToolsChanged)
+	toolsSubs   state.Subs[func(protocol.ToolsChanged)]
 
 	// usage is the latest live usage state (memory only, never persisted),
 	// with the same global fan-out as the overview. usageMu guards all three.
 	usageMu   sync.RWMutex
 	usage     *protocol.Usage
-	usageSubs []func(protocol.Usage)
+	usageSubs state.Subs[func(protocol.Usage)]
 
 	// loopSubs is the fan-out for Loop events (loops are kept by the
 	// service, not here). loopMu guards it.
 	loopMu   sync.RWMutex
-	loopSubs []func(protocol.LoopSummary)
+	loopSubs state.Subs[func(protocol.LoopSummary)]
 
 	// boardClients counts the connections that completed Hello as a board
 	// viewer (the rex TUI) and are still open.
@@ -293,6 +315,17 @@ type Server struct {
 	// retireWaitLogged dedups the "expired but busy" log line per session.
 	retireWaitMu     sync.Mutex
 	retireWaitLogged map[string]bool
+
+	// Hot restart (hot.go).
+	freezeMu    sync.Mutex
+	freezeFuncs map[string]pty.FreezeFunc
+	hotMu       sync.Mutex
+	// hotActive is set while a hot restart quiesces and execs: spawns and
+	// stops of frozen sessions are refused (startGuard, frozenGuard).
+	hotActive    atomic.Bool
+	listener     *net.UnixListener
+	acceptMu     sync.Mutex
+	acceptPaused chan struct{}
 }
 
 // SetRegistry atomically swaps the registry used for future spawns.
@@ -300,7 +333,7 @@ type Server struct {
 func (s *Server) SetRegistry(reg *registry.Registry) {
 	s.storeRegistry(reg)
 	s.toolsSubsMu.RLock()
-	subs := slices.Clone(s.toolsSubs)
+	subs := s.toolsSubs.Clone()
 	s.toolsSubsMu.RUnlock()
 	if len(subs) == 0 {
 		return
@@ -325,14 +358,11 @@ func (s *Server) storeRegistry(reg *registry.Registry) {
 func (s *Server) SubscribeTools(fn func(protocol.ToolsChanged)) func() {
 	s.toolsSubsMu.Lock()
 	defer s.toolsSubsMu.Unlock()
-	idx := len(s.toolsSubs)
-	s.toolsSubs = append(s.toolsSubs, fn)
+	id := s.toolsSubs.Add(fn)
 	return func() {
 		s.toolsSubsMu.Lock()
 		defer s.toolsSubsMu.Unlock()
-		if idx < len(s.toolsSubs) {
-			s.toolsSubs[idx] = nil
-		}
+		s.toolsSubs.Remove(id)
 	}
 }
 
@@ -412,10 +442,22 @@ const defaultSupervisorWait = 5 * time.Second
 // return it unlinks the socket only if the path still names the socket it
 // created.
 func (s *Server) Serve(ctx context.Context) error {
-	l, ours, err := listenSocket(ctx, s.cfg.Socket)
-	if err != nil {
+	var l *net.UnixListener
+	var ours os.FileInfo
+	var err error
+	if s.cfg.Listener != nil {
+		// Inherited from the previous image: already bound and 0600.
+		l = s.cfg.Listener
+		l.SetUnlinkOnClose(false)
+		if ours, err = os.Lstat(s.cfg.Socket); err != nil {
+			return fmt.Errorf("stat inherited socket %s: %w", s.cfg.Socket, err)
+		}
+	} else if l, ours, err = listenSocket(ctx, s.cfg.Socket); err != nil {
 		return err
 	}
+	s.acceptMu.Lock()
+	s.listener = l
+	s.acceptMu.Unlock()
 	defer func() {
 		_ = l.Close()
 		removeOwnSocket(s.cfg.Socket, ours)
@@ -439,9 +481,21 @@ func (s *Server) Serve(ctx context.Context) error {
 		defer s.wg.Done()
 		s.runRetireReaper(serveCtx)
 	}()
+	s.startAdopted(serveCtx)
 
 	for {
 		conn, err := acceptConn(serveCtx, l)
+		if err != nil && errors.Is(err, os.ErrDeadlineExceeded) && serveCtx.Err() == nil {
+			// Accepting is paused for a hot restart: wait for a resume
+			// (the restart failed) or the end of this image.
+			if gate := s.acceptGate(); gate != nil {
+				select {
+				case <-gate:
+				case <-serveCtx.Done():
+				}
+			}
+			continue
+		}
 		if err != nil {
 			requested := ctx.Err() != nil
 			cancel()
@@ -488,7 +542,7 @@ func acceptConn(ctx context.Context, l net.Listener) (net.Conn, error) {
 			}
 			return conn, nil
 		}
-		if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+		if ctx.Err() != nil || errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrDeadlineExceeded) {
 			return nil, err
 		}
 		delay = min(max(2*delay, acceptRetryMin), acceptRetryMax)
@@ -643,17 +697,23 @@ func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func(
 	s.outputSubsMu.Lock()
 	defer s.outputSubsMu.Unlock()
 	if s.outputSubs == nil {
-		s.outputSubs = make(map[string][]func([]byte))
+		s.outputSubs = make(map[string]*state.Subs[func([]byte)])
 	}
-	idx := len(s.outputSubs[sessionID])
-	s.outputSubs[sessionID] = append(s.outputSubs[sessionID], fn)
+	list := s.outputSubs[sessionID]
+	if list == nil {
+		list = &state.Subs[func([]byte)]{}
+		s.outputSubs[sessionID] = list
+	}
+	id := list.Add(fn)
 	return func() {
 		s.outputSubsMu.Lock()
 		defer s.outputSubsMu.Unlock()
-		list := s.outputSubs[sessionID]
-		if idx < len(list) {
-			list[idx] = nil
-			s.outputSubs[sessionID] = list
+		// The session's list may have been dropped (or replaced) since.
+		if cur := s.outputSubs[sessionID]; cur == list {
+			list.Remove(id)
+			if list.Len() == 0 {
+				delete(s.outputSubs, sessionID)
+			}
 		}
 	}
 }
@@ -662,10 +722,8 @@ func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func(
 func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 	s.outputSubsMu.RLock()
 	defer s.outputSubsMu.RUnlock()
-	for _, fn := range s.outputSubs[sessionID] {
-		if fn != nil {
-			fn(b)
-		}
+	for fn := range s.outputSubs[sessionID].All() {
+		fn(b)
 	}
 }
 
@@ -677,14 +735,11 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 func (s *Server) SubscribeSummarizerHealth(fn func(protocol.SummarizerHealth)) func() {
 	s.summarizerHealthMu.Lock()
 	defer s.summarizerHealthMu.Unlock()
-	idx := len(s.summarizerHealthSubs)
-	s.summarizerHealthSubs = append(s.summarizerHealthSubs, fn)
+	id := s.summarizerHealthSubs.Add(fn)
 	return func() {
 		s.summarizerHealthMu.Lock()
 		defer s.summarizerHealthMu.Unlock()
-		if idx < len(s.summarizerHealthSubs) {
-			s.summarizerHealthSubs[idx] = nil
-		}
+		s.summarizerHealthSubs.Remove(id)
 	}
 }
 
@@ -695,12 +750,8 @@ func (s *Server) BroadcastSummarizerHealth(available bool, reason string) {
 	payload := protocol.SummarizerHealth{Available: available, Reason: reason}
 	s.summarizerHealthMu.RLock()
 	defer s.summarizerHealthMu.RUnlock()
-	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", len(s.summarizerHealthSubs))
-	for _, fn := range s.summarizerHealthSubs {
-		if fn != nil {
-			fn(payload)
-		}
-	}
+	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", s.summarizerHealthSubs.Len())
+	s.summarizerHealthSubs.Each(func(fn func(protocol.SummarizerHealth)) { fn(payload) })
 }
 
 // SetOverview stores o as the current overview and sends it to every client
@@ -713,7 +764,7 @@ func (s *Server) SetOverview(o protocol.Overview) {
 	s.overviewMu.Lock()
 	cp := o
 	s.overview = &cp
-	subs := slices.Clone(s.overviewSubs)
+	subs := s.overviewSubs.Clone()
 	s.overviewMu.Unlock()
 	for _, fn := range subs {
 		if fn != nil {
@@ -739,14 +790,11 @@ func (s *Server) Overview() *protocol.Overview {
 func (s *Server) SubscribeOverview(fn func(protocol.Overview)) func() {
 	s.overviewMu.Lock()
 	defer s.overviewMu.Unlock()
-	idx := len(s.overviewSubs)
-	s.overviewSubs = append(s.overviewSubs, fn)
+	id := s.overviewSubs.Add(fn)
 	return func() {
 		s.overviewMu.Lock()
 		defer s.overviewMu.Unlock()
-		if idx < len(s.overviewSubs) {
-			s.overviewSubs[idx] = nil
-		}
+		s.overviewSubs.Remove(id)
 	}
 }
 
@@ -756,7 +804,7 @@ func (s *Server) SetUsage(u protocol.Usage) {
 	s.usageMu.Lock()
 	cp := u
 	s.usage = &cp
-	subs := slices.Clone(s.usageSubs)
+	subs := s.usageSubs.Clone()
 	s.usageMu.Unlock()
 	for _, fn := range subs {
 		if fn != nil {
@@ -783,14 +831,11 @@ func (s *Server) Usage() *protocol.Usage {
 func (s *Server) SubscribeUsage(fn func(protocol.Usage)) func() {
 	s.usageMu.Lock()
 	defer s.usageMu.Unlock()
-	idx := len(s.usageSubs)
-	s.usageSubs = append(s.usageSubs, fn)
+	id := s.usageSubs.Add(fn)
 	return func() {
 		s.usageMu.Lock()
 		defer s.usageMu.Unlock()
-		if idx < len(s.usageSubs) {
-			s.usageSubs[idx] = nil
-		}
+		s.usageSubs.Remove(id)
 	}
 }
 
@@ -1030,6 +1075,10 @@ func (s *Server) UnregisterComplete(sessionID string) {
 // Unlike StopSession, this does NOT block on supervisor exit — the closure
 // is a non-blocking send to a buffered channel.
 func (s *Server) CompleteSession(sessionID string) {
+	if err := s.frozenGuard(sessionID); err != nil {
+		slog.Warn("session: complete refused during hot restart", "session", sessionID)
+		return
+	}
 	s.completeMu.Lock()
 	fn := s.completeFuncs[sessionID]
 	s.completeMu.Unlock()

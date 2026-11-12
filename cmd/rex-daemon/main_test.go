@@ -1,15 +1,19 @@
 package main
 
 import (
+	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/testutil/testenv"
@@ -26,6 +30,9 @@ func TestMain(m *testing.M) {
 	if runtime.GOOS == "windows" {
 		testenv.Run(m) // no system-dir PATH to fall back on
 	}
+	// The hot-restart e2e tests build this daemon: keep the developer's Go
+	// caches (resolved before HOME moves) so the build never downloads.
+	goBuildEnv = realGoCaches()
 	if err := os.Setenv("PATH", "/usr/bin"+string(os.PathListSeparator)+"/bin"); err != nil {
 		panic(err)
 	}
@@ -83,4 +90,43 @@ func TestRun_NoHomeNeedsExplicitPaths(t *testing.T) {
 	require.ErrorContains(t, err, "-tools")
 
 	require.NoError(t, run([]string{"-version"}), "-version needs no paths")
+}
+
+// goBuildEnv is GOMODCACHE and GOCACHE as they were before TestMain
+// isolated HOME (buildDaemon).
+var goBuildEnv []string
+
+// realGoCaches asks go env for the module and build caches.
+func realGoCaches() []string {
+	gobin := filepath.Join(runtime.GOROOT(), "bin", "go") //nolint:staticcheck // SA1019: the test builds on the machine it runs on
+	out, err := exec.Command(gobin, "env", "GOMODCACHE", "GOCACHE").Output()
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) != 2 {
+		return nil
+	}
+	return []string{"GOMODCACHE=" + lines[0], "GOCACHE=" + lines[1], "GOPROXY=off"}
+}
+
+// The TUI saves max_concurrent_sessions to config.yaml, but clients start
+// the daemon without flags: the saved cap must apply unless the flag was
+// given explicitly.
+func TestMaxConcurrentFrom(t *testing.T) {
+	st := settings.NewStore()
+	require.NoError(t, st.Set("max_concurrent_sessions", 3))
+
+	parse := func(args ...string) (*flag.FlagSet, *int) {
+		fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
+		n := fs.Int("max-concurrent-sessions", 16, "")
+		require.NoError(t, fs.Parse(args))
+		return fs, n
+	}
+	fs, n := parse()
+	require.Equal(t, 3, maxConcurrentFrom(fs, *n, st), "the saved setting")
+	fs, n = parse("-max-concurrent-sessions", "5")
+	require.Equal(t, 5, maxConcurrentFrom(fs, *n, st), "an explicit flag wins")
+	fs, n = parse()
+	require.Equal(t, 16, maxConcurrentFrom(fs, *n, settings.NewStore()), "the default when nothing is saved")
 }

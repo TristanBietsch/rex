@@ -130,3 +130,18 @@ func TestDeleteSession_AuditFailureKeepsTheSessionUntilTheNextSweep(t *testing.T
 	require.False(t, ok)
 	require.Contains(t, log.get(), "audit:aaaa1111")
 }
+
+// deleteSession reads the slug under the session lock: the retire sweep
+// runs it on its own goroutine while a Rename can be writing the slug.
+// Caught by -race.
+func TestDeleteSession_SlugReadDoesNotRaceRename(t *testing.T) {
+	srv, _ := newAuditServer(t, time.Now())
+	addEnded(t, srv, "bbbb2222", protocol.StateDone)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = srv.cfg.Store.UpdateRename("bbbb2222", "renamed", "")
+	}()
+	_ = srv.deleteSession("bbbb2222", protocol.RemovedByUser)
+	<-done
+}

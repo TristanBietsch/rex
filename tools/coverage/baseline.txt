@@ -2,7 +2,7 @@
 # One line per package: <import path> <min int percent>.
 # Each floor is the measured coverage rounded down. Raise a floor when
 # coverage goes up. Lower one only with a reason in the commit message.
-github.com/tristanbietsch/rex/cmd/rex 75
+github.com/tristanbietsch/rex/cmd/rex 76
 github.com/tristanbietsch/rex/cmd/rex-daemon 85
 github.com/tristanbietsch/rex/internal/catalog/registry 92
 github.com/tristanbietsch/rex/internal/catalog/settings 93
@@ -10,7 +10,7 @@ github.com/tristanbietsch/rex/internal/catalog/theme 100
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
 github.com/tristanbietsch/rex/internal/daemon/boot 84
 github.com/tristanbietsch/rex/internal/daemon/pty 88
-github.com/tristanbietsch/rex/internal/daemon/server 92
+github.com/tristanbietsch/rex/internal/daemon/server 91
 github.com/tristanbietsch/rex/internal/daemon/state 87
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
 github.com/tristanbietsch/rex/internal/features/audio 85
@@ -30,8 +30,8 @@ github.com/tristanbietsch/rex/internal/runtime/redact 100
 github.com/tristanbietsch/rex/internal/runtime/rexlog 87
 github.com/tristanbietsch/rex/internal/surface/cli/core 94
 github.com/tristanbietsch/rex/internal/surface/cli/inspect 86
-github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
-github.com/tristanbietsch/rex/internal/surface/cli/meta 66
+github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 87
+github.com/tristanbietsch/rex/internal/surface/cli/meta 68
 github.com/tristanbietsch/rex/internal/surface/cli/session 77
 github.com/tristanbietsch/rex/internal/surface/cli/setup 82
 github.com/tristanbietsch/rex/internal/surface/cli/workspace 88

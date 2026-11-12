@@ -30,7 +30,7 @@ func (s *Server) now() time.Time { return s.cfg.Now() }
 // The monotonic reading is stripped so the comparison in the sweep uses wall
 // time: a laptop that slept past the deadline clears on its first sweep.
 func (s *Server) retireDeadline(ttlSeconds int64) (time.Time, time.Duration, error) {
-	ttl := s.cfg.RetireDefaultTTL
+	ttl := s.RetireDefaultTTL()
 	if ttlSeconds != 0 {
 		ttl = time.Duration(ttlSeconds) * time.Second
 		if ttl < minRetireTTL || ttl > maxRetireTTL {
@@ -45,6 +45,9 @@ func (s *Server) retireDeadline(ttlSeconds int64) (time.Time, time.Duration, err
 // store (broadcasts SessionRemoved with reason), delete its directory. A
 // session that is already gone counts as success so racing deletes are safe.
 func (s *Server) deleteSession(id, reason string) error {
+	if err := s.frozenGuard(id); err != nil {
+		return err
+	}
 	start := time.Now()
 	sess, ok := s.cfg.Store.Get(id)
 	if !ok {
@@ -52,7 +55,7 @@ func (s *Server) deleteSession(id, reason string) error {
 		return errSessionNotFound
 	}
 	live := s.hasStop(id)
-	slog.Info("session: delete", "session", id, "slug", sess.Slug, "reason", reason, "live", live)
+	slog.Info("session: delete", "session", id, "slug", sess.Summary().Slug, "reason", reason, "live", live)
 	// Mark first: the supervisor's exit transition checks this under the
 	// session lock, so it can't broadcast failed while we tear down.
 	s.cfg.Store.BeginDelete(id)
@@ -92,7 +95,7 @@ var errAuditFailed = errors.New("audit record could not be written; session kept
 // disk, including ones that passed while the daemon was down) and then on a
 // ticker until ctx is canceled.
 func (s *Server) runRetireReaper(ctx context.Context) {
-	slog.Info("retire: reaper started", "interval", s.cfg.RetireSweepInterval, "default_ttl", s.cfg.RetireDefaultTTL)
+	slog.Info("retire: reaper started", "interval", s.cfg.RetireSweepInterval, "default_ttl", s.RetireDefaultTTL())
 	s.logRestoredRetires()
 	s.sweepRetired()
 	t := time.NewTicker(s.cfg.RetireSweepInterval)
@@ -129,6 +132,9 @@ func (s *Server) logRestoredRetires() {
 // sessions wait; the reaper re-checks them every tick and clears them as soon
 // as they settle. Deletes run serially — each blocks on supervisor exit.
 func (s *Server) sweepRetired() {
+	if s.hotActive.Load() {
+		return // the next tick, in this image or the next, clears them
+	}
 	now := s.now()
 	claimed, waiting := s.cfg.Store.ClaimExpired(now)
 	s.noteRetireWaiting(waiting, now)
@@ -192,4 +198,23 @@ func (s *Server) commit(sess *state.Session, patch map[string]any) {
 		slog.Error("server: persist meta failed", "session", sess.ID, "err", err)
 	}
 	s.cfg.Store.BroadcastPatch(sess.ID, patch)
+}
+
+// RetireDefaultTTL is the ttl of a Retire that carries none: the setting
+// retire_after_hours when set live (SetRetireDefaultTTL), else the
+// configured default.
+func (s *Server) RetireDefaultTTL() time.Duration {
+	if d := s.retireTTL.Load(); d > 0 {
+		return time.Duration(d)
+	}
+	return s.cfg.RetireDefaultTTL
+}
+
+// SetRetireDefaultTTL follows retire_after_hours without a restart (R20
+// audit). d <= 0 goes back to DefaultRetireTTL.
+func (s *Server) SetRetireDefaultTTL(d time.Duration) {
+	if d <= 0 {
+		d = DefaultRetireTTL
+	}
+	s.retireTTL.Store(int64(d))
 }

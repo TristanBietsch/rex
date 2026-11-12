@@ -48,7 +48,13 @@ func scheduleDescTick() tea.Cmd {
 // also keeps the screensaver's idle timer armed (armIdle).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	dropAttachBackground(m, msg)
-	next, cmd := m.dispatch(msg)
+	var next tea.Model
+	var cmd tea.Cmd
+	if sm, c, ok := updateSwap(m, msg); ok {
+		next, cmd = sm, c
+	} else {
+		next, cmd = m.dispatch(msg)
+	}
 	nm, ok := next.(Model)
 	if !ok {
 		return next, cmd
@@ -67,6 +73,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, arm)
 	}
 	if nm, arm = armConfig(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
+	if nm, arm = armBinWatch(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
 	return nm, cmd
@@ -88,16 +97,28 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return relayout(m), nil
 	case AttachOutputMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
+		// Only the open popup's own listener is re-armed: re-arming from an
+		// earlier popup's message would put a second listener on this one
+		// and split its chunks.
+		if !fromOpenPopup(m, msg.SessionID, msg.from) {
+			return m, nil
+		}
+		if len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
 			afterAttachOutput(m.Attach)
 		}
-		if m.Attach != nil {
-			return m, listenAttach(m.Attach)
-		}
-		return m, nil
+		return m, listenAttach(m.Attach)
 	case AttachClosedMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID {
+		if fromOpenPopup(m, msg.SessionID, msg.from) && msg.Err != nil && isConnClosed(msg.Err) {
+			// The daemon dropped the connection (a hot restart): the
+			// session runs on, so the popup re-attaches.
+			id := msg.SessionID
+			m = closeAttach(m)
+			m.reattachFor = id
+			m.Notice = "reattaching…"
+			return m, scheduleReattach(id, 0)
+		}
+		if fromOpenPopup(m, msg.SessionID, msg.from) {
 			m.Attach.Ended = true
 			if msg.Err != nil {
 				m.Attach.EndedMsg = msg.Err.Error()
@@ -166,6 +187,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return applyPruneDone(m, msg), nil
 	case loopActionMsg:
 		return handleLoopAction(m, msg), nil
+	case daemonReloadedMsg:
+		return applyDaemonReload(m, msg), nil
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
 		m.Err = msg.Op + ": " + msg.Err.Error()
@@ -561,8 +584,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateUndoKey(m, k)
 	}
 	if m.Focus == FocusStats {
-		switch k.String() {
-		case "esc", ":":
+		// esc only: any other key is swallowed, so a typed ":stats" can't
+		// close the overlay on ':' and run the rest as board keys.
+		if k.String() == "esc" {
 			m.Focus = FocusBoard
 			slog.Debug("tui: stats overlay closed via key")
 		}
@@ -653,7 +677,7 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
 	case tea.KeyRunes:
-		m.PromptText += string(k.Runes)
+		m.PromptText += typedPromptText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.PromptText += " "
@@ -675,10 +699,13 @@ func spawnSessionCmd(c sessionSpawner, choice quickChoice, sessions []protocol.S
 
 // spawnSessionIn is spawnSessionCmd with the folder the session starts in
 // (a workspace board starts it at the workspace root).
+//
+// The slug is chosen here, on the caller's goroutine (Update): the Cmd runs
+// on its own, and sessions is the Model's slice, which later events change.
 func spawnSessionIn(cwd string, c sessionSpawner, choice quickChoice, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+	slug := quickSpawnSlug(choice, sessions, prompt)
 	return func() tea.Msg {
 		toolID, modelID, effort := choice.Tool, choice.Model, choice.Effort
-		slug := quickSpawnSlug(choice, sessions, prompt)
 
 		slog.Info("tui: quick-spawn",
 			"tool", toolID, "model", modelID, "effort", effort,
@@ -752,7 +779,7 @@ func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyRunes:
-		m.CmdText += string(k.Runes)
+		m.CmdText += typedText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.CmdText += " "

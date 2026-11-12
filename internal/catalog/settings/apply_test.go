@@ -40,6 +40,7 @@ var applyModeOf = map[string]ApplyMode{
 	"row_icon_set": ApplyLive, "ascii_glyphs": ApplyLive, "row_icons": ApplyLive,
 	"keybind_preset": ApplyLive, "mouse_enabled": ApplyLive, "retire_after_hours": ApplyLive,
 	"screensaver_enabled": ApplyLive, "screensaver_after_minutes": ApplyLive, "screensaver_keep_awake": ApplyLive,
+	"screensaver_counts": ApplyLive, "screensaver_clock": ApplyLive, "screensaver_drift": ApplyLive,
 	"board_hidden_sections": ApplyLive, // applyLive re-reads it into the board
 	"desc_animation":        ApplyLive,
 	"sound_enabled":         ApplyLive, "soundset": ApplyLive, "master_volume": ApplyLive,
@@ -60,7 +61,7 @@ var applyModeOf = map[string]ApplyMode{
 	"fullscreen_pages": ApplyLive,                                               // the TUI picks the renderer on every frame
 	"new_agent_page":   ApplyLive,                                               // the TUI picks the page or the wizard on every n
 	"turn_snapshots":   ApplyLive, "usage": ApplyLive, "usage_meter": ApplyLive, // the TUI reads usage_meter on every frame
-	"live_reload": ApplyLive, "loops": ApplyLive,
+	"live_reload": ApplyLive, "loops": ApplyLive, "auto_swap": ApplyLive, // the TUI reads it on every binary check
 	"extra_agents": ApplyLive, "model_autodetect": ApplyLive, // catalog applier subscribes to both
 	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive, "lua_config": ApplyLive,
 	"summary_detail": ApplyLive, "overview_enabled": ApplyLive, "cli_error_log": ApplyLive,

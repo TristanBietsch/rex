@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/wire/client"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // executeCommand parses and dispatches a `:` command line.
@@ -30,24 +32,56 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	return c.Run(m, call)
 }
 
-// reloadDaemonCmd asks the daemon on the TUI's socket to re-read
-// tools.yaml with a Reload intent. It reaches the daemon only through that
-// socket, never by signaling a process, and reports a failed request (no
-// daemon answering, a write error) as a CmdErrMsg. A tools.yaml the daemon
-// cannot load is not acknowledged (backlog FU-13); it shows in the daemon
-// log.
+// reloadDaemonCmd asks the daemon on the TUI's socket to reload every
+// layer with a Reload intent. It reaches the daemon only through that
+// socket, never by signaling a process. A failed request (no daemon
+// answering, a write error) is a CmdErrMsg; the daemon's report comes back
+// as a daemonReloadedMsg.
 func reloadDaemonCmd(m Model) tea.Cmd {
-	reload := m.reloader
+	reload := m.reportReloader
 	if reload == nil {
-		reload = daemonctl.ReloadDaemon
+		reload = daemonctl.ReloadDaemonReport
 	}
 	socket := m.Socket
 	return func() tea.Msg {
-		if err := reload(context.Background(), socket); err != nil {
+		rep, err := reload(context.Background(), socket)
+		if err != nil {
 			return CmdErrMsg{Op: "reload", Err: err}
 		}
-		return nil
+		return daemonReloadedMsg{Report: rep}
 	}
+}
+
+// daemonReloadedMsg carries the daemon's reload report (R20).
+type daemonReloadedMsg struct{ Report protocol.ReloadReport }
+
+// applyDaemonReload puts a reload report on the status line: the first
+// failed layer as an error, else what changed and what needs a restart.
+func applyDaemonReload(m Model, msg daemonReloadedMsg) Model {
+	rep := msg.Report
+	if n := len(rep.Errors); n > 0 {
+		text := "reload: " + rep.Errors[0]
+		if n > 1 {
+			text += fmt.Sprintf(" (+%d more, see rex reload)", n-1)
+		}
+		m.Err = protocol.FlattenDisplayText(text)
+		return m
+	}
+	if rep.Legacy {
+		m.Notice = "reloaded"
+		return m
+	}
+	parts := []string{"reloaded"}
+	if len(rep.Changed) == 0 {
+		parts = append(parts, "nothing changed")
+	} else {
+		parts = append(parts, "changed: "+strings.Join(rep.Changed, ", "))
+	}
+	if len(rep.Restart) > 0 {
+		parts = append(parts, "needs daemon restart: "+strings.Join(rep.Restart, ", "))
+	}
+	m.Notice = protocol.FlattenDisplayText(strings.Join(parts, " · "))
+	return m
 }
 
 // commandTarget resolves an optional selector argument, defaulting to the

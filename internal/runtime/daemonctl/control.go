@@ -2,11 +2,13 @@ package daemonctl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -62,35 +64,57 @@ func shutdownDaemon(ctx context.Context, socket string, timeout time.Duration) e
 	return waitSocketRemoved(ctx, socket, timeout)
 }
 
-// ReloadDaemon asks the daemon listening on socket to re-read tools.yaml and
-// waits, at most ReloadTimeout or until ctx ends, for its answer. A reload
-// the daemon rejects (a tools.yaml it cannot load) returns the daemon's
-// *client.Error, wrapped. A daemon that predates acks gets the Reload
-// fire-and-forget, as before, and nil is returned: its errors still only
-// reach its log. It returns ErrNotRunning when nothing answers on socket.
+// ReloadDaemon asks the daemon listening on socket to reload every layer
+// and waits, at most ReloadTimeout or until ctx ends, for its answer. A
+// layer that failed is returned as an error naming it (file:line). A daemon
+// that rejects the intent returns its *client.Error, wrapped. A daemon that
+// predates acks gets the Reload fire-and-forget, as before, and nil is
+// returned. It returns ErrNotRunning when nothing answers on socket.
 func ReloadDaemon(ctx context.Context, socket string) error {
+	rep, err := ReloadDaemonReport(ctx, socket)
+	if err != nil {
+		return err
+	}
+	if len(rep.Errors) > 0 {
+		return fmt.Errorf("rex-daemon reload: %s", strings.Join(rep.Errors, "; "))
+	}
+	return nil
+}
+
+// ReloadDaemonReport is ReloadDaemon returning the daemon's report (R20).
+// A failed layer is in rep.Errors, not err. A daemon before R20 answers
+// with an Ack, or nothing at all: rep.Legacy is set and holds no detail.
+func ReloadDaemonReport(ctx context.Context, socket string) (protocol.ReloadReport, error) {
 	ctx, cancel := context.WithTimeout(ctx, ReloadTimeout)
 	defer cancel()
 	dialCtx, cancelDial := context.WithTimeout(ctx, SocketDialTimeout)
 	defer cancelDial()
 	c, err := client.DialContext(dialCtx, socket)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrNotRunning, err)
+		return protocol.ReloadReport{}, fmt.Errorf("%w: %w", ErrNotRunning, err)
 	}
 	defer c.Close()
 	if _, err := c.HelloContext(ctx, "rex-reload"); err != nil {
-		return fmt.Errorf("reload rex-daemon: %w", err)
+		return protocol.ReloadReport{}, fmt.Errorf("reload rex-daemon: %w", err)
 	}
 	if c.DaemonVersion() == "" {
 		if err := c.Send(ctx, protocol.IntentReload, struct{}{}); err != nil {
-			return fmt.Errorf("send %s to rex-daemon: %w", protocol.IntentReload, err)
+			return protocol.ReloadReport{}, fmt.Errorf("send %s to rex-daemon: %w", protocol.IntentReload, err)
 		}
-		return nil
+		return protocol.ReloadReport{Legacy: true}, nil
 	}
-	if _, err := c.Do(ctx, protocol.IntentReload, struct{}{}); err != nil {
-		return fmt.Errorf("rex-daemon could not reload tools.yaml: %w", err)
+	env, err := c.Do(ctx, protocol.IntentReload, struct{}{})
+	if err != nil {
+		return protocol.ReloadReport{}, fmt.Errorf("rex-daemon could not reload tools.yaml: %w", err)
 	}
-	return nil
+	if env.Type != protocol.EventReloaded {
+		return protocol.ReloadReport{Legacy: true}, nil
+	}
+	var rep protocol.ReloadReport
+	if err := json.Unmarshal(env.Data, &rep); err != nil {
+		return protocol.ReloadReport{}, fmt.Errorf("decode reload report: %w", err)
+	}
+	return rep, nil
 }
 
 // sendIntent dials socket and writes one intent with an empty payload. The

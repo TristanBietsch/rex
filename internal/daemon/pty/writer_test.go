@@ -285,3 +285,38 @@ func TestUnitWriter_QueuedUnitOutlivesTheCallersContext(t *testing.T) {
 	require.True(t, sent)
 	require.Eventually(t, func() bool { return len(rec.got()) == 1 }, time.Second, 5*time.Millisecond)
 }
+
+// R20 review: a unit sent while the writer is parked for a hot restart is
+// not queued behind the park (where an exec would drop it): Send waits
+// until the thaw, then the unit is written once.
+func TestPTYWriter_SendWaitsWhilePaused(t *testing.T) {
+	rec := &recorder{}
+	done := make(chan struct{})
+	defer close(done)
+	pw := newPTYWriter(rec, done, nil)
+	resume := make(chan struct{})
+	require.NoError(t, pw.pause(context.Background(), resume))
+
+	sent := make(chan bool, 1)
+	go func() { sent <- pw.Send(context.Background(), writeUnit{parts: [][]byte{[]byte("x")}}) }()
+	select {
+	case <-sent:
+		t.Fatal("Send returned while the writer is parked")
+	case <-time.After(100 * time.Millisecond):
+	}
+	require.Empty(t, rec.got())
+	require.False(t, pw.TrySendReply([]byte("r")), "no reply is queued behind a park")
+
+	close(resume)
+	require.True(t, <-sent)
+	require.Eventually(t, func() bool { return len(rec.got()) == 1 }, time.Second, 5*time.Millisecond)
+	require.Equal(t, []string{"x"}, rec.got())
+
+	// A caller that gives up while parked gets false and nothing is written.
+	resume2 := make(chan struct{})
+	defer close(resume2)
+	require.NoError(t, pw.pause(context.Background(), resume2))
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	require.False(t, pw.Send(ctx, writeUnit{parts: [][]byte{[]byte("y")}}))
+}

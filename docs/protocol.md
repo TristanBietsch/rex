@@ -71,7 +71,10 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `StartLoop` | yes | `name` (the loop file's name, never a path), optional `cwd` (absolute, no `..`). Starts a repeat loop and spawns its session. Reply is a `Loop` event with the intent's `id`. `bad_intent` while `loops` is off (`off: enable loops in Settings → Features`), for a bad or invalid file, a missing folder, and `too many loops` at 2 live loops; `spawn_failed` / `too_many_sessions` as for `NewSession`. `(*client.Client).StartLoop(ctx, p)` |
 | `PauseLoop`, `ResumeLoop`, `StopLoop` | yes | `loop_id`. Reply is a `Loop` event. `bad_state` unless the loop is running (pause), paused (resume) or not yet ended (stop); `bad_intent` for an unknown or malformed id. The session keeps running. `PauseLoop`, `ResumeLoop`, `StopLoop` on the client |
 | `UsageQuery` | yes | `range` (`today`, `7d` or `30d`; empty is `today`) and optional `tool`. Reply is a `UsageResult` event with the intent's `id` (see below); `bad_intent` `usage is off` while the setting is off, and for a bad range. `(*client.Client).UsageQuery(ctx, q)` |
-| `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP. `Ack` once the new registry is in use; `bad_intent` with the load error on failure |
+| `Reload` | yes | No fields. Reloads every layer, same as SIGHUP: `tools.yaml`, `config.yaml` + `config.lua`, `init.lua`. Reply is a `Reloaded` event: `reloaded` (layers read), `changed` (setting ids), `restart` (changed ids that need a daemon restart), `errors` (`file:line: message` per failed layer) and `warnings`. A failed layer is in `errors`, not an `Error` event. Daemons before this answer `Ack`, or `bad_intent` with the `tools.yaml` error |
+| `Restart` | yes | `mode`: `hot` (only value accepted). Hot restart: the daemon re-execs in place and keeps every session ([daemon.md](daemon.md#hot-restart)). On success there is **no reply**: the connection closes, and a new `Hello` shows a later `daemon_started_at`. Refused or failed: `Error` `restart_refused` (Windows, a restart already running, a session still starting, the new binary refused the handoff), and the old daemon runs on. Older daemons answer `bad_intent` |
+| `Boards` | yes | No fields. Reply is a `Boards` event: `boards`, each `pid` and `build` from the board's `Hello` |
+| `SwapBoards` | yes | `build`: every board connection whose build differs gets a `Swap` event and re-execs into its installed binary. Reply is a `Boards` event listing the boards asked |
 
 ### NewSession fields
 
@@ -153,7 +156,9 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `Resize` | `Ack` | Also for the ignored 0×0 size |
 | `FocusFilter`, `SetMaxConcurrent` | `Ack` | |
 | `Undo`, `Redo` | `UndoResult` | The folder is changed before the reply; with `dry_run` it is not |
-| `Reload` | `Ack` | After the new registry is in use |
+| `Reload` | `Reloaded` | The report; a failed layer is listed, not an `Error` |
+| `Restart` | none on success | The connection closes as the new image takes over |
+| `Boards`, `SwapBoards` | `Boards` | |
 | `Shutdown` | `Ack` | Queued before shutdown starts; the daemon may close the connection first, so treat the close as success |
 | `UsageQuery` | `UsageResult` | Not an `Ack`: the payload is the aggregates |
 | `StartLoop`, `PauseLoop`, `ResumeLoop`, `StopLoop` | `Loop` | Not an `Ack`: the payload is the loop's new state |
@@ -170,7 +175,8 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it), `loops` (the daemon's loops, running, paused and recently finished; absent while `loops` is off and from daemons that predate it), `workspace_tagging` (true when the daemon tags sessions with `workspace_id`, so `rex here` knows to scope; absent while `workspaces` is off and from daemons that predate it) |
+| `Swap` | `build`: sent to a board by `SwapBoards`; the board re-execs into its installed binary |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it), `loops` (the daemon's loops, running, paused and recently finished; absent while `loops` is off and from daemons that predate it), `workspace_tagging` (true when the daemon tags sessions with `workspace_id`, so `rex here` knows to scope; absent while `workspaces` is off and from daemons that predate it), `daemon_pid`, `daemon_build` (12 hex of the executable's SHA-256) and `daemon_started_at` (when this image started; changes on a hot restart while the pid stays), absent from daemons that predate hot restart |
 | `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it), `tools[]` (the registry as the daemon sees it: `{id, installed, models[]}`, each model `{id, name, detected}`; `installed` is whether the binary is on the daemon's `PATH`, worked out at daemon start and on every reload; `detected` marks a model found by the tool's own model command and is omitted when false; a later change is sent as `ToolsChanged`; absent from daemons that predate it, and a client then treats every tool as installed) |
 | `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
@@ -219,11 +225,11 @@ Nothing is sent for a session that is not running.
 
 Additive changes (new optional fields, new intents, new events, new patch keys) keep `v: 1`; both sides ignore unknown fields and event types. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
 
-The overview is in the daemon's memory only. An `Overview` published between a client's `Snapshot` and the start of its event stream is missed until the next publish. An older client ignores the event and `snapshot.overview`; against an older daemon a newer client sees neither and shows only what it computes itself.
+The overview is in the daemon's memory only. An `Overview` published while the daemon builds a client's `Snapshot` is sent right after it (it may also be in the `Snapshot`). An older client ignores the event and `snapshot.overview`; against an older daemon a newer client sees neither and shows only what it computes itself.
 
-Usage is the same: the quotas are in the daemon's memory only, and a `Usage` published between a client's `Snapshot` and the start of its event stream is missed until the next change. An older daemon answers `UsageQuery` with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`) and ignores `UsageSample`, so a tap talking to it just loses its usage; an older client ignores the `Usage` event and `snapshot.usage`. `ProtocolVersion` is unchanged.
+Usage is the same: the quotas are in the daemon's memory only, and a `Usage` published while the daemon builds a client's `Snapshot` is sent right after it. An older daemon answers `UsageQuery` with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`) and ignores `UsageSample`, so a tap talking to it just loses its usage; an older client ignores the `Usage` event and `snapshot.usage`. `ProtocolVersion` is unchanged.
 
-Loops are kept by the daemon's loop runner and persisted in its state dir. A `Loop` published between a client's `Snapshot` and the start of its event stream is missed until the loop's next change. An older daemon answers the four loop intents with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`); an older client ignores the `Loop` event, `snapshot.loops` and the `loop_id` / `loop_iter` session fields. `ProtocolVersion` is unchanged.
+Loops are kept by the daemon's loop runner and persisted in its state dir. A `Loop` published while the daemon builds a client's `Snapshot` is sent right after it. An older daemon answers the four loop intents with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`); an older client ignores the `Loop` event, `snapshot.loops` and the `loop_id` / `loop_iter` session fields. `ProtocolVersion` is unchanged.
 
 Sessions carry `workspace_id` (8 lowercase hex digits; the workspace around the session's folder when it was started, set by the daemon while `workspaces` is on, never taken from a client: `NewSession` has no such field and an unknown one is ignored). Older clients ignore it; a board scoped by `rex here` shows every session, with a notice, when the daemon sends neither `workspace_id` nor `snapshot.workspace_tagging`.
 

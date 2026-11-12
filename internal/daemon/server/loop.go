@@ -48,14 +48,11 @@ func (s *Server) userInput(sessionID string) {
 func (s *Server) SubscribeLoops(fn func(protocol.LoopSummary)) func() {
 	s.loopMu.Lock()
 	defer s.loopMu.Unlock()
-	idx := len(s.loopSubs)
-	s.loopSubs = append(s.loopSubs, fn)
+	id := s.loopSubs.Add(fn)
 	return func() {
 		s.loopMu.Lock()
 		defer s.loopMu.Unlock()
-		if idx < len(s.loopSubs) {
-			s.loopSubs[idx] = nil
-		}
+		s.loopSubs.Remove(id)
 	}
 }
 
@@ -63,11 +60,7 @@ func (s *Server) SubscribeLoops(fn func(protocol.LoopSummary)) func() {
 func (s *Server) PublishLoop(l protocol.LoopSummary) {
 	s.loopMu.RLock()
 	defer s.loopMu.RUnlock()
-	for _, fn := range s.loopSubs {
-		if fn != nil {
-			fn(l)
-		}
-	}
+	s.loopSubs.Each(func(fn func(protocol.LoopSummary)) { fn(l) })
 }
 
 // SpawnLoopSession starts a loop's session through the normal NewSession

@@ -45,6 +45,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `⠋ starting…` until the daemon answers. A failure shows
   `✗ launch failed: … Your draft is kept.`; `esc` keeps the draft in
   memory for the next `n` (nothing is written to disk).
+- A board swap (`:swap`, `rex upgrade`) waits while the page is open and
+  never writes the draft to its swap file: `auto_swap` waits while a draft
+  is kept, and an explicit swap over one drops it with a notice.
 - `NewSession` takes an optional `context_summary` (kind, name and size of
   each item, no content); older daemons ignore it.
 
@@ -52,6 +55,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The daemon refuses a `NewSession` whose `initial_prompt` is over 96 KiB
   with `bad_intent` before anything is spawned, instead of a failed exec.
+
+### Added (hot reload, board swap, daemon hot restart)
+
+- `rex daemon restart` is now a hot restart: the daemon re-execs itself in
+  place (same PID) and every running agent keeps its process, PTY, screen
+  and output. Before the exec the new binary must pass a preflight
+  (`rex-daemon -handoff-check`); a binary that fails it, or a failed exec,
+  leaves the old daemon running and the sessions untouched. `-cold` keeps
+  the old stop and start, and asks first when it would kill running
+  sessions (`-yes` without a terminal, exit 6). Not on Windows (cold
+  restart with the same question).
+- `rex upgrade`: after installing a new build, hot-restart the daemon,
+  then have every board swap into the new binary; reports each process.
+- `:swap` re-execs the board into a newly installed build keeping
+  selection, scroll, filter, search, the open page and the attach popup.
+  The board notices a new build within 10 s; with `auto_swap` (new, on by
+  default) it swaps by itself after a minute idle on the board.
+- An attach popup re-attaches after a daemon hot restart instead of
+  showing the session as ended.
+- `rex reload`, `:reload`, `SIGHUP` and the Settings page's new `R` also
+  reload `init.lua` (a broken one keeps the previous handlers) and report
+  what changed, what needs a daemon restart, and each failed layer as
+  `file:line: message`. `rex reload` exits 1 when a layer failed.
+
+### Fixed (settings that said they apply live)
+
+- `mouse_enabled` changed in `config.yaml` (or by `rex config set`) now
+  turns mouse capture on or off at once, not at the next attach.
+- `retire_after_hours` now changes the daemon's default linger time
+  without a restart.
+- `max_concurrent_sessions` edited in `config.yaml` is pushed to the
+  daemon on the board's next reload, as documented.
+
+### Added (screensaver settings)
+
+- `screensaver_counts` (Settings → Behavior, "Screensaver counts"):
+  `horizontal` (default, one line as before), `vertical` (one count per
+  line under the logo, numbers in one column; back to one line when the
+  terminal is too short) or `off` (logo only).
+- `screensaver_clock`: `off` (default), `24h` or `12h` shows the time under
+  the logo, updated on the minute.
+- `screensaver_drift`: on by default; off keeps the screensaver centered
+  without turning on `reduce_motion` everywhere.
+- All three apply live and can be set from `config.lua` and from a trusted
+  workspace's `.rex/config.lua` (display only).
 
 ### Added (row icons)
 
@@ -69,6 +117,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `ascii_glyphs` draws them in plain ASCII (`* + @ Y ^`).
 - Sessions carry `cost_usd` on the wire (Claude Code, from the usage hub;
   sent when it moved by a cent, at most every 2 s; kept across restarts).
+
+### Fixed (render and cleanup port)
+
+- Attach popup rows with CJK or emoji text stay exactly the popup's width,
+  so the popup no longer shifts and clicks land on the right cells.
+- Popups drawn over wide board text keep straight borders, and a popup
+  wider than the terminal is clipped instead of wrapping.
+- Pasting multi-line text into the command bar or the `λ` prompt no longer
+  pushes the help line off the screen. The `λ` prompt and the wizard's task
+  keep the pasted line breaks for the agent; escapes are dropped.
+- On a short terminal the board gives up rows; the prompt and help line
+  stay on screen.
+- The done flash is visible again.
+- A quick-spawned session is selected even when another session goes away
+  before it starts.
+- Detaching from a busy agent no longer leaks a reader; re-attaching to
+  the same session can't be marked ended by the old popup.
+- `:stats` closes on `esc` only; typing `:stats` over it no longer runs
+  board keys. The setup wizard's model field edits at its end, and its
+  daemon hint says `rex daemon start`. A daemon that fails to start points
+  at `daemon.log` unless `rex-daemon` is missing.
+- `rex new` reports the session it spawned when two spawns race.
+  `rex fleet set` and `unset` report a fleet the daemon rejects instead of
+  printing success.
+- `rex uninstall` exits 1 when a removal fails. `rex doctor` and
+  `rex uninstall` find `rex-daemon` next to `rex`, as `rex daemon start`
+  does. `rex config edit` opens the `lua_config_path` file and accepts an
+  `$EDITOR` with arguments (`code -w`).
+- The initial prompt and `rex reply` text are typed without escape
+  sequences or control characters, so a prompt can't close its own paste.
+- The daemon keeps `max_concurrent_sessions` from `config.yaml` across
+  restarts, removes subscriptions of closed connections, no longer drops a
+  change made while a client's snapshot is taken, replays a cut transcript
+  from a clean boundary, removes leftover `meta-*.tmp` files at startup and
+  drops bidi controls from `last_line`. Log records carry the process id.
 
 ### Fixed (Lua volume warning)
 

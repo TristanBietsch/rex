@@ -261,7 +261,12 @@ func (c *Client) Hello(clientName string) (*protocol.Snapshot, error) {
 // returns, the daemon broadcasts board events to the event stream and
 // DaemonVersion reports the daemon's version.
 func (c *Client) HelloContext(ctx context.Context, clientName string) (*protocol.Snapshot, error) {
-	env, err := c.do(ctx, protocol.IntentHello, protocol.Hello{ClientVersion: version.Version, Client: clientName})
+	hello := protocol.Hello{ClientVersion: version.Version, Client: clientName}
+	if clientName == protocol.ClientTUI {
+		// A board says who it is, so rex upgrade can report it per process.
+		hello.PID, hello.Build = os.Getpid(), version.Build()
+	}
+	env, err := c.do(ctx, protocol.IntentHello, hello)
 	if err != nil {
 		return nil, err
 	}

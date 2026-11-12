@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -47,11 +46,11 @@ func startAckServer(t *testing.T) *ackEnv {
 		RetireSweepInterval: time.Hour,
 		// Counted, not acted on: the connection must outlive Shutdown here.
 		OnShutdown: func() { e.shutdowns.Add(1) },
-		OnReload: func() error {
+		OnReload: func() protocol.ReloadReport {
 			if e.failNext.Swap(false) {
-				return errors.New("bad tools.yaml")
+				return protocol.ReloadReport{Errors: []string{"bad tools.yaml"}}
 			}
-			return nil
+			return protocol.ReloadReport{Reloaded: []string{"tools.yaml"}}
 		},
 	})
 	require.NoError(t, err)
@@ -169,8 +168,10 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		{intent: protocol.IntentSetMaxConcurrent, payload: protocol.SetMaxConcurrent{N: 8}, want: ack},
 		{intent: protocol.IntentSetMaxConcurrent, payload: "eight", want: fail, code: bad},
 
-		{intent: protocol.IntentReload, payload: struct{}{}, want: ack},
-		{intent: protocol.IntentReload, payload: struct{}{}, want: fail, code: bad, before: func() { e.failNext.Store(true) }},
+		// R20: a reload always answers with its report; a failed layer is
+		// in the report's errors, not an Error event.
+		{intent: protocol.IntentReload, payload: struct{}{}, want: protocol.EventReloaded},
+		{intent: protocol.IntentReload, payload: struct{}{}, want: protocol.EventReloaded, before: func() { e.failNext.Store(true) }},
 		{intent: protocol.IntentShutdown, payload: struct{}{}, want: ack},
 
 		// Turn snapshots are off in this server; the success reply is
@@ -208,6 +209,12 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "nope"}, want: fail, code: bad},
 		{intent: protocol.IntentStartLoop, payload: "not an object", want: fail, code: bad},
 
+		{intent: protocol.IntentRestart, payload: protocol.Restart{Mode: "cold"}, want: fail, code: bad},
+		{intent: protocol.IntentRestart, payload: protocol.Restart{Mode: protocol.RestartHot}, want: fail, code: protocol.ErrCodeRestartRefused}, // no Hot config
+		{intent: protocol.IntentRestart, payload: "not an object", want: fail, code: bad},
+		{intent: protocol.IntentBoards, payload: struct{}{}, want: protocol.EventBoards},
+		{intent: protocol.IntentSwapBoards, payload: protocol.SwapBoards{Build: "x"}, want: protocol.EventBoards},
+		{intent: protocol.IntentSwapBoards, payload: "not an object", want: fail, code: bad},
 		{intent: protocol.IntentOpenSession, payload: protocol.OpenSession{SessionID: "s1"}, want: fail, code: bad},
 		{intent: "Bogus", payload: struct{}{}, want: fail, code: bad},
 	}

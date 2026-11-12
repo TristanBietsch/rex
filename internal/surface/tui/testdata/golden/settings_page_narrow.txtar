@@ -10,7 +10,7 @@
     Attach scrollback…                      5000  
     Screensaver                               on  
     Screensaver after…                         5  
-    Screensaver keep …                        on  
+    Screensaver counts                horizontal  
     ↓ more                                        
 ──────────────────────────────────────────────────
   id mouse_enabled · default on · applies now     
@@ -31,7 +31,7 @@
     ␛[38;2;139;145;161mAttach scrollback…␛[0m                    ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238m5000␛[0m  
     ␛[38;2;139;145;161mScreensaver       ␛[0m                      ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
     ␛[38;2;139;145;161mScreensaver after…␛[0m                       ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238m5␛[0m  
-    ␛[38;2;139;145;161mScreensaver keep …␛[0m                      ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mon␛[0m  
+    ␛[38;2;139;145;161mScreensaver counts␛[0m              ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mhorizontal␛[0m  
   ␛[38;2;139;145;161m  ↓ more␛[0m                                        
 ␛[38;2;43;48;60m──────────────────────────────────────────────────␛[0m
   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mmouse_enabled␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mon␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m     

@@ -72,7 +72,7 @@ These bounds protect the daemon's **liveness**, not its security. They do not li
 
 ## Wiring (daemon integration)
 
-`boot.StartLuaRuntime` does this for the daemon:
+`boot.StartLuaHost` does this for the daemon (and rebuilds it on `rex reload`):
 
 1. Instantiate a `*lua.Runtime` via `lua.New(lua.Options{...})` with:
    - `Sender`: deliver the text to the session's PTY input channel.

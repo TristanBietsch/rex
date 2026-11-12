@@ -160,6 +160,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 
 - **Sections.** `1`–`9` pick a section, `[` / `]` step through them (they wrap). On the left pane `j` `k` move the section and `enter` or `l` moves to the rows; on the rows pane `j` `k` stay inside the section, and `h` on a row with no values to step through does nothing.
 - **Search.** `/` filters live over label, id, section and help text (`spin` leaves Spinner type and Waiting icon), across every section: the right pane lists the hits grouped by section under a match count, or `no setting matches “…”`. `enter` keeps the filter, `esc` clears it, a second `esc` closes. `esc` while you type goes back to the row you were on; after `enter` it keeps the row you picked. While you type, `j` `k` and the rest type; `ctrl+u` clears.
+- **Reload.** `R` reloads every layer, like `:reload`: the daemon's `tools.yaml`, `config.yaml`, `config.lua` and `init.lua`, and this board's `config.yaml` and themes. The status line shows `reloaded · changed: theme · needs daemon restart: summary_model`, or the first failed layer as `reload: file:line: message`.
 - **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. Values sit flush right; a switch's `on` is drawn in the primary text color and `off` in the dim one.
 - **Set in config.lua.** A row that `config.lua` sets shows its value dimmed with a muted `lua` after it, and the detail pane says where (`set in config.lua:12`). Enter, `←`/`→`, `r` and the inline editor refuse with `<id>: set in config.lua:12 — press e to open` on the bottom line; `e` opens that file at that line in `$EDITOR` (with `+N` for vi, vim, nvim, nano, emacs and micro) and reloads when the editor exits. `:theme` refuses the same way when `config.lua` sets `theme`, a quick-spawn tool or model change that would reset a model or effort `config.lua` sets is refused, and the setup wizard leaves such settings alone and lists them in its summary.
 - **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
@@ -434,7 +435,7 @@ The dialog never changes a file until you confirm:
 - **Context.** Pastes, workspace files and folders. `@` at a word start opens a completion list of workspace paths; `ctrl+o` opens the import picker (type to match, `space` marks, `enter` adds, `→` / `←` browse folders). In the list `j` / `k` move, `enter` previews, `x` or `delete` removes and `r` renames. A path must resolve inside the session folder and be a regular file or folder; a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added only after `y`. Limits: 32 KiB per paste, 64 KiB of pasted text, 32 items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt). Ollama takes its prompt as typed lines, so it only launches a one-line prompt with no context. A draft whose files were added in another folder shows `! files from <folder>, not this folder` and takes no new paths until `x` removes them. The last row shows the prompt's size against that limit and the slug.
 - **Trust.** `ctrl+t` trusts the folder for this session only, `ctrl+a` saves it to `auto_trust_dirs` at launch; the focused section names the exact folder each key trusts (as in the wizard below).
 - **Launch.** `enter` in the editor or `ctrl+s` anywhere. The page checks every cap and path first, then stays open with `⠋ starting…` until the daemon answers: success closes it and selects the new card; a failure shows `✗ launch failed: …` and keeps the task and context.
-- **Draft.** `esc` closes the innermost thing (completion, picker, preview, Agent screen, then the page). Leaving the page keeps the draft in memory for the next `n`; nothing of it is written to disk.
+- **Draft.** `esc` closes the innermost thing (completion, picker, preview, Agent screen, then the page). Leaving the page keeps the draft in memory for the next `n`; nothing of it is written to disk. A board swap (`:swap`, `rex upgrade`) never carries it: the swap waits while the page is open, `auto_swap` waits while a draft is kept, and an explicit swap over a kept draft drops it and the new board says so.
 - **Help.** `?` outside the editor opens help on the page's keys alone; `esc` comes back.
 
 Every state has a glyph or a word besides its color: `▸` on the cursor, `[x]` marks, the bracketed effort, `✓` / `·` / `?` rail marks, `✗` errors and `!` warnings.
@@ -514,13 +515,24 @@ After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the sc
 1 ready · 3 working · 7 done
 ```
 
+- `screensaver_counts: vertical` stacks the counts under the logo, one per line, with the numbers in one column, so your eyes don't travel along a line. When the terminal is too short for that, they go back to one line. `off` shows the logo alone.
+
+```
+   ∴ rex
+
+ 1 ready
+ 3 working
+ 7 done
+```
+
+- `screensaver_clock` (`24h` or `12h`) shows the time under the logo. It changes on the minute. On a short terminal the blank lines go first, then the clock, then the logo; the counts stay.
 - The counts stay live: daemon events keep updating them. `ready` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
 - Any key or mouse event (click, wheel), or a terminal resize, brings the screen back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
 - It starts whatever is open: an overlay, prompt, confirmation, the new-session wizard, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, wizard step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
-- Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.
-- It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute. It plays no sound.
+- Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `screensaver_drift` off or `reduce_motion` on it stays centered.
+- It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute (with the clock on, on the minute). It plays no sound.
 
-Turn it off with `screensaver_enabled` (settings page `S`, or `rex config set screensaver_enabled false`). See [settings.md](settings.md#behavior).
+Turn it off with `screensaver_enabled` (settings page `S`, or `rex config set screensaver_enabled false`). `screensaver_counts`, `screensaver_clock` and `screensaver_drift` change how it looks; all apply live and can be set from a trusted workspace's `.rex/config.lua`. See [settings.md](settings.md#behavior).
 
 ### Keep awake (macOS)
 
@@ -544,6 +556,14 @@ A small column before the time column flags sessions that have been **working** 
 ## DETACH WITHOUT QUITTING
 
 `:bg` or `:detach` saves selection, tool filter, hidden sections and the board search to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores them once (the saved hidden sections replace `board_hidden_sections` for that run), then deletes the state file.
+
+## LOADING A NEW BUILD (`:swap`)
+
+The board checks its own executable every 10 s. When a new build is installed (`make install`, `rex update`) the status line says `new rex build installed · :swap to load it`. `:swap` re-execs the board into the new binary at once; with `auto_swap` on (the default) it also does so by itself once it has sat on the board for 60 s with no key, no overlay, wizard, dialog or editor open. `rex upgrade` asks every board to swap right away.
+
+A swap keeps the view: selection, scroll, tool filter, search, hidden sections, the open page (board, help, settings, usage, stats, overview, loops) and the attach popup when its session is still running. The state goes through `tui-swap-<pid>.json` next to `tui-state.json` (0600, read once and removed, pid-checked). The new board boots quietly (no boot sounds, as `--quiet-boot`). An open wizard, new-agent page, confirm dialog, rename or inline editor is not carried: an automatic or `rex upgrade` swap waits until none is open. If the exec fails the board keeps running and says why. Not on Windows (the status line says so).
+
+When the daemon hot-restarts, boards reconnect by themselves and an open attach popup re-attaches to the same session (backoff 250 ms to 2 s, 10 tries) instead of showing it as ended.
 
 ## PROMPT
 

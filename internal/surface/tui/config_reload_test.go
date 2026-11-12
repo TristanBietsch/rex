@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // reloadModel is a booted Model whose config.yaml and themes/ live in a temp
@@ -28,7 +29,7 @@ func reloadModel(t *testing.T) (m Model, cfg, themeDir string) {
 	require.NotEmpty(t, themeDir)
 	cfg = filepath.Join(filepath.Dir(themeDir), "config.yaml")
 	require.NoError(t, os.MkdirAll(themeDir, 0o700))
-	m = Model{Store: settings.NewStore(), StorePath: cfg, Focus: FocusBoard, idleDone: make(chan struct{})}
+	m = Model{Store: settings.NewStore(), StorePath: cfg, Focus: FocusBoard, idleDone: make(chan struct{}), mouseOn: true}
 	m.configStamp = configStamp(cfg, themeDir, true)
 	return m, cfg, themeDir
 }
@@ -182,7 +183,9 @@ func TestConfigTickPollsAndManualReloadDoesNotContinue(t *testing.T) {
 func TestReloadCommandReloadsConfigEvenWithLiveReloadOff(t *testing.T) {
 	m, cfg, _ := reloadModel(t)
 	require.NoError(t, m.Store.Set("live_reload", false))
-	m.reloader = func(_ context.Context, _ string) error { return errors.New("no daemon") }
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		return protocol.ReloadReport{}, errors.New("no daemon")
+	}
 	writeFile(t, cfg, "live_reload: false\nspinner: moon\n")
 
 	next, cmd := executeCommand(m, "reload")
@@ -290,4 +293,40 @@ func TestBorderPaletteResolvesUserThemes(t *testing.T) {
 	require.False(t, borderPalette(m).Dark, "the user theme's own palette")
 	require.NoError(t, m.Store.Set("theme", "ghost"))
 	require.True(t, borderPalette(m).Dark, "an unknown theme is the default palette")
+}
+
+// R20: the Settings page's R reloads everything, like :reload.
+func TestSettingsPageReloadKey(t *testing.T) {
+	m := settingsScreen(t, 120, 50)
+	var calls int
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		calls++
+		return protocol.ReloadReport{}, nil
+	}
+	next, cmd := updateSettingsKey(m, key("R"))
+	require.NotNil(t, cmd)
+	collectMsgs(t, cmd)
+	require.Equal(t, 1, calls)
+	require.Equal(t, FocusSettings, next.Focus, "the page stays open")
+}
+
+// R20 audit: mouse_enabled is live, so a config.yaml edit (live reload or
+// :reload) turns terminal mouse capture off at once, not at the next
+// attach or detach.
+func TestConfigReloadAppliesMouseEnabled(t *testing.T) {
+	m, cfg, dir := reloadModel(t)
+	m.mouseOn = true
+	writeFile(t, cfg, "mouse_enabled: false\n")
+	next, cmd := m.dispatch(loadConfig(cfg, dir, m.configStamp, true)())
+	got := next.(Model)
+	require.False(t, got.mouseOn, "mouse capture released")
+	require.NotNil(t, cmd, "a DisableMouse command is sent")
+}
+
+// R20 audit: max_concurrent_sessions (applied from the TUI) is pushed to
+// the daemon on a config reload too, as settings.md says.
+func TestChangedLiveSettingsIncludesFromTUI(t *testing.T) {
+	old, cur := settings.NewStore(), settings.NewStore()
+	require.NoError(t, cur.Set("max_concurrent_sessions", 3))
+	require.Equal(t, []string{"max_concurrent_sessions"}, changedLiveSettings(old, cur))
 }

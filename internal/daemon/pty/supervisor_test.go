@@ -666,3 +666,35 @@ func TestSupervisor_ReportsWaitReason(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(meta), "wait_reason", "the final meta.json keeps no reason")
 }
+
+// The initial prompt is typed text: escape sequences and controls in it are
+// dropped before the paste, so they can't reach the agent as keystrokes.
+func TestSupervisor_InitialPromptDropsEscapesAndControls(t *testing.T) {
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "esc1", ShortID: "esc1", ToolID: "ollama", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	sup := New(SupervisorConfig{
+		StateDir: stateDir,
+		Store:    store,
+		// cat -v shows every byte that arrives (ESC as ^[, CR as ^M); the
+		// raw read returns EOF after half a second without input.
+		Command:       []string{"bash", "-c", `stty -echo raw min 0 time 5; cat -v; sleep 0.2`},
+		Adapter:       &stubAdapter{ready: true},
+		InitialPrompt: "a\x1b[201~b\x07c",
+		PlainPaste:    true,
+		IdleTick:      50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = sup.Run(ctx, sess)
+
+	tail, err := state.TranscriptTail(stateDir, sess.ID, 8192)
+	require.NoError(t, err)
+	require.Contains(t, string(tail), "abc^M")
+	require.NotContains(t, string(tail), "^[")
+}

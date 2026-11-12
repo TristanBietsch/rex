@@ -153,6 +153,23 @@ var Registry = []Setting{
 		Help: "Minutes without a key or click before the screensaver shows. A change applies within a minute.",
 	},
 	{
+		ID: "screensaver_counts", Label: "Screensaver counts", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeEnum, Default: "horizontal",
+		Options: []string{"horizontal", "vertical", "off"},
+		Help:    "How the screensaver shows the counts: horizontal on one line, vertical one per line under the logo (back to one line when the terminal is too short), or off.",
+	},
+	{
+		ID: "screensaver_clock", Label: "Screensaver clock", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeEnum, Default: "off",
+		Options: []string{"off", "24h", "12h"},
+		Help:    "Show the time under the screensaver's logo, as 14:05 (24h) or 2:05 PM (12h). It updates on the minute.",
+	},
+	{
+		ID: "screensaver_drift", Label: "Screensaver drift", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Move the screensaver a little once a minute so no image stays in one place for hours. Off keeps it centered; reduce_motion also keeps it centered.",
+	},
+	{
 		ID: "screensaver_keep_awake", Label: "Screensaver keep awake", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "macOS: keep the display from sleeping while the screensaver shows (caffeinate -d). Does nothing on other systems.",
@@ -269,6 +286,11 @@ var Registry = []Setting{
 		ID: "live_reload", Label: "Live settings reload", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "The daemon and the TUI notice edits to config.yaml within a few seconds and apply the settings that can change live (see docs/settings.md); the TUI also picks up edits to theme files. Off: no polling; rex reload, :reload and SIGHUP still reload by hand.",
+	},
+	{
+		ID: "auto_swap", Label: "Load new rex builds", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "When a new rex build is installed (make install, rex update), the board says so on the status line and, once it has been idle for a minute on the board, re-execs itself into the new binary keeping its view (selection, filter, open page). :swap does it at once. Off: status line only.",
 	},
 	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures, Apply: ApplyLive,

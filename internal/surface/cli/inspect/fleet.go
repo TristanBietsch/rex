@@ -1,13 +1,17 @@
 package inspect
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"sort"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/cli/session"
+	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -122,7 +126,9 @@ type fleetSetData struct {
 	Fleet   string `json:"fleet"`
 }
 
-// setFleet resolves selector, then sets its fleet (empty clears it).
+// setFleet resolves selector, then sets its fleet (empty clears it) and
+// waits for the daemon's answer, so a rejected fleet is reported instead
+// of a success line.
 func setFleet(socket, selector, fleet string) (protocol.SessionSummary, error) {
 	c, err := core.DialPath(socket)
 	if err != nil {
@@ -133,21 +139,20 @@ func setFleet(socket, selector, fleet string) (protocol.SessionSummary, error) {
 	if err != nil {
 		return sess, err
 	}
-
-	// Reconnect — ResolveSelector consumed Hello.
-	c2, err := core.DialPath(socket)
-	if err != nil {
-		return sess, err
-	}
-	defer c2.Close()
-	if _, err := c2.Hello("rex-cli"); err != nil {
-		return sess, core.HelloFailed(err)
-	}
-	if err := c2.SetSessionFleet(sess.ID, fleet); err != nil {
-		return sess, core.NewExitError(core.ExitGeneric, err.Error())
+	ctx, cancel := context.WithTimeout(context.Background(), fleetAckTimeout)
+	defer cancel()
+	if _, err := c.Do(ctx, protocol.IntentSetSessionFleet, protocol.SetSessionFleet{SessionID: sess.ID, Fleet: fleet}); err != nil {
+		var de *client.Error
+		if errors.As(err, &de) && de.Code == protocol.ErrCodeBadIntent {
+			return sess, core.NewExitError(core.ExitInvalidArgs, "fleet: "+de.Message)
+		}
+		return sess, core.NewExitError(core.ExitGeneric, "fleet: "+err.Error())
 	}
 	return sess, nil
 }
+
+// fleetAckTimeout bounds the wait for the daemon's answer to a fleet change.
+const fleetAckTimeout = 5 * time.Second
 
 func emitFleetSet(sess protocol.SessionSummary, fleet, text, txt string) error {
 	p := core.Out()

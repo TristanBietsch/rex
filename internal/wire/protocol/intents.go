@@ -21,8 +21,14 @@ const (
 	IntentUnretire         = "Unretire"
 	IntentResume           = "Resume"
 	IntentReload           = "Reload"
-	IntentUndo             = "Undo"
-	IntentRedo             = "Redo"
+	// IntentRestart asks the daemon to restart; see Restart.
+	IntentRestart = "Restart"
+	// IntentSwapBoards asks every connected board to re-exec into the
+	// installed binary (a swap event); IntentBoards lists board connections.
+	IntentSwapBoards = "SwapBoards"
+	IntentBoards     = "Boards"
+	IntentUndo       = "Undo"
+	IntentRedo       = "Redo"
 )
 
 // Hello is the first message a client sends after connect. The daemon
@@ -36,6 +42,41 @@ type Hello struct {
 	// the daemon log and, for ClientTUI, to count a board viewer. Empty from
 	// older clients.
 	Client string `json:"client,omitempty"`
+	// PID and Build identify the client process and its binary build (R20
+	// rex upgrade reports per process). Optional.
+	PID   int    `json:"pid,omitempty"`
+	Build string `json:"build,omitempty"`
+}
+
+// RestartHot is Restart.Mode for a hot restart: the daemon re-execs itself
+// in place and every running session survives. The only mode the daemon
+// takes; a cold restart is a Shutdown plus a start, done by the client.
+const RestartHot = "hot"
+
+// Restart is the payload of IntentRestart. On success the daemon never
+// replies: the connection closes when the new image takes over, and the
+// client confirms through a new Hello (Snapshot.DaemonStartedAt changes).
+// A refused or failed restart replies with an Error and the old daemon
+// keeps running.
+type Restart struct {
+	Mode string `json:"mode"`
+}
+
+// BoardInfo is one board connection (IntentBoards, IntentSwapBoards).
+type BoardInfo struct {
+	PID   int    `json:"pid,omitempty"`
+	Build string `json:"build,omitempty"`
+}
+
+// Boards is the Ack payload of IntentBoards and IntentSwapBoards.
+type Boards struct {
+	Boards []BoardInfo `json:"boards"`
+}
+
+// SwapBoards is the payload of IntentSwapBoards: boards whose build is not
+// Build re-exec into their installed binary.
+type SwapBoards struct {
+	Build string `json:"build,omitempty"`
 }
 
 // ClientTUI is the Hello.Client of the rex board. The daemon counts only

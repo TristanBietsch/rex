@@ -42,6 +42,7 @@ func TestWorkspaceAllowIDs_Exact(t *testing.T) {
 		"mobile_layout": "layout", "mouse_enabled": "input",
 		"attach_scrollback_lines": "display buffer",
 		"screensaver_enabled":     "display", "screensaver_after_minutes": "display",
+		"screensaver_counts": "layout", "screensaver_clock": "display", "screensaver_drift": "animation",
 		"board_filter": "display", "search": "display", "timestamps": "display",
 		"summary_preview": "display", "waiting_section": "grouping only",
 		"usage_meter": "display", "summary_detail": "description length",

@@ -189,7 +189,44 @@ type Snapshot struct {
 	// PATH and each tool's models (detected ones merged with the static list).
 	// Absent from daemons that predate it; treat every tool as installed then.
 	Tools []ToolInfo `json:"tools,omitempty"`
+	// DaemonPID, DaemonBuild and DaemonStartedAt identify the daemon image
+	// (R20): a hot restart keeps the pid and changes the start time and,
+	// after an install, the build. Absent from older daemons.
+	DaemonPID       int       `json:"daemon_pid,omitempty"`
+	DaemonBuild     string    `json:"daemon_build,omitempty"`
+	DaemonStartedAt time.Time `json:"daemon_started_at,omitzero"`
 }
+
+// EventSwap asks a board to re-exec into its installed binary (rex
+// upgrade). Payload: SwapBoards.
+const EventSwap = "Swap"
+
+// EventReloaded answers IntentReload. Payload: ReloadReport. Daemons
+// before R20 answer with an Ack (or an Error when tools.yaml failed).
+const EventReloaded = "Reloaded"
+
+// ReloadReport says what a reload did.
+type ReloadReport struct {
+	// Changed are the setting ids whose value changed.
+	Changed []string `json:"changed,omitempty"`
+	// Restart are the changed ids that apply only after a daemon restart.
+	Restart []string `json:"restart,omitempty"`
+	// Reloaded names the layers read: tools.yaml, config.yaml, config.lua,
+	// init.lua.
+	Reloaded []string `json:"reloaded,omitempty"`
+	// Errors are layers that failed, as "file:line: message" where the
+	// line is known. A failed layer keeps its previous values (trust
+	// settings fail closed).
+	Errors []string `json:"errors,omitempty"`
+	// Warnings are non-fatal notes (refused config.lua calls).
+	Warnings []string `json:"warnings,omitempty"`
+	// Legacy is set by the client, never sent: the daemon predates R20 and
+	// answered with a plain Ack (or nothing), so no detail is known.
+	Legacy bool `json:"-"`
+}
+
+// EventBoards answers IntentBoards and IntentSwapBoards. Payload: Boards.
+const EventBoards = "Boards"
 
 // ToolsChanged is sent to every connection that has sent Hello when the
 // daemon's registry changed (a reload, extra_agents, detected models): the
@@ -288,6 +325,9 @@ const (
 	ErrCodeSpawn           = "spawn_failed"
 	ErrCodeTooManySessions = "too_many_sessions"
 	ErrCodeBadState        = "bad_state"
+	// ErrCodeRestartRefused: a hot restart was refused or failed; the
+	// daemon is still running as before.
+	ErrCodeRestartRefused = "restart_refused"
 	// The daemon sends these, then closes the connection.
 	ErrCodeLineTooLong        = "line_too_long"       // a line exceeded MaxLineBytes
 	ErrCodeUnsupportedVersion = "unsupported_version" // envelope "v" is not ProtocolVersion

@@ -27,6 +27,7 @@ var WorkspaceAllowIDs = []string{
 	"window_border_color", "column_layout", "mobile_layout",
 	"mouse_enabled", "attach_scrollback_lines",
 	"screensaver_enabled", "screensaver_after_minutes",
+	"screensaver_counts", "screensaver_clock", "screensaver_drift",
 	"board_filter", "search", "timestamps", "summary_preview",
 	"waiting_section", "usage_meter",
 	"summary_detail", "desc_animation", "attach_banner",

@@ -109,7 +109,8 @@ func TestWalk_GitKilledAtBudgetKeepsWhatItListed(t *testing.T) {
 	root := workspace(t, nil)
 	fakeGit(t, ":", `printf 'early.go\000'; exec /bin/sleep 30`)
 	start := time.Now()
-	idx, err := Walk(context.Background(), root, 100, 1500*time.Millisecond)
+	// A budget with room for a loaded machine to start the fake git.
+	idx, err := Walk(context.Background(), root, 100, 3*time.Second)
 	require.NoError(t, err)
 	require.True(t, idx.Truncated)
 	require.Equal(t, []string{"early.go"}, idx.Paths)

@@ -126,9 +126,9 @@ func TestCommand_ReloadUsesTheTUISocket(t *testing.T) {
 	m := commandModel(t)
 	m.Socket = "/tmp/rex-test/custom.sock"
 	var got []string
-	m.reloader = func(_ context.Context, socket string) error {
+	m.reportReloader = func(_ context.Context, socket string) (protocol.ReloadReport, error) {
 		got = append(got, socket)
-		return nil
+		return protocol.ReloadReport{}, nil
 	}
 	_, cmd := executeCommand(m, "reload")
 	require.NotNil(t, cmd)
@@ -138,7 +138,9 @@ func TestCommand_ReloadUsesTheTUISocket(t *testing.T) {
 	}
 	require.Equal(t, []string{"/tmp/rex-test/custom.sock"}, got)
 
-	m.reloader = func(context.Context, string) error { return daemonctl.ErrNotRunning }
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		return protocol.ReloadReport{}, daemonctl.ErrNotRunning
+	}
 	_, cmd = executeCommand(m, "reload")
 	var failed *CmdErrMsg
 	for _, msg := range collectMsgs(t, cmd) {
@@ -149,4 +151,35 @@ func TestCommand_ReloadUsesTheTUISocket(t *testing.T) {
 	require.NotNil(t, failed, "a failed reload must be reported")
 	require.Equal(t, "reload", failed.Op)
 	require.ErrorIs(t, failed.Err, daemonctl.ErrNotRunning)
+}
+
+// R20: :reload shows the daemon's report on the status line: what changed
+// and what needs a restart, or the failed layer with its file:line.
+func TestCommand_ReloadShowsReport(t *testing.T) {
+	m := commandModel(t)
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		return protocol.ReloadReport{Changed: []string{"theme", "summary_model"}, Restart: []string{"summary_model"}}, nil
+	}
+	_, cmd := executeCommand(m, "reload")
+	var rep *daemonReloadedMsg
+	for _, msg := range collectMsgs(t, cmd) {
+		if r, ok := msg.(daemonReloadedMsg); ok {
+			rep = &r
+		}
+	}
+	require.NotNil(t, rep)
+	next, _ := m.dispatch(*rep)
+	got := next.(Model)
+	require.Contains(t, got.Notice, "changed: theme, summary_model")
+	require.Contains(t, got.Notice, "needs daemon restart: summary_model")
+	require.Empty(t, got.Err)
+
+	next, _ = m.dispatch(daemonReloadedMsg{Report: protocol.ReloadReport{}})
+	require.Equal(t, "reloaded · nothing changed", next.(Model).Notice)
+
+	next, _ = m.dispatch(daemonReloadedMsg{Report: protocol.ReloadReport{Errors: []string{"/x/init.lua:2: boom", "tools.yaml: bad"}}})
+	require.Equal(t, "reload: /x/init.lua:2: boom (+1 more, see rex reload)", next.(Model).Err)
+
+	next, _ = m.dispatch(daemonReloadedMsg{Report: protocol.ReloadReport{Legacy: true}})
+	require.Equal(t, "reloaded", next.(Model).Notice)
 }
