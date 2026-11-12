@@ -55,6 +55,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 	nm = normalizeFocus(nm)
+	nm = syncLayout(nm)
 	nm = keepSelectionVisible(nm)
 	var arm tea.Cmd
 	if nm, arm = armSpinner(nm); arm != nil {

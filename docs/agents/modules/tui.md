@@ -45,6 +45,7 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `rowfilter.go` | `rowFilter`: the one predicate every board view applies |
 | `filter.go` | `:filter` grammar, hidden sections (`setSectionHidden`, `z` chord, `board_hidden_sections`), filter-bar status |
 | `chords.go` | Board chord table (`dd`, `cc`; first key to handler) |
+| `frame.go` | Window frame: `relayout`/`syncLayout` (terminal size `TermW/TermH` vs layout size `Width/Height`), `frameInset`, `wrapFrame` + row cache, `translateMouse`, border color (`borderEdge`, `borderColorOf`; random = `PickEdge(BorderSeed)`) |
 | `header.go` | Aggregate counts |
 | `prompt.go` | Bottom prompt |
 | `command.go` | `:` command line: parse and look up in `commands` |

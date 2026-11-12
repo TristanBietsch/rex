@@ -30,6 +30,8 @@ Keys and defaults: [settings.md](../settings.md).
 | `color_scheme` | `default`, `classic`, `noir`, `paper`, `high-contrast`, `ansi` |
 | `row_density` | `compact`, `normal`, `roomy` |
 | `header_style` | `verbose`, `glyphs`, `numbers` |
+| `window_border` | Thick colored frame around the screen (off by default) |
+| `window_border_color` | `random` (a color per project folder), a name such as `tangerine`, or `#rrggbb` |
 | `prompt_glyph` | Character before the bottom prompt |
 | `soundset` | UI sound catalog |
 | `reduce_motion` | Disable animations |

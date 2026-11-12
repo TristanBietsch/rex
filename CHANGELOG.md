@@ -57,6 +57,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: an optional thick colored window border (`window_border`, off by
+  default; `window_border_color`: `random`, a name or `#rrggbb`). `random`
+  picks a Pantone-inspired, colorblind-safe color per launch folder, so a
+  project keeps its color. The frame takes 2 columns and 2 rows, and is
+  hidden on the splash, the screensaver and small terminals.
 - Daemon: scheduled description refresh (`summary_schedule`, Settings →
   Features, on by default). Each live session gets a new AI description 5, 10,
   15, 20 and 25 minutes after its run started, then every 30 minutes, and the

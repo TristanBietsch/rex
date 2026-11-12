@@ -45,8 +45,14 @@ type Model struct {
 	// WindowSizeMsg (tests, rex render): then there is never a frame.
 	Width, Height int
 	TermW, TermH  int
-	Sessions      []protocol.SessionSummary
-	SelectedID    string
+	// BorderSeed seeds the "random" window border color: the launch folder.
+	BorderSeed string
+	// borderRunOn and borderRunColor are :border's choices for this run. They
+	// are never saved; nil / "" fall back to the window_border settings.
+	borderRunOn    *bool
+	borderRunColor string
+	Sessions       []protocol.SessionSummary
+	SelectedID     string
 	// PendingSelectSlug is the slug of a session this TUI just asked the
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string

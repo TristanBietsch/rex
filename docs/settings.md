@@ -49,6 +49,25 @@ The settings page shows this per row (the detail pane under the list), and the r
 
 Every scheme with real colors is tested against its own background: text 7:1, state colors, accent and dim text 4.5:1, focus border 3:1, and the four state colors stay distinct from one another (also after a 256-color terminal quantizes them).
 
+## Border colors
+
+`window_border_color` takes one of ten Pantone-inspired names. The hex values are approximations, not official Pantone values, and rex is not affiliated with Pantone. Each hue sits next to an Okabe-Ito (or IBM color-blind-safe) role, and every value is at least 3:1 against every scheme's background (WCAG non-text contrast); light schemes use the darker variant.
+
+| Name | Reference | Dark / light hex | Okabe-Ito role | `ansi` scheme |
+|------|-----------|------------------|----------------|---------------|
+| `tangerine` | 17-1463 Tangerine Tango | `#DD4124` | vermillion | 9 |
+| `mimosa` | 14-0848 Mimosa | `#F0C05A` / `#B18513` | orange | 3 |
+| `illuminating` | 13-0647 Illuminating | `#F5DF4D` / `#A18C00` | yellow | 11 |
+| `emerald` | 17-5641 Emerald | `#009473` | bluish green | 2 |
+| `cerulean` | 15-4020 Cerulean | `#9BB7D4` / `#758FA9` | sky blue | 14 |
+| `classic-blue` | 19-4052 Classic Blue | `#4F83C0` / `#0F4C81` | blue | 12 |
+| `very-peri` | 17-3938 Very Peri | `#6667AB` | (IBM indigo) | 13 |
+| `orchid` | 18-3224 Radiant Orchid | `#B163A3` | reddish purple | 5 |
+| `viva-magenta` | 18-1750 Viva Magenta | `#BE3455` | (IBM magenta) | 1 |
+| `ultimate-gray` | 17-5104 Ultimate Gray | `#939597` / `#8A8C8E` | neutral | 8 |
+
+`random` picks from a smaller pool whose colors stay far apart for normal vision and protan, deutan and tritan color vision (OKLab distance, Machado 2009 simulation, tested): seven colors on dark schemes (`tangerine`, `illuminating`, `cerulean`, `very-peri`, `viva-magenta`, `mimosa`, `ultimate-gray`), five on light ones (`mimosa`, `cerulean`, `very-peri`, `viva-magenta`, `classic-blue`). The other colors are only offered by name. The seed is the folder rex was started in (the repository root, inside a repository).
+
 ## Keys
 
 ### Appearance
@@ -63,6 +82,8 @@ Every scheme with real colors is tested against its own background: text 7:1, st
 | `blinking_enabled` | bool | `true` | Completed-row blink |
 | `show_help_bar` | bool | `true` | Bottom help line |
 | `header_style` | enum | `verbose` | `verbose`, `glyphs`, `numbers` |
+| `window_border` | bool | `false` | A thick colored frame around the whole screen (see [tui.md](tui.md#window-border)). It costs 2 columns and 2 rows and gives way on small terminals |
+| `window_border_color` | string | `random` | `random` (stable per launch folder: a project keeps its color), a color name (see below), or `#rrggbb` (`#rgb` is expanded). The settings page cycles the names with the arrows and takes a typed hex with enter |
 | `column_layout` | enum | `fixed` | `fixed`, `fit`. `fixed` gives board columns set widths that change only at width breakpoints (see [tui.md](tui.md#column-widths)); `fit` sizes them to their content |
 | `mobile_layout` | enum | `auto` | `auto`, `always`, `off`. Two-line rows, a compact header and a three-key help line. `auto` uses it at 60 columns or fewer; `always` and `off` force it (see [tui.md](tui.md#mobile-layout)) |
 

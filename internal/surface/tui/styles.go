@@ -126,6 +126,12 @@ func applyTheme(name string) {
 	rebuildStyles()
 }
 
+// edgeStyle is the foreground-only style of the window frame, whose color
+// (a per-launch-folder pick, not a palette token) is chosen at render time.
+func edgeStyle(c lipgloss.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(c)
+}
+
 func rebuildStyles() {
 	fg := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
 	bold := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Bold(true).Foreground(c) }
