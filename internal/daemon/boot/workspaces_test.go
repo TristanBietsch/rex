@@ -18,13 +18,12 @@ import (
 )
 
 type wsRig struct {
-	home   string
-	reg    *workspace.Registry
-	store  *state.Store
-	w      *Workspaces
-	finds  atomic.Int32
-	on     bool
-	regErr error
+	home  string
+	reg   *workspace.Registry
+	store *state.Store
+	w     *Workspaces
+	finds atomic.Int32
+	on    bool
 }
 
 func newWSRig(t *testing.T, on bool) *wsRig {
