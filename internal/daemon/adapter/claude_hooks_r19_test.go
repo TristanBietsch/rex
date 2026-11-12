@@ -17,15 +17,15 @@ import (
 
 // Lines each hook writes, by event (main thread unless named sub).
 const (
-	hPrompt     = "working\nprompt"            // UserPromptSubmit (also a background report)
-	hLegacyWake = "working\nwait-\nprompt"     // R17 UserPromptSubmit
-	hTool       = "working\nwait-"             // main PreToolUse/PostToolUse of a plain tool
-	hShell      = "working\nwait+ shell"       // main PreToolUse Bash
-	hTask       = "working\nwait+ subagent"    // main PreToolUse Agent/Task
-	hLaunch     = "working\nwait- launch"      // main PostToolUse Agent, async_launched
-	hStop       = "needs_input\nturn-done"     // Stop
-	hSubPre     = "working"                    // subagent PreToolUse
-	hSubNest    = "working\nnest+"             // subagent PreToolUse Agent/Task
+	hPrompt     = "working\nprompt"           // UserPromptSubmit (also a background report)
+	hLegacyWake = "working\nwait-\nprompt"    // R17 UserPromptSubmit
+	hTool       = "working\nwait-"            // main PreToolUse/PostToolUse of a plain tool
+	hShell      = "working\nwait+ shell"      // main PreToolUse Bash
+	hTask       = "working\nwait+ subagent"   // main PreToolUse Agent/Task
+	hLaunch     = "working\nwait- launch"     // main PostToolUse Agent, async_launched
+	hStop       = "needs_input\nturn-done"    // Stop
+	hSubPre     = "working"                   // subagent PreToolUse
+	hSubNest    = "working\nnest+"            // subagent PreToolUse Agent/Task
 	hCompacted  = "compacted\nsid " + testSID // SessionStart compact
 )
 
@@ -258,8 +258,8 @@ func TestClaudeHooks_R19HookLines(t *testing.T) {
 		name, event, stdin, want string
 	}{
 		{"prompt", "UserPromptSubmit", `{"prompt":"hi"}`, hPrompt + "\n"},
-		{"compact", "SessionStart", `{"source":"compact","session_id":"`+testSID+`"}`, hCompacted + "\n"},
-		{"startup", "SessionStart", `{"source":"startup","session_id":"`+testSID+`"}`, "agents-reset\nneeds_input\nsid " + testSID + "\n"},
+		{"compact", "SessionStart", `{"source":"compact","session_id":"` + testSID + `"}`, hCompacted + "\n"},
+		{"startup", "SessionStart", `{"source":"startup","session_id":"` + testSID + `"}`, "agents-reset\nneeds_input\nsid " + testSID + "\n"},
 		{"stop no registry", "Stop", `{"stop_hook_active":false,"last_assistant_message":"say \"background_tasks\":[{\"type\":\"subagent\"}]"}`, hStop + "\n"},
 		{"stop bg", "Stop", `{"stop_hook_active":false,"background_tasks":[{"id":"t1","type":"subagent","status":"running"},{"id":"t2","type": "shell","status":"running"},{"id":"t3", "type" : "subagent"}],"session_crons":[]}`, hStop + "\nbg-agents 2\n"},
 		{"stop empty", "Stop", `{"background_tasks":[],"session_crons":[]}`, hStop + "\nbg-agents 0\n"},
