@@ -54,7 +54,9 @@ type trustFile struct {
 //
 // The file is read as hostile input like a .rex/ file (no symlink, private,
 // yours): one that fails a check or does not parse trusts nothing, and
-// Trust refuses to overwrite it.
+// Trust refuses to overwrite it. Trust and Revoke hold a cross-process
+// lock (lockTrustFile) around their read-modify-write, so concurrent rex
+// processes never lose each other's change.
 type TrustStore struct {
 	path string
 	mu   sync.Mutex
@@ -166,6 +168,11 @@ func (s *TrustStore) Trust(w *Workspace, sha string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	unlock, err := lockTrustFile(s.path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	tf, err := s.read()
 	if err != nil {
 		return err
@@ -190,6 +197,11 @@ func (s *TrustStore) Revoke(id, root string) (bool, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	unlock, err := lockTrustFile(s.path)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	tf, err := s.read()
 	if err != nil {
 		return false, err
