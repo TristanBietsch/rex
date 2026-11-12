@@ -58,7 +58,7 @@ var applyModeOf = map[string]ApplyMode{
 	"waiting_section": ApplyLive, "timestamps": ApplyLive, "cli_agent_auto": ApplyLive, "session_export": ApplyLive,
 	"fullscreen_pages": ApplyLive,                                               // the TUI picks the renderer on every frame
 	"turn_snapshots":   ApplyLive, "usage": ApplyLive, "usage_meter": ApplyLive, // the TUI reads usage_meter on every frame
-	"live_reload": ApplyLive, "loops": ApplyLive,
+	"live_reload": ApplyLive, "loops": ApplyLive, "auto_swap": ApplyLive, // the TUI reads it on every binary check
 	"extra_agents": ApplyLive, "model_autodetect": ApplyLive, // catalog applier subscribes to both
 	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive, "lua_config": ApplyLive,
 	"summary_detail": ApplyLive, "overview_enabled": ApplyLive, "cli_error_log": ApplyLive,

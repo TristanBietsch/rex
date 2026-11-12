@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"log/slog"
 	"strings"
 	"time"
 
@@ -22,6 +23,24 @@ func Run(socket string, quietBoot bool) error { return RunScoped(socket, quietBo
 // RunScoped is Run for a board fixed to one workspace (`rex here`); a nil
 // scope is the ordinary board.
 func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
+	return RunWith(socket, RunOptions{QuietBoot: quietBoot, Scope: scope})
+}
+
+// RunOptions are RunWith's options.
+type RunOptions struct {
+	QuietBoot bool
+	Scope     *WorkspaceScope
+	// SwapState is the swap state file a hot swap left (SwapEnv); the board
+	// restores that view. Empty for a normal start.
+	SwapState string
+	// Notice is shown on the status line once the board is up.
+	Notice string
+}
+
+// RunWith opens the board. It returns a *SwapRequest when the board quit to
+// swap into a new binary.
+func RunWith(socket string, opts RunOptions) error {
+	quietBoot, scope := opts.QuietBoot, opts.Scope
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
 	store, _, _ := settings.LoadDefault()
@@ -57,6 +76,17 @@ func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
 	if scope != nil && scope.Root != "" {
 		m.BorderSeed = scope.Root // a workspace keeps its color even without one set
 	}
+	if b, ok := ownBinary(); ok {
+		m.bin = b
+	}
+	if opts.SwapState != "" {
+		if st, err := readSwapState(opts.SwapState); err != nil {
+			slog.Warn("tui: swap state not restored", "err", err)
+		} else {
+			m.swapIn = &st
+		}
+	}
+	m.Notice = opts.Notice
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	return runProgram(p.Run, awake, idleDone)
@@ -74,6 +104,9 @@ func runProgram(run func() (tea.Model, error), awake *displayAwake, idleDone cha
 	}
 	if fm, ok := final.(Model); ok && fm.BootFailed {
 		return fm.BootError
+	}
+	if fm, ok := final.(Model); ok && fm.swapPath != "" {
+		return &SwapRequest{Path: fm.swapPath}
 	}
 	return nil
 }

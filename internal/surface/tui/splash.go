@@ -228,5 +228,9 @@ func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	if m.Client != nil {
 		cmds = append(cmds, listenDaemon(m.Client))
 	}
+	if m.swapIn != nil {
+		m, c = applySwapPage(m)
+		cmds = append(cmds, c)
+	}
 	return m, tea.Batch(cmds...)
 }

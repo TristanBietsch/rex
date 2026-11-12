@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 
@@ -31,7 +32,24 @@ func RunTUIScoped(quietBoot bool, scope *tui.WorkspaceScope) error {
 		return err
 	}
 	slog.Info("tui: starting", "socket", socket, "quiet_boot", quietBoot)
-	err = tui.RunScoped(socket, quietBoot, scope)
+	opts := tui.RunOptions{QuietBoot: quietBoot, Scope: scope, SwapState: os.Getenv(tui.SwapEnv)}
+	if opts.SwapState != "" {
+		_ = os.Unsetenv(tui.SwapEnv)
+		slog.Info("tui: started by a hot swap")
+	}
+	for {
+		err = tui.RunWith(socket, opts)
+		var swap *tui.SwapRequest
+		if !errors.As(err, &swap) {
+			break
+		}
+		// Hot swap: exec the installed binary in place with the view.
+		execErr := execSwap(swap.Path)
+		// Still here: the exec failed. Go on in this build, same view.
+		slog.Error("tui: hot swap failed; staying on this build", "err", execErr)
+		opts = tui.RunOptions{QuietBoot: true, Scope: scope, SwapState: swap.Path,
+			Notice: "swap failed: " + execErr.Error()}
+	}
 	if err != nil {
 		slog.Error("tui: exited with error", "err", err)
 	} else {

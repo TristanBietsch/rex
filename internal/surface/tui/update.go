@@ -48,7 +48,13 @@ func scheduleDescTick() tea.Cmd {
 // also keeps the screensaver's idle timer armed (armIdle).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	dropAttachBackground(m, msg)
-	next, cmd := m.dispatch(msg)
+	var next tea.Model
+	var cmd tea.Cmd
+	if sm, c, ok := updateSwap(m, msg); ok {
+		next, cmd = sm, c
+	} else {
+		next, cmd = m.dispatch(msg)
+	}
 	nm, ok := next.(Model)
 	if !ok {
 		return next, cmd
@@ -67,6 +73,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = tea.Batch(cmd, arm)
 	}
 	if nm, arm = armConfig(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
+	if nm, arm = armBinWatch(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
 	return nm, cmd
@@ -97,6 +106,15 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case AttachClosedMsg:
+		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && msg.Err != nil && isConnClosed(msg.Err) {
+			// The daemon dropped the connection (a hot restart): the
+			// session runs on, so the popup re-attaches.
+			id := msg.SessionID
+			m = closeAttach(m)
+			m.reattachFor = id
+			m.Notice = "reattaching…"
+			return m, scheduleReattach(id, 0)
+		}
 		if m.Attach != nil && msg.SessionID == m.Attach.SessionID {
 			m.Attach.Ended = true
 			if msg.Err != nil {

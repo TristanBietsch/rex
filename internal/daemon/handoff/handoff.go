@@ -10,8 +10,6 @@
 package handoff
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/tristanbietsch/rex/internal/version"
 )
 
 // Format is the handoff file format this build writes and reads.
@@ -144,26 +144,5 @@ func load(path string) (File, error) {
 	return f, nil
 }
 
-// BuildID is the first 12 hex digits of the SHA-256 of this executable, ""
-// when it cannot be read. Two builds of the same version differ here.
-func BuildID() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return ""
-	}
-	return FileBuildID(exe)
-}
-
-// FileBuildID is BuildID of the binary at path.
-func FileBuildID(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return ""
-	}
-	return hex.EncodeToString(h.Sum(nil))[:12]
-}
+// BuildID is version.Build: this executable's build id.
+func BuildID() string { return version.Build() }

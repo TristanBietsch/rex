@@ -253,6 +253,21 @@ type Model struct {
 	idleDone   <-chan struct{}
 	keepAwake  *displayAwake
 
+	// Hot swap (swap.go). bin is the executable this board runs, checked
+	// every binCheckEvery; newBuild is set once another build is
+	// installed. swapIn is the view a swap carried over (applied when the
+	// board is up); swapPath is set when the board quit to swap.
+	// swapWanted is a rex upgrade request waiting for a safe moment.
+	// reattachFor is the session an attach popup re-attaches to after the
+	// daemon dropped its connection.
+	bin         binStamp
+	binTicking  bool
+	newBuild    bool
+	swapWanted  bool
+	swapIn      *swapState
+	swapPath    string
+	reattachFor string
+
 	// Boot / splash state.
 	BootLog     []bootLine
 	BootStep    int
