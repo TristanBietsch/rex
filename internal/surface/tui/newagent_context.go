@@ -70,7 +70,7 @@ func naFail(err error) string {
 // pastePlaceholder is the paste's one line in the task. L counts the
 // sanitized text as the prompt's lines attribute does (spawnctx.Lines).
 func pastePlaceholder(it spawnctx.Item) string {
-	return "[" + it.Name + " · " + strconv.Itoa(spawnctx.Lines(it.Text)) + " lines]"
+	return "[" + it.Name + " · " + naLines(spawnctx.Lines(it.Text)) + "]"
 }
 
 // pasteBytes is the paste text of items, leaving out index skip.
@@ -124,12 +124,16 @@ func addPaste(s *NewAgentState, text string) error {
 	if len(s.Items) >= spawnctx.DefaultCaps.Items {
 		return naErr{msg: strconv.Itoa(spawnctx.DefaultCaps.Items) + " context items is the limit; remove one first."}
 	}
-	name := "paste " + strconv.Itoa(s.PasteSeq+1)
+	seq := s.PasteSeq + 1
+	for naNameTaken(s.Items, -1, "paste "+strconv.Itoa(seq)) {
+		seq++ // a rename may have taken the next number
+	}
+	name := "paste " + strconv.Itoa(seq)
 	clean, size, err := checkPaste(s.Items, -1, name, clean)
 	if err != nil {
 		return err
 	}
-	s.PasteSeq++
+	s.PasteSeq = seq
 	it := spawnctx.Item{Kind: spawnctx.Paste, Name: name, Text: clean, Bytes: size}
 	s.Items = append(s.Items, it)
 	s.Task.Insert(pastePlaceholder(it))
@@ -166,6 +170,24 @@ func removeItem(s *NewAgentState, i int) {
 	s.ItemIdx = min(s.ItemIdx, max(len(s.Items)-1, 0))
 }
 
+// naNameTaken reports whether an item other than index skip has this name.
+func naNameTaken(items []spawnctx.Item, skip int, name string) bool {
+	for j, o := range items {
+		if j != skip && o.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// naLines is "1 line" or "N lines".
+func naLines(n int) string {
+	if n == 1 {
+		return "1 line"
+	}
+	return strconv.Itoa(n) + " lines"
+}
+
 // renameItem names paste i, and its placeholder in the task, name. A name
 // that would break the prompt (spawnctx.CheckName: control characters,
 // U+2028/U+2029, bidi or invisible runes, quotes) or that another item has
@@ -182,10 +204,8 @@ func renameItem(s *NewAgentState, i int, name string) error {
 	if err := spawnctx.CheckName(it.Kind, name); err != nil {
 		return naErr{msg: "that name cannot go into the prompt: " + strings.TrimSuffix(err.Error(), ": "+spawnctx.ErrBadItem.Error())}
 	}
-	for j, o := range s.Items {
-		if j != i && o.Name == name {
-			return naErr{msg: strconv.Quote(name) + " is taken by another item"}
-		}
+	if naNameTaken(s.Items, i, name) {
+		return naErr{msg: strconv.Quote(name) + " is taken by another item"}
 	}
 	old := pastePlaceholder(it)
 	it.Name = name

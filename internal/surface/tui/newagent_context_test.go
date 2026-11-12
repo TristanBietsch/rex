@@ -62,7 +62,7 @@ func TestPaste_BigBecomesChip(t *testing.T) {
 	require.NoError(t, addPaste(st, strings.Repeat("y", 1025)))
 	require.Len(t, st.Items, 2)
 	require.Equal(t, "paste 2", st.Items[1].Name)
-	require.Contains(t, st.Task.String(), "[paste 2 · 1 lines]")
+	require.Contains(t, st.Task.String(), "[paste 2 · 1 line]")
 
 	// The placeholder counts sanitized lines, as the block's lines attribute.
 	var s NewAgentState
@@ -314,6 +314,7 @@ func TestEditor_CommandSplitsEditorWithoutShell(t *testing.T) {
 }
 
 func TestEditor_DoneUpdatesPasteAndTask(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
 	fakeExec(t, func(p string) error { return os.WriteFile(p, []byte(nLines(10)+"\n"), 0o600) })
 	prev := editorCmd
 	editorCmd = func(p string) *exec.Cmd { return exec.Command("true", p) }
@@ -403,4 +404,33 @@ func TestContextList_ViewFitsEverySize(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPaste_AutoNameSkipsTakenNames(t *testing.T) {
+	m := naOpen(t, naModel(t))
+	m = naPaste(m, nLines(9))
+	require.NoError(t, renameItem(m.NewAgent, 0, "paste 2"))
+	m = naPaste(m, nLines(9))
+	st := m.NewAgent
+	require.Len(t, st.Items, 2)
+	require.Equal(t, "paste 2", st.Items[0].Name)
+	require.Equal(t, "paste 3", st.Items[1].Name, "the taken number is skipped")
+	require.Equal(t, "[paste 2 · 9 lines][paste 3 · 9 lines]", st.Task.String())
+}
+
+func TestRename_RefusesTakenName(t *testing.T) {
+	m := naOpen(t, naModel(t))
+	m = naPaste(m, nLines(9))
+	m = naPaste(m, nLines(12))
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab}) // Context
+	m = naType(m, "j")
+	m = naType(m, "r")
+	m, _ = naKey(m, key("ctrl+u"))
+	m = naType(m, "paste 1")
+	m, _ = naKey(m, key("enter"))
+	st := m.NewAgent
+	require.True(t, strings.HasPrefix(st.Err, "✗ "), st.Err)
+	require.Equal(t, "paste 2", st.Items[1].Name)
+	require.Equal(t, "[paste 1 · 9 lines][paste 2 · 12 lines]", st.Task.String())
+	require.True(t, st.Renaming, "a refused name stays in the editor")
 }

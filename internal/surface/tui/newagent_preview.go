@@ -66,7 +66,7 @@ func naPreviewLines(it spawnctx.Item) []string {
 func naPreviewMeta(it spawnctx.Item) string {
 	switch it.Kind {
 	case spawnctx.Paste:
-		return strconv.Itoa(spawnctx.Lines(it.Text)) + " lines · " + naBytes(it.Bytes)
+		return naLines(spawnctx.Lines(it.Text)) + " · " + naBytes(it.Bytes)
 	case spawnctx.File:
 		return naBytes(it.Bytes)
 	case spawnctx.Dir:
