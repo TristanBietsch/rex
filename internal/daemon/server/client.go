@@ -100,6 +100,7 @@ func (c *client) readFailed(err error) {
 	}
 	slog.Warn("server: closing client after protocol error", "conn", c.out.id, "code", code, "err", err)
 	c.sendError("", code, err.Error())
+	c.out.linger.Store(true)
 }
 
 // protocolErrorCode maps a Reader error caused by the peer's bytes to the
