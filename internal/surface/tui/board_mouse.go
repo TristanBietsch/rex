@@ -125,18 +125,30 @@ func clickRow(m Model, id string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateSettingsMouse lets the wheel move the settings cursor; clicks are
-// ignored (the rows are too dense to target reliably).
+// updateSettingsMouse lets the wheel move the settings cursor (on a page,
+// the section when the section pane is focused, else the row within the
+// page's list); clicks are ignored (the rows are too dense to target
+// reliably).
 func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
 	if m.Settings == nil || m.Settings.Edit != nil {
 		return m
 	}
+	delta := 0
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		m.Settings.CursorID = settingsAfter(m.Settings, -1)
+		delta = -1
 	case tea.MouseButtonWheelDown:
-		m.Settings.CursorID = settingsAfter(m.Settings, +1)
+		delta = +1
+	default:
+		return m
 	}
+	st := m.Settings
+	if pagesOn(m) && st.Pane == paneSections {
+		// The section pane: the wheel moves the section (clamped).
+		st.CursorID = settingsGoSection(st, settingsSectionIndex(st)+delta)
+		return m
+	}
+	st.CursorID = settingsStep(m, delta)
 	return m
 }
 

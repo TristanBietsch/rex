@@ -166,7 +166,9 @@ func TestPageQInertWhenOff(t *testing.T) {
 
 func TestPageResize(t *testing.T) {
 	m := pageModel(t, 120, 40, FocusSettings)
-	label := "Theme"
+	// A late row of a long section, so the list has to scroll to keep it.
+	m.Settings.CursorID = "audit_full_prompt"
+	label := mustFind(t, m.Settings.CursorID).Label
 	for _, sz := range []goldenSize{{50, 20}, {80, 24}} {
 		next, _ := m.Update(tea.WindowSizeMsg{Width: sz.w, Height: sz.h})
 		m = next.(Model)
@@ -174,7 +176,8 @@ func TestPageResize(t *testing.T) {
 		if len(lines) != sz.h {
 			t.Errorf("%dx%d: %d lines", sz.w, sz.h, len(lines))
 		}
-		if !strings.Contains(strings.Join(lines, "\n"), label) {
+		// The body only: the header's breadcrumb also names the row.
+		if !strings.Contains(strings.Join(lines[3:], "\n"), label) {
 			t.Errorf("%dx%d: cursor row %q not on screen", sz.w, sz.h, label)
 		}
 	}

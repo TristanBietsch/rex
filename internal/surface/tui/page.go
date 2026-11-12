@@ -21,6 +21,14 @@ const (
 	pageChromeRows   = 5 // blank + header + divider + divider + hints
 )
 
+// pagePane is the focused pane of a page.
+type pagePane int
+
+const (
+	paneRows     pagePane = iota // zero value: a page opens with rows focused
+	paneSections                 // the section list on the left
+)
+
 // pagesOn reports whether settings and help draw as full-screen pages.
 func pagesOn(m Model) bool { return m.featureOn("fullscreen_pages") }
 
@@ -137,7 +145,7 @@ func renderSettingsPage(m Model, w, h int) string {
 			pageFooter(settingsPageHints, w, helpBarOn(m)), w, h)
 	}
 	st := m.Settings
-	list := settingsList(st)
+	list := settingsPageList(m) // the cursor section's rows, or the search hits
 
 	middle := ""
 	switch {
