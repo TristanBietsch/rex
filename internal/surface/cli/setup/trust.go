@@ -100,7 +100,10 @@ func trustAdd(dir string) error {
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	next, changed, err := settings.AppendTrustDir(store.String(trustSettingID), dir)
+	// The YAML layer's own list, not the effective value: a broken
+	// config.lua fails auto_trust_dirs closed (empty), and saving that plus
+	// dir would drop every folder config.yaml lists.
+	next, changed, err := settings.AppendTrustDir(store.FileString(trustSettingID), dir)
 	if err != nil {
 		return trustRefused("", err)
 	}
@@ -113,7 +116,7 @@ func trustAdd(dir string) error {
 		}
 		reloadDaemonForTrust(trustSettingID)
 	}
-	return emitTrust("add", resolved, changed, store.String(trustSettingID), "")
+	return emitTrust("add", resolved, changed, store.FileString(trustSettingID), "")
 }
 
 func trustRemove(dir string) error {
@@ -124,7 +127,7 @@ func trustRemove(dir string) error {
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	next, changed, err := settings.RemoveTrustDir(store.String(trustSettingID), dir)
+	next, changed, err := settings.RemoveTrustDir(store.FileString(trustSettingID), dir)
 	if err != nil {
 		return trustRefused(" -rm", err)
 	}
@@ -140,9 +143,9 @@ func trustRemove(dir string) error {
 	shown, covered := dir, ""
 	if dirErr == nil {
 		shown = resolved
-		covered, _ = settings.CoveredBy(resolved, store.String(trustSettingID))
+		covered, _ = settings.CoveredBy(resolved, store.FileString(trustSettingID))
 	}
-	return emitTrust("remove", shown, changed, store.String(trustSettingID), covered)
+	return emitTrust("remove", shown, changed, store.FileString(trustSettingID), covered)
 }
 
 func emitTrust(action, dir string, changed bool, value, coveredBy string) error {

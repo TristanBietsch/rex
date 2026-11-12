@@ -24,6 +24,10 @@ type Store struct {
 	// setAt holds, for each id whose source is SourceLua, where config.lua
 	// set it ("config.lua:12").
 	setAt map[string]string
+	// file holds config.yaml's own layer: what Load read, then what Set
+	// stored (Reset deletes). config.lua and fail-closed resets never
+	// touch it (FileString).
+	file map[string]any
 }
 
 // Source says where a setting's current value comes from.
@@ -85,6 +89,7 @@ func NewStore() *Store {
 		src:    make(map[string]Source, len(Registry)),
 		dirty:  make(map[string]bool),
 		setAt:  make(map[string]string),
+		file:   make(map[string]any),
 	}
 	for _, r := range Registry {
 		s.values[r.ID] = r.Default
@@ -124,6 +129,7 @@ func (s *Store) Load(path string) error {
 		}
 		s.values[setting.ID] = coerced
 		s.src[setting.ID] = SourceFile
+		s.file[setting.ID] = coerced
 	}
 	return nil
 }
@@ -236,6 +242,23 @@ func (s *Store) String(id string) string {
 	return fmt.Sprintf("%v", v)
 }
 
+// FileString is id's value in config.yaml's own layer, as a string: what
+// Load read or Set stored, else the registry default. Unlike String it never
+// shows a config.lua value or a trust setting that a broken config.lua
+// failed closed, so a read-modify-write of a YAML list (rex trust adding to
+// auto_trust_dirs) keeps the entries the file already has.
+func (s *Store) FileString(id string) string {
+	v, ok := s.file[id]
+	if !ok {
+		def, found := Find(id)
+		if !found || def.Default == nil {
+			return ""
+		}
+		v = def.Default
+	}
+	return fmt.Sprintf("%v", v)
+}
+
 // Source reports where id's value comes from (SourceDefault for unknown ids).
 func (s *Store) Source(id string) Source {
 	if src, ok := s.src[id]; ok {
@@ -311,6 +334,7 @@ func (s *Store) Set(id string, raw any) error {
 	}
 	s.values[id] = v
 	s.src[id] = SourceFile
+	s.file[id] = v
 	s.dirty[id] = true
 	return nil
 }
@@ -326,6 +350,7 @@ func (s *Store) Reset(id string) error {
 	}
 	s.values[id] = setting.Default
 	s.src[id] = SourceDefault
+	delete(s.file, id)
 	s.dirty[id] = false
 	return nil
 }
@@ -350,6 +375,9 @@ func (s *Store) WithDefaults(ids ...string) *Store {
 	}
 	for k, v := range s.setAt {
 		c.setAt[k] = v
+	}
+	for k, v := range s.file {
+		c.file[k] = v
 	}
 	for _, id := range ids {
 		def, ok := Find(id)
