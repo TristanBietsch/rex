@@ -230,7 +230,7 @@ func reasonText(m Model, s protocol.SessionSummary) (string, lipgloss.Style) {
 		case protocol.WaitReview:
 			return iconGlyph(m, "review") + " review", styleDone
 		case "":
-			if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
+			if rowQuestion(s) != "" {
 				return iconGlyph(m, "asks") + " asks", styleNeeds
 			}
 		}

@@ -1004,13 +1004,20 @@ func rowText(s protocol.SessionSummary) string {
 	return rowDescription(s)
 }
 
-// rowQuestion is the question a session waits on: its screen's last line,
-// flattened and trimmed, when the session needs input, is not marked done
-// and that line ends in "?". Empty otherwise.
+// rowQuestion is the question a session waits on: lastLineQuestion, when
+// the session needs input and is not marked done. Empty otherwise. The row
+// text, the why slot and the preview line use it.
 func rowQuestion(s protocol.SessionSummary) string {
 	if s.State != protocol.StateNeedsInput || isMarkedDone(s) {
 		return ""
 	}
+	return lastLineQuestion(s)
+}
+
+// lastLineQuestion is the screen's last line, flattened and trimmed, when it
+// ends in "?". Empty otherwise. Whatever the state: the attach banner uses
+// it as is.
+func lastLineQuestion(s protocol.SessionSummary) string {
 	if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
 		return q
 	}

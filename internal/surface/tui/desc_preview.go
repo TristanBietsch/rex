@@ -72,8 +72,9 @@ func anyLead(m Model) bool {
 // previewLeadText is what the line shows for s with row_icons on, first that
 // exists: the question it waits on (rowQuestion), its description, or
 // "task: " + its title; "" when none. isSummary says the lead is the
-// description, the only lead that carries an age. Same order as the attach
-// banner's lead. Flattened: all three are agent or user supplied.
+// description, the only lead that carries an age. Unlike the attach
+// banner's lead (summary, task, then question), the question comes first.
+// Flattened: all three are agent or user supplied.
 func previewLeadText(s protocol.SessionSummary) (text string, isSummary bool) {
 	if q := rowQuestion(s); q != "" {
 		return q, false

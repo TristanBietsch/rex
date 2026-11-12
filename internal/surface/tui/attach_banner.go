@@ -113,9 +113,9 @@ func bannerParts(m Model, sum protocol.SessionSummary, ended bool) (lead string,
 	case sum.Title != "":
 		lead = "task: " + protocol.FlattenDisplayText(sum.Title)
 	default:
-		if q := strings.TrimSpace(protocol.FlattenDisplayText(sum.LastLine)); strings.HasSuffix(q, "?") {
-			lead = q
-		}
+		// Not rowQuestion: the banner shows the question whatever the
+		// state, and only after the summary and the task.
+		lead = lastLineQuestion(sum)
 	}
 	lead = strings.TrimSpace(lead)
 
