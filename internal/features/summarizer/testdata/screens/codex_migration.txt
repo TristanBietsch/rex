@@ -1,0 +1,9 @@
+• Ran go run ./cmd/migrate -dir db/migrations -step 3
+  └ applied 0007_add_invoice_status.sql
+    applied 0008_backfill_status.sql
+    applied 0009_status_not_null.sql
+• Edited db/queries/invoices.sql (+11 -4)
+• Ran sqlc generate
+  └ ok
+• Running go build ./...
+  └ internal/store/invoices.go:88:17: undefined: InvoiceStatusPaid
