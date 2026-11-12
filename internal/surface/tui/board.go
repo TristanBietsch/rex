@@ -623,6 +623,11 @@ func rowDescStyle(m Model, s protocol.SessionSummary, selected bool) lipgloss.St
 // task (simple view) or the AI summary, animated while it types in, with the
 // waiting reason in front (detailed view).
 func rowDescText(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
+	return withLoopChip(m, s, rowDescBase(m, s, descW, waiting))
+}
+
+// rowDescBase is rowDescText without the loop chip.
+func rowDescBase(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
 	if !m.Detailed {
 		return rowText(s)
 	}

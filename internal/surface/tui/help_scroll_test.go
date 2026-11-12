@@ -167,7 +167,10 @@ func TestHelpLegendOmitsWaitingWhenOff(t *testing.T) {
 // explains why it does nothing.
 func TestHelpMarksFeaturesThatAreOff(t *testing.T) {
 	m := helpModel(200, 90)
-	require.NotContains(t, helpText(m), "(off)", "everything is on by default")
+	// Loops are opt-in: its five rows (p x L :loop :loops) show as off.
+	require.Equal(t, 5, strings.Count(helpText(m), "(off)"), "only the loop rows are off by default")
+	require.NoError(t, m.Store.Set("loops", true))
+	require.NotContains(t, helpText(m), "(off)", "everything else is on by default")
 
 	require.NoError(t, m.Store.Set("undo_complete", false))
 	text := helpText(m)

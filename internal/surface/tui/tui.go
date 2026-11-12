@@ -155,6 +155,8 @@ func (m Model) view(w, h int) string {
 		return centerPanel(w, h, fitOverlay(renderStatsOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusOverview:
 		return centerPanel(w, h, fitOverlay(renderOverviewOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
+	case FocusLoops:
+		return centerPanel(w, h, fitOverlay(renderLoopsOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusCommand:
 		// A command bar opened from inside the attach popup (::) keeps the
 		// popup on screen; the bar renders in its footer.
@@ -196,6 +198,8 @@ func renderFullScreen(m Model, w, h int) string {
 		bottom = hr + "\n" + renderQuitConfirm(cw) + "\n" + helpline
 	case FocusConfirmDelete:
 		bottom = hr + "\n" + renderDeleteConfirm(m, cw) + "\n" + helpline
+	case FocusConfirmLoopStop:
+		bottom = hr + "\n" + renderLoopStopConfirm(m, cw) + "\n" + helpline
 	case FocusRename:
 		bottom = hr + "\n" + renderRenamePrompt(m, cw) + "\n" + helpline
 	default:

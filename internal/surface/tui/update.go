@@ -161,6 +161,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return applyExportDone(m, msg), nil
 	case pruneDoneMsg:
 		return applyPruneDone(m, msg), nil
+	case loopActionMsg:
+		return handleLoopAction(m, msg), nil
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
 		m.Err = msg.Op + ": " + msg.Err.Error()
@@ -275,6 +277,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Sessions = msg.Snap.Sessions
 		m.Overview = msg.Snap.Overview
 		m = adoptWorkspaceTagging(m, msg.Snap)
+		m = adoptLoops(m, msg.Snap)
 		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
@@ -440,6 +443,15 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return openHelp(m), nil
 		case "S":
 			return openSettings(m)
+		case "p":
+			return loopKey(m, "pause")
+		case "x":
+			return loopKey(m, "stop")
+		case "L":
+			if refuseOff(&m, loopsFlag) {
+				return m, nil
+			}
+			return openLoops(m), nil
 		case "i":
 			m.Focus = FocusPrompt
 			m.Err = ""
@@ -497,6 +509,12 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusOverview {
 		return updateOverviewKey(m, k)
+	}
+	if m.Focus == FocusLoops {
+		return updateLoopsKey(m, k)
+	}
+	if m.Focus == FocusConfirmLoopStop {
+		return updateConfirmLoopStopKey(m, k)
 	}
 	if m.Focus == FocusStats {
 		switch k.String() {

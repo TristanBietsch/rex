@@ -26,40 +26,40 @@
 -- plain.120x40 --
      ┌─ HELP ──────────────────────────────────────────────────────────────────────────────────────────── rex v1 ─┐
   ∴ R│   ── Navigation ───────────────────────────────────    ── Session commands ─────────────────────────────   │     
-  all│   j k  move row selection                              :new                 new-agent wizard               │     
-     │   g G  top / bottom                                    :name [text]         rename selected (no text:      │
-─────│   tab  next Ready session                                                   open editor)                   │─────
-     │   1-4  jump to Ready / Waiting / Working / Done (4     :rename <s> <slug>   change slug                    │
-  REA│        also folds a long Done column)                  :done [sel]          mark done                      │     
-   ◆ │   v    simple / detailed rows (id, model, tokens,      :undone [sel]        undo done                      │   4m
-     │        AI summary)                                     :uc :resume [sel]    undo done: unmark a running    │
-  WAI│                                                                             session, or resume an exited   │     
-     │   ── Filter & search ──────────────────────────────                         one                            │
-     │   t     cycle tool filter                              :rid [sel]           show the full resume id        │
-  WOR│   /     search the board (every word must match)       :complete [sel]      kill agent + mark done now     │     
- ▸ ⠋ │   esc   clear the search                               :rm <sel>            delete                         │  11m
-   ⠋ │   zh    hide / show completed sections                 :prune               clear Done (keeps sessions     │   7s
-   ⠋ │   z1-9  hide / show section N                                               still working)                 │   2h
-     │   z0    show every section                             :export [sel] [fmt]  write session to exports/      │
-  DON│                                                        :filter [what]       tool, or hide|show|only        │     
-   ● │   ── Actions ──────────────────────────────────────                         <section…>; no argument        │   9d
-   ✕ │   enter  attach to selected session                                         clears every filter            │    -
-   ✕ │   n      new-agent wizard                              :search [text]       search the board (every word   │    -
-     │   r      rename selected (empty = slug)                                     must match); no text clears    │
-     │   cc     mark done / undo                                                                                  │
-     │   uc     undo done (unmark, or resume an exited        ── App commands ─────────────────────────────────   │
-     │          session)                                      :q :quit         quit (confirm)                     │
-     │   C      complete now (kill agent, mark done)          :q!              force quit                         │
-     │   dd     delete selected                               :bg :detach      detach, save place                 │
-     │   i      focus λ prompt (new-session text)             :reload          reload tools.yaml, config.yaml     │
-     │   S      settings                                                       and themes                         │
-     │   q      quit (confirm)                                :fail            failed sessions + daemon log       │
-     │                                                                         (:fails :failed)                   │
-     │   ── Mouse ────────────────────────────────────────    :stats           session statistics overlay         │
-     │   click         select row / filter chip               :overview        what is ready for you, what to     │
-     │   double-click  attach to row                                           review, what finished              │
-     │   wheel         move row selection                     :border [color]  window border for this run: on,    │
-     │   hold ⌥ / ⇧    select text natively                                    off, next, random, a color name    │
+  all│   j k  move row selection                              :new                    new-agent wizard            │     
+     │   g G  top / bottom                                    :name [text]            rename selected (no text:   │
+─────│   tab  next Ready session                                                      open editor)                │─────
+     │   1-4  jump to Ready / Waiting / Working / Done (4     :rename <s> <slug>      change slug                 │
+  REA│        also folds a long Done column)                  :done [sel]             mark done                   │     
+   ◆ │   v    simple / detailed rows (id, model, tokens,      :undone [sel]           undo done                   │   4m
+     │        AI summary)                                     :uc :resume [sel]       undo done: unmark a         │
+  WAI│                                                                                running session, or         │     
+     │   ── Filter & search ──────────────────────────────                            resume an exited one        │
+     │   t     cycle tool filter                              :rid [sel]              show the full resume id     │
+  WOR│   /     search the board (every word must match)       :complete [sel]         kill agent + mark done      │     
+ ▸ ⠋ │   esc   clear the search                                                       now                         │  11m
+   ⠋ │   zh    hide / show completed sections                 :rm <sel>               delete                      │   7s
+   ⠋ │   z1-9  hide / show section N                          :prune                  clear Done (keeps           │   2h
+     │   z0    show every section                                                     sessions still working)     │
+  DON│                                                        :export [sel] [fmt]     write session to exports/   │     
+   ● │   ── Actions ──────────────────────────────────────    :loop pause|resume|st…  pause, resume or stop a     │   9d
+   ✕ │   enter  attach to selected session                                            loop (stop asks first)      │    -
+   ✕ │   n      new-agent wizard                                                      (off)                       │    -
+     │   r      rename selected (empty = slug)                :loops                  list loops: state, turn,    │
+     │   cc     mark done / undo                                                      time, last check (off)      │
+     │   uc     undo done (unmark, or resume an exited        :filter [what]          tool, or hide|show|only     │
+     │          session)                                                              <section…>; no argument     │
+     │   C      complete now (kill agent, mark done)                                  clears every filter         │
+     │   dd     delete selected                               :search [text]          search the board (every     │
+     │   i      focus λ prompt (new-session text)                                     word must match); no text   │
+     │   S      settings                                                              clears                      │
+     │   p      pause / resume the selected loop (off)                                                            │
+     │   x      stop the selected loop (asks first) (off)     ── App commands ─────────────────────────────────   │
+     │   L      list loops: state, turn, time, last check     :q :quit         quit (confirm)                     │
+     │          (off)                                         :q!              force quit                         │
+     │   q      quit (confirm)                                :bg :detach      detach, save place                 │
+     │                                                        :reload          reload tools.yaml, config.yaml     │
+     │   ── Mouse ────────────────────────────────────────                     and themes                         │
   ↳ d│   ↓ more                                                                                                   │     
 ─────│                                                                                                            │─────
   λ p│   j/k scroll · / filter · esc close                                                                        │     

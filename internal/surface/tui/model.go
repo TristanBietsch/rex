@@ -33,6 +33,8 @@ const (
 	FocusRename
 	FocusSearch
 	FocusOverview
+	FocusLoops
+	FocusConfirmLoopStop
 )
 
 // Model is the root Bubble Tea model.
@@ -55,6 +57,16 @@ type Model struct {
 	WS        *WorkspaceScope
 	wsTagging bool
 	wsNoticed bool
+
+	// Loops are the daemon's loops (Snapshot.Loops and Loop events); LoopsSel
+	// is the selected row of the :loops overlay. PendingLoopStop is the loop
+	// a stop confirmation asks about, loopStopBack the focus to return to.
+	// looper overrides Client for the loop intents (tests).
+	Loops           []protocol.LoopSummary
+	LoopsSel        int
+	PendingLoopStop string
+	loopStopBack    Focus
+	looper          loopController
 	// borderRunOn and borderRunColor are :border's choices for this run. They
 	// are never saved; nil / "" fall back to the window_border settings.
 	borderRunOn    *bool
@@ -324,7 +336,13 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m = adoptSessions(m, snap.Sessions)
 			m.Overview = snap.Overview
 			m = adoptWorkspaceTagging(m, &snap)
+			m = adoptLoops(m, &snap)
 			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
+		}
+	case protocol.EventLoop:
+		var l protocol.LoopSummary
+		if err := json.Unmarshal(env.Data, &l); err == nil && protocol.ValidLoopID(l.ID) {
+			m = upsertLoop(m, l)
 		}
 	case protocol.EventOverview:
 		var o protocol.Overview
@@ -421,6 +439,12 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["resume_id"].(string); ok {
 		s.ResumeID = v
+	}
+	if v, ok := patch["loop_id"].(string); ok {
+		s.LoopID = v
+	}
+	if v, ok := patch["loop_iter"].(float64); ok && v >= 0 {
+		s.LoopIter = int(v)
 	}
 	if v, present := patch["exit_code"]; present {
 		switch code := v.(type) {
