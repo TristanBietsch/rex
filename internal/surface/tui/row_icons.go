@@ -222,7 +222,7 @@ func slotCell(m Model, s protocol.SessionSummary, slot iconSlot, w int, selected
 			}
 		}
 	case slotSubagents:
-		c := subagentCell(s, w, false)
+		c := subagentCell(s, w, isMarkedDone(s) && !selected) // as renderRow: muted when marked done
 		if asciiGlyphs(m) {
 			c = strings.Replace(c, subagentGlyph, iconGlyph(m, "subagents"), 1)
 		}

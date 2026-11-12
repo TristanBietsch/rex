@@ -118,6 +118,7 @@ func TestBoardRendersDescriptionAnimating(t *testing.T) {
 			},
 		},
 	}
+	m = rowIconsOff(m) // the text column animates
 	out := renderBoard(m, 120, 10)
 	// Halfway through typewriter on a 17-rune target → expect ~8 runes visible.
 	if !strings.Contains(out, "running p") && !strings.Contains(out, "running pn") {

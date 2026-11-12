@@ -54,6 +54,7 @@ func TestView_SessionStringsCannotInjectEscapes(t *testing.T) {
 				protocol.SessionSummary{ID: "n", ShortID: "nnnn", Slug: payload, Name: payload,
 					State: protocol.StateDone, LastLine: payload},
 			)
+			m = rowIconsOff(m) // rows hold the text: the payload must render inert
 			m.Clock = func() time.Time { return now }
 			m.Err = "daemon: " + payload
 			assertNoInjection(t, m.View()) // simple view: titles and questions

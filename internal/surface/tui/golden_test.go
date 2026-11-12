@@ -69,6 +69,16 @@ func goldenDoneFold(t *testing.T, sz goldenSize) Model {
 	return m
 }
 
+// defaultRowIcons puts row_icons back to its default for a full settings
+// page, which lists it (and counts changed settings) but shows no board.
+func defaultRowIcons(t *testing.T, m Model) Model {
+	t.Helper()
+	if err := m.Store.Reset("row_icons"); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
 type goldenScreen struct {
 	name   string
 	styled bool // also pin the TrueColor SGR output
@@ -139,6 +149,9 @@ func goldenScreens() []goldenScreen {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusSettings
 			m.Store, m.StorePath = luaLocked(t, []string{"spinner", "theme"}, "moon", "default")
+			if err := m.Store.Set("row_icons", false); err != nil { // the board behind pins the text column
+				t.Fatal(err)
+			}
 			m = overlayMode(t, m)
 			m.Settings = &SettingsState{CursorID: "spinner", Search: "spin"}
 			return m
@@ -215,12 +228,14 @@ func goldenScreens() []goldenScreen {
 		{"settings_page", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusSettings
+			m = defaultRowIcons(t, m)
 			m.Settings = &SettingsState{CursorID: settings.Registry[0].ID}
 			return m
 		}},
 		{"settings_page_search", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusSettings
+			m = defaultRowIcons(t, m)
 			if err := m.Store.Set("spinner", "moon"); err != nil {
 				t.Fatal(err)
 			}
@@ -256,6 +271,7 @@ func goldenScreens() []goldenScreen {
 		{"settings_page_frame", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusSettings
+			m = defaultRowIcons(t, m)
 			m.Settings = &SettingsState{CursorID: settings.Registry[0].ID}
 			return framedGolden(t, m, sz)
 		}},

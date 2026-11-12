@@ -17,7 +17,7 @@ var waitNow = time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
 
 // waitingModel is a board at waitNow with the given sessions.
 func waitingModel(sessions ...protocol.SessionSummary) Model {
-	m := boardModel(sessions...)
+	m := rowIconsOff(boardModel(sessions...)) // pins the text column
 	m.Clock = func() time.Time { return waitNow }
 	return m
 }
