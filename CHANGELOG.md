@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (Lua volume warning)
+
+- `rex doctor` warns when `config.lua` (or a trusted workspace's
+  `.rex/config.lua`) sets `master_volume` to a number above 0 and at most 1,
+  naming the line: `config.lua:2 sets master_volume = 1: the scale is 0–50
+  now (50 = max), so this is 1/50, nearly silent; write 50 for full volume`.
+  Lua cannot tell `1` from `1.0`, so an old `master_volume = 1.0` (full) now
+  plays at 1/50. A fraction (`0.8`) still converts but gets the same nudge.
+  `0` (mute on both scales) is not flagged.
+
 ### Changed (volume scale)
 
 - `master_volume` is now a whole number from 0 to 50 (default 40, the old

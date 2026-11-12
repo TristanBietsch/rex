@@ -110,6 +110,11 @@ type Result struct {
 	Values map[string]any
 	// SetAt maps setting id to "config.lua:12" or "lua/ui.lua:3".
 	SetAt map[string]string
+	// Given maps setting id to the Lua number rex.set was passed for it,
+	// before Validate, for the ids in Values set from a number. Validate
+	// may change it (master_volume 0.8 is stored as 40); Lua has no int
+	// and float, so 1 and 1.0 both read 1.
+	Given map[string]float64
 	// Themes holds the themes rex.theme defined, by name.
 	Themes map[string]theme.Palette
 	// ThemeIssues are the problems and notes about Lua themes (File is the
@@ -209,7 +214,7 @@ func evalSource(parent context.Context, o Opts, src []byte) Result {
 		}
 		// The script noticed the cancel first: report why it was stopped,
 		// not the Lua state's own "context canceled" text.
-		r.Values, r.SetAt, r.Themes, r.ThemeIssues = nil, nil, nil, nil
+		r.Values, r.SetAt, r.Given, r.Themes, r.ThemeIssues = nil, nil, nil, nil, nil
 		r.Err = stopReason(ev, ctx)
 		return r
 	case <-ctx.Done():
@@ -282,7 +287,7 @@ func (ev *evaluator) run(ctx context.Context, src []byte) Result {
 		return Result{Exists: true, Err: errors.New(flatten(luaMessage(err), maxErrRunes)), Warnings: ev.warnings()}
 	}
 	return Result{
-		Exists: true, Values: ev.values, SetAt: ev.setAt,
+		Exists: true, Values: ev.values, SetAt: ev.setAt, Given: ev.given,
 		Themes: ev.themes, ThemeIssues: ev.issues, Warnings: ev.warnings(),
 		FailClosed: ev.failClosed(),
 	}
