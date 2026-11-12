@@ -163,3 +163,28 @@ func TestNormalizeColor(t *testing.T) {
 		require.Equal(t, want, got)
 	}
 }
+
+func TestParse_NullBlocksAreEmpty(t *testing.T) {
+	p, warns, err := Parse("mine", []byte("extends: noir\ncolors:\n# accent: \"#fff\"\nglyphs:\n"))
+	require.NoError(t, err)
+	require.Empty(t, warns)
+	require.Equal(t, Builtin["noir"].Accent, p.Accent)
+}
+
+func TestTokenLists(t *testing.T) {
+	p := Builtin["noir"]
+	colors := p.ColorList()
+	require.Len(t, colors, len(colorOrder))
+	require.Equal(t, Token{Name: "accent", Value: p.Accent}, colors[7])
+	for _, tok := range colors {
+		require.Contains(t, ColorTokens(), tok.Name)
+	}
+	require.Len(t, colors, len(ColorTokens())-1, "every color token but fleet is listed")
+
+	p.Glyphs = Glyphs{Needs: "!", Select: ">"}
+	glyphs := p.GlyphList()
+	require.Equal(t, []Token{
+		{"needs", "!"}, {"done", ""}, {"failed", ""}, {"crashed", ""}, {"queued", ""}, {"select", ">"},
+	}, glyphs)
+	require.Len(t, glyphs, len(GlyphTokens()))
+}

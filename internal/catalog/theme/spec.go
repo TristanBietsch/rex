@@ -64,6 +64,40 @@ func glyphKeys(g *Glyphs) map[string]*string {
 	}
 }
 
+// Token is one named value of a palette.
+type Token struct{ Name, Value string }
+
+// colorOrder is the order colors are listed in.
+var colorOrder = []string{
+	"bg", "fg", "fg_dim", "fg_muted", "bg_sel", "border", "border_focus", "accent",
+	"working", "queued", "needs", "done", "failed", "crashed",
+	"warn", "danger", "success", "info",
+}
+
+// glyphOrder is the order glyphs are listed in.
+var glyphOrder = []string{"needs", "done", "failed", "crashed", "queued", "select"}
+
+// ColorList returns the palette's colors (not the fleet) in display order.
+func (p Palette) ColorList() []Token {
+	fields := colorKeys(&p)
+	out := make([]Token, 0, len(colorOrder))
+	for _, k := range colorOrder {
+		out = append(out, Token{Name: k, Value: *fields[k]})
+	}
+	return out
+}
+
+// GlyphList returns the palette's glyph overrides in display order; an empty
+// value means the built-in marker.
+func (p Palette) GlyphList() []Token {
+	fields := glyphKeys(&p.Glyphs)
+	out := make([]Token, 0, len(glyphOrder))
+	for _, k := range glyphOrder {
+		out = append(out, Token{Name: k, Value: *fields[k]})
+	}
+	return out
+}
+
 // ColorTokens returns the color token names a theme file may set, sorted,
 // plus "fleet".
 func ColorTokens() []string {
@@ -133,7 +167,7 @@ func Parse(name string, data []byte) (Palette, []string, error) {
 		p.Dark = b
 	}
 
-	if v, ok := raw["colors"]; ok {
+	if v, ok := raw["colors"]; ok && v != nil { // a block with every line commented out is null
 		m, isMap := v.(map[string]any)
 		if !isMap {
 			return zero, nil, errors.New(`"colors" must be a mapping of token to color`)
@@ -162,7 +196,7 @@ func Parse(name string, data []byte) (Palette, []string, error) {
 		}
 	}
 
-	if v, ok := raw["glyphs"]; ok {
+	if v, ok := raw["glyphs"]; ok && v != nil {
 		m, isMap := v.(map[string]any)
 		if !isMap {
 			return zero, nil, errors.New(`"glyphs" must be a mapping of token to character`)
