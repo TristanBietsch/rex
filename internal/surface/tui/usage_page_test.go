@@ -348,3 +348,17 @@ func TestUsageOff_IsInert(t *testing.T) {
 	require.Empty(t, fu.calls)
 	require.False(t, headerMeterHit(m, 100, 1))
 }
+
+// A new range does not show the old range's table while it loads.
+func TestUsagePage_RangeChangeClearsTheOldTable(t *testing.T) {
+	m, _ := usagePageModel(t)
+	m, cmd := executeCommand(m, "usage")
+	m = deliver(t, m, cmd)
+	require.Contains(t, ansi.Strip(m.View()), "claude")
+	m, cmd = updateKey(m, key("2"))
+	out := ansi.Strip(m.View())
+	require.Contains(t, out, "loading…")
+	require.NotContains(t, out, "AGENT / MODEL")
+	m = deliver(t, m, cmd)
+	require.Contains(t, ansi.Strip(m.View()), "claude")
+}

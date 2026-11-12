@@ -82,6 +82,9 @@ func meterEntry(m Model, tool string, qs []protocol.UsageQuota, full bool) (plai
 				cell += " " + r
 			}
 		}
+		if stale {
+			cell += "?" // a text marker: the dim color alone is lost without color
+		}
 		plain += " " + cell
 		styled += " " + quotaStyle(pct, stale).Render(cell)
 	}

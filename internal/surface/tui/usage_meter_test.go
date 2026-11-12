@@ -85,7 +85,7 @@ func TestUsageMeter_StaleReadingIsDim(t *testing.T) {
 	require.Contains(t, ansi.Strip(row), "antigravity ▰▰▰▰▰ 91%")
 	withProfile(termenv.TrueColor, func() {
 		row, _, _ := headerTopRow(m, 118)
-		require.Contains(t, row, styleDim.Render("▰▰▰▰▰ 91%"), "stale: dim, not danger")
+		require.Contains(t, row, styleDim.Render("▰▰▰▰▰ 91%?"), "stale: dim, not danger, marked")
 		require.Contains(t, row, quotaStyle(42, false).Render("▰▰▱▱▱ 42%"))
 		require.Contains(t, row, quotaStyle(72, false).Render("▰▰▰▰▱ 72%"))
 	})
@@ -113,4 +113,16 @@ func TestUsageMeter_ClickOpensThePage(t *testing.T) {
 	next = deliver(t, next, cmd)
 	require.Len(t, fu.calls, 1)
 	require.NotNil(t, next.UsagePage.Report)
+}
+
+// Without color (NO_COLOR, the ascii profile) a stale reading still shows.
+func TestUsageMeter_StaleHasATextMarker(t *testing.T) {
+	m := meterModel(t, goldenSize{120, 40})
+	m.Sessions = append(m.Sessions, protocol.SessionSummary{ID: "ag", ToolID: "antigravity", State: protocol.StateWorking})
+	withProfile(termenv.Ascii, func() {
+		got := headerTopPlain(m, 118)
+		require.Contains(t, got, "antigravity ▰▰▰▰▰ 91%?")
+		require.NotContains(t, got, "claude ▰▰▱▱▱ 42%?", "a fresh reading has no marker")
+		require.NotContains(t, got, "codex ▰▰▰▰▱ 72%?")
+	})
 }

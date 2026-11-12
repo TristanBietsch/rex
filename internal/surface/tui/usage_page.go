@@ -197,6 +197,7 @@ func updateUsageKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		st.Range, st.Scroll = next, 0
+		st.Report = nil // the old range's table must not pass for the new one
 		m.UsagePage = &st
 		return fetchUsage(m)
 	case "r":
