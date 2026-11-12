@@ -41,10 +41,11 @@ const naEditorMax = 1 << 20
 const naSaveHint = "Save it to a file in the workspace and import it (ctrl+o)."
 
 // naErr is an error in the page's own words, shown after "✗ ". tooBig marks
-// a size cap, which the page follows with naSaveHint.
+// a size cap, which the page follows with hint, or naSaveHint without one.
 type naErr struct {
 	msg    string
 	tooBig bool
+	hint   string
 }
 
 func (e naErr) Error() string { return e.msg }
@@ -61,7 +62,11 @@ func (e naErr) Unwrap() error {
 func naFail(err error) string {
 	msg := "✗ " + err.Error()
 	var ne naErr
-	if errors.As(err, &ne) && ne.tooBig {
+	switch {
+	case !errors.As(err, &ne):
+	case ne.hint != "":
+		msg += "\n" + ne.hint
+	case ne.tooBig:
 		msg += "\n" + naSaveHint
 	}
 	return msg

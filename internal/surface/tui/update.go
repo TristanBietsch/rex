@@ -168,6 +168,9 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleLoopAction(m, msg), nil
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
+		if nm, ok := naLaunchCmdErr(m, msg); ok {
+			return nm, nil
+		}
 		m.Err = msg.Op + ": " + msg.Err.Error()
 		return m, nil
 	case SpinnerTickMsg:
@@ -195,6 +198,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleEditorDone(m, msg)
 	case indexDoneMsg:
 		return handleIndexDone(m, msg)
+	case newAgentLaunchedMsg:
+		return handleNewAgentLaunched(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()
@@ -372,6 +377,7 @@ func (m Model) focusStateMissing() bool {
 // via `:new`, P0-07), so it is logged and the board takes focus back rather
 // than leaving the user stuck.
 func normalizeFocus(m Model) Model {
+	m = closeNewAgentIfOff(m)
 	if !m.focusStateMissing() {
 		return m
 	}

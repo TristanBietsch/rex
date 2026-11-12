@@ -44,6 +44,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added
   only after `y`. Files over 1 MiB get a warning. File previews read at most
   64 KiB and 200 lines; folder previews list the folder's entries.
+- Launching from the new-agent page checks everything first: the caps,
+  every file and folder again against the session folder (a link swapped
+  to point outside, a file gone, or a draft made in another folder is
+  refused, naming the item), and the prompt against the agent's limit
+  (16 KiB for agents that take a pasted prompt, else 96 KiB), with errors
+  in KB and a hint. The page then stays open with `⠋ starting…` until the
+  daemon answers: success closes it, selects the new card and clears the
+  draft; a failure shows `✗ launch failed: … Your draft is kept.` on the
+  page and keeps the task and context. `esc` while starting closes the page
+  and keeps the draft. Errors wrap at words instead of being cut. The
+  Trust section, when focused, lists each key with the exact folder it
+  trusts, as the wizard does; a trust refusal shows on the page. While the
+  workspace is still being listed, CONTEXT shows the indexing count.
+- Turning `new_agent_page` off while the page is open closes it on the
+  next update and keeps the draft; the older wizard then starts with the
+  task text only and says how many context items it left out.
 
 ### Added (row icons)
 

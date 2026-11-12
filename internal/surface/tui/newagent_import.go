@@ -137,6 +137,9 @@ func addPath(st *NewAgentState, rel string, confirmed bool) error {
 	} else {
 		it.Bytes = int(info.Size)
 	}
+	if !naHasPaths(st.Items) {
+		st.ItemsRoot = st.Root // the folder these paths are relative to
+	}
 	st.Items = append(st.Items, it)
 	if info.Warn != "" {
 		st.Err = "! " + info.Rel + " is " + naBytes(it.Bytes) + ": " + info.Warn
@@ -509,6 +512,17 @@ func naIndexingLine(m Model, st *NewAgentState) string {
 	return styleArrow.Render(naSpinner(m)) + styleDim.Render(" indexing workspace… "+naThousands(n)+" files")
 }
 
+// naLoadingRow is the loading state fw wide: naIndexingLine with
+// "(picker usable after)" flush right when it fits.
+func naLoadingRow(m Model, st *NewAgentState, fw int) string {
+	line := naIndexingLine(m, st)
+	after := styleMuted.Render("(picker usable after)")
+	if gap := fw - ansi.StringWidth(line) - ansi.StringWidth(after); gap >= 2 {
+		line += strings.Repeat(" ", gap) + after
+	}
+	return line
+}
+
 // naIndexedWords is "N files indexed" ("10,000+" when the walk stopped at
 // a cap).
 func naIndexedWords(st *NewAgentState) string {
@@ -609,16 +623,11 @@ func naImportBody(m Model, st *NewAgentState, fw, bh int) []string {
 	}
 	query := styleArrow.Render("> ") + stylePrimary.Render(protocol.FlattenDisplayText(string(im.Query))) + cursorBlock(m)
 	lines := []string{title, query}
-	errs := naErrLines(st)
+	errs := naErrLines(st, fw)
 	room := max(bh-len(lines)-len(errs), 1)
 	switch {
 	case st.Indexing:
-		line := naIndexingLine(m, st)
-		after := styleMuted.Render("(picker usable after)")
-		if gap := fw - ansi.StringWidth(line) - ansi.StringWidth(after); gap >= 2 {
-			line += strings.Repeat(" ", gap) + after
-		}
-		lines = append(lines, line)
+		lines = append(lines, naLoadingRow(m, st, fw))
 	case st.IndexErr != nil:
 		lines = append(lines, styleStateFailed.Render("✗ the workspace could not be listed: "+protocol.FlattenDisplayText(st.IndexErr.Error())))
 	default:

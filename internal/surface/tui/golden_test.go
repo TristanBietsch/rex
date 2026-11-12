@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -191,6 +192,7 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"newagent_preview":       {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_import":        {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_loading":       {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_errors":        {{120, 40}, {80, 24}, {50, 20}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -412,6 +414,7 @@ func goldenScreens() []goldenScreen {
 			m, _ := goldenNewAgentBoard(t, sz)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
 			m, _ = executeCommand(m, "new")
+			m.NewAgent.Indexing = false // indexed: mockup A ("none yet"), not mockup F's loading row
 			return m
 		}},
 		{"newagent_agent", true, func(t *testing.T, sz goldenSize) Model {
@@ -442,6 +445,18 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"newagent_import", false, func(t *testing.T, sz goldenSize) Model {
 			return goldenNewAgentImport(t, sz)
+		}},
+		{"newagent_errors", true, func(t *testing.T, sz goldenSize) Model {
+			// Mockup F: the workspace still indexing under CONTEXT, and a
+			// launch the daemon refused, with the draft kept.
+			m, _ := goldenNewAgentBoard(t, sz)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+			m, _ = executeCommand(m, "new") // the walk never comes back
+			m.NewAgent.indexCount.Store(3812)
+			m = typeText(m, "fix the flaky auth test")
+			m.NewAgent.Launching, m.NewAgent.launchGen = true, -1
+			m, _ = handleNewAgentLaunched(m, newAgentLaunchedMsg{Err: errors.New("daemon is not running (rex daemon start)"), gen: -1})
+			return m
 		}},
 		{"newagent_loading", false, func(t *testing.T, sz goldenSize) Model {
 			m, _ := goldenNewAgentBoard(t, sz)

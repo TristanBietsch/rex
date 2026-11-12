@@ -174,6 +174,7 @@ func TestContextList_RemoveRenamePreview(t *testing.T) {
 	m = naType(m, "x")
 	require.Empty(t, m.NewAgent.Items)
 	require.Empty(t, m.NewAgent.Task.String())
+	m.NewAgent.Indexing = false // the walk is in: the empty state, not the loading row
 	require.Contains(t, ansi.Strip(m.View()), "none yet")
 
 	// The next paste keeps numbering on.

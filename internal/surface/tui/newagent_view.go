@@ -87,6 +87,9 @@ func renderNewAgent(m Model, w, h int) string {
 // naHints is the footer for the focused section.
 func naHints(st *NewAgentState, narrow bool) [][2]string {
 	section := st.Section
+	if st.Launching {
+		return [][2]string{{"esc", "close (keeps the draft)"}}
+	}
 	if len(st.Pending) > 0 {
 		return naPendingHints()
 	}
@@ -263,25 +266,29 @@ func naNotice(st *NewAgentState) []string {
 // longer than what is left scrolls with its cursor.
 func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 	notice := naNotice(st)
-	errs := naErrLines(st)
+	errs := naErrLines(st, fw)
 	agent := naAgentLine(st, "  ·  ")
 	change := styleKey.Render("ctrl+g") + styleDim.Render(" change")
 	if gap := fw - ansi.StringWidth(agent) - ansi.StringWidth(change); gap >= 2 {
 		agent += strings.Repeat(" ", gap) + change
 	}
-	summary := !st.Task.Empty() || len(st.Items) > 0
-	// Eleven rows are fixed (headings, agent, box edges, trust and two
-	// blanks). Four stay free at the bottom as in mockup A; with a summary,
-	// a blank and the summary row.
+	summary := !st.Task.Empty() || len(st.Items) > 0 || st.Launching
+	// Eleven rows are fixed (headings, agent, box edges, two trust rows and
+	// two blanks). Four stay free at the bottom as in mockup A; with a
+	// summary, a blank and the summary row. The focused trust section shows
+	// every key with its exact folder (P2's lines), so it takes more.
 	free := 4
 	if summary {
 		free = 2
 	}
+	trust := indentLines(naTrustLines(tv, st), 2)
+	if st.Section == naTrust {
+		trust = trustLines(m, st.Trust, spawnCWD(m), fw)
+	}
 	comp := naCompleteLines(m, st, fw)
-	budget := bh - 11 - free - len(notice) - len(errs) - len(comp)
+	budget := bh - 11 - free - len(notice) - len(errs) - len(comp) - (len(trust) - 2)
 	listRows := min(max(len(st.Items), 1), max(1, budget-1))
 	rows := max(1, min(10, budget-listRows))
-	trust := naTrustLines(tv, st)
 
 	lines := []string{naTitle("AGENT", st.Section == naAgent), agent}
 	lines = append(lines, notice...)
@@ -291,12 +298,16 @@ func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 	lines = append(lines, naContextLines(m, st, fw, listRows)...)
 	lines = append(lines, errs...)
 	lines = append(lines, "", naTitle("TRUST", st.Section == naTrust))
-	lines = append(lines, indentLines(trust, 2)...)
+	lines = append(lines, trust...)
 	if summary && len(lines) < bh {
 		for len(lines) < bh-1 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, naLaunchSummary(m, st))
+		if st.Launching {
+			lines = append(lines, naStartingLine(m))
+		} else {
+			lines = append(lines, naLaunchSummary(m, st))
+		}
 	}
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, fw, "…")
@@ -310,6 +321,9 @@ func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 func naContextLines(m Model, st *NewAgentState, fw, rows int) []string {
 	focused := st.Section == naContext
 	head := naTitle("CONTEXT", focused)
+	if len(st.Items) == 0 && st.Indexing {
+		return []string{head, "  " + naLoadingRow(m, st, fw-2)} // mockup F
+	}
 	if len(st.Items) == 0 {
 		return []string{head, "  " + styleMuted.Render("none yet: type @path, paste, or ctrl+o to import")}
 	}
@@ -404,10 +418,11 @@ func naRenameField(m Model, st *NewAgentState) string {
 		cursorBlock(m) + styleArrow.Render("]")
 }
 
-// naErrLines is the page's error: "✗ " and words in the failure style (a
-// "! " warning in the warning style), a hint line dimmed under it; and
+// naErrLines is the page's error w cells wide: "✗ " and words in the
+// failure style (a "! " warning in the warning style), a hint line dimmed
+// under it, each wrapped at word boundaries so no word of it is cut; and
 // first, the confirm a denylisted path waits for. Nil for none.
-func naErrLines(st *NewAgentState) []string {
+func naErrLines(st *NewAgentState, w int) []string {
 	var out []string
 	if len(st.Pending) > 0 {
 		out = append(out, naPendingLine(st))
@@ -420,9 +435,28 @@ func naErrLines(st *NewAgentState) []string {
 	if strings.HasPrefix(parts[0], "!") {
 		style = styleBootWarn
 	}
-	out = append(out, style.Render(protocol.FlattenDisplayText(parts[0])))
+	for i, l := range naWrap(protocol.FlattenDisplayText(parts[0]), w) {
+		if i > 0 {
+			l = "  " + l // under the words, past the mark
+		}
+		out = append(out, style.Render(l))
+	}
 	for _, p := range parts[1:] {
-		out = append(out, "  "+styleDim.Render(protocol.FlattenDisplayText(p)))
+		for _, l := range naWrap(protocol.FlattenDisplayText(p), w-2) {
+			out = append(out, "  "+styleDim.Render(l))
+		}
+	}
+	return out
+}
+
+// naWrap wraps plain text at word boundaries to w cells (a word longer
+// than w is broken); continuation lines get 2 cells less, for their indent.
+func naWrap(s string, w int) []string {
+	w = max(w, 8)
+	first, rest, _ := strings.Cut(ansi.Wrap(s, w, ""), "\n")
+	out := []string{first}
+	if rest != "" {
+		out = append(out, strings.Split(ansi.Wrap(strings.ReplaceAll(rest, "\n", " "), w-2, ""), "\n")...)
 	}
 	return out
 }
@@ -480,11 +514,17 @@ func naStrip(st *NewAgentState) string {
 func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []string {
 	notice := naNotice(st)
 	comp := naCompleteLines(m, st, max(w-2, 1))
-	rows := max(1, min(8, bh-8-len(notice)-len(naErrLines(st))-len(comp)))
-	trust := styleDim.Render("trust: ") + styleBootWarn.Render(tv.word)
+	trust := []string{"  " + styleDim.Render("trust: ") + styleBootWarn.Render(tv.word)}
 	if tv.ok {
-		trust = styleDim.Render("trust: ") + styleBootReady.Render(tv.word)
+		trust = []string{"  " + styleDim.Render("trust: ") + styleBootReady.Render(tv.word)}
 	}
+	if st.Section == naTrust {
+		trust = trustLines(m, st.Trust, spawnCWD(m), w)
+	}
+	if st.Launching {
+		trust = append(trust, "  "+naStartingLine(m))
+	}
+	rows := max(1, min(8, bh-7-len(trust)-len(notice)-len(naErrLines(st, w-2))-len(comp)))
 	lines := []string{naStrip(st), "  " + naAgentLine(st, " · ")}
 	lines = append(lines, indentLines(notice, 2)...)
 	if st.Section == naContext && len(st.Items) > 0 {
@@ -499,8 +539,8 @@ func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []strin
 		}
 		lines = append(lines, "  "+ctx)
 	}
-	lines = append(lines, indentLines(naErrLines(st), 2)...)
-	lines = append(lines, "  "+trust)
+	lines = append(lines, indentLines(naErrLines(st, w-2), 2)...)
+	lines = append(lines, trust...)
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, w, "…")
 	}

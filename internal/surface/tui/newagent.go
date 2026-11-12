@@ -89,6 +89,13 @@ type NewAgentState struct {
 	// Err is the page's error, "✗ " and words (a second line is a hint). It
 	// stays until the next key.
 	Err string
+	// Launching is true from the launch until the daemon answers
+	// (newagent_launch.go); launchGen is that launch. ItemsRoot is the
+	// folder the file and folder items were added in: a launch from any
+	// other folder is refused.
+	Launching bool
+	launchGen int64
+	ItemsRoot string
 	// Renaming is true while a new name for item ItemIdx is typed into
 	// RenameBuf. PrevScroll is the preview's first line.
 	Renaming   bool
@@ -177,17 +184,32 @@ func taskTitle(task string) string {
 
 // request builds the NewSession the page stands for: the prompt is the
 // task with its context (spawnctx.Assemble), the task's first line the
-// title and the slug's source, made unique against existing. A context the
-// prompt cannot carry (a cap, a bad name) is an error and nothing launches.
+// title and the slug's source, made unique against existing. Every file
+// and folder is checked again against cwd, and the prompt against the
+// chosen agent's limit (16 KB for a prompt_paste agent, else 96 KB). A
+// context the prompt cannot carry is an error in the page's words, and
+// nothing launches.
 func (st *NewAgentState) request(cwd string, existing []string) (protocol.NewSession, error) {
 	w := st.selection()
 	task := strings.TrimSpace(st.Task.String())
-	prompt, err := spawnctx.Assemble(task, st.Items, spawnctx.DefaultCaps)
-	if err != nil {
+	if err := st.naCheckLaunch(cwd); err != nil {
 		return protocol.NewSession{}, err
 	}
-	title := taskTitle(task)
+	caps := spawnctx.DefaultCaps
+	caps.Prompt = 0 // checked below, in KB
+	prompt, err := spawnctx.Assemble(task, st.Items, caps)
+	if err != nil {
+		return protocol.NewSession{}, naAssembleErr(err)
+	}
 	tool, model := w.selectedTool(), w.selectedModel()
+	if limit := naPromptCap(st); len(prompt) > limit {
+		name := ""
+		if limit != spawnctx.DefaultCaps.Prompt {
+			name = protocol.FlattenDisplayText(tool.Name)
+		}
+		return protocol.NewSession{}, naPromptErr(len(prompt), limit, name)
+	}
+	title := taskTitle(task)
 	return protocol.NewSession{
 		ToolID:         tool.ID,
 		ModelID:        model.ID,
@@ -207,7 +229,8 @@ func openNew(m Model) (Model, tea.Cmd) {
 	if m.featureOn("new_agent_page") {
 		return openNewAgent(m)
 	}
-	return openWizard(m)
+	m, cmd := openWizard(m)
+	return naSeedWizard(m), cmd
 }
 
 // openNewAgent opens the page on the agents pickerTools offers, restoring
@@ -234,9 +257,14 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 		st.Skills = loadWizardSkills()
 	}
 	want := m.lastSpawn
+	st.ItemsRoot = spawnCWD(m)
 	if d := m.newAgentDraft; d != nil {
 		st.Section, st.Task, st.Trust, st.SkillSel = d.Section, d.Task, d.Trust, d.SkillSel
 		st.Items, st.ItemIdx, st.PasteSeq = d.Items, d.ItemIdx, d.PasteSeq
+		st.Launching, st.launchGen = d.Launching, d.launchGen
+		if naHasPaths(d.Items) {
+			st.ItemsRoot = d.ItemsRoot
+		}
 		c := d.choice()
 		want = &c
 	}
@@ -289,26 +317,11 @@ func newAgentTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, 
 	return trustRequest(m, m.NewAgent.Trust, cwd, req)
 }
 
-// launchNewAgent sends the page's NewSession as the wizard does, remembers
-// the agent for the next page, and closes the page.
-func launchNewAgent(m Model) (Model, tea.Cmd) {
-	st := m.NewAgent
-	cwd := spawnCWD(m)
-	req, err := st.request(cwd, existingSlugs(m))
-	if err != nil {
-		st.Err = naFail(err)
-		return m, nil
-	}
-	var ok bool
-	if m, req, ok = newAgentTrustRequest(m, cwd, req); !ok {
-		return m, nil
-	}
-	req.Cols, req.Rows = spawnSizeOf(m)
-	m.PendingSelectSlug = req.Slug
-	m.PendingSpawn = pendingSpawn{Skills: req.Skills}
-	c := st.choice()
-	m.lastSpawn = &c
-	return closeNewAgent(m, false), wizardLaunchCmd(m.Client, req)
+// naHasPaths reports whether items hold a file or a folder.
+func naHasPaths(items []spawnctx.Item) bool {
+	return slices.ContainsFunc(items, func(it spawnctx.Item) bool {
+		return it.Kind == spawnctx.File || it.Kind == spawnctx.Dir
+	})
 }
 
 // updateNewAgentKey routes a key on the page. A paste only ever inserts;
@@ -321,6 +334,9 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if !m.featureOn("new_agent_page") {
 		// Turned off while open: back to the board, the draft kept.
 		return closeNewAgent(m, true), nil
+	}
+	if st.Launching {
+		return naLaunchingKey(m, k)
 	}
 	m.Err, st.Err = "", "" // an error stays until the next key
 	st.Rev++
@@ -345,6 +361,10 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if next, mode, ok := trustKeyToggle(m, k, st.Trust); ok {
 		next.NewAgent.Trust = mode
+		if next.Err != "" {
+			next.NewAgent.Err = "✗ " + next.Err // the page shows it, not the board
+			next.Err = ""
+		}
 		return next, nil
 	}
 	if st.Complete != nil && st.Section == naTask {

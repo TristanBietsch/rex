@@ -139,7 +139,8 @@ func TestAgentScreen_CtrlSLaunchesWhileFiltering(t *testing.T) {
 	require.True(t, m.NewAgent.Filtering)
 	m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
 	require.NotNil(t, cmd, "ctrl+s launches while the filter is active")
-	require.Nil(t, m.NewAgent)
+	require.True(t, m.NewAgent.Launching)
+	require.Equal(t, naCompose, m.NewAgent.Screen, "the progress shows on Compose")
 }
 
 func TestAgentScreen_ModelFilterKeepsCursorByID(t *testing.T) {

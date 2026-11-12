@@ -108,10 +108,12 @@ func TestNewAgent_EnterLaunchesCtrlJNewline(t *testing.T) {
 
 	m, cmd := naKey(m, key("enter"))
 	require.NotNil(t, cmd, "enter in the task editor launches")
+	require.True(t, m.NewAgent.Launching)
+	require.Equal(t, req.Slug, m.PendingSelectSlug)
+	m = naUpdate(m, newAgentLaunchedMsg{Slug: req.Slug, gen: m.NewAgent.launchGen})
 	require.Equal(t, FocusBoard, m.Focus)
 	require.Nil(t, m.NewAgent)
 	require.Nil(t, m.newAgentDraft, "a launch clears the draft")
-	require.Equal(t, req.Slug, m.PendingSelectSlug)
 	require.Equal(t, &want, m.lastSpawn, "the launch is remembered (D3)")
 }
 
@@ -130,14 +132,14 @@ func TestNewAgent_EnterOnlyLaunchesFromTheEditor(t *testing.T) {
 
 	m, cmd = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
 	require.NotNil(t, cmd, "ctrl+s launches from any section")
-	require.Equal(t, FocusBoard, m.Focus)
+	require.True(t, m.NewAgent.Launching)
 }
 
 func TestNewAgent_EmptyTaskLaunchesLikeTheWizard(t *testing.T) {
 	m := naOpen(t, naModel(t))
 	m, cmd := naKey(m, key("enter"))
-	require.NotNil(t, cmd)
-	require.Equal(t, FocusBoard, m.Focus)
+	require.NotNil(t, cmd, "no confirm, as in the wizard")
+	require.True(t, m.NewAgent.Launching)
 	require.NotEmpty(t, m.PendingSelectSlug, "an empty task gets a hash slug, as in the wizard")
 }
 
@@ -310,6 +312,7 @@ func TestNewAgent_ViewFitsEverySize(t *testing.T) {
 func TestNewAgent_ViewEmptyState(t *testing.T) {
 	m := naOpen(t, naModel(t))
 	m.Width, m.Height = 80, 24
+	m.NewAgent.Indexing = false // indexed (TestNewAgent_ContextLoadingRow has the loading row)
 	out := ansi.Strip(m.View())
 	for _, want := range []string{
 		"NEW AGENT", "~/dev/proj", "draft", "STEPS", "✓ Agent", "▸ Task", "· Context", "? Trust", "ask",

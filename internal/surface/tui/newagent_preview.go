@@ -105,7 +105,7 @@ func naPreviewMaxScroll(m Model, st *NewAgentState, it spawnctx.Item) int {
 // then the page's error.
 func naPreviewBody(m Model, st *NewAgentState, fw, bh int) []string {
 	it := st.Items[st.ItemIdx]
-	errs := naErrLines(st)
+	errs := naErrLines(st, fw)
 	title := styleArrow.Render(strings.ToUpper(protocol.FlattenDisplayText(it.Name)))
 	if st.Renaming {
 		title = naRenameField(m, st)

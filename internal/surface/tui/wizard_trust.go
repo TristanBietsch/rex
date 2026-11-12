@@ -187,7 +187,14 @@ func saveTrustDirs(m *Model, value string) error {
 
 // wizTrustLines renders the trust block under the task input.
 func wizTrustLines(m Model) []string {
-	o := trustOfferFor(m, spawnCWD(m))
+	return trustLines(m, m.Wizard.Trust, spawnCWD(m), wizardWidth)
+}
+
+// trustLines is the trust block for a session started in cwd with the
+// choice mode, w cells wide: the folder's state, then each key with the
+// exact folder it trusts. The wizard and the new-agent page share it.
+func trustLines(m Model, mode wizTrustMode, cwd string, w int) []string {
+	o := trustOfferFor(m, cwd)
 	switch {
 	case o.Covered != "":
 		return []string{"  " + styleDim.Render("trusted ("+trustSettingID+")")}
@@ -195,25 +202,26 @@ func wizTrustLines(m Model) []string {
 		return []string{"  " + styleBootWarn.Render(protocol.FlattenDisplayText(o.Refused))}
 	}
 	lines := []string{"  " + styleBootWarn.Render("folder not trusted") + styleDim.Render(": the agent will ask")}
-	lines = append(lines, trustOption(m.Wizard.Trust == trustSession, "ctrl+t", "trust this session only", o.SessionDir)...)
+	lines = append(lines, trustOption(mode == trustSession, "ctrl+t", "trust this session only", o.SessionDir, w)...)
 	if o.AlwaysDir == "" {
 		return append(lines, "  "+styleDim.Render("ctrl+a: only folders inside your home can be saved"))
 	}
-	return append(lines, trustOption(m.Wizard.Trust == trustAlways, "ctrl+a", "always trust (saved to "+trustSettingID+")", o.AlwaysDir)...)
+	return append(lines, trustOption(mode == trustAlways, "ctrl+a", "always trust (saved to "+trustSettingID+")", o.AlwaysDir, w)...)
 }
 
 // trustOption is one choice: the key and what it does, then the exact folder
 // on its own line (cut from the left when very long, so the project name
-// stays). The folder name comes from disk, not from rex: it is flattened so
-// an escape sequence in it never reaches the terminal.
-func trustOption(on bool, key, what, dir string) []string {
+// stays), for a block w cells wide. The folder name comes from disk, not
+// from rex: it is flattened so an escape sequence in it never reaches the
+// terminal.
+func trustOption(on bool, key, what, dir string, w int) []string {
 	dir = protocol.FlattenDisplayText(dir)
 	mark := "  "
 	if on {
 		mark = styleArrow.Render(selectGlyph()) + " "
 	}
 	out := []string{"  " + mark + styleKey.Render(key) + "  " + styleSlug.Render(what)}
-	for _, part := range wrapPath(filepath.ToSlash(dir), wizardWidth-8, 2) {
+	for _, part := range wrapPath(filepath.ToSlash(dir), max(w-8, 8), 2) {
 		out = append(out, "        "+styleDim.Render(part))
 	}
 	return out
