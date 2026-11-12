@@ -26,6 +26,10 @@ func TestSanitizeForDisplay(t *testing.T) {
 		{"strips_c1_range_ends", "\u0080p\u009fq", "p q"},
 		{"keeps_latin1_after_c1", "caf\u00e9\u0085ok", "caf\u00e9 ok"},
 		{"escape_after_invalid_utf8", "\xc9\x1b[31mred", "red"},
+		// Bidi overrides reorder what clients draw after them; line and
+		// paragraph separators would break the row.
+		{"strips_bidi_overrides", "abc\u202edef\u2066g\u200fh", "abcdefgh"},
+		{"separators_become_space", "a\u2028b\u2029c", "a b c"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

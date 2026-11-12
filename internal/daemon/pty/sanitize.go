@@ -5,6 +5,8 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // hasVisibleText reports whether b contains any printable (non-whitespace,
@@ -80,7 +82,9 @@ func sanitizeForDisplay(line string) string {
 		b.WriteRune(r)
 		prevSpace = false
 	}
-	return strings.TrimRight(b.String(), " ")
+	// Controls are spaces by now; this drops bidi overrides (they reorder
+	// what clients draw after them) and turns U+2028/U+2029 into spaces.
+	return strings.TrimRight(protocol.FlattenDisplayText(b.String()), " ")
 }
 
 // TypedText makes text safe to type into an agent's PTY (the initial
