@@ -318,6 +318,11 @@ func childEnvDropFor(spec spawnSpec) []string {
 // cancelled it first, startSupervisor returns errResumeCancelled and starts
 // nothing, so a delete racing a resume leaves no process and no directory.
 func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec spawnSpec, argv, env []string, ptyPrompt string, delivery promptDelivery, res *stopReservation) error {
+	if spec.Adopt == nil {
+		if err := srv.startGuard(); err != nil {
+			return err
+		}
+	}
 	cfg := srv.cfg
 	ad, err := adapter.For(spec.Tool, spec.HookFile)
 	if err != nil {

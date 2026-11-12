@@ -54,6 +54,15 @@ func CloseOnExec(fds ...int) {
 	}
 }
 
+// KillTree kills a handed-over agent and its process group (agents run in
+// their own session, so the group id is the pid).
+func KillTree(pid int) {
+	if pid > 0 {
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+	}
+}
+
 // Exec replaces this process image with bin (same pid).
 func Exec(bin string, argv, env []string) error {
 	return syscall.Exec(bin, argv, env) //nolint:gosec // G204: bin is this daemon's own executable.

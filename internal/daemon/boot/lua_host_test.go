@@ -60,3 +60,21 @@ func TestLuaFileError_FileLine(t *testing.T) {
 	err = luaFileError(errors.New("lua: LoadFile \"/x/init.lua\": /x/init.lua:4: boom\nstack traceback:\n\t[G]: ?"))
 	require.Equal(t, "/x/init.lua:4: boom", err.Error())
 }
+
+// R20 review: a reload that races the daemon's shutdown installs nothing
+// after Close.
+func TestLuaHostReloadAfterClose(t *testing.T) {
+	store := state.NewStore()
+	out := make(chan sent, 8)
+	path := writeInitLua(t, `rex.on("session_added", function(s) rex.send(s.id, "v1") end)`)
+	h := &LuaHost{path: path, store: store, opts: testOptions(store, out)}
+	h.Close()
+	require.NoError(t, h.Reload())
+	require.Nil(t, h.rt)
+	require.NoError(t, store.Add(newSession("a")))
+	select {
+	case got := <-out:
+		t.Fatalf("a closed host ran a handler: %v", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}

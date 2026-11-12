@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -54,7 +55,7 @@ func TestSwapStateRefusesOtherPIDAndOpenMode(t *testing.T) {
 	path, err := writeSwapState(st)
 	require.NoError(t, err)
 	_, err = readSwapState(path)
-	require.ErrorContains(t, err, "pid")
+	require.Error(t, err, "another board's file")
 
 	st.PID = os.Getpid()
 	path, err = writeSwapState(st)
@@ -174,4 +175,15 @@ func requireQuit(t *testing.T, cmd tea.Cmd) {
 	}
 	walk(cmd())
 	require.True(t, found, "want tea.Quit")
+}
+
+// R20 review: REX_TUI_SWAP may only name this board's own swap file; any
+// other path is refused and left alone (not removed).
+func TestSwapStateRefusesAnotherPath(t *testing.T) {
+	other := filepath.Join(t.TempDir(), "precious.json")
+	require.NoError(t, os.WriteFile(other, []byte("{}"), 0o600))
+	_, err := readSwapState(other)
+	require.ErrorContains(t, err, "not this board's swap file")
+	_, err = os.Stat(other)
+	require.NoError(t, err, "the named file is not removed")
 }

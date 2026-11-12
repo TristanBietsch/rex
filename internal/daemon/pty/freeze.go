@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -42,6 +43,9 @@ type Adopted struct {
 // errStarting refuses a freeze while the initial prompt is still waiting
 // to be typed: the goroutine that would type it does not survive the exec.
 var errStarting = errors.New("session is still starting (initial prompt not typed yet); retry in a few seconds")
+
+// errFrozen refuses a resize while the session is frozen for a hot restart.
+var errFrozen = errors.New("session is frozen for a daemon restart")
 
 // readyWait is how long the reader waits for readability before it checks
 // for a freeze again.
@@ -154,11 +158,23 @@ func (g *gate) waitParked(ctx context.Context, who ...string) error {
 	}
 }
 
-// fdOf is the console's descriptor, when it has one.
+// fdOf is the console's descriptor, when it has one. It is read through
+// SyscallConn, never os.File.Fd, which would switch the descriptor to
+// blocking mode (Close would no longer interrupt a read or write).
 func fdOf(c console) (int, bool) {
-	f, ok := c.(interface{ Fd() uintptr })
+	sc, ok := c.(interface {
+		SyscallConn() (syscall.RawConn, error)
+	})
 	if !ok {
 		return -1, false
 	}
-	return int(f.Fd()), true //nolint:gosec // G115: descriptors fit an int.
+	rc, err := sc.SyscallConn()
+	if err != nil {
+		return -1, false
+	}
+	fd := -1
+	if err := rc.Control(func(u uintptr) { fd = int(u) }); err != nil || fd < 0 { //nolint:gosec // G115: descriptors fit an int.
+		return -1, false
+	}
+	return fd, true
 }

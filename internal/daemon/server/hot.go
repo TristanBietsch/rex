@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"slices"
 	"sort"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/handoff"
@@ -51,6 +53,34 @@ type AdoptSession struct {
 
 var errHotUnsupported = errors.New("hot restart is not supported here; use rex daemon restart -cold")
 
+// errRestarting refuses a spawn, or a delete or completion of a frozen
+// session, while a hot restart is under way: the handoff must name exactly
+// the sessions that are running when the image is replaced.
+var errRestarting = errors.New("rex-daemon is hot-restarting; retry in a few seconds")
+
+// startGuard refuses a new supervisor while a hot restart is under way.
+func (s *Server) startGuard() error {
+	if s.hotActive.Load() {
+		return errRestarting
+	}
+	return nil
+}
+
+// frozenGuard refuses to stop a session with a FreezeFunc while a hot
+// restart is under way.
+func (s *Server) frozenGuard(id string) error {
+	if !s.hotActive.Load() {
+		return nil
+	}
+	s.freezeMu.Lock()
+	_, ok := s.freezeFuncs[id]
+	s.freezeMu.Unlock()
+	if ok {
+		return errRestarting
+	}
+	return nil
+}
+
 // RegisterFreeze stores a session's FreezeFunc for a hot restart.
 func (s *Server) RegisterFreeze(sessionID string, fn pty.FreezeFunc) {
 	s.freezeMu.Lock()
@@ -79,6 +109,22 @@ func (s *Server) liveWithoutFreeze() []string {
 		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
 			if _, ok := s.freezeFuncs[sum.ID]; !ok {
 				out = append(out, sum.ID)
+			}
+		default:
+		}
+	}
+	return out
+}
+
+// liveNotIn lists the running sessions (queued, working, needs you) whose
+// id is not in ids.
+func (s *Server) liveNotIn(ids map[string]bool) []string {
+	var out []string
+	for _, sum := range s.cfg.Store.Snapshot() {
+		switch sum.State {
+		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
+			if !ids[sum.ID] {
+				out = append(out, s.shortOf(sum.ID))
 			}
 		default:
 		}
@@ -125,6 +171,13 @@ func (s *Server) shortOf(id string) string {
 		return sess.ShortID
 	}
 	return id
+}
+
+// getListener is the listening socket once Serve has bound it.
+func (s *Server) getListener() *net.UnixListener {
+	s.acceptMu.Lock()
+	defer s.acceptMu.Unlock()
+	return s.listener
 }
 
 // pauseAccept stops taking connections: new ones wait in the listen
@@ -201,7 +254,7 @@ func (s *Server) dropOtherConns(keep *clientConn, d time.Duration) {
 // the connection that asked (kept open to hear a failure); nil for none.
 func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 	h := s.cfg.Hot
-	if h == nil || !handoff.Supported || s.listener == nil {
+	if h == nil || !handoff.Supported || s.getListener() == nil {
 		return errHotUnsupported
 	}
 	if !s.hotMu.TryLock() {
@@ -233,6 +286,8 @@ func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 	}
 
 	slog.Info("server: hot restart: quiescing")
+	s.hotActive.Store(true)
+	defer s.hotActive.Store(false) // reached only when this image goes on
 	s.pauseAccept()
 	s.dropOtherConns(requester, time.Second)
 	fctx, cancelFreeze := context.WithTimeout(ctx, freezeBudget)
@@ -246,6 +301,17 @@ func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 		s.resumeAccept()
 		return fmt.Errorf("freeze: %w", err)
 	}
+	// A session that started after the first check (it got past the spawn
+	// guard just before the flag was set) is running but not frozen: it
+	// would lose its PTY at exec.
+	frozen := make(map[string]bool, len(sessions))
+	for _, hs := range sessions {
+		frozen[hs.ID] = true
+	}
+	if ids := s.liveNotIn(frozen); len(ids) > 0 {
+		rollback()
+		return fmt.Errorf("session(s) %v started during the restart; retry in a few seconds", ids)
+	}
 	for _, hs := range sessions {
 		if sess, ok := s.cfg.Store.Get(hs.ID); ok {
 			if err := state.WriteMeta(s.cfg.StateDir, sess); err != nil {
@@ -254,15 +320,22 @@ func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 			}
 		}
 	}
-	lf, err := s.listener.File()
+	lf, err := s.getListener().File()
 	if err != nil {
 		rollback()
 		return fmt.Errorf("listener: %w", err)
 	}
 	defer lf.Close()
+	// Not lf.Fd(): it would switch the shared open file description, and so
+	// the live listener, to blocking mode, which a rollback cannot undo.
+	lfd, err := rawFD(lf)
+	if err != nil {
+		rollback()
+		return fmt.Errorf("listener: %w", err)
+	}
 	file := handoff.File{
 		Format: handoff.Format, PID: pid, UID: os.Getuid(), Build: s.cfg.Build,
-		Socket: s.cfg.Socket, ListenerFD: int(lf.Fd()), LockFD: h.LockFD, //nolint:gosec // G115
+		Socket: s.cfg.Socket, ListenerFD: lfd, LockFD: h.LockFD,
 		Sessions: sessions,
 	}
 	path := handoff.Path(s.cfg.StateDir, pid)
@@ -275,8 +348,13 @@ func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 	for _, hs := range sessions {
 		fds = append(fds, hs.FD)
 	}
+	// No fork from here to the exec (or the rollback): a child forked while
+	// these fds are inheritable would keep the lock, the listener and every
+	// session's PTY master. os/exec takes ForkLock for reading to fork.
+	syscall.ForkLock.Lock()
 	restore, err := handoff.Inherit(fds...)
 	if err != nil {
+		syscall.ForkLock.Unlock()
 		_ = os.Remove(path)
 		rollback()
 		return err
@@ -285,6 +363,7 @@ func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 	err = h.Exec(h.Exe, h.Argv(path), os.Environ())
 	// Still here: the exec failed and this image goes on.
 	restore()
+	syscall.ForkLock.Unlock()
 	_ = os.Remove(path)
 	rollback()
 	slog.Error("server: hot restart: exec failed; still running", "err", err)
@@ -295,7 +374,8 @@ func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 func (s *Server) startAdopted(ctx context.Context) {
 	for _, a := range s.cfg.Adopt {
 		if err := adoptSession(ctx, s, a); err != nil {
-			slog.Error("server: adopt session failed", "session", a.Session.ID, "err", err)
+			slog.Error("server: adopt session failed; stopping its agent", "session", a.Session.ID, "pid", a.Adopted.PID, "err", err)
+			s.abandonAdopted(a)
 		}
 	}
 	s.cfg.Adopt = nil
@@ -356,4 +436,37 @@ func (s *Server) SwapBoards(build string) []protocol.BoardInfo {
 		out = append(out, info)
 	}
 	return out
+}
+
+// rawFD is f's descriptor, read without switching it to blocking mode.
+func rawFD(f *os.File) (int, error) {
+	rc, err := f.SyscallConn()
+	if err != nil {
+		return -1, err
+	}
+	fd := -1
+	if err := rc.Control(func(u uintptr) { fd = int(u) }); err != nil { //nolint:gosec // G115: descriptors fit an int.
+		return -1, err
+	}
+	return fd, nil
+}
+
+// abandonAdopted stops a handed-over session nothing can supervise: its
+// PTY is closed, its agent killed and reaped (it is still this process's
+// child), and the session ends failed.
+func (s *Server) abandonAdopted(a AdoptSession) {
+	if a.Adopted.File != nil {
+		_ = a.Adopted.File.Close()
+	}
+	if pid := a.Adopted.PID; pid > 0 {
+		handoff.KillTree(pid)
+		if p, err := os.FindProcess(pid); err == nil {
+			go func() { _, _ = p.Wait() }()
+		}
+	}
+	a.Session.SetExit(protocol.StateFailed, nil)
+	if err := state.WriteMeta(s.cfg.StateDir, a.Session); err != nil {
+		slog.Warn("server: adopt: persist failed session", "session", a.Session.ID, "err", err)
+	}
+	_ = s.cfg.Store.Transition(a.Session.ID, protocol.StateFailed)
 }

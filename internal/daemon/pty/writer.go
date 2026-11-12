@@ -3,6 +3,7 @@ package pty
 import (
 	"context"
 	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -39,6 +40,25 @@ type ptyWriter struct {
 	dead chan struct{} // closed when a write failed: the child is gone
 	// pauseCh parks the writer for a hot restart (pause).
 	pauseCh chan pauseReq
+	// holdMu guards hold: while it is an open channel, Send waits for it
+	// to close instead of queueing behind the park (an exec would drop the
+	// unit). Send queues under the read lock, so pause, which sets hold
+	// under the write lock, never misses a unit on its way in.
+	holdMu sync.RWMutex
+	hold   <-chan struct{}
+}
+
+// heldLocked is the open hold channel, or nil. holdMu must be held.
+func (p *ptyWriter) heldLocked() <-chan struct{} {
+	if p.hold == nil {
+		return nil
+	}
+	select {
+	case <-p.hold:
+		return nil
+	default:
+		return p.hold
+	}
 }
 
 // pauseReq asks the writer to finish its queue and park until resume
@@ -112,6 +132,9 @@ func (p *ptyWriter) run(u writeUnit, onErr func(error)) bool {
 // pause has the writer write everything queued, then park until resume
 // closes. It returns once the writer has parked, or with ctx's error.
 func (p *ptyWriter) pause(ctx context.Context, resume <-chan struct{}) error {
+	p.holdMu.Lock()
+	p.hold = resume
+	p.holdMu.Unlock()
 	req := pauseReq{ack: make(chan struct{}), resume: resume}
 	select {
 	case p.pauseCh <- req:
@@ -171,7 +194,30 @@ func (p *ptyWriter) write(u writeUnit) (bool, error) {
 
 // Send queues a unit behind earlier ones and returns false if ctx or the
 // writer ended first. It blocks only while the queue is full.
+// While the writer is parked for a hot restart it waits for the thaw.
 func (p *ptyWriter) Send(ctx context.Context, u writeUnit) bool {
+	for {
+		p.holdMu.RLock()
+		hold := p.heldLocked()
+		if hold == nil {
+			ok := p.enqueue(ctx, u)
+			p.holdMu.RUnlock()
+			return ok
+		}
+		p.holdMu.RUnlock()
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return false
+		case <-p.done:
+			return false
+		case <-p.dead:
+			return false
+		}
+	}
+}
+
+func (p *ptyWriter) enqueue(ctx context.Context, u writeUnit) bool {
 	select {
 	case p.ch <- u:
 		return true
@@ -188,7 +234,9 @@ func (p *ptyWriter) Send(ctx context.Context, u writeUnit) bool {
 // pending or being written: a reply never interrupts or waits behind input
 // (input might be mid-sequence), and is dropped instead of blocking.
 func (p *ptyWriter) TrySendReply(b []byte) bool {
-	if p.busy.Load() || len(p.ch) > 0 {
+	p.holdMu.RLock()
+	defer p.holdMu.RUnlock()
+	if p.heldLocked() != nil || p.busy.Load() || len(p.ch) > 0 {
 		return false
 	}
 	select {

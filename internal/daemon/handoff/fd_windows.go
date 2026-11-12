@@ -20,6 +20,9 @@ func Inherit(...int) (func(), error) { return func() {}, ErrUnsupported }
 // CloseOnExec does nothing on Windows (nothing is inherited).
 func CloseOnExec(...int) {}
 
+// KillTree does nothing on Windows (nothing is handed over).
+func KillTree(int) {}
+
 // Exec is not supported on Windows.
 func Exec(string, []string, []string) error { return ErrUnsupported }
 

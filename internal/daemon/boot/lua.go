@@ -96,6 +96,8 @@ type LuaHost struct {
 	opts  lua.Options
 	rt    *lua.Runtime
 	stop  func()
+	// closed: Close ran; a late Reload installs nothing.
+	closed bool
 }
 
 // StartLuaHost is StartLuaRuntime behind a LuaHost. It never fails: with no
@@ -135,6 +137,10 @@ func (h *LuaHost) Reload() error {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.closed {
+		rt.Close()
+		return nil
+	}
 	// The old dispatcher stops before the new one starts: an event is
 	// never handled twice (a handler may send input to a session).
 	if h.stop != nil {
@@ -156,6 +162,7 @@ func (h *LuaHost) Close() {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.closed = true
 	if h.stop != nil {
 		h.stop()
 		h.stop = nil

@@ -235,6 +235,54 @@ func TestHotRestartRefusedByOldBinary(t *testing.T) {
 	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "got:after") }, 10*time.Second, 20*time.Millisecond)
 }
 
+// R20 review: a tools.yaml broken between the start and the hot restart
+// does not kill the new image (and with it every session): it serves with
+// the built-in registry and says so.
+func TestHotRestartSurvivesBrokenToolsYAML(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds and runs a daemon")
+	}
+	dir, err := os.MkdirTemp("", "rexhot")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	bin := buildDaemon(t, dir)
+	stateDir := filepath.Join(dir, "state")
+	socket := filepath.Join(dir, "rex.sock")
+	tools := filepath.Join(dir, "tools.yaml")
+	require.NoError(t, os.WriteFile(tools, []byte(hotTools), 0o600))
+	d := exec.Command(bin, "-socket", socket, "-state-dir", stateDir, "-tools", tools)
+	require.NoError(t, d.Start())
+	exited := make(chan error, 1)
+	go func() { exited <- d.Wait() }()
+	t.Cleanup(func() {
+		_ = d.Process.Signal(syscall.SIGTERM)
+		select {
+		case <-exited:
+		case <-time.After(10 * time.Second):
+			_ = d.Process.Kill()
+		}
+	})
+	c, _ := hello(t, socket)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "hot", ToolID: "echo", ModelID: "hot", CWD: dir})
+	require.NoError(t, err)
+	var ack protocol.Ack
+	require.NoError(t, json.Unmarshal(env.Data, &ack))
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "PID:") }, 10*time.Second, 20*time.Millisecond)
+
+	require.NoError(t, os.WriteFile(tools, []byte("tools: [unclosed\n"), 0o600))
+	_, err = c.Do(ctx, protocol.IntentRestart, protocol.Restart{Mode: protocol.RestartHot})
+	require.Error(t, err, "a hot restart that worked never replies")
+	_ = c.Close()
+
+	c2, snap := hello(t, socket)
+	defer c2.Close()
+	require.Equal(t, d.Process.Pid, snap.DaemonPID)
+	require.NoError(t, c2.SendInput(ack.SessionID, []byte("after\n")))
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "got:after") }, 10*time.Second, 20*time.Millisecond)
+}
+
 var fdsRe = regexp.MustCompile(`FDS:([0-9,]*):END`)
 
 // spawnFDs starts the fds probe and returns the descriptors its shell had

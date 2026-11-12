@@ -228,6 +228,11 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// Expose a resize callback to subscribers (attach clients).
 	if s.cfg.RegisterResize != nil {
 		s.cfg.RegisterResize(func(c, r uint16) error {
+			if frz.active() {
+				// The handoff carries the size and screen taken at the
+				// freeze; the client resizes again once it reconnects.
+				return errFrozen
+			}
 			sizeMu.Lock()
 			size = [2]uint16{c, r}
 			sizeMu.Unlock()

@@ -116,6 +116,15 @@ func writeSwapState(st swapState) (string, error) {
 // regular file closed to group and other, written for this pid (exec keeps
 // the pid), at most an hour old.
 func readSwapState(path string) (swapState, error) {
+	// Only this board's own file (REX_TUI_SWAP is an environment value):
+	// anything else is neither read nor removed.
+	want, err := swapPath(os.Getpid())
+	if err != nil {
+		return swapState{}, err
+	}
+	if filepath.Clean(path) != filepath.Clean(want) {
+		return swapState{}, fmt.Errorf("swap state %s: not this board's swap file", path)
+	}
 	defer func() { _ = os.Remove(path) }()
 	fi, err := os.Lstat(path)
 	if err != nil {

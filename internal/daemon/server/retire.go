@@ -45,6 +45,9 @@ func (s *Server) retireDeadline(ttlSeconds int64) (time.Time, time.Duration, err
 // store (broadcasts SessionRemoved with reason), delete its directory. A
 // session that is already gone counts as success so racing deletes are safe.
 func (s *Server) deleteSession(id, reason string) error {
+	if err := s.frozenGuard(id); err != nil {
+		return err
+	}
 	start := time.Now()
 	sess, ok := s.cfg.Store.Get(id)
 	if !ok {
@@ -129,6 +132,9 @@ func (s *Server) logRestoredRetires() {
 // sessions wait; the reaper re-checks them every tick and clears them as soon
 // as they settle. Deletes run serially — each blocks on supervisor exit.
 func (s *Server) sweepRetired() {
+	if s.hotActive.Load() {
+		return // the next tick, in this image or the next, clears them
+	}
 	now := s.now()
 	claimed, waiting := s.cfg.Store.ClaimExpired(now)
 	s.noteRetireWaiting(waiting, now)

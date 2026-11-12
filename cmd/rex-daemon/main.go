@@ -169,6 +169,13 @@ func run(args []string) error {
 	// The registry follows two settings (extra_agents, model_autodetect), so it
 	// loads once the hub holds the settings.
 	reg, err := boot.LoadRegistry(*toolsPath, hub.Current())
+	if err != nil && hot != nil {
+		// After a hot restart, exiting would close every handed-over PTY:
+		// serve with the built-in registry instead (rex reload retries).
+		slog.Error("daemon: registry load failed after a hot restart; using the built-in tools until tools.yaml loads", "tools", *toolsPath, "err", err)
+		fmt.Fprintf(os.Stderr, "rex-daemon: %v (using the built-in tools)\n", err)
+		reg, err = boot.LoadRegistry("", hub.Current())
+	}
 	if err != nil {
 		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
 		return fmt.Errorf("registry: %w", err)

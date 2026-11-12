@@ -317,9 +317,12 @@ type Server struct {
 	retireWaitLogged map[string]bool
 
 	// Hot restart (hot.go).
-	freezeMu     sync.Mutex
-	freezeFuncs  map[string]pty.FreezeFunc
-	hotMu        sync.Mutex
+	freezeMu    sync.Mutex
+	freezeFuncs map[string]pty.FreezeFunc
+	hotMu       sync.Mutex
+	// hotActive is set while a hot restart quiesces and execs: spawns and
+	// stops of frozen sessions are refused (startGuard, frozenGuard).
+	hotActive    atomic.Bool
 	listener     *net.UnixListener
 	acceptMu     sync.Mutex
 	acceptPaused chan struct{}
@@ -455,7 +458,9 @@ func (s *Server) Serve(ctx context.Context) error {
 	} else if l, ours, err = listenSocket(ctx, s.cfg.Socket); err != nil {
 		return err
 	}
+	s.acceptMu.Lock()
 	s.listener = l
+	s.acceptMu.Unlock()
 	defer func() {
 		_ = l.Close()
 		removeOwnSocket(s.cfg.Socket, ours)
@@ -1082,6 +1087,10 @@ func (s *Server) UnregisterComplete(sessionID string) {
 // Unlike StopSession, this does NOT block on supervisor exit — the closure
 // is a non-blocking send to a buffered channel.
 func (s *Server) CompleteSession(sessionID string) {
+	if err := s.frozenGuard(sessionID); err != nil {
+		slog.Warn("session: complete refused during hot restart", "session", sessionID)
+		return
+	}
 	s.completeMu.Lock()
 	fn := s.completeFuncs[sessionID]
 	s.completeMu.Unlock()
