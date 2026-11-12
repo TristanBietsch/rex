@@ -179,12 +179,6 @@ func renderFullScreen(m Model, w, h int) string {
 	header := renderHeader(m, cw)
 	hr := renderHR(cw)
 	helpline := renderHelpLine(m, cw)
-	if m.Store != nil {
-		if show, ok := m.Store.Get("show_help_bar").(bool); ok && !show {
-			// Keep the row to preserve layout, but blank it out.
-			helpline = padLine("", cw)
-		}
-	}
 
 	var bottom string
 	switch m.Focus {

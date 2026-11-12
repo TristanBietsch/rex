@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: a long DONE column's keys (`4 show` / `4 hide` and `:prune clear`)
+  moved from its title line to the end of the bottom help line, with the
+  other key hints. They drop on narrow terminals before the board keys do.
+- `show_help_bar` now hides only the bottom key hints: errors and notices
+  still show on that line while it is off.
+
 - Qwen Code, Cursor CLI and Grok Build are `enabled_by_default: true` again:
   visible in the wizard when installed and `extra_agents` is on. `rex setup`
   offers them under the same rule.

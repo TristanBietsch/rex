@@ -39,6 +39,20 @@ func goldenBoard(t *testing.T, sz goldenSize, detailed bool) Model {
 	return m
 }
 
+// goldenDoneFold is the golden board with a Done column long enough to fold:
+// its keys sit at the end of the help line.
+func goldenDoneFold(t *testing.T, sz goldenSize) Model {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	for i := range 3 {
+		m.Sessions = append(m.Sessions, protocol.SessionSummary{
+			ID: fmt.Sprintf("d%d", i), ShortID: fmt.Sprintf("dd0%d", i), ToolID: "claude",
+			Slug: fmt.Sprintf("shipped-%d", i), State: protocol.StateDone, LastEventAt: goldenNow.Add(-time.Hour),
+		})
+	}
+	return m
+}
+
 type goldenScreen struct {
 	name   string
 	styled bool // also pin the TrueColor SGR output
@@ -56,12 +70,13 @@ func (sc goldenScreen) sizesOf() []goldenSize {
 // goldenScreenSizes overrides the sizes of the screens that are pinned at
 // others than goldenSizes.
 var goldenScreenSizes = map[string][]goldenSize{
-	"usage":        {{80, 24}, {120, 40}, goldenMobile},
-	"header_meter": {{60, 24}, {80, 24}, {120, 40}},
-	"undo_confirm": {{80, 24}, {120, 40}, goldenMobile},
-	"undo_shared":  {{80, 24}, {120, 40}, goldenMobile},
-	"undo_forced":  {{80, 24}, {120, 40}, goldenMobile},
-	"undo_done":    {{80, 24}, {120, 40}, goldenMobile},
+	"usage":           {{80, 24}, {120, 40}, goldenMobile},
+	"header_meter":    {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm":    {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":     {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":     {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":       {{80, 24}, {120, 40}, goldenMobile},
+	"board_done_fold": {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -71,6 +86,14 @@ func goldenScreens() []goldenScreen {
 	return []goldenScreen{
 		{"board_simple", true, func(t *testing.T, sz goldenSize) Model { return goldenBoard(t, sz, false) }},
 		{"board_detailed", false, func(t *testing.T, sz goldenSize) Model { return goldenBoard(t, sz, true) }},
+		{"board_done_fold", false, goldenDoneFold},
+		{"board_hints_off", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenDoneFold(t, sz)
+			if err := m.Store.Set("show_help_bar", false); err != nil {
+				t.Fatal(err)
+			}
+			return m
+		}},
 		{"help", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusHelp
