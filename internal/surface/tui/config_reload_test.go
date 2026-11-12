@@ -255,3 +255,39 @@ func TestConfigTickEndsWhenTheTUIExits(t *testing.T) {
 	close(done)
 	require.Nil(t, configTick(done)(), "a closed exit signal ends the timer at once")
 }
+
+// A reload that flips window_border re-lays the board out (the frame takes a
+// cell on each side), and window_border_color changes the frame's color,
+// without any other event.
+func TestConfigReloadRelaysOutOnWindowBorderChange(t *testing.T) {
+	m, cfg, dir := reloadModel(t)
+	m.TermW, m.TermH, m.Width, m.Height = 100, 30, 100, 30
+
+	writeFile(t, cfg, "window_border: true\n")
+	next, _ := m.Update(loadConfig(cfg, dir, m.configStamp, false)())
+	m = next.(Model)
+	require.Equal(t, 98, m.Width, "the frame takes a cell on each side")
+	require.Equal(t, 28, m.Height)
+
+	writeFile(t, cfg, "window_border: true\nwindow_border_color: \"#ff0000\"\n")
+	next, _ = m.Update(loadConfig(cfg, dir, m.configStamp, false)())
+	m = next.(Model)
+	require.Equal(t, "#ff0000", borderColorChoice(m), "the new color is in force")
+	require.Equal(t, 98, m.Width)
+
+	writeFile(t, cfg, "window_border: false\n")
+	next, _ = m.Update(loadConfig(cfg, dir, m.configStamp, false)())
+	m = next.(Model)
+	require.Equal(t, 100, m.Width, "the frame is gone and the board is full width again")
+	require.Equal(t, 30, m.Height)
+}
+
+// The frame's palette comes from the user's theme files too.
+func TestBorderPaletteResolvesUserThemes(t *testing.T) {
+	m := themeModel(t)
+	m.Themes = userThemes(t, map[string]string{"daylight.yaml": "dark: false\n"})
+	require.NoError(t, m.Store.Set("theme", "daylight"))
+	require.False(t, borderPalette(m).Dark, "the user theme's own palette")
+	require.NoError(t, m.Store.Set("theme", "ghost"))
+	require.True(t, borderPalette(m).Dark, "an unknown theme is the default palette")
+}

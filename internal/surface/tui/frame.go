@@ -114,7 +114,7 @@ func borderPalette(m Model) theme.Palette {
 			name = s
 		}
 	}
-	p, _ := theme.Get(name)
+	p, _ := m.Themes.Get(name) // the user's theme files, then the built-ins
 	return p
 }
 
