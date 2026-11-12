@@ -196,7 +196,7 @@ func TestWs_InitAddsGitExclude(t *testing.T) {
 	require.True(t, decode[info](t, r).GitExcluded)
 	b, err := os.ReadFile(filepath.Join(proj, ".git", "info", "exclude"))
 	require.NoError(t, err)
-	require.Equal(t, "/.rex/\n", string(b))
+	require.Equal(t, "/.rex/\n/.rex/audit.jsonl\n", string(b))
 
 	require.NoError(t, RunWs([]string{"init"}))
 	require.False(t, decode[info](t, r).GitExcluded, "second init adds nothing")
