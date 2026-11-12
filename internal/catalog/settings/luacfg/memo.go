@@ -95,6 +95,9 @@ func memoKey(o Opts) string {
 // settings; a process that never saw a good evaluation has none.
 func Load(ctx context.Context, o Opts) Result {
 	stamp := Stamp(o)
+	if o.Version != "" {
+		stamp += "\x00v:" + o.Version
+	}
 	key := memoKey(o)
 	memoMu.Lock()
 	defer memoMu.Unlock()

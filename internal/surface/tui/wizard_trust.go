@@ -130,7 +130,10 @@ func wizardTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, pr
 			m.Err = "trust: settings are not loaded; use ctrl+t or `rex trust`"
 			return m, req, false
 		}
-		next, changed, err := settings.AppendTrustDir(m.Store.String(trustSettingID), o.AlwaysEntry)
+		// The YAML layer's own list: a broken config.lua fails the
+		// effective value closed (empty), and saving that plus the new
+		// folder would drop every folder config.yaml lists.
+		next, changed, err := settings.AppendTrustDir(m.Store.FileString(trustSettingID), o.AlwaysEntry)
 		if err != nil {
 			m.Err = "trust: " + err.Error()
 			return m, req, false
@@ -260,7 +263,7 @@ func runTrustCmd(m Model, c cmdCall) (Model, tea.Cmd) {
 		m.Err = "trust: " + err.Error()
 		return m, nil
 	}
-	next, changed, err := settings.AppendTrustDir(m.Store.String(trustSettingID), entry)
+	next, changed, err := settings.AppendTrustDir(m.Store.FileString(trustSettingID), entry) // YAML layer, see wizardTrustRequest
 	if err != nil {
 		m.Err = "trust: " + err.Error()
 		return m, nil

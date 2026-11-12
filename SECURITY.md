@@ -123,6 +123,20 @@ filesystem permissions.
   characters; errors and warnings are flattened before display. A
   `config.lua` owned by another user being evaluated, or bytes from
   `config.lua` reaching the terminal unflattened, are in scope.
+- **A workspace's `.rex/config.lua`** is untrusted input: a cloned
+  repository can ship one. rex never reads it before `rex ws trust` (trust
+  lives in `~/.local/share/rex/workspace-trust.json`, outside every `.rex/`,
+  bound to the real folder, the workspace id and the SHA-256 of the file
+  you trusted; `rex ws trust` shows the file, flattened, with its size and
+  SHA-256, asks at a terminal and refuses agents and pipes), opens it without following a symlink, and checks the opened file
+  (yours, not group- or world-writable, one hard link, 256 KiB). Even
+  trusted it runs with no `require` and may set only an allow-list of
+  display settings. Running an untrusted or edited-since-trusted workspace
+  file, a workspace file setting anything outside the allow-list, or a
+  crafted repository getting itself trusted are in scope. What a trusted
+  workspace sets among the allowed display settings is not. On Windows
+  the owner, mode and hard-link checks do not apply (ACLs are out of
+  scope, as for `config.lua`).
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the
@@ -149,7 +163,12 @@ filesystem permissions.
 - Folders you list in the `auto_trust_dirs` setting (`rex trust`, `:trust`,
   the wizard's ctrl+a) or trust for one session (`trust_folder`: `rex new
   -trust`, the wizard's ctrl+t). The folder those offer is the repo's own
-  folder, never its parent. For sessions there,
+  folder, never its parent. Every CLI path that changes a trust setting
+  (`skip_permissions`, `auto_trust_dirs`) works only at a terminal: adding
+  with `rex trust`, `rex config set` and `reset`, and `rex setup
+  -auto-trust` (agent mode, `-o` and pipes exit 6, `needs_terminal`). This
+  is a speed bump for agents, not a boundary, since anything running as you
+  can edit `config.yaml` or `config.lua` directly. For sessions there,
   rex starts the agent with the folder trusted (Antigravity, for that
   session only) or answers its "trust this folder" dialog (Claude Code),
   so the repository's own agent settings apply without that prompt. The

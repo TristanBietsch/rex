@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -42,6 +43,29 @@ type trustResultData struct {
 	Value   string `json:"value"`
 }
 
+// trustAtTerminal runs rex trust as a person at a terminal (text, stdin and
+// stdout terminals): the only way it adds a folder.
+func trustAtTerminal(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	var out, errw bytes.Buffer
+	env := core.Env{Getenv: func(string) string { return "" }, Width: 80, Scheme: "default", GOOS: "linux",
+		InTTY: true, OutTTY: true, ErrTTY: true}
+	p, err := core.NewPrinter(core.FormatFlags{NoColor: true}, env, &out, &errw)
+	require.NoError(t, err)
+	core.SetOut(p)
+	t.Cleanup(func() { core.SetOut(nil) })
+	err = RunTrust(args)
+	return out.String(), err
+}
+
+// trustAdd adds args at a terminal and requires success.
+func trustAddOK(t *testing.T, args ...string) string {
+	t.Helper()
+	out, err := trustAtTerminal(t, args...)
+	require.NoError(t, err)
+	return out
+}
+
 func runTrustJSON(t *testing.T, args ...string) trustResultData {
 	t.Helper()
 	out, err := themeRun(t, "json", func() error { return RunTrust(args) })
@@ -58,19 +82,16 @@ func TestRunTrust_AddListRemove(t *testing.T) {
 	other := filepath.Join(home, "dev", "other")
 	require.NoError(t, os.MkdirAll(other, 0o700))
 
-	d := runTrustJSON(t, project)
-	require.Equal(t, "add", d.Action)
-	require.Equal(t, project, d.Dir, "the exact folder is reported")
-	require.True(t, d.Changed)
+	out := trustAddOK(t, project)
+	require.Contains(t, out, "trusted "+project, "the exact folder is reported")
 	require.Equal(t, project, storedTrustDirs(t), "stored as typed")
 
 	// Adding again, or a folder inside it, changes nothing.
-	d = runTrustJSON(t, filepath.Join(project, "sub"))
-	require.False(t, d.Changed)
+	out = trustAddOK(t, filepath.Join(project, "sub"))
+	require.Contains(t, out, "already trusted")
 	require.Equal(t, project, storedTrustDirs(t))
 
-	_, err := themeRun(t, "text", func() error { return RunTrust([]string{"~/dev/other"}) })
-	require.NoError(t, err)
+	trustAddOK(t, "~/dev/other")
 	require.Equal(t, project+string(filepath.ListSeparator)+"~/dev/other", storedTrustDirs(t))
 
 	text, err := themeRun(t, "text", func() error { return RunTrust([]string{"-ls"}) })
@@ -87,7 +108,7 @@ func TestRunTrust_AddListRemove(t *testing.T) {
 	require.Equal(t, "~/dev/other", storedTrustDirs(t))
 
 	// Removing a folder that is not listed is a no-op, not an error.
-	d = runTrustJSON(t, "-rm", project)
+	d := runTrustJSON(t, "-rm", project)
 	require.False(t, d.Changed)
 	require.Equal(t, "~/dev/other", storedTrustDirs(t))
 }
@@ -98,8 +119,8 @@ func TestRunTrust_DefaultIsSuggestionForCwd(t *testing.T) {
 	require.NoError(t, os.MkdirAll(sub, 0o700))
 	t.Chdir(sub)
 
-	d := runTrustJSON(t)
-	require.Equal(t, project, d.Dir, "the repo root, never its parent")
+	out := trustAddOK(t)
+	require.Contains(t, out, "trusted "+project, "the repo root, never its parent")
 	require.Equal(t, "~/dev/proj", storedTrustDirs(t))
 }
 
@@ -166,7 +187,7 @@ func TestRunTrust_RemoveIgnoredEntry(t *testing.T) {
 // the list" alone reads as "no longer trusted".
 func TestRunTrust_RemoveReportsCoveringEntry(t *testing.T) {
 	home, project := trustHome(t)
-	runTrustJSON(t, filepath.Join(home, "dev"))
+	trustAddOK(t, filepath.Join(home, "dev"))
 	runTrustJSON(t, "-rm", project)
 
 	out, err := themeRun(t, "json", func() error { return RunTrust([]string{"-rm", project}) })
@@ -176,4 +197,43 @@ func TestRunTrust_RemoveReportsCoveringEntry(t *testing.T) {
 	text, err := themeRun(t, "text", func() error { return RunTrust([]string{"-rm", project}) })
 	require.NoError(t, err)
 	require.Contains(t, text, "still trusted")
+}
+
+// Adding a trusted folder is for the person at the terminal, as rex ws
+// trust is: agent mode, a data format, or stdin or stdout not a terminal
+// exit 6 and write nothing, and no flag skips it. Removing and listing
+// stay scriptable (they never grant trust).
+func TestRunTrust_AddNeedsATerminal(t *testing.T) {
+	_, project := trustHome(t)
+	for _, format := range []string{"text", "json", "agent", "txt"} {
+		_, err := themeRun(t, format, func() error { return RunTrust([]string{project}) })
+		requireExit(t, err, core.ExitOperationRefused)
+		require.ErrorContains(t, err, "terminal")
+		require.Empty(t, storedTrustDirs(t), format)
+	}
+	for _, tty := range []core.Env{{InTTY: true}, {OutTTY: true, ErrTTY: true}} {
+		tty.Getenv, tty.Width, tty.GOOS = func(string) string { return "" }, 80, "linux"
+		var out bytes.Buffer
+		p, err := core.NewPrinter(core.FormatFlags{NoColor: true}, tty, &out, &out)
+		require.NoError(t, err)
+		core.SetOut(p)
+		requireExit(t, RunTrust([]string{project}), core.ExitOperationRefused)
+		core.SetOut(nil)
+		require.Empty(t, storedTrustDirs(t))
+	}
+	for _, args := range [][]string{{"-o", "json", project}, {"--agent", project}, {"-o", "text", "-o", "agent", project}} {
+		_, err := trustAtTerminal(t, args...)
+		requireExit(t, err, core.ExitOperationRefused)
+		require.Empty(t, storedTrustDirs(t), args)
+	}
+	trustAddOK(t, project)
+	require.Equal(t, project, storedTrustDirs(t))
+
+	// -ls and -rm work without a terminal.
+	out, err := themeRun(t, "agent", func() error { return RunTrust([]string{"-ls"}) })
+	require.NoError(t, err)
+	require.Contains(t, out, project)
+	d := runTrustJSON(t, "-rm", project)
+	require.True(t, d.Changed)
+	require.Empty(t, storedTrustDirs(t))
 }

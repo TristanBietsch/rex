@@ -6,7 +6,9 @@ Saving is sparse: rex re-reads the file and writes only the keys it changed (`re
 
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
 
-Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`. A broken `config.lua` keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again.
+Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`, then (in rex commands run inside a workspace you trusted, and on its board) the workspace's `.rex/config.lua` ([workspaces.md](workspaces.md#workspace-settings)). A broken `config.lua` (either one) keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again. Saving those two from `rex trust`, `:trust` or the wizard edits the list `config.yaml` holds, so a broken `config.lua` never makes them drop the folders already there.
+
+A workspace `.rex/config.lua` may set only display settings: `theme`, `spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `window_border`, `window_border_color`, `column_layout`, `mobile_layout`, `mouse_enabled`, `attach_scrollback_lines`, `screensaver_enabled`, `screensaver_after_minutes`, `board_filter`, `search`, `timestamps`, `summary_preview`, `waiting_section`, `usage_meter`, `summary_detail`, `desc_animation` and `attach_banner`. Every other setting is refused with a warning.
 
 ## Files
 
@@ -15,6 +17,7 @@ Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`. A brok
 | `~/.config/rex/config.yaml` | Persisted values |
 | `~/.config/rex/config.lua` | Optional Lua settings and themes; wins over `config.yaml` while `lua_config` is on ([howto/lua-config.md](howto/lua-config.md)) |
 | `~/.config/rex/lua/` | Modules `config.lua` may `require` |
+| `<workspace>/.rex/config.lua` | Optional workspace settings, on top of `config.lua`; read only after `rex ws trust` ([workspaces.md](workspaces.md#workspace-settings)) |
 | `~/.config/rex/themes/<name>.yaml` | Your own themes ([themes.md](themes.md)) |
 
 ## Commands
@@ -111,7 +114,7 @@ The three bundled themes are theme files that ship inside rex; a file of your ow
 | `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`cc`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, so changes apply immediately; the daemon reads it at startup as its default |
 | `screensaver_enabled` | bool | `true` | | After `screensaver_after_minutes` with no key or click, show a small `∴ rex` with the counts. The key or click that wakes it does nothing else. See [tui.md](tui.md#screensaver) |
 | `screensaver_after_minutes` | int | `5` | 1–120 | Idle minutes before the screensaver shows. Overlays, prompts, the wizard and the attach popup time out too; waking returns to them. A change applies within a minute |
-| `skip_permissions` | bool | `false` | | Start Claude Code and Antigravity with `--dangerously-skip-permissions` (the tool's `skip_permissions_args`). Agents then edit files and run commands without asking you first. Only applies in a trusted folder: one under `auto_trust_dirs`, or one trusted for that session (`ctrl+t` / `ctrl+a` in the wizard, `rex new -trust`); anywhere else the flag is left off and the daemon log says `skip_permissions ignored: folder not trusted`. Off by default; read at each spawn (and each resume), so it applies to the next session. A change made through rex (`rex config set` / `reset`, the Settings page, `rex setup`) reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off. See [SECURITY.md](../SECURITY.md) |
+| `skip_permissions` | bool | `false` | | Start Claude Code and Antigravity with `--dangerously-skip-permissions` (the tool's `skip_permissions_args`). Agents then edit files and run commands without asking you first. Only applies in a trusted folder: one under `auto_trust_dirs`, or one trusted for that session (`ctrl+t` / `ctrl+a` in the wizard, `rex new -trust`); anywhere else the flag is left off and the daemon log says `skip_permissions ignored: folder not trusted`. Off by default; read at each spawn (and each resume), so it applies to the next session. `rex config set` / `reset` change it only at a terminal (exit 6 for agents and pipes). A change made through rex (`rex config set` / `reset`, the Settings page, `rex setup`) reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off. See [SECURITY.md](../SECURITY.md) |
 | `screensaver_keep_awake` | bool | `true` | | macOS only: keep the display from sleeping while the screensaver shows (`caffeinate -d`, stopped when it goes away or rex exits). Does nothing on other systems. See [tui.md](tui.md#keep-awake-macos) |
 | `board_hidden_sections` | string | `""` | | Board sections hidden at startup: comma-separated ids from `needs`, `waiting`, `working`, `done` (for example `done`). Unknown ids are ignored, and a list naming every section is ignored. `zh`, `z1`-`z9` and `:filter` change it for the current run; `:bg` keeps that choice for the next start, which overrides this setting once. Read at startup only. See [tui.md](tui.md#filters) |
 
@@ -156,7 +159,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `default_spawn_tool` | string | `claude` | Tool id for `i` quick-spawn |
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
-| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex trust`, the wizard's `ctrl+a`, `:trust`, `rex setup` or `rex config set`; all refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
+| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex trust`, the wizard's `ctrl+a`, `:trust`, `rex setup -auto-trust` or `rex config set` (the CLI ones only at a terminal; exit 6 for agents and pipes); all refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
 
@@ -181,7 +184,7 @@ A per-session trust (`ctrl+t`, `rex new -trust`) acts as if the folder were list
 
 If a dialog shows up in a folder that is not trusted, the session waits for you and the daemon log says `trust dialog shown; folder not trusted (rex trust, or ctrl+t in the wizard)` once. `rex doctor` warns about entries the daemon would ignore or that do not exist.
 
-`rex setup` asks the same question once, with **no** as the default answer. When you run it inside a git checkout, it suggests that checkout's root (or the folder you are in, outside a checkout), if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
+`rex setup` asks the same question once, with **no** as the default answer. When you run it inside a git checkout, it suggests that checkout's root (or the folder you are in, outside a checkout), if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Both need a terminal for this setting (exit 6 in agent mode, with `-o` or a pipe). Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
 
 The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
 
@@ -212,9 +215,13 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 |----|------|---------|---------|
 | `sound_enabled` | bool | `true` | |
 | `soundset` | enum | `factorio` | `factorio`, `evangelion`, `bell`, `chiptune`, `off` |
-| `master_volume` | float | `0.80` | `0.0`–`1.0` |
+| `master_volume` | int | `40` | `0`–`50` |
 | `notify_on_state_change` | bool | `true` | |
 | `boot_voice` | bool | `true` | |
+
+`master_volume` scales every sound linearly: the gain is the value / 50, so `40` is 80% and `50` is full volume. The settings page and `rex config get`/`list` (text and md output) show `max` at 50; `txt`, `agent` and JSON output keep the number. On the settings page ◂ ▸ step by 1.
+
+Before the 0–50 scale it was a float from `0.0` to `1.0`. An old value converts on load, in memory, to round(value × 50) (`0.8` → 40); `config.yaml` keeps the old value until you change the volume. The rule: a decimal literal from 0 to 1 (`0.8`, `1.0`, `0.0`, also in `rex config set`) is the old scale; a whole number (`1`, `0`, `40`) is the new one, so `1.0` means 50 and `1` means 1. In `config.lua` a number has no int/float distinction, so only a fraction (`0.8`) is read as the old scale; `1` and `1.0` both mean 1. A fraction outside 0–1 (`1.5`) is refused.
 
 `boot_voice` plays a short spoken "rex" in the lifeOS boot voice (macOS Ralph, flat ~94 Hz robotic monotone, no effects; original audio, generated by `internal/features/audio/voice/gen.sh`) right after the startup tone when the board appears. Independent of `soundset`; requires `sound_enabled` and scales with `master_volume`.
 

@@ -371,9 +371,9 @@ var Registry = []Setting{
 	},
 	{
 		ID: "master_volume", Label: "Master volume", Section: SectionAudio, Apply: ApplyLive,
-		Type: TypeFloat, Default: 0.80,
-		Min: 0.0, Max: 1.0,
-		Help: "Linear scale applied to every event PCM at playback.",
+		Type: TypeInt, Default: VolumeDefault,
+		Min: 0, Max: VolumeMax, MaxText: "max", Migrate: migrateVolume,
+		Help: "Volume of every sound, 0 (silent) to 50 (max). An older config's 0.0–1.0 value is read as that share of 50.",
 	},
 	{
 		ID: "notify_on_state_change", Label: "State-change sounds", Section: SectionAudio, Apply: ApplyLive,

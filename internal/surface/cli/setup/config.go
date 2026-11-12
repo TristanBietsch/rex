@@ -90,8 +90,20 @@ type configRow struct {
 	Default any    `json:"default"`
 	// Source is "default", "file" (config.yaml) or "lua" (config.lua).
 	Source string `json:"source"`
-	// SetAt is where config.lua sets it ("config.lua:12"), for source lua.
+	// SetAt is where config.lua sets it ("config.lua:12", or the
+	// workspace's "/path/.rex/config.lua:3"), for source lua.
 	SetAt string `json:"set_at,omitempty"`
+	// Display is Value as the human formats show it ("max" for
+	// master_volume at 50); "" means fmt.Sprint(Value).
+	Display string `json:"-"`
+}
+
+// display is the human text of r's value.
+func (r configRow) display() string {
+	if r.Display != "" {
+		return r.Display
+	}
+	return fmt.Sprint(r.Value)
 }
 
 // legacyConfigRow is the shape -json has always printed.
@@ -109,6 +121,9 @@ func sourceText(src, at string) string {
 	case settings.SourceFile:
 		return "config.yaml"
 	case settings.SourceLua:
+		if settings.WorkspaceSetAt(at) {
+			return "workspace " + at
+		}
 		return strings.TrimSpace("lua " + at)
 	case settings.SourceDefault:
 	}
@@ -119,7 +134,7 @@ func configRows(store *settings.Store) []configRow {
 	rows := make([]configRow, 0, len(settings.Registry))
 	for _, s := range settings.Registry {
 		rows = append(rows, configRow{ID: s.ID, Section: string(s.Section), Value: store.Get(s.ID), Default: s.Default,
-			Source: string(store.Source(s.ID)), SetAt: store.SetAt(s.ID)})
+			Source: string(store.Source(s.ID)), SetAt: store.SetAt(s.ID), Display: store.Display(s.ID)})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Section != rows[j].Section {
@@ -146,7 +161,7 @@ func configListView(rows []configRow) core.View {
 			r := rows[i]
 			txt = append(txt, fmt.Sprintf("  %-26s %v", r.ID, r.Value))
 			src := core.Cell{Text: sourceText(r.Source, r.SetAt), Tone: core.ToneDim}
-			cells = append(cells, []core.Cell{{Text: r.ID}, {Text: fmt.Sprint(r.Value)}, src})
+			cells = append(cells, []core.Cell{{Text: r.ID}, {Text: r.display()}, src})
 		}
 		v = append(v, core.Section{Title: sec},
 			core.KV{Txt: strings.Join(txt, "\n")},
@@ -224,9 +239,9 @@ func configGet(args []string) error {
 	}
 	id := rest[0]
 	val, src, at := store.String(id), string(store.Source(id)), store.SetAt(id)
-	text := val
+	text := store.Display(id)
 	if at != "" {
-		text = val + "  (" + sourceText(src, at) + ")"
+		text += "  (" + sourceText(src, at) + ")"
 	}
 	fields := []core.Field{{Key: "id", Val: id}, {Key: "value", Val: val}, {Key: "source", Val: src}}
 	if at != "" {
@@ -256,11 +271,15 @@ func configSet(args []string) error {
 	if err := store.Set(rest[0], rest[1]); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
+	// After Set, so an unknown id or a refused value exits 5 first.
+	if err := requireTerminalForSetting("config set", rest[0], "rex config set "+rest[0]+" "+rest[1]); err != nil {
+		return err
+	}
 	if err := store.Save(path); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	reloadDaemonForTrust(rest[0])
-	return emitConfigChange("set", rest[0], store.String(rest[0]))
+	return emitConfigChange("set", rest[0], store.String(rest[0]), store.Display(rest[0]))
 }
 
 func configReset(args []string) error {
@@ -280,11 +299,14 @@ func configReset(args []string) error {
 	if err := store.Reset(rest[0]); err != nil {
 		return core.NewExitError(core.ExitInvalidArgs, err.Error())
 	}
+	if err := requireTerminalForSetting("config reset", rest[0], "rex config reset "+rest[0]); err != nil {
+		return err
+	}
 	if err := store.Save(path); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	reloadDaemonForTrust(rest[0])
-	return emitConfigChange("reset", rest[0], store.String(rest[0]))
+	return emitConfigChange("reset", rest[0], store.String(rest[0]), store.Display(rest[0]))
 }
 
 // reloadDaemonForTrust tells a running daemon to re-read config.yaml right
@@ -302,10 +324,11 @@ func reloadDaemonForTrust(id string) {
 }
 
 // emitConfigChange reports a set or reset. txt stays silent, as it always
-// was.
-func emitConfigChange(verb, id, value string) error {
+// was. display is value as the human line shows it ("max"); the data and
+// agent fields keep value.
+func emitConfigChange(verb, id, value, display string) error {
 	p := core.Out()
-	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: fmt.Sprintf("%s %s = %s", verb, id, value), Silent: true}
+	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: fmt.Sprintf("%s %s = %s", verb, id, display), Silent: true}
 	return p.Emit(core.Result{
 		Cmd:  "config",
 		Data: configValueData{ID: id, Value: value},

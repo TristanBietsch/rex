@@ -14,6 +14,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
+	"github.com/tristanbietsch/rex/internal/workspace/wsconfig"
 )
 
 // Settings that config.lua sets are locked: the TUI shows them but never
@@ -47,17 +48,24 @@ func settingLocked(m *Model, id string) bool {
 }
 
 // settingLockBadge is the muted marker a locked row shows next to its
-// value, "" for other rows. It is the only lock rendering, so a settings
-// page rewrite has one helper to port.
+// value, "" for other rows: "lua" for the user's config.lua, "ws" for a
+// workspace's .rex/config.lua (at most 3 cells, the room the page keeps).
+// It is the only lock rendering, so a settings page rewrite has one helper
+// to port.
 func settingLockBadge(m Model, s settings.Setting) string {
-	if settingLockedAt(m, s.ID) == "" {
+	at := settingLockedAt(m, s.ID)
+	switch {
+	case at == "":
 		return ""
+	case settings.WorkspaceSetAt(at):
+		return styleMuted.Render("ws")
 	}
 	return styleMuted.Render("lua")
 }
 
-// luaFileOf maps a config.lua position ("config.lua:12", "lua/ui.lua:3") to
-// the file's path and line. ok is false for anything else.
+// luaFileOf maps a config.lua position ("config.lua:12", "lua/ui.lua:3", or
+// a workspace's "/path/.rex/config.lua:3") to the file's path and line. ok
+// is false for anything else.
 func luaFileOf(at string) (path string, line int, ok bool) {
 	i := strings.LastIndexByte(at, ':')
 	if i <= 0 {
@@ -68,6 +76,19 @@ func luaFileOf(at string) (path string, line int, ok bool) {
 		return "", 0, false
 	}
 	rel := at[:i]
+	// A workspace's .rex/config.lua: only the file of the workspace this
+	// process applies, taken from wsconfig (never parsed back out of the
+	// flattened position), and never a symlink.
+	if settings.WorkspaceSetAt(at) {
+		file := workspaceConfigFile()
+		if file == "" || rel != protocol.FlattenDisplayText(file) {
+			return "", 0, false
+		}
+		if fi, err := os.Lstat(file); err != nil || !fi.Mode().IsRegular() {
+			return "", 0, false
+		}
+		return file, line, true
+	}
 	l, err := paths.Resolve()
 	if err != nil {
 		return "", 0, false
@@ -86,6 +107,10 @@ func luaFileOf(at string) (path string, line int, ok bool) {
 	}
 	return "", 0, false
 }
+
+// workspaceConfigFile is the .rex/config.lua path of the workspace this
+// process applies ("" for none). Tests replace it.
+var workspaceConfigFile = func() string { return wsconfig.Current().File }
 
 // lineEditors take +N to open a file at line N.
 var lineEditors = map[string]bool{"vi": true, "vim": true, "nvim": true, "nano": true, "emacs": true, "micro": true}

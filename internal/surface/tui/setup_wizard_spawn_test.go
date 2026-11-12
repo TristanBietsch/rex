@@ -46,10 +46,10 @@ func TestApplyDefaults_ToolAloneRepairsModelAndEffort(t *testing.T) {
 }
 
 func TestApplyDefaults_KeepsOtherKeys(t *testing.T) {
-	cfg := spawnConfig(t, "master_volume: 0.25\nmax_concurrent_sessions: 7\n")
+	cfg := spawnConfig(t, "master_volume: 13\nmax_concurrent_sessions: 7\n")
 	require.NoError(t, ApplyDefaultsNonInteractive(cfg, "", "claude", "sonnet", "low", "", true))
 	st := loadSettings(t, cfg)
-	require.Equal(t, 0.25, st.Get("master_volume"))
+	require.Equal(t, 13, st.Get("master_volume"))
 	require.EqualValues(t, 7, st.Get("max_concurrent_sessions"))
 	require.Equal(t, "sonnet", st.String("default_spawn_model"))
 }
@@ -63,7 +63,7 @@ func TestApplyDefaults_NoFlagsLeavesSpawnKeysAlone(t *testing.T) {
 }
 
 func TestApplyDefaults_RejectsUnknownTool(t *testing.T) {
-	cfg := spawnConfig(t, "master_volume: 0.25\n")
+	cfg := spawnConfig(t, "master_volume: 13\n")
 	before, err := os.ReadFile(cfg)
 	require.NoError(t, err)
 
@@ -78,14 +78,14 @@ func TestApplyDefaults_RejectsUnknownTool(t *testing.T) {
 }
 
 func TestSetupWizardWrite_KeepsMasterVolumeAndWritesSpawn(t *testing.T) {
-	cfg := spawnConfig(t, "master_volume: 0.25\n")
+	cfg := spawnConfig(t, "master_volume: 13\n")
 	m := NewSetupWizardModel(cfg, "")
 	m.defaultModel = "sonnet"
 	msg, ok := m.doWriteCmd()().(setupWriteMsg)
 	require.True(t, ok)
 	require.NoError(t, msg.err)
 	st := loadSettings(t, cfg)
-	require.Equal(t, 0.25, st.Get("master_volume"))
+	require.Equal(t, 13, st.Get("master_volume"))
 	require.Equal(t, "claude", st.String("default_spawn_tool"))
 	require.Equal(t, "sonnet", st.String("default_spawn_model"))
 	require.Equal(t, "medium", st.String("default_spawn_effort"))

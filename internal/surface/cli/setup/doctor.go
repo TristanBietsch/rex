@@ -109,6 +109,7 @@ func runAllChecks(socket *core.SocketFlag) []checkResult {
 	results = append(results, checkRexDirs()...)
 	results = append(results, checkSettingsLoad())
 	results = append(results, checkConfigLua())
+	results = append(results, checkWorkspaceConfig()...)
 	results = append(results, checkToolBinaries()...)
 	results = append(results, checkSnapshots()...)
 	results = append(results, checkAgyVersion()...)

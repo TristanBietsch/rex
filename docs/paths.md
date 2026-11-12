@@ -30,6 +30,7 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 | `~/.local/share/rex/usage.jsonl` | Usage ledger (mode 0600, append-only): see below |
 | `~/.local/share/rex/audit.jsonl` | Audit trail of sessions outside any workspace (0600, append-only): see below |
 | `~/.local/share/rex/workspaces.json` | Workspace registry: id → folder (0600), see [workspaces.md](workspaces.md) |
+| `~/.local/share/rex/workspace-trust.json` | Workspaces whose `.rex/config.lua` runs (`rex ws trust`; 0600), see [workspaces.md](workspaces.md#workspace-settings) |
 | `~/.local/state/rex/` | Daemon stderr log, slog files, TUI resume state |
 | `~/.cache/rex/` | Socket when `XDG_RUNTIME_DIR` is unset |
 | `$XDG_RUNTIME_DIR/rex.sock` | Socket when `XDG_RUNTIME_DIR` is set to an absolute path |
@@ -54,6 +55,7 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 | `<workspace>/.rex/sessions.jsonl` | `rex-daemon` (`workspaces` on) | Index of sessions started inside the workspace: a line at spawn and one at the first terminal state (0600, append-only). No prompt text |
 | `<workspace>/.rex/audit.jsonl` | `rex-daemon` (`audit_trail` and `workspaces` on) | The audit trail of sessions started inside the workspace; same format and rules as the global file |
 | `~/.local/share/rex/workspaces.json` | `rex ws` | Registry: workspace id → the folder it was last seen at, name, color. Lets a moved folder keep its id. Only with `workspaces` on |
+| `~/.local/share/rex/workspace-trust.json` | `rex ws trust` | Trusted workspaces (real folder + id + SHA-256 of the trusted `.rex/config.lua`). Read as hostile input: a symlink, another user's or a group/world-writable file trusts nothing. Only with `workspaces` on. `workspace-trust.json.lock` next to it (empty, 0600) is the lock `rex ws trust` and `rex ws trust -rm` hold while they rewrite it, so two at once never lose a change |
 | `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection, tool filter, hidden sections and board search; read once on next launch, then deleted |
 | `~/.local/state/rex/models-cache.json` | `rex-daemon` (when `model_autodetect` is on) | Cache of the model ids each agent listed (`qwen --list-models` and the like): per tool the binary path and mtime, the command, the time, and the ids. Trusted for 24 h and dropped when the binary changes. Owner-only (0600), replaced atomically, safe to delete (the next daemon start or `rex reload` detects again). Holds ids only. Never created while `model_autodetect` is off |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |

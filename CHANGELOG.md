@@ -23,6 +23,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Sessions carry `cost_usd` on the wire (Claude Code, from the usage hub;
   sent when it moved by a cent, at most every 2 s; kept across restarts).
 
+### Changed (volume scale)
+
+- `master_volume` is now a whole number from 0 to 50 (default 40, the old
+  0.80). The gain is the value / 50. At 50 the settings page and
+  `rex config get`/`list` show `max` (txt, agent and JSON output keep 50).
+  ◂ ▸ on the settings page step by 1. An existing config converts on load:
+  a decimal from 0 to 1 (`0.8`, `1.0`, `0.0`) reads as round(value × 50),
+  a whole number (`1`, `40`) as the new scale. In `config.lua` only a
+  fraction (`0.8`) is the old scale, since Lua cannot tell `1` from `1.0`.
+  `rex config set master_volume NaN` is now refused.
+
+### Added (workspace settings)
+
+- A workspace can carry `.rex/config.lua` (needs `workspaces` and
+  `lua_config`): the same Lua as `~/.config/rex/config.lua`, on top of it in
+  rex commands run inside the workspace and on its board (`rex here`,
+  `rex ws open`), never on the system-wide board or in the daemon. It is not
+  read until you run `rex ws trust` at a terminal (it asks, showing the
+  file's size and SHA-256; refused for agents and pipes). Trust is stored
+  in `~/.local/share/rex/workspace-trust.json`, bound to the real folder,
+  the workspace id and the file's bytes: after any edit it is not run until
+  trusted again. `rex ws trust -rm` revokes. Even trusted it may set only
+  display settings (theme, layout, animation and the like; see
+  docs/workspaces.md), never trust, spawn, audit, sound or feature
+  switches, and cannot `require`. It is read without following
+  symlinks, and must be yours, not group/world-writable, one link, 256 KiB
+  at most. A broken one fails the trust settings closed. Its values show
+  as `workspace <path>:N` in `rex config list`, `ws` on the settings page,
+  and in a new `workspace config.lua` row in `rex doctor`.
+
+### Changed (rex trust needs a terminal)
+
+- `rex trust <folder>` (adding to `auto_trust_dirs`) now works only for a
+  person at a terminal, like `rex ws trust`: agent mode, `-o json`/`agent`/
+  `txt`/`md` or stdin/stdout not a terminal exit 6 and write nothing.
+  Add folders yourself, at a terminal or in the TUI (`ctrl+t`,
+  `:trust`). `rex trust -ls` and `-rm` are unchanged.
+- The same terminal-only rule now covers every CLI path that changes a
+  trust setting (`skip_permissions`, `auto_trust_dirs`): `rex config set`
+  and `rex config reset` of those two, and `rex setup -auto-trust` (with
+  `-yes` or the wizard; `-preview` is unchanged). They exit 6
+  (`needs_terminal`) and write nothing in agent mode, with `-o` or a pipe.
+  Other settings, `rex config get`/`list` and `rex setup -yes` without
+  `-auto-trust` stay scriptable. Scripts that set these two keys must now
+  run at a terminal (or edit `config.yaml` themselves).
+- `rex ws trust` shows the workspace's `.rex/config.lua` above its `[y/N]`
+  question: the exact bytes it hashes and trusts, each line flattened (no
+  escape, control or bidi characters), at most 40 lines with
+  `… N more lines`, plus the size and SHA-256 as before.
+
+### Fixed (workspace trust)
+
+- `rex ws trust` and `rex ws trust -rm` run at the same moment no longer
+  lose one another's change (a revoke could be undone): both hold a lock
+  on `workspace-trust.json` while they rewrite it.
+
+### Fixed (trust saves)
+
+- `rex trust`, `:trust` and the wizard's `ctrl+a` no longer replace the
+  `auto_trust_dirs` list in `config.yaml` with just the new folder while
+  `config.lua` is broken (the value then reads empty, failed closed); they
+  now edit the list `config.yaml` holds.
+
 ### Fixed (READY while subagents run)
 
 - A Claude Code session waiting on subagents no longer turns READY, chimes,

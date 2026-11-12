@@ -115,7 +115,7 @@ func checkIndexFile(f *os.File, path string) error {
 	if hardLinked(fi) {
 		return fmt.Errorf("%w: %s has other hard links", ErrUnsafe, path)
 	}
-	if !ownedByCurrentUser(fi) {
+	if !ownedByMe(fi) {
 		return fmt.Errorf("%w: %s is owned by another user", ErrUnsafe, path)
 	}
 	return nil

@@ -18,7 +18,7 @@ import (
 	wsp "github.com/tristanbietsch/rex/internal/workspace"
 )
 
-const usageLine = "rex ws init [path] [--name N] | id [path] | ls | rename <id|path> <name> | color <id|path> <#RRGGBB|swatch-number> | open [path]"
+const usageLine = "rex ws init [path] [--name N] | id [path] | ls | rename <id|path> <name> | color <id|path> <#RRGGBB|swatch-number> | trust [path] | trust -rm [id|path] | open [path]"
 
 // info is the json payload of a workspace.
 type info struct {
@@ -67,7 +67,7 @@ func newEnv() (env, error) {
 	return env{home: home, cwd: cwd, reg: reg}, nil
 }
 
-// RunWs runs `rex ws <init|id|ls|rename|color|open>`. Exit 5 while the workspaces
+// RunWs runs `rex ws <init|id|ls|rename|color|trust|open>`. Exit 5 while the workspaces
 // setting is off; nothing is read or written then.
 func RunWs(args []string) error {
 	if len(args) == 0 {
@@ -80,7 +80,7 @@ func RunWs(args []string) error {
 		return core.ErrHelpShown
 	case "open":
 		return openWs(rest)
-	case "init", "id", "ls", "rename", "color":
+	case "init", "id", "ls", "rename", "color", "trust":
 	default:
 		return core.Errorf(core.ExitInvalidArgs, "rex ws -h", "ws: unknown subcommand %q: %s", sub, usageLine)
 	}
@@ -88,8 +88,12 @@ func RunWs(args []string) error {
 	fs := flag.NewFlagSet("ws "+sub, flag.ContinueOnError)
 	out := core.AddOutputFlags(fs, core.AllFormats)
 	var name string
-	if sub == "init" {
+	var rm bool
+	switch sub {
+	case "init":
 		fs.StringVar(&name, "name", "", "workspace name (default: the folder's name)")
+	case "trust":
+		fs.BoolVar(&rm, "rm", false, "stop trusting the workspace")
 	}
 	pos, err := out.Parse(fs, rest)
 	if err != nil {
@@ -114,13 +118,15 @@ func RunWs(args []string) error {
 		return e.ls()
 	case "rename":
 		return e.rename(pos[0], pos[1])
+	case "trust":
+		return e.trust(pos, rm)
 	default:
 		return e.color(pos[0], pos[1])
 	}
 }
 
 func checkArity(sub string, pos []string) error {
-	want := map[string][2]int{"init": {0, 1}, "id": {0, 1}, "ls": {0, 0}, "rename": {2, 2}, "color": {2, 2}}[sub]
+	want := map[string][2]int{"init": {0, 1}, "id": {0, 1}, "ls": {0, 0}, "rename": {2, 2}, "color": {2, 2}, "trust": {0, 1}}[sub]
 	if len(pos) < want[0] || len(pos) > want[1] {
 		return core.Errorf(core.ExitInvalidArgs, "rex ws -h", "ws %s: wrong number of arguments: %s", sub, usageLine)
 	}

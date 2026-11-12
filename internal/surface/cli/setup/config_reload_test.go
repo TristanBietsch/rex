@@ -29,8 +29,10 @@ func hubDaemon(t *testing.T) *boot.SettingsHub {
 }
 
 // Turning a trust setting off through rex reaches the running daemon at
-// once, with live_reload off and no poller: it is the Reload intent.
+// once, with live_reload off and no poller: it is the Reload intent. A
+// trust setting changes only at a terminal, so the test is one.
 func TestConfigSetReset_TrustSettingsReloadTheDaemonAtOnce(t *testing.T) {
+	atTerminal(t)
 	require.NoError(t, configSet([]string{"live_reload", "false"}))
 	require.NoError(t, configSet([]string{"skip_permissions", "true"}))
 	dir := t.TempDir()
@@ -51,6 +53,7 @@ func TestConfigSetReset_TrustSettingsReloadTheDaemonAtOnce(t *testing.T) {
 }
 
 func TestConfigSet_TrustSettingWithDaemonDownStillSucceeds(t *testing.T) {
+	atTerminal(t)
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir()) // nothing listens there
 	require.NoError(t, configSet([]string{"skip_permissions", "true"}))
 	require.NoError(t, configSet([]string{"skip_permissions", "false"}))

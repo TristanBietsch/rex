@@ -43,7 +43,7 @@ func settingDefaultText(s settings.Setting) string {
 		}
 		return v
 	default:
-		return fmt.Sprint(v)
+		return s.Display(v)
 	}
 }
 

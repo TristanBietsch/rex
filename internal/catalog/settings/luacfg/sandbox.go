@@ -154,10 +154,14 @@ func checkPattern(L *lua.LState, fname, subject, pat string) {
 }
 
 // where is the "config.lua:12" position of the Lua code that called the
-// running Go function.
+// running Go function. It is safe to print: a chunk name (a workspace
+// path) with a control or escape rune has it replaced.
 func where(L *lua.LState) string {
-	return strings.TrimRight(strings.TrimSpace(L.Where(1)), ":")
+	return flatten(strings.TrimRight(strings.TrimSpace(L.Where(1)), ":"), maxWhereRunes)
 }
+
+// maxWhereRunes caps a position, which holds a workspace path.
+const maxWhereRunes = 1024
 
 // unsafeRune reports runes that must not reach a terminal: controls
 // (including ESC), bidirectional controls, zero-width and other
@@ -251,6 +255,12 @@ func luaToSetting(st settings.Setting, v lua.LValue) (any, error) {
 		}
 		switch st.Type {
 		case settings.TypeInt:
+			if f != math.Trunc(f) && st.Migrate != nil {
+				// A fraction may be an older scale's value (master_volume
+				// 0.8); Validate runs Migrate on it. A whole number is
+				// always the current scale, as Lua cannot tell 1 from 1.0.
+				return f, nil
+			}
 			if f != math.Trunc(f) || math.Abs(f) > 1<<40 {
 				return nil, fmt.Errorf("%v is not a whole number", f)
 			}

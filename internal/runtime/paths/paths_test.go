@@ -54,6 +54,7 @@ func TestAccessors_UnderHome(t *testing.T) {
 		{"DaemonLock", paths.DaemonLock, j(".local", "share", "rex", "daemon.lock")},
 		{"UsageLedger", paths.UsageLedger, j(".local", "share", "rex", "usage.jsonl")},
 		{"WorkspacesFile", paths.WorkspacesFile, j(".local", "share", "rex", "workspaces.json")},
+		{"WorkspaceTrustFile", paths.WorkspaceTrustFile, j(".local", "share", "rex", "workspace-trust.json")},
 		{"AuditFile", paths.AuditFile, j(".local", "share", "rex", "audit.jsonl")},
 		{"LogDir", paths.LogDir, j(".local", "state", "rex")},
 		{"DaemonLog", paths.DaemonLog, j(".local", "state", "rex", "daemon.log")},
