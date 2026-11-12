@@ -349,11 +349,11 @@ func TestScreensaverHighlightsNeedsYouOnlyWhenNonZero(t *testing.T) {
 	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
 
 	m := boardModel(saverSessions()...)
-	require.Contains(t, saverCounts(m), styleAlert().Render("1 need you"))
+	require.Contains(t, saverCounts(m), styleAlert.Render("1 need you"))
 	require.Contains(t, saverCounts(m), styleStateFailed.Render("1 failed"))
 
 	m = boardModel(protocol.SessionSummary{ID: "b", State: protocol.StateWorking})
-	require.NotContains(t, saverCounts(m), styleAlert().Render("0 need you"))
+	require.NotContains(t, saverCounts(m), styleAlert.Render("0 need you"))
 	require.Contains(t, saverCounts(m), styleHeaderMeta.Render("0 need you"))
 }
 

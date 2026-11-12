@@ -23,13 +23,13 @@ Behavior:
   board_hidden_sections    
   max_concurrent_sessions  16
 -- text.color.w80 --
-␛[1;38;2;230;230;230mAppearance:␛[0m
-  ␛[38;2;121;127;140mspinner     ␛[0m  braille
-  ␛[38;2;121;127;140mcolor_scheme␛[0m  default
+␛[1;38;2;230;232;238mAppearance:␛[0m
+  ␛[38;2;139;145;161mspinner     ␛[0m  braille
+  ␛[38;2;139;145;161mcolor_scheme␛[0m  default
 
-␛[1;38;2;230;230;230mBehavior:␛[0m
-  ␛[38;2;121;127;140mboard_hidden_sections  ␛[0m  
-  ␛[38;2;121;127;140mmax_concurrent_sessions␛[0m  16
+␛[1;38;2;230;232;238mBehavior:␛[0m
+  ␛[38;2;139;145;161mboard_hidden_sections  ␛[0m  
+  ␛[38;2;139;145;161mmax_concurrent_sessions␛[0m  16
 -- txt --
 # Appearance
   spinner                    braille

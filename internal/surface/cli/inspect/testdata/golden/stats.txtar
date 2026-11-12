@@ -53,21 +53,21 @@ By tool:
   claude              2
   antigravity         1
 -- text.color.w80 --
-␛[1;38;2;230;230;230mStats␛[0m  ␛[38;2;121;127;140mlifetime␛[0m
+␛[1;38;2;230;232;238mStats␛[0m  ␛[38;2;139;145;161mlifetime␛[0m
 
-  ␛[38;2;121;127;140msessions    ␛[0m  3
-  ␛[38;2;121;127;140mdone        ␛[0m  1
-  ␛[38;2;121;127;140mfailed      ␛[0m  2
-  ␛[38;2;121;127;140mactive/other␛[0m  0
+  ␛[38;2;139;145;161msessions    ␛[0m  3
+  ␛[38;2;139;145;161mdone        ␛[0m  1
+  ␛[38;2;139;145;161mfailed      ␛[0m  2
+  ␛[38;2;139;145;161mactive/other␛[0m  0
 
-␛[1;38;2;230;230;230mBy model:␛[0m
-  ␛[38;2;121;127;140mMODEL␛[0m         ␛[38;2;121;127;140mSESSIONS␛[0m  ␛[38;2;121;127;140mDURATION␛[0m
+␛[1;38;2;230;232;238mBy model:␛[0m
+  ␛[38;2;139;145;161mMODEL␛[0m         ␛[38;2;139;145;161mSESSIONS␛[0m  ␛[38;2;139;145;161mDURATION␛[0m
   gemini-3-pro         1       58m
   opus                 1    1h 24m
   sonnet               1      < 1m
 
-␛[1;38;2;230;230;230mBy tool:␛[0m
-  ␛[38;2;121;127;140mTOOL␛[0m         ␛[38;2;121;127;140mSESSIONS␛[0m
+␛[1;38;2;230;232;238mBy tool:␛[0m
+  ␛[38;2;139;145;161mTOOL␛[0m         ␛[38;2;139;145;161mSESSIONS␛[0m
   claude              2
   antigravity         1
 -- txt --

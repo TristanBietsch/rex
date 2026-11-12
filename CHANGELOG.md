@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- TUI: help, settings, stats, failures, overview and the wizard share one
+  titled square panel, and the board behind them is dimmed. The attach popup
+  gets square corners and keeps the board's colors.
+- `prompt_glyph` must be one printable character (1 or 2 cells wide):
+  `rex config set prompt_glyph` refuses control characters, spaces and
+  longer text. `keybind_preset` (one option) is hidden from the settings page
+  but still works in `rex config`.
+- New default color scheme with a violet accent (`#B392F0`) for the prompt
+  arrow, selection marker, focused inputs and logo, so "the cursor is here"
+  no longer looks like "working". The previous look is the `classic` scheme
+  (`rex config set color_scheme classic`). `noir` and `paper` are retuned to
+  meet contrast targets (`paper`'s amber was below 4.5:1). CLI output
+  follows `color_scheme`, so it changes with the TUI.
 - TUI: the new-session wizard no longer asks for a name. Effort (or skills)
   leads straight to the task; rename the session on the board, or pass
   `rex new -name`, to set one.
@@ -52,6 +65,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   refreshes at once. Screen activity no longer triggers a refresh while the
   switch is on, except for a session with no description yet; turn it off
   for the old behavior.
+- Color schemes `high-contrast` (pure black and white, bright state colors)
+  and `ansi` (your terminal's own 16 colors, selection in reverse video).
+- Help overlay scrolls (`j`/`k`, `pgup`/`pgdn`, `g`/`G`, wheel) instead of
+  dropping groups, filters with `/`, and ends with a legend drawn in the
+  board's real styles (markers and long-running badges). Keys behind a
+  feature switch that is off are listed dimmed with `(off)`.
+- Settings page: `/` search, `tab` to jump between sections, a `•` on values
+  that differ from the default, and a detail pane with the setting's id,
+  default, options and when a change applies (live, next attach, next new
+  session, after a daemon restart). `enter` edits `auto_trust_dirs` and
+  `prompt_glyph` in place; the value goes through the same check as
+  `rex config set`.
 - Qwen Code (`qwen`), Cursor CLI (`cursor`, binary `cursor-agent`) and Grok
   Build (`grok`) as built-in agents, shown only when their binary is on
   `PATH`. They stay hidden in the wizard until enabled in Settings →

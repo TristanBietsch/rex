@@ -1,0 +1,66 @@
+-- plain.80x24 --
+                    ┌─ Session Stats ─────────────────────┐
+  ∴ REX    1 need yo│                                     │                     
+  all · claude · cod│    State counts                     │                     
+                    │    needs input      1               │
+────────────────────│    working          3               │─────────────────────
+                    │    queued           0               │
+  NEEDS YOU  1      │    done             1               │                     
+   ◆  dark-mode     │    failed           2               │                   4m
+                    │    crashed          0               │
+  WAITING  0        │    total            7               │                     
+      nothing waitin│                                     │
+                    │    Token usage (approx)             │
+  WORKING  3        │    total tokens     137K tk         │                     
+ ▸ ⠋  release-notes │    output bytes     0.0 KB          │          ▴ 45m   11m
+   ⠋  日本語の長いタ│                                     │                   7s
+   ⠋  payment-migrat│    Time-to-first-response           │r…        ▴ 7h     2h
+                    │    <1s      ████████████████████ 1  │
+  DONE  3           │    1-3s     ░░░░░░░░░░░░░░░░░░░░ 0  │                     
+   ●  test-coverage │    3-10s    ░░░░░░░░░░░░░░░░░░░░ 0  │                   9d
+   ✕  no-model      │    10-30s   ░░░░░░░░░░░░░░░░░░░░ 0  │                    -
+  ↳ draft ready — wh│    30s-2m   ░░░░░░░░░░░░░░░░░░░░ 0  │                     
+────────────────────│    2-5m     ░░░░░░░░░░░░░░░░░░░░ 0  │─────────────────────
+  λ press i to descr│    5m+      ░░░░░░░░░░░░░░░░░░░░ 0  │                     
+  enter open · i new│                                     │                     
+-- plain.120x40 --
+
+  ∴ REX    1 need you · 3 working · 1 done  · 2 failed                                                                  
+  all · claude · codex · antigravity · ollama                                                                           
+                                        ┌─ Session Stats ─────────────────────┐
+────────────────────────────────────────│                                     │─────────────────────────────────────────
+                                        │    State counts                     │
+  NEEDS YOU  1                          │    needs input      1               │                                         
+   ◆  dark-mode             system theme│    working          3               │                                       4m
+                                        │    queued           0               │
+  WAITING  0                            │    done             1               │                                         
+      nothing waiting on a tool         │    failed           2               │
+                                        │    crashed          0               │
+  WORKING  3                            │    total            7               │                                         
+ ▸ ⠋  release-notes         draft ready │                                     │                              ▴ 45m   11m
+   ⠋  日本語の長いタスク…   events_org_t│    Token usage (approx)             │                                       7s
+   ⠋  payment-migration-v…  porting bill│    total tokens     137K tk         │                              ▴ 7h     2h
+                                        │    output bytes     0.0 KB          │
+  DONE  3                               │                                     │                                         
+   ●  test-coverage         billing/ fro│    Time-to-first-response           │                                       9d
+   ✕  no-model              boot        │    <1s      ████████████████████ 1  │                                        -
+   ✕  failing-job                       │    1-3s     ░░░░░░░░░░░░░░░░░░░░ 0  │                                        -
+                                        │    3-10s    ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │    10-30s   ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │    30s-2m   ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │    2-5m     ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │    5m+      ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │                                     │
+                                        │    Session duration                 │
+                                        │    <1m      ████████████████████ 1  │
+                                        │    1-5m     ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │    5-15m    ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │    15-60m   ░░░░░░░░░░░░░░░░░░░░ 0  │
+                                        │    1h+      ████████████████████ 1  │
+                                        │                                     │
+                                        │    esc or :stats to close           │
+                                        └─────────────────────────────────────┘
+  ↳ draft ready — which feature leads?                                                                                  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      

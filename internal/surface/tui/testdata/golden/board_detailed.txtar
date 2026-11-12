@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    1 need you · 3 working · 1 done  · 2 failed  · 1 marked done  · deta…
+  all · claude · codex · antigravity · ollama                                   
+
+────────────────────────────────────────────────────────────────────────────────
+
+  NEEDS YOU  1                                                                  
+   ◆  dark-mode         system theme vs explicit toggle…                      4m
+
+  WAITING  0                                                                    
+      nothing waiting on a tool
+
+  WORKING  3                                                                    
+ ▸ ⠋  release-notes     draft ready — which feature leads?           ▴ 45m   11m
+   ⠋  日本語の長いタ…   events_org_ts index live — p95 38ms                   7s
+   ⠋  payment-migrati…  porting billing to the new processor…        ▴ 7h     2h
+
+  DONE  3                                                                       
+   ●  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
+   ✕  no-model          boot                                                   -
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    1 need you · 3 working · 1 done  · 2 failed  · 1 marked done  · detailed (v)                                 
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  NEEDS YOU  1                                                                                                          
+   ◆  7d4f  dark-mode             system theme vs explicit toggle — your…  opus · max        12.3K tk                 4m
+
+  WAITING  0                                                                                                            
+      nothing waiting on a tool
+
+  WORKING  3                                                                                                            
+ ▸ ⠋  b203  release-notes         draft ready — which feature leads?       gpt-5-codex · m…   123K tk        ▴ 45m   11m
+   ⠋  3c8a  日本語の長いタスク…   events_org_ts index live — p95 38ms      sonnet                                     7s
+   ⠋  9e51  payment-migration-v…  porting billing to the new processor…    qwen2.5-coder:3…    900 tk        ▴ 7h     2h
+
+  DONE  3                                                                                                               
+   ●  2b7e  test-coverage         billing/ from 61% → 92% — PR #408…       haiku                                      9d
+   ✕  aa01  no-model              boot                                                                                 -
+   ✕  ff01  failing-job                                                    opus                                        -
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      

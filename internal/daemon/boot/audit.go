@@ -114,6 +114,11 @@ func PersistMeta(stateDir string) func(*state.Session) {
 	}
 }
 
+// AuditSettingIDs are the settings Configure reads: the SettingsHub
+// subscription for Applier must name every one, or an edit of it would not
+// apply until the daemon restarts.
+var AuditSettingIDs = []string{"audit_trail", "audit_full_prompt", "workspaces"}
+
 // Configure applies the audit_trail, audit_full_prompt and workspaces
 // settings.
 func (a *Audit) Configure(s *settings.Store) {

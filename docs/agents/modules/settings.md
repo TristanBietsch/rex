@@ -17,7 +17,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 
 - `Type` — `TypeEnum`, `TypeBool`, `TypeInt`, `TypeFloat`, `TypeString`.
 - `Section` constants — `SectionAppearance`, `SectionBehavior`, `SectionSpawn`, `SectionSummary`, `SectionAudio`, `SectionAdvanced`.
-- `Setting` — `ID`, `Label`, `Section`, `Type`, `Default`, `Options`, `Min`, `Max`, `Help`, `ReadOnly`.
+- `Setting` — `ID`, `Label`, `Section`, `Type`, `Default`, `Options`, `Min`, `Max`, `Help`, `ReadOnly`, `Apply`, `Hidden`, `Free`, `Normalize`. `Apply` (`ApplyLive`, `ApplyNextAttach`, `ApplyNextSpawn`, `ApplyDaemonRestart`; `ApplyMode.Label()`) says when a change takes effect and every row must set it. `Hidden` keeps a row off the TUI page (CLI and store unaffected). `Free` marks a string whose `Options` are only suggestions: the TUI also offers a text editor, and `Normalize` (run by `Store.Set`, the one validator) decides what is accepted.
 - `Store` — `NewStore`, `Load`, `Save`, `Get`, `String`, `Set`, `Reset`, `Snapshot`.
 
 ### Variables
@@ -27,6 +27,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 ### Functions
 
 - `DefaultPath() string` — `~/.config/rex/config.yaml`.
+- `Visible() []Setting` — the settings the TUI page lists (no `Hidden` ones).
 - `Find(id string) (Setting, bool)`
 - `SplitTrustDirs`, `TrustDir`, `CheckAutoTrustDirs`, `CanonicalDir`, `CanonicalHome` (`trust_dirs.go`) — the `auto_trust_dirs` checks. The daemon (`boot.AutoTrustDirs`, `server.underAutoTrustDir`) ignores what fails them; `rex setup` refuses it.
 

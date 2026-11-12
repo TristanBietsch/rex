@@ -6,7 +6,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -115,19 +114,19 @@ func (m Model) view(w, h int) string {
 	case FocusBoot:
 		return renderSplash(m, w, h)
 	case FocusWizard:
-		return centerOverlay(w, h, fitOverlay(renderWizard(m), w), renderFullScreen(m, w, h))
+		return centerPanel(w, h, fitOverlay(renderWizard(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusHelp:
-		return centerOverlayBox(w, h, renderHelp(m, w, h), renderFullScreen(m, w, h))
+		return centerOverlayBox(w, h, renderHelp(m, w, h), dimBoard(renderFullScreen(m, w, h)))
 	case FocusSettings:
-		return centerOverlayBox(w, h, renderSettings(m, w), renderFullScreen(m, w, h))
+		return centerOverlayBox(w, h, renderSettings(m, w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusAttach:
 		return centerAttach(m, w, h, attachBackground(m, w, h))
 	case FocusFail:
-		return centerOverlay(w, h, fitOverlay(renderFail(m), w), renderFullScreen(m, w, h))
+		return centerPanel(w, h, fitOverlay(renderFail(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusStats:
-		return centerOverlay(w, h, fitOverlay(renderStatsOverlay(m), w), renderFullScreen(m, w, h))
+		return centerPanel(w, h, fitOverlay(renderStatsOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusOverview:
-		return centerOverlay(w, h, fitOverlay(renderOverviewOverlay(m), w), renderFullScreen(m, w, h))
+		return centerPanel(w, h, fitOverlay(renderOverviewOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusCommand:
 		// A command bar opened from inside the attach popup (::) keeps the
 		// popup on screen; the bar renders in its footer.
@@ -199,11 +198,13 @@ func renderFullScreen(m Model, w, h int) string {
 	return strings.Join(lines, "\n")
 }
 
-// centerOverlay composites `content` as a bordered popup centered over `bg`.
+// centerPanel composites an overlay's content as a titled panel centered
+// over bg: the content's first line becomes the title in the top border.
 // The board behind it stays visible around the popup so it reads as an
 // overlay, not a separate screen.
-func centerOverlay(w, h int, content, bg string) string {
-	popupLines, popupW := overlayBox(content)
+func centerPanel(w, h int, content, bg string) string {
+	title, body := splitTitle(content)
+	popupLines, popupW := panelLines(title, "", body, 2, 0, 0)
 	return compositeOverlay(w, h, popupLines, popupW, bg)
 }
 
@@ -305,9 +306,9 @@ func compositeOverlay(w, h int, popupLines []string, popupW int, bg string) stri
 	return strings.Join(bgLines, "\n")
 }
 
-// overlayBox draws content in a rounded border with one blank line above and
+// overlayBox draws content in a square border with one blank line above and
 // below and two columns each side, every line padded to the same width. It
-// matches lipgloss Border(RoundedBorder()).Padding(1, 2) but measures each
+// matches lipgloss Border(NormalBorder()).Padding(1, 2) but measures each
 // line once; lipgloss measured them several times, which was most of the
 // attach popup's frame time. It returns the box lines and their width.
 func overlayBox(content string) ([]string, int) {
@@ -327,14 +328,14 @@ func overlayBoxPad(content string, padX, padY int) ([]string, int) {
 		inner = max(inner, widths[i])
 	}
 	padded := inner + 2*padX
-	border := lipgloss.NewStyle().Foreground(colorBorder)
+	border := styleBorderFg
 	side := border.Render("│")
 	blank := side + strings.Repeat(" ", padded) + side
 	padding := strings.Repeat(" ", padX)
 	rule := strings.Repeat("─", padded)
 
 	out := make([]string, 0, len(lines)+4)
-	out = append(out, border.Render("╭"+rule+"╮"))
+	out = append(out, border.Render("┌"+rule+"┐"))
 	for range padY {
 		out = append(out, blank)
 	}
@@ -344,6 +345,6 @@ func overlayBoxPad(content string, padX, padY int) ([]string, int) {
 	for range padY {
 		out = append(out, blank)
 	}
-	out = append(out, border.Render("╰"+rule+"╯"))
+	out = append(out, border.Render("└"+rule+"┘"))
 	return out, padded + 2
 }

@@ -89,12 +89,6 @@ var boardGroups = []boardGroup{
 	}},
 }
 
-// styleAlert highlights an Alert column's title and count while it holds
-// any session. Built per call: the palette changes with color_scheme.
-func styleAlert() lipgloss.Style {
-	return lipgloss.NewStyle().Bold(true).Foreground(colorNeeds)
-}
-
 // columnCounts counts every session (tool filter ignored) per board column,
 // in boardGroups order, except failed and crashed sessions the user hasn't
 // marked done: those are counted apart so a failure stands out instead of
@@ -231,31 +225,18 @@ func partitionSessions(sessions []protocol.SessionSummary, f rowFilter) [][]prot
 	return out
 }
 
-// fleetPalette is a small set of distinct lipgloss colors that work on both
-// dark and light terminals. The color for a fleet name is selected by:
-//
-//	fnv32(name) % len(fleetPalette)
-//
-// This ensures the same name always maps to the same color.
-var fleetPalette = []lipgloss.Color{
-	"#5B8DEF", // blue
-	"#E5B341", // amber
-	"#4ADE80", // green
-	"#EF4444", // red
-	"#A78BFA", // violet
-	"#22D3EE", // cyan
-	"#FB923C", // orange
-	"#F472B6", // pink
-	"#84CC16", // lime
-	"#14B8A6", // teal
+// fleetIndex picks a stable, deterministic palette slot for a fleet name:
+// fnv32(name) % len(fleet colors), so the same name always gets the same
+// color. The colors come from the theme (theme.Palette.Fleet).
+func fleetIndex(name string) int {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	return int(h.Sum32()) % len(colorFleet)
 }
 
 // fleetColor returns a stable, deterministic color for the given fleet name.
 func fleetColor(name string) lipgloss.Color {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(name))
-	idx := int(h.Sum32()) % len(fleetPalette)
-	return fleetPalette[idx]
+	return colorFleet[fleetIndex(name)]
 }
 
 // spinnerFrameSets is the full catalog of spinner glyph sets. Selected at
@@ -368,7 +349,7 @@ func groupTitleText(m Model, gi int) string {
 	n := len(filterByGroup(m.Sessions, boardGroups[gi], f))
 	title := styleSectionTitle.Render(strings.ToUpper(boardGroups[gi].Title))
 	if boardGroups[gi].Alert && n > 0 {
-		title = styleAlert().Render(strings.ToUpper(boardGroups[gi].Title))
+		title = styleAlert.Render(strings.ToUpper(boardGroups[gi].Title))
 	}
 	count := fmt.Sprintf("  %d", n)
 	if f.rowsActive() { // a filter or search narrows the rows: show n of the section's total
@@ -384,8 +365,8 @@ func groupTitleText(m Model, gi int) string {
 		out += styleDim.Render(" hidden")
 		verb = " show"
 	}
-	return out + sep + styleHeaderApp.Render(strconv.Itoa(sectionNumber(m, groupDone))) + styleDim.Render(verb) + sep +
-		styleHeaderApp.Render(":prune") + styleDim.Render(" clear")
+	return out + sep + styleKey.Render(strconv.Itoa(sectionNumber(m, groupDone))) + styleDim.Render(verb) + sep +
+		styleKey.Render(":prune") + styleDim.Render(" clear")
 }
 
 // clampScroll bounds offset to [0, total-height] so the board never scrolls
@@ -600,7 +581,7 @@ func rowLead(m Model, s protocol.SessionSummary) (indent, marker string, waiting
 		markerPrefix = styleArrow.Render("▸")
 	} else if s.Fleet != "" {
 		// Fleet indicator: tinted left border using the fleet's stable color.
-		markerPrefix = lipgloss.NewStyle().Foreground(fleetColor(s.Fleet)).Render("▍")
+		markerPrefix = styleFleet[fleetIndex(s.Fleet)].Render("▍")
 	} else {
 		markerPrefix = " "
 	}
@@ -619,23 +600,23 @@ func rowLead(m Model, s protocol.SessionSummary) (indent, marker string, waiting
 // rowNameStyle is the name's style: a marked-done row recedes.
 func rowNameStyle(s protocol.SessionSummary, selected bool) lipgloss.Style {
 	if !s.RetireAt.IsZero() && !selected {
-		return lipgloss.NewStyle().Foreground(colorFgDim)
+		return styleDim
 	}
-	return lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
+	return styleSlug
 }
 
-// rowDescColor is the text's color: the selected row reads first, then a
+// rowDescStyle is the text's style: the selected row reads first, then a
 // session that needs you (simple view), while a marked-done row recedes.
-func rowDescColor(m Model, s protocol.SessionSummary, selected bool) lipgloss.TerminalColor {
+func rowDescStyle(m Model, s protocol.SessionSummary, selected bool) lipgloss.Style {
 	switch {
 	case selected:
-		return colorFgPrimary
+		return stylePrimary
 	case !s.RetireAt.IsZero():
-		return colorFgMuted
+		return styleMuted
 	case !m.Detailed && s.State == protocol.StateNeedsInput:
-		return colorFgPrimary // what needs you reads first
+		return stylePrimary // what needs you reads first
 	}
-	return colorFgDim
+	return styleDim
 }
 
 // rowDescText is the text column's content before it is cut to descW: the
@@ -660,17 +641,17 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	selected := m.SelectedID == s.ID
 	now := m.now()
 	retiring := !s.RetireAt.IsZero()
-	dim := lipgloss.NewStyle().Foreground(colorFgDim)
+	dim := styleDim
 	indent, marker, waiting := rowLead(m, s)
 	slug := cell(rowNameStyle(s, selected), displayName(s), c.slug)
-	desc := lipgloss.NewStyle().Foreground(rowDescColor(m, s, selected)).Width(c.desc).Render(truncateWords(rowDescText(m, s, c.desc, waiting), c.desc))
+	desc := rowDescStyle(m, s, selected).Width(c.desc).Render(truncateWords(rowDescText(m, s, c.desc, waiting), c.desc))
 
 	gap := strings.Repeat(" ", colGap)
 
 	var b strings.Builder
 	b.WriteString(indent + marker + gap)
 	if c.id > 0 {
-		b.WriteString(cell(lipgloss.NewStyle().Foreground(colorFgMuted), s.ShortID, c.id) + gap)
+		b.WriteString(cell(styleMuted, s.ShortID, c.id) + gap)
 	}
 	b.WriteString(slug + gap + desc)
 	if c.model > 0 {
@@ -710,7 +691,7 @@ func blinkRow(m Model, id, row string) string {
 	}
 	now := blinkNow()
 	if until, ok := m.BlinkUntil[id]; ok && now.Before(until) && now.UnixMilli()/200%2 == 0 {
-		return lipgloss.NewStyle().Foreground(colorDone).Render(row)
+		return styleDone.Render(row)
 	}
 	return row
 }
@@ -725,9 +706,9 @@ func subagentCell(s protocol.SessionSummary, w int, dim bool) string {
 	if s.Subagents > 0 {
 		text = fmt.Sprintf("%s %d", subagentGlyph, min(s.Subagents, 99))
 	}
-	style := lipgloss.NewStyle().Foreground(colorWorking)
+	style := styleWorking
 	if dim {
-		style = lipgloss.NewStyle().Foreground(colorFgMuted)
+		style = styleMuted
 	}
 	return style.Width(w).Render(text)
 }
@@ -785,24 +766,28 @@ const queuedGlyph = "◌"
 // stateMarkerCellFor renders the marker glyph for a state, sourcing the
 // spinner from the live store on m.
 func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) string {
-	style := lipgloss.NewStyle().Bold(true).Width(colMarker)
+	style, ok := styleMarker[st]
+	if !ok {
+		style = styleBold
+	}
+	style = style.Width(colMarker)
 	if selected {
-		style = style.Background(colorBgElev)
+		style = selectedStyle(style)
 	}
 	switch st {
 	case protocol.StateWorking:
 		frames := spinnerFramesFor(m)
-		return style.Foreground(colorWorking).Render(frames[tick%len(frames)])
+		return style.Render(frames[tick%len(frames)])
 	case protocol.StateQueued:
-		return style.Foreground(colorWorking).Render(queuedGlyph)
+		return style.Render(queuedGlyph)
 	case protocol.StateNeedsInput:
-		return style.Foreground(colorNeeds).Render("◆")
+		return style.Render("◆")
 	case protocol.StateDone:
-		return style.Foreground(colorDone).Render("●")
+		return style.Render("●")
 	case protocol.StateFailed:
-		return style.Foreground(colorFailed).Render("✕")
+		return style.Render("✕")
 	case protocol.StateCrashed:
-		return style.Foreground(colorCrashed).Render("○")
+		return style.Render("○")
 	default:
 		return style.Render(" ")
 	}

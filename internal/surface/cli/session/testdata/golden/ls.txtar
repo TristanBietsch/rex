@@ -35,16 +35,16 @@ Sessions  1 needs you · 1 working · 1 done
 
 › rex attach <id>  open a session
 -- text.color.w80 --
-␛[1;38;2;230;230;230mSessions␛[0m  ␛[38;2;121;127;140m1 needs you · 1 working · 1 done␛[0m
+␛[1;38;2;230;232;238mSessions␛[0m  ␛[38;2;139;145;161m1 needs you · 1 working · 1 done␛[0m
 
-     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mSTATE␛[0m      ␛[38;2;121;127;140mTOOL␛[0m         ␛[38;2;121;127;140mMODEL␛[0m        ␛[38;2;121;127;140mSLUG␛[0m          ␛[38;2;121;127;140mIDLE␛[0m  ␛[38;2;121;127;140mNAME␛[0m
-  ␛[38;2;229;179;65m◆␛[0m  a91c  ␛[38;2;229;179;65mneeds you␛[0m  antigravity  gemini-3-p…  refactor-db    ␛[38;2;121;127;140m12s␛[0m
-  ␛[38;2;91;141;239m⠋␛[0m  7d4f  ␛[38;2;91;141;239mworking␛[0m    claude       opus · high  fix-auth-fl…    ␛[38;2;121;127;140m2m␛[0m  Auth fix
-  ␛[38;2;73;222;128m●␛[0m  0b2e  ␛[38;2;73;222;128mdone␛[0m       claude       sonnet · m…  write-tests     ␛[38;2;121;127;140m1h␛[0m  Tests ✓done
-  ␛[38;2;91;141;239m◌␛[0m  1111  ␛[38;2;91;141;239mqueued␛[0m     echo         short        a-slug-that…     ␛[38;2;121;127;140m-␛[0m  日本語の名前
-  ␛[38;2;239;68;68m✕␛[0m  2222  ␛[38;2;239;68;68mfailed␛[0m     echo         a-model-na…  日本語のス…     ␛[38;2;121;127;140m2d␛[0m
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mSTATE␛[0m      ␛[38;2;139;145;161mTOOL␛[0m         ␛[38;2;139;145;161mMODEL␛[0m        ␛[38;2;139;145;161mSLUG␛[0m          ␛[38;2;139;145;161mIDLE␛[0m  ␛[38;2;139;145;161mNAME␛[0m
+  ␛[38;2;245;185;73m◆␛[0m  a91c  ␛[38;2;245;185;73mneeds you␛[0m  antigravity  gemini-3-p…  refactor-db    ␛[38;2;139;145;161m12s␛[0m
+  ␛[38;2;110;168;254m⠋␛[0m  7d4f  ␛[38;2;110;168;254mworking␛[0m    claude       opus · high  fix-auth-fl…    ␛[38;2;139;145;161m2m␛[0m  Auth fix
+  ␛[38;2;91;208;140m●␛[0m  0b2e  ␛[38;2;91;208;140mdone␛[0m       claude       sonnet · m…  write-tests     ␛[38;2;139;145;161m1h␛[0m  Tests ✓done
+  ␛[38;2;110;168;254m◌␛[0m  1111  ␛[38;2;110;168;254mqueued␛[0m     echo         short        a-slug-that…     ␛[38;2;139;145;161m-␛[0m  日本語の名前
+  ␛[38;2;242;107;107m✕␛[0m  2222  ␛[38;2;242;107;107mfailed␛[0m     echo         a-model-na…  日本語のス…     ␛[38;2;139;145;161m2d␛[0m
 
-␛[1;38;2;91;141;239m› rex attach <id>␛[0m  ␛[38;2;121;127;140mopen a session␛[0m
+␛[1;38;2;179;146;240m› rex attach <id>␛[0m  ␛[38;2;139;145;161mopen a session␛[0m
 -- txt --
 ID     STATE         TOOL       MODEL                 SLUG                      LAST EVENT  NAME
 a91c   needs_input   antigravity  gemini-3-pro          refactor-db               12s ago     

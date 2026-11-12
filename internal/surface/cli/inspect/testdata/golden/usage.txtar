@@ -102,27 +102,27 @@ Quota:
 
 ~ = estimate from rex's own token count; cost is only what the tool reports
 -- text.color --
-␛[1;38;2;230;230;230mUsage␛[0m  ␛[38;2;121;127;140mlast 7 days␛[0m
+␛[1;38;2;230;232;238mUsage␛[0m  ␛[38;2;139;145;161mlast 7 days␛[0m
 
-  ␛[38;2;121;127;140mAGENT / MODEL␛[0m  ␛[38;2;121;127;140mSESSIONS␛[0m  ␛[38;2;121;127;140mTOKENS␛[0m    ␛[38;2;121;127;140mCOST␛[0m
+  ␛[38;2;139;145;161mAGENT / MODEL␛[0m  ␛[38;2;139;145;161mSESSIONS␛[0m  ␛[38;2;139;145;161mTOKENS␛[0m    ␛[38;2;139;145;161mCOST␛[0m
   claude               14   ~1.2M  $18.40
     sonnet             11   ~790k   $6.50
     opus                3   ~410k  $11.90
-  grok                  2    ~88k       ␛[38;2;121;127;140m—␛[0m
-    grok-build          2    ~88k       ␛[38;2;121;127;140m—␛[0m
-  antigravity           1     940       ␛[38;2;121;127;140m—␛[0m
-    (unknown)           1     940       ␛[38;2;121;127;140m—␛[0m
+  grok                  2    ~88k       ␛[38;2;139;145;161m—␛[0m
+    grok-build          2    ~88k       ␛[38;2;139;145;161m—␛[0m
+  antigravity           1     940       ␛[38;2;139;145;161m—␛[0m
+    (unknown)           1     940       ␛[38;2;139;145;161m—␛[0m
 
-␛[1;38;2;230;230;230mTotal:␛[0m
+␛[1;38;2;230;232;238mTotal:␛[0m
 17 sessions   ~1.3M tokens   $19.10 cost
 
-␛[1;38;2;230;230;230mQuota:␛[0m
-  ␛[38;2;121;127;140mTOOL␛[0m    ␛[38;2;121;127;140mWINDOW␛[0m               ␛[38;2;121;127;140mUSED␛[0m  ␛[38;2;121;127;140mRESETS IN␛[0m
-  claude  5h                    ␛[38;2;73;222;128m42%␛[0m      ␛[38;2;121;127;140m2h10m␛[0m
-  claude  week    ␛[38;2;121;127;140m88% (as of 10:00)␛[0m         ␛[38;2;121;127;140m4d␛[0m
-  claude  month     $5.00 of $50.00          ␛[38;2;121;127;140m—␛[0m
+␛[1;38;2;230;232;238mQuota:␛[0m
+  ␛[38;2;139;145;161mTOOL␛[0m    ␛[38;2;139;145;161mWINDOW␛[0m               ␛[38;2;139;145;161mUSED␛[0m  ␛[38;2;139;145;161mRESETS IN␛[0m
+  claude  5h                    ␛[38;2;91;208;140m42%␛[0m      ␛[38;2;139;145;161m2h10m␛[0m
+  claude  week    ␛[38;2;139;145;161m88% (as of 10:00)␛[0m         ␛[38;2;139;145;161m4d␛[0m
+  claude  month     $5.00 of $50.00          ␛[38;2;139;145;161m—␛[0m
 
-␛[38;2;121;127;140m~ = estimate from rex's own token count; cost is only what the tool reports␛[0m
+␛[38;2;139;145;161m~ = estimate from rex's own token count; cost is only what the tool reports␛[0m
 -- txt --
 AGENT / MODEL  SESSIONS  TOKENS    COST
 claude               14   ~1.2M  $18.40

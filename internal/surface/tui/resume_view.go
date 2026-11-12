@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -53,9 +52,9 @@ func resumeIDShown(s protocol.SessionSummary) string {
 // resumeCell renders the resume id prefix. Rows in Done show it in full
 // colour (it is what uc resumes); live rows keep it dim.
 func resumeCell(s protocol.SessionSummary, w int) string {
-	style := lipgloss.NewStyle().Foreground(colorFgDim)
+	style := styleDim
 	if inCompleted(s) {
-		style = lipgloss.NewStyle().Foreground(colorFgPrimary)
+		style = stylePrimary
 	}
 	id := resumeIDShown(s)
 	if len(id) > colResume {

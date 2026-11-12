@@ -25,7 +25,7 @@ Facts not fully specified in code comments or stable APIs. Listed for maintainer
 | Item | Location | Notes |
 |------|----------|-------|
 | `SectionOnboarding` | `settings/types.go` | No settings use this section |
-| `max_concurrent_sessions` help text | `registry.go` | Says "next daemon start"; TUI can live-update cap |
+| `max_concurrent_sessions` | `registry.go` | Help says the TUI sets the running daemon live and the daemon never reads the YAML (its `-max-concurrent-sessions` flag sets the start value); the Apply label is "applies now (set from the TUI)" |
 
 ## TUI
 

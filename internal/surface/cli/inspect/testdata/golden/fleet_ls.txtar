@@ -11,7 +11,7 @@
   (none)  2
   alpha   1
 -- text.color.w80 --
-  ␛[38;2;121;127;140mFLEET␛[0m   ␛[38;2;121;127;140mSESSIONS␛[0m
+  ␛[38;2;139;145;161mFLEET␛[0m   ␛[38;2;139;145;161mSESSIONS␛[0m
   (none)  2
   alpha   1
 -- txt --

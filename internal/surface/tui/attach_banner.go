@@ -8,7 +8,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/features/overview"
@@ -277,7 +276,7 @@ func renderAttachBanner(m Model, a *AttachState, cols int) string {
 			if !a.BannerSince.IsZero() {
 				elapsed = max(m.now().Sub(a.BannerSince), 0)
 			}
-			arrow := lipgloss.NewStyle().Foreground(colorWorking).Render(bannerLead)
+			arrow := styleArrow.Render(bannerLead)
 			return padLine(arrow+styleDim.Render(marqueeWindow(text, avail, elapsed)), cols)
 		}
 	}
@@ -359,7 +358,7 @@ func renderBannerStatic(m Model, a *AttachState, lead string, meta []bannerItem,
 		if anim, ok := m.DescAnim[a.SessionID]; ok && anim.Active(m.now()) && leadW > 0 {
 			cell = strings.TrimRight(renderAnimFrame(anim, leadW, m.now()), " ")
 		}
-		left = lipgloss.NewStyle().Foreground(colorWorking).Render(bannerLead) + stylePrimary.Render(cell)
+		left = styleArrow.Render(bannerLead) + stylePrimary.Render(cell)
 	}
 	pad := cols - ansi.StringWidth(ansi.Strip(left)) - rightW
 	if pad < 0 {

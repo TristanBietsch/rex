@@ -6,7 +6,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -14,7 +13,7 @@ import (
 const (
 	groupNavigation = "Navigation"
 	groupActions    = "Actions"
-	groupMouse      = helpGroupMouse
+	groupMouse      = "Mouse"
 	groupFilter     = "Filter & search"
 	groupModes      = "Modes"
 	groupAttached   = "Attached session"
@@ -42,6 +41,7 @@ type binding struct {
 	Ctx   ctxMask  // where it applies
 	Press []string // board keys that trigger it; a chord lists its first key then its second
 	Line  string   // short label on the board help line ("" = not shown)
+	Flag  string   // Features switch that gates the key ("" = always on)
 }
 
 // bindings is the key and gesture table, in help order.
@@ -52,18 +52,18 @@ var bindings = []binding{
 	{Keys: sectionKeysLabel, Desc: "jump to Needs you / Waiting / Working / Done (4 also folds a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2", "3", "4"}},
 	{Keys: "v", Desc: "simple / detailed rows (id, model, tokens, AI summary)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"v"}},
 
-	{Keys: "t", Desc: "cycle tool filter", Group: groupFilter, Ctx: ctxBoard, Press: []string{"t"}},
-	{Keys: "/", Desc: "search the board (every word must match)", Group: groupFilter, Ctx: ctxBoard, Press: []string{"/"}},
-	{Keys: "esc", Desc: "clear the search", Group: groupFilter, Ctx: ctxBoard, Press: []string{"esc"}},
-	{Keys: "zh", Desc: "hide / show completed sections", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "h"}},
-	{Keys: "z1-9", Desc: "hide / show section N", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "1"}},
-	{Keys: "z0", Desc: "show every section", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "0"}},
+	{Keys: "t", Desc: "cycle tool filter", Group: groupFilter, Ctx: ctxBoard, Press: []string{"t"}, Flag: "board_filter"},
+	{Keys: "/", Desc: "search the board (every word must match)", Group: groupFilter, Ctx: ctxBoard, Press: []string{"/"}, Flag: "search"},
+	{Keys: "esc", Desc: "clear the search", Group: groupFilter, Ctx: ctxBoard, Press: []string{"esc"}, Flag: "search"},
+	{Keys: "zh", Desc: "hide / show completed sections", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "h"}, Flag: "board_filter"},
+	{Keys: "z1-9", Desc: "hide / show section N", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "1"}, Flag: "board_filter"},
+	{Keys: "z0", Desc: "show every section", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "0"}, Flag: "board_filter"},
 
 	{Keys: "enter", Desc: "attach to selected session", Group: groupActions, Ctx: ctxBoard, Press: []string{"enter"}, Line: "open"},
 	{Keys: "n", Desc: "new-agent wizard", Group: groupActions, Ctx: ctxBoard, Press: []string{"n"}},
 	{Keys: "r", Desc: "rename selected (empty = slug)", Group: groupActions, Ctx: ctxBoard, Press: []string{"r"}},
 	{Keys: "cc", Desc: "mark done / undo", Group: groupActions, Ctx: ctxBoard, Press: []string{"c", "c"}, Line: "done"},
-	{Keys: "uc", Desc: "undo done (unmark, or resume an exited session)", Group: groupActions, Ctx: ctxBoard, Press: []string{"u", "c"}},
+	{Keys: "uc", Desc: "undo done (unmark, or resume an exited session)", Group: groupActions, Ctx: ctxBoard, Press: []string{"u", "c"}, Flag: "undo_complete"},
 	{Keys: "C", Desc: "complete now (kill agent, mark done)", Group: groupActions, Ctx: ctxBoard, Press: []string{"C"}},
 	{Keys: "dd", Desc: "delete selected", Group: groupActions, Ctx: ctxBoard, Press: []string{"d", "d"}},
 	{Keys: "i", Desc: "focus λ prompt (new-session text)", Group: groupActions, Ctx: ctxBoard, Press: []string{"i"}, Line: "new"},
@@ -97,7 +97,7 @@ func bindingsIn(group string) helpGroup {
 	g := helpGroup{Title: group}
 	for _, b := range bindings {
 		if b.Group == group {
-			g.Rows = append(g.Rows, [2]string{b.Keys, b.Desc})
+			g.Rows = append(g.Rows, helpRow{Key: b.Keys, Desc: b.Desc})
 		}
 	}
 	return g
@@ -177,7 +177,7 @@ func commandsIn(group string) helpGroup {
 	g := helpGroup{Title: group}
 	for _, c := range commands {
 		if c.Group == group {
-			g.Rows = append(g.Rows, [2]string{c.helpKey(), c.Desc})
+			g.Rows = append(g.Rows, helpRow{Key: c.helpKey(), Desc: c.Desc})
 		}
 	}
 	return g
@@ -199,13 +199,7 @@ func runDetach(m Model, _ cmdCall) (Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func runHelp(m Model, _ cmdCall) (Model, tea.Cmd) {
-	m.Focus = FocusHelp
-	if m.Audio != nil {
-		m.Audio.Play(audio.EventOpen)
-	}
-	return m, nil
-}
+func runHelp(m Model, _ cmdCall) (Model, tea.Cmd) { return openHelp(m), nil }
 
 func runSettings(m Model, _ cmdCall) (Model, tea.Cmd) { return openSettings(m) }
 

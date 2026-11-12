@@ -22,16 +22,43 @@ rex config reset <id>...
 rex config edit          # opens init.lua in $EDITOR, not config.yaml
 ```
 
+## When a change applies
+
+The settings page shows this per row (the detail pane under the list), and the registry carries it as `Apply`:
+
+| Mode | Meaning |
+|------|---------|
+| applies now | In the TUI at once, or through the daemon's settings watcher within seconds |
+| next attach | Read when an attach popup opens or resizes (`attach_banner`, `attach_scrollback_lines`) |
+| applies now (set from the TUI) | `max_concurrent_sessions`: the TUI sends it to the running daemon; the daemon ignores the YAML |
+| next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
+| after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
+
+## Color schemes
+
+`rex config set color_scheme <name>`; the TUI applies it at once and CLI output follows it.
+
+| Scheme | For |
+|--------|-----|
+| `default` | Dark terminals. Violet accent for the prompt arrow, selection marker, focused inputs and logo; blue, amber, green and red stay the state colors |
+| `classic` | The previous look (blue accent) |
+| `noir` | Deeper, quieter dark |
+| `paper` | Light terminals |
+| `high-contrast` | Pure black and white with bright state colors |
+| `ansi` | Your terminal's own six normal hues (a Solarized or Gruvbox terminal theme gives a matching rex); dim text is the default color drawn faint, since no fixed index is safe (8 is the Solarized Dark background); the selection is reverse video. Also a good fallback on a 16-color terminal |
+
+Every scheme with real colors is tested against its own background: text 7:1, state colors, accent and dim text 4.5:1, focus border 3:1, and the four state colors stay distinct from one another (also after a 256-color terminal quantizes them).
+
 ## Keys
 
 ### Appearance
 
 | ID | Type | Default | Options |
 |----|------|---------|---------|
-| `color_scheme` | enum | `default` | `default`, `noir`, `paper` |
+| `color_scheme` | enum | `default` | `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors). Applies to the TUI and to CLI output |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
-| `prompt_glyph` | string | `λ` | Suggested graphemes in TUI |
+| `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
 | `reduce_motion` | bool | `false` | |
 | `blinking_enabled` | bool | `true` | Completed-row blink |
 | `show_help_bar` | bool | `true` | Bottom help line |
@@ -43,7 +70,7 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 
 | ID | Type | Default | Range | Notes |
 |----|------|---------|-------|-------|
-| `keybind_preset` | enum | `default` | `default` only | |
+| `keybind_preset` | enum | `default` | `default` only | Hidden on the TUI settings page until a second preset exists; `rex config` still lists it |
 | `mouse_enabled` | bool | `true` | | Board and attach-popup mouse: click selects, double-click attaches, wheel moves the selection. Capturing the mouse disables the terminal's native text selection; hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) to select anyway, or turn this off. Applies live |
 | `max_concurrent_sessions` | int | `16` | 1–64 | See below |
 | `attach_scrollback_lines` | int | `5000` | 0–50000 | Lines the attach popup keeps after they scroll off a primary-screen agent (see [tui.md](tui.md#scrollback)). `0` disables. Also capped at 8 MiB per popup. Read when a popup opens |

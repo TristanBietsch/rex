@@ -83,10 +83,10 @@ func NewStyles(p theme.Palette, r *lipgloss.Renderer) Styles {
 	return Styles{
 		Bold:   fg(p.Fg).Bold(true),
 		Title:  fg(p.Fg).Bold(true),
-		Dim:    fg(p.FgDim),
-		Muted:  fg(p.FgMuted),
+		Dim:    fg(p.FgDim).Faint(p.Faint),
+		Muted:  fg(p.FgMuted).Faint(p.Faint),
 		Accent: fg(p.Accent).Bold(true),
-		HR:     fg(p.Border),
+		HR:     fg(p.Border).Faint(p.Faint),
 		OK:     fg(p.Success),
 		Warn:   fg(p.Warn),
 		Err:    fg(p.Danger),
