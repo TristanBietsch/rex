@@ -210,8 +210,27 @@ func run(args []string) error {
 	// read srv only once Serve has started, after that assignment.
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
 	defer usageHub.Close()
+	// Audit trail: inert (no file, no workspace lookup, no prompt kept) while
+	// audit_trail is off. A home that cannot be found turns workspace
+	// discovery off; records then go to the global file.
+	auditHome, err := paths.Home()
+	if err != nil {
+		slog.Warn("daemon: no home directory; audit records skip workspaces", "err", err)
+		auditHome = ""
+	}
+	auditTrail := boot.NewAudit(boot.AuditConfig{
+		StateDir: *stateDir,
+		Home:     auditHome,
+		Persist: func(sess *state.Session) {
+			if err := state.WriteMeta(*stateDir, sess); err != nil {
+				slog.Error("audit: persist meta failed", "session", sess.ID, "err", err)
+			}
+		},
+	}, store)
+	defer auditTrail.Close()
+	auditTrail.Configure(settingsStore)
 	// One settings watcher: every feature adds its applier to this list.
-	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier()}
+	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier(), auditTrail.Applier()}
 
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
@@ -234,6 +253,7 @@ func run(args []string) error {
 		UsageTap:              boot.UsageTap(*socketPath),
 		OnUsageSample:         usageHub.Hub.Sample,
 		UsageQuery:            usageHub.Hub.Query,
+		Audit:                 auditTrail,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },

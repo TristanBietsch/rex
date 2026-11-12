@@ -54,11 +54,16 @@ func (s *Server) deleteSession(id, reason string) error {
 	live := s.hasStop(id)
 	slog.Info("session: delete", "session", id, "slug", sess.Slug, "reason", reason, "live", live)
 	s.StopSession(id)
+	// The audit record goes first: once the directory is gone nothing else
+	// remembers this session, so it is never deleted without its record.
+	if s.cfg.Audit != nil {
+		s.cfg.Audit.End(sess)
+	}
 	if err := s.cfg.Store.RemoveWithReason(id, reason); err != nil {
 		slog.Debug("session: delete raced; already removed", "session", id, "reason", reason)
 		return errSessionNotFound
 	}
-	if err := state.RemoveSession(s.cfg.StateDir, sess); err != nil {
+	if err := s.removeSession(s.cfg.StateDir, sess); err != nil {
 		// The session is already gone from memory; on restart its meta (if it
 		// survived) reloads and, for a retired session, is swept again.
 		slog.Error("session: remove dir failed", "session", id, "err", err)
