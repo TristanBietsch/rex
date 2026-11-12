@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
@@ -20,6 +21,43 @@ type HeuristicCLI struct {
 	done   *regexp.Regexp // nil = no auto-done; manual completion or process exit only
 	busy   *regexp.Regexp // nil = none; text shown only while the agent works
 	idle   time.Duration
+
+	// login matches the agent's signed-out screen (nil = none). While it is
+	// the latest thing on screen the session waits, with notice as the reason.
+	login      *regexp.Regexp
+	notice     string
+	loginShown atomic.Bool
+}
+
+// Noticer is implemented by adapters that know a fixed notice for the
+// session's current screen (the agent is signed out). The supervisor shows it
+// as the session's last line.
+type Noticer interface {
+	// Notice is the text to show, "" when there is none.
+	Notice() string
+}
+
+// setLogin sets the signed-out pattern and its notice ("" regex clears it).
+func (h *HeuristicCLI) setLogin(loginRegex, notice string) error {
+	if loginRegex == "" {
+		h.login = nil
+		return nil
+	}
+	re, err := compileMultilineRegex(loginRegex)
+	if err != nil {
+		return fmt.Errorf("compile login regex %q: %w", loginRegex, err)
+	}
+	h.login, h.notice = re, notice
+	return nil
+}
+
+// Notice implements Noticer: the login notice while the signed-out screen is
+// the latest the adapter saw, "" otherwise.
+func (h *HeuristicCLI) Notice() string {
+	if h.loginShown.Load() {
+		return h.notice
+	}
+	return ""
 }
 
 // setBusy sets the optional busy pattern ("" clears it).
@@ -107,6 +145,15 @@ func (h *HeuristicCLI) Detect(window []byte, idle time.Duration) protocol.State 
 		return protocol.StateDone
 	}
 	prompt := lastMatch(h.prompt, clean)
+	if h.login != nil {
+		// Signed out only while the login text is the latest screen: a prompt
+		// after it means the agent got past it.
+		login := lastMatch(h.login, clean)
+		h.loginShown.Store(login >= 0 && login > prompt)
+		if h.loginShown.Load() {
+			return protocol.StateNeedsInput
+		}
+	}
 	if busy := lastMatch(h.busy, clean); busy > prompt && idle < staleWorking {
 		return protocol.StateWorking
 	}

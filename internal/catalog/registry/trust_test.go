@@ -99,9 +99,14 @@ func TestValidateTrustArgs(t *testing.T) {
 	ok.TrustArgs = []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}
 	require.NoError(t, validate([]Tool{ok}))
 
+	// A session-only switch needs no folder (qwen turns folder trust off for the run).
 	noFolder := base
-	noFolder.TrustArgs = []string{"--trust-everything"}
-	require.ErrorContains(t, validate([]Tool{noFolder}), "must name the folder")
+	noFolder.TrustArgs = []string{"--settings", `{"security":{"folderTrust":{"enabled":false}}}`}
+	require.NoError(t, validate([]Tool{noFolder}))
+
+	empty := base
+	empty.TrustArgs = []string{"--settings", ""}
+	require.ErrorContains(t, validate([]Tool{empty}), "trust_args")
 }
 
 func TestMergeTrustArgs(t *testing.T) {

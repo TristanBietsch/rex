@@ -160,6 +160,26 @@ func mergeOne(base, over Tool) Tool {
 	if len(over.StatusEnv) > 0 {
 		merged.StatusEnv = over.StatusEnv
 	}
+	if over.ModelEffort != nil {
+		merged.ModelEffort = over.ModelEffort
+	}
+	if over.ModelsCmd != nil {
+		merged.ModelsCmd = over.ModelsCmd
+	}
+	if len(over.ModelArgTemplate) > 0 {
+		merged.ModelArgTemplate = over.ModelArgTemplate
+	}
+	if len(over.PromptArgs) > 0 {
+		merged.PromptArgs = over.PromptArgs
+		merged.PromptPaste = nil
+	}
+	if over.PromptPaste != nil {
+		merged.PromptPaste = over.PromptPaste
+		merged.PromptArgs = nil
+	}
+	if over.LoginRegex != "" {
+		merged.LoginRegex = over.LoginRegex
+	}
 	// Models: extend by id rather than replace.
 	if len(over.Models) > 0 {
 		mi := make(map[string]int, len(merged.Models))
@@ -240,10 +260,14 @@ func validateTool(t Tool) error {
 	if err := validateStatusEnv(t); err != nil {
 		return err
 	}
-	if len(t.TrustArgs) > 0 && !slices.ContainsFunc(t.TrustArgs, func(a string) bool {
-		return strings.Contains(a, TrustArgsCWDList)
-	}) {
-		return fmt.Errorf("tool %q: trust_args must name the folder with %s", t.ID, TrustArgsCWDList)
+	if err := validateModelsCmd(t.ID, t.ModelsCmd); err != nil {
+		return err
+	}
+	if err := validateTemplates(t); err != nil {
+		return err
+	}
+	if slices.Contains(t.TrustArgs, "") {
+		return fmt.Errorf("tool %q: trust_args must not hold an empty argument", t.ID)
 	}
 	if slices.Contains(t.SkipPermissionsArgs, "") {
 		return fmt.Errorf("tool %q: skip_permissions_args must not hold an empty argument", t.ID)

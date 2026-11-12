@@ -29,6 +29,7 @@ tools:
     name: "Claude Code"
     category: paid
     command: ["claude"]
+    prompt_args: ["--", "{prompt}"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # Skills rex stages for one session load as a plugin folder (this session only).
     skill_args: ["--plugin-dir", "{plugin_dir}"]
@@ -83,6 +84,7 @@ tools:
     name: "OpenAI Codex"
     category: paid
     command: ["codex"]
+    prompt_args: ["--", "{prompt}"]
     detect:
       kind: heuristic
       # Full-screen TUI draws the prompt with leading whitespace; bare "^› "
@@ -135,6 +137,7 @@ tools:
     name: "Antigravity CLI"
     category: paid
     command: ["agy"]
+    prompt_args: ["--prompt-interactive={prompt}"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
     detect:
       kind: heuristic
@@ -210,6 +213,7 @@ tools:
     name: "Gemini CLI"
     category: paid
     command: ["gemini"]
+    prompt_args: ["--prompt-interactive={prompt}"]
     enabled_by_default: false
     detect:
       kind: heuristic
@@ -230,6 +234,8 @@ tools:
     name: "Ollama (local)"
     category: self_hosted
     command: ["ollama", "run"]
+    # run MODEL PROMPT is one-shot, so the task is pasted into the REPL.
+    prompt_paste: {plain: true, settle_ms: 800}
     detect:
       kind: heuristic
       # Wait for the full placeholder line, not a transient spinner frame with ">>>".
@@ -257,28 +263,122 @@ tools:
         name: "deepseek-r1"
         args: ["deepseek-r1"]
 
-  - id: grok
-    name: "Grok (xAI)"
+  # Qwen Code. A full-screen TUI that speaks OSC 7501: rex answers its status
+  # query on the PTY, so state is exact (a permission prompt is blocked, not
+  # working). The footer regexes are the fallback before the first report.
+  # `? for shortcuts` stays on screen while it works, so busy_regex is needed.
+  - id: qwen
+    name: "Qwen Code"
     category: paid
-    command: ["grok"]
+    command: ["qwen"]
+    skip_permissions_args: ["--dangerously-skip-permissions"]
+    # -i keeps the session interactive; a bare positional prompt is one-shot.
+    prompt_args: ["-i", "{prompt}"]
     detect:
       kind: heuristic
-      prompt_regex: "(?m)^> $"
+      prompt_regex: "\\? for shortcuts|Apply this change\\?|Do you trust the files in this folder\\?"
+      busy_regex: "esc to cancel"
       idle_ms: 1200
-    icon: "⬢"
-    color: "#E5544D"
-    enabled_by_default: false
+      status: osc7501
+    # Session-only: turns qwen's folder-trust check off for this run and
+    # writes nothing. Added only for folders in auto_trust_dirs; elsewhere
+    # the user answers qwen's trust dialog.
+    trust_args: ["--settings", "{\"security\":{\"folderTrust\":{\"enabled\":false}}}"]
+    # Detected ids (`qwen --list-models`: "Name (id)" per line, header MODEL).
+    models_cmd:
+      args: ["--list-models"]
+      parse: lines
+      id_regex: "\\(([^)]+)\\)\\s*$"
+      skip_header: 1
+      timeout_ms: 5000
+    model_arg_template: ["--model", "{model}"]
+    model_effort:
+      options: [low, medium, high]
+      default: medium
+      arg_template: "--reasoning-effort={value}"
+    icon: "◇"
+    color: "#6F42C1"
     models:
-      - id: grok-4
-        name: "Grok 4"
-        args: ["--model", "grok-4"]
+      - id: default
+        name: "Default model"
         effort:
           options: [low, medium, high]
           default: medium
           arg_template: "--reasoning-effort={value}"
-      - id: grok-4-mini
-        name: "Grok 4 Mini"
-        args: ["--model", "grok-4-mini"]
+
+  # Cursor CLI (binary cursor-agent). No OSC 7501, so screen heuristics only:
+  # a spinner line plus a verb is working; the status line (model and context
+  # percent) is the idle screen; approvals and the trust dialog need the user.
+  # rex never answers its trust dialog and never passes --trust (it is saved
+  # globally). Its default mode runs safe tool calls without asking.
+  - id: cursor
+    name: "Cursor CLI"
+    category: paid
+    command: ["cursor-agent"]
+    skip_permissions_args: ["--yolo"]
+    prompt_args: ["{prompt}"]
+    detect:
+      kind: heuristic
+      prompt_regex: "Waiting for approval|Run this command\\?|Workspace Trust Required|\\S \u00b7 \\d+(\\.\\d+)?%"
+      busy_regex: "^\\s*[\\x{2800}-\\x{28FF}]{1,2} [A-Z][a-z]+"
+      idle_ms: 1500
+    # Signed out: "Press any key to log in...".
+    login_regex: "Press any key to log in"
+    # `cursor-agent models`: "Available models", a blank line, then
+    # "id - Name" per line. Effort is part of the id, so no effort block.
+    models_cmd:
+      args: ["models"]
+      parse: lines
+      id_regex: "^(\\S+) - "
+      skip_header: 2
+      timeout_ms: 8000
+    model_arg_template: ["--model", "{model}"]
+    icon: "▶"
+    color: "#1F2937"
+    models:
+      - id: auto
+        name: "Auto"
+        args: ["--model", "auto"]
+
+  # Grok Build. Speaks OSC 7501 like qwen (rex answers the query and strips
+  # TMUX*/TERM_PROGRAM* from the child env, or grok never asks). rex never
+  # answers its trust dialog and never passes --trust (saved globally), so a
+  # new folder shows "needs you" until the user presses y once. Its default
+  # mode can edit files and run commands without asking.
+  - id: grok
+    name: "Grok Build"
+    category: paid
+    command: ["grok"]
+    skip_permissions_args: ["--always-approve"]
+    prompt_args: ["{prompt}"]
+    detect:
+      kind: heuristic
+      prompt_regex: "Shift\\+Tab:mode|Do you trust the contents of this directory\\?"
+      busy_regex: "Ctrl\\+c:cancel"
+      idle_ms: 1200
+      status: osc7501
+    login_regex: "Approve in your browser to finish signing in"
+    # `grok models`: "Available models:" then "  * id (default)" per line.
+    models_cmd:
+      args: ["models"]
+      parse: lines
+      id_regex: "^\\s*\\*\\s+(\\S+)"
+      skip_header: 1
+      timeout_ms: 5000
+    model_arg_template: ["--model", "{model}"]
+    model_effort:
+      options: [low, medium, high]
+      default: medium
+      arg_template: "--reasoning-effort={value}"
+    icon: "⬢"
+    color: "#E5544D"
+    models:
+      - id: default
+        name: "Default model"
+        effort:
+          options: [low, medium, high]
+          default: medium
+          arg_template: "--reasoning-effort={value}"
 
   - id: deepseek
     name: "DeepSeek"

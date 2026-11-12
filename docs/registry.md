@@ -178,7 +178,16 @@ effort:
 
 ## Built-in tools
 
-Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `ollama`, `grok`, `deepseek`, `kimi`. The last three default to `enabled_by_default: false`.
+Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `qwen`, `cursor`, `grok`, `ollama`, `deepseek`, `kimi`. `deepseek` and `kimi` default to `enabled_by_default: false`.
+
+`qwen` (Qwen Code), `cursor` (Cursor CLI, binary `cursor-agent`) and `grok` (Grok Build) are on by default and shown only when their binary is on `PATH`. `qwen` and `grok` report their state on OSC 7501; `cursor` has no status channel, so it uses screen patterns only.
+
+**Permissions and trust of the new agents.** Check the agent's own safety settings before you point it at a folder you care about:
+
+- `grok`'s default mode can edit files and run commands **without asking**. rex does not change its mode (that is your grok config); `skip_permissions` adds `--always-approve` on top.
+- `cursor`'s default mode runs safe tool calls, including file edits, without asking; shell commands ask. `skip_permissions` adds `--yolo`.
+- `qwen` asks before it applies a change; `skip_permissions` adds `--dangerously-skip-permissions`.
+- rex never answers the folder-trust dialog of `grok` or `cursor` and never passes `--trust` (it is saved globally by those agents). A new folder shows "needs you" until you press the key once. `auto_trust_dirs` does not apply to them. `qwen` has a session-only switch (`trust_args`), so it is the only one of the three that `auto_trust_dirs` covers.
 
 `antigravity` runs the Antigravity CLI (`agy`), Google's successor to Gemini CLI, which was retired on 2026-06-18. `gemini` stays built in but hidden (`enabled_by_default: false`), so an existing install, a partial `gemini` overlay in `tools.yaml`, or a saved `default_spawn_tool: gemini` keeps working. The Gemini model's effort picks its slug (`--model=gemini-3.8-flash-<effort>`); the other models take `--effort`. Model slugs come from `agy models` and depend on your account.
 

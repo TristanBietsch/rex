@@ -274,6 +274,18 @@ func (o *OSCStatus) Detect(window []byte, idle time.Duration) protocol.State {
 	return state
 }
 
+// Notice implements Noticer for the footer fallback: once the agent reports,
+// the signed-out screen is long gone.
+func (o *OSCStatus) Notice() string {
+	o.mu.Lock()
+	seen := o.seen
+	o.mu.Unlock()
+	if seen {
+		return ""
+	}
+	return o.inner.Notice()
+}
+
 // IsReadyForInput implements Adapter: the visible prompt decides.
 func (o *OSCStatus) IsReadyForInput(window []byte, idle time.Duration) bool {
 	return o.inner.IsReadyForInput(window, idle)

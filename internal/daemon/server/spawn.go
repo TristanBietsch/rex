@@ -122,7 +122,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	childEnv := childEnvFor(spec)
 
 	ptyPrompt := p.InitialPrompt
-	delivery := initialPromptDelivery(p.ToolID, cmdArgs, p.InitialPrompt)
+	delivery := initialPromptDelivery(tool, cmdArgs, p.InitialPrompt)
 	if delivery.argv != nil {
 		cmdArgs = delivery.argv
 		ptyPrompt = ""

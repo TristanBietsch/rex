@@ -760,6 +760,11 @@ func (s *Supervisor) refreshScreenText(id string, screen vt10x.Terminal) {
 	}
 	s.cfg.Store.SetScreen(id, termtext.Tail([]byte(strings.Join(lines, "\n")), screenTailBytes))
 	last := sanitizeForDisplay(lines[len(lines)-1])
+	if n, ok := s.cfg.Adapter.(adapter.Noticer); ok {
+		if notice := n.Notice(); notice != "" {
+			last = notice // signed out: say so instead of the agent's last row
+		}
+	}
 	if last == "" {
 		return
 	}

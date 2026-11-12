@@ -32,6 +32,12 @@ func For(t registry.Tool, hookFile string) (Adapter, error) {
 		if err := h.setBusy(t.Detect.BusyRegex); err != nil {
 			return nil, err
 		}
+		if len(t.Command) > 0 {
+			notice := fmt.Sprintf("%s: not signed in \u2014 run `%s login`", t.ID, t.Command[0])
+			if err := h.setLogin(t.LoginRegex, notice); err != nil {
+				return nil, err
+			}
+		}
 		switch t.Detect.Status {
 		case "":
 			return h, nil
