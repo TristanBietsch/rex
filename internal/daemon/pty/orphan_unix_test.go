@@ -161,9 +161,11 @@ func (failingTranscript) Write([]byte) error {
 
 func (failingTranscript) Close() error { return nil }
 
-// P0-05: a transcript write error ends the reader. The child must be killed
-// and reaped, not left running while Run blocks in Wait.
-func TestSupervisor_TranscriptWriteErrorKillsChild(t *testing.T) {
+// A transcript write error (full disk) pauses the transcript; the agent
+// keeps running and its session stays working. (P0-05 killed it, which
+// stopped every agent mid-task when the disk filled.) Canceling Run still
+// kills and reaps it.
+func TestSupervisor_TranscriptWriteErrorKeepsChild(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	store := state.NewStore()
 	sess := newOrphanTestSession(t, store, true)
@@ -171,11 +173,30 @@ func TestSupervisor_TranscriptWriteErrorKillsChild(t *testing.T) {
 		IdleTick: 10 * time.Millisecond, StopDrainTimeout: orphanStopTimeout})
 	sup.openTranscript = func(string, string) (transcriptWriter, error) { return failingTranscript{}, nil }
 
-	err := runBounded(t, sup, sess, pidFile)
-	require.ErrorIs(t, err, syscall.ENOSPC)
-	requireReaped(t, readPID(t, pidFile, time.Second), pidFile)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	done := make(chan error, 1)
+	go func() { done <- sup.Run(ctx, sess) }()
+	pid := readPID(t, pidFile, 2*time.Second)
+	require.NotZero(t, pid)
+	t.Cleanup(func() { killIfOwnChild(pid, pidFile) })
+
+	select {
+	case err := <-done:
+		t.Fatalf("Run ended on a transcript error: %v", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	require.NoError(t, syscall.Kill(pid, 0), "the agent is still running")
 	st, _ := store.CurrentState(sess.ID)
-	require.Equal(t, protocol.StateFailed, st)
+	require.NotEqual(t, protocol.StateFailed, st)
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * orphanStopTimeout):
+		t.Fatal("Run did not return after cancel")
+	}
+	requireReaped(t, pid, pidFile)
 }
 
 // P0-05: OpenTranscript failing after the console started used to return

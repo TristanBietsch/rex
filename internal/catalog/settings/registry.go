@@ -100,13 +100,13 @@ var Registry = []Setting{
 	{
 		ID: "screensaver_enabled", Label: "Screensaver", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "When the board gets no key or click for a while, show a small ∴ rex with the counts. Any key or click wakes it and does nothing else.",
+		Help: "When rex gets no key or click for a while, show a small ∴ rex with the counts. Any key or click wakes it and does nothing else.",
 	},
 	{
 		ID: "screensaver_after_minutes", Label: "Screensaver after (min)", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeInt, Default: 5,
 		Min: 1, Max: 120,
-		Help: "Minutes without a key or click on the board before the screensaver shows. A change applies within a minute.",
+		Help: "Minutes without a key or click before the screensaver shows. A change applies within a minute.",
 	},
 	{
 		ID: "screensaver_keep_awake", Label: "Screensaver keep awake", Section: SectionBehavior, Apply: ApplyLive,

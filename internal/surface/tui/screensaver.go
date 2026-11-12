@@ -13,12 +13,14 @@ import (
 
 // Screensaver.
 //
-// After screensaver_after_minutes without a key or mouse event while the
-// board itself has focus, the board gives way to a small centered "∴ rex"
-// with the session counts under it. The next key or mouse event brings the
-// board back and does nothing else. Daemon events keep the counts live.
-// Overlays, prompts, confirms, the wizard and the attach popup never time
-// out: there the user is in the middle of something.
+// After screensaver_after_minutes without a key or mouse event, the screen
+// gives way to a small centered "∴ rex" with the session counts under it.
+// That holds whatever has focus: an overlay, prompt, confirm, the wizard or
+// the attach popup left open is still an idle screen. Only the boot splash
+// never times out. The focused component keeps its state underneath; the
+// next key or mouse event (or a terminal resize) brings it back and does
+// nothing else. Daemon events keep the counts live, and an attached
+// session's output still reaches its terminal.
 //
 // One slow timer drives it (idleTickMsg). It fires when the idle deadline
 // passes and otherwise at most once a minute, which also picks up a changed
@@ -104,10 +106,18 @@ func handleIdleTick(m Model, msg idleTickMsg) Model {
 	return checkIdle(m, m.now())
 }
 
-// checkIdle shows the screensaver when it is on, the board has focus, and
-// no key or mouse event came for screensaver_after_minutes.
+// checkIdle shows the screensaver when it is on, the boot splash is gone,
+// and no key or mouse event came for screensaver_after_minutes. A
+// screensaver already showing goes away if the setting was turned off
+// meanwhile (a live reload).
 func checkIdle(m Model, now time.Time) Model {
-	if m.saverOn || m.Focus != FocusBoard || !saverEnabled(m) {
+	if m.saverOn {
+		if !saverEnabled(m) {
+			return wakeSaver(m, "disabled")
+		}
+		return m
+	}
+	if m.Focus == FocusBoot || !saverEnabled(m) {
 		return m
 	}
 	if now.Sub(m.lastInput) < saverAfter(m) {
@@ -120,7 +130,7 @@ func checkIdle(m Model, now time.Time) Model {
 	if keepAwake {
 		m.keepAwake.Start()
 	}
-	slog.Info("tui: screensaver on", "idle", now.Sub(m.lastInput).Round(time.Second), "keep_awake", keepAwake)
+	slog.Info("tui: screensaver on", "idle", now.Sub(m.lastInput).Round(time.Second), "focus", m.Focus, "keep_awake", keepAwake)
 	return m
 }
 

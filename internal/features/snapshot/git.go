@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Errors callers match with errors.Is.
@@ -120,6 +121,11 @@ func subcommand(args []string) string {
 }
 
 var (
+	// gitProbeTimeout bounds one `git --version` probe. It is its own limit,
+	// apart from any capture deadline: a slow first exec of git on a loaded
+	// machine must not look like a failed capture.
+	gitProbeTimeout = time.Minute
+
 	gitVerMu    sync.Mutex
 	gitVerCache = map[string]error{}
 )
@@ -127,7 +133,8 @@ var (
 var gitVersionRe = regexp.MustCompile(`(\d+)\.(\d+)`)
 
 // CheckGit reports ErrNoGit when git is missing and ErrGitTooOld when it is
-// older than 2.32. The answer is remembered per git path.
+// older than 2.32. The answer is remembered per git path; a failed probe
+// (timeout, exec error) is not remembered, so the next call probes again.
 func CheckGit(ctx context.Context) error {
 	path, err := GitPath()
 	if err != nil {
@@ -138,7 +145,9 @@ func CheckGit(ctx context.Context) error {
 	if r, ok := gitVerCache[path]; ok {
 		return r
 	}
-	out, err := run(ctx, baseEnv(), "", nil, "--version")
+	probeCtx, cancel := context.WithTimeout(ctx, gitProbeTimeout)
+	defer cancel()
+	out, err := run(probeCtx, baseEnv(), "", nil, "--version")
 	if err != nil {
 		return err
 	}
