@@ -430,6 +430,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// reasons is asserted once too; nil unless the agent reports why it
 	// waits. Cleared with the subagents on every exit path.
 	reasons, _ := s.cfg.Adapter.(adapter.WaitReasoner)
+	noticer, _ := s.cfg.Adapter.(adapter.Noticer)
+	var lastNotice string
 	clearReason := func() {
 		if reasons != nil {
 			_ = s.cfg.Store.SetWaitReason(sess.ID, "")
@@ -580,6 +582,14 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			refresh := screenDirty
 			screenDirty = false
 			windowMu.Unlock()
+			// A notice appearing or going away changes the last line even
+			// though the screen did not (a static login screen).
+			if noticer != nil {
+				if n := noticer.Notice(); n != lastNotice {
+					lastNotice = n
+					refresh = true
+				}
+			}
 			if refresh {
 				s.refreshScreenText(sess.ID, screen)
 			}

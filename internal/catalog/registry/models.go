@@ -271,6 +271,23 @@ func (r *Registry) WithModels(detected map[string][]Model) *Registry {
 // ExtraAgentIDs are the tools added by the extra_agents feature.
 var ExtraAgentIDs = []string{"qwen", "cursor", "grok"}
 
+// WithFeatures applies the extra_agents and model_autodetect switches to the
+// registry, for any process that holds its own copy (the daemon, and the TUI
+// wizard and Settings pickers). extraAgents false drops qwen, cursor and grok.
+// modelAutodetect true merges the models the daemon cached in cachePath; it
+// runs no command (only the daemon does) and an old entry is still shown.
+// With it false the cache is not read. The receiver is not changed.
+func (r *Registry) WithFeatures(extraAgents, modelAutodetect bool, cachePath string, now time.Time) *Registry {
+	out := r
+	if !extraAgents {
+		out = out.Without(ExtraAgentIDs...)
+	}
+	if modelAutodetect {
+		out = out.WithModels(CachedModels(out.Tools, cachePath, now, true))
+	}
+	return out
+}
+
 // Without returns a copy of the registry without the tools in ids. A user
 // tools.yaml overlay for one of them goes with it.
 func (r *Registry) Without(ids ...string) *Registry {

@@ -17,8 +17,8 @@ import (
 
 // Feature switches read here (Settings → Features).
 const (
-	featureExtraAgents    = "extra_agents"
-	featureModelAutodetec = "model_autodetect"
+	featureExtraAgents     = "extra_agents"
+	featureModelAutodetect = "model_autodetect"
 )
 
 // loadBase loads the built-in registry merged with tools.yaml and applies
@@ -56,10 +56,10 @@ func LoadRegistry(toolsPath string, st *settings.Store) (*registry.Registry, err
 	if err != nil {
 		return nil, err
 	}
-	if !settings.FeatureOn(st, featureModelAutodetec) {
+	if !settings.FeatureOn(st, featureModelAutodetect) {
 		return reg, nil
 	}
-	return reg.WithModels(registry.CachedModels(reg.Tools, modelsCachePath(), time.Now(), true)), nil
+	return reg.WithFeatures(true, true, modelsCachePath(), time.Now()), nil
 }
 
 // Catalog keeps the daemon's registry current: it reloads tools.yaml and
@@ -89,7 +89,7 @@ func (c *Catalog) Wait() { c.wg.Wait() }
 // With model_autodetect off it does nothing at all: no goroutine, no
 // subprocess, no file read or write.
 func (c *Catalog) Refresh(ctx context.Context, st *settings.Store, force bool) {
-	if !settings.FeatureOn(st, featureModelAutodetec) {
+	if !settings.FeatureOn(st, featureModelAutodetect) {
 		return
 	}
 	gen := c.gen.Load()
@@ -146,15 +146,15 @@ func (c *Catalog) ReloadDefault(ctx context.Context) error {
 // started with.
 func (c *Catalog) Applier(ctx context.Context, initial *settings.Store) func(*settings.Store) {
 	extra := settings.FeatureOn(initial, featureExtraAgents)
-	detect := settings.FeatureOn(initial, featureModelAutodetec)
+	detect := settings.FeatureOn(initial, featureModelAutodetect)
 	return func(st *settings.Store) {
 		nextExtra := settings.FeatureOn(st, featureExtraAgents)
-		nextDetect := settings.FeatureOn(st, featureModelAutodetec)
+		nextDetect := settings.FeatureOn(st, featureModelAutodetect)
 		if nextExtra == extra && nextDetect == detect {
 			return
 		}
 		extra, detect = nextExtra, nextDetect
-		slog.Info("daemon: catalog features changed", featureExtraAgents, extra, featureModelAutodetec, detect)
+		slog.Info("daemon: catalog features changed", featureExtraAgents, extra, featureModelAutodetect, detect)
 		if err := c.Reload(ctx, st, false); err != nil {
 			slog.Warn("daemon: registry reload after a settings change failed", "err", err)
 		}
