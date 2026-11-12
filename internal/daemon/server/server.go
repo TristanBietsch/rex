@@ -311,6 +311,11 @@ type Server struct {
 	// reserveStop), so unreserveStop and promoteStop can tell their own
 	// placeholder from a real stop func.
 	reserved map[string]*stopReservation
+	// exited holds, per supervised session, a channel closed when its
+	// supervisor goroutine has returned (registerExited). A session turns
+	// done inside the supervisor, a moment before its stop slot is
+	// released; Resume waits on this to tell that apart from a live one.
+	exited map[string]<-chan struct{}
 
 	completeMu    sync.Mutex
 	completeFuncs map[string]func()
@@ -964,6 +969,41 @@ func (s *Server) UnregisterStop(sessionID string) {
 	s.stopMu.Lock()
 	defer s.stopMu.Unlock()
 	delete(s.stopFuncs, sessionID)
+	delete(s.exited, sessionID)
+}
+
+// registerExited records done, closed when sessionID's supervisor goroutine
+// returns. UnregisterStop forgets it.
+func (s *Server) registerExited(sessionID string, done <-chan struct{}) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.exited == nil {
+		s.exited = make(map[string]<-chan struct{})
+	}
+	s.exited[sessionID] = done
+}
+
+// waitSupervisorExit waits, up to max or ctx, for sessionID's supervisor to
+// return and release its stop slot. It reports whether the slot is free.
+// A slot held by a resume reservation is not waited on.
+func (s *Server) waitSupervisorExit(ctx context.Context, sessionID string, max time.Duration) bool {
+	s.stopMu.Lock()
+	done := s.exited[sessionID]
+	s.stopMu.Unlock()
+	if done == nil {
+		return !s.hasStop(sessionID)
+	}
+	t := time.NewTimer(max)
+	defer t.Stop()
+	select {
+	case <-done:
+	case <-t.C:
+		return false
+	case <-ctx.Done():
+		return false
+	}
+	// close(done) runs after UnregisterStop (deferred in reverse order).
+	return !s.hasStop(sessionID)
 }
 
 // stopReservation holds a session's stop slot between the decision to

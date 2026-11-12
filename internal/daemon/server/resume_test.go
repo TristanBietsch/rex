@@ -500,3 +500,31 @@ func TestResume_ResetsHookFile(t *testing.T) {
 	require.Empty(t, raw, "stale hook lines dropped")
 	require.NoError(t, e.srv.deleteSession("a", protocol.RemovedByUser))
 }
+
+// A Resume that lands after the row turned done but before its supervisor
+// released the stop slot (the done event goes out first) waits for the
+// teardown and respawns: it used to count the session as live and only
+// unmark it, so the resume silently did nothing.
+func TestResume_WaitsForExitingSupervisor(t *testing.T) {
+	e := startResumeServer(t, resumeTools, 0)
+	sess := exited(func() string { return e.dir }, "a", protocol.StateDone, "slow", testResumeID)
+	require.NoError(t, e.store.Add(sess))
+	require.NoError(t, state.WriteMeta(e.dir, sess))
+
+	// The old run's supervisor, still winding down: slot held, exit pending.
+	exitedCh := make(chan struct{})
+	e.srv.RegisterStop("a", func() { <-exitedCh })
+	e.srv.registerExited("a", exitedCh)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		e.srv.UnregisterStop("a")
+		close(exitedCh)
+	}()
+
+	conn, w, r := e.dial(t)
+	code, msg := call(t, conn, w, r, protocol.IntentResume, protocol.Resume{SessionID: "a"})
+	require.Empty(t, code, msg)
+	require.Eventually(t, func() bool { return strings.Contains(e.transcript("a"), "ARGV: --resume "+testResumeID) },
+		10*time.Second, 20*time.Millisecond, "the resume respawned the session")
+	require.NoError(t, e.srv.deleteSession("a", protocol.RemovedByUser))
+}

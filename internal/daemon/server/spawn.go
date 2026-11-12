@@ -426,6 +426,7 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 	} else {
 		srv.RegisterStop(sess.ID, stop)
 	}
+	srv.registerExited(sess.ID, done)
 	srv.RegisterComplete(sess.ID, func() {
 		select {
 		case completeCh <- struct{}{}:
