@@ -249,13 +249,14 @@ func TestWs_NotFoundErrors(t *testing.T) {
 func TestWs_MovedFolderIsReportedNotGuessed(t *testing.T) {
 	r := newRig(t, true)
 	proj := r.project(t, "p")
-	t.Chdir(proj)
+	// Init by path, not from inside proj: Windows cannot rename a folder
+	// that is (or was just) the process's working folder.
+	t.Chdir(r.home)
 	r.printer(t, core.FormatFlags{Output: "json"})
-	require.NoError(t, RunWs([]string{"init"}))
+	require.NoError(t, RunWs([]string{"init", proj}))
 	id := decode[info](t, r).ID
 
 	moved := filepath.Join(r.home, "dev", "moved")
-	t.Chdir(r.home)
 	moveDir(t, proj, moved)
 	err := RunWs([]string{"rename", id, "x"})
 	require.Equal(t, core.ExitSelectorNotFound, exitCode(t, err))
@@ -296,13 +297,14 @@ func TestWs_OversizedWorkspaceJSONRefused(t *testing.T) {
 func TestWs_IDInAMovedFolderUpdatesTheRegistry(t *testing.T) {
 	r := newRig(t, true)
 	proj := r.project(t, "p")
-	t.Chdir(proj)
+	// Init by path, not from inside proj: Windows cannot rename a folder
+	// that is (or was just) the process's working folder.
+	t.Chdir(r.home)
 	r.printer(t, core.FormatFlags{Output: "json"})
-	require.NoError(t, RunWs([]string{"init"}))
+	require.NoError(t, RunWs([]string{"init", proj}))
 	id := decode[info](t, r).ID
 
 	moved := filepath.Join(r.home, "dev", "moved")
-	t.Chdir(r.home)
 	moveDir(t, proj, moved)
 	require.Equal(t, core.ExitSelectorNotFound, exitCode(t, RunWs([]string{"rename", id, "x"})))
 

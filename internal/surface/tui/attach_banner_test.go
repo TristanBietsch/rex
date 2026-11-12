@@ -153,7 +153,10 @@ func TestBannerParts(t *testing.T) {
 	lead, _ = bannerParts(m, sum, false)
 	require.Empty(t, lead, "raw status text is not a lead")
 
-	sum.CWD = "/home/dev"
+	home := filepath.Join(filepath.VolumeName(os.TempDir())+string(filepath.Separator), "home", "dev") // absolute on Windows too
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	sum.CWD = home
 	_, meta = bannerParts(m, sum, false)
 	require.Equal(t, "~", meta[0].text)
 

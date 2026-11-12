@@ -206,24 +206,24 @@ func TestSuggestTrustDir(t *testing.T) {
 
 	// The repo's own folder, never its parent.
 	app := gitDir(t, filepath.Join(dev, "app"))
-	require.Equal(t, "~"+sep+"dev"+sep+"app", SuggestTrustDir(app))
+	require.Equal(t, "~/dev/app", SuggestTrustDir(app), "slashed on every OS")
 	// From inside the repo: its root.
 	sub := filepath.Join(app, "pkg", "x")
 	require.NoError(t, os.MkdirAll(sub, 0o700))
-	require.Equal(t, "~"+sep+"dev"+sep+"app", SuggestTrustDir(sub))
+	require.Equal(t, "~/dev/app", SuggestTrustDir(sub))
 	// Not a repo: the folder itself.
 	plain := filepath.Join(dev, "plain")
 	require.NoError(t, os.MkdirAll(plain, 0o700))
-	require.Equal(t, "~"+sep+"dev"+sep+"plain", SuggestTrustDir(plain))
+	require.Equal(t, "~/dev/plain", SuggestTrustDir(plain))
 	// A repo directly in home is a folder directly in home.
-	require.Equal(t, "~"+sep+"app2", SuggestTrustDir(gitDir(t, filepath.Join(home, "app2"))))
+	require.Equal(t, "~/app2", SuggestTrustDir(gitDir(t, filepath.Join(home, "app2"))))
 
 	// Never home itself, even when home is a repo (dotfiles) ...
 	require.Empty(t, SuggestTrustDir(home))
 	gitDir(t, home)
 	require.Empty(t, SuggestTrustDir(home), "home is a repo")
 	// ... and a plain folder under a home that is a repo is still itself.
-	require.Equal(t, "~"+sep+"dev"+sep+"plain", SuggestTrustDir(plain))
+	require.Equal(t, "~/dev/plain", SuggestTrustDir(plain))
 
 	// Never root, outside home, empty, relative or with "..".
 	require.Empty(t, SuggestTrustDir(filepath.VolumeName(home)+sep))

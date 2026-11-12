@@ -190,7 +190,8 @@ func TestPrinterReadsSchemeFromSettings(t *testing.T) {
 	require.NoError(t, os.WriteFile(home+"/.config/rex/config.yaml", []byte("theme: paper\nspinner: moon\n"), 0o600))
 
 	var out, errw bytes.Buffer
-	p, err := NewPrinter(FormatFlags{Output: "text"}, Env{Getenv: envOf(), OutTTY: true, TrueColor: true}, &out, &errw)
+	// GOOS linux: a Windows console gets ASCII glyphs, not the moon spinner.
+	p, err := NewPrinter(FormatFlags{Output: "text"}, Env{Getenv: envOf(), OutTTY: true, TrueColor: true, GOOS: "linux"}, &out, &errw)
 	require.NoError(t, err)
 	require.Contains(t, p.Styles.Bold.Render("x"), "38;2;28;29;32")
 	require.Equal(t, "◐", p.Glyphs.State["working"])
