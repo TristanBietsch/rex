@@ -91,7 +91,7 @@ func TestWs_UsageErrors(t *testing.T) {
 		require.Errorf(t, err, "%v", args)
 		require.Equalf(t, core.ExitInvalidArgs, exitCode(t, err), "%v", args)
 	}
-	require.NoError(t, RunWs([]string{"-h"}))
+	require.ErrorIs(t, RunWs([]string{"-h"}), core.ErrHelpShown)
 }
 
 func decode[T any](t *testing.T, r *rig) T {

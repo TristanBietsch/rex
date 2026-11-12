@@ -1,0 +1,45 @@
+-- dry.text --
+  ID    SLUG        STATE
+  1111  done-one    done
+  2222  failed-one  failed
+
+would clear 2 (1 still working kept)
+-- nothing.text --
+nothing to clear
+-- summary.text --
+✓ cleared 2, kept 1 that changed (1 still working kept)
+-- dry.txt --
+1111	done-one	done
+2222	failed-one	failed
+would clear 2 (1 still working kept)
+
+would clear 2 (1 still working kept)
+-- nothing.txt --
+nothing to clear
+-- summary.txt --
+cleared 2, kept 1 that changed (1 still working kept)
+-- dry.md --
+| ID | Slug | State |
+| --- | --- | --- |
+| 1111 | done-one | done |
+| 2222 | failed-one | failed |
+
+> would clear 2 (1 still working kept)
+-- nothing.md --
+nothing to clear
+-- summary.md --
+cleared 2, kept 1 that changed (1 still working kept)
+-- dry.json --
+{"v":1,"cmd":"prune","data":{"dry_run":true,"would_clear":[{"id":"11110000","short_id":"1111","slug":"done-one","state":"done"},{"id":"22220000","short_id":"2222","slug":"failed-one","state":"failed"}],"kept_working":1}}
+-- nothing.json --
+{"v":1,"cmd":"prune","data":{"dry_run":false,"would_clear":[],"kept_working":0}}
+-- summary.json --
+{"v":1,"cmd":"prune","data":{"cleared":2,"unconfirmed":0,"kept_changed":1,"failed":0,"kept_working":1}}
+-- dry.agent --
+session id=1111 slug=done-one state=done
+session id=2222 slug=failed-one state=failed
+ok cmd=prune count=2 dry_run=true kept_working=1
+-- nothing.agent --
+ok cmd=prune cleared=0 kept_working=0
+-- summary.agent --
+ok cmd=prune cleared=2 unconfirmed=0 kept_changed=1 failed=0 kept_working=1

@@ -2,7 +2,6 @@ package session
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
@@ -11,7 +10,8 @@ import (
 func RunArchive(args []string) error {
 	fs := flag.NewFlagSet("archive", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	rest, err := core.ParseArgs(fs, args)
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -37,6 +37,5 @@ func RunArchive(args []string) error {
 	if err := awaitPatch(c, sess.ID, reqID, "title"); err != nil {
 		return err
 	}
-	fmt.Printf("%s: archived\n", sess.Slug)
-	return nil
+	return emitAction("archive", refOf(sess), "archived "+sess.Slug, sess.Slug+": archived", sessionFields(sess))
 }

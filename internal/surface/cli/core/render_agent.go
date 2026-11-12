@@ -6,7 +6,8 @@ import (
 )
 
 // renderAgent renders v as agent lines: one `kind key=value ...` line per
-// record, then the trailer `ok cmd=<cmd> [count=N] [fields...]`.
+// record, then the trailer `ok cmd=<cmd> [count=N] [fields...]` (`fail` when
+// failed: an answer that is not a success, such as doctor with failures).
 //
 //   - A Table with Kind set yields one line per row, with a key per column
 //     shown in agent mode (the cell's Raw value, else its Text).
@@ -18,7 +19,7 @@ import (
 //   - meta entries follow, sorted by key.
 //
 // Headers, sections, notes, hints and lines carry no data and are skipped.
-func renderAgent(cmd string, v View, meta map[string]any) string {
+func renderAgent(cmd string, v View, meta map[string]any, failed bool) string {
 	var lines []string
 	var trailer []Field
 	count, tables := 0, false
@@ -28,7 +29,7 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 			if b.Kind == "" {
 				continue
 			}
-			tables = true
+			tables = tables || !b.NoCount
 			idx := visibleCols(b.Cols, FormatAgent)
 			for _, row := range b.Rows {
 				fields := make([]Field, 0, len(idx))
@@ -36,7 +37,9 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 					fields = append(fields, Field{b.Cols[i].Key, cellValue(row[i])})
 				}
 				lines = append(lines, EncodeLine(b.Kind, fields...))
-				count++
+				if !b.NoCount {
+					count++
+				}
 			}
 		case KV:
 			pairs := b.pairs(FormatAgent)
@@ -57,7 +60,21 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 				}
 				lines = append(lines, EncodeLine("check", fields...))
 			}
-		case Header, Section, Note, Hint, Line:
+		case Defs:
+			if b.Kind == "" {
+				continue
+			}
+			tables = true
+			for _, it := range b.Items {
+				name := it.Name
+				if it.Key != "" {
+					name = it.Key
+				}
+				fields := append([]Field{{"name", name}, {"desc", it.Desc}}, it.Extra...)
+				lines = append(lines, EncodeLine(b.Kind, fields...))
+				count++
+			}
+		case Header, Section, Note, Hint, Line, Para, Pre:
 		}
 	}
 	head := []Field{{"cmd", cmd}}
@@ -73,7 +90,11 @@ func renderAgent(cmd string, v View, meta map[string]any) string {
 	for _, k := range keys {
 		head = append(head, Field{k, meta[k]})
 	}
-	lines = append(lines, EncodeLine("ok", head...))
+	kind := "ok"
+	if failed {
+		kind = "fail"
+	}
+	lines = append(lines, EncodeLine(kind, head...))
 	return strings.Join(lines, "\n") + "\n"
 }
 

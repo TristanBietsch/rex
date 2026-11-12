@@ -61,6 +61,7 @@ func (f *uninstallFixture) files() []string {
 }
 
 func (f *uninstallFixture) run(args ...string) error {
+	installPrinter(f.stdin != "") // a scripted answer means a terminal
 	return runUninstall(args, uninstallDeps{
 		out:        &f.out,
 		errOut:     &f.errOut,
@@ -168,7 +169,7 @@ func TestRunUninstall_declinedConfirmationStopsNothing(t *testing.T) {
 	f.stdin = "n\n"
 
 	err := f.run("-binaries=false", "-wipe-state")
-	requireExitCode(t, err, core.ExitGeneric)
+	requireExitCode(t, err, core.ExitOperationRefused)
 	require.Zero(t, f.daemon.stopCount())
 	requireExists(t, f.files()...)
 }

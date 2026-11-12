@@ -14,7 +14,8 @@ import (
 func RunRename(args []string) error {
 	fs := flag.NewFlagSet("rename", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	rest, err := core.ParseArgs(fs, args)
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
@@ -44,6 +45,15 @@ func RunRename(args []string) error {
 	if err := awaitPatch(c, sess.ID, reqID, "slug"); err != nil {
 		return err
 	}
-	fmt.Printf("%s: renamed to %s\n", sess.Slug, newSlug)
-	return nil
+	renamed := sess
+	renamed.Slug = newSlug
+	return emitAction("rename", renameData{refOf(renamed), sess.Slug}, "renamed "+sess.Slug+" to "+newSlug,
+		fmt.Sprintf("%s: renamed to %s", sess.Slug, newSlug),
+		sessionFields(renamed, core.Field{Key: "old_slug", Val: sess.Slug}))
+}
+
+// renameData is the `-o json` payload of rex rename; the slug is the new one.
+type renameData struct {
+	actionData
+	OldSlug string `json:"old_slug"`
 }

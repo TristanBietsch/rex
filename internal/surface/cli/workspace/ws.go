@@ -76,8 +76,8 @@ func RunWs(args []string) error {
 	sub, rest := args[0], args[1:]
 	switch sub {
 	case "-h", "--help", "help":
-		fmt.Fprintln(os.Stderr, "usage: "+usageLine)
-		return nil
+		fmt.Fprintln(core.Out().Err, "usage: "+usageLine)
+		return core.ErrHelpShown
 	case "init", "id", "ls", "rename", "color":
 	default:
 		return core.Errorf(core.ExitInvalidArgs, "rex ws -h", "ws: unknown subcommand %q: %s", sub, usageLine)
@@ -126,18 +126,7 @@ func checkArity(sub string, pos []string) error {
 }
 
 // absPath makes p absolute against cwd ("" is cwd) without resolving links.
-func (e env) absPath(p string) (string, error) {
-	if p == "" {
-		return e.cwd, nil
-	}
-	if paths.IsHomeRelative(p) {
-		return paths.ExpandHome(p)
-	}
-	if filepath.IsAbs(p) {
-		return filepath.Clean(p), nil
-	}
-	return filepath.Join(e.cwd, p), nil
-}
+func (e env) absPath(p string) (string, error) { return wsp.AbsPath(p, e.cwd) }
 
 func (e env) init(pos []string, name string) error {
 	arg := ""
@@ -232,31 +221,9 @@ func (e env) ls() error {
 // resolve finds the workspace named by ref: an 8-hex id (looked up in the
 // registry) or a folder (the workspace around it).
 func (e env) resolve(cmd, ref string) (*wsp.Workspace, error) {
-	if wsp.ValidID(ref) {
-		en, ok := e.reg.Get(ref)
-		if !ok {
-			return nil, core.Errorf(core.ExitSelectorNotFound, "rex ws ls", "%s: no workspace with id %s", cmd, ref)
-		}
-		w, err := wsp.Load(en.Root)
-		if err != nil {
-			return nil, wsError(cmd, err)
-		}
-		if w == nil || w.ID != ref {
-			return nil, core.Errorf(core.ExitSelectorNotFound, "rex ws ls",
-				"%s: workspace %s is not at %s any more; run `rex ws id` inside its folder", cmd, ref, flat(en.Root))
-		}
-		return w, nil
-	}
-	dir, err := e.absPath(ref)
-	if err != nil {
-		return nil, core.Errorf(core.ExitInvalidArgs, "", "%s: %w", cmd, err)
-	}
-	w, err := wsp.Find(dir, e.home)
+	w, err := wsp.Resolve(ref, e.cwd, e.home, e.reg)
 	if err != nil {
 		return nil, wsError(cmd, err)
-	}
-	if w == nil {
-		return nil, core.Errorf(core.ExitSelectorNotFound, "rex ws init", "%s: no .rex/ at or above %s", cmd, flat(dir))
 	}
 	return w, nil
 }
@@ -320,6 +287,10 @@ func infoKV(d info) core.KV {
 // wsError maps a workspace package error to the CLI's exit codes.
 func wsError(cmd string, err error) error {
 	switch {
+	case errors.Is(err, wsp.ErrNotFound):
+		return core.Errorf(core.ExitSelectorNotFound, "rex ws ls", "%s: %w", cmd, err)
+	case errors.Is(err, wsp.ErrMoved):
+		return core.Errorf(core.ExitSelectorNotFound, "rex ws ls", "%s: %w; run `rex ws id` inside its folder", cmd, err)
 	case errors.Is(err, wsp.ErrRefusedRoot):
 		return core.Errorf(core.ExitInvalidArgs, "", "%s: refusing to use your home folder or / as a workspace; pick a project folder", cmd)
 	case errors.Is(err, wsp.ErrUnsafe):

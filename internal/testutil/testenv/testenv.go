@@ -83,7 +83,11 @@ func Isolate(dir string) error {
 			return fmt.Errorf("set %s: %w", key, err)
 		}
 	}
-	for _, key := range []string{"OLLAMA_HOST", "REX_LOG_LEVEL"} {
+	// The CLI's output and error-log switches would change what a test sees
+	// when the developer (or CI) runs inside an agent: CLAUDECODE alone turns
+	// agent mode on for a piped stdout.
+	for _, key := range []string{"OLLAMA_HOST", "REX_LOG_LEVEL", "CLAUDECODE", "REX_AGENT", "REX_OUTPUT",
+		"REX_ASCII", "REX_ERROR_LOG", "NO_COLOR", "CLICOLOR_FORCE"} {
 		if err := os.Unsetenv(key); err != nil {
 			return fmt.Errorf("unset %s: %w", key, err)
 		}

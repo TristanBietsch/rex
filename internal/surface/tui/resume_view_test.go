@@ -91,12 +91,12 @@ func TestBoardResumeColumn(t *testing.T) {
 // tokens survive it.
 func TestBoardLayout_ResumeDropsFirst(t *testing.T) {
 	sessions := resumeSessions()
-	full := layoutFit(sessions, timesNow, 160, true, true)
+	full := layoutFit(sessions, timesNow, 160, true, true, true)
 	require.Equal(t, 8, full.resume)
 	require.Positive(t, full.span)
 	require.Positive(t, full.tokens)
 	for w := 160; w > 40; w-- {
-		c := layoutFit(sessions, timesNow, w, true, true)
+		c := layoutFit(sessions, timesNow, w, true, true, true)
 		if c.resume == 0 {
 			require.Positive(t, c.span, "width %d: resume dropped before span", w)
 			require.Positive(t, c.tokens, "width %d: resume dropped before tokens", w)

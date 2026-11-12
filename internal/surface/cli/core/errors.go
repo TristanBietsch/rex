@@ -164,3 +164,19 @@ func errorJSON(cmd string, info ErrorInfo) string {
 	}
 	return string(b)
 }
+
+func warnJSON(cmd, msg string) string {
+	body := struct {
+		Cmd string `json:"cmd,omitempty"`
+		Msg string `json:"msg"`
+	}{cmd, msg}
+	b, err := json.Marshal(struct {
+		V    int `json:"v"`
+		Warn any `json:"warn"`
+	}{1, body})
+	if err != nil {
+		// Unreachable: every field is a string.
+		return `{"v":1,"warn":{"msg":"internal error"}}`
+	}
+	return string(b)
+}

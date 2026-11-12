@@ -60,7 +60,10 @@ func RunAttach(args []string) error {
 	socket := core.AddSocketFlag(fs)
 	readOnly := fs.Bool("read-only", false, "attach as observer (no input forwarding; Ctrl+] detaches)")
 	noReplay := fs.Bool("no-replay", false, "skip transcript backlog on attach")
-	rest, err := core.ParseArgs(fs, args)
+	// Attach is a terminal session: text, or txt when piped. json, md and
+	// agent (including the agent mode CLAUDECODE switches on) are refused.
+	out := core.AddOutputFlags(fs, core.TextFormats, core.WithHint("rex log <sel> -n 50"))
+	rest, err := out.Parse(fs, args)
 	if err != nil {
 		return err
 	}
