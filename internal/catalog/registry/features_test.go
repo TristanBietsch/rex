@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -22,7 +23,8 @@ func TestWithFeatures(t *testing.T) {
 	qwen, _ := reg.Find("qwen")
 	dir := t.TempDir()
 	marker := filepath.Join(t.TempDir(), "ran")
-	stubBinary(t, dir, "qwen", "touch '"+marker+"'\nprintf 'MODEL\\nQwen3.8-Flash (qfmodel)\\n'")
+	stubBinary(t, dir, "qwen", "[ \"$1\" = --warm ] && exit 0\ntouch '"+marker+"'\nprintf 'MODEL\\nQwen3.8-Flash (qfmodel)\\n'")
+	require.NoError(t, exec.Command(filepath.Join(dir, "qwen"), "--warm").Run()) // first run of a fresh script can be slow
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	cache := filepath.Join(t.TempDir(), "models-cache.json")
 	now := time.Now()

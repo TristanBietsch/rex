@@ -139,6 +139,11 @@ func stubTool(t *testing.T, dir, name, body string, mc ModelsCmd) Tool {
 		t.Skip("model-list stubs are POSIX shell scripts")
 	}
 	stubBinary(t, dir, name, body)
+	// A fresh script can take seconds to run the first time on a loaded
+	// machine (the OS scans it); keep the default timeout out of the way.
+	if mc.TimeoutMs == 0 {
+		mc.TimeoutMs = 25000
+	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return Tool{ID: name, Command: []string{name}, ModelsCmd: &mc, ModelArgTemplate: []string{"--model", "{model}"},
 		ModelEffort: &Effort{Options: []string{"low", "high"}, Default: "low", ArgTemplate: "--e={value}"}}

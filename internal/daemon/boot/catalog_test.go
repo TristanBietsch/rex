@@ -3,6 +3,7 @@ package boot
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -25,8 +26,12 @@ func catalogHome(t *testing.T, config string) (marker, cache string) {
 	home := usageHome(t, config, false)
 	bin := t.TempDir()
 	marker = filepath.Join(t.TempDir(), "ran")
-	script := "#!/bin/sh\ntouch '" + marker + "'\nprintf 'MODEL\\nQwen3.8-Flash (qfmodel)\\n'\n"
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "qwen"), []byte(script), 0o755)) //nolint:gosec // a test stub must be executable
+	script := "#!/bin/sh\n[ \"$1\" = --warm ] && exit 0\ntouch '" + marker + "'\nprintf 'MODEL\\nQwen3.8-Flash (qfmodel)\\n'\n"
+	stub := filepath.Join(bin, "qwen")
+	require.NoError(t, os.WriteFile(stub, []byte(script), 0o755)) //nolint:gosec // a test stub must be executable
+	// The first run of a fresh script can take seconds on a loaded machine
+	// (the OS scans it), longer than the built-in 5 s timeout: pay it now.
+	require.NoError(t, exec.Command(stub, "--warm").Run())
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return marker, filepath.Join(home, ".local", "state", "rex", "models-cache.json")
 }
