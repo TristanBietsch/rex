@@ -211,7 +211,7 @@ var Registry = []Setting{
 	{
 		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "A Waiting section below Ready for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Ready / Working / Done again. The daemon still records the wait.",
+		Help: "A Waiting section below Ready for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own marker (◷ by default; Waiting icon picks another) and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Ready / Working / Done again. The daemon still records the wait.",
 	},
 
 	{
