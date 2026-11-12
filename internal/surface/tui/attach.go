@@ -207,6 +207,7 @@ func closeAttach(m Model) Model {
 	if m.Attach != nil {
 		slog.Info("tui: attach closed", "session", m.Attach.SessionID)
 		logAttachScrollbackTotals(m.Attach)
+		markSeen(&m, m.Attach.SessionID) // anything that finished while attached was seen
 		if m.Attach.Client != nil {
 			_ = m.Attach.Client.Close()
 		}

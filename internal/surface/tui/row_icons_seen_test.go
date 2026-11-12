@@ -203,3 +203,22 @@ func TestSeen_UnseenRendersInStripAndFit(t *testing.T) {
 	require.Equal(t, slotWidth[slotUnseen], boardLayout(m, 120).slots[slotUnseen])
 	require.Contains(t, boardText(m), "✦")
 }
+
+func TestSeen_DetachClears(t *testing.T) {
+	now := seenT0
+	m := seenModel(t, &now, protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateWorking})
+	markSeen(&m, "a") // attach at t0
+	m.Attach = &AttachState{SessionID: "a"}
+	m.Focus = FocusAttach
+	now = seenT0.Add(time.Minute)
+	m = seenPatch(t, m, "a", map[string]any{"state": "needs_input"})
+	require.True(t, isUnseen(m, m.Sessions[0]), "unseen while still attached")
+	now = seenT0.Add(2 * time.Minute)
+	m = closeAttach(m)
+	require.False(t, isUnseen(m, m.Sessions[0]))
+
+	off := rowIconsOff(seenModel(t, &now, protocol.SessionSummary{ID: "a"}))
+	off.Attach = &AttachState{SessionID: "a"}
+	off = closeAttach(off)
+	require.Empty(t, off.SeenAt)
+}
