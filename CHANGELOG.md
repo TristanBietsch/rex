@@ -16,6 +16,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   plays at 1/50. A fraction (`0.8`) still converts but gets the same nudge.
   `0` (mute on both scales) is not flagged.
 
+### Fixed (audio settings)
+
+- Turning `sound_enabled` on now plays sound right away on a board that
+  started muted. Before, a board opened with sound off or `soundset: off`
+  never opened the audio device, so turning sound on, picking a soundset or
+  changing `master_volume` did nothing until rex was restarted. A soundset
+  picked while muted is the one you hear when sound comes back on.
+- Audio settings changed with `rex config set`, in `config.yaml` or
+  `config.lua`, or on another board, reach every open board within a few
+  seconds (`live_reload`). Builds before the live reload applied them only
+  on the board where you changed them.
+
+### Added (waiting icon)
+
+- `waiting_spinner` (Settings → Appearance, "Waiting icon") picks the
+  Waiting marker, like Spinner type does for working: `clock` (default,
+  `◴ ◷ ◶ ◵`, unchanged), `hourglass` (`⧖ ⧑ ⧖ ⧒`, an hourglass turning
+  over), `sand` (`⣀`…`⣿`, piling up), `orbit` (`◜ ◝ ◞ ◟`), `pendulum`
+  (`⠂ ⡀ ⢀ ⠐`) and `pulse` (`∘ ◦ ⊚ ◦`). One step a second, still under
+  `reduce_motion`. Rows, the attach chip, the header counts and the help
+  legend follow it. It can be set from `config.lua` and from a trusted
+  workspace's `.rex/config.lua` (display only).
+
 ### Changed (volume scale)
 
 - `master_volume` is now a whole number from 0 to 50 (default 40, the old
