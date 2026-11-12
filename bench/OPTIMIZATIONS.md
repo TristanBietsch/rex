@@ -61,6 +61,12 @@ Measured on darwin/arm64, Apple M4, Go default toolchain (May 2026). Baseline in
 
 - **Claude adapter:** `bytes.IndexByte` instead of manual newline scan ([claude.go](../internal/daemon/adapter/claude.go)).
 
+## Pass 6 — Attach popup and idle (Nov 2026)
+
+- **Board behind the attach popup:** rendered once and reused across frames that only bring agent output; any other message drops it ([tui.go](../internal/surface/tui/tui.go) `attachBackground`). `BenchmarkAttachFrame`: 3546 → 1918 allocs/op, 419 → 180 KiB/op. `BenchmarkAttachView` (a spinner tick, which redraws the board) is unchanged.
+- **Width clip fast path:** `fitsWidth` skips measuring a line whose byte length already fits (`clipWidth`, `fitOverlay`).
+- **Screensaver over any focus:** an overlay or the wizard left open used to keep the 10 FPS cursor tick (and full renders) running forever; the screensaver now covers them and stops the tick.
+
 ## Rejected / out of scope
 
 | Idea | Reason |

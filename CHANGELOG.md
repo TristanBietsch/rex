@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - TUI: the new-session wizard no longer asks for a name. Effort (or skills)
   leads straight to the task; rename the session on the board, or pass
   `rex new -name`, to set one.
+- TUI: the screensaver also starts when an overlay, prompt, the new-session
+  wizard, the settings page or the attach popup is left open (it used to
+  start only over the bare board). Waking returns to what was open, as it
+  was; the waking key still does nothing else. A terminal resize counts as
+  activity and wakes it, and turning `screensaver_enabled` off while it
+  shows hides it within a minute.
+
 - TUI: board columns have fixed widths by default and change only when the
   terminal crosses a width breakpoint (150 and 110 columns). The subagent,
   badge, tokens, span and resume columns are always reserved, so nothing
@@ -526,6 +533,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Daemon: a transient error accepting a client connection (for example
+  "too many open files") no longer shuts the daemon down and stops every
+  running session. It retries with backoff (5 ms up to 1 s) and logs it.
+- Settings: saving a `config.yaml` that is a symlink (a dotfiles manager
+  such as stow) writes the linked file and keeps the link, instead of
+  replacing the link with a plain file. A dangling link is an error. Two
+  saves at once (the settings page and `rex config set`) no longer share
+  one temp file, so neither fails with "no such file".
+- TUI: a delete confirmation, rename or attach popup for a session that
+  another client deleted (or that is gone after a reconnect) now closes
+  with a note, instead of acting on an id the daemon no longer knows. A
+  session that arrives in both a snapshot and its own add event is listed
+  once.
+- TUI: `tui-state.json` is written to a temp file and renamed into place,
+  so a crash or full disk while saving can't leave a truncated file. The
+  failures overlay reads only the last 256 KiB of the daemon log instead
+  of the whole file.
 - `rex update` reads the new version with plain output, so `CLAUDECODE`,
   `REX_AGENT` or `REX_OUTPUT` in the caller no longer turn it into an agent
   or json line.

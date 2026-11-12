@@ -341,7 +341,7 @@ With sound on, each soundset chimes when a session needs you (`working` → `nee
 
 ## SCREENSAVER
 
-After 5 minutes (`screensaver_after_minutes`) with no key or mouse event while the board itself has focus, the board gives way to a small screen: `∴ rex` in the center and the header's counts under it.
+After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the screen gives way to a small screen: `∴ rex` in the center and the header's counts under it.
 
 ```
              ∴ rex
@@ -350,8 +350,8 @@ After 5 minutes (`screensaver_after_minutes`) with no key or mouse event while t
 ```
 
 - The counts stay live: daemon events keep updating them. `need you` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
-- Any key or mouse event (click, wheel) brings the board back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
-- It only starts over the bare board. Overlays, prompts, confirmations, the wizard, the settings page and the attach popup never time out, because there you are in the middle of something.
+- Any key or mouse event (click, wheel), or a terminal resize, brings the screen back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
+- It starts whatever is open: an overlay, prompt, confirmation, the new-session wizard, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, wizard step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
 - Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.
 - It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute. It plays no sound.
 

@@ -106,6 +106,17 @@ func (s *Store) Save(path string) error {
 	if path == "" {
 		return errNoPath
 	}
+	// A symlinked config.yaml (a dotfiles manager such as stow) is saved
+	// through the link: renaming over the link itself would replace it
+	// with a plain file and quietly detach the config from its repo. A
+	// dangling link is an error, never clobbered.
+	if fi, err := os.Lstat(path); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", path, err)
+		}
+		path = real
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
@@ -137,12 +148,18 @@ func (s *Store) Save(path string) error {
 	if info, err := os.Stat(path); err == nil {
 		mode = info.Mode().Perm()
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	// A temp file of its own (0600, never a leftover or a planted link),
+	// so two processes saving at once can't write or rename each other's.
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("create tmp: %w", err)
+	}
+	tmp := f.Name()
+	_, werr := f.Write(b)
+	if err := errors.Join(werr, f.Close()); err != nil {
+		_ = os.Remove(tmp)
 		return fmt.Errorf("write tmp: %w", err)
 	}
-	// WriteFile keeps the mode of a leftover tmp and is subject to the
-	// umask, so set the final mode explicitly.
 	if err := os.Chmod(tmp, mode); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("chmod tmp: %w", err)
