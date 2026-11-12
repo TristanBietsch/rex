@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
@@ -29,7 +28,7 @@ func RunReload(args []string) error {
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	return reloader{socket: socket, out: os.Stdout, errOut: os.Stderr, reload: daemonctl.ReloadDaemonReport}.run()
+	return reloader{socket: socket, out: core.Out().Out, errOut: core.Out().Err, reload: daemonctl.ReloadDaemonReport}.run()
 }
 
 // reloader is rex reload; reload is daemonctl.ReloadDaemonReport outside
@@ -60,7 +59,9 @@ func (r reloader) run() error {
 		return err
 	}
 	if len(rep.Errors) > 0 {
-		return core.NewExitError(core.ExitGeneric, "")
+		// The failed layers go to stderr as the error (rex: ...), one per
+		// line; the rest of the report is on stdout.
+		return core.NewExitError(core.ExitGeneric, "rex-daemon could not reload: "+strings.Join(rep.Errors, "\n"))
 	}
 	return nil
 }
@@ -77,7 +78,7 @@ func reloadView(p *core.Printer, rep protocol.ReloadReport) core.View {
 	if len(rep.Errors) > 0 {
 		tone, glyph = core.ToneWarn, p.Glyphs.Warn
 	}
-	view = append(view, core.Line{Tone: tone, Glyph: glyph, Text: head, Silent: len(rep.Errors) == 0})
+	view = append(view, core.Line{Tone: tone, Glyph: glyph, Text: head, Silent: true})
 	if len(rep.Changed) == 0 {
 		view = append(view, core.Line{Text: "no setting changed", Silent: true})
 	} else {
@@ -85,9 +86,6 @@ func reloadView(p *core.Printer, rep protocol.ReloadReport) core.View {
 	}
 	if len(rep.Restart) > 0 {
 		view = append(view, core.Line{Tone: core.ToneWarn, Glyph: p.Glyphs.Warn, Text: "needs a daemon restart: " + strings.Join(rep.Restart, ", ") + " (rex daemon restart keeps sessions)"})
-	}
-	for _, e := range rep.Errors {
-		view = append(view, core.Line{Tone: core.ToneErr, Glyph: p.Glyphs.Fail, Text: e})
 	}
 	for _, w := range rep.Warnings {
 		view = append(view, core.Line{Tone: core.ToneWarn, Glyph: p.Glyphs.Warn, Text: w})

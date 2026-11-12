@@ -44,7 +44,7 @@ func buildDaemon(t *testing.T, dir string) string {
 	bin := filepath.Join(dir, "rex-daemon")
 	gobin := filepath.Join(runtime.GOROOT(), "bin", "go") //nolint:staticcheck // SA1019: the test builds on the machine it runs on; PATH is isolated
 	cmd := exec.Command(gobin, "build", "-o", bin, ".")
-	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(gobin))
+	cmd.Env = append(append(os.Environ(), goBuildEnv...), "PATH="+os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(gobin))
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	return bin

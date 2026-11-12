@@ -38,7 +38,8 @@ func TestReload_ErrorsFail(t *testing.T) {
 	}}
 	err := r.run()
 	requireExitCode(t, err, 1)
-	require.Contains(t, out.String()+errOut.String(), "/x/init.lua:2: boom")
+	require.ErrorContains(t, err, "/x/init.lua:2: boom")
+	require.Empty(t, out.String(), "txt: nothing changed, the error goes to stderr")
 }
 
 func TestReload_NoChange(t *testing.T) {

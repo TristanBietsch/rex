@@ -548,13 +548,13 @@ rex complete <sel> [-socket path]
 
 ## rex reload
 
-Send a `Reload` request to the daemon over its socket. The daemon re-reads **tools.yaml** (and model lists), **config.yaml** with **config.lua** on top, and **init.lua** (see [daemon.md](daemon.md)), and answers with a report. Exits 4 when no daemon answers on the socket, 1 when a layer failed (after printing the report).
+Send a `Reload` request to the daemon over its socket. The daemon re-reads **tools.yaml** (and model lists), **config.yaml** with **config.lua** on top, and **init.lua** (see [daemon.md](daemon.md)), and answers with a report. Exits 4 when no daemon answers on the socket, 1 when a layer failed (the failed layers on stderr as `rex: rex-daemon could not reload: file:line: message`, the rest of the report on stdout).
 
 ```sh
 rex reload
 ```
 
-Prints `changed: theme, usage`, `needs a daemon restart: summary_model (rex daemon restart keeps sessions)` and each failed layer as `file:line: message` (a failed layer keeps its previous values). In `txt` the success line stays silent, as it always was; `-o json` and `agent` carry `reloaded`, `changed`, `restart`, `errors` and `warnings`. Against a daemon from before reload reports it prints only that it reloaded.
+Prints `changed: theme, usage`, `needs a daemon restart: summary_model (rex daemon restart keeps sessions)`; a failed layer keeps its previous values. In `txt` the success line stays silent, as it always was; `-o json` and `agent` carry `reloaded`, `changed`, `restart`, `errors` and `warnings`. Against a daemon from before reload reports it prints only that it reloaded.
 
 ---
 
