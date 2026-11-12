@@ -26,13 +26,18 @@ func execSwap(statePath string) error {
 		return startExeErr
 	}
 	exe := swapExe(startExe)
-	env := make([]string, 0, len(os.Environ())+2)
-	for _, kv := range os.Environ() {
+	return syscall.Exec(exe, os.Args, swapEnv(os.Environ(), statePath)) //nolint:gosec // G204: this program's own executable.
+}
+
+// swapEnv is environ with the swap state and quiet boot set (any earlier
+// value of either dropped).
+func swapEnv(environ []string, statePath string) []string {
+	env := make([]string, 0, len(environ)+2)
+	for _, kv := range environ {
 		if strings.HasPrefix(kv, tui.SwapEnv+"=") || strings.HasPrefix(kv, QuietBootEnv+"=") {
 			continue
 		}
 		env = append(env, kv)
 	}
-	env = append(env, tui.SwapEnv+"="+statePath, QuietBootEnv+"=1")
-	return syscall.Exec(exe, os.Args, env) //nolint:gosec // G204: this program's own executable.
+	return append(env, tui.SwapEnv+"="+statePath, QuietBootEnv+"=1")
 }

@@ -120,6 +120,34 @@ type fakeOpts struct {
 	reloadErr string
 	// report, when set, answers Reload with this report (an R20 daemon).
 	report *protocol.ReloadReport
+	// hot, when set, makes the fake an R20 daemon: identity in the
+	// Snapshot, Restart, Boards and SwapBoards.
+	hot *fakeHot
+}
+
+// fakeHot is the hot-restart side of a fake daemon.
+type fakeHot struct {
+	mu       sync.Mutex
+	started  time.Time
+	build    string
+	refuse   string // Restart answers restart_refused with this message
+	sessions []protocol.SessionSummary
+	boards   []protocol.BoardInfo
+}
+
+func (h *fakeHot) snapshot(s *protocol.Snapshot) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s.DaemonPID, s.DaemonBuild, s.DaemonStartedAt = 42, h.build, h.started
+	s.Sessions = append(s.Sessions, h.sessions...)
+}
+
+// restart is a successful hot restart: a new image (later start, new build).
+func (h *fakeHot) restart() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.started = h.started.Add(time.Second)
+	h.build = "new"
 }
 
 // shutdownLikeDaemon stops answering at once and removes the socket a
@@ -179,6 +207,9 @@ func (fd *fakeDaemon) serve(conn net.Conn, onShutdown func(*fakeDaemon)) {
 		}
 		fd.intents <- string(env.Kind) + ":" + env.Type
 		fd.reply(w, env)
+		if env.Type == protocol.IntentRestart && fd.opts.hot != nil && fd.opts.hot.refuse == "" {
+			return // the old image is gone: the connection closes
+		}
 		if env.Type == protocol.IntentShutdown && onShutdown != nil {
 			onShutdown(fd)
 		}
@@ -195,12 +226,26 @@ func (fd *fakeDaemon) reply(w *protocol.Writer, env protocol.Envelope) {
 		if !fd.opts.legacy {
 			snap.DaemonVersion = "v1"
 		}
+		if fd.opts.hot != nil {
+			fd.opts.hot.snapshot(&snap)
+		}
 		_ = w.WriteEvent(protocol.EventSnapshot, env.ID, snap)
 	case env.ID == "" || fd.opts.legacy:
 	case env.Type == protocol.IntentReload && fd.opts.reloadErr != "":
 		_ = w.WriteEvent(protocol.EventError, env.ID, protocol.ErrorEvent{
 			ID: env.ID, Code: protocol.ErrCodeBadIntent, Message: fd.opts.reloadErr,
 		})
+	case env.Type == protocol.IntentRestart && fd.opts.hot != nil:
+		if fd.opts.hot.refuse != "" {
+			_ = w.WriteEvent(protocol.EventError, env.ID, protocol.ErrorEvent{ID: env.ID, Code: protocol.ErrCodeRestartRefused, Message: fd.opts.hot.refuse})
+			return
+		}
+		fd.opts.hot.restart()
+	case (env.Type == protocol.IntentBoards || env.Type == protocol.IntentSwapBoards) && fd.opts.hot != nil:
+		fd.opts.hot.mu.Lock()
+		b := protocol.Boards{Boards: fd.opts.hot.boards}
+		fd.opts.hot.mu.Unlock()
+		_ = w.WriteEvent(protocol.EventBoards, env.ID, b)
 	case env.Type == protocol.IntentReload && fd.opts.report != nil:
 		_ = w.WriteEvent(protocol.EventReloaded, env.ID, *fd.opts.report)
 	default:

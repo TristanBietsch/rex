@@ -2,6 +2,8 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -48,4 +50,44 @@ func TestUpgrade_daemonDown(t *testing.T) {
 	f := &fakeCtl{}
 	u := upgrader{ctl: f.ctl(t)}
 	requireExitCode(t, u.run(), 4)
+}
+
+// A daemon that cannot hot restart is cold-restarted (with consent), and
+// no board means the report says so.
+func TestUpgrade_coldFallbackNoBoards(t *testing.T) {
+	f := &fakeCtl{up: true}
+	c := f.ctl(t)
+	c.yes = true
+	c.hot = func(context.Context, string) (daemonctl.HotResult, error) {
+		return daemonctl.HotResult{}, fmt.Errorf("%w: predates", daemonctl.ErrHotUnavailable)
+	}
+	c.info = func(context.Context, string) (daemonctl.DaemonInfo, error) {
+		return daemonctl.DaemonInfo{PID: 11, Build: "new"}, nil
+	}
+	u := upgrader{
+		ctl:    c,
+		swap:   func(context.Context, string, string) ([]protocol.BoardInfo, error) { return nil, errors.New("no swap") },
+		boards: func(context.Context, string) ([]protocol.BoardInfo, error) { return nil, nil },
+		wait:   10 * time.Millisecond, poll: time.Millisecond,
+	}
+	require.NoError(t, u.run())
+	require.Equal(t, []string{"shutdown", "start"}, f.calls)
+	out := f.out.String()
+	require.Contains(t, out, "daemon pid 11: cold-restarted (build new)")
+	require.Contains(t, out, "no board was connected")
+	require.Contains(t, f.errOut.String(), "predates")
+}
+
+// Any other hot restart error stops the upgrade.
+func TestUpgrade_hotErrorStops(t *testing.T) {
+	f := &fakeCtl{up: true}
+	c := f.ctl(t)
+	c.hot = func(context.Context, string) (daemonctl.HotResult, error) {
+		return daemonctl.HotResult{}, errors.New("did not come back")
+	}
+	requireExitCode(t, upgrader{ctl: c}.run(), 1)
+}
+
+func TestRunUpgrade_badFlag(t *testing.T) {
+	require.Error(t, RunUpgrade([]string{"-bogus"}))
 }

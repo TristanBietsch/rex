@@ -187,3 +187,57 @@ func TestSwapStateRefusesAnotherPath(t *testing.T) {
 	_, err = os.Stat(other)
 	require.NoError(t, err, "the named file is not removed")
 }
+
+// The binary watch sees an install (size or mtime change) of the stamped
+// path, and nothing when it is unchanged.
+func TestCheckBinarySeesAnInstall(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rex")
+	require.NoError(t, os.WriteFile(path, []byte("v1"), 0o600))
+	st, ok := stampBinary(path)
+	require.True(t, ok)
+	require.Equal(t, binChangedMsg{changed: false}, checkBinary(st)())
+	require.NoError(t, os.WriteFile(path, []byte("v2-longer"), 0o600))
+	require.Equal(t, binChangedMsg{changed: true}, checkBinary(st)())
+	_, ok = stampBinary(filepath.Join(t.TempDir(), "missing"))
+	require.False(t, ok)
+	_, ok = ownBinary()
+	require.True(t, ok)
+	require.Contains(t, (&SwapRequest{Path: "/p"}).Error(), "/p")
+}
+
+// After a swap, the attach popup comes back only for a session that still
+// runs; otherwise the saved page reopens.
+func TestApplySwapPage(t *testing.T) {
+	m := swapBoard()
+	m.swapIn = &swapState{Scroll: 2, Page: "help", Attach: "gone"}
+	nm, _ := applySwapPage(m)
+	require.Equal(t, 2, nm.ScrollOffset)
+	require.Equal(t, FocusHelp, nm.Focus)
+	require.Nil(t, nm.swapIn)
+	nm, _ = applySwapPage(nm)
+	require.Equal(t, FocusHelp, nm.Focus, "nothing to apply twice")
+	require.True(t, liveState(protocol.StateQueued))
+	require.False(t, liveState(protocol.StateDone))
+}
+
+// A re-attach is dropped once the user moved on, and gives up after its
+// last try.
+func TestHandleReattach(t *testing.T) {
+	m := swapBoard()
+	m.reattachFor = "s1"
+	m.Focus = FocusHelp
+	nm, cmd := handleReattach(m, reattachMsg{session: "s1"})
+	require.Nil(t, cmd)
+	require.Nil(t, nm.Attach)
+
+	m.Focus = FocusBoard
+	m.reattachFor = "nope"
+	nm, cmd = handleReattach(m, reattachMsg{session: "nope", attempt: reattachTries - 1})
+	require.Nil(t, cmd)
+	require.Empty(t, nm.reattachFor, "last try: give up")
+
+	m.reattachFor = "nope"
+	_, cmd = handleReattach(m, reattachMsg{session: "nope", attempt: 0})
+	require.NotNil(t, cmd, "another try is scheduled")
+	require.NotNil(t, scheduleReattach("x", 9))
+}
