@@ -205,3 +205,36 @@ func TestPageHeaderSlots(t *testing.T) {
 		t.Errorf("narrow help header %q keeps the right slot", head)
 	}
 }
+
+// On a short terminal every row, the last of a section included, stays on
+// screen when the cursor is on it: the detail pane gives way first.
+func TestPageShortTerminalCursorVisible(t *testing.T) {
+	for _, sz := range []goldenSize{{80, 10}, {80, 12}, {50, 12}, {50, 14}, {120, 11}} {
+		m := pageModel(t, sz.w, sz.h, FocusSettings)
+		for _, s := range settingsList(&SettingsState{}) {
+			m.Settings.CursorID = s.ID
+			lines := viewLines(m)
+			if len(lines) != sz.h {
+				t.Fatalf("%dx%d: %d lines", sz.w, sz.h, len(lines))
+			}
+			prefix := string([]rune(s.Label)[:min(8, len([]rune(s.Label)))])
+			if !strings.Contains(strings.Join(lines[3:sz.h-2], "\n"), "▸ "+prefix) {
+				t.Errorf("%dx%d: cursor row %q not on screen:\n%s", sz.w, sz.h, s.ID, strings.Join(lines, "\n"))
+			}
+		}
+	}
+}
+
+// A narrow settings page has no pane to tab to, so its footer leaves tab out.
+func TestSettingsPageNarrowHintsNoTab(t *testing.T) {
+	m := pageModel(t, 50, 20, FocusSettings)
+	lines := viewLines(m)
+	if foot := lines[len(lines)-1]; strings.Contains(foot, "tab") {
+		t.Errorf("narrow footer offers tab: %q", foot)
+	}
+	m = pageModel(t, 120, 40, FocusSettings)
+	lines = viewLines(m)
+	if foot := lines[len(lines)-1]; !strings.Contains(foot, "tab sections") {
+		t.Errorf("wide footer lacks tab: %q", foot)
+	}
+}

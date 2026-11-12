@@ -223,8 +223,16 @@ func paneDivider(leftW, w int) string {
 
 // settingsPageHints is the settings page's footer for its state, focused
 // pane and whether config.lua locks the cursor row; esc leads so a narrow
-// page keeps it.
-func settingsPageHints(st *SettingsState, pane pagePane, locked bool) [][2]string {
+// page keeps it, and a narrow page (no pane to tab to) leaves tab out.
+func settingsPageHints(st *SettingsState, pane pagePane, locked, narrow bool) [][2]string {
+	hints := settingsPageHintsAll(st, pane, locked)
+	if !narrow {
+		return hints
+	}
+	return slices.DeleteFunc(hints, func(h [2]string) bool { return h[0] == "tab" })
+}
+
+func settingsPageHintsAll(st *SettingsState, pane pagePane, locked bool) [][2]string {
 	switch {
 	case st.Edit != nil:
 		out := make([][2]string, len(settingsEditHints))
@@ -302,7 +310,7 @@ func renderSettingsPage(m Model, w, h int) string {
 	right = styleDim.Render(right)
 	if m.Settings == nil || m.Store == nil {
 		return composePage(pageHeader("SETTINGS", "", right, w), nil,
-			pageFooter(m, settingsPageHints(&SettingsState{}, paneRows, false), w, helpBarOn(m)), w, h)
+			pageFooter(m, settingsPageHints(&SettingsState{}, paneRows, false, pageNarrow(w)), w, helpBarOn(m)), w, h)
 	}
 	st := m.Settings
 	list := settingsPageList(m) // the cursor section's rows, or the search hits
@@ -322,8 +330,21 @@ func renderSettingsPage(m Model, w, h int) string {
 		}
 	}
 
+	// The panes need a title and three rows (windowLines' least) for the
+	// cursor row to stay on screen; on a short terminal the detail gives
+	// way first, to its first two lines, then entirely.
+	minPane := 4
+	if pageNarrow(w) {
+		minPane = 5 // the section strip too
+	}
 	detail := indentLines(settingsDetailPane(m, list, max(w-4, 1)), 2)
-	paneH := max(pageBodyHeight(h)-1-len(detail), 3)
+	for _, keep := range []int{len(detail), 2, 0} {
+		if pageBodyHeight(h)-1-keep >= minPane || keep == 0 {
+			detail = detail[:min(keep, len(detail))]
+			break
+		}
+	}
+	paneH := max(pageBodyHeight(h)-1-len(detail), minPane)
 	var body []string
 	if pageNarrow(w) {
 		rowsH := max(paneH-1, 2)
@@ -346,7 +367,7 @@ func renderSettingsPage(m Model, w, h int) string {
 
 	modal := st.Edit != nil || st.Searching
 	return composePage(pageHeader("SETTINGS", middle, right, w), body,
-		pageFooter(m, settingsPageHints(st, pane, settingLockedAt(m, st.CursorID) != ""), w, helpBarOn(m) || modal), w, h)
+		pageFooter(m, settingsPageHints(st, pane, settingLockedAt(m, st.CursorID) != "", pageNarrow(w)), w, helpBarOn(m) || modal), w, h)
 }
 
 // helpPageHints is the help page's footer for its state, focused pane and

@@ -18,7 +18,7 @@
     │   id theme · default default · applies now                           │
   DO│   default  classic  noir  paper  high-contrast  ansi  dracula  to…   │    
    ●│   Change the theme: a built-in (classic is the previous look; ansi   │  9d
-   ✕│   uses your terminal's own colors; auto is default on a d… ? more    │   -
+   ✕│   uses your terminal's own colors; dracula, tokyo_night a… ? more    │   -
   ↳ │                                                                      │    
 ────│   ↑↓ select   ←→ change   enter toggle   / search   tab section      │────
   λ │   r reset   ? help   esc close                                       │    
@@ -57,9 +57,9 @@
                 │   id theme · default default · applies now                                           │
                 │   default  classic  noir  paper  high-contrast  ansi  dracula  tokyo_night  panto…   │
                 │   Change the theme: a built-in (classic is the previous look; ansi uses your         │
-                │   terminal's own colors; auto is default on a dark terminal, paper on a light one)   │
-                │   or a theme file in ~/.config/rex/themes. An unknown name uses default.             │
-                │                                                                                      │
+                │   terminal's own colors; dracula, tokyo_night and pantone_safe ship as theme         │
+                │   files; auto is default on a dark terminal, paper on a light one) or a theme file   │
+                │   in ~/.config/rex/themes. An unknown name uses default.                             │
   ↳ draft ready │                                                                                      │                
 ────────────────│   ↑↓ select   ←→ change   enter toggle   / search   tab section   r reset   ? help   │────────────────
   λ press i to d│   esc close                                                                          │                
@@ -84,7 +84,7 @@
 ␛[38;2;89;96;112m␛[0m    ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m                           ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m  DO␛[0m␛[38;2;174;179;194m│␛[0m   ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m  ␛[38;2;139;145;161mdracula␛[0m  ␛[38;2;139;145;161mto…␛[0m␛[38;2;139;145;161m␛[0m␛[38;2;139;145;161m␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m    ␛[0m
 ␛[38;2;89;96;112m   ●␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mChange the theme: a built-in (classic is the previous look; ansi␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m  9d␛[0m
-␛[38;2;89;96;112m   ✕␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161muses your terminal's own colors; auto is default on a d…␛[38;2;89;96;112m ? more␛[0m␛[0m    ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m   -␛[0m
+␛[38;2;89;96;112m   ✕␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161muses your terminal's own colors; dracula, tokyo_night a…␛[38;2;89;96;112m ? more␛[0m␛[0m    ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m   -␛[0m
 ␛[38;2;89;96;112m  ↳ ␛[0m␛[38;2;174;179;194m│␛[0m                                                                      ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m    ␛[0m
 ␛[38;2;89;96;112m────␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161m↑↓ select   ←→ change   enter toggle   / search   tab section␛[0m      ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m────␛[0m
 ␛[38;2;89;96;112m  λ ␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mr reset   ? help   esc close␛[0m                                       ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m    ␛[0m
@@ -123,9 +123,9 @@
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m                                           ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m  ␛[38;2;139;145;161mdracula␛[0m  ␛[38;2;139;145;161mtokyo_night␛[0m  ␛[38;2;139;145;161mpanto…␛[0m␛[38;2;139;145;161m␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mChange the theme: a built-in (classic is the previous look; ansi uses your␛[0m         ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
-␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mterminal's own colors; auto is default on a dark terminal, paper on a light one)␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
-␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mor a theme file in ~/.config/rex/themes. An unknown name uses default.␛[0m             ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
-␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161m␛[0m                                                                                   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
+␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mterminal's own colors; dracula, tokyo_night and pantone_safe ship as theme␛[0m         ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
+␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mfiles; auto is default on a dark terminal, paper on a light one) or a theme file␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
+␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161min ~/.config/rex/themes. An unknown name uses default.␛[0m                             ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m  ↳ draft ready ␛[0m␛[38;2;174;179;194m│␛[0m                                                                                      ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m                ␛[0m
 ␛[38;2;89;96;112m────────────────␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161m↑↓ select   ←→ change   enter toggle   / search   tab section   r reset   ? help␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m────────────────␛[0m
 ␛[38;2;89;96;112m  λ press i to d␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mesc close␛[0m                                                                          ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m                ␛[0m

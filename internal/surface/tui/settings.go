@@ -151,9 +151,15 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return settingsSearchKey(m, k), nil
 	}
 	if pagesOn(m) {
+		// The page footer shows m.Err in place of the hints: a refusal
+		// lasts until the next key.
+		m.Err = ""
 		if next, ok := settingsPageKey(m, k); ok {
 			return next, nil
 		}
+	}
+	if settingsValueKeys[k.String()] && m.Settings.Search != "" && !settingsListed(m.Settings, m.Settings.CursorID) {
+		return m, nil // a kept search with no hits shows no row to change
 	}
 	switch k.String() {
 	case "esc":
@@ -210,6 +216,12 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+// settingsValueKeys change, reset or edit the cursor row.
+var settingsValueKeys = map[string]bool{
+	"enter": true, " ": true, "+": true, "=": true, "l": true, "right": true,
+	"-": true, "_": true, "h": true, "left": true, "r": true, "e": true,
 }
 
 // settingsSearchKey edits the settings search. The query is bounded (see

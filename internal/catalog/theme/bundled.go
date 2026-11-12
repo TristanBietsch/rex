@@ -19,29 +19,41 @@ var bundledFS embed.FS
 // `rex theme new -from` accept only Builtin names, and a user file with a
 // bundled name overrides the bundled theme. Treat it as read-only; use Get
 // for a copy that is safe to modify.
-var Bundled = map[string]Palette{}
+var Bundled map[string]Palette
 
 // init fills Bundled (not a var initializer: Parse reaches Names, which reads
-// Bundled, and Go rejects that cycle). A bundled file must parse with no
-// error and no warning; anything else is a build mistake, so it panics.
-func init() {
-	files, err := fs.Glob(bundledFS, "builtin/*.yaml")
-	if err != nil {
-		panic(fmt.Sprintf("theme: bundled themes: %v", err))
-	}
+// Bundled, and Go rejects that cycle).
+func init() { Bundled = mustBundled(loadBundled(bundledFS)) }
+
+// loadBundled parses every builtin/*.yaml in fsys. A bundled file must parse
+// with no error and no warning; anything else is an error.
+func loadBundled(fsys fs.FS) (map[string]Palette, error) {
+	// The only Glob error is a bad pattern, and this one is constant.
+	files, _ := fs.Glob(fsys, "builtin/*.yaml")
+	out := make(map[string]Palette, len(files))
 	for _, f := range files {
-		data, err := bundledFS.ReadFile(f)
+		data, err := fs.ReadFile(fsys, f)
 		if err != nil {
-			panic(fmt.Sprintf("theme: bundled %s: %v", f, err))
+			return nil, fmt.Errorf("bundled %s: %w", f, err)
 		}
 		name := strings.TrimSuffix(path.Base(f), ".yaml")
 		p, warns, err := Parse(name, data)
 		if err != nil {
-			panic(fmt.Sprintf("theme: bundled %s: %v", f, err))
+			return nil, fmt.Errorf("bundled %s: %w", f, err)
 		}
 		if len(warns) > 0 {
-			panic(fmt.Sprintf("theme: bundled %s: %s", f, strings.Join(warns, "; ")))
+			return nil, fmt.Errorf("bundled %s: %s", f, strings.Join(warns, "; "))
 		}
-		Bundled[name] = p
+		out[name] = p
 	}
+	return out, nil
+}
+
+// mustBundled panics on a loadBundled error: a broken bundled file is a
+// build mistake, never a user's.
+func mustBundled(m map[string]Palette, err error) map[string]Palette {
+	if err != nil {
+		panic("theme: " + err.Error())
+	}
+	return m
 }

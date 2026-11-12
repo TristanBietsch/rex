@@ -28,7 +28,7 @@ var Registry = []Setting{
 		Type: TypeString, Default: "default", Aliases: []string{"color_scheme"},
 		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi", "dracula", "tokyo_night", "pantone_safe", "auto"},
 		Normalize: normalizeThemeName,
-		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors; auto is default on a dark terminal, paper on a light one) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
+		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors; dracula, tokyo_night and pantone_safe ship as theme files; auto is default on a dark terminal, paper on a light one) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
 	},
 	{
 		ID: "spinner", Label: "Spinner type", Section: SectionAppearance, Apply: ApplyLive,

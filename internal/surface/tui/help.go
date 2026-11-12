@@ -386,6 +386,9 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	w, h := helpSize(m)
 	lay := helpLayoutFor(m, w, h)
+	if pagesOn(m) {
+		m.Err = "" // the page footer shows it in place of the hints until a key
+	}
 
 	if st.Filtering {
 		switch k.Type {

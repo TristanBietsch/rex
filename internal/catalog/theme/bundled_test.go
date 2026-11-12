@@ -1,10 +1,13 @@
 package theme
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -117,4 +120,21 @@ func TestPantoneSafeCVDSeparation(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A bundled file that fails to parse, or parses with a warning, or cannot be
+// read, stops the load; the init turns that into a panic.
+func TestLoadBundledRefusesBadFiles(t *testing.T) {
+	for name, fsys := range map[string]fstest.MapFS{
+		"parse error": {"builtin/bad.yaml": {Data: []byte("colors: [\n")}},
+		"warning":     {"builtin/warn.yaml": {Data: []byte("nope: 1\n")}},
+		"unreadable":  {"builtin/dir.yaml": {Mode: fs.ModeDir}},
+	} {
+		_, err := loadBundled(fsys)
+		require.Error(t, err, name)
+	}
+	require.Panics(t, func() { mustBundled(nil, errors.New("boom")) })
+	m, err := loadBundled(fstest.MapFS{"builtin/ok.yaml": {Data: []byte("colors: {accent: \"#8384C6\"}\n")}})
+	require.NoError(t, err)
+	require.Equal(t, m, mustBundled(m, nil))
 }

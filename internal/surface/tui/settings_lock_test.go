@@ -201,3 +201,33 @@ func TestSettingsPageLockedRowFooter(t *testing.T) {
 	lines := strings.Split(ansi.Strip(m.View()), "\n")
 	require.Contains(t, lines[len(lines)-1], "err: spinner: set in config.lua:1 — press e to open")
 }
+
+// A refusal stays on the page footer only until the next key, so the hints
+// come back.
+func TestSettingsPageErrClearsOnNextKey(t *testing.T) {
+	m := lockedSettingsModel(t, "spinner")
+	m, _ = settingsKey(m, keyMsg("enter"))
+	require.NotEmpty(t, m.Err)
+	m, _ = settingsKey(m, keyMsg("j"))
+	require.Empty(t, m.Err)
+	lines := strings.Split(ansi.Strip(m.View()), "\n")
+	require.Contains(t, lines[len(lines)-1], "esc back")
+}
+
+// After a kept search with no hits, no row is shown, so the value keys must
+// not change or reset the row the cursor was on before.
+func TestSettingsZeroHitSearchIgnoresValueKeys(t *testing.T) {
+	for _, overlay := range []bool{false, true} {
+		for _, key := range []string{"enter", " ", "l", "right", "+", "h", "left", "-", "r"} {
+			m := Model{Store: settings.NewStore(), StorePath: filepath.Join(t.TempDir(), "config.yaml"), Width: 100, Height: 40,
+				Focus: FocusSettings, Settings: &SettingsState{CursorID: "spinner", Search: "zzzz"}}
+			if overlay {
+				m = overlayMode(t, m)
+			}
+			require.NoError(t, m.Store.Set("spinner", "moon"))
+			m, _ = settingsKey(m, keyMsg(key))
+			require.Equal(t, "moon", m.Store.Get("spinner"), "%s (overlay %v)", key, overlay)
+			require.Nil(t, m.Settings.Edit, key)
+		}
+	}
+}
