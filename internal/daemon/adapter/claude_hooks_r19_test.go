@@ -26,7 +26,7 @@ const (
 	hStop       = "needs_input\nturn-done"     // Stop
 	hSubPre     = "working"                    // subagent PreToolUse
 	hSubNest    = "working\nnest+"             // subagent PreToolUse Agent/Task
-	hCompacted  = "compacted\nsid 0a1b2c3d-01" // SessionStart compact
+	hCompacted  = "compacted\nsid " + testSID // SessionStart compact
 )
 
 func hSubPost(id string) string { return "working\nagent~ " + id }
@@ -133,7 +133,7 @@ func TestClaudeHooks_R19InfoNotificationNoChange(t *testing.T) {
 		t.Run(ty, func(t *testing.T) {
 			a, path, now := waitingAdapter(t)
 			replay(t, path, hPrompt, hShell)
-			start := *now
+			_, start := a.Waiting() // read the lines now
 			replay(t, path, hNotify(ty))
 			*now = now.Add(time.Second)
 			require.Equal(t, protocol.StateWorking, a.Detect(nil, time.Second))
@@ -177,7 +177,7 @@ func TestClaudeHooks_R19CompactionMidTurn(t *testing.T) {
 	a, path, _ := waitingAdapter(t)
 	replay(t, path, hPrompt, hTask, "agent+ a", hLaunch, hTool, hCompacted)
 	require.Equal(t, protocol.StateWorking, a.Detect(nil, 5*time.Second))
-	require.Equal(t, "0a1b2c3d-01", a.ResumeID())
+	require.Equal(t, testSID, a.ResumeID())
 	require.Equal(t, 1, a.Subagents())
 }
 
@@ -187,6 +187,7 @@ func TestClaudeHooks_R19BgAgentsReconcile(t *testing.T) {
 	a, path, now := waitingAdapter(t)
 	r := &readyEdges{a: a, last: protocol.StateWorking}
 	replay(t, path, hPrompt, hTask, "agent+ lost", hLaunch, hTask, "agent+ live", hLaunch)
+	require.Equal(t, 2, a.Subagents()) // read the lines now
 	*now = now.Add(time.Second)
 	replay(t, path, hSubPost("live"), hStop+"\nbg-agents 1")
 	require.Equal(t, 1, a.Subagents(), "the oldest-seen one goes")
@@ -257,8 +258,8 @@ func TestClaudeHooks_R19HookLines(t *testing.T) {
 		name, event, stdin, want string
 	}{
 		{"prompt", "UserPromptSubmit", `{"prompt":"hi"}`, hPrompt + "\n"},
-		{"compact", "SessionStart", `{"source":"compact","session_id":"0a1b2c3d-01"}`, hCompacted + "\n"},
-		{"startup", "SessionStart", `{"source":"startup","session_id":"0a1b2c3d-01"}`, "agents-reset\nneeds_input\nsid 0a1b2c3d-01\n"},
+		{"compact", "SessionStart", `{"source":"compact","session_id":"`+testSID+`"}`, hCompacted + "\n"},
+		{"startup", "SessionStart", `{"source":"startup","session_id":"`+testSID+`"}`, "agents-reset\nneeds_input\nsid " + testSID + "\n"},
 		{"stop no registry", "Stop", `{"stop_hook_active":false,"last_assistant_message":"say \"background_tasks\":[{\"type\":\"subagent\"}]"}`, hStop + "\n"},
 		{"stop bg", "Stop", `{"stop_hook_active":false,"background_tasks":[{"id":"t1","type":"subagent","status":"running"},{"id":"t2","type": "shell","status":"running"},{"id":"t3", "type" : "subagent"}],"session_crons":[]}`, hStop + "\nbg-agents 2\n"},
 		{"stop empty", "Stop", `{"background_tasks":[],"session_crons":[]}`, hStop + "\nbg-agents 0\n"},

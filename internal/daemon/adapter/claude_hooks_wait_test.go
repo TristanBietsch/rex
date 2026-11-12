@@ -51,7 +51,11 @@ func TestClaudeHookArgs_SubagentPreToolUseWritesNoWait(t *testing.T) {
 	for _, tool := range []string{"Bash", "Task", "WebFetch"} {
 		got := hookFileAfter(t, "PreToolUse",
 			`{"session_id":"s","agent_id":"sub-7","agent_type":"Explore","tool_name":"`+tool+`","tool_input":{}}`)
-		require.Equal(t, "working\n", got, tool)
+		want := "working\n"
+		if tool == "Task" {
+			want = "working\nnest+\n" // a nested subagent follows
+		}
+		require.Equal(t, want, got, tool)
 	}
 	// Pretty-printed JSON too.
 	got := hookFileAfter(t, "PreToolUse", "{\n  \"session_id\": \"s\",\n  \"agent_id\": \"sub-7\",\n  \"tool_name\": \"Bash\"\n}\n")
@@ -164,14 +168,32 @@ func TestClaudeHooks_WaitClearedByLeavingWorking(t *testing.T) {
 
 func TestClaudeHooks_WaitClearedByEvents(t *testing.T) {
 	cmds := hookCommands(t)
-	for _, ev := range []string{"Stop", "Notification", "SessionStart"} {
+	for _, c := range []struct {
+		ev, stdin string
+		clears    bool
+	}{
+		{"Stop", `{"session_id":"s"}`, true},
+		{"StopFailure", `{"session_id":"s","error":"rate_limit"}`, true},
+		{"Notification", `{"notification_type":"idle_prompt"}`, true},
+		{"SessionStart", `{"session_id":"s","source":"startup"}`, true},
+		// A question keeps the wait for after the answer; a compaction
+		// is not the end of the turn; an informational notice is nothing.
+		{"Notification", `{"notification_type":"permission_prompt"}`, false},
+		{"Notification", `{"notification_type":"elicitation_response"}`, false},
+		{"SessionStart", `{"session_id":"s","source":"compact"}`, false},
+	} {
 		a, path, _ := waitingAdapter(t)
 		runHook(t, cmds["PreToolUse"], path, `{"tool_name":"Bash"}`)
 		got, _ := a.Waiting()
-		require.Equal(t, protocol.WaitShell, got, ev)
-		runHook(t, cmds[ev], path, `{"session_id":"s","source":"compact"}`)
+		require.Equal(t, protocol.WaitShell, got, c.ev)
+		runHook(t, cmds[c.ev], path, c.stdin)
+		runHook(t, cmds["PreToolUse"], path, `{"agent_id":"sub-1","agent_type":"x","tool_name":"Read"}`) // a lone working word
 		got, _ = a.Waiting()
-		require.Empty(t, got, ev)
+		if c.clears {
+			require.Empty(t, got, c.stdin)
+		} else {
+			require.Equal(t, protocol.WaitShell, got, c.stdin)
+		}
 	}
 }
 
