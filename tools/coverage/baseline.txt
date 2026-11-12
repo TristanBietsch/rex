@@ -40,3 +40,5 @@ github.com/tristanbietsch/rex/internal/testutil/uvfixture 100
 github.com/tristanbietsch/rex/internal/wire/client 95
 github.com/tristanbietsch/rex/internal/wire/protocol 97
 github.com/tristanbietsch/rex/internal/features/usage 91
+github.com/tristanbietsch/rex/internal/features/loop 90
+github.com/tristanbietsch/rex/internal/surface/cli/loopcli 87
