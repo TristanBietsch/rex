@@ -108,6 +108,8 @@ func (w *Worker) trackEvent(e state.Event) {
 			return
 		}
 		w.track(e.SessionID, w.now(), false)
+	case state.EventRemoved:
+		// forget drops the schedule with the rest of the session's state.
 	}
 }
 

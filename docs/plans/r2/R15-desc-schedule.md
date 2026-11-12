@@ -107,4 +107,4 @@ As built (branch `feat/r15-desc-schedule`):
 - Tests use real timers with a scaled `Config.Cadence` (tens of ms) in `desc_schedule_test.go`; the cadence math in `cadence_test.go` is pure. `now` is an injectable clock for anchors and ticks, timers stay real.
 - New synthetic screens `claude_longrun`, `codex_migration` also entered the activity golden set.
 - Coverage floor for the summarizer stays at 93 (measured 93.4%).
-- `TestSnapshots_OldGitDisablesCaptures` fails in `internal/daemon/boot` on this machine; unrelated to R15 (not touched).
+- `make check` is green (lint, race tests, coverage floors, govulncheck).

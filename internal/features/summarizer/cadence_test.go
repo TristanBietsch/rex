@@ -10,9 +10,9 @@ import (
 func TestCadence_DueAnchoredTicks(t *testing.T) {
 	anchor := time.Date(2026, 11, 11, 9, 0, 0, 0, time.UTC)
 	c := DefaultCadence
-	want := []time.Duration{5, 10, 15, 20, 25, 55, 85, 115}
+	want := []int{5, 10, 15, 20, 25, 55, 85, 115}
 	for i, m := range want {
-		require.Equal(t, anchor.Add(m*time.Minute), c.Due(anchor, i+1), "tick %d", i+1)
+		require.Equal(t, anchor.Add(time.Duration(m)*time.Minute), c.Due(anchor, i+1), "tick %d", i+1)
 	}
 }
 
