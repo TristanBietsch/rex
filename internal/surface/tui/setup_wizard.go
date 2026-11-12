@@ -182,7 +182,6 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	} else {
 		all = reg.Tools
 	}
-	visible := visibleTools(all)
 
 	// settings options from registry
 	themes := theme.LoadDir(themesDir())
@@ -194,6 +193,8 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	// pre-load existing settings to show current values as defaults
 	st := settings.NewStore()
 	_ = st.Load(configPath)
+
+	visible := setupTools(all, st)
 
 	// A configured theme that is not on offer (its file was skipped or
 	// removed) stays selected, so finishing the wizard does not reset it.
@@ -280,6 +281,22 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// setupTools is the tools `rex setup` offers as the default: the enabled
+// ones, except that the extra agents (qwen, cursor, grok) show only while
+// extra_agents is on and their binary is on PATH (there is no daemon yet to
+// ask; this process looks itself).
+func setupTools(all []registry.Tool, st *settings.Store) []registry.Tool {
+	extra := settings.FeatureOn(st, "extra_agents")
+	var out []registry.Tool
+	for _, t := range visibleTools(all) {
+		if slices.Contains(registry.ExtraAgentIDs, t.ID) && (!extra || !registry.Installed(t)) {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
 
 func enumOptions(id string) []string {
 	s, ok := settings.Find(id)

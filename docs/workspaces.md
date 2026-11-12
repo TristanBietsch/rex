@@ -60,7 +60,7 @@ rex here                 # the board for the workspace around this folder
 rex ws open ~/dev/other  # the same for another folder (any folder inside the workspace)
 ```
 
-`rex here` opens the usual board with a fixed filter: only that workspace's sessions are listed, counted in the header, cleared by `:prune` and shown in the overview. No key or command changes the filter; open `rex` for the whole board. What changes on screen:
+`rex here` opens the usual board with a fixed filter: only that workspace's sessions are listed, counted in the header, cleared by `:prune`, shown in the overview and the loops overlay, matched by session selectors and announced by sounds. No key or command changes the filter; open `rex` for the whole board. What changes on screen:
 
 - The header starts with `[7f3b89a2 myproject]` in the workspace color (the id alone in a narrow layout).
 - The window border takes the workspace color. On a workspace board the border is **on by default**, so the color shows; set `window_border` yourself (to `false` to switch it off) or use `:border` for one run and rex follows. An explicit `window_border_color` or `:border <color>` also wins over the workspace color.
@@ -78,7 +78,7 @@ The daemon also keeps `<workspace>/.rex/sessions.jsonl`: one line when a session
 {"session_id":"…","short_id":"7d4f","tool":"claude","model":"opus","name":"fix-auth","cwd":"/…","started_at":"…","ended_at":"…","state":"done","resume_id":"…"}
 ```
 
-`ended_at` is absent on the spawn line. The file is `0600`, opened append-only without following symlinks, and a symlink, an unsafe `.rex/` or a read-only folder does not stop the session: the daemon logs one warning for that file per run and keeps going. The index holds no prompt text. It is not a secret, but like `audit.jsonl` it is excluded from git by `rex ws init` (the whole `/.rex/` is).
+`ended_at` is absent on the spawn line. The file is `0600`, opened append-only without following symlinks; a symlink, a hard link, another user's file, an unsafe `.rex/` or a read-only folder does not stop the session: the daemon logs one warning for that file per run and keeps going. The index holds no prompt text. It is not a secret, but like `audit.jsonl` it is excluded from git by `rex ws init` (the whole `/.rex/` is).
 
 ## Audit trail
 

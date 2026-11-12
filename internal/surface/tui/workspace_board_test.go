@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
@@ -162,10 +163,16 @@ func TestWorkspaceBoard_WizardAndQuickSpawnStartAtTheRoot(t *testing.T) {
 	cwd := spawnCWD(m)
 	require.NotEqual(t, "/work/api", cwd)
 
-	m = wsModel(t, true)
+	// The i key on a workspace board spawns at the root.
+	q := quickModel(t, "claude", "claude")
+	q.WS = wsScopeA()
+	require.NoError(t, q.Store.Set("workspaces", true))
 	fake := &recordingClient{}
-	m.Store = settingsWith(t, map[string]any{"workspaces": true, "default_spawn_tool": "claude", "default_spawn_model": "opus"})
-	cmd := spawnSessionIn(spawnCWD(m), fake, m.Store, nil, "fix it", 0, 0)
+	q.spawner = fake
+	q.PromptText = "fix it"
+	q.Focus = FocusPrompt
+	_, cmd := updatePromptKey(q, tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
 	require.Nil(t, cmd())
 	require.Equal(t, "/work/api", fake.last.CWD)
 }

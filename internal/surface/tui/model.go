@@ -35,6 +35,8 @@ const (
 	FocusOverview
 	FocusLoops
 	FocusConfirmLoopStop
+	FocusUsage
+	FocusUndo
 )
 
 // Model is the root Bubble Tea model.
@@ -112,6 +114,10 @@ type Model struct {
 	Help   *HelpState
 	Attach *AttachState
 	Fail   *FailState
+	// UsagePage is the :usage page's state; set while FocusUsage.
+	UsagePage *UsageState
+	// Undo is the :undo / :redo dialog; set while FocusUndo.
+	Undo   *UndoState
 	Rename *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
@@ -184,12 +190,32 @@ type Model struct {
 	BackendUnavailable       bool
 	BackendUnavailableReason string
 
+	// DaemonTools is the daemon's tool list (installed, merged models) from
+	// the Snapshot and ToolsChanged; toolsKnown says it was sent at all (not
+	// from a daemon that predates it: then every tool counts as installed).
+	DaemonTools []protocol.ToolInfo
+	toolsKnown  bool
+
 	// Overview is the daemon's board overview (headline over the buckets the
 	// TUI computes itself), from the Snapshot and Overview events. Nil
 	// until the daemon sends one, and from daemons that predate it.
 	Overview *protocol.Overview
 	// OverviewSel is the selected row of the :overview overlay.
 	OverviewSel int
+
+	// Usage is the daemon's live usage quotas, from the Snapshot and Usage
+	// events. Nil until the daemon sends one, and from daemons that predate it.
+	Usage *protocol.Usage
+	// usager answers the :usage page's UsageQuery (nil: Client); usageSeq
+	// numbers its requests so a late reply for a closed page is dropped.
+	usager   usageQuerier
+	usageSeq int
+	// undoer carries the :undo / :redo calls (nil: Client); undoSeq numbers
+	// them so a late reply for a closed dialog is dropped.
+	undoer undoDoer
+	// spawner replaces Client for the quick-spawn's NewSession (tests).
+	spawner sessionSpawner
+	undoSeq int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
@@ -337,6 +363,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			}
 			if hasState && audible {
 				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
+				if m.Undo != nil && m.Undo.StateAt != next {
+					m = closeUndoIfStale(m, upd.SessionID, "undo: the session changed; run it again")
+				}
 			}
 		}
 	case protocol.EventSnapshot:
@@ -344,9 +373,21 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m = adoptSessions(m, snap.Sessions)
 			m.Overview = snap.Overview
+			m.Usage = snap.Usage
+			m = adoptSnapshotTools(m, snap.Tools)
 			m = adoptWorkspaceTagging(m, &snap)
 			m = adoptLoops(m, &snap)
 			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
+		}
+	case protocol.EventToolsChanged:
+		var tc protocol.ToolsChanged
+		if err := json.Unmarshal(env.Data, &tc); err == nil {
+			m = adoptDaemonTools(m, tc.Tools)
+		}
+	case protocol.EventUsage:
+		var u protocol.Usage
+		if err := json.Unmarshal(env.Data, &u); err == nil {
+			m.Usage = &u
 		}
 	case protocol.EventLoop:
 		var l protocol.LoopSummary
@@ -549,6 +590,7 @@ func dropTargets(m Model, id, endedMsg string) Model {
 		m.Err = "rename: session removed"
 		slog.Info("tui: rename target removed", "session", id)
 	}
+	m = closeUndoIfStale(m, id, "undo: the session was removed")
 	if m.PendingDeleteID != "" && m.PendingDeleteID == id {
 		m.PendingDeleteID = ""
 		if m.Focus == FocusConfirmDelete {
@@ -563,9 +605,14 @@ func dropTargets(m Model, id, endedMsg string) Model {
 // adoptSessions replaces the session list with a fresh snapshot. Targets of
 // sessions missing from it are dropped as if each got SessionRemoved.
 func adoptSessions(m Model, sessions []protocol.SessionSummary) Model {
-	for _, id := range []string{m.PendingDeleteID, m.renameTarget(), m.attachTarget()} {
+	for _, id := range []string{m.PendingDeleteID, m.renameTarget(), m.attachTarget(), m.undoTarget()} {
 		if id != "" && sessionIndex(sessions, id) < 0 {
 			m = dropTargets(m, id, "session deleted")
+		}
+	}
+	if m.Undo != nil {
+		if i := sessionIndex(sessions, m.Undo.SessionID); i >= 0 && sessions[i].State != m.Undo.StateAt {
+			m = closeUndoIfStale(m, m.Undo.SessionID, "undo: the session changed; run it again")
 		}
 	}
 	m.Sessions = sessions

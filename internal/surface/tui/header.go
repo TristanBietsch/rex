@@ -15,6 +15,13 @@ import (
 // overlay's total: queued counts as working (its column). The screensaver
 // shows the same numbers (columnCounts).
 func renderHeader(m Model, width int) string {
+	out, _, _ := headerTopRow(m, width)
+	return renderHeaderRest(m, out, width)
+}
+
+// headerTopRow is the logo and counts row with the usage meter at its right
+// end, and the meter's columns [lo, hi).
+func headerTopRow(m Model, width int) (row string, lo, hi int) {
 	scoped := scopedSessions(m)
 	cols, failed := columnCounts(scoped, rowFilterOf(m).ctx)
 
@@ -39,7 +46,13 @@ func renderHeader(m Model, width int) string {
 	if m.Detailed && !mobile {
 		topRow += styleDim.Render("  · detailed (v)")
 	}
-	out := padLine(topRow, width)
+	return headerTop(m, topRow, width)
+}
+
+// renderHeaderRest adds the rows under the top row: filter chips, the
+// overview line and the summary backend banner.
+func renderHeaderRest(m Model, out string, width int) string {
+	mobile := mobileLayout(m)
 	if showFilterChips(m) {
 		chips := ""
 		if m.featureOn("board_filter") {

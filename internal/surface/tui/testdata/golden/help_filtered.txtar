@@ -3,22 +3,22 @@
   ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
   all · claude · codex · antigravity · ollama                                   
 
-────────────────────────────────────────────────────────────────────────────────
-    ┌─ HELP ────────────────────────────────────────────────────── rex v1 ─┐
-  RE│   / undo                                                             │    
-   ◆│   ── Actions ─────────────────────────────────────────────────────   │  4m
-    │   cc  mark done / undo                                               │
-  WA│   uc  undo done (unmark, or resume an exited session)                │    
-    │                                                                      │
+────┌─ HELP ────────────────────────────────────────────────────── rex v1 ─┐────
+    │   / undo                                                             │
+  RE│   ── Actions ─────────────────────────────────────────────────────   │    
+   ◆│   cc  mark done / undo                                               │  4m
+    │   uc  undo done (unmark, or resume an exited session)                │
+  WA│                                                                      │    
     │   ── Session commands ────────────────────────────────────────────   │
-  WO│   :undone [sel]      undo done                                       │    
- ▸ ⠋│   :uc :resume [sel]  undo done: unmark a running session, or         │ 11m
-   ⠋│                      resume an exited one                            │  7s
-   ⠋│                                                                      │  2h
-    │   j/k scroll · / edit filter · esc clear                             │
-  DO└──────────────────────────────────────────────────────────────────────┘    
-   ●  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
-   ✕  no-model          boot                                                   -
+    │   :undone [sel]           undo done                                  │
+  WO│   :uc :resume [sel]       undo done: unmark a running session, or    │    
+ ▸ ⠋│                           resume an exited one                       │ 11m
+   ⠋│   :undo [sel] [-turns N]  restore the folder to before the agent's   │  7s
+   ⠋│                           last turn (asks first) (off)               │  2h
+    │   :redo [sel]             bring back what :undo replaced (off)       │
+  DO│                                                                      │    
+   ●│   j/k scroll · / edit filter · esc clear                             │  9d
+   ✕└──────────────────────────────────────────────────────────────────────┘   -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
@@ -36,21 +36,21 @@
   WAITING  0                                                                                                            
       nothing waiting on a tool
 
-  WORKING  3                                                                                                            
- ▸ ⠋  release-notes         draft ready — which feature leads?                                               ▴ 45m   11m
-   ⠋  日本語の長いタスク…   events_org_ts index live — p95 38ms                                                       7s
-   ⠋ ┌─ HELP ──────────────────────────────────────────────────────────────────────────────────────────── rex v1 ─┐   2h
-     │   / undo                                                                                                   │
-  DON│   ── Actions ──────────────────────────────────────    ── Session commands ─────────────────────────────   │     
-   ● │   cc  mark done / undo                                 :undone [sel]      undo done                        │   9d
-   ✕ │   uc  undo done (unmark, or resume an exited           :uc :resume [sel]  undo done: unmark a running      │    -
-   ✕ │       session)                                                            session, or resume an exited     │    -
-     │                                                                           one                              │
+  WOR┌─ HELP ──────────────────────────────────────────────────────────────────────────────────────────── rex v1 ─┐     
+ ▸ ⠋ │   / undo                                                                                                   │  11m
+   ⠋ │   ── Actions ──────────────────────────────────────    ── Session commands ─────────────────────────────   │   7s
+   ⠋ │   cc  mark done / undo                                 :undone [sel]           undo done                   │   2h
+     │   uc  undo done (unmark, or resume an exited           :uc :resume [sel]       undo done: unmark a         │
+  DON│       session)                                                                 running session, or         │     
+   ● │                                                                                resume an exited one        │   9d
+   ✕ │                                                        :undo [sel] [-turns N]  restore the folder to       │    -
+   ✕ │                                                                                before the agent's last     │    -
+     │                                                                                turn (asks first) (off)     │
+     │                                                        :redo [sel]             bring back what :undo       │
+     │                                                                                replaced (off)              │
      │                                                                                                            │
      │   j/k scroll · / edit filter · esc clear                                                                   │
      └────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-
 
 
 

@@ -36,30 +36,30 @@
   WAI│                                                                                running session, or         │     
      │   ── Filter & search ──────────────────────────────                            resume an exited one        │
      │   t     cycle tool filter                              :rid [sel]              show the full resume id     │
-  WOR│   /     search the board (every word must match)       :complete [sel]         kill agent + mark done      │     
- ▸ ⠋ │   esc   clear the search                                                       now                         │  11m
-   ⠋ │   zh    hide / show completed sections                 :rm <sel>               delete                      │   7s
-   ⠋ │   z1-9  hide / show section N                          :prune                  clear Done (keeps           │   2h
-     │   z0    show every section                                                     sessions still working)     │
-  DON│                                                        :export [sel] [fmt]     write session to exports/   │     
-   ● │   ── Actions ──────────────────────────────────────    :loop pause|resume|st…  pause, resume or stop a     │   9d
-   ✕ │   enter  attach to selected session                                            loop (stop asks first)      │    -
-   ✕ │   n      new-agent wizard                                                      (off)                       │    -
-     │   r      rename selected (empty = slug)                :loops                  list loops: state, turn,    │
-     │   cc     mark done / undo                                                      time, last check (off)      │
-     │   uc     undo done (unmark, or resume an exited        :filter [what]          tool, or hide|show|only     │
-     │          session)                                                              <section…>; no argument     │
-     │   C      complete now (kill agent, mark done)                                  clears every filter         │
-     │   dd     delete selected                               :search [text]          search the board (every     │
-     │   i      focus λ prompt (new-session text)                                     word must match); no text   │
-     │   S      settings                                                              clears                      │
-     │   p      pause / resume the selected loop (off)                                                            │
-     │   x      stop the selected loop (asks first) (off)     ── App commands ─────────────────────────────────   │
-     │   L      list loops: state, turn, time, last check     :q :quit         quit (confirm)                     │
-     │          (off)                                         :q!              force quit                         │
-     │   q      quit (confirm)                                :bg :detach      detach, save place                 │
-     │                                                        :reload          reload tools.yaml, config.yaml     │
-     │   ── Mouse ────────────────────────────────────────                     and themes                         │
+  WOR│   /     search the board (every word must match)       :undo [sel] [-turns N]  restore the folder to       │     
+ ▸ ⠋ │   esc   clear the search                                                       before the agent's last     │  11m
+   ⠋ │   zh    hide / show completed sections                                         turn (asks first) (off)     │   7s
+   ⠋ │   z1-9  hide / show section N                          :redo [sel]             bring back what :undo       │   2h
+     │   z0    show every section                                                     replaced (off)              │
+  DON│                                                        :complete [sel]         kill agent + mark done      │     
+   ● │   ── Actions ──────────────────────────────────────                            now                         │   9d
+   ✕ │   enter  attach to selected session                    :rm <sel>               delete                      │    -
+   ✕ │   n      new-agent wizard                              :prune                  clear Done (keeps           │    -
+     │   r      rename selected (empty = slug)                                        sessions still working)     │
+     │   cc     mark done / undo                              :export [sel] [fmt]     write session to exports/   │
+     │   uc     undo done (unmark, or resume an exited        :loop pause|resume|st…  pause, resume or stop a     │
+     │          session)                                                              loop (stop asks first)      │
+     │   C      complete now (kill agent, mark done)                                  (off)                       │
+     │   dd     delete selected                               :loops                  list loops: state, turn,    │
+     │   i      focus λ prompt (new-session text)                                     time, last check (off)      │
+     │   S      settings                                      :filter [what]          tool, or hide|show|only     │
+     │   p      pause / resume the selected loop (off)                                <section…>; no argument     │
+     │   x      stop the selected loop (asks first) (off)                             clears every filter         │
+     │   L      list loops: state, turn, time, last check     :search [text]          search the board (every     │
+     │          (off)                                                                 word must match); no text   │
+     │   q      quit (confirm)                                                        clears                      │
+     │                                                                                                            │
+     │   ── Mouse ────────────────────────────────────────    ── App commands ─────────────────────────────────   │
   ↳ d│   ↓ more                                                                                                   │     
 ─────│                                                                                                            │─────
   λ p│   j/k scroll · / filter · esc close                                                                        │     

@@ -62,8 +62,8 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
 | `Resume` | yes | `session_id`. Makes the session live and not marked done; see [Resume](#resume) |
-| `Undo` | yes | `session_id`, `turns` (0 = 1; at most 1000), `force`, `dry_run`. Restores the folder from the turn snapshots; see [Undo and Redo](#undo-and-redo) |
-| `Redo` | yes | `session_id`, `force`, `dry_run`. Brings back what the last `Undo` replaced |
+| `Undo` | yes | `session_id`, `turns` (0 = 1; at most 1000), `force`, `dry_run`, `expect`. Restores the folder from the turn snapshots; see [Undo and Redo](#undo-and-redo) |
+| `Redo` | yes | `session_id`, `force`, `dry_run`, `expect`. Brings back what the last `Undo` replaced |
 | `FocusFilter` | no-op | Accepted (and acked); not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
@@ -114,7 +114,7 @@ Clients: `(*client.Client).Resume(sessionID, reqID)`. An older daemon answers `b
 
 `Undo{session_id, turns, force, dry_run}` restores the session's folder to how it was before its last `turns` agent turns, from the turn snapshots (the `turn_snapshots` setting; see [snapshots](snapshots.md)). `Redo{session_id, force, dry_run}` restores the capture `Undo` took first. Both are additive: no `ProtocolVersion` bump, and an older daemon answers `bad_intent` "intent not implemented".
 
-The reply is an `UndoResult` event (not an `Ack`): `session_id`, `restored` and `deleted` (sorted slash paths relative to the session's folder, never null), `safety`, the tree id of the capture taken just before the restore, and `warnings` (absent when empty): the folder changed while the restore ran, or the session started working during it. The folder is already changed when the reply is sent. With `dry_run` nothing changes and nothing is captured: the same checks run and the reply lists what would be restored and deleted, with an empty `safety`.
+The reply is an `UndoResult` event (not an `Ack`): `session_id`, `restored` and `deleted` (sorted slash paths relative to the session's folder, never null), `safety`, the tree id of the capture taken just before the restore, and `warnings` (absent when empty): the folder changed while the restore ran, or the session started working during it. The folder is already changed when the reply is sent. With `dry_run` nothing changes and nothing is captured: the same checks run and the reply lists what would be restored and deleted, with an empty `safety`. `target` is the tree id the operation restores (also in a dry run); a client passes it back as `expect` when it confirms, and the daemon refuses with `bad_state` "the session changed since the preview — run it again", changing nothing, when the session ran another turn meanwhile and the target is now a different one.
 
 Checks, in order:
 

@@ -124,3 +124,15 @@ Deviations from the spec:
 - Workspace filtering (`workspace_id`, R06) is not built.
 
 Known limits: tokens in the ledger are `output_bytes / 4`; Claude's own token counts are not in the status-line fields kept. Windows: the user command runs under `bash -c` (Git Bash), the same assumption the hooks make; not run on Windows here.
+
+### TUI wiring (feat/tui-wiring-a)
+
+R10-5 and R10-6 are built in `internal/surface/tui` on the U1 panel frame (`usage_page.go`, `usage_meter.go`).
+
+- **Page** `:usage` (`FocusUsage`, `UsageState`): the page asks the daemon with `UsageQuery` through `usageQuerier` (the `*client.Client` helper; tests swap a fake). Each request has a sequence number, so a reply for a closed page or an older range is dropped. `usage` off: `:usage` answers the standard off message before anything is sent.
+- **Rows**: tools sorted as the daemon sends them, models indented, further quota windows of a tool on their own lines, a tool that only has a quota shown as dashes. The filter is client-side (tool or model name; the total row follows it and says `TOTAL (filtered)`).
+- **Narrow**: below 66 inner columns, and in the mobile layout, one card per tool.
+- **Meter**: `usage_meter` (Features, `off|compact|full`, default `compact`); the TUI keeps `Snapshot.usage` and `Usage` events in `Model.Usage`. It is built from the live quotas of tools with a live session, left out agent by agent from the right and then entirely when the counts need the room, and the click hit-test uses the same layout function as the renderer.
+- **Colors**: three prebuilt styles in `styles.go` (`styleQuotaOK|Warn|Danger`), thresholds 60 and 85; a stale reading (daemon `stale`, or older than 15 minutes) is dim.
+- **Deviation**: the page is a centered titled panel over the dimmed board (the frame U1 gave help and settings), not a separate full-screen page, and there is no `w` workspace toggle (R06 `workspace_id` is not in the report).
+- **Goldens**: `usage` at 80x24, 120x40 and 50x30 (mobile), `header_meter` at 60x24, 80x24 and 120x40; `help` and `settings` changed (one new command row, one new settings row).

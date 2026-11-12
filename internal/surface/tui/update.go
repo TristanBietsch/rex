@@ -10,7 +10,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -159,6 +158,10 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleReconnectResult(m, msg)
 	case exportDoneMsg:
 		return applyExportDone(m, msg), nil
+	case undoReplyMsg:
+		return applyUndoReply(m, msg), nil
+	case usageReportMsg:
+		return applyUsageReport(m, msg), nil
 	case pruneDoneMsg:
 		return applyPruneDone(m, msg), nil
 	case loopActionMsg:
@@ -276,6 +279,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.Sessions = msg.Snap.Sessions
 		m.Overview = msg.Snap.Overview
+		m.Usage = msg.Snap.Usage
+		m = adoptSnapshotTools(m, msg.Snap.Tools)
 		m = adoptWorkspaceTagging(m, msg.Snap)
 		m = adoptLoops(m, msg.Snap)
 		m = adoptSnapshotFilter(m, msg.Snap.Filter)
@@ -330,6 +335,10 @@ func (m Model) focusStateMissing() bool {
 		return m.Fail == nil
 	case FocusRename:
 		return m.Rename == nil
+	case FocusUsage:
+		return m.UsagePage == nil
+	case FocusUndo:
+		return m.Undo == nil
 	default:
 		return false // stateless foci (help, stats, prompts, confirms)
 	}
@@ -516,6 +525,12 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusConfirmLoopStop {
 		return updateConfirmLoopStopKey(m, k)
 	}
+	if m.Focus == FocusUsage {
+		return updateUsageKey(m, k)
+	}
+	if m.Focus == FocusUndo {
+		return updateUndoKey(m, k)
+	}
 	if m.Focus == FocusStats {
 		switch k.String() {
 		case "esc", ":":
@@ -594,9 +609,17 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			slog.Warn("tui: quick-spawn aborted, settings store not initialized")
 			return m, nil
 		}
-		m.PendingSelectSlug = quickSpawnSlug(m.Store, m.Sessions, text)
+		choice, notice := quickChoiceOf(m)
+		if notice != "" {
+			m.Notice = notice
+		}
+		m.PendingSelectSlug = quickSpawnSlug(choice, m.Sessions, text)
 		cols, rows := spawnSizeOf(m)
-		return m, spawnSessionIn(spawnCWD(m), m.Client, m.Store, m.Sessions, text, cols, rows)
+		var spawner sessionSpawner = m.Client
+		if m.spawner != nil {
+			spawner = m.spawner
+		}
+		return m, spawnSessionIn(spawnCWD(m), spawner, choice, m.Sessions, text, cols, rows)
 	case tea.KeyBackspace:
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
@@ -616,19 +639,17 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 // from one created via the full wizard. Daemon-side validation surfaces errors
 // for unknown tool/model IDs via the existing DaemonErrMsg path. cols and
 // rows are the PTY size to start at (spawnSizeOf; 0 = daemon default).
-func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+func spawnSessionCmd(c sessionSpawner, choice quickChoice, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
 	cwd, _ := os.Getwd()
-	return spawnSessionIn(cwd, c, store, sessions, prompt, cols, rows)
+	return spawnSessionIn(cwd, c, choice, sessions, prompt, cols, rows)
 }
 
 // spawnSessionIn is spawnSessionCmd with the folder the session starts in
 // (a workspace board starts it at the workspace root).
-func spawnSessionIn(cwd string, c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+func spawnSessionIn(cwd string, c sessionSpawner, choice quickChoice, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
 	return func() tea.Msg {
-		toolID, _ := store.Get("default_spawn_tool").(string)
-		modelID, _ := store.Get("default_spawn_model").(string)
-		effort, _ := store.Get("default_spawn_effort").(string)
-		slug := quickSpawnSlug(store, sessions, prompt)
+		toolID, modelID, effort := choice.Tool, choice.Model, choice.Effort
+		slug := quickSpawnSlug(choice, sessions, prompt)
 
 		slog.Info("tui: quick-spawn",
 			"tool", toolID, "model", modelID, "effort", effort,
@@ -653,9 +674,8 @@ func spawnSessionIn(cwd string, c sessionSpawner, store *settings.Store, session
 
 // quickSpawnSlug derives the slug a quick-spawn of prompt will get, so the
 // board can select the session when its SessionAdded arrives.
-func quickSpawnSlug(store *settings.Store, sessions []protocol.SessionSummary, prompt string) string {
-	toolID, _ := store.Get("default_spawn_tool").(string)
-	modelID, _ := store.Get("default_spawn_model").(string)
+func quickSpawnSlug(choice quickChoice, sessions []protocol.SessionSummary, prompt string) string {
+	toolID, modelID := choice.Tool, choice.Model
 	existing := make([]string, 0, len(sessions))
 	for _, s := range sessions {
 		if s.Slug != "" {

@@ -61,6 +61,28 @@ type goldenScreen struct {
 	model  func(t *testing.T, sz goldenSize) Model
 }
 
+// sizesOf is the sizes a screen is pinned at.
+func (sc goldenScreen) sizesOf() []goldenSize {
+	if sz, ok := goldenScreenSizes[sc.name]; ok {
+		return sz
+	}
+	return goldenSizes
+}
+
+// goldenScreenSizes overrides the sizes of the screens that are pinned at
+// others than goldenSizes.
+var goldenScreenSizes = map[string][]goldenSize{
+	"usage":        {{80, 24}, {120, 40}, goldenMobile},
+	"header_meter": {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm": {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":  {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":  {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":    {{80, 24}, {120, 40}, goldenMobile},
+}
+
+// goldenMobile is a terminal narrow enough for the mobile layout.
+var goldenMobile = goldenSize{50, 30}
+
 func goldenScreens() []goldenScreen {
 	return []goldenScreen{
 		{"board_simple", true, func(t *testing.T, sz goldenSize) Model { return goldenBoard(t, sz, false) }},
@@ -114,6 +136,26 @@ func goldenScreens() []goldenScreen {
 			m := overviewBoard(t, true)
 			m.Width, m.Height = sz.w, sz.h
 			m, _ = executeCommand(m, "overview")
+			return m
+		}},
+		{"usage", true, usageModelAt},
+		{"header_meter", true, meterModel},
+		{"undo_confirm", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "confirm") }},
+		{"undo_shared", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "shared") }},
+		{"undo_forced", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "forced") }},
+		{"undo_done", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "done") }},
+		{"wizard_models", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, key("j"))
+			return sendKey(m, key("enter"))
+		}},
+		{"settings_onboarding", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
+			m, _ = openSettings(m)
+			m.Settings.CursorID = onboardPrefix + "codex"
 			return m
 		}},
 		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
@@ -194,7 +236,7 @@ func TestGoldenScreens(t *testing.T) {
 	for _, sc := range goldenScreens() {
 		t.Run(sc.name, func(t *testing.T) {
 			var sections []golden.Section
-			for _, sz := range goldenSizes {
+			for _, sz := range sc.sizesOf() {
 				m := sc.model(t, sz)
 				sizeGolden(&m, sz)
 				withProfile(termenv.Ascii, func() {
@@ -205,7 +247,7 @@ func TestGoldenScreens(t *testing.T) {
 				})
 			}
 			if sc.styled {
-				for _, sz := range goldenSizes {
+				for _, sz := range sc.sizesOf() {
 					m := sc.model(t, sz)
 					sizeGolden(&m, sz)
 					withProfile(termenv.TrueColor, func() {
@@ -225,7 +267,7 @@ func TestGoldenScreens(t *testing.T) {
 // drops a row shows up as a size failure, not only as a diff.
 func TestGoldenScreensFillTerminal(t *testing.T) {
 	for _, sc := range goldenScreens() {
-		for _, sz := range goldenSizes {
+		for _, sz := range sc.sizesOf() {
 			m := sc.model(t, sz)
 			sizeGolden(&m, sz)
 			lines := strings.Split(ansi.Strip(m.View()), "\n")
