@@ -109,7 +109,7 @@ The three bundled themes are theme files that ship inside rex; a file of your ow
 | `mouse_enabled` | bool | `true` | | Board and attach-popup mouse: click selects, double-click attaches, wheel moves the selection. Capturing the mouse disables the terminal's native text selection; hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) to select anyway, or turn this off. Applies live |
 | `max_concurrent_sessions` | int | `16` | 1–64 | See below |
 | `attach_scrollback_lines` | int | `5000` | 0–50000 | Lines the attach popup keeps after they scroll off a primary-screen agent (see [tui.md](tui.md#scrollback)). `0` disables. Also capped at 8 MiB per popup. Read when a popup opens |
-| `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`cc`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, so changes apply immediately; the daemon reads it at startup as its default |
+| `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`cc`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, and the daemon's default for a mark without one follows the setting, so changes apply immediately |
 | `screensaver_enabled` | bool | `true` | | After `screensaver_after_minutes` with no key or click, show a small `∴ rex` with the counts. The key or click that wakes it does nothing else. See [tui.md](tui.md#screensaver) |
 | `screensaver_after_minutes` | int | `5` | 1–120 | Idle minutes before the screensaver shows. Overlays, prompts, the wizard and the attach popup time out too; waking returns to them. A change applies within a minute |
 | `skip_permissions` | bool | `false` | | Start Claude Code and Antigravity with `--dangerously-skip-permissions` (the tool's `skip_permissions_args`). Agents then edit files and run commands without asking you first. Only applies in a trusted folder: one under `auto_trust_dirs`, or one trusted for that session (`ctrl+t` / `ctrl+a` in the wizard, `rex new -trust`); anywhere else the flag is left off and the daemon log says `skip_permissions ignored: folder not trusted`. Off by default; read at each spawn (and each resume), so it applies to the next session. `rex config set` / `reset` change it only at a terminal (exit 6 for agents and pipes). A change made through rex (`rex config set` / `reset`, the Settings page, `rex setup`) reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off. See [SECURITY.md](../SECURITY.md) |
@@ -273,6 +273,9 @@ The TUI does the same on its own: every 2 s it checks `config.yaml` and the them
 |---------|----------|
 | To the running feature | `summary_detail`, `summary_schedule`, `overview_enabled`, `turn_snapshots`, `usage` |
 | At the next spawn or `Resume` | `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap` |
-| At daemon start only | `summary_enabled`, `summary_model`, `retire_after_hours`, `lua_config_path` |
+| To the running feature (also) | `retire_after_hours`, `init.lua` handlers (on a manual reload) |
+| At daemon start only | `summary_enabled`, `summary_model`, `lua_config_path`; `rex daemon restart` (hot) applies them and keeps sessions |
+
+`rex reload`, `:reload` and the Settings page's `R` report the changed ids and, among them, the ones in the last row ("needs a daemon restart").
 
 A `config.yaml` that fails to parse is ignored until it is fixed: the previous values stay in force, except `skip_permissions` and `auto_trust_dirs`, which fail closed (off, empty) until the file parses again. The daemon log says so once per failed reload.

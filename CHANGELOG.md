@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (hot reload, board swap, daemon hot restart)
+
+- `rex daemon restart` is now a hot restart: the daemon re-execs itself in
+  place (same PID) and every running agent keeps its process, PTY, screen
+  and output. Before the exec the new binary must pass a preflight
+  (`rex-daemon -handoff-check`); a binary that fails it, or a failed exec,
+  leaves the old daemon running and the sessions untouched. `-cold` keeps
+  the old stop and start, and asks first when it would kill running
+  sessions (`-yes` without a terminal, exit 6). Not on Windows (cold
+  restart with the same question).
+- `rex upgrade`: after installing a new build, hot-restart the daemon,
+  then have every board swap into the new binary; reports each process.
+- `:swap` re-execs the board into a newly installed build keeping
+  selection, scroll, filter, search, the open page and the attach popup.
+  The board notices a new build within 10 s; with `auto_swap` (new, on by
+  default) it swaps by itself after a minute idle on the board.
+- An attach popup re-attaches after a daemon hot restart instead of
+  showing the session as ended.
+- `rex reload`, `:reload`, `SIGHUP` and the Settings page's new `R` also
+  reload `init.lua` (a broken one keeps the previous handlers) and report
+  what changed, what needs a daemon restart, and each failed layer as
+  `file:line: message`. `rex reload` exits 1 when a layer failed.
+
+### Fixed (settings that said they apply live)
+
+- `mouse_enabled` changed in `config.yaml` (or by `rex config set`) now
+  turns mouse capture on or off at once, not at the next attach.
+- `retire_after_hours` now changes the daemon's default linger time
+  without a restart.
+- `max_concurrent_sessions` edited in `config.yaml` is pushed to the
+  daemon on the board's next reload, as documented.
+
 ### Changed (volume scale)
 
 - `master_volume` is now a whole number from 0 to 50 (default 40, the old

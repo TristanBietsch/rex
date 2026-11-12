@@ -322,3 +322,11 @@ func TestConfigReloadAppliesMouseEnabled(t *testing.T) {
 	require.False(t, got.mouseOn, "mouse capture released")
 	require.NotNil(t, cmd, "a DisableMouse command is sent")
 }
+
+// R20 audit: max_concurrent_sessions (applied from the TUI) is pushed to
+// the daemon on a config reload too, as settings.md says.
+func TestChangedLiveSettingsIncludesFromTUI(t *testing.T) {
+	old, cur := settings.NewStore(), settings.NewStore()
+	require.NoError(t, cur.Set("max_concurrent_sessions", 3))
+	require.Equal(t, []string{"max_concurrent_sessions"}, changedLiveSettings(old, cur))
+}

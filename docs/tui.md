@@ -132,6 +132,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 
 - **Sections.** `1`–`9` pick a section, `[` / `]` step through them (they wrap). On the left pane `j` `k` move the section and `enter` or `l` moves to the rows; on the rows pane `j` `k` stay inside the section, and `h` on a row with no values to step through does nothing.
 - **Search.** `/` filters live over label, id, section and help text (`spin` leaves Spinner type), across every section: the right pane lists the hits grouped by section under a match count, or `no setting matches “…”`. `enter` keeps the filter, `esc` clears it, a second `esc` closes. `esc` while you type goes back to the row you were on; after `enter` it keeps the row you picked. While you type, `j` `k` and the rest type; `ctrl+u` clears.
+- **Reload.** `R` reloads every layer, like `:reload`: the daemon's `tools.yaml`, `config.yaml`, `config.lua` and `init.lua`, and this board's `config.yaml` and themes. The status line shows `reloaded · changed: theme · needs daemon restart: summary_model`, or the first failed layer as `reload: file:line: message`.
 - **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. Values sit flush right; a switch's `on` is drawn in the primary text color and `off` in the dim one.
 - **Set in config.lua.** A row that `config.lua` sets shows its value dimmed with a muted `lua` after it, and the detail pane says where (`set in config.lua:12`). Enter, `←`/`→`, `r` and the inline editor refuse with `<id>: set in config.lua:12 — press e to open` on the bottom line; `e` opens that file at that line in `$EDITOR` (with `+N` for vi, vim, nvim, nano, emacs and micro) and reloads when the editor exits. `:theme` refuses the same way when `config.lua` sets `theme`, a quick-spawn tool or model change that would reset a model or effort `config.lua` sets is refused, and the setup wizard leaves such settings alone and lists them in its summary.
 - **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
@@ -482,6 +483,14 @@ A small column before the time column flags sessions that have been **working** 
 ## DETACH WITHOUT QUITTING
 
 `:bg` or `:detach` saves selection, tool filter, hidden sections and the board search to `tui-state.json` and exits the TUI. The daemon and all sessions continue. The next `rex` restores them once (the saved hidden sections replace `board_hidden_sections` for that run), then deletes the state file.
+
+## LOADING A NEW BUILD (`:swap`)
+
+The board checks its own executable every 10 s. When a new build is installed (`make install`, `rex update`) the status line says `new rex build installed · :swap to load it`. `:swap` re-execs the board into the new binary at once; with `auto_swap` on (the default) it also does so by itself once it has sat on the board for 60 s with no key, no overlay, wizard, dialog or editor open. `rex upgrade` asks every board to swap right away.
+
+A swap keeps the view: selection, scroll, tool filter, search, hidden sections, the open page (board, help, settings, usage, stats, overview, loops) and the attach popup when its session is still running. The state goes through `tui-swap-<pid>.json` next to `tui-state.json` (0600, read once and removed, pid-checked). The new board boots quietly (no boot sounds, as `--quiet-boot`). An open wizard, confirm dialog, rename or inline editor is not carried: an automatic or `rex upgrade` swap waits until none is open. If the exec fails the board keeps running and says why. Not on Windows (the status line says so).
+
+When the daemon hot-restarts, boards reconnect by themselves and an open attach popup re-attaches to the same session (backoff 250 ms to 2 s, 10 tries) instead of showing it as ended.
 
 ## PROMPT
 
