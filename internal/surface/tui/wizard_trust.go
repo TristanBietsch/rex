@@ -147,8 +147,9 @@ func wizardTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, pr
 	return m, req, true
 }
 
-// saveTrustDirs stores and saves a new auto_trust_dirs value. The daemon
-// picks it up from the file within a few seconds.
+// saveTrustDirs stores and saves a new auto_trust_dirs value, then tells the
+// daemon to re-read it, as a Settings page edit does (with live_reload off
+// the daemon would otherwise never see it).
 func saveTrustDirs(m *Model, value string) error {
 	if err := m.Store.Set(trustSettingID, value); err != nil {
 		return err
@@ -156,7 +157,11 @@ func saveTrustDirs(m *Model, value string) error {
 	if m.StorePath == "" {
 		return errors.New("no config file path")
 	}
-	return m.Store.Save(m.StorePath)
+	if err := m.Store.Save(m.StorePath); err != nil {
+		return err
+	}
+	reloadDaemonForTrust(m.reloader, m.Socket, trustSettingID)
+	return nil
 }
 
 // wizTrustLines renders the trust block under the task input.

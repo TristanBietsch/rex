@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -34,6 +35,7 @@ func spawnTrustWizard(t *testing.T) (m Model, home, proj, sub string) {
 	m = wizardOn(&WizardState{Step: wizDescribe, Tools: wizTools()})
 	m.Store = settings.NewStore()
 	m.StorePath = filepath.Join(home, "config.yaml")
+	m.reloader = func(context.Context, string) error { return nil } // never a real daemon
 	return m, home, proj, sub
 }
 
@@ -228,4 +230,27 @@ func TestWizardDescribe_TrustLineFlattensFolderName(t *testing.T) {
 	out := renderWizard(m)
 	require.NotContains(t, out, "\x1b]0;", "an OSC from a folder name reaches the terminal")
 	require.NotContains(t, out, "\x07")
+}
+
+// A saved trust folder must reach the running daemon at once, as a Settings
+// page edit does: with live_reload off it would otherwise never apply, while
+// the notice says new sessions skip the dialog.
+func TestTrustSave_TellsDaemonToReload(t *testing.T) {
+	m, _, _, _ := spawnTrustWizard(t)
+	m.Socket = "/tmp/rex-test.sock"
+	var got []string
+	m.reloader = func(_ context.Context, socket string) error { got = append(got, socket); return nil }
+
+	board := m
+	board.Wizard, board.Focus = nil, FocusBoard
+	board, _ = executeCommand(board, "trust")
+	require.Empty(t, board.Err)
+	require.Equal(t, []string{"/tmp/rex-test.sock"}, got, ":trust reloads the daemon")
+
+	got = nil
+	m.Store = settings.NewStore()
+	m = ctrl(m, tea.KeyCtrlA)
+	_, _, ok := launchReq(t, m)
+	require.True(t, ok)
+	require.Equal(t, []string{"/tmp/rex-test.sock"}, got, "ctrl+a reloads the daemon")
 }
