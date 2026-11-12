@@ -2,11 +2,11 @@
 
 A workspace is a folder that has a `.rex/` folder in it, like Cursor's `.cursor/`. rex gives the workspace a short id, a name and a color, and keeps a history of its finished work there.
 
-Workspaces are off by default. Turn them on in Settings → Features → `workspaces`, or with `rex config set workspaces true`. Off means inert: rex never looks for or writes a `.rex/` folder, and `rex ws` exits 5.
+Workspaces are off by default. Turn them on in Settings → Features → `workspaces`, or with `rex config set workspaces true`. Off means inert: rex never looks for or writes a `.rex/` folder, the daemon does not look for a workspace when a session starts, and `rex ws` and `rex here` exit 5.
 
 The audit trail is on by default (`audit_trail`) and works with or without workspaces.
 
-**Built so far:** workspace identity (`rex ws`) and the audit trail (`rex audit`). **Planned:** tagging sessions with their workspace, `rex here` and the workspace board, and a per-workspace `config.lua`. Nothing below describes those yet.
+**Built so far:** workspace identity (`rex ws`), the audit trail (`rex audit`), sessions tagged with their workspace, the session index, and the workspace board (`rex here`). **Planned:** a per-workspace `config.lua`. Nothing below describes that yet.
 
 ## Start one
 
@@ -20,6 +20,7 @@ This creates:
 ```
 myproject/.rex/
 ├── workspace.json   # id, name, color
+├── sessions.jsonl   # one line per session that ran here (see "Sessions and the workspace board")
 └── audit.jsonl      # finished work, written by the daemon (see "Audit trail")
 ```
 
@@ -48,6 +49,36 @@ Anywhere a workspace is expected you can give its id or a folder inside it. All 
 The nearest `.rex/` wins: with `~/dev/.rex` and `~/dev/rex/.rex`, a session in `~/dev/rex` belongs to the inner one. Discovery stops before your home folder and before `/`, so neither can be a workspace.
 
 If you move a workspace folder, its id goes with it (the id lives in `workspace.json`). Run `rex ws id` inside the new location and rex updates its registry.
+
+## Sessions and the workspace board
+
+With `workspaces` on, the **daemon** tags every session it starts with the id of the nearest workspace above the session's folder (`workspace_id` on the session, kept across daemon restarts). A client cannot choose it: a `workspace_id` sent when starting a session is ignored, so a session cannot be filed into another workspace. Sessions started before you turned the feature on, outside any workspace, or with `workspaces` off have no workspace id.
+
+```sh
+cd ~/dev/myproject/src
+rex here                 # the board for the workspace around this folder
+rex ws open ~/dev/other  # the same for another folder (any folder inside the workspace)
+```
+
+`rex here` opens the usual board with a fixed filter: only that workspace's sessions are listed, counted in the header, cleared by `:prune` and shown in the overview. No key or command changes the filter; open `rex` for the whole board. What changes on screen:
+
+- The header starts with `[7f3b89a2 myproject]` in the workspace color (the id alone in a narrow layout).
+- The window border takes the workspace color. On a workspace board the border is **on by default**, so the color shows; set `window_border` yourself (to `false` to switch it off) or use `:border` for one run and rex follows. An explicit `window_border_color` or `:border <color>` also wins over the workspace color.
+- The new-session wizard and quick spawn (`i`) start in the **workspace root**, not in the folder you ran `rex here` from.
+
+With no `.rex/` above the folder, `rex here` exits 5 with ``no .rex/ here — run `rex ws init` ``. With `workspaces` off it exits 5 with the usual `off: enable in Settings → Features (rex config set workspaces true)`. Both need a terminal (like `rex`): `-o`, `--agent` and a pipe are refused.
+
+If the daemon does not tag sessions (it is older than rex, or still running with `workspaces` off), the board cannot tell which sessions belong to the workspace, so it shows **every** session and says once: ``daemon doesn't tag workspaces — `rex daemon restart` ``. The daemon says that it tags in its snapshot (`workspace_tagging`), so a new daemon with no workspace session yet still scopes the board.
+
+### The session index
+
+The daemon also keeps `<workspace>/.rex/sessions.jsonl`: one line when a session starts and another when it first reaches a terminal state (a resumed session adds a line at its next end). A reader keeps the newest line per `session_id`.
+
+```json
+{"session_id":"…","short_id":"7d4f","tool":"claude","model":"opus","name":"fix-auth","cwd":"/…","started_at":"…","ended_at":"…","state":"done","resume_id":"…"}
+```
+
+`ended_at` is absent on the spawn line. The file is `0600`, opened append-only without following symlinks, and a symlink, an unsafe `.rex/` or a read-only folder does not stop the session: the daemon logs one warning for that file per run and keeps going. The index holds no prompt text. It is not a secret, but like `audit.jsonl` it is excluded from git by `rex ws init` (the whole `/.rex/` is).
 
 ## Audit trail
 
@@ -83,7 +114,7 @@ rex has no sync of its own. `.rex/` lives in your project folder, so it moves wi
 
 ## Safety
 
-- rex never follows a symlinked `.rex/`, `workspace.json` or `audit.jsonl`, and refuses a `.rex/` that other users can write to or that another user owns (error: `unsafe .rex`, exit 6 on the CLI).
+- rex never follows a symlinked `.rex/`, `workspace.json`, `sessions.jsonl` or `audit.jsonl`, and refuses a `.rex/` that other users can write to or that another user owns (error: `unsafe .rex`, exit 6 on the CLI).
 - `workspace.json` is read as data only: files over 64 KiB are rejected, the name is cut to 40 characters and stripped of control characters, a color that is not `#RRGGBB` is dropped, and an id that is not 8 hex digits is refused. Nothing in it changes how rex behaves.
 - Every file rex writes under `.rex/` is readable by you only (`0600`, folders `0700`).
 - A repository cloned from the internet can ship a `.rex/`. Opening it shows its workspace name and id, nothing more.

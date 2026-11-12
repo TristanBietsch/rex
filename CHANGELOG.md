@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (workspace board, loop cards)
+
+- `rex here` and `rex ws open [path]` open the board for one workspace
+  (needs `workspaces`): only that workspace's sessions, `[<id> <name>]` in
+  the header in the workspace color, and the window border in that color
+  (on by default on a workspace board unless you set `window_border`). The
+  wizard and quick spawn start at the workspace root. Exit 5 with ``no .rex/
+  here — run `rex ws init` `` outside a workspace. A daemon that does not tag
+  sessions shows every session, with one notice.
+- With `workspaces` on the daemon tags each new session with its workspace
+  (`workspace_id`, kept across restarts; clients cannot set it) and appends
+  to `<workspace>/.rex/sessions.jsonl` at spawn and at the first terminal
+  state. `Snapshot.workspace_tagging` says the daemon does this.
+- With `loops` on, a loop's session row shows the loop marker, `iter/max`
+  and the loop state (`⟳ 3/8 running`, `paused: needs you`, `done`,
+  `capped: max iterations`, ...). `p` pauses or resumes, `x` stops (after a
+  y/N), `L` or `:loops` lists loops with state, turn, running time over
+  `max_minutes` and the last check; `:loop pause|resume|stop [sel]` does the
+  same by name. Themes can set the marker with `glyphs: loop:`.
+  `LoopSummary` gains `max_minutes` and `elapsed_s`.
+
 ### Changed
 
 - `color_scheme` is now `theme`. The old key is still read (`theme` wins if a
