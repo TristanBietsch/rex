@@ -26,6 +26,8 @@ type UndoResult struct {
 	// Safety is the capture taken just before the restore. After Undo it is
 	// what Redo brings back.
 	Safety Tree
+	// Target is the tree the operation restores (set for dry runs too).
+	Target Tree
 	// Warnings are things the caller should show: the folder changed while
 	// the restore ran, or the guard tripped after it.
 	Warnings []string
@@ -36,7 +38,18 @@ type UndoResult struct {
 // before anything changes; after the restore it becomes a warning.
 type Guard func() error
 
-type opts struct{ guard Guard }
+type opts struct {
+	guard  Guard
+	expect Tree
+}
+
+// ErrPreviewStale means the tree the caller expected (from a dry run) is not
+// the one the operation would restore now.
+var ErrPreviewStale = errors.New("the session changed since the preview — run it again")
+
+// WithExpect makes Undo and Redo refuse with ErrPreviewStale, before anything
+// changes, unless the tree they would restore is want.
+func WithExpect(want Tree) Option { return func(o *opts) { o.expect = want } }
 
 // Option adjusts Undo, Redo and their Plan forms.
 type Option func(*opts)
@@ -97,7 +110,11 @@ func (s *Store) undo(ctx context.Context, cwd, session string, turns int, dry bo
 	if !ok || to == "" {
 		return UndoResult{}, ErrNotUndoable
 	}
+	if o.expect != "" && o.expect != to {
+		return UndoResult{}, ErrPreviewStale
+	}
 	res, err := s.apply(ctx, dir, cwd, session, to, PhaseSafety, dry, o)
+	res.Target = to
 	if err != nil || dry {
 		return res, err
 	}
@@ -134,7 +151,11 @@ func (s *Store) redo(ctx context.Context, cwd, session string, dry bool, o opts)
 		return UndoResult{}, ErrNothingToRedo
 	}
 	top := p.undone[len(p.undone)-1]
+	if o.expect != "" && o.expect != top.Tree {
+		return UndoResult{}, ErrPreviewStale
+	}
 	res, err := s.apply(ctx, dir, cwd, session, top.Tree, PhasePreRedo, dry, o)
+	res.Target = top.Tree
 	if err != nil || dry {
 		return res, err
 	}

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,6 +28,9 @@ type SettingsState struct {
 	// Tools backs the quick-spawn tool/model/effort pickers so they only
 	// offer combinations the daemon will accept.
 	Tools []registry.Tool
+	// Onboarding lists the tools the wizard leaves out because their binary
+	// is not on PATH (Settings → Onboarding).
+	Onboarding []onboardRow
 }
 
 // settingEdit is the inline editor of one free-form string setting. Saving
@@ -92,7 +96,7 @@ func openSettings(m Model) (Model, tea.Cmd) {
 	}
 	st := &SettingsState{}
 	if reg, err := loadToolsStrict(); err == nil {
-		st.Tools = visibleTools(reg.Tools)
+		st.Tools, st.Onboarding = pickerTools(m, reg)
 	} else {
 		slog.Warn("tui: settings could not load tool registry; spawn pickers disabled", "err", err)
 	}
@@ -220,7 +224,10 @@ func settingsSearchKey(m Model, k tea.KeyMsg) Model {
 // settingsList is the settings the page lists: the visible ones that match
 // the search, in registry order.
 func settingsList(st *SettingsState) []settings.Setting {
-	vis := settings.Visible()
+	vis := slices.Clone(settings.Visible())
+	for _, r := range st.Onboarding {
+		vis = append(vis, r.setting())
+	}
 	terms := compileQuery(st.Search)
 	if len(terms) == 0 {
 		return vis
@@ -621,6 +628,8 @@ func applyLive(m *Model, id string, value any) {
 				m.Audio.SetVolume(v)
 			}
 		}
+	case "extra_agents":
+		*m = refreshPickers(*m) // the open wizard and pickers drop or regain qwen, cursor, grok
 	case "board_hidden_sections":
 		// The same reader as startup, so board_filter off still ignores it.
 		*m = applyHidden(*m, hiddenSectionsFrom(m.Store))
@@ -687,6 +696,9 @@ func settingAdjustable(m Model, s settings.Setting) bool {
 
 // settingValueText is the plain (unstyled) display value.
 func settingValueText(m Model, s settings.Setting) string {
+	if _, ok := onboardRowOf(m.Settings, s.ID); ok {
+		return "not on PATH"
+	}
 	v := m.Store.String(s.ID)
 	if s.Type == settings.TypeBool {
 		if b, _ := m.Store.Get(s.ID).(bool); b {

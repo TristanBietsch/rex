@@ -96,6 +96,8 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Help | `?` or `:help` | `esc`, `?` |
 | Stats | `:stats` | `esc`, `:` |
 | Overview | `:overview` | `esc`, `q`, `:overview` |
+| Usage | `:usage`, or a click on the header meter | `esc`, `q`, `:` |
+| Undo / redo dialog | `:undo`, `:redo` | `esc`, `n`, or `esc` after the result |
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
@@ -120,6 +122,8 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 - **Sections.** `tab` / `shift+tab` jump to the next / previous section (they wrap).
 - **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. `on` shows in the accent color.
 - **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
+- **Onboarding.** The last section lists the agents the new-session wizard leaves out because their binary is not on the daemon's `PATH`: dimmed rows reading `not on PATH`, with the command it looks for and an install hint in the detail pane (the tool's `install_hint`, else `install <command> and put it on your PATH`). The rows are read only and not stored settings. It is empty (absent) when every agent is installed.
+- **Quick-spawn pickers.** `default_spawn_tool` cycles through the installed tools only, and `default_spawn_model` through the daemon's merged model list; the detail pane adds `detected` when the current model was reported by the tool.
 - **Editing text.** `enter` on a free-form string (`auto_trust_dirs`, `prompt_glyph`) opens an inline editor in the pane, prefilled with the value: `enter` saves, `esc` cancels, `ctrl+u` clears. A refused value keeps the editor open and shows why. The check is the one `rex config set` and `rex setup` use. `prompt_glyph` must be one printable character (a single grapheme, 1 or 2 cells wide: no control characters, spaces or invisible marks); the arrow keys still cycle the presets.
 
 ## KEYS (board focus)
@@ -322,12 +326,49 @@ The headline is written by the local summary model from the sessions' task title
 
 **Export.** `:export [sel] [json|yaml|md|txt]` writes the session as a readable document to `~/.local/share/rex/exports/` and shows the path ([export.md](export.md)). It belongs to the `session_export` feature.
 
+## USAGE
+
+What each agent used, and how much of its quota is left. Two places show it: the `:usage` page and a meter at the right end of the header. Both belong to the `usage` feature (Settings → Features, on by default); with it off `:usage` answers `off: enable in Settings → Features (rex config set usage true)` and the meter is hidden. The numbers come from the daemon (`rex usage` shows the same, see [cli.md](cli.md)); the TUI never reads the ledger.
+
+**`:usage` page.** A titled panel with the range (`today · 7d · 30d`) and a table: per agent with its models indented, then a `TOTAL` row.
+
+```
+AGENT / MODEL     SESSIONS   TOKENS      COST QUOTA          RESETS
+claude                  14     1.2M    $18.40 5h ▰▰▱▱▱  42%  2h10m
+                                               wk ▰▱▱▱▱  18%  4d
+  opus                   3     410k    $11.90
+grok                     2     ~88k     $0.70 mo ▰▰▱▱▱  31%  9d
+antigravity              1     ~40k         — wk ▰▰▰▰▰  91%  as of 11:20
+```
+
+- `←`/`→` (or `h`/`l`) step the range, `1` `2` `3` pick today, 7d, 30d. `r` asks the daemon again (it polls the tools that can be polled). `/` filters by tool or model name (the total follows the filter), `esc` clears it and then closes. `j`/`k`/`g`/`G` scroll a long table; the total stays pinned.
+- A `~` before a number marks rex's own token estimate (`output bytes / 4`), not a count the tool reported. A `—` cost means no counted session reported one.
+- Quota bars: green below 60%, amber from 60%, red from 85%. A reading older than 15 minutes (or one the daemon marks stale) is dimmed and shows `as of HH:MM` where the reset time would be. A tool that reports one quota for the whole plan shows it on the agent row; model rows show a quota only where the tool reports one per model.
+- Below about 66 columns, and in the mobile layout, each agent is a card: totals, models, quota lines last.
+- Errors say why there is no table: `update daemon: run 'rex daemon restart'` for a daemon that predates `UsageQuery`, the off message when the daemon has usage off, `not connected to the daemon` while it is down.
+
+**Header meter.** `usage_meter` (`off` | `compact` | `full`, default `compact`; Settings → Features) draws the right end of the header's top row: for each agent with a live session, the worst of its quota windows as a 5-cell bar and a percent (`claude ▰▰▱▱▱ 42% · codex ▰▰▰▰▱ 72%`). `full` lists every window with its reset time. Colors follow the same thresholds as the page, and a stale reading is dim. The counts always win: the meter drops agents from the right, then disappears, before the counts are cut. It is also hidden against a daemon that sends no quotas. A click on it opens `:usage`.
+
+## UNDO AND REDO
+
+`:undo [sel] [-turns N]` and `:redo [sel]` put a session's folder back from the turn snapshots ([snapshots.md](snapshots.md)); they are the TUI side of `rex undo` / `rex redo` ([cli.md](cli.md#rex-undo--rex-redo)). `sel` defaults to the selected row. They belong to the `turn_snapshots` feature (Settings → Features, **off by default**): off, both answer `off: enable in Settings → Features (rex config set turn_snapshots true)` and send nothing.
+
+The dialog never changes a file until you confirm:
+
+1. The TUI asks the daemon for a **dry run** (`Undo` / `Redo` with `dry_run`), showing `checking what would change…` meanwhile (`esc` lets go of it).
+2. It shows `restore N files, delete M files` with the first few paths, and the line `shell side effects (installs, databases, files outside the folder) are not undone`. `y` or `enter` runs it, `n` or `esc` cancels.
+3. After the run it shows what was restored and deleted, then any `UndoResult.Warnings` (the folder changed while the restore ran, the session started working), then a reminder that the agent was not told and `:redo` brings the changes back. `esc` closes. If the run itself fails, the message stays in the dialog, since the folder may be part way, and `:redo` recovers it.
+
+**Another live session in the same folder.** The daemon refuses an undo that would revert a second live session's files. Only in that case the dialog opens on the refusal (it names the other sessions) with `f force`; `f` asks for a new dry run with force and the confirmation then says `forced: the other live session in this folder is reverted too (...)`. Nothing else offers a force option.
+
+**Refusals** (the session is working, the folder is not inside a repository, nothing to undo or redo, blocked paths, an old daemon) close the dialog and show the daemon's message on the status line, prefixed with `undo:` or `redo:`. `-turns` takes 1 to 1000 and belongs to `:undo` only.
+
 ## NEW-SESSION WIZARD
 
 `n` or `:new` opens a short flow. Steps that do not apply are skipped, in both directions, so the common path is a few Enter presses:
 
-1. **Provider**: the tool (`j`/`k`, `enter`).
-2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
+1. **Provider**: the tool (`j`/`k`, `enter`). Only installed tools are listed: the daemon reports which binaries are on its `PATH` (`Snapshot.tools`) and says so again when it reloads (`ToolsChanged`), and the open wizard updates in place, keeping your cursor on the same tool. With `extra_agents` off, qwen, cursor and grok never show. Against a daemon that predates the tool list every tool counts as installed. A long list scrolls.
+2. **Model**: the tool's model, from the daemon's merged list: the models the tool itself reported first, each tagged `detected`, then the built-in ones it did not list. A long list scrolls. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
 3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
 4. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
 5. **Describe**: the task. `enter` launches. The slug comes from the task.

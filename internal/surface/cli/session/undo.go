@@ -101,7 +101,7 @@ func runUndoRedo(op string, args []string) error {
 			return core.Errorf(core.ExitOperationRefused, "", "%s: not confirmed, nothing changed", op)
 		}
 	}
-	res, err := undoCall(c, op, protocol.Undo{SessionID: sess.ID, Turns: turns, Force: *force}, *force)
+	res, err := undoCall(c, op, protocol.Undo{SessionID: sess.ID, Turns: turns, Force: *force, Expect: plan.Target}, *force)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func undoCall(c *client.Client, op string, p protocol.Undo, force bool) (protoco
 	intent := protocol.IntentUndo
 	if op == "redo" {
 		intent = protocol.IntentRedo
-		payload = protocol.Redo{SessionID: p.SessionID, Force: p.Force, DryRun: p.DryRun}
+		payload = protocol.Redo{SessionID: p.SessionID, Force: p.Force, DryRun: p.DryRun, Expect: p.Expect}
 	}
 	env, err := c.Do(ctx, intent, payload)
 	if err != nil {

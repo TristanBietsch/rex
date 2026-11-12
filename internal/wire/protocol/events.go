@@ -267,6 +267,10 @@ type UndoResult struct {
 	Restored  []string `json:"restored"`
 	Deleted   []string `json:"deleted"`
 	Safety    string   `json:"safety"`
+	// Target is the tree id the operation restores. A client passes it back
+	// as Expect to confirm what the dry run showed. Absent from daemons that
+	// predate it.
+	Target string `json:"target,omitempty"`
 	// Warnings are things to show the user: the folder changed while the
 	// restore ran, or the session started working during it. Absent from
 	// daemons that predate the field.

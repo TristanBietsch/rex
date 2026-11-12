@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Qwen Code, Cursor CLI and Grok Build are `enabled_by_default: true` again:
+  visible in the wizard when installed and `extra_agents` is on. `rex setup`
+  offers them under the same rule.
 - `color_scheme` is now `theme`. The old key is still read (`theme` wins if a
   file has both) and the next save writes only `theme`. Names are no longer
   limited to the built-ins: any theme file name works.
@@ -81,6 +84,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   a theme file with the same name. `rex complete` and `rex completion` never
   run it. Turn the feature off with `rex config set lua_config false`: the
   files are then never read.
+- `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
+  changed target is refused before anything is touched. `rex undo` and the
+  TUI dialog send it on confirm.
+- TUI: the new-session wizard lists only installed agents and shows the
+  daemon's merged model list with a `detected` tag (it follows the daemon's
+  `Snapshot.tools` and `ToolsChanged`, so an open wizard updates in place).
+  Settings → Onboarding lists the agents that are not on `PATH`, dimmed, with
+  an install hint (new `install_hint` registry field); the quick-spawn
+  pickers use the same lists. With `extra_agents` off qwen, cursor and grok
+  never show.
+- TUI: `:undo [sel] [-turns N]` and `:redo [sel]` (feature `turn_snapshots`).
+  A confirm dialog built on the daemon's dry run: file counts to restore and
+  delete, the "shell side effects are not undone" line, and the other live
+  session in the folder with a force option for that case only. It shows the
+  run's warnings, and the daemon's refusals as status-line notices.
+- TUI: `:usage` page with usage per agent and model, a total row, the quota
+  bar with percent and reset time, ranges today/7d/30d (`←`/`→` or `1`/`2`/`3`),
+  `r` refresh and `/` filter. Estimates are marked `~`, stale readings are dim.
+- TUI: a usage meter at the right end of the header (`usage_meter`: `off`,
+  `compact`, `full`; default `compact`). A click opens `:usage`. Both follow
+  the `usage` feature switch.
 - Loop workflows (Settings → Features → *Loop workflows*, off by default):
   `rex loop start <name>` runs a session in a repeat loop. The daemon
   re-sends your prompt each time the agent finishes a turn, until a check
