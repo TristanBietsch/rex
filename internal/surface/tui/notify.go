@@ -57,6 +57,33 @@ func (m Model) notifyStateChange(id string, prev, next protocol.State, known boo
 		slog.Debug("tui: state notify suppressed", "session", id, "event", ev, "from", prev, "to", next, "reason", "setting_off")
 		return m
 	}
+	prompts := m.sessionPrompts(id)
+	if ev == audio.EventAttention && prompts > 0 && m.rungPrompt[id] == prompts {
+		slog.Debug("tui: state notify suppressed", "session", id, "event", ev, "from", prev, "to", next,
+			"reason", "same_turn", "prompts", prompts)
+		return m
+	}
+	return m.playNotify(id, ev, prev, next, prompts)
+}
+
+// notifyQuestion plays the attention sound when a wait_reason patch turns a
+// READY session's reason into input (a new question). The state patch of
+// the same question comes first and, when it played, the debounce keeps
+// this one silent; when the turn already rang, this is the only sound.
+func (m Model) notifyQuestion(id, prevReason string) Model {
+	s, ok := m.sessionByID(id)
+	if !ok || s.State != protocol.StateNeedsInput || s.WaitReason != protocol.WaitInput || prevReason == protocol.WaitInput {
+		return m
+	}
+	if !notifyOnStateChange(m) {
+		return m
+	}
+	return m.playNotify(id, audio.EventAttention, s.State, s.State, s.Prompts)
+}
+
+// playNotify plays ev for a session unless it played a sound within
+// notifyDebounce, and records the turn an attention sound belongs to.
+func (m Model) playNotify(id, ev string, prev, next protocol.State, prompts int) Model {
 	now := m.now()
 	if last, ok := m.lastNotify[id]; ok && now.Sub(last) < notifyDebounce {
 		slog.Debug("tui: state notify suppressed", "session", id, "event", ev, "from", prev, "to", next,
@@ -64,7 +91,13 @@ func (m Model) notifyStateChange(id string, prev, next protocol.State, known boo
 		return m
 	}
 	m = m.stampNotify(id, now)
-	slog.Info("tui: state notify", "session", id, "event", ev, "from", prev, "to", next)
+	if ev == audio.EventAttention && prompts > 0 {
+		if m.rungPrompt == nil {
+			m.rungPrompt = make(map[string]int)
+		}
+		m.rungPrompt[id] = prompts
+	}
+	slog.Info("tui: state notify", "session", id, "event", ev, "from", prev, "to", next, "prompts", prompts)
 	if m.Audio != nil {
 		m.Audio.Play(ev)
 	}
@@ -78,5 +111,30 @@ func (m Model) stampNotify(id string, at time.Time) Model {
 		m.lastNotify = make(map[string]time.Time)
 	}
 	m.lastNotify[id] = at
+	return m
+}
+
+// sessionByID returns the session with that id.
+func (m Model) sessionByID(id string) (protocol.SessionSummary, bool) {
+	for _, s := range m.Sessions {
+		if s.ID == id {
+			return s, true
+		}
+	}
+	return protocol.SessionSummary{}, false
+}
+
+// sessionPrompts is a session's prompts count, 0 when unknown.
+func (m Model) sessionPrompts(id string) int {
+	s, _ := m.sessionByID(id)
+	return s.Prompts
+}
+
+// forgetStaleTurn re-arms the attention sound when a session's prompts
+// count went below the rung turn (the agent restarted its count).
+func (m Model) forgetStaleTurn(id string) Model {
+	if r, ok := m.rungPrompt[id]; ok && m.sessionPrompts(id) < r {
+		delete(m.rungPrompt, id)
+	}
 	return m
 }
