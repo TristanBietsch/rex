@@ -122,6 +122,8 @@ func run(args []string) error {
 		return inspect.RunRender(args[1:])
 	case "config":
 		return setup.RunConfig(args[1:])
+	case "theme":
+		return setup.RunTheme(args[1:])
 	case "setup":
 		return setup.RunSetup(args[1:])
 	case "doctor":

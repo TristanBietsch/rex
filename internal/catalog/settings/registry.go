@@ -6,6 +6,17 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
+// normalizeThemeName is the Normalize func of theme. It checks the name's
+// shape only: whether a theme of that name exists is decided when it is
+// applied (an unknown name falls back to default), so a theme file may be
+// created after the setting.
+func normalizeThemeName(v string) (string, error) {
+	if err := theme.ValidName(v); err != nil {
+		return "", err
+	}
+	return v, nil
+}
+
 // Registry is the canonical list of every Rex setting.
 //
 // Adding a new setting is one struct literal here — the TUI page, the CLI, and
@@ -13,10 +24,11 @@ import (
 var Registry = []Setting{
 	// Appearance
 	{
-		ID: "color_scheme", Label: "Color scheme", Section: SectionAppearance, Apply: ApplyLive,
-		Type: TypeEnum, Default: "default",
-		Options: []string{"default", "classic", "noir", "paper", "high-contrast", "ansi"},
-		Help:    "Change the color scheme. classic is the previous look; ansi uses your terminal's own colors.",
+		ID: "theme", Label: "Theme", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeString, Default: "default", Aliases: []string{"color_scheme"},
+		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi"},
+		Normalize: normalizeThemeName,
+		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
 	},
 	{
 		ID: "spinner", Label: "Spinner type", Section: SectionAppearance, Apply: ApplyLive,
@@ -230,7 +242,7 @@ var Registry = []Setting{
 	{
 		ID: "live_reload", Label: "Live settings reload", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "The daemon notices edits to config.yaml within a few seconds and applies the settings that can change live (see docs/settings.md). Off: no polling; rex reload and SIGHUP still reload by hand.",
+		Help: "The daemon and the TUI notice edits to config.yaml within a few seconds and apply the settings that can change live (see docs/settings.md); the TUI also picks up edits to theme files. Off: no polling; rex reload, :reload and SIGHUP still reload by hand.",
 	},
 	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures, Apply: ApplyLive,

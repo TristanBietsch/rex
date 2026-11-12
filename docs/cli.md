@@ -82,7 +82,7 @@ Shortcuts: `--agent` is `-o agent`; `--no-color` never emits ANSI; `-json` is th
 
 Precedence, highest first: flags (the last one wins), `REX_AGENT=1`, `REX_OUTPUT`, then `text` on a terminal and `txt` otherwise.
 
-Color is on only for `text`, on a terminal, with `NO_COLOR` unset or empty, `TERM` not `dumb` and no `--no-color`. `CLICOLOR_FORCE=1` forces it in a pipe (`less -R`). Each stream decides on its own, so a redirected stderr never receives ANSI. Colors follow the `color_scheme` setting. `REX_ASCII=1` switches the glyphs to ASCII.
+Color is on only for `text`, on a terminal, with `NO_COLOR` unset or empty, `TERM` not `dumb` and no `--no-color`. `CLICOLOR_FORCE=1` forces it in a pipe (`less -R`). Each stream decides on its own, so a redirected stderr never receives ANSI. Colors follow the `theme` setting. `REX_ASCII=1` switches the glyphs to ASCII.
 
 Errors go to stderr in the same format: styled in `text`, `rex: message` in `txt` and `md`, `error code=4 kind=daemon_unreachable cmd=ls msg="..."` in `agent`, and `{"v":1,"error":{"code":4,"kind":"daemon_unreachable",...}}` in `json` (nothing on stdout). Kinds: `error`, `not_found`, `ambiguous`, `daemon_unreachable`, `invalid_args`, `refused`, `timeout`.
 
@@ -94,8 +94,8 @@ Every command takes these flags except `rex attach` and the bare `rex` TUI, whic
 
 | Class | Commands | Formats |
 |-------|----------|---------|
-| Query | `ls`, `status`, `digest`, `stats`, `fleet ls`/`show`, `config list`/`get`, `doctor`, `daemon status`, `version`, `errors`, `help`, `agent-help`, `update -check`, `setup -preview`, `uninstall -dry-run` | all five |
-| Action | `new`, `rm`, `rename`, `name`, `done`, `undone`, `archive`, `complete`, `resume`, `reply`, `send`, `wait`, `prune`, `fleet set`/`unset`, `config set`/`reset`, `reload`, `daemon start`/`stop`/`restart`, `update`, `uninstall`, `setup -yes` | all five (a result record) |
+| Query | `ls`, `status`, `digest`, `stats`, `fleet ls`/`show`, `config list`/`get`, `theme list`/`show`, `doctor`, `daemon status`, `version`, `errors`, `help`, `agent-help`, `update -check`, `setup -preview`, `uninstall -dry-run` | all five |
+| Action | `new`, `rm`, `rename`, `name`, `done`, `undone`, `archive`, `complete`, `resume`, `reply`, `send`, `wait`, `prune`, `fleet set`/`unset`, `config set`/`reset`, `theme new`, `reload`, `daemon start`/`stop`/`restart`, `update`, `uninstall`, `setup -yes` | all five (a result record) |
 | Content | `log`, `render`, `completion`, `daemon logs`, `config edit` | `text` and `txt`; `agent` behaves like `txt` (the content, no trailer); `json` and `md` exit 5 |
 | Interactive | `rex` (the board), `attach`, the `setup` wizard | `text` only (`attach` also `txt`); any other format exits 5 with a hint (`rex ls`, `rex log <sel> -n 50`, `rex setup -yes`) |
 
@@ -577,6 +577,20 @@ rex config edit
 `edit` opens `init.lua` in `$EDITOR`, not `config.yaml`. Keys: [settings.md](settings.md).
 
 `list` prints `# Section` headings with `  id  value` rows in `txt` (unchanged), a `setting id=… section=… value=… default=…` line per setting in `agent`, and the rows as data in `-o json`; `-json` is the legacy JSONL. `get` prints the value (`ok cmd=config id=… value=…` in `agent`); `set` and `reset` print nothing in `txt`. `edit` takes `text`/`txt` only.
+
+---
+
+## rex theme
+
+```sh
+rex theme list [-o FORMAT] [--agent]
+rex theme show <name> [-o FORMAT] [--agent]
+rex theme new <name> [-from <builtin>] [-force] [-o FORMAT] [--agent]
+```
+
+`list` shows the six built-in themes and the files in `~/.config/rex/themes`, marks the current one, and reports any file it skipped and why. `show` prints a theme's colors, glyphs and a sample line; in `-o json` it carries `colors`, `fleet`, `glyphs`, `warnings` and, for a file, its `path`. `new` writes a commented skeleton that extends `-from` (default `default`) to `~/.config/rex/themes/<name>.yaml`, mode 0600 in a 0700 folder; use it with `rex config set theme <name>`. Agent mode gives a `theme name=… source=… current=…` line per theme, a `color token=… value=…` and `glyph token=… value=…` line per token, and `ok cmd=theme name=… path=… from=…` for `new`. The file format is in [themes.md](themes.md).
+
+Exit **5** for a missing or extra argument, an unknown theme in `show` or `-from`, and a name that is invalid or a built-in's. Exit **6** when `new` would overwrite a file and `-force` is not given. `new -force` replaces the file (a symlink at that path is replaced, never followed).
 
 ---
 

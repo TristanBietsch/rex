@@ -89,6 +89,7 @@ var cliSubcommands = map[string][]string{
 	"fleet":  {"ls", "show", "set", "unset"},
 	"daemon": {"start", "stop", "status", "restart", "logs"},
 	"config": {"list", "get", "set", "reset", "edit"},
+	"theme":  {"list", "show", "new"},
 }
 
 // globalFlagNames are the output flags every command takes.

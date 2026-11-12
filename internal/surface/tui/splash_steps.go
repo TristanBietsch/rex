@@ -11,6 +11,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
@@ -108,6 +109,29 @@ func stepSettingsLoad(_ Model) tea.Cmd {
 	}
 }
 
+// themesLoadedMsg carries the user's theme files, read on a step Cmd (file
+// I/O stays off the UI goroutine) and installed by Update before the theme is
+// applied.
+type themesLoadedMsg struct {
+	Themes *theme.Catalog
+	// Stamp is the state of config.yaml and the theme files as of the read,
+	// the baseline for live reload.
+	Stamp string
+	Dur   time.Duration
+}
+
+func stepThemesLoad(m Model) tea.Cmd {
+	return func() tea.Msg {
+		t0 := time.Now()
+		dir := themesDir()
+		return themesLoadedMsg{
+			Themes: theme.LoadDir(dir),
+			Stamp:  configStamp(m.StorePath, dir),
+			Dur:    time.Since(t0),
+		}
+	}
+}
+
 // themeApplyMsg asks Update to apply the color scheme. The palette is
 // global state the View reads, so it is only written on the UI goroutine,
 // never from a step Cmd.
@@ -121,7 +145,7 @@ func stepThemeApply(m Model) tea.Cmd {
 		t0 := time.Now()
 		scheme := ""
 		if m.Store != nil {
-			scheme, _ = m.Store.Get("color_scheme").(string)
+			scheme, _ = m.Store.Get("theme").(string)
 		}
 		return themeApplyMsg{Scheme: scheme, Dur: time.Since(t0)}
 	}
@@ -220,6 +244,7 @@ func init() {
 		stepPathsEnsure,
 		stepTTYProbe,
 		stepSettingsLoad,
+		stepThemesLoad,
 		stepThemeApply,
 		stepAudioInit,
 		stepAudioLoad,

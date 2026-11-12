@@ -152,13 +152,14 @@ var commands = []command{
 	{Names: []string{"q", "quit"}, Desc: "quit (confirm)", Group: groupAppCmd, Run: runQuit},
 	{Names: []string{"q!"}, Desc: "force quit", Group: groupAppCmd, Run: runForceQuit},
 	{Names: []string{"bg", "detach"}, Desc: "detach, save place", Group: groupAppCmd, Run: runDetach},
-	{Names: []string{"reload"}, Desc: "reload tools.yaml", Group: groupAppCmd, Run: runReload},
+	{Names: []string{"reload"}, Desc: "reload tools.yaml, config.yaml and themes", Group: groupAppCmd, Run: runReload},
 	{Names: []string{"fail", "fails", "failed"}, Label: ":fail", Desc: "failed sessions + daemon log (:fails :failed)", Group: groupAppCmd, Run: runFail},
 	{Names: []string{"stats"}, Desc: "session statistics overlay", Group: groupAppCmd, Run: runStats},
 	{Names: []string{"overview"}, Desc: "what is ready for you, what to review, what finished", Group: groupAppCmd, Run: runOverview},
 	{Names: []string{"border"}, Args: "[color]", Desc: "window border for this run: on, off, next, random, a color name or #rrggbb", Group: groupAppCmd, Run: runBorder},
 	{Names: []string{"help"}, Desc: "this overlay", Group: groupAppCmd, Run: runHelp},
 	{Names: []string{"settings"}, Desc: "open settings", Group: groupAppCmd, Run: runSettings},
+	{Names: []string{"theme"}, Args: "[name]", Desc: "set the theme (no name: next); saved", Group: groupAppCmd, Run: runTheme},
 }
 
 // lookupCommand finds the command a verb dispatches to.
@@ -204,7 +205,11 @@ func runHelp(m Model, _ cmdCall) (Model, tea.Cmd) { return openHelp(m), nil }
 
 func runSettings(m Model, _ cmdCall) (Model, tea.Cmd) { return openSettings(m) }
 
-func runReload(m Model, _ cmdCall) (Model, tea.Cmd) { return m, reloadDaemonCmd(m) }
+// runReload re-reads tools.yaml in the daemon and config.yaml and the theme
+// files here, whatever live_reload says.
+func runReload(m Model, _ cmdCall) (Model, tea.Cmd) {
+	return m, tea.Batch(reloadDaemonCmd(m), loadConfig(m.StorePath, themesDir(), m.configStamp, true))
+}
 
 func runFilter(m Model, c cmdCall) (Model, tea.Cmd) { return filterCommand(m, c.Args), nil }
 

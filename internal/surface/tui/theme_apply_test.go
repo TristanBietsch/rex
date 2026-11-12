@@ -30,7 +30,7 @@ func TestStepThemeApply_DoesNotTouchGlobalsOffGoroutine(t *testing.T) {
 	require.NotEqual(t, lipgloss.Color(theme.Builtin["paper"].Working), before, "test needs two distinct palettes")
 
 	store := settings.NewStore()
-	require.NoError(t, store.Set("color_scheme", "paper"))
+	require.NoError(t, store.Set("theme", "paper"))
 	msg := stepThemeApply(Model{Store: store})()
 	require.Equal(t, before, colorWorking, "the Cmd goroutine must not mutate the palette")
 

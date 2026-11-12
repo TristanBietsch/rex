@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -79,16 +80,33 @@ func (s *Store) Load(path string) error {
 	for k, v := range data {
 		setting, ok := Find(k)
 		if !ok {
-			continue // tolerate unknown keys for forward compat
+			// An alias (an older key name) counts only when the canonical
+			// key is absent from the file.
+			if setting, ok = findByAlias(k); !ok {
+				continue // tolerate unknown keys for forward compat
+			}
+			if _, both := data[setting.ID]; both {
+				continue
+			}
 		}
 		coerced, err := coerce(setting, v)
 		if err != nil {
 			continue // skip invalid entries silently
 		}
-		s.values[k] = coerced
-		s.src[k] = SourceFile
+		s.values[setting.ID] = coerced
+		s.src[setting.ID] = SourceFile
 	}
 	return nil
+}
+
+// findByAlias returns the setting that lists key as an alias.
+func findByAlias(key string) (Setting, bool) {
+	for _, r := range Registry {
+		if slices.Contains(r.Aliases, key) {
+			return r, true
+		}
+	}
+	return Setting{}, false
 }
 
 // Save writes this Store's changes to path atomically (temp file, then
@@ -138,6 +156,11 @@ func (s *Store) Save(path string) error {
 			data[id] = s.values[id]
 		} else {
 			delete(data, id)
+		}
+		if setting, ok := Find(id); ok {
+			for _, alias := range setting.Aliases {
+				delete(data, alias) // the canonical key replaces the old name
+			}
 		}
 	}
 	b, err := yaml.Marshal(data)

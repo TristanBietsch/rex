@@ -67,6 +67,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if nm, arm = armIdle(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
+	if nm, arm = armConfig(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
 	return nm, cmd
 }
 
@@ -177,6 +180,10 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case bannerTickMsg:
 		return handleBannerTick(m, msg)
+	case configTickMsg:
+		return handleConfigTick(m)
+	case configReloadedMsg:
+		return handleConfigReloaded(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()
@@ -203,13 +210,22 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Name: "settings.load", Status: stepOK, Desc: msg.Path, Dur: msg.Dur,
 		})
 
+	case themesLoadedMsg:
+		m.Themes = msg.Themes
+		m.configStamp = msg.Stamp
+		return m.appendBootStep(themesLoadedStep(msg))
+
 	case themeApplyMsg:
 		if msg.Scheme == "" {
 			return m.appendBootStep(bootStepMsg{
 				Name: "theme.apply", Status: stepSkip, Desc: "default", Dur: msg.Dur,
 			})
 		}
-		applyTheme(msg.Scheme)
+		if !applyThemeFrom(m.Themes, msg.Scheme) {
+			return m.appendBootStep(bootStepMsg{
+				Name: "theme.apply", Status: stepWarn, Desc: themeNotFound(m.Themes, msg.Scheme), Dur: msg.Dur,
+			})
+		}
 		return m.appendBootStep(bootStepMsg{
 			Name: "theme.apply", Status: stepOK, Desc: msg.Scheme, Dur: msg.Dur,
 		})

@@ -53,7 +53,7 @@ internal/
 ├── catalog/                # tools + user settings
 │   ├── registry/           # builtin.yaml + tools.yaml
 │   ├── settings/           # config.yaml registry + store
-│   └── theme/              # semantic color palettes (TUI + CLI)
+│   └── theme/              # semantic color palettes, user theme files (TUI + CLI)
 ├── runtime/                # paths, process control, logging
 │   ├── daemonctl/          # spawn/check daemon, socket paths
 │   ├── ids/                # session UUID / short id

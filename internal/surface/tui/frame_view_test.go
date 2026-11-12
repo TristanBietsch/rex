@@ -164,9 +164,9 @@ func TestBorderColorChoice(t *testing.T) {
 
 	// Light scheme draws the light variant; ansi uses the terminal index.
 	m.borderRunColor = "mimosa"
-	require.NoError(t, m.Store.Set("color_scheme", "paper"))
+	require.NoError(t, m.Store.Set("theme", "paper"))
 	require.Equal(t, lipgloss.Color("#B18513"), borderColorOf(m))
-	require.NoError(t, m.Store.Set("color_scheme", "ansi"))
+	require.NoError(t, m.Store.Set("theme", "ansi"))
 	require.Equal(t, lipgloss.Color("3"), borderColorOf(m))
 	m.borderRunColor = "#ff00ff"
 	require.Equal(t, lipgloss.Color("#ff00ff"), borderColorOf(m), "a custom hex has no ANSI index")

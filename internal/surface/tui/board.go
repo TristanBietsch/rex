@@ -578,7 +578,7 @@ func rowLead(m Model, s protocol.SessionSummary) (indent, marker string, waiting
 	// avoids the chunky highlight artifacts.
 	var markerPrefix string
 	if m.SelectedID == s.ID {
-		markerPrefix = styleArrow.Render("▸")
+		markerPrefix = styleArrow.Render(selectGlyph())
 	} else if s.Fleet != "" {
 		// Fleet indicator: tinted left border using the fleet's stable color.
 		markerPrefix = styleFleet[fleetIndex(s.Fleet)].Render("▍")
@@ -779,15 +779,15 @@ func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) str
 		frames := spinnerFramesFor(m)
 		return style.Render(frames[tick%len(frames)])
 	case protocol.StateQueued:
-		return style.Render(queuedGlyph)
+		return style.Render(stateGlyph(st))
 	case protocol.StateNeedsInput:
-		return style.Render("◆")
+		return style.Render(stateGlyph(st))
 	case protocol.StateDone:
-		return style.Render("●")
+		return style.Render(stateGlyph(st))
 	case protocol.StateFailed:
-		return style.Render("✕")
+		return style.Render(stateGlyph(st))
 	case protocol.StateCrashed:
-		return style.Render("○")
+		return style.Render(stateGlyph(st))
 	default:
 		return style.Render(" ")
 	}

@@ -8,14 +8,14 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
-// color_scheme offers exactly the built-in themes, default first.
-func TestRegistry_ColorSchemeOptionsAreTheBuiltinThemes(t *testing.T) {
-	e, ok := findEntry("color_scheme")
+// theme offers exactly the built-in themes, default first.
+func TestRegistry_ThemeOptionsAreTheBuiltinThemes(t *testing.T) {
+	e, ok := findEntry("theme")
 	require.True(t, ok)
 	require.Equal(t, "default", e.Options[0])
 	require.ElementsMatch(t, theme.Names(), e.Options)
 	for _, name := range e.Options {
-		require.NoError(t, NewStore().Set("color_scheme", name), name)
+		require.NoError(t, NewStore().Set("theme", name), name)
 	}
 }
 

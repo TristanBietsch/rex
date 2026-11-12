@@ -98,17 +98,17 @@ func helpLegend(m Model) helpGroup {
 	frames := spinnerFramesFor(m)
 	mark := func(st protocol.State, glyph string) string { return styleMarker[st].Render(glyph) }
 	rows := []helpRow{
-		{Key: mark(protocol.StateNeedsInput, "◆"), Desc: "ready"},
+		{Key: mark(protocol.StateNeedsInput, stateGlyph(protocol.StateNeedsInput)), Desc: "ready"},
 		{Key: mark(protocol.StateWorking, frames[m.SpinnerTick%len(frames)]), Desc: "working"},
 	}
 	if m.featureOn("waiting_section") {
 		rows = append(rows, helpRow{Key: mark(protocol.StateWorking, waitingGlyph), Desc: "waiting on a tool, not on you"})
 	}
 	rows = append(rows,
-		helpRow{Key: mark(protocol.StateQueued, queuedGlyph), Desc: "queued, agent not started"},
-		helpRow{Key: mark(protocol.StateDone, "●"), Desc: "done"},
-		helpRow{Key: mark(protocol.StateFailed, "✕"), Desc: "failed"},
-		helpRow{Key: mark(protocol.StateCrashed, "○"), Desc: "crashed"},
+		helpRow{Key: mark(protocol.StateQueued, stateGlyph(protocol.StateQueued)), Desc: "queued, agent not started"},
+		helpRow{Key: mark(protocol.StateDone, stateGlyph(protocol.StateDone)), Desc: "done"},
+		helpRow{Key: mark(protocol.StateFailed, stateGlyph(protocol.StateFailed)), Desc: "failed"},
+		helpRow{Key: mark(protocol.StateCrashed, stateGlyph(protocol.StateCrashed)), Desc: "crashed"},
 		helpRow{Key: styleFleet[0].Render("▍"), Desc: "fleet member (color per fleet)"},
 		helpRow{Key: styleWorking.Render(subagentGlyph + " 3"), Desc: "subagents running"},
 		helpRow{Key: styleLongRun[3].Render("▴ 10m"), Desc: "working 10 minutes or more"},

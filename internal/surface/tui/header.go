@@ -174,7 +174,7 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 		if waiting > 0 {
 			wait = fmt.Sprintf("%s %d  ", waitingGlyph, waiting)
 		}
-		s = fmt.Sprintf("    ◆ %d  %s⟳ %d  ● %d", needs, wait, working, done)
+		s = fmt.Sprintf("    %s %d  %s⟳ %d  %s %d", stateGlyph(protocol.StateNeedsInput), needs, wait, working, stateGlyph(protocol.StateDone), done)
 	case "numbers":
 		s = fmt.Sprintf("    %d · %d · %d", needs, working+waiting, done)
 	default:
@@ -189,7 +189,7 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 		if style == "verbose" {
 			out += styleStateFailed.Render(fmt.Sprintf("  · %d failed", failed))
 		} else {
-			out += styleStateFailed.Render(fmt.Sprintf("  ✕ %d", failed))
+			out += styleStateFailed.Render(fmt.Sprintf("  %s %d", stateGlyph(protocol.StateFailed), failed))
 		}
 	}
 	return out

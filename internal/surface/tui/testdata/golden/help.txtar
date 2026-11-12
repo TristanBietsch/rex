@@ -51,15 +51,15 @@
      │          session)                                      :q :quit         quit (confirm)                     │
      │   C      complete now (kill agent, mark done)          :q!              force quit                         │
      │   dd     delete selected                               :bg :detach      detach, save place                 │
-     │   i      focus λ prompt (new-session text)             :reload          reload tools.yaml                  │
-     │   S      settings                                      :fail            failed sessions + daemon log       │
-     │   q      quit (confirm)                                                 (:fails :failed)                   │
-     │                                                        :stats           session statistics overlay         │
-     │   ── Mouse ────────────────────────────────────────    :overview        what is ready for you, what to     │
-     │   click         select row / filter chip                                review, what finished              │
-     │   double-click  attach to row                          :border [color]  window border for this run: on,    │
-     │   wheel         move row selection                                      off, next, random, a color name    │
-     │   hold ⌥ / ⇧    select text natively                                    or #rrggbb                         │
+     │   i      focus λ prompt (new-session text)             :reload          reload tools.yaml, config.yaml     │
+     │   S      settings                                                       and themes                         │
+     │   q      quit (confirm)                                :fail            failed sessions + daemon log       │
+     │                                                                         (:fails :failed)                   │
+     │   ── Mouse ────────────────────────────────────────    :stats           session statistics overlay         │
+     │   click         select row / filter chip               :overview        what is ready for you, what to     │
+     │   double-click  attach to row                                           review, what finished              │
+     │   wheel         move row selection                     :border [color]  window border for this run: on,    │
+     │   hold ⌥ / ⇧    select text natively                                    off, next, random, a color name    │
   ↳ d│   ↓ more                                                                                                   │     
 ─────│                                                                                                            │─────
   λ p│   j/k scroll · / filter · esc close                                                                        │     

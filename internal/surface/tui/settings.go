@@ -325,11 +325,15 @@ func applySettingsAction(m Model, step int) Model {
 		return m
 	}
 	cur := m.Store.Get(s.ID)
-	if opts, ok := spawnPickerOptions(m, s.ID); ok {
+	if opts, ok := dynamicOptions(m, s.ID); ok {
 		if len(opts) == 0 {
 			return m
 		}
-		return setSpawnDefault(m, s.ID, cycleOption(opts, fmt.Sprintf("%v", cur), step))
+		next := cycleOption(opts, fmt.Sprintf("%v", cur), step)
+		if s.ID == "theme" {
+			return setThemeSetting(m, next)
+		}
+		return setSpawnDefault(m, s.ID, next)
 	}
 	var next any
 	switch s.Type {
@@ -462,10 +466,13 @@ func cycleOption(opts []string, cur string, step int) string {
 	}
 }
 
-// spawnPickerOptions returns the registry-backed choices for the quick-spawn
-// settings; ok is false for every other setting.
-func spawnPickerOptions(m Model, id string) ([]string, bool) {
+// dynamicOptions returns the choices that are computed rather than listed in
+// the registry: the themes (built-ins plus the user's files) and the
+// registry-backed quick-spawn settings. ok is false for every other setting.
+func dynamicOptions(m Model, id string) ([]string, bool) {
 	switch id {
+	case "theme":
+		return themeOptions(m), true
 	case "default_spawn_tool", "default_spawn_model", "default_spawn_effort":
 	default:
 		return nil, false
@@ -581,9 +588,9 @@ func windowLines(lines []string, focus, max int) []string {
 // hook here — they're picked up on the next View().
 func applyLive(m *Model, id string, value any) {
 	switch id {
-	case "color_scheme":
+	case "theme":
 		if name, ok := value.(string); ok {
-			applyTheme(name)
+			applyThemeNamed(m, name)
 		}
 	case "sound_enabled":
 		if m.Audio != nil {
@@ -664,7 +671,7 @@ func settingAdjustable(m Model, s settings.Setting) bool {
 	if s.ReadOnly {
 		return false
 	}
-	if _, ok := spawnPickerOptions(m, s.ID); ok {
+	if _, ok := dynamicOptions(m, s.ID); ok {
 		return true
 	}
 	switch s.Type {
