@@ -81,6 +81,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `uc` and `:resume` work for agy sessions (`resume` block with
   `--conversation={id}`), and a `trust_prompt` fallback answers agy's trust
   dialog in trusted folders.
+- Agents start at the size of the attach popup (TUI quick-spawn and the
+  wizard) or of your terminal (`rex new` on a terminal), so the first attach
+  needs no resize. `NewSession` gained `cols` and `rows`; without them the
+  agent starts at 120x32 as before.
 - `rex export <sel> [-o json|yaml|md|txt] [--out FILE] [--force] [--max-frames N] [--from-agent-log]`
   writes one session as a readable document: its metadata plus the
   transcript as clean text, never raw PTY bytes. Full-screen agents are
@@ -419,6 +423,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Daemon: `Resize` and `NewSession` sizes are clamped to 20-1000 columns and
+  5-500 rows. A client asking for 65535x65535 made the daemon allocate about
+  4 GB for its screen mirror and could run it out of memory.
 - TUI: the attach popup is no longer wider than a narrow terminal (it was
   clipped below 54 columns), and in the mobile layout (60 columns or fewer)
   it is a full-screen sheet with no margin or padding.

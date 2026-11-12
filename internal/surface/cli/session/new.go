@@ -98,6 +98,9 @@ func RunNew(args []string) error {
 		Slug: *slug, Title: prompt, CWD: *cwd, InitialPrompt: prompt,
 		Fleet: *fleet, Name: *name, Skills: skillNames,
 	}
+	// Start the agent at this terminal's size when there is one, so `rex
+	// attach` from it needs no first resize (0, 0 lets the daemon choose).
+	req.Cols, req.Rows = core.StdoutSize()
 	if err := c.NewSession(req); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}

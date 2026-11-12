@@ -114,6 +114,8 @@ func normalizeNewSession(p protocol.NewSession) (protocol.NewSession, error) {
 		return p, err
 	}
 	p.Name = name
+	// The size seeds the daemon's screen mirror: bound it (0 stays 0, the default).
+	p.Cols, p.Rows = protocol.ClampTermSize(p.Cols, p.Rows)
 	return p, nil
 }
 

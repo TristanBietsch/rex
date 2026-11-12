@@ -190,7 +190,9 @@ func handleResize(c *client, env protocol.Envelope) (outcome, error) {
 	if p.Cols == 0 || p.Rows == 0 {
 		return outcome{sessionID: p.SessionID}, nil // ignored, as documented
 	}
-	if err := c.srv.Resize(p.SessionID, p.Cols, p.Rows); err != nil {
+	// A client-chosen size sizes the daemon's screen mirror: clamp it.
+	cols, rows := protocol.ClampTermSize(p.Cols, p.Rows)
+	if err := c.srv.Resize(p.SessionID, cols, rows); err != nil {
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	return outcome{sessionID: p.SessionID}, nil

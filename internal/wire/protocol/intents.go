@@ -96,6 +96,12 @@ type NewSession struct {
 	// spawn_skills setting must be on, else the intent is bad_intent. Names
 	// only: the daemon never takes a path from a client.
 	Skills []string `json:"skills,omitempty"`
+	// Cols and Rows are the PTY size to start the agent at, so a client that
+	// will attach at a known size needs no first resize. The daemon clamps
+	// them (see ClampTermSize); 0 means the default (120x32). A daemon that
+	// predates the fields ignores them.
+	Cols uint16 `json:"cols,omitempty"`
+	Rows uint16 `json:"rows,omitempty"`
 }
 
 // SetSessionFleet updates the fleet label of an existing session.

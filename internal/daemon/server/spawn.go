@@ -107,6 +107,8 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		HookFile:        hookFile,
 		SessionID:       id,
 		StatusLine:      srv.statusLineFor(tool, id),
+		Cols:            p.Cols,
+		Rows:            p.Rows,
 	}
 	// A tool that takes a preassigned conversation id (Claude's --session-id)
 	// gets a fresh UUID, which is not the rex session id: the two diverge
@@ -194,6 +196,9 @@ type spawnSpec struct {
 	// Resume, when set and the tool has a resume block, adds its resume or
 	// new-session args (see resumeArgs).
 	Resume *resumeArgs
+	// Cols and Rows are the PTY's initial size (already clamped; 0 = the
+	// supervisor's 120x32 default).
+	Cols, Rows uint16
 }
 
 // resumeArgs asks buildArgv for the tool's resume.new_args (New: a fresh
@@ -296,6 +301,8 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		Command:        argv,
 		CWD:            spec.CWD,
 		Env:            env,
+		InitialCols:    spec.Cols,
+		InitialRows:    spec.Rows,
 		Adapter:        ad,
 		InputCh:        inputCh,
 		CompleteCh:     completeCh,
