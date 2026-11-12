@@ -1,11 +1,14 @@
 package tui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -139,4 +142,14 @@ func TestSetupWizardDefaults_ModelFieldEditsAtEnd(t *testing.T) {
 	press(tea.KeyMsg{Type: tea.KeyBackspace})
 	press(tea.KeyMsg{Type: tea.KeyBackspace})
 	require.Equal(t, "opu", m.defaultModel)
+}
+
+// A failed daemon start suggests a command that exists: bare `rex daemon`
+// only prints its usage.
+func TestSetupWizardDaemon_StartFailureHintsDaemonStart(t *testing.T) {
+	m := NewSetupWizardModel(spawnConfig(t, ""), "")
+	m.daemonChecked = true
+	m.daemonStartErr = errors.New("boom")
+	_, body, _ := m.renderDaemon()
+	require.Contains(t, ansi.Strip(strings.Join(body, "\n")), "rex daemon start")
 }

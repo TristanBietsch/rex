@@ -2,10 +2,13 @@ package tui
 
 import (
 	"errors"
+	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,4 +93,23 @@ func TestSplashFailed(t *testing.T) {
 	require.Contains(t, out, "rex-daemon")
 	require.Contains(t, out, "fix:")
 	require.Contains(t, out, "press q")
+}
+
+// The PATH hint is for a missing rex-daemon only; any other start failure
+// (a bind error, a bad registry, a socket timeout) points at daemon.log.
+func TestSplashFailed_DaemonHintFollowsTheCause(t *testing.T) {
+	render := func(cause error) string {
+		m := Model{
+			Focus: FocusBoot, Width: 120, Height: 30, BootFailed: true, BootError: cause,
+			BootLog: []bootLine{{Name: "daemon", Status: stepFail, Desc: "failed", Err: cause}},
+		}
+		return ansi.Strip(renderSplash(m, m.Width, m.Height))
+	}
+	notFound := fmt.Errorf("start rex-daemon: %w", &exec.Error{Name: "rex-daemon", Err: exec.ErrNotFound})
+	require.Contains(t, render(notFound), "on PATH")
+
+	other := render(errors.New("rex-daemon exited before its socket came up: bind: address in use"))
+	require.NotContains(t, other, "on PATH")
+	require.Contains(t, other, "daemon.log")
+	require.Contains(t, other, "rex daemon logs")
 }

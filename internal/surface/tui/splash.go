@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -85,7 +87,7 @@ func renderSplash(m Model, w, h int) string {
 		if m.BootError != nil {
 			rows = append(rows, leftPad+styleDim.Render("cause: ")+styleBootCause.Render(m.BootError.Error()))
 		}
-		if hint, ok := bootFixHints[lastFailedStep(m)]; ok {
+		if hint, ok := bootFixHint(lastFailedStep(m), m.BootError); ok {
 			rows = append(rows, leftPad+styleDim.Render("fix:   ")+stylePrimary.Render(hint))
 		}
 		rows = append(rows, "", lipgloss.PlaceHorizontal(w-2, lipgloss.Right, styleDim.Render("press q · ctrl+c to quit")))
@@ -193,6 +195,17 @@ var bootFixHints = map[string]string{
 	"client.dial":    "the daemon socket disappeared — try `rex daemon start`",
 	"handshake":      "protocol mismatch — rebuild rex and rex-daemon to the same version",
 	"subscribe":      "the daemon rejected the event subscription — check daemon.log",
+}
+
+// bootFixHint is the next step for a failed boot step. A daemon that would
+// not start is only a PATH problem when rex-daemon was not found; any other
+// cause (a bind error, a bad registry, a socket timeout) is in daemon.log.
+func bootFixHint(step string, cause error) (string, bool) {
+	if step == "daemon" && !errors.Is(cause, exec.ErrNotFound) {
+		return "see daemon.log (rex daemon logs)", true
+	}
+	hint, ok := bootFixHints[step]
+	return hint, ok
 }
 
 // lastFailedStep returns the name of the most recent stepFail row.
