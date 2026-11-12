@@ -107,4 +107,8 @@ As built (branch `feat/r15-desc-schedule`):
 - Tests use real timers with a scaled `Config.Cadence` (tens of ms) in `desc_schedule_test.go`; the cadence math in `cadence_test.go` is pure. `now` is an injectable clock for anchors and ticks, timers stay real.
 - New synthetic screens `claude_longrun`, `codex_migration` also entered the activity golden set.
 - Coverage floor for the summarizer stays at 93 (measured 93.4%).
+- Review fixes: a session with no description yet keeps honoring output sends until its first description lands (the first state-change refresh can run on an empty screen). The progress prompt and detail+1 apply only to a pure late tick (`late && !prio && !terminal`); a tick merged with a state change, and any final summary, use the activity prompt at `summary_detail`.
+- `Store.Reopen` now broadcasts `EventReopened` (no patch; wire clients ignore it). The summarizer restarts the schedule and re-arms the final summary from it; the `Patch["state"]` sniffing is gone. `resume_event_test.go` pins the contract.
+- `SetSchedule` and `fireDue` share `w.mu` for the flag, so a flip never sees stale counts. A tick merged into a call that then yields no description queues one more request. Each session's grid carries a fixed jitter (hash of the id, within 5% of the early interval). The loop sleeps at most 1 minute for the schedule, and a clock that jumps back pulls `fired` back with it.
+- Scheduler tests (`desc_schedule_det_test.go`) use a fake `w.now` and call `fireDue`, `nextTick` and `handle` directly; two real-timer tests (`desc_schedule_loop_test.go`) assert lower bounds and order only.
 - `make check` is green (lint, race tests, coverage floors, govulncheck).

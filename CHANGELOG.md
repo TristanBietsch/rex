@@ -43,7 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   descriptions from the 6th refresh on are one `summary_detail` level longer
   and say what is finished plus what is happening now. A state change still
   refreshes at once. Screen activity no longer triggers a refresh while the
-  switch is on; turn it off for the old behavior.
+  switch is on, except for a session with no description yet; turn it off
+  for the old behavior.
 - `rex config set` / `reset`, the Settings page and `rex setup` tell a running
   daemon to reload when they change `skip_permissions` or `auto_trust_dirs`,
   so revoking either applies at once. Hand edits of `config.yaml` still apply
