@@ -123,3 +123,77 @@ func FuzzStoreLoadSaveRoundTrip(f *testing.F) {
 		}
 	})
 }
+
+// symlinkOrSkip makes link -> target, skipping where symlinks need a
+// privilege the test lacks (Windows without developer mode).
+func symlinkOrSkip(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+}
+
+// A config.yaml managed by a dotfiles tool is a symlink: Save writes the
+// file it points to and leaves the link in place.
+func TestStore_SaveThroughSymlink(t *testing.T) {
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "dotfiles", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(repo), 0o700))
+	require.NoError(t, os.WriteFile(repo, []byte("spinner: moon\n"), 0o600))
+	link := filepath.Join(dir, "config", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o700))
+	symlinkOrSkip(t, repo, link)
+
+	s := NewStore()
+	require.NoError(t, s.Load(link))
+	require.NoError(t, s.Set("row_density", "compact"))
+	require.NoError(t, s.Save(link))
+
+	fi, err := os.Lstat(link)
+	require.NoError(t, err)
+	require.NotZero(t, fi.Mode()&os.ModeSymlink, "the link is still a link")
+	c := NewStore()
+	require.NoError(t, c.Load(repo))
+	require.Equal(t, "moon", c.Get("spinner"))
+	require.Equal(t, "compact", c.Get("row_density"), "the edit reached the linked file")
+	for _, d := range []string{filepath.Dir(repo), filepath.Dir(link)} {
+		entries, err := os.ReadDir(d)
+		require.NoError(t, err)
+		for _, e := range entries {
+			require.NotContains(t, e.Name(), ".tmp")
+		}
+	}
+}
+
+// A dangling link is an error; Save never replaces it with a plain file.
+func TestStore_SaveRefusesDanglingSymlink(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "config.yaml")
+	symlinkOrSkip(t, filepath.Join(dir, "gone", "config.yaml"), link)
+	s := NewStore()
+	require.NoError(t, s.Set("spinner", "moon"))
+	require.Error(t, s.Save(link))
+	fi, err := os.Lstat(link)
+	require.NoError(t, err)
+	require.NotZero(t, fi.Mode()&os.ModeSymlink)
+}
+
+// Saves from several Stores at once each succeed: no shared temp file.
+func TestStore_SaveConcurrently(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, NewStore().Save(path))
+	errs := make(chan error, 8)
+	for range 8 {
+		go func() {
+			s := NewStore()
+			if err := s.Set("spinner", "moon"); err != nil {
+				errs <- err
+				return
+			}
+			errs <- s.Save(path)
+		}()
+	}
+	for range 8 {
+		require.NoError(t, <-errs)
+	}
+}

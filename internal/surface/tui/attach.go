@@ -66,6 +66,16 @@ type AttachState struct {
 	// Render caches (see attach_render.go). Only View touches them.
 	paint    *glyphPainter
 	rowCache []attachRowCache
+	// bg is the board rendered behind the popup, kept across frames that
+	// only bring agent output (see attachBackground).
+	bg attachBgCache
+}
+
+// attachBgCache holds one rendered board background for a w×h screen.
+type attachBgCache struct {
+	w, h int
+	s    string
+	ok   bool
 }
 
 type AttachOutputMsg struct {

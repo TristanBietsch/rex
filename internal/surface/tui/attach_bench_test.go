@@ -83,13 +83,15 @@ func repeatRune(r rune, n int) string {
 }
 
 // BenchmarkAttachView is the steady-state frame: the screen is full and
-// unchanged, as on a spinner tick.
+// unchanged, as on a spinner tick. A tick redraws the board behind the
+// popup too, so the background cache is dropped every frame.
 func BenchmarkAttachView(b *testing.B) {
 	m := benchAttachModel(b, benchAttachCols, benchAttachRows)
 	_, _ = m.Attach.Term.Write(claudeLikeFrame(0, benchAttachCols, benchAttachRows))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
+		dropAttachBackground(m, SpinnerTickMsg{})
 		_ = m.View()
 	}
 }
@@ -122,11 +124,14 @@ func BenchmarkAttachView_BannerMarquee(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
+		dropAttachBackground(m, SpinnerTickMsg{})
 		_ = m.View()
 	}
 }
 
 // BenchmarkAttachFrame is one output burst: write a repaint, then render.
+// Output alone leaves the board behind the popup as it was, so its cached
+// background is reused (attachBackground).
 func BenchmarkAttachFrame(b *testing.B) {
 	m := benchAttachModel(b, benchAttachCols, benchAttachRows)
 	frames := make([][]byte, 64)
