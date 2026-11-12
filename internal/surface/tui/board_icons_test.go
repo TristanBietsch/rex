@@ -178,11 +178,13 @@ func TestIconLayout_SqueezeOrder(t *testing.T) {
 			require.Zero(t, c.slots[slotSpend], "width %d", w)
 		}
 	}
+	prevName, prevW := "", 0
 	for i, e := range events {
 		require.Positive(t, first[i], "%s never happened", e.name)
 		if i > 0 {
-			require.Greater(t, first[i-1], first[i], "%s before %s", events[i-1].name, e.name)
+			require.Greater(t, prevW, first[i], "%s before %s", prevName, e.name)
 		}
+		prevName, prevW = e.name, first[i]
 	}
 	// The brief's range: 61 down to 40 still fits a row exactly.
 	for w := 61; w >= 40; w-- {

@@ -17,7 +17,7 @@ var iconGlyphNames = []string{"unseen", "asks", "review", "loop", "subagents", "
 func iconModel(t *testing.T, kv ...any) Model {
 	t.Helper()
 	m := Model{Store: settings.NewStore()}
-	for i := 0; i < len(kv); i += 2 {
+	for i := 0; i+1 < len(kv); i += 2 {
 		require.NoError(t, m.Store.Set(kv[i].(string), kv[i+1]))
 	}
 	return m
