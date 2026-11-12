@@ -30,13 +30,18 @@ type Worker struct {
 	retryDelay time.Duration // pause before the one transient retry
 	detail     atomic.Int32  // a Detail; the zero value is DetailMedium
 
+	cadence Cadence
+	now     func() time.Time // the clock of anchors and ticks; time.Now unless a test replaces it
+	schedOn atomic.Bool      // summary_schedule: ticks run and output-driven sends are ignored
+
 	ch   chan string
 	wake chan struct{} // capacity 1: nudges the scheduler loop
 	slot chan struct{} // capacity 1: the shared Ollama slot
-	// pending and perSess are guarded by mu.
+	// pending, perSess and sched are guarded by mu.
 	mu       sync.Mutex
 	pending  map[string]pendingReq
 	perSess  map[string]*sessionMeta
+	sched    map[string]*schedEntry
 	failures atomic.Int32
 
 	// availability: 1 = healthy, 0 = backend unavailable.
@@ -50,6 +55,9 @@ type sessionMeta struct {
 	// final is set once a terminal-state (done, failed, crashed) summary has
 	// been produced; it is cleared when the session goes live again.
 	final bool
+	// callStart and callEnd bound the session's latest handle; a tick due
+	// inside that window merges with the call instead of making another.
+	callStart, callEnd time.Time
 }
 
 func isTerminal(s protocol.State) bool {
@@ -111,7 +119,11 @@ func New(cfg Config, store *state.Store, transcript TranscriptReader) *Worker {
 		slot:       make(chan struct{}, 1),
 		pending:    make(map[string]pendingReq),
 		perSess:    make(map[string]*sessionMeta),
+		sched:      make(map[string]*schedEntry),
+		cadence:    cfg.Cadence.orDefault(),
+		now:        time.Now,
 	}
+	w.schedOn.Store(cfg.Schedule)
 	w.available.Store(1)
 	w.detail.Store(int32(cfg.Detail.valid()))
 	return w
@@ -181,6 +193,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	// The callback follows the store contract: it takes a mutex and returns.
 	unsub := w.store.Subscribe(w.onEvent)
 	defer unsub()
+	w.seedSchedule()
 	close(w.subscribed)
 	return w.loop(ctx)
 }
@@ -192,6 +205,7 @@ func (w *Worker) Start(ctx context.Context) error {
 // done) re-arms it. It runs on the store's goroutines, so it only takes a
 // mutex and returns.
 func (w *Worker) onEvent(e state.Event) {
+	w.trackEvent(e)
 	switch {
 	case e.Kind == state.EventRemoved:
 		w.forget(e.SessionID)
@@ -227,7 +241,13 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		w.mu.Unlock()
 		return
 	}
+	meta.callStart = w.now()
 	w.mu.Unlock()
+	defer func() {
+		w.mu.Lock()
+		meta.callEnd = w.now()
+		w.mu.Unlock()
+	}()
 
 	tail := w.transcript(id, w.cfg.MaxBytes)
 	if len(bytes.TrimSpace(tail)) == 0 {
@@ -240,7 +260,13 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 	if task == "" {
 		task = snap.Slug
 	}
-	prompt, err := BuildPrompt(KindActivity, Input{Tool: snap.ToolID, Task: task, State: snap.State, Text: string(tail)}, w.Detail())
+	kind, detail := KindActivity, w.Detail()
+	if req.late && w.schedOn.Load() {
+		// Late phase of the scheduled refresh: one level more detail, and
+		// what is finished plus what is happening now.
+		kind, detail = KindProgress, detail.Up()
+	}
+	prompt, err := BuildPrompt(kind, Input{Tool: snap.ToolID, Task: task, State: snap.State, Text: string(tail)}, detail)
 	if err != nil {
 		slog.Warn("summarizer: build prompt failed", "session", id, "err", err)
 		return
@@ -282,7 +308,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		if ctx.Err() == nil {
 			// Deferred, not dropped: runs again after MinInterval, or once
 			// the backend is back if these failures marked it unavailable.
-			w.enqueue(id, time.Now(), req.prio) // since=now: a failing session does not keep jumping the queue
+			w.enqueueReq(id, pendingReq{since: time.Now(), prio: req.prio, late: req.late}) // since=now: a failing session does not keep jumping the queue
 		}
 		if w.failures.Load() >= 3 {
 			w.MarkUnavailable("consecutive call failures")
