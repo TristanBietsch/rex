@@ -12,6 +12,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
 	wsp "github.com/tristanbietsch/rex/internal/workspace"
+	"github.com/tristanbietsch/rex/internal/workspace/wsconfig"
 )
 
 // captureBoard replaces the TUI launch and records the scope it got.
@@ -94,6 +95,7 @@ func TestHere_OpensTheBoardOnTheNearestWorkspace(t *testing.T) {
 	require.NoError(t, RunWs([]string{"open", nested}))
 	require.Len(t, *got, 2)
 	require.Equal(t, w.ID, (*got)[1].ID)
+	require.Equal(t, w.ID, wsconfig.Current().ID, "the board applies that workspace's config, not the start folder's")
 	_ = r
 }
 

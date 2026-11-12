@@ -7,6 +7,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/meta"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
 	wsp "github.com/tristanbietsch/rex/internal/workspace"
+	"github.com/tristanbietsch/rex/internal/workspace/wsconfig"
 )
 
 // runBoard opens the board on a workspace. Tests replace it.
@@ -73,5 +74,8 @@ func openBoard(cmd, path string) error {
 	}
 	// Best effort: a workspace seen at a new folder moves its registry root.
 	_ = e.reg.Seen(w)
+	// The board applies this workspace's .rex/config.lua (when trusted),
+	// whatever folder rex was started in.
+	wsconfig.SetDir(w.Root)
 	return runBoard(&tui.WorkspaceScope{ID: w.ID, Name: w.Name, Color: w.Color, Root: w.Root})
 }

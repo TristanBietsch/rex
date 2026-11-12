@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 
-	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/cli/inspect"
 	"github.com/tristanbietsch/rex/internal/surface/cli/lifecycle"
@@ -14,6 +13,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/session"
 	"github.com/tristanbietsch/rex/internal/surface/cli/setup"
 	"github.com/tristanbietsch/rex/internal/surface/cli/workspace"
+	"github.com/tristanbietsch/rex/internal/workspace/wsconfig"
 )
 
 func main() {
@@ -35,15 +35,26 @@ func main() {
 // side effects whatever the user's Lua does.
 var luaFreeVerbs = map[string]bool{"complete": true, "completion": true}
 
+// systemBoardVerbs open the system-wide board, which never applies a
+// workspace's .rex/config.lua ("" is bare rex).
+var systemBoardVerbs = map[string]bool{"": true, "--quiet-boot": true}
+
 // installLuaLayer puts config.lua on top of config.yaml for this process
-// (when the lua_config setting is on). It runs before InitOutput, which
-// already reads settings. config.lua problems stay out of command output:
-// only rex doctor, rex config, rex theme and the TUI report them.
+// (when the lua_config setting is on) and, for a command run inside a
+// trusted workspace (workspaces on), that workspace's .rex/config.lua on
+// top of it. It runs before InitOutput, which already reads settings.
+// config.lua problems stay out of command output: only rex doctor, rex
+// config, rex theme and the TUI report them.
 func installLuaLayer(args []string) {
-	if luaFreeVerbs[core.Verb(args)] {
+	verb := core.Verb(args)
+	if luaFreeVerbs[verb] {
 		return
 	}
-	luacfg.Install()
+	dir := ""
+	if !systemBoardVerbs[verb] {
+		dir, _ = os.Getwd() // no folder: no workspace
+	}
+	wsconfig.Install(dir)
 }
 
 // interactiveVerbs are the commands that need a terminal: the board (bare
