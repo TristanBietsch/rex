@@ -74,6 +74,7 @@ func RunHelp() error {
 				{"overview", "what needs you, is ready for review, failed or finished"},
 				{"usage", "tokens, cost and plan quota per agent and model (-range, -tool, -by)"},
 				{"export", "write a session as json, yaml, md or txt"},
+				{"ws", "workspaces: init, id, ls, rename, color (needs the workspaces setting)"},
 			},
 		},
 		{
