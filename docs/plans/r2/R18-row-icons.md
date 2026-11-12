@@ -88,7 +88,7 @@ Per session, what rex has or could get. "Now" = on `SessionSummary` or derivable
 | 5 | `$` | **spend** so far | Claude sessions with a cost | `$0.42`, `$12.3`, `$123`, `$1.2k` | new `cost_usd` | **keep** — asked for; the money signal |
 | 6 | `▴` | **long-running** | working ≥ 10 min | `▴ 45m`, `▴ 2h` | `WorkingSince` | **keep** (exists) |
 | 7 | `↯` | failed tool calls this turn | count > 0 | `↯ 3` | new hook line | **phase 2** (R18-2): needs daemon + hook work |
-| 8 | `⧗` | context window used | ≥ 70 % | `⧗ 82%` | new status-line field | **phase 2** (R18-2): spike the field first |
+| 8 | `◔` | context window used | ≥ 70 % | `◔ 82%` | new status-line field | **phase 2** (R18-2): spike the field first |
 | — | `↻` | prompts sent | — | `↻ 4` | R17 `Prompts` | cut: a count of turns does not change what you do next |
 | — | `◷ 2m` / `⏱ 14m` | elapsed / timestamps | — | — | `StartedAt` | cut: `▴` covers "running long", the age column covers "last activity", the detailed span covers wall-clock; `⏱` is also emoji-prone |
 | — | `⊘` | rate limited | — | — | quotas | cut: per tool, not per row; the header meter is the right home |
@@ -103,11 +103,11 @@ Top set: **why, unseen, loop, subagents, spend, long-run** (phase 1), then failu
 ## 4. Glyph rules
 
 - One cell in common terminal fonts: `ansi.StringWidth == 1`, East Asian Width `N` or `Na` (not `A`, not `W`), not `Emoji_Presentation`, and no text/emoji variant pair (`⚠ ⏱ ⚙ ‼ ⁉ ⌛` are out).
-- New glyphs: `✦` U+2726, `✓` U+2713, `?` `$` ASCII, `↯` U+21AF, `⧗` U+29D7 — all `N`, none emoji. Reused with the same meaning: `⋔` U+22D4, `▴` U+25B4, `⟳` U+27F3.
+- New glyphs: `✦` U+2726, `✓` U+2713, `?` `$` ASCII, `↯` U+21AF, `◔` U+25D4 — all `N`, none emoji. Reused with the same meaning: `⋔` U+22D4, `▴` U+25B4, `⟳` U+27F3.
 - No clash with state markers (`◆ ⠋… ◷ ◴ ◶ ◵ ◌ ● ✕ ○`), the fleet bar `▍`, the select arrow `▸` (or the theme's), the agent icons (`◎ ◆ ◇ ◈ □ ◉ ▣ ▲ ◢ ⊙ ◗`), the logo `∴`, prompt `λ`, lead `↳`, overview `»`, rename `✎`, meter `▰ ▱`. A test enforces it (Task 1).
 - Every slot has text next to its glyph, so no meaning is color-only. Color reinforces.
 - Nothing in the strip animates. `reduce_motion` changes nothing here; `✦` never blinks.
-- `ascii_glyphs` (Appearance, off): `✦→*`, `✓→+`, `⟳→@`, `⋔→Y`, `▴→^`, `↯→!`, `⧗→%`; `?` and `$` stay. Only the strip and the legend use it in this spec.
+- `ascii_glyphs` (Appearance, off): `✦→*`, `✓→+`, `⟳→@`, `⋔→Y`, `▴→^`, `↯→!`, `◔→%`; `?` and `$` stay. Only the strip and the legend use it in this spec.
 
 ## 5. Slots
 
@@ -301,7 +301,7 @@ The simple view at 150+ looks like the 120 one with a 32-column name and a wider
 ## 13. Phase 2 (R18-2, not planned here)
 
 - **Failures `↯ 3`**: `PostToolUseFailure` writes a `fail+` line on main-thread failures; `UserPromptSubmit` resets; `Failures int json:"failures,omitempty"`. Slot width 4, after subagents.
-- **Context `⧗ 82%`**: spike first. If Claude's status-line JSON carries a context-used figure, parse it in `ParseStatusLine` and send `context_pct`; show at ≥ 70 % (`styleLongRun[1]`), ≥ 90 % (`styleLongRun[0]`). Width 5.
+- **Context `◔ 82%`**: spike first. If Claude's status-line JSON carries a context-used figure, parse it in `ParseStatusLine` and send `context_pct`; show at ≥ 70 % (`styleLongRun[1]`), ≥ 90 % (`styleLongRun[0]`). Width 5.
 
 ## Review focus
 
@@ -313,7 +313,9 @@ The simple view at 150+ looks like the 120 one with a 32-column name and a wider
 
 ## Decisions
 
-Accepted 2026-11-11 (user): D1–D12 as recommended. Phase 1 icons confirmed: why slot, `⋔` subagents, `▴` long-running, `$` spend, `✦` finished-unseen, `⟳` loop. Phase 2 (`↯` failed tool calls, `⧗` context used) wanted, as R18-2 after the context-field spike. No timestamp or elapsed icon: `▴` plus the age column cover it.
+Accepted 2026-11-11 (user): D1–D12 as recommended. Phase 1 icons confirmed: why slot, `⋔` subagents, `▴` long-running, `$` spend, `✦` finished-unseen, `⟳` loop. Phase 2 (`↯` failed tool calls, `◔` context used (was `⧗`; see 2026-11-12)) wanted, as R18-2 after the context-field spike. No timestamp or elapsed icon: `▴` plus the age column cover it.
+
+2026-11-12 (user): the phase 2 context-used glyph is `◔` (U+25D4, EAW `N`, not emoji), not `⧗`, which reads as the waiting-icon hourglass set (`⧖ ⧑ ⧒`, `feat/waiting-spinner`). Checked against the state markers, agent icons, the strip glyphs (`⋔ ⟳ ✦ ▴ $ ↯`), the spinner frames and every waiting set (`◴◷◶◵ ⧖⧑⧒ ⣀⣄⣤⣦⣶⣷⣿ ◜◝◞◟ ⠂⡀⢀⠐ ∘◦⊚`). `◑` was rejected: EAW `A`. ASCII fallback stays `%`.
 
 Recommendation first.
 

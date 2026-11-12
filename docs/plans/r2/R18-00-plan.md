@@ -10,6 +10,8 @@
 
 **Spec:** [R18-row-icons.md](R18-row-icons.md). Read it first. Its D1–D12 recommendations are assumed; re-check the Decisions table for the user's answers before each task.
 
+**Out of scope:** phase 2 (R18-2: `↯` failed tool calls, `◔` context used; `◔` replaced `⧗` on 2026-11-12, see the spec's Decisions). No task here builds it.
+
 **Start condition:** the user has answered D1–D12. If R17 (`fix/ready-subagent-flap`) has merged, rebase first: it touches `events.go` next to `Subagents` and `model.go` `applyPatch`.
 
 Code on the base this plan depends on:
