@@ -346,7 +346,7 @@ func TestRefreshModelsCanceledChangesNothing(t *testing.T) {
 	cancel()
 	before, err := os.ReadFile(cache) //nolint:gosec // test path under t.TempDir()
 	require.NoError(t, err)
-	got = RefreshModels(ctx, tools, cache, true, now.Add(time.Hour))
+	got := RefreshModels(ctx, tools, cache, true, now.Add(time.Hour))
 	require.Empty(t, got, "canceled: nothing returned")
 	after, err := os.ReadFile(cache) //nolint:gosec // test path under t.TempDir()
 	require.NoError(t, err)
