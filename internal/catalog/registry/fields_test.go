@@ -40,6 +40,7 @@ func TestLoaderModelsCmdValidation(t *testing.T) {
 			tool := baseTool()
 			mc := tc.mc
 			tool.ModelsCmd = &mc
+			tool.ModelArgTemplate = []string{"--model", "{model}"}
 			err := validate([]Tool{tool})
 			if tc.err == "" {
 				require.NoError(t, err)
@@ -48,6 +49,12 @@ func TestLoaderModelsCmdValidation(t *testing.T) {
 			require.ErrorContains(t, err, tc.err)
 		})
 	}
+}
+
+func TestModelsCmdNeedsTemplate(t *testing.T) {
+	tool := baseTool()
+	tool.ModelsCmd = &ModelsCmd{Args: []string{"models"}}
+	require.ErrorContains(t, validate([]Tool{tool}), "model_arg_template")
 }
 
 func TestValidateModelArgTemplate(t *testing.T) {

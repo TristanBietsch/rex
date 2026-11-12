@@ -144,6 +144,9 @@ func validateModelsCmd(id string, mc *ModelsCmd) error {
 // validateTemplates checks model_arg_template, prompt_args, prompt_paste and
 // login_regex.
 func validateTemplates(t Tool) error {
+	if t.ModelsCmd != nil && len(t.ModelArgTemplate) == 0 {
+		return fmt.Errorf("tool %q: models_cmd needs model_arg_template, or a detected model has no argv", t.ID)
+	}
 	if len(t.ModelArgTemplate) > 0 {
 		if containsEmpty(t.ModelArgTemplate) {
 			return fmt.Errorf("tool %q: model_arg_template must not hold an empty argument", t.ID)
