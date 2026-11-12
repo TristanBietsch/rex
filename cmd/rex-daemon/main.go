@@ -236,6 +236,8 @@ func run(args []string) error {
 	// cat is set once srv exists; the reload callbacks read it only after Serve
 	// has started.
 	var cat *boot.Catalog
+	// luaHost is set once srv exists, like cat.
+	var luaHost *boot.LuaHost
 	// Usage tracking: inert while the usage setting is off. Its callbacks
 	// read srv only once Serve has started, after that assignment.
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
@@ -294,7 +296,7 @@ func run(args []string) error {
 		Workspaces:            wsTags,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
-		OnReload:              func() error { return boot.ReloadAll(ctx, cat, hub) },
+		OnReload:              func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) },
 		Build:                 handoff.BuildID(),
 		StartedAt:             startedAt,
 		Adopt:                 hot.adoptions(store),
@@ -335,13 +337,8 @@ func run(args []string) error {
 	loops.SetEnabled(settings.FeatureOn(settingsStore, "loops"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
-	luaRT, luaCancel := boot.StartLuaRuntime(srv, store, hub.Current())
-	if luaCancel != nil {
-		defer luaCancel()
-	}
-	if luaRT != nil {
-		defer luaRT.Close()
-	}
+	luaHost = boot.StartLuaHost(srv, store, hub.Current())
+	defer luaHost.Close()
 
 	// Start summarizer worker + health probe (when enabled).
 	if summaryWorker != nil {
@@ -372,7 +369,7 @@ func run(args []string) error {
 	go hub.Watch(ctx, 5*time.Second)
 
 	// SIGHUP → reload tools.yaml, then config.yaml.
-	go boot.ReloadOnHUP(ctx, func() error { return boot.ReloadAll(ctx, cat, hub) })
+	go boot.ReloadOnHUP(ctx, func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) })
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version.Version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)

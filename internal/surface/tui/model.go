@@ -139,6 +139,10 @@ type Model struct {
 	// nil means daemonctl.ReloadDaemon; tests swap it so no real daemon is
 	// reached.
 	reloader func(ctx context.Context, socket string) error
+	// reportReloader sends :reload's (and the Settings page's R) Reload
+	// intent and returns the daemon's report. nil means
+	// daemonctl.ReloadDaemonReport.
+	reportReloader func(ctx context.Context, socket string) (protocol.ReloadReport, error)
 
 	// Store is the live settings store. Renderers read from it; the settings
 	// page mutates it and triggers live-apply side effects.

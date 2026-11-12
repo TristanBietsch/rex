@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // reloadModel is a booted Model whose config.yaml and themes/ live in a temp
@@ -182,7 +183,9 @@ func TestConfigTickPollsAndManualReloadDoesNotContinue(t *testing.T) {
 func TestReloadCommandReloadsConfigEvenWithLiveReloadOff(t *testing.T) {
 	m, cfg, _ := reloadModel(t)
 	require.NoError(t, m.Store.Set("live_reload", false))
-	m.reloader = func(_ context.Context, _ string) error { return errors.New("no daemon") }
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		return protocol.ReloadReport{}, errors.New("no daemon")
+	}
 	writeFile(t, cfg, "live_reload: false\nspinner: moon\n")
 
 	next, cmd := executeCommand(m, "reload")
@@ -290,4 +293,19 @@ func TestBorderPaletteResolvesUserThemes(t *testing.T) {
 	require.False(t, borderPalette(m).Dark, "the user theme's own palette")
 	require.NoError(t, m.Store.Set("theme", "ghost"))
 	require.True(t, borderPalette(m).Dark, "an unknown theme is the default palette")
+}
+
+// R20: the Settings page's R reloads everything, like :reload.
+func TestSettingsPageReloadKey(t *testing.T) {
+	m := settingsScreen(t, 120, 50)
+	var calls int
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		calls++
+		return protocol.ReloadReport{}, nil
+	}
+	next, cmd := updateSettingsKey(m, key("R"))
+	require.NotNil(t, cmd)
+	collectMsgs(t, cmd)
+	require.Equal(t, 1, calls)
+	require.Equal(t, FocusSettings, next.Focus, "the page stays open")
 }

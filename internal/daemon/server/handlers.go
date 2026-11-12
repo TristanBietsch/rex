@@ -479,10 +479,9 @@ func handleReload(c *client, env protocol.Envelope) (outcome, error) {
 	if c.srv.cfg.OnReload == nil {
 		return outcome{}, replyMsg(protocol.ErrCodeBadIntent, "intent not implemented")
 	}
-	if err := c.srv.cfg.OnReload(); err != nil {
-		return outcome{}, replyErr(protocol.ErrCodeBadIntent, err)
-	}
-	return outcome{}, nil
+	rep := c.srv.cfg.OnReload()
+	c.sendEvent(protocol.EventReloaded, env.ID, rep)
+	return outcome{replied: true}, nil
 }
 
 // handleUsageSample takes the usage fields of one Claude status-line render

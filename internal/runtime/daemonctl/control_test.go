@@ -140,3 +140,32 @@ func TestStopAndReload_NoHome(t *testing.T) {
 	require.ErrorIs(t, Reload(), paths.ErrNoHome)
 	require.ErrorIs(t, Stop(), paths.ErrNoHome)
 }
+
+// R20: an R20 daemon answers Reload with a report; ReloadDaemonReport
+// returns it, and ReloadDaemon turns its errors into an error.
+func TestReloadDaemonReport_ReturnsTheReport(t *testing.T) {
+	sock := socketIn(t)
+	want := protocol.ReloadReport{Changed: []string{"theme"}, Restart: []string{"summary_model"}, Reloaded: []string{"tools.yaml"}}
+	startFakeDaemonWith(t, sock, fakeOpts{report: &want}, nil)
+	got, err := ReloadDaemonReport(bg(), sock)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	require.NoError(t, ReloadDaemon(bg(), sock))
+
+	sock = socketIn(t)
+	bad := protocol.ReloadReport{Errors: []string{"init.lua:2: boom"}}
+	startFakeDaemonWith(t, sock, fakeOpts{report: &bad}, nil)
+	got, err = ReloadDaemonReport(bg(), sock)
+	require.NoError(t, err, "a failed layer is in the report, not an error")
+	require.Equal(t, bad, got)
+	require.ErrorContains(t, ReloadDaemon(bg(), sock), "init.lua:2: boom")
+}
+
+// A daemon before R20 acks Reload: the report says it is a legacy answer.
+func TestReloadDaemonReport_AckDaemon(t *testing.T) {
+	sock := socketIn(t)
+	startFakeDaemon(t, sock, nil)
+	got, err := ReloadDaemonReport(bg(), sock)
+	require.NoError(t, err)
+	require.True(t, got.Legacy)
+}

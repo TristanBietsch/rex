@@ -184,6 +184,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return applyPruneDone(m, msg), nil
 	case loopActionMsg:
 		return handleLoopAction(m, msg), nil
+	case daemonReloadedMsg:
+		return applyDaemonReload(m, msg), nil
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
 		m.Err = msg.Op + ": " + msg.Err.Error()

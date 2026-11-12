@@ -196,6 +196,30 @@ type Snapshot struct {
 // upgrade). Payload: SwapBoards.
 const EventSwap = "Swap"
 
+// EventReloaded answers IntentReload. Payload: ReloadReport. Daemons
+// before R20 answer with an Ack (or an Error when tools.yaml failed).
+const EventReloaded = "Reloaded"
+
+// ReloadReport says what a reload did.
+type ReloadReport struct {
+	// Changed are the setting ids whose value changed.
+	Changed []string `json:"changed,omitempty"`
+	// Restart are the changed ids that apply only after a daemon restart.
+	Restart []string `json:"restart,omitempty"`
+	// Reloaded names the layers read: tools.yaml, config.yaml, config.lua,
+	// init.lua.
+	Reloaded []string `json:"reloaded,omitempty"`
+	// Errors are layers that failed, as "file:line: message" where the
+	// line is known. A failed layer keeps its previous values (trust
+	// settings fail closed).
+	Errors []string `json:"errors,omitempty"`
+	// Warnings are non-fatal notes (refused config.lua calls).
+	Warnings []string `json:"warnings,omitempty"`
+	// Legacy is set by the client, never sent: the daemon predates R20 and
+	// answered with a plain Ack (or nothing), so no detail is known.
+	Legacy bool `json:"-"`
+}
+
 // EventBoards answers IntentBoards and IntentSwapBoards. Payload: Boards.
 const EventBoards = "Boards"
 

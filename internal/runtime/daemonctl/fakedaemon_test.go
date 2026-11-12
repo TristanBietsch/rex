@@ -118,6 +118,8 @@ type fakeOpts struct {
 	// reloadErr, when set, rejects Reload with this bad_intent message
 	// (a tools.yaml the daemon could not load).
 	reloadErr string
+	// report, when set, answers Reload with this report (an R20 daemon).
+	report *protocol.ReloadReport
 }
 
 // shutdownLikeDaemon stops answering at once and removes the socket a
@@ -199,6 +201,8 @@ func (fd *fakeDaemon) reply(w *protocol.Writer, env protocol.Envelope) {
 		_ = w.WriteEvent(protocol.EventError, env.ID, protocol.ErrorEvent{
 			ID: env.ID, Code: protocol.ErrCodeBadIntent, Message: fd.opts.reloadErr,
 		})
+	case env.Type == protocol.IntentReload && fd.opts.report != nil:
+		_ = w.WriteEvent(protocol.EventReloaded, env.ID, *fd.opts.report)
 	default:
 		_ = w.WriteEvent(protocol.EventAck, env.ID, protocol.Ack{Intent: env.Type})
 	}

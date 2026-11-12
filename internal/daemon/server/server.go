@@ -128,7 +128,7 @@ type Config struct {
 	OnShutdown func()
 	// OnReload handles a Reload intent (nil = intent rejected): re-read
 	// tools.yaml and swap the registry, same as SIGHUP.
-	OnReload func() error
+	OnReload func() protocol.ReloadReport
 	// Audit receives the audit-trail hooks (nil: no audit trail). Begin runs
 	// at spawn with the initial prompt; End runs in the shared teardown path
 	// before a session's directory is removed.
