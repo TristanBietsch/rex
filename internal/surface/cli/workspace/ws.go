@@ -18,7 +18,7 @@ import (
 	wsp "github.com/tristanbietsch/rex/internal/workspace"
 )
 
-const usageLine = "rex ws init [path] [--name N] | id [path] | ls | rename <id|path> <name> | color <id|path> <#RRGGBB|swatch-number>"
+const usageLine = "rex ws init [path] [--name N] | id [path] | ls | rename <id|path> <name> | color <id|path> <#RRGGBB|swatch-number> | open [path]"
 
 // info is the json payload of a workspace.
 type info struct {
@@ -67,7 +67,7 @@ func newEnv() (env, error) {
 	return env{home: home, cwd: cwd, reg: reg}, nil
 }
 
-// RunWs runs `rex ws <init|id|ls|rename|color>`. Exit 5 while the workspaces
+// RunWs runs `rex ws <init|id|ls|rename|color|open>`. Exit 5 while the workspaces
 // setting is off; nothing is read or written then.
 func RunWs(args []string) error {
 	if len(args) == 0 {
@@ -78,6 +78,8 @@ func RunWs(args []string) error {
 	case "-h", "--help", "help":
 		fmt.Fprintln(core.Out().Err, "usage: "+usageLine)
 		return core.ErrHelpShown
+	case "open":
+		return openWs(rest)
 	case "init", "id", "ls", "rename", "color":
 	default:
 		return core.Errorf(core.ExitInvalidArgs, "rex ws -h", "ws: unknown subcommand %q: %s", sub, usageLine)

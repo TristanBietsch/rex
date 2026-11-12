@@ -14,8 +14,8 @@ its permission prompts`. A tool qualifies when its adapter reports a wait
 reason; there is no list.
 
 Only the **repeat** kind exists. Chains of steps (plan, build, review) are
-planned, not built. There are no loop cards or keys in the TUI yet: use
-`rex loop` (see [cli.md](cli.md)). A loop's session is an ordinary session
+planned, not built. Drive loops from the board (see "On the board" below) or
+with `rex loop` ([cli.md](cli.md)). A loop's session is an ordinary session
 on the board, with its loop id and turn in `loop_id` and `loop_iter`.
 
 ## Turn it on
@@ -72,6 +72,55 @@ is not yours, and a **group- or world-writable** file are refused, because
 the file decides what the daemon runs (`chmod 600` fixes the last one). The
 daemon copies the validated definition into the loop's state, so editing the
 file later does not change a loop that already started.
+
+## On the board
+
+With `loops` on, a loop's session row starts its text with the loop marker
+(`⟳`, one cell; a theme can change it with `glyphs: loop:`), the turn and the
+cap, and the loop's state:
+
+```
+ ⠋  fixer   ⟳ 3/8 running · make check green
+ ◆  docs    ⟳ 2/5 paused: needs you · tidy the docs
+```
+
+States read `running`, `paused` (with why: `needs you`, `you typed`, `daemon
+restarted`, `session ended`, `state changed`, `send failed`, `loops off`; a
+bare `paused` is your own pause), `done`, `capped: max iterations` or
+`capped: max minutes`, `failed` and `stopped`. A finished loop keeps its
+chip until the daemon deletes it (7 days); after that the row shows the turn
+alone (`⟳ 3`). With `loops` off no row shows a marker.
+
+| Key | Command | What it does |
+|---|---|---|
+| `p` | `:loop pause [sel]` / `:loop resume [sel]` | `p` pauses the selected row's loop, and resumes it when it is paused. Pausing leaves the session running |
+| `x` | `:loop stop [sel]` | Ends the loop for good after a `y` / `N` question. The agent keeps running; rex only stops re-sending |
+| `L` | `:loops` | Lists the loops |
+
+`sel` is a session (short id, slug or full id); with none, the selected row.
+A row that is not a loop session says so on the status line, and a loop that
+already ended only gets a notice. Pause and resume ask nothing: they are
+cheap to undo. With `loops` off the keys and commands answer `off: enable in
+Settings → Features (rex config set loops true)`, and the help overlay marks
+their rows `(off)`. An old daemon answers a loop key with `rex-daemon is older
+than rex and does not support PauseLoop; restart it with 'rex daemon
+restart'`.
+
+**The loops overlay** (`L` or `:loops`) lists every loop the daemon knows,
+live ones first, newest first in each group:
+
+```
+ › ⟳ fix-until-green  running            3/8  12m/120m  check exit 1
+   ⟳ tidy-docs        paused: needs you  2/5  5m/60m    no check yet
+```
+
+Columns: name, state, turn over `max_iterations`, running time over
+`max_minutes` (a running loop's time keeps counting between daemon updates;
+a paused loop's is frozen), and the last check (`no check yet`, `check
+passed`, `check exit N`). The selected loop's notice (a cap reached, a
+shared folder) shows under it. `j`/`k` select, `p` pauses or resumes, `x`
+stops (after the question), `enter` selects the loop's session on the board,
+`esc` or `q` closes.
 
 ## What happens in a loop
 

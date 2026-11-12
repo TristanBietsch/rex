@@ -39,6 +39,22 @@ func goldenBoard(t *testing.T, sz goldenSize, detailed bool) Model {
 	return m
 }
 
+// goldenLoops is the golden board with two sessions owned by loops (one
+// running, one paused for you) and the loops feature on.
+func goldenLoops(t *testing.T, sz goldenSize, focus Focus) Model {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	if err := m.Store.Set("loops", true); err != nil {
+		t.Fatal(err)
+	}
+	m.Loops = testLoops()
+	m.Sessions[2].LoopID, m.Sessions[2].LoopIter = loopA, 3 // working
+	m.Sessions[0].LoopID, m.Sessions[0].LoopIter = loopB, 2 // needs you
+	m.Loops[0].SessionID, m.Loops[1].SessionID = m.Sessions[2].ID, m.Sessions[0].ID
+	m.Focus = focus
+	return m
+}
+
 // goldenDoneFold is the golden board with a Done column long enough to fold:
 // its keys sit at the end of the help line.
 func goldenDoneFold(t *testing.T, sz goldenSize) Model {
@@ -173,6 +189,36 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
 			return framedGolden(t, goldenBoard(t, sz, false), sz)
+		}},
+		{"workspace_board", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			if err := m.Store.Set("workspaces", true); err != nil {
+				t.Fatal(err)
+			}
+			// Half the sessions belong to the workspace; the rest are elsewhere.
+			for i := range m.Sessions {
+				if i%2 == 0 {
+					m.Sessions[i].WorkspaceID = wsA
+				} else {
+					m.Sessions[i].WorkspaceID = wsB
+				}
+			}
+			m.WS = wsScopeA()
+			m.wsTagging = true
+			m = reselectOutOfScope(m)
+			m.TermW, m.TermH = sz.w, sz.h // the border is on by default here
+			return syncLayout(m)
+		}},
+		{"loop_rows", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenLoops(t, sz, FocusBoard)
+		}},
+		{"loops_overlay", false, func(t *testing.T, sz goldenSize) Model {
+			return goldenLoops(t, sz, FocusLoops)
+		}},
+		{"loop_stop_confirm", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenLoops(t, sz, FocusConfirmLoopStop)
+			m.PendingLoopStop = loopA
+			return m
 		}},
 		{"attach_frame", false, func(t *testing.T, sz goldenSize) Model {
 			m := bannerModel(t, sz.w, sz.h, bannerSession())

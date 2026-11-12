@@ -86,6 +86,10 @@ type Session struct {
 	LoopID   string
 	LoopIter int
 
+	// WorkspaceID is the workspace the daemon found around the session's
+	// CWD at spawn ("" for none). Never taken from a client.
+	WorkspaceID string
+
 	// AuditWritten is whether the current run's audit record was written. It
 	// is persisted in meta.json (so a restart does not write it twice) but
 	// is not part of the wire summary, and it clears when the session goes
@@ -155,6 +159,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		Skills:        slices.Clone(s.Skills),
 		LoopID:        s.LoopID,
 		LoopIter:      s.LoopIter,
+		WorkspaceID:   s.WorkspaceID,
 	}
 }
 

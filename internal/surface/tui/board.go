@@ -353,7 +353,7 @@ func groupTitleText(m Model, gi int) string {
 	}
 	count := fmt.Sprintf("  %d", n)
 	if f.rowsActive() { // a filter or search narrows the rows: show n of the section's total
-		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx})))
+		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx, workspace: f.workspace})))
 	}
 	out := "  " + title + styleDim.Render(count)
 	if gi == groupDone && doneCollapsed(m) {
@@ -632,6 +632,11 @@ func rowDescStyle(m Model, s protocol.SessionSummary, selected bool) lipgloss.St
 // task (simple view) or the AI summary, animated while it types in, with the
 // waiting reason in front (detailed view).
 func rowDescText(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
+	return withLoopChip(m, s, rowDescBase(m, s, descW, waiting))
+}
+
+// rowDescBase is rowDescText without the loop chip.
+func rowDescBase(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
 	if !m.Detailed {
 		return rowText(s)
 	}

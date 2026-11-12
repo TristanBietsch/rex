@@ -47,19 +47,19 @@
    ✕ │   n      new-agent wizard                              :prune                  clear Done (keeps           │    -
      │   r      rename selected (empty = slug)                                        sessions still working)     │
      │   cc     mark done / undo                              :export [sel] [fmt]     write session to exports/   │
-     │   uc     undo done (unmark, or resume an exited        :filter [what]          tool, or hide|show|only     │
-     │          session)                                                              <section…>; no argument     │
-     │   C      complete now (kill agent, mark done)                                  clears every filter         │
-     │   dd     delete selected                               :search [text]          search the board (every     │
-     │   i      focus λ prompt (new-session text)                                     word must match); no text   │
-     │   S      settings                                                              clears                      │
-     │   q      quit (confirm)                                                                                    │
-     │                                                        ── App commands ─────────────────────────────────   │
-     │   ── Mouse ────────────────────────────────────────    :q :quit         quit (confirm)                     │
-     │   click         select row / filter chip               :q!              force quit                         │
-     │   double-click  attach to row                          :bg :detach      detach, save place                 │
-     │   wheel         move row selection                     :reload          reload tools.yaml, config.yaml     │
-     │   hold ⌥ / ⇧    select text natively                                    and themes                         │
+     │   uc     undo done (unmark, or resume an exited        :loop pause|resume|st…  pause, resume or stop a     │
+     │          session)                                                              loop (stop asks first)      │
+     │   C      complete now (kill agent, mark done)                                  (off)                       │
+     │   dd     delete selected                               :loops                  list loops: state, turn,    │
+     │   i      focus λ prompt (new-session text)                                     time, last check (off)      │
+     │   S      settings                                      :filter [what]          tool, or hide|show|only     │
+     │   p      pause / resume the selected loop (off)                                <section…>; no argument     │
+     │   x      stop the selected loop (asks first) (off)                             clears every filter         │
+     │   L      list loops: state, turn, time, last check     :search [text]          search the board (every     │
+     │          (off)                                                                 word must match); no text   │
+     │   q      quit (confirm)                                                        clears                      │
+     │                                                                                                            │
+     │   ── Mouse ────────────────────────────────────────    ── App commands ─────────────────────────────────   │
   ↳ d│   ↓ more                                                                                                   │     
 ─────│                                                                                                            │─────
   λ p│   j/k scroll · / filter · esc close                                                                        │     

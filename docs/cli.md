@@ -203,9 +203,13 @@ rex ws id [path]
 rex ws ls
 rex ws rename <id|path> <name>
 rex ws color <id|path> <#RRGGBB|1-7>
+rex ws open [path]
+rex here
 ```
 
 `init` creates `<path>/.rex/workspace.json` (default: the current folder), registers it in `~/.local/share/rex/workspaces.json` and adds `/.rex/` and `/.rex/audit.jsonl` to the repository's `.git/info/exclude`; on a folder that already is a workspace it keeps the id. `$HOME` and `/` are refused (exit 5). `id` prints the workspace around a folder, `ls` the known ones (with `(missing)` when the folder is gone). `<id|path>` is an 8-hex id or any folder inside the workspace. `color` takes `#RRGGBB` or a swatch number from the colorblind-safe palette (1-7). All take `-o text|txt|md|json|agent`.
+
+`open [path]` and `rex here` open the board for the workspace around a folder (the current one by default): only its sessions, its id and name in the header, its color on the border; see [workspaces.md](workspaces.md#sessions-and-the-workspace-board). They need a terminal (no `-o`, `--agent` or pipe) and exit **5** with ``no .rex/ here — run `rex ws init` `` when there is no workspace above the folder. `rex here` takes no arguments.
 
 `json` is `{"v":1,"cmd":"ws init","data":{"id","name","color","root","created","git_excluded"}}` (`ws id`, `rename` and `color` carry the same fields without the last two); `ws ls` data is an array of `{"id","name","color","root","last_seen","present"}`.
 
@@ -259,7 +263,7 @@ rex loop new <name>
 
 Repeat loops: the daemon re-sends a prompt each time the agent finishes a
 turn, until a check command you wrote exits 0 or a cap is reached. See
-[loops.md](loops.md). Every subcommand exits **5** with `off: enable in
+[loops.md](loops.md); the board has loop cards and keys too (`p`, `x`, `L`). Every subcommand exits **5** with `off: enable in
 Settings → Features (rex config set loops true)` while the `loops` setting is
 off, before any file is read or any connection is tried.
 
