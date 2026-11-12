@@ -123,6 +123,18 @@ filesystem permissions.
   characters; errors and warnings are flattened before display. A
   `config.lua` owned by another user being evaluated, or bytes from
   `config.lua` reaching the terminal unflattened, are in scope.
+- **A workspace's `.rex/config.lua`** is untrusted input: a cloned
+  repository can ship one. rex never reads it before `rex ws trust` (trust
+  lives in `~/.local/share/rex/workspace-trust.json`, outside every `.rex/`,
+  bound to the real folder and the workspace id), opens it without
+  following a symlink, and checks the opened file (yours, not group- or
+  world-writable, one hard link, 256 KiB). Even trusted it runs with no
+  `require` and can never set `skip_permissions`, `auto_trust_dirs`,
+  `default_spawn_tool`, `extra_agents`, `audit_trail`, `audit_full_prompt`,
+  `workspaces` or `lua_config`. Running an untrusted workspace file, a
+  workspace file granting or widening trust, or a crafted repository
+  getting itself trusted are in scope. What a workspace you trusted sets
+  among the remaining settings (theme, models, sounds and the like) is not.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the

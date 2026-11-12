@@ -203,11 +203,14 @@ rex ws id [path]
 rex ws ls
 rex ws rename <id|path> <name>
 rex ws color <id|path> <#RRGGBB|1-7>
+rex ws trust [-rm] [id|path]
 rex ws open [path]
 rex here
 ```
 
 `init` creates `<path>/.rex/workspace.json` (default: the current folder), registers it in `~/.local/share/rex/workspaces.json` and adds `/.rex/` and `/.rex/audit.jsonl` to the repository's `.git/info/exclude`; on a folder that already is a workspace it keeps the id. `$HOME` and `/` are refused (exit 5). `id` prints the workspace around a folder, `ls` the known ones (with `(missing)` when the folder is gone). `<id|path>` is an 8-hex id or any folder inside the workspace. `color` takes `#RRGGBB` or a swatch number from the colorblind-safe palette (1-7). All take `-o text|txt|md|json|agent`.
+
+`trust [id|path]` lets the workspace's `.rex/config.lua` apply (default: the workspace around the current folder); `trust -rm` stops it, by id even when the folder is gone. Trust is stored in `~/.local/share/rex/workspace-trust.json`, bound to the real folder and the id; see [workspaces.md](workspaces.md#workspace-settings). `json` data is `{"action":"trust"|"revoke","changed","id","name","root","config","denied"}` (`config`: the file exists; `denied`: the settings a workspace file can never set).
 
 `open [path]` and `rex here` open the board for the workspace around a folder (the current one by default): only its sessions, its id and name in the header, its color on the border; see [workspaces.md](workspaces.md#sessions-and-the-workspace-board). They need a terminal (no `-o`, `--agent` or pipe) and exit **5** with ``no .rex/ here — run `rex ws init` `` when there is no workspace above the folder. `rex here` takes no arguments.
 
@@ -583,7 +586,7 @@ rex config lua-export [-o FORMAT]
 
 `edit` opens `init.lua` in `$EDITOR`, not `config.yaml`; `edit -lua` opens `~/.config/rex/config.lua` ([howto/lua-config.md](howto/lua-config.md)), creating it from a commented template the first time (0600 in a 0700 folder, never over an existing file). `lua-export` prints the values `config.yaml` holds as `rex.set(…)` lines, a starter `config.lua` (strings quoted for Lua, non-ASCII bytes as `\ddd`); it never writes a file. Both exit 5 with `off: enable in Settings → Features (rex config set lua_config true)` while `lua_config` is off. Keys: [settings.md](settings.md).
 
-`list` prints `# Section` headings with `  id  value` rows in `txt` (unchanged), an `ID VALUE SOURCE` table per section in `text` and `md` (source `default`, `config.yaml`, or `lua config.lua:12`), a `setting id=… section=… value=… default=… source=… set_at=…` line per setting in `agent`, and the rows as data with `source` (`default`, `file`, `lua`) and `set_at` (Lua only) in `-o json`; `-json` is the legacy JSONL, unchanged. `get` prints the value (with `(lua config.lua:12)` after it in `text` when `config.lua` sets it; the bare value in `txt`), `ok cmd=config id=… value=… source=…` (plus `set_at=…` for a Lua value) in `agent`, and `source`/`set_at` in `-o json`; `set` and `reset` print nothing in `txt`. `set` and `reset` on a setting `config.lua` sets exit 5 and name the file and line. When `config.lua` fails or refuses something, `list` and `get` print one warning on stderr; stdout keeps its shape. `edit` takes `text`/`txt` only.
+`list` prints `# Section` headings with `  id  value` rows in `txt` (unchanged), an `ID VALUE SOURCE` table per section in `text` and `md` (source `default`, `config.yaml`, `lua config.lua:12`, or `workspace /path/.rex/config.lua:3` for a value a trusted workspace sets), a `setting id=… section=… value=… default=… source=… set_at=…` line per setting in `agent`, and the rows as data with `source` (`default`, `file`, `lua`) and `set_at` (Lua only) in `-o json`; `-json` is the legacy JSONL, unchanged. `get` prints the value (with `(lua config.lua:12)` after it in `text` when `config.lua` sets it; the bare value in `txt`), `ok cmd=config id=… value=… source=…` (plus `set_at=…` for a Lua value) in `agent`, and `source`/`set_at` in `-o json`; `set` and `reset` print nothing in `txt`. `set` and `reset` on a setting `config.lua` (or the workspace's `.rex/config.lua`) sets exit 5 and name the file and line. When `config.lua` fails or refuses something, `list` and `get` print one warning on stderr; stdout keeps its shape. `edit` takes `text`/`txt` only.
 
 ---
 
@@ -642,6 +645,8 @@ rex doctor [-o FORMAT] [--agent] [-json] [-socket path] [-verbose]
 ```
 
 Each check is a `✓` pass, `!` warn, `✗` fail or `·` info row. INFO rows are hidden in `text`/`txt`/`md` unless `-verbose`; `json` and `agent` always carry them. `agent` gives `check name=… status=… detail=…` lines then `ok cmd=doctor fails=0 warns=2`, or `fail cmd=doctor fails=1 …` when a check fails (exit 1). `-json` keeps the one-line legacy object.
+
+A `workspace config.lua` row appears inside a workspace (with `workspaces` and `lua_config` on): `none (<path>)` without a file, a warning when it is not trusted (not read; `rex ws trust`), failed (trust settings read their defaults) or refused a call, else each setting it sets with its file and line.
 
 An `auto_trust_dirs` row appears when the setting is not empty: an info row naming the trusted folders, or a warning for each entry the daemon would ignore (the home folder, a folder that holds it, a relative path, `..`) or that does not exist (`rex trust -rm` removes it).
 

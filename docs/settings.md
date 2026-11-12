@@ -6,7 +6,9 @@ Saving is sparse: rex re-reads the file and writes only the keys it changed (`re
 
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
 
-Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`. A broken `config.lua` keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again.
+Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`, then (in rex commands run inside a workspace you trusted, and on its board) the workspace's `.rex/config.lua` ([workspaces.md](workspaces.md#workspace-settings)). A broken `config.lua` (either one) keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again. Saving those two from `rex trust`, `:trust` or the wizard edits the list `config.yaml` holds, so a broken `config.lua` never makes them drop the folders already there.
+
+A workspace `.rex/config.lua` can never set `skip_permissions`, `auto_trust_dirs`, `default_spawn_tool`, `extra_agents`, `audit_trail`, `audit_full_prompt`, `workspaces` or `lua_config`.
 
 ## Files
 
@@ -15,6 +17,7 @@ Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`. A brok
 | `~/.config/rex/config.yaml` | Persisted values |
 | `~/.config/rex/config.lua` | Optional Lua settings and themes; wins over `config.yaml` while `lua_config` is on ([howto/lua-config.md](howto/lua-config.md)) |
 | `~/.config/rex/lua/` | Modules `config.lua` may `require` |
+| `<workspace>/.rex/config.lua` | Optional workspace settings, on top of `config.lua`; read only after `rex ws trust` ([workspaces.md](workspaces.md#workspace-settings)) |
 | `~/.config/rex/themes/<name>.yaml` | Your own themes ([themes.md](themes.md)) |
 
 ## Commands

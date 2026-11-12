@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (workspace settings)
+
+- A workspace can carry `.rex/config.lua` (needs `workspaces` and
+  `lua_config`): the same Lua as `~/.config/rex/config.lua`, on top of it in
+  rex commands run inside the workspace and on its board (`rex here`,
+  `rex ws open`), never on the system-wide board or in the daemon. It is not
+  read until you run `rex ws trust` (stored in
+  `~/.local/share/rex/workspace-trust.json`, bound to the real folder and
+  the workspace id; `rex ws trust -rm` revokes). Even trusted it can never
+  set `skip_permissions`, `auto_trust_dirs`, `default_spawn_tool`,
+  `extra_agents`, `audit_trail`, `audit_full_prompt`, `workspaces` or
+  `lua_config`, and cannot `require`. It is read without following
+  symlinks, and must be yours, not group/world-writable, one link, 256 KiB
+  at most. A broken one fails the trust settings closed. Its values show
+  as `workspace <path>:N` in `rex config list`, `ws` on the settings page,
+  and in a new `workspace config.lua` row in `rex doctor`.
+
+### Fixed (trust saves)
+
+- `rex trust`, `:trust` and the wizard's `ctrl+a` no longer replace the
+  `auto_trust_dirs` list in `config.yaml` with just the new folder while
+  `config.lua` is broken (the value then reads empty, failed closed); they
+  now edit the list `config.yaml` holds.
+
 ### Added (workspace board, loop cards)
 
 - `rex here` and `rex ws open [path]` open the board for one workspace
