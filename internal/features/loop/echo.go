@@ -10,7 +10,6 @@ import "strings"
 // so text around it stays on its own lines.
 type span struct{ start, end int }
 
-
 // echoTailLen returns how many leading tokens of output are the tail of the
 // prompt words (the longest such run, at least 2 tokens or 1 whole word), 0
 // if none. The first token may be a suffix of the word it was cut from.
