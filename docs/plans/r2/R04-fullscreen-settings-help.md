@@ -1,49 +1,122 @@
 # R04 Settings and help as full-screen pages (ANTI delta)
 
+Status: design revised 2026-11-11 against `integration/todo` after round 1 (U1, U2, U4, U5 merged). Revision notes at the end.
+
 ## Summary
-- Input: `docs/plans/ANTI-fullscreen-settings-help-spec.md` (ANTI). Most of ANTI's goals are already planned in round 1:
+- Input: `docs/plans/ANTI-fullscreen-settings-help-spec.md` (ANTI). Most of ANTI's goals already shipped in round 1:
   - U1: semantic palette, new `default` theme, help table from the command table, scrolling, `/` filter, legend, settings search, section jump, detail pane, modified marker, inline string edit, goldens.
   - U2: `theme` setting, user YAML themes, live reload.
-  - U4: window border; U5: fixed-width columns.
-- R04 does only what is left: turn the two **overlays** into **full-screen pages** with ANTI's header/footer chrome, add the ANTI themes that U1 does not ship, and leave room for R05 (Lua) and R06 (workspace scope).
+  - U4: window border; U5: fixed-width columns and `layoutClass`.
+  - Audio rows `soundset` and `master_volume` already exist (`internal/catalog/settings/registry.go`).
+- R04 does only what is left: turn the two **overlays** into **full-screen pages** that look like the board (same header logo, dividers, hint footer, window border), add the ANTI themes that U1 does not ship, and leave room for R05 (Lua) and R06 (workspace scope).
 
-## Current behavior (after round 1)
-- Help and settings are centered overlays (`centerOverlayBox`, `tui.go`) over a dimmed board, bounded to 56–88 columns.
-- U1 gives them content parity with ANTI §4–5 but keeps the overlay frame.
-- Themes after U1/U2: `default` (violet `#B392F0`), `classic`, `high-contrast`, `ansi`, plus user YAML files.
+## Why
+- The overlays are capped at 56–88 columns over a dimmed board. Long help text and setting descriptions get clipped; the board behind them is noise.
+- Pages should read as part of the app, not a popup on top of it.
+
+## Goals / non-goals / anti-goals
+- Goals: both pages own the whole layout area; header, divider and footer match the board; two-pane body; every setting and help row reachable at 80×24; same keys as today where they do not clash.
+- Non-goals: new settings rows (owned by U4, U5, R06, R05); Lua config (R05); workspace scope (R06); mouse click targets (wheel only, as today).
+- Anti-goals: a page that draws over the attach PTY; a theme change that races the UI goroutine; losing any overlay feature (search, inline edit, `?` expand, `r` reset, help filter, legend).
+
+## Current behavior
+- `tui.go` `view()`: `FocusHelp` and `FocusSettings` draw `centerOverlayBox(…, dimBoard(renderFullScreen(…)))`.
+- Settings (`settings.go`, `settings_view.go`): one list grouped by section, detail pane under it, `/` search, `tab`/`shift+tab` jump section, `h`/`l` adjust, `enter` toggle or edit, `r` reset, `?` expand help. Mouse: wheel moves cursor (`board_mouse.go:updateSettingsMouse`).
+- Help (`help.go`): groups from the bindings/commands tables plus a live legend, 1 or 2 columns, `j`/`k` scroll, `/` filter, rows of off features dimmed. Mouse: wheel scrolls.
+- Window border (U4) wraps whatever `view()` returns (`View` → `wrapFrame`), so a page gets the border for free.
+- Themes are Go structs in `internal/catalog/theme/builtin.go` (`classic`, `default`, `noir`, `paper`, `high-contrast`, `ansi`); user themes are YAML files (U2).
 
 ## Design
-- New `FocusPage` mode with `pageKind ∈ {settings, help}`. The page owns the whole screen: header row (`∴ REX › SETTINGS`, breadcrumb, right-aligned config source), divider, body, footer hints. Board is not drawn.
-- Body layout (D1): two-pane inspector: categories left, rows right, inspector box at the bottom (ANTI §6 option 1).
-- Keys: `S` / `:settings` and `?` / `:help` open the page; `esc` / `q` back to board; `tab` cycles panes; `/` filter (U1 filter reused); `1–9` jump to section.
-- Narrow terminals (< 60 cols): single column, panes stacked, same keys. U5 owns breakpoints; R04 reads `layoutClass(m)` from U5.
-- Themes: add `dracula`, `tokyo_night`, `pantone_safe` as **built-in YAML theme files** (U2 format) embedded with `go:embed`, so they ship as data, not code. Each passes U1's contrast test. `pantone_safe` reuses U4's colorblind-safe swatch list (Decision D2).
-- ANTI's new settings rows that other plans own are not added here: border (U4), fixed columns (U5), workspace scope + id (R06), soundset/volume (Decision D3).
-- "Config source" slot in the header shows `config.yaml` now; R05 and R06 extend it to `config.lua` / `.rex/config.lua`.
+
+### Mode
+- Keep `FocusHelp` and `FocusSettings` (D4). `view()` picks `renderSettingsPage` / `renderHelpPage` when `fullscreen_pages` is on, the existing overlay calls when off. Key and mouse routing stay keyed on the same foci. Board is not drawn behind a page.
+
+### Chrome (shared, `page.go`)
+```
+  ∴ REX › SETTINGS       Appearance › Theme              config.yaml
+  ────────────────────────────────────────────────────────────────────
+  <body>
+  ────────────────────────────────────────────────────────────────────
+  esc back · tab pane · j/k move · enter toggle · / search · 1-8 section
+```
+- Header: `styleLogo` `∴ REX` (same as `renderHeader`), then `› SETTINGS` or `› HELP`; middle: breadcrumb (section › row) or the active search/filter text; right: config source (`config.yaml` now; R05/R06 extend it). Help's right slot shows `rex <version>`.
+- Dividers use `colorBorder`, full content width, same side padding as the board (`boardPad`).
+- Footer: `renderHints` / `wrapHints`, context-sensitive (search mode, edit mode, filter mode as today).
+
+### Body: two-pane inspector (D1)
+```
+  SECTIONS        │ Appearance
+  ▸ Appearance  3 │ ▸ Theme                  ◂ default ▸
+    Audio         │   Spinner                  braille
+    Behavior      │ • Window border            on
+    Features      │   ...
+    ...           │
+  ────────────────┴──────────────────────────────────────────────────
+  id theme · default default · live
+  default  classic  noir  paper  high-contrast  ansi  dracula …
+  Color theme. Applies live; user themes come from ~/.config/rex/themes.
+```
+- Settings: left pane lists sections (count of modified rows per section as a dim badge); right pane lists rows of the selected section (or, while a search is active, every matching row grouped by section, as today); inspector at the bottom reuses `settingsDetail` unchanged.
+- Help: left pane lists groups (Navigation, Filter, Actions, Mouse, Modes, Legend, Session commands, App commands, Attached); right pane shows the selected group's rows via `renderGroup`. While a `/` filter is active the right pane shows every matching row across groups (left pane highlights groups with hits). No inspector for help; the right pane takes the full height.
+- Left pane width: longest section/group title + badge, capped at 24 cols.
+
+### Keys
+- Open: `S` / `:settings`, `?` / `:help` (unchanged). Close: `esc` (clears search/filter first, as today), `q`, and `?` on help.
+- `tab` / `shift+tab`: switch pane focus (D5). Section jump moves to `1`–`9` (settings and help) and `[` / `]` (prev/next section).
+- Left pane focused: `j`/`k` move section; `enter`/`l` focuses right pane.
+- Right pane focused (settings): every current key keeps its meaning (`j`/`k`, `h`/`l`/`+`/`-`, `enter`, `r`, `?`, `/`). `h` on a non-adjustable row does nothing (does not jump to the left pane; avoids accidental value changes vs. navigation ambiguity).
+- Right pane focused (help): `j`/`k` scroll, `pgup`/`pgdown`, `g`/`G`.
+- Mouse: wheel only, same behavior as today, applied to the focused pane.
+
+### Size classes
+- ≥ 60 cols: two panes side by side.
+- < 60 cols: single column; left pane collapses to a one-line section tab strip (`‹ Appearance ›`) under the header; same keys (`tab` is a no-op, `[`/`]` and `1`–`9` switch section).
+- Height: header 3 rows (blank row, title row, divider: the same blank row the board has above its header, so the logo does not move between board and page) + footer 2 rows; settings inspector keeps U1's fixed height (4 help lines, 2 under 30 rows). Lists window around the cursor with `↑ more` / `↓ more` markers (existing `windowLines`).
+- 80×24 must show every setting and help row reachable without horizontal clipping (golden).
+
+### Themes (D2)
+- Add `dracula`, `tokyo_night`, `pantone_safe` as embedded YAML files in `internal/catalog/theme/builtin/*.yaml` (`go:embed`), parsed by the U2 user-theme parser and merged into the built-in list. Each passes `TestThemeContrast`. `pantone_safe` reuses U4's colorblind-safe swatches. User files with the same name still override (existing U2 precedence). The bundled themes live in a `Bundled` map separate from the Go built-ins, so `extends:` and `rex theme new -from` accept only the original six built-ins.
+
+### Attached session
+- `::settings` / `::help` while attached: keep today's behavior: detach, then open the page. Never draw a page over the PTY. (D8)
 
 ## Feature flag
-- `fullscreen_pages` (on). Off = U1 overlays, unchanged.
-- Lives in Settings → Features (roadmap "Feature flags"). Its owning step adds an **off-is-inert** test: with the flag off, no goroutine/subprocess/network/file write happens and the feature's keys and commands answer "off: enable in Settings → Features".
-- Flag lands in step R04-1.
+- `fullscreen_pages` (default on), Settings → Features. Off = today's overlays, unchanged (overlay renderers stay in the tree).
+- Off-is-inert test: with the flag off, `view()` output for both foci equals the pre-R04 golden; no new keys (`1`–`9`, `[`, `]`, pane focus) change state.
 
 ## Plan
-1. **R04-1 Page frame.** `page.go`: `renderPage(m, kind, w, h)`, header/footer helpers, `FocusPage` routing in `update.go`. Overlays removed; `centerOverlayBox` stays for wizard/stats/fail. Tests: golden at 120×40 and 60×20 for both pages; `esc` returns to board with selection unchanged.
-2. **R04-2 Body layout (D1).** `settingsPanes{cats, list, inspector}` with focus index; help reuses the same two-pane frame (groups left, rows right). Tests: `tab` focus cycle; filter narrows both panes; inspector shows id/default/options for the selected row.
-3. **R04-3 Themes.** Embedded YAML for the three ANTI themes. Tests: each theme loads, passes `TestThemeContrast` (U1), appears in the theme picker.
-4. **R04-4 Audio rows (if D3 = a).** `soundset` enum backed by existing `features/audio` packs only; `master_volume` 0–1 step 0.1. Tests: registry contiguity test (round-1 rule), volume clamps.
-5. **R04-5 Docs.** `docs/tui.md`, `docs/settings.md`, CHANGELOG; remove "Proposed" from ANTI spec and mark it superseded by U1/U2/R04/R05/R06.
+1. **R04-1 Flag + page frame.** `fullscreen_pages` registry row; `page.go`: `renderPageHeader`, `renderPageFooter`, `pageBodySize(m)`; `view()` branches on the flag. Settings and help bodies are the current single-list renderers placed inside the frame (no panes yet). Tests: flag off golden unchanged; goldens at 120×40, 80×24, 50×20 for both pages; `esc` returns to board with selection unchanged; resize while open.
+2. **R04-2 Settings two-pane.** `SettingsState.Pane` (`paneList`/`paneDetail` naming per repo style), section list with modified badges, right list scoped to the section, search spans all sections, inspector reused. Key changes (`tab` = pane, `1`–`9`, `[`/`]`). Tests: pane focus cycle; section jump; search across sections then `esc` restores section; inline edit and `r` still work; narrow tab-strip layout.
+3. **R04-3 Help two-pane.** `HelpState.Group`, `HelpState.Pane`; group list left, `renderGroup` right; filter spans groups; legend group keeps live spinner. Tests: every group reachable; filter with zero hits shows the empty-state line; off-feature rows still dimmed.
+4. **R04-4 Themes.** Embedded YAML for the three themes. Tests: each loads, passes contrast, appears in the theme picker, user override wins.
+5. **R04-5 Attach test + docs.** Pin `::settings` / `::help` detach-then-open with the flag on; `docs/tui.md`, `docs/settings.md`, CHANGELOG `[Unreleased]`; mark ANTI spec superseded by U1/U2/R04/R05/R06.
 
 ## Review focus
-- Terminal resized while a page is open: no stale overlay rows, inspector reflows.
-- `:settings` while attached (`::settings`): page opens on detach or is refused with a notice, never draws over the PTY.
-- Theme change from the page applies on the UI goroutine (U1 fixed the race; keep it fixed).
-- Filter with zero hits shows an empty-state line, not a blank page.
-- 80×24 default terminal: every setting reachable without horizontal clipping.
+- Terminal resized while a page is open: panes and inspector reflow, no stale rows.
+- Theme change from the page applies on the UI goroutine (U1 fixed the race; keep it fixed). The page itself re-renders in the new theme immediately.
+- Zero-hit search/filter shows an empty-state line, not a blank pane.
+- Window border (U4) wraps the page exactly as it wraps the board.
+- Flag off: byte-identical to pre-R04 overlays.
 
-## Decisions (answered 2026-11-11)
+## Decisions
 
 | # | Question | Answer |
 |---|---|---|
-| D1 | Page layout | Two-pane inspector: categories left, rows right, inspector box bottom. |
-| D2 | Extra themes | dracula, tokyo_night, pantone_safe as embedded YAML. |
-| D3 | Audio rows | `master_volume` now; `soundset` only once a second sound pack exists. |
+| D1 | Page layout | Two-pane inspector: categories left, rows right, inspector box bottom. (2026-11-11, user) |
+| D2 | Extra themes | dracula, tokyo_night, pantone_safe as embedded YAML. (2026-11-11, user) |
+| D3 | Audio rows | Already shipped (`soundset`, `master_volume`); nothing to do. Step dropped. |
+| D4 | New `FocusPage` vs keep foci | Keep `FocusHelp` / `FocusSettings`; swap only the renderer. Less churn in routing, `focusStateMissing`, mouse and tests. (agent call) |
+| D5 | `tab` clash | `tab` switches panes; section jump moves to `1`–`9` and `[`/`]`. (agent call) |
+| D6 | Mouse | Wheel only, as today; click targets out of scope. (agent call) |
+| D8 | `::settings` / `::help` while attached | Detach, then open (today's behavior); no refusal notice. (2026-11-11, user) |
+| D9 | Page header height | 3 rows with the board's blank top row so the logo lines up with the board. (2026-11-11, user) |
+| D10 | `:usage` | Stays a floating overlay; full-screen usage is out of R04. (2026-11-11, user) |
+| D7 | Overlay code | Kept behind the flag; R04-1's "overlays removed" dropped (contradicted the flag). (agent call) |
+
+## Revision notes (2026-11-11)
+- Old R04-4 (audio rows) removed: rows exist.
+- Old "Overlays removed" in R04-1 contradicted "flag off = overlays unchanged"; overlays now stay.
+- `FocusPage` replaced by D4.
+- `tab` key conflict with U1 section jump resolved by D5.
+- Added narrow-layout tab strip, attach guard as its own step, help empty state.
+- 2026-11-11 (user): attach refusal replaced by detach-then-open (D8); header gains the board's blank row (D9); `:usage` out of scope (D10); bundled-theme `extends:`/`-from` limit written down.
