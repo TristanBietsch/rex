@@ -42,8 +42,49 @@ type Setting struct {
 	Max      float64
 	Help     string
 	ReadOnly bool
+	// Apply says when a change takes effect.
+	Apply ApplyMode
+	// Hidden keeps the row off the TUI settings page. The setting stays in
+	// the registry, the store and `rex config`.
+	Hidden bool
 	// Normalize, when set, validates and tidies a string value in Store.Set
 	// (after type coercion). Load does not call it: a bad stored value stays
 	// visible so doctor can report it.
 	Normalize func(string) (string, error)
+}
+
+// ApplyMode says when a changed setting takes effect.
+type ApplyMode string
+
+const (
+	// ApplyLive: at once, in the TUI or through the daemon's settings
+	// watcher (within seconds).
+	ApplyLive ApplyMode = "live"
+	// ApplyNextAttach: read when an attach popup opens or resizes.
+	ApplyNextAttach ApplyMode = "next_attach"
+	// ApplyNextSpawn: read when a session is spawned; running ones keep
+	// their value.
+	ApplyNextSpawn ApplyMode = "next_spawn"
+	// ApplyDaemonRestart: read once when the daemon starts.
+	ApplyDaemonRestart ApplyMode = "daemon_restart"
+)
+
+// ApplyModes lists every mode, in order of how soon they take effect.
+var ApplyModes = []ApplyMode{ApplyLive, ApplyNextAttach, ApplyNextSpawn, ApplyDaemonRestart}
+
+// Label is the short text the settings page shows for the mode ("" for an
+// unknown mode).
+func (m ApplyMode) Label() string {
+	switch m {
+	case ApplyLive:
+		return "applies now"
+	case ApplyNextAttach:
+		return "next attach"
+	case ApplyNextSpawn:
+		return "next new session"
+	case ApplyDaemonRestart:
+		return "after a daemon restart"
+	default:
+		return ""
+	}
 }

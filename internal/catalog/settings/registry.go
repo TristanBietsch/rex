@@ -9,58 +9,58 @@ import "path/filepath"
 var Registry = []Setting{
 	// Appearance
 	{
-		ID: "color_scheme", Label: "Color scheme", Section: SectionAppearance,
+		ID: "color_scheme", Label: "Color scheme", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "default",
 		Options: []string{"default", "classic", "noir", "paper", "high-contrast", "ansi"},
 		Help:    "Change the color scheme. classic is the previous look; ansi uses your terminal's own colors.",
 	},
 	{
-		ID: "spinner", Label: "Spinner type", Section: SectionAppearance,
+		ID: "spinner", Label: "Spinner type", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "braille",
 		Options: []string{"braille", "ascii_line", "moon", "pulse", "blocks"},
 		Help:    "Change the spinner type for loading animations.",
 	},
 	{
-		ID: "row_density", Label: "Row density", Section: SectionAppearance,
+		ID: "row_density", Label: "Row density", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "normal",
 		Options: []string{"compact", "normal", "roomy"},
 		Help:    "Change the row density.",
 	},
 	{
-		ID: "prompt_glyph", Label: "Prompt glyph", Section: SectionAppearance,
+		ID: "prompt_glyph", Label: "Prompt glyph", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "λ",
 		Options: []string{"λ", "›", "❯", "▸", ">", "∷", "∴", "⛬", "⍜", "%"},
 		Help:    "Grapheme that prefixes the bottom prompt.",
 	},
 	{
-		ID: "reduce_motion", Label: "Reduce motion", Section: SectionAppearance,
+		ID: "reduce_motion", Label: "Reduce motion", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
 		Help: "Disable all animations.",
 	},
 	{
-		ID: "blinking_enabled", Label: "Done blink", Section: SectionAppearance,
+		ID: "blinking_enabled", Label: "Done blink", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Disable the blinking of completed rows.",
 	},
 	{
-		ID: "show_help_bar", Label: "Show help bar", Section: SectionAppearance,
+		ID: "show_help_bar", Label: "Show help bar", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "When off, the bottom help line is not displayed.",
 	},
 	{
-		ID: "header_style", Label: "Header style", Section: SectionAppearance,
+		ID: "header_style", Label: "Header style", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "verbose",
 		Options: []string{"verbose", "glyphs", "numbers"},
 		Help:    "Change the header style for the aggregate counts at the top.",
 	},
 	{
-		ID: "column_layout", Label: "Column layout", Section: SectionAppearance,
+		ID: "column_layout", Label: "Column layout", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "fixed",
 		Options: []string{"fixed", "fit"},
 		Help:    "fixed: board columns have set widths that change only at breakpoints. fit: columns size to their content.",
 	},
 	{
-		ID: "mobile_layout", Label: "Mobile layout", Section: SectionAppearance,
+		ID: "mobile_layout", Label: "Mobile layout", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "auto",
 		Options: []string{"auto", "always", "off"},
 		Help:    "Two-line rows and a compact header for narrow terminals. auto: 60 columns or fewer. always / off force it.",
@@ -68,57 +68,57 @@ var Registry = []Setting{
 
 	// Behavior
 	{
-		ID: "keybind_preset", Label: "Keybind preset", Section: SectionBehavior,
+		ID: "keybind_preset", Label: "Keybind preset", Section: SectionBehavior, Apply: ApplyLive, Hidden: true,
 		Type: TypeEnum, Default: "default",
 		Options: []string{"default"},
-		Help:    "Future: vim / emacs / nano. Lua can rebind regardless.",
+		Help:    "Only one preset exists today, so the settings page hides this row. Still readable and settable with rex config.",
 	},
 	{
-		ID: "mouse_enabled", Label: "Mouse enabled", Section: SectionBehavior,
+		ID: "mouse_enabled", Label: "Mouse enabled", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Click/wheel on board + popup. To select text hold Option (iTerm2) / Shift (Ghostty, kitty), or turn off.",
 	},
 	{
-		ID: "max_concurrent_sessions", Label: "Max concurrent sessions", Section: SectionBehavior,
+		ID: "max_concurrent_sessions", Label: "Max concurrent sessions", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeInt, Default: 16,
 		Min: 1, Max: 64,
 		Help: "Daemon's PTY cap; takes effect on next daemon start.",
 	},
 	{
-		ID: "retire_after_hours", Label: "Clear marked-done after (h)", Section: SectionBehavior,
+		ID: "retire_after_hours", Label: "Clear marked-done after (h)", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeInt, Default: 168,
 		Min: 1, Max: 8760,
 		Help: "Hours a session marked done (c) lingers before rex kills it and deletes its transcript. Typing into it cancels; a working session waits until it settles.",
 	},
 	{
-		ID: "attach_scrollback_lines", Label: "Attach scrollback lines", Section: SectionBehavior,
+		ID: "attach_scrollback_lines", Label: "Attach scrollback lines", Section: SectionBehavior, Apply: ApplyNextAttach,
 		Type: TypeInt, Default: 5000,
 		Min: 0, Max: 50000,
 		Help: "Lines the attach popup keeps after they scroll off a primary-screen agent (ctrl+pgup / wheel to view). 0 disables. Capped at 8 MiB per popup; applies on next attach.",
 	},
 	{
-		ID: "screensaver_enabled", Label: "Screensaver", Section: SectionBehavior,
+		ID: "screensaver_enabled", Label: "Screensaver", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "When the board gets no key or click for a while, show a small ∴ rex with the counts. Any key or click wakes it and does nothing else.",
 	},
 	{
-		ID: "screensaver_after_minutes", Label: "Screensaver after (min)", Section: SectionBehavior,
+		ID: "screensaver_after_minutes", Label: "Screensaver after (min)", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeInt, Default: 5,
 		Min: 1, Max: 120,
 		Help: "Minutes without a key or click on the board before the screensaver shows. A change applies within a minute.",
 	},
 	{
-		ID: "screensaver_keep_awake", Label: "Screensaver keep awake", Section: SectionBehavior,
+		ID: "screensaver_keep_awake", Label: "Screensaver keep awake", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "macOS: keep the display from sleeping while the screensaver shows (caffeinate -d). Does nothing on other systems.",
 	},
 	{
-		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior,
+		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeString, Default: "",
 		Help: "Board sections hidden at startup, comma-separated ids: needs, waiting, working, done (for example: done). Unknown ids are ignored. zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
 	},
 	{
-		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior,
+		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior, Apply: ApplyNextSpawn,
 		Type: TypeBool, Default: false,
 		Help: "Start Claude Code and Antigravity with --dangerously-skip-permissions, but only in folders under auto_trust_dirs. Agents then edit files and run commands without asking you first. Applies to the next session.",
 	},
@@ -128,82 +128,82 @@ var Registry = []Setting{
 	// addition, keys unbound, commands refuse. Rows are added by the step
 	// that adds the feature; each must be a bool or enum with help text.
 	{
-		ID: "board_filter", Label: "Board filters", Section: SectionFeatures,
+		ID: "board_filter", Label: "Board filters", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Tool filter chips, :filter, section hiding (zh, z1-z9) and board_hidden_sections. Off: no chip row, the t key and the z chords do nothing, :filter refuses, and hidden sections and the saved tool filter are ignored.",
 	},
 	{
-		ID: "search", Label: "Board search", Section: SectionFeatures,
+		ID: "search", Label: "Board search", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Search the board with / and :search. Off: / does nothing, :search refuses, and a saved or stale query is ignored.",
 	},
 	{
-		ID: "undo_complete", Label: "Undo done (uc)", Section: SectionFeatures,
+		ID: "undo_complete", Label: "Undo done (uc)", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "The uc key and :uc / :resume, which take a session out of Done. Off: uc does nothing and the commands refuse; :undone still unmarks a session marked done.",
 	},
 	{
-		ID: "resume", Label: "Resume ids", Section: SectionFeatures,
+		ID: "resume", Label: "Resume ids", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Track each session's agent conversation id so an exited session can be resumed: the resume id column, :rid and the Resume intent (used by uc / :resume). Off: no id is assigned or captured, the column and :rid go away, and Resume is refused. Read at each spawn.",
 	},
 	{
-		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures,
+		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
 	},
 	{
-		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures,
+		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Load skills from ~/.config/rex/skills into one session: the skills step in the new-session wizard and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
 	},
 
 	{
-		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures,
+		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
 	},
 
 	{
-		ID: "turn_snapshots", Label: "Turn snapshots and undo", Section: SectionFeatures,
+		ID: "turn_snapshots", Label: "Turn snapshots and undo", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
 		Help: "Snapshot a session's folder at the start and end of every agent turn into a private store under ~/.local/share/rex/snapshots, so rex undo can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as .env unless they are gitignored. Off: no snapshot, no git call, and rex undo refuses.",
 	},
 
 	{
-		ID: "usage", Label: "Usage tracking", Section: SectionFeatures,
+		ID: "usage", Label: "Usage tracking", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Track agent usage: a ledger of tokens and cost per session (~/.local/share/rex/usage.jsonl) for rex usage, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written, nothing is polled, and rex usage refuses.",
 	},
 	{
-		ID: "usage_statusline_tap", Label: "Claude status-line tap", Section: SectionFeatures,
+		ID: "usage_statusline_tap", Label: "Claude status-line tap", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeEnum, Default: "auto", Options: []string{"auto", "on", "off"},
 		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
 	},
 	{
-		ID: "session_export", Label: "Session export", Section: SectionFeatures,
+		ID: "session_export", Label: "Session export", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
 	},
 
 	// Spawn
 	{
-		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn,
+		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn, Apply: ApplyNextSpawn,
 		Type: TypeString, Default: "claude",
 		Help: "Tool used when pressing 'i'. Cycle with +/-; changing it resets model and effort.",
 	},
 	{
-		ID: "default_spawn_model", Label: "Quick-spawn model", Section: SectionSpawn,
+		ID: "default_spawn_model", Label: "Quick-spawn model", Section: SectionSpawn, Apply: ApplyNextSpawn,
 		Type: TypeString, Default: "opus",
 		Help: "Model used when pressing 'i'. Cycles through the selected tool's models.",
 	},
 	{
-		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn,
+		ID: "default_spawn_effort", Label: "Quick-spawn effort", Section: SectionSpawn, Apply: ApplyNextSpawn,
 		Type: TypeString, Default: "max",
 		Help: "Effort used when pressing 'i'. Cycles through the model's effort options.",
 	},
 	{
-		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn,
+		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn, Apply: ApplyNextSpawn,
 		Type: TypeString, Default: "",
 		Normalize: normalizeAutoTrustDirs,
 		Help: "Sessions started in these folders (or below them) skip the agent's \"trust this folder\" question: rex starts the agent with the folder trusted, or answers the question. " +
@@ -213,35 +213,35 @@ var Registry = []Setting{
 
 	// AI summary
 	{
-		ID: "summary_enabled", Label: "Summary enabled", Section: SectionSummary,
+		ID: "summary_enabled", Label: "Summary enabled", Section: SectionSummary, Apply: ApplyDaemonRestart,
 		Type: TypeBool, Default: true,
 		Help: "Generate AI activity descriptions via local model.",
 	},
 	{
-		ID: "summary_model", Label: "Summary model", Section: SectionSummary,
+		ID: "summary_model", Label: "Summary model", Section: SectionSummary, Apply: ApplyDaemonRestart,
 		Type: TypeString, Default: "gemma2:2b",
 		Options: []string{"gemma2:2b", "llama3.2:3b", "llama3.2:1b", "gemma3:1b", "qwen2.5:3b", "phi3:mini"},
 		Help:    "Model used to summarize sessions.",
 	},
 	{
-		ID: "summary_detail", Label: "Summary detail", Section: SectionSummary,
+		ID: "summary_detail", Label: "Summary detail", Section: SectionSummary, Apply: ApplyLive,
 		Type: TypeEnum, Default: "medium",
 		Options: []string{"short", "medium", "long"},
 		Help:    "How much the AI description says: short about 8 words, medium about 15, long about 28. Applies within seconds.",
 	},
 	{
-		ID: "desc_animation", Label: "Description animation", Section: SectionSummary,
+		ID: "desc_animation", Label: "Description animation", Section: SectionSummary, Apply: ApplyLive,
 		Type: TypeEnum, Default: "typewriter",
 		Options: []string{"typewriter", "decode", "wipe", "off"},
 		Help:    "Animation effect when the AI description changes.",
 	},
 	{
-		ID: "overview_enabled", Label: "Overview", Section: SectionSummary,
+		ID: "overview_enabled", Label: "Overview", Section: SectionSummary, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
 		Help: "Header line + :overview: what needs you, what is ready for review, what finished. Uses the summary model (one call at most every 30 s while rex is open). Applies within seconds.",
 	},
 	{
-		ID: "attach_banner", Label: "Attach banner", Section: SectionSummary,
+		ID: "attach_banner", Label: "Attach banner", Section: SectionSummary, Apply: ApplyNextAttach,
 		Type: TypeEnum, Default: "marquee",
 		Options: []string{"marquee", "static", "off"},
 		Help:    "Row above the agent in the attach popup: what it is doing, where, and (with overview) what the rest are doing. reduce_motion makes marquee static. Hidden below 25 rows. Read when a popup opens and on resize.",
@@ -249,38 +249,38 @@ var Registry = []Setting{
 
 	// Audio
 	{
-		ID: "sound_enabled", Label: "Sound enabled", Section: SectionAudio,
+		ID: "sound_enabled", Label: "Sound enabled", Section: SectionAudio, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Master on/off; suppresses BEL fallback too.",
 	},
 	{
-		ID: "soundset", Label: "Soundset", Section: SectionAudio,
+		ID: "soundset", Label: "Soundset", Section: SectionAudio, Apply: ApplyLive,
 		Type: TypeEnum, Default: "factorio",
 		Options: []string{"factorio", "evangelion", "bell", "chiptune", "off"},
 		Help:    "Synthesized tone catalog.",
 	},
 	{
-		ID: "master_volume", Label: "Master volume", Section: SectionAudio,
+		ID: "master_volume", Label: "Master volume", Section: SectionAudio, Apply: ApplyLive,
 		Type: TypeFloat, Default: 0.80,
 		Min: 0.0, Max: 1.0,
 		Help: "Linear scale applied to every event PCM at playback.",
 	},
 	{
-		ID: "notify_on_state_change", Label: "State-change sounds", Section: SectionAudio,
+		ID: "notify_on_state_change", Label: "State-change sounds", Section: SectionAudio, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Chime when an agent needs input (working → needs input) or resumes (needs input → working). Done keeps its own sound.",
 	},
 	{
-		ID: "boot_voice", Label: "Boot voice", Section: SectionAudio,
+		ID: "boot_voice", Label: "Boot voice", Section: SectionAudio, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Spoken \"rex\" announcement after the startup tone (needs sound enabled).",
 	},
 	// Advanced
 	{
-		ID: "lua_config_path", Label: "Lua config", Section: SectionAdvanced,
+		ID: "lua_config_path", Label: "Lua config", Section: SectionAdvanced, Apply: ApplyDaemonRestart,
 		Type: TypeString, Default: "~/.config/rex/init.lua",
 		ReadOnly: true,
-		Help:     "Path to the optional Lua config (Plan E).",
+		Help:     "Path to the optional Lua config the daemon loads at startup.",
 	},
 }
 
@@ -292,4 +292,16 @@ func Find(id string) (Setting, bool) {
 		}
 	}
 	return Setting{}, false
+}
+
+// Visible returns the settings the TUI page lists: every setting but the
+// Hidden ones. The CLI lists them all.
+func Visible() []Setting {
+	out := make([]Setting, 0, len(Registry))
+	for _, s := range Registry {
+		if !s.Hidden {
+			out = append(out, s)
+		}
+	}
+	return out
 }
