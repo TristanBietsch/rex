@@ -34,7 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `max_minutes` is reached. Loops are YAML files in `~/.config/rex/loops/`
   (`rex loop new <name>` writes a starter); the check is an argument list,
   never a shell string, and only your own, non-writable, non-symlink files
-  are read. A permission or question prompt pauses the loop and rex never
+  are read. Loops run only for agents that report why they wait (Claude
+  Code today). A permission or question prompt pauses the loop and rex never
   answers it; typing into the session holds the next prompt; at most 2 loops
   run at once; a daemon restart leaves them paused. Also `rex loop
   ls|pause|resume|stop|log`. New `StartLoop`, `PauseLoop`, `ResumeLoop` and
