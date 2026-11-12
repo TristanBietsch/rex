@@ -224,7 +224,7 @@ func TestSoundClaims_HostileFolderFallsBackToPlaying(t *testing.T) {
 // No claimer (no home directory, tests): every sound plays.
 func TestSoundClaims_NilClaimerPlays(t *testing.T) {
 	m, rec, _ := notifyModel(t, protocol.StateWorking)
-	m = m.applyEvent(stateUpdate(t, "s1", protocol.StateNeedsInput))
+	m.applyEvent(stateUpdate(t, "s1", protocol.StateNeedsInput))
 	require.Equal(t, []string{audio.EventAttention}, rec.Events)
 }
 
