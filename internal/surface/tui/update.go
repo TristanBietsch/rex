@@ -48,6 +48,7 @@ func scheduleDescTick() tea.Cmd {
 // branch can leave the TUI focused on a component that doesn't exist. It
 // also keeps the screensaver's idle timer armed (armIdle).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	dropAttachBackground(m, msg)
 	next, cmd := m.dispatch(msg)
 	nm, ok := next.(Model)
 	if !ok {

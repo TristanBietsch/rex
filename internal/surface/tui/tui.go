@@ -91,11 +91,19 @@ func (m Model) View() string {
 func clipWidth(s string, w int) string {
 	lines := strings.Split(s, "\n")
 	for i, l := range lines {
-		if ansi.StringWidth(l) > w {
+		if !fitsWidth(l, w) {
 			lines[i] = ansi.Truncate(l, w, "")
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// fitsWidth reports whether s is at most w columns wide. No grapheme is
+// wider than its UTF-8 bytes (ASCII is 1 byte, 1 column; wide runes are 3+
+// bytes, 2 columns; escapes are 0 columns), so a string of at most w bytes
+// fits without measuring it.
+func fitsWidth(s string, w int) bool {
+	return len(s) <= w || ansi.StringWidth(s) <= w
 }
 
 func (m Model) view(w, h int) string {
@@ -113,7 +121,7 @@ func (m Model) view(w, h int) string {
 	case FocusSettings:
 		return centerOverlayBox(w, h, renderSettings(m, w), renderFullScreen(m, w, h))
 	case FocusAttach:
-		return centerAttach(m, w, h, renderFullScreen(m, w, h))
+		return centerAttach(m, w, h, attachBackground(m, w, h))
 	case FocusFail:
 		return centerOverlay(w, h, fitOverlay(renderFail(m), w), renderFullScreen(m, w, h))
 	case FocusStats:
@@ -124,7 +132,7 @@ func (m Model) view(w, h int) string {
 		// A command bar opened from inside the attach popup (::) keeps the
 		// popup on screen; the bar renders in its footer.
 		if m.Attach != nil {
-			return centerAttach(m, w, h, renderFullScreen(m, w, h))
+			return centerAttach(m, w, h, attachBackground(m, w, h))
 		}
 	default:
 		// The board and its bottom-bar prompts render on the full screen.
@@ -207,6 +215,33 @@ func centerAttach(m Model, w, h int, bg string) string {
 	return compositeOverlay(w, h, popupLines, popupW, bg)
 }
 
+// attachBackground is the board behind the attach popup. A busy agent
+// redraws the popup up to ~30 times a second, and nothing on the board
+// changes with its output, so the board is rendered once and reused until
+// Update sees any other message (keys, daemon events, spinner and timer
+// ticks, resizes), which drops it (dropAttachBackground).
+func attachBackground(m Model, w, h int) string {
+	a := m.Attach
+	if a.bg.ok && a.bg.w == w && a.bg.h == h {
+		return a.bg.s
+	}
+	s := renderFullScreen(m, w, h)
+	a.bg = attachBgCache{w: w, h: h, s: s, ok: true}
+	return s
+}
+
+// dropAttachBackground forgets the cached board behind the attach popup
+// unless msg is agent output, the one message that never changes the board.
+func dropAttachBackground(m Model, msg tea.Msg) {
+	if m.Attach == nil {
+		return
+	}
+	if _, ok := msg.(AttachOutputMsg); ok {
+		return
+	}
+	m.Attach.bg = attachBgCache{}
+}
+
 // overlayChrome is the columns overlayBox adds around its content: two for the
 // border and four for the padding.
 const overlayChrome = 6
@@ -218,7 +253,7 @@ func fitOverlay(content string, w int) string {
 	limit := max(w-overlayChrome, 1)
 	lines := strings.Split(content, "\n")
 	for i, l := range lines {
-		if ansi.StringWidth(l) > limit {
+		if !fitsWidth(l, limit) {
 			lines[i] = ansi.Truncate(l, limit, "…")
 		}
 	}
