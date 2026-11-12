@@ -302,27 +302,7 @@ func saverCountLines(m Model, layout string) []string {
 	default:
 		return []string{saverCounts(m)}
 	}
-	type part struct {
-		n     int
-		label string
-		style lipgloss.Style
-	}
-	cols, failed := columnCounts(scopedSessions(m), rowFilterOf(m).ctx)
-	parts := make([]part, 0, len(cols)+1)
-	for gi, n := range cols {
-		g := boardGroups[gi]
-		if g.HideZero && n == 0 {
-			continue
-		}
-		style := styleHeaderMeta
-		if g.Alert && n > 0 {
-			style = styleAlert
-		}
-		parts = append(parts, part{n, g.Count, style})
-	}
-	if failed > 0 {
-		parts = append(parts, part{failed, "failed", styleStateFailed})
-	}
+	parts := saverCountParts(m)
 	numW, lineW := 0, 0
 	for _, p := range parts {
 		numW = max(numW, len(strconv.Itoa(p.n)))
@@ -333,20 +313,40 @@ func saverCountLines(m Model, layout string) []string {
 	out := make([]string, len(parts))
 	for i, p := range parts {
 		num := strconv.Itoa(p.n)
-		text := p.style.Render(num + " " + p.label)
-		lead := strings.Repeat(" ", numW-len(num))
-		out[i] = lead + text + strings.Repeat(" ", lineW-len(lead)-len(num)-1-ansi.StringWidth(p.label))
+		lead := numW - len(num)
+		trail := lineW - numW - 1 - ansi.StringWidth(p.label)
+		out[i] = strings.Repeat(" ", lead) + p.render() + strings.Repeat(" ", trail)
 	}
 	return out
 }
 
-// saverCounts is "1 ready · 3 working · 7 done": one count per board
-// column in board order (boardGroups), an Alert column highlighted while it
-// holds any session, and "· N failed" when something failed. The numbers
-// match the header's.
+// saverCounts is "1 ready · 3 working · 7 done": the counts on one line
+// (saverCountParts).
 func saverCounts(m Model) string {
+	parts := saverCountParts(m)
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		out[i] = p.render()
+	}
+	return strings.Join(out, styleHeaderMeta.Render(" · "))
+}
+
+// saverCount is one screensaver count: "3 working" in its style.
+type saverCount struct {
+	n     int
+	label string
+	style lipgloss.Style
+}
+
+func (c saverCount) render() string { return c.style.Render(fmt.Sprintf("%d %s", c.n, c.label)) }
+
+// saverCountParts is the screensaver's counts: one per board column in
+// board order (boardGroups), an Alert column highlighted while it holds any
+// session, and "N failed" when something failed. The numbers match the
+// header's.
+func saverCountParts(m Model) []saverCount {
 	cols, failed := columnCounts(scopedSessions(m), rowFilterOf(m).ctx)
-	parts := make([]string, 0, len(cols)+1)
+	parts := make([]saverCount, 0, len(cols)+1)
 	for gi, n := range cols {
 		g := boardGroups[gi]
 		if g.HideZero && n == 0 {
@@ -356,12 +356,12 @@ func saverCounts(m Model) string {
 		if g.Alert && n > 0 {
 			style = styleAlert
 		}
-		parts = append(parts, style.Render(fmt.Sprintf("%d %s", n, g.Count)))
+		parts = append(parts, saverCount{n, g.Count, style})
 	}
 	if failed > 0 {
-		parts = append(parts, styleStateFailed.Render(fmt.Sprintf("%d failed", failed)))
+		parts = append(parts, saverCount{failed, "failed", styleStateFailed})
 	}
-	return strings.Join(parts, styleHeaderMeta.Render(" · "))
+	return parts
 }
 
 // saverDrift is the screensaver's offset from the center: (0, 0) when it
