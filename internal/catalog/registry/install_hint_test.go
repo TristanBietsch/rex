@@ -12,7 +12,7 @@ func TestInstallHint(t *testing.T) {
 	reg, err := Load("")
 	require.NoError(t, err)
 	claude, _ := reg.Find("claude")
-	require.Equal(t, "see https://docs.anthropic.com/en/docs/claude-code", claude.InstallHint)
+	require.Equal(t, "see https://code.claude.com/docs/en/setup", claude.InstallHint)
 
 	// The hint is text for the user to read; a user tools.yaml may replace it.
 	path := filepath.Join(t.TempDir(), "tools.yaml")

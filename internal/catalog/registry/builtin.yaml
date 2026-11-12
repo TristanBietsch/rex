@@ -29,7 +29,7 @@ tools:
     name: "Claude Code"
     category: paid
     command: ["claude"]
-    install_hint: "see https://docs.anthropic.com/en/docs/claude-code"
+    install_hint: "see https://code.claude.com/docs/en/setup"
     prompt_args: ["--", "{prompt}"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # Skills rex stages for one session load as a plugin folder (this session only).
