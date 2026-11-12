@@ -226,3 +226,113 @@ func TestClaudeHooks_PromptUnparks(t *testing.T) {
 	kind, _ := a.Waiting()
 	require.Empty(t, kind)
 }
+
+// escTicks ticks Detect once a second from the Esc for d, with a still
+// screen, and returns the first time (since the Esc) Detect said READY, or
+// -1.
+func escTicks(r *readyEdges, now *time.Time, d time.Duration) time.Duration {
+	first := time.Duration(-1)
+	for el := time.Duration(0); el <= d; el += time.Second {
+		if r.tick(el) == protocol.StateNeedsInput && first < 0 {
+			first = el
+		}
+		*now = now.Add(time.Second)
+	}
+	return first
+}
+
+// Esc during a Bash call: Claude fires no Stop and no PostToolUse, so the
+// shell wait stays open. The Esc keystroke ends the turn within escBound,
+// with exactly one READY.
+func TestClaudeHooks_EscDuringBashWaitReadyFast(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt", "working\nwait+ shell")
+	r := &readyEdges{a: a, last: protocol.StateWorking}
+	r.tick(0)
+	a.UserInterrupt()
+	first := escTicks(r, now, time.Minute)
+	require.Equal(t, escBound, first, "READY once escBound passes")
+	require.Equal(t, 1, r.edges, "READY exactly once")
+	kind, _ := a.Waiting()
+	require.Empty(t, kind)
+}
+
+// Esc during a foreground Task call: the subagent is killed, often with no
+// SubagentStop, and the Task call never returns. READY within escBound.
+func TestClaudeHooks_EscDuringTaskWaitReadyFast(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt", "working\nwait+ subagent", "agent+ sub-1", "working", "working\nagent~ sub-1")
+	r := &readyEdges{a: a, last: protocol.StateWorking}
+	r.tick(0)
+	*now = now.Add(time.Second)
+	a.UserInterrupt()
+	first := escTicks(r, now, time.Minute)
+	require.Equal(t, escBound, first)
+	require.Equal(t, 1, r.edges)
+	require.Zero(t, a.Subagents(), "the killed foreground subagent no longer counts")
+	kind, _ := a.Waiting()
+	require.Empty(t, kind)
+}
+
+// Esc while a background subagent runs (launched earlier in the turn): the
+// main turn is interrupted, the subagent runs on. No READY until it ends
+// and the main agent does not wake; then READY exactly once.
+func TestClaudeHooks_EscWithBackgroundSubagentWaits(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path,
+		"working\nwait-\nprompt",
+		"working\nwait+ subagent", "agent+ bg-1", "working\nwait-", // background Task returns at once
+		"working\nwait+ shell",
+	)
+	r := &readyEdges{a: a, last: protocol.StateWorking}
+	r.tick(0)
+	a.UserInterrupt()
+	require.Equal(t, time.Duration(-1), escTicks(r, now, 5*time.Minute), "no READY while the background subagent runs")
+	kind, _ := a.Waiting()
+	require.Equal(t, protocol.WaitSubagent, kind)
+	require.Equal(t, 1, a.Subagents())
+	// It keeps working, writing its own lines, then ends.
+	replay(t, path, "working", "working\nagent~ bg-1")
+	require.Equal(t, protocol.StateWorking, r.tick(time.Minute))
+	replay(t, path, "agent- bg-1")
+	first := escTicks(r, now, time.Minute)
+	require.Equal(t, wakeGrace, first, "READY after the wake grace")
+	require.Equal(t, 1, r.edges)
+}
+
+// An Esc that did not end the turn (it closed a menu): the main thread's
+// next hook line cancels it, and the turn goes on.
+func TestClaudeHooks_EscCancelledByMainThreadLine(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt", "working\nwait+ shell")
+	a.UserInterrupt()
+	*now = now.Add(time.Second)
+	replay(t, path, "working\nwait-") // the command returned
+	*now = now.Add(escBound)
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, escBound))
+}
+
+// A foreground subagent that shows life after the Esc was not killed: no
+// READY while it runs.
+func TestClaudeHooks_EscForegroundSubagentAliveStaysWorking(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt", "working\nwait+ subagent", "agent+ sub-1")
+	a.UserInterrupt()
+	*now = now.Add(time.Second)
+	replay(t, path, "working\nagent~ sub-1")
+	*now = now.Add(escBound)
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, escBound))
+	kind, _ := a.Waiting()
+	require.Equal(t, protocol.WaitSubagent, kind)
+}
+
+// An Esc at a finished turn changes nothing; the next prompt clears it.
+func TestClaudeHooks_EscAtReadyThenPrompt(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt", "needs_input\nturn-done")
+	a.UserInterrupt()
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+	replay(t, path, "working\nwait-\nprompt", "working\nwait+ shell")
+	*now = now.Add(time.Minute)
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, time.Minute), "the old Esc does not end the new turn")
+}
