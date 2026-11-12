@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -50,7 +51,30 @@ func SaveTUIState(m Model) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o600)
+	return writeFileAtomic(path, b)
+}
+
+// writeFileAtomic writes b to a private temp file next to path and renames
+// it over path, so a crash or a full disk mid-write leaves the old file (or
+// none), never a truncated one. Two TUIs quitting at once each write their
+// own temp file; the last rename wins.
+func writeFileAtomic(path string, b []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp") // mode 0600
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_, werr := f.Write(b)
+	cerr := f.Close()
+	if err := errors.Join(werr, cerr); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // LoadTUIState reads + deletes the persisted state. Returns ok=false when the file doesn't exist.

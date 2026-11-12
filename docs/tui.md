@@ -309,11 +309,12 @@ The headline is written by the local summary model from the sessions' task title
 1. **Provider**: the tool (`j`/`k`, `enter`).
 2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
 3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
-4. **Name**: an optional display name (the board shows it instead of the slug; at most 64 characters, checked as you type). `enter` on an empty field skips it; an invalid name shows the reason and stays. With no task, the name also gives the slug.
-5. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
-6. **Describe**: the task. `enter` launches.
+4. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
+5. **Describe**: the task. `enter` launches. The slug comes from the task.
 
-`b` goes back (on the text steps only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the name or skills fields, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
+The wizard does not ask for a name; press `r` on the board to give a session a display name, or use `rex new -name`.
+
+`b` goes back (on the describe step only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the skills field, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
 
 ---
 
@@ -340,7 +341,7 @@ With sound on, each soundset chimes when a session needs you (`working` → `nee
 
 ## SCREENSAVER
 
-After 5 minutes (`screensaver_after_minutes`) with no key or mouse event while the board itself has focus, the board gives way to a small screen: `∴ rex` in the center and the header's counts under it.
+After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the screen gives way to a small screen: `∴ rex` in the center and the header's counts under it.
 
 ```
              ∴ rex
@@ -349,8 +350,8 @@ After 5 minutes (`screensaver_after_minutes`) with no key or mouse event while t
 ```
 
 - The counts stay live: daemon events keep updating them. `need you` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
-- Any key or mouse event (click, wheel) brings the board back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
-- It only starts over the bare board. Overlays, prompts, confirmations, the wizard, the settings page and the attach popup never time out, because there you are in the middle of something.
+- Any key or mouse event (click, wheel), or a terminal resize, brings the screen back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
+- It starts whatever is open: an overlay, prompt, confirmation, the new-session wizard, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, wizard step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
 - Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.
 - It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute. It plays no sound.
 
