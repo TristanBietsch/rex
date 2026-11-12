@@ -1,7 +1,9 @@
 # P1 Name, model and skills in the new-session wizard
 
+> **Revised 2026-11-11:** the wizard's name step (`wizName`, ordered step 6) was built and then removed in `0bf135f` because it added friction to every spawn. The wizard now goes effort → skills → describe, and the slug comes from the task alone. A session is named with `r` on the board or `rex new -name`; `NewSession.Name` and the CLI flag are unchanged. The sections below are updated to match; struck items record what was dropped.
+
 **Summary**
-- The new-session wizard (`n`, `:new`) gains three steps: **model** (today it silently picks the first model), **name** (the display name) and **skills** (Claude Code skills injected for this session only). `rex new` gets the same as `-name` and `-skill`.
+- The new-session wizard (`n`, `:new`) gains two steps: **model** (today it silently picks the first model) and **skills** (Claude Code skills injected for this session only). `rex new` gets `-name` (the display name) and `-skill`. ~~A **name** step in the wizard~~ was dropped (see the revision note).
 - Skills come from a rex-owned library, `~/.config/rex/skills/<name>/SKILL.md`. The daemon copies the chosen ones into a per-session plugin under the session's own folder and starts Claude with `--plugin-dir`. Nothing is written to `~/.claude`.
 - Antigravity has no session-only plugin flag, so it degrades cleanly: the skills step is skipped, and `-skill` with agy exits 5 with a clear message.
 
@@ -17,12 +19,12 @@
 
 **Design**
 
-*Wizard (`wizard.go`).* Steps: `wizProvider → wizModel → wizEffort → wizName → wizSkills → wizDescribe`.
+*Wizard (`wizard.go`).* Steps: `wizProvider → wizModel → wizEffort → wizSkills → wizDescribe`.
 - `firstModel()` is replaced by `selectedModel()` backed by a new `ModelIdx`.
 - `wizModel` is skipped when the tool has one model. Its default is `default_spawn_model` when the tool equals `default_spawn_tool`, else index 0.
-- `wizName`: optional free text. Enter on an empty field skips the step; `b` goes back only while the field is empty (the same rule as describe). It is validated live with `protocol.NormalizeSessionName`, and errors show inline.
+- ~~`wizName`: optional free text, validated live with `protocol.NormalizeSessionName`.~~ Removed: it added friction to every spawn. Name a session with `r` on the board instead.
 - `wizSkills`: a multi-select with space to toggle and enter for next. It shows each skill's description, scrolls with the existing `windowLines` helper, and keeps the fixed `wizardBodyLines`. It is skipped when the tool has no `skill_args` or the library is empty.
-- Slug: `deriveAgentSlug(tool, model, task)`. When the task is empty and a name is given, the name provides the task fragment.
+- Slug: `deriveAgentSlug(tool, model, task)`. An empty task gives a hash fragment.
 - Rendering stays inside the `renderWizard` switch so U1/U2 can restyle it.
 
 *Registry.*
@@ -49,7 +51,7 @@
   - otherwise `Stage`, then append the expanded `SkillArgs` before the hook args and before the `--` prompt.
 - `server.Config` gains `SkillsDir`, set by `cmd/rex-daemon` with a `-skills-dir` flag for tests.
 
-*Old daemon compatibility.* An old daemon drops the unknown fields silently. `rex new` and the TUI compare the `SessionAdded` summary: skills requested but `Skills` missing → warn "this rex-daemon ignored skills; run `rex daemon restart`". The same check applies to the name.
+*Old daemon compatibility.* An old daemon drops the unknown fields silently. `rex new` and the TUI compare the `SessionAdded` summary: skills requested but `Skills` missing → warn "this rex-daemon ignored skills; run `rex daemon restart`". `rex new` applies the same check to `-name`; the TUI checks skills only, since the wizard sends no name.
 
 *CLI.*
 - `rex new -name "text" -skill a -skill b` (a repeatable flag type in `core`).
@@ -88,7 +90,7 @@
 - `tui`:
   - `TestWizard_ModelStepSkippedForSingleModel`;
   - `TestWizard_ModelDefaultsToSpawnDefault`;
-  - `TestWizard_NameStepEnterSkips` / `_InvalidNameShowsError`;
+  - `TestWizard_NoNameStep` (replaced the name-step tests);
   - `TestWizard_SkillsStepHiddenForAgy`;
   - `TestWizard_SkillToggleSendsSkills` (checks the payload through the fake client);
   - snapshot tests for the new steps.
@@ -118,7 +120,7 @@
 1. Library location: rex-owned `~/.config/rex/skills/`. Skills in `~/.claude/skills` already load globally, so listing them would add nothing. **Recommended: rex-owned only.**
 2. Should quick-spawn `i` also take default skills (a new `default_spawn_skills` setting)? **Recommended: no, for now.**
 3. agy model slugs depend on the account (A1 note). Should the model step refresh the list from `agy models` at wizard open? **Recommended: not in P1.** Show the registry models; A1 can add a cached refresh later.
-4. Six steps is long. **Recommended:** keep separate steps that skip themselves automatically (single model, no effort, no skills support, empty library) so the common path stays at 3-4 Enter presses.
+4. Six steps is long. (Now five: the name step was dropped.) **Recommended:** keep separate steps that skip themselves automatically (single model, no effort, no skills support, empty library) so the common path stays at 3-4 Enter presses.
 
 **Ordered steps (each one commit, `make check` green)**
 1. `feat(registry): skill_args with {plugin_dir}; claude uses --plugin-dir`.
@@ -126,7 +128,7 @@
 3. `feat(protocol,daemon): NewSession name and skills` (validation, staging, argv, meta persistence, `-skills-dir`).
 4. `feat(cli): rex new -name/-skill and rex skills` (+ e2e txtar, warning on old daemons).
 5. `feat(tui): wizard model step` (the `selectedModel` refactor).
-6. `feat(tui): wizard name step`.
+6. ~~`feat(tui): wizard name step`.~~ Reverted by `0bf135f`.
 7. `feat(tui): wizard skills step`.
 8. `docs: skills howto, wizard, protocol, CHANGELOG`.
 
