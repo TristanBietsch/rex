@@ -108,3 +108,27 @@ func TestAuditText_MemoryOnly(t *testing.T) {
 	require.NotContains(t, string(raw), "second")
 	require.NotContains(t, string(raw), "first")
 }
+
+func TestReopen_StartsANewAuditRunAndForgetsThePrompt(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore()
+	sess := &Session{ID: "id1", ShortID: "id1", State: protocol.StateWorking, StartedAt: time.Now().UTC()}
+	require.NoError(t, s.Add(sess))
+	sess.SetAuditText("first", "first\nsecret")
+	require.NoError(t, s.Transition("id1", protocol.StateDone))
+	_, err := sess.AuditOnce(func() error { return nil })
+	require.NoError(t, err)
+	require.NoError(t, WriteMeta(dir, sess))
+
+	require.NoError(t, s.Reopen("id1"))
+	require.False(t, sess.AuditIsWritten(), "a resumed run is audited at its next end")
+	first, full := sess.AuditText()
+	require.Empty(t, first)
+	require.Empty(t, full)
+
+	// And it stays cleared across a restart once meta is written again.
+	require.NoError(t, WriteMeta(dir, sess))
+	got, err := LoadMeta(dir, "id1")
+	require.NoError(t, err)
+	require.False(t, got.AuditWritten)
+}

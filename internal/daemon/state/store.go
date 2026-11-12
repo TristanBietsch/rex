@@ -370,6 +370,10 @@ func (s *Store) Reopen(id string) error {
 	sess.ExitCode = nil
 	sess.RetireAt = time.Time{}
 	sess.RetiredAt = time.Time{}
+	// A new run: its end gets its own audit record, and it records no
+	// prompt (the daemon no longer has the first run's).
+	sess.AuditWritten = false
+	sess.auditFirst, sess.auditPrompt = "", ""
 	return nil
 }
 
