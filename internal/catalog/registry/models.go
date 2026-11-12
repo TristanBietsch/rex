@@ -258,7 +258,7 @@ func MergeModels(static, detected []Model) []Model {
 // has its models merged (MergeModels). The receiver is not changed. Tool ids
 // the registry does not have are ignored.
 func (r *Registry) WithModels(detected map[string][]Model) *Registry {
-	out := &Registry{Tools: make([]Tool, len(r.Tools)), Warnings: r.Warnings}
+	out := &Registry{Tools: make([]Tool, len(r.Tools)), Warnings: r.Warnings, Disabled: r.Disabled}
 	copy(out.Tools, r.Tools)
 	for i, t := range out.Tools {
 		if d := detected[t.ID]; len(d) > 0 {
@@ -291,7 +291,7 @@ func (r *Registry) WithFeatures(extraAgents, modelAutodetect bool, cachePath str
 // Without returns a copy of the registry without the tools in ids. A user
 // tools.yaml overlay for one of them goes with it.
 func (r *Registry) Without(ids ...string) *Registry {
-	out := &Registry{Warnings: r.Warnings}
+	out := &Registry{Warnings: r.Warnings, Disabled: append(append([]string{}, r.Disabled...), ids...)}
 	for _, t := range r.Tools {
 		skip := false
 		for _, id := range ids {

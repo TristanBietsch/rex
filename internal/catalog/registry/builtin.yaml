@@ -270,6 +270,9 @@ tools:
   - id: qwen
     name: "Qwen Code"
     category: paid
+    # Hidden from the wizard until the TUI honors extra_agents and Installed
+    # (round-2 follow-up); turn on in Settings → Onboarding.
+    enabled_by_default: false
     command: ["qwen"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # --prompt-interactive keeps the session interactive (a bare positional
@@ -315,6 +318,9 @@ tools:
   - id: cursor
     name: "Cursor CLI"
     category: paid
+    # Hidden from the wizard until the TUI honors extra_agents and Installed
+    # (round-2 follow-up); turn on in Settings → Onboarding.
+    enabled_by_default: false
     command: ["cursor-agent"]
     skip_permissions_args: ["--yolo"]
     prompt_args: ["{prompt}"]
@@ -349,6 +355,9 @@ tools:
   - id: grok
     name: "Grok Build"
     category: paid
+    # Hidden from the wizard until the TUI honors extra_agents and Installed
+    # (round-2 follow-up); turn on in Settings → Onboarding.
+    enabled_by_default: false
     command: ["grok"]
     skip_permissions_args: ["--always-approve"]
     prompt_args: ["{prompt}"]

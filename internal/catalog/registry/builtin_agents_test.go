@@ -12,7 +12,9 @@ func TestBuiltinNewAgents(t *testing.T) {
 	get := func(id string) Tool {
 		tool, ok := reg.Find(id)
 		require.True(t, ok, id)
-		require.Nil(t, tool.EnabledByDefault, "%s is on by default", id)
+		// Hidden until the TUI honors extra_agents and Installed.
+		require.NotNil(t, tool.EnabledByDefault, id)
+		require.False(t, *tool.EnabledByDefault, id)
 		require.NotEmpty(t, tool.Models, id)
 		return tool
 	}

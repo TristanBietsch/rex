@@ -16,6 +16,9 @@ type Registry struct {
 	// Warnings are non-fatal problems found while loading, such as a partial
 	// overlay of a retired built-in tool that was dropped. Callers log them.
 	Warnings []string
+	// Disabled are tool ids a feature switch removed (extra_agents): a spawn
+	// of one says the feature is off instead of "not in registry".
+	Disabled []string
 }
 
 // retiredToolIDs are tools that used to be built in. A tools.yaml overlay for

@@ -23,7 +23,10 @@ import (
 
 // unknownToolError is the bad_intent error for a tool/model pair the registry
 // does not have. NewSession and Resume report it the same way.
-func unknownToolError(toolID, modelID string) error {
+func unknownToolError(reg *registry.Registry, toolID, modelID string) error {
+	if reg != nil && slices.Contains(reg.Disabled, toolID) {
+		return badIntent(errors.New("off: enable in Settings → Features (`rex config set extra_agents true`)"))
+	}
 	return badIntent(fmt.Errorf("tool %s/%s not in registry", toolID, modelID))
 }
 
@@ -44,7 +47,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// Read the registry through the lock so SIGHUP-swapped versions take effect.
 	tool, model, ok := srv.Registry().FindModel(p.ToolID, p.ModelID)
 	if !ok {
-		return "", unknownToolError(p.ToolID, p.ModelID)
+		return "", unknownToolError(srv.Registry(), p.ToolID, p.ModelID)
 	}
 	if p.Effort != "" && model.Effort != nil && !slices.Contains(model.Effort.Options, p.Effort) {
 		return "", fmt.Errorf("effort %q not offered by %s/%s (options: %s)",
