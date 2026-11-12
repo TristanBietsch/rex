@@ -1,6 +1,9 @@
 package summarizer
 
-import "time"
+import (
+	"hash/fnv"
+	"time"
+)
 
 // Cadence is the schedule of refreshes for one live session, counted from the
 // start of its run: EarlyCount refreshes EarlyEvery apart, then one every
@@ -38,6 +41,26 @@ func (c Cadence) Elapsed(anchor, now time.Time) int {
 		return int(d / c.EarlyEvery)
 	}
 	return c.EarlyCount + int((d-early)/c.LateEvery)
+}
+
+// maxTickWait caps how long the loop sleeps for the schedule, so a wall-clock
+// jump or a laptop sleep is noticed within a minute.
+const maxTickWait = time.Minute
+
+// maxJitter is the bound of Jitter: 5% of the early interval.
+func (c Cadence) maxJitter() time.Duration { return c.EarlyEvery / 20 }
+
+// Jitter is a fixed offset in [-5%, +5%] of the early interval, derived from
+// the session id. It shifts a session's whole grid so sessions started
+// together do not tick together; the spacing of its own ticks stays exact.
+func (c Cadence) Jitter(id string) time.Duration {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(id))
+	span := int64(c.maxJitter())
+	if span == 0 {
+		return 0
+	}
+	return time.Duration(int64(h.Sum32())%(2*span+1) - span)
 }
 
 // orDefault maps the zero Cadence to DefaultCadence.

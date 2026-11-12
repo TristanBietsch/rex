@@ -165,7 +165,7 @@ var Registry = []Setting{
 	{
 		ID: "summary_schedule", Label: "Scheduled summaries", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
-		Help: "Rewrite each running session's AI description on a clock: every 5 minutes for the first 25 minutes, then every 30 minutes, with a more detailed progress line (what is done so far and what is happening now). A state change still refreshes at once; screen activity no longer does. Off: refresh when the screen goes quiet and on state changes, as before. Applies within seconds.",
+		Help: "Rewrite each running session's AI description on a clock: every 5 minutes for the first 25 minutes, then every 30 minutes, with a more detailed progress line (what is done so far and what is happening now). A state change still refreshes at once; screen activity no longer does. Off: refresh when the screen goes quiet and on state changes, as before. Applies within seconds with live_reload on.",
 	},
 	{
 		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures,

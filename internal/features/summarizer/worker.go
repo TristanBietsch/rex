@@ -58,6 +58,10 @@ type sessionMeta struct {
 	// callStart and callEnd bound the session's latest handle; a tick due
 	// inside that window merges with the call instead of making another.
 	callStart, callEnd time.Time
+	inflight           bool // a call for the session is running
+	// merged is set when a tick came due during the running call and was
+	// merged into it; mergedLate is that tick's phase.
+	merged, mergedLate bool
 }
 
 func isTerminal(s protocol.State) bool {
@@ -209,6 +213,14 @@ func (w *Worker) onEvent(e state.Event) {
 	switch {
 	case e.Kind == state.EventRemoved:
 		w.forget(e.SessionID)
+	case e.Kind == state.EventReopened:
+		// A new run: its final summary is due again (the live-state change
+		// that follows would also say so, but a failure can come first).
+		w.mu.Lock()
+		if m := w.perSess[e.SessionID]; m != nil {
+			m.final = false
+		}
+		w.mu.Unlock()
 	case e.Kind == state.EventUpdated && e.NewState != nil:
 		if !isTerminal(*e.NewState) {
 			w.mu.Lock()
@@ -241,11 +253,11 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		w.mu.Unlock()
 		return
 	}
-	meta.callStart = w.now()
+	meta.callStart, meta.inflight, meta.merged = w.now(), true, false
 	w.mu.Unlock()
 	defer func() {
 		w.mu.Lock()
-		meta.callEnd = w.now()
+		meta.callEnd, meta.inflight = w.now(), false
 		w.mu.Unlock()
 	}()
 
@@ -261,7 +273,7 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 		task = snap.Slug
 	}
 	kind, detail := KindActivity, w.Detail()
-	if req.late && w.schedOn.Load() {
+	if req.late && !req.prio && !terminal && w.schedOn.Load() {
 		// Late phase of the scheduled refresh: one level more detail, and
 		// what is finished plus what is happening now.
 		kind, detail = KindProgress, detail.Up()
@@ -323,6 +335,13 @@ func (w *Worker) handle(ctx context.Context, id string, req pendingReq) {
 	cleaned := Clean(resp, prompt.MaxRunes, snap.ToolID)
 	slog.Debug("summarizer: response", "session", id, "duration_ms", elapsed.Milliseconds(), "chars_out", len([]rune(cleaned)))
 	if cleaned == "" {
+		// A tick merged into this call got nothing from it: ask once more.
+		w.mu.Lock()
+		if meta.merged {
+			w.mergeLocked(id, pendingReq{since: time.Now(), late: meta.mergedLate})
+			meta.merged = false
+		}
+		w.mu.Unlock()
 		return
 	}
 
