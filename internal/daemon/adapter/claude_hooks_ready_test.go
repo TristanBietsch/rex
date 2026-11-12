@@ -183,3 +183,46 @@ func truncate(t *testing.T, path string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, nil, 0o600))
 }
+
+// A subagent's own working words while parked, then its stop: if the main
+// agent does not wake within wakeGrace, the finished turn is READY for
+// review.
+func TestClaudeHooks_ParkedSubagentWorkingThenMissedWake(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "agent+ a", "needs_input\nturn-done", "working", "working\nagent~ a")
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, time.Minute))
+	kind, _ := a.Waiting()
+	require.Equal(t, protocol.WaitSubagent, kind)
+	replay(t, path, "agent- a")
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, 0), "the main agent should wake")
+	*now = now.Add(wakeGrace)
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+	require.Equal(t, protocol.WaitReview, a.WaitReason())
+	kind, _ = a.Waiting()
+	require.Empty(t, kind)
+	// The main agent wakes after all: working, then its Stop.
+	replay(t, path, "working\nwait-")
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, 0))
+	require.Empty(t, a.WaitReason())
+}
+
+// A Stop right after a foreground Task wait parks from the wait's start.
+func TestClaudeHooks_ParkedSinceTaskWait(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait+ subagent", "agent+ a")
+	_, _ = a.Waiting() // read the lines now
+	start := *now
+	*now = now.Add(time.Minute)
+	replay(t, path, "needs_input\nturn-done")
+	kind, since := a.Waiting()
+	require.Equal(t, protocol.WaitSubagent, kind)
+	require.Equal(t, start, since)
+}
+
+// A prompt line ends a parked wait on its own.
+func TestClaudeHooks_PromptUnparks(t *testing.T) {
+	a, path, _ := waitingAdapter(t)
+	replay(t, path, "agent+ a", "needs_input\nturn-done", "working", "prompt")
+	kind, _ := a.Waiting()
+	require.Empty(t, kind)
+}

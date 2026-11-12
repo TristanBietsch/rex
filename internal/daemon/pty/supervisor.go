@@ -613,10 +613,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 						_ = s.cfg.Store.Transition(sess.ID, next)
 						s.persistMeta(sess)
 					case why == "hold":
-						slog.Debug("pty: ready held", "session", sess.ID, "hold_ms", s.cfg.ReadyHold.Milliseconds())
+						slog.Debug("pty: ready held", "session", sess.ID, "hold_ms", hold.hold.Milliseconds())
 					case why == "flap":
 						slog.Info("pty: ready flap suppressed", "session", sess.ID, "state", current)
 					}
+				}
+				if next == "" {
+					hold.reset()
 				}
 			}
 			if agents != nil {

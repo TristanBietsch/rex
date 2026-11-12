@@ -252,9 +252,12 @@ type ClaudeHooks struct {
 	parkedSince time.Time
 	// wakeAt is when the last subagent of a parked session ended; zero when
 	// no wake is expected. Any state word clears it.
-	wakeAt  time.Time
-	prompts int // UserPromptSubmit count; survives a truncated file
-	now     func() time.Time
+	wakeAt time.Time
+	// subWaitSince is the start of a subagent tool wait ended by a
+	// needs_input word; the Stop that follows parks from it.
+	subWaitSince time.Time
+	prompts      int // UserPromptSubmit count; survives a truncated file
+	now          func() time.Time
 }
 
 // NewClaudeHooks reads hook state from path.
@@ -282,6 +285,10 @@ func (a *ClaudeHooks) Detect(_ []byte, idle time.Duration) protocol.State {
 	if a.runningAgents() > 0 || a.waking() {
 		return protocol.StateWorking
 	}
+	if a.wakeMissed() {
+		a.clearWait()
+		return protocol.StateNeedsInput
+	}
 	bound := hookStaleWorking
 	if a.openWait() != "" {
 		bound = subagentQuiet
@@ -307,6 +314,14 @@ func (a *ClaudeHooks) subagentHold() bool {
 // wakeGrace ago. Callers hold mu.
 func (a *ClaudeHooks) waking() bool {
 	return !a.wakeAt.IsZero() && a.now().Sub(a.wakeAt) < wakeGrace
+}
+
+// wakeMissed reports whether a parked session's last subagent ended more
+// than wakeGrace ago and no state word came since: the main agent did not
+// wake (or is writing text with no tool call), so the finished turn is
+// ready for review. Callers hold mu.
+func (a *ClaudeHooks) wakeMissed() bool {
+	return a.parked && !a.wakeAt.IsZero() && !a.waking() && a.runningAgents() == 0
 }
 
 // openWait is the main thread's tool wait, ending a fan-out wait whose last
@@ -378,6 +393,11 @@ func (a *ClaudeHooks) dropAgent(id string) {
 	}
 }
 
+// unpark ends a parked session's subagent wait. Callers hold mu.
+func (a *ClaudeHooks) unpark() {
+	a.parked, a.parkedSince, a.wakeAt, a.subWaitSince = false, time.Time{}, time.Time{}, time.Time{}
+}
+
 // Prompts implements PromptCounter.
 func (a *ClaudeHooks) Prompts() int {
 	a.mu.Lock()
@@ -415,6 +435,9 @@ func (a *ClaudeHooks) WaitReason() string {
 	if a.last == protocol.StateNeedsInput && a.subagentHold() {
 		return ""
 	}
+	if a.last == protocol.StateWorking && a.wakeMissed() {
+		return protocol.WaitReview
+	}
 	return a.reason
 }
 
@@ -443,7 +466,7 @@ func (a *ClaudeHooks) read() {
 		a.off, a.partial = 0, nil
 		clear(a.agents)
 		a.clearWait()
-		a.parked, a.wakeAt = false, time.Time{}
+		a.unpark()
 	}
 	if size == a.off {
 		return
@@ -478,19 +501,22 @@ func (a *ClaudeHooks) apply(line string) {
 		a.last = protocol.State(word)
 		a.wakeAt = time.Time{} // the main agent woke (or stopped again)
 		if a.last == protocol.StateWorking {
-			a.reason = ""
+			a.reason, a.subWaitSince = "", time.Time{}
 		} else { // Stop, Notification, SessionStart end any tool wait
+			if a.waitOn == protocol.WaitSubagent {
+				a.subWaitSince = a.waitSince // a Stop parks from here
+			}
 			a.clearWait()
 		}
 		slog.Debug("adapter: claude hook state", "path", a.path, "state", a.last)
 	case hookWaitStart:
 		// An unknown kind is ignored: the file is plain text.
-		a.parked = false // main-thread activity
+		a.unpark() // main-thread activity
 		if protocol.ValidWaitKind(arg) {
 			a.waitOn, a.waitSince, a.waitEnding = arg, a.now(), false
 		}
 	case hookWaitEnd:
-		a.parked = false // main-thread activity
+		a.unpark() // main-thread activity
 		// One of several parallel Task calls ending leaves the wait on
 		// while other subagents run; the last stop (or a quiet timeout)
 		// ends it.
@@ -513,12 +539,16 @@ func (a *ClaudeHooks) apply(line string) {
 	case hookAgentsReset:
 		clear(a.agents)
 		a.reason = ""
-		a.parked, a.wakeAt = false, time.Time{}
+		a.unpark()
 	case hookTurnDone:
 		a.reason = protocol.WaitReview
 		a.parked, a.parkedSince = true, a.now()
+		if !a.subWaitSince.IsZero() { // the subagents were started by a Task wait
+			a.parkedSince, a.subWaitSince = a.subWaitSince, time.Time{}
+		}
 	case hookPrompt:
 		a.prompts++
+		a.unpark()
 	case hookNotify:
 		if arg != notifyIdle {
 			a.reason = protocol.WaitInput

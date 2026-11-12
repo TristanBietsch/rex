@@ -22,6 +22,9 @@ type readyHold struct {
 // pending reports whether a working→needs_input change waits out the hold.
 func (h *readyHold) pending() bool { return !h.since.IsZero() }
 
+// reset drops a pending entry (the adapter had no answer this tick).
+func (h *readyHold) reset() { h.since = time.Time{} }
+
 // admit decides whether the change current→next is published now. why is
 // the reason logged with the transition: "question", "held" or "adapter"
 // for a published change; "hold" when a hold starts, "flap" when the

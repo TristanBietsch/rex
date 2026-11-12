@@ -52,14 +52,24 @@ func TestAttentionNewQuestionSameTurn(t *testing.T) {
 	m = m.applyEvent(retireUpdate(t, "s1", map[string]any{"wait_reason": protocol.WaitInput}))
 	require.Equal(t, 1, countEvent(rec.Events, audio.EventAttention), "state + reason of one question: one sound")
 
+	// Answered; the turn then ends (Stop, same prompts): that READY chimes.
 	*now = now.Add(time.Minute)
 	m = m.applyEvent(stateUpdate(t, "s1", protocol.StateWorking))
 	m = m.applyEvent(retireUpdate(t, "s1", map[string]any{"wait_reason": ""}))
 	*now = now.Add(time.Minute)
 	m = m.applyEvent(stateUpdate(t, "s1", protocol.StateNeedsInput))
-	require.Equal(t, 1, countEvent(rec.Events, audio.EventAttention))
+	m = m.applyEvent(retireUpdate(t, "s1", map[string]any{"wait_reason": protocol.WaitReview}))
+	require.Equal(t, 2, countEvent(rec.Events, audio.EventAttention), "the turn end after a question chimes")
+
+	// A later READY in the same turn is silent; a new question chimes.
+	*now = now.Add(time.Minute)
+	m = m.applyEvent(stateUpdate(t, "s1", protocol.StateWorking))
+	m = m.applyEvent(retireUpdate(t, "s1", map[string]any{"wait_reason": ""}))
+	*now = now.Add(time.Minute)
+	m = m.applyEvent(stateUpdate(t, "s1", protocol.StateNeedsInput))
+	require.Equal(t, 2, countEvent(rec.Events, audio.EventAttention), "same turn: silent")
 	_ = m.applyEvent(retireUpdate(t, "s1", map[string]any{"wait_reason": protocol.WaitInput}))
-	require.Equal(t, 2, countEvent(rec.Events, audio.EventAttention), "a second question plays")
+	require.Equal(t, 3, countEvent(rec.Events, audio.EventAttention), "a new question plays")
 }
 
 // A review reason never plays on its own.

@@ -90,3 +90,9 @@ Decisions (user):
 - [ ] Background Bash: hook JSON has no completion event → known gap in `docs/tui.md`.
 - [ ] `docs/tui.md` READY definition; CHANGELOG `[Unreleased]` Fixed; roadmap row R17.
 - [ ] Review by a separate agent, fix findings, merge `integration/todo`, `make check`.
+
+## Outcome notes
+
+- Other adapters (`heuristic.go` for codex, qwen, cursor, grok; `osc_status.go` for agy): not the same class. They have no subagent or tool-wait signal; a still screen (15 s) or the prompt match is their only READY signal, and their agents animate a spinner while busy. They get the 2 s supervisor hold and the TUI debounce; no per-turn gate (no prompt count).
+- Background Bash (`run_in_background`): PreToolUse exposes `tool_input.run_in_background`, but no hook fires when the command ends, so it cannot be tracked like a subagent. Documented as a known gap in `docs/tui.md`; the second READY (when Claude wakes on the result) is silent because the prompt count did not change.
+- Review fixes: a question no longer marks the turn as rung (the READY after the answer chimes); a parked session whose subagent wrote working words and whose main agent does not wake within `wakeGrace` turns READY (review); `parkedSince` starts at the Task wait; `prompt` unparks; the hold resets on a tick with no adapter answer.

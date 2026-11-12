@@ -75,10 +75,13 @@ func (m Model) notifyQuestion(id, prevReason string) Model {
 	if !ok || s.State != protocol.StateNeedsInput || s.WaitReason != protocol.WaitInput || prevReason == protocol.WaitInput {
 		return m
 	}
+	// A question is not the end of the turn: the READY that ends it after
+	// the answer must still chime, so the turn is not marked as rung.
+	delete(m.rungPrompt, id)
 	if !notifyOnStateChange(m) {
 		return m
 	}
-	return m.playNotify(id, audio.EventAttention, s.State, s.State, s.Prompts)
+	return m.playNotify(id, audio.EventAttention, s.State, s.State, 0)
 }
 
 // playNotify plays ev for a session unless it played a sound within
