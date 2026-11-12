@@ -22,6 +22,7 @@
 //	    <name>.log                 rexlog files (daemon, tui, setup, ...)
 //	    cli-errors.log             CLIErrorLog: failed rex commands (+ .1 backup)
 //	    tui-state.json             TUIStateFile: board selection kept across :bg
+//	    models-cache.json          ModelsCacheFile: detected model ids per tool (model_autodetect)
 //	~/.cache/rex/                  CacheDir
 //	    rex.sock                   Socket, when $XDG_RUNTIME_DIR is unset
 //	$XDG_RUNTIME_DIR/rex.sock      Socket, when $XDG_RUNTIME_DIR is set
@@ -69,6 +70,7 @@ const (
 	auditFileName    = "audit.jsonl"
 	daemonLogName    = "daemon.log"
 	tuiStateFileName = "tui-state.json"
+	modelsCacheName  = "models-cache.json"
 	socketName       = "rex.sock"
 )
 
@@ -99,7 +101,9 @@ type Layout struct {
 	LogDir         string // ~/.local/state/rex
 	DaemonLog      string // ~/.local/state/rex/daemon.log
 	TUIStateFile   string // ~/.local/state/rex/tui-state.json
-	CacheDir       string // ~/.cache/rex
+	// ModelsCacheFile is ~/.local/state/rex/models-cache.json.
+	ModelsCacheFile string
+	CacheDir        string // ~/.cache/rex
 }
 
 // ForHome returns the layout under home. It is pure: it neither reads the
@@ -111,25 +115,26 @@ func ForHome(home string) Layout {
 	data := filepath.Join(home, ".local", "share", appDir)
 	logs := filepath.Join(home, ".local", "state", appDir)
 	return Layout{
-		Home:           home,
-		ConfigDir:      config,
-		ConfigFile:     filepath.Join(config, configFileName),
-		ToolsFile:      filepath.Join(config, toolsFileName),
-		LuaInitFile:    filepath.Join(config, luaInitFileName),
-		SkillsDir:      filepath.Join(config, skillsDirName),
-		ThemesDir:      filepath.Join(config, themesDirName),
-		DataDir:        data,
-		SessionsDir:    filepath.Join(data, sessionsDirName),
-		SnapshotsDir:   filepath.Join(data, snapshotsDirName),
-		ExportsDir:     filepath.Join(data, exportsDirName),
-		DaemonLock:     filepath.Join(data, daemonLockName),
-		UsageLedger:    filepath.Join(data, usageLedgerName),
-		WorkspacesFile: filepath.Join(data, workspacesName),
-		AuditFile:      filepath.Join(data, auditFileName),
-		LogDir:         logs,
-		DaemonLog:      filepath.Join(logs, daemonLogName),
-		TUIStateFile:   filepath.Join(logs, tuiStateFileName),
-		CacheDir:       filepath.Join(home, ".cache", appDir),
+		Home:            home,
+		ConfigDir:       config,
+		ConfigFile:      filepath.Join(config, configFileName),
+		ToolsFile:       filepath.Join(config, toolsFileName),
+		LuaInitFile:     filepath.Join(config, luaInitFileName),
+		SkillsDir:       filepath.Join(config, skillsDirName),
+		ThemesDir:       filepath.Join(config, themesDirName),
+		DataDir:         data,
+		SessionsDir:     filepath.Join(data, sessionsDirName),
+		SnapshotsDir:    filepath.Join(data, snapshotsDirName),
+		ExportsDir:      filepath.Join(data, exportsDirName),
+		DaemonLock:      filepath.Join(data, daemonLockName),
+		UsageLedger:     filepath.Join(data, usageLedgerName),
+		WorkspacesFile:  filepath.Join(data, workspacesName),
+		AuditFile:       filepath.Join(data, auditFileName),
+		LogDir:          logs,
+		DaemonLog:       filepath.Join(logs, daemonLogName),
+		TUIStateFile:    filepath.Join(logs, tuiStateFileName),
+		ModelsCacheFile: filepath.Join(logs, modelsCacheName),
+		CacheDir:        filepath.Join(home, ".cache", appDir),
 	}
 }
 
@@ -261,6 +266,13 @@ func DaemonLog() (string, error) { return field(func(l Layout) string { return l
 // TUIStateFile returns ~/.local/state/rex/tui-state.json, the board
 // selection and filter the TUI saves on :bg and reads once on next launch.
 func TUIStateFile() (string, error) { return field(func(l Layout) string { return l.TUIStateFile }) }
+
+// ModelsCacheFile returns ~/.local/state/rex/models-cache.json, where the
+// daemon keeps the model ids it detected from each agent (a cache: losing it
+// only costs one detection run).
+func ModelsCacheFile() (string, error) {
+	return field(func(l Layout) string { return l.ModelsCacheFile })
+}
 
 // CacheDir returns ~/.cache/rex.
 func CacheDir() (string, error) { return field(func(l Layout) string { return l.CacheDir }) }

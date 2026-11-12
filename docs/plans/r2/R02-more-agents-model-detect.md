@@ -159,3 +159,46 @@ U3 was dropped (D13), so no tool was removed. R02 adds qwen and cursor and repla
 | D4 | State detection | Superseded by D6 (OSC 7501 primary, footer regexes as fallback). No hook adapters needed for qwen or grok. |
 | D5 | grok (and cursor) folder trust | rex never answers grok's trust dialog and never passes `--trust`; the session shows "needs you" until the user presses `y` once per folder. `auto_trust_dirs` does not apply to grok (documented). |
 | D6 | OSC 7501 | Primary state source: the daemon answers `ESC]7501;?` on the child PTY and strips `TMUX*`/`TERM_PROGRAM*` from the child env; footer regexes are the fallback. |
+
+## Build notes (2026-11-11, branch `feat/r02-agents`)
+
+Done: R02-2a, R02-2, R02-3, the data side of R02-4, R02-5, the two flags, R02-7. Deferred: **R02-4 TUI part (the wizard hides missing tools, Settings → Onboarding dims them with an install hint) and R02-6 (the wizard and Settings pickers use the detected models)**, until round 1's U1 has restyled `internal/surface/tui`. No file under `internal/surface/tui` was touched. The later step is wiring only:
+
+- `reg.WithFeatures(FeatureOn(st,"extra_agents"), FeatureOn(st,"model_autodetect"), paths.ModelsCacheFile(), time.Now())` gives the TUI the same registry the daemon serves (cache read only, no command run). `registry.Installed(tool)` / `reg.InstalledMap()` answer "on PATH" in the TUI's own process; the daemon's view is also in `Snapshot.tools`.
+- `ResolveSpawn` (rex setup, `default_spawn_model`) already validates against whatever registry it is given, so detected ids work there once the TUI passes the merged one.
+
+### What differs from the spec
+
+- **There was no wire tool list.** The spec says `installed` goes "on the tool list the TUI already receives", but the TUI loads `registry.Load` itself and the protocol carried no tools. Added `Snapshot.tools[]` (`{id, installed, models[{id, name, detected}]}`), additive, built in `Server.SetRegistry` (so at start and on every reload). It is sent at `Hello` only: a client sees a later change at its next `Hello` (no push event).
+- **`wait_reason` values.** The spec says `done` → "done" and `blocked` → the kind. `SessionSummary.WaitReason` and the S4 code know only `review` and `input` (`Store.SetWaitReason` rejects anything else), so `done` maps to `review` (kept through the `idle` that follows it), `blocked` and `error` to `input`. The `kind` is kept on the adapter (`OSCStatus.BlockedKind`), not sent.
+- **cursor idle.** The spec's `prompt_regex` for cursor lists only approval and trust text, so an idle cursor reads `working` until the 15 s stale rule. An idle status-line alternative (`Auto · 6.1%`) was tried and removed in review: a busy repaint draws the status line after the spinner, so it read busy as idle (`TestCursorBusyFrameOrder`). Revisit with a live capture.
+- **`trust_args` no longer needs `{cwd_list}`.** qwen's session-only switch names no folder. The loader now only refuses an empty argument.
+- **`prompt_paste`** is a new registry field (`{plain, settle_ms}`), because ollama's paste delivery was part of the tool-id switch and `prompt_args` cannot express it.
+- **`model_effort`** is a new field: a detected model has no effort block, and qwen and grok take `--reasoning-effort` on any model. `models_cmd` also requires `model_arg_template`.
+- **grok and cursor `prompt_args` are `["{prompt}"]`** (no `--`), as the task said, because `--` is untested against those CLIs. A task that starts with `-` can read as a flag; documented in `docs/registry.md`.
+- **Model ids** may not start with `-` (stricter than the spec's regex), so an id can never read as a flag.
+- **Detected model names** are the id (spec), not the display name in the listing.
+- **Login notice** shows as the session's last line (`<id>: not signed in — run `<cmd> login``) with `needs_input`; there is no new wire field. The supervisor refreshes the last line when the notice appears or goes away.
+- **Reload.** `boot.ReloadRegistry`/`ReloadOnHUP` became `boot.Catalog` (`Reload`, `ReloadDefault`, `Refresh`, `Applier`). A reload swaps the new registry in at once (static models plus the cache) and refreshes models in the background; `rex reload` and SIGHUP force a refresh, daemon start and a settings change do not. A refresh that a newer reload overtook drops its result. The settings watcher turns the flags on and off within about 5 s.
+- **Commits.** R02-2 and R02-3 are one commit; R02-4's server test already uses `WithModels` from the next commit.
+
+### Review fixes (same branch)
+
+- One PTY writer goroutine (`pty/writer.go`) now carries all input to the child: client input, the initial paste with its Enter as one unit, the trust answerer and OSC replies. A reply is dropped if the writer is busy or has input queued, and `OSCStatus` answers at most once per `Observe` call with a token bucket (burst 3, one per second).
+- A task that starts with `-` gets one space in front when `{prompt}` is its own argv element with no `--` before it; qwen uses `--prompt-interactive={prompt}`.
+- qwen and cursor join the attach repaint tool maps (`tui/attach.go`, `cli/session/attach.go`), the only TUI-package edit.
+- qwen, cursor and grok are `enabled_by_default: false` until the TUI gates on `extra_agents` and `Installed`; with the flag off a spawn says `off: enable in Settings → Features (...)`.
+- The model command runs in `os.TempDir()` in its own process group (killed whole on timeout); a failed refresh keeps the last good list while the binary and command are unchanged; cancellation is not a failure and writes no cache.
+- `boot.Catalog` swaps under one mutex and each refresh has a cancelable context, canceled by a reload and when `model_autodetect` turns off.
+- cursor's idle status-line match was removed (it read busy as idle in repaint order).
+- `trust_args` needs `{cwd_list}` unless `trust_args_global: true` (qwen).
+- `ToolsChanged` event on every registry swap.
+
+### Not done / follow-ups
+
+- TUI follow-up (after U1): handle `ToolsChanged` (and `Snapshot.tools`) to refresh the wizard and pickers live; gate the wizard on `extra_agents` and `installed`; then flip the three tools back to `enabled_by_default` on.
+
+- The TUI parts above.
+- agy now also gets the status-query reply (it has `status: osc7501`); it already worked through `AGY_CLI_OSC7501=on`, so this is only redundant.
+- Child records (`id=a/b`) and `progress` are still ignored.
+- Cursor's idle detection and qwen/grok `model_effort` option lists (`low|medium|high`) are unverified guesses from the capture tables.

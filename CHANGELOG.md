@@ -24,6 +24,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - TUI: the new-session wizard no longer asks for a name. Effort (or skills)
   leads straight to the task; rename the session on the board, or pass
   `rex new -name`, to set one.
+- Registry: how the first prompt reaches an agent is now data
+  (`prompt_args`, `prompt_paste`) instead of a switch on the tool id; the
+  built-in tools behave as before. `trust_args` still has to contain
+  `{cwd_list}`, unless the tool sets the new `trust_args_global: true` (a
+  switch that covers the whole run, as qwen's does). A user tool that relied on the id switch for `claude`,
+  `codex`, `antigravity`, `gemini` or `ollama` under another id must now set
+  `prompt_args` or `prompt_paste`.
 - TUI: the screensaver also starts when an overlay, prompt, the new-session
   wizard, the settings page or the attach popup is left open (it used to
   start only over the bare board). Waking returns to what was open, as it
@@ -62,6 +69,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   session, after a daemon restart). `enter` edits `auto_trust_dirs` and
   `prompt_glyph` in place; the value goes through the same check as
   `rex config set`.
+- Qwen Code (`qwen`), Cursor CLI (`cursor`, binary `cursor-agent`) and Grok
+  Build (`grok`) as built-in agents, shown only when their binary is on
+  `PATH`. They stay hidden in the wizard until enabled in Settings →
+  Onboarding (the TUI does not yet read Settings → Features → Extra agents or
+  your `PATH`); with Extra agents off the daemon refuses to spawn them. The
+  old `grok` entry is replaced. Check each agent's own permission settings: grok's and cursor's
+  default modes can edit files or run commands without asking, and rex never
+  answers their folder-trust dialogs (qwen has a session-only switch, used
+  for folders in `auto_trust_dirs`).
+- Agents that speak OSC 7501 (qwen, grok, antigravity) report their state
+  exactly: rex answers their status query on the terminal and removes `TMUX*`
+  and `TERM_PROGRAM*` from their environment. `done` reads as ready for
+  review, `blocked` and `error` as waiting for an answer. A signed-out cursor
+  or grok shows "not signed in" instead of its screen.
+- Model auto-detect (Settings → Features → Model auto-detect, on): the
+  daemon asks each installed agent for its own model list, caches it in
+  `~/.local/state/rex/models-cache.json` for 24 h and refreshes it at start
+  and on `rex reload`. Off: no command runs and only the built-in lists show.
+- Registry fields `models_cmd`, `model_arg_template`, `model_effort`,
+  `prompt_args`, `prompt_paste`, `login_regex` and `status_env`, and an
+  `installed` flag plus the merged model list on each tool of the `Snapshot`
+  and a `ToolsChanged` event (both additive). The wizard and Settings pickers use them in a later release.
 - `rex config set` / `reset`, the Settings page and `rex setup` tell a running
   daemon to reload when they change `skip_permissions` or `auto_trust_dirs`,
   so revoking either applies at once. Hand edits of `config.yaml` still apply

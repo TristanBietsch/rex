@@ -71,6 +71,10 @@ func cmdDaemonStart(ts *testscript.TestScript, neg bool, args []string) {
 	if on, _ := cfg.Get("summary_enabled").(bool); on {
 		ts.Fatalf("daemon-start: summary_enabled is on; add home/.config/rex/config.yaml with `summary_enabled: false` to the script")
 	}
+	// A test daemon must never run an installed agent's model-list command.
+	if settings.FeatureOn(cfg, "model_autodetect") {
+		ts.Fatalf("daemon-start: model_autodetect is on; add `model_autodetect: false` to home/.config/rex/config.yaml in the script")
+	}
 
 	stderrPath := ts.MkAbs("daemon.stderr")
 	stderr, err := os.Create(stderrPath)

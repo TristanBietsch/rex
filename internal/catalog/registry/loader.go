@@ -16,6 +16,9 @@ type Registry struct {
 	// Warnings are non-fatal problems found while loading, such as a partial
 	// overlay of a retired built-in tool that was dropped. Callers log them.
 	Warnings []string
+	// Disabled are tool ids a feature switch removed (extra_agents): a spawn
+	// of one says the feature is off instead of "not in registry".
+	Disabled []string
 }
 
 // retiredToolIDs are tools that used to be built in. A tools.yaml overlay for
@@ -147,6 +150,7 @@ func mergeOne(base, over Tool) Tool {
 	}
 	if len(over.TrustArgs) > 0 {
 		merged.TrustArgs = over.TrustArgs
+		merged.TrustArgsGlobal = over.TrustArgsGlobal
 	}
 	if len(over.SkipPermissionsArgs) > 0 {
 		merged.SkipPermissionsArgs = over.SkipPermissionsArgs
@@ -156,6 +160,29 @@ func mergeOne(base, over Tool) Tool {
 	}
 	if over.Resume != nil {
 		merged.Resume = over.Resume
+	}
+	if len(over.StatusEnv) > 0 {
+		merged.StatusEnv = over.StatusEnv
+	}
+	if over.ModelEffort != nil {
+		merged.ModelEffort = over.ModelEffort
+	}
+	if over.ModelsCmd != nil {
+		merged.ModelsCmd = over.ModelsCmd
+	}
+	if len(over.ModelArgTemplate) > 0 {
+		merged.ModelArgTemplate = over.ModelArgTemplate
+	}
+	if len(over.PromptArgs) > 0 {
+		merged.PromptArgs = over.PromptArgs
+		merged.PromptPaste = nil
+	}
+	if over.PromptPaste != nil {
+		merged.PromptPaste = over.PromptPaste
+		merged.PromptArgs = nil
+	}
+	if over.LoginRegex != "" {
+		merged.LoginRegex = over.LoginRegex
 	}
 	// Models: extend by id rather than replace.
 	if len(over.Models) > 0 {
@@ -234,10 +261,25 @@ func validateTool(t Tool) error {
 	default:
 		return fmt.Errorf("tool %q: unknown detect.status %q", t.ID, t.Detect.Status)
 	}
-	if len(t.TrustArgs) > 0 && !slices.ContainsFunc(t.TrustArgs, func(a string) bool {
+	if err := validateStatusEnv(t); err != nil {
+		return err
+	}
+	if err := validateModelsCmd(t.ID, t.ModelsCmd); err != nil {
+		return err
+	}
+	if err := validateTemplates(t); err != nil {
+		return err
+	}
+	if slices.Contains(t.TrustArgs, "") {
+		return fmt.Errorf("tool %q: trust_args must not hold an empty argument", t.ID)
+	}
+	if len(t.TrustArgs) > 0 && !t.TrustArgsGlobal && !slices.ContainsFunc(t.TrustArgs, func(a string) bool {
 		return strings.Contains(a, TrustArgsCWDList)
 	}) {
-		return fmt.Errorf("tool %q: trust_args must name the folder with %s", t.ID, TrustArgsCWDList)
+		return fmt.Errorf("tool %q: trust_args must name the folder with %s (or set trust_args_global: true for a switch that covers the whole run)", t.ID, TrustArgsCWDList)
+	}
+	if t.TrustArgsGlobal && len(t.TrustArgs) == 0 {
+		return fmt.Errorf("tool %q: trust_args_global needs trust_args", t.ID)
 	}
 	if slices.Contains(t.SkipPermissionsArgs, "") {
 		return fmt.Errorf("tool %q: skip_permissions_args must not hold an empty argument", t.ID)
@@ -263,6 +305,26 @@ func validateTool(t Tool) error {
 			if _, err := regexp.Compile(re); err != nil {
 				return fmt.Errorf("tool %q: trust_prompt regex compile failed: %w", t.ID, err)
 			}
+		}
+	}
+	return nil
+}
+
+var statusEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// validateStatusEnv checks status_env: only with detect.status, each entry
+// NAME=value with a plain variable name.
+func validateStatusEnv(t Tool) error {
+	if len(t.StatusEnv) == 0 {
+		return nil
+	}
+	if t.Detect.Status == "" {
+		return fmt.Errorf("tool %q: status_env needs detect.status", t.ID)
+	}
+	for _, e := range t.StatusEnv {
+		name, _, ok := strings.Cut(e, "=")
+		if !ok || !statusEnvName.MatchString(name) {
+			return fmt.Errorf("tool %q: status_env entry %q must be NAME=value", t.ID, e)
 		}
 	}
 	return nil

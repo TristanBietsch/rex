@@ -159,9 +159,12 @@ type Server struct {
 	// cfg is immutable after New: handlers copy it without locking. Live
 	// settings live elsewhere — the concurrency cap in gate, the SIGHUP-swapped
 	// registry in reg.
-	cfg  Config
-	reg  atomic.Pointer[registry.Registry]
-	gate *concurrencyGate
+	cfg Config
+	reg atomic.Pointer[registry.Registry]
+	// tools is the wire form of reg (installed flags, merged models), rebuilt
+	// with it so a Hello does not probe PATH.
+	tools atomic.Pointer[[]protocol.ToolInfo]
+	gate  *concurrencyGate
 	// removeSession deletes a session's directory (state.RemoveSession; a test seam).
 	removeSession func(root string, s *state.Session) error
 	// wg tracks the connection handlers and the retire reaper. Serve waits
@@ -216,6 +219,10 @@ type Server struct {
 	overview     *protocol.Overview
 	overviewSubs []func(protocol.Overview)
 
+	// toolsSubs is the global fan-out for ToolsChanged.
+	toolsSubsMu sync.RWMutex
+	toolsSubs   []func(protocol.ToolsChanged)
+
 	// usage is the latest live usage state (memory only, never persisted),
 	// with the same global fan-out as the overview. usageMu guards all three.
 	usageMu   sync.RWMutex
@@ -253,7 +260,68 @@ type Server struct {
 // SetRegistry atomically swaps the registry used for future spawns.
 // Existing sessions are unaffected.
 func (s *Server) SetRegistry(reg *registry.Registry) {
+	s.storeRegistry(reg)
+	s.toolsSubsMu.RLock()
+	subs := slices.Clone(s.toolsSubs)
+	s.toolsSubsMu.RUnlock()
+	if len(subs) == 0 {
+		return
+	}
+	msg := protocol.ToolsChanged{Tools: s.ToolInfos()}
+	for _, fn := range subs {
+		if fn != nil {
+			fn(msg)
+		}
+	}
+}
+
+func (s *Server) storeRegistry(reg *registry.Registry) {
+	infos := toolInfos(reg)
 	s.reg.Store(reg)
+	s.tools.Store(&infos)
+}
+
+// SubscribeTools registers a global callback for registry changes and returns
+// its cancel func. fn follows the SubscribeOverview contract: no blocking, no
+// I/O.
+func (s *Server) SubscribeTools(fn func(protocol.ToolsChanged)) func() {
+	s.toolsSubsMu.Lock()
+	defer s.toolsSubsMu.Unlock()
+	idx := len(s.toolsSubs)
+	s.toolsSubs = append(s.toolsSubs, fn)
+	return func() {
+		s.toolsSubsMu.Lock()
+		defer s.toolsSubsMu.Unlock()
+		if idx < len(s.toolsSubs) {
+			s.toolsSubs[idx] = nil
+		}
+	}
+}
+
+// ToolInfos returns the current registry in wire form: whether each binary is
+// on PATH (probed when the registry was set) and each tool's models.
+func (s *Server) ToolInfos() []protocol.ToolInfo {
+	if p := s.tools.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// toolInfos is reg as protocol.ToolInfo.
+func toolInfos(reg *registry.Registry) []protocol.ToolInfo {
+	if reg == nil {
+		return nil
+	}
+	installed := reg.InstalledMap()
+	out := make([]protocol.ToolInfo, len(reg.Tools))
+	for i, t := range reg.Tools {
+		ti := protocol.ToolInfo{ID: t.ID, Installed: installed[t.ID]}
+		for _, m := range t.Models {
+			ti.Models = append(ti.Models, protocol.ModelInfo{ID: m.ID, Name: m.Name, Detected: m.Detected})
+		}
+		out[i] = ti
+	}
+	return out
 }
 
 // Registry returns the current registry.
@@ -284,7 +352,7 @@ func New(cfg Config) (*Server, error) {
 		ownerUID:      os.Getuid(),
 		removeSession: state.RemoveSession,
 	}
-	s.reg.Store(cfg.Registry)
+	s.storeRegistry(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
 	// Registry() / MaxConcurrentSessions() so nobody uses a stale copy.
 	s.cfg.Registry = nil

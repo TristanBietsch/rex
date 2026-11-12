@@ -75,7 +75,7 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, e
 	sum := sess.Summary()
 	tool, model, ok := s.Registry().FindModel(sum.ToolID, sum.ModelID)
 	if !ok {
-		return false, replyErr(protocol.ErrCodeBadIntent, unknownToolError(sum.ToolID, sum.ModelID))
+		return false, replyErr(protocol.ErrCodeBadIntent, unknownToolError(s.Registry(), sum.ToolID, sum.ModelID))
 	}
 	if sum.Effort != "" && model.Effort != nil && !slices.Contains(model.Effort.Options, sum.Effort) {
 		return false, replyMsg(protocol.ErrCodeBadState, fmt.Sprintf("effort %q is no longer offered by %s/%s",

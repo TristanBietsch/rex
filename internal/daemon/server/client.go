@@ -128,6 +128,11 @@ func (c *client) subscribeBoard() {
 				c.sendEvent(protocol.EventOverview, "", o)
 			}
 		}),
+		c.srv.SubscribeTools(func(m protocol.ToolsChanged) {
+			if c.subscribed.Load() {
+				c.sendEvent(protocol.EventToolsChanged, "", m)
+			}
+		}),
 		c.srv.SubscribeUsage(func(u protocol.Usage) {
 			if c.subscribed.Load() {
 				c.sendEvent(protocol.EventUsage, "", u)

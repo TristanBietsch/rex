@@ -57,6 +57,7 @@ var applyModeOf = map[string]ApplyMode{
 	"board_filter": ApplyLive, "search": ApplyLive, "undo_complete": ApplyLive, "summary_preview": ApplyLive,
 	"waiting_section": ApplyLive, "timestamps": ApplyLive, "cli_agent_auto": ApplyLive, "session_export": ApplyLive,
 	"turn_snapshots": ApplyLive, "usage": ApplyLive, "live_reload": ApplyLive,
+	"extra_agents": ApplyLive, "model_autodetect": ApplyLive, // catalog applier subscribes to both
 	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive,
 	"summary_detail": ApplyLive, "overview_enabled": ApplyLive, "cli_error_log": ApplyLive,
 	// Read once when the daemon starts.

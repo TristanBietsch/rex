@@ -23,7 +23,10 @@ import (
 
 // unknownToolError is the bad_intent error for a tool/model pair the registry
 // does not have. NewSession and Resume report it the same way.
-func unknownToolError(toolID, modelID string) error {
+func unknownToolError(reg *registry.Registry, toolID, modelID string) error {
+	if reg != nil && slices.Contains(reg.Disabled, toolID) {
+		return badIntent(errors.New("off: enable in Settings → Features (`rex config set extra_agents true`)"))
+	}
 	return badIntent(fmt.Errorf("tool %s/%s not in registry", toolID, modelID))
 }
 
@@ -44,7 +47,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	// Read the registry through the lock so SIGHUP-swapped versions take effect.
 	tool, model, ok := srv.Registry().FindModel(p.ToolID, p.ModelID)
 	if !ok {
-		return "", unknownToolError(p.ToolID, p.ModelID)
+		return "", unknownToolError(srv.Registry(), p.ToolID, p.ModelID)
 	}
 	if p.Effort != "" && model.Effort != nil && !slices.Contains(model.Effort.Options, p.Effort) {
 		return "", fmt.Errorf("effort %q not offered by %s/%s (options: %s)",
@@ -122,7 +125,7 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 	childEnv := childEnvFor(spec)
 
 	ptyPrompt := p.InitialPrompt
-	delivery := initialPromptDelivery(p.ToolID, cmdArgs, p.InitialPrompt)
+	delivery := initialPromptDelivery(tool, cmdArgs, p.InitialPrompt)
 	if delivery.argv != nil {
 		cmdArgs = delivery.argv
 		ptyPrompt = ""
@@ -264,11 +267,25 @@ func childEnvFor(spec spawnSpec) []string {
 		// C:/... paths without backslash escapes. Go opens either form.
 		env = append(env, adapter.HookFileEnv+"="+filepath.ToSlash(spec.HookFile))
 	}
-	if spec.Tool.Detect.Status == registry.StatusOSC7501 {
-		// Appended after os.Environ, so it wins over a user's "off".
-		env = append(env, adapter.OSC7501Env+"=on")
+	// Appended after os.Environ, so status_env wins over a user's "off".
+	if spec.Tool.Detect.Status != "" {
+		env = append(env, spec.Tool.StatusEnv...)
 	}
 	return append(env, "REX_SESSION_ID="+spec.SessionID)
+}
+
+// statusDropEnv are the variables removed from the child's environment for a
+// tool on the OSC 7501 channel: inside tmux (or a known terminal program) some
+// agents never ask for the channel. The agent runs in rex's PTY, not tmux, so
+// removing them is also the true environment.
+var statusDropEnv = []string{"TMUX", "TMUX_PANE", "TERM_PROGRAM", "TERM_PROGRAM_VERSION"}
+
+// childEnvDropFor returns the inherited variables to remove from the child.
+func childEnvDropFor(spec spawnSpec) []string {
+	if spec.Tool.Detect.Status == registry.StatusOSC7501 {
+		return slices.Clone(statusDropEnv)
+	}
+	return nil
 }
 
 // startSupervisor builds the adapter and PTY supervisor for sess and runs it
@@ -304,6 +321,7 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		Command:        argv,
 		CWD:            spec.CWD,
 		Env:            env,
+		DropEnv:        childEnvDropFor(spec),
 		InitialCols:    spec.Cols,
 		InitialRows:    spec.Rows,
 		Adapter:        ad,

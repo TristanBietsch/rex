@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +41,7 @@ type SupervisorConfig struct {
 	Command        []string        // argv to spawn (command + args resolved from registry+model)
 	CWD            string          // working directory for the child
 	Env            []string        // extra KEY=VALUE entries added to the child's environment
+	DropEnv        []string        // inherited variable names removed from the child's environment
 	Adapter        adapter.Adapter // nil = no state classification (tests/echo tool)
 	OutputSink     func(b []byte)  // called with every chunk read from PTY; non-blocking
 	SummaryRequest chan<- string   // optional: session IDs needing AI summary; nil disables
@@ -127,8 +130,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	if s.cfg.CWD != "" {
 		cmd.Dir = s.cfg.CWD
 	}
-	if len(s.cfg.Env) > 0 {
-		cmd.Env = append(os.Environ(), s.cfg.Env...)
+	if len(s.cfg.Env) > 0 || len(s.cfg.DropEnv) > 0 {
+		cmd.Env = append(envWithout(os.Environ(), s.cfg.DropEnv), s.cfg.Env...)
 	}
 	cols := s.cfg.InitialCols
 	rows := s.cfg.InitialRows
@@ -145,6 +148,13 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		return fmt.Errorf("pty start: %w", err)
 	}
 	defer f.Close()
+	// Everything written to the child goes through pw, so a child that stops
+	// reading its stdin stalls only the writer goroutine (it ends with the PTY).
+	writerDone := make(chan struct{})
+	defer close(writerDone)
+	pw := newPTYWriter(f, writerDone, func(err error) {
+		slog.Debug("pty: write to child failed; writer exiting", "session", sess.ID, "err", err)
+	})
 	slog.Info("pty: started", append([]any{"session", sess.ID, "pid", cmd.Process.Pid, "cols", cols, "rows", rows},
 		argvLogAttrs(sess, s.cfg.Command)...)...)
 
@@ -215,8 +225,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				case <-inputDone:
 					return
 				case b := <-s.cfg.InputCh:
-					if _, err := f.Write(b); err != nil {
-						slog.Debug("pty: input write failed; forwarder exiting", "session", sess.ID, "err", err)
+					if !pw.Send(ctx, writeUnit{parts: [][]byte{b}}) {
 						return
 					}
 				}
@@ -299,24 +308,14 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 							paste = append([]byte("\x1b[200~"), paste...)
 							paste = append(paste, []byte("\x1b[201~")...)
 						}
-						if _, err := f.Write(paste); err != nil {
-							slog.Warn("pty: initial_prompt paste failed", "session", sess.ID, "err", err)
+						// One unit: the paste, a beat for the TUI to commit it to its
+						// input state (without it Claude sometimes fires Enter against
+						// an empty box), then Enter, with no other input in between.
+						if !pw.Send(ctx, writeUnit{parts: [][]byte{paste, {'\r'}}, gap: 120 * time.Millisecond}) {
+							slog.Warn("pty: initial_prompt not sent", "session", sess.ID)
 							return
 						}
-						slog.Info("pty: initial_prompt pasted", "session", sess.ID, "bytes", len(paste), "plain", s.cfg.PlainPaste, "idle_ms", idle.Milliseconds())
-						// Give the TUI a beat to commit the pasted text to its input
-						// state before we hit Enter; without this Claude sometimes
-						// fires Enter against an empty input box.
-						select {
-						case <-ctx.Done():
-							return
-						case <-time.After(120 * time.Millisecond):
-						}
-						if _, err := f.Write([]byte{'\r'}); err != nil {
-							slog.Warn("pty: initial_prompt submit failed", "session", sess.ID, "err", err)
-						} else {
-							slog.Info("pty: initial_prompt submitted", "session", sess.ID)
-						}
+						slog.Info("pty: initial_prompt queued", "session", sess.ID, "bytes", len(paste), "plain", s.cfg.PlainPaste, "idle_ms", idle.Milliseconds())
 						return
 					}
 				}
@@ -333,6 +332,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 
 	// observer is asserted once; nil unless the adapter reads the raw stream.
 	observer, _ := s.cfg.Adapter.(adapter.OutputObserver)
+	responder, _ := s.cfg.Adapter.(adapter.OutputResponder)
 
 	// Reader goroutine. It sends exactly one value on errc and returns: nil
 	// when the child hung up the PTY, otherwise the read error, after which
@@ -355,6 +355,14 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 				outMu.Unlock()
 				if observer != nil {
 					observer.Observe(chunk)
+					// An agent that asks the terminal a question gets its answer
+					// straight away (OSC 7501 support query).
+					// Queued behind nothing or dropped: never blocks this reader.
+					if responder != nil {
+						if reply := responder.TakeReply(); len(reply) > 0 && !pw.TrySendReply(reply) {
+							slog.Debug("pty: status reply dropped (writer busy)", "session", sess.ID)
+						}
+					}
 				}
 
 				// Increment token counter and emit a patch every +500 tokens.
@@ -415,6 +423,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// reasons is asserted once too; nil unless the agent reports why it
 	// waits. Cleared with the subagents on every exit path.
 	reasons, _ := s.cfg.Adapter.(adapter.WaitReasoner)
+	noticer, _ := s.cfg.Adapter.(adapter.Noticer)
+	var lastNotice string
 	clearReason := func() {
 		if reasons != nil {
 			_ = s.cfg.Store.SetWaitReason(sess.ID, "")
@@ -565,6 +575,14 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			refresh := screenDirty
 			screenDirty = false
 			windowMu.Unlock()
+			// A notice appearing or going away changes the last line even
+			// though the screen did not (a static login screen).
+			if noticer != nil {
+				if n := noticer.Notice(); n != lastNotice {
+					lastNotice = n
+					refresh = true
+				}
+			}
 			if refresh {
 				s.refreshScreenText(sess.ID, screen)
 			}
@@ -576,8 +594,8 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					slog.Info("pty: trust prompt", "session", sess.ID, "action", action)
 				}
 				if keys != nil {
-					if _, err := f.Write(keys); err != nil {
-						slog.Warn("pty: trust prompt write failed", "session", sess.ID, "err", err)
+					if !pw.Send(ctx, writeUnit{parts: [][]byte{keys}}) {
+						slog.Warn("pty: trust prompt not sent", "session", sess.ID)
 					}
 				}
 			}
@@ -745,10 +763,38 @@ func (s *Supervisor) refreshScreenText(id string, screen vt10x.Terminal) {
 	}
 	s.cfg.Store.SetScreen(id, termtext.Tail([]byte(strings.Join(lines, "\n")), screenTailBytes))
 	last := sanitizeForDisplay(lines[len(lines)-1])
+	if n, ok := s.cfg.Adapter.(adapter.Noticer); ok {
+		if notice := n.Notice(); notice != "" {
+			last = notice // signed out: say so instead of the agent's last row
+		}
+	}
 	if last == "" {
 		return
 	}
 	if err := s.cfg.Store.UpdateLastLine(id, last); err != nil {
 		slog.Warn("pty: update last_line failed", "session", id, "err", err)
 	}
+}
+
+// envWithout returns env minus the variables named in drop.
+func envWithout(env, drop []string) []string {
+	if len(drop) == 0 {
+		return env
+	}
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if !slices.ContainsFunc(drop, func(d string) bool { return sameEnvName(d, name) }) {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+// sameEnvName compares variable names; Windows ignores case.
+func sameEnvName(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }

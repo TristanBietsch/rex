@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
@@ -93,14 +92,6 @@ func run(args []string) error {
 	defer rexlog.Close()
 	slog.Info("daemon: starting", "version", version.Version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
 
-	reg, err := registry.Load(*toolsPath)
-	if err != nil {
-		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
-		return fmt.Errorf("registry: %w", err)
-	}
-	boot.LogRegistryWarnings(*toolsPath, reg)
-	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
-
 	// Owner-only: sessions hold prompts, cwds and full agent output.
 	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
 		return fmt.Errorf("state dir: %w", err)
@@ -152,6 +143,15 @@ func run(args []string) error {
 	// The one settings hub: spawn-time reads call hub.Current, features
 	// subscribe, and one poller (below) feeds it.
 	hub := boot.NewSettingsHub(settingsPath, settingsStore)
+	// The registry follows two settings (extra_agents, model_autodetect), so it
+	// loads once the hub holds the settings.
+	reg, err := boot.LoadRegistry(*toolsPath, hub.Current())
+	if err != nil {
+		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
+		return fmt.Errorf("registry: %w", err)
+	}
+	boot.LogRegistryWarnings(*toolsPath, reg)
+	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
 	summaryEnabled, _ := settingsStore.Get("summary_enabled").(bool)
 	summaryModel, _ := settingsStore.Get("summary_model").(string)
 	if summaryModel == "" {
@@ -209,6 +209,9 @@ func run(args []string) error {
 	}
 
 	var srv *server.Server
+	// cat is set once srv exists; the reload callbacks read it only after Serve
+	// has started.
+	var cat *boot.Catalog
 	// Usage tracking: inert while the usage setting is off. Its callbacks
 	// read srv only once Serve has started, after that assignment.
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
@@ -246,13 +249,20 @@ func run(args []string) error {
 		Audit:                 auditTrail,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
-		OnReload:              func() error { return boot.ReloadAll(srv, *toolsPath, hub) },
+		OnReload:              func() error { return boot.ReloadAll(ctx, cat, hub) },
 	}
 	hub.WireSpawnReads(&srvCfg, *socketPath)
 	srv, err = server.New(srvCfg)
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
+
+	// Model lists are detected in the background (inert while model_autodetect
+	// is off); the registry above already holds whatever the cache had.
+	cat = boot.NewCatalog(srv, *toolsPath)
+	defer cat.Wait()
+	cat.Refresh(ctx, hub.Current(), false)
+	hub.Subscribe([]string{"extra_agents", "model_autodetect"}, cat.Applier(ctx, hub.Current()))
 
 	// Started only now: switching usage on publishes its state through srv.
 	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
@@ -294,7 +304,7 @@ func run(args []string) error {
 	go hub.Watch(ctx, 5*time.Second)
 
 	// SIGHUP → reload tools.yaml, then config.yaml.
-	go boot.ReloadOnHUP(ctx, func() error { return boot.ReloadAll(srv, *toolsPath, hub) })
+	go boot.ReloadOnHUP(ctx, func() error { return boot.ReloadAll(ctx, cat, hub) })
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version.Version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)
