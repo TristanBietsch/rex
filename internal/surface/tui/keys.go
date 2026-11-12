@@ -19,6 +19,7 @@ const (
 	groupAttached   = "Attached session"
 	groupSessionCmd = "Session commands"
 	groupAppCmd     = "App commands"
+	groupNewAgent   = "New-agent page"
 )
 
 // ctxMask says where a binding applies.
@@ -28,6 +29,7 @@ const (
 	ctxBoard ctxMask = 1 << iota
 	ctxAttach
 	ctxMouse
+	ctxNewAgent
 )
 
 // binding describes one key (or gesture) for the help overlay and the help
@@ -60,7 +62,7 @@ var bindings = []binding{
 	{Keys: "z0", Desc: "show every section", Group: groupFilter, Ctx: ctxBoard, Press: []string{"z", "0"}, Flag: "board_filter"},
 
 	{Keys: "enter", Desc: "attach to selected session", Group: groupActions, Ctx: ctxBoard, Press: []string{"enter"}, Line: "open"},
-	{Keys: "n", Desc: "new-agent wizard", Group: groupActions, Ctx: ctxBoard, Press: []string{"n"}},
+	{Keys: "n", Desc: "new agent", Group: groupActions, Ctx: ctxBoard, Press: []string{"n"}},
 	{Keys: "r", Desc: "rename selected (empty = slug)", Group: groupActions, Ctx: ctxBoard, Press: []string{"r"}},
 	{Keys: "cc", Desc: "mark done / undo", Group: groupActions, Ctx: ctxBoard, Press: []string{"c", "c"}, Line: "done"},
 	{Keys: "uc", Desc: "undo done (unmark, or resume an exited session)", Group: groupActions, Ctx: ctxBoard, Press: []string{"u", "c"}, Flag: "undo_complete"},
@@ -85,6 +87,27 @@ var bindings = []binding{
 	{Keys: "::", Desc: "command bar (q detach, done, kill, name <t>, banner)", Group: groupAttached, Ctx: ctxAttach},
 	{Keys: ":::", Desc: "type a literal \"::\" into the agent", Group: groupAttached, Ctx: ctxAttach},
 	{Keys: "ctrl+pgup", Desc: "scroll back; k/j pgup/pgdn g/G, esc live", Group: groupAttached, Ctx: ctxAttach},
+
+	{Keys: "n, :new", Desc: "open the page (the draft comes back)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "tab, shift+tab", Desc: "next / previous section", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "1-4", Desc: "Agent / Task / Context / Trust (not in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+g", Desc: "agent, model, effort and skills", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "enter", Desc: "launch (in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+s", Desc: "launch from any section", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+j, alt+enter", Desc: "new line in the task", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "paste", Desc: "insert; over 8 lines or 1 KiB becomes a context item", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "@", Desc: "add a workspace file (completion)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+o", Desc: "import picker: workspace files and folders", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+e", Desc: "edit the task or a paste in $EDITOR", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+u", Desc: "clear the line; on an empty task, the draft", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+w, alt+backspace", Desc: "delete a word", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "← → ↑ ↓ home end", Desc: "move the cursor in the task", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "j k enter", Desc: "context list: move, preview", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "x, delete, r", Desc: "context list: remove, rename", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+t, ctrl+a", Desc: "trust the folder this session / always", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "/ h l space", Desc: "agent screen: model filter, effort, skill", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "esc", Desc: "close the innermost thing; the page keeps the draft", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "?", Desc: "this help (not in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 }
 
 // helpLineKeys is the board help line, in order; each is the Keys of a
@@ -138,7 +161,7 @@ func (c command) helpKey() string {
 
 // commands is the `:` command table, in help order within each group.
 var commands = []command{
-	{Names: []string{"new"}, Desc: "new-agent wizard", Group: groupSessionCmd, Run: runNew},
+	{Names: []string{"new"}, Desc: "new agent", Group: groupSessionCmd, Run: runNew},
 	{Names: []string{"name"}, Args: "[text]", Desc: "rename selected (no text: open editor)", Group: groupSessionCmd, Run: runName},
 	{Names: []string{"rename"}, Args: "<s> <slug>", Desc: "change slug", Group: groupSessionCmd, Run: runRename},
 	{Names: []string{"done"}, Args: "[sel]", Desc: "mark done", Group: groupSessionCmd, Run: runDone},
@@ -305,7 +328,7 @@ func runComplete(m Model, c cmdCall) (Model, tea.Cmd) {
 
 // runNew takes the same path as the `n` key: setting FocusWizard alone left
 // Wizard nil and soft-locked the TUI (P0-07).
-func runNew(m Model, _ cmdCall) (Model, tea.Cmd) { return openWizard(m) }
+func runNew(m Model, _ cmdCall) (Model, tea.Cmd) { return openNew(m) }
 
 func runFail(m Model, _ cmdCall) (Model, tea.Cmd) { return openFail(m) }
 

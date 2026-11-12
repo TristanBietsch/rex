@@ -49,7 +49,14 @@ type swapState struct {
 	Page string `json:"page,omitempty"`
 	// Attach is the session whose attach popup was open.
 	Attach string `json:"attach,omitempty"`
+	// DraftDropped is set when a kept new-agent draft was left behind:
+	// drafts are memory only (R16 D4) and never go into this file, so the
+	// new image says so instead.
+	DraftDropped bool `json:"draft_dropped,omitempty"`
 }
+
+// draftDroppedNotice tells the user a swap left the new-agent draft behind.
+const draftDroppedNotice = "board swapped: the kept new-agent draft was dropped (drafts stay in memory only)"
 
 // SwapRequest is returned by Run when the board quit to swap: the caller
 // execs the new binary with SwapEnv=Path.
@@ -75,6 +82,7 @@ func swapStateOf(m Model) swapState {
 		PID: os.Getpid(), SavedAt: time.Now().UTC(),
 		Selection: m.SelectedID, Filter: m.Filter, Search: m.Search, Scroll: m.ScrollOffset,
 		Page: pageOfFocus[m.Focus], Hidden: []string{},
+		DraftDropped: m.newAgentDraft != nil || m.NewAgent != nil,
 	}
 	for _, g := range boardGroups {
 		if m.Hidden[g.ID] {
@@ -218,16 +226,18 @@ func checkBinary(b binStamp) tea.Cmd {
 var swapBlockingFocus = map[Focus]bool{
 	FocusBoot: true, FocusFail: true, FocusWizard: true, FocusPrompt: true, FocusCommand: true,
 	FocusConfirmQuit: true, FocusConfirmDelete: true, FocusConfirmLoopStop: true,
-	FocusRename: true, FocusSearch: true, FocusUndo: true,
+	FocusRename: true, FocusSearch: true, FocusUndo: true, FocusNewAgent: true,
 }
 
 // swapSafe reports whether a swap would lose nothing being typed.
 func swapSafe(m Model) bool { return !swapBlockingFocus[m.Focus] && m.reconnect == nil }
 
 // autoSwapReady reports whether an unattended swap may run now: on the
-// board itself, idle for swapIdle.
+// board itself, idle for swapIdle, with no kept new-agent draft (a swap
+// drops it, so only an explicit :swap or rex upgrade may).
 func autoSwapReady(m Model) bool {
-	return m.Focus == FocusBoard && m.Attach == nil && swapSafe(m) && m.now().Sub(m.lastInput) >= swapIdle
+	return m.Focus == FocusBoard && m.Attach == nil && m.newAgentDraft == nil && swapSafe(m) &&
+		m.now().Sub(m.lastInput) >= swapIdle
 }
 
 // updateSwap handles the swap messages; ok is false for any other message.
@@ -301,6 +311,9 @@ func applySwapPage(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.ScrollOffset = st.Scroll
+	if st.DraftDropped {
+		m.Notice = draftDroppedNotice
+	}
 	if st.Attach != "" {
 		for _, s := range m.Sessions {
 			if s.ID == st.Attach && liveState(s.State) {

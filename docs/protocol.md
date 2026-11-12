@@ -48,7 +48,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Type | Implemented | Payload summary |
 |------|-------------|-----------------|
 | `Hello` | yes | `client_version` (release label; older clients sent their name here), `client` (program name, optional) |
-| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills` |
+| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt` (at most 96 KiB), `fleet`, `trust_folder`, `name`, `skills`, `context_summary` |
 | `Subscribe` | yes | `session_id`, `replay`, `mode_sync`, `repaint` |
 | `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
@@ -81,7 +81,11 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Field | Required |
 |-------|----------|
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
-| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills`, `cols`, `rows` | no |
+| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills`, `cols`, `rows`, `context_summary` | no |
+
+`initial_prompt` is at most 96 KiB (98,304 UTF-8 bytes, `protocol.MaxInitialPromptBytes`), which keeps it inside Linux's 128 KiB limit for one argv element. A longer one is `bad_intent` `initial_prompt is <n> bytes; the limit is 98304`, checked before anything is spawned or written. (The R16 spec calls this `prompt_too_long`; the protocol has no per-cause codes for validation, so it is `bad_intent` with that message.) A daemon that predates the cap lets the exec fail with `spawn_failed`.
+
+`context_summary` (list, optional) describes the context items a client folded into `initial_prompt`: `kind` (`paste`, `file`, `dir` or `url`), `name` (`paste N`, a workspace-relative path, a dir ending in `/`, or the URL; `url` and its `- url: <url>` prompt line are reserved for later: no client builds a URL item yet) and `bytes` (omitted when 0). Metadata only, never content. The daemon accepts it and does not store it yet (the session's `meta.json` has no slot for it); a daemon that predates the field ignores it. The TUI's new-agent page builds the prompt with `spawnctx.Assemble`: the task, a `Context from rex (read before starting):` list (`- file: <path>`, `- dir: <path>/ (<n> files)`), then each paste as `<pasted name="paste N" lines="L">` … `</pasted>`.
 
 `trust_folder` (bool, default false) trusts `cwd` for this session as if it were listed in `auto_trust_dirs`: the agent's folder-trust dialog is answered (or avoided with `trust_args`) and `skip_permissions` may apply. `cwd` must be absolute, without `..`, and neither a filesystem root nor the home folder; otherwise the intent is `bad_intent` with a `trust_folder: ...` message. The choice is stored in `meta.json` and shown as `trust_folder` in session summaries, and `Resume` applies it again (re-checking the stored `cwd`; a folder that no longer passes is not trusted). Nothing is written to the agent's own config by rex.
 

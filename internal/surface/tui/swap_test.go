@@ -91,7 +91,7 @@ func TestNewBuildNoticeThenIdleSwap(t *testing.T) {
 // No unattended swap while something is being typed or the attach popup
 // is open.
 func TestNoAutoSwapWhileBusy(t *testing.T) {
-	for _, f := range []Focus{FocusWizard, FocusPrompt, FocusConfirmDelete, FocusRename} {
+	for _, f := range []Focus{FocusWizard, FocusNewAgent, FocusPrompt, FocusConfirmDelete, FocusRename} {
 		m := swapBoard()
 		m.Focus = f
 		m.newBuild = true
@@ -240,4 +240,36 @@ func TestHandleReattach(t *testing.T) {
 	_, cmd = handleReattach(m, reattachMsg{session: "nope", attempt: 0})
 	require.NotNil(t, cmd, "another try is scheduled")
 	require.NotNil(t, scheduleReattach("x", 9))
+}
+
+// A kept new-agent draft never goes into the swap file (R16 D4: memory
+// only). An idle auto swap waits while one is kept; an explicit swap drops
+// it and the new image says so.
+func TestSwapDropsNewAgentDraftWithNotice(t *testing.T) {
+	m := swapBoard()
+	draft := &NewAgentState{}
+	draft.Task.Insert("secret task text")
+	m.newAgentDraft = draft
+	m.newBuild = true
+	m.lastInput = time.Now().Add(-time.Hour)
+	require.True(t, swapSafe(m))
+	nm, _ := m.Update(binChangedMsg{})
+	require.Empty(t, nm.(Model).swapPath, "no unattended swap over a kept draft")
+
+	st := swapStateOf(m)
+	require.True(t, st.DraftDropped)
+	path, err := writeSwapState(st)
+	require.NoError(t, err)
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "secret task text", "draft text never on disk")
+	got, err := readSwapState(path)
+	require.NoError(t, err)
+
+	b := swapBoard()
+	b.swapIn = &got
+	nb, _ := applySwapPage(b)
+	require.Equal(t, draftDroppedNotice, nb.Notice)
+
+	require.False(t, swapStateOf(swapBoard()).DraftDropped, "no draft, no notice")
 }

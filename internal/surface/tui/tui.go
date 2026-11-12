@@ -181,6 +181,12 @@ func (m Model) view(w, h int) string {
 		return renderSplash(m, w, h)
 	case FocusWizard:
 		return centerPanel(w, h, fitOverlay(renderWizard(m), w), dimBoard(renderFullScreen(m, w, h)))
+	case FocusNewAgent:
+		if !m.featureOn("new_agent_page") { // turned off: closed on the next Update
+			m.Focus = FocusBoard
+			return m.view(w, h)
+		}
+		return renderNewAgent(m, w, h)
 	case FocusHelp:
 		if pagesOn(m) {
 			return renderHelpPage(m, w, h)

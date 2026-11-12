@@ -322,6 +322,11 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		if err := srv.startGuard(); err != nil {
 			return err
 		}
+		// Windows: no prompt through cmd.exe, no command line over its cap.
+		var err error
+		if argv, ptyPrompt, delivery, err = planLaunch(launchEnv, sess.ID, argv, ptyPrompt, delivery); err != nil {
+			return err
+		}
 	}
 	cfg := srv.cfg
 	ad, err := adapter.For(spec.Tool, spec.HookFile)

@@ -20,6 +20,70 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   why slot shows only `? asks` and the waiting reasons. The legend drops
   the `✓ review` row.
 
+### Fixed (Windows prompt delivery)
+
+- Windows: an agent installed as an npm `.cmd` shim (`claude.cmd`,
+  `qwen.cmd`) got its task through `cmd.exe`, so `&`, `|`, `%VAR%`, `^`,
+  quotes or a line break in a task could run commands. The daemon now
+  starts the program the shim runs (`node.exe` and the script, or the
+  package's `.exe`) directly. A shim it cannot resolve, or a `command`
+  that is `cmd.exe`, gets the task pasted into the agent instead and starts
+  only when every argument (folder paths and JSON included) is plain; else
+  the launch is refused with an error naming the shim and the argument.
+- Windows: a task that would make the command line longer than Windows
+  allows (32,767 characters, 8,191 through `cmd.exe`; rex stops at 32,000
+  and 8,000) is pasted instead of failing the launch.
+
+### Added (new-agent page)
+
+- `n` and `:new` open a full-screen new-agent page instead of the popup
+  wizard: the agent, a multi-line task, context and folder trust on one
+  screen, with a step rail (Agent, Task, Context, Trust, each with a mark
+  and a word) that becomes a one-line strip under 60 columns. It opens in
+  the task editor with the agent you launched last. `enter` launches from
+  the editor, `ctrl+s` from anywhere, `ctrl+j` / `alt+enter` add a line,
+  `ctrl+e` edits the task in `$EDITOR`, `ctrl+g` opens the Agent screen
+  (agents, models with a `/` filter, effort, skills), `ctrl+t` / `ctrl+a`
+  trust the folder as in the wizard, and `?` outside the editor shows the
+  page's keys. Setting `new_agent_page` (Features, on) turns it off to get
+  the wizard back; turning it off while the page is open keeps the draft.
+- Context: a paste of more than 8 lines or 1 KiB becomes a `paste N` item
+  with a `[paste N · L lines]` placeholder in the task (a paste never
+  launches); `@` in the task completes workspace paths; `ctrl+o` opens an
+  import picker over the workspace (`git ls-files` in a repo, so
+  gitignored files stay out; at most 10,000 entries or 300 ms). Items can
+  be previewed (`enter`), renamed (`r`), removed (`x`) and, for pastes,
+  edited in `$EDITOR`. The agent gets one first prompt: the task, then
+  `Context from rex (read before starting):` with a `- file:` or `- dir:`
+  line per reference and each paste in a `<pasted …>` block. Files are
+  referenced by workspace-relative path, never copied. A draft whose files
+  were added in another folder says so (`!`) and takes no new paths until
+  they are removed.
+- Safety: a path must resolve, through every symlink, inside the session
+  folder and be a regular file or folder (FIFOs, sockets and devices are
+  refused unopened); names that look like secrets (`.env`, `*.pem`,
+  `id_rsa*`, …) need a `y`. Pasted and typed text loses escape sequences,
+  control, bidi, zero-width, tag and variation-selector characters and the
+  invisible math operators, and `</pasted>` inside a paste is escaped. Caps: 32 KiB per paste, 64 KiB of pasted text, 32
+  items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt);
+  the last row shows the prompt's size against the cap. Ollama, which
+  takes its prompt as typed lines, only launches a one-line prompt with no
+  context.
+- Launch checks every cap and path again, then the page stays open with
+  `⠋ starting…` until the daemon answers. A failure shows
+  `✗ launch failed: … Your draft is kept.`; `esc` keeps the draft in
+  memory for the next `n` (nothing is written to disk).
+- A board swap (`:swap`, `rex upgrade`) waits while the page is open and
+  never writes the draft to its swap file: `auto_swap` waits while a draft
+  is kept, and an explicit swap over one drops it with a notice.
+- `NewSession` takes an optional `context_summary` (kind, name and size of
+  each item, no content); older daemons ignore it.
+
+### Changed (daemon)
+
+- The daemon refuses a `NewSession` whose `initial_prompt` is over 96 KiB
+  with `bad_intent` before anything is spawned, instead of a failed exec.
+
 ### Added (hot reload, board swap, daemon hot restart)
 
 - `rex daemon restart` is now a hot restart: the daemon re-execs itself in
@@ -64,6 +128,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   without turning on `reduce_motion` everywhere.
 - All three apply live and can be set from `config.lua` and from a trusted
   workspace's `.rex/config.lua` (display only).
+
 ### Added (row icons)
 
 - Board rows show a strip of fixed icon slots after the name in place of

@@ -16,6 +16,11 @@ type promptDelivery struct {
 	plainPaste bool
 	// readySettle is how long output must be quiet before pasting.
 	readySettle time.Duration
+	// promptArgs is how many trailing elements of argv carry the prompt,
+	// and prompt the text they carry (the Windows launch plan may move it
+	// to the paste path: launch_windows.go).
+	promptArgs int
+	prompt     string
 }
 
 // initialPromptDelivery decides argv vs PTY paste for a tool's first prompt
@@ -29,8 +34,9 @@ func initialPromptDelivery(tool registry.Tool, cmdArgs []string, prompt string) 
 		return promptDelivery{}
 	}
 	if len(tool.PromptArgs) > 0 {
-		argv := append(append([]string{}, cmdArgs...), tool.PromptArgsFor(guardLeadingDash(tool.PromptArgs, prompt))...)
-		return promptDelivery{argv: argv}
+		pa := tool.PromptArgsFor(guardLeadingDash(tool.PromptArgs, prompt))
+		argv := append(append([]string{}, cmdArgs...), pa...)
+		return promptDelivery{argv: argv, promptArgs: len(pa), prompt: prompt}
 	}
 	if pp := tool.PromptPaste; pp != nil {
 		return promptDelivery{plainPaste: pp.Plain, readySettle: time.Duration(pp.SettleMs) * time.Millisecond}

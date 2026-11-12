@@ -1,0 +1,87 @@
+-- plain.120x40 --
+                                                                                                                        
+  ∴ REX › NEW AGENT    ~/dev/rex                                                                                 draft  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ STEPS           │ IMPORT  ~/dev/rex                                                                  10 files indexed  
+ ✓ Agent         │ > auth█                                                                                              
+ · Task          │   [ ] internal/auth/                                                                            dir  
+ ▸ Context    1  │ ▸ [ ] internal/auth/auth_test.go                                                             4.2 KB  
+ ? Trust    ask  │   [x] cmd/rex/auth_test_helpers.go                                                           1.1 KB  
+                 │   [ ] internal/auth/testdata/                                                                   dir  
+                 │   [ ] internal/auth/testdata/login.json                                                       210 B  
+                 │   ! internal/auth/testdata/server.pem                                      looks like secrets: skip  
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+                 │                                                                                                      
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  space mark · enter add 1 · → open dir · ← up · esc back                                                               
+-- plain.80x24 --
+                                                                                
+  ∴ REX › NEW AGENT    ~/dev/rex                                         draft  
+────────────────────────────────────────────────────────────────────────────────
+ STEPS           │ IMPORT  ~/dev/rex                          10 files indexed  
+ ✓ Agent         │ > auth█                                                      
+ · Task          │   [ ] internal/auth/                                    dir  
+ ▸ Context    1  │ ▸ [ ] internal/auth/auth_test.go                     4.2 KB  
+ ? Trust    ask  │   [x] cmd/rex/auth_test_helpers.go                   1.1 KB  
+                 │   [ ] internal/auth/testdata/                           dir  
+                 │   [ ] internal/auth/testdata/login.json               210 B  
+                 │   ! internal/auth/testdata/server.pem    looks like secrets  
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+────────────────────────────────────────────────────────────────────────────────
+  space mark · enter add 1 · → open dir · ← up · esc back                       
+-- plain.50x20 --
+                                                  
+  ∴ REX › NEW AGENT                        draft  
+──────────────────────────────────────────────────
+  IMPORT  ~/dev/rex               10 files indexed
+  > auth█                                         
+    [ ] internal/auth/                         dir
+  ▸ [ ] internal/auth/auth_test.go          4.2 KB
+    [x] cmd/rex/auth_test_helpers.go        1.1 KB
+    [ ] internal/auth/testdata/                dir
+    [ ] internal/auth/testdata/login.json    210 B
+    ! internal/auth/testdata/server.pem    secrets
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
+──────────────────────────────────────────────────
+  space mark · enter add 1 · esc back             

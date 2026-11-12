@@ -22,6 +22,7 @@ const (
 	FocusPrompt
 	FocusCommand
 	FocusWizard
+	FocusNewAgent
 	FocusHelp
 	FocusConfirmQuit
 	FocusConfirmDelete
@@ -121,6 +122,14 @@ type Model struct {
 	SpinnerTick int
 	Quitting    bool
 
+	// NewAgent is the new-agent page (newagent.go), set while
+	// FocusNewAgent; newAgentDraft is the page left with esc, restored by
+	// the next n (memory only, R16 D4). lastSpawn is the agent, model and
+	// effort of the last launch from the page (D3).
+	NewAgent      *NewAgentState
+	newAgentDraft *NewAgentState
+	lastSpawn     *quickChoice
+
 	Wizard   *WizardState
 	Settings *SettingsState
 	// Help is the help overlay's scroll and filter; nil reads as the top,
@@ -219,6 +228,7 @@ type Model struct {
 	// from a daemon that predates it: then every tool counts as installed).
 	DaemonTools []protocol.ToolInfo
 	toolsKnown  bool
+	toolsSnap   bool // a Snapshot came: an unknown list now means an old daemon
 
 	// Overview is the daemon's board overview (headline over the buckets the
 	// TUI computes itself), from the Snapshot and Overview events. Nil
