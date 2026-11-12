@@ -43,6 +43,7 @@ func NewUsage(ctx context.Context, stateDir string, store *state.Store, publish 
 			}
 		case state.EventRemoved:
 			hub.Removed(e.SessionID)
+		case state.EventReopened:
 		}
 	})
 	return u

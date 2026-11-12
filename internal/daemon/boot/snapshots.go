@@ -124,6 +124,8 @@ func (s *Snapshots) onEvent(ctx context.Context, sessions *state.Store, e state.
 		s.enqueueLocked(ctx, e.SessionID, "")
 		delete(s.states, e.SessionID)
 		// cwds keeps the entry until the removal job has run (see run).
+	case state.EventReopened:
+		// The state change that follows drives the snapshots.
 	}
 }
 

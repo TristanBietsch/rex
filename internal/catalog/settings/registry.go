@@ -163,6 +163,11 @@ var Registry = []Setting{
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
 	},
 	{
+		ID: "summary_schedule", Label: "Scheduled summaries", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Rewrite each running session's AI description on a clock: every 5 minutes for the first 25 minutes, then every 30 minutes, with a more detailed progress line (what is done so far and what is happening now). A state change still refreshes at once; screen activity no longer does. Off: refresh when the screen goes quiet and on state changes, as before. Applies within seconds with live_reload on.",
+	},
+	{
 		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "Load skills from ~/.config/rex/skills into one session: the skills step in the new-session wizard and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
@@ -189,6 +194,16 @@ var Registry = []Setting{
 		ID: "usage_statusline_tap", Label: "Claude status-line tap", Section: SectionFeatures,
 		Type: TypeEnum, Default: "auto", Options: []string{"auto", "on", "off"},
 		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
+	},
+	{
+		ID: "extra_agents", Label: "Extra agents", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. For now the three stay hidden in the wizard until you enable them in Onboarding (the wizard does not yet check this switch or your PATH). Off: the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
+	},
+	{
+		ID: "model_autodetect", Label: "Model auto-detect", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Ask each installed agent for its own model list (for example qwen --list-models, grok models, cursor-agent models; a few seconds, no network call of rex's own) and cache it in ~/.local/state/rex/models-cache.json for 24 hours. Refreshed at daemon start and by rex reload. Off: no command is run and only the built-in model lists show; the cache is not read or written.",
 	},
 	{
 		ID: "live_reload", Label: "Live settings reload", Section: SectionFeatures,

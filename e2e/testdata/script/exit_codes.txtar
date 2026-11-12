@@ -48,3 +48,4 @@ exitcode 4 rex ls
 
 -- home/.config/rex/config.yaml --
 summary_enabled: false
+model_autodetect: false

@@ -17,6 +17,10 @@ const (
 	EventAdded EventKind = iota
 	EventUpdated
 	EventRemoved
+	// EventReopened follows a successful Reopen: the session starts a new
+	// run. It carries no patch; clients learn of it from the caller's own
+	// broadcast, so wire subscribers ignore this kind.
+	EventReopened
 )
 
 // Event is what subscribers receive on every change.
@@ -368,7 +372,17 @@ var ErrNotExited = errors.New("session has not exited")
 // and one that is gone. Like SetRetire it does not broadcast: the caller
 // persists meta, then broadcasts
 // {state, last_event_at, ended_at: nil, exit_code: nil, retire_at: nil, retired_at: nil}.
+// It does send subscribers an EventReopened (no patch) once the row is live,
+// which is how in-process features (the summarizer) learn a new run began.
 func (s *Store) Reopen(id string) error {
+	if err := s.reopen(id); err != nil {
+		return err
+	}
+	s.broadcast(Event{Kind: EventReopened, SessionID: id})
+	return nil
+}
+
+func (s *Store) reopen(id string) error {
 	sess, ok := s.Get(id)
 	if !ok {
 		return fmt.Errorf("session %s not found", id)

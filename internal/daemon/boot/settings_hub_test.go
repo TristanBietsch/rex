@@ -313,6 +313,28 @@ func TestSummaryDetailApplier_FollowsTheHub(t *testing.T) {
 	require.Eventually(t, func() bool { return w.Detail() == summarizer.DetailMedium }, 2*time.Second, 5*time.Millisecond)
 }
 
+func TestSummaryScheduleApplier_FollowsTheHub(t *testing.T) {
+	t0 := time.Now().Add(-time.Hour)
+	h, path := newHub(t, "summary_enabled: true\n", t0)
+	// The daemon builds the worker from the hub's current value: on by default.
+	cfg := summarizer.Defaults()
+	cfg.Schedule = settings.FeatureOn(h.Current(), "summary_schedule")
+	w := summarizer.New(cfg, state.NewStore(), func(string, int) []byte { return nil })
+	require.True(t, w.Schedule())
+	h.Subscribe([]string{"summary_schedule"}, SummaryScheduleApplier(w))
+	watch(t, h)
+
+	write(t, path, "summary_schedule: false\n", t0.Add(time.Minute))
+	require.Eventually(t, func() bool { return !w.Schedule() }, 2*time.Second, 5*time.Millisecond)
+	write(t, path, "summary_schedule: true\n", t0.Add(2*time.Minute))
+	require.Eventually(t, w.Schedule, 2*time.Second, 5*time.Millisecond)
+	// Removing the key means the default, on.
+	write(t, path, "summary_schedule: false\n", t0.Add(3*time.Minute))
+	require.Eventually(t, func() bool { return !w.Schedule() }, 2*time.Second, 5*time.Millisecond)
+	write(t, path, "summary_detail: long\n", t0.Add(4*time.Minute))
+	require.Eventually(t, w.Schedule, 2*time.Second, 5*time.Millisecond)
+}
+
 // Spawn-time reads go through hub.Current(), so a Reload is all it takes for
 // the next spawn to see a change: no daemon restart.
 func TestSpawnTimeReadsSeeChangesAfterReload(t *testing.T) {
@@ -370,7 +392,7 @@ func TestReloadAll_ReloadsRegistryThenSettings(t *testing.T) {
 	write(t, cfg, "summary_detail: long\n", t0.Add(time.Minute))
 	require.NoError(t, os.WriteFile(tools, []byte("tools: []\n"), 0o600))
 	before := srv.Registry()
-	require.NoError(t, ReloadAll(srv, tools, h))
+	require.NoError(t, reloadAll(t, srv, tools, h))
 	require.NotSame(t, before, srv.Registry(), "the registry was swapped")
 	require.Equal(t, []string{"long"}, detail.got())
 }
@@ -384,7 +406,7 @@ func TestReloadAll_RegistryErrorStillReloadsSettings(t *testing.T) {
 
 	write(t, cfg, "summary_detail: long\n", t0.Add(time.Minute))
 	require.NoError(t, os.WriteFile(tools, []byte("tools: [unclosed\n"), 0o600))
-	require.Error(t, ReloadAll(srv, tools, h))
+	require.Error(t, reloadAll(t, srv, tools, h))
 	require.Equal(t, []string{"long"}, detail.got(), "a bad tools.yaml must not hold back settings")
 }
 
@@ -393,7 +415,7 @@ func TestReloadAll_SettingsErrorIsReported(t *testing.T) {
 	h, cfg := newHub(t, "summary_detail: short\n", t0)
 	srv, tools := newReloadServer(t, "")
 	write(t, cfg, "summary_detail: [unclosed\n", t0.Add(time.Minute))
-	require.Error(t, ReloadAll(srv, tools, h))
+	require.Error(t, reloadAll(t, srv, tools, h))
 }
 
 func newReloadServer(t *testing.T, toolsBody string) (*server.Server, string) {
@@ -408,4 +430,14 @@ func newReloadServer(t *testing.T, toolsBody string) (*server.Server, string) {
 	srv, err := server.New(server.Config{Socket: filepath.Join(dir, "rex.sock"), StateDir: dir, Registry: reg, Store: state.NewStore()})
 	require.NoError(t, err)
 	return srv, tools
+}
+
+// reloadAll runs ReloadAll with a PATH that holds no agent, so the model
+// refresh a reload starts can never run a real agent binary.
+func reloadAll(t *testing.T, srv *server.Server, tools string, h *SettingsHub) error {
+	t.Helper()
+	t.Setenv("PATH", t.TempDir())
+	cat := NewCatalog(srv, tools)
+	defer cat.Wait()
+	return ReloadAll(context.Background(), cat, h)
 }

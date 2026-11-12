@@ -63,29 +63,31 @@ func TestLiveEval(t *testing.T) {
 			if !ok {
 				st = protocol.StateWorking
 			}
-			for _, d := range promptDetails {
-				w.SetDetail(d)
-				in := Input{Tool: "claude", Task: "fix invoice rounding", State: st, Text: strings.TrimRight(string(raw), "\n")}
-				p, err := BuildPrompt(KindActivity, in, d)
-				if err != nil {
-					t.Fatal(err)
+			for _, kind := range []Kind{KindActivity, KindProgress} {
+				for _, d := range promptDetails {
+					w.SetDetail(d)
+					in := Input{Tool: "claude", Task: "fix invoice rounding", State: st, Text: strings.TrimRight(string(raw), "\n")}
+					p, err := BuildPrompt(kind, in, d)
+					if err != nil {
+						t.Fatal(err)
+					}
+					ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+					resp, err := w.complete(ctx, p)
+					cancel()
+					if err != nil {
+						t.Errorf("%s %s %s %s: %v", model, name, kind, d, err)
+						continue
+					}
+					calls++
+					first, _, _ := strings.Cut(strings.TrimSpace(resp), "\n")
+					if openerRaw.MatchString(first) {
+						openers++
+					}
+					if utf8.RuneCountInString(first) > d.MaxRunes() {
+						tooLong++
+					}
+					t.Logf("%-14s %-18s %-9s %-6s raw=%q cleaned=%q", model, name, kind, d, first, Clean(resp, d.MaxRunes(), in.Tool))
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-				resp, err := w.complete(ctx, p)
-				cancel()
-				if err != nil {
-					t.Errorf("%s %s %s: %v", model, name, d, err)
-					continue
-				}
-				calls++
-				first, _, _ := strings.Cut(strings.TrimSpace(resp), "\n")
-				if openerRaw.MatchString(first) {
-					openers++
-				}
-				if utf8.RuneCountInString(first) > d.MaxRunes() {
-					tooLong++
-				}
-				t.Logf("%-14s %-18s %-6s raw=%q cleaned=%q", model, name, d, first, Clean(resp, d.MaxRunes(), in.Tool))
 			}
 		}
 		if calls > 0 {

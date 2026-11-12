@@ -61,6 +61,7 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		// Same race as the overview: a change between this read and the
 		// subscription below is missed until the next one.
 		Usage: c.srv.Usage(),
+		Tools: c.srv.ToolInfos(),
 	}
 	if p.Client == protocol.ClientTUI {
 		c.joinBoard()
