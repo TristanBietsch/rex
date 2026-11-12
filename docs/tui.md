@@ -189,6 +189,7 @@ Typing `:` twice quickly (within 400 ms) inside the popup opens rex's command ba
 | `kill`, `complete` | Kill the agent now and mark it done |
 | `name <text>` | Set this session's display name (`name` alone clears it) |
 | `banner` | Hide or show the [banner](#banner) for this run (not saved) |
+| `border [arg]` | Same as `:border` ([window border](#window-border)); the popup stays open and the agent is resized by 2 columns and 2 rows |
 | anything else | Close the popup and run it as a board `:` command |
 
 ### Banner
@@ -357,6 +358,17 @@ The wizard does not ask for a name; press `r` on the board to give a session a d
 ## SOUNDS
 
 With sound on, each soundset chimes when a session needs you (`working` → `needs_input`), when it resumes (`needs_input` → `working`), and when it finishes (→ `done`) or you mark it done (`cc`, `:done`, `rex done`). A flickering session chimes at most once every 1.5 s. Turn off the first two with `notify_on_state_change`; see [settings.md](settings.md#audio).
+
+## WINDOW BORDER
+
+`window_border` (Settings → Appearance; off by default) draws a thick colored frame around the whole screen, so several rex windows are easy to tell apart. It is built from block glyphs: `█` on the sides and corners, `▀` on top and `▄` at the bottom, so all four edges look equally thick.
+
+- The frame costs 2 columns and 2 rows. Every view lays out inside it, so the board, overlays and the attach popup need no frame code; the attached agent gets a terminal 2 columns and 2 rows smaller (a normal resize when the frame turns on or off).
+- It is hidden on the boot splash and on the screensaver (both fill the whole screen; the screensaver keeps the layout size, so an attached agent is not resized when it starts), and when the terminal is smaller than 50 columns by 16 rows (the layout area would be under 48 by 14).
+- `window_border_color` is `random` (default: one color per launch folder, so a project keeps its color), a color name or `#rrggbb`; see [settings.md](settings.md#border-colors). The `ansi` scheme uses the terminal's own palette index for the color.
+- `:border` toggles the frame for this run. `:border on|off` sets it, `:border next` moves to the next color of the random pool, `:border random` goes back to the folder's color, and `:border <name>` or `:border #rrggbb` picks one. It answers with a notice such as `border: tangerine (random · :border next)`, and says so when the terminal is too small to show it. `::border` does the same inside the attach popup. The choice lasts until rex exits and is never saved; use the settings for that. It works with `window_border` off.
+- With `NO_COLOR` the frame is still drawn, without color (`:border` says so).
+- Mouse clicks on the frame are ignored; other clicks are translated to the layout area, so the board, chips and attach popup behave as without a frame.
 
 ## SCREENSAVER
 

@@ -1,6 +1,10 @@
 package settings
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
+)
 
 // Registry is the canonical list of every Rex setting.
 //
@@ -53,6 +57,18 @@ var Registry = []Setting{
 		Type: TypeEnum, Default: "verbose",
 		Options: []string{"verbose", "glyphs", "numbers"},
 		Help:    "Change the header style for the aggregate counts at the top.",
+	},
+	{
+		ID: "window_border", Label: "Window border", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeBool, Default: false,
+		Help: "Draw a thick colored frame around the whole screen. It gives way on small terminals, the splash and the screensaver. :border changes it for one run.",
+	},
+	{
+		ID: "window_border_color", Label: "Border color", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeString, Default: "random",
+		Options: append([]string{"random"}, theme.EdgeIDs()...),
+		Free:    true, Normalize: normalizeBorderColor,
+		Help: "random picks a color per launch folder, so a project keeps its color. Or pick a name, or press enter and type #rrggbb.",
 	},
 	{
 		ID: "column_layout", Label: "Column layout", Section: SectionAppearance, Apply: ApplyLive,

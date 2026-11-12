@@ -55,6 +55,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 	nm = normalizeFocus(nm)
+	nm = syncLayout(nm)
 	nm = keepSelectionVisible(nm)
 	var arm tea.Cmd
 	if nm, arm = armSpinner(nm); arm != nil {
@@ -73,9 +74,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
-		resizeAttach(m)
+		m.TermW, m.TermH = msg.Width, msg.Height
 		// A resize means someone is at the terminal (or a tmux client just
 		// attached): restart the idle countdown and show the real screen.
 		// The first size at startup isn't input; lastInput starts at hand-off.
@@ -85,7 +84,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m = wakeSaver(m, "resize")
 			}
 		}
-		return ensureVisible(m), nil
+		return relayout(m), nil
 	case AttachOutputMsg:
 		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
@@ -286,6 +285,10 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lastInput = m.now()
 		if m.saverOn {
 			return wakeSaver(m, "mouse"), nil
+		}
+		msg, ok := translateMouse(m, msg)
+		if !ok {
+			return m, nil
 		}
 		return updateMouse(m, msg)
 	}

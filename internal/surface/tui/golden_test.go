@@ -100,10 +100,40 @@ func goldenScreens() []goldenScreen {
 			m, _ = executeCommand(m, "overview")
 			return m
 		}},
+		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
+			return framedGolden(t, goldenBoard(t, sz, false), sz)
+		}},
+		{"attach_frame", false, func(t *testing.T, sz goldenSize) Model {
+			m := bannerModel(t, sz.w, sz.h, bannerSession())
+			return framedGolden(t, m, sz)
+		}},
 		{"attach", false, func(t *testing.T, sz goldenSize) Model {
 			return bannerModel(t, sz.w, sz.h, bannerSession())
 		}},
 	}
+}
+
+// sizeGolden gives a model the golden size; one that already has a terminal
+// size (the framed screens) keeps its layout size.
+func sizeGolden(m *Model, sz goldenSize) {
+	if m.TermW == 0 {
+		m.Width, m.Height = sz.w, sz.h
+	}
+}
+
+// framedGolden turns window_border on in a fixed color and lays m out in the
+// terminal of size sz.
+func framedGolden(t *testing.T, m Model, sz goldenSize) Model {
+	t.Helper()
+	if err := m.Store.Set("window_border", true); err != nil {
+		t.Fatal(err)
+	}
+	m.borderRunColor = "tangerine"
+	m.TermW, m.TermH = sz.w, sz.h
+	if m.Attach != nil {
+		m.Attach.resize = func(uint16, uint16) error { return nil }
+	}
+	return syncLayout(m)
 }
 
 // withProfile runs f under a color profile and restores the previous one.
@@ -120,7 +150,7 @@ func TestGoldenScreens(t *testing.T) {
 			var sections []golden.Section
 			for _, sz := range goldenSizes {
 				m := sc.model(t, sz)
-				m.Width, m.Height = sz.w, sz.h
+				sizeGolden(&m, sz)
 				withProfile(termenv.Ascii, func() {
 					sections = append(sections, golden.Section{
 						Name: fmt.Sprintf("plain.%dx%d", sz.w, sz.h),
@@ -131,7 +161,7 @@ func TestGoldenScreens(t *testing.T) {
 			if sc.styled {
 				for _, sz := range goldenSizes {
 					m := sc.model(t, sz)
-					m.Width, m.Height = sz.w, sz.h
+					sizeGolden(&m, sz)
 					withProfile(termenv.TrueColor, func() {
 						sections = append(sections, golden.Section{
 							Name: fmt.Sprintf("styled.%dx%d", sz.w, sz.h),
@@ -151,7 +181,7 @@ func TestGoldenScreensFillTerminal(t *testing.T) {
 	for _, sc := range goldenScreens() {
 		for _, sz := range goldenSizes {
 			m := sc.model(t, sz)
-			m.Width, m.Height = sz.w, sz.h
+			sizeGolden(&m, sz)
 			lines := strings.Split(ansi.Strip(m.View()), "\n")
 			if len(lines) != sz.h {
 				t.Errorf("%s %dx%d: %d lines", sc.name, sz.w, sz.h, len(lines))

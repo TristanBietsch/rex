@@ -41,6 +41,8 @@ func Run(socket string, quietBoot bool) error {
 		idleDone:  idleDone,
 		keepAwake: awake,
 		QuietBoot: quietBoot,
+
+		BorderSeed: launchFolder(),
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -71,10 +73,28 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(tea.HideCursor, listenDaemon(m.Client), tickSpinner(m.spinnerGen))
 }
 
+// View draws the layout area and, when shown, the window frame around it.
+// The screensaver is full-bleed: it fills the whole terminal and no frame.
 func (m Model) View() string {
 	if m.Quitting {
 		return ""
 	}
+	if m.saverOn && m.TermW > 0 {
+		m.Width, m.Height = m.TermW, m.TermH
+	}
+	body, w := m.viewRaw()
+	if !frameShown(m) {
+		return clipWidth(body, w)
+	}
+	// wrapFrame cuts every line to the layout width itself, so a framed view
+	// measures each line once.
+	return wrapFrame(m, body)
+}
+
+// viewRaw renders the layout area and returns it with its width. Lines can
+// be wider than the width on a tiny screen (an overlay's minimum size):
+// clipWidth or wrapFrame cut them.
+func (m Model) viewRaw() (string, int) {
 	w, h := m.Width, m.Height
 	if w <= 0 {
 		w = 100
@@ -82,7 +102,7 @@ func (m Model) View() string {
 	if h <= 0 {
 		h = 32
 	}
-	return clipWidth(m.view(w, h), w)
+	return m.view(w, h), w
 }
 
 // clipWidth is the last guard: no line leaves View wider than the terminal,
