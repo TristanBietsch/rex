@@ -242,7 +242,7 @@ var Registry = []Setting{
 	{
 		ID: "live_reload", Label: "Live settings reload", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "The daemon notices edits to config.yaml within a few seconds and applies the settings that can change live (see docs/settings.md). Off: no polling; rex reload and SIGHUP still reload by hand.",
+		Help: "The daemon and the TUI notice edits to config.yaml within a few seconds and apply the settings that can change live (see docs/settings.md); the TUI also picks up edits to theme files. Off: no polling; rex reload, :reload and SIGHUP still reload by hand.",
 	},
 	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures, Apply: ApplyLive,

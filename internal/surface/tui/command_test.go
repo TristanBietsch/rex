@@ -131,13 +131,21 @@ func TestCommand_ReloadUsesTheTUISocket(t *testing.T) {
 	}
 	_, cmd := executeCommand(m, "reload")
 	require.NotNil(t, cmd)
-	require.Nil(t, cmd())
+	for _, msg := range collectMsgs(t, cmd) {
+		_, isErr := msg.(CmdErrMsg)
+		require.False(t, isErr, "a successful reload reports no error")
+	}
 	require.Equal(t, []string{"/tmp/rex-test/custom.sock"}, got)
 
 	m.reloader = func(context.Context, string) error { return daemonctl.ErrNotRunning }
 	_, cmd = executeCommand(m, "reload")
-	msg, ok := cmd().(CmdErrMsg)
-	require.True(t, ok, "a failed reload must be reported")
-	require.Equal(t, "reload", msg.Op)
-	require.ErrorIs(t, msg.Err, daemonctl.ErrNotRunning)
+	var failed *CmdErrMsg
+	for _, msg := range collectMsgs(t, cmd) {
+		if e, ok := msg.(CmdErrMsg); ok {
+			failed = &e
+		}
+	}
+	require.NotNil(t, failed, "a failed reload must be reported")
+	require.Equal(t, "reload", failed.Op)
+	require.ErrorIs(t, failed.Err, daemonctl.ErrNotRunning)
 }

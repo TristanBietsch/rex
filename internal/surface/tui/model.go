@@ -117,8 +117,10 @@ type Model struct {
 	// replaced whole, on the UI goroutine, when the files are (re)loaded.
 	Themes *theme.Catalog
 	// configStamp is the state of config.yaml and the theme files as last
-	// read; live reload compares against it.
-	configStamp string
+	// read; live reload compares against it. configTicking says the poll
+	// timer chain is running.
+	configStamp   string
+	configTicking bool
 
 	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
 	PendingDeleteID string

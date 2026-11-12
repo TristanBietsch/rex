@@ -67,6 +67,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if nm, arm = armIdle(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
+	if nm, arm = armConfig(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
 	return nm, cmd
 }
 
@@ -177,6 +180,10 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case bannerTickMsg:
 		return handleBannerTick(m, msg)
+	case configTickMsg:
+		return handleConfigTick(m)
+	case configReloadedMsg:
+		return handleConfigReloaded(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()
