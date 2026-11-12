@@ -236,6 +236,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		return err
 	}
 	defer transcript.Close()
+	tlog := newPausingTranscript(transcript, sess.ID, nil)
 
 	// Track the most recent output window and last-chunk time for adapter classification.
 	// windowMu guards window and lastChunk accessed from both the reader goroutine and
@@ -334,8 +335,9 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	observer, _ := s.cfg.Adapter.(adapter.OutputObserver)
 
 	// Reader goroutine. It sends exactly one value on errc and returns: nil
-	// when the child hung up the PTY, otherwise the read or transcript
-	// write error, after which the child is still running.
+	// when the child hung up the PTY, otherwise the read error, after which
+	// the child is still running. Transcript write errors pause the
+	// transcript (pausingTranscript) and never end the reader.
 	go func() {
 		buf := make([]byte, 4096)
 		for {
@@ -343,11 +345,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			if n > 0 {
 				chunk := buf[:n]
 				outMu.Lock()
-				if err := transcript.Write(chunk); err != nil {
-					outMu.Unlock()
-					errc <- fmt.Errorf("persist transcript: %w", err)
-					return
-				}
+				tlog.Write(chunk) // a failing disk pauses it; never ends the session
 				if s.cfg.OutputSink != nil {
 					// Subscribers may retain the slice; copy only when forwarding.
 					out := append([]byte(nil), chunk...)
@@ -495,7 +493,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			return nil
 		case rerr := <-errc:
-			// The reader stopped: the child exited, or reading/persisting
+			// The reader stopped: the child exited, or reading
 			// failed and the child is still running.
 			s.refreshScreenText(sess.ID, screen)
 			final, exitCode, waitErr := s.collectExit(sess.ID, cmd, f, rerr)
