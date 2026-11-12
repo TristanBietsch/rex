@@ -102,6 +102,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `config.lua` is broken (the value then reads empty, failed closed); they
   now edit the list `config.yaml` holds.
 
+### Fixed (READY edge cases)
+
+- A Claude Code session whose background subagent finished while the agent
+  was still busy no longer shows READY at the end of that turn and then
+  WORKING again when the subagent's result arrives: it stays in WAITING
+  until the result is handled (at most 10 s if it never comes).
+- Notifications that need nobody (sign-in done, an MCP form answered, a
+  background session finished, a usage-limit wait resumed, a mod notice,
+  and types newer than rex) no longer make a session READY. A permission
+  prompt still does, and the tool wait it interrupted shows again after
+  the answer.
+- An auto-compaction in the middle of a turn no longer shows READY.
+- A turn that ends on an API error (rate limit, overload, sign-in) is READY
+  at once instead of after 30 s, or never while subagents ran.
+- A subagent whose stop report was lost (crash, kill) no longer keeps the
+  session in WAITING for 15 min: Claude's list of running background tasks
+  at the end of the turn drops it.
+- A background subagent started in the turn no longer counts as killed by
+  an Esc, and a subagent's nested subagents no longer delay READY.
+
 ### Fixed (READY while subagents run)
 
 - A Claude Code session waiting on subagents no longer turns READY, chimes,
