@@ -129,7 +129,9 @@ func TestScreensaverDisabled(t *testing.T) {
 	require.Zero(t, fl.starts)
 }
 
-func TestScreensaverOnlyOverTheBareBoard(t *testing.T) {
+// Whatever has focus, an idle screen gives way to the screensaver; waking
+// returns to that focus with its state, and the waking key reaches nothing.
+func TestScreensaverUnderEveryFocus(t *testing.T) {
 	cases := map[string]func(Model) Model{
 		"prompt":         func(m Model) Model { m.Focus = FocusPrompt; return m },
 		"command":        func(m Model) Model { m.Focus = FocusCommand; return m },
@@ -169,12 +171,69 @@ func TestScreensaverOnlyOverTheBareBoard(t *testing.T) {
 			m, now, fl := saverModel(t, saverSessions()...)
 			m = set(m)
 			focus := m.Focus
-			m = idleTo(t, m, now, *now, time.Hour)
-			require.Equal(t, focus, m.Focus)
+			m = idleTo(t, m, now, *now, 5*time.Minute)
+			require.True(t, m.saverOn)
+			require.Equal(t, focus, m.Focus, "the focused component stays underneath")
+			require.Equal(t, 1, fl.starts)
+			require.Contains(t, ansi.Strip(m.View()), saverLogo)
+
+			m, _ = step(t, m, key("x"))
 			require.False(t, m.saverOn)
-			require.Zero(t, fl.starts)
+			require.Equal(t, focus, m.Focus, "waking returns to the same focus")
+			require.Equal(t, 1, fl.stops)
+			require.Empty(t, m.PromptText+m.CmdText, "the waking key typed nothing")
 		})
 	}
+}
+
+// The new-session wizard left open is the reported case: it used to block
+// the screensaver (and kept the cursor blinking at 10 FPS) forever.
+func TestScreensaverOverOpenWizard(t *testing.T) {
+	m, now, _ := saverModel(t, saverSessions()...)
+	m.Focus, m.Wizard = FocusWizard, &WizardState{}
+	require.True(t, m.wantsSpinnerTick(), "the wizard cursor blinks")
+	m = idleTo(t, m, now, *now, 5*time.Minute)
+	require.True(t, m.saverOn)
+	require.False(t, m.wantsSpinnerTick(), "no cursor ticks under the screensaver")
+	m, _ = step(t, m, key("esc"))
+	require.Equal(t, FocusWizard, m.Focus, "esc only woke; the wizard is still open")
+	require.NotNil(t, m.Wizard)
+}
+
+func TestScreensaverResizeWakes(t *testing.T) {
+	m, now, fl := saverModel(t, saverSessions()...)
+	start := *now
+	m = idleTo(t, m, now, start, 5*time.Minute)
+	require.True(t, m.saverOn)
+	*now = start.Add(6 * time.Minute)
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	require.False(t, m.saverOn)
+	require.Equal(t, 1, fl.stops)
+	require.Equal(t, *now, m.lastInput, "a resize restarts the countdown")
+	m = idleTo(t, m, now, start, 10*time.Minute)
+	require.False(t, m.saverOn)
+	m = idleTo(t, m, now, start, 11*time.Minute)
+	require.True(t, m.saverOn)
+}
+
+func TestScreensaverResizeDuringBootIsNotInput(t *testing.T) {
+	m, _, _ := saverModel(t)
+	m.Focus = FocusBoot
+	m.lastInput = time.Time{}
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	require.True(t, m.lastInput.IsZero())
+}
+
+// Turning the setting off (a live reload) while it shows hides it at the
+// next idle tick.
+func TestScreensaverDisabledWhileShowing(t *testing.T) {
+	m, now, fl := saverModel(t, saverSessions()...)
+	m = idleTo(t, m, now, *now, 5*time.Minute)
+	require.True(t, m.saverOn)
+	require.NoError(t, m.Store.Set("screensaver_enabled", false))
+	m = idleTo(t, m, now, *now, time.Minute)
+	require.False(t, m.saverOn)
+	require.Equal(t, 1, fl.stops)
 }
 
 func TestScreensaverNotDuringBoot(t *testing.T) {

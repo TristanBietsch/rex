@@ -48,6 +48,7 @@ func scheduleDescTick() tea.Cmd {
 // branch can leave the TUI focused on a component that doesn't exist. It
 // also keeps the screensaver's idle timer armed (armIdle).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	dropAttachBackground(m, msg)
 	next, cmd := m.dispatch(msg)
 	nm, ok := next.(Model)
 	if !ok {
@@ -75,6 +76,15 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		m.Height = msg.Height
 		resizeAttach(m)
+		// A resize means someone is at the terminal (or a tmux client just
+		// attached): restart the idle countdown and show the real screen.
+		// The first size at startup isn't input; lastInput starts at hand-off.
+		if m.Focus != FocusBoot {
+			m.lastInput = m.now()
+			if m.saverOn {
+				m = wakeSaver(m, "resize")
+			}
+		}
 		return ensureVisible(m), nil
 	case AttachOutputMsg:
 		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {

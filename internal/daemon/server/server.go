@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"slices"
 	"sync"
@@ -362,7 +363,8 @@ func New(cfg Config) (*Server, error) {
 // long enough for a kill, a PTY drain and a final meta write.
 const defaultSupervisorWait = 5 * time.Second
 
-// Serve listens until ctx is canceled or Accept fails, then shuts down:
+// Serve listens until ctx is canceled or the listener closes (transient
+// Accept errors are retried, see acceptConn), then shuts down:
 // it closes every client connection, waits for the handlers and the retire
 // reaper, and waits (bounded by supervisorWait) for the session supervisors,
 // which stop with ctx. Serve may be called at most once per Server.
@@ -401,7 +403,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	}()
 
 	for {
-		conn, err := l.Accept()
+		conn, err := acceptConn(serveCtx, l)
 		if err != nil {
 			requested := ctx.Err() != nil
 			cancel()
@@ -424,6 +426,42 @@ func (s *Server) Serve(ctx context.Context) error {
 			handleClient(serveCtx, conn, s)
 			slog.Debug("server: client disconnected")
 		}()
+	}
+}
+
+// Backoff between Accept retries after a transient error.
+const (
+	acceptRetryMin = 5 * time.Millisecond
+	acceptRetryMax = time.Second
+)
+
+// acceptConn returns the next connection. Accept errors other than the
+// listener closing (too many open files, a connection reset before Accept
+// took it) are retried with backoff: returning them ended Serve, which
+// stopped every running session over one bad moment. It returns an error
+// only once the listener is closed or ctx is done.
+func acceptConn(ctx context.Context, l net.Listener) (net.Conn, error) {
+	delay := time.Duration(0)
+	for {
+		conn, err := l.Accept()
+		if err == nil {
+			if delay > 0 {
+				slog.Info("server: accept recovered")
+			}
+			return conn, nil
+		}
+		if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+			return nil, err
+		}
+		delay = min(max(2*delay, acceptRetryMin), acceptRetryMax)
+		slog.Warn("server: accept failed; retrying", "err", err, "in", delay)
+		t := time.NewTimer(delay)
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+			t.Stop()
+			return nil, err
+		}
 	}
 }
 

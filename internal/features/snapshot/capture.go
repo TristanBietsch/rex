@@ -112,6 +112,11 @@ func (s *Store) CaptureWithin(ctx context.Context, cwd, session string, phase Ph
 	default:
 		return "", fmt.Errorf("snapshot: bad capture phase %q", phase)
 	}
+	// Probe git before the limit starts: the probe has its own timeout and its
+	// answer is cached, so a slow first exec is not charged to the capture.
+	if err := CheckGit(ctx); err != nil {
+		return "", err
+	}
 	dir := s.dirFor(cwd)
 	unlock, err := s.lockCtx(ctx, dir)
 	if err != nil {

@@ -201,18 +201,16 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionAdded:
 		var sum protocol.SessionSummary
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
-			m.Sessions = append(m.Sessions, sum)
-			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
-				m.SelectedID = sum.ID
-				m.PendingSelectSlug = ""
-				if msg := m.PendingSpawn.ignoredBy(sum); msg != "" {
-					m.Err = msg
-				}
-				m.PendingSpawn = pendingSpawn{}
-				if indexOfSelected(m) < 0 {
-					m.Notice = sum.Slug + " is hidden by the filter"
-				}
+			if i := sessionIndex(m.Sessions, sum.ID); i >= 0 {
+				// Already listed (a snapshot taken after the add raced
+				// its event): refresh the row, don't show it twice. It
+				// may still be the spawn waiting to be selected.
+				m.Sessions[i] = sum
+				m = m.selectIfPending(sum)
+				break
 			}
+			m.Sessions = append(m.Sessions, sum)
+			m = m.selectIfPending(sum)
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventCreate)
 			}
@@ -220,20 +218,11 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionRemoved:
 		var rem protocol.SessionRemoved
 		if err := json.Unmarshal(env.Data, &rem); err == nil {
-			if m.Attach != nil && m.Attach.SessionID == rem.SessionID {
-				m.Attach.Ended = true
-				m.Attach.EndedMsg = "session deleted"
-				if rem.Reason == protocol.RemovedRetired {
-					m.Attach.EndedMsg = "session cleared (marked done)"
-				}
-				slog.Info("tui: session removed while attached", "session", rem.SessionID, "reason", rem.Reason)
+			endedMsg := "session deleted"
+			if rem.Reason == protocol.RemovedRetired {
+				endedMsg = "session cleared (marked done)"
 			}
-			if m.Rename != nil && m.Rename.SessionID == rem.SessionID {
-				m.Rename = nil
-				m.Focus = FocusBoard
-				m.Err = "rename: session removed"
-				slog.Info("tui: rename target removed", "session", rem.SessionID)
-			}
+			m = dropTargets(m, rem.SessionID, endedMsg)
 			if rem.Reason == protocol.RemovedRetired {
 				if sum, ok := findSession(m.Sessions, rem.SessionID); ok {
 					m.Notice = "cleared " + displayName(sum) + " (marked done)"
@@ -302,9 +291,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSnapshot:
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
-			m.Sessions = snap.Sessions
+			m = adoptSessions(m, snap.Sessions)
 			m.Overview = snap.Overview
-			m = adoptSnapshotFilter(m, snap.Filter)
+			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
 		}
 	case protocol.EventOverview:
 		var o protocol.Overview
@@ -450,6 +439,100 @@ func friendlyDaemonError(ee protocol.ErrorEvent) string {
 		return offMessage("resume")
 	}
 	return ee.Message
+}
+
+// selectIfPending selects sum when it is the session this TUI just spawned
+// (PendingSelectSlug), and reports spawn options the daemon ignored.
+func (m Model) selectIfPending(sum protocol.SessionSummary) Model {
+	if m.PendingSelectSlug == "" || sum.Slug != m.PendingSelectSlug {
+		return m
+	}
+	m.SelectedID = sum.ID
+	m.PendingSelectSlug = ""
+	if msg := m.PendingSpawn.ignoredBy(sum); msg != "" {
+		m.Err = msg
+	}
+	m.PendingSpawn = pendingSpawn{}
+	if indexOfSelected(m) < 0 {
+		m.Notice = sum.Slug + " is hidden by the filter"
+	}
+	return m
+}
+
+// sessionIndex is the index of session id in sessions, or -1.
+func sessionIndex(sessions []protocol.SessionSummary, id string) int {
+	for i := range sessions {
+		if sessions[i].ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// dropTargets closes whatever still points at session id once it is gone:
+// the attach popup shows endedMsg, a rename or a delete confirmation for it
+// closes. Without this a confirmation answered after another client deleted
+// the session sent a delete for an id the daemon no longer knows.
+func dropTargets(m Model, id, endedMsg string) Model {
+	if m.Attach != nil && m.Attach.SessionID == id && !m.Attach.Ended {
+		m.Attach.Ended = true
+		m.Attach.EndedMsg = endedMsg
+		slog.Info("tui: session removed while attached", "session", id, "msg", endedMsg)
+	}
+	if m.Rename != nil && m.Rename.SessionID == id {
+		m.Rename = nil
+		m.Focus = FocusBoard
+		m.Err = "rename: session removed"
+		slog.Info("tui: rename target removed", "session", id)
+	}
+	if m.PendingDeleteID != "" && m.PendingDeleteID == id {
+		m.PendingDeleteID = ""
+		if m.Focus == FocusConfirmDelete {
+			m.Focus = FocusBoard
+		}
+		m.Notice = "already deleted"
+		slog.Info("tui: delete target removed before confirm", "session", id)
+	}
+	return m
+}
+
+// adoptSessions replaces the session list with a fresh snapshot. Targets of
+// sessions missing from it are dropped as if each got SessionRemoved.
+func adoptSessions(m Model, sessions []protocol.SessionSummary) Model {
+	for _, id := range []string{m.PendingDeleteID, m.renameTarget(), m.attachTarget()} {
+		if id != "" && sessionIndex(sessions, id) < 0 {
+			m = dropTargets(m, id, "session deleted")
+		}
+	}
+	m.Sessions = sessions
+	return m
+}
+
+// reselectIfGone moves a selection whose session left the list to the first
+// row.
+func reselectIfGone(m Model) Model {
+	if sessionIndex(m.Sessions, m.SelectedID) >= 0 {
+		return m
+	}
+	m.SelectedID = ""
+	if rows := orderedSessions(m); len(rows) > 0 {
+		m.SelectedID = rows[0].ID
+	}
+	return m
+}
+
+func (m Model) renameTarget() string {
+	if m.Rename == nil {
+		return ""
+	}
+	return m.Rename.SessionID
+}
+
+func (m Model) attachTarget() string {
+	if m.Attach == nil {
+		return ""
+	}
+	return m.Attach.SessionID
 }
 
 // neighborOf picks the row to select after id leaves the board: the next row
