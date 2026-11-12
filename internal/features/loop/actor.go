@@ -329,7 +329,7 @@ func (a *actor) pauseAll(reason string) {
 
 // autoReason: the loop continues by itself once the cause is gone.
 func autoReason(reason string) bool {
-	return reason == protocol.PauseNeedsInput || reason == protocol.PauseUserInput
+	return reason == protocol.PauseNeedsInput || reason == protocol.PauseUserInput || reason == protocol.PauseStateChanged
 }
 
 func (a *actor) pauseByUser(ru *run) (protocol.LoopSummary, error) {
@@ -368,6 +368,11 @@ func (a *actor) resumeByUser(ru *run) (protocol.LoopSummary, error) {
 			return protocol.LoopSummary{}, &Error{Kind: KindBadState, Msg: "the loop's session cannot be resumed: " + err.Error()}
 		}
 		info, _ = host.Session(ru.st.SessionID)
+	}
+	if a.minutesUsed(ru) {
+		// Its minutes ran out before the pause: end it now, send nothing.
+		a.capMinutes(ru)
+		return ru.st.Summary(), nil
 	}
 	ru.held, ru.workedSinceInput, ru.dirty = false, false, false
 	// A working session ends its turn by the normal rules. An idle one is
@@ -446,8 +451,8 @@ func active(ru *run) bool {
 // atTurnEnd classifies the session right now: ready is true only when it
 // sits at needs_input with the finished-turn reason and a last line that is
 // not a question. needsYou is true when it asks for input or a question.
-func (a *actor) atTurnEnd(ru *run) (info protocol.SessionSummary, ready, needsYou bool) {
-	info, ok := a.r.cfg.Host.Session(ru.st.SessionID)
+func (a *actor) atTurnEnd(sessionID string) (info protocol.SessionSummary, ready, needsYou bool) {
+	info, ok := a.r.cfg.Host.Session(sessionID)
 	if !ok || info.State != protocol.StateNeedsInput {
 		return info, false, false
 	}
@@ -471,7 +476,7 @@ func (a *actor) evaluate(ru *run) {
 	if !active(ru) || ru.checking {
 		return
 	}
-	_, ready, needsYou := a.atTurnEnd(ru)
+	_, ready, needsYou := a.atTurnEnd(ru.st.SessionID)
 	switch {
 	case needsYou:
 		a.waitForYou(ru)
@@ -598,6 +603,12 @@ func (a *actor) afterChecks(ru *run) {
 			fmt.Sprintf("capped: max_iterations (%d) reached; the session keeps running", def.Until.MaxIterations))
 		return
 	}
+	// The minutes may have run out while the check ran, or while this turn
+	// end waited in the queue behind the cap timer: no send after the cap.
+	if a.minutesUsed(ru) {
+		a.capMinutes(ru)
+		return
+	}
 	host := a.r.cfg.Host
 	id := ru.st.SessionID
 	// The user may have typed while the check ran or just now.
@@ -610,7 +621,7 @@ func (a *actor) afterChecks(ru *run) {
 	}
 	// Re-read the session: it must be waiting with a finished turn, not at a
 	// prompt and not working.
-	info, ready, needsYou := a.atTurnEnd(ru)
+	info, ready, needsYou := a.atTurnEnd(id)
 	if !ready {
 		a.logf(ru, "not sending: the session is %s%s", info.State, reasonSuffix(info.WaitReason))
 		switch {
@@ -622,7 +633,14 @@ func (a *actor) afterChecks(ru *run) {
 		return
 	}
 	seen := ru.inputSeen
-	sent, err := host.Send(id, def.FollowupPrompt, func() bool { return a.r.inputCount(id) == seen })
+	// The full guard, run under the session's input lock before the text and
+	// again before Enter: still at a finished turn with no question, and the
+	// user has not typed.
+	guard := func() bool {
+		_, ready, _ := a.atTurnEnd(id)
+		return ready && a.r.inputCount(id) == seen
+	}
+	sent, err := host.Send(id, def.FollowupPrompt, guard)
 	if err != nil {
 		a.logf(ru, "could not send the prompt: %v", err)
 		ru.st.Notice = "could not send the prompt: " + err.Error()
@@ -630,10 +648,20 @@ func (a *actor) afterChecks(ru *run) {
 		return
 	}
 	if !sent {
-		// The user typed between the check above and the send.
-		ru.held, ru.workedSinceInput = true, false
+		if a.r.inputCount(id) != seen {
+			// The user typed between the check above and the send.
+			ru.held, ru.workedSinceInput = true, false
+			if ru.st.State == protocol.LoopRunning {
+				a.pause(ru, protocol.PauseUserInput)
+			}
+			return
+		}
+		// The session changed (a prompt, new work) between the check and the
+		// text or its Enter. Whatever was typed stays unsubmitted.
+		a.logf(ru, "not sent: the session changed while the prompt was being typed")
+		ru.sawWorking = ru.sawWorking || a.workingNow(id)
 		if ru.st.State == protocol.LoopRunning {
-			a.pause(ru, protocol.PauseUserInput)
+			a.pause(ru, protocol.PauseStateChanged)
 		}
 		return
 	}
@@ -649,4 +677,22 @@ func reasonSuffix(reason string) string {
 		return ""
 	}
 	return " (" + reason + ")"
+}
+
+// minutesUsed reports whether the loop has used its max_minutes of running
+// time.
+func (a *actor) minutesUsed(ru *run) bool {
+	limit := time.Duration(ru.st.Def.Until.MaxMinutes) * a.r.cfg.MinuteUnit
+	return a.ranFor(ru) >= limit
+}
+
+func (a *actor) capMinutes(ru *run) {
+	a.finish(ru, protocol.LoopCapped, protocol.StopMaxMinutes,
+		fmt.Sprintf("capped: max_minutes (%d) of running time reached; the session keeps running", ru.st.Def.Until.MaxMinutes))
+}
+
+// workingNow reports whether the session is working right now.
+func (a *actor) workingNow(sessionID string) bool {
+	info, ok := a.r.cfg.Host.Session(sessionID)
+	return ok && info.State == protocol.StateWorking
 }

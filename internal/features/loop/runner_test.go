@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/features/overview"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -39,9 +40,12 @@ type fakeHost struct {
 	sentAt []protocol.SessionSummary
 	// killed lists sessions whose context ended (a real session dies with
 	// the context it was spawned under).
-	killed    []string
-	liveCtxs  []context.Context
-	spawnCtxs []context.Context
+	// beforeGuard and gap are test hooks run inside Send (see Send).
+	beforeGuard, gap func()
+	typed            int
+	killed           []string
+	liveCtxs         []context.Context
+	spawnCtxs        []context.Context
 }
 
 func newFakeHost() *fakeHost {
@@ -80,15 +84,34 @@ func (h *fakeHost) Spawn(ctx context.Context, req SpawnRequest) (string, error) 
 	return id, nil
 }
 
+// Send is the real send in miniature: the guard is asked before the text and
+// again after a gap, just before Enter. beforeGuard and gap let a test change
+// the session (or call UserInput) at those two moments. typed counts texts
+// that were typed but not submitted.
 func (h *fakeHost) Send(id, text string, guard func() bool) (bool, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.sendErr != nil {
-		return false, h.sendErr
+	sendErr, before, gap := h.sendErr, h.beforeGuard, h.gap
+	h.mu.Unlock()
+	if sendErr != nil {
+		return false, sendErr
+	}
+	if before != nil {
+		before()
 	}
 	if guard != nil && !guard() {
 		return false, nil
 	}
+	h.mu.Lock()
+	h.typed++
+	h.mu.Unlock()
+	if gap != nil {
+		gap()
+	}
+	if guard != nil && !guard() {
+		return false, nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.sent = append(h.sent, id+":"+text)
 	if s, ok := h.sessions[id]; ok {
 		h.sentAt = append(h.sentAt, *s)
@@ -97,7 +120,8 @@ func (h *fakeHost) Send(id, text string, guard func() bool) (bool, error) {
 }
 
 // requireSendsAtTurnEnd checks the one safety property of every Send: the
-// session was waiting with a finished-turn reason at that moment.
+// session was waiting with a finished-turn reason, and no question, at that
+// moment. newRig runs it at the end of every test.
 func (h *fakeHost) requireSendsAtTurnEnd(t *testing.T) {
 	t.Helper()
 	h.mu.Lock()
@@ -105,7 +129,7 @@ func (h *fakeHost) requireSendsAtTurnEnd(t *testing.T) {
 	for i, s := range h.sentAt {
 		require.Equal(t, protocol.StateNeedsInput, s.State, "send %d: session state", i)
 		require.Equal(t, protocol.WaitReview, s.WaitReason, "send %d: wait reason", i)
-		require.False(t, strings.HasSuffix(strings.TrimSpace(s.LastLine), "?"), "send %d: question", i)
+		require.False(t, overview.IsQuestion(s.LastLine), "send %d: question", i)
 	}
 }
 
@@ -257,6 +281,7 @@ func newRig(t *testing.T) *rig {
 	t.Cleanup(rg.endSess)
 	rg.r = rg.newRunner()
 	t.Cleanup(func() { rg.r.Close() })
+	t.Cleanup(func() { rg.h.requireSendsAtTurnEnd(t) })
 	return rg
 }
 
@@ -1050,4 +1075,75 @@ func TestLoop_ResumeAfterTheMinutesAreUsedCaps(t *testing.T) {
 	require.NoError(t, err)
 	capped := rg.waitState(st.ID, protocol.LoopCapped)
 	require.Equal(t, protocol.StopMaxMinutes, capped.StopReason)
+}
+
+// The state flips to a permission prompt in the gap between the text and its
+// Enter: no Enter is sent, the text stays typed, the loop pauses.
+func TestLoop_PromptInTheGapBeforeEnterSendsNoEnter(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("g", []string{"exit", "1"}, "")
+	l := rg.start("g")
+	rg.h.gap = func() {
+		rg.h.mu.Lock()
+		s := rg.h.sessions["sess1"]
+		s.State, s.WaitReason, s.LastLine = protocol.StateNeedsInput, protocol.WaitInput, "Allow Bash(rm -rf /)?"
+		rg.h.mu.Unlock()
+	}
+	rg.h.idle("sess1", protocol.WaitReview, "t1")
+	p := rg.waitState(l.ID, protocol.LoopPaused)
+	require.Equal(t, protocol.PauseStateChanged, p.PauseReason)
+	require.Zero(t, rg.h.sentCount(), "no Enter was sent")
+	rg.h.mu.Lock()
+	require.Equal(t, 1, rg.h.typed, "the text was typed and left unsubmitted")
+	rg.h.mu.Unlock()
+	require.Equal(t, 1, p.Iteration, "the turn counter did not move")
+}
+
+// The full guard also runs before the text: a state that changed with no event
+// stops the send, and so does a keystroke that lands inside the send.
+func TestLoop_KeystrokeInsideTheSendHoldsIt(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("k", []string{"exit", "1"}, "")
+	l := rg.start("k")
+	rg.h.beforeGuard = func() { rg.r.UserInput("sess1") }
+	rg.h.idle("sess1", protocol.WaitReview, "t1")
+	p := rg.waitState(l.ID, protocol.LoopPaused)
+	require.Equal(t, protocol.PauseUserInput, p.PauseReason)
+	require.Zero(t, rg.h.sentCount())
+	require.Equal(t, 1, p.Iteration)
+}
+
+// No send once max_minutes is spent, even for a turn end that was queued
+// ahead of the cap timer.
+func TestLoop_NoSendAfterTheMinutesAreSpent(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("m", []string{"sleepexit", "200ms", "1"}, "  max_minutes: 1\n")
+	l := rg.start("m")
+	rg.h.idle("sess1", protocol.WaitReview, "t1") // the check starts
+	rg.advance(2 * time.Minute)                   // the minutes run out while it runs
+	capped := rg.waitState(l.ID, protocol.LoopCapped)
+	require.Equal(t, protocol.StopMaxMinutes, capped.StopReason)
+	require.Zero(t, rg.h.sentCount())
+}
+
+// Resuming an idle loop whose minutes are already spent caps it and sends
+// nothing.
+func TestLoop_ResumeIdleLoopOverTheLimitCapsWithoutSending(t *testing.T) {
+	rg := newRig(t)
+	d := rg.def("m", []string{"exit", "1"}, "  max_minutes: 1\n")
+	rg.h.sessions["sess1"] = &protocol.SessionSummary{ID: "sess1", ToolID: "claude", State: protocol.StateNeedsInput,
+		WaitReason: protocol.WaitReview, LastLine: "done."}
+	st := State{ID: "loop-0000000c", Def: d, SessionID: "sess1", State: protocol.LoopPaused, PauseReason: protocol.PauseUser,
+		Iteration: 2, ElapsedNS: int64(90 * time.Second), StartedAt: rg.now(), UpdatedAt: rg.now()}
+	require.NoError(t, writeState(rg.dir, st))
+	rg.enable()
+	got, err := rg.r.Resume(st.ID)
+	require.NoError(t, err)
+	require.Equal(t, protocol.LoopCapped, got.State)
+	require.Equal(t, protocol.StopMaxMinutes, got.StopReason)
+	time.Sleep(100 * time.Millisecond)
+	require.Zero(t, rg.h.sentCount())
 }

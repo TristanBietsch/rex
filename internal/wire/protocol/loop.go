@@ -90,6 +90,11 @@ const (
 	PauseRestart = "daemon_restart"
 	// PauseSessionEnded: the session exited. ResumeLoop resumes it.
 	PauseSessionEnded = "session_ended"
+	// PauseStateChanged: the session changed (a permission prompt, new work)
+	// between the check and the moment the prompt would be typed, or before
+	// its Enter. Text already typed stays unsubmitted; the loop continues by
+	// itself at the next finished turn.
+	PauseStateChanged = "state_changed"
 	// PauseSendFailed: the prompt could not be delivered.
 	PauseSendFailed = "send_failed"
 	// PauseOff: the loops feature was switched off.
