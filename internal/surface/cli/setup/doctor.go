@@ -149,11 +149,15 @@ func checkRexBinary() checkResult {
 	return checkResult{"rex binary", checkWarn, fmt.Sprintf("PATH has %s but running %s", pathBin, self)}
 }
 
-// checkDaemonBinary checks that rex-daemon is on PATH.
+// findDaemonBinary resolves rex-daemon the way `rex daemon start` does:
+// next to rex first, then PATH; the bare name when neither has it.
+var findDaemonBinary = daemonctl.FindBinary
+
+// checkDaemonBinary checks that rex can find rex-daemon to start it.
 func checkDaemonBinary() checkResult {
-	path, err := exec.LookPath("rex-daemon")
-	if err != nil {
-		return checkResult{"rex-daemon binary", checkFail, "not found on PATH"}
+	path := findDaemonBinary()
+	if path == "rex-daemon" {
+		return checkResult{"rex-daemon binary", checkFail, "not found next to rex or on PATH"}
 	}
 	return checkResult{"rex-daemon binary", checkPass, path}
 }

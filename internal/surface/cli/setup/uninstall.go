@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,7 +28,7 @@ type uninstallDeps struct {
 	stdin       io.Reader
 	home        func() (string, error)
 	executable  func() (string, error) // the running rex binary
-	lookDaemon  func() string          // rex-daemon on PATH, or ""
+	lookDaemon  func() string          // the rex-daemon `rex daemon start` runs, or ""
 	daemon      daemonControl
 	now         func() time.Time // names profile backups
 }
@@ -48,7 +47,7 @@ func defaultUninstallDeps() (uninstallDeps, error) {
 		stdin:      p.In,
 		home:       paths.Home,
 		executable: os.Executable,
-		lookDaemon: func() string { p, _ := exec.LookPath("rex-daemon"); return p },
+		lookDaemon: lookDaemonBinary,
 		daemon:     daemon,
 		now:        time.Now,
 	}, nil
@@ -368,6 +367,15 @@ func isUnder(path, dir string) bool {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// lookDaemonBinary is the rex-daemon `rex daemon start` would run (next to
+// rex, then PATH), or "" when there is none.
+func lookDaemonBinary() string {
+	if p := findDaemonBinary(); p != "rex-daemon" {
+		return p
+	}
+	return ""
 }
 
 func removeFile(path string) error {
