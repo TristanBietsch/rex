@@ -34,7 +34,7 @@ func checkWorkspaceConfig() []checkResult {
 	case wsconfig.StateUnsafe:
 		return []checkResult{{name, checkWarn, info.Detail + "; not applied"}}
 	case wsconfig.StateUntrusted:
-		return []checkResult{{name, checkWarn, file + ": not trusted, not read (rex ws trust " + info.ID + ", after reading it)"}}
+		return []checkResult{{name, checkWarn, file + ": not trusted, not read (read it, then rex ws trust " + protocol.FlattenDisplayText(info.Root) + ")"}}
 	case wsconfig.StateFailed:
 		return []checkResult{{name, checkWarn, protocol.FlattenDisplayText(rep.Err.Error()) +
 			"; trust settings read their defaults" + luaKeptSuffix(rep)}}

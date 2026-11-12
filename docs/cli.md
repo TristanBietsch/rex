@@ -203,14 +203,15 @@ rex ws id [path]
 rex ws ls
 rex ws rename <id|path> <name>
 rex ws color <id|path> <#RRGGBB|1-7>
-rex ws trust [-rm] [id|path]
+rex ws trust [path]
+rex ws trust -rm [id|path]
 rex ws open [path]
 rex here
 ```
 
 `init` creates `<path>/.rex/workspace.json` (default: the current folder), registers it in `~/.local/share/rex/workspaces.json` and adds `/.rex/` and `/.rex/audit.jsonl` to the repository's `.git/info/exclude`; on a folder that already is a workspace it keeps the id. `$HOME` and `/` are refused (exit 5). `id` prints the workspace around a folder, `ls` the known ones (with `(missing)` when the folder is gone). `<id|path>` is an 8-hex id or any folder inside the workspace. `color` takes `#RRGGBB` or a swatch number from the colorblind-safe palette (1-7). All take `-o text|txt|md|json|agent`.
 
-`trust [id|path]` lets the workspace's `.rex/config.lua` apply (default: the workspace around the current folder); `trust -rm` stops it, by id even when the folder is gone. Trust is stored in `~/.local/share/rex/workspace-trust.json`, bound to the real folder and the id; see [workspaces.md](workspaces.md#workspace-settings). `json` data is `{"action":"trust"|"revoke","changed","id","name","root","config","denied"}` (`config`: the file exists; `denied`: the settings a workspace file can never set).
+`trust [path]` lets the workspace's `.rex/config.lua` apply (default: the workspace around the current folder). It takes a folder, not an id (exit 5): an id can also be a copy of the workspace elsewhere. `trust -rm` stops it, by id or folder, by id even when the folder is gone. Trust is stored in `~/.local/share/rex/workspace-trust.json`, bound to the real folder and the id; see [workspaces.md](workspaces.md#workspace-settings). `json` data is `{"action":"trust"|"revoke","changed","id","name","root","config","denied"}` (`config`: the file exists; `denied`: the settings a workspace file can never set).
 
 `open [path]` and `rex here` open the board for the workspace around a folder (the current one by default): only its sessions, its id and name in the header, its color on the border; see [workspaces.md](workspaces.md#sessions-and-the-workspace-board). They need a terminal (no `-o`, `--agent` or pipe) and exit **5** with ``no .rex/ here — run `rex ws init` `` when there is no workspace above the folder. `rex here` takes no arguments.
 

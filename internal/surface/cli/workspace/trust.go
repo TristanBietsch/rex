@@ -36,12 +36,19 @@ func openTrustStore() (*wsp.TrustStore, error) {
 	return s, nil
 }
 
-// trust is `rex ws trust [id|path]` (let the workspace's .rex/config.lua
+// trust is `rex ws trust [path]` (let the workspace's .rex/config.lua
 // apply) and `rex ws trust -rm [id|path]`.
 func (e env) trust(pos []string, rm bool) error {
 	ref := ""
 	if len(pos) > 0 {
 		ref = pos[0]
+	}
+	// Trust takes a folder, never an id: the registry maps an id to the
+	// folder it was last seen at, and a copy of a committed workspace.json
+	// (a cloned repo) carries the same id, so an id could name the copy.
+	if !rm && wsp.ValidID(ref) {
+		return core.Errorf(core.ExitInvalidArgs, "rex ws trust <folder>",
+			"ws trust: name the folder, not the id (an id can also be a copy of this workspace elsewhere)")
 	}
 	ts, err := openTrustStore()
 	if err != nil {

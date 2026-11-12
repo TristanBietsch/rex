@@ -40,8 +40,11 @@ func TestWsTrust_TrustAndRevoke(t *testing.T) {
 	require.Equal(t, w.ID, d.ID)
 	require.True(t, trustStore(t).Trusted(w))
 
+	// An id is refused: the registry could map it to a copy elsewhere.
+	require.Equal(t, core.ExitInvalidArgs, exitCode(t, RunWs([]string{"trust", w.ID})))
+
 	r.printer(t, core.FormatFlags{Output: "text"})
-	require.NoError(t, RunWs([]string{"trust", w.ID}))
+	require.NoError(t, RunWs([]string{"trust", proj}))
 	out := r.out.String()
 	require.Contains(t, out, "already trusted")
 	require.Contains(t, out, "auto_trust_dirs", "says what a workspace can never set")

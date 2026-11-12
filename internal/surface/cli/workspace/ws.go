@@ -18,7 +18,7 @@ import (
 	wsp "github.com/tristanbietsch/rex/internal/workspace"
 )
 
-const usageLine = "rex ws init [path] [--name N] | id [path] | ls | rename <id|path> <name> | color <id|path> <#RRGGBB|swatch-number> | trust [-rm] [id|path] | open [path]"
+const usageLine = "rex ws init [path] [--name N] | id [path] | ls | rename <id|path> <name> | color <id|path> <#RRGGBB|swatch-number> | trust [path] | trust -rm [id|path] | open [path]"
 
 // info is the json payload of a workspace.
 type info struct {
