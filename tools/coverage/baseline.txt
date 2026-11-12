@@ -13,7 +13,7 @@ github.com/tristanbietsch/rex/internal/daemon/pty 88
 github.com/tristanbietsch/rex/internal/daemon/server 91
 github.com/tristanbietsch/rex/internal/daemon/state 85
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
-github.com/tristanbietsch/rex/internal/features/audio 65
+github.com/tristanbietsch/rex/internal/features/audio 85
 github.com/tristanbietsch/rex/internal/features/audit 90
 github.com/tristanbietsch/rex/internal/features/export 90
 github.com/tristanbietsch/rex/internal/features/lua 89
