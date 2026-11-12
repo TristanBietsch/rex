@@ -39,7 +39,7 @@ func TestHelpListsEveryCommand(t *testing.T) {
 	rows := map[string]string{}
 	for _, g := range helpRight {
 		for _, r := range g.Rows {
-			rows[r[0]] = r[1]
+			rows[r.Key] = r.Desc
 		}
 	}
 	for _, c := range commands {

@@ -77,9 +77,12 @@ type Model struct {
 
 	Wizard   *WizardState
 	Settings *SettingsState
-	Attach   *AttachState
-	Fail     *FailState
-	Rename   *RenameState
+	// Help is the help overlay's scroll and filter; nil reads as the top,
+	// unfiltered.
+	Help   *HelpState
+	Attach *AttachState
+	Fail   *FailState
+	Rename *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
 

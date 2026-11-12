@@ -407,11 +407,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		case "n":
 			return openWizard(m)
 		case "?":
-			m.Focus = FocusHelp
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventOpen)
-			}
-			return m, nil
+			return openHelp(m), nil
 		case "S":
 			return openSettings(m)
 		case "i":
@@ -461,14 +457,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateWizardKey(m, k)
 	}
 	if m.Focus == FocusHelp {
-		switch k.String() {
-		case "esc", "?":
-			m.Focus = FocusBoard
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventClose)
-			}
-		}
-		return m, nil
+		return updateHelpKey(m, k)
 	}
 	if m.Focus == FocusSettings {
 		return updateSettingsKey(m, k)

@@ -43,6 +43,7 @@ var (
 	styleLogo         lipgloss.Style // "∴ REX"
 	styleKey          lipgloss.Style // bold key caps and group titles
 	styleKbd          lipgloss.Style // key caps inside the attach chrome
+	styleCmd          lipgloss.Style // :command names in help
 	styleBold         lipgloss.Style
 	styleHeaderMeta   lipgloss.Style
 	styleSectionTitle lipgloss.Style
@@ -130,6 +131,7 @@ func rebuildStyles() {
 	styleLogo = bold(colorAccent)
 	styleKey = bold(colorFgPrimary)
 	styleKbd = bold(colorAccent)
+	styleCmd = bold(colorAccent)
 	styleBold = lipgloss.NewStyle().Bold(true)
 	styleHeaderMeta = fg(colorFgDim)
 	styleSectionTitle = bold(colorFgPrimary)

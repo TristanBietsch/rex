@@ -19,9 +19,9 @@
   DO│   ── Actions ─────────────────────────────────────────────────────   │    
    ●│   enter  attach to selected session                                  │  9d
    ✕│   n      new-agent wizard                                            │   -
-  ↳ │   r      rename selected (empty = slug)                              │    
-────│   cc     mark done / undo                                            │────
-  λ │   uc     undo done (unmark, or resume an exited session)             │    
+  ↳ │   ↓ more                                                             │    
+────│                                                                      │────
+  λ │   j/k scroll · / filter · esc close                                  │    
   en└──────────────────────────────────────────────────────────────────────┘    
 -- plain.120x40 --
      ┌─ HELP ──────────────────────────────────────────────────────────────────────────────────────────── rex v1 ─┐
@@ -55,12 +55,12 @@
      │   S      settings                                      :fail        failed sessions + daemon log (:fails   │
      │   q      quit (confirm)                                             :failed)                               │
      │                                                        :stats       session statistics overlay             │
-     │   ── Modes ────────────────────────────────────────    :overview    what needs you, what is ready for      │
-     │   :  command mode                                                   review, what finished                  │
-     │   ?  this help                                         :help        this overlay                           │
-     │                                                        :settings    open settings                          │
-     │                                                                                                            │
-  ↳ d│                                                        ── Attached session ─────────────────────────────   │     
-─────│                                                        qq / ctrl+]  detach                                 │─────
-  λ p│                                                        ::           command bar (q detach, done, kill,     │     
+     │   ── Mouse ────────────────────────────────────────    :overview    what needs you, what is ready for      │
+     │   click         select row / filter chip                            review, what finished                  │
+     │   double-click  attach to row                          :help        this overlay                           │
+     │   wheel         move row selection                     :settings    open settings                          │
+     │   hold ⌥ / ⇧    select text natively                                                                       │
+  ↳ d│   ↓ more                                                                                                   │     
+─────│                                                                                                            │─────
+  λ p│   j/k scroll · / filter · esc close                                                                        │     
   ent└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘     
