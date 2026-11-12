@@ -142,11 +142,11 @@ func adoptSnapshotTools(m Model, infos []protocol.ToolInfo) Model {
 	return adoptDaemonTools(m, infos)
 }
 
-// refreshPickers rebuilds the open wizard's and settings page's tool lists
+// refreshPickers rebuilds the open wizard's, settings page's and new-agent page's tool lists
 // after the daemon's list or a setting changed. The cursor stays on the same
 // tool and model by id when they are still offered.
 func refreshPickers(m Model) Model {
-	if m.Wizard == nil && m.Settings == nil {
+	if m.Wizard == nil && m.Settings == nil && m.NewAgent == nil {
 		return m
 	}
 	reg, err := loadToolsStrict()
@@ -192,6 +192,9 @@ func refreshPickers(m Model) Model {
 		st := *m.Settings
 		st.Tools, st.Onboarding = offer, onboarding
 		m.Settings = &st
+	}
+	if m.NewAgent != nil {
+		m = refreshNewAgent(m, offer, onboarding)
 	}
 	return m
 }

@@ -32,11 +32,15 @@ const (
 // naSectionNames are the rail's and the narrow strip's words.
 var naSectionNames = [naSectionCount]string{"Agent", "Task", "Context", "Trust"}
 
-// naScreen is the page's screen. Compose is the only one so far; the Agent
-// screen, the import picker and the preview come with later R16 tasks.
+// naScreen is the page's screen: Compose, or the Agent screen (agents,
+// models, effort and skills; newagent_agent.go). The import picker and the
+// preview come with later R16 tasks.
 type naScreen int
 
-const naCompose naScreen = iota
+const (
+	naCompose naScreen = iota
+	naAgentScreen
+)
 
 // NewAgentState lives on Model while Focus == FocusNewAgent, and as
 // Model.newAgentDraft after esc.
@@ -59,6 +63,16 @@ type NewAgentState struct {
 	Notice string
 	// Trust is the folder-trust choice (P2, wizard_trust.go).
 	Trust wizTrustMode
+	// The Agent screen: the focused pane, whether the agent cursor is on the
+	// not installed header, the model filter and whether keys type into it,
+	// and the skills cursor. Remembered is the agent the page opened with:
+	// going back to its tool starts on its model.
+	Pane       naAgentPane
+	OnMissing  bool
+	Filter     string
+	Filtering  bool
+	SkillCur   int
+	Remembered quickChoice
 }
 
 // selection is the state's agent choice as a WizardState, so the page
@@ -178,6 +192,7 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 		}
 		st.Notice = notice
 	}
+	st.Remembered = st.choice()
 	m.NewAgent = st
 	m.newAgentDraft = nil
 	m.Focus = FocusNewAgent
@@ -239,6 +254,9 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return closeNewAgent(m, true), nil
 	}
 	m.Err = "" // an error stays until the next key
+	if st.Screen == naAgentScreen {
+		return updateNewAgentAgentKey(m, k)
+	}
 	if k.Paste {
 		st.Section = naTask
 		st.Task.Insert(string(k.Runes))
@@ -262,10 +280,13 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyCtrlS:
 		return launchNewAgent(m)
 	case tea.KeyCtrlG:
-		return m, nil // the Agent screen comes with R16-2
+		return openAgentScreen(m), nil
 	}
 	if st.Section == naTask {
 		return newAgentEditKey(m, k)
+	}
+	if st.Section == naAgent && k.Type == tea.KeyEnter {
+		return openAgentScreen(m), nil
 	}
 	if k.Type == tea.KeyRunes && len(k.Runes) == 1 && k.Runes[0] >= '1' && k.Runes[0] <= '4' {
 		st.Section = naSection(k.Runes[0] - '1')

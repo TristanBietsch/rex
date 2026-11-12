@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
@@ -169,20 +170,22 @@ func (sc goldenScreen) sizesOf() []goldenSize {
 // goldenScreenSizes overrides the sizes of the screens that are pinned at
 // others than goldenSizes.
 var goldenScreenSizes = map[string][]goldenSize{
-	"usage":                {{80, 24}, {120, 40}, goldenMobile},
-	"header_meter":         {{60, 24}, {80, 24}, {120, 40}},
-	"undo_confirm":         {{80, 24}, {120, 40}, goldenMobile},
-	"undo_shared":          {{80, 24}, {120, 40}, goldenMobile},
-	"undo_forced":          {{80, 24}, {120, 40}, goldenMobile},
-	"undo_done":            {{80, 24}, {120, 40}, goldenMobile},
-	"board_done_fold":      {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
-	"settings_page":        {{120, 40}, {80, 24}, {50, 20}},
-	"help_page":            {{120, 40}, {80, 24}, {50, 20}},
-	"help_page_narrow":     {{50, 20}},
-	"settings_page_frame":  {{80, 24}},
-	"settings_page_narrow": {{50, 20}},
-	"board_icons_detailed": {{80, 24}, {120, 40}, {150, 40}},
-	"newagent_empty":       {{120, 40}, {80, 24}, {50, 20}},
+	"usage":                  {{80, 24}, {120, 40}, goldenMobile},
+	"header_meter":           {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm":           {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":            {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":            {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":              {{80, 24}, {120, 40}, goldenMobile},
+	"board_done_fold":        {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
+	"settings_page":          {{120, 40}, {80, 24}, {50, 20}},
+	"help_page":              {{120, 40}, {80, 24}, {50, 20}},
+	"help_page_narrow":       {{50, 20}},
+	"settings_page_frame":    {{80, 24}},
+	"settings_page_narrow":   {{50, 20}},
+	"board_icons_detailed":   {{80, 24}, {120, 40}, {150, 40}},
+	"newagent_empty":         {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_agent":         {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_models_filter": {{120, 40}, {80, 24}, {50, 20}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -401,30 +404,56 @@ func goldenScreens() []goldenScreen {
 			return bannerModel(t, sz.w, sz.h, bannerSession())
 		}},
 		{"newagent_empty", true, func(t *testing.T, sz goldenSize) Model {
-			m := goldenBoard(t, sz, false)
-			// A temp home with a checkout at ~/dev/rex, the board's workspace
-			// (not a chdir: the golden file is written relative to the
-			// package): the page names it, and the trust section offers it.
-			home := t.TempDir()
-			if r, err := filepath.EvalSymlinks(home); err == nil {
-				home = r
-			}
-			t.Setenv("HOME", home)
-			t.Setenv("USERPROFILE", home)
-			t.Setenv("XDG_CONFIG_HOME", "")
-			repo := filepath.Join(home, "dev", "rex")
-			if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o700); err != nil {
-				t.Fatal(err)
-			}
-			if err := m.Store.Set("workspaces", true); err != nil {
-				t.Fatal(err)
-			}
-			m.WS = &WorkspaceScope{ID: wsA, Name: "rex", Root: repo}
+			m, _ := goldenNewAgentBoard(t, sz)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
 			m, _ = executeCommand(m, "new")
 			return m
 		}},
+		{"newagent_agent", true, func(t *testing.T, sz goldenSize) Model {
+			m, home := goldenNewAgentBoard(t, sz)
+			writeHomeSkill(t, home, "go-testing", "table-driven tests and goldens")
+			writeHomeSkill(t, home, "release", "cut a release branch")
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "ollama", "cursor", "grok"), true
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
+			m.NewAgent.SkillSel = map[string]bool{"go-testing": true}
+			return m
+		}},
+		{"newagent_models_filter", false, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentBoard(t, sz)
+			m.DaemonTools, m.toolsKnown = cursorModels(t), true
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
+			m = sendKey(m, key("j")) // Cursor CLI
+			m = sendKey(m, key("/"))
+			return typeText(m, "son")
+		}},
 	}
+}
+
+// goldenNewAgentBoard is the golden board in a temp home with a checkout at
+// ~/dev/rex as the board's workspace (not a chdir: the golden file is
+// written relative to the package): the page names it, and the trust
+// section offers it. It returns the home too.
+func goldenNewAgentBoard(t *testing.T, sz goldenSize) (Model, string) {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	home := t.TempDir()
+	if r, err := filepath.EvalSymlinks(home); err == nil {
+		home = r
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	repo := filepath.Join(home, "dev", "rex")
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Store.Set("workspaces", true); err != nil {
+		t.Fatal(err)
+	}
+	m.WS = &WorkspaceScope{ID: wsA, Name: "rex", Root: repo}
+	return m, home
 }
 
 // wizardFlag turns new_agent_page off, so n and :new open the popup wizard.

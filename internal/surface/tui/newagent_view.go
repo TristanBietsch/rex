@@ -42,9 +42,14 @@ func naTrustOf(m Model, st *NewAgentState) naTrustView {
 func renderNewAgent(m Model, w, h int) string {
 	st := m.NewAgent
 	middle := styleDim.Render(protocol.FlattenDisplayText(tildePath(spawnCWD(m))))
-	head := pageHeader("NEW AGENT", middle, styleDim.Render("draft"), w)
 	narrow := pageNarrow(w)
 	bh := pageBodyHeight(h)
+	if st != nil && st.Screen == naAgentScreen {
+		head := pageHeader("NEW AGENT › AGENT", middle, "", w)
+		foot := pageFooter(m, naAgentHints(st, narrow), w, helpBarOn(m))
+		return composePage(head, naAgentBody(m, st, w, bh), foot, w, h)
+	}
+	head := pageHeader("NEW AGENT", middle, styleDim.Render("draft"), w)
 	var body []string
 	if st != nil {
 		tv := naTrustOf(m, st)
