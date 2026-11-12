@@ -35,7 +35,21 @@ type HubConfig struct {
 	// hub was switched on or off. It must not block (the server fans it out
 	// without I/O). nil: nobody listens.
 	OnUsage func(protocol.Usage)
+	// OnSessionCost is called with a session's total cost so far when a
+	// sample moved it by at least CostStep, at most once per CostEvery per
+	// session. It is called without the hub's lock held, so it may call back
+	// into the hub (the store's broadcast does, through Observe). nil:
+	// nobody listens.
+	OnSessionCost func(id string, usd float64)
 }
+
+// Cost patch throttle: status lines arrive several times a second.
+const (
+	// CostStep is the least change in a session's total worth reporting.
+	CostStep = 0.01
+	// CostEvery is the least time between two reports for one session.
+	CostEvery = 2 * time.Second
+)
 
 // Hub is the daemon's usage state: the live sessions' totals and the ledger
 // lines they become.
@@ -76,6 +90,19 @@ type liveSession struct {
 	lastWrite  time.Time
 	lastRec    Record
 	wroteFinal bool
+
+	lastCostSent float64   // the total OnSessionCost last got
+	lastCostAt   time.Time // when (zero: never)
+}
+
+// totalCost is the session's cost so far: the conversations' costs summed,
+// never below the cost seeded from before this daemon started.
+func (l *liveSession) totalCost() float64 {
+	sum := 0.0
+	for _, c := range l.costs {
+		sum += c
+	}
+	return max(sum, l.seedCost)
 }
 
 // NewHub builds a disabled hub. ctx bounds its goroutine.
@@ -327,11 +354,7 @@ func (h *Hub) recordLocked(l *liveSession, ended bool) Record {
 		r.Tokens = p.Tokens
 	}
 	if l.hasCost {
-		sum := 0.0
-		for _, c := range l.costs {
-			sum += c
-		}
-		c := max(sum, l.seedCost)
+		c := l.totalCost()
 		r.CostUSD = &c
 	}
 	return r
