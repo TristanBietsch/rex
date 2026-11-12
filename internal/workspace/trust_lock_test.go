@@ -2,7 +2,9 @@ package workspace
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -106,4 +108,29 @@ func TestTrust_WaitsForTheLockThenGivesUp(t *testing.T) {
 	_, err = s.Revoke(w.ID, "")
 	require.ErrorContains(t, err, "locked")
 	require.True(t, s.Trusted(w), "nothing written without the lock")
+}
+
+// The lock file is never followed through a symlink nor taken on a
+// non-regular file: trust then fails and writes nothing.
+func TestTrust_UnsafeLockFileRefused(t *testing.T) {
+	w := wsWithID(t, t.TempDir(), "0000beef")
+	dir := filepath.Join(t.TempDir(), "data")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	path := filepath.Join(dir, "workspace-trust.json")
+	s, err := OpenTrust(path)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Mkdir(path+".lock", 0o700))
+	require.Error(t, s.Trust(w, ""), "a folder")
+	require.NoError(t, os.Remove(path+".lock"))
+
+	if runtime.GOOS != "windows" {
+		require.NoError(t, os.Symlink(filepath.Join(dir, "elsewhere"), path+".lock"))
+		require.ErrorIs(t, s.Trust(w, ""), ErrUnsafe, "a symlink")
+		_, err = os.Lstat(filepath.Join(dir, "elsewhere"))
+		require.True(t, os.IsNotExist(err), "nothing created through the link")
+		_, err = s.Revoke(w.ID, "")
+		require.ErrorIs(t, err, ErrUnsafe)
+	}
+	require.False(t, s.Trusted(w))
 }
