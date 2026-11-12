@@ -141,3 +141,18 @@ func TestTailDaemonLog_readsOnlyTheEnd(t *testing.T) {
 		require.True(t, l == line[:99] || strings.HasPrefix(l, "last-"), "partial first line skipped: %q", l)
 	}
 }
+
+// A window that starts exactly on a line keeps that line.
+func TestTailDaemonLog_windowOnLineBoundary(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	logPath, err := paths.DaemonLog()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(logPath), 0o700))
+	head := strings.Repeat("h", 99) + "\n"
+	body := "first-in-window\n" + strings.Repeat("b", tailLogWindow-len("first-in-window\n")-1) + "\n"
+	require.NoError(t, os.WriteFile(logPath, []byte(head+body), 0o600))
+	got := tailDaemonLog(1 << 20)
+	require.Equal(t, "first-in-window", got[0])
+}

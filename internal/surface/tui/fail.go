@@ -99,7 +99,9 @@ func tailDaemonLog(n int) []string {
 	// grown to many MiB.
 	skipFirst := false
 	if info, err := f.Stat(); err == nil && info.Size() > tailLogWindow {
-		if _, err := f.Seek(info.Size()-tailLogWindow, io.SeekStart); err == nil {
+		// Start one byte early: if that byte ends a line, the window
+		// starts on a whole line and the skipped "partial" line is empty.
+		if _, err := f.Seek(info.Size()-tailLogWindow-1, io.SeekStart); err == nil {
 			skipFirst = true
 		}
 	}

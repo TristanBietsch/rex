@@ -203,22 +203,14 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
 			if i := sessionIndex(m.Sessions, sum.ID); i >= 0 {
 				// Already listed (a snapshot taken after the add raced
-				// its event): refresh the row, don't show it twice.
+				// its event): refresh the row, don't show it twice. It
+				// may still be the spawn waiting to be selected.
 				m.Sessions[i] = sum
+				m = m.selectIfPending(sum)
 				break
 			}
 			m.Sessions = append(m.Sessions, sum)
-			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
-				m.SelectedID = sum.ID
-				m.PendingSelectSlug = ""
-				if msg := m.PendingSpawn.ignoredBy(sum); msg != "" {
-					m.Err = msg
-				}
-				m.PendingSpawn = pendingSpawn{}
-				if indexOfSelected(m) < 0 {
-					m.Notice = sum.Slug + " is hidden by the filter"
-				}
-			}
+			m = m.selectIfPending(sum)
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventCreate)
 			}
@@ -447,6 +439,24 @@ func friendlyDaemonError(ee protocol.ErrorEvent) string {
 		return offMessage("resume")
 	}
 	return ee.Message
+}
+
+// selectIfPending selects sum when it is the session this TUI just spawned
+// (PendingSelectSlug), and reports spawn options the daemon ignored.
+func (m Model) selectIfPending(sum protocol.SessionSummary) Model {
+	if m.PendingSelectSlug == "" || sum.Slug != m.PendingSelectSlug {
+		return m
+	}
+	m.SelectedID = sum.ID
+	m.PendingSelectSlug = ""
+	if msg := m.PendingSpawn.ignoredBy(sum); msg != "" {
+		m.Err = msg
+	}
+	m.PendingSpawn = pendingSpawn{}
+	if indexOfSelected(m) < 0 {
+		m.Notice = sum.Slug + " is hidden by the filter"
+	}
+	return m
 }
 
 // sessionIndex is the index of session id in sessions, or -1.

@@ -90,3 +90,17 @@ func TestSessionAddedTwiceListsOnce(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "alpha2", s.Slug)
 }
+
+// The spawn this TUI waits to select can arrive in a snapshot before its
+// own add event; the add event still selects it and clears the pending slug.
+func TestSessionAddedTwiceStillSelectsPendingSpawn(t *testing.T) {
+	m := boardModel(staleSessions()...)
+	m.SelectedID = "a"
+	m.PendingSelectSlug = "gamma"
+	fresh := protocol.SessionSummary{ID: "c", Slug: "gamma", ToolID: "claude", State: protocol.StateWorking}
+	m = m.applyEvent(staleEnv(t, protocol.EventSnapshot, protocol.Snapshot{Sessions: append(staleSessions(), fresh)}))
+	m = m.applyEvent(staleEnv(t, protocol.EventSessionAdded, fresh))
+	require.Len(t, m.Sessions, 3)
+	require.Equal(t, "c", m.SelectedID)
+	require.Empty(t, m.PendingSelectSlug)
+}
