@@ -135,3 +135,22 @@ func TestStore_CurrentStateConcurrentWithTransition(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestStore_BeginDelete_RefusesTerminalTransition(t *testing.T) {
+	s := NewStore()
+	sess := &Session{ID: "id1", ShortID: "id1", State: protocol.StateNeedsInput}
+	require.NoError(t, s.Add(sess))
+	events := 0
+	s.Subscribe(func(Event) { events++ })
+
+	s.BeginDelete("id1")
+	for _, st := range []protocol.State{protocol.StateFailed, protocol.StateDone, protocol.StateCrashed} {
+		require.ErrorIs(t, s.Transition("id1", st), ErrDeleting)
+	}
+	require.Zero(t, events)
+	got, _ := s.CurrentState("id1")
+	require.Equal(t, protocol.StateNeedsInput, got)
+
+	s.ReleaseReaping("id1")
+	require.NoError(t, s.Transition("id1", protocol.StateFailed))
+}
