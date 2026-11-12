@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -35,7 +36,9 @@ func TestSwapStateRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	fi, err := os.Stat(path)
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+	if runtime.GOOS != "windows" { // no Unix modes there
+		require.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+	}
 
 	st, err := readSwapState(path)
 	require.NoError(t, err)
