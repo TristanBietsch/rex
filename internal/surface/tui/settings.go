@@ -147,6 +147,11 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		return closeSettings(m), nil
+	case "q":
+		if pagesOn(m) {
+			return closeSettings(m), nil
+		}
+		return m, nil
 	case "/":
 		m.Settings.Searching = true
 		return m, nil

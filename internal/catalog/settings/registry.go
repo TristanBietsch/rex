@@ -255,6 +255,11 @@ var Registry = []Setting{
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
 	},
 	{
+		ID: "fullscreen_pages", Label: "Full-screen settings and help", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Settings and help open as full-screen pages with a section list on the left, like the board. Off: they open as the older floating overlays, and the page keys (tab between panes, 1-9, [ and ], q) do nothing.",
+	},
+	{
 		ID: "workspaces", Label: "Workspaces", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
 		Help: "Mark a project folder as a workspace with rex ws init: a small .rex/ folder holds an id, a name and a color so sessions in that tree can be told apart. Off: rex never looks for or writes a .rex/ folder, and rex ws refuses.",

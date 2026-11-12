@@ -374,7 +374,7 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		st = *m.Help
 	}
 	w, h := helpSize(m)
-	lay := layoutHelp(m, w, h)
+	lay := helpLayoutFor(m, w, h)
 
 	if st.Filtering {
 		switch k.Type {
@@ -415,6 +415,10 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return closeHelp(m), nil
 	case "?":
 		return closeHelp(m), nil
+	case "q":
+		if pagesOn(m) {
+			return closeHelp(m), nil
+		}
 	case "/":
 		st.Filtering = true
 	case "j", "down":
@@ -446,7 +450,7 @@ func updateHelpMouse(m Model, msg tea.MouseMsg) Model {
 		st = *m.Help
 	}
 	w, h := helpSize(m)
-	maxScroll := layoutHelp(m, w, h).maxScroll
+	maxScroll := helpLayoutFor(m, w, h).maxScroll
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
 		st.Scroll -= 3

@@ -23,6 +23,7 @@ func overlayModels(t *testing.T, w, h int) map[string]Model {
 	base := layoutModel(now, w, sessions...)
 	base.Height = h
 	base.Detailed = false
+	base = overlayMode(t, base) // help and settings as overlays, not pages
 
 	with := func(f func(m *Model)) Model {
 		m := base

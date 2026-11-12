@@ -144,8 +144,14 @@ func (m Model) view(w, h int) string {
 	case FocusWizard:
 		return centerPanel(w, h, fitOverlay(renderWizard(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusHelp:
+		if pagesOn(m) {
+			return renderHelpPage(m, w, h)
+		}
 		return centerOverlayBox(w, h, renderHelp(m, w, h), dimBoard(renderFullScreen(m, w, h)))
 	case FocusSettings:
+		if pagesOn(m) {
+			return renderSettingsPage(m, w, h)
+		}
 		return centerOverlayBox(w, h, renderSettings(m, w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusAttach:
 		return centerAttach(m, w, h, attachBackground(m, w, h))

@@ -86,13 +86,16 @@ func (sc goldenScreen) sizesOf() []goldenSize {
 // goldenScreenSizes overrides the sizes of the screens that are pinned at
 // others than goldenSizes.
 var goldenScreenSizes = map[string][]goldenSize{
-	"usage":           {{80, 24}, {120, 40}, goldenMobile},
-	"header_meter":    {{60, 24}, {80, 24}, {120, 40}},
-	"undo_confirm":    {{80, 24}, {120, 40}, goldenMobile},
-	"undo_shared":     {{80, 24}, {120, 40}, goldenMobile},
-	"undo_forced":     {{80, 24}, {120, 40}, goldenMobile},
-	"undo_done":       {{80, 24}, {120, 40}, goldenMobile},
-	"board_done_fold": {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
+	"usage":               {{80, 24}, {120, 40}, goldenMobile},
+	"header_meter":        {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm":        {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":         {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":         {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":           {{80, 24}, {120, 40}, goldenMobile},
+	"board_done_fold":     {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
+	"settings_page":       {{120, 40}, {80, 24}, {50, 20}},
+	"help_page":           {{120, 40}, {80, 24}, {50, 20}},
+	"settings_page_frame": {{80, 24}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -112,23 +115,27 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"help", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = overlayMode(t, m)
 			m.Focus = FocusHelp
 			return m
 		}},
 		{"settings", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = overlayMode(t, m)
 			m.Focus = FocusSettings
 			m.Settings = &SettingsState{CursorID: settings.Registry[0].ID}
 			return m
 		}},
 		{"help_filtered", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = overlayMode(t, m)
 			m.Focus = FocusHelp
 			m.Help = &HelpState{Filter: "undo"}
 			return m
 		}},
 		{"settings_search", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = overlayMode(t, m)
 			m.Focus = FocusSettings
 			m.Settings = &SettingsState{CursorID: "spinner", Search: "spin"}
 			if err := m.Store.Set("spinner", "moon"); err != nil {
@@ -176,10 +183,28 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"settings_onboarding", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = overlayMode(t, m)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
 			m, _ = openSettings(m)
 			m.Settings.CursorID = onboardPrefix + "codex"
 			return m
+		}},
+		{"settings_page", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusSettings
+			m.Settings = &SettingsState{CursorID: settings.Registry[0].ID}
+			return m
+		}},
+		{"help_page", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusHelp
+			return m
+		}},
+		{"settings_page_frame", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusSettings
+			m.Settings = &SettingsState{CursorID: settings.Registry[0].ID}
+			return framedGolden(t, m, sz)
 		}},
 		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
 			return framedGolden(t, goldenBoard(t, sz, false), sz)
