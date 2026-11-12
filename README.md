@@ -23,8 +23,8 @@ another place). No sudo, and it never edits your shell profile. Pin a version
 with `REX_VERSION=v2.0.0 sh install.sh`. On Linux, sound needs ALSA
 (`libasound2`), which desktop systems already have.
 
-Run the same two lines again to upgrade. A running daemon keeps the old
-binary until you restart it; the installer prints the command.
+Upgrade with `rex update` (or run the same two lines again). A running
+daemon keeps the old binary until you switch it; both print the command.
 
 Or download an archive from the release page yourself and check it:
 
@@ -40,13 +40,23 @@ export PATH="$HOME/.local/bin:$PATH"
 rex setup
 ```
 
-On Windows (PowerShell, from a checkout), or unzip `rex_<version>_windows_amd64.zip`
-from the release page:
+On Windows (PowerShell), download the installer, read it, then run it:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1   # installs to ~\.local\bin, adds it to your user PATH
+Invoke-WebRequest https://raw.githubusercontent.com/TristanBietsch/rex/master/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1   # latest release into ~\.local\bin
 rex setup
 ```
+
+It downloads `rex_<version>_windows_amd64.zip` and `SHA256SUMS` from the
+latest release (`-Version v2.0.0` or `REX_VERSION` pins one), checks the zip
+with `Get-FileHash`, and installs `rex.exe` and `rex-daemon.exe`. It never
+edits your PATH or profile; when `~\.local\bin` is not on PATH it prints the
+command that adds it. `-FromSource` builds from a checkout instead (needs Go).
+Or unzip the archive from the release page yourself.
+
+To upgrade any release install later, run `rex update` (`rex update -check`
+only looks).
 
 Agents run on ConPTY. Claude Code's state hooks need Git for Windows (Claude runs hooks in Git Bash), and the `echo` test tool needs `bash` on PATH.
 

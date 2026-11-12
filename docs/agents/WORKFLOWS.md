@@ -90,7 +90,7 @@ go install github.com/tristanbietsch/rex/cmd/rex@latest
 go install github.com/tristanbietsch/rex/cmd/rex-daemon@latest
 ```
 
-`rex update` uses these module paths. `@latest` is the newest `master` commit: the module path has no `/v2`, so Go ignores `v2.x` tags.
+For a `go install` build, `rex update` uses these module paths (release installs update from GitHub releases). `@latest` is the newest `master` commit: the module path has no `/v2`, so Go ignores `v2.x` tags.
 
 ## Run TUI (default)
 

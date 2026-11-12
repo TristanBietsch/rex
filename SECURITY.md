@@ -138,6 +138,23 @@ filesystem permissions.
   workspace sets among the allowed display settings is not. On Windows
   the owner, mode and hard-link checks do not apply (ACLs are out of
   scope, as for `config.lua`).
+- <a id="the-updater"></a>**The updater (`rex update`, `install.sh`,
+  `install.ps1`).** They download release archives from GitHub over https
+  only (TLS 1.2+); `rex update` also refuses a redirect to any host but
+  `github.com`, `api.github.com` and GitHub's release object stores, and
+  sends `GITHUB_TOKEN` to the API only. Each archive must match its line in
+  the release's `SHA256SUMS`. Only `rex` and `rex-daemon` are taken from the
+  archive's top folder, as regular files: a symlink, hard link, absolute or
+  `..` path, nested path, duplicate entry or file over 256 MiB rejects the
+  whole archive, and the download is capped at 256 MiB. New binaries are
+  written as temp files next to the old ones, synced and renamed over them,
+  so a failure leaves the old install in place. rex never overwrites a
+  binary owned by a package manager. The checksum file comes from the same
+  release as the archive, so it detects corruption, not a compromised
+  release or GitHub account; releases are not signed yet. Reports of the
+  updater writing outside the install folder, installing a file that does
+  not match `SHA256SUMS`, following a downgrade without `-force`, or
+  leaking the token are in scope.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the

@@ -662,10 +662,27 @@ With `-verbose`, an `agy version` row shows the installed Antigravity CLI versio
 ## rex update
 
 ```sh
-rex update [-check] [-yes|-y] [-source module|binary] [-verbose] [-o FORMAT] [--agent]
+rex update [-check] [-yes|-y] [-version vX.Y.Z] [-force] [-source DIR] [-verbose] [-o FORMAT] [--agent]
 ```
 
-The plan, the `upgrade now? [Y/n]` question and the progress lines go to **stderr**; the result (`✓ rex v1 → v2`, or `ok cmd=update from=… to=…`) is the only thing on stdout. Without a terminal on stdin and stderr, or in any format but `text`, the upgrade needs `-yes` (exit **6** otherwise); a declined question exits **6**. A binary-swap install (`install.sh`'s `~/.local/bin`) refuses with exit 6 and the command that fixes it: re-run the installer, which fetches the latest release, or `./install.sh --from-source` in a checkout. `go install` mode runs `go install …@latest`, the newest `master` commit; `-source DIR` runs `git pull` and `./install.sh --from-source` there.
+How rex upgrades depends on where the running `rex` lives:
+
+| Install | `rex update` does |
+|---------|-------------------|
+| Release build (`install.sh`'s `~/.local/bin`, `install.ps1`, an unpacked archive) | downloads the release from GitHub and swaps the binaries; the daemon keeps running |
+| `go install` (`$GOPATH/bin`, `~/go/bin`) | stops the daemon, runs `go install …@latest` (the newest `master` commit) |
+| Homebrew, Scoop, Nix, Snap, `/usr/bin` | refuses (exit **6**) and names the package manager's command |
+| A binary inside a source checkout | refuses (exit **6**); rebuild there or use `-source` |
+
+`-source DIR` runs `git pull` and `./install.sh --from-source` (`install.ps1 -FromSource` on Windows) in that checkout, for any install.
+
+**Release update.** rex asks the GitHub API for the latest release (`-version vX.Y.Z` or `REX_VERSION` pins one instead; `GITHUB_TOKEN`, when set, is sent to the API only). It compares the release with the running version and refuses, with exit **6**, a release older than the running one (a downgrade) and a running `dev` or Go pseudo-version build that it cannot compare; `-force` installs anyway. The same version prints `rex vX is up to date` and changes nothing (`-force` reinstalls). Then it downloads `rex_<ver>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `SHA256SUMS`, checks the archive against its line, extracts `rex` and `rex-daemon` next to the installed ones as temp files, syncs them and renames them over the old binaries (on Windows the old `.exe` is first renamed to `.exe.old`). A running daemon is not touched: it keeps its sessions on the old binary, and the result says how to switch it (`rex upgrade` when the new build has it, without ending sessions; otherwise `rex daemon restart`, which ends them). The `-o json` result carries it as `next`.
+
+**`-check`** changes nothing. It prints the running `version`, the `remote` release and a `status`: `up-to-date`, `update-available`, `running-newer` or `unknown` (a `dev` or pseudo-version build). A failed lookup exits **1**.
+
+The plan, the question (`install rex vX? [y/N]` for a release, `upgrade now? [Y/n]` for go install) and the progress lines go to **stderr**; the result (`✓ rex v1 → v2`, or `ok cmd=update from=… to=…`) is the only thing on stdout. Without a terminal on stdin and stderr, or in any format but `text`, the upgrade needs `-yes` (exit **6** otherwise); a declined question exits **6**.
+
+Every request is https to `api.github.com`, `github.com` or GitHub's release object stores, redirects included. A checksum mismatch, a release without a build for your platform, and an archive with links, paths outside its top folder or oversized files install nothing. See [SECURITY.md](../SECURITY.md#the-updater).
 
 ---
 

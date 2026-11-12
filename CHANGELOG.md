@@ -94,6 +94,30 @@ Each is described in full under **Changed** below.
 - `install.sh` downloads the latest release (or `REX_VERSION`), verifies it
   against `SHA256SUMS`, and installs into `~/.local/bin` without sudo or
   shell profile edits. `--from-source` builds a checkout (or a fresh clone).
+- `rex update` updates a release install (`install.sh`, `install.ps1`, an
+  unpacked archive) from GitHub releases: it downloads the archive for your
+  platform over https, checks it against `SHA256SUMS`, extracts only `rex`
+  and `rex-daemon`, and swaps them in atomically. The daemon keeps running;
+  the result names the next step (`rex upgrade` when the new build has it,
+  else `rex daemon restart`, which ends sessions). `-version vX.Y.Z` or
+  `REX_VERSION` pins a release; a downgrade, a reinstall and a `dev` build
+  need `-force`. Homebrew, Scoop, Nix and distro installs are refused with
+  their own upgrade command. `rex update -check` looks up the latest
+  release and prints `status` (`up-to-date`, `update-available`,
+  `running-newer` or `unknown`); `GITHUB_TOKEN` is sent to the GitHub API
+  when set.
+- `install.ps1` installs the latest Windows release (or `-Version` /
+  `REX_VERSION`), verified with `Get-FileHash` against `SHA256SUMS`, into
+  `~\.local\bin`. It prints PATH advice instead of editing your PATH, and
+  leaves a running daemon alone. `-FromSource` keeps the old build from a
+  checkout.
+
+### Fixed (help for command groups)
+
+- `rex help daemon` printed `daemon: unknown subcommand "-h"`. `rex help
+  <cmd>`, `rex <cmd> -h` and `rex <cmd> --help` now print help for every
+  command, including `daemon`, `config`, `theme` and `ws`, and `rex help
+  render` works although `render` uses `-h` for its height.
 
 ### Changed (install and version)
 
@@ -102,8 +126,10 @@ Each is described in full under **Changed** below.
   module version; other builds show `dev`.
 - `install.sh` leaves a running daemon on the old binary instead of
   stopping it (which ended its sessions) and prints how to switch.
-- `rex update` on a `~/.local/bin` install points at the installer;
-  `rex update -source` runs `install.sh --from-source`.
+- `rex update -source` runs `install.sh --from-source` (`install.ps1
+  -FromSource` on Windows).
+- `install.ps1` without flags installs the latest release; building from
+  the checkout needs `-FromSource`.
 
 ### Added (screensaver settings)
 

@@ -4,7 +4,7 @@ Goal: install Rex, spawn one test session, and read its status from the shell.
 
 End state: `rex-daemon` running, one `echo` session on the board, and a `rex status` line you can parse.
 
-Requires: macOS or Linux. Go (the version in `go.mod`) only if you build from source. Network not required after install.
+Requires: macOS, Linux or Windows 10 1809+. Go (the version in `go.mod`) only if you build from source. Network not required after install.
 
 ## 1. Install
 
@@ -15,6 +15,17 @@ curl -fsSL https://raw.githubusercontent.com/TristanBietsch/rex/master/install.s
 sh install.sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
+
+On Windows (PowerShell):
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/TristanBietsch/rex/master/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+It installs into `~\.local\bin` and prints the command that adds it to
+your PATH if needed (it never edits PATH itself). Upgrade later with
+`rex update`.
 
 From a repository checkout:
 

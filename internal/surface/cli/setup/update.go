@@ -415,7 +415,7 @@ func upgradeFromSource(dir string, verbose bool) error {
 	}
 
 	if runtime.GOOS == "windows" {
-		return runSourceStep(dir, verbose, "install.ps1", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(dir, "install.ps1"))
+		return runSourceStep(dir, verbose, "install.ps1", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(dir, "install.ps1"), "-FromSource")
 	}
 	script := filepath.Join(dir, "install.sh")
 	return runSourceStep(dir, verbose, "./install.sh --from-source", script, "--from-source")

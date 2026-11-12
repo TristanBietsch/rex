@@ -62,6 +62,7 @@ internal/
 │   ├── daemonctl/          # spawn/check daemon, socket paths
 │   ├── ids/                # session UUID / short id
 │   ├── redact/             # argv redaction for the daemon log
+│   ├── selfupdate/         # rex update: release lookup, verified download, safe extract and swap
 │   └── rexlog/             # file-backed slog for daemon/TUI
 ├── features/               # optional enhancements
 │   ├── skills/             # skill library + per-session plugin staging

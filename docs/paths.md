@@ -83,6 +83,8 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 | `OLLAMA_HOST` | `rex-daemon` | Ollama base URL for summarizer. A non-local host receives the text of agents' screens |
 | `EDITOR` | `rex config edit`, `e` on a locked settings row | Program to edit `init.lua` or `config.lua` |
 | `GOPATH` | `rex update` | Module install path resolution |
+| `REX_VERSION` | `rex update`, `install.sh`, `install.ps1` | Release to install (`v2.0.0`) instead of the latest |
+| `GITHUB_TOKEN` | `rex update` | Sent to the GitHub API only, for its higher rate limit |
 | `SHELL` | `rex setup` | Shell profile target for PATH block |
 
 `REX_SOCKET` is not used for production socket resolution.
@@ -93,6 +95,8 @@ Override with `-socket` on `rex-daemon` or `-socket` on CLI commands that dial t
 |--------|----------|
 | `sh install.sh` (latest GitHub release, `REX_VERSION` to pin) | `$(PREFIX)/bin/rex`, `rex-daemon` (default `PREFIX=$HOME/.local`) |
 | `./install.sh --from-source` (build this checkout) | Same |
+| `install.ps1` (Windows, latest release; `-FromSource` builds) | `<Prefix>\bin\rex.exe`, `rex-daemon.exe` (default `~\.local`) |
+| `rex update` (release installs) | replaces the running `rex` and the `rex-daemon` next to it |
 | `make install PREFIX=…` | Same |
 | `go install github.com/tristanbietsch/rex/cmd/rex@latest` | `$GOPATH/bin` or `$HOME/go/bin` |
 

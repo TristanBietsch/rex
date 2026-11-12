@@ -62,9 +62,42 @@ jobs:
       - name: Test
         run: go test ./...
 
-      - name: Install (install.ps1)
+      - name: Install (install.ps1 -FromSource)
         shell: pwsh
-        run: ./install.ps1 -Prefix "$env:RUNNER_TEMP\rex" -NoPath
+        run: ./install.ps1 -FromSource -Prefix "$env:RUNNER_TEMP\rex" -NoPath
+
+      # The release path of install.ps1 against a local file:// mirror built
+      # from the binaries above: a good zip installs, a bad checksum and a
+      # missing release install nothing.
+      - name: Install from a release mirror (install.ps1)
+        shell: pwsh
+        run: |
+          $ver = '0.0.0-ci'
+          $name = "rex_${ver}_windows_amd64"
+          $mirror = Join-Path $env:RUNNER_TEMP 'mirror'
+          $dl = Join-Path $mirror "download\v$ver"
+          $stage = Join-Path $env:RUNNER_TEMP "stage\$name"
+          New-Item -ItemType Directory -Force -Path $dl, $stage | Out-Null
+          Copy-Item .\rex.exe, .\rex-daemon.exe $stage
+          $zip = Join-Path $dl "$name.zip"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, 'Optimal', $true)
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path (Join-Path $dl 'SHA256SUMS') -Value "$hash  $name.zip"
+          $env:REX_DOWNLOAD_URL = ([Uri]$mirror).AbsoluteUri
+          $prefix = Join-Path $env:RUNNER_TEMP 'rex-release'
+          ./install.ps1 -Version "v$ver" -Prefix $prefix
+          if ($LASTEXITCODE -ne 0) { Write-Error 'release install failed'; exit 1 }
+          if (-not (Test-Path "$prefix\bin\rex.exe")) { Write-Error 'rex.exe not installed'; exit 1 }
+          if (-not (Test-Path "$prefix\bin\rex-daemon.exe")) { Write-Error 'rex-daemon.exe not installed'; exit 1 }
+          Set-Content -Path (Join-Path $dl 'SHA256SUMS') -Value ("0" * 64 + "  $name.zip")
+          $bad = Join-Path $env:RUNNER_TEMP 'rex-bad'
+          pwsh -NoProfile -File ./install.ps1 -Version "v$ver" -Prefix $bad
+          if ($LASTEXITCODE -eq 0) { Write-Error 'bad checksum was accepted'; exit 1 }
+          if (Test-Path "$bad\bin\rex.exe") { Write-Error 'bad checksum installed rex.exe'; exit 1 }
+          pwsh -NoProfile -File ./install.ps1 -Version 'v9.9.9' -Prefix $bad
+          if ($LASTEXITCODE -eq 0) { Write-Error 'missing release was accepted'; exit 1 }
+          exit 0
 
       - name: Smoke (daemon start, echo session, stop)
         shell: pwsh
