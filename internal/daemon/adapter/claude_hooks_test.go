@@ -304,7 +304,7 @@ func TestClaudeHookArgs_SessionStartAndPostToolUse(t *testing.T) {
 	runHook(t, cmds["PostToolUse"], path, `{"session_id":"s","agent_id":"sub-7","agent_type":"Explore","tool_name":"Read"}`)
 	raw, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.Equal(t, "needs_input\nsid s\n"+
+	require.Equal(t, "compacted\nsid s\n"+
 		"agents-reset\nneeds_input\nsid s\n"+
 		"agents-reset\nneeds_input\nsid s\n"+
 		"working\nwait-\n"+
@@ -327,7 +327,7 @@ func TestClaudeHookArgs_SessionStartReportsSID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		"agents-reset\nneeds_input\nsid "+testSID+"\n"+
-			"needs_input\nsid "+testSID+"\n"+
+			"compacted\nsid "+testSID+"\n"+
 			"agents-reset\nneeds_input\nsid \n"+
 			"agents-reset\nneeds_input\nsid touchpwnedxy\n", string(raw))
 	require.NoFileExists(t, filepath.Join(filepath.Dir(path), "pwned"))

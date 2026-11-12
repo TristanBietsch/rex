@@ -82,6 +82,7 @@ func (h *Hub) Sample(s protocol.UsageSample) {
 	}
 	h.reportLocked(l, conv, cleanMoney(s.CostUSD), protocol.SanitizeDisplayText(s.ModelID, maxModelRunes))
 	at := h.cfg.Now().UTC()
+	costID, costUSD, costDue := h.costDueLocked(s.SessionID, l)
 	changed := false
 	set := func(window string, w *protocol.UsageWindow, used, limit *float64) {
 		q := protocol.UsageQuota{Tool: l.sum.ToolID, Window: window, At: at, UsedUSD: used, LimitUSD: limit}
@@ -114,10 +115,32 @@ func (h *Hub) Sample(s protocol.UsageSample) {
 	}
 	if !changed {
 		h.mu.Unlock()
+		if costDue {
+			h.cfg.OnSessionCost(costID, costUSD)
+		}
 		return
 	}
 	ev := h.usageLocked()
 	h.publishAndUnlock(ev)
+	if costDue {
+		h.cfg.OnSessionCost(costID, costUSD)
+	}
+}
+
+// costDueLocked decides whether l's total should be reported now and, if so,
+// marks it as reported. The caller calls OnSessionCost after it releases
+// h.mu: the callback may re-enter the hub.
+func (h *Hub) costDueLocked(id string, l *liveSession) (string, float64, bool) {
+	if h.cfg.OnSessionCost == nil || !l.hasCost {
+		return "", 0, false
+	}
+	now := h.cfg.Now()
+	total := l.totalCost()
+	if math.Abs(total-l.lastCostSent) < CostStep-1e-9 || (!l.lastCostAt.IsZero() && now.Sub(l.lastCostAt) < CostEvery) {
+		return "", 0, false
+	}
+	l.lastCostSent, l.lastCostAt = total, now
+	return id, total, true
 }
 
 // publishAndUnlock hands ev to OnUsage and releases h.mu. publishMu is taken

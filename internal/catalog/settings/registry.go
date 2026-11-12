@@ -95,6 +95,16 @@ var Registry = []Setting{
 		Help:    "fixed: board columns have set widths that change only at breakpoints. fit: columns size to their content.",
 	},
 	{
+		ID: "row_icon_set", Label: "Row icon set", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeString, Default: "unseen,reason,loop,subagents,spend,longrun", ListSep: ",",
+		Help: "Which icon slots a row shows, comma-separated ids: unseen, reason, loop, subagents, spend, longrun. Unknown ids are ignored. Slots keep a fixed order; this removes slots, it cannot reorder them. Needs row_icons on.",
+	},
+	{
+		ID: "ascii_glyphs", Label: "ASCII glyphs", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeBool, Default: false,
+		Help: "Draw the row icons with plain ASCII (* + @ Y ^) for fonts that lack the symbols. Off: the symbol forms.",
+	},
+	{
 		ID: "mobile_layout", Label: "Mobile layout", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "auto",
 		Options: []string{"auto", "always", "off"},
@@ -212,7 +222,12 @@ var Registry = []Setting{
 	{
 		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
+		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. With row_icons on, this line is where a row's task and summary show. Off: no line, the board uses the row.",
+	},
+	{
+		ID: "row_icons", Label: "Row icons", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Board rows show an icon strip (finished and unseen, why it needs you, loop, subagents, spend, long run) in place of the task text column. Off: rows show the task and summary text as before, and nothing is written about which rows you have seen.",
 	},
 	{
 		ID: "summary_schedule", Label: "Scheduled summaries", Section: SectionFeatures, Apply: ApplyLive,

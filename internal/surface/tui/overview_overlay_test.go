@@ -40,6 +40,7 @@ func overviewBoard(t *testing.T, on bool) Model {
 		SelectedID: "r1",
 	}
 	require.NoError(t, m.Store.Set("overview_enabled", on))
+	require.NoError(t, m.Store.Set("row_icons", false)) // the goldens pin the text column
 	if on {
 		m.Overview = &protocol.Overview{Enabled: true, GeneratedAt: now.Add(-40 * time.Second),
 			Headline: "billing-tests and api docs are ready for review; deploy asks a question and migrate-db failed"}

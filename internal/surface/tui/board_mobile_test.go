@@ -61,7 +61,7 @@ func TestMobileLayoutSetting(t *testing.T) {
 }
 
 func TestMobileTwoLineRows(t *testing.T) {
-	m := mobileModel(t, 40, 24, mobileSessions()...)
+	m := rowIconsOff(mobileModel(t, 40, 24, mobileSessions()...)) // pins the line 1 without the strip
 	lines := strings.Split(renderBoard(m, 40, 0), "\n")
 	var first, second string
 	for i, l := range lines {

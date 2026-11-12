@@ -37,6 +37,10 @@ type Session struct {
 	// restored from meta.json: subagents do not outlive the daemon.
 	Subagents int
 
+	// CostUSD is the session's cost so far, nil when unknown (usage off or
+	// no cost reported). Persisted in meta.json.
+	CostUSD *float64
+
 	// Prompts is how many prompts the user sent the agent (Claude Code's
 	// UserPromptSubmit hook), 0 when unknown. Not restored from meta.json.
 	Prompts int
@@ -149,6 +153,7 @@ func (s *Session) Summary() protocol.SessionSummary {
 		Tokens:        s.Tokens,
 		OutputBytes:   s.OutputBytes,
 		Subagents:     s.Subagents,
+		CostUSD:       copyFloat(s.CostUSD),
 		Prompts:       s.Prompts,
 		WaitReason:    s.WaitReason,
 		WaitingOn:     s.WaitingOn,
@@ -266,4 +271,14 @@ func (s *Session) AuditIsWritten() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.AuditWritten
+}
+
+// copyFloat returns a pointer to a copy of *p (nil stays nil), so a summary
+// never aliases the session's value.
+func copyFloat(p *float64) *float64 {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
 }

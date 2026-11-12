@@ -16,9 +16,9 @@ rex
 
 Four sections group sessions, top to bottom: **READY**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
 
-**READY** holds sessions that wait on you. A Claude Code session is READY only when it asks you something (a permission prompt, a question or another notification except the idle reminder), or when its turn ended (Stop) with no subagent still running and no tool call still open. While subagents run after the main turn ended, the session stays in WAITING (`waiting_on: subagent`); each subagent that finishes wakes the main agent, and only its Stop after the last one makes the session READY, once. A turn you interrupt with Esc or Ctrl+C sends no hook at all; rex sees the key you type into the session (attach popup, `rex attach`, `rex send`) and turns the session READY 5 seconds later, plus the 2-second hold, unless the agent's main thread reports anything in between (the key closed a menu instead). Foreground subagents (Task calls, also several in parallel) interrupted with it no longer count; a background subagent still running keeps the session in WAITING until it ends. Without the key (a turn that ended some other way with no Stop) the fallback is 30 seconds of a still screen, 15 minutes when a tool call is still open, never while a subagent runs. Any move from WORKING into READY must hold for 2 seconds before rex shows it, except a question, which shows at once. Other agents (Codex, Qwen, Cursor, Grok, Antigravity) have no subagent reports: they are READY when their prompt shows or after 15 seconds of a still screen, with the same 2-second hold.
+**READY** holds sessions that wait on you. A Claude Code session is READY only when it asks you something (a permission prompt, an MCP form or link, a usage-limit wait that needs Enter), or when its turn ended (Stop, or an API error such as a rate limit) with no subagent still running and no subagent result still to come. Notifications that need nobody (sign-in done, a form answered, a background session finished, a mod notice, and any type newer than rex) change nothing, and neither does an auto-compaction in the middle of a turn. While subagents run after the main turn ended, the session stays in WAITING (`waiting_on: subagent`); each subagent that finishes wakes the main agent with its result, and only its Stop after the last one makes the session READY, once. A background subagent that finished while the agent was still busy keeps the session in WAITING after that turn's Stop until its result arrives, at most 10 seconds. A subagent whose stop report was lost stops counting a minute after its last tool call once the turn has ended (Claude lists the background tasks still running at the end of a turn), or after 15 minutes without a tool call. A turn you interrupt with Esc or Ctrl+C sends no hook at all; rex sees the key you type into the session (attach popup, `rex attach`, `rex send`) and turns the session READY 5 seconds later, plus the 2-second hold, unless the agent's main thread reports anything in between (the key closed a menu instead). Foreground subagents (Task calls, also several in parallel) interrupted with it no longer count; a background subagent still running keeps the session in WAITING until it ends. Without the key (a turn that ended some other way with no Stop) the fallback is 30 seconds of a still screen, 15 minutes when a tool call is still open, never while a subagent runs. Any move from WORKING into READY must hold for 2 seconds before rex shows it, except a question, which shows at once. Other agents (Codex, Qwen, Cursor, Grok, Antigravity) have no subagent reports: they are READY when their prompt shows or after 15 seconds of a still screen, with the same 2-second hold.
 
-**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). `waiting_spinner` (Settings → Appearance, Waiting icon) picks another set: `hourglass` `⧖ ⧑ ⧖ ⧒` (an hourglass turning over), `sand` `⣀ ⣄ ⣤ ⣦ ⣶ ⣷ ⣿`, `orbit` `◜ ◝ ◞ ◟`, `pendulum` `⠂ ⡀ ⢀ ⠐ ⢀ ⡀` or `pulse` `∘ ◦ ⊚ ◦`; the row, the attach chip, the header counts and the legend all follow it. Other agents have no tool reports yet, so their sessions stay in WORKING. Known gaps: an Esc typed outside rex (a Claude session you reach some other way) is not seen, so that turn takes the 15-minute fallback when a tool call was open; an Esc that does not interrupt (it closes a menu) during a long command or subagent with no other hook in 5 seconds shows READY early, and the session turns WORKING again at the next hook, silently. A foreground subagent whose tool call was already in flight when you pressed the key counts as alive, so the session stays in WAITING until Claude reports it stopped or 15 minutes pass. An Esc while the main turn has already ended (the session waits on background subagents) changes nothing. A background shell command (`run_in_background`) has no completion hook, so a session whose turn ends while one runs shows as READY; when the command finishes Claude wakes the agent, which turns WORKING and then READY again, silently (one sound per turn). Known limitation: a command that first needed a permission prompt shows as READY while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`. `show_help_bar` in Settings → Appearance turns these hints off; errors and notices still show on that line.
+**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). `waiting_spinner` (Settings → Appearance, Waiting icon) picks another set: `hourglass` `⧖ ⧑ ⧖ ⧒` (an hourglass turning over), `sand` `⣀ ⣄ ⣤ ⣦ ⣶ ⣷ ⣿`, `orbit` `◜ ◝ ◞ ◟`, `pendulum` `⠂ ⡀ ⢀ ⠐ ⢀ ⡀` or `pulse` `∘ ◦ ⊚ ◦`; the row, the attach chip, the header counts and the legend all follow it. Other agents have no tool reports yet, so their sessions stay in WORKING. Known gaps: an Esc typed outside rex (a Claude session you reach some other way) is not seen, so that turn takes the 15-minute fallback when a tool call was open; an Esc that does not interrupt (it closes a menu) during a long command or subagent with no other hook in 5 seconds shows READY early, and the session turns WORKING again at the next hook, silently. A foreground subagent whose tool call was already in flight when you pressed the key counts as alive, so the session stays in WAITING until Claude reports it stopped or 15 minutes pass. An Esc while the main turn has already ended (the session waits on background subagents) changes nothing. A background shell command (`run_in_background`) or monitor has no completion hook, so a session whose turn ends while one runs shows as READY (rex does not wait on it: a server or a log tail never ends); when the command finishes Claude wakes the agent, which turns WORKING and then READY again. A subagent result that arrives more than 10 seconds after its subagent ended does the same. After you answer a permission prompt, the session stays READY until the tool's next hook (the call ends, or the subagent calls its next tool): a "no" ends the turn with no hook at all, so rex cannot tell it from a long command you allowed. A question from a subagent counts as answered when that subagent works again; when Claude does not say which subagent asks, any agent's next tool call counts. A scheduled prompt (`/loop`, a cron), a message from another session or a subagent's late result starts a new turn like one you typed: READY again after it, with its sound. A command that first needed a permission prompt shows as READY while you decide and, as above, until its call ends. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`. `show_help_bar` in Settings → Appearance turns these hints off; errors and notices still show on that line.
 
 The filter bar (`all · claude · codex …`, cycled with `t`) has a chip per agent the daemon reports installed, in registry order (not `echo`, not an opt-in built-in such as `gemini`; a `tools.yaml` tool counts; `qwen`, `cursor` and `grok` only while `extra_agents` is on). Against a daemon that sends no tool list it shows `claude`, `codex`, `antigravity` and `ollama`. It only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
@@ -28,56 +28,83 @@ The daemon auto-starts if the socket is unreachable (boot splash).
 
 ## ROW COLUMNS
 
-By default a row shows four things: state, name, text and age.
+By default (`row_icons` on) a row shows state, name, a strip of fixed icon slots, and age. No row text: the preview line under the board carries it.
+
+```
+   ◆  dark-mode             ✦  ? asks                     $0.31               4m
+   ◷  api-research             sub 3m              ⋔ 2    $1.07               2m
+ ▸ ⠋  payment-migration-v2               ⟳ 3/8     ⋔ 3    $4.92  ▴ 45m        1m
+     state name             unseen why     loop  subagents spend long-run  last event
+```
+
+The strip's slots, left to right after the name. A slot that exists is always reserved, blank on rows with nothing to show, so nothing shifts when a value appears:
+
+| Slot | Width | Shows |
+|------|-------|-------|
+| unseen | 1 | `✦`: a Ready or Done row that finished since you last looked at it (last attach or `cc`). On the first start every row counts as seen. Marked-done rows never show it |
+| why | 8 | Ready: `? asks` (the agent asks for an answer or approval, or its last line is a question), `✓ review` (it finished a turn). Waiting: what it waits on and for how long (`sh 42s`, `web 9s`, `sub 3m`). Blank otherwise |
+| loop | 8 | `⟳ 3/8` while the loop runs; `⟳ paused`, `⟳ capped`, `⟳ done`, `⟳ failed`, `⟳ stop` otherwise. Only while `loops` is on |
+| subagents | 4 | `⋔ 3`: subagents the session runs now (Claude Code). Counts above 99 show as 99 |
+| spend | 6 | What the session has cost so far, right-aligned: `$0.42`, `$12.3`, `$123`, `$1.2k`. Warmer from $5, red from $20. Only while `usage` is on, and only for sessions the daemon sends a `cost_usd` for (Claude Code); blank otherwise, never `$0.00` |
+| long-run | 5 | The long-running badge (`▴ 45m`, see [LONG-RUNNING BADGE](#long-running-badge)) |
+
+`row_icon_set` (Settings → Appearance) removes slots: a comma-separated list of `unseen`, `reason`, `loop`, `subagents`, `spend`, `longrun` (unknown ids are ignored; the order is fixed). `ascii_glyphs` swaps the strip's glyphs for ASCII: `✦→*`, `✓→+`, `⟳→@`, `⋔→Y`, `▴→^`; `?` and `$` stay. Every glyph has text next to it, so no meaning is color-only, and nothing in the strip animates.
+
+Under the board, a dim preview line (`↳ …`) shows the selected session's lead, first that exists: the question it waits on, its AI summary (with its age, `· 12s`), or `task: ` and the task you gave it. It takes one row (two on a terminal 30+ rows tall with `summary_detail: long`, none below 20 rows), reserved for the whole board so the layout does not move as the selection does. `summary_preview` in Settings → Features turns it off. For Antigravity sessions the board's last line skips agy's `Generating...` spinner and the text in its input box.
+
+`v` switches to the detailed view, which adds the short id, model · effort, tokens, the start→end span and the resume id after the strip, and adds `· N marked done` to the header:
+
+```
+ ▸ ⠋  c4d1  payment-migration…               ⋔ 3    $4.92  ▴ 45m      opus · max         310K tk    1m
+     state  id  name                 strip                            model · effort     tokens   last event
+```
+
+- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps. The `timestamps` feature (Settings → Features, on by default) switches the span column off in both the fixed and the fit layouts; the end time is still recorded.
+- **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view on a wide terminal (150+ columns). Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
+- **name**, **model · effort**, and **tokens** have fixed widths (see below). Tokens are right-aligned.
+- **last event** is right-aligned against the edge; `-` means no event yet.
+- A blank spacer between the strip (or the detail columns) and the age takes the remaining width. Rows always fill the terminal width exactly and never wrap.
+
+### Without the strip (`row_icons` off)
+
+`row_icons` in Settings → Features turns the strip off and brings back the earlier board, a row with a text column:
 
 ```
  ▸ ◆  release-notes   Which feature should lead: search or export?          11m
      state name       text                                                  last event
 ```
 
-The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary. When the text does not fit, it is cut on a word boundary and ends in `…`.
-
-Under the board, a dim preview line (`↳ …`) shows the selected session's full AI summary and its age (`· 12s`), in both views, while any session has a summary. In the detailed view it appears only when the row cuts the text. It takes one row (two on a terminal 30+ rows tall with `summary_detail: long`, none below 20 rows), reserved for the whole board so the layout does not move as the selection does. `summary_preview` in Settings → Features turns it off. For Antigravity sessions the board's last line skips agy's `Generating...` spinner and the text in its input box.
-
-`v` switches to the detailed view, which adds the short id, model · effort, tokens and the start→end span, shows the AI summary as the text, and adds `· N marked done` to the header:
-
-```
- ▸ ⠋  b203  release-notes   draft ready — which feature leads?   gpt-5-codex · medium   123K tk  ▴ 45m   11m
-     state  id  name        description                          model · effort         tokens   badge  last event
-```
-
-- **span** is when the session started and ended (`14:02→15:30`; `14:02→` while it is live; `Jan 2` for an earlier day, the year for an earlier year). The end is when the row entered Done: the earlier of the time you marked it done and the time it reached done, failed or crashed. The simple view has no timestamps. The `timestamps` feature (Settings → Features, on by default) switches the span column off in both the fixed and the fit layouts; the end time is still recorded.
-- **resume id** is the first 8 characters of the agent's conversation id (`1a2b3c4d`), the id `claude --resume` takes. It only appears in the detailed view on a wide terminal (150+ columns). Rows in Done show it in full colour, live rows dim. `:rid [sel]` puts the full id on the status line so you can select it with Option/Shift-drag. The `resume` feature (Settings → Features) switches the column and `:rid` off.
-- **name**, **model · effort**, and **tokens** have fixed widths (see below). Tokens are right-aligned.
-- The **waiting** detail: in the detailed view a row in WAITING starts its text with the reason and how long it has waited (`shell 42s · Running the test suite`). The attach header chip reads `◷ waiting (shell)` (the glyph follows `waiting_spinner`).
-- The **subagent** column (`⋔ 3`: running subagents) shows how many subagents a Claude Code session is running, in both views. Counts above 99 show as 99. The **badge** column shows the long-running badge. Both columns are always reserved, blank on rows that have nothing to show, so nothing shifts when a subagent starts.
-- **last event** is right-aligned against the edge; `-` means no event yet.
-- The description takes the remaining width. Rows always fill the terminal width exactly and never wrap.
+The **text** is the task you gave the session. A session that needs you shows the last line of its screen instead when that line is a question (ends in `?`); otherwise that line is usually the agent's own status text. A session started without a task shows its AI summary. When the text does not fit, it is cut on a word boundary and ends in `…`. The detailed view shows the AI summary as the text, and a row in WAITING starts it with the reason and how long it has waited (`shell 42s · Running the test suite`). With `loops` on, a loop's row starts its text with the loop chip in both views. The subagent and long-run columns sit before the age. The preview line shows the selected session's full AI summary, and in the detailed view only when the row cuts it. Nothing is tracked for the unseen mark and no `seen` key is written to `tui-state.json`. The attach header chip reads `◷ waiting (shell)` either way (the glyph follows `waiting_spinner`).
 
 ### Column widths
 
-Column widths never depend on what the rows contain: a long name, a first subagent or a token count moves nothing. They change only when the terminal crosses a breakpoint, and each breakpoint drops whole columns:
+Column widths never depend on what the rows contain: a long name, a first subagent or a cost moves nothing. They change only when the terminal crosses a breakpoint, and each breakpoint drops whole columns:
 
 | Terminal width | Simple view | Detailed view (`v`) adds |
 |----------------|-------------|--------------------------|
-| 150+ (wide) | name 22 · subagents · badge · age | id · model 24 · tokens · span · resume id |
-| 110–149 (normal) | name 20 · subagents · badge · age | id · model 16 · tokens |
-| below 110 (narrow) | name 16 · subagents · badge · age | nothing; the text is the AI summary |
+| 150+ (wide) | name 32 · strip · age | id · name 24 · model 24 · tokens · span · resume id |
+| 110–149 (normal) | name 24 · strip · age | id · name 18 · model 16 · tokens |
+| 61–109 (narrow) | name 20 · strip · age | nothing |
+| 60 or fewer | the mobile layout, see below | |
 
-A column that a class shows is always reserved, even when every row's cell is empty. With the `resume` feature off the resume column is gone.
+The strip is 42 columns with its gaps (32 with `loops` off: the loop slot and its gap go). A slot or column that a class shows is always reserved, even when every row's cell is empty. With the `resume` feature off the resume column is gone.
 
-`column_layout` in Settings → Appearance switches the default `fixed` for `fit`, which sizes name, model and tokens to their widest value on the board (name capped at 22, model at 24), shows the subagent, badge, tokens, span and resume columns only while some row has a value, and gives way on narrow terminals in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
+Below a class's minimum (`mobile_layout: off` on a small terminal) the row squeezes in this order: the spacer goes to 0; spend, long-run, loop and subagents go, in that order; the why slot shrinks to its glyph (`?` or `✓`; a waiting row is blank there, since its waiting marker (`◷` by default) already says it waits); the name shrinks to 12; the unseen slot goes last.
+
+`column_layout` in Settings → Appearance switches the default `fixed` for `fit`, which sizes name, model and tokens to their widest value on the board, and shows a slot or the span, tokens and resume columns only while some row has a value for it. It gives way on narrow terminals in the order above.
+
+With `row_icons` off the widths are those of the text-column board: name 22 / 20 / 16 (wide / normal / narrow) with the subagent and badge columns, and `fit` gives way in this order until the description has 20 columns: the resume id is hidden, the span is hidden, tokens are hidden, model shrinks (down to 12), name shrinks (down to 12), model is hidden, subagent count is hidden, long-run badge is hidden. After that the description shrinks, then the name.
 
 ### Mobile layout
 
-At 60 columns or fewer (a phone over SSH) the board stacks each session on two lines. `mobile_layout` in Settings → Appearance sets when: `auto` (the default) uses it at 60 columns or fewer, `always` forces it, `off` never uses it (the narrow columns then squeeze to fit).
+At 60 columns or fewer (a phone over SSH) the board stacks each session on two lines. `mobile_layout` in Settings → Appearance sets when: `auto` (the default) uses it at 60 columns or fewer, `always` forces it, `off` never uses it (the narrow columns then squeeze to fit, as above).
 
 ```
- ▸ ◆  release-notes     ⋔ 2  ▴ 42m  11m
-      Which feature should lead: sea…
+ ▸ ◆  release-notes   ✦ ✓  ⋔ 2  ▴ 42m  11m
+      draft the 0.9 release notes
 ```
 
-- Line 1 is the state, name, subagent count, long-run badge and age. The subagent and badge cells go below 36 columns.
+- Line 1 is the state, name, the unseen mark and the why glyph (`?` or `✓` only, each one cell; with `row_icons` on), subagent count, long-run badge and age. The subagent and badge cells go below 36 columns. Loop and spend are not shown.
 - Line 2 is the text (simple view) or the AI summary (detailed view), cut on a word boundary. Clicking either line selects the session, and scrolling keeps both lines on screen.
 - The header shows the short counts (`◆ 4  ⟳ 2  ● 7`) whatever `header_style` says, without `· detailed (v)`. The backend banner is shortened.
 - The help line lists three keys: `enter open · i new · ? help`.
@@ -123,7 +150,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 - **Groups.** `1`–`9` pick a group, `[` / `]` step through them (they wrap), and on the left pane `j` `k` move. `enter` or `l` moves to the rows. A new group starts at the top.
 - **Scroll.** On the rows pane a group that does not fit scrolls under `↑ more` / `↓ more` markers: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel. The wheel on the left pane changes the group.
 - **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`), from every group at once; groups with no hit are dimmed on the left, and no hit at all reads `no match for “…”`. `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The header shows the query.
-- **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, the `waiting_spinner` still glyph (`◷` by default) for waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
+- **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, the `waiting_spinner` still glyph (`◷` by default) for waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, the row icon strip while `row_icons` is on (`✦` finished since you last looked, `? asks`, `✓ review`, `sh 42s` while `waiting_section` is on, `⟳ 3/8` while `loops` is on, `$0.42` while `usage` is on; the ASCII forms with `ascii_glyphs`), and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
 - **Features that are off.** Keys and commands behind a Features switch (`t`, `/`, `esc` for search, `z…`, `uc`, `:filter`, `:search`, `:uc`, `:rid`, `:export`) stay listed, dimmed and tagged `(off)`.
 
 ### Settings page

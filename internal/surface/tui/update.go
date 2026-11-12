@@ -255,6 +255,12 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.featureOn("search") {
 			m.Search = appendSearch("", msg.State.Search) // user-editable file: drop control runes, cap
 		}
+		if seenOn(m) && len(msg.State.Seen) > 0 {
+			m.SeenAt = make(map[string]time.Time, len(msg.State.Seen))
+			for id, t := range msg.State.Seen {
+				m.SeenAt[id] = t
+			}
+		}
 		m.SelectedID = msg.State.Selection
 		if msg.State.Filter != "" && m.featureOn("board_filter") {
 			m.Filter = msg.State.Filter
@@ -288,7 +294,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "handshake", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
 			})
 		}
-		m.Sessions = msg.Snap.Sessions
+		m = adoptSessionsSeen(m, msg.Snap.Sessions)
 		m.Overview = msg.Snap.Overview
 		m.Usage = msg.Snap.Usage
 		m = adoptSnapshotTools(m, msg.Snap.Tools)

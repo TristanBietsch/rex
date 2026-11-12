@@ -18,6 +18,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   without turning on `reduce_motion` everywhere.
 - All three apply live and can be set from `config.lua` and from a trusted
   workspace's `.rex/config.lua` (display only).
+### Added (row icons)
+
+- Board rows show a strip of fixed icon slots after the name in place of
+  the task text: `✦` for a row that finished since you last looked at it,
+  why it needs you (`? asks`, `✓ review`) or what it waits on (`sh 42s`,
+  `web 9s`, `sub 3m`), the loop turn (`⟳ 3/8`, with `loops` on), subagents
+  (`⋔ 3`), what a Claude session has cost so far (`$0.42`, with `usage`
+  on) and the long-run badge. Slots keep their place, so nothing shifts.
+  The preview line under the board shows the selected row's question,
+  summary or task. On a phone-width board line 1 gets `✦` and `?` / `✓`;
+  line 2 keeps the text. The help legend lists the new marks.
+- Settings: `row_icons` (Features, on) turns the strip on; off restores the
+  earlier board with the text column. `row_icon_set` picks the slots and
+  `ascii_glyphs` draws them in plain ASCII (`* + @ Y ^`).
+- Sessions carry `cost_usd` on the wire (Claude Code, from the usage hub;
+  sent when it moved by a cent, at most every 2 s; kept across restarts).
+
+### Fixed (Lua volume warning)
+
+- `rex doctor` warns when `config.lua` (or a trusted workspace's
+  `.rex/config.lua`) sets `master_volume` to a number above 0 and at most 1,
+  naming the line: `config.lua:2 sets master_volume = 1: the scale is 0–50
+  now (50 = max), so this is 1/50, nearly silent; write 50 for full volume`.
+  Lua cannot tell `1` from `1.0`, so an old `master_volume = 1.0` (full) now
+  plays at 1/50. A fraction (`0.8`) still converts but gets the same nudge.
+  `0` (mute on both scales) is not flagged.
 
 ### Fixed (audio settings)
 
@@ -104,6 +130,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `auto_trust_dirs` list in `config.yaml` with just the new folder while
   `config.lua` is broken (the value then reads empty, failed closed); they
   now edit the list `config.yaml` holds.
+
+### Fixed (READY edge cases)
+
+- A Claude Code session whose background subagent finished while the agent
+  was still busy no longer shows READY at the end of that turn and then
+  WORKING again when the subagent's result arrives: it stays in WAITING
+  until the result is handled (at most 10 s if it never comes).
+- Notifications that need nobody (sign-in done, an MCP form answered, a
+  background session finished, a usage-limit wait resumed, a mod notice,
+  and types newer than rex) no longer make a session READY. A permission
+  prompt still does, and the tool wait it interrupted shows again after
+  the answer.
+- An auto-compaction in the middle of a turn no longer shows READY.
+- A turn that ends on an API error (rate limit, overload, sign-in) is READY
+  at once instead of after 30 s, or never while subagents ran.
+- A subagent whose stop report was lost (crash, kill) no longer keeps the
+  session in WAITING for 15 min: Claude's list of running background tasks
+  at the end of the turn drops it.
+- A background subagent started in the turn no longer counts as killed by
+  an Esc, and a subagent's nested subagents no longer delay READY.
 
 ### Fixed (READY while subagents run)
 

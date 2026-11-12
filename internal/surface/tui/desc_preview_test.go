@@ -55,7 +55,7 @@ func TestPreview_ShownForSelectedSummary_SimpleView(t *testing.T) {
 }
 
 func TestPreview_HiddenWhenFitsDetailed(t *testing.T) {
-	m := previewModel(30, described("a", "Editing x.go"))
+	m := rowIconsOff(previewModel(30, described("a", "Editing x.go"))) // the row text column
 	m.Detailed = true
 	require.Empty(t, previewLine(plain(m, 30)), "the row already shows all of it")
 	require.Equal(t, 1, previewRows(m), "the line stays reserved so the board does not jump")

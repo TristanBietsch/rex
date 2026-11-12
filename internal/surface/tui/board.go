@@ -471,12 +471,24 @@ const (
 
 // rowCols holds the per-frame column widths. 0 hides id, model, tokens,
 // span, agents and run (no cell, no gap).
+//
+// With icons set (row_icons on) the row is the icon strip instead of the
+// text column: slots holds each iconSlot's width (0 = absent, no gap),
+// spacer takes what is left, and desc, agents and run stay 0.
 type rowCols struct {
 	id, slug, desc, model, tokens, span, resume, agents, run int
+
+	icons  bool
+	slots  [len(slotWidth)]int
+	spacer int
 }
 
-// used is the row width of everything except the description cell.
+// used is the row width of everything except the description cell (the
+// spacer on the icons path).
 func (c rowCols) used() int {
+	if c.icons {
+		return c.usedIcons()
+	}
 	w := rowIndent + colMarker + colGap + c.slug + colGap + colGap + colTime
 	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.resume, c.agents, c.run} {
 		if x > 0 {
@@ -652,6 +664,9 @@ func rowDescBase(m Model, s protocol.SessionSummary, descW int, waiting bool) st
 }
 
 func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
+	if c.icons && rowIconsOn(m) {
+		return renderRowIcons(m, s, c)
+	}
 	selected := m.SelectedID == s.ID
 	now := m.now()
 	retiring := !s.RetireAt.IsZero()
@@ -692,6 +707,58 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
 	return blinkRow(m, s.ID, b.String())
+}
+
+// renderRowIcons is renderRow with row_icons on: the icon strip and a blank
+// spacer in place of the text column. Grid:
+//
+//	indent marker  [id]  name {gap slot}… spacer {gap detail}…  age
+func renderRowIcons(m Model, s protocol.SessionSummary, c rowCols) string {
+	selected := m.SelectedID == s.ID
+	now := m.now()
+	indent, marker, _ := rowLead(m, s)
+	gap := strings.Repeat(" ", colGap)
+
+	var b strings.Builder
+	b.WriteString(indent + marker + gap)
+	if c.id > 0 {
+		b.WriteString(cell(styleMuted, s.ShortID, c.id) + gap)
+	}
+	b.WriteString(cell(rowNameStyle(s, selected), displayName(s), c.slug))
+	for slot, w := range c.slots {
+		if w > 0 {
+			b.WriteString(gap + slotCell(m, s, iconSlot(slot), w, selected))
+		}
+	}
+	b.WriteString(strings.Repeat(" ", c.spacer))
+	b.WriteString(rowDetailCells(m, s, c))
+	b.WriteString(gap + cell(styleDim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
+	return blinkRow(m, s.ID, b.String())
+}
+
+// rowDetailCells is the detailed view's model, tokens, span and resume
+// cells, each after a gap, as renderRow draws them.
+func rowDetailCells(m Model, s protocol.SessionSummary, c rowCols) string {
+	dim := styleDim
+	gap := strings.Repeat(" ", colGap)
+	var b strings.Builder
+	if c.model > 0 {
+		b.WriteString(gap + cell(dim, modelEffortLabel(s), c.model))
+	}
+	if c.tokens > 0 {
+		tk := ""
+		if s.Tokens > 0 {
+			tk = formatTokens(s.Tokens)
+		}
+		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
+	}
+	if c.span > 0 {
+		b.WriteString(gap + cell(dim, spanText(m.now(), s), c.span))
+	}
+	if c.resume > 0 {
+		b.WriteString(gap + resumeCell(s, c.resume))
+	}
+	return b.String()
 }
 
 // blinkNow is the blink clock; tests pin it.
@@ -928,13 +995,31 @@ func rowDescription(s protocol.SessionSummary) string {
 // line is a question; otherwise last_line is usually the agent's own status
 // text ("Checking for updates"), which says nothing about what it needs.
 func rowText(s protocol.SessionSummary) string {
-	if s.State == protocol.StateNeedsInput && !isMarkedDone(s) {
-		if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
-			return q
-		}
+	if q := rowQuestion(s); q != "" {
+		return q
 	}
 	if t := protocol.FlattenDisplayText(s.Title); t != "" {
 		return t
 	}
 	return rowDescription(s)
+}
+
+// rowQuestion is the question a session waits on: lastLineQuestion, when
+// the session needs input and is not marked done. Empty otherwise. The row
+// text, the why slot and the preview line use it.
+func rowQuestion(s protocol.SessionSummary) string {
+	if s.State != protocol.StateNeedsInput || isMarkedDone(s) {
+		return ""
+	}
+	return lastLineQuestion(s)
+}
+
+// lastLineQuestion is the screen's last line, flattened and trimmed, when it
+// ends in "?". Empty otherwise. Whatever the state: the attach banner uses
+// it as is.
+func lastLineQuestion(s protocol.SessionSummary) string {
+	if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
+		return q
+	}
+	return ""
 }

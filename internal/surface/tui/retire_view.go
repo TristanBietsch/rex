@@ -41,6 +41,7 @@ func toggleRetire(m Model, id string) (Model, tea.Cmd) {
 	if r == nil {
 		return m, nil
 	}
+	markSeen(&m, id) // cc counts as looking at it
 	retiring := !sum.RetireAt.IsZero()
 	ttl := retireTTL(m.Store)
 	label := displayName(sum)
@@ -147,7 +148,7 @@ func longRunBadge(now time.Time, s protocol.SessionSummary) string {
 	if tier < 0 {
 		return ""
 	}
-	return styleLongRun[tier].Render("▴ " + shortDuration(now.Sub(s.WorkingSince)))
+	return styleLongRun[tier].Render(longRunGlyph + " " + shortDuration(now.Sub(s.WorkingSince)))
 }
 
 // displayName is the name column text: the user's label, else the slug.
