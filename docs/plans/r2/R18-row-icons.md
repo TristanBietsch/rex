@@ -107,7 +107,7 @@ Top set: **why, unseen, loop, subagents, spend, long-run** (phase 1), then failu
 - No clash with state markers (`◆ ⠋… ◷ ◴ ◶ ◵ ◌ ● ✕ ○`), the fleet bar `▍`, the select arrow `▸` (or the theme's), the agent icons (`◎ ◆ ◇ ◈ □ ◉ ▣ ▲ ◢ ⊙ ◗`), the logo `∴`, prompt `λ`, lead `↳`, overview `»`, rename `✎`, meter `▰ ▱`. A test enforces it (Task 1).
 - Every slot has text next to its glyph, so no meaning is color-only. Color reinforces.
 - Nothing in the strip animates. `reduce_motion` changes nothing here; `✦` never blinks.
-- `ascii_glyphs` (Appearance, off): `✦→*`, `✓→+`, `⟳→@`, `⋔→Y`, `▴→^`, `↯→!`, `◔→%`; `?` and `$` stay. Only the strip and the legend use it in this spec.
+- `ascii_glyphs` (Appearance, off): `✦→*`, ~~`✓→+`~~ (dropped 2026-11-12), `⟳→@`, `⋔→Y`, `▴→^`, `↯→!`, `◔→%`; `?` and `$` stay. Only the strip and the legend use it in this spec.
 
 ## 5. Slots
 
@@ -116,7 +116,7 @@ Fixed widths. A slot that exists is always reserved, blank when empty. Order lef
 | Slot | id | Width | Text | Style token |
 |---|---|---|---|---|
 | unseen | `unseen` | 1 | `✦` | `accent` |
-| why | `reason` | 8 | `? asks` (needs `styleNeeds`), `✓ review` (`styleDone`), `sh 42s` / `web 9s` / `sub 3m` (`styleWorking`, dim) | as listed |
+| why | `reason` | 8 | `? asks` (needs `styleNeeds`), ~~`✓ review` (`styleDone`)~~ (dropped 2026-11-12), `sh 42s` / `web 9s` / `sub 3m` (`styleWorking`, dim) | as listed |
 | loop | `loop` | 8 | `⟳ 3/8` running; `⟳ paused`, `⟳ capped`, `⟳ done`, `⟳ failed`, `⟳ stop` otherwise | `loopStyle` |
 | subagents | `subagents` | 4 | `⋔ 3` | `styleWorking`, muted when marked done |
 | spend | `spend` | 6, right-aligned | `$0.42` (< $10: 2 decimals), `$12.3` (< $100), `$123` (< $1000), `$1.2k` | `fg_dim`; ≥ $5 `styleLongRun[1]`; ≥ $20 `styleLongRun[0]` |
@@ -124,7 +124,7 @@ Fixed widths. A slot that exists is always reserved, blank when empty. Order lef
 
 Rules per slot:
 
-- **why.** Ready: `WaitReason == input` → `? asks`; `review` → `✓ review`; empty reason and `LastLine` ends in `?` → `? asks`; else blank. Waiting (only while `waiting_section` is on and the row is in Waiting): `sh|web|sub` + `durationAgoAt(now, WaitingSince)`. Working, Done: blank. Marked-done rows: blank.
+- **why.** Ready: `WaitReason == input` → `? asks`; `review` → blank (was `✓ review`; dropped 2026-11-12); empty reason and `LastLine` ends in `?` → `? asks`; else blank. Waiting (only while `waiting_section` is on and the row is in Waiting): `sh|web|sub` + `durationAgoAt(now, WaitingSince)`. Working, Done: blank. Marked-done rows: blank.
 - **unseen.** Shown on a Ready or Done row (not marked done) whose `enteredAt` (the TUI's clock reading when it saw the row enter that section) is after `seenAt` (last attach to that session, or `cc`). On the first start with no saved state every row counts as seen. `seenAt` is saved in `tui-state.json` (`seen: {id: time}`), pruned to live session ids on save.
 - **loop.** Only while `loops` is on; the slot does not exist otherwise. The `withLoopChip` prefix is gone from rows (`loopChip` stays for the loops overlay).
 - **spend.** Only while `usage` is on. Blank when the daemon sent no `cost_usd` (all non-Claude tools, older daemons).
@@ -150,11 +150,11 @@ indent marker  [id]  name‹+spacer›  [model·effort tokens span resume]  unse
 | 61–109 | name 20 · strip · age | nothing |
 | ≤ 60 (mobile) | stacked; see below | — |
 
-Squeeze (only below the class minimum, e.g. `mobile_layout: off` at 50 columns): the spacer goes to 0 first; then drop spend, long-run, loop, subagents in that order; then the why slot shrinks to 1 cell (`?` or `✓`; waiting rows blank, the `◷` marker already says waiting); then the name shrinks to 12; the unseen slot goes last.
+Squeeze (only below the class minimum, e.g. `mobile_layout: off` at 50 columns): the spacer goes to 0 first; then drop spend, long-run, loop, subagents in that order; then the why slot shrinks to 1 cell (`?`; `✓` dropped 2026-11-12; waiting rows blank, the `◷` marker already says waiting); then the name shrinks to 12; the unseen slot goes last.
 
 `column_layout: fit`: a slot exists only while some row on the board has a value for it; gives way in the order above.
 
-**Mobile (≤ 60).** Line 1: state, name, unseen, why glyph only (`?`/`✓`), subagents, long-run, age (subagents and long-run go below 36 columns, as today). Line 2 keeps the text (task / summary), since the mobile layout has no preview line.
+**Mobile (≤ 60).** Line 1: state, name, unseen, why glyph only (`?`; `✓` dropped 2026-11-12), subagents, long-run, age (subagents and long-run go below 36 columns, as today). Line 2 keeps the text (task / summary), since the mobile layout has no preview line.
 
 ## 7. The kept bottom line
 
@@ -187,9 +187,11 @@ With `row_icons` on, the `↳` line is the only place a row's words show, so:
 
 ## 10. Legend and help
 
-`helpLegend` (`help.go:97`) gains, after the existing `⋔ 3` row and only while `row_icons` is on: `✦ finished since you last looked`, `? asks: waiting on your answer`, `✓ review: turn finished`, `sh 42s: waiting on a shell (web, sub)`, `⟳ 3/8 loop turn` (only while `loops` is on), `$0.42 spend so far (Claude)` (only while `usage` is on). With `ascii_glyphs` on the legend shows the ASCII forms. `docs/tui.md` ROW COLUMNS, Column widths and Mobile layout are rewritten for the strip; CHANGELOG entry under `[Unreleased]`.
+`helpLegend` (`help.go:97`) gains, after the existing `⋔ 3` row and only while `row_icons` is on: `✦ finished since you last looked`, `? asks: waiting on your answer`, ~~`✓ review: turn finished`~~ (dropped 2026-11-12), `sh 42s: waiting on a shell (web, sub)`, `⟳ 3/8 loop turn` (only while `loops` is on), `$0.42 spend so far (Claude)` (only while `usage` is on). With `ascii_glyphs` on the legend shows the ASCII forms. `docs/tui.md` ROW COLUMNS, Column widths and Mobile layout are rewritten for the strip; CHANGELOG entry under `[Unreleased]`.
 
 ## 11. Mockups
+
+As drafted 2026-11-11. Since 2026-11-12 the strip is right-anchored next to the age, rows have no `✓ review`, and the selected row has no background (see Decisions); the goldens under `internal/surface/tui/testdata/golden/board_icons_*.txtar` show the current board.
 
 Synthetic sessions. Spend shows only on Claude rows. `loops` on (the loop slot), `usage` on.
 
