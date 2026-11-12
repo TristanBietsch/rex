@@ -69,6 +69,8 @@ func (s LoopState) Terminal() bool {
 	switch s {
 	case LoopDone, LoopCapped, LoopStopped, LoopFailed:
 		return true
+	case LoopRunning, LoopPaused:
+		return false
 	}
 	return false
 }

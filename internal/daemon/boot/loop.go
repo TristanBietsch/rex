@@ -151,6 +151,8 @@ func (l *Loops) SetSessionLoop(id, loopID string, iter int) { l.srv.SetSessionLo
 func (l *Loops) Subscribe(fn func(loop.Event)) func() {
 	return l.store.Subscribe(func(e state.Event) {
 		switch e.Kind {
+		case state.EventAdded:
+			// A new session is nobody's loop yet; its state events follow.
 		case state.EventRemoved:
 			fn(loop.Event{SessionID: e.SessionID, Removed: true})
 		case state.EventUpdated:

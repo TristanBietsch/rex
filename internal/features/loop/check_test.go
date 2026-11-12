@@ -46,11 +46,11 @@ func TestCheckHelper(t *testing.T) {
 	case "count": // count <file> <n>: exit 0 from the n-th run on
 		var n, have int
 		_, _ = fmt.Sscan(args[2], &n)
-		if b, err := os.ReadFile(args[1]); err == nil {
+		if b, err := os.ReadFile(args[1]); err == nil { //nolint:gosec // G703: test helper; the path is the parent test's own temp file
 			_, _ = fmt.Sscan(string(b), &have)
 		}
 		have++
-		_ = os.WriteFile(args[1], []byte(fmt.Sprint(have)), 0o600)
+		_ = os.WriteFile(args[1], []byte(fmt.Sprint(have)), 0o600) //nolint:gosec // G703: same temp file
 		fmt.Println("out line")
 		if have >= n {
 			os.Exit(0)

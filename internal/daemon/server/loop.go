@@ -136,6 +136,8 @@ func loopReplyErr(err error) error {
 			return replyErr(protocol.ErrCodeTooManySessions, err)
 		}
 		return replyErr(protocol.ErrCodeSpawn, err)
+	case loop.KindBadInput, loop.KindNotFound:
+		return replyErr(protocol.ErrCodeBadIntent, err)
 	}
 	return replyErr(protocol.ErrCodeBadIntent, err)
 }

@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"io"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -234,6 +234,8 @@ func loopTone(s protocol.LoopState) core.Tone {
 		return core.ToneErr
 	case protocol.LoopPaused, protocol.LoopCapped:
 		return core.ToneWarn
+	case protocol.LoopRunning, protocol.LoopStopped:
+		return core.ToneNone
 	}
 	return core.ToneNone
 }
