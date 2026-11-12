@@ -22,6 +22,7 @@ const (
 	FocusPrompt
 	FocusCommand
 	FocusWizard
+	FocusNewAgent
 	FocusHelp
 	FocusConfirmQuit
 	FocusConfirmDelete
@@ -120,6 +121,14 @@ type Model struct {
 	Notice      string
 	SpinnerTick int
 	Quitting    bool
+
+	// NewAgent is the new-agent page (newagent.go), set while
+	// FocusNewAgent; newAgentDraft is the page left with esc, restored by
+	// the next n (memory only, R16 D4). lastSpawn is the agent, model and
+	// effort of the last launch from the page (D3).
+	NewAgent      *NewAgentState
+	newAgentDraft *NewAgentState
+	lastSpawn     *quickChoice
 
 	Wizard   *WizardState
 	Settings *SettingsState

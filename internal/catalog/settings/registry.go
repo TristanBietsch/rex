@@ -281,6 +281,11 @@ var Registry = []Setting{
 		Help: "Settings and help open as full-screen pages with a section list on the left, like the board. Off: they open as the older floating overlays, and the page keys (tab between panes, 1-9, [ and ], q) do nothing.",
 	},
 	{
+		ID: "new_agent_page", Label: "New-agent page", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "n opens the new-agent page: task, context (paste, @file, import) and trust on one full-screen page. Off: the older popup wizard.",
+	},
+	{
 		ID: "workspaces", Label: "Workspaces", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
 		Help: "Mark a project folder as a workspace with rex ws init: a small .rex/ folder holds an id, a name and a color so sessions in that tree can be told apart. Off: rex never looks for or writes a .rex/ folder, and rex ws refuses.",

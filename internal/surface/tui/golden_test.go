@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -180,6 +182,7 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"settings_page_frame":  {{80, 24}},
 	"settings_page_narrow": {{50, 20}},
 	"board_icons_detailed": {{80, 24}, {120, 40}, {150, 40}},
+	"newagent_empty":       {{120, 40}, {80, 24}, {50, 20}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -286,6 +289,7 @@ func goldenScreens() []goldenScreen {
 		{"undo_done", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "done") }},
 		{"wizard_models", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = wizardFlag(t, m)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
 			m, _ = executeCommand(m, "new")
 			m = sendKey(m, key("j"))
@@ -293,6 +297,7 @@ func goldenScreens() []goldenScreen {
 		}},
 		{"wizard_all_agents", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
+			m = wizardFlag(t, m)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"), true
 			m, _ = executeCommand(m, "new")
 			return m
@@ -395,7 +400,43 @@ func goldenScreens() []goldenScreen {
 		{"attach", false, func(t *testing.T, sz goldenSize) Model {
 			return bannerModel(t, sz.w, sz.h, bannerSession())
 		}},
+		{"newagent_empty", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			// A temp home with a checkout at ~/dev/rex, the board's workspace
+			// (not a chdir: the golden file is written relative to the
+			// package): the page names it, and the trust section offers it.
+			home := t.TempDir()
+			if r, err := filepath.EvalSymlinks(home); err == nil {
+				home = r
+			}
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+			t.Setenv("XDG_CONFIG_HOME", "")
+			repo := filepath.Join(home, "dev", "rex")
+			if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := m.Store.Set("workspaces", true); err != nil {
+				t.Fatal(err)
+			}
+			m.WS = &WorkspaceScope{ID: wsA, Name: "rex", Root: repo}
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+			m, _ = executeCommand(m, "new")
+			return m
+		}},
 	}
+}
+
+// wizardFlag turns new_agent_page off, so n and :new open the popup wizard.
+func wizardFlag(t *testing.T, m Model) Model {
+	t.Helper()
+	if m.Store == nil {
+		m.Store = settings.NewStore()
+	}
+	if err := m.Store.Set("new_agent_page", false); err != nil {
+		t.Fatal(err)
+	}
+	return m
 }
 
 // sizeGolden gives a model the golden size; one that already has a terminal

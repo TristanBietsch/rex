@@ -49,7 +49,7 @@ func toolIDs(tools []registry.Tool) []string {
 
 func pickerModel(t *testing.T, installed ...string) Model {
 	t.Helper()
-	m := goldenBoard(t, goldenSize{120, 40}, false)
+	m := wizardFlag(t, goldenBoard(t, goldenSize{120, 40}, false)) // :new opens the wizard
 	m.DaemonTools, m.toolsKnown = daemonTools(t, installed...), true
 	return m
 }

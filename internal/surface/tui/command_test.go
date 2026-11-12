@@ -93,9 +93,9 @@ func TestCommand_EveryVerbEscapesToBoard(t *testing.T) {
 	}
 }
 
-// :new opens the same wizard as `n`.
+// :new opens the same wizard as `n` (new_agent_page off).
 func TestCommand_NewOpensWizard(t *testing.T) {
-	m := typeCommand(commandModel(t), "new")
+	m := typeCommand(wizardFlag(t, commandModel(t)), "new")
 	require.Equal(t, FocusWizard, m.Focus)
 	require.NotNil(t, m.Wizard)
 	require.NotEmpty(t, m.Wizard.Tools)

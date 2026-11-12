@@ -80,6 +80,17 @@ func refusalText(cwd string, err error) string {
 // wizardTrustKey handles ctrl+t and ctrl+a on the describe step. ok is false
 // for any other key. Each key toggles its mode and switches the other off.
 func wizardTrustKey(m Model, k tea.KeyMsg) (Model, bool) {
+	m, mode, ok := trustKeyToggle(m, k, m.Wizard.Trust)
+	if ok {
+		m.Wizard.Trust = mode
+	}
+	return m, ok
+}
+
+// trustKeyToggle is ctrl+t / ctrl+a applied to the trust choice cur: the
+// new choice, or cur with m.Err saying why it cannot change. ok is false
+// for any other key. The wizard and the new-agent page share it.
+func trustKeyToggle(m Model, k tea.KeyMsg, cur wizTrustMode) (Model, wizTrustMode, bool) {
 	var want wizTrustMode
 	switch k.Type {
 	case tea.KeyCtrlT:
@@ -87,26 +98,24 @@ func wizardTrustKey(m Model, k tea.KeyMsg) (Model, bool) {
 	case tea.KeyCtrlA:
 		want = trustAlways
 	default:
-		return m, false
+		return m, cur, false
 	}
 	o := trustOfferFor(m, spawnCWD(m))
 	switch {
 	case o.Covered != "":
-		return m, true
+		return m, cur, true
 	case o.Refused != "":
 		m.Err = "trust: " + o.Refused
-		return m, true
+		return m, cur, true
 	case want == trustAlways && o.AlwaysDir == "":
 		m.Err = "trust: only a folder inside your home folder can be saved; ctrl+t trusts this session"
-		return m, true
+		return m, cur, true
 	}
 	m.Err = ""
-	if m.Wizard.Trust == want {
-		m.Wizard.Trust = trustAsk
-	} else {
-		m.Wizard.Trust = want
+	if cur == want {
+		return m, trustAsk, true
 	}
-	return m, true
+	return m, want, true
 }
 
 // wizardTrustRequest applies the chosen trust mode to req just before launch.
@@ -114,7 +123,16 @@ func wizardTrustKey(m Model, k tea.KeyMsg) (Model, bool) {
 // fails ok is false, m.Err says why and nothing is launched. A folder that
 // is already covered needs nothing.
 func wizardTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, protocol.NewSession, bool) {
-	if m.Wizard == nil || m.Wizard.Trust == trustAsk {
+	if m.Wizard == nil {
+		return m, req, true
+	}
+	return trustRequest(m, m.Wizard.Trust, cwd, req)
+}
+
+// trustRequest applies the trust choice mode to req, as wizardTrustRequest
+// describes; the wizard and the new-agent page share it.
+func trustRequest(m Model, mode wizTrustMode, cwd string, req protocol.NewSession) (Model, protocol.NewSession, bool) {
+	if mode == trustAsk {
 		return m, req, true
 	}
 	o := trustOfferFor(m, cwd)
@@ -125,7 +143,7 @@ func wizardTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, pr
 		m.Err = "trust: " + o.Refused
 		return m, req, false
 	}
-	if m.Wizard.Trust == trustAlways {
+	if mode == trustAlways {
 		if m.Store == nil {
 			m.Err = "trust: settings are not loaded; use ctrl+t or `rex trust`"
 			return m, req, false

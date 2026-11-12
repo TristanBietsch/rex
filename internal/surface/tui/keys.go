@@ -304,7 +304,7 @@ func runComplete(m Model, c cmdCall) (Model, tea.Cmd) {
 
 // runNew takes the same path as the `n` key: setting FocusWizard alone left
 // Wizard nil and soft-locked the TUI (P0-07).
-func runNew(m Model, _ cmdCall) (Model, tea.Cmd) { return openWizard(m) }
+func runNew(m Model, _ cmdCall) (Model, tea.Cmd) { return openNew(m) }
 
 func runFail(m Model, _ cmdCall) (Model, tea.Cmd) { return openFail(m) }
 

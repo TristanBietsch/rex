@@ -344,6 +344,8 @@ func (m Model) focusStateMissing() bool {
 	switch m.Focus {
 	case FocusWizard:
 		return m.Wizard == nil
+	case FocusNewAgent:
+		return m.NewAgent == nil
 	case FocusSettings:
 		return m.Settings == nil
 	case FocusAttach:
@@ -464,7 +466,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return cycleFilter(m), nil
 		case "n":
-			return openWizard(m)
+			return openNew(m)
 		case "?":
 			return openHelp(m), nil
 		case "S":
@@ -523,6 +525,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusWizard {
 		return updateWizardKey(m, k)
+	}
+	if m.Focus == FocusNewAgent {
+		return updateNewAgentKey(m, k)
 	}
 	if m.Focus == FocusHelp {
 		return updateHelpKey(m, k)
