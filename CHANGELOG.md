@@ -502,6 +502,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Daemon: a transient error accepting a client connection (for example
   "too many open files") no longer shuts the daemon down and stops every
   running session. It retries with backoff (5 ms up to 1 s) and logs it.
+- Settings: saving a `config.yaml` that is a symlink (a dotfiles manager
+  such as stow) writes the linked file and keeps the link, instead of
+  replacing the link with a plain file. A dangling link is an error. Two
+  saves at once (the settings page and `rex config set`) no longer share
+  one temp file, so neither fails with "no such file".
 - TUI: a delete confirmation, rename or attach popup for a session that
   another client deleted (or that is gone after a reconnect) now closes
   with a note, instead of acting on an id the daemon no longer knows. A
