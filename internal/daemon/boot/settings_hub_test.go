@@ -145,6 +145,42 @@ func TestSettingsHub_ReloadErrorKeepsCurrent(t *testing.T) {
 	require.Equal(t, []string{"short"}, detail.got())
 }
 
+func TestSettingsHub_BrokenFileFailsClosedOnSecuritySettings(t *testing.T) {
+	t0 := time.Now().Add(-time.Hour)
+	dir := t.TempDir()
+	good := "skip_permissions: true\nsummary_detail: long\nauto_trust_dirs: " + dir + "\n"
+	h, path := newHub(t, good, t0)
+	var cfg server.Config
+	h.WireSpawnReads(&cfg, "")
+	require.True(t, cfg.SkipPermissions())
+	require.Equal(t, []string{dir}, cfg.AutoTrustDirs())
+
+	write(t, path, "skip_permissions: [unclosed\n", t0.Add(time.Minute))
+	require.Error(t, h.Reload())
+	require.False(t, cfg.SkipPermissions(), "broken file: skip_permissions fails closed")
+	require.Empty(t, cfg.AutoTrustDirs(), "broken file: auto_trust_dirs fails closed")
+	require.Equal(t, "long", h.Current().String("summary_detail"), "everything else keeps its previous value")
+
+	// Reloading the same broken file again stays closed.
+	require.Error(t, h.Reload())
+	require.False(t, cfg.SkipPermissions())
+
+	write(t, path, good, t0.Add(2*time.Minute))
+	require.NoError(t, h.Reload())
+	require.True(t, cfg.SkipPermissions(), "fixed file: restored")
+	require.Equal(t, []string{dir}, cfg.AutoTrustDirs())
+}
+
+func TestSettingsHub_PollOfBrokenFileFailsClosed(t *testing.T) {
+	t0 := time.Now().Add(-time.Hour)
+	h, path := newHub(t, "skip_permissions: true\n", t0)
+	watch(t, h)
+	write(t, path, "skip_permissions: [unclosed\n", t0.Add(time.Minute))
+	require.Eventually(t, func() bool { return !SkipPermissions(h.Current()) }, 2*time.Second, 5*time.Millisecond)
+	write(t, path, "skip_permissions: true\n", t0.Add(2*time.Minute))
+	require.Eventually(t, func() bool { return SkipPermissions(h.Current()) }, 2*time.Second, 5*time.Millisecond)
+}
+
 func TestSettingsHub_ReloadWithoutPathIsAnError(t *testing.T) {
 	h := NewSettingsHub("", settings.NewStore())
 	require.Error(t, h.Reload())

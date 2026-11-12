@@ -187,4 +187,4 @@ The daemon keeps one copy of `config.yaml` and refreshes it about 5 s after an e
 | At the next spawn or `Resume` | `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap` |
 | At daemon start only | `summary_enabled`, `summary_model`, `retire_after_hours`, `lua_config_path` |
 
-A `config.yaml` that fails to parse is ignored until it is fixed: the previous values stay in force.
+A `config.yaml` that fails to parse is ignored until it is fixed: the previous values stay in force, except `skip_permissions` and `auto_trust_dirs`, which fail closed (off, empty) until the file parses again. The daemon log says so once per failed reload.

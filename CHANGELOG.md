@@ -27,6 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Daemon: while `config.yaml` does not parse, `skip_permissions` and
+  `auto_trust_dirs` read as off and empty (fail closed); other settings keep
+  their previous values until the file is fixed.
 - Daemon: one settings hub replaces the scattered reads of `config.yaml`.
   `rex reload`, `:reload` and `SIGHUP` now reload `config.yaml` as well as
   `tools.yaml`, and the 5 s poll feeds the same hub. Settings read at each

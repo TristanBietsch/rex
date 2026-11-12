@@ -91,8 +91,8 @@ func (h *SettingsHub) Subscribe(ids []string, fn func(*settings.Store)) {
 // Reload re-reads the settings file now, whatever live_reload says, makes the
 // result current and calls the subscribers of every setting that changed. A
 // missing file loads the defaults. A file that cannot be read or parsed is an
-// error and changes nothing: the previous values stay in force, which also
-// means a broken edit does not switch skip_permissions or auto_trust_dirs off.
+// error: the previous values stay in force, except skip_permissions and
+// auto_trust_dirs, which fail closed (off, empty) until the file parses.
 func (h *SettingsHub) Reload() error {
 	if h.path == "" {
 		return errors.New("settings reload: no config file path (home directory unknown)")
@@ -109,6 +109,13 @@ func (h *SettingsHub) reloadLocked() error {
 	st := settings.NewStore()
 	if err := st.Load(h.path); err != nil {
 		h.last = sig // report a broken file once, not at every poll
+		// Fail closed on the settings that grant trust: until the file
+		// parses again they read as their defaults. Everything else keeps
+		// its previous value. The log names the file, never its contents.
+		slog.Warn("daemon: settings reload failed; skip_permissions and auto_trust_dirs are off until config.yaml parses (other settings keep their values)", "path", h.path)
+		closed := h.cur.Load().WithDefaults(failClosedIDs...)
+		old := h.cur.Swap(closed)
+		h.notify(old, closed)
 		return fmt.Errorf("settings reload: %w", err)
 	}
 	h.last = sig
@@ -189,10 +196,12 @@ func (h *SettingsHub) poll() {
 		return
 	}
 	slog.Info("daemon: settings changed, applying")
-	if err := h.reloadLocked(); err != nil {
-		slog.Warn("daemon: settings reload failed (keeping current values)", "path", h.path, "err", err)
-	}
+	_ = h.reloadLocked() // a failure is logged there
 }
+
+// failClosedIDs are the settings that grant trust. While config.yaml does
+// not parse they read as their defaults (off, empty).
+var failClosedIDs = []string{"skip_permissions", "auto_trust_dirs"}
 
 // fileSig identifies one state of the settings file. exists is false when it
 // is missing (or unreadable), which is its own state.
