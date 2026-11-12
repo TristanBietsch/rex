@@ -196,7 +196,7 @@ func (w *walker) dir(root string) error {
 			return err
 		}
 		if err != nil {
-			return nil // unreadable: already listed, not entered
+			return nil //nolint:nilerr // unreadable: already listed, not entered
 		}
 		rel, _ := filepath.Rel(root, p)
 		rel = filepath.ToSlash(rel)

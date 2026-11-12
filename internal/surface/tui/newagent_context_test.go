@@ -75,7 +75,7 @@ func TestPaste_BigBecomesChip(t *testing.T) {
 
 func TestPaste_SanitizedAndBinaryRefused(t *testing.T) {
 	m := naOpen(t, naModel(t))
-	m = naPaste(m, "a\x1b[31mred\x1b[0m‮\U000E0041b")
+	m = naPaste(m, "a\x1b[31mred\x1b[0m\u202e\U000E0041b")
 	require.Equal(t, "aredb", m.NewAgent.Task.String())
 
 	m = naPaste(m, "\x00\x01\x02ELF\x00\x00")

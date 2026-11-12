@@ -152,7 +152,7 @@ func TestValidatePath_ControlCharName(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows file names cannot hold control characters")
 	}
-	for _, name := range []string{"a\nb.go", "tab\there.go", "esc\x1b[31m.go", "line sep.go", "para sep.go", "rlo‮gpj.go", "bad\xff.go"} {
+	for _, name := range []string{"a\nb.go", "tab\there.go", "esc\x1b[31m.go", "line sep.go", "para sep.go", "rlo\u202egpj.go", "bad\xff.go"} {
 		root := workspace(t, nil)
 		// Created when the file system allows it: the check is on the name,
 		// before any file system call.

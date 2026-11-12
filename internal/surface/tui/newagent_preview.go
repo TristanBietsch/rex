@@ -66,6 +66,7 @@ func naPreviewLines(st *NewAgentState, it spawnctx.Item) ([]string, int) {
 			return []string{st.PrevErr}, 0
 		}
 		return st.PrevLines, st.PrevMore
+	case spawnctx.URL:
 	}
 	return []string{it.Name}, 0
 }

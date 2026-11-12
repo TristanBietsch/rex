@@ -62,7 +62,7 @@ func TestWalk_SkipsUnreadableFolders(t *testing.T) {
 	}
 	root := workspace(t, map[string]string{"open/a.go": "x", "shut/b.go": "x"})
 	require.NoError(t, os.Chmod(filepath.Join(root, "shut"), 0))
-	t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "shut"), 0o700) })
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "shut"), 0o700) }) //nolint:gosec // G302: a folder needs x to be removed
 	idx, err := Walk(context.Background(), root, 100, time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, []string{"open/", "open/a.go", "shut/"}, idx.Paths)
@@ -77,7 +77,7 @@ func fakeGit(t *testing.T, onRevParse, lsFiles string) {
 		"for a in \"$@\"; do\n" +
 		"  if [ \"$a\" = rev-parse ]; then " + onRevParse + "\n echo true; exit 0; fi\n" +
 		"done\n" + lsFiles + "\n"
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o700)) //nolint:gosec // G306: the fake git must be executable
 	t.Setenv("PATH", bin)
 }
 

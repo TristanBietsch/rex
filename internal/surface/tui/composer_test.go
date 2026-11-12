@@ -19,7 +19,7 @@ func TestComposer_InsertMultiline(t *testing.T) {
 
 	// \r\n and a lone \r are newlines; escapes and other controls are dropped.
 	var d Composer
-	d.Insert("x\r\ny\rz\x1b[31mred\x1b[0m\x07‮!")
+	d.Insert("x\r\ny\rz\x1b[31mred\x1b[0m\x07\u202e!")
 	require.Equal(t, "x\ny\nzred!", d.String())
 }
 

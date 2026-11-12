@@ -3,6 +3,7 @@ package spawnctx
 import (
 	"errors"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -112,7 +113,7 @@ func TestAssemble_RejectsUnsafeNames(t *testing.T) {
 
 func TestAssemble_Caps(t *testing.T) {
 	paste := func(n, size int) Item {
-		return Item{Kind: Paste, Name: "paste " + string(rune('0'+n)), Text: strings.Repeat("x", size)}
+		return Item{Kind: Paste, Name: "paste " + strconv.Itoa(n), Text: strings.Repeat("x", size)}
 	}
 	files := func(n int) []Item {
 		out := make([]Item, n)
