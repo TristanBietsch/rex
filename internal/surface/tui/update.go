@@ -572,8 +572,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return updateUndoKey(m, k)
 	}
 	if m.Focus == FocusStats {
-		switch k.String() {
-		case "esc", ":":
+		// esc only: any other key is swallowed, so a typed ":stats" can't
+		// close the overlay on ':' and run the rest as board keys.
+		if k.String() == "esc" {
 			m.Focus = FocusBoard
 			slog.Debug("tui: stats overlay closed via key")
 		}
