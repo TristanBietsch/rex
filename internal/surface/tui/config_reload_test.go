@@ -29,7 +29,7 @@ func reloadModel(t *testing.T) (m Model, cfg, themeDir string) {
 	require.NotEmpty(t, themeDir)
 	cfg = filepath.Join(filepath.Dir(themeDir), "config.yaml")
 	require.NoError(t, os.MkdirAll(themeDir, 0o700))
-	m = Model{Store: settings.NewStore(), StorePath: cfg, Focus: FocusBoard, idleDone: make(chan struct{})}
+	m = Model{Store: settings.NewStore(), StorePath: cfg, Focus: FocusBoard, idleDone: make(chan struct{}), mouseOn: true}
 	m.configStamp = configStamp(cfg, themeDir, true)
 	return m, cfg, themeDir
 }
@@ -308,4 +308,17 @@ func TestSettingsPageReloadKey(t *testing.T) {
 	collectMsgs(t, cmd)
 	require.Equal(t, 1, calls)
 	require.Equal(t, FocusSettings, next.Focus, "the page stays open")
+}
+
+// R20 audit: mouse_enabled is live, so a config.yaml edit (live reload or
+// :reload) turns terminal mouse capture off at once, not at the next
+// attach or detach.
+func TestConfigReloadAppliesMouseEnabled(t *testing.T) {
+	m, cfg, dir := reloadModel(t)
+	m.mouseOn = true
+	writeFile(t, cfg, "mouse_enabled: false\n")
+	next, cmd := m.dispatch(loadConfig(cfg, dir, m.configStamp, true)())
+	got := next.(Model)
+	require.False(t, got.mouseOn, "mouse capture released")
+	require.NotNil(t, cmd, "a DisableMouse command is sent")
 }

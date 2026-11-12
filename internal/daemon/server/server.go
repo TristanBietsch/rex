@@ -199,6 +199,8 @@ type Server struct {
 	// registry in reg.
 	cfg Config
 	reg atomic.Pointer[registry.Registry]
+	// retireTTL is retire_after_hours set live (ns; 0 = cfg.RetireDefaultTTL).
+	retireTTL atomic.Int64
 	// tools is the wire form of reg (installed flags, merged models), rebuilt
 	// with it so a Hello does not probe PATH.
 	tools atomic.Pointer[[]protocol.ToolInfo]

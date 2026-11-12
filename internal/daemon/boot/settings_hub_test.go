@@ -468,3 +468,13 @@ func TestReloadAll_ReportsChangedAndRestart(t *testing.T) {
 	rep = ReloadAll(context.Background(), cat, h, nil)
 	require.Empty(t, rep.Changed, "a second reload with no edit changes nothing")
 }
+
+func TestRetireTTLApplier_FollowsTheHub(t *testing.T) {
+	t0 := time.Now().Add(-time.Hour)
+	h, path := newHub(t, "retire_after_hours: 2\n", t0)
+	srv, _ := newReloadServer(t, "")
+	h.Subscribe([]string{"retire_after_hours"}, RetireTTLApplier(srv))
+	write(t, path, "retire_after_hours: 5\n", t0.Add(time.Minute))
+	require.NoError(t, h.Reload())
+	require.Equal(t, 5*time.Hour, srv.RetireDefaultTTL())
+}

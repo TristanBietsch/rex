@@ -228,5 +228,9 @@ func handleConfigReloaded(m Model, msg configReloadedMsg) (Model, tea.Cmd) {
 			applyLive(&m, id, m.Store.Get(id))
 		}
 	}
-	return next(m)
+	// mouse_enabled is live: the terminal's capture follows it now, not at
+	// the next attach or detach (R20 audit).
+	m, mc := syncMouse(m, "config")
+	m, nc := next(m)
+	return m, tea.Batch(mc, nc)
 }

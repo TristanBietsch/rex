@@ -302,3 +302,18 @@ func (h *SettingsHub) WireSpawnReads(cfg *server.Config, socket string) {
 	cfg.SnapshotsEnabled = func() bool { return TurnSnapshotsEnabled(h.Current()) }
 	cfg.UsageTap = UsageTap(socket, h.Current)
 }
+
+// RetireTTL is the retire_after_hours setting as a duration (0 = unset).
+func RetireTTL(s *settings.Store) time.Duration {
+	if h, ok := s.Get("retire_after_hours").(int); ok && h > 0 {
+		return time.Duration(h) * time.Hour
+	}
+	return 0
+}
+
+// RetireTTLApplier returns a SettingsHub subscriber that keeps srv's default
+// retire ttl in step with retire_after_hours (R20 audit: it was read once at
+// daemon start although the setting is live).
+func RetireTTLApplier(srv *server.Server) func(*settings.Store) {
+	return func(s *settings.Store) { srv.SetRetireDefaultTTL(RetireTTL(s)) }
+}

@@ -182,8 +182,8 @@ func run(args []string) error {
 	}
 	slog.Info("daemon: summarizer config", "enabled", summaryEnabled, "model", summaryModel)
 	retireTTL := server.DefaultRetireTTL
-	if h, ok := settingsStore.Get("retire_after_hours").(int); ok && h > 0 {
-		retireTTL = time.Duration(h) * time.Hour
+	if d := boot.RetireTTL(settingsStore); d > 0 {
+		retireTTL = d
 	}
 	slog.Info("daemon: retire config", "default_ttl", retireTTL)
 
@@ -330,6 +330,7 @@ func run(args []string) error {
 	defer cat.Wait()
 	cat.Refresh(ctx, hub.Current(), false)
 	hub.Subscribe([]string{"extra_agents", "model_autodetect"}, cat.Applier(ctx, hub.Current()))
+	hub.Subscribe([]string{"retire_after_hours"}, boot.RetireTTLApplier(srv))
 
 	// Started only now: switching usage on publishes its state through srv.
 	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))

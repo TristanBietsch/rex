@@ -110,3 +110,23 @@ func TestIntentShutdown_RejectedWithoutHook(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, protocol.EventError, env.Type)
 }
+
+// R20 audit: retire_after_hours is live: the default ttl of a Retire with
+// none follows the setting without a restart.
+func TestSetRetireDefaultTTL(t *testing.T) {
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	dir := t.TempDir()
+	srv, err := New(Config{Socket: filepath.Join(dir, "s"), StateDir: dir, Registry: reg, Store: state.NewStore()})
+	require.NoError(t, err)
+	_, ttl, err := srv.retireDeadline(0)
+	require.NoError(t, err)
+	require.Equal(t, DefaultRetireTTL, ttl)
+	srv.SetRetireDefaultTTL(3 * time.Hour)
+	_, ttl, err = srv.retireDeadline(0)
+	require.NoError(t, err)
+	require.Equal(t, 3*time.Hour, ttl)
+	srv.SetRetireDefaultTTL(0)
+	_, ttl, _ = srv.retireDeadline(0)
+	require.Equal(t, DefaultRetireTTL, ttl, "0 means the default")
+}
