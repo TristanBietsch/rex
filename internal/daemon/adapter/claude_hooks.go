@@ -72,6 +72,7 @@ var claudeHookStates = []struct {
 //	bg-agents <n>      Stop: running background subagents in the Stop
 //	                   input's background_tasks (only when present)
 //	notify <type>      Notification: notification_type, "" if absent
+//	asker <agent_id>   Notification from a subagent: which one asks
 //	prompt             UserPromptSubmit: a prompt reached the main agent (a
 //	                   new turn; also a background subagent's report)
 //	wait+ <kind>       PreToolUse of a main-thread shell, subagent or web
@@ -99,6 +100,7 @@ const (
 	hookCompacted   = "compacted"
 	hookBgAgents    = "bg-agents"
 	hookNest        = "nest+"
+	hookAsker       = "asker"
 	waitLaunch      = "launch" // wait- argument
 )
 
@@ -190,8 +192,10 @@ func claudeHookCommand(event string, state protocol.State) string {
 		return `in=$(cat); n=; case "$in" in *'"background_tasks"'*) n=$(printf '%s' "$in" | grep -o '"type"[[:space:]]*:[[:space:]]*"subagent"' | wc -l | tr -cd '0-9');; esac; ` +
 			hookAppend(`if [ -n "$n" ]; then printf '`+st+`\n`+hookTurnDone+`\n`+hookBgAgents+` %s\n' "$n"; else printf '`+st+`\n`+hookTurnDone+`\n'; fi`)
 	case "Notification":
-		return `in=$(cat); ty=$(` + hookJSONField("notification_type") + hookSafeID + `); ` +
-			hookAppend(`printf '`+st+`\n`+hookNotify+` %s\n' "$ty"`)
+		// A question from a subagent names it (asker line), so only its
+		// own next tool call counts as the answer.
+		return `in=$(cat); ty=$(` + hookJSONField("notification_type") + hookSafeID + `); id=; case "$in" in *'"agent_id"'*) id=$(` + hookJSONField("agent_id") + hookSafeID + `);; esac; ` +
+			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n`+hookNotify+` %s\n`+hookAsker+` %s\n' "$ty" "$id"; else printf '`+st+`\n`+hookNotify+` %s\n' "$ty"; fi`)
 	case "PreToolUse":
 		// Only a main-thread call (no agent_id) can mark the session as
 		// waiting. The kind is picked by a shell case, so only the three
@@ -318,7 +322,8 @@ type ClaudeHooks struct {
 	// question is set by a Notification that waits on the user and cleared
 	// by the next working word (the answer let the agent go on), a
 	// main-thread line or a prompt.
-	question bool
+	question   bool
+	questionBy string // the subagent asking; "" for the main thread (or unknown)
 	// parked is set when the main turn ends (a needs_input word, an
 	// interrupt) and cleared by the next main-thread tool line or prompt:
 	// subagents running while it is set were left in the background, and
@@ -351,7 +356,12 @@ type ClaudeHooks struct {
 	// nested holds running subagents started by a subagent (nest+); they
 	// report to their parent, not to the main agent.
 	nested      map[string]bool
-	nestPending int
+	nestPending int       // nest+ lines whose subagent has not started yet
+	nestUntil   time.Time // nestPending expires then (the call never started one)
+	// bgLimit is the count of running background subagents the last Stop
+	// reported (bg-agents), -1 when unknown. While parked, subagents above
+	// it that are quiet for reconcileQuiet stop counting.
+	bgLimit int
 	// ended holds subagents whose SubagentStop came, so a late sign of life
 	// (agent~) does not count them again; a new start (agent+) does.
 	ended map[string]bool
@@ -371,7 +381,7 @@ type ClaudeHooks struct {
 func NewClaudeHooks(path string) *ClaudeHooks {
 	return &ClaudeHooks{
 		path: path, agents: map[string]time.Time{}, fg: map[string]bool{},
-		nested: map[string]bool{}, ended: map[string]bool{}, now: time.Now,
+		nested: map[string]bool{}, ended: map[string]bool{}, bgLimit: -1, now: time.Now,
 	}
 }
 
@@ -394,6 +404,11 @@ func (a *ClaudeHooks) Detect(_ []byte, idle time.Duration) protocol.State {
 // Callers hold mu and ran sync.
 func (a *ClaudeHooks) effective(idle time.Duration) (st protocol.State, kind string, since time.Time, reason, why string) {
 	running := a.runningAgents()
+	if a.question && a.questionBy != "" {
+		if _, ok := a.agents[a.questionBy]; !ok {
+			a.clearQuestion() // the asking subagent is gone
+		}
+	}
 	switch {
 	case a.question:
 		return protocol.StateNeedsInput, "", time.Time{}, protocol.WaitInput, "question"
@@ -485,12 +500,27 @@ func (a *ClaudeHooks) park(since time.Time) {
 	if a.parked {
 		return
 	}
-	a.parked, a.parkedSince, a.parkedAt = true, since, a.now()
+	a.parked, a.parkedSince, a.parkedAt = true, since, since
+}
+
+// clearQuestion ends a pending question. Callers hold mu.
+func (a *ClaudeHooks) clearQuestion() {
+	a.question, a.questionBy = false, ""
+}
+
+// answeredByMain ends the question if the main thread asked it (or the
+// asker is unknown); a subagent's question waits for that subagent.
+// Callers hold mu.
+func (a *ClaudeHooks) answeredByMain() {
+	if a.questionBy == "" {
+		a.clearQuestion()
+	}
 }
 
 // unpark ends a parked session's subagent wait. Callers hold mu.
 func (a *ClaudeHooks) unpark() {
 	a.parked, a.parkedSince, a.parkedAt, a.subWaitSince = false, time.Time{}, time.Time{}, time.Time{}
+	a.bgLimit = -1
 }
 
 // mainLine records main-thread activity: a parked main agent woke (paying
@@ -501,7 +531,8 @@ func (a *ClaudeHooks) mainLine() {
 		a.wakes = 0
 	}
 	a.unpark()
-	a.question, a.endReason = false, ""
+	a.answeredByMain()
+	a.endReason = ""
 	a.escAt = time.Time{}
 }
 
@@ -511,7 +542,7 @@ func (a *ClaudeHooks) endTurn() {
 		a.subWaitSince = a.waitSince // a Stop parks from here
 	}
 	a.clearWait()
-	a.question = false // the turn is over: so is any question in it
+	a.answeredByMain() // the turn is over: so is the main thread's question
 	a.park(a.now())
 }
 
@@ -562,8 +593,16 @@ func (a *ClaudeHooks) runningAgents() int {
 			a.endAgent(id, false)
 		}
 	}
+	if a.parked && a.bgLimit >= 0 {
+		a.reconcile()
+	}
 	return len(a.agents)
 }
+
+// reconcileQuiet is how long a subagent above the Stop's background_tasks
+// count must be quiet before it stops counting. A busy subagent shows life
+// sooner, so a miscounted Stop cannot drop it.
+const reconcileQuiet = time.Minute
 
 // endedMax bounds the ended set; past it the set starts over (a late sign
 // of life for a long-ended subagent is harmless: it goes quiet again).
@@ -598,18 +637,22 @@ func (a *ClaudeHooks) endAgent(id string, stopped bool) {
 	}
 }
 
-// reconcile drops running subagents above n, the count of running
-// background subagents Claude reported at a Stop: their SubagentStop was
-// lost (a crash, a kill). The ones with the oldest sign of life go first.
-// A count above the known set changes nothing. Callers hold mu.
-func (a *ClaudeHooks) reconcile(n int) {
-	extra := a.runningAgents() - n
-	for ; extra > 0; extra-- {
+// reconcile drops running subagents above bgLimit, the count of running
+// background subagents Claude reported at the Stop: their SubagentStop was
+// lost (a crash, a kill). The ones with the oldest sign of life go first,
+// once quiet for reconcileQuiet. A count above the known set changes
+// nothing. Callers hold mu.
+func (a *ClaudeHooks) reconcile() {
+	cutoff := a.now().Add(-reconcileQuiet)
+	for len(a.agents) > a.bgLimit {
 		var oldest string
 		for id, seen := range a.agents {
 			if oldest == "" || seen.Before(a.agents[oldest]) {
 				oldest = id
 			}
+		}
+		if !a.agents[oldest].Before(cutoff) {
+			return
 		}
 		slog.Info("adapter: claude subagent not in background_tasks", "path", a.path, "agent", oldest)
 		a.endAgent(oldest, false)
@@ -680,6 +723,8 @@ func (a *ClaudeHooks) read() {
 		a.resetAgents()
 		a.clearWait()
 		a.unpark()
+		a.clearQuestion()
+		a.endReason = ""
 		a.escAt = time.Time{}
 	}
 	if size == a.off {
@@ -717,10 +762,15 @@ func (a *ClaudeHooks) resetAgents() {
 	clear(a.nested)
 	clear(a.ended)
 	a.nestPending, a.wakes, a.reports, a.lastEnd = 0, 0, 0, time.Time{}
+	a.bgLimit = -1
 }
 
-// nestMax bounds pending nest+ lines whose subagent never started.
-const nestMax = 64
+// nestMax bounds pending nest+ lines; nestExpire drops them when the
+// subagent's Agent call started none (denied, failed).
+const (
+	nestMax    = 64
+	nestExpire = 10 * time.Second
+)
 
 // apply takes one hook line: a state word or a subagent line. next is the
 // first word of the line after it in the same read, "" if none. Each hook
@@ -732,7 +782,7 @@ func (a *ClaudeHooks) apply(line, next string) {
 	case "":
 		return
 	case string(protocol.StateWorking):
-		a.question = false // an answered question lets the agent go on
+		a.answeredByMain() // an answered question lets the agent go on
 		a.subWaitSince = time.Time{}
 		// A working word on its own (not followed by its hook's subagent
 		// or main-thread line) is a subagent's PreToolUse, or the main
@@ -751,11 +801,12 @@ func (a *ClaudeHooks) apply(line, next string) {
 		}
 		a.endTurn() // Stop, StopFailure, SessionStart
 	case hookNotify:
-		a.escAt = time.Time{}
 		switch notifyClass(arg) {
 		case notifyQuestion:
-			a.question = true // the tool wait stays: it goes on after the answer
+			a.escAt = time.Time{}
+			a.question, a.questionBy = true, "" // the tool wait stays: it goes on after the answer
 		case notifyTurnEnd:
+			a.escAt = time.Time{}
 			a.endTurn()
 		default:
 			slog.Info("adapter: claude notification ignored", "path", a.path, "type", arg)
@@ -781,14 +832,22 @@ func (a *ClaudeHooks) apply(line, next string) {
 		default:
 			a.clearWait()
 		}
+	case hookAsker:
+		if a.question {
+			a.questionBy = arg
+		}
 	case hookNest:
 		a.nestPending = min(a.nestPending+1, nestMax)
+		a.nestUntil = a.now().Add(nestExpire)
 	case hookAgentStart:
 		if arg == "" {
 			return
 		}
 		delete(a.ended, arg) // a resumed subagent runs again
 		if _, ok := a.agents[arg]; !ok {
+			if a.nestPending > 0 && !a.now().Before(a.nestUntil) {
+				a.nestPending = 0 // the nested calls never started one
+			}
 			switch {
 			case a.nestPending > 0:
 				a.nestPending--
@@ -804,6 +863,9 @@ func (a *ClaudeHooks) apply(line, next string) {
 		if arg != "" && !a.ended[arg] {
 			a.agents[arg] = a.now()
 		}
+		if a.question && arg == a.questionBy {
+			a.clearQuestion() // the asking subagent goes on: answered
+		}
 	case hookAgentStop:
 		a.endAgent(arg, true)
 		if a.waitEnding && len(a.agents) == 0 {
@@ -812,22 +874,23 @@ func (a *ClaudeHooks) apply(line, next string) {
 	case hookAgentsReset:
 		a.resetAgents()
 		a.escAt = time.Time{}
-		a.question = false
+		a.clearQuestion()
 		a.endReason = ""
 		a.unpark()
 	case hookCompacted:
 		slog.Debug("adapter: claude compacted", "path", a.path)
 	case hookTurnDone:
 		a.escAt = time.Time{}
-		a.question = false
+		a.answeredByMain()
+		a.nestPending = 0
 		a.endReason = protocol.WaitReview
 		a.park(a.now())
 		if !a.subWaitSince.IsZero() { // the subagents were started by a Task wait
 			a.parkedSince, a.subWaitSince = a.subWaitSince, time.Time{}
 		}
 	case hookBgAgents:
-		if n, err := strconv.Atoi(arg); err == nil && n >= 0 {
-			a.reconcile(n)
+		if n, err := strconv.Atoi(arg); err == nil && n >= 0 && a.parked {
+			a.bgLimit = n
 		}
 	case hookPrompt:
 		// A prompt reached the main agent: the user's, or a background
@@ -838,7 +901,9 @@ func (a *ClaudeHooks) apply(line, next string) {
 			a.reports--
 		}
 		a.mainLine()
+		a.clearQuestion() // the user typed: any question is over
 		a.clearWait()
+		a.nestPending = 0
 		a.prompts++
 	case hookSessionID:
 		// The latest wins (/clear and in-app /resume start new conversations).

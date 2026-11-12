@@ -181,8 +181,9 @@ func TestClaudeHooks_R19CompactionMidTurn(t *testing.T) {
 	require.Equal(t, 1, a.Subagents())
 }
 
-// A lost SubagentStop: the Stop's background_tasks count drops it, and the
-// session is READY after the wake grace, not after 15 minutes.
+// A lost SubagentStop: the Stop's background_tasks count drops it once it
+// is quiet for reconcileQuiet, and the session is READY after the wake
+// grace, not after 15 minutes.
 func TestClaudeHooks_R19BgAgentsReconcile(t *testing.T) {
 	a, path, now := waitingAdapter(t)
 	r := &readyEdges{a: a, last: protocol.StateWorking}
@@ -190,17 +191,30 @@ func TestClaudeHooks_R19BgAgentsReconcile(t *testing.T) {
 	require.Equal(t, 2, a.Subagents()) // read the lines now
 	*now = now.Add(time.Second)
 	replay(t, path, hSubPost("live"), hStop+"\nbg-agents 1")
-	require.Equal(t, 1, a.Subagents(), "the oldest-seen one goes")
+	require.Equal(t, 2, a.Subagents(), "not quiet long enough yet")
+	*now = now.Add(reconcileQuiet - 2*time.Second)
+	replay(t, path, hSubPost("live"))
+	require.Equal(t, 2, a.Subagents())
+	*now = now.Add(2 * time.Second)
+	require.Equal(t, 1, a.Subagents(), "the quiet one above the count goes")
 	replay(t, path, hSubPost("live"), "agent- live")
 	require.Equal(t, protocol.StateWorking, tickN(r, now, 3, time.Minute))
 	require.Equal(t, protocol.StateNeedsInput, tickN(r, now, int(wakeGrace/time.Second), time.Minute))
 	require.Equal(t, 1, r.edges)
 
-	// A count above the known set changes nothing.
+	// A count above the known set changes nothing; nor does a busy
+	// subagent above a miscounted Stop.
 	b, pathB, _ := waitingAdapter(t)
 	replay(t, pathB, hPrompt, hTask, "agent+ a", hLaunch, hStop+"\nbg-agents 3")
 	require.Equal(t, 1, b.Subagents())
 	require.Equal(t, protocol.StateWorking, b.Detect(nil, time.Minute))
+	c, pathC, nowC := waitingAdapter(t)
+	replay(t, pathC, hPrompt, hTask, "agent+ busy", hLaunch, hStop+"\nbg-agents 0")
+	for range 5 {
+		*nowC = nowC.Add(30 * time.Second)
+		replay(t, pathC, hSubPost("busy"))
+		require.Equal(t, protocol.StateWorking, c.Detect(nil, time.Minute))
+	}
 }
 
 // A background Agent call returns at once; an Esc after it interrupts the
@@ -285,4 +299,92 @@ func TestClaudeHooks_R19LegacyWake(t *testing.T) {
 	replay(t, path, hLegacyWake, hTask, "agent+ a", "working\nwait-", hStop, "agent- a", hLegacyWake, hTool, hStop)
 	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
 	require.Equal(t, 2, a.Prompts())
+}
+
+// A permission prompt from one subagent stays READY while a sibling
+// subagent works; the asking subagent's next tool call answers it.
+func TestClaudeHooks_R19SubagentQuestionWaitsForAsker(t *testing.T) {
+	a, path, _ := waitingAdapter(t)
+	replay(t, path, hPrompt, hTask, "agent+ asker", hLaunch, hTask, "agent+ sib", hLaunch, hStop)
+	replay(t, path, hNotify("permission_prompt")+"\nasker asker")
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+	replay(t, path, hSubPre, hSubPost("sib"), hSubPre)
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0), "a sibling's work is no answer")
+	require.Equal(t, protocol.WaitInput, a.WaitReason())
+	replay(t, path, hSubPost("asker"))
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, 0))
+	kind, _ := a.Waiting()
+	require.Equal(t, protocol.WaitSubagent, kind)
+
+	// An asker that ends (or goes quiet) ends its question.
+	replay(t, path, hNotify("permission_prompt")+"\nasker sib", "agent- sib")
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, 0))
+}
+
+// The Notification hook names the asking subagent.
+func TestClaudeHooks_R19NotificationAskerLine(t *testing.T) {
+	cmds := hookCommands(t)
+	path := t.TempDir() + "/hooks.log"
+	runHook(t, cmds["Notification"], path, `{"notification_type":"permission_prompt","agent_id":"sub-1","agent_type":"x"}`)
+	runHook(t, cmds["Notification"], path, `{"notification_type":"permission_prompt","message":"say \"agent_id\": \"x\""}`)
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "needs_input\nnotify permission_prompt\nasker sub-1\nneeds_input\nnotify permission_prompt\n", string(got))
+}
+
+// A nest+ whose Agent call never started a subagent expires: the next
+// background subagent still owes its report.
+func TestClaudeHooks_R19NestExpires(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	// A foreground subagent's own Agent call is denied: no nested start.
+	replay(t, path, hPrompt, hTask, "agent+ p", hSubNest, hSubPost("p"), "agent- p", hTool)
+	require.Zero(t, a.Subagents()) // read the lines now
+	*now = now.Add(nestExpire)
+	replay(t, path, hTask, "agent+ b", hLaunch, hShell, "agent- b", hTool, hStop)
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, 0), "b's report is owed")
+	replay(t, path, hPrompt, hStop)
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+}
+
+// Esc with a report owed: the wake grace counts from the Esc, so READY
+// comes at most wakeGrace after it.
+func TestClaudeHooks_R19EscWithOwedReport(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, hPrompt, hTask, "agent+ b", hLaunch, hShell, "agent- b")
+	require.Zero(t, a.Subagents()) // read the lines now
+	a.UserInterrupt()
+	r := &readyEdges{a: a, last: protocol.StateWorking}
+	require.Equal(t, wakeGrace, escTicks(r, now, time.Minute))
+	require.Equal(t, 1, r.edges)
+}
+
+// An informational notification does not cancel a pending Esc.
+func TestClaudeHooks_R19InfoNotificationKeepsEsc(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, hPrompt, hShell)
+	a.UserInterrupt()
+	replay(t, path, hNotify("plugin_notification"))
+	r := &readyEdges{a: a, last: protocol.StateWorking}
+	require.Equal(t, escBound, escTicks(r, now, time.Minute))
+}
+
+// A truncated file drops a pending question.
+func TestClaudeHooks_R19TruncateDropsQuestion(t *testing.T) {
+	a, path, _ := waitingAdapter(t)
+	replay(t, path, hPrompt, hShell, hNotify("permission_prompt"))
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+	truncate(t, path)
+	replay(t, path, hSubPre)
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, 0))
+	require.Empty(t, a.WaitReason())
+}
+
+// A pre-R17 file (UserPromptSubmit wrote a lone working word): Stop is
+// READY, the next prompt is WORKING.
+func TestClaudeHooks_R19PreR17File(t *testing.T) {
+	a, path, _ := waitingAdapter(t)
+	replay(t, path, "working", "working\nwait-", "needs_input\nturn-done")
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+	replay(t, path, "working")
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, 0))
 }
