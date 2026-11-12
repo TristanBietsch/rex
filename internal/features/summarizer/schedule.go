@@ -10,19 +10,30 @@ import (
 type pendingReq struct {
 	since time.Time // when the oldest merged request arrived (fairness key)
 	prio  bool      // a state change: runs before ordinary requests
+	late  bool      // a late-phase tick merged in: built as a progress request
 }
 
 // enqueue records a request for id, merging with a pending one: the earliest
 // since wins and prio is sticky. Safe from any goroutine.
 func (w *Worker) enqueue(id string, since time.Time, prio bool) {
+	w.enqueueReq(id, pendingReq{since: since, prio: prio})
+}
+
+// enqueueReq is enqueue for a full request (late is sticky too).
+func (w *Worker) enqueueReq(id string, r pendingReq) {
 	w.mu.Lock()
-	cur, ok := w.pending[id]
-	if !ok || since.Before(cur.since) {
-		cur.since = since
-	}
-	cur.prio = cur.prio || prio
-	w.pending[id] = cur
+	w.mergeLocked(id, r)
 	w.mu.Unlock()
+}
+
+func (w *Worker) mergeLocked(id string, r pendingReq) {
+	cur, ok := w.pending[id]
+	if !ok || r.since.Before(cur.since) {
+		cur.since = r.since
+	}
+	cur.prio = cur.prio || r.prio
+	cur.late = cur.late || r.late
+	w.pending[id] = cur
 }
 
 // wakeup nudges the scheduler loop; never blocks, and coalesces.
@@ -38,7 +49,7 @@ func (w *Worker) drain() {
 	for {
 		select {
 		case id := <-w.ch:
-			w.enqueue(id, time.Now(), false)
+			w.fromOutput(id)
 		default:
 			return
 		}
@@ -95,10 +106,14 @@ func (w *Worker) loop(ctx context.Context) error {
 			return err
 		}
 		w.drain()
+		w.fireDue(w.now())
 		id, req, wait, ok := w.next(time.Now())
 		if ok {
 			w.handle(ctx, id, req)
 			continue
+		}
+		if tw, armed := w.nextTick(w.now()); armed && (wait == 0 || tw < wait) {
+			wait = tw
 		}
 		var tick <-chan time.Time
 		if wait > 0 {
@@ -115,7 +130,7 @@ func (w *Worker) loop(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case id := <-w.ch:
-			w.enqueue(id, time.Now(), false)
+			w.fromOutput(id)
 		case <-w.wake:
 		case <-tick:
 		}
@@ -127,6 +142,7 @@ func (w *Worker) forget(id string) {
 	w.mu.Lock()
 	delete(w.perSess, id)
 	delete(w.pending, id)
+	delete(w.sched, id)
 	w.mu.Unlock()
 }
 

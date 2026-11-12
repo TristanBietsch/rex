@@ -16,6 +16,10 @@ type Kind string
 // KindActivity is one session's screen, written to its description column.
 const KindActivity Kind = "activity"
 
+// KindProgress is the late-phase variant of KindActivity: what the session
+// has finished so far plus what it is doing now (R15 scheduled refresh).
+const KindProgress Kind = "progress"
+
 // Input is what a summary is built from.
 type Input struct {
 	Tool  string         // tool id; only the opener guard sees it, never the prompt
@@ -40,6 +44,8 @@ func BuildPrompt(kind Kind, in Input, d Detail) (Prompt, error) {
 	switch kind {
 	case KindActivity:
 		return activityPrompt(in, d), nil
+	case KindProgress:
+		return progressPrompt(in, d), nil
 	case KindFleet:
 		return fleetPrompt(in), nil
 	default:

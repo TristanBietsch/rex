@@ -170,6 +170,7 @@ func run(args []string) error {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
 		cfg.Detail = summarizer.ParseDetail(settingsStore.String("summary_detail"))
+		cfg.Schedule = settings.FeatureOn(hub.Current(), "summary_schedule")
 		if u := boot.OllamaBaseURL(); u != "" {
 			cfg.BaseURL = u
 		}
@@ -297,6 +298,7 @@ func run(args []string) error {
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
 		hub.Subscribe([]string{"summary_detail"}, boot.SummaryDetailApplier(summaryWorker))
+		hub.Subscribe([]string{"summary_schedule"}, boot.SummaryScheduleApplier(summaryWorker))
 		hub.Subscribe([]string{"overview_enabled"}, ov.Applier())
 	}
 	// The one settings poller. With live_reload off it parks without polling;
