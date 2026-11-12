@@ -18,6 +18,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   seconds (`live_reload`). Builds before the live reload applied them only
   on the board where you changed them.
 
+### Added (waiting icon)
+
+- `waiting_spinner` (Settings → Appearance, "Waiting icon") picks the
+  Waiting marker, like Spinner type does for working: `clock` (default,
+  `◴ ◷ ◶ ◵`, unchanged), `hourglass` (`⧖ ⧑ ⧖ ⧒`, an hourglass turning
+  over), `sand` (`⣀`…`⣿`, piling up), `orbit` (`◜ ◝ ◞ ◟`), `pendulum`
+  (`⠂ ⡀ ⢀ ⠐`) and `pulse` (`∘ ◦ ⊚ ◦`). One step a second, still under
+  `reduce_motion`. Rows, the attach chip, the header counts and the help
+  legend follow it. It can be set from `config.lua` and from a trusted
+  workspace's `.rex/config.lua` (display only).
+
 ### Changed (volume scale)
 
 - `master_volume` is now a whole number from 0 to 50 (default 40, the old

@@ -189,7 +189,7 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 	case "glyphs":
 		wait := ""
 		if waiting > 0 {
-			wait = fmt.Sprintf("%s %d  ", waitingGlyph, waiting)
+			wait = fmt.Sprintf("%s %d  ", waitingStillFor(m), waiting)
 		}
 		s = fmt.Sprintf("    %s %d  %s⟳ %d  %s %d", stateGlyph(protocol.StateNeedsInput), needs, wait, working, stateGlyph(protocol.StateDone), done)
 	case "numbers":

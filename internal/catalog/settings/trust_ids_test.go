@@ -34,7 +34,7 @@ func TestWorkspaceDenyIDs_CoverTrust(t *testing.T) {
 // repo to set. Adding a setting here is a security decision.
 func TestWorkspaceAllowIDs_Exact(t *testing.T) {
 	why := map[string]string{
-		"theme": "colors", "spinner": "animation", "row_density": "layout",
+		"theme": "colors", "spinner": "animation", "waiting_spinner": "animation", "row_density": "layout",
 		"prompt_glyph": "a glyph", "reduce_motion": "animation",
 		"blinking_enabled": "animation", "show_help_bar": "layout",
 		"header_style": "layout", "window_border": "layout",
