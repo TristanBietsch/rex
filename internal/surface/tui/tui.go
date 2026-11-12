@@ -260,12 +260,23 @@ func renderFullScreen(m Model, w, h int) string {
 	lines = append(lines, "", hr, "")
 	lines = append(lines, strings.Split(board, "\n")...)
 	lines = append(lines, renderDescPreview(m, cw)...)
-	lines = append(lines, strings.Split(bottom, "\n")...)
+	return pinBottom(lines, strings.Split(bottom, "\n"), h)
+}
 
-	// Hard cap: never produce more than h lines (the alt-screen window).
-	if len(lines) > h {
-		lines = lines[:h]
+// pinBottom joins top and bottom into exactly h lines with bottom (the
+// rule, prompt and help line) always on the last lines. When they don't
+// fit, top gives up its last lines: on a short terminal the board (whose
+// minimum height can exceed the room left) shrinks, never the bars.
+func pinBottom(top, bottom []string, h int) string {
+	if len(bottom) > h {
+		bottom = bottom[len(bottom)-h:]
 	}
+	if room := h - len(bottom); len(top) > room {
+		top = top[:room]
+	}
+	lines := make([]string, 0, h)
+	lines = append(lines, top...)
+	lines = append(lines, bottom...)
 	for len(lines) < h {
 		lines = append(lines, "")
 	}
