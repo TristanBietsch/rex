@@ -42,6 +42,8 @@ func TestAccessors_UnderHome(t *testing.T) {
 		{"ToolsFile", paths.ToolsFile, j(".config", "rex", "tools.yaml")},
 		{"LuaInitFile", paths.LuaInitFile, j(".config", "rex", "init.lua")},
 		{"SkillsDir", paths.SkillsDir, j(".config", "rex", "skills")},
+		{"LoopsDir", paths.LoopsDir, j(".config", "rex", "loops")},
+		{"LoopStateDir", paths.LoopStateDir, j(".local", "share", "rex", "loops")},
 		{"DataDir", paths.DataDir, j(".local", "share", "rex")},
 		{"SessionsDir", paths.SessionsDir, j(".local", "share", "rex", "sessions")},
 		{"SnapshotsDir", paths.SnapshotsDir, j(".local", "share", "rex", "snapshots")},

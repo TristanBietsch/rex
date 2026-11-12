@@ -8,12 +8,14 @@
 //	    tools.yaml                 ToolsFile: tool registry overlay
 //	    init.lua                   LuaInitFile: optional Lua hooks
 //	    skills/<name>/SKILL.md     SkillsDir: skill library (rex new -skill)
+//	    loops/<name>.yaml          LoopsDir: loop workflow files (loops feature)
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
 //	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
 //	    snapshots/<key>/           SnapshotsDir: turn-snapshot shadow stores, 0700
 //	    exports/                   ExportsDir: files :export writes (0600)
+//	    loops/<id>.json, <id>.log  LoopStateDir: loop state and log (0600)
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
 //	    <name>.log                 rexlog files (daemon, tui, setup, ...)
@@ -55,6 +57,7 @@ const (
 	toolsFileName    = "tools.yaml"
 	luaInitFileName  = "init.lua"
 	skillsDirName    = "skills"
+	loopsDirName     = "loops"
 	sessionsDirName  = "sessions"
 	snapshotsDirName = "snapshots"
 	exportsDirName   = "exports"
@@ -80,6 +83,8 @@ type Layout struct {
 	ToolsFile    string // ~/.config/rex/tools.yaml
 	LuaInitFile  string // ~/.config/rex/init.lua
 	SkillsDir    string // ~/.config/rex/skills
+	LoopsDir     string // ~/.config/rex/loops
+	LoopStateDir string // ~/.local/share/rex/loops
 	DataDir      string // ~/.local/share/rex
 	SessionsDir  string // ~/.local/share/rex/sessions
 	SnapshotsDir string // ~/.local/share/rex/snapshots
@@ -107,6 +112,8 @@ func ForHome(home string) Layout {
 		ToolsFile:    filepath.Join(config, toolsFileName),
 		LuaInitFile:  filepath.Join(config, luaInitFileName),
 		SkillsDir:    filepath.Join(config, skillsDirName),
+		LoopsDir:     filepath.Join(config, loopsDirName),
+		LoopStateDir: filepath.Join(data, loopsDirName),
 		DataDir:      data,
 		SessionsDir:  filepath.Join(data, sessionsDirName),
 		SnapshotsDir: filepath.Join(data, snapshotsDirName),
@@ -190,6 +197,18 @@ func LuaInitFile() (string, error) { return field(func(l Layout) string { return
 // SkillsDir returns ~/.config/rex/skills, the skill library: one folder per
 // skill, each holding a SKILL.md (rex-daemon -skills-dir default).
 func SkillsDir() (string, error) { return field(func(l Layout) string { return l.SkillsDir }) }
+
+// LoopsDir returns ~/.config/rex/loops, where the user's loop workflow files
+// (*.yaml) live. Only files the user owns are read from it.
+func LoopsDir() (string, error) { return field(func(l Layout) string { return l.LoopsDir }) }
+
+// LoopStateDir returns ~/.local/share/rex/loops, where the daemon keeps one
+// <id>.json state file and one <id>.log per loop (mode 0600).
+func LoopStateDir() (string, error) { return field(func(l Layout) string { return l.LoopStateDir }) }
+
+// LoopStateDirName is the loop state folder's name inside a state directory,
+// for a daemon started with a -state-dir other than DataDir.
+const LoopStateDirName = loopsDirName
 
 // DataDir returns ~/.local/share/rex, the durable session data root
 // (rex-daemon -state-dir default).
