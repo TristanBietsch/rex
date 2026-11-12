@@ -1,10 +1,7 @@
 package boot
 
 import (
-	"errors"
-	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
@@ -32,17 +29,10 @@ func StartLuaRuntime(srv *server.Server, store *state.Store, st *settings.Store)
 	}
 	return startLua(cfgPath, store, lua.Options{
 		Sender: func(sessionID, text string) error {
-			ch := srv.InputChannel(sessionID)
-			if ch == nil {
-				return fmt.Errorf("session %q has no input channel", sessionID)
-			}
-			payload := []byte(text)
-			select {
-			case ch <- payload:
-				return nil
-			case <-time.After(lua.DefaultSendTimeout):
-				return errors.New("send timed out")
-			}
+			// Through the session's input lock, so Lua input never lands in
+			// the middle of a loop's send. It is not the user's activity: a
+			// loop does not hold back for it.
+			return srv.SendRaw(sessionID, []byte(text), lua.DefaultSendTimeout)
 		},
 		Lister: func() []protocol.SessionSummary {
 			return store.Snapshot()

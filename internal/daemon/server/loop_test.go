@@ -257,3 +257,27 @@ func TestSendText_GuardIsCheckedAgainBeforeEnter(t *testing.T) {
 	require.Equal(t, []byte("again"), <-ch)
 	require.Equal(t, []byte{'\r'}, <-ch)
 }
+
+// Raw input (Lua's rex.send) goes through the same lock: it never lands
+// between a loop's text and its Enter.
+func TestSendRaw_WaitsForALoopSendInProgress(t *testing.T) {
+	srv, _, _ := newTestServer(t, state.NewStore())
+	ch := make(chan []byte, 8)
+	srv.RegisterInputChannel("s1", ch)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = srv.SendText("s1", "hello", nil)
+	}()
+	require.Equal(t, []byte("hello"), <-ch) // in the gap before Enter
+	require.NoError(t, srv.SendRaw("s1", []byte("lua"), time.Second))
+	<-done
+	require.Equal(t, []byte{'\r'}, <-ch, "Enter first")
+	require.Equal(t, []byte("lua"), <-ch)
+
+	require.ErrorContains(t, srv.SendRaw("nope", []byte("x"), time.Second), "no input channel")
+	full := make(chan []byte)
+	srv.RegisterInputChannel("s2", full)
+	require.ErrorContains(t, srv.SendRaw("s2", []byte("x"), 30*time.Millisecond), "timed out")
+}

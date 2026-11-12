@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/loop"
@@ -99,6 +100,24 @@ func (s *Server) SendText(sessionID, text string, guard func() bool) (sent bool,
 	}
 	defer s.lockInput(sessionID)()
 	return typeText(ch, text, guard)
+}
+
+// SendRaw writes payload to a session's input under its input lock, so it is
+// never interleaved with another writer's multi-part send (a loop's text and
+// Enter), waiting up to timeout for room. It is not the user's activity: no
+// loop or pending retire reacts to it.
+func (s *Server) SendRaw(sessionID string, payload []byte, timeout time.Duration) error {
+	ch := s.InputChannel(sessionID)
+	if ch == nil {
+		return fmt.Errorf("session %q has no input channel", sessionID)
+	}
+	defer s.lockInput(sessionID)()
+	select {
+	case ch <- payload:
+		return nil
+	case <-time.After(timeout):
+		return errors.New("send timed out")
+	}
 }
 
 // SetSessionLoop records the loop and turn on a session and persists it.

@@ -2,8 +2,10 @@ package boot
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -88,7 +90,7 @@ func TestLoops_OutputFallsBackToTheTranscript(t *testing.T) {
 	require.Contains(t, l.Output("s1"), "from log")
 }
 
-func loopServerHost(t *testing.T) (*Loops, *state.Store) {
+func loopServerHost(t *testing.T) (*Loops, *state.Store, *server.Server) {
 	t.Helper()
 	reg, err := registry.Load("")
 	require.NoError(t, err)
@@ -99,12 +101,12 @@ func loopServerHost(t *testing.T) (*Loops, *state.Store) {
 	l := NewLoops(context.Background(), dir, t.TempDir(), store, func() bool { return true })
 	l.SetServer(srv)
 	t.Cleanup(l.Close)
-	return l, store
+	return l, store, srv
 }
 
 // The host calls reach the server and the store.
 func TestLoops_HostOverTheServer(t *testing.T) {
-	l, store := loopServerHost(t)
+	l, store, _ := loopServerHost(t)
 	require.NoError(t, store.Add(&state.Session{ID: "s1", ShortID: "s1", Slug: "s", ToolID: "echo", State: protocol.StateWorking, StartedAt: time.Now()}))
 
 	require.False(t, l.ReportsReason("echo"))
@@ -125,7 +127,7 @@ func TestLoops_HostOverTheServer(t *testing.T) {
 }
 
 func TestLoops_EnabledAndApplier(t *testing.T) {
-	l, _ := loopServerHost(t)
+	l, _, _ := loopServerHost(t)
 	st, _, err := settings.LoadDefault()
 	require.NoError(t, err)
 	require.NoError(t, st.Set("loops", true))
@@ -139,7 +141,7 @@ func TestLoops_EnabledAndApplier(t *testing.T) {
 // An intent while the flag is on reaches the runner and its refusals come
 // back; one while it is off switches the runner off.
 func TestLoops_IntentsWhenOn(t *testing.T) {
-	l, _ := loopServerHost(t)
+	l, _, _ := loopServerHost(t)
 	_, err := l.Start(protocol.StartLoop{Name: "missing", CWD: t.TempDir()})
 	require.Error(t, err)
 	require.False(t, loop.IsOff(err))
@@ -162,4 +164,68 @@ func TestToolReportsReason(t *testing.T) {
 	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "heuristic"}}))
 	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}}))
 	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "hooks", Format: "other"}}))
+}
+
+// realLoop puts a paused loop over a real store session (claude, at the given
+// wait reason) and a real input channel, so a Resume goes through the runner,
+// the real Server.SendText and its lock.
+func realLoop(t *testing.T, reason, lastLine string) (l *Loops, id string, input chan []byte) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the check is the Unix false command")
+	}
+	l, store, srv := loopServerHost(t)
+	require.NoError(t, store.Add(&state.Session{ID: "s1", ShortID: "s1", Slug: "s", ToolID: "claude",
+		State: protocol.StateNeedsInput, LastLine: lastLine, StartedAt: time.Now()}))
+	require.NoError(t, store.SetWaitReason("s1", reason))
+	input = make(chan []byte, 8)
+	srv.RegisterInputChannel("s1", input)
+
+	def, err := loop.Parse([]byte("name: fix\nkind: repeat\ntool: claude\nmodel: sonnet\nprompt: \"first\"\nfollowup_prompt: \"go on\"\n"+
+		"until:\n  check: [\"false\"]\n"), "fix")
+	require.NoError(t, err)
+	def.CWD = t.TempDir()
+	id = "loop-0000000a"
+	st := loop.State{Version: 1, ID: id, Def: def, SessionID: "s1", State: protocol.LoopPaused, PauseReason: protocol.PauseUser,
+		Iteration: 1, StartedAt: time.Now(), UpdatedAt: time.Now()}
+	b, err := json.Marshal(st)
+	require.NoError(t, err)
+	dir := filepath.Join(l.stateDir, "loops")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, id+".json"), b, 0o600))
+	return l, id, input
+}
+
+// At a real turn end the runner types the follow-up and then Enter, as two
+// writes to the session's input, and nothing else.
+func TestLoops_RealSendAtATurnEnd(t *testing.T) {
+	l, id, input := realLoop(t, protocol.WaitReview, "all fixed.")
+	got, err := l.Resume(id)
+	require.NoError(t, err)
+	require.Equal(t, protocol.LoopRunning, got.State)
+	select {
+	case b := <-input:
+		require.Equal(t, []byte("go on"), b)
+	case <-time.After(20 * time.Second):
+		t.Fatal("the follow-up was never typed")
+	}
+	select {
+	case b := <-input:
+		require.Equal(t, []byte{'\r'}, b)
+	case <-time.After(5 * time.Second):
+		t.Fatal("no Enter after the text")
+	}
+	time.Sleep(200 * time.Millisecond)
+	require.Empty(t, input, "nothing else was written")
+}
+
+// At a permission prompt it writes nothing.
+func TestLoops_RealPromptGetsNoBytes(t *testing.T) {
+	l, id, input := realLoop(t, protocol.WaitInput, "Allow Bash(rm -rf /)?")
+	got, err := l.Resume(id)
+	require.NoError(t, err)
+	require.Equal(t, protocol.LoopPaused, got.State)
+	require.Equal(t, protocol.PauseNeedsInput, got.PauseReason)
+	time.Sleep(500 * time.Millisecond)
+	require.Empty(t, input, "never type into a prompt")
 }

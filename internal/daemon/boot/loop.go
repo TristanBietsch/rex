@@ -7,6 +7,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/adapter"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
@@ -144,14 +145,17 @@ func (l *Loops) ReportsReason(toolID string) bool {
 	return ok && toolReportsReason(tool)
 }
 
+// toolReportsReason is derived from the tool's adapter: it reports why a
+// session waits exactly when the adapter implements WaitReasoner. So a tool
+// opts in by its adapter learning to report a reason (Claude's hooks today,
+// OSC 7501 tools when theirs does), with no list to keep here.
 func toolReportsReason(t registry.Tool) bool {
-	switch {
-	case t.Detect.Kind == "hooks" && t.Detect.Format == "claude":
-		return true
-	case t.Detect.Status == registry.StatusOSC7501:
-		return false // the adapter does not report a wait reason yet
+	a, err := adapter.For(t, "")
+	if err != nil {
+		return false
 	}
-	return false
+	_, ok := a.(adapter.WaitReasoner)
+	return ok
 }
 
 func (l *Loops) EnsureLive(ctx context.Context, id string) error { return l.srv.EnsureLive(ctx, id) }
