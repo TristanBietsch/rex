@@ -178,6 +178,18 @@ func TestRun_ThemeRoutes(t *testing.T) {
 	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(run([]string{"theme"})))
 }
 
+// rex trust is routed to the setup package.
+func TestRun_TrustRoutes(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	out := capturePrinter(t, "txt")
+	require.NoError(t, run([]string{"trust", "-ls"}))
+	require.Contains(t, out.String(), "every session asks", "nothing trusted")
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(run([]string{"trust", home})), "the home folder is refused")
+}
+
 func capturePrinter(t *testing.T, format string) *bytes.Buffer {
 	t.Helper()
 	var out bytes.Buffer
