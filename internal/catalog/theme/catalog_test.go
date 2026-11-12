@@ -1,9 +1,7 @@
 package theme
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -171,16 +169,6 @@ func TestLoadDir_LinkedTargetOverTheSizeCapIsSkipped(t *testing.T) {
 	require.NoError(t, os.Symlink("../big.yaml", filepath.Join(dir, "big.yaml")))
 	c := LoadDir(dir)
 	require.Contains(t, issueFor(c, "big.yaml"), "larger than 64 KiB")
-}
-
-func TestLoadDir_ReadFailureIsReported(t *testing.T) {
-	dir := t.TempDir()
-	writeTheme(t, dir, "a.yaml", "colors: {}")
-	prev := readAll
-	t.Cleanup(func() { readAll = prev })
-	readAll = func(io.Reader) ([]byte, error) { return nil, errors.New("disk on fire") }
-	c := LoadDir(dir)
-	require.Contains(t, issueFor(c, "a.yaml"), "cannot read file: disk on fire")
 }
 
 func TestLoadDir_NotADirectory(t *testing.T) {

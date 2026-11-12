@@ -45,3 +45,4 @@ github.com/tristanbietsch/rex/internal/wire/protocol 97
 github.com/tristanbietsch/rex/internal/features/loop 90
 github.com/tristanbietsch/rex/internal/surface/cli/loopcli 87
 github.com/tristanbietsch/rex/internal/workspace 85
+github.com/tristanbietsch/rex/internal/runtime/privfile 100

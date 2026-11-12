@@ -1,14 +1,14 @@
 package theme
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/tristanbietsch/rex/internal/runtime/privfile"
 )
 
 // Issue is something wrong with one theme file, or a note about it.
@@ -145,8 +145,8 @@ func loadDir(dir string) *Catalog {
 		c.Issues = append(c.Issues, Issue{File: here, Msg: "not a directory"})
 		return c
 	}
-	if err := checkPrivateDir(fi, dir); err != nil {
-		c.Issues = append(c.Issues, Issue{File: here, Msg: err.Error() + "; no user themes loaded"})
+	if err := privfile.CheckDir(fi, dir); err != nil {
+		c.Issues = append(c.Issues, Issue{File: here, Msg: "themes directory: " + err.Error() + "; no user themes loaded"})
 		return c
 	}
 	entries, err := os.ReadDir(dir)
@@ -164,7 +164,7 @@ func loadDir(dir string) *Catalog {
 			c.Issues = append(c.Issues, Issue{File: file, Msg: fmt.Sprintf("more than %d theme files; this and the rest are ignored", MaxFiles)})
 			break
 		}
-		data, err := readThemeFile(dir, file)
+		data, err := privfile.Read(dir, file, MaxFileSize)
 		if err != nil {
 			c.Issues = append(c.Issues, Issue{File: file, Msg: err.Error()})
 			continue
@@ -181,38 +181,6 @@ func loadDir(dir string) *Catalog {
 		}
 	}
 	return c
-}
-
-// readAll is io.ReadAll; tests replace it to fail a read.
-var readAll = io.ReadAll
-
-// readThemeFile reads one theme file. The file is opened once and every check
-// runs on that handle (fstat), so what is checked is what is read: a link
-// swapped in between cannot slip a different file past the checks. A symlink
-// is followed; its target must be a regular file, owned by you and not
-// writable by group or others, within the size cap. The open never blocks on
-// a FIFO.
-func readThemeFile(dir, file string) ([]byte, error) {
-	f, err := openThemeFile(dir, file)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open file (a dangling or looping link, or one that is not allowed): %w", err)
-	}
-	defer func() { _ = f.Close() }()
-	fi, err := f.Stat()
-	if err != nil || !fi.Mode().IsRegular() {
-		return nil, errors.New("not a regular file (or a link to one); refused")
-	}
-	if fi.Size() > MaxFileSize {
-		return nil, fmt.Errorf("file is larger than %d KiB; refused", MaxFileSize>>10)
-	}
-	if err := checkPrivateFile(fi); err != nil {
-		return nil, err
-	}
-	data, err := readAll(io.LimitReader(f, MaxFileSize+1)) // Parse refuses a file that grew past the cap
-	if err != nil {
-		return nil, fmt.Errorf("cannot read file: %w", err)
-	}
-	return data, nil
 }
 
 // Stamp summarizes the theme files in dir (names, sizes, modification times)
