@@ -167,10 +167,10 @@ func TestUnitWriter_ClosedWriter(t *testing.T) {
 }
 
 // End to end through a real supervisor: an OSC 7501 status query arrives from
-// the agent in the 120 ms gap between a loop's text and its Enter. The writer
-// is busy with the unit, so the reply is dropped: the child reads exactly
-// "go on" then Enter, with no reply bytes in between.
-func TestSupervisor_OSCQueryInTheGapNeverLandsBetweenTextAndEnter(t *testing.T) {
+// the agent in the 120 ms gap between a loop's text and its Enter. The reply
+// waits: the child reads "go on" and Enter first, and the answer right after
+// the unit completes (an agent that asks once must not wait forever).
+func TestSupervisor_OSCQueryInTheGapIsAnsweredAfterTheUnit(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses bash and a Unix tty")
 	}
@@ -208,11 +208,19 @@ func TestSupervisor_OSCQueryInTheGapNeverLandsBetweenTextAndEnter(t *testing.T) 
 		tail, _ := state.TranscriptTail(stateDir, "gap1", 1<<16)
 		return bytes.Contains(tail, []byte("\r"))
 	}, 10*time.Second, 20*time.Millisecond)
-	time.Sleep(300 * time.Millisecond) // a late reply would show up by now
-	tail, _ := state.TranscriptTail(stateDir, "gap1", 1<<16)
-	// The child's own query is the one OSC 7501 sequence; a reply written to
-	// its stdin would be echoed back as a second one.
-	require.Equal(t, 1, bytes.Count(tail, []byte("]7501;")), "no reply reached the child: %q", tail)
+	// The child's own query is one OSC 7501 sequence; the answer, echoed back
+	// by cat, is the second, and it comes after "go on" and Enter.
+	var tail []byte
+	require.Eventually(t, func() bool {
+		tail, _ = state.TranscriptTail(stateDir, "gap1", 1<<16)
+		return bytes.Count(tail, []byte("]7501;")) >= 2
+	}, 10*time.Second, 20*time.Millisecond, "the dropped reply was never retried: %q", tail)
+	// The shell's read consumed "go on"; cat echoes what comes next. A reply
+	// squeezed between the text and Enter would show up before the \r.
+	enter := bytes.Index(tail, []byte("\r"))
+	require.GreaterOrEqual(t, enter, 0, "Enter reached the child: %q", tail)
+	second := bytes.LastIndex(tail, []byte("]7501;"))
+	require.Greater(t, second, enter, "the reply came after the unit: %q", tail)
 	cancel()
 	<-runDone
 }

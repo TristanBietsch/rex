@@ -343,6 +343,19 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	// observer is asserted once; nil unless the adapter reads the raw stream.
 	observer, _ := s.cfg.Adapter.(adapter.OutputObserver)
 	responder, _ := s.cfg.Adapter.(adapter.OutputResponder)
+	// A reply the writer could not take (it was writing a unit) stays pending
+	// and is tried again when the writer is idle, so an agent that asks the
+	// terminal once is still answered. The adapter's token bucket was spent
+	// when the query was seen; a retry never spends another.
+	var replyMu sync.Mutex
+	var pendingReply []byte
+	retryReply := func() {
+		replyMu.Lock()
+		defer replyMu.Unlock()
+		if pendingReply != nil && pw.TrySendReply(pendingReply) {
+			pendingReply = nil
+		}
+	}
 
 	// Reader goroutine. It sends exactly one value on errc and returns: nil
 	// when the child hung up the PTY, otherwise the read error, after which
@@ -369,9 +382,12 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 					// straight away (OSC 7501 support query).
 					// Queued behind nothing or dropped: never blocks this reader.
 					if responder != nil {
-						if reply := responder.TakeReply(); len(reply) > 0 && !pw.TrySendReply(reply) {
-							slog.Debug("pty: status reply dropped (writer busy)", "session", sess.ID)
+						if reply := responder.TakeReply(); len(reply) > 0 {
+							replyMu.Lock()
+							pendingReply = reply
+							replyMu.Unlock()
 						}
+						retryReply()
 					}
 				}
 
@@ -539,6 +555,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 			}
 			return nil
 		case <-ticker.C:
+			retryReply() // a reply that waited for the writer
 			// Readable screen → last_line + summarizer input. Sampled on the
 			// tick (not per chunk) so spinner repaints don't flood patches.
 			// It comes before the classification below, so a subscriber that
