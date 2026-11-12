@@ -11,14 +11,14 @@ import (
 // while the Waiting section is off.
 func TestDoneFoldHintFollowsActiveNumber(t *testing.T) {
 	m := simpleBoard(doneSessions(doneCollapseAt + 1)...)
-	require.Contains(t, ansi.Strip(groupTitleText(m, groupDone)), "4 show")
+	require.Contains(t, ansi.Strip(renderHelpLine(m, 200)), "4 show")
 	off := waitingOff(m)
-	title := ansi.Strip(groupTitleText(off, groupDone))
-	require.Contains(t, title, "3 show")
-	require.NotContains(t, title, "4 show")
+	help := ansi.Strip(renderHelpLine(off, 200))
+	require.Contains(t, help, "3 show")
+	require.NotContains(t, help, "4 show")
 	off, _ = updateKey(off, key("3"))
 	require.True(t, off.DoneExpanded, "3 is the Done key with the feature off")
-	require.Contains(t, ansi.Strip(groupTitleText(off, groupDone)), "3 hide")
+	require.Contains(t, ansi.Strip(renderHelpLine(off, 200)), "3 hide")
 }
 
 // A saved "waiting" id means nothing while the section is off: no hidden

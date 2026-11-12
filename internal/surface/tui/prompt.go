@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -105,6 +106,9 @@ func renderHelpLine(m Model, width int) string {
 	if m.Notice != "" {
 		return padLine("  "+styleBootReady.Render(truncate(m.Notice, width-2)), width)
 	}
+	if !helpBarOn(m) {
+		return padLine("", width) // keep the row: the layout math counts it
+	}
 	// Five keys (three on mobile); the rest live under ?.
 	keys := helpLineKeys
 	if mobileLayout(m) {
@@ -115,7 +119,27 @@ func renderHelpLine(m Model, width int) string {
 		parts = append(parts, styleKey.Render(k)+styleDim.Render(" "+helpLineLabel(k)))
 	}
 	sep := styleMuted.Render(" · ")
-	return padLine("  "+strings.Join(parts, sep), width)
+	line := "  " + strings.Join(parts, sep)
+	// Context hints (a long Done column's fold keys) follow while they fit
+	// whole; the board keys never give way to them.
+	for _, h := range doneFoldHints(m) {
+		next := line + sep + styleKey.Render(h[0]) + styleDim.Render(" "+h[1])
+		if ansi.StringWidth(next) > width {
+			break
+		}
+		line = next
+	}
+	return padLine(line, width)
+}
+
+// helpBarOn reports the show_help_bar setting: off blanks the board's key
+// hints. Errors, notices and mode prompts on the same row still show.
+func helpBarOn(m Model) bool {
+	if m.Store == nil {
+		return true
+	}
+	show, ok := m.Store.Get("show_help_bar").(bool)
+	return !ok || show
 }
 
 // helpLineLabel is the short label of the binding whose Keys is k. A key in

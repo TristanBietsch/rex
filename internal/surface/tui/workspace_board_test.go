@@ -296,3 +296,33 @@ func TestWorkspaceBoard_NoDaemonWideHeadline(t *testing.T) {
 	m.WS = nil
 	require.Equal(t, "elsewhere things", overviewHeadline(m))
 }
+
+// A workspace board folds and hints on its own Done column, and
+// show_help_bar off blanks its hints like the global board's.
+func TestWorkspaceBoard_DoneFoldHintsAndHelpBar(t *testing.T) {
+	m := wsModel(t, true)
+	for i := range doneCollapseAt {
+		m.Sessions = append(m.Sessions, protocol.SessionSummary{
+			ID: "o" + string(rune('a'+i)), Slug: "other-done", State: protocol.StateDone, WorkspaceID: wsB,
+		})
+	}
+	require.Nil(t, doneFoldHints(m), "other workspaces' Done rows do not fold this board")
+	m.WS = nil
+	require.NotNil(t, doneFoldHints(m), "the global board sees them all")
+
+	m = wsModel(t, true)
+	for i := range doneCollapseAt {
+		m.Sessions = append(m.Sessions, protocol.SessionSummary{
+			ID: "a" + string(rune('a'+i)), Slug: "a-done", State: protocol.StateDone, WorkspaceID: wsA,
+		})
+	}
+	full := ansi.Strip(renderFullScreen(m, 120, 30))
+	require.Contains(t, full, ":prune clear")
+	require.Contains(t, full, "? more")
+
+	require.NoError(t, m.Store.Set("show_help_bar", false))
+	full = ansi.Strip(renderFullScreen(m, 120, 30))
+	require.NotContains(t, full, "? more")
+	require.NotContains(t, full, ":prune clear")
+	require.Len(t, strings.Split(full, "\n"), 30, "the row stays")
+}
