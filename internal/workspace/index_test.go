@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,4 +86,43 @@ func TestAppendIndex_NoRexDirNoCreate(t *testing.T) {
 	require.Error(t, err)
 	_, serr := os.Stat(filepath.Join(root, DirName))
 	require.True(t, os.IsNotExist(serr), "append never creates .rex/")
+}
+
+// A hard link at the index path would make the daemon append into a file
+// outside .rex/ (a hostile archive can ship one): refused, target untouched.
+func TestAppendIndex_RefusesHardLink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("link counts are not checked on Windows")
+	}
+	w := indexWS(t)
+	target := filepath.Join(t.TempDir(), "victim")
+	require.NoError(t, os.WriteFile(target, []byte("keep\n"), 0o600))
+	require.NoError(t, os.Link(target, filepath.Join(w.Root, DirName, IndexFileName)))
+	err := AppendIndex(w, IndexLine{SessionID: "s1", State: "queued"})
+	require.ErrorIs(t, err, ErrUnsafe)
+	b, _ := os.ReadFile(target)
+	require.Equal(t, "keep\n", string(b))
+}
+
+// A directory (or other non-regular file) at the index path is refused.
+func TestAppendIndex_RefusesDirectory(t *testing.T) {
+	w := indexWS(t)
+	require.NoError(t, os.Mkdir(filepath.Join(w.Root, DirName, IndexFileName), 0o700))
+	require.ErrorIs(t, AppendIndex(w, IndexLine{SessionID: "s1", State: "queued"}), ErrUnsafe)
+}
+
+// A malformed index (last line cut short, no newline) does not swallow the
+// next line: it starts on a line of its own.
+func TestAppendIndex_MalformedTailKeepsLinesApart(t *testing.T) {
+	w := indexWS(t)
+	path := filepath.Join(w.Root, DirName, IndexFileName)
+	require.NoError(t, os.WriteFile(path, []byte(`{"session_id":"x","sta`), 0o600))
+	require.NoError(t, AppendIndex(w, IndexLine{SessionID: "s1", State: "queued"}))
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
+	require.Len(t, lines, 2)
+	var l IndexLine
+	require.NoError(t, json.Unmarshal([]byte(lines[1]), &l))
+	require.Equal(t, "s1", l.SessionID)
 }
