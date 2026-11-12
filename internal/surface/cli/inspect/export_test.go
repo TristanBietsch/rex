@@ -280,6 +280,16 @@ func TestRunExport_daemonDown(t *testing.T) {
 }
 
 func TestRunExport_endToEnd(t *testing.T) {
+	// The agent's working folder. Its removal runs last and waits for the
+	// deleted agent to exit: Windows cannot remove a running child's cwd.
+	cwd, err := os.MkdirTemp("", "rex-export-cwd")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		deadline := time.Now().Add(10 * time.Second)
+		for os.RemoveAll(cwd) != nil && time.Now().Before(deadline) {
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
 	d := testutil.StartDaemon(t)
 	t.Cleanup(d.Close)
 	c, err := client.Dial(d.Socket)
@@ -290,7 +300,7 @@ func TestRunExport_endToEnd(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{ToolID: "echo", ModelID: "prompt", Slug: "exporty", CWD: t.TempDir()})
+	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{ToolID: "echo", ModelID: "prompt", Slug: "exporty", CWD: cwd})
 	require.NoError(t, err)
 	var ack protocol.Ack
 	require.NoError(t, json.Unmarshal(env.Data, &ack))

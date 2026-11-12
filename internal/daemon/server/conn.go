@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -20,6 +21,11 @@ import (
 const (
 	defaultClientQueueLen     = 1024
 	defaultClientWriteTimeout = 5 * time.Second
+
+	// After a protocol error reply the daemon reads and discards what the
+	// peer still sends, up to these bounds, before it closes (lingerClose).
+	lingerMaxBytes = 1 << 20
+	lingerMaxWait  = time.Second
 )
 
 // Reasons a connection is dropped, logged once per connection.
@@ -54,6 +60,10 @@ type clientConn struct {
 	aborted    atomic.Bool // the socket is closed; the writer discards lines
 	abortOnce  sync.Once
 	writerDone chan struct{} // closed when writeLoop returns
+
+	// linger is set when the last line queued is a reply the peer must
+	// read (a protocol error) before the close.
+	linger atomic.Bool
 
 	// board is set once the connection said Hello as a board; meta is
 	// what it said about itself (R20 rex upgrade).
@@ -157,7 +167,26 @@ func (c *clientConn) finish() {
 		c.abort(errFlushTimeout)
 		<-c.writerDone
 	}
+	if c.linger.Load() && !c.aborted.Load() {
+		c.lingerClose()
+	}
 	_ = c.nc.Close()
+}
+
+// lingerClose half-closes the socket and drains what the peer still sends,
+// bounded by lingerMaxBytes and lingerMaxWait. Closing a socket with unread
+// input resets the connection on Windows (and on TCP), which discards the
+// reply already sent: an oversized line leaves its tail unread, and the
+// client would see a reset instead of the error. Only the handler goroutine
+// reads the socket, and it has returned.
+func (c *clientConn) lingerClose() {
+	if cw, ok := c.nc.(interface{ CloseWrite() error }); ok {
+		_ = cw.CloseWrite()
+	}
+	if err := c.nc.SetReadDeadline(time.Now().Add(lingerMaxWait)); err != nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(c.nc, lingerMaxBytes))
 }
 
 // writeLoop is the connection's only socket writer. It exits once the queue

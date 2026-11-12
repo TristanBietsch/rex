@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -352,7 +353,11 @@ func TestSetupWizard_ExtraAgentsNeedPathAndTheSwitch(t *testing.T) {
 	}
 
 	stub := func(name string) {
-		require.NoError(t, os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 0\n"), 0o755)) //nolint:gosec // a test stub must be executable
+		file, body := name, "#!/bin/sh\nexit 0\n"
+		if runtime.GOOS == "windows" { // found through PATHEXT
+			file, body = name+".bat", "@echo off\r\nexit 0\r\n"
+		}
+		require.NoError(t, os.WriteFile(filepath.Join(bin, file), []byte(body), 0o755)) //nolint:gosec // a test stub must be executable
 	}
 	stub("qwen")
 	m = NewSetupWizardModel(cfg, "")

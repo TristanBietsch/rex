@@ -11,6 +11,10 @@ type pendingReq struct {
 	since time.Time // when the oldest merged request arrived (fairness key)
 	prio  bool      // a state change: runs before ordinary requests
 	late  bool      // a late-phase tick merged in: built as a progress request
+	// seq orders entries that arrived with the same since: sends that
+	// waited in the channel while a call ran are all stamped at the drain,
+	// within the clock's resolution (one tick on Windows), in arrival order.
+	seq uint64
 }
 
 // enqueue records a request for id, merging with a pending one: the earliest
@@ -28,6 +32,10 @@ func (w *Worker) enqueueReq(id string, r pendingReq) {
 
 func (w *Worker) mergeLocked(id string, r pendingReq) {
 	cur, ok := w.pending[id]
+	if !ok {
+		w.arrivals++
+		cur.seq = w.arrivals
+	}
 	if !ok || r.since.Before(cur.since) {
 		cur.since = r.since
 	}
@@ -84,7 +92,8 @@ func (w *Worker) next(now time.Time) (id string, req pendingReq, wait time.Durat
 		}
 		better := !found ||
 			(r.prio && !bestReq.prio) ||
-			(r.prio == bestReq.prio && r.since.Before(bestReq.since))
+			(r.prio == bestReq.prio && (r.since.Before(bestReq.since) ||
+				(r.since.Equal(bestReq.since) && r.seq < bestReq.seq)))
 		if better {
 			best, bestReq, found = cid, r, true
 		}

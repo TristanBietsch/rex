@@ -52,22 +52,7 @@ func nextAttachMsg(st *AttachState, timeout time.Duration) tea.Msg {
 // at the child's PTY as an SGR report, byte for byte.
 func TestAttachE2E_WheelReachesTrackingAgent(t *testing.T) {
 	m, sum := startEchoAttach(t)
-
-	// Feed output until the emulator sees the agent's mouse tracking (the
-	// mode-sync preamble or the replayed escapes, whichever lands first).
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		msg := nextAttachMsg(m.Attach, time.Until(deadline))
-		require.NotNil(t, msg, "agent never enabled mouse tracking")
-		out, _ := m.Update(msg)
-		m = out.(Model)
-		m.Attach.Term.Lock()
-		mode := m.Attach.Term.Mode()
-		m.Attach.Term.Unlock()
-		if mode&vt10x.ModeMouseSgr != 0 && mode&vt10x.ModeMouseButton != 0 {
-			break
-		}
-	}
+	m = waitAgentTracking(t, m)
 
 	ox, oy := attachInnerOrigin(m)
 	wheel := tea.MouseMsg{X: ox + 4, Y: oy + 2, Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress}
@@ -84,6 +69,9 @@ func TestAttachE2E_WheelReachesTrackingAgent(t *testing.T) {
 // by its twin still reaches the agent, in order; "qq" detaches.
 func TestAttachE2E_HeldRunesReachAgent(t *testing.T) {
 	m, _ := startEchoAttach(t)
+	// Keys typed before the agent reads raw input can be lost: under
+	// ConPTY they reach the console before the child set its input mode.
+	m = waitAgentTracking(t, m)
 	for _, k := range []string{"q", "x", ":", "q", "y"} {
 		out, _ := m.Update(key(k))
 		m = out.(Model)
@@ -98,6 +86,26 @@ func TestAttachE2E_HeldRunesReachAgent(t *testing.T) {
 	}
 	require.Nil(t, m.Attach, "qq detaches")
 	require.Equal(t, FocusBoard, m.Focus)
+}
+
+// waitAgentTracking feeds popup output until the emulator sees the echo
+// agent's mouse tracking (the mode-sync preamble or the replayed escapes,
+// whichever lands first): the agent has set up its terminal and reads keys.
+func waitAgentTracking(t *testing.T, m Model) Model {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		msg := nextAttachMsg(m.Attach, time.Until(deadline))
+		require.NotNil(t, msg, "agent never enabled mouse tracking")
+		out, _ := m.Update(msg)
+		m = out.(Model)
+		m.Attach.Term.Lock()
+		mode := m.Attach.Term.Mode()
+		m.Attach.Term.Unlock()
+		if mode&vt10x.ModeMouseSgr != 0 && mode&vt10x.ModeMouseButton != 0 {
+			return m
+		}
+	}
 }
 
 // startEchoAttach spawns the hex-echo agent in a temp daemon and opens the

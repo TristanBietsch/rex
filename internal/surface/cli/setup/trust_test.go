@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -176,7 +178,7 @@ func TestRunTrust_RemoveIgnoredEntry(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
 	sep := string(filepath.ListSeparator)
-	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \""+project+sep+"~\"\n"), 0o600))
+	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: '"+project+sep+"~'\n"), 0o600))
 
 	d := runTrustJSON(t, "-rm", "~")
 	require.True(t, d.Changed)
@@ -192,7 +194,9 @@ func TestRunTrust_RemoveReportsCoveringEntry(t *testing.T) {
 
 	out, err := themeRun(t, "json", func() error { return RunTrust([]string{"-rm", project}) })
 	require.NoError(t, err)
-	require.Contains(t, out, `"covered_by":"`+filepath.Join(home, "dev")+`"`, out)
+	covered, err := json.Marshal(filepath.Join(home, "dev"))
+	require.NoError(t, err)
+	require.Contains(t, out, `"covered_by":`+string(covered), out)
 
 	text, err := themeRun(t, "text", func() error { return RunTrust([]string{"-rm", project}) })
 	require.NoError(t, err)
@@ -232,7 +236,9 @@ func TestRunTrust_AddNeedsATerminal(t *testing.T) {
 	// -ls and -rm work without a terminal.
 	out, err := themeRun(t, "agent", func() error { return RunTrust([]string{"-ls"}) })
 	require.NoError(t, err)
-	require.Contains(t, out, project)
+	// Bare, or Go-quoted when it holds a character outside the bare set
+	// (a Windows backslash).
+	require.True(t, strings.Contains(out, "dir="+project) || strings.Contains(out, "dir="+strconv.Quote(project)), out)
 	d := runTrustJSON(t, "-rm", project)
 	require.True(t, d.Changed)
 	require.Empty(t, storedTrustDirs(t))

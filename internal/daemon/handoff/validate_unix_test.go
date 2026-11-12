@@ -121,7 +121,14 @@ func TestKillTreeKillsTheGroup(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("process not killed")
 	}
-	if err := syscall.Kill(-cmd.Process.Pid, 0); err == nil {
-		t.Fatal("the group (the background sleep) is still alive")
+	// The killed sleep is orphaned, and a zombie still counts as a group
+	// member until init (or the runner's subreaper) reaps it, which can
+	// lag: poll briefly. A sleep that was not killed stays for 30 s.
+	deadline := time.Now().Add(5 * time.Second)
+	for syscall.Kill(-cmd.Process.Pid, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("the group (the background sleep) is still alive")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -121,8 +122,9 @@ func writeSwapState(st swapState) (string, error) {
 }
 
 // readSwapState loads and removes the swap state at path. It must be a
-// regular file closed to group and other, written for this pid (exec keeps
-// the pid), at most an hour old.
+// regular file closed to group and other (Unix; Windows reports every file
+// as 0666, so there the per-user state folder is the guard, as in
+// privfile), written for this pid (exec keeps the pid), at most an hour old.
 func readSwapState(path string) (swapState, error) {
 	// Only this board's own file (REX_TUI_SWAP is an environment value):
 	// anything else is neither read nor removed.
@@ -138,7 +140,7 @@ func readSwapState(path string) (swapState, error) {
 	if err != nil {
 		return swapState{}, err
 	}
-	if !fi.Mode().IsRegular() || fi.Mode().Perm()&0o077 != 0 {
+	if !fi.Mode().IsRegular() || (runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0) {
 		return swapState{}, fmt.Errorf("swap state %s: not a private regular file", path)
 	}
 	if fi.Size() > 1<<20 {

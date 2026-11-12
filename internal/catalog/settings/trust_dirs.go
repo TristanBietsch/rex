@@ -224,7 +224,9 @@ func SuggestTrustDir(cwd string) string {
 			break
 		}
 	}
-	short := "~" + string(filepath.Separator) + strings.TrimPrefix(dir, prefix)
+	// Slashed on every OS, as rex shows ~ paths everywhere; ExpandHome reads
+	// "~/" on Windows too.
+	short := "~/" + filepath.ToSlash(strings.TrimPrefix(dir, prefix))
 	// A name holding the list separator would be read back as two folders,
 	// and one with outer spaces would be trimmed into another folder.
 	if strings.ContainsRune(short, filepath.ListSeparator) {

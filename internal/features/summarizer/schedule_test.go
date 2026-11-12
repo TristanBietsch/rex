@@ -257,3 +257,26 @@ func TestWorker_SharedSlotSerializesCalls(t *testing.T) {
 	wg.Wait()
 	require.Equal(t, int32(1), maxInFlight.Load(), "the Ollama slot admits one call at a time")
 }
+
+// Requests stamped with the same time (sends that waited in the channel
+// while a call ran, drained within one clock tick) run in arrival order; a
+// duplicate keeps its first place. Map order used to decide.
+func TestNext_SameSinceRunsInArrivalOrder(t *testing.T) {
+	for range 50 { // map iteration order varies run to run
+		w := New(Defaults(), state.NewStore(), uniqueTranscript(nil, nil))
+		w.cfg.MinInterval = 0
+		at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		for _, id := range []string{"sess-cccc", "sess-bbbb", "sess-dddd", "sess-cccc", "sess-aaaa"} {
+			w.enqueue(id, at, false)
+		}
+		var got []string
+		for {
+			id, _, _, ok := w.next(at)
+			if !ok {
+				break
+			}
+			got = append(got, id)
+		}
+		require.Equal(t, []string{"sess-cccc", "sess-bbbb", "sess-dddd", "sess-aaaa"}, got)
+	}
+}

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (Windows)
+
+- Saving or loading settings while another rex saves `config.yaml` no
+  longer fails with "Access is denied" or a sharing violation.
+- A rejected request (an oversized line, say) gets its error reply instead
+  of a reset connection.
+- With no daemon running, commands say "rex-daemon is not running" and how
+  to start it, instead of a raw dial error.
+- `rex upgrade` keeps the board's place (selection, filter, scroll) across
+  the swap; the saved state was refused for its file mode.
+- Paths under your home folder show as `~/dev/rex` in the TUI, as in the
+  CLI, and `rex trust` saves the suggested folder that way.
+
 ## [2.0.0] - 2026-11-12
 
 The first release since v1. Details for every change follow the summary.

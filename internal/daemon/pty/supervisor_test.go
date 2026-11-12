@@ -670,6 +670,12 @@ func TestSupervisor_ReportsWaitReason(t *testing.T) {
 // The initial prompt is typed text: escape sequences and controls in it are
 // dropped before the paste, so they can't reach the agent as keystrokes.
 func TestSupervisor_InitialPromptDropsEscapesAndControls(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The child echoes raw input with stty raw and cat -v, which needs a
+		// Unix tty: under ConPTY Git Bash's cat fails the non-blocking read.
+		// TypedText's own tests cover the filtering on every OS.
+		t.Skip("relies on a Unix tty in raw mode")
+	}
 	stateDir := t.TempDir()
 	store := state.NewStore()
 	sess := &state.Session{

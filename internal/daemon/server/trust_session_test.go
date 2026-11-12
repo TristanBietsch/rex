@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,7 +36,9 @@ func TestTrustDecision_ExplicitSession(t *testing.T) {
 	require.True(t, d.Trusted)
 	require.NotNil(t, d.Answer)
 	require.NotEmpty(t, d.Args)
-	require.Contains(t, d.Args[1], project)
+	var dirs []string
+	require.NoError(t, json.Unmarshal([]byte(d.Args[1]), &dirs), d.Args[1])
+	require.Contains(t, dirs, project)
 
 	d = srv.trustDecisionFor(tool, project, false)
 	require.False(t, d.Trusted, "not asked for, not listed")

@@ -3,6 +3,7 @@ package client_test
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,10 @@ const sizeTools = `tools:
         name: "Prints its PTY size"
         args: ["stty size; sleep 20"]
 `
+
+// ansiSeq matches the CSI and OSC sequences a terminal (ConPTY) may write
+// ahead of the agent's own output.
+var ansiSeq = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\a]*\a`)
 
 // ptySizeOf spawns the size agent with req's Cols/Rows and returns the
 // "rows cols" line it printed.
@@ -49,7 +54,8 @@ func ptySizeOf(t *testing.T, d *testutil.Daemon, slug string, cols, rows uint16)
 		out.Write(so.Bytes)
 		if line, ok := strings.CutSuffix(strings.SplitN(out.String(), "\n", 2)[0], "\r"); ok && strings.Contains(out.String(), "\n") {
 			require.NoError(t, c.Delete(id))
-			return line
+			// ConPTY opens with mode and clear-screen sequences of its own.
+			return ansiSeq.ReplaceAllString(line, "")
 		}
 	}
 	t.Fatalf("agent never printed its size; got %q", out.String())

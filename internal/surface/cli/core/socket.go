@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"os"
-	"syscall"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -76,7 +75,7 @@ func DialPath(socket string) (*client.Client, error) {
 
 // DaemonUnreachable is the exit-4 error for a dial that failed with err.
 func DaemonUnreachable(socket string, err error) error {
-	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) {
+	if errors.Is(err, os.ErrNotExist) || connRefused(err) {
 		ee := Errorf(ExitDaemonUnreachable, "rex daemon start",
 			"rex-daemon is not running (no socket at %s); start it with `rex daemon start`", socket)
 		ee.Err = err

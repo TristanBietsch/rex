@@ -147,6 +147,15 @@ func TestAttachE2E_SilentInlineAgentIsNotBlank(t *testing.T) {
 	// The "> prompt" row is input chrome to termtext, so last_line stops at
 	// the line above it.
 	d, sum := startSilentSession(t, "inline", "history 60")
+	// The agent opens input.log right after it prints the prompt. Wait for
+	// it and give the PTY a beat to pass the prompt on, so the repaint is of
+	// the finished frame (ConPTY forwards output in frames, later than a
+	// Unix PTY; a prompt arriving after the repaint scrolls the popup).
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(filepath.Join(sum.CWD, "input.log"))
+		return err == nil
+	}, 5*time.Second, 20*time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	m := openFullScreenAttach(t, d, sum)
 	m = pumpPopup(t, m, 2*time.Second, func(m Model) bool { return strings.Contains(popupText(m), "> prompt") })
 

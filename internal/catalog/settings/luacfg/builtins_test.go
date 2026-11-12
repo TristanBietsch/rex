@@ -43,11 +43,14 @@ func TestEvalGfindIsGuarded(t *testing.T) {
 func TestEvalBuiltinResultCapped(t *testing.T) {
 	big := `local s = string.rep("x", 1048576) local t = {} for i = 1, 300 do t[i] = s end `
 	for name, script := range map[string]string{
-		"table.concat":      big + `table.concat(t)`,
-		"table.concat sep":  `local t = {} for i = 1, 3000 do t[i] = "" end table.concat(t, string.rep("y", 1000))`,
-		"format many %s":    big + `string.format(string.rep("%s", 300), unpack(t))`,
-		"gsub table repl":   `local s = string.rep("x", 1048576) string.gsub(string.rep("a", 300), "a", {a = s})`,
-		"gsub %0 repl":      `string.gsub(string.rep("a", 250000), ".+", string.rep("%0", 500))`,
+		"table.concat":     big + `table.concat(t)`,
+		"table.concat sep": `local t = {} for i = 1, 3000 do t[i] = "" end table.concat(t, string.rep("y", 1000))`,
+		"format many %s":   big + `string.format(string.rep("%s", 300), unpack(t))`,
+		"gsub table repl":  `local s = string.rep("x", 1048576) string.gsub(string.rep("a", 300), "a", {a = s})`,
+		// 12.5 MB asked for. The subject stays small: matching ".+" over a
+		// near-cap subject alone takes most of the deadline under -race on
+		// a slow runner, and that is not what this case measures.
+		"gsub %0 repl":      `string.gsub(string.rep("a", 25000), ".+", string.rep("%0", 500))`,
 		"gsub function big": `local s = string.rep("x", 1048576) string.gsub(string.rep("a", 300), "a", function() return s end)`,
 	} {
 		start := time.Now()
