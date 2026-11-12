@@ -337,8 +337,8 @@ func boardSlots(m Model) []boardSlot {
 	return slots
 }
 
-// groupTitle renders a column title: NAME, its count, and for a long Done
-// column how to show, hide or clear it. It is cut and padded to width: a
+// groupTitle renders a column title: NAME, its count, and "hidden" for a
+// folded Done column (its keys are in the help line, doneFoldHints). It is cut and padded to width: a
 // wrapped title would push every row below it off the layout math.
 func groupTitle(m Model, gi, width int) string {
 	return padLine(groupTitleText(m, gi), width)
@@ -353,20 +353,29 @@ func groupTitleText(m Model, gi int) string {
 	}
 	count := fmt.Sprintf("  %d", n)
 	if f.rowsActive() { // a filter or search narrows the rows: show n of the section's total
-		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx})))
+		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx, workspace: f.workspace})))
 	}
 	out := "  " + title + styleDim.Render(count)
-	if gi != groupDone || n <= doneCollapseAt || f.searching() {
-		return out
-	}
-	sep := styleMuted.Render("  ·  ")
-	verb := " hide"
-	if doneCollapsed(m) {
+	if gi == groupDone && doneCollapsed(m) {
 		out += styleDim.Render(" hidden")
-		verb = " show"
 	}
-	return out + sep + styleKey.Render(strconv.Itoa(sectionNumber(m, groupDone))) + styleDim.Render(verb) + sep +
-		styleKey.Render(":prune") + styleDim.Render(" clear")
+	return out
+}
+
+// doneFoldHints are the help-line hints for a Done column long enough to
+// fold: the key that shows or hides it and :prune. They are nil while the
+// column is short, a search unfolds it, or the section is hidden.
+func doneFoldHints(m Model) [][2]string {
+	f := rowFilterOf(m)
+	if !f.showsSection(boardGroups[groupDone]) || f.searching() ||
+		len(filterByGroup(m.Sessions, boardGroups[groupDone], f)) <= doneCollapseAt {
+		return nil
+	}
+	verb := "hide"
+	if doneCollapsed(m) {
+		verb = "show"
+	}
+	return [][2]string{{strconv.Itoa(sectionNumber(m, groupDone)), verb}, {":prune", "clear"}}
 }
 
 // clampScroll bounds offset to [0, total-height] so the board never scrolls
@@ -623,6 +632,11 @@ func rowDescStyle(m Model, s protocol.SessionSummary, selected bool) lipgloss.St
 // task (simple view) or the AI summary, animated while it types in, with the
 // waiting reason in front (detailed view).
 func rowDescText(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
+	return withLoopChip(m, s, rowDescBase(m, s, descW, waiting))
+}
+
+// rowDescBase is rowDescText without the loop chip.
+func rowDescBase(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
 	if !m.Detailed {
 		return rowText(s)
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/version"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
+	"github.com/tristanbietsch/rex/internal/workspace"
 )
 
 func main() {
@@ -232,6 +233,19 @@ func run(args []string) error {
 	defer auditTrail.Close()
 	auditTrail.Configure(settingsStore)
 	hub.Subscribe(boot.AuditSettingIDs, auditTrail.Applier())
+	// Workspace tagging and the per-workspace session index: inert while the
+	// workspaces setting is off (no discovery, no registry or index write).
+	// The registry lives in the state dir, so a test daemon never touches
+	// the real one.
+	wsReg, err := workspace.OpenRegistry(filepath.Join(*stateDir, paths.WorkspacesFileName))
+	if err != nil {
+		slog.Warn("daemon: workspace registry unavailable", "err", err)
+		wsReg = nil
+	}
+	wsTags := boot.NewWorkspaces(boot.WorkspacesConfig{Home: home, Registry: wsReg}, store)
+	defer wsTags.Close()
+	wsTags.Configure(settingsStore)
+	hub.Subscribe(boot.WorkspacesSettingIDs, wsTags.Applier())
 	// Loop workflows: never enabled (no goroutine, subscription or file
 	// read) while the loops setting is off. The flag is read from the hub's
 	// current settings; a change enables or disables the runner.
@@ -256,6 +270,7 @@ func run(args []string) error {
 		UsageQuery:            usageHub.Hub.Query,
 		Loops:                 loops,
 		Audit:                 auditTrail,
+		Workspaces:            wsTags,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadAll(ctx, cat, hub) },

@@ -144,7 +144,7 @@ func TestParse_NoBackgroundNoContrastWarning(t *testing.T) {
 func TestTokens(t *testing.T) {
 	require.Contains(t, ColorTokens(), "accent")
 	require.Contains(t, ColorTokens(), "fleet")
-	require.Equal(t, []string{"crashed", "done", "failed", "needs", "queued", "select"}, GlyphTokens())
+	require.Equal(t, []string{"crashed", "done", "failed", "loop", "needs", "queued", "select"}, GlyphTokens())
 }
 
 func TestValidGlyph(t *testing.T) {
@@ -196,7 +196,7 @@ func TestTokenLists(t *testing.T) {
 	p.Glyphs = Glyphs{Needs: "!", Select: ">"}
 	glyphs := p.GlyphList()
 	require.Equal(t, []Token{
-		{"needs", "!"}, {"done", ""}, {"failed", ""}, {"crashed", ""}, {"queued", ""}, {"select", ">"},
+		{"needs", "!"}, {"done", ""}, {"failed", ""}, {"crashed", ""}, {"queued", ""}, {"select", ">"}, {"loop", ""},
 	}, glyphs)
 	require.Len(t, glyphs, len(GlyphTokens()))
 }

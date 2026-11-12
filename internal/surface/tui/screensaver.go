@@ -242,7 +242,7 @@ func saverBlock(m Model, h int) []string {
 // holds any session, and "· N failed" when something failed. The numbers
 // match the header's.
 func saverCounts(m Model) string {
-	cols, failed := columnCounts(m.Sessions, rowFilterOf(m).ctx)
+	cols, failed := columnCounts(scopedSessions(m), rowFilterOf(m).ctx)
 	parts := make([]string, 0, len(cols)+1)
 	for gi, n := range cols {
 		g := boardGroups[gi]

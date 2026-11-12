@@ -77,7 +77,7 @@ func deleterOf(m Model) sessionDeleter {
 // openPrune handles :prune. It asks before deleting, reusing the delete
 // confirmation prompt with the whole target list.
 func openPrune(m Model) (Model, tea.Cmd) {
-	targets, kept := PruneTargets(m.Sessions)
+	targets, kept := PruneTargets(scopedSessions(m))
 	if len(targets) == 0 {
 		m.Notice = "nothing to clear" + PruneKeptNote(kept)
 		return m, nil

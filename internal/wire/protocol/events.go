@@ -124,6 +124,26 @@ type SessionSummary struct {
 	// an ordinary session. LoopIter is the loop's turn in progress.
 	LoopID   string `json:"loop_id,omitempty"`
 	LoopIter int    `json:"loop_iter,omitempty"`
+
+	// WorkspaceID is the id of the workspace (the nearest .rex/ above CWD)
+	// the session was spawned in: 8 lowercase hex digits, empty outside any
+	// workspace, while the workspaces feature is off, and from daemons that
+	// predate it. The daemon sets it; a client never sends one.
+	WorkspaceID string `json:"workspace_id,omitempty"`
+}
+
+// ValidWorkspaceID reports whether id has the form of a workspace id: 8
+// lowercase hex digits. Ids from meta.json are checked before use.
+func ValidWorkspaceID(id string) bool {
+	if len(id) != 8 {
+		return false
+	}
+	for _, c := range id {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // WaitReason values.
@@ -149,6 +169,11 @@ type Snapshot struct {
 	// Absent while the loops feature is off and from daemons that predate
 	// it; Loop events then update a client that has seen this.
 	Loops []LoopSummary `json:"loops,omitempty"`
+	// WorkspaceTagging is true when the daemon tags sessions with their
+	// workspace (the workspaces feature is on there): every session then
+	// carries workspace_id or none belongs to a workspace. Absent from
+	// daemons that predate it and while the feature is off.
+	WorkspaceTagging bool `json:"workspace_tagging,omitempty"`
 	// Tools is the daemon's tool registry as a client needs it for the
 	// new-session wizard and Settings: whether each binary is on the daemon's
 	// PATH and each tool's models (detected ones merged with the static list).

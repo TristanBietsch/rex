@@ -10,3 +10,5 @@ const skipModeChecks = true
 func ownedByCurrentUser(fs.FileInfo) bool { return true }
 
 func isNotDirErr(error) bool { return false }
+
+func hardLinked(fs.FileInfo) bool { return false }

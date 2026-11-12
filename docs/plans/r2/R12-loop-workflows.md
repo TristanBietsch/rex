@@ -87,3 +87,15 @@ Built: R12-1, R12-2, R12-4 and R12-6 for the **repeat** kind. See [loops.md](../
 - A paused loop still counts toward the cap of 2 live loops.
 - Marker validation also refuses a marker that matches a whole line of the prompts, since the agent echoes them.
 - Known gap: a Claude turn shorter than one daemon poll may go unseen (no working state observed); `max_minutes` ends such a stalled loop. The cap "sound" in Review focus is not built (no TUI work).
+
+### R12-5 build notes (TUI loop cards)
+
+Built on `feat/tui-wiring-b`: the TUI half of R12-5. Code: `internal/surface/tui/loops.go` (+ `loops_test.go`), `glyphs.go` (`loopGlyph`), `keys.go` rows, `update.go` keys.
+
+- Row: the chip `⟳ 3/8 running` is the start of the row's text column (simple, detailed and mobile layouts), so no column moved. It is plain text in the row's text style; the state shows in words, not only color. `internal/catalog/theme` gains `glyphs: loop:` (1 cell, same checks as the other glyphs).
+- Keys: `p` pause/resume (toggles on the loop's state), `x` stop with a `y`/`N` bar (`FocusConfirmLoopStop`), `L` overlay. None collided in the key table. `:loop pause|resume|stop [sel]` and `:loops` are `commands` rows with help text and `Flag: loops`; the help overlay marks them `(off)`.
+- The overlay (`FocusLoops`) lists state, `iter/max`, running time over `max_minutes`, and the last check. **Additive wire fields** `LoopSummary.max_minutes` and `elapsed_s` carry the time cap and the running time at `updated_at` (the TUI adds the time since while the loop runs).
+- The TUI now reads `Snapshot.loops`, `Loop` events and the `loop_id`/`loop_iter` patch that `Store.SetLoop` broadcasts (it ignored all three before).
+- Pause and resume ask nothing; stop asks (also from `:loop stop` and from the overlay, which it returns to).
+- A finished loop keeps its chip while the daemon lists it (7 days); the row then shows `⟳ 3` only.
+- Not done: chain cards (R12-3), parent/child rows, the cap sound, `R09` stage moves (R09 is not built).

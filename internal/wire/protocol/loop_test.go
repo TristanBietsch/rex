@@ -54,3 +54,15 @@ func TestValidLoopID(t *testing.T) {
 		require.False(t, ValidLoopID(id), id)
 	}
 }
+
+func TestValidWorkspaceID(t *testing.T) {
+	for id, want := range map[string]bool{
+		"7f3b89a2": true, "00000000": true, "ffffffff": true,
+		"": false, "7f3b89a": false, "7f3b89a22": false, "7F3B89A2": false,
+		"7f3b89g2": false, "../../ab": false, "7f3b 9a2": false,
+	} {
+		if got := ValidWorkspaceID(id); got != want {
+			t.Errorf("ValidWorkspaceID(%q) = %v, want %v", id, got, want)
+		}
+	}
+}

@@ -47,3 +47,15 @@ func selectGlyph() string {
 	}
 	return selectDefault
 }
+
+// loopDefault is the marker of a loop session's row when the theme does not
+// set one.
+const loopDefault = "⟳"
+
+// loopGlyph marks a loop session's row and the loops overlay.
+func loopGlyph() string {
+	if curGlyphs.Loop != "" {
+		return curGlyphs.Loop
+	}
+	return loopDefault
+}
