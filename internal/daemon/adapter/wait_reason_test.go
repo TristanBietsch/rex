@@ -166,7 +166,7 @@ func TestClaudeHookArgs_StopAndNotificationLines(t *testing.T) {
 	raw, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), "notify xrm-rfHOME\n")
-	require.Equal(t, protocol.WaitInput, a.WaitReason())
+	require.Empty(t, a.WaitReason(), "an unknown type needs nobody")
 
 	// No notification_type at all: a bare notify line, an input.
 	run("UserPromptSubmit", "")
