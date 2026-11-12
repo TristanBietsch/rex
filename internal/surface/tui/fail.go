@@ -3,6 +3,7 @@ package tui
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -80,6 +81,9 @@ func updateFailKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// tailLogWindow is how much of the end of the daemon log tailDaemonLog reads.
+const tailLogWindow = 256 << 10
+
 func tailDaemonLog(n int) []string {
 	path, err := paths.DaemonLog()
 	if err != nil {
@@ -90,11 +94,24 @@ func tailDaemonLog(n int) []string {
 		return []string{fmt.Sprintf("(no log at %s)", path)}
 	}
 	defer f.Close()
+	// Only the end of the log matters: skip to its last tailLogWindow bytes
+	// (and past the line cut there) instead of reading a log that may have
+	// grown to many MiB.
+	skipFirst := false
+	if info, err := f.Stat(); err == nil && info.Size() > tailLogWindow {
+		if _, err := f.Seek(info.Size()-tailLogWindow, io.SeekStart); err == nil {
+			skipFirst = true
+		}
+	}
 	// Ring buffer of last n lines.
 	ring := make([]string, 0, n+1)
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
+		if skipFirst {
+			skipFirst = false
+			continue
+		}
 		ring = append(ring, sc.Text())
 		if len(ring) > n {
 			ring = ring[1:]

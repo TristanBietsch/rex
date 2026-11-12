@@ -507,6 +507,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with a note, instead of acting on an id the daemon no longer knows. A
   session that arrives in both a snapshot and its own add event is listed
   once.
+- TUI: `tui-state.json` is written to a temp file and renamed into place,
+  so a crash or full disk while saving can't leave a truncated file. The
+  failures overlay reads only the last 256 KiB of the daemon log instead
+  of the whole file.
 - `rex update` reads the new version with plain output, so `CLAUDECODE`,
   `REX_AGENT` or `REX_OUTPUT` in the caller no longer turn it into an agent
   or json line.
