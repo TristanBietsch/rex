@@ -19,10 +19,18 @@ import (
 const HookFileEnv = "REX_HOOK_FILE"
 
 // hookStaleWorking is how long a hook-reported "working" survives without any
-// visible PTY output. Claude animates a spinner/timer the whole time a turn
-// runs, so silence this long means the turn ended without a Stop hook (user
-// pressed Esc to interrupt).
-const hookStaleWorking = 15 * time.Second
+// visible PTY output when no subagent runs and no tool wait is open. A turn
+// interrupted with Esc fires no Stop hook, so silence this long ends it.
+// There is no cheap screen check to confirm it (Claude's input box shows
+// while it works too), so the bound is generous. With a tool wait open the
+// bound is subagentQuiet; while a subagent runs the fallback never fires.
+const hookStaleWorking = 30 * time.Second
+
+// wakeGrace is how long a parked session (main turn ended, background
+// subagents running) stays working after its last subagent ends: Claude
+// wakes the main agent with the result, which writes a working word, and
+// only its next Stop is READY. If no hook comes in time, it is READY.
+const wakeGrace = 10 * time.Second
 
 // claudeHookStates maps Claude Code hook events to the state each implies.
 // SessionStart, PreToolUse and PostToolUse also write extra lines: subagent,
@@ -50,6 +58,7 @@ var claudeHookStates = []struct {
 //	sid <session_id>   SessionStart: the conversation id (resume id)
 //	turn-done          Stop: the agent finished a turn (wait_reason review)
 //	notify <type>      Notification: notification_type, "" if absent
+//	prompt             UserPromptSubmit: the user sent a prompt (a new turn)
 //	wait+ <kind>       PreToolUse of a main-thread shell, subagent or web
 //	                   tool (kind: shell, subagent, web)
 //	wait-              PostToolUse of a main-thread tool call
@@ -66,6 +75,7 @@ const (
 	hookNotify      = "notify"
 	hookWaitStart   = "wait+"
 	hookWaitEnd     = "wait-"
+	hookPrompt      = "prompt"
 )
 
 // notifyIdle is the Notification type Claude fires after about 60 seconds
@@ -135,7 +145,7 @@ func claudeHookCommand(event string, state protocol.State) string {
 			hookAppend(`if [ -n "$id" ]; then printf '`+st+`\n'; elif [ -n "$k" ]; then printf '`+st+`\n`+hookWaitStart+` %s\n' "$k"; else printf '`+st+`\n`+hookWaitEnd+`\n'; fi`)
 	case "UserPromptSubmit":
 		// A new turn: no tool of the last one is still being waited on.
-		return hookAppend(`printf '` + st + `\n` + hookWaitEnd + `\n'`)
+		return hookAppend(`printf '` + st + `\n` + hookWaitEnd + `\n` + hookPrompt + `\n'`)
 	default:
 		return hookAppend(`printf '` + st + `\n'`)
 	}
@@ -207,6 +217,13 @@ type WaitReporter interface {
 	Waiting() (kind string, since time.Time)
 }
 
+// PromptCounter is implemented by adapters that count the user's prompts.
+type PromptCounter interface {
+	// Prompts is how many prompts the user sent; it never goes down.
+	// 0 means none seen (or the agent does not report them).
+	Prompts() int
+}
+
 // ClaudeHooks classifies Claude Code sessions from the hook state file written
 // by ClaudeHookArgs hooks. Claude renders a full-screen TUI to the PTY (its
 // stream-json output only exists with --print), so screen-scraping is
@@ -228,7 +245,16 @@ type ClaudeHooks struct {
 	// waitEnding is set when a wait- arrived while subagents still ran:
 	// the wait stays (several Task calls fan out) until the last one stops.
 	waitEnding bool
-	now        func() time.Time
+	// parked is set when the main turn ends (Stop) and cleared by the next
+	// main-thread tool line or prompt: subagents running while it is set
+	// were left in the background, and the session waits on them.
+	parked      bool
+	parkedSince time.Time
+	// wakeAt is when the last subagent of a parked session ended; zero when
+	// no wake is expected. Any state word clears it.
+	wakeAt  time.Time
+	prompts int // UserPromptSubmit count; survives a truncated file
+	now     func() time.Time
 }
 
 // NewClaudeHooks reads hook state from path.
@@ -238,15 +264,69 @@ func NewClaudeHooks(path string) *ClaudeHooks {
 
 // Detect implements Adapter. window is unused; idle guards against a turn that
 // ended without a Stop hook.
+//
+// READY (needs_input) means the agent waits on the user: a question
+// (Notification other than idle_prompt) at once; a Stop or idle Notification
+// only once no subagent runs and no wake is pending; a working word only
+// after the stale fallback, which never fires while a subagent runs.
 func (a *ClaudeHooks) Detect(_ []byte, idle time.Duration) protocol.State {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.read()
-	if a.last == protocol.StateWorking && idle >= hookStaleWorking {
+	if a.last == protocol.StateNeedsInput {
+		if a.subagentHold() {
+			return protocol.StateWorking
+		}
+		return protocol.StateNeedsInput
+	}
+	if a.runningAgents() > 0 || a.waking() {
+		return protocol.StateWorking
+	}
+	bound := hookStaleWorking
+	if a.openWait() != "" {
+		bound = subagentQuiet
+	}
+	if idle >= bound {
 		a.clearWait()
 		return protocol.StateNeedsInput
 	}
-	return a.last
+	return protocol.StateWorking
+}
+
+// subagentHold reports whether a needs_input word is held as working because
+// subagents still run (or one just ended and the main agent should wake). A
+// question is never held. Callers hold mu.
+func (a *ClaudeHooks) subagentHold() bool {
+	if a.reason == protocol.WaitInput {
+		return false
+	}
+	return a.runningAgents() > 0 || a.waking()
+}
+
+// waking reports whether a parked session's last subagent ended less than
+// wakeGrace ago. Callers hold mu.
+func (a *ClaudeHooks) waking() bool {
+	return !a.wakeAt.IsZero() && a.now().Sub(a.wakeAt) < wakeGrace
+}
+
+// openWait is the main thread's tool wait, ending a fan-out wait whose last
+// subagent went quiet. Callers hold mu.
+func (a *ClaudeHooks) openWait() string {
+	if a.waitEnding && a.runningAgents() == 0 {
+		a.clearWait()
+	}
+	return a.waitOn
+}
+
+// parkedWait is the wait shown for a session held working by its
+// subagents: on a subagent, since the main turn ended. Callers hold mu.
+func (a *ClaudeHooks) parkedWait() (string, time.Time) {
+	since := a.parkedSince
+	if since.IsZero() {
+		since = a.now()
+		a.parkedSince = since
+	}
+	return protocol.WaitSubagent, since
 }
 
 // Waiting implements WaitReporter.
@@ -254,13 +334,19 @@ func (a *ClaudeHooks) Waiting() (string, time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.read()
-	if a.last != protocol.StateWorking {
+	if a.last == protocol.StateNeedsInput {
+		if a.subagentHold() {
+			return a.parkedWait()
+		}
 		return "", time.Time{}
 	}
-	if a.waitEnding && a.runningAgents() == 0 { // the last one went quiet
-		a.clearWait()
+	if kind := a.openWait(); kind != "" {
+		return kind, a.waitSince
 	}
-	return a.waitOn, a.waitSince
+	if a.parked && (a.runningAgents() > 0 || a.waking()) {
+		return a.parkedWait()
+	}
+	return "", time.Time{}
 }
 
 // clearWait ends the tool wait. Callers hold mu.
@@ -274,10 +360,30 @@ func (a *ClaudeHooks) runningAgents() int {
 	cutoff := a.now().Add(-subagentQuiet)
 	for id, seen := range a.agents {
 		if seen.Before(cutoff) {
-			delete(a.agents, id)
+			a.dropAgent(id)
 		}
 	}
 	return len(a.agents)
+}
+
+// dropAgent removes a running subagent. The last one of a parked session
+// leaving starts the wake grace. Callers hold mu.
+func (a *ClaudeHooks) dropAgent(id string) {
+	if _, ok := a.agents[id]; !ok {
+		return
+	}
+	delete(a.agents, id)
+	if len(a.agents) == 0 && a.parked {
+		a.wakeAt = a.now()
+	}
+}
+
+// Prompts implements PromptCounter.
+func (a *ClaudeHooks) Prompts() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.read()
+	return a.prompts
 }
 
 // Subagents implements SubagentCounter: subagents started and not yet
@@ -300,11 +406,15 @@ func (a *ClaudeHooks) ResumeID() string {
 }
 
 // WaitReason implements WaitReasoner: review after a Stop, input after a
-// Notification other than idle_prompt, which keeps what was there.
+// Notification other than idle_prompt, which keeps what was there. It is ""
+// while the session is held working by its subagents.
 func (a *ClaudeHooks) WaitReason() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.read()
+	if a.last == protocol.StateNeedsInput && a.subagentHold() {
+		return ""
+	}
 	return a.reason
 }
 
@@ -333,6 +443,7 @@ func (a *ClaudeHooks) read() {
 		a.off, a.partial = 0, nil
 		clear(a.agents)
 		a.clearWait()
+		a.parked, a.wakeAt = false, time.Time{}
 	}
 	if size == a.off {
 		return
@@ -365,6 +476,7 @@ func (a *ClaudeHooks) apply(line string) {
 		return
 	case string(protocol.StateWorking), string(protocol.StateNeedsInput):
 		a.last = protocol.State(word)
+		a.wakeAt = time.Time{} // the main agent woke (or stopped again)
 		if a.last == protocol.StateWorking {
 			a.reason = ""
 		} else { // Stop, Notification, SessionStart end any tool wait
@@ -373,10 +485,12 @@ func (a *ClaudeHooks) apply(line string) {
 		slog.Debug("adapter: claude hook state", "path", a.path, "state", a.last)
 	case hookWaitStart:
 		// An unknown kind is ignored: the file is plain text.
+		a.parked = false // main-thread activity
 		if protocol.ValidWaitKind(arg) {
 			a.waitOn, a.waitSince, a.waitEnding = arg, a.now(), false
 		}
 	case hookWaitEnd:
+		a.parked = false // main-thread activity
 		// One of several parallel Task calls ending leaves the wait on
 		// while other subagents run; the last stop (or a quiet timeout)
 		// ends it.
@@ -392,15 +506,19 @@ func (a *ClaudeHooks) apply(line string) {
 			a.agents[arg] = a.now()
 		}
 	case hookAgentStop:
-		delete(a.agents, arg)
+		a.dropAgent(arg)
 		if a.waitEnding && len(a.agents) == 0 {
 			a.clearWait()
 		}
 	case hookAgentsReset:
 		clear(a.agents)
 		a.reason = ""
+		a.parked, a.wakeAt = false, time.Time{}
 	case hookTurnDone:
 		a.reason = protocol.WaitReview
+		a.parked, a.parkedSince = true, a.now()
+	case hookPrompt:
+		a.prompts++
 	case hookNotify:
 		if arg != notifyIdle {
 			a.reason = protocol.WaitInput
@@ -415,12 +533,3 @@ func (a *ClaudeHooks) apply(line string) {
 		slog.Warn("adapter: unknown claude hook line", "path", a.path, "line", line)
 	}
 }
-
-// wakeGrace is a stub (R17 task 1).
-const wakeGrace = 10 * time.Second
-
-// PromptCounter is a stub (R17 task 1).
-type PromptCounter interface{ Prompts() int }
-
-// Prompts is a stub (R17 task 1).
-func (a *ClaudeHooks) Prompts() int { return 0 }
