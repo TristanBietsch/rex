@@ -130,6 +130,11 @@ func RunNew(args []string) error {
 			if err := json.Unmarshal(env.Data, &sum); err != nil {
 				return core.NewExitError(core.ExitGeneric, err.Error())
 			}
+			// SessionAdded goes to every client: another spawn racing this
+			// one is not ours. Slugs are unique, so ours carries req.Slug.
+			if sum.Slug != req.Slug {
+				continue
+			}
 			err := emitNew(sum)
 			if msg := ignoredByDaemon(req, sum); msg != "" {
 				core.Out().Warn(msg)
