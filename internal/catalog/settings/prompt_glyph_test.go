@@ -46,8 +46,11 @@ func TestPromptGlyphIsFreeForm(t *testing.T) {
 	s, _ := Find("prompt_glyph")
 	require.True(t, s.Free, "the options are suggestions; any glyph that passes Normalize is accepted")
 	a, _ := Find("auto_trust_dirs")
-	require.False(t, a.Free, "no options at all: free by type")
-	require.Empty(t, a.Options)
+	require.True(t, a.Free)
+	for _, id := range []string{"default_spawn_tool", "default_spawn_model", "default_spawn_effort", "board_hidden_sections", "summary_model", "lua_config_path"} {
+		o, _ := Find(id)
+		require.False(t, o.Free, "%s is not free-form text", id)
+	}
 	for _, other := range Registry {
 		if other.Free {
 			require.Equal(t, TypeString, other.Type, other.ID)

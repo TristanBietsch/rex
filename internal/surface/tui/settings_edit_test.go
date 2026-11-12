@@ -1,11 +1,14 @@
 package tui
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
 
 func TestLineEditorKeys(t *testing.T) {
@@ -146,4 +149,54 @@ func TestEditingTypesKeysAndIgnoresWheel(t *testing.T) {
 	require.Equal(t, "prompt_glyph", m.Settings.CursorID)
 	m, _ = updateMouse(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
 	require.Equal(t, "prompt_glyph", m.Settings.CursorID)
+}
+
+// An inline edit of auto_trust_dirs tells the running daemon, like the cycle
+// and reset paths do, so a revoked folder applies at once.
+func TestEditTrustSettingReloadsTheDaemon(t *testing.T) {
+	var sockets []string
+	m := settingsScreen(t, 120, 50)
+	m.Socket = "/tmp/rex-test/edit.sock"
+	m.reloader = func(_ context.Context, s string) error { sockets = append(sockets, s); return nil }
+	m.Settings.CursorID = "auto_trust_dirs"
+	m = typeInto(settingsPress(m, "enter"), t.TempDir())
+	require.Empty(t, sockets, "typing alone sends nothing")
+	m = settingsPress(m, "enter")
+	require.Equal(t, []string{"/tmp/rex-test/edit.sock"}, sockets, "saved, then the daemon told")
+
+	// A refused value saves nothing and tells nobody.
+	m = typeInto(settingsPress(m, "enter", "ctrl+u"), "/")
+	m = settingsPress(m, "enter")
+	require.Len(t, sockets, 1)
+
+	// Another free-form setting leaves the daemon alone.
+	m.Settings.Edit = nil
+	m.Settings.CursorID = "prompt_glyph"
+	m = settingsPress(m, "enter", "ctrl+u")
+	m = typeInto(m, "❯")
+	_ = settingsPress(m, "enter")
+	require.Len(t, sockets, 1)
+}
+
+// Only settings marked Free open the editor. The quick-spawn pickers (tool,
+// model, effort) keep cycling on enter, which repairs the dependent values.
+func TestOnlyFreeSettingsOpenTheEditor(t *testing.T) {
+	for _, s := range settings.Registry {
+		require.Equal(t, s.Free, settingFreeForm(s), s.ID)
+	}
+	m := spawnPickerModel(t)
+	m.Settings.CursorID = "default_spawn_tool"
+	m, _ = settingsKey(m, key("enter"))
+	require.Nil(t, m.Settings.Edit, "enter cycles the tool picker")
+	require.NotEqual(t, "claude", m.Store.Get("default_spawn_tool"))
+	tool := m.Store.Get("default_spawn_tool")
+	_, model, ok := currentSpawnChoice(m)
+	require.True(t, ok)
+	require.Equal(t, model.ID, m.Store.Get("default_spawn_model"), "the dependent model was repaired for %v", tool)
+
+	for _, id := range []string{"default_spawn_model", "default_spawn_effort", "board_hidden_sections", "summary_model"} {
+		m.Settings.CursorID = id
+		m, _ = settingsKey(m, key("enter"))
+		require.Nil(t, m.Settings.Edit, id)
+	}
 }

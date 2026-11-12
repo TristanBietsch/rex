@@ -41,11 +41,12 @@ type settingEdit struct {
 // Text is the draft value.
 func (e *settingEdit) Text() string { return e.ed.Text }
 
-// settingFreeForm reports whether enter edits the setting as text: a
-// writable string with no fixed options, or one that accepts any valid value
-// beyond its suggested options (Free).
+// settingFreeForm reports whether enter edits the setting as text. It is
+// opt-in (Setting.Free): a string without options is not free by type, since
+// the quick-spawn pickers have none in the registry yet cycle through the
+// tools registry (and repair their dependents) on enter.
 func settingFreeForm(s settings.Setting) bool {
-	return s.Type == settings.TypeString && !s.ReadOnly && (len(s.Options) == 0 || s.Free)
+	return s.Free && s.Type == settings.TypeString && !s.ReadOnly
 }
 
 // openSettingEdit starts editing the cursor setting with its current value.
@@ -69,6 +70,7 @@ func settingEditKey(m Model, k tea.KeyMsg) Model {
 		}
 		applyLive(&m, e.ID, m.Store.Get(e.ID))
 		_ = m.Store.Save(m.StorePath)
+		reloadDaemonForTrust(m.reloader, m.Socket, e.ID)
 		m.Settings.Edit = nil
 	default:
 		if e.ed.Edit(k) {
