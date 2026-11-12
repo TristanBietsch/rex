@@ -50,6 +50,7 @@ Only `XDG_RUNTIME_DIR` is read. `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_H
 | `<workspace>/.rex/audit.jsonl` | `rex-daemon` (`audit_trail` and `workspaces` on) | The audit trail of sessions started inside the workspace; same format and rules as the global file |
 | `~/.local/share/rex/workspaces.json` | `rex ws` | Registry: workspace id → the folder it was last seen at, name, color. Lets a moved folder keep its id. Only with `workspaces` on |
 | `~/.local/state/rex/tui-state.json` | TUI on `:bg` / detach | Selection, tool filter, hidden sections and board search; read once on next launch, then deleted |
+| `~/.local/state/rex/models-cache.json` | `rex-daemon` (when `model_autodetect` is on) | Cache of the model ids each agent listed (`qwen --list-models` and the like): per tool the binary path and mtime, the command, the time, and the ids. Trusted for 24 h and dropped when the binary changes. Owner-only (0600), replaced atomically, safe to delete (the next daemon start or `rex reload` detects again). Holds ids only. Never created while `model_autodetect` is off |
 | `~/.local/state/rex/daemon.log` | `rex daemon start` | Daemon stderr |
 | `~/.local/state/rex/<name>.log` | `rexlog` | Structured logs (`daemon`, `tui`, `setup`) |
 | `~/.local/state/rex/cli-errors.log` (+ `.1`) | `rex` | One JSONL record per failed CLI command: structure only (command, flag names, exit code and kind, error type names; no message or value). 0600, capped at 1 MiB plus one backup; read it with `rex errors`; off with `cli_error_log: false` or `REX_ERROR_LOG=0` |

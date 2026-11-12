@@ -47,3 +47,4 @@ daemon-stop
 raw bytes
 -- home/.config/rex/config.yaml --
 summary_enabled: false
+model_autodetect: false

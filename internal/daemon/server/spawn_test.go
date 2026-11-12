@@ -88,10 +88,25 @@ func TestChildEnvFor(t *testing.T) {
 		childEnvFor(spawnSpec{Tool: registry.Tool{}, HookFile: hf, SessionID: "abc"}),
 		"no hook env for tools that are not hook-detected")
 
-	osc := registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}}
+	osc := registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501},
+		StatusEnv: []string{"AGY_CLI_OSC7501=on"}}
 	require.Equal(t, []string{"AGY_CLI_OSC7501=on", "REX_SESSION_ID=abc"},
 		childEnvFor(spawnSpec{Tool: osc, HookFile: hf, SessionID: "abc"}),
-		"status osc7501 turns the channel on, and no hook env")
+		"status_env is added, and no hook env")
+
+	osc.StatusEnv = nil
+	require.Equal(t, []string{"REX_SESSION_ID=abc"},
+		childEnvFor(spawnSpec{Tool: osc, HookFile: hf, SessionID: "abc"}),
+		"a tool that answers the query needs no env")
+}
+
+// Only tools on the OSC 7501 channel lose the tmux / terminal-program vars.
+func TestChildEnvDropFor(t *testing.T) {
+	osc := registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}}
+	require.Equal(t, []string{"TMUX", "TMUX_PANE", "TERM_PROGRAM", "TERM_PROGRAM_VERSION"},
+		childEnvDropFor(spawnSpec{Tool: osc}))
+	require.Empty(t, childEnvDropFor(spawnSpec{Tool: registry.Tool{Detect: registry.Detect{Kind: "heuristic"}}}))
+	require.Empty(t, childEnvDropFor(spawnSpec{Tool: registry.Tool{Detect: registry.Detect{Kind: "hooks", Format: "claude"}}}))
 }
 
 func TestBuildArgvSkipPermissions(t *testing.T) {
