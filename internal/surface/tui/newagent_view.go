@@ -118,7 +118,7 @@ func naHints(st *NewAgentState, narrow bool) [][2]string {
 			{"enter", "launch"}, {"ctrl+j", "newline"}, {"@", "file"}, {"ctrl+o", "import"},
 			{"esc", "navigate"}, {"tab", "next"},
 		}
-	case st.OnRail:
+	case st.OnRail && !narrow:
 		return [][2]string{{"j/k", "step"}, {"l", "open"}, {"ctrl+s", "launch"}, {"esc", "close"}}
 	}
 	var own [][2]string

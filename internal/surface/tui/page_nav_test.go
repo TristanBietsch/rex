@@ -543,3 +543,60 @@ func TestPageNav_SettingsAccentRowKeys(t *testing.T) {
 	m = navPress(m, "l")
 	require.Equal(t, "accent_color", m.Settings.CursorID, "and l comes back to the row")
 }
+
+func TestNav_ShortWindowShowsTheCursor(t *testing.T) {
+	lines := make([]string, 12)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("row %02d", i)
+	}
+	for _, h := range []int{1, 2, 3} {
+		var v listView
+		for cur := range lines {
+			out := v.window("k", lines, cur, h, "")
+			require.LessOrEqual(t, len(out), h, "h %d cursor %d", h, cur)
+			require.Contains(t, out, lines[cur], "h %d cursor %d", h, cur)
+		}
+	}
+}
+
+// Review findings: a g then another key is not gg; the import picker
+// leaves the editor; k from the not-installed header keeps the model.
+func TestPageNav_GThenOtherKeyIsNotGg(t *testing.T) {
+	m := pageSettings(t)
+	all := settingsNavList(m)
+	m = navPress(m, "G", "g", "h", "l", "g")
+	require.Equal(t, all[len(all)-1].ID, m.Settings.CursorID, "g h l g is no gg")
+
+	h := pageHelp(t, 120, 40)
+	h = navPress(h, "3", "g", "]", "g")
+	require.Equal(t, 3, h.Help.Group, "g ] g is no gg")
+
+	n := naOpen(t, naModel(t))
+	n = navPress(n, "esc", "j", "g", "2", "g")
+	require.Equal(t, naTask, n.NewAgent.Section, "g 2 g is no gg")
+}
+
+func TestPageNav_NAImportLeavesTheEditor(t *testing.T) {
+	m := naOpen(t, naModel(t))
+	m = navPress(m, "x")
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
+	require.False(t, m.NewAgent.Editing)
+	m = navPress(m, "esc")
+	require.Equal(t, naContext, m.NewAgent.Section)
+	require.False(t, m.NewAgent.Editing, "back from the picker: navigating, not typing")
+	require.Equal(t, "x", m.NewAgent.Task.String())
+}
+
+func TestPageNav_NAAgentBackFromMissingKeepsModel(t *testing.T) {
+	m := naModel(t)
+	m.DaemonTools = daemonTools(t, "claude") // codex and the rest are missing
+	m = naAgentOpen(t, m)
+	require.NotEmpty(t, m.NewAgent.Missing)
+	m = navPress(m, "l", "j")
+	model := m.NewAgent.choice().Model
+	m = navPress(m, "h", "G")
+	require.True(t, m.NewAgent.OnMissing)
+	m = navPress(m, "k")
+	require.False(t, m.NewAgent.OnMissing)
+	require.Equal(t, model, m.NewAgent.choice().Model, "the model picked stays")
+}

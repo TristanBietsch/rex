@@ -145,6 +145,7 @@ func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
 		return m
 	}
 	st := m.Settings
+	st.gPending = false
 	if !pagesOn(m) {
 		st.CursorID = settingsStep(m, delta)
 		return m

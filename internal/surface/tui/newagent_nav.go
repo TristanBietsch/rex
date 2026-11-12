@@ -304,7 +304,9 @@ func updateNewAgentMouse(m Model, msg tea.MouseMsg) Model {
 	}
 	m.Err, st.Err = "", ""
 	st.Rev++
-	left := !pageNarrow(m.Width) && msg.X-frameInset(m) < naRailW+1
+	st.gPending = false
+	narrow := pageNarrow(m.Width)
+	left := !narrow && msg.X-frameInset(m) < naRailW+1
 	switch st.Screen {
 	case naCompose:
 		st.Editing, st.OnRail = false, left
@@ -313,9 +315,11 @@ func updateNewAgentMouse(m Model, msg tea.MouseMsg) Model {
 		if st.Filtering {
 			return m
 		}
-		if left {
+		switch {
+		case narrow: // one pane shows: the wheel moves it
+		case left:
 			st.Pane = naPaneAgents
-		} else if st.Pane == naPaneAgents {
+		case st.Pane == naPaneAgents:
 			st.Pane = naPaneModels
 		}
 		naAgentMove(m, mv)

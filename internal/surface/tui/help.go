@@ -483,6 +483,9 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if k.String() != "g" {
+		st.gPending = false // only a g right after a g is gg
+	}
 	if pagesOn(m) && helpPageKey(m, &st, k.String()) {
 		m.Help = &st
 		return m, nil
@@ -644,6 +647,7 @@ func updateHelpMouse(m Model, msg tea.MouseMsg) Model {
 	}
 	w, h := helpSize(m)
 	delta := wheelDelta(msg)
+	st.gPending = false
 	if pagesOn(m) {
 		groups := helpGroups(m)
 		if !pageNarrow(w) && msg.X-frameInset(m) < sectionPaneWidth(helpPageItems(&st, groups))+1 {

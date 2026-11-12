@@ -197,7 +197,9 @@ type naPending struct {
 func openImport(m Model) Model {
 	st := m.NewAgent
 	st.Import = &naImport{}
-	st.Screen, st.Section, st.Complete = naImportScreen, naContext, nil
+	st.Screen = naImportScreen
+	naFocus(st, naContext)
+	st.OnRail, st.gPending = false, false
 	st.rowsKey = ""
 	playNav(m)
 	return m
@@ -347,7 +349,7 @@ func naImportAdd(st *NewAgentState, row string) {
 func naImportSettle(st *NewAgentState) {
 	if st.Screen == naImportScreen && st.Import != nil && len(st.Pending) == 0 && st.Import.added {
 		closeImport(st)
-		st.Section = naContext
+		naFocus(st, naContext)
 	}
 }
 

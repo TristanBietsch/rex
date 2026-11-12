@@ -304,6 +304,7 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 		st.Notice = notice
 	}
 	st.Remembered = st.choice()
+	st.OnRail = st.OnRail && !pageNarrow(m.Width)   // no rail to focus
 	st.Editing = st.Section == naTask && !st.OnRail // the task types right away
 	m.NewAgent = st
 	m.newAgentDraft = nil
@@ -393,6 +394,9 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if st.Launching {
 		return naLaunchingKey(m, k)
+	}
+	if k.String() != "g" {
+		defer func() { st.gPending = false }() // only a g right after a g is gg
 	}
 	m.Err, st.Err = "", "" // an error stays until the next key
 	st.Rev++

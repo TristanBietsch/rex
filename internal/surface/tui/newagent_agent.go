@@ -46,7 +46,7 @@ const naSkillRows = 6
 func openAgentScreen(m Model) Model {
 	st := m.NewAgent
 	st.Screen = naAgentScreen
-	st.Pane = naPaneAgents
+	st.Pane, st.gPending = naPaneAgents, false
 	st.OnMissing = false
 	st.Filter, st.Filtering = "", false
 	playNav(m)
@@ -342,8 +342,8 @@ func naAgentMove(m Model, mv navMove) {
 		if to := navTarget(mv, cur, n, st.agentsView.H); to != cur {
 			moved = true
 			st.OnMissing = to >= len(st.Tools)
-			if !st.OnMissing {
-				st.setTool(to)
+			if !st.OnMissing && to != st.ToolIdx {
+				st.setTool(to) // back from the header onto the chosen agent keeps its model
 			}
 		}
 	case naPaneModels:
@@ -359,11 +359,11 @@ func naAgentMove(m Model, mv navMove) {
 		}
 	case naPaneEffort:
 		switch mv {
-		case navDown, navHalfDown, navPageDown, navLast:
+		case navDown, navHalfDown, navPageDown:
 			st.Pane = st.stepPane(1)
-		case navUp, navHalfUp, navPageUp, navFirst:
+		case navUp, navHalfUp, navPageUp:
 			st.Pane = st.stepPane(-1)
-		case navNone, navPending:
+		case navNone, navPending, navFirst, navLast: // one row: nothing to go to
 		}
 		moved = st.Pane != naPaneEffort
 	case naPaneSkills:

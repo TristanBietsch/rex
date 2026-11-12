@@ -176,6 +176,9 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Settings == nil {
 		return m, nil
 	}
+	if st := m.Settings; k.String() != "g" {
+		defer func() { st.gPending = false }() // only a g right after a g is gg
+	}
 	if m.Settings.Edit != nil {
 		return settingEditKey(m, k), nil
 	}
@@ -565,6 +568,8 @@ func settingsPageKey(m Model, k tea.KeyMsg) (Model, bool) {
 		switch key {
 		case "enter", "l", "right":
 			st.Pane = paneRows
+		case "?", "R":
+			return m, false // the row's help and reload work from either pane
 		}
 		return m, true
 	}

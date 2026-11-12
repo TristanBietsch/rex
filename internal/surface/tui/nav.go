@@ -129,6 +129,9 @@ func navSpan(top, n, h int) (start, end int, up, down bool) {
 	if n <= h {
 		return 0, n, false, false
 	}
+	if h < 3 {
+		return top, min(top+max(h, 1), n), false, false // no room for markers
+	}
 	up = top > 0
 	avail := h
 	if up {
@@ -159,6 +162,10 @@ func navScroll(top, cur, n, h int) int {
 	} else if cur >= top+h {
 		top = max(cur-h+off+2, 0)
 	}
+	fill := h - 1 // rows under the ↑ marker at the bottom
+	if h < 3 {
+		fill = h // no markers
+	}
 	for range 2*h + 4 {
 		start, end, _, _ := navSpan(top, n, h)
 		switch {
@@ -166,7 +173,7 @@ func navScroll(top, cur, n, h int) int {
 			top--
 		case end < n && cur > end-1-off:
 			top++
-		case top > 0 && n-top < h-1:
+		case top > 0 && n-top < fill:
 			top-- // the list got shorter (or the window taller): fill the window
 		default:
 			return top
