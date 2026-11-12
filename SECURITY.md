@@ -156,7 +156,10 @@ filesystem permissions.
   updated. rex never overwrites a
   binary owned by a package manager. The checksum file comes from the same
   release as the archive, so it detects corruption, not a compromised
-  release or GitHub account; releases are not signed yet. Reports of the
+  release or GitHub account on its own. Release archives and `SHA256SUMS` carry
+  GitHub build provenance attestations (`gh attestation verify <file> --repo
+  TristanBietsch/rex`); `install.sh`, `install.ps1` and `rex update` do not check
+  them yet. Reports of the
   updater writing outside the install folder, installing a file that does
   not match `SHA256SUMS`, following a downgrade without `-force`, or
   leaking the token are in scope.

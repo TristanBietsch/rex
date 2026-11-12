@@ -121,6 +121,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      id-token: write # build provenance attestation (Sigstore OIDC)
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -138,6 +140,14 @@ jobs:
           ls rex_*.tar.gz rex_*.zip | LC_ALL=C sort | xargs sha256sum > SHA256SUMS
           cat SHA256SUMS
           test "$(wc -l < SHA256SUMS)" -eq 5
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/rex_*.tar.gz
+            dist/rex_*.zip
+            dist/SHA256SUMS
 
       - name: Release notes
         env:

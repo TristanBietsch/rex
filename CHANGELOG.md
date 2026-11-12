@@ -87,6 +87,9 @@ Each is described in full under **Changed** below.
 
 ### Added (release builds)
 
+- Release archives and `SHA256SUMS` carry GitHub build provenance
+  attestations; check one with `gh attestation verify <file> --repo
+  TristanBietsch/rex`.
 - Tagged releases publish `rex_<version>_<os>_<arch>` archives for macOS
   and Linux (amd64, arm64) and Windows (amd64), each with `rex` and
   `rex-daemon`, plus `SHA256SUMS` (`.github/workflows/release.yml`,
