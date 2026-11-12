@@ -167,6 +167,9 @@ func (l *Loops) Subscribe(fn func(loop.Event)) func() {
 		switch e.Kind {
 		case state.EventAdded:
 			// A new session is nobody's loop yet; its state events follow.
+		case state.EventReopened:
+			// A resumed run carries no turn end; the loop waits for the
+			// state events that follow (resume never sends on its own).
 		case state.EventRemoved:
 			fn(loop.Event{SessionID: e.SessionID, Removed: true})
 		case state.EventUpdated:
