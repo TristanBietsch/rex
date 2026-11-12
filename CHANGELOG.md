@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (READY while subagents run)
+
+- A Claude Code session waiting on subagents no longer turns READY, chimes,
+  and flips back to working in a loop. While subagents run (also after the
+  main turn ended) it stays in WAITING (`waiting_on: subagent`) and turns
+  READY once, after the last subagent finishes and the agent stops. READY
+  means a question or permission prompt, or a finished turn with nothing
+  still running.
+- An interrupted turn (Esc, no Stop) now turns READY after 30 s of a still
+  screen (was 15 s), 15 min with a tool call still open, never while a
+  subagent runs.
+- The daemon shows a move into READY only after it held for 2 s (a question
+  shows at once), and logs every state change with its reason.
+- The needs-you chime plays once per turn; a new question in the same turn
+  chimes again. Sessions carry a `prompts` count on the wire for this.
+- Known gap: a background shell command (`run_in_background`) has no
+  completion hook; the session can show READY while it runs (the second
+  READY when it finishes is silent).
+
 ### Added (workspace board, loop cards)
 
 - `rex here` and `rex ws open [path]` open the board for one workspace
