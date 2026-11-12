@@ -216,3 +216,16 @@ func TestIsUnder(t *testing.T) {
 		require.Equal(t, c.want, isUnder(c.path, home), "isUnder(%q, %q)", c.path, home)
 	}
 }
+
+// A removal that fails is reported and makes uninstall exit non-zero, so a
+// script can tell a partial uninstall from a clean one.
+func TestRunUninstall_failureExitsNonZero(t *testing.T) {
+	f := newUninstallFixture(t)
+	// An unterminated block is left alone and reported as an error.
+	require.NoError(t, os.WriteFile(f.profile, []byte("a\n# BEGIN REX\nb\n"), 0o600))
+
+	err := f.run("-yes", "-binaries=false", "-strip-profile")
+	requireExitCode(t, err, core.ExitGeneric)
+	require.Contains(t, f.errOut.String(), "error stripping profile")
+	requireFileBytes(t, f.profile, "a\n# BEGIN REX\nb\n")
+}

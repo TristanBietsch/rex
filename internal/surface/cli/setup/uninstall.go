@@ -121,8 +121,16 @@ func runUninstall(args []string, d uninstallDeps) error {
 			return err
 		}
 	}
-	done := plan.execute(p, d)
-	return p.Emit(core.Result{Cmd: "uninstall", Data: plan.data(false, done), View: plan.planView(false, done)})
+	done, failed := plan.execute(p, d)
+	if err := p.Emit(core.Result{Cmd: "uninstall", Data: plan.data(false, done), View: plan.planView(false, done), Failed: failed > 0}); err != nil {
+		return err
+	}
+	if failed > 0 {
+		// Each failure was reported above; exit non-zero so a script can
+		// tell a partial uninstall from a clean one.
+		return core.NewExitError(core.ExitGeneric, "")
+	}
+	return nil
 }
 
 // parseUninstallFlags parses args; -all turns on every removal.
@@ -292,8 +300,8 @@ func (p *uninstallPlan) needsDaemonStopped() bool {
 // execute performs the removals and returns what was removed. Each failure
 // is reported as a warning and the rest still run, so one locked file does
 // not block the others.
-func (p *uninstallPlan) execute(pr *core.Printer, d uninstallDeps) []removal {
-	done := []removal{}
+func (p *uninstallPlan) execute(pr *core.Printer, d uninstallDeps) (done []removal, failed int) {
+	done = []removal{}
 	if p.opts.binaries {
 		for _, path := range []string{p.rexBin, p.daemonBin} {
 			if path == "" {
@@ -301,6 +309,7 @@ func (p *uninstallPlan) execute(pr *core.Printer, d uninstallDeps) []removal {
 			}
 			if err := removeFile(path); err != nil {
 				pr.Warn(fmt.Sprintf("error removing %s: %v", path, err))
+				failed++
 				continue
 			}
 			done = append(done, removal{Kind: "binaries", Path: path})
@@ -308,22 +317,23 @@ func (p *uninstallPlan) execute(pr *core.Printer, d uninstallDeps) []removal {
 		}
 	}
 	if p.opts.wipeState {
-		done = removeDirReported(pr, done, "state", p.stateDir)
-		done = removeDirReported(pr, done, "sessions", p.sessionsDir)
+		done, failed = removeDirReported(pr, done, failed, "state", p.stateDir)
+		done, failed = removeDirReported(pr, done, failed, "sessions", p.sessionsDir)
 	}
 	if p.opts.purgeConfig {
-		done = removeDirReported(pr, done, "config", p.configDir)
+		done, failed = removeDirReported(pr, done, failed, "config", p.configDir)
 	}
 	if p.opts.stripProfile {
 		stripped, errs := stripProfileBlocks(p.profiles, d.now())
 		for _, e := range errs {
 			pr.Warn(fmt.Sprintf("error stripping profile: %v", e))
 		}
+		failed += len(errs)
 		for _, s := range stripped {
 			done = append(done, removal{Kind: "profile", Path: s.Path, Detail: "backup: " + s.Backup})
 		}
 	}
-	return done
+	return done, failed
 }
 
 // stopDaemonForUninstall stops the daemon and confirms its socket is gone
@@ -367,14 +377,15 @@ func removeFile(path string) error {
 	return nil
 }
 
-// removeDirReported removes dir and appends it to done, or warns.
-func removeDirReported(p *core.Printer, done []removal, kind, dir string) []removal {
+// removeDirReported removes dir and appends it to done, or warns and counts
+// the failure.
+func removeDirReported(p *core.Printer, done []removal, failed int, kind, dir string) ([]removal, int) {
 	if err := os.RemoveAll(dir); err != nil {
 		p.Warn(fmt.Sprintf("error removing %s: %v", dir, err))
-		return done
+		return done, failed + 1
 	}
 	slog.Info("uninstall: removed dir", "path", dir)
-	return append(done, removal{Kind: kind, Path: dir})
+	return append(done, removal{Kind: kind, Path: dir}), failed
 }
 
 // dirSummary returns a human-readable "(N files, X KB)" string for a directory.
