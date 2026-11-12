@@ -292,7 +292,7 @@ func TestRefreshModelsCacheServesAndExpires(t *testing.T) {
 	raw, err := os.ReadFile(cache)
 	require.NoError(t, err)
 	poisoned := strings.Replace(string(raw), `"m1"`, `"cached-id","bad id","-x"`, 1)
-	require.NoError(t, os.WriteFile(cache, []byte(poisoned), 0o600))
+	require.NoError(t, os.WriteFile(cache, []byte(poisoned), 0o600)) //nolint:gosec // test path under t.TempDir()
 	got := RefreshModels(context.Background(), tools, cache, false, now.Add(23*time.Hour))
 	require.Equal(t, []string{"cached-id"}, ids(got["stub-age"]), "served from the cache, ids re-validated")
 
@@ -301,7 +301,7 @@ func TestRefreshModelsCacheServesAndExpires(t *testing.T) {
 	require.Equal(t, []string{"m1"}, ids(got["stub-age"]))
 
 	// force ignores a fresh entry.
-	require.NoError(t, os.WriteFile(cache, []byte(poisoned), 0o600))
+	require.NoError(t, os.WriteFile(cache, []byte(poisoned), 0o600)) //nolint:gosec // test path under t.TempDir()
 	got = RefreshModels(context.Background(), tools, cache, true, now.Add(time.Minute))
 	require.Equal(t, []string{"m1"}, ids(got["stub-age"]))
 

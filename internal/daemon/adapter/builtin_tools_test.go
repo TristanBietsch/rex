@@ -125,3 +125,19 @@ func TestToolsWithoutLoginRegexHaveNoNotice(t *testing.T) {
 		require.Empty(t, n.Notice())
 	}
 }
+
+// Once an OSC report arrived the footer fallback's login notice is gone.
+func TestOSCStatusNoticeClearsAfterFirstReport(t *testing.T) {
+	ad := builtinAdapter(t, "grok")
+	n := ad.(Noticer)
+	require.Equal(t, protocol.StateNeedsInput, ad.Detect([]byte(grokSign), 2*time.Second))
+	require.NotEmpty(t, n.Notice())
+	ad.(*OSCStatus).Observe(osc("state=working"))
+	require.Empty(t, n.Notice())
+}
+
+func TestForRejectsBadLoginRegex(t *testing.T) {
+	_, err := For(registry.Tool{ID: "x", Command: []string{"x"}, LoginRegex: "(",
+		Detect: registry.Detect{Kind: "heuristic", PromptRegex: "p", IdleMs: 10}}, "")
+	require.ErrorContains(t, err, "login regex")
+}

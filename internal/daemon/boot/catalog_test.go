@@ -40,8 +40,8 @@ func catalogHome(t *testing.T, config string) (marker, cache string) {
 func writeConfig(t *testing.T, content string) {
 	t.Helper()
 	cfg := filepath.Join(os.Getenv("HOME"), ".config", "rex", "config.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
-	require.NoError(t, os.WriteFile(cfg, []byte(content), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))     //nolint:gosec // test path under t.TempDir()
+	require.NoError(t, os.WriteFile(cfg, []byte(content), 0o600)) //nolint:gosec // test path under t.TempDir()
 }
 
 func loadSettings(t *testing.T) *settings.Store {
