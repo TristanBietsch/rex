@@ -51,7 +51,6 @@ func TestBuiltinNewToolsDetect(t *testing.T) {
 		{"grok", "idle", grokIdle, protocol.StateNeedsInput},
 		{"grok", "busy", grokIdle + grokBusy, protocol.StateWorking},
 		{"grok", "trust dialog", grokTrust, protocol.StateNeedsInput},
-		{"cursor", "idle", cursorIdle, protocol.StateNeedsInput},
 		{"cursor", "busy", cursorIdle + cursorBusy, protocol.StateWorking},
 		{"cursor", "approval", cursorAsk, protocol.StateNeedsInput},
 	} {
@@ -60,6 +59,14 @@ func TestBuiltinNewToolsDetect(t *testing.T) {
 			require.Equal(t, tc.want, ad.Detect([]byte(tc.screen), 2*time.Second))
 		})
 	}
+}
+
+// Cursor's idle screen has no text of its own, so it reads as waiting through
+// the stale-silence rule (a spinner would keep animating).
+func TestCursorIdleReadsAsWaitingWhenStale(t *testing.T) {
+	ad := builtinAdapter(t, "cursor")
+	require.Equal(t, protocol.StateWorking, ad.Detect([]byte(cursorIdle), 2*time.Second))
+	require.Equal(t, protocol.StateNeedsInput, ad.Detect([]byte(cursorIdle), 16*time.Second))
 }
 
 // Cursor has no OSC 7501: no observer, no reply, heuristic only.
@@ -140,4 +147,14 @@ func TestForRejectsBadLoginRegex(t *testing.T) {
 	_, err := For(registry.Tool{ID: "x", Command: []string{"x"}, LoginRegex: "(",
 		Detect: registry.Detect{Kind: "heuristic", PromptRegex: "p", IdleMs: 10}}, "")
 	require.ErrorContains(t, err, "login regex")
+}
+
+// Cursor's real frame order while busy: spinner line first, then the input
+// bar and the status line below it. A full repaint leaves the status line
+// after the spinner in the raw stream; the status line must not read as idle.
+func TestCursorBusyFrameOrder(t *testing.T) {
+	frame := "\x1b[H⠘⠣ Thinking  2 tokens\r\n→ Reply with pong\r\n Auto · 6.1%\r\n ~/proj · main"
+	ad := builtinAdapter(t, "cursor")
+	require.Equal(t, protocol.StateWorking, ad.Detect([]byte(cursorIdle+frame), 2*time.Second),
+		"busy frame in repaint order read as idle")
 }

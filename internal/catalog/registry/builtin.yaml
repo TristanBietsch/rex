@@ -311,8 +311,10 @@ tools:
           arg_template: "--reasoning-effort={value}"
 
   # Cursor CLI (binary cursor-agent). No OSC 7501, so screen heuristics only:
-  # a spinner line plus a verb is working; the status line (model and context
-  # percent) is the idle screen; approvals and the trust dialog need the user.
+  # a spinner line plus a verb is working; approvals and the trust dialog need
+  # the user. Its idle screen has no text of its own that a busy repaint lacks
+  # (the status line is redrawn below the spinner), so an idle cursor reads as
+  # waiting through the 15 s stale-silence rule.
   # rex never answers its trust dialog and never passes --trust (it is saved
   # globally). Its default mode runs safe tool calls without asking.
   - id: cursor
@@ -326,7 +328,7 @@ tools:
     prompt_args: ["{prompt}"]
     detect:
       kind: heuristic
-      prompt_regex: "Waiting for approval|Run this command\\?|Workspace Trust Required|\\S \u00b7 \\d+(\\.\\d+)?%"
+      prompt_regex: "Waiting for approval|Run this command\\?|Workspace Trust Required"
       busy_regex: "^\\s*[\\x{2800}-\\x{28FF}]{1,2} [A-Z][a-z]+"
       idle_ms: 1500
     # Signed out: "Press any key to log in...".

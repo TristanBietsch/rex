@@ -214,6 +214,9 @@ func RefreshModels(ctx context.Context, tools []Tool, path string, force bool, n
 		}()
 	}
 	wg.Wait()
+	if ctx.Err() != nil {
+		return out // canceled: no cache write
+	}
 	if changed && path != "" {
 		if err := writeModelsCache(path, cache); err != nil {
 			slog.Warn("models: cache write failed", "path", path, "err", err)

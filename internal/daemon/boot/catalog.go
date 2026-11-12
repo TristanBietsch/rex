@@ -73,6 +73,12 @@ type Catalog struct {
 	// reload drops its result instead of overwriting newer tools.yaml.
 	gen atomic.Uint64
 	wg  sync.WaitGroup
+
+	// mu orders registry swaps: the generation check and SetRegistry in
+	// Refresh and Reload happen under it, so an old refresh can never land
+	// after a newer reload. cancel stops the running refresh.
+	mu     sync.Mutex
+	cancel context.CancelFunc
 }
 
 // NewCatalog returns a Catalog that swaps registries into srv.
@@ -90,24 +96,47 @@ func (c *Catalog) Wait() { c.wg.Wait() }
 // subprocess, no file read or write.
 func (c *Catalog) Refresh(ctx context.Context, st *settings.Store, force bool) {
 	if !settings.FeatureOn(st, featureModelAutodetect) {
+		c.stopRefresh()
 		return
 	}
+	// Each refresh has its own context: a reload (or the switch turning off)
+	// cancels it, which kills its model commands and stops it writing the cache.
+	rctx, cancel := context.WithCancel(ctx)
+	c.mu.Lock()
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.cancel = cancel
 	gen := c.gen.Load()
+	c.mu.Unlock()
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
+		defer cancel()
 		base, err := loadBase(c.toolsPath, st)
 		if err != nil {
 			slog.Warn("daemon: model refresh skipped", "err", err)
 			return
 		}
-		detected := registry.RefreshModels(ctx, base.Tools, modelsCachePath(), force, time.Now())
-		if ctx.Err() != nil || c.gen.Load() != gen {
+		detected := registry.RefreshModels(rctx, base.Tools, modelsCachePath(), force, time.Now())
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if rctx.Err() != nil || c.gen.Load() != gen {
 			return
 		}
 		c.srv.SetRegistry(base.WithModels(detected))
 		slog.Info("daemon: models refreshed", "tools_with_detected_models", len(detected))
 	}()
+}
+
+// stopRefresh cancels the running refresh, if any.
+func (c *Catalog) stopRefresh() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cancel != nil {
+		c.cancel()
+		c.cancel = nil
+	}
 }
 
 // Reload re-reads tools.yaml and swaps the new registry in at once (static
@@ -122,8 +151,13 @@ func (c *Catalog) Reload(ctx context.Context, st *settings.Store, force bool) er
 		return fmt.Errorf("reload %s: %w", c.toolsPath, err)
 	}
 	LogRegistryWarnings(c.toolsPath, reg)
+	c.mu.Lock()
 	c.gen.Add(1)
+	if c.cancel != nil {
+		c.cancel() // the running refresh belongs to the old registry
+	}
 	c.srv.SetRegistry(reg)
+	c.mu.Unlock()
 	fmt.Fprintln(os.Stderr, "rex-daemon: registry reloaded")
 	slog.Info("daemon: reload ok", "tools", c.toolsPath, "count", len(reg.Tools))
 	c.Refresh(ctx, st, force)
