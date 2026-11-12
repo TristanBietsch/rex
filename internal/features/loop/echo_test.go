@@ -52,6 +52,7 @@ func TestStripEcho_EchoCutAtTheStartOfTheWindow(t *testing.T) {
 	full := "> Refactor the parser carefully, run the whole\n  test suite and then print\n  <promise>DONE</promise>\n  once everything is green\n"
 	// Cut the window in the middle of "whole" (the echo's head is gone).
 	i := strings.Index(full, "ole\n")
+	require.GreaterOrEqual(t, i, 0)
 	window := full[i:]
 	got := stripEcho(window, prompt)
 	require.NotContains(t, got, "promise")
