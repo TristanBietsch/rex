@@ -91,6 +91,13 @@ func takeOver(path, stateDir, socket string) (*takeover, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Close-on-exec again at once, before anything can fork: the old
+	// image cleared it only to get these fds across its own exec.
+	inherited := []int{f.ListenerFD, f.LockFD}
+	for _, s := range f.Sessions {
+		inherited = append(inherited, s.FD)
+	}
+	handoff.CloseOnExec(inherited...)
 	if f.Socket != socket {
 		return nil, fmt.Errorf("handoff: listener is for %s, not %s", f.Socket, socket)
 	}

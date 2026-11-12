@@ -32,6 +32,9 @@ const hotTools = `tools:
       - id: hot
         name: "Hot restart probe"
         args: ["stty -echo; echo PID:$$; ( i=0; while [ $i -lt 150 ]; do echo tick$i; i=$((i+1)); sleep 0.02; done ) & while read l; do echo got:$l; [ \"$l\" = pid ] && echo PID:$$; done"]
+      - id: fds
+        name: "Open descriptors probe"
+        args: ["echo FDS:$(ls /dev/fd | tr '\\n' ,):END; sleep 30"]
 `
 
 // buildDaemon builds this package's binary into dir: a hot restart execs
@@ -134,6 +137,8 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 	// Ticks are flowing.
 	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, id), "tick10") }, 10*time.Second, 10*time.Millisecond)
 
+	fdsBefore := spawnFDs(t, c, ctx, stateDir, dir)
+
 	// The restart: no reply on success, the connection just closes.
 	_, err = c.Do(ctx, protocol.IntentRestart, protocol.Restart{Mode: protocol.RestartHot})
 	require.Error(t, err, "a hot restart that worked never replies")
@@ -165,6 +170,11 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 	for i := range 150 {
 		require.Equal(t, 1, strings.Count(all, "tick"+strconv.Itoa(i)+"\r\n"), "tick%d exactly once", i)
 	}
+	// R20 review: a session spawned by the new image inherits no handed-over
+	// descriptor (lock, other sessions' PTY masters): it sees the same open
+	// fds as one spawned before the restart.
+	require.Equal(t, fdsBefore, spawnFDs(t, c2, ctx, stateDir, dir), "no handed-over fd leaks into a new agent")
+
 	// The handoff file is gone; meta still says live.
 	matches, _ := filepath.Glob(filepath.Join(stateDir, "handoff-*"))
 	require.Empty(t, matches)
@@ -223,4 +233,26 @@ func TestHotRestartRefusedByOldBinary(t *testing.T) {
 	// Still the same daemon, input still flows.
 	require.NoError(t, c.SendInput(ack.SessionID, []byte("after\n")))
 	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "got:after") }, 10*time.Second, 20*time.Millisecond)
+}
+
+var fdsRe = regexp.MustCompile(`FDS:([0-9,]*):END`)
+
+// spawnFDs starts the fds probe and returns the descriptors its shell had
+// open.
+func spawnFDs(t *testing.T, c *client.Client, ctx context.Context, stateDir, cwd string) string {
+	t.Helper()
+	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "fds" + strconv.FormatInt(time.Now().UnixNano()%1e6, 10), ToolID: "echo", ModelID: "fds", CWD: cwd})
+	require.NoError(t, err)
+	var ack protocol.Ack
+	require.NoError(t, json.Unmarshal(env.Data, &ack))
+	var got string
+	require.Eventually(t, func() bool {
+		m := fdsRe.FindStringSubmatch(transcript(t, stateDir, ack.SessionID))
+		if m == nil {
+			return false
+		}
+		got = m[1]
+		return true
+	}, 10*time.Second, 20*time.Millisecond)
+	return got
 }

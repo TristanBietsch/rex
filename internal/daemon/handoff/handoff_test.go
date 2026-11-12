@@ -134,3 +134,23 @@ func TestBuildID(t *testing.T) {
 		t.Fatalf("BuildID = %q", id)
 	}
 }
+
+// R20 review: the new image marks every inherited fd close-on-exec again,
+// so agents it spawns later never inherit the lock or another session's
+// PTY master.
+func TestCloseOnExecSetsTheFlag(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	fd := int(r.Fd())
+	if _, err := Inherit(fd); err != nil {
+		t.Fatal(err)
+	}
+	CloseOnExec(fd, -1)
+	if fl, _ := unix.FcntlInt(uintptr(fd), unix.F_GETFD, 0); fl&unix.FD_CLOEXEC == 0 {
+		t.Fatal("FD_CLOEXEC not set")
+	}
+}

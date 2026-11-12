@@ -43,6 +43,17 @@ func Inherit(fds ...int) (restore func(), err error) {
 	return restore, nil
 }
 
+// CloseOnExec sets FD_CLOEXEC on each fd (negative ones are skipped): the
+// new image calls it on everything it inherited, so no agent it spawns
+// later inherits the lock or another session's PTY master.
+func CloseOnExec(fds ...int) {
+	for _, fd := range fds {
+		if fd >= 0 {
+			syscall.CloseOnExec(fd)
+		}
+	}
+}
+
 // Exec replaces this process image with bin (same pid).
 func Exec(bin string, argv, env []string) error {
 	return syscall.Exec(bin, argv, env) //nolint:gosec // G204: bin is this daemon's own executable.
