@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The daemon now refuses an `init.lua` (and its folder) that another user
+  owns or that group or others can write, the rule `config.lua` and theme
+  files follow; a symlink is followed only to a file that passes. The
+  refusal is one `lua: refusing init.lua` line in the daemon log, and no
+  hook runs. Fix it with `chmod go-w ~/.config/rex/init.lua`.
 - Qwen Code, Cursor CLI and Grok Build are `enabled_by_default: true` again:
   visible in the wizard when installed and `extra_agents` is on. `rex setup`
   offers them under the same rule.

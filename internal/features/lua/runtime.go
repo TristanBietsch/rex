@@ -28,16 +28,19 @@
 package lua
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	lua "github.com/yuin/gopher-lua"
 
+	"github.com/tristanbietsch/rex/internal/runtime/privfile"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -159,9 +162,33 @@ func (r *Runtime) Close() {
 	r.L.Close()
 }
 
+// MaxInitFile is the largest init.lua LoadFile reads.
+const MaxInitFile = 1 << 20
+
+// readPrivate reads path with the rule rex applies to every user Lua file
+// (package privfile): a regular file, or a link to one, owned by you and not
+// writable by group or others, in a folder with the same rule, checked on
+// the opened file.
+func readPrivate(path string) ([]byte, error) {
+	dir, name := filepath.Dir(path), filepath.Base(path)
+	data, err := privfile.Read(dir, name, MaxInitFile)
+	if err != nil {
+		return nil, err
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return nil, err
+	}
+	if err := privfile.CheckDir(fi, dir); err != nil {
+		return nil, fmt.Errorf("folder: %w", err)
+	}
+	return data, nil
+}
+
 // LoadFile loads and executes the Lua file at path. If the file does not exist
 // the call is a no-op (logs once at info level and returns nil). A Lua syntax
-// or runtime error is returned as a non-nil error, as is a top-level run that
+// or runtime error is returned as a non-nil error, as is a file refused by the
+// owner and mode check (readPrivate, logged) and a top-level run that
 // exceeds LoadTimeout (wrapping context.DeadlineExceeded). Handlers the
 // script registered before failing stay registered.
 func (r *Runtime) LoadFile(path string) error {
@@ -176,9 +203,19 @@ func (r *Runtime) LoadFile(path string) error {
 		return nil
 	}
 
+	data, err := readPrivate(path)
+	if err != nil {
+		r.log.Error("lua: refusing init.lua", "path", path, "err", err)
+		return fmt.Errorf("lua: LoadFile %q: %w", path, err)
+	}
 	r.log.Debug("lua: loading config file", "path", path)
-	err := r.runWithDeadline(context.Background(), r.opts.LoadTimeout, func() error {
-		return r.L.DoFile(path)
+	err = r.runWithDeadline(context.Background(), r.opts.LoadTimeout, func() error {
+		fn, err := r.L.Load(bytes.NewReader(data), path)
+		if err != nil {
+			return err
+		}
+		r.L.Push(fn)
+		return r.L.PCall(0, lua.MultRet, nil)
 	})
 	if err != nil {
 		r.log.Error("lua: error loading config file", "path", path, "timeout", r.opts.LoadTimeout, "err", err)

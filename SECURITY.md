@@ -134,7 +134,9 @@ filesystem permissions.
 
 - **`~/.config/rex/init.lua` is trusted user code.** It runs inside the
   daemon with your privileges and is not sandboxed. Anyone who can edit it
-  can already run code as you. The same applies to `tools.yaml` and
+  can already run code as you. The daemon refuses an `init.lua` or folder
+  another user owns or that group or others can write (the `config.lua`
+  rule), and logs why; running such a file anyway is in scope. The same applies to `tools.yaml` and
   `config.yaml`, which choose the programs rex spawns.
 - **`config.lua` and `~/.config/rex/lua/` are trusted user code** too. Their
   restricted Lua state (no `os`, `io`, `load` or `print`; a 250 ms limit,

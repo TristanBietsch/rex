@@ -59,6 +59,8 @@ These bounds protect the daemon's **liveness**, not its security. They do not li
 
 `init.lua` is **trusted user code**, like a shell rc file:
 
+- `LoadFile` reads it through `internal/runtime/privfile`: a regular file (or a link to one) owned by the daemon user, not group- or world-writable, at most 1 MiB, in a folder with the same rule. Anything else is refused with a `lua: refusing init.lua` log line.
+
 - It runs in-process as the daemon user, with full access to the `rex.*` Go callbacks.
 - `require`, `dofile`, `loadfile` and `load` are available, so it can run any Lua file the user can read.
 - `rex.send` can type arbitrary text, and therefore commands, into any session's PTY.

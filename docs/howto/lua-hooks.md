@@ -22,6 +22,8 @@ rex.on("session_updated", function(s)
 end)
 ```
 
+   The file and its folder must be owned by you and not writable by group or others (`chmod go-w`); otherwise the daemon logs `lua: refusing init.lua` and runs nothing.
+
 2. Restart the daemon so it loads the file:
 
 ```sh
