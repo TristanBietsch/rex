@@ -377,6 +377,16 @@ func (s *Store) Reopen(id string) error {
 	return nil
 }
 
+// ReleaseReaping gives back the retire sweep's claim on a session whose
+// deletion was abandoned, so a later sweep claims it again.
+func (s *Store) ReleaseReaping(id string) {
+	if sess, ok := s.Get(id); ok {
+		sess.mu.Lock()
+		sess.reaping = false
+		sess.mu.Unlock()
+	}
+}
+
 // RetireCandidate is a marked session whose deadline has passed.
 type RetireCandidate struct {
 	ID       string

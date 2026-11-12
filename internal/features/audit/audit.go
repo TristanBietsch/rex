@@ -30,6 +30,10 @@ const (
 	MaxPromptRunes = 20000
 )
 
+// DeletedWhileRunning is the description note of a session that was cleared
+// before it ended; its state is recorded as failed.
+const DeletedWhileRunning = "deleted while running"
+
 // Record is one audit line: how one session run ended.
 type Record struct {
 	TS          time.Time `json:"ts"`
@@ -91,6 +95,18 @@ func FromSummary(sum protocol.SessionSummary, workspaceID, promptFirst, prompt s
 	if name == "" {
 		name = sum.Slug
 	}
+	state, desc := string(sum.State), protocol.SanitizeDisplayText(sum.Description, protocol.MaxDescriptionRunes)
+	switch sum.State {
+	case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
+	case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
+		// Recorded at teardown while still live: the run was cut short.
+		state = string(protocol.StateFailed)
+		if desc == "" {
+			desc = DeletedWhileRunning
+		} else {
+			desc += " (" + DeletedWhileRunning + ")"
+		}
+	}
 	r := Record{
 		TS:              now.UTC(),
 		WorkspaceID:     workspaceID,
@@ -100,12 +116,12 @@ func FromSummary(sum protocol.SessionSummary, workspaceID, promptFirst, prompt s
 		Tool:            sum.ToolID,
 		Model:           sum.ModelID,
 		PromptFirstLine: FirstLine(promptFirst),
-		State:           string(sum.State),
+		State:           state,
 		StartedAt:       sum.StartedAt.UTC(),
 		EndedAt:         ended.UTC(),
 		DurationS:       dur,
 		ResumeID:        sum.ResumeID,
-		Description:     protocol.SanitizeDisplayText(sum.Description, protocol.MaxDescriptionRunes),
+		Description:     desc,
 	}
 	if fullPrompt && prompt != "" {
 		r.Prompt = TrimPrompt(prompt)

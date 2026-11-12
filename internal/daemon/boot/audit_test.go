@@ -150,7 +150,7 @@ func TestAudit_OffWritesNothingAndKeepsNoPrompt(t *testing.T) {
 	require.Empty(t, full)
 	require.NoError(t, r.store.Add(s))
 	require.NoError(t, r.store.Transition("aaaa1111", protocol.StateDone))
-	r.a.End(s)
+	require.NoError(t, r.a.End(s))
 	r.a.Close()
 
 	require.NoFileExists(t, r.global())
@@ -260,7 +260,7 @@ func TestAudit_WriteFailureIsRetriedAtTeardown(t *testing.T) {
 	require.False(t, s.AuditIsWritten(), "a failed write does not count")
 
 	require.NoError(t, os.Remove(r.global()))
-	r.a.End(s) // the teardown path
+	require.NoError(t, r.a.End(s)) // the teardown path
 	require.True(t, s.AuditIsWritten())
 	require.Len(t, r.records(t, r.global()), 1)
 }
@@ -275,7 +275,7 @@ func TestAudit_PersistCalledAfterAWrite(t *testing.T) {
 	require.NoError(t, store.Add(s))
 	require.NoError(t, store.Transition("aaaa1111", protocol.StateDone))
 	a.Close()
-	a.End(s) // already written: nothing more
+	require.NoError(t, a.End(s)) // already written: nothing more
 	require.Equal(t, []string{"aaaa1111"}, persisted)
 }
 

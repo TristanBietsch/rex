@@ -133,8 +133,9 @@ type AuditHook interface {
 	// the session starts. It keeps only what it needs, in memory.
 	Begin(sess *state.Session, prompt string)
 	// End writes the session's audit record unless it is already written.
-	// The server calls it before it removes the session's directory.
-	End(sess *state.Session)
+	// The server calls it before it removes the session's directory, and
+	// keeps the session when it fails.
+	End(sess *state.Session) error
 }
 
 // resumeOn reports whether the resume feature is on.

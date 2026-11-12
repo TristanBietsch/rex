@@ -100,7 +100,7 @@ func NewAudit(cfg AuditConfig, store *state.Store) *Audit {
 func (a *Audit) run() {
 	defer close(a.done)
 	for job := range a.queue {
-		a.end(job.sess, job.sum)
+		_ = a.end(job.sess, job.sum) // logged once; the teardown path retries
 	}
 }
 
@@ -148,20 +148,21 @@ type auditJob struct {
 // End writes sess's record unless its current run already has one. A write
 // that fails is logged once per file per daemon run and tried again at the
 // next call (the teardown path calls it before a session is deleted).
-func (a *Audit) End(sess *state.Session) { a.end(sess, sess.Summary()) }
+func (a *Audit) End(sess *state.Session) error { return a.end(sess, sess.Summary()) }
 
-func (a *Audit) end(sess *state.Session, sum protocol.SessionSummary) {
+func (a *Audit) end(sess *state.Session, sum protocol.SessionSummary) error {
 	if !a.on.Load() {
-		return
+		return nil
 	}
 	wrote, err := sess.AuditOnce(func() error { return a.write(sess, sum) })
 	if err != nil {
 		a.warnOnce(a.global, err)
-		return
+		return err
 	}
 	if wrote && a.persist != nil {
 		a.persist(sess)
 	}
+	return nil
 }
 
 func (a *Audit) write(sess *state.Session, sum protocol.SessionSummary) error {

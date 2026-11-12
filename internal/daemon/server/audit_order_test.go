@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -33,10 +34,11 @@ func (l *auditLog) get() []string {
 type fakeAudit struct {
 	log     *auditLog
 	prompts map[string]string
+	err     error
 }
 
 func (f *fakeAudit) Begin(sess *state.Session, prompt string) { f.prompts[sess.ID] = prompt }
-func (f *fakeAudit) End(sess *state.Session)                  { f.log.add("audit:" + sess.ID) }
+func (f *fakeAudit) End(sess *state.Session) error            { f.log.add("audit:" + sess.ID); return f.err }
 
 func newAuditServer(t *testing.T, now time.Time) (*Server, *auditLog) {
 	t.Helper()
@@ -99,4 +101,32 @@ func TestDeleteSession_NoAuditHookStillDeletes(t *testing.T) {
 	addEnded(t, srv, "aaaa1111", protocol.StateDone)
 	require.NoError(t, srv.deleteSession("aaaa1111", protocol.RemovedByUser))
 	require.Equal(t, []string{"remove:aaaa1111"}, log.get())
+}
+
+func TestDeleteSession_AuditFailureKeepsTheSessionUntilTheNextSweep(t *testing.T) {
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	srv, log := newAuditServer(t, now)
+	srv.removeSession = state.RemoveSession // the real thing: the dir must stay or go
+	fa := srv.cfg.Audit.(*fakeAudit)
+	fa.err = errors.New("audit dir not writable")
+
+	sess := addEnded(t, srv, "aaaa1111", protocol.StateDone)
+	require.NoError(t, state.WriteMeta(srv.cfg.StateDir, sess))
+	_, err := srv.cfg.Store.SetRetire("aaaa1111", now.Add(-time.Second), now.Add(-time.Hour))
+	require.NoError(t, err)
+	dir, err := state.SessionDir(srv.cfg.StateDir, "aaaa1111")
+	require.NoError(t, err)
+
+	srv.sweepRetired()
+	require.DirExists(t, dir, "no record, no deletion")
+	_, ok := srv.cfg.Store.Get("aaaa1111")
+	require.True(t, ok, "the store entry stays")
+	require.ErrorIs(t, srv.deleteSession("aaaa1111", protocol.RemovedByUser), errAuditFailed)
+
+	fa.err = nil // writable again: the next sweep clears it
+	srv.sweepRetired()
+	require.NoDirExists(t, dir)
+	_, ok = srv.cfg.Store.Get("aaaa1111")
+	require.False(t, ok)
+	require.Contains(t, log.get(), "audit:aaaa1111")
 }

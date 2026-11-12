@@ -57,7 +57,13 @@ func (s *Server) deleteSession(id, reason string) error {
 	// The audit record goes first: once the directory is gone nothing else
 	// remembers this session, so it is never deleted without its record.
 	if s.cfg.Audit != nil {
-		s.cfg.Audit.End(sess)
+		if err := s.cfg.Audit.End(sess); err != nil {
+			// Keep the session (and, for the retire sweep, its claim is
+			// given back) so the next sweep or delete tries again.
+			slog.Error("session: audit record not written; keeping the session", "session", id, "reason", reason, "err", err)
+			s.cfg.Store.ReleaseReaping(id)
+			return fmt.Errorf("%w: %w", errAuditFailed, err)
+		}
 	}
 	if err := s.cfg.Store.RemoveWithReason(id, reason); err != nil {
 		slog.Debug("session: delete raced; already removed", "session", id, "reason", reason)
@@ -74,6 +80,10 @@ func (s *Server) deleteSession(id, reason string) error {
 }
 
 var errSessionNotFound = errors.New("session not found")
+
+// errAuditFailed is deleteSession's refusal to remove a session whose audit
+// record could not be written.
+var errAuditFailed = errors.New("audit record could not be written; session kept")
 
 // runRetireReaper sweeps once immediately (picking up deadlines restored from
 // disk, including ones that passed while the daemon was down) and then on a

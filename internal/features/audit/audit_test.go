@@ -268,3 +268,19 @@ func mustLine(t *testing.T, r Record) string {
 	require.NoError(t, err)
 	return string(b)
 }
+
+func TestFromSummary_LiveSessionAtTeardownIsRecordedAsFailed(t *testing.T) {
+	for _, st := range []protocol.State{protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput} {
+		sum := protocol.SessionSummary{ID: "aaaa1111-0", ShortID: "aaaa", ToolID: "claude", State: st, StartedAt: t0.Add(-time.Minute)}
+		r := FromSummary(sum, "", "", "", false, t0)
+		require.Equal(t, "failed", r.State, st)
+		require.Equal(t, DeletedWhileRunning, r.Description)
+		require.Equal(t, t0, r.EndedAt)
+	}
+	sum := protocol.SessionSummary{ID: "aaaa1111-0", ToolID: "claude", State: protocol.StateWorking, Description: "fixing it", StartedAt: t0}
+	require.Equal(t, "fixing it (deleted while running)", FromSummary(sum, "", "", "", false, t0).Description)
+	sum.State = protocol.StateCrashed
+	r := FromSummary(sum, "", "", "", false, t0)
+	require.Equal(t, "crashed", r.State)
+	require.Equal(t, "fixing it", r.Description)
+}
