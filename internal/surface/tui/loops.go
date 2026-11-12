@@ -350,9 +350,14 @@ func renderLoopStopConfirm(m Model, width int) string {
 }
 
 // loopRows is the loops in overlay order: live ones (running, paused) first,
-// then finished ones, newest first in each.
+// then finished ones, newest first in each. A workspace board lists only the
+// loops of its sessions.
 func loopRows(m Model) []protocol.LoopSummary {
 	rows := slices.Clone(m.Loops)
+	if m.wsFilterID() != "" { // a workspace board: loops of its sessions only
+		scoped := scopedSessions(m)
+		rows = slices.DeleteFunc(rows, func(l protocol.LoopSummary) bool { return sessionIndex(scoped, l.SessionID) < 0 })
+	}
 	slices.SortStableFunc(rows, func(a, b protocol.LoopSummary) int {
 		if at, bt := a.State.Terminal(), b.State.Terminal(); at != bt {
 			if at {
@@ -397,7 +402,7 @@ func updateLoopsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		if len(rows) == 0 || rows[sel].SessionID == "" {
 			return m, nil
 		}
-		if sessionIndex(m.Sessions, rows[sel].SessionID) < 0 {
+		if sessionIndex(scopedSessions(m), rows[sel].SessionID) < 0 {
 			m.Err = "loops: the session of " + rows[sel].Name + " is not on the board"
 			return m, nil
 		}

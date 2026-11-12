@@ -72,14 +72,16 @@ func commandTarget(m *Model, verb string, args []string) (string, bool) {
 // then short id (the CLI's order). It returns the session id, or "" and a
 // status-line message. Slugs shared by several sessions (restored from an
 // older daemon) are reported as ambiguous rather than resolved to the first.
+// On a workspace board only that workspace's sessions match.
 func resolveLocal(m Model, sel string) (id, errMsg string) {
-	for _, s := range m.Sessions {
+	sessions := scopedSessions(m) // a workspace board names only its own
+	for _, s := range sessions {
 		if s.ID == sel {
 			return s.ID, ""
 		}
 	}
 	var slugHits []string
-	for _, s := range m.Sessions {
+	for _, s := range sessions {
 		if s.Slug == sel {
 			slugHits = append(slugHits, s.ShortID)
 			id = s.ID
@@ -92,7 +94,7 @@ func resolveLocal(m Model, sel string) (id, errMsg string) {
 		slog.Warn("tui: ambiguous selector", "selector", sel, "matches", slugHits)
 		return "", "ambiguous: " + sel + " matches " + strings.Join(slugHits, ", ") + "; use short id"
 	}
-	for _, s := range m.Sessions {
+	for _, s := range sessions {
 		if s.ShortID == sel {
 			return s.ID, ""
 		}

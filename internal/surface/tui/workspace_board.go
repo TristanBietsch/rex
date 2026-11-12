@@ -167,3 +167,20 @@ func workspaceBorderDefault(m Model) bool {
 	}
 	return m.Store.Source("window_border") == settings.SourceDefault
 }
+
+// overviewHeadline is the daemon's overview headline, "" when there is none
+// and on a scoped board (it speaks for every workspace).
+func overviewHeadline(m Model) string {
+	o := m.Overview
+	if o == nil || !o.Enabled || m.wsFilterID() != "" {
+		return ""
+	}
+	return o.Headline
+}
+
+// inScope reports whether s belongs to the board's workspace (always, on an
+// ordinary board).
+func inScope(m Model, s protocol.SessionSummary) bool {
+	id := m.wsFilterID()
+	return id == "" || s.WorkspaceID == id
+}

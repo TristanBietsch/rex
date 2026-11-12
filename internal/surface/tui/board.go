@@ -353,7 +353,7 @@ func groupTitleText(m Model, gi int) string {
 	}
 	count := fmt.Sprintf("  %d", n)
 	if f.rowsActive() { // a filter or search narrows the rows: show n of the section's total
-		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx})))
+		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx, workspace: f.workspace})))
 	}
 	out := "  " + title + styleDim.Render(count)
 	if gi != groupDone || n <= doneCollapseAt || f.searching() {

@@ -113,7 +113,7 @@ func renderOverviewLine(m Model, width int) string {
 	}
 	line := styleDim.Render(overviewLead) + countStyle.Render(count)
 	if o := m.Overview; o != nil && o.Enabled {
-		if headline := protocol.FlattenDisplayText(o.Headline); headline != "" {
+		if headline := protocol.FlattenDisplayText(overviewHeadline(m)); headline != "" {
 			age := ""
 			if !o.GeneratedAt.IsZero() {
 				age = " · " + durationAgoAt(m.now(), o.GeneratedAt)

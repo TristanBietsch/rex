@@ -122,8 +122,8 @@ func renderOverviewOverlay(m Model) string {
 
 	var head []string
 	head = append(head, styleSectionTitle.Render("Overview"), "")
-	if o := m.Overview; overviewOn(m) && o != nil && o.Enabled && o.Headline != "" {
-		head = append(head, strings.Split(ansi.Wrap(protocol.FlattenDisplayText(o.Headline), inner, ""), "\n")...)
+	if o := m.Overview; overviewOn(m) && o != nil && overviewHeadline(m) != "" {
+		head = append(head, strings.Split(ansi.Wrap(protocol.FlattenDisplayText(overviewHeadline(m)), inner, ""), "\n")...)
 		if !o.GeneratedAt.IsZero() {
 			head = append(head, styleMuted.Render("updated "+durationAgoAt(m.now(), o.GeneratedAt)+" ago"))
 		}

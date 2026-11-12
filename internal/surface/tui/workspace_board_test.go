@@ -215,3 +215,77 @@ func TestWorkspaceBoard_ChipNameIsSanitizedAndCut(t *testing.T) {
 	require.NotContains(t, ansi.Strip(chip), "\x1b")
 	require.LessOrEqual(t, ansi.StringWidth(chip), len(wsA)+maxChipNameCells+3)
 }
+
+func sessionEnv(t *testing.T, typ string, v any) protocol.Envelope {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	require.NoError(t, err)
+	return protocol.Envelope{Type: typ, Data: raw}
+}
+
+// Another workspace's sessions make no sound, blink or notice on a scoped
+// board; this workspace's still do.
+func TestWorkspaceBoard_OtherWorkspacesAreSilent(t *testing.T) {
+	m := wsModel(t, true)
+	rec := &recordingAudio{}
+	m.Audio = rec
+	m = m.applyEvent(sessionEnv(t, protocol.EventSessionAdded, protocol.SessionSummary{ID: "9", ShortID: "ff99", Slug: "new-b", State: protocol.StateQueued, WorkspaceID: wsB}))
+	m = m.applyEvent(retireUpdate(t, "2", map[string]any{"state": "done"}))
+	m = m.applyEvent(sessionEnv(t, protocol.EventSessionRemoved, protocol.SessionRemoved{SessionID: "2"}))
+	require.Empty(t, rec.Events)
+	require.NotContains(t, m.BlinkUntil, "2")
+
+	m = m.applyEvent(retireUpdate(t, "1", map[string]any{"state": "done"}))
+	require.NotEmpty(t, rec.Events, "this workspace's session still sounds")
+	require.Contains(t, m.BlinkUntil, "1")
+}
+
+// A selector typed on a scoped board only names this workspace's sessions.
+func TestWorkspaceBoard_SelectorsStayInScope(t *testing.T) {
+	m := wsModel(t, true)
+	id, msg := resolveLocal(m, "in-b")
+	require.Empty(t, id)
+	require.Contains(t, msg, "no match")
+	id, _ = resolveLocal(m, "bb22")
+	require.Empty(t, id)
+	id, _ = resolveLocal(m, "in-a")
+	require.Equal(t, "1", id)
+}
+
+// The n/total of a filtered section counts this workspace only.
+func TestWorkspaceBoard_SectionTotalIsScoped(t *testing.T) {
+	m := wsModel(t, true)
+	require.NoError(t, m.Store.Set("search", true))
+	m.Search = "in-a"
+	out := ansi.Strip(renderBoard(m, 120, 0))
+	require.Contains(t, out, "1/1")
+	require.NotContains(t, out, "1/2")
+}
+
+func TestWorkspaceBoard_FailListIsScoped(t *testing.T) {
+	m := wsModel(t, true)
+	m.Sessions = append(m.Sessions,
+		protocol.SessionSummary{ID: "5", ShortID: "ee55", Slug: "a-fail", State: protocol.StateFailed, WorkspaceID: wsA},
+		protocol.SessionSummary{ID: "6", ShortID: "ff66", Slug: "b-fail", State: protocol.StateCrashed, WorkspaceID: wsB})
+	m, _ = openFail(m)
+	require.Equal(t, []string{"5"}, ids(m.Fail.Sessions))
+}
+
+// The loops overlay lists, and p/x act on, this workspace's loops only.
+func TestWorkspaceBoard_LoopsAreScoped(t *testing.T) {
+	m := wsModel(t, true)
+	m.Loops = testLoops() // loop A runs in session 1 (wsA), loop B in session 2 (wsB)
+	rows := loopRows(m)
+	require.Len(t, rows, 1)
+	require.Equal(t, loopA, rows[0].ID)
+}
+
+// The daemon-wide overview headline speaks for every workspace: a scoped
+// board does not show it.
+func TestWorkspaceBoard_NoDaemonWideHeadline(t *testing.T) {
+	m := wsModel(t, true)
+	m.Overview = &protocol.Overview{Enabled: true, Headline: "elsewhere things"}
+	require.Empty(t, overviewHeadline(m))
+	m.WS = nil
+	require.Equal(t, "elsewhere things", overviewHeadline(m))
+}
