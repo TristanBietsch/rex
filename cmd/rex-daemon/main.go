@@ -72,6 +72,7 @@ func run(args []string) error {
 	stateDir := fs.String("state-dir", layout.DataDir, "state directory")
 	toolsPath := fs.String("tools", layout.ToolsFile, "path to tools.yaml override (optional)")
 	skillsDir := fs.String("skills-dir", layout.SkillsDir, "skill library directory (rex new -skill)")
+	loopsDir := fs.String("loops-dir", layout.LoopsDir, "loop workflow files directory (rex loop)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
 
@@ -231,6 +232,12 @@ func run(args []string) error {
 	defer auditTrail.Close()
 	auditTrail.Configure(settingsStore)
 	hub.Subscribe(boot.AuditSettingIDs, auditTrail.Applier())
+	// Loop workflows: never enabled (no goroutine, subscription or file
+	// read) while the loops setting is off. The flag is read from the hub's
+	// current settings; a change enables or disables the runner.
+	loops := boot.NewLoops(ctx, *stateDir, *loopsDir, store, func() bool { return settings.FeatureOn(hub.Current(), "loops") })
+	defer loops.Close()
+	hub.Subscribe([]string{"loops"}, loops.Applier())
 
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
@@ -247,6 +254,7 @@ func run(args []string) error {
 		Snapshots:             snapStore,
 		OnUsageSample:         usageHub.Hub.Sample,
 		UsageQuery:            usageHub.Hub.Query,
+		Loops:                 loops,
 		Audit:                 auditTrail,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
@@ -267,6 +275,8 @@ func run(args []string) error {
 
 	// Started only now: switching usage on publishes its state through srv.
 	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
+	loops.SetServer(srv)
+	loops.SetEnabled(settings.FeatureOn(settingsStore, "loops"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
 	luaRT, luaCancel := boot.StartLuaRuntime(srv, store, hub.Current())

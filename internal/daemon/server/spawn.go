@@ -34,6 +34,12 @@ func unknownToolError(reg *registry.Registry, toolID, modelID string) error {
 // session's ID. Errors from validation, and an unknown tool or model, are
 // badIntent; the caller maps the rest to spawn_failed or too_many_sessions.
 func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) (string, error) {
+	return spawnSession(ctx, intentID, p, srv, "", 0)
+}
+
+// spawnSession is handleNewSession with the loop that owns the session (""
+// and 0 for an ordinary one), set on the session before it is announced.
+func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, loopID string, loopIter int) (string, error) {
 	if err := validateNewSession(p); err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
 		return "", badIntent(err)
@@ -154,6 +160,8 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		TrustFolder: p.TrustFolder,
 		Name:        p.Name,
 		Skills:      slices.Clone(p.Skills),
+		LoopID:      loopID,
+		LoopIter:    loopIter,
 	}
 	if cfg.Audit != nil {
 		cfg.Audit.Begin(sess, p.InitialPrompt)
@@ -352,6 +360,12 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		},
 		UnregisterModePreamble: func() {
 			srv.UnregisterModePreamble(sess.ID)
+		},
+		RegisterWriter: func(w pty.UnitWriter) {
+			srv.RegisterUnitWriter(sess.ID, w)
+		},
+		UnregisterWriter: func() {
+			srv.UnregisterUnitWriter(sess.ID)
 		},
 		RegisterAttach: func(fn func(fn func(repaint func() []byte))) {
 			srv.RegisterAttach(sess.ID, fn)

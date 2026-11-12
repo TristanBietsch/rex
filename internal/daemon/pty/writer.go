@@ -13,6 +13,18 @@ import (
 type writeUnit struct {
 	parts [][]byte
 	gap   time.Duration
+	// guard, when set, is called after each gap, right before the next part
+	// is written. When it returns false the rest of the unit is dropped (what
+	// was written stays written).
+	guard func() bool
+	// ctx, when set, is the caller's: once it ends (the caller gave up, say
+	// after a timeout) the writer writes no further part of the unit, and
+	// skips it entirely if it never got to start.
+	ctx context.Context
+	// res, when set (buffered, size 1), gets true once every part was
+	// written, and false when the guard dropped the rest or the writer ended
+	// first.
+	res chan bool
 }
 
 // ptyWriter is the only place that writes to the child's PTY. Input from
@@ -40,8 +52,11 @@ func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWrit
 				return
 			case u := <-pw.ch:
 				pw.busy.Store(true)
-				err := pw.write(u)
+				ok, err := pw.write(u)
 				pw.busy.Store(false)
+				if u.res != nil {
+					u.res <- ok && err == nil
+				}
 				if err != nil {
 					close(pw.dead)
 					if onErr != nil {
@@ -55,20 +70,45 @@ func newPTYWriter(w io.Writer, done <-chan struct{}, onErr func(error)) *ptyWrit
 	return pw
 }
 
-func (p *ptyWriter) write(u writeUnit) error {
+// write writes the unit's parts back to back. ok is false when the guard
+// dropped the rest of the unit or the writer ended during a gap.
+func (p *ptyWriter) write(u writeUnit) (bool, error) {
+	var callerGone <-chan struct{}
+	if u.ctx != nil {
+		callerGone = u.ctx.Done() // nil channel (never ready) when there is no ctx
+	}
+	gone := func() bool {
+		select {
+		case <-callerGone:
+			return true
+		default:
+			return false
+		}
+	}
 	for i, part := range u.parts {
+		if gone() {
+			return false, nil
+		}
 		if i > 0 && u.gap > 0 {
 			select {
 			case <-p.done:
-				return nil
+				return false, nil
+			case <-callerGone:
+				return false, nil
 			case <-time.After(u.gap):
 			}
 		}
+		if i > 0 && gone() {
+			return false, nil
+		}
+		if i > 0 && u.guard != nil && !u.guard() {
+			return false, nil
+		}
 		if _, err := p.w.Write(part); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // Send queues a unit behind earlier ones and returns false if ctx or the

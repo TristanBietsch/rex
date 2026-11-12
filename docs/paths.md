@@ -17,6 +17,8 @@ Every path below is under the home directory (`$HOME`, `%USERPROFILE%` on Window
 | Path | Contents |
 |------|----------|
 | `~/.config/rex/` | User configuration |
+| `~/.config/rex/loops/<name>.yaml` | Loop workflow files for `rex loop` (see [loops](loops.md)). Read only with `loops` on; must be yours, not a symlink, not group- or world-writable (`rex-daemon -loops-dir` overrides) |
+| `~/.local/share/rex/loops/<id>.json`, `<id>.log` | A loop's state and log, owner-only (0600) in a 0700 folder. Exists only with `loops` on; finished loops are deleted after 7 days |
 | `~/.config/rex/skills/<name>/` | Skill library: one folder per skill, each with a `SKILL.md` (see [skills](howto/skills.md)) |
 | `~/.config/rex/themes/<name>.yaml` | The user's own color themes |
 | `~/.local/share/rex/` | Session state (default `-state-dir`) |

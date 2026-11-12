@@ -107,6 +107,9 @@ type Config struct {
 	// with its message ("usage is off", a bad range). nil: the intent is
 	// rejected as not implemented.
 	UsageQuery func(protocol.UsageQuery) (protocol.UsageReport, error)
+	// Loops serves the loop intents (the loops feature). nil: they are
+	// rejected as not implemented. See LoopService.
+	Loops LoopService
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
@@ -202,6 +205,21 @@ type Server struct {
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
+	// inputLocks holds one mutex per session (*sync.Mutex), taken around
+	// every write of input to its PTY channel so a multi-part send (text,
+	// delay, Enter) is never interleaved with another writer's bytes.
+	inputLocks sync.Map
+	// unitWriters holds each running session's pty.UnitWriter (its single
+	// PTY writer). All input goes through it as units; a session without one
+	// refuses input ("session input not ready"), it never queues it.
+	unitWriters sync.Map
+	// writerReady holds, per session whose input channel is registered, a
+	// channel closed once its writer has been registered. Input that arrives
+	// while the session is still starting waits on it (briefly); input after
+	// the writer is gone (the session is exiting) is refused at once.
+	writerReady sync.Map
+	// writerWait bounds that wait (0 = defaultWriterWait). Tests shrink it.
+	writerWait time.Duration
 
 	outputSubsMu sync.RWMutex
 	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
@@ -228,6 +246,11 @@ type Server struct {
 	usageMu   sync.RWMutex
 	usage     *protocol.Usage
 	usageSubs []func(protocol.Usage)
+
+	// loopSubs is the fan-out for Loop events (loops are kept by the
+	// service, not here). loopMu guards it.
+	loopMu   sync.RWMutex
+	loopSubs []func(protocol.LoopSummary)
 
 	// boardClients counts the connections that completed Hello as a board
 	// viewer (the rex TUI) and are still open.
@@ -566,6 +589,7 @@ func (s *Server) MaxConcurrentSessions() int {
 // RegisterInputChannel attaches a channel for forwarding raw bytes to a session.
 // Called by the spawn handler at session creation time.
 func (s *Server) RegisterInputChannel(sessionID string, ch chan []byte) {
+	s.writerReady.Store(sessionID, make(chan struct{}))
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	if s.inputChannels == nil {
@@ -579,6 +603,9 @@ func (s *Server) UnregisterInputChannel(sessionID string) {
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	delete(s.inputChannels, sessionID)
+	s.inputLocks.Delete(sessionID)
+	s.unitWriters.Delete(sessionID)
+	s.writerReady.Delete(sessionID)
 }
 
 // InputChannel returns the channel for a session, or nil if none registered.

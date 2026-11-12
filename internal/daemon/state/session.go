@@ -81,6 +81,11 @@ type Session struct {
 	// (NewSession.Skills). Resume loads them again.
 	Skills []string
 
+	// LoopID and LoopIter name the loop that owns the session and its turn
+	// in progress ("" and 0 for an ordinary session).
+	LoopID   string
+	LoopIter int
+
 	// AuditWritten is whether the current run's audit record was written. It
 	// is persisted in meta.json (so a restart does not write it twice) but
 	// is not part of the wire summary, and it clears when the session goes
@@ -148,6 +153,8 @@ func (s *Session) Summary() protocol.SessionSummary {
 		ResumeID:      s.ResumeID,
 		TrustFolder:   s.TrustFolder,
 		Skills:        slices.Clone(s.Skills),
+		LoopID:        s.LoopID,
+		LoopIter:      s.LoopIter,
 	}
 }
 

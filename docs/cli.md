@@ -247,6 +247,51 @@ Exit **5** with `off: enable in Settings → Features (rex config set usage true
 
 ---
 
+## rex loop
+
+```
+rex loop ls [-socket path] [-o FORMAT]
+rex loop start <name> [-cwd DIR]
+rex loop pause|resume|stop <loop-id>
+rex loop log <loop-id> [-n N]
+rex loop new <name>
+```
+
+Repeat loops: the daemon re-sends a prompt each time the agent finishes a
+turn, until a check command you wrote exits 0 or a cap is reached. See
+[loops.md](loops.md). Every subcommand exits **5** with `off: enable in
+Settings → Features (rex config set loops true)` while the `loops` setting is
+off, before any file is read or any connection is tried.
+
+- `ls` lists the files in `~/.config/rex/loops` (an invalid one shows why)
+  and the daemon's loops with state, turn, and why a loop is paused or ended.
+  Without a daemon only the files show.
+- `start <name>` starts `~/.config/rex/loops/<name>.yaml`. The folder is
+  `-cwd`, else the file's `cwd`, else the current folder; it must be absolute
+  without `..`. The CLI reads the file too, so a typo or an unsafe file fails
+  before the daemon is asked. Exit 2 for a missing file, 5 for an invalid
+  one.
+- `pause`, `resume`, `stop` take a loop id (`loop-1a2b3c4d`, or just the 8
+  hex digits). `stop` ends the loop for good and leaves the session running.
+- `log` prints the last `-n` lines (default 200) of the loop's log: each
+  turn end, check command, exit code and captured output, and why it ended.
+- `new <name>` writes a commented starter file (0600, never over an
+  existing one) and opens `$EDITOR` when stdin is a terminal.
+
+`json` is `{"v":1,"cmd":"loop","data":...}` where `data` is the loop summary
+(`start`, `pause`, `resume`, `stop`), `{"dir","files":[{"name","kind","tool",
+"model","check","marker","max_iterations","error"}],"loops":[...],"daemon"}`
+(`ls`), `{"loop_id","lines","log"}` (`log`) or `{"name","path"}` (`new`).
+A loop summary is `id`, `name`, `kind`, `state`, `pause_reason`,
+`stop_reason`, `session_id`, `cwd`, `iteration`, `max_iterations`,
+`last_check_exit`, `started_at`, `updated_at`, `notice`.
+
+Exit **4** when the daemon is not running. Exit **6** when the daemon
+refuses: `too many loops`, a loop in the wrong state, an unknown loop, and
+against a `rex-daemon` older than loops, ``run `rex daemon restart` ``.
+
+---
+
 ## rex ls
 
 List sessions.

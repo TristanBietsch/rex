@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/version"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -42,6 +43,10 @@ func defaultHandlers() map[string]intentHandler {
 		protocol.IntentRedo:             handleRedo,
 		protocol.IntentUsageSample:      handleUsageSample,
 		protocol.IntentUsageQuery:       handleUsageQuery,
+		protocol.IntentStartLoop:        handleStartLoop,
+		protocol.IntentPauseLoop:        handlePauseLoop,
+		protocol.IntentResumeLoop:       handleResumeLoop,
+		protocol.IntentStopLoop:         handleStopLoop,
 	}
 }
 
@@ -61,6 +66,8 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 		// Same race as the overview: a change between this read and the
 		// subscription below is missed until the next one.
 		Usage: c.srv.Usage(),
+		// Loops are read here too; a change after this is a Loop event.
+		Loops: c.srv.loopSnapshot(),
 		Tools: c.srv.ToolInfos(),
 	}
 	if p.Client == protocol.ClientTUI {
@@ -211,15 +218,20 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 	if ch == nil {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
-	select {
-	case ch <- p.Bytes:
-		if !p.Synthetic {
-			c.srv.cancelRetireOnInput(p.SessionID, "SendInput")
-		}
-		return outcome{sessionID: p.SessionID}, nil
-	default:
-		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
+	// Under the session's input lock, so the bytes never land between a
+	// loop's text and its Enter. The loop is told before they are queued.
+	defer c.srv.lockInput(p.SessionID)()
+	if !p.Synthetic {
+		c.srv.userInput(p.SessionID) // a loop holds its re-sends
 	}
+	// Queued on the session's single writer, as one unit.
+	if _, err := c.srv.writeInput(p.SessionID, pty.WriteUnit{Parts: [][]byte{p.Bytes}}, inputQueueTimeout); err != nil {
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
+	}
+	if !p.Synthetic {
+		c.srv.cancelRetireOnInput(p.SessionID, "SendInput")
+	}
+	return outcome{sessionID: p.SessionID}, nil
 }
 
 func handleReply(c *client, env protocol.Envelope) (outcome, error) {
@@ -231,24 +243,17 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	if ch == nil {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
-	// Text, then Enter as a separate write. Terminals send Enter as
-	// \r (the PTY maps it to \n for line REPLs); full-screen TUIs like
-	// Claude Code insert a newline on \n instead of submitting, and
-	// treat text+\r in one burst as a paste.
-	select {
-	case ch <- []byte(p.Text):
-	default:
-		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
+	defer c.srv.lockInput(p.SessionID)()
+	c.srv.userInput(p.SessionID) // a loop holds its re-sends
+	// The text and its Enter are one unit on the session's writer: no loop
+	// text, client byte or terminal reply lands between them.
+	unit := pty.WriteUnit{Parts: [][]byte{[]byte(p.Text), {'\r'}}, Gap: replySubmitDelay, Wait: true}
+	if _, err := c.srv.writeInput(p.SessionID, unit, inputWaitTimeout); err != nil {
+		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
-	time.Sleep(replySubmitDelay)
-	select {
-	case ch <- []byte{'\r'}:
-		slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
-		c.srv.cancelRetireOnInput(p.SessionID, "Reply")
-		return outcome{sessionID: p.SessionID}, nil
-	default:
-		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "input buffer full")
-	}
+	slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
+	c.srv.cancelRetireOnInput(p.SessionID, "Reply")
+	return outcome{sessionID: p.SessionID}, nil
 }
 
 func handleRename(c *client, env protocol.Envelope) (outcome, error) {

@@ -557,6 +557,26 @@ func (s *Store) SetWaitReason(id, reason string) error {
 	return nil
 }
 
+// SetLoop records the loop that owns a session and its turn in progress, and
+// broadcasts a change. It is not activity: last_event_at is left alone.
+func (s *Store) SetLoop(id, loopID string, iter int) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.LoopID == loopID && sess.LoopIter == iter {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.LoopID, sess.LoopIter = loopID, iter
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"loop_id": loopID, "loop_iter": iter}})
+	return nil
+}
+
 // SetWaiting records what a working session is blocked on and since when,
 // and broadcasts a change. An empty kind clears it. A session that is not
 // working cannot wait, so kind is then treated as empty. It is not

@@ -59,6 +59,23 @@ filesystem permissions.
   stdin, environment values or transcripts, because free text cannot be
   scrubbed reliably. Any such content appearing in it is in scope. Turn it
   off with `cli_error_log: false` or `REX_ERROR_LOG=0`.
+- **Loop files and what they run.** With the `loops` feature on, the daemon
+  runs the `check` command of a loop file after each agent turn. The file
+  is trusted because you wrote it: only `~/.config/rex/loops/<name>.yaml` is
+  read, never a path from a client or text from an agent, and a symlink, a
+  file another user owns and a group- or world-writable file are refused.
+  The command is an argument list run directly (no shell), in its own
+  process group, with a timeout and capped output. A loop never answers an
+  agent's permission or question prompt: it runs only for agents that report
+  why they wait (Claude Code's hooks today, never a screen-reading guess),
+  sends only when the session is re-read at a finished turn with no question,
+  pauses and waits for you at any prompt, and holds its prompts back while
+  you type (its send and your keystrokes share a per-session lock). Loop
+  sessions run under the daemon's context, so turning the feature off pauses
+  loops without killing agents. Anything that makes the daemon run
+  a command that did not come from such a file, answer a prompt on its own,
+  or read a loop file from elsewhere is in scope. Loop state under
+  `~/.local/share/rex/loops` is owner-only.
 - **The audit trail and workspace folders.** With `audit_trail` on (the
   default) the daemon appends one line per finished session to
   `~/.local/share/rex/audit.jsonl`, or to `<workspace>/.rex/audit.jsonl` for

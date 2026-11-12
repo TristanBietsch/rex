@@ -435,6 +435,11 @@ func sanitizeSkills(in []string) []string {
 func fromSummary(sum protocol.SessionSummary) *Session {
 	// meta.json is not trusted for argv: keep only a valid resume id.
 	resumeID, _ := protocol.NormalizeResumeID(sum.ResumeID)
+	// Likewise the loop id, which names files elsewhere.
+	loopID, loopIter := "", 0
+	if protocol.ValidLoopID(sum.LoopID) && sum.LoopIter > 0 && sum.LoopIter <= 1000 {
+		loopID, loopIter = sum.LoopID, sum.LoopIter
+	}
 	return &Session{
 		ID: sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
 		Effort: sum.Effort, Slug: sum.Slug, CWD: sum.CWD,
@@ -449,5 +454,6 @@ func fromSummary(sum protocol.SessionSummary) *Session {
 		WorkingSince: sum.WorkingSince, EndedAt: sum.EndedAt,
 		ResumeID: resumeID, TrustFolder: sum.TrustFolder,
 		Skills: sanitizeSkills(sum.Skills),
+		LoopID: loopID, LoopIter: loopIter,
 	}
 }

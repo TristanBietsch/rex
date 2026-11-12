@@ -63,6 +63,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Loop workflows (Settings → Features → *Loop workflows*, off by default):
+  `rex loop start <name>` runs a session in a repeat loop. The daemon
+  re-sends your prompt each time the agent finishes a turn, until a check
+  command exits 0, a marker line shows up, or `max_iterations` /
+  `max_minutes` is reached. Loops are YAML files in `~/.config/rex/loops/`
+  (`rex loop new <name>` writes a starter); the check is an argument list,
+  never a shell string, and only your own, non-writable, non-symlink files
+  are read. Loops run only for agents that report why they wait (Claude
+  Code today). A permission or question prompt pauses the loop and rex never
+  answers it; typing into the session holds the next prompt; at most 2 loops
+  run at once; a daemon restart leaves them paused. Also `rex loop
+  ls|pause|resume|stop|log`. New `StartLoop`, `PauseLoop`, `ResumeLoop` and
+  `StopLoop` intents, a `Loop` event, `Snapshot.loops` and `loop_id` /
+  `loop_iter` on sessions (additive). The board has no loop cards yet. See
+  [docs/loops.md](docs/loops.md).
+
+
 - TUI: an optional thick colored window border (`window_border`, off by
   default; `window_border_color`: `random`, a name or `#rrggbb`). `random`
   picks a Pantone-inspired, colorblind-safe color per launch folder, so a

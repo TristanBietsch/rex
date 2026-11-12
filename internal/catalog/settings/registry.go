@@ -203,6 +203,11 @@ var Registry = []Setting{
 	},
 
 	{
+		ID: "loops", Label: "Loop workflows", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: false,
+		Help: "Run an agent session in a repeat loop (rex loop): the daemon re-sends your prompt each time the agent finishes a turn, until a check command you wrote exits 0 or a cap is reached. Loop files are read only from ~/.config/rex/loops, and their check commands run on your machine. A permission or question prompt pauses the loop; rex never answers it. Off: no loop runs, no loop file is read, and rex loop refuses.",
+	},
+	{
 		ID: "usage", Label: "Usage tracking", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Track agent usage: a ledger of tokens and cost per session (~/.local/share/rex/usage.jsonl) for rex usage, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written, nothing is polled, and rex usage refuses.",
