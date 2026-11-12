@@ -18,6 +18,7 @@ func TestParseNewArgs_TrustRefusesHomeAndAncestors(t *testing.T) {
 	require.NoError(t, checkNewTrust(false, home), "no -trust, nothing to check")
 	require.NoError(t, checkNewTrust(true, project))
 	for _, bad := range []string{home, filepath.Dir(home), string(filepath.Separator)} {
-		requireInvalidArgs(t, checkNewTrust(true, bad))
+		ee := requireInvalidArgs(t, checkNewTrust(true, bad))
+		require.NotEmpty(t, ee.Error(), bad)
 	}
 }
