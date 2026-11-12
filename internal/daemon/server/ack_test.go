@@ -194,6 +194,20 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		},
 		{intent: protocol.IntentUsageSample, payload: "not an object", want: fail, code: bad},
 
+		{intent: protocol.IntentStartLoop, payload: protocol.StartLoop{Name: "x"}, want: fail, code: bad}, // no service: not implemented
+		{intent: protocol.IntentPauseLoop, payload: protocol.PauseLoop{LoopID: "loop-00000001"}, want: fail, code: bad},
+		{intent: protocol.IntentResumeLoop, payload: protocol.ResumeLoop{LoopID: "loop-00000001"}, want: fail, code: bad},
+		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "loop-00000001"}, want: fail, code: bad},
+		{
+			intent: protocol.IntentStartLoop, payload: protocol.StartLoop{Name: "x"}, want: protocol.EventLoop,
+			before: func() { e.srv.cfg.Loops = &fakeLoops{} },
+		},
+		{intent: protocol.IntentPauseLoop, payload: protocol.PauseLoop{LoopID: "loop-00000001"}, want: protocol.EventLoop},
+		{intent: protocol.IntentResumeLoop, payload: protocol.ResumeLoop{LoopID: "loop-00000001"}, want: protocol.EventLoop},
+		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "loop-00000001"}, want: protocol.EventLoop},
+		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "nope"}, want: fail, code: bad},
+		{intent: protocol.IntentStartLoop, payload: "not an object", want: fail, code: bad},
+
 		{intent: protocol.IntentOpenSession, payload: protocol.OpenSession{SessionID: "s1"}, want: fail, code: bad},
 		{intent: "Bogus", payload: struct{}{}, want: fail, code: bad},
 	}
