@@ -624,6 +624,8 @@ rex doctor [-o FORMAT] [--agent] [-json] [-socket path] [-verbose]
 
 Each check is a `✓` pass, `!` warn, `✗` fail or `·` info row. INFO rows are hidden in `text`/`txt`/`md` unless `-verbose`; `json` and `agent` always carry them. `agent` gives `check name=… status=… detail=…` lines then `ok cmd=doctor fails=0 warns=2`, or `fail cmd=doctor fails=1 …` when a check fails (exit 1). `-json` keeps the one-line legacy object.
 
+With `-verbose`, the `tool:` rows show where each agent binary is on `PATH`, or `not found on PATH`: `claude`, `codex`, `agy`, `ollama`, `qwen`, `cursor-agent` and `grok`.
+
 With `-verbose`, an `agy version` row shows the installed Antigravity CLI version (`agy 1.5.5`). It warns below 1.5.5 (untested) or when `agy --version` fails or takes over 2 s, and is left out when `agy` is not on `PATH`.
 
 ---
