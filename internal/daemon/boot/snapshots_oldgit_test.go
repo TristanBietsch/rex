@@ -1,8 +1,9 @@
 package boot
 
 import (
+	"context"
+	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -19,13 +21,21 @@ func TestSnapshots_OldGitDisablesCaptures(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("needs a shell script as git")
 	}
+	// The fake git fails its first call, as an exec can on a loaded machine
+	// (text file busy, fork limits). A failed probe is not remembered, and a
+	// start capture that fails for any reason but an old git is recorded as
+	// missed, which writes the store. So the probe is settled here, retrying
+	// until it answers, and the recorder's captures only read the cached
+	// answer: no git exec happens on the path under test.
 	bin := t.TempDir()
+	once := filepath.Join(bin, "probed")
+	script := "#!/bin/sh\nif [ ! -e '" + once + "' ]; then : > '" + once + "'; exit 1; fi\necho 'git version 2.30.2'\n"
 	//nolint:gosec // a fake git must be executable
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "git"), []byte("#!/bin/sh\necho 'git version 2.30.2'\n"), 0o700))
-	// Warm the script: a freshly written file's first exec can fail (text
-	// file busy) or crawl under load, and a failed probe is a failed capture.
-	require.NoError(t, exec.Command(filepath.Join(bin, "git")).Run()) //nolint:gosec // the fake git just written
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o700))
 	t.Setenv("PATH", bin)
+	require.Eventually(t, func() bool {
+		return errors.Is(snapshot.CheckGit(context.Background()), snapshot.ErrGitTooOld)
+	}, 30*time.Second, 50*time.Millisecond)
 
 	r := newSnapRig(t, true)
 	dir := t.TempDir()
