@@ -58,7 +58,7 @@ var applyModeOf = map[string]ApplyMode{
 	"waiting_section": ApplyLive, "timestamps": ApplyLive, "cli_agent_auto": ApplyLive, "session_export": ApplyLive,
 	"turn_snapshots": ApplyLive, "usage": ApplyLive, "live_reload": ApplyLive, "loops": ApplyLive,
 	"extra_agents": ApplyLive, "model_autodetect": ApplyLive, // catalog applier subscribes to both
-	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive,
+	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive, "lua_config": ApplyLive,
 	"summary_detail": ApplyLive, "overview_enabled": ApplyLive, "cli_error_log": ApplyLive,
 	// Read once when the daemon starts.
 	"summary_enabled": ApplyDaemonRestart, "summary_model": ApplyDaemonRestart, "lua_config_path": ApplyDaemonRestart,

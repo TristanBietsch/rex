@@ -21,6 +21,9 @@ type Store struct {
 	// dirty holds the ids changed since the last Save: true for Set (Save
 	// writes the key), false for Reset (Save deletes it).
 	dirty map[string]bool
+	// setAt holds, for each id whose source is SourceLua, where config.lua
+	// set it ("config.lua:12").
+	setAt map[string]string
 }
 
 // Source says where a setting's current value comes from.
@@ -31,7 +34,22 @@ const (
 	SourceDefault Source = "default"
 	// SourceFile is a value read from, or destined for, config.yaml.
 	SourceFile Source = "file"
+	// SourceLua is a value config.lua set. It is never written to
+	// config.yaml, and Set and Reset refuse it (ErrManagedByLua).
+	SourceLua Source = "lua"
 )
+
+// ErrManagedByLua is what Set and Reset answer for a setting config.lua sets:
+// the value lives in the Lua file, so change it there.
+type ErrManagedByLua struct {
+	ID string
+	// At is where config.lua sets it, such as "config.lua:12".
+	At string
+}
+
+func (e *ErrManagedByLua) Error() string {
+	return fmt.Sprintf("%s is set in %s; edit it there (rex config edit -lua)", e.ID, e.At)
+}
 
 // errNoPath is Save's answer to an empty path, so a caller whose config
 // path could not be resolved never writes into the working directory.
@@ -40,14 +58,24 @@ var errNoPath = errors.New("settings: no config file path")
 // LoadDefault returns a Store holding the defaults overlaid with the user's
 // config file, and that file's path (paths.ConfigFile). A missing file is
 // not an error. On error the Store still holds the defaults, so best-effort
-// callers can use it; path is "" when the home directory is unknown.
+// callers can use it; path is "" when the home directory is unknown. When
+// the process installed a layer (SetLayer) and lua_config is on, config.lua's
+// values are on top; its problems are silent here (see LoadDefaultReport).
 func LoadDefault() (store *Store, path string, err error) {
-	store = NewStore()
+	store, _, path, err = LoadDefaultReport()
+	return store, path, err
+}
+
+// LoadDefaultReport is LoadDefault plus the layer's report, for the few
+// callers that show config.lua's problems: rex doctor, rex config, rex theme
+// and the TUI.
+func LoadDefaultReport() (store *Store, rep LayerReport, path string, err error) {
 	path, err = paths.ConfigFile()
 	if err != nil {
-		return store, "", fmt.Errorf("settings: %w", err)
+		return NewStore(), LayerReport{}, "", fmt.Errorf("settings: %w", err)
 	}
-	return store, path, store.Load(path)
+	store, rep, err = LoadLayered(path)
+	return store, rep, path, err
 }
 
 // NewStore returns a Store populated with the registry's defaults.
@@ -56,6 +84,7 @@ func NewStore() *Store {
 		values: make(map[string]any, len(Registry)),
 		src:    make(map[string]Source, len(Registry)),
 		dirty:  make(map[string]bool),
+		setAt:  make(map[string]string),
 	}
 	for _, r := range Registry {
 		s.values[r.ID] = r.Default
@@ -215,6 +244,29 @@ func (s *Store) Source(id string) Source {
 	return SourceDefault
 }
 
+// SetAt says where config.lua sets id ("config.lua:12"), or "" when it does
+// not.
+func (s *Store) SetAt(id string) string {
+	if s.src[id] != SourceLua {
+		return ""
+	}
+	return s.setAt[id]
+}
+
+// Locked reports whether config.lua sets id, so Set and Reset refuse it.
+func (s *Store) Locked(id string) bool { return s.src[id] == SourceLua }
+
+// Overlay puts values on top of the store as SourceLua, remembering where each
+// came from. The values must already be validated. It never marks an id
+// dirty, so Save never writes them to config.yaml.
+func (s *Store) Overlay(values map[string]any, setAt map[string]string) {
+	for id, v := range values {
+		s.values[id] = v
+		s.src[id] = SourceLua
+		s.setAt[id] = setAt[id]
+	}
+}
+
 // Validate coerces raw to the Go type of setting id, checks it against the
 // setting's options and range, and applies its Normalize func. It is what
 // Set runs, exported for callers that must check a value without storing it.
@@ -250,6 +302,9 @@ func (s *Store) Set(id string, raw any) error {
 	if setting.ReadOnly {
 		return fmt.Errorf("setting %q is read-only", id)
 	}
+	if s.src[id] == SourceLua {
+		return &ErrManagedByLua{ID: id, At: s.setAt[id]}
+	}
 	v, err := validate(setting, raw)
 	if err != nil {
 		return err
@@ -265,6 +320,9 @@ func (s *Store) Reset(id string) error {
 	setting, ok := Find(id)
 	if !ok {
 		return fmt.Errorf("unknown setting %q", id)
+	}
+	if s.src[id] == SourceLua {
+		return &ErrManagedByLua{ID: id, At: s.setAt[id]}
 	}
 	s.values[id] = setting.Default
 	s.src[id] = SourceDefault
@@ -290,6 +348,9 @@ func (s *Store) WithDefaults(ids ...string) *Store {
 		c.values[k] = v
 		c.src[k] = s.src[k]
 	}
+	for k, v := range s.setAt {
+		c.setAt[k] = v
+	}
 	for _, id := range ids {
 		def, ok := Find(id)
 		if !ok {
@@ -297,6 +358,7 @@ func (s *Store) WithDefaults(ids ...string) *Store {
 		}
 		c.values[id] = def.Default
 		c.src[id] = SourceDefault
+		delete(c.setAt, id)
 	}
 	return c
 }

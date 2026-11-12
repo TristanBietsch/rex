@@ -156,18 +156,30 @@ func evalSource(parent context.Context, o Opts, src []byte) Result {
 	go ev.watchHeap(ctx, cancel)
 	select {
 	case r := <-done:
+		if r.Err == nil || ctx.Err() == nil {
+			return r
+		}
+		// The script noticed the cancel first: report why it was stopped,
+		// not the Lua state's own "context canceled" text.
+		r.Values, r.SetAt, r.Themes, r.ThemeIssues = nil, nil, nil, nil
+		r.Err = stopReason(ev, ctx)
 		return r
 	case <-ctx.Done():
 		// A script stuck in a Go built-in cannot be interrupted; it is
 		// abandoned here and stops at its next VM instruction check.
-		switch {
-		case ev.heap.Load():
-			return Result{Exists: true, Err: fmt.Errorf("config.lua: stopped: the script grew memory by more than %d MiB", MaxHeapGrowth>>20)}
-		case errors.Is(ctx.Err(), context.DeadlineExceeded):
-			return Result{Exists: true, Err: fmt.Errorf("config.lua: timed out after %s", Timeout)}
-		}
-		return Result{Exists: true, Err: fmt.Errorf("config.lua: stopped: %w", ctx.Err())}
+		return Result{Exists: true, Err: stopReason(ev, ctx)}
 	}
+}
+
+// stopReason says why ctx stopped the evaluation.
+func stopReason(ev *evaluator, ctx context.Context) error {
+	switch {
+	case ev.heap.Load():
+		return fmt.Errorf("config.lua: stopped: the script grew memory by more than %d MiB", MaxHeapGrowth>>20)
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return fmt.Errorf("config.lua: timed out after %s", Timeout)
+	}
+	return fmt.Errorf("config.lua: stopped: %w", ctx.Err())
 }
 
 // heapBytes reads the live heap size without stopping the world.

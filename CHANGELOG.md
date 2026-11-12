@@ -67,6 +67,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `config.lua` (Settings → Features → *Lua config*, on, and inert without the
+  file): set settings and themes in `~/.config/rex/config.lua` with
+  `rex.set("theme", "noir")` and `rex.theme("mine", { extends = "noir",
+  colors = { accent = "#B392F0" } })`. `rex.platform` is the OS name; `require`
+  reads only `~/.config/rex/lua/`. The file runs in a restricted Lua state (no
+  `os`, `io`, `print`, `load`; 250 ms, size and memory limits) and must be
+  owned by you and not writable by others. Its values beat `config.yaml` and
+  are never written to it: `rex config set` and `rex config reset` on such a
+  key exit 5 and name the line. A broken `config.lua` keeps the last good
+  values (the trust settings `auto_trust_dirs` and `skip_permissions` fall back
+  to their defaults) and never changes plain command output. A Lua theme beats
+  a theme file with the same name. `rex complete` and `rex completion` never
+  run it. Turn the feature off with `rex config set lua_config false`: the
+  files are then never read.
 - Loop workflows (Settings → Features → *Loop workflows*, off by default):
   `rex loop start <name>` runs a session in a repeat loop. The daemon
   re-sends your prompt each time the agent finishes a turn, until a check

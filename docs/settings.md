@@ -6,11 +6,15 @@ Saving is sparse: rex re-reads the file and writes only the keys it changed (`re
 
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
 
+Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`. A broken `config.lua` keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again.
+
 ## Files
 
 | Path | Role |
 |------|------|
 | `~/.config/rex/config.yaml` | Persisted values |
+| `~/.config/rex/config.lua` | Optional Lua settings and themes; wins over `config.yaml` while `lua_config` is on ([howto/lua-config.md](howto/lua-config.md)) |
+| `~/.config/rex/lua/` | Modules `config.lua` may `require` |
 | `~/.config/rex/themes/<name>.yaml` | Your own themes ([themes.md](themes.md)) |
 
 ## Commands
@@ -132,6 +136,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `workspaces` | bool | `false` | Workspaces: `rex ws init` marks a project folder with a `.rex/` holding an id, a name and a color; `rex audit --ws` and workspace audit files use it. Off: rex never looks for or writes a `.rex/` folder, `rex ws` exits 5 and the daemon does no workspace lookup. See [workspaces.md](workspaces.md) |
 | `audit_trail` | bool | `true` | Write one line per finished session (who, tool, state, times, first line of the prompt) to `~/.local/share/rex/audit.jsonl`, or `<workspace>/.rex/audit.jsonl` for a workspace session, for `rex audit`. Off: no file is written, the prompt is not kept in memory and `rex audit` exits 5. The daemon follows `config.yaml` within about 5 s |
 | `audit_full_prompt` | bool | `false` | Also store each session's whole first prompt (20,000 characters at most) in the audit trail. Prompts can hold secrets and a workspace `audit.jsonl` may be synced or committed. Needs `audit_trail`. Applies to sessions started after it is turned on |
+| `lua_config` | bool | `true` | Read `~/.config/rex/config.lua` on top of `config.yaml` (see [howto/lua-config.md](howto/lua-config.md)). Inert without the file. Values it sets win over `config.yaml`, are never written to it, and `rex config set` / `reset` on them exit 5 with the file and line. Read from `config.yaml` only (`config.lua` cannot turn itself off). Off: `config.lua` and `~/.config/rex/lua/` are never stat'ed, read or run, and every row is unlocked |
 
 ### Spawn
 

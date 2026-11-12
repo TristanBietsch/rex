@@ -265,6 +265,12 @@ var Registry = []Setting{
 		Help: "Also store each session's whole first prompt in the audit trail, not only its first line. Prompts can hold secrets; the file is private (0600) but a workspace audit.jsonl may be synced or committed. Needs audit_trail on. Applies to sessions started afterwards.",
 	},
 
+	{
+		ID: "lua_config", Label: "Lua config", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Set settings and themes in ~/.config/rex/config.lua (rex config edit -lua). Rows set there are locked in the settings page and rex config set refuses them. This switch is read from config.yaml only. Off: config.lua and ~/.config/rex/lua are never read or run, and rows are unlocked.",
+	},
+
 	// Spawn
 	{
 		ID: "default_spawn_tool", Label: "Quick-spawn tool", Section: SectionSpawn, Apply: ApplyNextSpawn,
