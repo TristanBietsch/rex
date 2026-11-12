@@ -101,15 +101,16 @@ func naMark(st *NewAgentState, tv naTrustView, s naSection) (mark, word string) 
 }
 
 // naRail is the step rail: STEPS, then each section with its mark (▸ on the
-// focused one) and its word flush right.
+// focused one) and its word flush right. Every row fits naRailW whole, so no
+// word is ever cut (1-column indent: " ✓ Trust" + "trusted" is 16).
 func naRail(st *NewAgentState, tv naTrustView) []string {
-	lines := []string{"  " + styleSectionTitle.Render("STEPS")}
+	lines := []string{" " + styleSectionTitle.Render("STEPS")}
 	for s := range naSectionCount {
 		mark, word := naMark(st, tv, s)
 		name := naSectionNames[s]
-		left := "  " + mark + " " + stylePrimary.Render(name)
+		left := " " + mark + " " + stylePrimary.Render(name)
 		if s == st.Section {
-			left = "  " + styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render(name)
+			left = " " + styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render(name)
 		}
 		if word != "" {
 			gap := max(1, naRailW-1-ansi.StringWidth(left)-ansi.StringWidth(word))
@@ -207,17 +208,17 @@ func naTrustLines(tv naTrustView, st *NewAgentState) []string {
 
 // naNotice is the open-time notice (a remembered agent that is gone), as a
 // warning line, or nil.
-func naNotice(m Model) []string {
-	if m.Notice == "" {
+func naNotice(st *NewAgentState) []string {
+	if st.Notice == "" {
 		return nil
 	}
-	return []string{styleBootWarn.Render("! ") + styleDim.Render(protocol.FlattenDisplayText(m.Notice))}
+	return []string{styleBootWarn.Render("! ") + styleDim.Render(protocol.FlattenDisplayText(st.Notice))}
 }
 
 // naForm is the Compose form fw wide for a body bh rows tall (mockup A):
 // agent, task editor, context and trust, each under its heading.
 func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
-	notice := naNotice(m)
+	notice := naNotice(st)
 	agent := naAgentLine(st, "  ·  ")
 	change := styleKey.Render("ctrl+g") + styleDim.Render(" change")
 	if gap := fw - ansi.StringWidth(agent) - ansi.StringWidth(change); gap >= 2 {
@@ -261,7 +262,7 @@ func naStrip(st *NewAgentState) string {
 
 // naNarrowBody is the one-column page under pageNarrowW (mockup G).
 func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []string {
-	notice := naNotice(m)
+	notice := naNotice(st)
 	rows := max(1, min(8, bh-8-len(notice)))
 	trust := styleDim.Render("trust: ") + styleBootWarn.Render(tv.word)
 	if tv.ok {

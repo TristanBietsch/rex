@@ -55,6 +55,8 @@ type NewAgentState struct {
 	SkillsOn bool
 	SkillSel map[string]bool
 	Task     Composer
+	// Notice is the open-time notice (a remembered agent that is gone).
+	Notice string
 	// Trust is the folder-trust choice (P2, wizard_trust.go).
 	Trust wizTrustMode
 }
@@ -162,7 +164,6 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 		c := d.choice()
 		want = &c
 	}
-	m.Notice = ""
 	switch {
 	case want != nil && st.offers(want.Tool):
 		st.choose(*want)
@@ -175,7 +176,7 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 		if want != nil && want.Tool != "" {
 			notice = unavailableNotice(want.Tool, st.choice().Tool)
 		}
-		m.Notice = notice
+		st.Notice = notice
 	}
 	m.NewAgent = st
 	m.newAgentDraft = nil

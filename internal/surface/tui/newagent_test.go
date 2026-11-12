@@ -255,7 +255,8 @@ func TestNewAgent_DefaultsFromLastSpawn(t *testing.T) {
 	m.lastSpawn = &quickChoice{Tool: "grok"}
 	m = naOpen(t, m)
 	require.Equal(t, "claude", m.NewAgent.selection().selectedTool().ID)
-	require.Contains(t, m.Notice, "grok isn't available")
+	require.Contains(t, m.NewAgent.Notice, "grok isn't available")
+	require.Empty(t, m.Notice, "the board never sees it")
 }
 
 func TestNewAgent_NoAgentInstalled(t *testing.T) {
@@ -333,7 +334,7 @@ func TestNewAgent_ViewTrustAndNoticeWords(t *testing.T) {
 
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlT})
 	out := ansi.Strip(m.View())
-	require.Contains(t, out, "✓ Trust  sess")
+	require.Contains(t, out, "✓ Trust   sess")
 	require.Contains(t, out, "trusted for this session only")
 	m.Width = 50
 	require.Contains(t, ansi.Strip(m.View()), "trust: sess")
@@ -344,5 +345,34 @@ func TestNewAgent_ViewTrustAndNoticeWords(t *testing.T) {
 	require.NoError(t, m.Store.Set("auto_trust_dirs", cwd))
 	out = ansi.Strip(m.View())
 	require.Contains(t, out, "trusted (auto_trust_dirs)")
-	require.Contains(t, out, "trusted", "the rail says it in words")
+	for _, l := range strings.Split(out, "\n") {
+		if rail, _, ok := strings.Cut(l, "│"); ok && strings.Contains(rail, "Trust") {
+			require.Contains(t, rail, "Trust trusted", "the rail column says it whole")
+		}
+	}
+}
+
+func TestNewAgent_RailWordsWhole(t *testing.T) {
+	st := &NewAgentState{Section: naTrust}
+	for _, tv := range []naTrustView{
+		{mark: "?", word: "ask"},
+		{mark: "✓", word: "sess", ok: true},
+		{mark: "✓", word: "always", ok: true},
+		{mark: "✓", word: "trusted", ok: true},
+	} {
+		for _, sec := range []naSection{naTask, naTrust} {
+			st.Section = sec
+			rail := naRail(st, tv)
+			found := false
+			for _, l := range rail {
+				plain := ansi.Strip(l)
+				require.LessOrEqual(t, ansi.StringWidth(plain), naRailW, "%q", plain)
+				require.NotContains(t, plain, "…")
+				if strings.HasSuffix(plain, tv.word) && strings.Contains(plain, "Trust") {
+					found = true
+				}
+			}
+			require.True(t, found, "rail carries %q whole", tv.word)
+		}
+	}
 }
