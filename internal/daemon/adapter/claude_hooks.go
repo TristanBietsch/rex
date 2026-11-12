@@ -415,3 +415,12 @@ func (a *ClaudeHooks) apply(line string) {
 		slog.Warn("adapter: unknown claude hook line", "path", a.path, "line", line)
 	}
 }
+
+// wakeGrace is a stub (R17 task 1).
+const wakeGrace = 10 * time.Second
+
+// PromptCounter is a stub (R17 task 1).
+type PromptCounter interface{ Prompts() int }
+
+// Prompts is a stub (R17 task 1).
+func (a *ClaudeHooks) Prompts() int { return 0 }
