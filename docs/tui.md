@@ -14,9 +14,9 @@ rex
 
 ## DESCRIPTION
 
-Four sections group sessions, top to bottom: **NEEDS YOU**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
+Four sections group sessions, top to bottom: **READY**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
 
-**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as NEEDS YOU while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
+**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as READY while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
 The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
@@ -129,14 +129,14 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 | `j`, `k`, `↓`, `↑` | Move selection |
 | `g`, `G` | First / last row |
 | `tab` | Next session that needs you (wraps) |
-| `1`, `2`, `3` | Jump to Needs you / Waiting / Working |
+| `1`, `2`, `3` | Jump to Ready / Waiting / Working |
 | `4` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
 | `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
 | `/` | Search the board (see FILTER AND SEARCH) |
 | `esc` | Clear the search |
 | `zh` | Hide / show every completed section (Done) |
-| `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
+| `z1`-`z9` | Hide / show section N (`z1` Ready, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
@@ -201,7 +201,7 @@ One row between the title bar and the agent's screen says what the session is do
 
 - **Lead** (after `↳`): the AI description; without one, `task: ` and the task you gave it; without that, the question a waiting session is asking. Nothing otherwise.
 - **Meta**, in order: the folder (`~` for your home directory, otherwise the last two path elements); `working 12m` (since the current stretch began), `waiting 3m` (needs you) or `ended 14:02` (when it finished); `updated 40s ago` (age of the description, dim past 2 minutes, left out without one).
-- **With `overview_enabled` on:** `elsewhere: 2 to review · 1 needs you · 1 failed` (the other sessions, never this one; `quiet` when none needs anything), then the overview headline.
+- **With `overview_enabled` on:** `elsewhere: 2 to review · 1 ready · 1 failed` (the other sessions, never this one; `quiet` when none needs anything), then the overview headline.
 
 `attach_banner` (Settings → AI summary) picks how long text is shown:
 
@@ -280,7 +280,7 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 | Key | Effect |
 |-----|--------|
 | `zh` | Hide every completed section (Done); again shows it |
-| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
+| `z1`-`z9` | Toggle section N in board order (`z1` Ready, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 
 `z` followed by any other key is just that key. While `z` is pending the help line lists the second keys. rex refuses to hide the last shown section.
@@ -300,7 +300,7 @@ What needs you, what is ready for review and what finished, at a glance. Three p
 **Header line.** With `overview_enabled` on (Settings → AI summary, off by default), one line follows the chip row (and comes before the summary-backend banner):
 
 ```
-  » 2 ready for review  billing-tests and api docs are ready for review; deploy asks a question · 40s
+  » 2 to review  billing-tests and api docs are ready for review; deploy asks a question · 40s
 ```
 
 The count is computed in the TUI from the sessions, so it is true even when the headline is stale or wrong; it reads `nothing to review` at zero. The headline is the daemon's one-line summary of the whole board, cut on a word boundary, with its age. Until the daemon has written one (or against an older daemon, or with the daemon's setting still switching on, which takes about 5 s) only the count shows. The row is reserved while the setting is on, so the board does not jump. Off, the header is exactly as before.
@@ -309,11 +309,11 @@ The count is computed in the TUI from the sessions, so it is true even when the 
 
 1. Marked done: **Completed**.
 2. `failed` or `crashed`: **Failed**.
-3. `done`: **Ready for review**. The agent says it finished and you have not marked it.
-4. Waiting for input (`needs_input`): **Ready for review** when the agent finished a turn (Claude's Stop hook, `wait_reason: review`) and the last line is not a question (does not end in `?`, the same rule as the row text); otherwise **Needs you**. Claude's idle reminder does not turn a finished turn into a question. Tools without hooks have no `wait_reason`, so a waiting session is always Needs you.
+3. `done`: **Review**. The agent says it finished and you have not marked it.
+4. Waiting for input (`needs_input`): **Review** when the agent finished a turn (Claude's Stop hook, `wait_reason: review`) and the last line is not a question (does not end in `?`, the same rule as the row text); otherwise **Ready**. Claude's idle reminder does not turn a finished turn into a question. Tools without hooks have no `wait_reason`, so a waiting session is always Ready.
 5. `working` or `queued`: **Working**.
 
-**`:overview` overlay.** The headline, wrapped, then the sections READY FOR REVIEW, NEEDS YOU, FAILED, WORKING and COMPLETED (last 24 h) with `marker name status age` rows; empty sections are left out. `j`/`k` (or arrows) select, `g`/`G` jump, `enter` attaches to the selected session, `esc` or `q` closes. It works with the setting off too: you get the lists and a line pointing at the setting.
+**`:overview` overlay.** The headline, wrapped, then the sections REVIEW, READY, FAILED, WORKING and COMPLETED (last 24 h) with `marker name status age` rows; empty sections are left out. `j`/`k` (or arrows) select, `g`/`G` jump, `enter` attaches to the selected session, `esc` or `q` closes. It works with the setting off too: you get the lists and a line pointing at the setting.
 
 The headline is written by the local summary model from the sessions' task titles, descriptions and question lines, so it can be wrong and can be steered by what an agent printed. It is one line of display-safe text, never acted on, and the lists next to it never come from it.
 
@@ -365,10 +365,10 @@ After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the sc
 ```
              ∴ rex
 
-1 need you · 3 working · 7 done
+1 ready · 3 working · 7 done
 ```
 
-- The counts stay live: daemon events keep updating them. `need you` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
+- The counts stay live: daemon events keep updating them. `ready` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
 - Any key or mouse event (click, wheel), or a terminal resize, brings the screen back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
 - It starts whatever is open: an overlay, prompt, confirmation, the new-session wizard, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, wizard step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
 - Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.

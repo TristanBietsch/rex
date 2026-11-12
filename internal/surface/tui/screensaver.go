@@ -237,7 +237,7 @@ func saverBlock(m Model, h int) []string {
 	return block[:min(len(block), max(h, 0))]
 }
 
-// saverCounts is "1 need you · 3 working · 7 done": one count per board
+// saverCounts is "1 ready · 3 working · 7 done": one count per board
 // column in board order (boardGroups), an Alert column highlighted while it
 // holds any session, and "· N failed" when something failed. The numbers
 // match the header's.

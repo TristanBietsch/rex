@@ -1,22 +1,22 @@
 -- view --
 
-  ∴ REX    2 need you · 1 working · 3 done  · 1 failed                                                                  
+  ∴ REX    2 ready · 1 working · 3 done  · 1 failed                                                                     
   all · claude · codex · antigravity · ollama                                                                           
-  » 2 ready for review  billing-tests and api docs are ready for review; deploy asks a question and migrate-db… · 40s   
+  » 2 to review  billing-tests and api docs are ready for review; deploy asks a question and migrate-db failed · 40s    
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  NEEDS YOU  2                                                                                                          
+  READY  2                                                                                                              
    ◆  api┌─ Overview ─────────────────────────────────────────────────────────────────────────────────────────┐       9m
    ◆  dep│                                                                                                    │      40s
          │  billing-tests and api docs are ready for review; deploy asks a question and migrate-db failed     │
   WAITING│  updated 40s ago                                                                                   │         
       not│                                                                                                    │
-         │  READY FOR REVIEW (2)                                                                              │
+         │  REVIEW (2)                                                                                        │
   WORKING│  › ● billing-tests Done: 48 tests pass                                                         3m  │         
    ⠋  per│    ◆ api docs      write api docs                                                              9m  │       5s
          │                                                                                                    │
-  DONE  4│  NEEDS YOU (1)                                                                                     │         
+  DONE  4│  READY (1)                                                                                         │         
  ▸ ●  bil│    ◆ deploy        Deploy to prod?                                                            40s  │       3m
    ✕  mig│                                                                                                    │       2h
    ●  old│  FAILED (1)                                                                                        │       3h

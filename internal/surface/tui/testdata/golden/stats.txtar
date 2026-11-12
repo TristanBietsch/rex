@@ -1,11 +1,11 @@
 -- plain.80x24 --
                     ┌─ Session Stats ─────────────────────┐
-  ∴ REX    1 need yo│                                     │                     
+  ∴ REX    1 ready ·│                                     │                     
   all · claude · cod│    State counts                     │                     
                     │    needs input      1               │
 ────────────────────│    working          3               │─────────────────────
                     │    queued           0               │
-  NEEDS YOU  1      │    done             1               │                     
+  READY  1          │    done             1               │                     
    ◆  dark-mode     │    failed           2               │                   4m
                     │    crashed          0               │
   WAITING  0        │    total            7               │                     
@@ -25,12 +25,12 @@
   enter open · i new│                                     │                     
 -- plain.120x40 --
 
-  ∴ REX    1 need you · 3 working · 1 done  · 2 failed                                                                  
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
   all · claude · codex · antigravity · ollama                                                                           
                                         ┌─ Session Stats ─────────────────────┐
 ────────────────────────────────────────│                                     │─────────────────────────────────────────
                                         │    State counts                     │
-  NEEDS YOU  1                          │    needs input      1               │                                         
+  READY  1                              │    needs input      1               │                                         
    ◆  dark-mode             system theme│    working          3               │                                       4m
                                         │    queued           0               │
   WAITING  0                            │    done             1               │                                         

@@ -177,7 +177,7 @@ var Registry = []Setting{
 	{
 		ID: "waiting_section", Label: "Waiting section", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "A Waiting section below Needs you for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Needs you / Working / Done again. The daemon still records the wait.",
+		Help: "A Waiting section below Ready for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own ◷ marker and count. Off: they stay in Working, the section, its count and its key go away, and keys 1-3 jump to Ready / Working / Done again. The daemon still records the wait.",
 	},
 
 	{
@@ -284,7 +284,7 @@ var Registry = []Setting{
 	{
 		ID: "overview_enabled", Label: "Overview", Section: SectionSummary, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
-		Help: "Header line + :overview: what needs you, what is ready for review, what finished. Uses the summary model (one call at most every 30 s while rex is open). Applies within seconds.",
+		Help: "Header line + :overview: what is ready for you, what to review, what finished. Uses the summary model (one call at most every 30 s while rex is open). Applies within seconds.",
 	},
 	{
 		ID: "attach_banner", Label: "Attach banner", Section: SectionSummary, Apply: ApplyNextAttach,

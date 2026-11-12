@@ -56,7 +56,7 @@ func TestSearchSectionCounts(t *testing.T) {
 	require.NotContains(t, title(groupWorking), "/")
 
 	m = typeKeys(m, "/", "a", "u", "t", "h", "enter")
-	require.Contains(t, title(groupNeeds), "NEEDS YOU  1/1")
+	require.Contains(t, title(groupNeeds), "READY  1/1")
 	require.Contains(t, title(groupWorking), "WORKING  1/2")
 	require.Contains(t, title(groupDone), "DONE  1/1")
 }
@@ -64,7 +64,7 @@ func TestSearchSectionCounts(t *testing.T) {
 func TestToolFilterSectionCounts(t *testing.T) {
 	m, _ := executeCommand(filterModel(), "filter claude")
 	require.Contains(t, ansi.Strip(groupTitleText(m, groupWorking)), "WORKING  0/2")
-	require.Contains(t, ansi.Strip(groupTitleText(m, groupNeeds)), "NEEDS YOU  1/1")
+	require.Contains(t, ansi.Strip(groupTitleText(m, groupNeeds)), "READY  1/1")
 }
 
 func TestSearchNoMatchesText(t *testing.T) {

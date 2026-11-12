@@ -63,7 +63,7 @@ func TestBoardHideDoneView(t *testing.T) {
 			screen := strings.Join(lines, "\n")
 			require.Contains(t, lines[2], tc.hidden, "filter bar, screen row 2")
 			require.NotContains(t, strings.Join(lines[boardTop(m):], "\n"), tc.absent)
-			require.Contains(t, screen, "NEEDS YOU")
+			require.Contains(t, screen, "READY")
 		})
 	}
 }

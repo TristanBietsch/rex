@@ -79,7 +79,7 @@ func TestOverviewOverlay_Content(t *testing.T) {
 	out := ansi.Strip(renderOverviewOverlay(m))
 	require.Contains(t, out, "billing-tests and api docs are ready for review")
 	require.Contains(t, out, "updated 40s ago")
-	for _, title := range []string{"READY FOR REVIEW (2)", "NEEDS YOU (1)", "FAILED (1)", "WORKING (1)", "COMPLETED (last 24 h) (1)"} {
+	for _, title := range []string{"REVIEW (2)", "READY (1)", "FAILED (1)", "WORKING (1)", "COMPLETED (last 24 h) (1)"} {
 		require.Contains(t, out, title)
 	}
 	require.Contains(t, out, "Deploy to prod?", "a waiting session shows its question")
@@ -90,8 +90,8 @@ func TestOverviewOverlay_Content(t *testing.T) {
 	// Empty sections are left out.
 	m.Sessions = m.Sessions[:1]
 	out = ansi.Strip(renderOverviewOverlay(m))
-	require.Contains(t, out, "READY FOR REVIEW (1)")
-	require.NotContains(t, out, "NEEDS YOU")
+	require.Contains(t, out, "REVIEW (1)")
+	require.NotContains(t, out, "READY")
 	require.NotContains(t, out, "WORKING")
 
 	m.Sessions = nil
@@ -112,10 +112,10 @@ func TestOverviewOverlay_NoHeadlineYet(t *testing.T) {
 	m.Overview = &protocol.Overview{Enabled: true}
 	out := ansi.Strip(renderOverviewOverlay(m))
 	require.NotContains(t, out, "Turn on overview_enabled")
-	require.Contains(t, out, "READY FOR REVIEW")
+	require.Contains(t, out, "REVIEW")
 
 	m.Overview = nil
-	require.Contains(t, ansi.Strip(renderOverviewOverlay(m)), "READY FOR REVIEW")
+	require.Contains(t, ansi.Strip(renderOverviewOverlay(m)), "REVIEW")
 
 	m.Overview = &protocol.Overview{Enabled: true, Headline: "no time"}
 	require.NotContains(t, ansi.Strip(renderOverviewOverlay(m)), "updated")

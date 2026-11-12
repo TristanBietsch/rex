@@ -116,7 +116,7 @@ func TestFilterChipsOnlyWhenUseful(t *testing.T) {
 	for _, m := range []Model{one, two} {
 		screen := strings.Split(renderFullScreen(m, 120, 30), "\n")
 		require.Len(t, screen, 30)
-		require.Contains(t, ansi.Strip(screen[boardTop(m)]), "NEEDS YOU")
+		require.Contains(t, ansi.Strip(screen[boardTop(m)]), "READY")
 	}
 }
 
@@ -186,7 +186,7 @@ func TestTabCyclesSessionsThatNeedYou(t *testing.T) {
 	none := simpleBoard(protocol.SessionSummary{ID: "w", Slug: "w", State: protocol.StateWorking})
 	none, _ = updateKey(none, key("tab"))
 	require.Equal(t, "w", none.SelectedID)
-	require.Equal(t, "nothing needs you", none.Notice)
+	require.Equal(t, "nothing ready", none.Notice)
 }
 
 func TestHelpBarHasFiveKeys(t *testing.T) {

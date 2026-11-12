@@ -38,6 +38,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   activity and wakes it, and turning `screensaver_enabled` off while it
   shows hides it within a minute.
 
+- "Needs you" is now "Ready" everywhere it shows: the board section and its
+  counts, the screensaver, the attach banner, `rex status`, `rex ls`,
+  `rex wait` and the help. The overview's "Ready for review" bucket is now
+  "Review" (header line `» 2 to review`). Machine names stay: the section
+  id `needs` (`:hide needs`, `z1`), the state `needs_input` and the
+  `rex overview -o json` key `needs_you`.
 - TUI: board columns have fixed widths by default and change only when the
   terminal crosses a width breakpoint (150 and 110 columns). The subagent,
   badge, tokens, span and resume columns are always reserved, so nothing

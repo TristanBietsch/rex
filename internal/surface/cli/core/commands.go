@@ -117,7 +117,7 @@ var Commands = []Command{
 	{Name: "errors", Section: SectionInsights, Args: "[-n N] [-since 24h] [-clear]", Short: "failed rex commands from the error log",
 		Long:    "Show the private log of failed rex commands, newest first. -clear deletes it. Turn the log off with cli_error_log or REX_ERROR_LOG=0.",
 		Example: "rex errors -n 5", Class: ClassQuery},
-	{Name: "overview", Section: SectionInsights, Args: "[flags]", Short: "one-screen summary of every session by what needs you",
+	{Name: "overview", Section: SectionInsights, Args: "[flags]", Short: "one-screen summary of every session by bucket",
 		Example: "rex overview", Class: ClassQuery},
 	{Name: "export", Section: SectionInsights, Args: "<sel> [flags]", Short: "write a session as a readable document",
 		Long:    "Write one session's metadata and cleaned transcript as json, yaml, md or txt to stdout or --out. Nothing is uploaded.",

@@ -22,7 +22,7 @@ func TestBoardGroupIDsUnique(t *testing.T) {
 	require.True(t, boardGroups[groupDone].Completed)
 }
 
-// The index constants name the screen order: Needs you, Waiting, Working,
+// The index constants name the screen order: Ready, Waiting, Working,
 // Done.
 func TestBoardGroupOrder(t *testing.T) {
 	require.Equal(t, "needs", boardGroups[groupNeeds].ID)
@@ -50,7 +50,7 @@ func TestResolveSection(t *testing.T) {
 		{"2", groupWaiting, false},
 		{"3", groupWorking, false},
 		{"4", groupDone, false},
-		{"needs you", groupNeeds, false},
+		{"ready", groupNeeds, false},
 		{"NEEDS", groupNeeds, false},
 		{"waiting", groupWaiting, false},
 		{"Waiting", groupWaiting, false},

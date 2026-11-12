@@ -98,7 +98,7 @@ func helpLegend(m Model) helpGroup {
 	frames := spinnerFramesFor(m)
 	mark := func(st protocol.State, glyph string) string { return styleMarker[st].Render(glyph) }
 	rows := []helpRow{
-		{Key: mark(protocol.StateNeedsInput, "◆"), Desc: "needs you"},
+		{Key: mark(protocol.StateNeedsInput, "◆"), Desc: "ready"},
 		{Key: mark(protocol.StateWorking, frames[m.SpinnerTick%len(frames)]), Desc: "working"},
 	}
 	if m.featureOn("waiting_section") {

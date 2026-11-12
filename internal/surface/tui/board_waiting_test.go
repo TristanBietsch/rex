@@ -132,7 +132,7 @@ func TestBoard_WaitingSectionBelowNeedsYou(t *testing.T) {
 	require.Equal(t, []string{"n1", "w1", "w2", "r1", "q1", "d1"}, sessionIDs(orderedSessions(m)),
 		"screen order: needs, waiting, working, done")
 	text := ansi.Strip(renderBoard(m, 120, 0))
-	require.Regexp(t, `(?s)NEEDS YOU\s+1.*WAITING\s+2.*WORKING\s+2.*DONE\s+1`, text)
+	require.Regexp(t, `(?s)READY\s+1.*WAITING\s+2.*WORKING\s+2.*DONE\s+1`, text)
 }
 
 func TestBoard_EmptyWaitingSectionShowsPlaceholder(t *testing.T) {
@@ -144,11 +144,11 @@ func TestBoard_EmptyWaitingSectionShowsPlaceholder(t *testing.T) {
 
 func TestHeader_Counts(t *testing.T) {
 	m := waitingBoard()
-	require.Contains(t, ansi.Strip(renderHeader(m, 200)), "1 need you · 2 waiting · 2 working · 1 done")
+	require.Contains(t, ansi.Strip(renderHeader(m, 200)), "1 ready · 2 waiting · 2 working · 1 done")
 
 	// Left out at 0, like an empty alert.
 	none := waitingModel(protocol.SessionSummary{ID: "r1", State: protocol.StateWorking})
-	require.Contains(t, ansi.Strip(renderHeader(none, 200)), "0 need you · 1 working · 0 done")
+	require.Contains(t, ansi.Strip(renderHeader(none, 200)), "0 ready · 1 working · 0 done")
 	require.NotContains(t, ansi.Strip(renderHeader(none, 200)), "waiting")
 
 	for style, want := range map[string]string{
@@ -170,9 +170,9 @@ func TestHeader_Counts(t *testing.T) {
 
 func TestSaverCounts_IncludeWaiting(t *testing.T) {
 	m := waitingBoard()
-	require.Equal(t, "1 need you · 2 waiting · 2 working · 1 done", ansi.Strip(saverCounts(m)))
+	require.Equal(t, "1 ready · 2 waiting · 2 working · 1 done", ansi.Strip(saverCounts(m)))
 	none := waitingModel(protocol.SessionSummary{ID: "r1", State: protocol.StateWorking})
-	require.Equal(t, "0 need you · 1 working · 0 done", ansi.Strip(saverCounts(none)))
+	require.Equal(t, "0 ready · 1 working · 0 done", ansi.Strip(saverCounts(none)))
 }
 
 func TestWaitingNeverInAlert(t *testing.T) {
@@ -200,12 +200,12 @@ func TestFlagOff_WaitingSessionsStayInWorking(t *testing.T) {
 	text := ansi.Strip(renderBoard(m, 120, 0))
 	require.NotContains(t, text, "WAITING")
 	require.NotContains(t, text, "nothing waiting on a tool")
-	require.Regexp(t, `(?s)NEEDS YOU\s+1.*WORKING\s+4.*DONE\s+1`, text)
+	require.Regexp(t, `(?s)READY\s+1.*WORKING\s+4.*DONE\s+1`, text)
 
 	header := ansi.Strip(renderHeader(m, 200))
-	require.Contains(t, header, "1 need you · 4 working · 1 done")
+	require.Contains(t, header, "1 ready · 4 working · 1 done")
 	require.NotContains(t, header, "waiting")
-	require.Equal(t, "1 need you · 4 working · 1 done", ansi.Strip(saverCounts(m)))
+	require.Equal(t, "1 ready · 4 working · 1 done", ansi.Strip(saverCounts(m)))
 }
 
 // With the feature off the keys revert: 1 needs, 2 working, 3 done; 4 does
