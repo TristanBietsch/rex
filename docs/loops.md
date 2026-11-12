@@ -97,7 +97,9 @@ file later does not change a loop that already started.
    session and the turn counter goes up. If it is working or at a prompt
    instead, nothing is sent and the loop waits for the next turn end.
    `max_minutes` of **running** time (pauses and daemon downtime do not count)
-   also ends the loop as `capped`. A capped, stopped or done loop leaves its
+   also ends the loop as `capped`; nothing is sent once those minutes are
+   spent, not even for a turn end already in line, and a loop resumed over its
+   limit is capped at once. A capped, stopped or done loop leaves its
    session running.
 
 States: `running`, `paused`, `done`, `capped`, `stopped`, `failed`.
@@ -118,7 +120,15 @@ States: `running`, `paused`, `done`, `capped`, `stopped`, `failed`.
   gone idle again. If you type a draft and never send it, the loop waits;
   `rex loop resume` ends the wait. The text, the delay and the Enter of a
   loop's prompt are sent under a per-session lock that your keystrokes also
-  take, so they never interleave.
+  take, so they never interleave. The daemon checks the session again right
+  before the text and again right before the Enter: if a prompt appeared or
+  you typed in between, the Enter is not sent, the loop pauses
+  (`state_changed`, or `user_input`) and the text it typed stays in the
+  input box, so clear it before you answer.
+- **Lua input is not your input.** `rex.send` from `init.lua` goes through the
+  same lock (it never lands inside a loop's send) but does not count as you
+  typing, so a loop does not hold back for it. A Lua hook that types into a
+  loop's session is a script you wrote; keep it off loop sessions.
 
 ## Limits and restarts
 

@@ -88,7 +88,7 @@ In memory only; never persisted. See `docs/protocol.md`.
 | Name | `name` | string | the loop file's name |
 | Kind | `kind` | string | `repeat` |
 | State | `state` | string | `running`, `paused`, `done`, `capped`, `stopped`, `failed` |
-| PauseReason | `pause_reason` | string | optional; `user`, `needs_input`, `user_input`, `daemon_restart`, `session_ended`, `send_failed`, `feature_off` |
+| PauseReason | `pause_reason` | string | optional; `user`, `needs_input`, `user_input`, `daemon_restart`, `session_ended`, `state_changed`, `send_failed`, `feature_off` |
 | StopReason | `stop_reason` | string | optional; `check_passed`, `marker`, `max_iterations`, `max_minutes`, `stopped`, `check_error` |
 | SessionID, CWD | `session_id`, `cwd` | string | |
 | Iteration, MaxIterations | `iteration`, `max_iterations` | int | turn in progress, cap |
