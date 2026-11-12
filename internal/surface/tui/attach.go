@@ -485,7 +485,7 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	sum, haveSum := findSession(m.Sessions, a.SessionID)
 	var stateChip string
 	if a.Ended {
-		stateChip = styleMarker[protocol.StateFailed].Render("✕ ended")
+		stateChip = styleMarker[protocol.StateFailed].Render(stateGlyph(protocol.StateFailed) + " ended")
 	} else if haveSum {
 		stateChip = attachStateChip(m, sum.State)
 		if waitingKindOf(m, sum) != "" {
@@ -531,15 +531,15 @@ func attachStateChip(m Model, st protocol.State) string {
 		g := frames[m.SpinnerTick%len(frames)]
 		return styleMarker[protocol.StateWorking].Render(g + " working")
 	case protocol.StateQueued:
-		return styleMarker[protocol.StateQueued].Render(queuedGlyph + " queued")
+		return styleMarker[protocol.StateQueued].Render(stateGlyph(protocol.StateQueued) + " queued")
 	case protocol.StateNeedsInput:
-		return styleMarker[protocol.StateNeedsInput].Render("◆ needs input")
+		return styleMarker[protocol.StateNeedsInput].Render(stateGlyph(protocol.StateNeedsInput) + " needs input")
 	case protocol.StateDone:
-		return styleMarker[protocol.StateDone].Render("● done")
+		return styleMarker[protocol.StateDone].Render(stateGlyph(protocol.StateDone) + " done")
 	case protocol.StateFailed:
-		return styleMarker[protocol.StateFailed].Render("✕ failed")
+		return styleMarker[protocol.StateFailed].Render(stateGlyph(protocol.StateFailed) + " failed")
 	case protocol.StateCrashed:
-		return styleMarker[protocol.StateCrashed].Render("○ crashed")
+		return styleMarker[protocol.StateCrashed].Render(stateGlyph(protocol.StateCrashed) + " crashed")
 	default:
 		return styleDim.Render("· " + string(st))
 	}

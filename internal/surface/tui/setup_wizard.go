@@ -1380,7 +1380,7 @@ func (m SetupWizardModel) renderDone() (string, []string, string) {
 func setupOption(selected bool, glyph, name, glyphColor string) string {
 	var cursor string
 	if selected {
-		cursor = styleArrow.Render("▸") + " "
+		cursor = styleArrow.Render(selectGlyph()) + " "
 	} else {
 		cursor = "  "
 	}

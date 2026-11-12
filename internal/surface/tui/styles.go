@@ -97,8 +97,19 @@ func init() {
 // applyTheme swaps the live palette and rebuilds all style vars. An unknown
 // name falls back to the default palette and returns false. It writes package
 // globals, so call it from Update, never from a tea.Cmd goroutine.
-func applyTheme(name string) bool {
-	p, found := theme.Get(name)
+func applyTheme(name string) bool { return applyThemeFrom(nil, name) }
+
+// applyThemeFrom is applyTheme with the user's theme files: cat (nil means
+// built-ins only) is searched first.
+func applyThemeFrom(cat *theme.Catalog, name string) bool {
+	p, found := cat.Get(name)
+	applyPalette(p)
+	return found
+}
+
+// applyPalette makes p the live palette and rebuilds every style.
+func applyPalette(p theme.Palette) {
+	curGlyphs = p.Glyphs
 	c := func(s string) lipgloss.Color { return lipgloss.Color(s) }
 	colorFgPrimary = c(p.Fg)
 	colorFgDim = c(p.FgDim)
@@ -124,7 +135,6 @@ func applyTheme(name string) bool {
 		colorFleet[i] = c(f)
 	}
 	rebuildStyles()
-	return found
 }
 
 // edgeStyle is the foreground-only style of the window frame, whose color

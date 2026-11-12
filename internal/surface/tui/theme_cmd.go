@@ -11,20 +11,20 @@ import (
 )
 
 // themeOptions are the names the theme setting can cycle through: the
-// built-ins, in registry order.
-func themeOptions(_ Model) []string {
-	s, ok := settings.Find("theme")
-	if !ok {
-		return nil
-	}
-	return slices.Clone(s.Options)
+// built-ins in registry order, then the user's theme files by name.
+func themeOptions(m Model) []string {
+	s, _ := settings.Find("theme")
+	return append(slices.Clone(s.Options), m.Themes.UserNames()...)
 }
 
 // applyThemeNamed applies the named theme. An unknown name uses the default
 // palette and puts a notice on the status line.
 func applyThemeNamed(m *Model, name string) {
-	if !applyTheme(name) {
+	if !applyThemeFrom(m.Themes, name) {
 		m.Err = fmt.Sprintf("theme %q not found (using default)", name)
+		if why := m.Themes.WhySkipped(name); why != "" {
+			m.Err = fmt.Sprintf("theme %q not loaded: %s (using default)", name, why)
+		}
 	}
 }
 
