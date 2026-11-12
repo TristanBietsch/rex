@@ -21,6 +21,10 @@ const MaxConfigBytes = 256 << 10
 // to stand in for another user's file.
 var ownedByMe = ownedByCurrentUser
 
+// beforeConfigOpen runs in ReadConfig between the .rex/ check and the open
+// of config.lua. Tests swap the .rex/ there.
+var beforeConfigOpen = func() {}
+
 // ConfigPath is root/.rex/config.lua.
 func ConfigPath(root string) string { return filepath.Join(root, DirName, ConfigFileName) }
 
@@ -53,12 +57,15 @@ func ReadConfig(root string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	beforeConfigOpen()
 	b, err := readPrivate(filepath.Join(rexDir, ConfigFileName), MaxConfigBytes)
 	if err != nil {
 		return nil, err
 	}
 	// The open follows the .rex/ component: it must still be the folder
 	// checked above (not swapped for a link while the file was opened).
+	// A swap and swap back around the open is not seen here; wsconfig
+	// runs only bytes whose hash the user trusted, so it gains nothing.
 	after, err := os.Lstat(rexDir)
 	if err != nil || !os.SameFile(before, after) || checkDir(rexDir) != nil {
 		return nil, fmt.Errorf("%w: %s changed while reading", ErrUnsafe, DirName)
