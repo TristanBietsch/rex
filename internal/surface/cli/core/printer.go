@@ -42,6 +42,8 @@ type Printer struct {
 	AgentAuto bool
 
 	Out, Err io.Writer
+	// In is where Confirm reads the answer (stdin).
+	In io.Reader
 	// OutTTY, ErrTTY and InTTY say whether each standard stream is a terminal.
 	OutTTY, ErrTTY, InTTY bool
 	// Color and ErrColor say whether stdout and stderr may carry ANSI.
@@ -79,7 +81,7 @@ func NewPrinter(fl FormatFlags, env Env, out, errw io.Writer) (*Printer, error) 
 	}
 	p := &Printer{
 		Format: res.Format, Legacy: res.Legacy, AgentAuto: res.Auto,
-		Out: out, Err: errw,
+		Out: out, Err: errw, In: os.Stdin,
 		OutTTY: env.OutTTY, ErrTTY: env.ErrTTY, InTTY: env.InTTY,
 		Width: clampWidth(env.Width),
 		Now:   time.Now,
@@ -107,15 +109,34 @@ func (p *Printer) WithFlags(fl FormatFlags) (*Printer, error) {
 	if err != nil {
 		return nil, err
 	}
-	np.Now, np.Cmd = p.Now, p.Cmd
+	np.Now, np.Cmd, np.In = p.Now, p.Cmd, p.In
 	return np, nil
 }
 
-// autoAgentWired gates the CLAUDECODE auto-detect rule of ResolveFormat for
-// the real process. The rule is implemented and tested; the process wiring
-// lands with the interactive-command guards (P4-12), because auto agent mode
-// must not switch on before a bare `rex` and `attach` refuse it.
-const autoAgentWired = false
+// WithIO returns a Printer for the same flags and environment that writes to
+// out and errw and asks its questions on in. Commands with injectable I/O
+// (update, uninstall) use it so tests can capture every stream.
+func (p *Printer) WithIO(out, errw io.Writer, in io.Reader) (*Printer, error) {
+	np, err := NewPrinter(p.Flags, p.env, out, errw)
+	if err != nil {
+		return nil, err
+	}
+	np.Now, np.Cmd, np.In = p.Now, p.Cmd, in
+	return np, nil
+}
+
+// EmitErr renders v in the text format on stderr: a plan shown before a
+// question, which is part of the dialog and not of the result. Other formats
+// print nothing.
+func (p *Printer) EmitErr(v View) {
+	if p.Format != FormatText {
+		return
+	}
+	q := *p
+	q.Styles = p.ErrStyles
+	q.Color = p.ErrColor
+	_, _ = io.WriteString(p.Err, q.renderText(v.sanitized()))
+}
 
 var (
 	outMu sync.Mutex
@@ -178,8 +199,12 @@ func processEnv(environ []string) Env {
 			vars[k] = v
 		}
 	}
+	// CLAUDECODE switches agent mode on by itself (see ResolveFormat) unless
+	// the cli_agent_auto feature is off; the setting is read only when it
+	// could matter.
+	autoOn := sync.OnceValue(autoAgentSetting)
 	getenv := func(k string) string {
-		if k == "CLAUDECODE" && !autoAgentWired {
+		if k == "CLAUDECODE" && vars[k] != "" && !autoOn() {
 			return ""
 		}
 		return vars[k]
@@ -225,8 +250,22 @@ func stripGlobalFlags(args []string) (rest []string, fl FormatFlags, err error) 
 	return args, fl, nil
 }
 
+// outputRegistry maps a FlagSet to its OutputFlags, so -h can list the
+// output flags and the formats the command supports.
+var outputRegistry sync.Map
+
+func outputFor(fs *flag.FlagSet) *OutputFlags {
+	o, _ := outputRegistry.Load(fs)
+	f, _ := o.(*OutputFlags)
+	return f
+}
+
 // OutputOption customizes AddOutputFlags.
 type OutputOption func(*OutputFlags)
+
+// WithHint sets the command to suggest when the format is refused: an
+// interactive command names the query that gives the same information.
+func WithHint(hint string) OutputOption { return func(o *OutputFlags) { o.hint = hint } }
 
 // WithLegacyJSON registers the legacy -json flag, for commands that had one
 // before versioned output. The command must set Result.Legacy.
@@ -239,6 +278,7 @@ type OutputFlags struct {
 	supported FormatSet
 	legacy    bool
 	name      string
+	hint      string
 }
 
 // AddOutputFlags registers the output flags on fs. The global flags given
@@ -246,6 +286,7 @@ type OutputFlags struct {
 // After ParseArgs, call Validate.
 func AddOutputFlags(fs *flag.FlagSet, supported FormatSet, opts ...OutputOption) *OutputFlags {
 	o := &OutputFlags{fl: Out().Flags, supported: supported, name: fs.Name()}
+	outputRegistry.Store(fs, o)
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -324,15 +365,24 @@ func (o *OutputFlags) parse(fs *flag.FlagSet, run func() ([]string, error)) ([]s
 // rendering an error. A flag combination that does not resolve (a conflict,
 // an unknown format) drops -json, then falls back to txt.
 func (o *OutputFlags) install() *Printer {
+	p, ok := o.build()
+	if ok {
+		SetOut(p)
+	}
+	return p
+}
+
+// build is install without replacing the process Printer. It reports false
+// when no flag combination resolved and the current Printer is returned.
+func (o *OutputFlags) build() (*Printer, bool) {
 	base := Out()
 	for _, fl := range []FormatFlags{o.fl, {Output: o.fl.Output, NoColor: o.fl.NoColor}, {Output: "txt"}} {
 		if p, err := base.WithFlags(fl); err == nil {
 			p.Cmd = o.name
-			SetOut(p)
-			return p
+			return p, true
 		}
 	}
-	return base
+	return base, false
 }
 
 // Validate resolves the format from the parsed flags and the environment,
@@ -348,8 +398,8 @@ func (o *OutputFlags) Validate() error {
 		return NewExitError(ExitInvalidArgs, o.name+": -json is not supported")
 	}
 	if !o.supported.Has(p.Format) {
-		return NewExitError(ExitInvalidArgs, fmt.Sprintf(
-			"%s: output %q is not supported (supported: %s)", o.name, p.Format, o.supported))
+		return Errorf(ExitInvalidArgs, o.hint,
+			"%s: output %q is not supported (supported: %s)", o.name, p.Format, o.supported)
 	}
 	return nil
 }

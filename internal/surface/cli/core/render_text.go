@@ -18,7 +18,7 @@ const (
 // between blocks, headers and sections at column 0, bodies indented two
 // spaces, wrapped and shrunk to the terminal width.
 func (p *Printer) renderText(v View) string {
-	var blocks []string
+	var l blockList
 	for _, b := range v {
 		switch b := b.(type) {
 		case Header:
@@ -26,36 +26,94 @@ func (p *Printer) renderText(v View) string {
 			if b.Meta != "" {
 				s += "  " + p.Styles.Dim.Render(b.Meta)
 			}
-			blocks = append(blocks, s)
+			l.add(s)
 		case Section:
-			blocks = append(blocks, p.Styles.Bold.Render(b.Title+":"))
+			l.section(p.Styles.Bold.Render(b.Title + ":"))
 		case KV:
-			blocks = append(blocks, p.textKV(b))
+			l.add(p.textKV(b))
 		case Table:
-			blocks = append(blocks, p.textTable(b))
+			l.add(p.textTable(b))
 		case Checks:
-			blocks = append(blocks, p.textChecks(b))
+			l.add(p.textChecks(b))
 		case Note:
 			style := p.Styles.Dim
 			if b.Tone == ToneWarn || b.Tone == ToneOK {
 				style = p.Styles.Tone(b.Tone)
 			}
-			blocks = append(blocks, style.Render(b.Text))
+			l.add(style.Render(b.Text))
 		case Hint:
 			s := p.Styles.Accent.Render(p.Glyphs.Hint + " " + b.Cmd)
 			if b.Text != "" {
 				s += "  " + p.Styles.Dim.Render(b.Text)
 			}
-			blocks = append(blocks, s)
+			l.add(s)
 		case Line:
 			s := b.Text
 			if b.Glyph != "" {
 				s = b.Glyph + " " + s
 			}
-			blocks = append(blocks, p.Styles.Tone(b.Tone).Render(s))
+			l.add(p.Styles.Tone(b.Tone).Render(s))
+		case Para:
+			l.add(ansi.Wrap(b.Text, p.Width, ""))
+		case Pre:
+			// Style line by line: lipgloss pads a multi-line string to equal widths.
+			lines := strings.Split(b.Text, "\n")
+			for i, ln := range lines {
+				lines[i] = p.Styles.Dim.Render(ln)
+			}
+			l.add(strings.Join(lines, "\n"))
+		case Defs:
+			l.add(p.textDefs(b))
 		}
 	}
-	return joinBlocks(blocks)
+	return l.String()
+}
+
+// defNameMax is the widest name column of a Defs list; a longer name gets
+// its description on the next line.
+const defNameMax = 30
+
+func defNameWidth(items []Def) int {
+	w := 0
+	for _, it := range items {
+		if n := displayWidth(it.Name); n <= defNameMax {
+			w = max(w, n)
+		}
+	}
+	return w
+}
+
+func (p *Printer) textDefs(d Defs) string {
+	w := defNameWidth(d.Items)
+	descCol := bodyIndent + w + gutter
+	// On a narrow terminal each description goes under its name, indented.
+	stack := p.Width-descCol < 20
+	if stack {
+		descCol = bodyIndent * 2
+	}
+	descW := max(p.Width-descCol, 10)
+	pad := strings.Repeat(" ", descCol)
+	var lines []string
+	for _, it := range d.Items {
+		name := p.Styles.Accent.Render(it.Name)
+		if it.Desc == "" {
+			lines = append(lines, strings.Repeat(" ", bodyIndent)+name)
+			continue
+		}
+		parts := strings.Split(ansi.Wrap(it.Desc, descW, ""), "\n")
+		head := strings.Repeat(" ", bodyIndent) + name
+		if stack || displayWidth(it.Name) > defNameMax {
+			lines = append(lines, head)
+		} else {
+			head += strings.Repeat(" ", w-displayWidth(it.Name)+gutter) + p.Styles.Dim.Render(parts[0])
+			lines = append(lines, head)
+			parts = parts[1:]
+		}
+		for _, part := range parts {
+			lines = append(lines, pad+p.Styles.Dim.Render(part))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (p *Printer) textKV(kv KV) string {
@@ -99,6 +157,9 @@ func (p *Printer) textTable(t Table) string {
 		if d := t.Cols[i].DropBelow; d == 0 || p.Width >= d {
 			idx = append(idx, i)
 		}
+	}
+	if len(idx) == 0 {
+		return "" // every column is for another format
 	}
 	indent := strings.Repeat(" ", bodyIndent)
 	if len(t.Rows) == 0 && t.Empty != "" {

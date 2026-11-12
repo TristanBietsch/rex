@@ -1,0 +1,31 @@
+-- text.w40 --
+  FLEET   SESSIONS
+  (none)  2
+  alpha   1
+-- text.w80 --
+  FLEET   SESSIONS
+  (none)  2
+  alpha   1
+-- text.w120 --
+  FLEET   SESSIONS
+  (none)  2
+  alpha   1
+-- text.color.w80 --
+  ␛[38;2;121;127;140mFLEET␛[0m   ␛[38;2;121;127;140mSESSIONS␛[0m
+  (none)  2
+  alpha   1
+-- txt --
+FLEET                     SESSIONS
+(none)                    2
+alpha                     1
+-- md --
+| Fleet | Sessions |
+| --- | --- |
+| (none) | 2 |
+| alpha | 1 |
+-- json --
+{"v":1,"cmd":"fleet","data":[{"fleet":"(none)","sessions":2},{"fleet":"alpha","sessions":1}]}
+-- agent --
+fleet fleet="(none)" sessions=2
+fleet fleet=alpha sessions=1
+ok cmd=fleet count=2

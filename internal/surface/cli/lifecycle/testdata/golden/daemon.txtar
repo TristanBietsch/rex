@@ -1,0 +1,50 @@
+-- started.text --
+✓ rex-daemon started (pid 4242)
+-- started.txt --
+rex-daemon started (pid 4242)
+-- started.md --
+rex-daemon started (pid 4242)
+-- started.json --
+{"v":1,"cmd":"daemon","data":{"action":"start","state":"started","socket":"/s/rex.sock","pid":"4242"}}
+-- started.agent --
+ok cmd=daemon action=start state=started socket=/s/rex.sock pid=4242
+-- already.text --
+✓ rex-daemon already running
+-- already.txt --
+rex-daemon already running
+-- already.md --
+rex-daemon already running
+-- already.json --
+{"v":1,"cmd":"daemon","data":{"action":"start","state":"already_running","socket":"/s/rex.sock"}}
+-- already.agent --
+ok cmd=daemon action=start state=already_running socket=/s/rex.sock
+-- stopped.text --
+✓ stopped rex-daemon (pid 4242)
+-- stopped.txt --
+stopped rex-daemon (pid 4242) · socket=/s/rex.sock
+-- stopped.md --
+stopped rex-daemon (pid 4242)
+-- stopped.json --
+{"v":1,"cmd":"daemon","data":{"action":"stop","state":"stopped","socket":"/s/rex.sock","pid":"4242"}}
+-- stopped.agent --
+ok cmd=daemon action=stop state=stopped socket=/s/rex.sock pid=4242
+-- running.text --
+✓ rex-daemon is running (pid 4242)
+-- running.txt --
+running · socket=/s/rex.sock · pid=4242
+-- running.md --
+rex-daemon is running (pid 4242)
+-- running.json --
+{"v":1,"cmd":"daemon","data":{"action":"status","state":"running","socket":"/s/rex.sock","pid":"4242"}}
+-- running.agent --
+ok cmd=daemon action=status state=running socket=/s/rex.sock pid=4242
+-- down.text --
+rex-daemon is not running
+-- down.txt --
+not running · socket=/s/rex.sock
+-- down.md --
+rex-daemon is not running
+-- down.json --
+{"v":1,"cmd":"daemon","data":{"action":"status","state":"not_running","socket":"/s/rex.sock"}}
+-- down.agent --
+fail cmd=daemon action=status state=not_running socket=/s/rex.sock

@@ -1,16 +1,16 @@
 # Top-level help and version need no daemon and exit 0.
 
 exec rex help
-stdout 'USAGE'
+stdout '^# Usage$'
 stdout 'rex <command> \[flags\]'
-stdout 'completion <shell>'
+stdout 'completion bash.zsh.fish'
 ! stderr .
 
 exec rex --help
-stdout 'USAGE'
+stdout '^# Usage$'
 
 exec rex -h
-stdout 'USAGE'
+stdout '^# Usage$'
 
 exec rex version
 stdout '^v1$'
@@ -33,13 +33,47 @@ stderr 'did you mean "ls"\?'
 
 # -h on a subcommand prints its usage and exits 0, with no error line.
 exec rex ls -h
-stderr 'Usage of ls:'
+stdout 'Usage: rex ls'
 ! stderr '^rex:'
 
 exec rex new -h
-stderr 'Usage of new:'
+stdout 'Usage: rex new'
 ! stderr '^rex:'
 
 exec rex wait p1 -h
-stderr 'Usage of wait:'
+stdout 'Usage: rex wait'
 ! stderr '^rex:'
+
+# The agent card: rex agent-help, rex help agent, and --help in agent mode.
+exec rex agent-help
+stdout '^rex agent card v1:'
+stdout '^exit: 0 ok 1 error 2 not_found'
+! stderr .
+exec rex help agent
+stdout '^rex agent card v1:'
+exec rex --agent --help
+stdout '^rex agent card v1:'
+exec rex agent-help -o json
+stdout '^\{"v":1,"cmd":"agent-help","data":\{"card":1,'
+
+# rex help <command> is rex <command> -h.
+exec rex help ls
+stdout '^Usage: rex ls \[flags\]$'
+exitcode 5 rex help nonsense
+stderr 'help: unknown topic "nonsense"'
+
+# version, update -check and config on the kit.
+exec rex version -o json
+stdout '^\{"v":1,"cmd":"version","data":\{"version":"v1"\}\}$'
+exec rex --agent version
+stdout '^ok cmd=version version=v1$'
+exec rex update -check -o agent
+stdout '^ok cmd=update version=v1 remote='
+exec rex config get spinner --agent
+stdout '^ok cmd=config id=spinner value=braille$'
+exec rex config list -o agent
+stdout '^setting id=spinner section=Appearance value=braille default=braille$'
+stdout '^ok cmd=config count='
+exec rex uninstall -dry-run -o agent
+stdout '^removal kind=binaries '
+stdout '^ok cmd=uninstall count=.* dry_run=true$'

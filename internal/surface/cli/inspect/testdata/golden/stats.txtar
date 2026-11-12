@@ -1,0 +1,149 @@
+-- text.w40 --
+Stats  lifetime
+
+  sessions      3
+  done          1
+  failed        2
+  active/other  0
+
+By model:
+  MODEL         SESSIONS  DURATION
+  gemini-3-pro         1       58m
+  opus                 1    1h 24m
+  sonnet               1      < 1m
+
+By tool:
+  TOOL         SESSIONS
+  claude              2
+  antigravity         1
+-- text.w80 --
+Stats  lifetime
+
+  sessions      3
+  done          1
+  failed        2
+  active/other  0
+
+By model:
+  MODEL         SESSIONS  DURATION
+  gemini-3-pro         1       58m
+  opus                 1    1h 24m
+  sonnet               1      < 1m
+
+By tool:
+  TOOL         SESSIONS
+  claude              2
+  antigravity         1
+-- text.w120 --
+Stats  lifetime
+
+  sessions      3
+  done          1
+  failed        2
+  active/other  0
+
+By model:
+  MODEL         SESSIONS  DURATION
+  gemini-3-pro         1       58m
+  opus                 1    1h 24m
+  sonnet               1      < 1m
+
+By tool:
+  TOOL         SESSIONS
+  claude              2
+  antigravity         1
+-- text.color.w80 --
+␛[1;38;2;230;230;230mStats␛[0m  ␛[38;2;121;127;140mlifetime␛[0m
+
+  ␛[38;2;121;127;140msessions    ␛[0m  3
+  ␛[38;2;121;127;140mdone        ␛[0m  1
+  ␛[38;2;121;127;140mfailed      ␛[0m  2
+  ␛[38;2;121;127;140mactive/other␛[0m  0
+
+␛[1;38;2;230;230;230mBy model:␛[0m
+  ␛[38;2;121;127;140mMODEL␛[0m         ␛[38;2;121;127;140mSESSIONS␛[0m  ␛[38;2;121;127;140mDURATION␛[0m
+  gemini-3-pro         1       58m
+  opus                 1    1h 24m
+  sonnet               1      < 1m
+
+␛[1;38;2;230;230;230mBy tool:␛[0m
+  ␛[38;2;121;127;140mTOOL␛[0m         ␛[38;2;121;127;140mSESSIONS␛[0m
+  claude              2
+  antigravity         1
+-- txt --
+sessions      3
+done          1
+failed        2
+active/other  0
+
+# By model
+MODEL         SESSIONS  DURATION
+gemini-3-pro         1       58m
+opus                 1    1h 24m
+sonnet               1      < 1m
+
+# By tool
+TOOL         SESSIONS
+claude              2
+antigravity         1
+-- md --
+### Stats
+
+*lifetime*
+
+| Key | Value |
+| --- | --- |
+| sessions | 3 |
+| done | 1 |
+| failed | 2 |
+| active/other | 0 |
+
+#### By model
+
+| Model | Sessions | Duration |
+| --- | ---: | ---: |
+| gemini-3-pro | 1 | 58m |
+| opus | 1 | 1h 24m |
+| sonnet | 1 | &lt; 1m |
+
+#### By tool
+
+| Tool | Sessions |
+| --- | ---: |
+| claude | 2 |
+| antigravity | 1 |
+-- json --
+{"v":1,"cmd":"stats","data":{"by_model":[{"model":"gemini-3-pro","sessions":1,"duration_ms":3480000},{"model":"opus","sessions":1,"duration_ms":5040000},{"model":"sonnet","sessions":1,"duration_ms":20000}],"by_tool":[{"tool":"claude","sessions":2},{"tool":"antigravity","sessions":1}],"totals":{"sessions":3,"done":1,"failed":2,"other":0}}}
+-- agent --
+model model=gemini-3-pro sessions=1 duration_s=3480
+model model=opus sessions=1 duration_s=5040
+model model=sonnet sessions=1 duration_s=20
+tool tool=claude sessions=2
+tool tool=antigravity sessions=1
+ok cmd=stats sessions=3 done=1 failed=2 other=0
+-- empty.text --
+Stats  lifetime
+
+  sessions      0
+  done          0
+  failed        0
+  active/other  0
+
+By model:
+  (no sessions)
+
+By tool:
+  (no sessions)
+-- empty.txt --
+sessions      0
+done          0
+failed        0
+active/other  0
+
+# By model
+(no sessions)
+
+# By tool
+(no sessions)
+-- empty.agent --
+ok cmd=stats sessions=0 done=0 failed=0 other=0

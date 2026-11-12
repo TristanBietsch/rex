@@ -124,7 +124,7 @@ func TestFitModeIsLayoutFit(t *testing.T) {
 		for _, w := range layoutWidths {
 			m := fitModel(t, layoutModel(now, w, sessions...))
 			m.Detailed = detailed
-			require.Equal(t, layoutFit(sessions, now, w, detailed, true), boardLayout(m, w), "detailed=%v width %d", detailed, w)
+			require.Equal(t, layoutFit(sessions, now, w, detailed, true, true), boardLayout(m, w), "detailed=%v width %d", detailed, w)
 		}
 	}
 }

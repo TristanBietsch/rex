@@ -27,6 +27,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Agent mode switches on by itself when `CLAUDECODE=1` and stdout is not a
+  terminal (a Claude Code Bash tool, including inside rex-spawned
+  sessions): one line per record, an `ok` trailer, one error line on
+  stderr, no color, no prompts. `REX_AGENT=0` turns it off for a run; the
+  `cli_agent_auto` setting (Features, on) turns it off for good. A
+  terminal is never affected.
+- `rex errors [-n N] [-since 24h] [-clear]` shows the CLI error log in every
+  format; `rex doctor` gets a `cli errors` row (failures in the last 24
+  hours).
+- Private CLI error log: a failed `rex` command leaves one JSONL record in
+  `~/.local/state/rex/cli-errors.log` (0600, 1 MiB plus one backup) with the
+  command, flag names, exit code and kind, a stable error code and the Go
+  types of the error chain. It stores structure only, never error or hint
+  text or any argument value. On by default; setting
+  `cli_error_log` (Advanced) or `REX_ERROR_LOG=0` turns it off.
+- `rex agent-help` (also `rex help agent`, and `rex --help` in agent mode)
+  prints a compact usage card for LLM agents: line grammar, exit codes, the
+  common commands and the interactive ones to avoid. `-o json` gives it as
+  data.
+- `rex help <command>` is the same as `rex <command> -h`.
+- `rex resume <sel>` respawns an exited session in place (same row, id, slug
+  and transcript) with the agent's resume arguments, or unmarks a running
+  session marked done. `rex resume -print <sel>` prints only the full resume
+  id. It exits 5 with `off: enable in Settings → Features (rex config set
+  resume true)` while the `resume` feature is off.
+- `rex ls -wide` adds a `RESUME ID` column (full id) while the `resume`
+  feature is on.
+- `rex ls -wide` adds `STARTED` and `ENDED` columns before `NAME` (agent
+  lines get `started=` and `ended=`).
+- Setting `timestamps` (Features, on by default): switches off the TUI's
+  start→end span column and the `rex ls -wide` time columns. The end time
+  is still recorded.
 - Turn snapshots and undo, off by default (Settings → Features,
   `turn_snapshots`). The daemon snapshots a session's folder at the start
   and end of every agent turn into a private store under
@@ -331,6 +363,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Interactive commands refuse a format that cannot show them, with exit 5
+  and the query that answers the same question: bare `rex` (any format but
+  text), `rex attach` (json, md, agent) and the `rex setup` wizard.
+- `rex doctor`, `config`, `setup` (`-preview`, `-yes`), `update`, `uninstall`,
+  `daemon` and `reload` and `version` take `-o`, `--agent` and `--no-color`.
+  Their CLI colors come from the theme (`color_scheme`), not copied hex
+  values; piped `doctor` and `setup -preview` (`txt`) have no banner or
+  glyph. `-json` keeps its legacy shape (`doctor`, `config list`).
+- `rex update` and `rex uninstall` ask on stderr (they asked on stdout) and
+  need `-yes` without a terminal or in a non-text format (exit 6); a
+  declined `uninstall` question exits 6 (it was 1). Progress lines of
+  `update` go to stderr. `setup -yes` prints its report through the same
+  formats; `rex setup` (the wizard) refuses non-text formats with exit 5.
+  Suggested commands use single-dash flags (`rex new -tool … -model … --
+  "your first task"`).
+- `rex digest`, `rex stats` and `rex fleet` take `-o`/`--agent`; `rex log`
+  and `rex render` take `-o` for text and txt (md and json exit 5). Piped
+  `digest` and `stats` output (`txt`) no longer has the banner and rule:
+  label and value lines under `# Section` headings. `-json` keeps its
+  shape; `-o json` is the same data in the versioned envelope with integer
+  millisecond durations. Digest errors name `-date`/`-since` (single dash).
+- The session commands (`new`, `reply`, `send`, `wait`, `rename`, `name`,
+  `done`, `undone`, `archive`, `complete`, `rm`, `prune`) take `-o`,
+  `--agent` and `--no-color`: `text` prints a `✓` line, `json` the result as
+  data, `agent` one `ok cmd=… id=… slug=…` line. `txt` (a pipe) prints what
+  each command always printed. Confirmation questions and warnings go to
+  stderr.
+- A declined `rex prune` question now exits 6 (it was 1), like `rex rm`.
+  `prune` and `rm` need `-yes`/`-force` in every format but `text`, and
+  whenever stdin or stderr is not a terminal.
+- Help is rebuilt in the style of `agy`: `rex --help` and `rex <command> -h`
+  start with `Usage:`, use Title-case sections with a colon, align their
+  columns and end with one hint, with no banner or rule. They are generated
+  from one command table, print to stdout (`-h` used to print on stderr) and
+  follow `-o` (`txt` in a pipe, `md`, `json`, `agent`). A flag error prints
+  the error and a one-line `Usage:` hint instead of the whole flag list. The
+  completion scripts now list the same commands as `--help`.
 - TUI: the new-session wizard (`n`, `:new`) has a model step again. It is
   skipped for a tool with one model, and starts on `default_spawn_model` when
   the tool is `default_spawn_tool`. It used to pick the first model silently.
@@ -423,6 +492,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `rex update` reads the new version with plain output, so `CLAUDECODE`,
+  `REX_AGENT` or `REX_OUTPUT` in the caller no longer turn it into an agent
+  or json line.
+- `rex setup -preview` shows the shell block on separate lines in every
+  format.
+- `rex resume -print` prints the bare id under `CLAUDECODE` auto-detect.
+- ANSI color no longer reaches a redirected stderr: each stream decides on
+  its own, and nothing uses a shared renderer.
+- `rex digest` and `rex stats` read their colors from the theme instead of
+  copied hex values that ignored `color_scheme`.
 - Daemon: `Resize` and `NewSession` sizes are clamped to 20-1000 columns and
   5-500 rows. A client asking for 65535x65535 made the daemon allocate about
   4 GB for its screen mirror and could run it out of memory.

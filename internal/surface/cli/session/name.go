@@ -22,8 +22,9 @@ type nameArgs struct {
 func parseNameArgs(args []string) (nameArgs, error) {
 	fs := flag.NewFlagSet("name", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	clear := fs.Bool("clear", false, "clear the name (board shows the slug)")
-	rest, err := core.ParseTextArgs(fs, args, 1)
+	rest, err := out.ParseText(fs, args, 1)
 	if err != nil {
 		return nameArgs{}, err
 	}
@@ -68,12 +69,13 @@ func RunName(args []string) error {
 		return err
 	}
 	if a.show {
-		if sess.Name == "" {
-			fmt.Printf("(no name — board shows slug %s)\n", sess.Slug)
-			return nil
+		text := sess.Name
+		if text == "" {
+			text = fmt.Sprintf("(no name — board shows slug %s)", sess.Slug)
 		}
-		fmt.Println(sess.Name)
-		return nil
+		p := core.Out()
+		return p.Emit(core.Result{Cmd: "name", Data: nameData{refOf(sess), sess.Name},
+			View: core.ActionView(core.Line{Text: text}, sessionFields(sess, core.Field{Key: "name", Val: sess.Name})...)})
 	}
 	reqID := "cli-name-" + sess.ShortID
 	if err := c.SetSessionName(sess.ID, a.name, reqID); err != nil {
@@ -83,9 +85,16 @@ func RunName(args []string) error {
 		return err
 	}
 	if a.clear {
-		fmt.Printf("%s: name cleared\n", sess.Slug)
-	} else {
-		fmt.Printf("%s: named %q (%d/%d)\n", sess.Slug, a.name, utf8.RuneCountInString(a.name), protocol.MaxSessionNameRunes)
+		return emitAction("name", nameData{refOf(sess), ""}, "cleared the name of "+sess.Slug,
+			sess.Slug+": name cleared", sessionFields(sess, core.Field{Key: "name", Val: ""}))
 	}
-	return nil
+	count := fmt.Sprintf("%d/%d", utf8.RuneCountInString(a.name), protocol.MaxSessionNameRunes)
+	return emitAction("name", nameData{refOf(sess), a.name}, fmt.Sprintf("named %s %q (%s)", sess.Slug, a.name, count),
+		fmt.Sprintf("%s: named %q (%s)", sess.Slug, a.name, count), sessionFields(sess, core.Field{Key: "name", Val: a.name}))
+}
+
+// nameData is the `-o json` payload of rex name.
+type nameData struct {
+	actionData
+	Name string `json:"name"`
 }

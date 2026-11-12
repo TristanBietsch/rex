@@ -1,0 +1,38 @@
+-- text --
+✓ wrote /home/u/.config/rex/config.yaml
+
+auto-trust: agents started under ~/dev skip the folder trust prompt
+
+✓ setup complete
+
+› rex new -tool claude -model opus -effort high -- "your first task"
+
+Docs: https://github.com/tristanbietsch/rex
+-- txt --
+auto-trust: agents started under ~/dev skip the folder trust prompt
+
+setup complete. Next: rex new -tool claude -model opus -effort high -- "your first task"
+
+Docs: https://github.com/tristanbietsch/rex
+-- md --
+wrote /home/u/.config/rex/config.yaml
+
+auto-trust: agents started under \~/dev skip the folder trust prompt
+
+setup complete
+
+`rex new -tool claude -model opus -effort high -- "your first task"` 
+
+> Docs: https://github.com/tristanbietsch/rex
+-- json --
+{"v":1,"cmd":"setup","data":{"mode":"applied","config_path":"/home/u/.config/rex/config.yaml","auto_trust":"~/dev","shell_rc":"/home/u/.zshrc","shell_state":"installed","next_command":"rex new -tool claude -model opus -effort high -- \"your first task\""}}
+-- agent --
+ok cmd=setup mode=applied config=/home/u/.config/rex/config.yaml shell_rc=/home/u/.zshrc shell=installed next="rex new -tool claude -model opus -effort high -- \"your first task\""
+-- txt.rc_failed --
+auto-trust: agents started under ~/dev skip the folder trust prompt
+
+setup complete. Next: rex new -tool claude -model opus -effort high -- "your first task"
+
+Docs: https://github.com/tristanbietsch/rex
+[stderr]
+rex: could not install shell block into /home/u/.zshrc: permission denied

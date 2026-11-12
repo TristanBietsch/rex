@@ -148,6 +148,16 @@ var Registry = []Setting{
 		Help: "Track each session's agent conversation id so an exited session can be resumed: the resume id column, :rid and the Resume intent (used by uc / :resume). Off: no id is assigned or captured, the column and :rid go away, and Resume is refused. Read at each spawn.",
 	},
 	{
+		ID: "timestamps", Label: "Start and end times", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Show when each session started and ended: the start→end column in the detailed board view and STARTED / ENDED in rex ls -wide. Off: no column and no such columns; the end time is still recorded.",
+	},
+	{
+		ID: "cli_agent_auto", Label: "Agent mode for Claude Code", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Switch rex's CLI to agent mode (one line per record, no color, no prompts) when CLAUDECODE=1 and stdout is not a terminal. Off: only --agent, -o agent and REX_AGENT=1 do. REX_AGENT=0 always turns it off for one run.",
+	},
+	{
 		ID: "summary_preview", Label: "Summary preview line", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
@@ -286,6 +296,11 @@ var Registry = []Setting{
 		Type: TypeString, Default: "~/.config/rex/init.lua",
 		ReadOnly: true,
 		Help:     "Path to the optional Lua config (Plan E).",
+	},
+	{
+		ID: "cli_error_log", Label: "CLI error log", Section: SectionAdvanced,
+		Type: TypeBool, Default: true,
+		Help: "Keep a private record of failed rex commands in ~/.local/state/rex/cli-errors.log: structure only (command, flag names, exit code and kind, error type names), never any message, prompt, value or path. Capped at 1 MiB plus one backup. Read it with rex errors. Env REX_ERROR_LOG=0 also turns it off.",
 	},
 }
 
