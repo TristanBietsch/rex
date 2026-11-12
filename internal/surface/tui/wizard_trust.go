@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -210,6 +212,18 @@ func wrapPath(p string, width, maxLines int) []string {
 	return append(out, p)
 }
 
+// typedPath cleans a folder typed or pasted into the command bar: escape
+// sequences and other control characters a paste can carry are dropped, so
+// they never reach config.yaml or the status line.
+func typedPath(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, ansi.Strip(s))
+}
+
 // runTrustCmd is `:trust [path]`: save a folder to auto_trust_dirs. With no
 // path it is the repo folder of the selected session's folder, or of the
 // folder rex runs in. Sessions already running keep asking; new ones skip
@@ -225,7 +239,10 @@ func runTrustCmd(m Model, c cmdCall) (Model, tea.Cmd) {
 	}
 	entry := ""
 	if len(c.Args) == 1 {
-		entry = c.Args[0]
+		if entry = typedPath(c.Args[0]); entry == "" {
+			m.Err = "trust: usage :trust [folder]"
+			return m, nil
+		}
 	} else {
 		base := wizardCWD()
 		for _, s := range m.Sessions {

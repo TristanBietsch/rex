@@ -172,3 +172,16 @@ func TestCommandTrust_InHomeNeedsAPath(t *testing.T) {
 	require.Contains(t, m.Err, "trust:")
 	require.Empty(t, m.Store.String("auto_trust_dirs"))
 }
+
+// A pasted path can carry escapes or other control characters; :trust drops
+// them, as the setup wizard's folder field does, so they never reach
+// config.yaml or the status line.
+func TestCommandTrust_StripsControlCharacters(t *testing.T) {
+	m, _, proj, _ := spawnTrustWizard(t)
+	m.Wizard, m.Focus = nil, FocusBoard
+	m, _ = executeCommand(m, "trust \x1b[31m~/dev/\x07proj\x1b[0m")
+	require.Empty(t, m.Err)
+	require.Equal(t, "~/dev/proj", m.Store.String("auto_trust_dirs"))
+	require.Contains(t, m.Notice, proj)
+	require.NotContains(t, m.Notice, "\x1b")
+}
