@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/loop"
@@ -76,14 +77,32 @@ func (s *Server) SpawnLoopSession(ctx context.Context, req loop.SpawnRequest) (s
 	}, s, req.LoopID, req.Iter)
 }
 
+// lockInput takes the session's input lock and returns its unlock.
+func (s *Server) lockInput(sessionID string) func() {
+	v, _ := s.inputLocks.LoadOrStore(sessionID, &sync.Mutex{})
+	m, _ := v.(*sync.Mutex)
+	m.Lock()
+	return m.Unlock
+}
+
 // SendText types text into a session and presses Enter, as a Reply does,
-// without counting as the user's activity.
-func (s *Server) SendText(sessionID, text string) error {
+// without counting as the user's activity. It holds the session's input lock
+// for the whole send, and calls guard (nil: always send) once the lock is
+// held: when guard says false nothing is sent and sent is false. The loop
+// runner uses it to give up if the user typed in the meantime.
+func (s *Server) SendText(sessionID, text string, guard func() bool) (sent bool, err error) {
 	ch := s.InputChannel(sessionID)
 	if ch == nil {
-		return errors.New("session not running")
+		return false, errors.New("session not running")
 	}
-	return typeText(ch, text)
+	defer s.lockInput(sessionID)()
+	if guard != nil && !guard() {
+		return false, nil
+	}
+	if err := typeText(ch, text); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // SetSessionLoop records the loop and turn on a session and persists it.

@@ -1,6 +1,7 @@
 package boot
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +21,7 @@ import (
 func TestLoops_OffIsInert(t *testing.T) {
 	dir := t.TempDir()
 	store := state.NewStore()
-	l := NewLoops(dir, filepath.Join(dir, "files"), store, func() bool { return false })
+	l := NewLoops(context.Background(), dir, filepath.Join(dir, "files"), store, func() bool { return false })
 	defer l.Close()
 	_, err := l.Start(protocol.StartLoop{Name: "x", CWD: dir})
 	require.True(t, loop.IsOff(err))
@@ -35,7 +36,7 @@ func TestLoops_OffIsInert(t *testing.T) {
 }
 
 func TestLoops_ApplierFollowsTheSetting(t *testing.T) {
-	l := NewLoops(t.TempDir(), t.TempDir(), state.NewStore(), func() bool { return true })
+	l := NewLoops(context.Background(), t.TempDir(), t.TempDir(), state.NewStore(), func() bool { return true })
 	defer l.Close()
 	l.SetEnabled(true)
 	require.True(t, l.Runner.Enabled())
@@ -47,7 +48,7 @@ func TestLoops_ApplierFollowsTheSetting(t *testing.T) {
 func TestLoops_SubscribeTranslatesStoreEvents(t *testing.T) {
 	store := state.NewStore()
 	require.NoError(t, store.Add(&state.Session{ID: "s1", ShortID: "s1", Slug: "s", State: protocol.StateWorking, StartedAt: time.Now()}))
-	l := NewLoops(t.TempDir(), t.TempDir(), store, func() bool { return true })
+	l := NewLoops(context.Background(), t.TempDir(), t.TempDir(), store, func() bool { return true })
 	defer l.Close()
 	got := make(chan loop.Event, 8)
 	cancel := l.Subscribe(func(e loop.Event) { got <- e })
@@ -75,7 +76,7 @@ func TestLoops_OutputFallsBackToTheTranscript(t *testing.T) {
 	dir := t.TempDir()
 	store := state.NewStore()
 	require.NoError(t, store.Add(&state.Session{ID: "s1", ShortID: "s1", Slug: "s", State: protocol.StateWorking, StartedAt: time.Now()}))
-	l := NewLoops(dir, t.TempDir(), store, func() bool { return true })
+	l := NewLoops(context.Background(), dir, t.TempDir(), store, func() bool { return true })
 	defer l.Close()
 	store.SetScreen("s1", "on screen")
 	require.Equal(t, "on screen", l.Output("s1"))
@@ -95,7 +96,7 @@ func loopServerHost(t *testing.T) (*Loops, *state.Store) {
 	dir := t.TempDir()
 	srv, err := server.New(server.Config{Socket: filepath.Join(dir, "s.sock"), StateDir: dir, Registry: reg, Store: store})
 	require.NoError(t, err)
-	l := NewLoops(dir, t.TempDir(), store, func() bool { return true })
+	l := NewLoops(context.Background(), dir, t.TempDir(), store, func() bool { return true })
 	l.SetServer(srv)
 	t.Cleanup(l.Close)
 	return l, store
@@ -110,8 +111,9 @@ func TestLoops_HostOverTheServer(t *testing.T) {
 	require.False(t, l.ReportsReason("nope"))
 	require.True(t, l.ReportsReason("claude"))
 
-	require.ErrorContains(t, l.Send("s1", "x"), "not running")
-	_, err := l.Spawn(t.Context(), loop.SpawnRequest{Tool: "nope", Model: "x", Slug: "a", CWD: t.TempDir()})
+	_, err := l.Send("s1", "x", nil)
+	require.ErrorContains(t, err, "not running")
+	_, err = l.Spawn(t.Context(), loop.SpawnRequest{Tool: "nope", Model: "x", Slug: "a", CWD: t.TempDir()})
 	require.Error(t, err)
 
 	l.SetSessionLoop("s1", "loop-0000000a", 2)
@@ -147,9 +149,18 @@ func TestLoops_IntentsWhenOn(t *testing.T) {
 		_, err = f("loop-0000000a")
 		require.ErrorContains(t, err, "unknown loop")
 	}
-	off := NewLoops(t.TempDir(), t.TempDir(), state.NewStore(), func() bool { return false })
+	off := NewLoops(context.Background(), t.TempDir(), t.TempDir(), state.NewStore(), func() bool { return false })
 	require.NoError(t, off.Runner.Enable())
 	_, err = off.Start(protocol.StartLoop{Name: "x"})
 	require.True(t, loop.IsOff(err))
 	require.False(t, off.Runner.Enabled())
+}
+
+// Only a tool that says why it waits may run loops; an OSC 7501 tool opts in
+// when its adapter reports a reason, not before.
+func TestToolReportsReason(t *testing.T) {
+	require.True(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "hooks", Format: "claude"}}))
+	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "heuristic"}}))
+	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}}))
+	require.False(t, toolReportsReason(registry.Tool{Detect: registry.Detect{Kind: "hooks", Format: "other"}}))
 }

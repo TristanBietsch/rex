@@ -216,6 +216,9 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 	if ch == nil {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
+	// Under the session's input lock, so the bytes never land between a
+	// loop's text and its Enter. The loop is told before they are queued.
+	defer c.srv.lockInput(p.SessionID)()
 	if !p.Synthetic {
 		c.srv.userInput(p.SessionID) // a loop holds its re-sends
 	}
@@ -239,6 +242,7 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	if ch == nil {
 		return outcome{}, replyMsg(protocol.ErrCodeUnknownSession, "session not running")
 	}
+	defer c.srv.lockInput(p.SessionID)()
 	c.srv.userInput(p.SessionID) // a loop holds its re-sends
 	if err := typeText(ch, p.Text); err != nil {
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)

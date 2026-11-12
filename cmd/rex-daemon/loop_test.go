@@ -20,7 +20,7 @@ func startLoopDaemon(t *testing.T, dir string) (c *client.Client, stop func()) {
 	t.Helper()
 	sock := filepath.Join(dir, "rex.sock")
 	errc := make(chan error, 1)
-	go func() { errc <- run([]string{"-socket", sock, "-state-dir", dir, "-tools", ""}) }()
+	go func() { errc <- run([]string{"-socket", sock, "-state-dir", dir, "-tools", filepath.Join(dir, "tools.yaml")}) }()
 	require.Eventually(t, func() bool {
 		var derr error
 		c, derr = client.Dial(sock)
@@ -59,8 +59,23 @@ func TestRun_LoopsEndToEnd(t *testing.T) {
 	loopsDir, err := paths.LoopsDir()
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(loopsDir, 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(loopsDir, "echoer.yaml"), []byte(
-		"name: echoer\nkind: repeat\ntool: echo\nmodel: short\nprompt: hello\nuntil:\n  check: [\"true\"]\n"), 0o600))
+	// A test agent that reports why it waits (Claude's hooks), running a
+	// plain shell: no real agent is ever started.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "tools.yaml"), []byte(`tools:
+  - id: hookbash
+    name: "Hook test"
+    category: self_hosted
+    command: ["bash", "-c"]
+    detect: {kind: hooks, format: claude}
+    icon: "o"
+    color: "#94A3B8"
+    models:
+      - {id: short, name: "Short", args: ["sleep 20"]}
+`), 0o600))
+	for name, tool := range map[string]string{"echoer": "hookbash", "plain": "echo"} {
+		require.NoError(t, os.WriteFile(filepath.Join(loopsDir, name+".yaml"), []byte(
+			"name: "+name+"\nkind: repeat\ntool: "+tool+"\nmodel: short\nprompt: hello\nuntil:\n  check: [\"true\"]\n"), 0o600))
+	}
 	cfg, err := paths.ConfigFile()
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
@@ -102,6 +117,12 @@ func TestRun_LoopsEndToEnd(t *testing.T) {
 		}
 	}
 	require.True(t, found, "the loop's session is on the board")
+
+	// A tool that does not say why it waits is refused: a loop could answer
+	// its permission prompts.
+	_, err = c.StartLoop(ctx, protocol.StartLoop{Name: "plain", CWD: dir})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "loops need an agent that reports why it is waiting")
 
 	// A loop file that does not exist is refused.
 	_, err = c.StartLoop(ctx, protocol.StartLoop{Name: "nope", CWD: dir})

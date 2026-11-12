@@ -37,20 +37,29 @@ type SpawnRequest struct {
 // Host is what the runner needs from the daemon. The daemon implements it
 // over its server and session store (internal/daemon/boot); tests use a fake.
 type Host interface {
-	// Spawn starts the loop's session and returns its id. Errors are the
-	// spawn path's own (bad tool, too many sessions, ...).
+	// Spawn starts the loop's session and returns its id. ctx is
+	// Config.SessionCtx: the session lives as long as it, never as long as
+	// the runner. Errors are the spawn path's own (bad tool, too many
+	// sessions, ...).
 	Spawn(ctx context.Context, req SpawnRequest) (sessionID string, err error)
-	// Send types text into the session and presses Enter, as a Reply does.
-	Send(sessionID, text string) error
+	// Send types text into the session and presses Enter, as a Reply does,
+	// holding the session's input lock for the whole send so no client
+	// keystroke lands in the middle. guard is called once the lock is held:
+	// when it returns false nothing is sent and sent is false.
+	Send(sessionID, text string, guard func() bool) (sent bool, err error)
 	// Session is the session's current summary.
 	Session(sessionID string) (protocol.SessionSummary, bool)
 	// Output is the session's latest readable output (its screen).
 	Output(sessionID string) string
 	// ReportsReason says whether the tool reports why it waits (Claude Code
-	// hooks): for those, a turn end is an explicit wait_reason "review".
+	// hooks; other tools opt in once their adapter reports a wait reason).
+	// Loops run only for such tools: a turn end is an explicit wait_reason
+	// "review", and a tool that cannot tell a finished turn from a
+	// permission prompt could have its prompts answered by a loop.
 	ReportsReason(toolID string) bool
 	// EnsureLive makes sure the session runs again (resuming an exited one
-	// in place). It returns nil at once for a live session.
+	// in place, under ctx = Config.SessionCtx). It returns nil at once for a
+	// live session.
 	EnsureLive(ctx context.Context, sessionID string) error
 	// SetSessionLoop records the loop and its turn on the session, which
 	// shows on the board and the wire.
@@ -93,6 +102,12 @@ const (
 	MsgOff     = "off: enable loops in Settings → Features"
 	MsgTooMany = "too many loops"
 )
+
+// NoReasonMessage is the refusal for a tool that cannot say why it waits.
+func NoReasonMessage(tool string) string {
+	return "loops need an agent that reports why it is waiting (Claude hooks or OSC 7501 status); " + tool +
+		" can't, so a loop could answer its permission prompts"
+}
 
 // ErrOff is returned while the loops feature is off.
 var ErrOff = &Error{Kind: KindBadInput, Msg: MsgOff}

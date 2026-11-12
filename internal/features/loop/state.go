@@ -30,18 +30,21 @@ const retainFinished = 7 * 24 * time.Hour
 // whole definition, so a loop goes on with the file as it was at start even
 // if the file is edited or deleted meanwhile.
 type State struct {
-	Version       int                `json:"version"`
-	ID            string             `json:"id"`
-	Def           Def                `json:"def"`
-	SessionID     string             `json:"session_id,omitempty"`
-	State         protocol.LoopState `json:"state"`
-	PauseReason   string             `json:"pause_reason,omitempty"`
-	StopReason    string             `json:"stop_reason,omitempty"`
-	Notice        string             `json:"notice,omitempty"`
-	Iteration     int                `json:"iteration"`
-	LastCheckExit *int               `json:"last_check_exit,omitempty"`
-	StartedAt     time.Time          `json:"started_at"`
-	UpdatedAt     time.Time          `json:"updated_at"`
+	Version     int                `json:"version"`
+	ID          string             `json:"id"`
+	Def         Def                `json:"def"`
+	SessionID   string             `json:"session_id,omitempty"`
+	State       protocol.LoopState `json:"state"`
+	PauseReason string             `json:"pause_reason,omitempty"`
+	StopReason  string             `json:"stop_reason,omitempty"`
+	Notice      string             `json:"notice,omitempty"`
+	Iteration   int                `json:"iteration"`
+	// ElapsedNS is the running time so far (pauses and downtime excluded),
+	// which max_minutes counts.
+	ElapsedNS     int64     `json:"elapsed_ns,omitempty"`
+	LastCheckExit *int      `json:"last_check_exit,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // Summary is the wire form of s.

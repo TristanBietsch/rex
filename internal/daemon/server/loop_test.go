@@ -179,10 +179,13 @@ func TestSendInput_TellsLoopsOfUserInputOnly(t *testing.T) {
 func TestSendText_AndSetSessionLoop(t *testing.T) {
 	store := state.NewStore()
 	srv, _, _ := newTestServer(t, store)
-	require.ErrorContains(t, srv.SendText("nope", "x"), "not running")
+	_, err := srv.SendText("nope", "x", nil)
+	require.ErrorContains(t, err, "not running")
 	ch := make(chan []byte, 4)
 	srv.RegisterInputChannel("s1", ch)
-	require.NoError(t, srv.SendText("s1", "hello"))
+	sent, err := srv.SendText("s1", "hello", nil)
+	require.NoError(t, err)
+	require.True(t, sent)
 	require.Equal(t, []byte("hello"), <-ch)
 	require.Equal(t, []byte{'\r'}, <-ch)
 
@@ -194,4 +197,39 @@ func TestSendText_AndSetSessionLoop(t *testing.T) {
 	srv.SetSessionLoop("nope", "loop-0000000a", 1) // unknown session: nothing happens
 	require.ErrorContains(t, srv.EnsureLive(t.Context(), "nope"), "not found")
 	require.NoError(t, srv.EnsureLive(t.Context(), "s1"), "a live session is left alone")
+}
+
+// A client keystroke never lands between a loop's text and its Enter, and a
+// send whose guard says the user typed meanwhile sends nothing.
+func TestSendText_IsNotInterleavedWithClientInput(t *testing.T) {
+	srv, sock, _ := newTestServer(t, state.NewStore())
+	fl := &fakeLoops{}
+	srv.cfg.Loops = fl
+	serveTest(t, srv)
+	ch := make(chan []byte, 8)
+	srv.RegisterInputChannel("s1", ch)
+	conn := dialTest(t, sock)
+	w, r, _ := helloAs(t, conn, "rex-tui")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sent, err := srv.SendText("s1", "hello", func() bool { return true })
+		require.NoError(t, err)
+		require.True(t, sent)
+	}()
+	require.Equal(t, []byte("hello"), <-ch) // text is out; Enter follows after the delay
+	require.NoError(t, w.WriteIntent(protocol.IntentSendInput, "k", protocol.SendInput{SessionID: "s1", Bytes: []byte("y")}))
+	waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.ID == "k" })
+	<-done
+	require.Equal(t, []byte{'\r'}, <-ch, "Enter comes before the client's key")
+	require.Equal(t, []byte("y"), <-ch)
+
+	// The guard is evaluated under the lock: false sends nothing.
+	sent, err := srv.SendText("s1", "again", func() bool { return false })
+	require.NoError(t, err)
+	require.False(t, sent)
+	require.Empty(t, ch)
+	_, err = srv.SendText("nope", "x", nil)
+	require.ErrorContains(t, err, "not running")
 }

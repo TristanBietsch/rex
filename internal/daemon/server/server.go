@@ -201,6 +201,10 @@ type Server struct {
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
+	// inputLocks holds one mutex per session (*sync.Mutex), taken around
+	// every write of input to its PTY channel so a multi-part send (text,
+	// delay, Enter) is never interleaved with another writer's bytes.
+	inputLocks sync.Map
 
 	outputSubsMu sync.RWMutex
 	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
@@ -481,6 +485,7 @@ func (s *Server) UnregisterInputChannel(sessionID string) {
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	delete(s.inputChannels, sessionID)
+	s.inputLocks.Delete(sessionID)
 }
 
 // InputChannel returns the channel for a session, or nil if none registered.

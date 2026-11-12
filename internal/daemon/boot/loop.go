@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
@@ -41,13 +42,16 @@ type Loops struct {
 
 // NewLoops builds the (disabled) loop runner. loopsDir is where loop files
 // live; stateDir is the daemon's state dir. flag reports the loops setting
-// and is read at every intent.
-func NewLoops(stateDir, loopsDir string, store *state.Store, flag func() bool) *Loops {
+// and is read at every intent. sessionCtx is the daemon's serve context:
+// loop sessions are spawned and resumed under it, like every session, so the
+// runner stopping never kills an agent.
+func NewLoops(sessionCtx context.Context, stateDir, loopsDir string, store *state.Store, flag func() bool) *Loops {
 	l := &Loops{flag: flag, store: store, stateDir: stateDir}
 	l.Runner = loop.NewRunner(loop.Config{
-		Host:     l,
-		StateDir: filepath.Join(stateDir, paths.LoopStateDirName),
-		LoadDef:  func(name string) (loop.Def, error) { return loop.LoadFile(loopsDir, name) },
+		Host:       l,
+		StateDir:   filepath.Join(stateDir, paths.LoopStateDirName),
+		SessionCtx: sessionCtx,
+		LoadDef:    func(name string) (loop.Def, error) { return loop.LoadFile(loopsDir, name) },
 	})
 	return l
 }
@@ -119,7 +123,9 @@ func (l *Loops) Spawn(ctx context.Context, req loop.SpawnRequest) (string, error
 	return l.srv.SpawnLoopSession(ctx, req)
 }
 
-func (l *Loops) Send(sessionID, text string) error { return l.srv.SendText(sessionID, text) }
+func (l *Loops) Send(sessionID, text string, guard func() bool) (bool, error) {
+	return l.srv.SendText(sessionID, text, guard)
+}
 
 func (l *Loops) Session(id string) (protocol.SessionSummary, bool) {
 	sess, ok := l.store.Get(id)
@@ -139,9 +145,23 @@ func (l *Loops) Output(id string) string {
 	return termtext.Tail(b, loopOutputBytes)
 }
 
+// ReportsReason says whether the tool tells a finished turn from a prompt
+// that needs the user, which is what a loop needs to never answer a prompt.
+// Today that is Claude Code's hooks only. A tool opts in here once its
+// adapter reports a wait reason (the OSC 7501 tools, with R02).
 func (l *Loops) ReportsReason(toolID string) bool {
 	tool, ok := l.srv.Registry().Find(toolID)
-	return ok && tool.Detect.Kind == "hooks" && tool.Detect.Format == "claude"
+	return ok && toolReportsReason(tool)
+}
+
+func toolReportsReason(t registry.Tool) bool {
+	switch {
+	case t.Detect.Kind == "hooks" && t.Detect.Format == "claude":
+		return true
+	case t.Detect.Status == registry.StatusOSC7501:
+		return false // the adapter does not report a wait reason yet
+	}
+	return false
 }
 
 func (l *Loops) EnsureLive(ctx context.Context, id string) error { return l.srv.EnsureLive(ctx, id) }

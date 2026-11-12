@@ -35,6 +35,13 @@ type fakeHost struct {
 	spawnErr  error
 	liveErr   error
 	nextID    int
+	// sentAt is each session's summary at the moment of every Send.
+	sentAt []protocol.SessionSummary
+	// killed lists sessions whose context ended (a real session dies with
+	// the context it was spawned under).
+	killed    []string
+	liveCtxs  []context.Context
+	spawnCtxs []context.Context
 }
 
 func newFakeHost() *fakeHost {
@@ -44,7 +51,7 @@ func newFakeHost() *fakeHost {
 	}
 }
 
-func (h *fakeHost) Spawn(_ context.Context, req SpawnRequest) (string, error) {
+func (h *fakeHost) Spawn(ctx context.Context, req SpawnRequest) (string, error) {
 	h.mu.Lock()
 	if h.spawnErr != nil {
 		h.mu.Unlock()
@@ -54,8 +61,18 @@ func (h *fakeHost) Spawn(_ context.Context, req SpawnRequest) (string, error) {
 	id := "sess" + strconv.Itoa(h.nextID)
 	h.sessions[id] = &protocol.SessionSummary{ID: id, ToolID: req.Tool, State: protocol.StateWorking}
 	h.spawns = append(h.spawns, req)
+	h.spawnCtxs = append(h.spawnCtxs, ctx)
 	subs := append([]func(Event){}, h.subs...)
 	h.mu.Unlock()
+	// The agent dies with the context it was spawned under.
+	context.AfterFunc(ctx, func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.killed = append(h.killed, id)
+		if sess, ok := h.sessions[id]; ok {
+			sess.State = protocol.StateCrashed
+		}
+	})
 	// The session starts working before Spawn returns, like a real one.
 	for _, fn := range subs {
 		fn(Event{SessionID: id, State: protocol.StateWorking})
@@ -63,14 +80,33 @@ func (h *fakeHost) Spawn(_ context.Context, req SpawnRequest) (string, error) {
 	return id, nil
 }
 
-func (h *fakeHost) Send(id, text string) error {
+func (h *fakeHost) Send(id, text string, guard func() bool) (bool, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.sendErr != nil {
-		return h.sendErr
+		return false, h.sendErr
+	}
+	if guard != nil && !guard() {
+		return false, nil
 	}
 	h.sent = append(h.sent, id+":"+text)
-	return nil
+	if s, ok := h.sessions[id]; ok {
+		h.sentAt = append(h.sentAt, *s)
+	}
+	return true, nil
+}
+
+// requireSendsAtTurnEnd checks the one safety property of every Send: the
+// session was waiting with a finished-turn reason at that moment.
+func (h *fakeHost) requireSendsAtTurnEnd(t *testing.T) {
+	t.Helper()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for i, s := range h.sentAt {
+		require.Equal(t, protocol.StateNeedsInput, s.State, "send %d: session state", i)
+		require.Equal(t, protocol.WaitReview, s.WaitReason, "send %d: wait reason", i)
+		require.False(t, strings.HasSuffix(strings.TrimSpace(s.LastLine), "?"), "send %d: question", i)
+	}
 }
 
 func (h *fakeHost) Session(id string) (protocol.SessionSummary, bool) {
@@ -91,9 +127,10 @@ func (h *fakeHost) Output(id string) string {
 
 func (h *fakeHost) ReportsReason(string) bool { return h.claude }
 
-func (h *fakeHost) EnsureLive(_ context.Context, id string) error {
+func (h *fakeHost) EnsureLive(ctx context.Context, id string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.liveCtxs = append(h.liveCtxs, ctx)
 	if h.liveErr != nil {
 		return h.liveErr
 	}
@@ -161,6 +198,18 @@ func (h *fakeHost) idle(id, reason, lastLine string) {
 	}
 }
 
+func (h *fakeHost) spawnCtx() context.Context {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.spawnCtxs[0]
+}
+
+func (h *fakeHost) killedSessions() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]string(nil), h.killed...)
+}
+
 func (h *fakeHost) sentCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -174,18 +223,38 @@ func (h *fakeHost) setOutput(id, text string) {
 }
 
 type rig struct {
-	t      *testing.T
-	h      *fakeHost
-	r      *Runner
-	dir    string
-	defs   map[string]Def
-	loaded []string
+	t       *testing.T
+	h       *fakeHost
+	r       *Runner
+	dir     string
+	defs    map[string]Def
+	loaded  []string
+	sessCtx context.Context
+	endSess context.CancelFunc
+	clockMu sync.Mutex
+	clock   time.Time
+}
+
+func (rg *rig) now() time.Time {
+	rg.clockMu.Lock()
+	defer rg.clockMu.Unlock()
+	return rg.clock
+}
+
+func (rg *rig) advance(d time.Duration) {
+	rg.clockMu.Lock()
+	defer rg.clockMu.Unlock()
+	rg.clock = rg.clock.Add(d)
 }
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	t.Setenv("REX_LOOP_HELPER", "1")
-	rg := &rig{t: t, h: newFakeHost(), dir: filepath.Join(t.TempDir(), "loops"), defs: map[string]Def{}}
+	rg := &rig{t: t, h: newFakeHost(), dir: filepath.Join(t.TempDir(), "loops"), defs: map[string]Def{},
+		clock: time.Date(2026, 11, 11, 9, 0, 0, 0, time.UTC)}
+	// The daemon's context: sessions live under it, never under the runner.
+	rg.sessCtx, rg.endSess = context.WithCancel(context.Background())
+	t.Cleanup(rg.endSess)
 	rg.r = rg.newRunner()
 	t.Cleanup(func() { rg.r.Close() })
 	return rg
@@ -193,7 +262,7 @@ func newRig(t *testing.T) *rig {
 
 func (rg *rig) newRunner() *Runner {
 	return NewRunner(Config{
-		Host: rg.h, StateDir: rg.dir, MinuteUnit: time.Minute,
+		Host: rg.h, StateDir: rg.dir, MinuteUnit: time.Minute, SessionCtx: rg.sessCtx, Now: rg.now,
 		LoadDef: func(name string) (Def, error) {
 			rg.loaded = append(rg.loaded, name)
 			d, ok := rg.defs[name]
@@ -288,6 +357,7 @@ func TestLoop_CompletesWhenCheckPasses(t *testing.T) {
 	require.NotNil(t, done.LastCheckExit)
 	require.Equal(t, 0, *done.LastCheckExit)
 	require.Equal(t, 2, rg.h.sentCount(), "no prompt after the loop is done")
+	rg.h.requireSendsAtTurnEnd(t)
 
 	logb, err := os.ReadFile(LogPath(rg.dir, l.ID))
 	require.NoError(t, err)
@@ -383,32 +453,50 @@ func TestLoop_NeedsInputPausesAndSendsNothing(t *testing.T) {
 }
 
 func TestLoop_QuestionInTextPauses(t *testing.T) {
-	for _, claude := range []bool{true, false} {
-		t.Run("claude="+strconv.FormatBool(claude), func(t *testing.T) {
-			rg := newRig(t)
-			rg.h.claude = claude
-			rg.enable()
-			rg.def("q", []string{"exit", "1"}, "")
-			l := rg.start("q")
-			rg.h.work("sess1")
-			rg.h.idle("sess1", map[bool]string{true: protocol.WaitReview, false: ""}[claude], "Should I delete the old tests?")
-			p := rg.waitState(l.ID, protocol.LoopPaused)
-			require.Equal(t, protocol.PauseNeedsInput, p.PauseReason)
-			time.Sleep(150 * time.Millisecond)
-			require.Zero(t, rg.h.sentCount())
-		})
-	}
+	rg := newRig(t)
+	rg.enable()
+	rg.def("q", []string{"exit", "1"}, "")
+	l := rg.start("q")
+	rg.h.work("sess1")
+	rg.h.idle("sess1", protocol.WaitReview, "Should I delete the old tests?")
+	p := rg.waitState(l.ID, protocol.LoopPaused)
+	require.Equal(t, protocol.PauseNeedsInput, p.PauseReason)
+	time.Sleep(150 * time.Millisecond)
+	require.Zero(t, rg.h.sentCount())
 }
 
-// Tools that give no wait reason: working -> needs_input is a turn end.
-func TestLoop_NonClaudeTurnEnd(t *testing.T) {
+// Loops are only for agents that say why they wait: for any other tool a
+// permission prompt looks just like a finished turn.
+func TestLoop_RefusedForAToolThatDoesNotReportWhy(t *testing.T) {
 	rg := newRig(t)
 	rg.h.claude = false
 	rg.enable()
 	rg.def("plain", []string{"exit", "1"}, "")
-	rg.start("plain")
-	rg.h.idle("sess1", "", "finished a step")
-	rg.waitSent(1)
+	_, err := rg.r.Start(protocol.StartLoop{Name: "plain", CWD: t.TempDir()})
+	var le *Error
+	require.ErrorAs(t, err, &le)
+	require.Equal(t, KindBadInput, le.Kind)
+	require.Equal(t, "loops need an agent that reports why it is waiting (Claude hooks or OSC 7501 status); claude can't, so a loop could answer its permission prompts", le.Msg)
+	require.Empty(t, rg.h.spawns, "nothing was spawned")
+	require.Empty(t, rg.r.Summaries())
+}
+
+// A loop started for a tool that reports why cannot be resumed once that is
+// no longer true (a registry change, say).
+func TestLoop_ResumeRefusedForAToolThatDoesNotReportWhy(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("a", []string{"exit", "1"}, "")
+	l := rg.start("a")
+	_, err := rg.r.Pause(l.ID)
+	require.NoError(t, err)
+	rg.h.claude = false
+	_, err = rg.r.Resume(l.ID)
+	var le *Error
+	require.ErrorAs(t, err, &le)
+	require.Equal(t, KindBadInput, le.Kind)
+	require.Contains(t, le.Msg, "loops need an agent that reports why it is waiting")
+	require.Equal(t, protocol.LoopPaused, rg.summary(l.ID).State)
 }
 
 // Claude needs its hook: needs_input without a reason is not a turn end yet.
@@ -547,12 +635,18 @@ func TestLoop_RestartLeavesLoopsPaused(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 	require.Equal(t, 1, rg.h.sentCount(), "a restarted loop sends nothing by itself")
 
-	// Resume brings the session back, treats it as idle and carries on.
+	// Resume brings the session back. It is idle but says nothing about why,
+	// so the loop does not send into it; it waits for the next real turn end.
 	s, err := r2.Resume(l.ID)
 	require.NoError(t, err)
 	require.Equal(t, protocol.LoopRunning, s.State)
 	require.Equal(t, []string{"sess1"}, rg.h.live)
+	require.Equal(t, []any{rg.sessCtx}, []any{rg.h.liveCtxs[0]}, "resumed under the daemon's context")
+	time.Sleep(200 * time.Millisecond)
+	require.Equal(t, 1, rg.h.sentCount())
+	rg.turn("sess1")
 	require.Eventually(t, func() bool { return rg.h.sentCount() == 2 }, 15*time.Second, 10*time.Millisecond)
+	rg.h.requireSendsAtTurnEnd(t)
 }
 
 func TestLoop_ResumeFailsWhenSessionCannotComeBack(t *testing.T) {
@@ -758,4 +852,202 @@ func TestLoad_SkipsBadFilesAndPrunesOld(t *testing.T) {
 	require.NoFileExists(t, statePath(rg.dir, old.ID))
 	require.NoFileExists(t, LogPath(rg.dir, old.ID))
 	require.True(t, strings.HasPrefix(got[0].ID, "loop-"))
+}
+
+// Switching the feature off pauses the loops but never kills their agents:
+// sessions live under the daemon's context, not the runner's.
+func TestRunner_DisableLeavesSessionsAlive(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("keep", []string{"exit", "1"}, "")
+	l := rg.start("keep")
+	require.Same(t, rg.sessCtx, rg.h.spawnCtx(), "spawned under the session context")
+
+	rg.r.Disable()
+	require.Empty(t, rg.h.killedSessions(), "the agent is still running")
+	sess, _ := rg.h.Session("sess1")
+	require.Equal(t, protocol.StateWorking, sess.State)
+	rg.enable()
+	require.Equal(t, protocol.PauseOff, rg.summary(l.ID).PauseReason)
+
+	// The fake does kill a session whose context ends, so the check above
+	// proves something.
+	rg.endSess()
+	require.Eventually(t, func() bool { return len(rg.h.killedSessions()) == 1 }, 5*time.Second, 10*time.Millisecond)
+}
+
+// A permission prompt that appears while the check runs gets no keystroke.
+func TestLoop_PromptDuringCheckSendsNothing(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("slow", []string{"sleepexit", "400ms", "1"}, "")
+	l := rg.start("slow")
+	rg.h.idle("sess1", protocol.WaitReview, "t1") // the check starts and takes 400 ms
+	time.Sleep(100 * time.Millisecond)
+	rg.h.work("sess1")
+	rg.h.idle("sess1", protocol.WaitInput, "Allow Bash(rm -rf /)?")
+	time.Sleep(700 * time.Millisecond)
+	require.Zero(t, rg.h.sentCount(), "never type into a prompt")
+	p := rg.waitState(l.ID, protocol.LoopPaused)
+	require.Equal(t, protocol.PauseNeedsInput, p.PauseReason)
+}
+
+// Even when no event announced it, the state is re-read right before a send.
+func TestLoop_SendIsRecheckedAgainstTheSession(t *testing.T) {
+	cases := []struct {
+		name  string
+		state protocol.State
+		why   string
+		line  string
+	}{
+		{"working", protocol.StateWorking, "", "busy"},
+		{"input prompt", protocol.StateNeedsInput, protocol.WaitInput, "Allow it?"},
+		{"no reason", protocol.StateNeedsInput, "", "hm"},
+		{"a question", protocol.StateNeedsInput, protocol.WaitReview, "Which one do you want?"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rg := newRig(t)
+			rg.enable()
+			rg.def("slow", []string{"sleepexit", "300ms", "1"}, "")
+			rg.start("slow")
+			rg.h.idle("sess1", protocol.WaitReview, "t1")
+			time.Sleep(80 * time.Millisecond)
+			// The state changes under the runner with no event.
+			rg.h.mu.Lock()
+			s := rg.h.sessions["sess1"]
+			s.State, s.WaitReason, s.LastLine = tc.state, tc.why, tc.line
+			rg.h.mu.Unlock()
+			time.Sleep(600 * time.Millisecond)
+			require.Zero(t, rg.h.sentCount())
+		})
+	}
+}
+
+// Resuming at a question, or at an idle session that gives no reason, sends
+// nothing.
+func TestLoop_ResumeDoesNotSendIntoAQuestionOrAnUnexplainedPrompt(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("r", []string{"exit", "1"}, "")
+	l := rg.start("r")
+	_, err := rg.r.Pause(l.ID)
+	require.NoError(t, err)
+	rg.h.mu.Lock()
+	s := rg.h.sessions["sess1"]
+	s.State, s.WaitReason, s.LastLine = protocol.StateNeedsInput, protocol.WaitReview, "Shall I continue?"
+	rg.h.mu.Unlock()
+	got, err := rg.r.Resume(l.ID)
+	require.NoError(t, err)
+	require.Equal(t, protocol.LoopPaused, got.State)
+	require.Equal(t, protocol.PauseNeedsInput, got.PauseReason)
+	time.Sleep(150 * time.Millisecond)
+	require.Zero(t, rg.h.sentCount())
+
+	// An idle session with no reason: the loop runs but waits.
+	l2 := rg.start("r")
+	_, err = rg.r.Pause(l2.ID)
+	require.NoError(t, err)
+	rg.h.mu.Lock()
+	s = rg.h.sessions["sess2"]
+	s.State, s.WaitReason, s.LastLine = protocol.StateNeedsInput, "", "ready"
+	rg.h.mu.Unlock()
+	got, err = rg.r.Resume(l2.ID)
+	require.NoError(t, err)
+	require.Equal(t, protocol.LoopRunning, got.State)
+	time.Sleep(150 * time.Millisecond)
+	require.Zero(t, rg.h.sentCount())
+}
+
+// A loop that was waiting for you in a way that ends by itself must not
+// resume by itself after a restart.
+func TestLoad_AutoPausedLoopsStayPausedAfterARestart(t *testing.T) {
+	for _, reason := range []string{protocol.PauseNeedsInput, protocol.PauseUserInput} {
+		t.Run(reason, func(t *testing.T) {
+			rg := newRig(t)
+			d := rg.def("a", []string{"exit", "1"}, "")
+			rg.h.sessions["sess1"] = &protocol.SessionSummary{ID: "sess1", ToolID: "claude", State: protocol.StateNeedsInput, WaitReason: protocol.WaitReview}
+			st := State{ID: "loop-0000000a", Def: d, SessionID: "sess1", State: protocol.LoopPaused, PauseReason: reason,
+				Iteration: 1, StartedAt: rg.now(), UpdatedAt: rg.now()}
+			require.NoError(t, writeState(rg.dir, st))
+			rg.enable()
+			got := rg.summary("loop-0000000a")
+			require.Equal(t, protocol.LoopPaused, got.State)
+			require.Equal(t, protocol.PauseRestart, got.PauseReason)
+			// The session finishing a turn does not restart the loop.
+			rg.h.work("sess1")
+			rg.h.idle("sess1", protocol.WaitReview, "done")
+			time.Sleep(200 * time.Millisecond)
+			require.Zero(t, rg.h.sentCount())
+			require.Equal(t, protocol.PauseRestart, rg.summary("loop-0000000a").PauseReason)
+		})
+	}
+}
+
+// A prompt echo that the terminal soft-wrapped must not complete the loop.
+func TestLoop_WrappedPromptEchoDoesNotCompleteTheLoop(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	d := rg.def("w", nil, "")
+	d.Until.Marker = "<promise>DONE</promise>"
+	d.Prompt = "Fix the build and print <promise>DONE</promise> when green"
+	d.FollowupPrompt = d.Prompt
+	require.NoError(t, d.Compile())
+	rg.defs["w"] = d
+	l := rg.start("w")
+	rg.h.setOutput("sess1", "> Fix the build and print\n  <promise>DONE</promise>\n  when green\nworking on it\n")
+	rg.h.idle("sess1", protocol.WaitReview, "t1")
+	rg.waitSent(1)
+	require.Equal(t, protocol.LoopRunning, rg.summary(l.ID).State, "the echo is not the agent finishing")
+	rg.h.work("sess1")
+	rg.h.setOutput("sess1", "> Fix the build and print\n  <promise>DONE</promise>\n  when green\nall green\n<promise>DONE</promise>\n")
+	rg.h.idle("sess1", protocol.WaitReview, "<promise>DONE</promise>")
+	done := rg.waitState(l.ID, protocol.LoopDone)
+	require.Equal(t, protocol.StopMarker, done.StopReason)
+}
+
+// max_minutes counts running time: a pause, and a long downtime, do not use it.
+func TestLoop_MaxMinutesCountsRunningTimeOnly(t *testing.T) {
+	rg := newRig(t)
+	rg.enable()
+	rg.def("m", []string{"exit", "1"}, "  max_minutes: 1\n")
+	l := rg.start("m")
+	rg.advance(10 * time.Second)
+	_, err := rg.r.Pause(l.ID)
+	require.NoError(t, err)
+	rg.advance(48 * time.Hour) // paused for two days
+	rg.r.Close()
+
+	// A restart after more downtime: the loop has used 10 s of its minute.
+	r2 := rg.newRunner()
+	t.Cleanup(r2.Close)
+	rg.advance(24 * time.Hour)
+	require.NoError(t, r2.Enable())
+	got, err := r2.Resume(l.ID)
+	require.NoError(t, err)
+	require.Equal(t, protocol.LoopRunning, got.State, "downtime and pauses are not running time")
+	time.Sleep(150 * time.Millisecond)
+	for _, sum := range r2.Summaries() {
+		require.Equal(t, protocol.LoopRunning, sum.State)
+	}
+	b, err := os.ReadFile(filepath.Join(rg.dir, l.ID+".json"))
+	require.NoError(t, err)
+	var st State
+	require.NoError(t, json.Unmarshal(b, &st))
+	require.InDelta(t, float64(10*time.Second), float64(st.ElapsedNS), float64(2*time.Second))
+}
+
+// A loop that already used its minutes is capped as soon as it is resumed.
+func TestLoop_ResumeAfterTheMinutesAreUsedCaps(t *testing.T) {
+	rg := newRig(t)
+	d := rg.def("m", []string{"exit", "1"}, "  max_minutes: 1\n")
+	rg.h.sessions["sess1"] = &protocol.SessionSummary{ID: "sess1", ToolID: "claude", State: protocol.StateWorking}
+	st := State{ID: "loop-0000000b", Def: d, SessionID: "sess1", State: protocol.LoopPaused, PauseReason: protocol.PauseRestart,
+		Iteration: 2, ElapsedNS: int64(2 * time.Minute), StartedAt: rg.now(), UpdatedAt: rg.now()}
+	require.NoError(t, writeState(rg.dir, st))
+	rg.enable()
+	_, err := rg.r.Resume(st.ID)
+	require.NoError(t, err)
+	capped := rg.waitState(st.ID, protocol.LoopCapped)
+	require.Equal(t, protocol.StopMaxMinutes, capped.StopReason)
 }

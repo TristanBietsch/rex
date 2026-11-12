@@ -225,7 +225,7 @@ func run(args []string) error {
 	// One settings watcher: every feature adds its applier to this list.
 	// Loop workflows: never enabled (no goroutine, subscription or file
 	// read) while the loops setting is off.
-	loops := boot.NewLoops(*stateDir, *loopsDir, store, boot.LoopsEnabled)
+	loops := boot.NewLoops(ctx, *stateDir, *loopsDir, store, boot.LoopsEnabled)
 	defer loops.Close()
 	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier(), auditTrail.Applier(), loops.Applier()}
 
