@@ -2,9 +2,10 @@ package tui
 
 import (
 	"fmt"
-	"strings"
+	"slices"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
@@ -239,5 +240,103 @@ func TestSettingsSectionOfUnknownCursor(t *testing.T) {
 	require.Equal(t, sectionRows(settingsSections(m.Settings)[0])[0].ID, settingsGoSection(m.Settings, -5))
 	secs := settingsSections(m.Settings)
 	require.Equal(t, sectionRows(secs[len(secs)-1])[0].ID, settingsGoSection(m.Settings, 99))
-	require.False(t, strings.Contains(fmt.Sprint(secs), string(settings.SectionOnboarding)), "no onboarding rows in this model")
+	require.False(t, slices.Contains(secs, settings.SectionOnboarding), "no onboarding rows in this model")
+}
+
+// keptSearch is the settings page with q searched and kept (enter).
+func keptSearch(t *testing.T, q string) Model {
+	t.Helper()
+	m := settingsPress(typeInto(settingsPress(pageSettings(t), "/"), q), "enter")
+	require.Equal(t, q, m.Settings.Search)
+	return m
+}
+
+// firstHit is the first listed row of sec ("" when sec has no hits).
+func firstHit(m Model, sec settings.Section) string {
+	for _, s := range settingsPageList(m) {
+		if s.Section == sec {
+			return s.ID
+		}
+	}
+	return ""
+}
+
+func requireListed(t *testing.T, m Model, msg string) {
+	t.Helper()
+	for _, s := range settingsPageList(m) {
+		if s.ID == m.Settings.CursorID {
+			return
+		}
+	}
+	require.Failf(t, "cursor not among the hits", "%s: %q", msg, m.Settings.CursorID)
+}
+
+func TestSettingsPageSectionKeysKeptSearch(t *testing.T) {
+	m := keptSearch(t, "board") // hits in Appearance, Behavior, Features
+	secs := settingsSections(m.Settings)
+	require.NotEmpty(t, firstHit(m, secs[1]))
+
+	m = settingsPress(m, "2")
+	requireListed(t, m, "2")
+	require.Equal(t, firstHit(m, secs[1]), m.Settings.CursorID, "2: first hit of the second section")
+	m = settingsPress(m, "]")
+	requireListed(t, m, "]")
+	require.Equal(t, firstHit(m, secs[2]), m.Settings.CursorID, "]: first hit of the next section")
+	m = settingsPress(m, "[")
+	requireListed(t, m, "[")
+	require.Equal(t, firstHit(m, secs[1]), m.Settings.CursorID)
+}
+
+func TestSettingsPageSectionKeysSkipNoHits(t *testing.T) {
+	m := keptSearch(t, "color") // hits in Appearance and Features only
+	secs := settingsSections(m.Settings)
+	app, feat := firstHit(m, settings.SectionAppearance), firstHit(m, settings.SectionFeatures)
+	require.NotEmpty(t, app)
+	require.NotEmpty(t, feat)
+	require.Empty(t, firstHit(m, settings.SectionBehavior))
+	require.Equal(t, settings.SectionBehavior, secs[1])
+
+	m.Settings.CursorID = app
+	m = settingsPress(m, "2")
+	require.Equal(t, app, m.Settings.CursorID, "2 on a section without hits is a no-op")
+	m = settingsPress(m, "]")
+	require.Equal(t, feat, m.Settings.CursorID, "] skips sections without hits")
+	m = settingsPress(m, "]")
+	require.Equal(t, app, m.Settings.CursorID, "] wraps past sections without hits")
+	m = settingsPress(m, "[")
+	require.Equal(t, feat, m.Settings.CursorID, "[ wraps past sections without hits")
+
+	m.Settings.CursorID = app
+	m = settingsPress(m, "tab", "j")
+	require.Equal(t, feat, m.Settings.CursorID, "left-pane j skips sections without hits")
+	m = settingsPress(m, "j")
+	require.Equal(t, feat, m.Settings.CursorID, "left-pane j clamps at the last section with hits")
+	m = settingsPress(m, "k")
+	require.Equal(t, app, m.Settings.CursorID, "left-pane k skips back")
+	m = settingsPress(m, "k")
+	require.Equal(t, app, m.Settings.CursorID, "left-pane k clamps")
+
+	require.NoError(t, m.Store.Set("mouse_enabled", true))
+	m, _ = updateMouse(m, wheel(true))
+	require.Equal(t, feat, m.Settings.CursorID, "left-pane wheel skips sections without hits")
+	m, _ = updateMouse(m, wheel(true))
+	require.Equal(t, feat, m.Settings.CursorID, "left-pane wheel clamps")
+	m, _ = updateMouse(m, wheel(false))
+	require.Equal(t, app, m.Settings.CursorID)
+}
+
+func TestSettingsPageNarrowAfterTab(t *testing.T) {
+	m := pageSettings(t)
+	rows := sectionRows(cursorSection(t, m))
+	m.Settings.CursorID = rows[0].ID
+	m = settingsPress(m, "tab")
+	require.Equal(t, paneSections, m.Settings.Pane)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
+	m = next.(Model)
+	m = settingsPress(m, "j")
+	require.Equal(t, rows[1].ID, m.Settings.CursorID, "narrow: j moves to the next row in the section")
+
+	require.NoError(t, m.Store.Set("mouse_enabled", true))
+	m, _ = updateMouse(m, wheel(true))
+	require.Equal(t, rows[2].ID, m.Settings.CursorID, "narrow: the wheel moves rows")
 }

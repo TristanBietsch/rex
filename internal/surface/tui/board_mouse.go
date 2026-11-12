@@ -143,9 +143,10 @@ func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
 		return m
 	}
 	st := m.Settings
-	if pagesOn(m) && st.Pane == paneSections {
-		// The section pane: the wheel moves the section (clamped).
-		st.CursorID = settingsGoSection(st, settingsSectionIndex(st)+delta)
+	if pagesOn(m) && st.Pane == paneSections && !pageNarrow(m.Width) {
+		// The section pane: the wheel moves the section (clamped). A narrow
+		// page hides that pane, so the wheel moves rows there.
+		st.CursorID = settingsSectionMove(st, delta)
 		return m
 	}
 	st.CursorID = settingsStep(m, delta)

@@ -390,6 +390,49 @@ func settingsSectionIndex(st *SettingsState) int {
 	return max(slices.Index(settingsSections(st), settingsSectionOf(st)), 0)
 }
 
+// settingsFirstHit is the id of the first listed row of sec: its first row,
+// or its first search hit while a search is set. ok false when sec lists
+// nothing.
+func settingsFirstHit(st *SettingsState, sec settings.Section) (string, bool) {
+	for _, s := range settingsList(st) {
+		if s.Section == sec {
+			return s.ID, true
+		}
+	}
+	return "", false
+}
+
+// settingsHitSection is the first hit of the nearest section in direction
+// dir (±1) that has hits under the kept search, skipping sections without
+// any. wrap cycles past the ends; otherwise it clamps. The cursor id when no
+// such section exists.
+func settingsHitSection(st *SettingsState, dir int, wrap bool) string {
+	secs := settingsSections(st)
+	n, cur := len(secs), settingsSectionIndex(st)
+	for i := 1; i < n; i++ {
+		idx := cur + dir*i
+		if wrap {
+			idx = (idx%n + n) % n
+		} else if idx < 0 || idx >= n {
+			break
+		}
+		if id, ok := settingsFirstHit(st, secs[idx]); ok {
+			return id
+		}
+	}
+	return st.CursorID
+}
+
+// settingsSectionMove is the cursor after a left-pane step of dir (±1)
+// through the sections, clamped: the next section's first row, or under a
+// kept search the first hit of the next section that has hits.
+func settingsSectionMove(st *SettingsState, dir int) string {
+	if st.Search != "" {
+		return settingsHitSection(st, dir, false)
+	}
+	return settingsGoSection(st, settingsSectionIndex(st)+dir)
+}
+
 // settingsModifiedIn counts the rows of sec whose value differs from the
 // default.
 func settingsModifiedIn(m Model, sec settings.Section) int {
@@ -419,7 +462,16 @@ func settingsPageKey(m Model, k tea.KeyMsg) (Model, bool) {
 		}
 		return m, true
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
-		if n := int(key[0] - '1'); n < len(settingsSections(st)) {
+		secs := settingsSections(st)
+		n := int(key[0] - '1')
+		switch {
+		case n >= len(secs):
+		case st.Search != "":
+			// A kept search: the section's first hit; no hits, no move.
+			if id, ok := settingsFirstHit(st, secs[n]); ok {
+				st.CursorID = id
+			}
+		default:
 			st.CursorID = settingsGoSection(st, n)
 		}
 		return m, true
@@ -432,7 +484,11 @@ func settingsPageKey(m Model, k tea.KeyMsg) (Model, bool) {
 		if key == "[" {
 			dir = -1
 		}
-		st.CursorID = settingsGoSection(st, (settingsSectionIndex(st)+dir+n)%n)
+		if st.Search != "" {
+			st.CursorID = settingsHitSection(st, dir, true)
+		} else {
+			st.CursorID = settingsGoSection(st, (settingsSectionIndex(st)+dir+n)%n)
+		}
 		return m, true
 	case "/":
 		st.Searching, st.Pane, st.preSearch = true, paneRows, st.CursorID
@@ -440,18 +496,21 @@ func settingsPageKey(m Model, k tea.KeyMsg) (Model, bool) {
 	case "esc", "q":
 		return m, false // settingsKey: clear a kept search, else close
 	}
-	if st.Pane == paneSections {
+	// A narrow page hides the section pane (and tab can't reach it), so
+	// a left-pane focus left over from a wider terminal acts as rows.
+	if st.Pane == paneSections && !pageNarrow(m.Width) {
 		switch key {
 		case "j", "down":
-			st.CursorID = settingsGoSection(st, settingsSectionIndex(st)+1)
+			st.CursorID = settingsSectionMove(st, +1)
 		case "k", "up":
-			st.CursorID = settingsGoSection(st, settingsSectionIndex(st)-1)
+			st.CursorID = settingsSectionMove(st, -1)
 		case "enter", "l", "right":
 			st.Pane = paneRows
 		}
 		return m, true
 	}
 	if key == "h" {
+		// Only h is a no-op on a fixed row; left, - and _ still change values.
 		if s, ok := settings.Find(st.CursorID); !ok || !settingAdjustable(m, s) {
 			return m, true
 		}
