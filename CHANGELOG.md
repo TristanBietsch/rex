@@ -30,9 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rex trust <folder>` (adding to `auto_trust_dirs`) now works only for a
   person at a terminal, like `rex ws trust`: agent mode, `-o json`/`agent`/
   `txt`/`md` or stdin/stdout not a terminal exit 6 and write nothing.
-  Scripts that added folders this way should use `rex setup -auto-trust`
-  or the TUI (`ctrl+t`, `:trust`). `rex trust -ls` and `-rm` are
-  unchanged.
+  Add folders yourself, at a terminal or in the TUI (`ctrl+t`,
+  `:trust`). `rex trust -ls` and `-rm` are unchanged.
 
 ### Fixed (workspace trust)
 
