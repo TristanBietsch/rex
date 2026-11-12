@@ -117,40 +117,41 @@ const (
 	inputWaitTimeout  = 15 * time.Second
 )
 
+// errInputNotReady is what input gets while a session has no PTY writer: it
+// is starting (its input channel exists before its writer does), or exiting,
+// or its console never started. The bytes are not queued anywhere, so nothing
+// is reported as sent.
+var errInputNotReady = errors.New("session input not ready")
+
+// RegisterUnitWriter attaches a session's single PTY writer; the supervisor
+// does this once its writer runs. Input before that gets errInputNotReady.
+func (s *Server) RegisterUnitWriter(sessionID string, w pty.UnitWriter) {
+	s.unitWriters.Store(sessionID, w)
+}
+
+// UnregisterUnitWriter removes it when the session's writer ends.
+func (s *Server) UnregisterUnitWriter(sessionID string) { s.unitWriters.Delete(sessionID) }
+
 // writeInput writes u to the session through its single PTY writer, and
 // reports whether it was written (or, without Wait, queued): false when the
-// guard dropped it. A session without a writer (a bare input channel, as in
-// tests) gets the same parts, gap and guard over the channel.
+// guard dropped it. With no writer registered it fails with errInputNotReady
+// and queues nothing.
 func (s *Server) writeInput(sessionID string, u pty.WriteUnit, timeout time.Duration) (bool, error) {
-	if v, ok := s.unitWriters.Load(sessionID); ok {
-		if w, ok := v.(pty.UnitWriter); ok {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			sent, err := w(ctx, u)
-			if errors.Is(err, context.DeadlineExceeded) {
-				return false, errors.New("send timed out")
-			}
-			return sent, err
-		}
+	v, ok := s.unitWriters.Load(sessionID)
+	if !ok {
+		return false, errInputNotReady
 	}
-	ch := s.InputChannel(sessionID)
-	if ch == nil {
-		return false, errors.New("session not running")
+	w, ok := v.(pty.UnitWriter)
+	if !ok {
+		return false, errInputNotReady
 	}
-	for i, part := range u.Parts {
-		if i > 0 {
-			time.Sleep(u.Gap)
-			if u.Guard != nil && !u.Guard() {
-				return false, nil
-			}
-		}
-		select {
-		case ch <- part:
-		case <-time.After(timeout):
-			return false, errors.New("send timed out")
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	sent, err := w(ctx, u)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return false, errors.New("send timed out")
 	}
-	return true, nil
+	return sent, err
 }
 
 // SendRaw writes payload to a session's input under its input lock, so it is

@@ -33,7 +33,7 @@ func TestIntentReply_TextThenSeparateCarriageReturn(t *testing.T) {
 	require.Eventually(t, func() bool { _, err := os.Stat(sock); return err == nil }, 2*time.Second, 10*time.Millisecond)
 
 	ch := make(chan []byte, 4)
-	srv.RegisterInputChannel("sess-1", ch)
+	registerInput(srv, "sess-1", ch)
 
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)

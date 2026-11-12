@@ -358,10 +358,10 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 			srv.UnregisterModePreamble(sess.ID)
 		},
 		RegisterWriter: func(w pty.UnitWriter) {
-			srv.unitWriters.Store(sess.ID, w)
+			srv.RegisterUnitWriter(sess.ID, w)
 		},
 		UnregisterWriter: func() {
-			srv.unitWriters.Delete(sess.ID)
+			srv.UnregisterUnitWriter(sess.ID)
 		},
 		RegisterAttach: func(fn func(fn func(repaint func() []byte))) {
 			srv.RegisterAttach(sess.ID, fn)

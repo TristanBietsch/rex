@@ -210,8 +210,8 @@ type Server struct {
 	// delay, Enter) is never interleaved with another writer's bytes.
 	inputLocks sync.Map
 	// unitWriters holds each running session's pty.UnitWriter (its single
-	// PTY writer). Input goes through it as units; a session without one
-	// (tests with a bare channel) falls back to the input channel.
+	// PTY writer). All input goes through it as units; a session without one
+	// refuses input ("session input not ready"), it never queues it.
 	unitWriters sync.Map
 
 	outputSubsMu sync.RWMutex

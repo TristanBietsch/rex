@@ -11,10 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
+	"github.com/tristanbietsch/rex/internal/daemon/pty/ptytest"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/loop"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
+
+// registerInput registers a session whose input a test reads from ch.
+func registerInput(srv *Server, id string, ch chan []byte) {
+	srv.RegisterInputChannel(id, ch)
+	srv.RegisterUnitWriter(id, ptytest.ChanWriter(ch))
+}
 
 type fakeLoops struct {
 	mu     sync.Mutex
@@ -184,7 +191,7 @@ func TestSendText_AndSetSessionLoop(t *testing.T) {
 	_, err := srv.SendText("nope", "x", nil)
 	require.ErrorContains(t, err, "not running")
 	ch := make(chan []byte, 4)
-	srv.RegisterInputChannel("s1", ch)
+	registerInput(srv, "s1", ch)
 	sent, err := srv.SendText("s1", "hello", nil)
 	require.NoError(t, err)
 	require.True(t, sent)
@@ -209,7 +216,7 @@ func TestSendText_IsNotInterleavedWithClientInput(t *testing.T) {
 	srv.cfg.Loops = fl
 	serveTest(t, srv)
 	ch := make(chan []byte, 8)
-	srv.RegisterInputChannel("s1", ch)
+	registerInput(srv, "s1", ch)
 	conn := dialTest(t, sock)
 	w, r, _ := helloAs(t, conn, "rex-tui")
 
@@ -242,7 +249,7 @@ func TestSendText_IsNotInterleavedWithClientInput(t *testing.T) {
 func TestSendText_GuardIsCheckedAgainBeforeEnter(t *testing.T) {
 	srv, _, _ := newTestServer(t, state.NewStore())
 	ch := make(chan []byte, 8)
-	srv.RegisterInputChannel("s1", ch)
+	registerInput(srv, "s1", ch)
 
 	calls := 0
 	sent, err := srv.SendText("s1", "go on", func() bool { calls++; return calls == 1 })
@@ -265,7 +272,7 @@ func TestSendText_GuardIsCheckedAgainBeforeEnter(t *testing.T) {
 func TestSendRaw_WaitsForALoopSendInProgress(t *testing.T) {
 	srv, _, _ := newTestServer(t, state.NewStore())
 	ch := make(chan []byte, 8)
-	srv.RegisterInputChannel("s1", ch)
+	registerInput(srv, "s1", ch)
 
 	done := make(chan struct{})
 	go func() {
@@ -280,7 +287,7 @@ func TestSendRaw_WaitsForALoopSendInProgress(t *testing.T) {
 
 	require.ErrorContains(t, srv.SendRaw("nope", []byte("x"), time.Second), "no input channel")
 	full := make(chan []byte)
-	srv.RegisterInputChannel("s2", full)
+	registerInput(srv, "s2", full)
 	require.ErrorContains(t, srv.SendRaw("s2", []byte("x"), 30*time.Millisecond), "timed out")
 }
 
@@ -293,7 +300,7 @@ func TestInput_GoesThroughTheSessionWriterAsUnits(t *testing.T) {
 	srv.RegisterInputChannel("s1", make(chan []byte, 1)) // present, but never used
 	var mu sync.Mutex
 	var units []pty.WriteUnit
-	srv.unitWriters.Store("s1", pty.UnitWriter(func(_ context.Context, u pty.WriteUnit) (bool, error) {
+	srv.RegisterUnitWriter("s1", pty.UnitWriter(func(_ context.Context, u pty.WriteUnit) (bool, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		units = append(units, u)
@@ -327,7 +334,7 @@ func TestInput_GoesThroughTheSessionWriterAsUnits(t *testing.T) {
 	require.Equal(t, [][]byte{[]byte("raw")}, units[3].Parts)
 
 	// A writer that fails reports it to the client.
-	srv.unitWriters.Store("s1", pty.UnitWriter(func(context.Context, pty.WriteUnit) (bool, error) {
+	srv.RegisterUnitWriter("s1", pty.UnitWriter(func(context.Context, pty.WriteUnit) (bool, error) {
 		return false, errors.New("session input is closed")
 	}))
 	require.NoError(t, w.WriteIntent(protocol.IntentSendInput, "i3", protocol.SendInput{SessionID: "s1", Bytes: []byte("z")}))

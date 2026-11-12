@@ -13,6 +13,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/pty/ptytest"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/loop"
@@ -180,6 +181,7 @@ func realLoop(t *testing.T, reason, lastLine string) (l *Loops, id string, input
 	require.NoError(t, store.SetWaitReason("s1", reason))
 	input = make(chan []byte, 8)
 	srv.RegisterInputChannel("s1", input)
+	srv.RegisterUnitWriter("s1", ptytest.ChanWriter(input))
 
 	def, err := loop.Parse([]byte("name: fix\nkind: repeat\ntool: claude\nmodel: sonnet\nprompt: \"first\"\nfollowup_prompt: \"go on\"\n"+
 		"until:\n  check: [\"false\"]\n"), "fix")

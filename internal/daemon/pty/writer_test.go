@@ -270,3 +270,18 @@ func TestUnitWriter_WriterEndingInTheGapIsAnError(t *testing.T) {
 	require.False(t, sent)
 	require.ErrorIs(t, err, errInputClosed)
 }
+
+// A unit that is only queued (client keystrokes) is written even though the
+// caller's context ends the moment it returns.
+func TestUnitWriter_QueuedUnitOutlivesTheCallersContext(t *testing.T) {
+	rec := &recorder{}
+	done := make(chan struct{})
+	defer close(done)
+	uw := unitWriter(newPTYWriter(rec, done, nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	sent, err := uw(ctx, WriteUnit{Parts: [][]byte{[]byte("keys")}})
+	cancel()
+	require.NoError(t, err)
+	require.True(t, sent)
+	require.Eventually(t, func() bool { return len(rec.got()) == 1 }, time.Second, 5*time.Millisecond)
+}

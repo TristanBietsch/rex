@@ -31,8 +31,11 @@ var errInputClosed = errors.New("session input is closed")
 // unitWriter is the UnitWriter over pw.
 func unitWriter(pw *ptyWriter) UnitWriter {
 	return func(ctx context.Context, u WriteUnit) (bool, error) {
-		wu := writeUnit{parts: u.Parts, gap: u.Gap, guard: u.Guard, ctx: ctx}
+		wu := writeUnit{parts: u.Parts, gap: u.Gap, guard: u.Guard}
 		if u.Wait {
+			// The caller waits, so its context decides how long the unit
+			// may take; a caller that only queues has nothing to give up.
+			wu.ctx = ctx
 			wu.res = make(chan bool, 1)
 		}
 		if !pw.Send(ctx, wu) {

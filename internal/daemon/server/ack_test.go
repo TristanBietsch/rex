@@ -55,7 +55,7 @@ func startAckServer(t *testing.T) *ackEnv {
 		},
 	})
 	require.NoError(t, err)
-	e.srv.RegisterInputChannel("s1", make(chan []byte, 64))
+	registerInput(e.srv, "s1", make(chan []byte, 64))
 	e.srv.RegisterResize("s1", func(uint16, uint16) error { return nil })
 	serveTest(t, e.srv)
 	return e
