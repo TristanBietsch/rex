@@ -40,7 +40,8 @@ func TestLogoAndArrowUseAccent(t *testing.T) {
 	t.Cleanup(func() { applyTheme("default") })
 	for _, name := range theme.Names() {
 		applyTheme(name)
-		accent := lipgloss.Color(theme.Builtin[name].Accent)
+		p, _ := theme.Get(name)
+		accent := lipgloss.Color(p.Accent)
 		require.Equal(t, accent, styleLogo.GetForeground(), name)
 		require.Equal(t, accent, styleArrow.GetForeground(), name)
 	}

@@ -16,7 +16,7 @@
    ⠋│     ↓ more                                                           │  7s
    ⠋│                                                                      │  2h
     │   id theme · default default · applies now                           │
-  DO│   default  classic  noir  paper  high-contrast  ansi                 │    
+  DO│   default  classic  noir  paper  high-contrast  ansi  dracula  to…   │    
    ●│   Change the theme: a built-in (classic is the previous look; ansi   │  9d
    ✕│   uses your terminal's own colors) or a theme file in ? more         │   -
   ↳ │                                                                      │    
@@ -55,7 +55,7 @@
                 │     ↓ more                                                                           │
                 │                                                                                      │
                 │   id theme · default default · applies now                                           │
-                │   default  classic  noir  paper  high-contrast  ansi                                 │
+                │   default  classic  noir  paper  high-contrast  ansi  dracula  tokyo_night  panto…   │
                 │   Change the theme: a built-in (classic is the previous look; ansi uses your         │
                 │   terminal's own colors) or a theme file in ~/.config/rex/themes. An unknown name    │
                 │   uses default.                                                                      │
@@ -82,7 +82,7 @@
 ␛[38;2;89;96;112m   ⠋␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161m  ↓ more␛[0m                                                           ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m  7s␛[0m
 ␛[38;2;89;96;112m   ⠋␛[0m␛[38;2;174;179;194m│␛[0m                                                                      ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m  2h␛[0m
 ␛[38;2;89;96;112m␛[0m    ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m                           ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
-␛[38;2;89;96;112m  DO␛[0m␛[38;2;174;179;194m│␛[0m   ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m                 ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m    ␛[0m
+␛[38;2;89;96;112m  DO␛[0m␛[38;2;174;179;194m│␛[0m   ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m  ␛[38;2;139;145;161mdracula␛[0m  ␛[38;2;139;145;161mto…␛[0m␛[38;2;139;145;161m␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m    ␛[0m
 ␛[38;2;89;96;112m   ●␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mChange the theme: a built-in (classic is the previous look; ansi␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m  9d␛[0m
 ␛[38;2;89;96;112m   ✕␛[0m␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161muses your terminal's own colors) or a theme file in␛[38;2;89;96;112m ? more␛[0m␛[0m         ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m   -␛[0m
 ␛[38;2;89;96;112m  ↳ ␛[0m␛[38;2;174;179;194m│␛[0m                                                                      ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m    ␛[0m
@@ -121,7 +121,7 @@
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161m  ↓ more␛[0m                                                                           ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m                                                                                      ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m                                           ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
-␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m                                 ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
+␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m  ␛[38;2;139;145;161mdracula␛[0m  ␛[38;2;139;145;161mtokyo_night␛[0m  ␛[38;2;139;145;161mpanto…␛[0m   ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mChange the theme: a built-in (classic is the previous look; ansi uses your␛[0m         ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161mterminal's own colors) or a theme file in ~/.config/rex/themes. An unknown name␛[0m    ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m
 ␛[38;2;89;96;112m␛[0m                ␛[38;2;174;179;194m│␛[0m   ␛[38;2;139;145;161muses default.␛[0m                                                                      ␛[38;2;174;179;194m│␛[0m␛[38;2;89;96;112m␛[0m

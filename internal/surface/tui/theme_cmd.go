@@ -12,10 +12,11 @@ import (
 )
 
 // themeOptions are the names the theme setting can cycle through: the
-// built-ins in registry order, then the user's theme files by name.
+// built-in and bundled themes in registry order, then the user's other theme
+// files by name. A file that overrides a bundled theme keeps its slot.
 func themeOptions(m Model) []string {
 	s, _ := settings.Find("theme")
-	return append(slices.Clone(s.Options), m.Themes.UserNames()...)
+	return append(slices.Clone(s.Options), m.Themes.UserNamesExcept(s.Options)...)
 }
 
 // applyThemeNamed applies the named theme. An unknown name uses the default

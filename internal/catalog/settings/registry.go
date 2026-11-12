@@ -26,7 +26,7 @@ var Registry = []Setting{
 	{
 		ID: "theme", Label: "Theme", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "default", Aliases: []string{"color_scheme"},
-		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi"},
+		Options:   []string{"default", "classic", "noir", "paper", "high-contrast", "ansi", "dracula", "tokyo_night", "pantone_safe"},
 		Normalize: normalizeThemeName,
 		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
 	},

@@ -15,7 +15,7 @@ import (
 func TestArrowStylesFollowTheme(t *testing.T) {
 	t.Cleanup(func() { applyTheme("default") })
 	for _, name := range theme.Names() {
-		p := theme.Builtin[name]
+		p, _ := theme.Get(name)
 		applyTheme(name)
 		require.Equal(t, lipgloss.Color(p.Accent), styleArrow.GetForeground(), "%s: arrow uses the accent", name)
 		require.Equal(t, lipgloss.Color(p.Warn), styleArrowYellow.GetForeground(), "%s: yellow arrow uses the warn color", name)

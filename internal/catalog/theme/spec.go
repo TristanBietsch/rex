@@ -153,7 +153,7 @@ func Parse(name string, data []byte) (Palette, []string, error) {
 			return zero, nil, errors.New(`"extends" must be a built-in theme name`)
 		}
 		if _, ok := Builtin[s]; !ok {
-			return zero, nil, fmt.Errorf(`"extends": %q is not a built-in theme (have: %s)`, s, strings.Join(Names(), ", "))
+			return zero, nil, fmt.Errorf(`"extends": %q is not a built-in theme (have: %s)`, s, strings.Join(builtinNames(), ", "))
 		}
 		base = s
 	}

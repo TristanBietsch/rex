@@ -55,11 +55,12 @@ func loadThemes() (cat *theme.Catalog, dir, current string, err error) {
 	return theme.LoadDir(dir), dir, current, nil
 }
 
-// themeNames is every theme name: the built-ins in the registry's order, then
-// the user's files.
+// themeNames is every theme name: the built-in and bundled themes in the
+// registry's order, then the user's other files (one that overrides a bundled
+// theme keeps that slot).
 func themeNames(cat *theme.Catalog) []string {
 	s, _ := settings.Find("theme")
-	return append(append([]string(nil), s.Options...), cat.UserNames()...)
+	return append(append([]string(nil), s.Options...), cat.UserNamesExcept(s.Options)...)
 }
 
 // themeRow is one theme in `rex theme list`.

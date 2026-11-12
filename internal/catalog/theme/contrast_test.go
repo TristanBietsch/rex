@@ -11,11 +11,12 @@ import (
 
 func isHex(s string) bool { return len(s) == 7 && s[0] == '#' }
 
-// hexThemes are the built-ins that give real colors (every one but ansi).
+// hexThemes are the built-in and bundled themes that give real colors (every
+// one but ansi).
 func hexThemes() []Palette {
 	var out []Palette
 	for _, name := range Names() {
-		if p := Builtin[name]; isHex(p.Bg) {
+		if p, _ := Get(name); isHex(p.Bg) {
 			out = append(out, p)
 		}
 	}
@@ -165,12 +166,14 @@ func TestAnsiThemeIndices(t *testing.T) {
 
 func TestFaintOnlyOnAnsi(t *testing.T) {
 	for _, name := range Names() {
-		require.Equal(t, name == "ansi", Builtin[name].Faint, name)
+		p, _ := Get(name)
+		require.Equal(t, name == "ansi", p.Faint, name)
 	}
 }
 
 func TestSelReverseOnlyOnAnsi(t *testing.T) {
 	for _, name := range Names() {
-		require.Equal(t, name == "ansi", Builtin[name].SelReverse, name)
+		p, _ := Get(name)
+		require.Equal(t, name == "ansi", p.SelReverse, name)
 	}
 }

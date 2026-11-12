@@ -8,7 +8,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
-// theme offers exactly the built-in themes, default first.
+// theme offers exactly the built-in and bundled themes, default first.
 func TestRegistry_ThemeOptionsAreTheBuiltinThemes(t *testing.T) {
 	e, ok := findEntry("theme")
 	require.True(t, ok)
@@ -17,6 +17,17 @@ func TestRegistry_ThemeOptionsAreTheBuiltinThemes(t *testing.T) {
 	for _, name := range e.Options {
 		require.NoError(t, NewStore().Set("theme", name), name)
 	}
+}
+
+// Every theme option resolves to a theme rex ships, and the bundled ones
+// follow the Go built-ins.
+func TestThemeOptionsAreThemes(t *testing.T) {
+	e, ok := findEntry("theme")
+	require.True(t, ok)
+	for _, name := range e.Options {
+		require.Contains(t, theme.Names(), name)
+	}
+	require.Equal(t, []string{"dracula", "tokyo_night", "pantone_safe"}, e.Options[len(e.Options)-3:])
 }
 
 func TestRegistry_HasDefaultSpawnTool(t *testing.T) {

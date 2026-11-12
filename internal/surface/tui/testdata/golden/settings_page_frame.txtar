@@ -17,7 +17,7 @@
 █                 │   ↓ more                                                   █
 █─────────────────┴────────────────────────────────────────────────────────────█
 █  id theme · default default · applies now                                    █
-█  default  classic  noir  paper  high-contrast  ansi                          █
+█  default  classic  noir  paper  high-contrast  ansi  dracula  tokyo_night …  █
 █  Change the theme: a built-in (classic is the previous look; ansi uses your  █
 █  terminal's own colors) or a theme file in ~/.config/rex/themes. A… ? more   █
 █──────────────────────────────────────────────────────────────────────────────█
@@ -42,7 +42,7 @@
 ␛[38;2;221;65;36m█␛[0m                ␛[38;2;43;48;60m │ ␛[0m␛[38;2;139;145;161m  ↓ more␛[0m                                                   ␛[38;2;221;65;36m█␛[0m
 ␛[38;2;221;65;36m█␛[0m␛[38;2;43;48;60m─────────────────┴────────────────────────────────────────────────────────────␛[0m␛[38;2;221;65;36m█␛[0m
 ␛[38;2;221;65;36m█␛[0m  ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m                                    ␛[38;2;221;65;36m█␛[0m
-␛[38;2;221;65;36m█␛[0m  ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m                          ␛[38;2;221;65;36m█␛[0m
+␛[38;2;221;65;36m█␛[0m  ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m  ␛[38;2;139;145;161mdracula␛[0m  ␛[38;2;139;145;161mtokyo_night␛[0m …␛[38;2;139;145;161m␛[0m  ␛[38;2;221;65;36m█␛[0m
 ␛[38;2;221;65;36m█␛[0m  ␛[38;2;139;145;161mChange the theme: a built-in (classic is the previous look; ansi uses your␛[0m  ␛[38;2;221;65;36m█␛[0m
 ␛[38;2;221;65;36m█␛[0m  ␛[38;2;139;145;161mterminal's own colors) or a theme file in ~/.config/rex/themes. A…␛[38;2;89;96;112m ? more␛[0m␛[0m   ␛[38;2;221;65;36m█␛[0m
 ␛[38;2;221;65;36m█␛[0m␛[38;2;43;48;60m──────────────────────────────────────────────────────────────────────────────␛[0m␛[38;2;221;65;36m█␛[0m
