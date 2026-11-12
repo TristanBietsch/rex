@@ -80,10 +80,10 @@ var Registry = []Setting{
 		Help: "Click/wheel on board + popup. To select text hold Option (iTerm2) / Shift (Ghostty, kitty), or turn off.",
 	},
 	{
-		ID: "max_concurrent_sessions", Label: "Max concurrent sessions", Section: SectionBehavior, Apply: ApplyLive,
+		ID: "max_concurrent_sessions", Label: "Max concurrent sessions", Section: SectionBehavior, Apply: ApplyFromTUI,
 		Type: TypeInt, Default: 16,
 		Min: 1, Max: 64,
-		Help: "Daemon's PTY cap; takes effect on next daemon start.",
+		Help: "Cap on live PTY sessions. Changing it in the TUI sets the running daemon at once; the daemon never reads it from config.yaml, so a fresh daemon starts at its -max-concurrent-sessions flag (default 16).",
 	},
 	{
 		ID: "retire_after_hours", Label: "Clear marked-done after (h)", Section: SectionBehavior, Apply: ApplyLive,
@@ -116,7 +116,7 @@ var Registry = []Setting{
 	{
 		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeString, Default: "",
-		Help: "Board sections hidden at startup, comma-separated ids: needs, waiting, working, done (for example: done). Unknown ids are ignored. zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
+		Help: "Board sections hidden, comma-separated ids: needs, waiting, working, done (for example: done). Unknown ids are ignored. Applies at once and is the starting set; zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
 	},
 	{
 		ID: "skip_permissions", Label: "Skip permission prompts", Section: SectionBehavior, Apply: ApplyNextSpawn,
@@ -144,7 +144,7 @@ var Registry = []Setting{
 		Help: "The uc key and :uc / :resume, which take a session out of Done. Off: uc does nothing and the commands refuse; :undone still unmarks a session marked done.",
 	},
 	{
-		ID: "resume", Label: "Resume ids", Section: SectionFeatures, Apply: ApplyLive,
+		ID: "resume", Label: "Resume ids", Section: SectionFeatures, Apply: ApplyNextSpawn,
 		Type: TypeBool, Default: true,
 		Help: "Track each session's agent conversation id so an exited session can be resumed: the resume id column, :rid and the Resume intent (used by uc / :resume). Off: no id is assigned or captured, the column and :rid go away, and Resume is refused. Read at each spawn.",
 	},
@@ -164,7 +164,7 @@ var Registry = []Setting{
 		Help: "Show the selected session's full AI summary and its age in a line under the board, while any session has a summary. Off: no line, the board uses the row.",
 	},
 	{
-		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures, Apply: ApplyLive,
+		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures, Apply: ApplyNextSpawn,
 		Type: TypeBool, Default: true,
 		Help: "Load skills from ~/.config/rex/skills into one session: the skills step in the new-session wizard and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
 	},
@@ -187,7 +187,7 @@ var Registry = []Setting{
 		Help: "Track agent usage: a ledger of tokens and cost per session (~/.local/share/rex/usage.jsonl) for rex usage, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written, nothing is polled, and rex usage refuses.",
 	},
 	{
-		ID: "usage_statusline_tap", Label: "Claude status-line tap", Section: SectionFeatures, Apply: ApplyLive,
+		ID: "usage_statusline_tap", Label: "Claude status-line tap", Section: SectionFeatures, Apply: ApplyNextSpawn,
 		Type: TypeEnum, Default: "auto", Options: []string{"auto", "on", "off"},
 		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
 	},

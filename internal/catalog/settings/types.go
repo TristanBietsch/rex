@@ -71,10 +71,13 @@ const (
 	ApplyNextSpawn ApplyMode = "next_spawn"
 	// ApplyDaemonRestart: read once when the daemon starts.
 	ApplyDaemonRestart ApplyMode = "daemon_restart"
+	// ApplyFromTUI: the TUI sends the value to the running daemon when you
+	// change it; the daemon does not read it from config.yaml.
+	ApplyFromTUI ApplyMode = "from_tui"
 )
 
 // ApplyModes lists every mode, in order of how soon they take effect.
-var ApplyModes = []ApplyMode{ApplyLive, ApplyNextAttach, ApplyNextSpawn, ApplyDaemonRestart}
+var ApplyModes = []ApplyMode{ApplyLive, ApplyFromTUI, ApplyNextAttach, ApplyNextSpawn, ApplyDaemonRestart}
 
 // Label is the short text the settings page shows for the mode ("" for an
 // unknown mode).
@@ -82,6 +85,8 @@ func (m ApplyMode) Label() string {
 	switch m {
 	case ApplyLive:
 		return "applies now"
+	case ApplyFromTUI:
+		return "applies now (set from the TUI)"
 	case ApplyNextAttach:
 		return "next attach"
 	case ApplyNextSpawn:

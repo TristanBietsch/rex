@@ -614,6 +614,9 @@ func applyLive(m *Model, id string, value any) {
 				m.Audio.SetVolume(v)
 			}
 		}
+	case "board_hidden_sections":
+		// The same reader as startup, so board_filter off still ignores it.
+		*m = applyHidden(*m, hiddenSectionsFrom(m.Store))
 	case "max_concurrent_sessions":
 		if m.Client != nil {
 			if n, ok := value.(int); ok {

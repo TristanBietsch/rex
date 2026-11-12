@@ -30,7 +30,8 @@ The settings page shows this per row (the detail pane under the list), and the r
 |------|---------|
 | applies now | In the TUI at once, or through the daemon's settings watcher within seconds |
 | next attach | Read when an attach popup opens or resizes (`attach_banner`, `attach_scrollback_lines`) |
-| next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`) |
+| applies now (set from the TUI) | `max_concurrent_sessions`: the TUI sends it to the running daemon; the daemon ignores the YAML |
+| next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
 | after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
 
 ## Color schemes

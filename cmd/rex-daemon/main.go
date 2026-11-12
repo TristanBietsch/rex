@@ -226,7 +226,7 @@ func run(args []string) error {
 	}, store)
 	defer auditTrail.Close()
 	auditTrail.Configure(settingsStore)
-	hub.Subscribe([]string{"audit_trail", "audit_full_prompt"}, auditTrail.Applier())
+	hub.Subscribe(boot.AuditSettingIDs, auditTrail.Applier())
 
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
