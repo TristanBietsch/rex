@@ -1,6 +1,10 @@
 package settings
 
-import "slices"
+import (
+	"path/filepath"
+	"slices"
+	"strings"
+)
 
 // TrustSettingIDs are the settings that grant trust: they decide whether new
 // sessions run without the agent's permission and folder-trust prompts. The
@@ -29,3 +33,11 @@ var WorkspaceDenyIDs = append(slices.Clone(TrustSettingIDs),
 
 // WorkspaceDenied reports whether id is one of WorkspaceDenyIDs.
 func WorkspaceDenied(id string) bool { return slices.Contains(WorkspaceDenyIDs, id) }
+
+// WorkspaceSetAt reports whether at, a config.lua position from
+// Store.SetAt, is in a workspace's .rex/config.lua rather than the user's
+// own config.lua or its modules.
+func WorkspaceSetAt(at string) bool {
+	sep := string(filepath.Separator)
+	return strings.Contains(at, sep+".rex"+sep+"config.lua:")
+}

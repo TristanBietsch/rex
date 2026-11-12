@@ -54,43 +54,44 @@ func ReadConfig(root string) ([]byte, error) {
 
 // readPrivate reads path, refusing anything but a plain private file of
 // the current user's, checked on the opened handle. A missing file wraps
-// fs.ErrNotExist.
+// fs.ErrNotExist. Refusals name the file only (callers know its folder).
 func readPrivate(path string, maxBytes int64) ([]byte, error) {
+	name := filepath.Base(path)
 	f, err := os.OpenFile(path, os.O_RDONLY|oNoFollow|oNonBlock, 0)
 	if err != nil {
 		if isLinkOpenErr(err) {
-			return nil, fmt.Errorf("%w: %s is a symlink", ErrUnsafe, path)
+			return nil, fmt.Errorf("%w: %s is a symlink", ErrUnsafe, name)
 		}
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
 	fi, err := f.Stat()
 	if err != nil || !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("%w: %s is not a regular file", ErrUnsafe, path)
+		return nil, fmt.Errorf("%w: %s is not a regular file", ErrUnsafe, name)
 	}
 	// Windows opens follow symlinks: the path must still name this file.
 	if lfi, err := os.Lstat(path); err != nil || !os.SameFile(lfi, fi) {
-		return nil, fmt.Errorf("%w: %s is a link or changed while opening", ErrUnsafe, path)
+		return nil, fmt.Errorf("%w: %s is a link or changed while opening", ErrUnsafe, name)
 	}
 	if !skipModeChecks {
 		switch {
 		case hardLinked(fi):
-			return nil, fmt.Errorf("%w: %s has other hard links", ErrUnsafe, path)
+			return nil, fmt.Errorf("%w: %s has other hard links", ErrUnsafe, name)
 		case !ownedByMe(fi):
-			return nil, fmt.Errorf("%w: %s is owned by another user", ErrUnsafe, path)
+			return nil, fmt.Errorf("%w: %s is owned by another user", ErrUnsafe, name)
 		case fi.Mode().Perm()&0o022 != 0:
-			return nil, fmt.Errorf("%w: %s is group- or world-writable", ErrUnsafe, path)
+			return nil, fmt.Errorf("%w: %s is group- or world-writable", ErrUnsafe, name)
 		}
 	}
 	if fi.Size() > maxBytes {
-		return nil, fmt.Errorf("%w: %s is larger than %d bytes", ErrInvalid, path, maxBytes)
+		return nil, fmt.Errorf("%w: %s is larger than %d bytes", ErrInvalid, name, maxBytes)
 	}
 	b, err := io.ReadAll(io.LimitReader(f, maxBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(b)) > maxBytes {
-		return nil, fmt.Errorf("%w: %s is larger than %d bytes", ErrInvalid, path, maxBytes)
+		return nil, fmt.Errorf("%w: %s is larger than %d bytes", ErrInvalid, name, maxBytes)
 	}
 	return b, nil
 }
