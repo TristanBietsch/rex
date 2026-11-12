@@ -209,6 +209,19 @@ func (p *Player) Play(event string) {
 	p.playPCM(event, pcm)
 }
 
+// Audible reports whether Play(event) would make a sound now: a device is
+// open, sound is on, the volume is above 0 and the soundset has the event.
+// The TUI asks before it claims a shared sound, so a muted board never wins
+// a claim and silences a board that would have played.
+func (p *Player) Audible(event string) bool {
+	if p == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.dev != nil && p.cfg.Enabled && p.cfg.Volume > 0 && len(p.pcm[event]) > 0
+}
+
 // playPCM plays pcm if the player is enabled; volume is read at call time.
 func (p *Player) playPCM(event string, pcm []byte) {
 	p.mu.Lock()

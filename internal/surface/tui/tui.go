@@ -60,14 +60,16 @@ func RunWith(socket string, opts RunOptions) error {
 	awake := newDisplayAwake()
 	idleDone := make(chan struct{})
 	m := Model{
-		Socket:    socket,
-		Focus:     FocusBoot,
-		Filter:    "all",
-		Audio:     player,
-		BootStart: time.Now(),
-		idleDone:  idleDone,
-		keepAwake: awake,
-		QuietBoot: quietBoot,
+		Socket: socket,
+		Focus:  FocusBoot,
+		Filter: "all",
+		Audio:  player,
+		// Sounds play once across every open board (audio_dedupe).
+		SoundClaims: newSoundClaims(),
+		BootStart:   time.Now(),
+		idleDone:    idleDone,
+		keepAwake:   awake,
+		QuietBoot:   quietBoot,
 
 		BorderSeed: launchFolder(),
 		termLight:  termLight,

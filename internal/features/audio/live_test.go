@@ -160,3 +160,36 @@ func TestDeviceOpenFailureStaysMuted(t *testing.T) {
 	p.SetEnabled(true)
 	require.Equal(t, 1, opens)
 }
+
+// One Play is one device play of one sample: the player never doubles a
+// sound or plays a second, delayed copy (the "echo" heard with several boards
+// open came from several processes, not from here).
+func TestPlayOnceNoEcho(t *testing.T) {
+	p, dev, _ := fakePlayer(Config{Enabled: true, Volume: 0.5})
+	for _, ev := range []string{EventAttention, EventResume, EventDone, EventCreate, EventDelete} {
+		before := len(dev.all())
+		p.Play(ev)
+		time.Sleep(20 * time.Millisecond)
+		all := dev.all()
+		require.Len(t, all, before+1, ev)
+		require.Equal(t, ev, all[len(all)-1].event)
+		require.Equal(t, bakedPCM(t, SoundsetFactorio, ev), all[len(all)-1].pcm)
+	}
+}
+
+// Audible is true only when Play would reach the device with sound.
+func TestAudible(t *testing.T) {
+	p, _, _ := fakePlayer(Config{Enabled: true, Volume: 0.5})
+	require.True(t, p.Audible(EventAttention))
+	require.False(t, p.Audible("no-such-event"))
+	p.SetVolume(0)
+	require.False(t, p.Audible(EventAttention), "volume 0")
+	p.SetVolume(0.5)
+	p.SetEnabled(false)
+	require.False(t, p.Audible(EventAttention), "disabled")
+
+	failed := newPlayer(Config{Enabled: true, Volume: 0.5}, func() (device, error) { return nil, errors.New("no device") })
+	require.False(t, failed.Audible(EventAttention), "no device")
+	var nilP *Player
+	require.False(t, nilP.Audible(EventAttention))
+}

@@ -67,6 +67,17 @@ The first release since v1. Details for every change follow the summary.
   multi-line pastes keep the help line on screen, short terminals keep the
   prompt, and prompts are typed without escape sequences.
 
+### Fixed (sound plays once across boards)
+
+- With several boards open, each session sound (needs you, resume, done,
+  new, deleted) played once per board, a few milliseconds apart, which
+  sounded like a double or an echo. Boards now claim each event in
+  `~/.local/state/rex/sound-claims/` (owner-only, claims last about 10 s)
+  and only the first plays it. A workspace board or a muted board never
+  claims a sound it would not play, so it can't silence another board.
+  `audio_dedupe` (Settings → Audio, on) turns it off. Boards from an older
+  build don't take part; restart them.
+
 ### Added (accent color)
 
 - `accent_color` (Appearance, applies now; default `theme`, the active

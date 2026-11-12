@@ -28,6 +28,7 @@
 //	    cli-errors.log             CLIErrorLog: failed rex commands (+ .1 backup)
 //	    tui-state.json             TUIStateFile: board selection kept across :bg
 //	    models-cache.json          ModelsCacheFile: detected model ids per tool (model_autodetect)
+//	    sound-claims/              SoundClaimsDir: one sound per event across boards (0700)
 //	~/.cache/rex/                  CacheDir
 //	    rex.sock                   Socket, when $XDG_RUNTIME_DIR is unset
 //	$XDG_RUNTIME_DIR/rex.sock      Socket, when $XDG_RUNTIME_DIR is set
@@ -80,6 +81,7 @@ const (
 	daemonLogName      = "daemon.log"
 	tuiStateFileName   = "tui-state.json"
 	modelsCacheName    = "models-cache.json"
+	soundClaimsName    = "sound-claims"
 	socketName         = "rex.sock"
 )
 
@@ -118,7 +120,9 @@ type Layout struct {
 	TUIStateFile       string // ~/.local/state/rex/tui-state.json
 	// ModelsCacheFile is ~/.local/state/rex/models-cache.json.
 	ModelsCacheFile string
-	CacheDir        string // ~/.cache/rex
+	// SoundClaimsDir is ~/.local/state/rex/sound-claims.
+	SoundClaimsDir string
+	CacheDir       string // ~/.cache/rex
 }
 
 // ForHome returns the layout under home. It is pure: it neither reads the
@@ -154,6 +158,7 @@ func ForHome(home string) Layout {
 		DaemonLog:          filepath.Join(logs, daemonLogName),
 		TUIStateFile:       filepath.Join(logs, tuiStateFileName),
 		ModelsCacheFile:    filepath.Join(logs, modelsCacheName),
+		SoundClaimsDir:     filepath.Join(logs, soundClaimsName),
 		CacheDir:           filepath.Join(home, ".cache", appDir),
 	}
 }
@@ -324,6 +329,13 @@ func TUIStateFile() (string, error) { return field(func(l Layout) string { retur
 // only costs one detection run).
 func ModelsCacheFile() (string, error) {
 	return field(func(l Layout) string { return l.ModelsCacheFile })
+}
+
+// SoundClaimsDir returns ~/.local/state/rex/sound-claims, where boards claim
+// a session sound so it plays once however many boards are open (0700, files
+// 0600, each kept about 10 s).
+func SoundClaimsDir() (string, error) {
+	return field(func(l Layout) string { return l.SoundClaimsDir })
 }
 
 // CacheDir returns ~/.cache/rex.

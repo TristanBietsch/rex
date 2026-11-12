@@ -487,6 +487,8 @@ The wizard does not ask for a name; press `r` on the board to give a session a d
 
 With sound on, each soundset chimes when a session needs you (`working` → `needs_input`), when it resumes (`needs_input` → `working`), and when it finishes (→ `done`) or you mark it done (`cc`, `:done`, `rex done`). A flickering session chimes at most once every 1.5 s. The needs-you chime plays once per turn (per prompt you send a Claude Code session); a new question in the same turn chimes again. Other agents report no turns, so only the 1.5 s limit applies to them. Turn off the first two with `notify_on_state_change`; see [settings.md](settings.md#audio).
 
+With several boards open (more terminals, a workspace board next to the system board), each of these sounds, and the new-session and delete sounds, plays once in all, not once per board: the boards claim each daemon event in `~/.local/state/rex/sound-claims/` and the first one plays (`audio_dedupe`, on). A board that does not show the session, or would play nothing, does not claim it. A board from an older build still plays everything; restart it. Boot sounds and key sounds stay per board.
+
 ## WORKSPACE BOARD
 
 `rex here` (or `rex ws open [path]`) opens the board fixed to one workspace ([workspaces.md](workspaces.md#sessions-and-the-workspace-board), needs `workspaces`). The filter is not a user filter: no key or command changes it, and the chip row does not mention it. Rows, header counts, the screensaver, the overview, `:prune`, `:fail`, the loops overlay, session selectors (`:rm fix-auth`, `:undo 7d4f`, …) and sounds and notifications only see that workspace's sessions. The daemon-wide overview headline is hidden, since it speaks for every workspace.

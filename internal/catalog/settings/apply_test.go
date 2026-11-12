@@ -44,7 +44,7 @@ var applyModeOf = map[string]ApplyMode{
 	"board_hidden_sections": ApplyLive, // applyLive re-reads it into the board
 	"desc_animation":        ApplyLive,
 	"sound_enabled":         ApplyLive, "soundset": ApplyLive, "master_volume": ApplyLive,
-	"notify_on_state_change": ApplyLive, "boot_voice": ApplyLive,
+	"notify_on_state_change": ApplyLive, "boot_voice": ApplyLive, "audio_dedupe": ApplyLive,
 	// The cap is set live by the TUI (SetMaxConcurrent); the daemon never
 	// reads it from config.yaml, only from its -max-concurrent-sessions flag.
 	"max_concurrent_sessions": ApplyFromTUI,

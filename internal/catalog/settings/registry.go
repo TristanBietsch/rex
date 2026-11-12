@@ -425,6 +425,11 @@ var Registry = []Setting{
 		Type: TypeBool, Default: true,
 		Help: "Spoken \"rex\" announcement after the startup tone (needs sound enabled).",
 	},
+	{
+		ID: "audio_dedupe", Label: "One sound across boards", Section: SectionAudio, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "With several boards open, a session's sound (needs input, resume, done, new, deleted) plays once, from one board, instead of once per board.",
+	},
 	// Advanced
 	{
 		ID: "lua_config_path", Label: "Lua config", Section: SectionAdvanced, Apply: ApplyDaemonRestart,
