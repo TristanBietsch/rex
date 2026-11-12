@@ -31,6 +31,7 @@ Scope rules agreed 2026-11-11:
 | R14 | Waiting board section (agent busy on a shell, subagent or web call, below Needs you) | build | M | [R14](R14-waiting-section.md) |
 | R15 | scheduled description refresh (every 5 min x5, then every 30 min, more descriptive later) | build | M | [R15](R15-desc-schedule.md) |
 | R16 | redesigned `n` new-agent flow: full-screen page, context by typing, pasting, importing | build | L | [R16](R16-new-agent-flow.md), [plan](R16-00-plan.md); after R04-1 and P2 |
+| R17 | READY sound fires while an agent waits on subagents, then loops | fix | M | [R17](R17-ready-subagent-flap.md) |
 
 **R03 note.** S4 already plans the "master agent" as a daemon-side overview with buckets *needs you / ready for review / failed / working / completed* and an Ollama headline. It rejects a spawned Claude "master" on cost and cross-session prompt-injection grounds. No follow-up (R03-D1): the top-level TODO line closes when S4 merges.
 
