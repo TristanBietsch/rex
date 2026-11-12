@@ -28,10 +28,12 @@ func (f *fakeLoops) rec(s string) (protocol.LoopSummary, error) {
 	f.calls = append(f.calls, s)
 	return protocol.LoopSummary{ID: "loop-00000001", State: protocol.LoopRunning}, f.err
 }
-func (f *fakeLoops) Start(p protocol.StartLoop) (protocol.LoopSummary, error) { return f.rec("start " + p.Name) }
-func (f *fakeLoops) Pause(id string) (protocol.LoopSummary, error)            { return f.rec("pause " + id) }
-func (f *fakeLoops) Resume(id string) (protocol.LoopSummary, error)           { return f.rec("resume " + id) }
-func (f *fakeLoops) Stop(id string) (protocol.LoopSummary, error)             { return f.rec("stop " + id) }
+func (f *fakeLoops) Start(p protocol.StartLoop) (protocol.LoopSummary, error) {
+	return f.rec("start " + p.Name)
+}
+func (f *fakeLoops) Pause(id string) (protocol.LoopSummary, error)  { return f.rec("pause " + id) }
+func (f *fakeLoops) Resume(id string) (protocol.LoopSummary, error) { return f.rec("resume " + id) }
+func (f *fakeLoops) Stop(id string) (protocol.LoopSummary, error)   { return f.rec("stop " + id) }
 func (f *fakeLoops) Snapshot() []protocol.LoopSummary {
 	f.mu.Lock()
 	defer f.mu.Unlock()
