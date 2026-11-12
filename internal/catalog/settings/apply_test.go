@@ -37,6 +37,7 @@ var applyModeOf = map[string]ApplyMode{
 	"theme": ApplyLive, "spinner": ApplyLive, "row_density": ApplyLive, "prompt_glyph": ApplyLive,
 	"reduce_motion": ApplyLive, "blinking_enabled": ApplyLive, "show_help_bar": ApplyLive,
 	"header_style": ApplyLive, "window_border": ApplyLive, "window_border_color": ApplyLive, "column_layout": ApplyLive, "mobile_layout": ApplyLive,
+	"row_icon_set": ApplyLive, "ascii_glyphs": ApplyLive, "row_icons": ApplyLive,
 	"keybind_preset": ApplyLive, "mouse_enabled": ApplyLive, "retire_after_hours": ApplyLive,
 	"screensaver_enabled": ApplyLive, "screensaver_after_minutes": ApplyLive, "screensaver_keep_awake": ApplyLive,
 	"board_hidden_sections": ApplyLive, // applyLive re-reads it into the board

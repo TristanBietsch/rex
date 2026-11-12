@@ -14,8 +14,8 @@
                  │   Window border                                         off  
                  │   Border color                                       random  
                  │   Column layout                                       fixed  
-                 │   Mobile layout                                        auto  
-                 │                                                              
+                 │   Row icon set              unseen,reason,loop,subagents,s…  
+                 │   ↓ more                                                     
 ─────────────────┴──────────────────────────────────────────────────────────────
   id spinner · default braille · applies now · set in config.lua:1              
   braille  ascii_line  moon  pulse  blocks                                      
@@ -39,9 +39,9 @@
                  │   Window border                                                                                 off  
                  │   Border color                                                                               random  
                  │   Column layout                                                                               fixed  
+                 │   Row icon set                                           unseen,reason,loop,subagents,spend,longrun  
+                 │   ASCII glyphs                                                                                  off  
                  │   Mobile layout                                                                                auto  
-                 │                                                                                                      
-                 │                                                                                                      
                  │                                                                                                      
                  │                                                                                                      
                  │                                                                                                      
@@ -80,8 +80,8 @@
                 ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWindow border          ␛[0m                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                 ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mBorder color           ␛[0m                          ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mrandom␛[0m  
                 ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mColumn layout          ␛[0m                           ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mfixed␛[0m  
-                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mMobile layout          ␛[0m                            ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mauto␛[0m  
-                ␛[38;2;43;48;60m │ ␛[0m                                                             
+                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow icon set           ␛[0m ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238munseen,reason,loop,subagents,s…␛[0m  
+                ␛[38;2;43;48;60m │ ␛[0m␛[38;2;139;145;161m  ↓ more␛[0m                                                     
 ␛[38;2;43;48;60m─────────────────┴──────────────────────────────────────────────────────────────␛[0m
   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mspinner␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mbraille␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mset in config.lua:1␛[0m              
   ␛[38;2;139;145;161mbraille␛[0m  ␛[38;2;139;145;161mascii_line␛[0m  ␛[1;38;2;230;232;238mmoon␛[0m  ␛[38;2;139;145;161mpulse␛[0m  ␛[38;2;139;145;161mblocks␛[0m                                      
@@ -105,9 +105,9 @@
                 ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWindow border                 ␛[0m                                                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                 ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mBorder color                  ␛[0m                                                           ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mrandom␛[0m  
                 ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mColumn layout                 ␛[0m                                                            ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mfixed␛[0m  
+                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow icon set                  ␛[0m                       ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238munseen,reason,loop,subagents,spend,longrun␛[0m  
+                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mASCII glyphs                  ␛[0m                                                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                 ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mMobile layout                 ␛[0m                                                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mauto␛[0m  
-                ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
-                ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
                 ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
                 ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
                 ␛[38;2;43;48;60m │ ␛[0m                                                                                                     

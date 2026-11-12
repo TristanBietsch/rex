@@ -14,9 +14,9 @@
                 │   Window border                                                                                  off  
                 │   Border color                                                                                random  
                 │   Column layout                                                                                fixed  
+                │   Row icon set                                            unseen,reason,loop,subagents,spend,longrun  
+                │   ASCII glyphs                                                                                   off  
                 │   Mobile layout                                                                                 auto  
-                │                                                                                                       
-                │                                                                                                       
                 │                                                                                                       
                 │                                                                                                       
                 │                                                                                                       
@@ -55,8 +55,8 @@
                 │   Window border                                          off  
                 │   Border color                                        random  
                 │   Column layout                                        fixed  
-                │   Mobile layout                                         auto  
-                │                                                               
+                │   Row icon set               unseen,reason,loop,subagents,s…  
+                │   ↓ more                                                      
 ────────────────┴───────────────────────────────────────────────────────────────
   id theme · default default · applies now                                      
   default  classic  noir  paper  high-contrast  ansi  dracula  tokyo_night  p…  
@@ -101,9 +101,9 @@
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWindow border                 ␛[0m                                                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mBorder color                  ␛[0m                                                            ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mrandom␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mColumn layout                 ␛[0m                                                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mfixed␛[0m  
+               ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow icon set                  ␛[0m                        ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238munseen,reason,loop,subagents,spend,longrun␛[0m  
+               ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mASCII glyphs                  ␛[0m                                                               ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mMobile layout                 ␛[0m                                                              ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mauto␛[0m  
-               ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
-               ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
                ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
                ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
                ␛[38;2;43;48;60m │ ␛[0m                                                                                                      
@@ -142,8 +142,8 @@
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mWindow border           ␛[0m                             ␛[38;2;139;145;161m  ␛[0m␛[38;2;139;145;161moff␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mBorder color            ␛[0m                          ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mrandom␛[0m  
                ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mColumn layout           ␛[0m                           ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mfixed␛[0m  
-               ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mMobile layout           ␛[0m                            ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238mauto␛[0m  
-               ␛[38;2;43;48;60m │ ␛[0m                                                              
+               ␛[38;2;43;48;60m │ ␛[0m  ␛[38;2;139;145;161mRow icon set            ␛[0m ␛[38;2;139;145;161m  ␛[0m␛[38;2;230;232;238munseen,reason,loop,subagents,s…␛[0m  
+               ␛[38;2;43;48;60m │ ␛[0m␛[38;2;139;145;161m  ↓ more␛[0m                                                      
 ␛[38;2;43;48;60m────────────────┴───────────────────────────────────────────────────────────────␛[0m
   ␛[38;2;139;145;161mid ␛[0m␛[38;2;230;232;238mtheme␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mdefault ␛[0m␛[38;2;230;232;238mdefault␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;89;96;112mapplies now␛[0m                                      
   ␛[1;38;2;230;232;238mdefault␛[0m  ␛[38;2;139;145;161mclassic␛[0m  ␛[38;2;139;145;161mnoir␛[0m  ␛[38;2;139;145;161mpaper␛[0m  ␛[38;2;139;145;161mhigh-contrast␛[0m  ␛[38;2;139;145;161mansi␛[0m  ␛[38;2;139;145;161mdracula␛[0m  ␛[38;2;139;145;161mtokyo_night␛[0m  ␛[38;2;139;145;161mp…␛[0m␛[38;2;139;145;161m␛[0m  
