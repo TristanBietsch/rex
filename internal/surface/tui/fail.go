@@ -30,7 +30,7 @@ const (
 
 func openFail(m Model) (Model, tea.Cmd) {
 	failed := make([]protocol.SessionSummary, 0)
-	for _, s := range m.Sessions {
+	for _, s := range scopedSessions(m) {
 		if s.State == protocol.StateFailed || s.State == protocol.StateCrashed {
 			failed = append(failed, s)
 		}

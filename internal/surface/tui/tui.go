@@ -17,7 +17,11 @@ const boardPad = 0
 
 // Run opens the board. quietBoot silences the boot splash (see
 // Model.QuietBoot).
-func Run(socket string, quietBoot bool) error {
+func Run(socket string, quietBoot bool) error { return RunScoped(socket, quietBoot, nil) }
+
+// RunScoped is Run for a board fixed to one workspace (`rex here`); a nil
+// scope is the ordinary board.
+func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
 	store, _, _ := settings.LoadDefault()
@@ -48,6 +52,10 @@ func Run(socket string, quietBoot bool) error {
 
 		BorderSeed: launchFolder(),
 		termLight:  termLight,
+		WS:         scope,
+	}
+	if scope != nil && scope.Root != "" {
+		m.BorderSeed = scope.Root // a workspace keeps its color even without one set
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -152,6 +160,8 @@ func (m Model) view(w, h int) string {
 		return centerPanel(w, h, fitOverlay(renderStatsOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusOverview:
 		return centerPanel(w, h, fitOverlay(renderOverviewOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
+	case FocusLoops:
+		return centerPanel(w, h, fitOverlay(renderLoopsOverlay(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusUndo:
 		return centerPanel(w, h, fitOverlay(renderUndo(m), w), dimBoard(renderFullScreen(m, w, h)))
 	case FocusUsage:
@@ -191,6 +201,8 @@ func renderFullScreen(m Model, w, h int) string {
 		bottom = hr + "\n" + renderQuitConfirm(cw) + "\n" + helpline
 	case FocusConfirmDelete:
 		bottom = hr + "\n" + renderDeleteConfirm(m, cw) + "\n" + helpline
+	case FocusConfirmLoopStop:
+		bottom = hr + "\n" + renderLoopStopConfirm(m, cw) + "\n" + helpline
 	case FocusRename:
 		bottom = hr + "\n" + renderRenamePrompt(m, cw) + "\n" + helpline
 	default:

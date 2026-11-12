@@ -96,6 +96,8 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Help | `?` or `:help` | `esc`, `?` |
 | Stats | `:stats` | `esc`, `:` |
 | Overview | `:overview` | `esc`, `q`, `:overview` |
+| Loops | `L` or `:loops` (needs `loops`) | `esc`, `q`, `L`, `:loops` |
+| Confirm stop loop | `x` or `:loop stop` | `y` / any other key |
 | Usage | `:usage`, or a click on the header meter | `esc`, `q`, `:` |
 | Undo / redo dialog | `:undo`, `:redo` | `esc`, `n`, or `esc` after the result |
 | Confirm quit | `:q` | `y` / `n` |
@@ -153,6 +155,9 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 | `:` | Command mode |
 | `?` | Help overlay |
 | `S` | Settings |
+| `p` | Pause / resume the selected loop (needs `loops`; see [loops.md](loops.md#on-the-board)) |
+| `x` | Stop the selected loop, after `y` / `N` (needs `loops`) |
+| `L` | List loops: state, turn, time over `max_minutes`, last check (needs `loops`) |
 | `ctrl+c`, `q` | Quit (confirm with `:q`) |
 
 ### Mouse
@@ -404,6 +409,16 @@ The wizard does not ask for a name; press `r` on the board to give a session a d
 ## SOUNDS
 
 With sound on, each soundset chimes when a session needs you (`working` → `needs_input`), when it resumes (`needs_input` → `working`), and when it finishes (→ `done`) or you mark it done (`cc`, `:done`, `rex done`). A flickering session chimes at most once every 1.5 s. Turn off the first two with `notify_on_state_change`; see [settings.md](settings.md#audio).
+
+## WORKSPACE BOARD
+
+`rex here` (or `rex ws open [path]`) opens the board fixed to one workspace ([workspaces.md](workspaces.md#sessions-and-the-workspace-board), needs `workspaces`). The filter is not a user filter: no key or command changes it, and the chip row does not mention it. Rows, header counts, the screensaver, the overview, `:prune`, `:fail`, the loops overlay, session selectors (`:rm fix-auth`, `:undo 7d4f`, …) and sounds and notifications only see that workspace's sessions. The daemon-wide overview headline is hidden, since it speaks for every workspace.
+
+- The header starts with `[<id> <name>]` in the workspace color (`[<id>]` in the mobile layout). A color that is not `#RRGGBB` is ignored and the chip uses the default style.
+- The window border is on by default and uses the workspace color while `window_border` was never set and `window_border_color` is `random`. `window_border`, an explicit `window_border_color`, and `:border` all win. `:border` says `workspace color` instead of `random` in its notice.
+- The wizard and the `i` quick spawn start in the workspace root.
+- A daemon that does not tag sessions shows every session, with the one notice ``daemon doesn't tag workspaces — `rex daemon restart` ``.
+- With `workspaces` off the scope is inert: the board shows everything, with no chip.
 
 ## WINDOW BORDER
 

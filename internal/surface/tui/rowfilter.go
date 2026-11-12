@@ -6,15 +6,19 @@ import "github.com/tristanbietsch/rex/internal/wire/protocol"
 // (columns, navigation, counts) build one with rowFilterOf and pass it down,
 // so a new filter is a field here and nothing else.
 type rowFilter struct {
-	tool   string          // "" / "all": any tool
-	terms  []string        // search terms: every one must match (compileQuery)
-	hidden map[string]bool // section IDs hidden outright
-	ctx    groupCtx        // clock and feature flag for grouping
+	// workspace is the fixed workspace id of a `rex here` board ("" = any).
+	// It is not a user filter: no key or command changes it, and it does not
+	// count as an active filter (rowsActive).
+	workspace string
+	tool      string          // "" / "all": any tool
+	terms     []string        // search terms: every one must match (compileQuery)
+	hidden    map[string]bool // section IDs hidden outright
+	ctx       groupCtx        // clock and feature flag for grouping
 }
 
 // rowFilterOf is the filter the model currently has active.
 func rowFilterOf(m Model) rowFilter {
-	f := rowFilter{ctx: groupCtx{now: m.now(), waiting: m.featureOn("waiting_section")}}
+	f := rowFilter{ctx: groupCtx{now: m.now(), waiting: m.featureOn("waiting_section")}, workspace: m.wsFilterID()}
 	if m.featureOn("board_filter") {
 		f.tool, f.hidden = m.Filter, m.Hidden
 	}
@@ -42,6 +46,9 @@ func rowFilterOf(m Model) rowFilter {
 
 // keep reports whether a session passes the row filters.
 func (f rowFilter) keep(s protocol.SessionSummary) bool {
+	if f.workspace != "" && s.WorkspaceID != f.workspace {
+		return false
+	}
 	if f.tool != "" && f.tool != "all" && s.ToolID != f.tool {
 		return false
 	}

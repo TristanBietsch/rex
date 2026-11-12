@@ -33,6 +33,8 @@ const (
 	FocusRename
 	FocusSearch
 	FocusOverview
+	FocusLoops
+	FocusConfirmLoopStop
 	FocusUsage
 	FocusUndo
 )
@@ -55,6 +57,24 @@ type Model struct {
 	// auto; otherwise (and in tests) it is false, the dark default. The auto
 	// theme reads it: a later switch to auto reuses it and never asks again.
 	termLight bool
+
+	// WS is the workspace this board is fixed to (`rex here`); nil on an
+	// ordinary board. wsTagging says the daemon tags sessions with their
+	// workspace (else the board shows every session); wsNoticed that the
+	// one notice about it was shown.
+	WS        *WorkspaceScope
+	wsTagging bool
+	wsNoticed bool
+
+	// Loops are the daemon's loops (Snapshot.Loops and Loop events); LoopsSel
+	// is the selected row of the :loops overlay. PendingLoopStop is the loop
+	// a stop confirmation asks about, loopStopBack the focus to return to.
+	// looper overrides Client for the loop intents (tests).
+	Loops           []protocol.LoopSummary
+	LoopsSel        int
+	PendingLoopStop string
+	loopStopBack    Focus
+	looper          loopController
 	// borderRunOn and borderRunColor are :border's choices for this run. They
 	// are never saved; nil / "" fall back to the window_border settings.
 	borderRunOn    *bool
@@ -254,6 +274,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionAdded:
 		var sum protocol.SessionSummary
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
+			m = noteSessionWorkspace(m, sum)
 			if i := sessionIndex(m.Sessions, sum.ID); i >= 0 {
 				// Already listed (a snapshot taken after the add raced
 				// its event): refresh the row, don't show it twice. It
@@ -264,7 +285,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			}
 			m.Sessions = append(m.Sessions, sum)
 			m = m.selectIfPending(sum)
-			if m.Audio != nil {
+			if m.Audio != nil && inScope(m, sum) {
 				m.Audio.Play(audio.EventCreate)
 			}
 		}
@@ -274,6 +295,11 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			endedMsg := "session deleted"
 			if rem.Reason == protocol.RemovedRetired {
 				endedMsg = "session cleared (marked done)"
+			}
+			// Another workspace's session leaves a scoped board silently.
+			audible := m.wsFilterID() == ""
+			if sum, ok := findSession(m.Sessions, rem.SessionID); ok {
+				audible = inScope(m, sum)
 			}
 			m = dropTargets(m, rem.SessionID, endedMsg)
 			if rem.Reason == protocol.RemovedRetired {
@@ -292,7 +318,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			}
 			m.Sessions = out
 			delete(m.lastNotify, rem.SessionID)
-			if m.Audio != nil {
+			if m.Audio != nil && audible {
 				m.Audio.Play(audio.EventDelete)
 			}
 		}
@@ -303,9 +329,13 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// session this TUI never saw (no live transition to announce).
 			var prevState protocol.State
 			known, marked := false, false
+			// audible is false for another workspace's session on a scoped
+			// board: no blink, sound or notification for it.
+			audible := m.wsFilterID() == ""
 			for i := range m.Sessions {
 				if m.Sessions[i].ID == upd.SessionID {
 					known = true
+					audible = inScope(m, m.Sessions[i])
 					prevState = m.Sessions[i].State
 					prevDesc := m.Sessions[i].Description
 					wasMarked := !m.Sessions[i].RetireAt.IsZero()
@@ -323,7 +353,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			s, hasState := upd.Patch["state"].(string)
 			next := protocol.State(s)
 			// A repeated done patch is not a new completion; stay silent.
-			completed := hasState && next == protocol.StateDone && (!known || prevState != protocol.StateDone)
+			completed := audible && hasState && next == protocol.StateDone && (!known || prevState != protocol.StateDone)
 			if completed {
 				if m.BlinkUntil == nil {
 					m.BlinkUntil = make(map[string]time.Time)
@@ -334,10 +364,10 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// done (cc, :done, rex done) leaves the session running, so no
 			// state patch announces it; the mark itself plays the done sound,
 			// once, even if the same patch also completes the session.
-			if (completed || marked) && m.Audio != nil {
+			if (completed || (marked && audible)) && m.Audio != nil {
 				m.Audio.Play(audio.EventDone)
 			}
-			if hasState {
+			if hasState && audible {
 				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
 				if m.Undo != nil && m.Undo.StateAt != next {
 					m = closeUndoIfStale(m, upd.SessionID, "undo: the session changed; run it again")
@@ -351,6 +381,8 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m.Overview = snap.Overview
 			m.Usage = snap.Usage
 			m = adoptSnapshotTools(m, snap.Tools)
+			m = adoptWorkspaceTagging(m, &snap)
+			m = adoptLoops(m, &snap)
 			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
 		}
 	case protocol.EventToolsChanged:
@@ -362,6 +394,11 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var u protocol.Usage
 		if err := json.Unmarshal(env.Data, &u); err == nil {
 			m.Usage = &u
+		}
+	case protocol.EventLoop:
+		var l protocol.LoopSummary
+		if err := json.Unmarshal(env.Data, &l); err == nil && protocol.ValidLoopID(l.ID) {
+			m = upsertLoop(m, l)
 		}
 	case protocol.EventOverview:
 		var o protocol.Overview
@@ -458,6 +495,12 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["resume_id"].(string); ok {
 		s.ResumeID = v
+	}
+	if v, ok := patch["loop_id"].(string); ok {
+		s.LoopID = v
+	}
+	if v, ok := patch["loop_iter"].(float64); ok && v >= 0 {
+		s.LoopIter = int(v)
 	}
 	if v, present := patch["exit_code"]; present {
 		switch code := v.(type) {

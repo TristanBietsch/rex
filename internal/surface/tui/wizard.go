@@ -410,7 +410,7 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	switch k.Type {
 	case tea.KeyEnter:
-		cwd, _ := os.Getwd()
+		cwd := spawnCWD(m)
 		req := m.Wizard.request(cwd, existingSlugs(m))
 		var ok bool
 		if m, req, ok = wizardTrustRequest(m, cwd, req); !ok {

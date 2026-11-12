@@ -54,6 +54,7 @@ func (s State) Summary() protocol.LoopSummary {
 		PauseReason: s.PauseReason, StopReason: s.StopReason,
 		SessionID: s.SessionID, CWD: s.Def.CWD,
 		Iteration: s.Iteration, MaxIterations: s.Def.Until.MaxIterations,
+		MaxMinutes: s.Def.Until.MaxMinutes, ElapsedSeconds: s.ElapsedNS / int64(time.Second),
 		LastCheckExit: s.LastCheckExit,
 		StartedAt:     s.StartedAt, UpdatedAt: s.UpdatedAt, Notice: s.Notice,
 	}

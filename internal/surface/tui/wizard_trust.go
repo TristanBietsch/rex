@@ -3,7 +3,6 @@ package tui
 import (
 	"errors"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -78,12 +77,6 @@ func refusalText(cwd string, err error) string {
 	return err.Error()
 }
 
-// wizardCWD is the folder a wizard spawn starts in: the TUI's own.
-func wizardCWD() string {
-	cwd, _ := os.Getwd()
-	return cwd
-}
-
 // wizardTrustKey handles ctrl+t and ctrl+a on the describe step. ok is false
 // for any other key. Each key toggles its mode and switches the other off.
 func wizardTrustKey(m Model, k tea.KeyMsg) (Model, bool) {
@@ -96,7 +89,7 @@ func wizardTrustKey(m Model, k tea.KeyMsg) (Model, bool) {
 	default:
 		return m, false
 	}
-	o := trustOfferFor(m, wizardCWD())
+	o := trustOfferFor(m, spawnCWD(m))
 	switch {
 	case o.Covered != "":
 		return m, true
@@ -168,7 +161,7 @@ func saveTrustDirs(m *Model, value string) error {
 
 // wizTrustLines renders the trust block under the task input.
 func wizTrustLines(m Model) []string {
-	o := trustOfferFor(m, wizardCWD())
+	o := trustOfferFor(m, spawnCWD(m))
 	switch {
 	case o.Covered != "":
 		return []string{"  " + styleDim.Render("trusted ("+trustSettingID+")")}
@@ -244,7 +237,7 @@ func runTrustCmd(m Model, c cmdCall) (Model, tea.Cmd) {
 			return m, nil
 		}
 	} else {
-		base := wizardCWD()
+		base := spawnCWD(m)
 		for _, s := range m.Sessions {
 			if s.ID == m.SelectedID && s.CWD != "" {
 				base = s.CWD

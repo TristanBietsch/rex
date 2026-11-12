@@ -21,3 +21,9 @@ func ownedByCurrentUser(fi fs.FileInfo) bool {
 }
 
 func isNotDirErr(err error) bool { return errors.Is(err, syscall.ENOTDIR) }
+
+// hardLinked reports whether fi has more than one hard link.
+func hardLinked(fi fs.FileInfo) bool {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	return ok && st.Nlink > 1
+}

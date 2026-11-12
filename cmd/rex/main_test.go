@@ -54,6 +54,28 @@ func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
 	require.False(t, core.Out().Flags.Explicit(), "--no-color alone is not a format request")
 }
 
+// rex here is a board: an output flag before it is refused with the query
+// that answers the same question, and with workspaces off (the default) it
+// exits 5 with the standard message before any folder is read.
+func TestRun_HereIsInteractiveAndGated(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
+	t.Cleanup(func() { core.SetOut(nil) })
+
+	rest, err := core.InitOutput([]string{"-o", "json", "here"}, nil)
+	require.NoError(t, err)
+	err = run(rest)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
+	require.Contains(t, err.Error(), "here: interactive")
+	require.Equal(t, "rex ws id", core.Describe(err).Hint)
+
+	rest, err = core.InitOutput([]string{"here"}, nil)
+	require.NoError(t, err)
+	err = run(rest)
+	require.Equal(t, core.ExitInvalidArgs, exitCodeFor(err))
+	require.Contains(t, err.Error(), "off: enable in Settings → Features (rex config set workspaces true)")
+}
+
 // rex overview is on the kit: an output flag before it is accepted (it then
 // fails on the missing daemon, exit 4, not on the flag, exit 5).
 func TestRun_OverviewAcceptsOutputFlags(t *testing.T) {

@@ -96,7 +96,9 @@ In memory only; never persisted. See `docs/protocol.md`.
 | StartedAt, UpdatedAt | `started_at`, `updated_at` | RFC3339 time | |
 | Notice | `notice` | string | optional; daemon-written text |
 
-`SessionSummary` also has `loop_id` and `loop_iter` (both optional; set only for a loop's session). Intents `StartLoop` (`name`, `cwd`), `PauseLoop`, `ResumeLoop`, `StopLoop` (`loop_id`) reply with this event.
+`LoopSummary` also has `max_minutes` and `elapsed_s` (additive; the loops overlay shows running time against the cap).
+
+`SessionSummary` also has `workspace_id` (optional, 8 lowercase hex digits; set by the daemon from the session's CWD at spawn while `workspaces` is on; persisted in `meta.json`, dropped on load when malformed) and, in `Snapshot`, `workspace_tagging` (bool). `SessionSummary` also has `loop_id` and `loop_iter` (both optional; set only for a loop's session). Intents `StartLoop` (`name`, `cwd`), `PauseLoop`, `ResumeLoop`, `StopLoop` (`loop_id`) reply with this event.
 
 ## UsageSample intent (status-line tap, no reply)
 

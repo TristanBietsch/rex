@@ -16,7 +16,11 @@ const QuietBootEnv = "REX_QUIET_BOOT"
 // RunTUI opens the Bubble Tea board (no-args entry). quietBoot (or
 // REX_QUIET_BOOT) skips the boot sounds, for scripted relaunches; a plain
 // `rex` from a terminal keeps them.
-func RunTUI(quietBoot bool) error {
+func RunTUI(quietBoot bool) error { return RunTUIScoped(quietBoot, nil) }
+
+// RunTUIScoped is RunTUI for a board fixed to one workspace (rex here); a nil
+// scope is the ordinary board.
+func RunTUIScoped(quietBoot bool, scope *tui.WorkspaceScope) error {
 	if v := os.Getenv(QuietBootEnv); v != "" && v != "0" {
 		quietBoot = true
 	}
@@ -27,7 +31,7 @@ func RunTUI(quietBoot bool) error {
 		return err
 	}
 	slog.Info("tui: starting", "socket", socket, "quiet_boot", quietBoot)
-	err = tui.Run(socket, quietBoot)
+	err = tui.RunScoped(socket, quietBoot, scope)
 	if err != nil {
 		slog.Error("tui: exited with error", "err", err)
 	} else {

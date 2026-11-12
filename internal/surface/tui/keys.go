@@ -68,6 +68,9 @@ var bindings = []binding{
 	{Keys: "dd", Desc: "delete selected", Group: groupActions, Ctx: ctxBoard, Press: []string{"d", "d"}},
 	{Keys: "i", Desc: "focus λ prompt (new-session text)", Group: groupActions, Ctx: ctxBoard, Press: []string{"i"}, Line: "new"},
 	{Keys: "S", Desc: "settings", Group: groupActions, Ctx: ctxBoard, Press: []string{"S"}},
+	{Keys: "p", Desc: "pause / resume the selected loop", Group: groupActions, Ctx: ctxBoard, Press: []string{"p"}, Flag: "loops"},
+	{Keys: "x", Desc: "stop the selected loop (asks first)", Group: groupActions, Ctx: ctxBoard, Press: []string{"x"}, Flag: "loops"},
+	{Keys: "L", Desc: "list loops: state, turn, time, last check", Group: groupActions, Ctx: ctxBoard, Press: []string{"L"}, Flag: "loops"},
 	{Keys: "q", Desc: "quit (confirm)", Group: groupActions, Ctx: ctxBoard},
 
 	{Keys: "click", Desc: "select row / filter chip", Group: groupMouse, Ctx: ctxMouse},
@@ -148,6 +151,8 @@ var commands = []command{
 	{Names: []string{"rm"}, Args: "<sel>", Desc: "delete", Group: groupSessionCmd, Run: runRm},
 	{Names: []string{"prune"}, Desc: "clear Done (keeps sessions still working)", Group: groupSessionCmd, Run: runPrune},
 	{Names: []string{"export"}, Args: "[sel] [fmt]", Desc: "write session to exports/", Group: groupSessionCmd, Flag: "session_export", Run: runExport},
+	{Names: []string{"loop"}, Args: "pause|resume|stop [sel]", Desc: "pause, resume or stop a loop (stop asks first)", Group: groupSessionCmd, Flag: "loops", Run: runLoopCmd},
+	{Names: []string{"loops"}, Desc: "list loops: state, turn, time, last check", Group: groupSessionCmd, Flag: "loops", Run: runLoops},
 	{Names: []string{"filter"}, Args: "[what]", Desc: "tool, or hide|show|only <section…>; no argument clears every filter", Group: groupSessionCmd, Flag: "board_filter", Run: runFilter},
 	{Names: []string{"search"}, Args: "[text]", Desc: "search the board (every word must match); no text clears", Group: groupSessionCmd, Flag: "search", Run: runSearch},
 

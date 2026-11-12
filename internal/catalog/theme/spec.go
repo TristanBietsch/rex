@@ -31,7 +31,7 @@ const (
 // Glyphs overrides the state marker characters. An empty field keeps the
 // TUI's built-in marker.
 type Glyphs struct {
-	Needs, Done, Failed, Crashed, Queued, Select string
+	Needs, Done, Failed, Crashed, Queued, Select, Loop string
 }
 
 // spec is the YAML shape of a theme file.
@@ -60,7 +60,7 @@ func colorKeys(p *Palette) map[string]*string {
 func glyphKeys(g *Glyphs) map[string]*string {
 	return map[string]*string{
 		"needs": &g.Needs, "done": &g.Done, "failed": &g.Failed,
-		"crashed": &g.Crashed, "queued": &g.Queued, "select": &g.Select,
+		"crashed": &g.Crashed, "queued": &g.Queued, "select": &g.Select, "loop": &g.Loop,
 	}
 }
 
@@ -75,7 +75,7 @@ var colorOrder = []string{
 }
 
 // glyphOrder is the order glyphs are listed in.
-var glyphOrder = []string{"needs", "done", "failed", "crashed", "queued", "select"}
+var glyphOrder = []string{"needs", "done", "failed", "crashed", "queued", "select", "loop"}
 
 // ColorList returns the palette's colors (not the fleet) in display order.
 func (p Palette) ColorList() []Token {

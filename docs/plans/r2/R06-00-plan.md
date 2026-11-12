@@ -175,3 +175,26 @@ Built on `feat/r06-w1-w4`. Not built: **W2** (session tagging, `rex here`, `rex 
 - Review fixes: `Store.Reopen` starts a new audit run; `ExcludeInGit` is fenced (back-link, `commondir`, no symlinks, 1 MiB cap) and also ignores `/.rex/audit.jsonl`; `AuditHook.End` returns an error and a failed record keeps the session; a live session at teardown records as `failed` ("deleted while running"); audit files open with `O_NOFOLLOW` and `Read` caps at the newest 8 MiB; `rex ws id` refreshes the registry. Submodule `.git` files are refused (no back-link). Not done: a 100k-record cap (the byte cap bounds it).
 
 **For W2**: `workspace.Find` and `Registry.Seen` are ready for the daemon's spawn-time tagging; `Audit.write` already shows the discovery-gated-by-flag pattern (the stub `find` counts calls).
+
+---
+
+## Build notes (W2)
+
+Built on `feat/tui-wiring-b`: W2 steps 1-5. Not built: W3.
+
+**What is where**
+- Wire and state: `SessionSummary.WorkspaceID`, `protocol.ValidWorkspaceID`, `Snapshot.WorkspaceTagging`; `state.Session.WorkspaceID` (persisted through the summary, dropped on load when malformed).
+- `workspace.AppendIndex` / `IndexLine` / `IndexFileName` (`internal/workspace/index.go`).
+- Daemon: `internal/daemon/boot/workspaces.go` (`Workspaces`, implements `server.WorkspaceHook`: `Tag`, `Started`, `Enabled`), `server.Config.Workspaces`, calls in `spawnSession`, wiring in `cmd/rex-daemon/main.go`. The registry file lives in the daemon's state dir.
+- CLI: `internal/surface/cli/workspace/open.go` (`RunHere`, `rex ws open`), the `here` row in `core/commands.go`, `meta.RunTUIScoped`, `tui.RunScoped`.
+- TUI: `internal/surface/tui/workspace_board.go` (`WorkspaceScope`, `rowFilter.workspace`, `scopedSessions`, chip, border, `spawnCWD`).
+
+**Deviations and decisions**
+- **`Snapshot.workspace_tagging` (new, additive).** The plan detects an old daemon by summaries without the field. That cannot tell an old daemon from a new one with no tagged session yet (an empty workspace would then show every session). The daemon now says it tags; a board scopes when the snapshot says so or any session carries an id, and flips to scoped when a tagged session arrives later.
+- Tagging happens in the spawn path before the session is announced (`Tag`), the spawn index line after the supervisor started (`Started`); the terminal-state line comes from a store subscriber with a queue (the store forbids I/O in callbacks) that dedupes on `ended_at`. `Resume` does not re-tag: a session keeps its workspace.
+- The index line is written only when the CWD still resolves to the workspace id the session was tagged with; otherwise it is skipped.
+- Border: **on by default** on a workspace board, but only while `window_border` has its default source (never set); `window_border` (either value), an explicit `window_border_color` and `:border` win. `random` becomes the workspace color. The swatch list is `workspace.Swatches` (U4 shipped none).
+- `rex here` / `ws open` take a terminal only (`-o`, `--agent`, pipes refused, exit 5), and take no `-o` data form.
+- Header counts, screensaver counts, the overview line and overlay, and `:prune` use the scoped sessions; the tool filter and search apply on top, as before. `rowFilter.workspace` does not count as an active filter (`rowsActive`).
+- A read-only `.rex/` gives one warning per file per daemon run (`Workspaces.warnings` counts them in tests); the spawn still gets its tag.
+- Not done: the workspace id on the `rex ls` output, `ws open` for an id (a path only).

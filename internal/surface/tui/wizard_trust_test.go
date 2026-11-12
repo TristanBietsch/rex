@@ -185,3 +185,30 @@ func TestCommandTrust_StripsControlCharacters(t *testing.T) {
 	require.Contains(t, m.Notice, proj)
 	require.NotContains(t, m.Notice, "\x1b")
 }
+
+// On a workspace board a session starts at the workspace root, so the trust
+// line offers (and ctrl+a saves) the workspace's repo folder, not the folder
+// the TUI was started in.
+func TestWizardDescribe_WorkspaceBoardTrustsWorkspaceRoot(t *testing.T) {
+	m, home, proj, _ := spawnTrustWizard(t)
+	ws := filepath.Join(home, "dev", "other")
+	require.NoError(t, os.MkdirAll(filepath.Join(ws, ".git"), 0o700))
+	require.NoError(t, m.Store.Set("workspaces", true))
+	m.WS = &WorkspaceScope{ID: "w1", Name: "other", Root: ws}
+
+	var flat strings.Builder // long paths wrap; join the pieces back up
+	for _, l := range wizTrustLines(m) {
+		flat.WriteString(strings.TrimSpace(l))
+	}
+	lines := flat.String()
+	require.Contains(t, lines, ws)
+	require.NotContains(t, lines, proj)
+
+	m = ctrl(m, tea.KeyCtrlA)
+	require.Empty(t, m.Err)
+	m, req, ok := wizardTrustRequest(m, spawnCWD(m), m.Wizard.request(spawnCWD(m), nil))
+	require.True(t, ok)
+	require.True(t, req.TrustFolder)
+	require.Equal(t, ws, req.CWD)
+	require.Equal(t, "~/dev/other", m.Store.String("auto_trust_dirs"))
+}

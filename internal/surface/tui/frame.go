@@ -33,6 +33,9 @@ func borderEnabled(m Model) bool {
 	if m.borderRunOn != nil {
 		return *m.borderRunOn
 	}
+	if workspaceBorderDefault(m) {
+		return true // a workspace board shows its color unless window_border was set
+	}
 	if m.Store == nil {
 		return false
 	}
@@ -138,6 +141,8 @@ func borderEdge(m Model, dark bool) theme.EdgeColor {
 		if c, err := theme.ParseEdge(id); err == nil {
 			return c
 		}
+	} else if c, ok := wsEdge(m.wsScope()); ok {
+		return c // "random" on a workspace board is the workspace's color
 	}
 	seed := m.BorderSeed
 	if seed == "" {
@@ -150,12 +155,7 @@ func borderEdge(m Model, dark bool) theme.EdgeColor {
 // validated hex ever reaches lipgloss.Color. The ansi scheme (no background of
 // its own) uses the color's terminal palette index.
 func borderColorOf(m Model) lipgloss.Color {
-	p := borderPalette(m)
-	c := borderEdge(m, p.Dark)
-	if p.Bg == "" && c.ANSI != "" {
-		return lipgloss.Color(c.ANSI)
-	}
-	return lipgloss.Color(c.Hex(p.Dark))
+	return edgeTerminalColor(m, borderEdge(m, borderPalette(m).Dark))
 }
 
 // frameRows are the three styled strings a frame is built from.
