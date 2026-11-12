@@ -78,7 +78,7 @@ The file runs in a fresh, restricted Lua 5.1 state each time it changes:
 
 - Libraries: `base`, `table`, `string`, `math`. Removed: `os`, `io`, `package`, `debug`, `coroutine`, `print`, `dofile`, `loadfile`, `load`, `loadstring`, `module`, `getfenv`, `setfenv`, `pcall`, `xpcall`, `collectgarbage`; `require` reads only `~/.config/rex/lua/` (at most 64 modules) and ignores `LUA_PATH`.
 - 250 ms per run, in every process; a script stuck in a long string operation is abandoned at the deadline.
-- `config.lua` and each module at most 256 KiB, 1 MiB together; `string.rep` output at most 1 MiB; pattern functions refuse subjects over 256 KiB; a run that grows memory by about 64 MiB is stopped.
+- `config.lua` and each module at most 256 KiB, 1 MiB together; `string.rep`, `string.format`, `string.gsub` and `table.concat` results at most 1 MiB; `string.format` takes Lua directives only (width and precision up to two digits, no `%[n]` or `*`); pattern functions refuse subjects over 256 KiB; a run that grows memory by about 64 MiB is stopped.
 - `config.lua`, `~/.config/rex` and every folder under `lua/` must be owned by you and not writable by group or others (macOS and Linux). A symlink is followed only to a target that passes the same check. Anything else is refused with the reason.
 
 These limits keep a mistake from hanging or flooding rex. They are not a security boundary: `config.lua` is your own code, like `init.lua` (see [lua-hooks.md](lua-hooks.md)) and [SECURITY.md](../../SECURITY.md).

@@ -103,46 +103,51 @@ func (ev *evaluator) sandbox(L *lua.LState) {
 	L.SetGlobal("rex", rex)
 }
 
-// guardStrings caps the string built-ins that run in Go and cannot be
-// interrupted: rep (output size) and the pattern functions (subject size).
+// guardStrings caps the string and table built-ins that run in Go and
+// cannot be interrupted: rep, format and table.concat (result size), the
+// pattern functions (subject and pattern size) and gsub (rebuilt, see
+// builtins.go). Each guard calls the library function as a Lua call, so a
+// closure such as gmatch keeps its upvalues. gfind is gopher-lua's alias of
+// gmatch and gets the same guard.
 func guardStrings(L *lua.LState) {
-	tbl, ok := L.GetGlobal("string").(*lua.LTable)
-	if !ok {
-		panic("luacfg: string library missing")
-	}
-	wrap := func(name string, guard func(L *lua.LState, fname string)) {
+	wrap := func(lib, name string, guard func(L *lua.LState, fname string)) {
+		tbl, ok := L.GetGlobal(lib).(*lua.LTable)
+		if !ok {
+			panic("luacfg: " + lib + " library missing")
+		}
 		orig, ok := tbl.RawGetString(name).(*lua.LFunction)
 		if !ok {
-			panic("luacfg: string." + name + " missing")
+			panic("luacfg: " + lib + "." + name + " missing")
 		}
 		tbl.RawSetString(name, L.NewFunction(func(L *lua.LState) int {
 			guard(L, name)
-			return orig.GFunction(L)
+			return callOrig(L, orig)
 		}))
 	}
-	wrap("rep", func(L *lua.LState, fname string) {
+	wrap("string", "rep", func(L *lua.LState, fname string) {
 		s, n := L.CheckString(1), L.CheckInt(2)
-		if n > 0 && len(s) > 0 && (n > maxStrRep || len(s) > maxStrRep/n) {
-			L.RaiseError("string.rep: result larger than %d KiB", maxStrRep>>10)
+		if n > 0 && len(s) > 0 && (n > maxBuilt || len(s) > maxBuilt/n) {
+			L.RaiseError("string.rep: result larger than %d KiB", maxBuilt>>10)
 		}
 	})
-	pattern := func(L *lua.LState, fname string) {
-		if len(L.CheckString(1)) > maxPatternSubject {
-			L.RaiseError("string.%s: subject larger than %d KiB", fname, maxPatternSubject>>10)
-		}
-		if len(L.CheckString(2)) > maxPattern {
-			L.RaiseError("string.%s: pattern larger than %d KiB", fname, maxPattern>>10)
-		}
+	pattern := func(L *lua.LState, fname string) { checkPattern(L, fname, L.CheckString(1), L.CheckString(2)) }
+	for _, name := range []string{"find", "match", "gmatch", "gfind"} {
+		wrap("string", name, pattern)
 	}
-	for _, name := range []string{"find", "match", "gmatch"} {
-		wrap(name, pattern)
+	wrap("string", "format", func(L *lua.LState, _ string) { guardFormat(L) })
+	wrap("table", "concat", func(L *lua.LState, _ string) { guardConcat(L) })
+	str, _ := L.GetGlobal("string").(*lua.LTable)
+	str.RawSetString("gsub", L.NewFunction(gsub))
+}
+
+// checkPattern refuses a pattern call on a subject or pattern over the caps.
+func checkPattern(L *lua.LState, fname, subject, pat string) {
+	if len(subject) > maxPatternSubject {
+		L.RaiseError("string.%s: subject larger than %d KiB", fname, maxPatternSubject>>10)
 	}
-	wrap("gsub", func(L *lua.LState, fname string) {
-		pattern(L, fname)
-		if r, ok := L.Get(3).(lua.LString); ok && len(r) > maxReplacement {
-			L.RaiseError("string.gsub: replacement larger than %d KiB", maxReplacement>>10)
-		}
-	})
+	if len(pat) > maxPattern {
+		L.RaiseError("string.%s: pattern larger than %d KiB", fname, maxPattern>>10)
+	}
 }
 
 // where is the "config.lua:12" position of the Lua code that called the

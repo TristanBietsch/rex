@@ -54,7 +54,6 @@ const (
 	// by this much. The measure is process-wide, so it is approximate.
 	MaxHeapGrowth = 64 << 20
 
-	maxStrRep         = 1 << 20
 	maxPatternSubject = 256 << 10
 	maxPattern        = 1 << 10
 	maxReplacement    = 1 << 10
