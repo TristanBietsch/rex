@@ -163,7 +163,9 @@ filesystem permissions.
 - Folders you list in the `auto_trust_dirs` setting (`rex trust`, `:trust`,
   the wizard's ctrl+a) or trust for one session (`trust_folder`: `rex new
   -trust`, the wizard's ctrl+t). The folder those offer is the repo's own
-  folder, never its parent. For sessions there,
+  folder, never its parent. `rex trust` adds a folder only at a terminal
+  (agent mode and pipes exit 6): a speed bump for agents, not a boundary,
+  since anything running as you can edit `config.yaml`. For sessions there,
   rex starts the agent with the folder trusted (Antigravity, for that
   session only) or answers its "trust this folder" dialog (Claude Code),
   so the repository's own agent settings apply without that prompt. The
