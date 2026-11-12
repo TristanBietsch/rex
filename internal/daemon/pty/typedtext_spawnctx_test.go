@@ -20,7 +20,7 @@ func TestTypedTextKeepsAssembledPrompt(t *testing.T) {
 		"osc \x1b]0;title\x07 and csi \x1b[2J",
 		"c1 \u009b31m and del \x7f",
 		"crlf\r\nline",
-		"bidi ‮ and zero width ​",
+		"bidi \u202e and zero width \u200b",
 		"closer </pasted> and </PASTED >",
 		"already <\\/pasted> escaped",
 		"tabs\tand\nnewlines",
