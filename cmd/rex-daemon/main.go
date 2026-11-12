@@ -149,6 +149,9 @@ func run(args []string) error {
 	if err != nil {
 		slog.Warn("daemon: settings load failed (using defaults)", "path", settingsPath, "err", err)
 	}
+	// The one settings hub: spawn-time reads call hub.Current, features
+	// subscribe, and one poller (below) feeds it.
+	hub := boot.NewSettingsHub(settingsPath, settingsStore)
 	summaryEnabled, _ := settingsStore.Get("summary_enabled").(bool)
 	summaryModel, _ := settingsStore.Get("summary_model").(string)
 	if summaryModel == "" {
@@ -210,13 +213,13 @@ func run(args []string) error {
 	// read srv only once Serve has started, after that assignment.
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
 	defer usageHub.Close()
-	// One settings watcher: every feature adds its applier to this list.
-	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier()}
+	hub.Subscribe([]string{"turn_snapshots"}, snaps.Applier())
+	hub.Subscribe([]string{"usage"}, usageHub.Applier())
 
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
 	var ov *boot.Overview
-	srv, err = server.New(server.Config{
+	srvCfg := server.Config{
 		Socket:                *socketPath,
 		StateDir:              *stateDir,
 		Registry:              reg,
@@ -224,20 +227,16 @@ func run(args []string) error {
 		MaxConcurrentSessions: *maxConcurrent,
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
-		AutoTrustDirs:         boot.AutoTrustDirs,
-		SkipPermissions:       boot.SkipPermissions,
-		ResumeEnabled:         boot.ResumeEnabled,
 		SkillsDir:             *skillsDir,
-		SkillsEnabled:         boot.SpawnSkillsEnabled,
 		Snapshots:             snapStore,
-		SnapshotsEnabled:      boot.TurnSnapshotsEnabled,
-		UsageTap:              boot.UsageTap(*socketPath),
 		OnUsageSample:         usageHub.Hub.Sample,
 		UsageQuery:            usageHub.Hub.Query,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
-		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
-	})
+		OnReload:              func() error { return boot.ReloadAll(srv, *toolsPath, hub) },
+	}
+	hub.WireSpawnReads(&srvCfg, *socketPath)
+	srv, err = server.New(srvCfg)
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
@@ -246,7 +245,7 @@ func run(args []string) error {
 	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
 
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
-	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)
+	luaRT, luaCancel := boot.StartLuaRuntime(srv, store, hub.Current())
 	if luaCancel != nil {
 		defer luaCancel()
 	}
@@ -274,12 +273,15 @@ func run(args []string) error {
 			}
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
-		appliers = append(appliers, boot.SummaryDetailApplier(summaryWorker), ov.Applier())
+		hub.Subscribe([]string{"summary_detail"}, boot.SummaryDetailApplier(summaryWorker))
+		hub.Subscribe([]string{"overview_enabled"}, ov.Applier())
 	}
-	go boot.WatchSettings(ctx, settingsPath, 5*time.Second, appliers...)
+	// The one settings poller. With live_reload off it parks without polling;
+	// SIGHUP, rex reload and :reload still reload by hand.
+	go hub.Watch(ctx, 5*time.Second)
 
-	// SIGHUP → reload tools.yaml.
-	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
+	// SIGHUP → reload tools.yaml, then config.yaml.
+	go boot.ReloadOnHUP(ctx, func() error { return boot.ReloadAll(srv, *toolsPath, hub) })
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version.Version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)

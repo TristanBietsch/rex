@@ -152,5 +152,5 @@ func TestSnapshots_FailedCaptureMarksTurnNotUndoable(t *testing.T) {
 }
 
 func TestTurnSnapshotsEnabled_DefaultOff(t *testing.T) {
-	require.False(t, TurnSnapshotsEnabled())
+	require.False(t, TurnSnapshotsEnabled(settings.NewStore()))
 }

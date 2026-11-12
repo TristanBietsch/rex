@@ -27,6 +27,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Daemon: one settings hub replaces the scattered reads of `config.yaml`.
+  `rex reload`, `:reload` and `SIGHUP` now reload `config.yaml` as well as
+  `tools.yaml`, and the 5 s poll feeds the same hub. Settings read at each
+  spawn (`skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`,
+  `usage_statusline_tap`) now follow the hub, so they apply within 5 s of an
+  edit or at a reload. The `live_reload` feature (Settings → Features, on by
+  default) switches the polling off; manual reload still works. See
+  [settings](docs/settings.md#which-settings-apply-live).
+
 - Agent mode switches on by itself when `CLAUDECODE=1` and stdout is not a
   terminal (a Claude Code Bash tool, including inside rex-spawned
   sessions): one line per record, an `ok` trailer, one error line on

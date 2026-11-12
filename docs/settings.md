@@ -74,6 +74,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `spawn_skills` | bool | `true` | Load skills from `~/.config/rex/skills` into one session: the wizard's skills step and `rex new -skill`. Off: the step is hidden, `-skill` exits 5 (`off: enable in Settings → Features (rex config set spawn_skills true)`), `NewSession` with skills is `bad_intent` `skills are off`, and no `--plugin-dir` is added, also on resume. The daemon reads it at each spawn and `Resume`. See [howto/skills.md](howto/skills.md) |
 | `usage` | bool | `true` | Track agent usage: the per-session ledger (`~/.local/share/rex/usage.jsonl`, see [paths.md](paths.md)) behind `rex usage`, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written or trimmed, nothing is polled, and `rex usage` exits 5 (`off: enable in Settings → Features (rex config set usage true)`). The daemon reads it at each spawn and each ledger write |
 | `usage_statusline_tap` | `auto` \| `on` \| `off` | `auto` | How rex reads Claude Code's plan usage. rex gives Claude a status line (`rex-daemon statusline-tap`) that sends the usage fields to the daemon and then runs **your own** status line command with the same input, so yours looks unchanged. `auto` adds it only when you already have a user-level status line (see below), because Claude hides its footer hints (`esc to interrupt`, `? for shortcuts`) once any status line is set and rex never changes that on its own. `on` always adds it (the footer hints go away). `off` never adds it; Claude rows then use rex's own token estimate (`~`). Ignored while `usage` is off. Read at each spawn and `Resume`, and within about 5 s while the daemon runs (it follows `config.yaml`); a session already running keeps the status line it was started with |
+| `live_reload` | bool | `true` | The daemon polls `config.yaml` every 5 s and applies the settings that can change live (see [below](#which-settings-apply-live)). Off: no polling and no file is stat'ed; `rex reload`, `:reload` and `SIGHUP` still reload by hand. Turning it off takes effect at the next poll; turning it back on needs one manual reload |
 | `session_export` | bool | `true` | `rex export` and `:export`: write one session as a json, yaml, md or txt document (the transcript replayed to clean text). Off: both refuse (`off: enable in Settings → Features (rex config set session_export true)`, exit 5 on the CLI). Exports can hold whatever the agent printed. See [export.md](export.md) |
 
 ### Spawn
@@ -175,3 +176,15 @@ Project files (`<folder>/.claude/settings.json` and `settings.local.json`) are n
 - With `on`, rex's status line replaces a project-level one for that session (rex's `--settings` take precedence), and only the user-level command is passed through.
 
 Not supported: enterprise managed settings, and a `--settings` file you pass to `claude` yourself (rex starts Claude). A missing or invalid file means no status line. A command that already runs `statusline-tap` is ignored. rex never writes any Claude settings file: the tap is injected through the `--settings` argument rex already passes, which also holds the hooks. At run time the tap runs your command through `sh -c` (`bash -c` on Windows) with the identical stdin bytes and passes its stdout, stderr and exit code through. With no user-level status line it prints nothing and exits 0.
+
+## Which settings apply live
+
+The daemon keeps one copy of `config.yaml` and refreshes it about 5 s after an edit (or at once on `rex reload`, `:reload` or `SIGHUP`). With `live_reload` off it refreshes only on those.
+
+| Applies | Settings |
+|---------|----------|
+| To the running feature | `summary_detail`, `overview_enabled`, `turn_snapshots`, `usage` |
+| At the next spawn or `Resume` | `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap` |
+| At daemon start only | `summary_enabled`, `summary_model`, `retire_after_hours`, `lua_config_path` |
+
+A `config.yaml` that fails to parse is ignored until it is fixed: the previous values stay in force.
