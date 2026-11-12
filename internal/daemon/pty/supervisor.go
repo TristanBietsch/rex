@@ -245,12 +245,19 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		// forwarder must stop with Run or it leaks one goroutine per session.
 		inputDone := make(chan struct{})
 		defer close(inputDone)
+		// An interrupt key tells the adapter the user may have ended the
+		// turn (Claude fires no hook for it). It is told before the key
+		// is queued, so any hook line the key causes comes after.
+		interrupts, _ := s.cfg.Adapter.(adapter.InterruptObserver)
 		go func() {
 			for {
 				select {
 				case <-inputDone:
 					return
 				case b := <-s.cfg.InputCh:
+					if interrupts != nil && isInterruptKey(b) {
+						interrupts.UserInterrupt()
+					}
 					if !pw.Send(ctx, writeUnit{parts: [][]byte{b}}) {
 						return
 					}

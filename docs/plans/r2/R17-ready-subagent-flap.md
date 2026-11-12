@@ -24,6 +24,8 @@ Decisions (user):
 - While subagents run after the main turn ended, or while any subagent / tool wait is open: working with `waiting_on = subagent` (WAITING, no sound). READY once, after the last subagent ends and the main agent stops.
 - READY only when: (a) a Notification other than `idle_prompt`; (b) Stop with zero running subagents and no open tool wait; (c) the stale fallback with no running subagents and no open wait. No cheap screen check exists (Claude's input box is on screen while it works too), so (c) uses a longer bound: 30 s silence (was 15 s), and 15 min (`subagentQuiet`) when a tool wait is open.
 
+- 2026-11-11 decision (user: fix before merge): an Esc during an open Bash or foreground Task wait left the session WORKING for up to 15 min. Fix: the daemon sees the interrupt key (Esc, Ctrl+C, also kitty / modifyOtherKeys forms) on the attach input path and tells the adapter (`InterruptObserver.UserInterrupt`); with no main-thread hook line for `escBound = 5 s`, the turn counts as interrupted: the tool wait closes, foreground subagents of the open Task wait with no sign of life since the key are dropped, and the session parks (READY at once with nothing left, WAITING on background subagents, then READY once through the wake grace). Rejected: (a) screen check, Claude's input box shows while it works and background tasks animate, so it could never confirm or would stall; (c) hooks, the docs say Stop does not run on a user interrupt and cancelling a running tool fires no PostToolUseFailure (its `is_interrupt` is only for aborts that surface as failures), and `idle_prompt` only fires while the user seems away.
+
 ## Global Constraints
 
 - Hold before publishing working→needs_input: `readyHold = 2 * time.Second`, injectable time in tests.
@@ -35,7 +37,7 @@ Decisions (user):
 
 ## Review Focus
 
-1. Esc interrupt during a Bash wait (no Stop, wait open): READY after 15 min of silence, not never. Test in Task 2.
+1. Esc interrupt during a Bash wait (no Stop, wait open): READY after 15 min of silence, not never. Test in Task 2. Since 2026-11-11: READY `escBound` (5 s) after the Esc key the daemon forwarded; tests `TestClaudeHooks_Esc*`.
 2. A permission prompt from a subagent while parked: READY at once (question). Test in Task 2.
 3. Hook file truncated (resume): prompt counter keeps counting, never goes back. Test in Task 2.
 4. Sessions started before this change (no `prompt` lines): `prompts` stays 0, TUI falls back to debounce only. Test in Task 4.

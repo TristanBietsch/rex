@@ -24,7 +24,15 @@ const HookFileEnv = "REX_HOOK_FILE"
 // There is no cheap screen check to confirm it (Claude's input box shows
 // while it works too), so the bound is generous. With a tool wait open the
 // bound is subagentQuiet; while a subagent runs the fallback never fires.
+// An interrupt key the daemon forwarded (UserInterrupt) ends the turn much
+// sooner, after escBound.
 const hookStaleWorking = 30 * time.Second
+
+// escBound is how long after an interrupt key (Esc, Ctrl+C) written to the
+// session the turn counts as interrupted, when no main-thread hook line came
+// since. Claude fires no Stop, PostToolUse or PostToolUseFailure for an
+// interrupted turn or a cancelled tool, so the key is the only signal.
+const escBound = 5 * time.Second
 
 // wakeGrace is how long a parked session (main turn ended, background
 // subagents running) stays working after its last subagent ends: Claude
@@ -217,6 +225,13 @@ type WaitReporter interface {
 	Waiting() (kind string, since time.Time)
 }
 
+// InterruptObserver is implemented by adapters that use the user's
+// interrupt keys (Esc, Ctrl+C written to the session) as a signal.
+type InterruptObserver interface {
+	// UserInterrupt is called when such a key is forwarded to the agent.
+	UserInterrupt()
+}
+
 // PromptCounter is implemented by adapters that count the user's prompts.
 type PromptCounter interface {
 	// Prompts is how many prompts the user sent; it never goes down.
@@ -257,12 +272,20 @@ type ClaudeHooks struct {
 	// needs_input word; the Stop that follows parks from it.
 	subWaitSince time.Time
 	prompts      int // UserPromptSubmit count; survives a truncated file
-	now          func() time.Time
+	// fg holds the running subagents started by the open Task wait (a
+	// foreground subagent); a main-thread wait- clears it, as any subagent
+	// still running then outlived its Task call (a background subagent).
+	fg map[string]bool
+	// escAt is when the user last pressed an interrupt key (UserInterrupt),
+	// zero when none is pending. Any main-thread hook line clears it: the
+	// turn went on, or a new one started.
+	escAt time.Time
+	now   func() time.Time
 }
 
 // NewClaudeHooks reads hook state from path.
 func NewClaudeHooks(path string) *ClaudeHooks {
-	return &ClaudeHooks{path: path, last: protocol.StateWorking, agents: map[string]time.Time{}, now: time.Now}
+	return &ClaudeHooks{path: path, last: protocol.StateWorking, agents: map[string]time.Time{}, fg: map[string]bool{}, now: time.Now}
 }
 
 // Detect implements Adapter. window is unused; idle guards against a turn that
@@ -275,7 +298,7 @@ func NewClaudeHooks(path string) *ClaudeHooks {
 func (a *ClaudeHooks) Detect(_ []byte, idle time.Duration) protocol.State {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.read()
+	a.sync()
 	if a.last == protocol.StateNeedsInput {
 		if a.subagentHold() {
 			return protocol.StateWorking
@@ -298,6 +321,52 @@ func (a *ClaudeHooks) Detect(_ []byte, idle time.Duration) protocol.State {
 		return protocol.StateNeedsInput
 	}
 	return protocol.StateWorking
+}
+
+// sync reads new hook lines and ends a turn the user interrupted. Callers
+// hold mu.
+func (a *ClaudeHooks) sync() {
+	a.read()
+	if a.escAt.IsZero() || a.now().Sub(a.escAt) < escBound {
+		return
+	}
+	esc := a.escAt
+	a.escAt = time.Time{}
+	if a.last != protocol.StateWorking {
+		return // a question or a finished turn: nothing to end
+	}
+	a.interrupt(esc)
+}
+
+// interrupt ends the main turn the user interrupted at esc. A foreground
+// subagent (started by the open Task wait) that showed no life since esc
+// was killed with it, often with no SubagentStop. Any other subagent runs
+// on in the background: the session parks on it, as after a Stop, so it
+// is WAITING until the last one ends and READY once. Callers hold mu.
+func (a *ClaudeHooks) interrupt(esc time.Time) {
+	fgWait := a.waitOn == protocol.WaitSubagent && !a.waitEnding
+	for id := range a.fg {
+		if seen, ok := a.agents[id]; ok && fgWait && seen.Before(esc) {
+			delete(a.agents, id) // not dropAgent: no wake for a killed subagent
+		}
+	}
+	clear(a.fg)
+	a.clearWait()
+	slog.Info("adapter: claude turn interrupted", "path", a.path, "subagents", len(a.agents))
+	a.last, a.reason, a.wakeAt, a.subWaitSince = protocol.StateNeedsInput, protocol.WaitReview, time.Time{}, time.Time{}
+	if !a.parked {
+		a.parked, a.parkedSince = true, esc
+	}
+}
+
+// UserInterrupt implements InterruptObserver: the user pressed Esc or
+// Ctrl+C in the session. Lines already written are read first, so only a
+// main-thread line written after the key cancels it.
+func (a *ClaudeHooks) UserInterrupt() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.read()
+	a.escAt = a.now()
 }
 
 // subagentHold reports whether a needs_input word is held as working because
@@ -348,7 +417,7 @@ func (a *ClaudeHooks) parkedWait() (string, time.Time) {
 func (a *ClaudeHooks) Waiting() (string, time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.read()
+	a.sync()
 	if a.last == protocol.StateNeedsInput {
 		if a.subagentHold() {
 			return a.parkedWait()
@@ -388,6 +457,7 @@ func (a *ClaudeHooks) dropAgent(id string) {
 		return
 	}
 	delete(a.agents, id)
+	delete(a.fg, id)
 	if len(a.agents) == 0 && a.parked {
 		a.wakeAt = a.now()
 	}
@@ -431,7 +501,7 @@ func (a *ClaudeHooks) ResumeID() string {
 func (a *ClaudeHooks) WaitReason() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.read()
+	a.sync()
 	if a.last == protocol.StateNeedsInput && a.subagentHold() {
 		return ""
 	}
@@ -465,8 +535,10 @@ func (a *ClaudeHooks) read() {
 	if size < a.off { // truncated or replaced: start over
 		a.off, a.partial = 0, nil
 		clear(a.agents)
+		clear(a.fg)
 		a.clearWait()
 		a.unpark()
+		a.escAt = time.Time{}
 	}
 	if size == a.off {
 		return
@@ -512,11 +584,14 @@ func (a *ClaudeHooks) apply(line string) {
 	case hookWaitStart:
 		// An unknown kind is ignored: the file is plain text.
 		a.unpark() // main-thread activity
+		a.escAt = time.Time{}
 		if protocol.ValidWaitKind(arg) {
 			a.waitOn, a.waitSince, a.waitEnding = arg, a.now(), false
 		}
 	case hookWaitEnd:
 		a.unpark() // main-thread activity
+		a.escAt = time.Time{}
+		clear(a.fg) // a subagent still running outlived its Task call
 		// One of several parallel Task calls ending leaves the wait on
 		// while other subagents run; the last stop (or a quiet timeout)
 		// ends it.
@@ -529,6 +604,10 @@ func (a *ClaudeHooks) apply(line string) {
 		// A sign of life also brings back a subagent dropped as quiet or
 		// cleared by a reset while it ran.
 		if arg != "" {
+			if _, ok := a.agents[arg]; !ok && word == hookAgentStart &&
+				a.waitOn == protocol.WaitSubagent && !a.waitEnding {
+				a.fg[arg] = true
+			}
 			a.agents[arg] = a.now()
 		}
 	case hookAgentStop:
@@ -538,18 +617,23 @@ func (a *ClaudeHooks) apply(line string) {
 		}
 	case hookAgentsReset:
 		clear(a.agents)
+		clear(a.fg)
+		a.escAt = time.Time{}
 		a.reason = ""
 		a.unpark()
 	case hookTurnDone:
+		a.escAt = time.Time{}
 		a.reason = protocol.WaitReview
 		a.parked, a.parkedSince = true, a.now()
 		if !a.subWaitSince.IsZero() { // the subagents were started by a Task wait
 			a.parkedSince, a.subWaitSince = a.subWaitSince, time.Time{}
 		}
 	case hookPrompt:
+		a.escAt = time.Time{}
 		a.prompts++
 		a.unpark()
 	case hookNotify:
+		a.escAt = time.Time{}
 		if arg != notifyIdle {
 			a.reason = protocol.WaitInput
 		}

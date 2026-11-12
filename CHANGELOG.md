@@ -14,9 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   READY once, after the last subagent finishes and the agent stops. READY
   means a question or permission prompt, or a finished turn with nothing
   still running.
-- An interrupted turn (Esc, no Stop) now turns READY after 30 s of a still
-  screen (was 15 s), 15 min with a tool call still open, never while a
-  subagent runs.
+- A turn you interrupt with Esc or Ctrl+C (Claude sends no hook for it)
+  turns READY about 5 s after the key, also mid shell command or mid
+  foreground subagent; a background subagent still running keeps it in
+  WAITING. Without the key, the fallback is 30 s of a still screen (was
+  15 s), 15 min with a tool call still open, never while a subagent runs.
 - The daemon shows a move into READY only after it held for 2 s (a question
   shows at once), and logs every state change with its reason.
 - The needs-you chime plays once per turn; a new question in the same turn
