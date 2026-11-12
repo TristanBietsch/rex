@@ -2,6 +2,7 @@ package boot
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -21,6 +22,9 @@ func TestSnapshots_OldGitDisablesCaptures(t *testing.T) {
 	bin := t.TempDir()
 	//nolint:gosec // a fake git must be executable
 	require.NoError(t, os.WriteFile(filepath.Join(bin, "git"), []byte("#!/bin/sh\necho 'git version 2.30.2'\n"), 0o700))
+	// Warm the script: a freshly written file's first exec can fail (text
+	// file busy) or crawl under load, and a failed probe is a failed capture.
+	require.NoError(t, exec.Command(filepath.Join(bin, "git")).Run()) //nolint:gosec // the fake git just written
 	t.Setenv("PATH", bin)
 
 	r := newSnapRig(t, true)
