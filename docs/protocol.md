@@ -163,7 +163,7 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it) |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it), `tools[]` (the registry as the daemon sees it: `{id, installed, models[]}`, each model `{id, name, detected}`; `installed` is whether the binary is on the daemon's `PATH`, worked out at daemon start and on every reload; `detected` marks a model found by the tool's own model command and is omitted when false; the tool list is as of the last reload, so a client sees later changes at its next `Hello`; absent from daemons that predate it, and a client then treats every tool as installed) |
 | `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |

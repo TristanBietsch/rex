@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Registry: how the first prompt reaches an agent is now data
+  (`prompt_args`, `prompt_paste`) instead of a switch on the tool id; the
+  built-in tools behave as before. `trust_args` no longer has to contain
+  `{cwd_list}`. A user tool that relied on the id switch for `claude`,
+  `codex`, `antigravity`, `gemini` or `ollama` under another id must now set
+  `prompt_args` or `prompt_paste`.
 - TUI: board columns have fixed widths by default and change only when the
   terminal crosses a width breakpoint (150 and 110 columns). The subagent,
   badge, tokens, span and resume columns are always reserved, so nothing
@@ -26,6 +32,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the keys are `1` `2` `3` as before.
 
 ### Added
+
+- Qwen Code (`qwen`), Cursor CLI (`cursor`, binary `cursor-agent`) and Grok
+  Build (`grok`) as built-in agents, shown only when their binary is on
+  `PATH` (Settings → Features → Extra agents, on). The old `grok` entry is
+  replaced. Check each agent's own permission settings: grok's and cursor's
+  default modes can edit files or run commands without asking, and rex never
+  answers their folder-trust dialogs (qwen has a session-only switch, used
+  for folders in `auto_trust_dirs`).
+- Agents that speak OSC 7501 (qwen, grok, antigravity) report their state
+  exactly: rex answers their status query on the terminal and removes `TMUX*`
+  and `TERM_PROGRAM*` from their environment. `done` reads as ready for
+  review, `blocked` and `error` as waiting for an answer. A signed-out cursor
+  or grok shows "not signed in" instead of its screen.
+- Model auto-detect (Settings → Features → Model auto-detect, on): the
+  daemon asks each installed agent for its own model list, caches it in
+  `~/.local/state/rex/models-cache.json` for 24 h and refreshes it at start
+  and on `rex reload`. Off: no command runs and only the built-in lists show.
+- Registry fields `models_cmd`, `model_arg_template`, `model_effort`,
+  `prompt_args`, `prompt_paste`, `login_regex` and `status_env`, and an
+  `installed` flag plus the merged model list on each tool of the `Snapshot`
+  (additive). The wizard and Settings pickers use them in a later release.
 
 - Turn snapshots and undo, off by default (Settings → Features,
   `turn_snapshots`). The daemon snapshots a session's folder at the start

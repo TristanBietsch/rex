@@ -45,7 +45,7 @@ State detection (`detect`) selects an adapter that classifies PTY output into se
 3. Merge is by tool `id`. User fields replace builtin scalars when non-empty.
 4. Models merge by model `id` (replace or append).
 5. `enabled_by_default` is **not** merged from user YAML; it applies only on builtin entries.
-6. `trust_prompt`, `trust_args`, `skip_permissions_args`, `skill_args` and `resume` replace the builtin value when set; an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead. A `resume` overlay replaces the whole block (no field-by-field merge).
+6. `trust_prompt`, `trust_args`, `skip_permissions_args`, `skill_args`, `resume`, `status_env`, `models_cmd`, `model_arg_template`, `model_effort`, `prompt_args`, `prompt_paste` and `login_regex` replace the builtin value when set (`prompt_args` and `prompt_paste` replace each other); an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead. A `resume` overlay replaces the whole block (no field-by-field merge).
 7. A partial overlay of a retired built-in tool (`codex`, `gemini`, `ollama`, `grok`, `deepseek`, `kimi`) that has no built-in entry and is not a complete tool definition is dropped with a warning instead of failing the load. The daemon logs the warning at start and on reload, and the TUI splash shows it. Define the tool fully in `tools.yaml` to keep it. Any other invalid tool still fails the load.
 
 Duplicate tool or model ids are rejected at load time.
@@ -61,6 +61,13 @@ Duplicate tool or model ids are rejected at load time.
 | `cwd_strategy` | no | `inherit` (default) or `session_dir` |
 | `skip_permissions_args` | no | Extra argv added only while the `skip_permissions` setting is on (the built-in `claude` and `antigravity` use `["--dangerously-skip-permissions"]`). An overlay replaces the built-in value; no argument may be empty |
 | `skill_args` | no | Extra argv that load the skills rex stages for one session. Must contain `{plugin_dir}` (the session's plugin folder, one argument); no argument may be empty. The built-in `claude` uses `["--plugin-dir", "{plugin_dir}"]`; `antigravity` has none, so it cannot load skills per session. See [skills](howto/skills.md) |
+| `status_env` | no | `NAME=value` entries added to the child's environment to turn its status channel on (`antigravity`: `["AGY_CLI_OSC7501=on"]`). Needs `detect.status`; names must be plain identifiers. Tools that answer the OSC 7501 query (`qwen`, `grok`) need none |
+| `prompt_args` | no | How the task text reaches the agent on argv, appended after every other argument. Must hold `{prompt}` exactly once; the text stays one argument whatever it holds (spaces, quotes, a leading `-`). See [Initial prompt delivery](#initial-prompt-delivery) |
+| `prompt_paste` | no | `{plain: bool, settle_ms: N}`: paste the task into the PTY once output has been quiet for `settle_ms` (0-10000), for REPLs where argv would run one-shot (`ollama`). Exclusive with `prompt_args` |
+| `login_regex` | no | Regex on the screen text that shows the agent is signed out. While it is the latest thing shown (no `prompt_regex` match after it) the session is `needs_input` and its last line reads `<id>: not signed in — run `<command> login``. Must compile |
+| `models_cmd` | no | How rex asks the agent for its own model list. See [models_cmd](#models_cmd) |
+| `model_arg_template` | with `models_cmd` | Argv for a detected model, `{model}` replaced by its id: `["--model", "{model}"]`. One element each, never split. Required when `models_cmd` is set |
+| `model_effort` | no | An `effort` block that detected models get (a detected model has no hand-written one). `qwen` and `grok` set it; `cursor` encodes effort in the model id and has none |
 | `detect` | yes | State classifier config |
 | `icon`, `color` | yes | TUI display |
 | `enabled_by_default` | no | If false, hidden from wizard until enabled |
@@ -75,7 +82,12 @@ Duplicate tool or model ids are rejected at load time.
 
 `busy_regex` (heuristic, optional) is text the agent shows only while it works, such as `agy`'s `esc to cancel` footer. Detection reads raw output, where an old idle footer can linger after the agent swaps it, so busy wins when its last match comes after the last `prompt_regex` match. A quiet stretch mid-turn then stays `working`. A screen frozen for 15 s still reads as waiting, which covers a permission question.
 
-`status` (heuristic, optional) names a per-session status channel the agent reports its state on. The only value is `osc7501`, Antigravity's terminal status sequence. The daemon then sets `AGY_CLI_OSC7501=on` in the child's environment (after your own environment, so it wins over an `off`) and reads `ESC ] 7501 ; state=<word> : ... BEL` from the output (ST also ends it). `working` is `working`; `idle` (turn finished), `blocked` (a question, a permission, the trust dialog) and `error` are `needs_input`. Process exit still decides `done` and `failed`. Unknown states and keys are ignored, and a sequence longer than 512 bytes is dropped. Before the first sequence the footer heuristic decides, and a `working` report followed by 15 s of silence reads as waiting (Esc sends no idle sequence). The optional `msg` key is base64 text from the agent; it is decoded, sanitized and kept only for a future preview, never logged. Nothing is written to `~/.gemini`: antigravity hooks are not used. `status` needs `kind: heuristic`.
+`status` (heuristic, optional) names a per-session status channel the agent reports its state on. The only value is `osc7501`, the Program Status Protocol used by Antigravity, Qwen Code and Grok Build. For such a tool the daemon:
+
+- **answers the support query.** When the output holds `ESC ] 7501 ; ? BEL` (or ST), even split across reads, it writes `ESC ] 7501 ; ? : states=idle,working,done,blocked,error ESC \` to the child's PTY, once per query. That is all `qwen` and `grok` need to start reporting; no tool gets a reply unless it has `status: osc7501`;
+- **removes `TMUX`, `TMUX_PANE`, `TERM_PROGRAM` and `TERM_PROGRAM_VERSION`** from the child's environment (the agent runs in rex's PTY, not tmux, and grok never asks for the channel when it thinks it is inside tmux);
+- adds the tool's `status_env` after your own environment, so it wins over an `off` (`antigravity` needs `AGY_CLI_OSC7501=on`);
+- reads `ESC ] 7501 ; state=<word> : ... BEL` from the output (ST also ends it). `working` is `working`; `idle` (turn finished), `done`, `blocked` (a question, a permission, the trust dialog, an auth screen) and `error` are `needs_input`, and `clear` changes nothing. The session's `wait_reason` is `review` after `done` (kept through the `idle` that follows) and `input` after `blocked` or `error`; the report's `kind` (`permission`, `question`, `auth`) is kept in the adapter, not sent on the wire. Process exit still decides `done` and `failed`. Unknown states and keys are ignored, and a sequence longer than 512 bytes is dropped. Before the first sequence the footer heuristic decides, and a `working` report followed by 15 s of silence reads as waiting (Esc sends no idle sequence). The optional `msg` key is base64 text from the agent; it is decoded, sanitized and kept only for a future preview, never logged. Nothing is written to `~/.gemini`: antigravity hooks are not used. `status` needs `kind: heuristic`.
 
 `hooks` / `claude`: at spawn the daemon adds `--settings <json>` with Claude Code hooks and sets `REX_HOOK_FILE` in the child env. Each hook appends a state word to `sessions/<id>/hooks.log`:
 
@@ -105,7 +117,38 @@ State semantics for all kinds: a finished agent turn is `needs_input` (waiting o
 
 ### Initial prompt delivery
 
-The wizard / quick-spawn task reaches the agent on argv where the CLI supports it: `claude … -- <prompt>`, `codex … -- <prompt>`, `agy … --prompt-interactive=<prompt>` (antigravity; also a user-defined `gemini` tool). Other tools (ollama, custom) get it pasted into the PTY once `prompt_regex` matches.
+The wizard / quick-spawn task reaches the agent through the tool's `prompt_args` (argv, after every other argument), or `prompt_paste` (pasted into the PTY), or, with neither, pasted once `prompt_regex` matches. Built in:
+
+| Tool | Delivery |
+|------|----------|
+| `claude`, `codex` | `prompt_args: ["--", "{prompt}"]` |
+| `antigravity`, `gemini` | `prompt_args: ["--prompt-interactive={prompt}"]` (a bare positional or `-p` is one-shot) |
+| `qwen` | `prompt_args: ["-i", "{prompt}"]` |
+| `grok`, `cursor` | `prompt_args: ["{prompt}"]` (a positional prompt starts an interactive session; a task that starts with `-` can be read as a flag, so start it with a word) |
+| `ollama` | `prompt_paste: {plain: true, settle_ms: 800}` (`ollama run MODEL PROMPT` answers once and exits) |
+
+### models_cmd
+
+```yaml
+models_cmd:
+  args: ["--list-models"]      # appended to command (required, no empty argument)
+  parse: lines                 # lines (default) | json
+  id_regex: "\\(([^)]+)\\)\\s*$"   # lines: capture group 1 is the id; a line that does not match is skipped
+  skip_header: 1               # lines: leading lines to drop (0-20)
+  # json_path: "models[].id"   # json: dot-separated keys, "key[]" walks an array
+  timeout_ms: 5000             # 100-30000, default 5000
+model_arg_template: ["--model", "{model}"]
+```
+
+The daemon runs `command` plus `args` with no stdin, its own environment, the timeout, and at most 64 KiB of stdout (more counts as broken, not truncated; stderr is dropped). The command is fixed here, never built from session output. Each id must match `^[A-Za-z0-9._:/@\[\]-]{1,128}$` (and not start with `-`), or it is dropped. A model becomes `{id, name: id, args: model_arg_template with {model} = id, effort: model_effort}`.
+
+Detected models come first in the list, then the tool's static `models` it did not list; a detected id that is also static keeps the static name, args and effort. A timeout, a non-zero exit, oversized output, or output with no valid id (an auth error, a usage text) logs one line and leaves the static list. The result is cached in `~/.local/state/rex/models-cache.json` ([paths.md](paths.md)), keyed by tool id, binary path and mtime and the command, and trusted for 24 hours; the daemon refreshes it at start and on `rex reload` (which ignores a fresh entry). Only installed tools are asked. The `model_autodetect` feature switch turns all of this off ([settings.md](settings.md#features)).
+
+Built-in lists: `qwen --list-models` (`Name (id)`, header `MODEL`), `grok models` (`  * id (default)`), `cursor-agent models` (`id - Name`, two header lines).
+
+### Installed tools
+
+A tool is installed when the first word of `command` is found on the daemon's `PATH` (`exec.LookPath`, which applies `PATHEXT` on Windows). The daemon works this out at start and on every reload and sends it as `installed` on each tool of the `Snapshot` ([protocol.md](protocol.md)). The wizard offers installed tools only; Settings → Onboarding lists the missing ones dimmed with an install hint.
 
 ### trust_prompt
 
@@ -122,7 +165,7 @@ While `shown` matches, the daemon sends `move` (at most 4 times, 300 ms apart) u
 
 ### trust_args
 
-Extra arguments that make the agent trust the session folder itself, so no dialog shows. They are added only for sessions under a folder in `auto_trust_dirs`, and one argument must contain `{cwd_list}`. That placeholder expands to a JSON array holding the folder as given and, when different, as resolved through symlinks. Prefer this to `trust_prompt` when the agent supports it: nothing is typed into the agent.
+Extra arguments that make the agent trust the session folder itself, so no dialog shows. They are added only for sessions under a folder in `auto_trust_dirs`. An argument may contain `{cwd_list}`, which expands to a JSON array holding the folder as given and, when different, as resolved through symlinks; a switch that turns the check off for the whole run needs no placeholder (`qwen`: `["--settings", "{\"security\":{\"folderTrust\":{\"enabled\":false}}}"]`, session-only, nothing saved). Prefer this to `trust_prompt` when the agent supports it: nothing is typed into the agent.
 
 When a tool sets both, both apply: the arguments make the dialog unnecessary, and the answerer stays armed as a fallback. If your `command` or model `args` already pass the same flag (for `agy`, your own `--settings`), the agent gets it twice and which one wins is up to the agent.
 
@@ -227,7 +270,7 @@ See [testdata/tools-user.yaml](../testdata/tools-user.yaml) in the repository.
 
 ## VALIDATION ERRORS
 
-Load fails when: no tools; duplicate ids; tool without models; invalid `detect` kind; heuristic without `prompt_regex` or `idle_ms`; structured without supported `format`.
+Load fails when: no tools; duplicate ids; tool without models; invalid `detect` kind; heuristic without `prompt_regex` or `idle_ms`; structured without supported `format`; `status_env` without `detect.status` or an entry that is not `NAME=value`; `models_cmd` with no `args`, a `parse` other than `lines` or `json`, `json` without a valid `json_path`, an `id_regex` that does not compile or has no capture group, `skip_header` outside 0-20, `timeout_ms` outside 100-30000, or no `model_arg_template`; `model_arg_template` without `{model}`; `prompt_args` without exactly one `{prompt}` (or together with `prompt_paste`); `prompt_paste.settle_ms` outside 0-10000; a `login_regex` that does not compile.
 
 ## SEE ALSO
 
