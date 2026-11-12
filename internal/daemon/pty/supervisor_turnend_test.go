@@ -52,10 +52,11 @@ func TestSupervisor_ScreenIsFreshWhenNeedsInputIsPublished(t *testing.T) {
 	})
 	sup := New(SupervisorConfig{
 		StateDir: t.TempDir(), Store: store,
-		Command:  []string{"sh", "-c", "printf 'FINAL-TEXT\\n'; sleep 0.6"},
-		Adapter:  &textAdapter{},
-		InputCh:  make(chan []byte, 1),
-		IdleTick: 20 * time.Millisecond,
+		Command:   []string{"sh", "-c", "printf 'FINAL-TEXT\\n'; sleep 0.6"},
+		ReadyHold: -1, // not about the hold
+		Adapter:   &textAdapter{},
+		InputCh:   make(chan []byte, 1),
+		IdleTick:  20 * time.Millisecond,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

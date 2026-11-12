@@ -169,6 +169,9 @@ type Model struct {
 	// lastNotify is when each session last played a state-change sound
 	// (debounce; see notify.go). Pruned on SessionRemoved.
 	lastNotify map[string]time.Time
+	// rungPrompt is the prompts count of the turn whose attention sound
+	// already played, per session (see notify.go). Pruned on SessionRemoved.
+	rungPrompt map[string]int
 
 	// DescAnim is the active per-session description animation. Entries are
 	// pruned by the descTickMsg handler once the animation completes.
@@ -321,6 +324,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			}
 			m.Sessions = out
 			delete(m.lastNotify, rem.SessionID)
+			delete(m.rungPrompt, rem.SessionID)
 			if m.Audio != nil && audible {
 				m.Audio.Play(audio.EventDelete)
 			}
@@ -331,6 +335,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// prevState is the state before this patch; known is false for a
 			// session this TUI never saw (no live transition to announce).
 			var prevState protocol.State
+			var prevReason string
 			known, marked := false, false
 			// audible is false for another workspace's session on a scoped
 			// board: no blink, sound or notification for it.
@@ -340,6 +345,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 					known = true
 					audible = inScope(m, m.Sessions[i])
 					prevState = m.Sessions[i].State
+					prevReason = m.Sessions[i].WaitReason
 					prevDesc := m.Sessions[i].Description
 					wasMarked := !m.Sessions[i].RetireAt.IsZero()
 					applyPatch(&m.Sessions[i], upd.Patch)
@@ -369,6 +375,10 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// once, even if the same patch also completes the session.
 			if (completed || (marked && audible)) && m.Audio != nil {
 				m.Audio.Play(audio.EventDone)
+			}
+			m = m.forgetStaleTurn(upd.SessionID)
+			if audible && known && !hasState {
+				m = m.notifyQuestion(upd.SessionID, prevReason)
 			}
 			if hasState && audible {
 				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
@@ -491,6 +501,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
 		s.Subagents = int(v)
+	}
+	if v, ok := patch["prompts"].(float64); ok && v >= 0 {
+		s.Prompts = int(v)
 	}
 	if raw, ok := patch["wait_reason"]; ok { // "" or null clears it
 		v, _ := raw.(string)

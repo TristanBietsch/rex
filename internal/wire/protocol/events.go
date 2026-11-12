@@ -61,6 +61,11 @@ type SessionSummary struct {
 	// 0 when the last one stops.
 	Subagents int `json:"subagents,omitempty"`
 
+	// Prompts is how many prompts the user sent the agent (Claude Code, from
+	// its UserPromptSubmit hook); it only goes up. 0 means unknown. Clients
+	// use it to play the READY sound once per turn.
+	Prompts int `json:"prompts,omitempty"`
+
 	// WaitingOn is what a working session's main thread is blocked on, one of
 	// WaitShell, WaitSubagent or WaitWeb (Claude Code, from its tool hooks).
 	// Empty when it is not waiting on a tool. State stays working; clients

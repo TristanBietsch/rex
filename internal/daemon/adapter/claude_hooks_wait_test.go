@@ -195,7 +195,8 @@ func TestClaudeHooks_WaitClearedByStaleWorking(t *testing.T) {
 	a, path, _ := waitingAdapter(t)
 	appendLine(t, path, "working")
 	appendLine(t, path, "wait+ shell")
-	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, hookStaleWorking))
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, hookStaleWorking), "an open wait gets the long bound")
+	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, subagentQuiet))
 	got, _ := a.Waiting()
 	require.Empty(t, got)
 }

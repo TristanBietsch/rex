@@ -315,7 +315,7 @@ The simple view at 150+ looks like the 120 one with a 32-column name and a wider
 
 Accepted 2026-11-11 (user): D1–D12 as recommended. Phase 1 icons confirmed: why slot, `⋔` subagents, `▴` long-running, `$` spend, `✦` finished-unseen, `⟳` loop. Phase 2 (`↯` failed tool calls, `⧗` context used) wanted, as R18-2 after the context-field spike. No timestamp or elapsed icon: `▴` plus the age column cover it.
 
-Recommendation first. Not yet answered.
+Recommendation first.
 
 | # | Question | Recommendation | Alternatives |
 |---|---|---|---|

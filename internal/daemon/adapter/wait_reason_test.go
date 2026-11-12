@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -57,7 +58,11 @@ func TestClaudeHooks_WaitReason(t *testing.T) {
 	appendLine(t, path, "turn-done")
 	appendLine(t, path, "agent+ a1")
 	appendLine(t, path, "agent~ a1")
+	require.Empty(t, a.WaitReason(), "no reason while a background subagent runs")
 	appendLine(t, path, "agent- a1")
+	require.Empty(t, a.WaitReason(), "the main agent should wake with the result")
+	now := time.Now().Add(wakeGrace)
+	a.now = func() time.Time { return now }
 	require.Equal(t, protocol.WaitReview, a.WaitReason(), "subagent lines do not clear it")
 }
 
