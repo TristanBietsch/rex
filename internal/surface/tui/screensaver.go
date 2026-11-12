@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -87,6 +89,9 @@ func idleDelay(m Model, now time.Time) time.Duration {
 	case m.saverOn:
 		if saverMotion(m) {
 			d = saverDriftEvery - now.Sub(m.saverSince)%saverDriftEvery
+		}
+		if saverClockFormat(m) != "" { // the next minute, so the clock is never behind
+			d = min(d, now.Truncate(time.Minute).Add(time.Minute).Sub(now))
 		}
 	case saverEnabled(m):
 		if left := m.lastInput.Add(saverAfter(m)).Sub(now); left > 0 {
@@ -172,13 +177,40 @@ func saverKeepAwake(m Model) bool {
 	return b
 }
 
-// saverMotion reports whether the screensaver drifts (not with reduce_motion).
+// saverMotion reports whether the screensaver drifts: screensaver_drift on
+// and reduce_motion off.
 func saverMotion(m Model) bool {
 	if m.Store == nil {
 		return true
 	}
 	rm, _ := m.Store.Get("reduce_motion").(bool)
-	return !rm
+	drift, ok := m.Store.Get("screensaver_drift").(bool)
+	return !rm && (drift || !ok)
+}
+
+// saverCountsLayout is screensaver_counts: "horizontal" (default),
+// "vertical" or "off".
+func saverCountsLayout(m Model) string {
+	if m.Store != nil {
+		if v, _ := m.Store.Get("screensaver_counts").(string); v != "" {
+			return v
+		}
+	}
+	return "horizontal"
+}
+
+// saverClockFormat is the time layout for screensaver_clock, "" when off.
+func saverClockFormat(m Model) string {
+	if m.Store == nil {
+		return ""
+	}
+	switch m.Store.Get("screensaver_clock") {
+	case "24h":
+		return "15:04"
+	case "12h":
+		return "3:04 PM"
+	}
+	return ""
 }
 
 // renderScreensaver draws the screensaver: exactly h lines of exactly w
@@ -209,32 +241,103 @@ func renderScreensaver(m Model, w, h int) string {
 	return strings.Join(out, "\n")
 }
 
-// saverBlock is the screensaver's lines: logo, blank, counts, and while the
-// daemon is unreachable a blank and the reconnect status (the counts are
-// stale then). A short terminal drops the blanks first, then the logo.
+// saverBlock is the screensaver's lines: the logo, the clock
+// (screensaver_clock), a blank, the counts (screensaver_counts) and, while
+// the daemon is unreachable, a blank and the reconnect status (the counts
+// are stale then). A short terminal drops the blanks first, then the clock;
+// vertical counts that still don't fit fall back to one line; then the
+// logo goes and the rest is cut.
 func saverBlock(m Model, h int) []string {
 	logo := styleLogo.Render(saverLogo)
-	counts := saverCounts(m)
+	clock := ""
+	if f := saverClockFormat(m); f != "" {
+		clock = styleHeaderMeta.Render(m.now().Format(f))
+	}
 	status := ""
 	if m.reconnect != nil {
 		status = styleStateFailed.Render(reconnectStatus)
 	}
-	block := []string{logo, "", counts}
-	if status != "" {
-		block = append(block, "", status)
+	layouts := []string{saverCountsLayout(m)}
+	if layouts[0] == "vertical" {
+		layouts = append(layouts, "horizontal")
 	}
-	if len(block) <= h {
-		return block
-	}
-	block = []string{logo, counts}
-	if status != "" {
-		block = append(block, status)
-	}
-	if len(block) <= h {
-		return block
+	var block []string
+	for _, layout := range layouts {
+		counts := saverCountLines(m, layout)
+		for _, try := range []struct{ blanks, clock bool }{{true, true}, {false, true}, {false, false}} {
+			block = []string{logo}
+			if try.clock && clock != "" {
+				block = append(block, clock)
+			}
+			if len(counts) > 0 {
+				if try.blanks {
+					block = append(block, "")
+				}
+				block = append(block, counts...)
+			}
+			if status != "" {
+				if try.blanks {
+					block = append(block, "")
+				}
+				block = append(block, status)
+			}
+			if len(block) <= h {
+				return block
+			}
+		}
 	}
 	block = block[1:]
 	return block[:min(len(block), max(h, 0))]
+}
+
+// saverCountLines is the counts in the given screensaver_counts layout:
+// one line (saverCounts) for "horizontal", one line per count for
+// "vertical" (numbers right-aligned in one column, every line padded to the
+// widest so the block centers as a unit), none for "off".
+func saverCountLines(m Model, layout string) []string {
+	switch layout {
+	case "off":
+		return nil
+	case "vertical":
+	default:
+		return []string{saverCounts(m)}
+	}
+	type part struct {
+		n     int
+		label string
+		style lipgloss.Style
+	}
+	cols, failed := columnCounts(scopedSessions(m), rowFilterOf(m).ctx)
+	parts := make([]part, 0, len(cols)+1)
+	for gi, n := range cols {
+		g := boardGroups[gi]
+		if g.HideZero && n == 0 {
+			continue
+		}
+		style := styleHeaderMeta
+		if g.Alert && n > 0 {
+			style = styleAlert
+		}
+		parts = append(parts, part{n, g.Count, style})
+	}
+	if failed > 0 {
+		parts = append(parts, part{failed, "failed", styleStateFailed})
+	}
+	numW, lineW := 0, 0
+	for _, p := range parts {
+		numW = max(numW, len(strconv.Itoa(p.n)))
+	}
+	for _, p := range parts {
+		lineW = max(lineW, numW+1+ansi.StringWidth(p.label))
+	}
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		num := strconv.Itoa(p.n)
+		text := p.style.Render(num + " " + p.label)
+		lead := strings.Repeat(" ", numW-len(num))
+		out[i] = lead + text + strings.Repeat(" ", lineW-len(lead)-len(num)-1-ansi.StringWidth(p.label))
+	}
+	return out
 }
 
 // saverCounts is "1 ready · 3 working · 7 done": one count per board

@@ -39,6 +39,7 @@ var applyModeOf = map[string]ApplyMode{
 	"header_style": ApplyLive, "window_border": ApplyLive, "window_border_color": ApplyLive, "column_layout": ApplyLive, "mobile_layout": ApplyLive,
 	"keybind_preset": ApplyLive, "mouse_enabled": ApplyLive, "retire_after_hours": ApplyLive,
 	"screensaver_enabled": ApplyLive, "screensaver_after_minutes": ApplyLive, "screensaver_keep_awake": ApplyLive,
+	"screensaver_counts": ApplyLive, "screensaver_clock": ApplyLive, "screensaver_drift": ApplyLive,
 	"board_hidden_sections": ApplyLive, // applyLive re-reads it into the board
 	"desc_animation":        ApplyLive,
 	"sound_enabled":         ApplyLive, "soundset": ApplyLive, "master_volume": ApplyLive,

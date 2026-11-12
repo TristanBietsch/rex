@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (screensaver settings)
+
+- `screensaver_counts` (Settings → Behavior, "Screensaver counts"):
+  `horizontal` (default, one line as before), `vertical` (one count per
+  line under the logo, numbers in one column; back to one line when the
+  terminal is too short) or `off` (logo only).
+- `screensaver_clock`: `off` (default), `24h` or `12h` shows the time under
+  the logo, updated on the minute.
+- `screensaver_drift`: on by default; off keeps the screensaver centered
+  without turning on `reduce_motion` everywhere.
+- All three apply live and can be set from `config.lua` and from a trusted
+  workspace's `.rex/config.lua` (display only).
+
 ### Fixed (audio settings)
 
 - Turning `sound_enabled` on now plays sound right away on a board that

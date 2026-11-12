@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -629,4 +630,180 @@ func abs(n int) int {
 		return -n
 	}
 	return n
+}
+
+// saverAt shows the screensaver on a w×h terminal with the given settings.
+func saverAt(t *testing.T, w, h int, kv ...any) Model {
+	t.Helper()
+	m, now, _ := saverModel(t, saverSessions()...)
+	for i := 0; i < len(kv); i += 2 {
+		id, ok := kv[i].(string)
+		require.True(t, ok)
+		require.NoError(t, m.Store.Set(id, kv[i+1]))
+	}
+	m.Width, m.Height = w, h
+	m = idleTo(t, m, now, *now, 5*time.Minute)
+	require.True(t, m.saverOn)
+	return m
+}
+
+// saverLines is the screensaver's non-blank lines, right-trimmed, and the
+// row of the first one.
+func saverLines(m Model) (lines []string, top int) {
+	top = -1
+	for i, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		if top < 0 {
+			top = i
+		}
+		lines = append(lines, strings.TrimRight(l, " "))
+	}
+	return lines, top
+}
+
+// vertical: one count per line under the logo, the numbers in one column
+// and the block centered as a unit.
+func TestScreensaverCountsVertical(t *testing.T) {
+	m := saverAt(t, 80, 24, "screensaver_counts", "vertical", "reduce_motion", true)
+	block := []string{"1 ready", "2 working", "2 done", "1 failed"}
+	pad := strings.Repeat(" ", (80-9)/2) // 9 = "2 working"
+	want := []string{strings.Repeat(" ", (80-5)/2) + saverLogo}
+	for _, l := range block {
+		want = append(want, pad+l)
+	}
+	lines, top := saverLines(m)
+	require.Equal(t, want, lines)
+	require.Equal(t, (24-6)/2, top, "logo, blank, four counts: centered")
+	all := strings.Split(ansi.Strip(m.View()), "\n")
+	require.Empty(t, strings.TrimSpace(all[top+1]), "a blank between logo and counts")
+}
+
+func TestScreensaverCountsVerticalAlignsNumbers(t *testing.T) {
+	var ss []protocol.SessionSummary
+	for i := range 12 {
+		ss = append(ss, protocol.SessionSummary{ID: fmt.Sprint(i), State: protocol.StateDone})
+	}
+	ss = append(ss, protocol.SessionSummary{ID: "w", State: protocol.StateWorking})
+	m := boardModel(ss...)
+	require.Equal(t, []string{" 0 ready  ", " 1 working", "12 done   "}, stripAll(saverCountLines(m, "vertical")))
+}
+
+func stripAll(in []string) []string {
+	out := make([]string, len(in))
+	for i, s := range in {
+		out[i] = ansi.Strip(s)
+	}
+	return out
+}
+
+func TestScreensaverCountsVerticalKeepsStyles(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+
+	lines := saverCountLines(boardModel(saverSessions()...), "vertical")
+	require.Contains(t, lines[0], styleAlert.Render("1 ready"))
+	require.Contains(t, lines[3], styleStateFailed.Render("1 failed"))
+}
+
+// A terminal too short for one count per line gets today's single line.
+func TestScreensaverCountsVerticalFallsBackWhenShort(t *testing.T) {
+	m := saverAt(t, 80, 4, "screensaver_counts", "vertical")
+	text := ansi.Strip(m.View())
+	require.Contains(t, text, saverLogo)
+	require.Contains(t, text, "1 ready · 2 working · 2 done · 1 failed")
+
+	m = saverAt(t, 80, 5, "screensaver_counts", "vertical", "reduce_motion", true)
+	lines, _ := saverLines(m)
+	require.Len(t, lines, 5, "logo and four counts, no blank, fit exactly")
+	require.Contains(t, lines[1], "1 ready")
+}
+
+func TestScreensaverCountsOff(t *testing.T) {
+	m := saverAt(t, 80, 24, "screensaver_counts", "off", "reduce_motion", true)
+	lines, top := saverLines(m)
+	require.Equal(t, []string{strings.Repeat(" ", (80-5)/2) + saverLogo}, lines)
+	require.Equal(t, (24-1)/2, top)
+
+	m.reconnect = &reconnectState{}
+	require.Contains(t, ansi.Strip(m.View()), reconnectStatus, "the reconnect status still shows")
+}
+
+func TestScreensaverClock(t *testing.T) {
+	m := saverAt(t, 80, 24, "screensaver_clock", "24h", "reduce_motion", true)
+	lines, _ := saverLines(m)
+	require.Len(t, lines, 3)
+	require.Equal(t, "12:05", strings.TrimSpace(lines[1]), "the time right under the logo")
+	require.Contains(t, lines[2], "1 ready")
+
+	m = saverAt(t, 80, 24, "screensaver_clock", "12h", "reduce_motion", true)
+	lines, _ = saverLines(m)
+	require.Equal(t, "12:05 PM", strings.TrimSpace(lines[1]))
+
+	m = saverAt(t, 80, 24)
+	require.NotContains(t, ansi.Strip(m.View()), "12:05", "off by default")
+}
+
+// Short terminals drop the clock before the logo and the counts.
+func TestScreensaverClockGivesWayWhenShort(t *testing.T) {
+	m := saverAt(t, 80, 2, "screensaver_clock", "24h")
+	text := ansi.Strip(m.View())
+	require.Contains(t, text, saverLogo)
+	require.Contains(t, text, "1 ready")
+	require.NotContains(t, text, "12:05")
+}
+
+// With the clock on, the timer wakes on the minute so the time is never
+// a minute behind.
+func TestIdleDelayClock(t *testing.T) {
+	m, now, _ := saverModel(t)
+	start := *now
+	m.saverOn, m.saverSince = true, start.Add(-10*time.Second)
+	require.NoError(t, m.Store.Set("reduce_motion", true))
+	require.Equal(t, idleMaxWait, idleDelay(m, start.Add(20*time.Second)), "no clock: no minute ticks")
+	require.NoError(t, m.Store.Set("screensaver_clock", "24h"))
+	require.Equal(t, 40*time.Second, idleDelay(m, start.Add(20*time.Second)))
+
+	require.NoError(t, m.Store.Set("reduce_motion", false))
+	require.Equal(t, 10*time.Second, idleDelay(m, start.Add(40*time.Second)), "the drift step (50s shown) comes before the minute")
+	require.Equal(t, 5*time.Second, idleDelay(m, start.Add(55*time.Second)), "the minute comes before the next drift step")
+}
+
+func TestScreensaverDriftSetting(t *testing.T) {
+	m := saverAt(t, 80, 24, "screensaver_drift", false)
+	shown := m.saverSince
+	row0, col0 := saverOrigin(t, m)
+	clock := shown
+	m.Clock = func() time.Time { return clock }
+	for minute := 1; minute <= 30; minute++ {
+		clock = shown.Add(time.Duration(minute) * time.Minute)
+		r, c := saverOrigin(t, m)
+		require.Equal(t, [2]int{row0, col0}, [2]int{r, c}, "minute %d", minute)
+	}
+	m.saverOn = true
+	require.Equal(t, idleMaxWait, idleDelay(m, shown.Add(80*time.Second)), "no drift steps to wait for")
+}
+
+func TestScreensaverConfigSettingsPage(t *testing.T) {
+	m := Model{
+		Store:     settings.NewStore(),
+		StorePath: filepath.Join(t.TempDir(), "config.yaml"),
+		Settings:  &SettingsState{CursorID: "screensaver_counts"},
+	}
+	m = applySettingsAction(m, +1)
+	require.Equal(t, "vertical", m.Store.Get("screensaver_counts"))
+	m.Settings.CursorID = "screensaver_clock"
+	m = applySettingsAction(m, +1)
+	require.Equal(t, "24h", m.Store.Get("screensaver_clock"))
+	m.Settings.CursorID = "screensaver_drift"
+	m = applySettingsAction(m, 0)
+	require.Equal(t, false, m.Store.Get("screensaver_drift"))
+
+	m.Height = 80
+	page := ansi.Strip(renderSettings(m, 100))
+	for _, label := range []string{"Screensaver counts", "Screensaver clock", "Screensaver drift"} {
+		require.Contains(t, page, label)
+	}
 }

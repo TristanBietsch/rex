@@ -143,6 +143,23 @@ var Registry = []Setting{
 		Help: "Minutes without a key or click before the screensaver shows. A change applies within a minute.",
 	},
 	{
+		ID: "screensaver_counts", Label: "Screensaver counts", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeEnum, Default: "horizontal",
+		Options: []string{"horizontal", "vertical", "off"},
+		Help:    "How the screensaver shows the counts: horizontal on one line, vertical one per line under the logo (back to one line when the terminal is too short), or off.",
+	},
+	{
+		ID: "screensaver_clock", Label: "Screensaver clock", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeEnum, Default: "off",
+		Options: []string{"off", "24h", "12h"},
+		Help:    "Show the time under the screensaver's logo, as 14:05 (24h) or 2:05 PM (12h). It updates on the minute.",
+	},
+	{
+		ID: "screensaver_drift", Label: "Screensaver drift", Section: SectionBehavior, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Move the screensaver a little once a minute so no image stays in one place for hours. Off keeps it centered; reduce_motion also keeps it centered.",
+	},
+	{
 		ID: "screensaver_keep_awake", Label: "Screensaver keep awake", Section: SectionBehavior, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "macOS: keep the display from sleeping while the screensaver shows (caffeinate -d). Does nothing on other systems.",

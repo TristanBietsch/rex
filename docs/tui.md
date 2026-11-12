@@ -452,13 +452,24 @@ After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the sc
 1 ready · 3 working · 7 done
 ```
 
+- `screensaver_counts: vertical` stacks the counts under the logo, one per line, with the numbers in one column, so your eyes don't travel along a line. When the terminal is too short for that, they go back to one line. `off` shows the logo alone.
+
+```
+   ∴ rex
+
+ 1 ready
+ 3 working
+ 7 done
+```
+
+- `screensaver_clock` (`24h` or `12h`) shows the time under the logo. It changes on the minute. On a short terminal the blank lines go first, then the clock, then the logo; the counts stay.
 - The counts stay live: daemon events keep updating them. `ready` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
 - Any key or mouse event (click, wheel), or a terminal resize, brings the screen back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
 - It starts whatever is open: an overlay, prompt, confirmation, the new-session wizard, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, wizard step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
-- Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.
-- It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute. It plays no sound.
+- Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `screensaver_drift` off or `reduce_motion` on it stays centered.
+- It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute (with the clock on, on the minute). It plays no sound.
 
-Turn it off with `screensaver_enabled` (settings page `S`, or `rex config set screensaver_enabled false`). See [settings.md](settings.md#behavior).
+Turn it off with `screensaver_enabled` (settings page `S`, or `rex config set screensaver_enabled false`). `screensaver_counts`, `screensaver_clock` and `screensaver_drift` change how it looks; all apply live and can be set from a trusted workspace's `.rex/config.lua`. See [settings.md](settings.md#behavior).
 
 ### Keep awake (macOS)
 
