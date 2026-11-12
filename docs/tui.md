@@ -99,9 +99,28 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
+### Overlay look
+
+Help, settings, stats, failures, overview and the wizard share one chrome: a square box with its title set into the top border (`┌─ HELP ──── rex v1 ─┐`). The board behind them is dimmed to one muted color so the overlay reads first. The attach popup uses the same square corners but keeps the board's colors around it.
+
 ### Help overlay
 
-`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`, at most `w-2` on a narrow terminal). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
+`?` / `:help` opens the panel (width `clamp(w-8, 60, 110)`, at most `w-2` on a narrow terminal). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes and the Legend on the left; Session commands, App commands and Attached session on the right. Narrower terminals get a single column with wrapped descriptions. It lists every `:` command, including `:settings` and `:undone`.
+
+- **Scroll.** The body scrolls when it does not fit, under `↑ more` / `↓ more` markers, so no group is ever dropped: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel.
+- **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`). `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The panel shows the query in its first line.
+- **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, `◷` waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
+- **Features that are off.** Keys and commands behind a Features switch (`t`, `/`, `esc` for search, `z…`, `uc`, `:filter`, `:search`, `:uc`, `:rid`, `:export`) stay listed, dimmed and tagged `(off)`.
+
+### Settings overlay
+
+`S` / `:settings` lists every setting by section; `rex config` lists the same registry (it also shows the one hidden row, `keybind_preset`, which the page hides until a second preset exists).
+
+- **Search.** `/` filters live over label, id, section and help text (`spin` leaves Spinner type). `enter` keeps the filter, `esc` clears it, a second `esc` closes. While you type, `j` `k` and the rest type; `ctrl+u` clears.
+- **Sections.** `tab` / `shift+tab` jump to the next / previous section (they wrap).
+- **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. `on` shows in the accent color.
+- **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
+- **Editing text.** `enter` on a free-form string (`auto_trust_dirs`, `prompt_glyph`) opens an inline editor in the pane, prefilled with the value: `enter` saves, `esc` cancels, `ctrl+u` clears. A refused value keeps the editor open and shows why. The check is the one `rex config set` and `rex setup` use. `prompt_glyph` must be one printable character (a single grapheme, 1 or 2 cells wide: no control characters, spaces or invisible marks); the arrow keys still cycle the presets.
 
 ## KEYS (board focus)
 
@@ -143,7 +162,7 @@ With `mouse_enabled` on (the default) rex captures the mouse once the board is u
 | Wheel up / down | Move the selection (same as `k` / `j`); the board scrolls with it |
 | Click a filter chip | Set that tool filter |
 
-Overlays (help, settings, stats, wizard, failures) and bottom-bar prompts swallow mouse events, so a click never changes the selection behind them; in settings the wheel moves the cursor.
+Overlays (help, settings, stats, wizard, failures) and bottom-bar prompts swallow mouse events, so a click never changes the selection behind them; in settings the wheel moves the cursor and in help it scrolls.
 
 Capturing the mouse turns off the terminal's own text selection. Hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) while dragging to select text natively, or turn `mouse_enabled` off in settings (`S`). The toggle applies immediately.
 
