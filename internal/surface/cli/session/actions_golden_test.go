@@ -80,7 +80,9 @@ func TestActionCommandsGolden(t *testing.T) {
 			if name == "new" {
 				require.NoError(t, err)
 				s := findSession(t, d.Socket, slug)
-				r := strings.NewReplacer(s.ID, "FULLID", s.ShortID, "SID", dir, "DIR")
+				// md output escapes "_", which macOS CI temp paths contain.
+				r := strings.NewReplacer(s.ID, "FULLID", s.ShortID, "SID", dir, "DIR",
+					strings.ReplaceAll(dir, "_", `\_`), "DIR")
 				norm = r.Replace
 				out = norm(out)
 			}

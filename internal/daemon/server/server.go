@@ -198,7 +198,10 @@ type Server struct {
 	// settings live elsewhere — the concurrency cap in gate, the SIGHUP-swapped
 	// registry in reg.
 	cfg Config
-	reg atomic.Pointer[registry.Registry]
+	// adopt is cfg.Adopt, moved out at New so cfg stays immutable: only
+	// Serve's goroutine reads it, once, and then drops it.
+	adopt []AdoptSession
+	reg   atomic.Pointer[registry.Registry]
 	// retireTTL is retire_after_hours set live (ns; 0 = cfg.RetireDefaultTTL).
 	retireTTL atomic.Int64
 	// tools is the wire form of reg (installed flags, merged models), rebuilt
@@ -413,8 +416,11 @@ func New(cfg Config) (*Server, error) {
 	if cfg.RetireSweepInterval <= 0 {
 		cfg.RetireSweepInterval = defaultRetireSweepInterval
 	}
+	adopt := cfg.Adopt
+	cfg.Adopt = nil
 	s := &Server{
 		cfg:           cfg,
+		adopt:         adopt,
 		gate:          &concurrencyGate{max: cfg.MaxConcurrentSessions},
 		handlers:      defaultHandlers(),
 		ownerUID:      os.Getuid(),

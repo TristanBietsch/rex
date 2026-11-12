@@ -372,13 +372,13 @@ func (s *Server) HotRestart(ctx context.Context, requester *clientConn) error {
 
 // startAdopted supervises the sessions handed over by the previous image.
 func (s *Server) startAdopted(ctx context.Context) {
-	for _, a := range s.cfg.Adopt {
+	for _, a := range s.adopt {
 		if err := adoptSession(ctx, s, a); err != nil {
 			slog.Error("server: adopt session failed; stopping its agent", "session", a.Session.ID, "pid", a.Adopted.PID, "err", err)
 			s.abandonAdopted(a)
 		}
 	}
-	s.cfg.Adopt = nil
+	s.adopt = nil
 }
 
 // boardsLocked lists the board connections.
