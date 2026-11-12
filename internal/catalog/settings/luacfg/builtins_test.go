@@ -1,10 +1,12 @@
 package luacfg
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // luaOK runs a script whose own assert calls are the test.
@@ -109,4 +111,31 @@ eq((string.gsub("ab", "%w", t)), "aabb", "__index")
 	require.ErrorContains(t, r.Err, "invalid replacement value (a boolean)")
 	r = evalScript(t, `string.gsub("abc", "b", 1)`)
 	require.Error(t, r.Err)
+}
+
+func TestEvalBuiltinEdges(t *testing.T) {
+	luaOK(t, `
+assert((string.gsub("ab", "()", function(p) return p * 10 end)) == "10a20b30", "position capture to a function")
+assert((string.gsub("ab", "()", {[2] = "X"})) == "aXb", "position capture as a table key")
+assert(table.concat({"a", "b", "c"}, "-", 2) == "b-c", "concat range")
+`)
+	r := evalScript(t, `table.concat({"a", {}, "c"})`)
+	require.ErrorContains(t, r.Err, "invalid value")
+	r = evalScript(t, `string.format(string.rep("x", 200000))`)
+	require.ErrorContains(t, r.Err, "string.format: result larger than")
+	r = evalScript(t, `string.gsub("abc", "(", "x")`)
+	require.Error(t, r.Err)
+}
+
+// gsub stops between matches once the deadline has passed.
+func TestGsubCheckDeadline(t *testing.T) {
+	L := lua.NewState(lua.Options{SkipOpenLibs: true})
+	defer L.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	L.SetContext(ctx)
+	g := gsubBuilder{L: L}
+	L.Push(L.NewFunction(func(*lua.LState) int { cancel(); g.checkDeadline(); return 0 }))
+	err := L.PCall(0, 0, nil)
+	require.ErrorContains(t, err, "canceled")
 }
