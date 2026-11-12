@@ -333,3 +333,14 @@ func TestMemoIsBoundToTheTrustedBytes(t *testing.T) {
 	require.NoError(t, rep.Err)
 	require.Equal(t, "ansi", s.Get("theme"), "the bytes checked are the bytes run")
 }
+
+// accent_color is display-only: a trusted workspace may set it.
+func TestTrustedWorkspaceSetsAccentColor(t *testing.T) {
+	e := newEnv(t, wsOn, "", "rex.set('accent_color', 'viva-magenta')\n")
+	e.trust()
+	s, rep := e.load()
+	require.NoError(t, rep.Err)
+	require.Empty(t, rep.Warnings)
+	require.Equal(t, "viva-magenta", s.Get("accent_color"))
+	require.True(t, settings.WorkspaceSetAt(s.SetAt("accent_color")))
+}

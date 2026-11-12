@@ -31,6 +31,13 @@ var Registry = []Setting{
 		Help:      "Change the theme: a built-in (classic is the previous look; ansi uses your terminal's own colors; dracula, tokyo_night and pantone_safe ship as theme files; auto is default on a dark terminal, paper on a light one) or a theme file in ~/.config/rex/themes. An unknown name uses default.",
 	},
 	{
+		ID: "accent_color", Label: "Accent color", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeString, Default: theme.AccentDefault,
+		Options: append([]string{theme.AccentDefault}, theme.AccentIDs()...),
+		Free:    true, Normalize: normalizeAccentColor,
+		Help: "The color of the prompt arrow, selection marker, focused input and command names, on top of any theme. theme keeps the theme's own. The arrows cycle Pantone-inspired names (approximations); enter types your own: #rrggbb, #rgb, rgb(255, 111, 97), rgb(100%, 44%, 38%), hsl(5, 100%, 69%), cmyk(0, 56, 62, 0) or cmyk(0, .56, .62, 0), oklch(0.7 0.15 30). A color too faint on the theme's background is lightened or darkened until it reads (4.5:1).",
+	},
+	{
 		ID: "spinner", Label: "Spinner type", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "braille",
 		Options: []string{"braille", "ascii_line", "moon", "pulse", "blocks"},

@@ -262,6 +262,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		name := resolveThemeName(m, msg.Scheme)
+		syncAccent(m)
 		if !applyThemeFrom(m.Themes, name) {
 			return m.appendBootStep(bootStepMsg{
 				Name: "theme.apply", Status: stepWarn, Desc: themeNotFound(m.Themes, msg.Scheme), Dur: msg.Dur,
@@ -271,8 +272,15 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if name != msg.Scheme {
 			desc += " (" + name + ")"
 		}
+		status := stepOK
+		if note, isErr := accentNotice(name); note != "" {
+			desc += "; " + note
+			if isErr {
+				status = stepWarn
+			}
+		}
 		return m.appendBootStep(bootStepMsg{
-			Name: "theme.apply", Status: stepOK, Desc: desc, Dur: msg.Dur,
+			Name: "theme.apply", Status: status, Desc: desc, Dur: msg.Dur,
 		})
 
 	case stateRestoreResultMsg:

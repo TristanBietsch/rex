@@ -113,8 +113,20 @@ func applyThemeFrom(cat *theme.Catalog, name string) bool {
 	return found
 }
 
-// applyPalette makes p the live palette and rebuilds every style.
+// accentChoice is the accent_color value applyPalette lays over every
+// palette ("" or "theme" keep the palette's own). accentLast and accentErr
+// are how the last applyPalette resolved it. Like the colors, they are
+// written only from Update.
+var (
+	accentChoice string
+	accentLast   theme.AccentResult
+	accentErr    error
+)
+
+// applyPalette makes p, with the accent_color override, the live palette
+// and rebuilds every style.
 func applyPalette(p theme.Palette) {
+	p, accentLast, accentErr = theme.WithAccent(p, accentChoice)
 	curGlyphs = p.Glyphs
 	c := func(s string) lipgloss.Color { return lipgloss.Color(s) }
 	colorFgPrimary = c(p.Fg)
@@ -147,6 +159,12 @@ func applyPalette(p theme.Palette) {
 // (a per-launch-folder pick, not a palette token) is chosen at render time.
 func edgeStyle(c lipgloss.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c)
+}
+
+// swatchStyle paints a candidate color that is not (yet) a palette token:
+// the accent_color editor's preview of a draft value.
+func swatchStyle(c string) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(c))
 }
 
 func rebuildStyles() {

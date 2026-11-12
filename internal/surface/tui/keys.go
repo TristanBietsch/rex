@@ -193,6 +193,7 @@ var commands = []command{
 	{Names: []string{"settings"}, Desc: "open settings", Group: groupAppCmd, Run: runSettings},
 	{Names: []string{"trust"}, Args: "[folder]", Desc: "trust a project folder so agents skip the trust dialog; saved", Group: groupAppCmd, Run: runTrustCmd},
 	{Names: []string{"theme"}, Args: "[name]", Desc: "set the theme (no name: next); saved", Group: groupAppCmd, Run: runTheme},
+	{Names: []string{"accent"}, Args: "[color]", Desc: "set the accent: theme, a color name, #rrggbb, rgb(), hsl(), cmyk(), oklch() (none: next name); saved", Group: groupAppCmd, Run: runAccent},
 }
 
 // lookupCommand finds the command a verb dispatches to.

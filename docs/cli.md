@@ -613,6 +613,8 @@ rex theme new <name> [-from <builtin>] [-force] [-o FORMAT] [--agent]
 
 `list` shows the six built-in themes, the files in `~/.config/rex/themes` (source `file`) and the themes `config.lua` defines (source `lua`; one beats a file of the same name, with a warning), marks the current one, and reports any file it skipped and why, and a `config.lua` that failed. `show` prints a theme's colors, glyphs and a sample line; in `-o json` it carries `colors`, `fleet`, `glyphs`, `warnings` and, for a file, its `path`. `new` writes a commented skeleton that extends `-from` (default `default`) to `~/.config/rex/themes/<name>.yaml`, mode 0600 in a 0700 folder; use it with `rex config set theme <name>`. Agent mode gives a `theme name=… source=… current=…` line per theme, a `color token=… value=…` and `glyph token=… value=…` line per token, and `ok cmd=theme name=… path=… from=…` for `new`. The file format is in [themes.md](themes.md).
 
+`list` and `show` print each theme's own accent. `accent_color` replaces the accent on top of whichever theme is current, and CLI output follows it: `rex config set accent_color <color>` takes a name such as `very-peri`, `#rrggbb`, `rgb(...)`, `hsl(...)`, `cmyk(...)` or `oklch(...)`, and `rex config get accent_color` adds what it paints on the current theme (`paints #7476BB on default, adjusted from #6667AB for contrast`; a `paints` field in agent mode). See [themes.md](themes.md#accent-color).
+
 Exit **5** for a missing or extra argument, an unknown theme in `show` or `-from`, and a name that is invalid or a built-in's. Exit **6** when `new` would overwrite a file and `-force` is not given. `new -force` replaces the file (a symlink at that path is replaced, never followed).
 
 ---

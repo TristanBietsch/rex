@@ -12,6 +12,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 )
 
@@ -59,9 +60,14 @@ func settingFreeForm(s settings.Setting) bool {
 	return s.Free && s.Type == settings.TypeString && !s.ReadOnly
 }
 
-// openSettingEdit starts editing the cursor setting with its current value.
+// openSettingEdit starts editing the cursor setting with its current value;
+// accent_color at its default starts empty: "theme" is not a color to edit.
 func openSettingEdit(m Model, s settings.Setting) Model {
-	m.Settings.Edit = &settingEdit{ID: s.ID, ed: lineEditor{Text: m.Store.String(s.ID), StripControl: true}}
+	text := m.Store.String(s.ID)
+	if s.ID == "accent_color" && text == theme.AccentDefault {
+		text = ""
+	}
+	m.Settings.Edit = &settingEdit{ID: s.ID, ed: lineEditor{Text: text, StripControl: true}}
 	return m
 }
 
@@ -73,6 +79,9 @@ func settingEditKey(m Model, k tea.KeyMsg) Model {
 	switch k.Type {
 	case tea.KeyEsc:
 		m.Settings.Edit = nil
+		if e.ID == "accent_color" {
+			applyThemeNamed(&m, m.Store.String("theme")) // drop the preview
+		}
 	case tea.KeyEnter:
 		if settingLocked(&m, e.ID) {
 			m.Settings.Edit = nil
@@ -89,9 +98,23 @@ func settingEditKey(m Model, k tea.KeyMsg) Model {
 	default:
 		if e.ed.Edit(k) {
 			e.Err = ""
+			previewAccent(m, e)
 		}
 	}
 	return m
+}
+
+// previewAccent shows a draft accent_color at once: a value that parses
+// becomes the live accent; anything else keeps the last one. esc or a save
+// puts the stored value back in charge (applyThemeNamed).
+func previewAccent(m Model, e *settingEdit) {
+	if e.ID != "accent_color" {
+		return
+	}
+	if _, err := theme.ParseAccent(e.Text()); err == nil {
+		accentChoice = e.Text()
+		reapplyTheme(m)
+	}
 }
 
 func openSettings(m Model) (Model, tea.Cmd) {
@@ -192,7 +215,19 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		m.Settings.CursorID = settingsStep(m, -1)
 		return m, nil
 	case "e":
+		// A free-form row config.lua does not set: edit the value here.
+		if s, ok := settings.Find(m.Settings.CursorID); ok && settingFreeForm(s) && !settingLocked(&m, s.ID) {
+			return openSettingEdit(m, s), nil
+		}
 		return openLockedInEditor(m, m.Settings.CursorID)
+	case "#":
+		// Typing a hex color on the accent row starts the editor with it.
+		if m.Settings.CursorID == "accent_color" && !settingLocked(&m, "accent_color") {
+			s, _ := settings.Find("accent_color")
+			m = openSettingEdit(m, s)
+			m.Settings.Edit.ed = lineEditor{Text: "#", StripControl: true}
+		}
+		return m, nil
 	case "enter", " ":
 		if settingLocked(&m, m.Settings.CursorID) {
 			return m, nil
@@ -895,7 +930,11 @@ func applyLive(m *Model, id string, value any) {
 	case "theme":
 		if name, ok := value.(string); ok {
 			applyThemeNamed(m, name)
+			noteAccent(m)
 		}
+	case "accent_color":
+		applyThemeNamed(m, m.Store.String("theme"))
+		noteAccent(m)
 	case "sound_enabled":
 		if m.Audio != nil {
 			if b, ok := value.(bool); ok {

@@ -103,10 +103,12 @@ func NewStyles(p theme.Palette, r *lipgloss.Renderer) Styles {
 }
 
 // streamStyles builds the styles for one stream from the named scheme (an
-// unknown name means the default). A stream with color off gets an
-// Ascii-profile renderer, so it can never emit ANSI. trueColor pins the
-// TrueColor profile instead of detecting one (tests and goldens).
-func streamStyles(w io.Writer, color, trueColor bool, scheme string) Styles {
+// unknown name means the default) with the accent_color value laid over it
+// (an invalid one is ignored, silently, like a bad theme name). A stream
+// with color off gets an Ascii-profile renderer, so it can never emit ANSI.
+// trueColor pins the TrueColor profile instead of detecting one (tests and
+// goldens).
+func streamStyles(w io.Writer, color, trueColor bool, scheme, accent string) Styles {
 	r := lipgloss.NewRenderer(w)
 	switch {
 	case !color:
@@ -117,8 +119,13 @@ func streamStyles(w io.Writer, color, trueColor bool, scheme string) Styles {
 		// Forced (CLICOLOR_FORCE) into a pipe: detection finds nothing.
 		r.SetColorProfile(termenv.ANSI256)
 	}
-	return NewStyles(resolvePalette(scheme), r)
+	p, _, _ := theme.WithAccent(resolvePalette(scheme), accent)
+	return NewStyles(p, r)
 }
+
+// ThemePalette is the named theme as CLI output uses it (see
+// resolvePalette), without accent_color.
+func ThemePalette(name string) theme.Palette { return resolvePalette(name) }
 
 // resolvePalette finds the named theme: a built-in, else one of the user's
 // theme files (~/.config/rex/themes). A name that is neither, a file that
@@ -143,16 +150,18 @@ func resolvePalette(name string) theme.Palette {
 	return p
 }
 
-// loadAppearance reads theme and spinner from the user's config. Any
-// failure means the defaults: styling must never break a command.
-func loadAppearance() (scheme, spinner string) {
+// loadAppearance reads theme, spinner and accent_color from the user's
+// config. Any failure means the defaults: styling must never break a
+// command.
+func loadAppearance() (scheme, spinner, accent string) {
 	store, _, err := settings.LoadDefault()
 	if err != nil {
-		return theme.DefaultName, ""
+		return theme.DefaultName, "", ""
 	}
 	scheme, _ = store.Get("theme").(string)
 	spinner, _ = store.Get("spinner").(string)
-	return scheme, spinner
+	accent, _ = store.Get("accent_color").(string)
+	return scheme, spinner, accent
 }
 
 // StateLabel is the human name of a session state ("ready" for
