@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
@@ -93,7 +92,10 @@ func run(args []string) error {
 	defer rexlog.Close()
 	slog.Info("daemon: starting", "version", version.Version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
 
-	reg, err := registry.Load(*toolsPath)
+	// Settings feed the registry (extra_agents, model_autodetect); an unreadable
+	// file is reported again below, where the rest of settings load.
+	regSettings, _, _ := settings.LoadDefault()
+	reg, err := boot.LoadRegistry(*toolsPath, regSettings)
 	if err != nil {
 		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
 		return fmt.Errorf("registry: %w", err)
@@ -206,6 +208,9 @@ func run(args []string) error {
 	}
 
 	var srv *server.Server
+	// cat is set once srv exists; the reload callbacks read it only after Serve
+	// has started.
+	var cat *boot.Catalog
 	// Usage tracking: inert while the usage setting is off. Its callbacks
 	// read srv only once Serve has started, after that assignment.
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
@@ -236,11 +241,18 @@ func run(args []string) error {
 		UsageQuery:            usageHub.Hub.Query,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
-		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
+		OnReload:              func() error { return cat.ReloadDefault(ctx) },
 	})
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
+
+	// Model lists are detected in the background (inert while model_autodetect
+	// is off); the registry above already holds whatever the cache had.
+	cat = boot.NewCatalog(srv, *toolsPath)
+	defer cat.Wait()
+	cat.Refresh(ctx, settingsStore, false)
+	appliers = append(appliers, cat.Applier(ctx, settingsStore))
 
 	// Started only now: switching usage on publishes its state through srv.
 	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
@@ -279,7 +291,7 @@ func run(args []string) error {
 	go boot.WatchSettings(ctx, settingsPath, 5*time.Second, appliers...)
 
 	// SIGHUP → reload tools.yaml.
-	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
+	go boot.ReloadOnHUP(ctx, cat)
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version.Version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)

@@ -181,6 +181,16 @@ var Registry = []Setting{
 		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
 	},
 	{
+		ID: "extra_agents", Label: "Extra agents", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Offer Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok) when their binary is on PATH. Their default modes can edit files or run commands without asking; check each agent's own safety settings. Off: the three are hidden from the wizard and Settings and refused at spawn. A change applies within a few seconds.",
+	},
+	{
+		ID: "model_autodetect", Label: "Model auto-detect", Section: SectionFeatures,
+		Type: TypeBool, Default: true,
+		Help: "Ask each installed agent for its own model list (for example qwen --list-models, grok models, cursor-agent models; a few seconds, no network call of rex's own) and cache it in ~/.local/state/rex/models-cache.json for 24 hours. Refreshed at daemon start and by rex reload. Off: no command is run and only the built-in model lists show; the cache is not read or written.",
+	},
+	{
 		ID: "session_export", Label: "Session export", Section: SectionFeatures,
 		Type: TypeBool, Default: true,
 		Help: "rex export and :export, which write one session as a readable json, yaml, md or txt document (the transcript replayed to clean text, never raw bytes). Off: both refuse. Exports can hold whatever the agent printed, secrets included.",
