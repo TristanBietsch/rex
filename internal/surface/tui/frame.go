@@ -112,14 +112,23 @@ func borderPalette(m Model) theme.Palette {
 	return p
 }
 
-// borderEdge is the frame's color: the per-run choice, else window_border_color.
-// "random" is stable for the launch folder.
-func borderEdge(m Model, dark bool) theme.EdgeColor {
+// borderColorChoice is the chosen color before it is resolved: the per-run
+// choice, else window_border_color, else "random".
+func borderColorChoice(m Model) string {
 	id := m.borderRunColor
 	if id == "" && m.Store != nil {
 		id, _ = m.Store.Get("window_border_color").(string)
 	}
-	if id != "" && id != "random" {
+	if id == "" {
+		return "random"
+	}
+	return id
+}
+
+// borderEdge is the frame's color: the per-run choice, else window_border_color.
+// "random" is stable for the launch folder.
+func borderEdge(m Model, dark bool) theme.EdgeColor {
+	if id := borderColorChoice(m); id != "random" {
 		if c, err := theme.ParseEdge(id); err == nil {
 			return c
 		}

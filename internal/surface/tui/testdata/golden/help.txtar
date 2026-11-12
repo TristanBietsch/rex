@@ -48,18 +48,18 @@
      │   r      rename selected (empty = slug)                                     must match); no text clears    │
      │   cc     mark done / undo                                                                                  │
      │   uc     undo done (unmark, or resume an exited        ── App commands ─────────────────────────────────   │
-     │          session)                                      :q :quit     quit (confirm)                         │
-     │   C      complete now (kill agent, mark done)          :q!          force quit                             │
-     │   dd     delete selected                               :bg :detach  detach, save place                     │
-     │   i      focus λ prompt (new-session text)             :reload      reload tools.yaml                      │
-     │   S      settings                                      :fail        failed sessions + daemon log (:fails   │
-     │   q      quit (confirm)                                             :failed)                               │
-     │                                                        :stats       session statistics overlay             │
-     │   ── Mouse ────────────────────────────────────────    :overview    what needs you, what is ready for      │
-     │   click         select row / filter chip                            review, what finished                  │
-     │   double-click  attach to row                          :help        this overlay                           │
-     │   wheel         move row selection                     :settings    open settings                          │
-     │   hold ⌥ / ⇧    select text natively                                                                       │
+     │          session)                                      :q :quit         quit (confirm)                     │
+     │   C      complete now (kill agent, mark done)          :q!              force quit                         │
+     │   dd     delete selected                               :bg :detach      detach, save place                 │
+     │   i      focus λ prompt (new-session text)             :reload          reload tools.yaml                  │
+     │   S      settings                                      :fail            failed sessions + daemon log       │
+     │   q      quit (confirm)                                                 (:fails :failed)                   │
+     │                                                        :stats           session statistics overlay         │
+     │   ── Mouse ────────────────────────────────────────    :overview        what needs you, what is ready      │
+     │   click         select row / filter chip                                for review, what finished          │
+     │   double-click  attach to row                          :border [color]  window border for this run: on,    │
+     │   wheel         move row selection                                      off, next, random, a color name    │
+     │   hold ⌥ / ⇧    select text natively                                    or #rrggbb                         │
   ↳ d│   ↓ more                                                                                                   │     
 ─────│                                                                                                            │─────
   λ p│   j/k scroll · / filter · esc close                                                                        │     

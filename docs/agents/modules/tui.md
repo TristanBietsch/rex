@@ -55,7 +55,8 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |
 | `attach_scroll.go` | Popup scrollback ring + scroll mode (primary-screen agents) |
 | `attach_render.go` | Popup cell painter (cached SGR per color/attribute set) and per-row render cache |
-| `attach_cmd.go` | `::` command bar and `qq` detach inside the popup |
+| `attach_cmd.go` | `::` command bar and `qq` detach inside the popup (`::banner`, `::border`) |
+| `border_cmd.go` | `:border` / `::border`: per-run frame choice (`borderRunOn`, `borderRunColor`), notices; never saved |
 | `attach_banner.go` | Attach banner row: `attachBannerRows` (the one place that decides whether it shows), `bannerParts`, static layout, `marqueeWindow`, tick chain, `::banner` |
 | `settings.go` | Settings overlay state and keys: search, section jump (`settingsSectionJump`), inline editor (`settingEdit`; saves through `Store.Set`) |
 | `settings_view.go` | Settings render: list, modified marker, fixed-height detail pane (`settingsDetail`) |
