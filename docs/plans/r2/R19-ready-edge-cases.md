@@ -106,6 +106,11 @@ Decisions:
 - [ ] **Step 4:** Hook commands per the decisions; `StopFailure` added to `claudeHookStates`.
 - [ ] **Step 5:** `go test ./internal/daemon/...` green. Commit `fix(adapter): claude READY only when the user is needed`.
 
+## Outcome notes
+
+- Review fixes: a subagent's question (Notification with `agent_id`, new `asker <id>` line) is answered only by that subagent's next tool call or its end, so a sibling's work no longer flips READY back; `nest+` expires after 10 s (a denied nested call no longer marks the next background subagent nested); after an Esc the wake grace counts from the key; an informational notification no longer cancels a pending Esc; a truncated hook file drops a question; `bg-agents` only drops subagents quiet for `reconcileQuiet` (1 min), so a miscounted Stop cannot drop a busy subagent.
+- Accepted (review): the `async_launched` check trusts the documented `agentId` key in `tool_response`; a nested `"agent_id"` there would make the line a subagent's sign of life (pre-existing R17 parsing). A background launch returning while a parallel foreground Task still runs makes that foreground subagent count as background: at most a 10 s later READY. A background result that reaches the main agent some other way than `UserPromptSubmit` (none documented) costs the same 10 s.
+
 ### Task 3: Docs, review, gate
 
 - [ ] `docs/tui.md` READY rules and known gaps; `CHANGELOG.md` `[Unreleased]` Fixed; roadmap row R19.
