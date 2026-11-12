@@ -124,6 +124,26 @@ type SessionSummary struct {
 	// an ordinary session. LoopIter is the loop's turn in progress.
 	LoopID   string `json:"loop_id,omitempty"`
 	LoopIter int    `json:"loop_iter,omitempty"`
+
+	// WorkspaceID is the id of the workspace (the nearest .rex/ above CWD)
+	// the session was spawned in: 8 lowercase hex digits, empty outside any
+	// workspace, while the workspaces feature is off, and from daemons that
+	// predate it. The daemon sets it; a client never sends one.
+	WorkspaceID string `json:"workspace_id,omitempty"`
+}
+
+// ValidWorkspaceID reports whether id has the form of a workspace id: 8
+// lowercase hex digits. Ids from meta.json are checked before use.
+func ValidWorkspaceID(id string) bool {
+	if len(id) != 8 {
+		return false
+	}
+	for _, c := range id {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // WaitReason values.
