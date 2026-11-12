@@ -1,0 +1,66 @@
+-- plain.80x24 --
+    ┌──────────────────────────────────────────────────────────────────────┐
+  ∴ │                                                                      │    
+  al│   HELP                                                               │    
+    │                                                                      │
+────│   ── Navigation ──────────────────────────────────────────────────   │────
+    │   j k  move row selection                                            │
+  NE│   g G  top / bottom                                                  │    
+   ◆│   tab  next session that needs you                                   │  4m
+    │   1-4  jump to Needs you / Waiting / Working / Done (4 also folds    │
+  WA│        a long Done column)                                           │    
+    │   v    simple / detailed rows (id, model, tokens, AI summary)        │
+    │                                                                      │
+  WO│   ── Filter & search ─────────────────────────────────────────────   │    
+ ▸ ⠋│   t     cycle tool filter                                            │ 11m
+   ⠋│   /     search the board (every word must match)                     │  7s
+   ⠋│   esc   clear the search                                             │  2h
+    │   zh    hide / show completed sections                               │
+  DO│   z1-9  hide / show section N                                        │    
+   ●│   z0    show every section                                           │  9d
+   ✕│                                                                      │   -
+  ↳ │   ── Actions ─────────────────────────────────────────────────────   │    
+────│   enter  attach to selected session                                  │────
+  λ │   n      new-agent wizard                                            │    
+  en└──────────────────────────────────────────────────────────────────────┘    
+-- plain.120x40 --
+     ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  ∴ R│                                                                                                            │     
+  all│   HELP                                                                                                     │     
+     │                                                                                                            │
+─────│   ── Navigation ───────────────────────────────────    ── Session commands ─────────────────────────────   │─────
+     │   j k  move row selection                              :new                 new-agent wizard               │
+  NEE│   g G  top / bottom                                    :name [text]         rename selected (no text:      │     
+   ◆ │   tab  next session that needs you                                          open editor)                   │   4m
+     │   1-4  jump to Needs you / Waiting / Working / Done    :rename <s> <slug>   change slug                    │
+  WAI│        (4 also folds a long Done column)               :done [sel]          mark done                      │     
+     │   v    simple / detailed rows (id, model, tokens,      :undone [sel]        undo done                      │
+     │        AI summary)                                     :uc :resume [sel]    undo done: unmark a running    │
+  WOR│                                                                             session, or resume an exited   │     
+ ▸ ⠋ │   ── Filter & search ──────────────────────────────                         one                            │  11m
+   ⠋ │   t     cycle tool filter                              :rid [sel]           show the full resume id        │   7s
+   ⠋ │   /     search the board (every word must match)       :complete [sel]      kill agent + mark done now     │   2h
+     │   esc   clear the search                               :rm <sel>            delete                         │
+  DON│   zh    hide / show completed sections                 :prune               clear Done (keeps sessions     │     
+   ● │   z1-9  hide / show section N                                               still working)                 │   9d
+   ✕ │   z0    show every section                             :export [sel] [fmt]  write session to exports/      │    -
+   ✕ │                                                        :filter [what]       tool, or hide|show|only        │    -
+     │   ── Actions ──────────────────────────────────────                         <section…>; no argument        │
+     │   enter  attach to selected session                                         clears every filter            │
+     │   n      new-agent wizard                              :search [text]       search the board (every word   │
+     │   r      rename selected (empty = slug)                                     must match); no text clears    │
+     │   cc     mark done / undo                                                                                  │
+     │   uc     undo done (unmark, or resume an exited        ── App commands ─────────────────────────────────   │
+     │          session)                                      :q :quit     quit (confirm)                         │
+     │   C      complete now (kill agent, mark done)          :q!          force quit                             │
+     │   dd     delete selected                               :bg :detach  detach, save place                     │
+     │   i      focus λ prompt (new-session text)             :reload      reload tools.yaml                      │
+     │   S      settings                                      :fail        failed sessions + daemon log (:fails   │
+     │   q      quit (confirm)                                             :failed)                               │
+     │                                                        :stats       session statistics overlay             │
+     │   ── Modes ────────────────────────────────────────    :overview    what needs you, what is ready for      │
+     │   :  command mode                                                   review, what finished                  │
+  ↳ d│   ?  this help                                         :help        this overlay                           │     
+─────│                                                        :settings    open settings                          │─────
+  λ p│                                                                                                            │     
+  ent└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘     

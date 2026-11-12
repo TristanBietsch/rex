@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    1 need you · 3 working · 1 done  · 2 failed                          
+  all · claude · codex · antigravity · ollama                                   
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  failed sessions                                                          …  │
+│                                                                           …  │
+│    ff01  failing-job    claude · opus · exit=1 · - ago                    …  │
+│      error: migration 0042 timed out                                      …  │
+│    aa01  no-model    claude ·  · exit=? · - ago                           …  │
+│                                                                           …  │
+│  daemon log — last 60 lines                                               …  │
+│                                                                           …  │
+│  daemon: session ff01 exited 1                                            …  │
+│                                                                           …  │
+│    j/k scroll · g/G top/bottom · esc close                                …  │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+   ✕  no-model          boot                                                   -
+  ↳ draft ready — which feature leads?                                          
+────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    1 need you · 3 working · 1 done  · 2 failed                                                                  
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  NEEDS YOU  1                                                                                                          
+   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+
+  WAITING  0                                                                                                            
+      nothing waiting on a tool
+
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮  
+ ▸│                                                                                                                  │1m
+  │  failed sessions                                                                                                 │7s
+  │                                                                                                                  │2h
+  │    ff01  failing-job    claude · opus · exit=1 · - ago                                                           │
+  │      error: migration 0042 timed out                                                                             │  
+  │    aa01  no-model    claude ·  · exit=? · - ago                                                                  │9d
+  │                                                                                                                  │ -
+  │  daemon log — last 60 lines                                                                                      │ -
+  │                                                                                                                  │
+  │  daemon: session ff01 exited 1                                                                                   │
+  │                                                                                                                  │
+  │    j/k scroll · g/G top/bottom · esc close                                                                       │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+  ↳ draft ready — which feature leads?                                                                                  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      
