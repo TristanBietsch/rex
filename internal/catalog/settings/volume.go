@@ -33,12 +33,9 @@ func migrateVolume(raw any) (any, error) {
 	case float64:
 		f = v
 	case string:
-		if _, err := strconv.Atoi(v); err == nil {
-			return v, nil
-		}
-		parsed, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			return v, nil // coercion reports "not an int"
+		parsed, ok := decimalString(v)
+		if !ok {
+			return v, nil // a whole number, or coercion reports "not an int"
 		}
 		f = parsed
 	default:
@@ -63,4 +60,14 @@ func VolumeGain(v any) float64 {
 		n = VolumeDefault
 	}
 	return min(max(float64(n)/VolumeMax, 0), 1)
+}
+
+// decimalString parses s as a float when it is not a whole number but is a
+// float literal ("0.8", "1.0", "NaN").
+func decimalString(s string) (float64, bool) {
+	if _, err := strconv.Atoi(s); err == nil {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	return f, err == nil
 }
