@@ -5,7 +5,7 @@
 github.com/tristanbietsch/rex/cmd/rex 75
 github.com/tristanbietsch/rex/cmd/rex-daemon 85
 github.com/tristanbietsch/rex/internal/catalog/registry 92
-github.com/tristanbietsch/rex/internal/catalog/settings 90
+github.com/tristanbietsch/rex/internal/catalog/settings 91
 github.com/tristanbietsch/rex/internal/catalog/theme 100
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
 github.com/tristanbietsch/rex/internal/daemon/boot 84
@@ -32,9 +32,9 @@ github.com/tristanbietsch/rex/internal/surface/cli/inspect 81
 github.com/tristanbietsch/rex/internal/surface/cli/lifecycle 84
 github.com/tristanbietsch/rex/internal/surface/cli/meta 65
 github.com/tristanbietsch/rex/internal/surface/cli/session 75
-github.com/tristanbietsch/rex/internal/surface/cli/setup 80
+github.com/tristanbietsch/rex/internal/surface/cli/setup 81
 github.com/tristanbietsch/rex/internal/surface/cli/workspace 87
-github.com/tristanbietsch/rex/internal/surface/tui 85
+github.com/tristanbietsch/rex/internal/surface/tui 86
 github.com/tristanbietsch/rex/internal/testutil 0
 github.com/tristanbietsch/rex/internal/testutil/golden 88
 github.com/tristanbietsch/rex/internal/testutil/testenv 42
