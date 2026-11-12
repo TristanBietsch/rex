@@ -172,4 +172,6 @@ Built on `feat/r06-w1-w4`. Not built: **W2** (session tagging, `rex here`, `rex 
 - Records of sessions that ended while the daemon was down (loaded as crashed) are written only when they are cleared; there is no start-up back-fill.
 - The prompt reaches the daemon only at spawn, so a daemon restart forgets it; resumed sessions write no prompt.
 
+- Review fixes: `Store.Reopen` starts a new audit run; `ExcludeInGit` is fenced (back-link, `commondir`, no symlinks, 1 MiB cap) and also ignores `/.rex/audit.jsonl`; `AuditHook.End` returns an error and a failed record keeps the session; a live session at teardown records as `failed` ("deleted while running"); audit files open with `O_NOFOLLOW` and `Read` caps at the newest 8 MiB; `rex ws id` refreshes the registry. Submodule `.git` files are refused (no back-link). Not done: a 100k-record cap (the byte cap bounds it).
+
 **For W2**: `workspace.Find` and `Registry.Seen` are ready for the daemon's spawn-time tagging; `Audit.write` already shows the discovery-gated-by-flag pattern (the stub `find` counts calls).
