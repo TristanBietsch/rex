@@ -147,7 +147,7 @@ func longRunBadge(now time.Time, s protocol.SessionSummary) string {
 	if tier < 0 {
 		return ""
 	}
-	return styleLongRun[tier].Render("▴ " + shortDuration(now.Sub(s.WorkingSince)))
+	return styleLongRun[tier].Render(longRunGlyph + " " + shortDuration(now.Sub(s.WorkingSince)))
 }
 
 // displayName is the name column text: the user's label, else the slug.
