@@ -3,6 +3,7 @@ package settings
 import (
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,6 +56,22 @@ func TestPromptGlyphIsFreeForm(t *testing.T) {
 		if other.Free {
 			require.Equal(t, TypeString, other.Type, other.ID)
 			require.NotNil(t, other.Normalize, "%s: a free-form setting needs a validator", other.ID)
+		}
+	}
+}
+
+// The width check is the TUI's own (ansi.StringWidth), so a glyph the page
+// accepts is never wider than the prompt layout believes. Emoji with a
+// variation selector are the case the two libraries could disagree on.
+func TestPromptGlyphWidthMatchesTheTUI(t *testing.T) {
+	for _, g := range []string{"\u2764\ufe0f", "\u263a\ufe0f", "\u2714\ufe0f", "\u00a9\ufe0f", "1\ufe0f\u20e3", "\U0001F1E9\U0001F1EA", "\u2603", "\u2605"} {
+		w := ansi.StringWidth(g)
+		st := NewStore()
+		err := st.Set("prompt_glyph", g)
+		if w >= 1 && w <= 2 {
+			require.NoError(t, err, "%q is %d cells wide", g, w)
+		} else {
+			require.Error(t, err, "%q is %d cells wide", g, w)
 		}
 	}
 }

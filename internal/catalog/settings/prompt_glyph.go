@@ -6,6 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/rivo/uniseg"
 )
 
@@ -34,7 +35,7 @@ func normalizePromptGlyph(v string) (string, error) {
 	if n != 1 {
 		return "", fmt.Errorf("must be one character, got %d", n)
 	}
-	if w := uniseg.StringWidth(v); w < 1 || w > 2 {
+	if w := ansi.StringWidth(v); w < 1 || w > 2 {
 		return "", fmt.Errorf("must be 1 or 2 cells wide, got %d", w)
 	}
 	return v, nil
