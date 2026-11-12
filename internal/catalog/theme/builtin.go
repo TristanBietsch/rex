@@ -86,7 +86,7 @@ var ansi = Palette{
 	Name: "ansi", Dark: true, Faint: true,
 	Accent:  "5",
 	Working: "4", Queued: "4", Needs: "2", Done: "10", Failed: "1",
-	Warn: "3", Danger: "1", Success: "2", Info: "4",
+	Warn: "3", Danger: "1", Success: "10", Info: "4",
 	Fleet:      []string{"4", "3", "2", "1", "5", "6"},
 	SelReverse: true,
 }

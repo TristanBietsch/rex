@@ -187,9 +187,13 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 	meta := styleHeaderMeta.Render
 	// ready is the Ready count: green (the alert style) while anything waits
 	// on you, like the section title and the screensaver.
-	ready := meta
+	ready, readyMark, doneMark := meta, meta, meta
 	if needs > 0 {
 		ready = styleAlert.Render
+		readyMark = styleMarker[protocol.StateNeedsInput].Render
+	}
+	if done > 0 {
+		doneMark = styleMarker[protocol.StateDone].Render
 	}
 	var out string
 	switch style {
@@ -198,12 +202,13 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 		if waiting > 0 {
 			wait = fmt.Sprintf("%s %d  ", waitingStillFor(m), waiting)
 		}
-		out = meta("    ") + styleMarker[protocol.StateNeedsInput].Render(stateGlyph(protocol.StateNeedsInput)) + ready(fmt.Sprintf(" %d", needs)) +
+		out = meta("    ") + readyMark(stateGlyph(protocol.StateNeedsInput)) + ready(fmt.Sprintf(" %d", needs)) +
 			meta(fmt.Sprintf("  %s%s %d  ", wait, spinnerFramesFor(m)[0], working)) +
-			styleMarker[protocol.StateDone].Render(stateGlyph(protocol.StateDone)) + meta(fmt.Sprintf(" %d", done))
+			doneMark(stateGlyph(protocol.StateDone)) + meta(fmt.Sprintf(" %d", done))
 	case "numbers":
 		out = meta("    ") + ready(fmt.Sprintf("%d", needs)) + meta(fmt.Sprintf(" · %d · %d", working+waiting, done))
 	default:
+		style = "verbose" // an unknown value reads as verbose, suffix included
 		wait := ""
 		if waiting > 0 {
 			wait = fmt.Sprintf(" · %d %s", waiting, boardGroups[groupWaiting].Count)

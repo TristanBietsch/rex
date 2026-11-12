@@ -90,6 +90,10 @@ func TestGoldenReadyDoneNoColor(t *testing.T) {
 				continue
 			}
 		}
+		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "↳") || strings.HasPrefix(trimmed, "─") {
+			section = "" // the preview line and the footer end the board
+			continue
+		}
 		if len([]rune(line)) < 4 || strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -99,10 +103,10 @@ func TestGoldenReadyDoneNoColor(t *testing.T) {
 			require.Equal(t, "⚑", mark, line)
 			ready++
 		case "DONE":
+			require.Contains(t, []string{"✓", "✗", "⊘"}, mark, line)
 			if mark == "✓" {
 				done++
 			}
-			require.NotEqual(t, "⚑", mark, line)
 		}
 	}
 	require.Positive(t, ready)

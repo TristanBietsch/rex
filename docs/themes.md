@@ -33,7 +33,7 @@ READY and DONE are both green in every theme: a bright, saturated "go" green for
 | `tokyo_night` | `#9ECE6A` 9.4:1 | `#4FA57A` 5.7:1 | 34.1 |
 | `pantone_safe` | `#B2D040` 10.8:1 | `#009473` 4.9:1 | 62.9 |
 
-`ansi` uses the terminal's own green for READY and bright green for DONE. A terminal that maps bright green to a gray (Solarized) dims DONE, the state that should recede, never READY.
+`ansi` uses the terminal's own green for READY and bright green for DONE. A terminal that maps bright green to a gray (Solarized) dims DONE (and the matching success marks), the state that should recede, never READY.
 
 **Color vision.** For deuteranopia and protanopia, green next to green is the hard case, so the glyph carries the meaning first (`⚑` vs `✓`, also on a terminal with no color). The two greens also differ in lightness, which survives color-vision deficiency: in every shipped theme they stay at least 6.5 apart (OKLab ×100) under simulated protan, deutan and tritan vision. `pantone_safe` goes further and keeps every pair of its state colors that far apart. On the other themes READY's green can sit close to FAILED's red for a reader with deuteranopia; `⚑` and `✗` still differ.
 
@@ -134,7 +134,7 @@ extends: noir          # optional built-in to start from; default "default"
 dark: true             # optional: is the background dark?
 colors:
   accent: "#FF7A59"
-  needs: "#F2B84B"
+  needs: "#4BE37F"
   fleet: ["#5B8DEF", "#E5B341", "#4ADE80"]
 glyphs:
   needs: "!"

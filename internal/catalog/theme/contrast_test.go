@@ -139,7 +139,7 @@ func TestAnsiThemeIndices(t *testing.T) {
 	require.False(t, isHex(p.Fg))
 	for name, v := range map[string]string{
 		"Accent": p.Accent, "Working": p.Working, "Queued": p.Queued, "Needs": p.Needs,
-		"Failed": p.Failed, "Warn": p.Warn, "Danger": p.Danger, "Success": p.Success, "Info": p.Info,
+		"Failed": p.Failed, "Warn": p.Warn, "Danger": p.Danger, "Info": p.Info,
 	} {
 		n, err := strconv.Atoi(v)
 		require.NoError(t, err, "ansi.%s=%q is an index", name, v)
@@ -163,6 +163,7 @@ func TestAnsiThemeIndices(t *testing.T) {
 	// never the one that needs you; the ✓ marker still says done.
 	require.Equal(t, "2", p.Needs)
 	require.Equal(t, "10", p.Done)
+	require.Equal(t, p.Done, p.Success, "success follows done (quota OK, check marks)")
 	require.Equal(t, "4", p.Working)
 	require.Equal(t, "5", p.Accent)
 }
@@ -198,6 +199,10 @@ func TestReadyDoneGreens(t *testing.T) {
 			require.True(t, h >= 115 && h <= 170, "%s %s %s is green (OKLCH hue %.0f)", p.Name, token, c, h)
 			require.GreaterOrEqual(t, Contrast(c, p.Bg), 4.5, "%s %s %s on %s", p.Name, token, c, p.Bg)
 		}
+		// Board rows have no selection background, but list pages do: the
+		// markers stay visible there too (3:1, the non-text floor).
+		require.GreaterOrEqual(t, Contrast(p.Needs, p.BgSel), 3.0, "%s Needs on BgSel", p.Name)
+		require.GreaterOrEqual(t, Contrast(p.Done, p.BgSel), 3.0, "%s Done on BgSel", p.Name)
 		require.GreaterOrEqual(t, deltaE(p.Needs, p.Done), 20.0, "%s: ready vs done", p.Name)
 		require.NotEqual(t, ansi256Index(p.Needs), ansi256Index(p.Done), "%s: ready vs done in 256 colors", p.Name)
 		// Ready is the brighter of the two on a dark theme and the more
