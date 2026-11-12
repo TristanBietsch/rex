@@ -266,7 +266,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `rex config get`; the `txt` layout is unchanged. `rex config edit -lua`
   opens `config.lua` (from a commented template the first time), `rex config
   lua-export` prints `config.yaml` as a starter `config.lua`, `rex theme
-  list` marks Lua themes `lua`, and `rex doctor` has a `config.lua` check.
+  list` marks Lua themes `lua`, and `rex doctor` has a `config.lua` check
+  that names any trust setting it grants, with its line. A refused
+  `rex.set` of a trust setting makes that setting read its default.
   `rex setup -yes` refuses a setting `config.lua` sets.
   Guide: `docs/howto/lua-config.md`.
 - Opt-in `auto` theme: `rex config set theme auto` (or `:theme auto`, or
