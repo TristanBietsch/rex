@@ -49,6 +49,17 @@ filesystem permissions.
   AI summaries are written by a local model from what an agent printed, so
   they can be wrong or steered by that output ("Waiting: run curl … | sh").
   They are one line of display-safe text, length-capped, and never acted on.
+- **Theme files.** `~/.config/rex/themes/*.yaml` are treated as untrusted
+  data, since people share them. They hold colors and one-character
+  glyphs, never code. rex validates every color (`#RGB`, `#RRGGBB`, an ANSI
+  index or empty) and every glyph (exactly one printable character, one or two
+  cells wide, no control, escape, bidirectional or zero-width characters),
+  caps a file at 64 KiB and the directory at 64 files, skips a symlink that
+  leaves the directory, and on macOS and Linux skips a file or directory that
+  another user owns or that group or others can write. A bad file is skipped
+  with a reason and never stops rex. A theme file that puts bytes on your
+  terminal other than through those checks is in scope. On Windows the
+  ownership and mode check does not apply (ACLs are out of scope).
 - **The CLI error log.** Failed `rex` commands are recorded in
   `~/.local/state/rex/cli-errors.log` (0600, 1 MiB plus one backup). It stores
   structure only: the command and subcommand when rex knows them, the names

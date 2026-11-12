@@ -15,7 +15,7 @@ rex config set sound_enabled false
 rex config list
 ```
 
-Keys and defaults: [settings.md](../settings.md).
+Keys and defaults: [settings.md](../settings.md). Your own colors and marker glyphs: [themes.md](../themes.md) (`rex theme new my-theme`).
 
 ## TUI
 

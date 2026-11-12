@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `color_scheme` is now `theme`. The old key is still read (`theme` wins if a
+  file has both) and the next save writes only `theme`. Names are no longer
+  limited to the built-ins: any theme file name works.
+
 - TUI: help, settings, stats, failures, overview and the wizard share one
   titled square panel, and the board behind them is dimmed. The attach popup
   gets square corners and keeps the board's colors.
@@ -87,6 +91,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   hidden on the splash, the screensaver and small terminals. `:border`
   (`::border` in the attach popup) toggles it or picks a color for one run
   without saving.
+- Themes: write your own as YAML files in `~/.config/rex/themes/<name>.yaml`
+  (`extends` a built-in, override colors, replace the state marker and
+  selection glyphs). Files are validated as untrusted data (64 KiB and 64 file
+  caps, strict colors and one-character glyphs, symlinks must stay inside the
+  folder, no file writable by others); a bad file is skipped with a reason and
+  the TUI falls back to `default` with a notice. See [docs/themes.md](docs/themes.md).
+- `rex theme list`, `rex theme show <name>` and `rex theme new <name>
+  [-from <builtin>] [-force]`, in every output format. `:theme [name]` in the
+  TUI sets (or cycles) the theme and saves it.
+- Live reload in the TUI: it checks `config.yaml` and the theme files every
+  2 s while `live_reload` is on and applies what changed (theme, display,
+  audio and other "applies now" settings) without a restart. `:reload`
+  does it at once, also with `live_reload` off, and now reloads `config.yaml`
+  and themes as well as `tools.yaml`.
+- The setup wizard and the boot log (`themes.load` row) know your themes.
+
 - Daemon: scheduled description refresh (`summary_schedule`, Settings →
   Features, on by default). Each live session gets a new AI description 5, 10,
   15, 20 and 25 minutes after its run started, then every 30 minutes, and the
