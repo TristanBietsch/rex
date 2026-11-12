@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -108,6 +110,7 @@ type SetupWizardModel struct {
 	defaultsField defaultsField
 
 	// step: appearance
+	themes            *theme.Catalog // the user's theme files
 	themeOptions      []string
 	themeIdx          int
 	spinnerOptions    []string
@@ -182,7 +185,8 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	visible := visibleTools(all)
 
 	// settings options from registry
-	themeOpts := enumOptions("theme")
+	themes := theme.LoadDir(themesDir())
+	themeOpts := append(enumOptions("theme"), themes.UserNames()...)
 	spinnerOpts := enumOptions("spinner")
 	rowDensityOpts := enumOptions("row_density")
 	soundsetOpts := enumOptions("soundset")
@@ -191,6 +195,11 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	st := settings.NewStore()
 	_ = st.Load(configPath)
 
+	// A configured theme that is not on offer (its file was skipped or
+	// removed) stays selected, so finishing the wizard does not reset it.
+	if cur := st.String("theme"); !slices.Contains(themeOpts, cur) {
+		themeOpts = append(themeOpts, cur)
+	}
 	themeIdx := indexIn(themeOpts, st.String("theme"))
 	spinnerIdx := indexIn(spinnerOpts, st.String("spinner"))
 	rowDensityIdx := indexIn(rowDensityOpts, st.String("row_density"))
@@ -244,6 +253,7 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 		effortIdx:     effortIdx,
 		defaultsField: defaultsTool,
 
+		themes:            themes,
 		themeOptions:      themeOpts,
 		themeIdx:          themeIdx,
 		spinnerOptions:    spinnerOpts,
@@ -1583,6 +1593,8 @@ func rewriteShellBlock(content, block string) string {
 func RunSetupWizard(configPath, socket, autoTrust string) error {
 	slog.Info("setup: launching TUI wizard", "config_path", configPath, "socket", socket)
 	model := NewSetupWizardModel(configPath, socket).withAutoTrust(autoTrust)
+	// Draw the wizard in the user's own theme, not the built-in default.
+	applyThemeFrom(model.themes, model.themeOptions[model.themeIdx])
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := p.Run()
 	if err != nil {

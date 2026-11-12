@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
 
 // themeOptions are the names the theme setting can cycle through: the
@@ -21,11 +22,37 @@ func themeOptions(m Model) []string {
 // palette and puts a notice on the status line.
 func applyThemeNamed(m *Model, name string) {
 	if !applyThemeFrom(m.Themes, name) {
-		m.Err = fmt.Sprintf("theme %q not found (using default)", name)
-		if why := m.Themes.WhySkipped(name); why != "" {
-			m.Err = fmt.Sprintf("theme %q not loaded: %s (using default)", name, why)
-		}
+		m.Err = themeNotFound(m.Themes, name)
 	}
+}
+
+// themeNotFound is the notice for a theme that cannot be applied: its file
+// was skipped (with the reason), or no such theme exists.
+func themeNotFound(cat *theme.Catalog, name string) string {
+	if why := cat.WhySkipped(name); why != "" {
+		return fmt.Sprintf("theme %q not loaded: %s (using default)", name, why)
+	}
+	return fmt.Sprintf("theme %q not found (using default)", name)
+}
+
+// themesLoadedStep is the boot-log line for the theme files: how many loaded,
+// and the first reason for any that were skipped.
+func themesLoadedStep(msg themesLoadedMsg) bootStepMsg {
+	step := bootStepMsg{Name: "themes.load", Dur: msg.Dur}
+	names := msg.Themes.UserNames()
+	skipped := msg.Themes.Skipped()
+	switch {
+	case len(skipped) > 0:
+		step.Status = stepWarn
+		step.Desc = fmt.Sprintf("%d loaded, %d skipped: %s", len(names), len(skipped), skipped[0])
+	case len(names) > 0:
+		step.Status = stepOK
+		step.Desc = fmt.Sprintf("%d user theme(s): %s", len(names), strings.Join(names, ", "))
+	default:
+		step.Status = stepSkip
+		step.Desc = "no user themes"
+	}
+	return step
 }
 
 // setThemeSetting stores, applies and saves a theme choice.

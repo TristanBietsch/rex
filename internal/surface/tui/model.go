@@ -116,6 +116,9 @@ type Model struct {
 	// Themes is the user's theme files (nil: built-in themes only). It is
 	// replaced whole, on the UI goroutine, when the files are (re)loaded.
 	Themes *theme.Catalog
+	// configStamp is the state of config.yaml and the theme files as last
+	// read; live reload compares against it.
+	configStamp string
 
 	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
 	PendingDeleteID string

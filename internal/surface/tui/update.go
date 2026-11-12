@@ -203,15 +203,20 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Name: "settings.load", Status: stepOK, Desc: msg.Path, Dur: msg.Dur,
 		})
 
+	case themesLoadedMsg:
+		m.Themes = msg.Themes
+		m.configStamp = msg.Stamp
+		return m.appendBootStep(themesLoadedStep(msg))
+
 	case themeApplyMsg:
 		if msg.Scheme == "" {
 			return m.appendBootStep(bootStepMsg{
 				Name: "theme.apply", Status: stepSkip, Desc: "default", Dur: msg.Dur,
 			})
 		}
-		if !applyTheme(msg.Scheme) {
+		if !applyThemeFrom(m.Themes, msg.Scheme) {
 			return m.appendBootStep(bootStepMsg{
-				Name: "theme.apply", Status: stepWarn, Desc: fmt.Sprintf("theme %q not found (using default)", msg.Scheme), Dur: msg.Dur,
+				Name: "theme.apply", Status: stepWarn, Desc: themeNotFound(m.Themes, msg.Scheme), Dur: msg.Dur,
 			})
 		}
 		return m.appendBootStep(bootStepMsg{
