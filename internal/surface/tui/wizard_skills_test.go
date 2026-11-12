@@ -38,11 +38,9 @@ func skillWizard(n int) *WizardState {
 
 func TestWizard_SkillsStepHiddenForAgy(t *testing.T) {
 	w := skillWizard(3)
-	w.ToolIdx = 1                              // antigravity: no skill_args
-	m := wizKey(wizardOn(w), "enter", "enter") // provider -> name -> describe
+	w.ToolIdx = 1                     // antigravity: no skill_args
+	m := wizKey(wizardOn(w), "enter") // provider -> describe
 	require.Equal(t, wizDescribe, m.Wizard.Step, "no skill_args, no skills step")
-	m = wizKey(m, "b")
-	require.Equal(t, wizName, m.Wizard.Step)
 	m = wizKey(m, "b")
 	require.Equal(t, wizProvider, m.Wizard.Step)
 }
@@ -56,13 +54,13 @@ func TestWizard_SkillsStepHiddenWhenOffOrEmpty(t *testing.T) {
 	empty := skillWizard(0)
 	require.False(t, empty.stepApplies(wizSkills))
 
-	m := wizKey(wizardOn(off), "enter", "enter")
+	m := wizKey(wizardOn(off), "enter")
 	require.Equal(t, wizDescribe, m.Wizard.Step)
 }
 
 func TestWizard_SkillToggleSendsSkills(t *testing.T) {
 	m := wizardOn(skillWizard(3))
-	m = wizKey(m, "enter", "enter") // provider, name (empty skips)
+	m = wizKey(m, "enter") // provider
 	require.Equal(t, wizSkills, m.Wizard.Step)
 
 	m = wizKey(m, " ") // toggle skill-00
@@ -86,7 +84,7 @@ func TestWizard_SkillToggleSendsSkills(t *testing.T) {
 }
 
 func TestWizard_NoSkillsChosenSendsNone(t *testing.T) {
-	m := wizKey(wizardOn(skillWizard(2)), "enter", "enter", "enter")
+	m := wizKey(wizardOn(skillWizard(2)), "enter", "enter")
 	require.Equal(t, wizDescribe, m.Wizard.Step)
 	require.Empty(t, m.Wizard.request("/w", nil).Skills)
 }
@@ -95,7 +93,7 @@ func TestWizard_NoSkillsChosenSendsNone(t *testing.T) {
 // another tool is.
 func TestWizard_SkillsDroppedWhenToolChanges(t *testing.T) {
 	m := wizardOn(skillWizard(2))
-	m = wizKey(m, "enter", "enter", " ")
+	m = wizKey(m, "enter", " ")
 	require.Equal(t, []string{"skill-00"}, m.Wizard.chosenSkills())
 	m.Wizard.ToolIdx = 1
 	require.Nil(t, m.Wizard.chosenSkills())
@@ -103,7 +101,7 @@ func TestWizard_SkillsDroppedWhenToolChanges(t *testing.T) {
 }
 
 func TestWizard_SkillsStepEsc(t *testing.T) {
-	m := wizKey(wizardOn(skillWizard(2)), "enter", "enter", "esc")
+	m := wizKey(wizardOn(skillWizard(2)), "enter", "esc")
 	require.Nil(t, m.Wizard)
 	require.Equal(t, FocusBoard, m.Focus)
 }
@@ -196,5 +194,5 @@ func TestWizard_OldDaemonIgnoringSkillsIsReported(t *testing.T) {
 	w := skillWizard(2)
 	w.SkillSel = map[string]bool{"skill-00": true}
 	req := w.request("/w", nil)
-	require.Equal(t, pendingSpawn{Skills: []string{"skill-00"}}, pendingSpawn{Name: req.Name, Skills: req.Skills})
+	require.Equal(t, pendingSpawn{Skills: []string{"skill-00"}}, pendingSpawn{Skills: req.Skills})
 }

@@ -47,7 +47,7 @@ type Model struct {
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string
 	// PendingSpawn is what the wizard sent beyond what any daemon honors: a
-	// daemon that predates the name and skills fields drops them silently, so
+	// daemon that predates the skills field drops it silently, so
 	// SessionAdded of PendingSelectSlug is checked against it.
 	PendingSpawn pendingSpawn
 	Filter       string
