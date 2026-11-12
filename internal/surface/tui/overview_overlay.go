@@ -37,7 +37,7 @@ type overviewRow struct {
 // overviewRows lists the overlay's sessions in display order: the buckets of
 // overview.Group, in overviewOrder, completed ones only from the last 24 h.
 func overviewRows(m Model) []overviewRow {
-	groups := overview.Group(m.Sessions)
+	groups := overview.Group(scopedSessions(m))
 	now := m.now()
 	var rows []overviewRow
 	for _, b := range overviewOrder {

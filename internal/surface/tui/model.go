@@ -48,6 +48,13 @@ type Model struct {
 	TermW, TermH  int
 	// BorderSeed seeds the "random" window border color: the launch folder.
 	BorderSeed string
+	// WS is the workspace this board is fixed to (`rex here`); nil on an
+	// ordinary board. wsTagging says the daemon tags sessions with their
+	// workspace (else the board shows every session); wsNoticed that the
+	// one notice about it was shown.
+	WS        *WorkspaceScope
+	wsTagging bool
+	wsNoticed bool
 	// borderRunOn and borderRunColor are :border's choices for this run. They
 	// are never saved; nil / "" fall back to the window_border settings.
 	borderRunOn    *bool
@@ -223,6 +230,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionAdded:
 		var sum protocol.SessionSummary
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
+			m = noteSessionWorkspace(m, sum)
 			if i := sessionIndex(m.Sessions, sum.ID); i >= 0 {
 				// Already listed (a snapshot taken after the add raced
 				// its event): refresh the row, don't show it twice. It
@@ -315,6 +323,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m = adoptSessions(m, snap.Sessions)
 			m.Overview = snap.Overview
+			m = adoptWorkspaceTagging(m, &snap)
 			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
 		}
 	case protocol.EventOverview:

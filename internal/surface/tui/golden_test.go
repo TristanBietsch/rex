@@ -103,6 +103,25 @@ func goldenScreens() []goldenScreen {
 		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
 			return framedGolden(t, goldenBoard(t, sz, false), sz)
 		}},
+		{"workspace_board", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			if err := m.Store.Set("workspaces", true); err != nil {
+				t.Fatal(err)
+			}
+			// Half the sessions belong to the workspace; the rest are elsewhere.
+			for i := range m.Sessions {
+				if i%2 == 0 {
+					m.Sessions[i].WorkspaceID = wsA
+				} else {
+					m.Sessions[i].WorkspaceID = wsB
+				}
+			}
+			m.WS = wsScopeA()
+			m.wsTagging = true
+			m = reselectOutOfScope(m)
+			m.TermW, m.TermH = sz.w, sz.h // the border is on by default here
+			return syncLayout(m)
+		}},
 		{"attach_frame", false, func(t *testing.T, sz goldenSize) Model {
 			m := bannerModel(t, sz.w, sz.h, bannerSession())
 			return framedGolden(t, m, sz)

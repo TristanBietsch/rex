@@ -17,7 +17,11 @@ const boardPad = 0
 
 // Run opens the board. quietBoot silences the boot splash (see
 // Model.QuietBoot).
-func Run(socket string, quietBoot bool) error {
+func Run(socket string, quietBoot bool) error { return RunScoped(socket, quietBoot, nil) }
+
+// RunScoped is Run for a board fixed to one workspace (`rex here`); a nil
+// scope is the ordinary board.
+func RunScoped(socket string, quietBoot bool, scope *WorkspaceScope) error {
 	// Synchronous pre-bootstrap: read audio prefs so the Player exists by the
 	// time the first step msg arrives. Best-effort; defaults on error.
 	store, _, _ := settings.LoadDefault()
@@ -43,6 +47,10 @@ func Run(socket string, quietBoot bool) error {
 		QuietBoot: quietBoot,
 
 		BorderSeed: launchFolder(),
+		WS:         scope,
+	}
+	if scope != nil && scope.Root != "" {
+		m.BorderSeed = scope.Root // a workspace keeps its color even without one set
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

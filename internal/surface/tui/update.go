@@ -274,6 +274,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.Sessions = msg.Snap.Sessions
 		m.Overview = msg.Snap.Overview
+		m = adoptWorkspaceTagging(m, msg.Snap)
 		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
@@ -577,7 +578,7 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		m.PendingSelectSlug = quickSpawnSlug(m.Store, m.Sessions, text)
 		cols, rows := spawnSizeOf(m)
-		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text, cols, rows)
+		return m, spawnSessionIn(spawnCWD(m), m.Client, m.Store, m.Sessions, text, cols, rows)
 	case tea.KeyBackspace:
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
@@ -598,13 +599,19 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 // for unknown tool/model IDs via the existing DaemonErrMsg path. cols and
 // rows are the PTY size to start at (spawnSizeOf; 0 = daemon default).
 func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+	cwd, _ := os.Getwd()
+	return spawnSessionIn(cwd, c, store, sessions, prompt, cols, rows)
+}
+
+// spawnSessionIn is spawnSessionCmd with the folder the session starts in
+// (a workspace board starts it at the workspace root).
+func spawnSessionIn(cwd string, c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
 	return func() tea.Msg {
 		toolID, _ := store.Get("default_spawn_tool").(string)
 		modelID, _ := store.Get("default_spawn_model").(string)
 		effort, _ := store.Get("default_spawn_effort").(string)
 		slug := quickSpawnSlug(store, sessions, prompt)
 
-		cwd, _ := os.Getwd()
 		slog.Info("tui: quick-spawn",
 			"tool", toolID, "model", modelID, "effort", effort,
 			"slug", slug, "cwd", cwd, "prompt_len", len(prompt))
