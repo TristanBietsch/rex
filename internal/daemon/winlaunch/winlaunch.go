@@ -38,6 +38,10 @@ import (
 // rest is headroom for what CreateProcess and the C runtime add.
 const MaxCmdLine = 32000
 
+// MaxShellLine is the cap when cmd.exe parses the command line (an
+// unresolved shim, or cmd.exe as the command): cmd.exe takes 8,191.
+const MaxShellLine = 8000
+
 // maxShimBytes bounds a shim read: npm's are a few hundred bytes.
 const maxShimBytes = 64 << 10
 
@@ -84,8 +88,11 @@ type Request struct {
 }
 
 // IsBatch reports whether path names a file CreateProcess hands to cmd.exe.
+// Windows drops trailing dots and spaces from a file name ("x.cmd. " opens
+// x.cmd) and reads "x.cmd:s" or "x.cmd::$DATA" as a stream of x.cmd, so the
+// name is normalized the same way first (winName).
 func IsBatch(path string) bool {
-	switch strings.ToLower(filepath.Ext(winBase(path))) {
+	switch strings.ToLower(filepath.Ext(winName(path))) {
 	case ".cmd", ".bat":
 		return true
 	}
@@ -95,7 +102,8 @@ func IsBatch(path string) bool {
 // IsCmdShell reports whether path is cmd.exe itself (a registry command
 // such as ["cmd", "/c", "tool"]).
 func IsCmdShell(path string) bool {
-	return strings.EqualFold(winBase(path), "cmd.exe") || strings.EqualFold(winBase(path), "cmd")
+	b := winName(path)
+	return strings.EqualFold(b, "cmd.exe") || strings.EqualFold(b, "cmd")
 }
 
 // SafeArg reports whether s has no meaning to cmd.exe once Go has quoted it:
@@ -120,7 +128,7 @@ func SafeArg(s string) bool {
 	}
 	// A trailing backslash would be doubled inside quotes; harmless, but a
 	// "\" right before Go's closing quote is the classic escape confusion.
-	return !(strings.ContainsRune(s, ' ') && strings.HasSuffix(s, `\`))
+	return !strings.ContainsRune(s, ' ') || !strings.HasSuffix(s, `\`)
 }
 
 // CmdLineBound is an upper bound on the UTF-16 length of the command line
@@ -180,6 +188,11 @@ func Plan(r Request, env Env) (Launch, error) {
 	if err != nil {
 		return Launch{}, err
 	}
+	if !winAbs(exe) {
+		// conpty would resolve a relative program against the session
+		// folder, and a shim's target against the daemon's.
+		return Launch{}, fmt.Errorf("%w: %s does not resolve to an absolute path", ErrRefused, exe)
+	}
 	prefix := []string{exe}
 	via := "direct"
 	resolved := true
@@ -192,31 +205,31 @@ func Plan(r Request, env Env) (Launch, error) {
 	l := Launch{Via: via}
 	args := r.Base[1:]
 	prompt := r.PromptArgs
+	limit := MaxCmdLine
 	if !resolved || shell {
-		// cmd.exe will parse this command line: the prompt never goes on it.
+		// cmd.exe will parse this command line: the prompt never goes on
+		// it, and every other argument (rex adds paths and JSON after the
+		// registry command) must mean nothing to cmd.exe.
+		limit = MaxShellLine
 		if len(prompt) > 0 {
 			prompt, l.Paste, l.PromptMoved, l.Reason = nil, r.Prompt, true, "cmd.exe"
 		}
-	}
-	if !resolved {
-		// Every other argument must mean nothing to cmd.exe. (A tool whose
-		// command is cmd.exe itself runs what its registry entry says; only
-		// the prompt is kept off.)
-		if !SafeArg(exe) || !allSafe(args) {
-			return Launch{}, fmt.Errorf("%w: %s is a cmd.exe script rex cannot resolve to the program it runs, "+
-				"and its arguments would be parsed by cmd.exe; install the tool's native .exe or set the tool's "+
-				"command to the program itself: %w", ErrRefused, exe, errUnsafeArgs)
+		if bad := firstUnsafe(append([]string{exe}, args...)); bad != "" {
+			return Launch{}, fmt.Errorf("%w: %s runs through cmd.exe, and the argument %q holds characters cmd.exe "+
+				"would interpret (only ASCII letters, digits, space and - _ . , : / \\ = + @ ~ # are let through); "+
+				"install the tool's native .exe or set the tool's command to the program itself: %w",
+				ErrRefused, exe, bad, errUnsafeArgs)
 		}
 	}
 	l.Argv = append(append(append([]string{}, prefix...), args...), prompt...)
-	if CmdLineBound(l.Argv) > MaxCmdLine {
+	if CmdLineBound(l.Argv) > limit {
 		if len(prompt) == 0 {
-			return Launch{}, fmt.Errorf("%w: the command line for %s is over %d characters", ErrRefused, exe, MaxCmdLine)
+			return Launch{}, fmt.Errorf("%w: the command line for %s is over %d characters", ErrRefused, exe, limit)
 		}
 		l.Argv = l.Argv[:len(l.Argv)-len(prompt)]
 		l.Paste, l.PromptMoved, l.Reason = r.Prompt, true, "length"
-		if CmdLineBound(l.Argv) > MaxCmdLine {
-			return Launch{}, fmt.Errorf("%w: the command line for %s is over %d characters without the prompt", ErrRefused, exe, MaxCmdLine)
+		if CmdLineBound(l.Argv) > limit {
+			return Launch{}, fmt.Errorf("%w: the command line for %s is over %d characters without the prompt", ErrRefused, exe, limit)
 		}
 	}
 	if !l.PromptMoved && len(r.PromptArgs) == 0 {
@@ -227,13 +240,29 @@ func Plan(r Request, env Env) (Launch, error) {
 
 var errUnsafeArgs = errors.New("an argument holds characters cmd.exe would interpret")
 
-func allSafe(args []string) bool {
+// firstUnsafe returns the first element of args SafeArg refuses ("" for
+// none; an empty argument is reported as "").
+func firstUnsafe(args []string) string {
 	for _, a := range args {
 		if !SafeArg(a) {
-			return false
+			if a == "" {
+				return `""`
+			}
+			return a
 		}
 	}
-	return true
+	return ""
+}
+
+// winAbs reports whether p is a drive-rooted ("C:\x") or UNC ("\\h\s")
+// path.
+func winAbs(p string) bool {
+	p = winSlash(p)
+	if strings.HasPrefix(p, `\\`) {
+		return true
+	}
+	return len(p) >= 3 && p[1] == ':' && p[2] == '\\' &&
+		(p[0] >= 'a' && p[0] <= 'z' || p[0] >= 'A' && p[0] <= 'Z')
 }
 
 // resolveShim turns an npm shim into the program it runs. ok is false when
@@ -271,6 +300,16 @@ func resolveShim(shim string, env Env) ([]string, string, bool) {
 
 // The helpers below treat paths as Windows paths whatever the host, so Plan
 // behaves the same in tests on every platform.
+
+// winName is the file name Windows opens for p: the base, cut at the first
+// ":" (an alternate data stream), without trailing dots and spaces.
+func winName(p string) string {
+	b := winBase(p)
+	if i := strings.IndexByte(b, ':'); i >= 0 {
+		b = b[:i]
+	}
+	return strings.TrimRight(b, ". ")
+}
 
 func winSlash(p string) string { return strings.ReplaceAll(p, "/", `\`) }
 

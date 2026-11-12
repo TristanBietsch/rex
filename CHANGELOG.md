@@ -12,13 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `qwen.cmd`) got its task through `cmd.exe`, so `&`, `|`, `%VAR%`, `^`,
   quotes or a line break in a task could run commands. The daemon now
   starts the program the shim runs (`node.exe` and the script, or the
-  package's `.exe`) directly. A shim it cannot resolve gets the task
-  pasted into the agent instead, with plain arguments only, and anything
-  else is refused with an error that names the shim. A `command` that is
-  `cmd.exe` never gets the task on its command line either.
+  package's `.exe`) directly. A shim it cannot resolve, or a `command`
+  that is `cmd.exe`, gets the task pasted into the agent instead and starts
+  only when every argument (folder paths and JSON included) is plain; else
+  the launch is refused with an error naming the shim and the argument.
 - Windows: a task that would make the command line longer than Windows
-  allows (32,767 characters; rex stops at 32,000) is pasted instead of
-  failing the launch.
+  allows (32,767 characters, 8,191 through `cmd.exe`; rex stops at 32,000
+  and 8,000) is pasted instead of failing the launch.
 
 ### Added (new-agent page)
 

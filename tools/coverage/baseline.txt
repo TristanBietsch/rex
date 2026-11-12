@@ -13,6 +13,7 @@ github.com/tristanbietsch/rex/internal/daemon/pty 88
 github.com/tristanbietsch/rex/internal/daemon/server 91
 github.com/tristanbietsch/rex/internal/daemon/state 87
 github.com/tristanbietsch/rex/internal/daemon/termtext 100
+github.com/tristanbietsch/rex/internal/daemon/winlaunch 100
 github.com/tristanbietsch/rex/internal/features/audio 85
 github.com/tristanbietsch/rex/internal/features/audit 92
 github.com/tristanbietsch/rex/internal/features/export 90

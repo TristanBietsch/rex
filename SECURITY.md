@@ -69,13 +69,14 @@ filesystem permissions.
   an npm `.cmd` shim is resolved to the program it runs (`node.exe` and the
   script inside the shim's folder, or the package's `.exe`) and started
   directly; a shim it cannot resolve, or a `command` that is `cmd.exe`, gets
-  the task pasted into the PTY instead, and only arguments with no `cmd.exe`
-  meaning; anything else is refused before a process starts. A command line
-  over 32,000 characters moves the task to the paste path too. A task, or
-  any part of one, that `cmd.exe` interprets as syntax is in scope. A
-  `command` you wrote that runs `cmd.exe` on arguments you wrote, and a
-  `node.exe` placed earlier on `PATH` by someone who can already write
-  there, are not. See `docs/registry.md`, Initial prompt delivery.
+  the task pasted into the PTY instead and is started only when every
+  argument (including the folder paths and JSON rex adds) has no `cmd.exe`
+  meaning; anything else, and a command that does not resolve to an
+  absolute path, is refused before a process starts. A command line over
+  32,000 characters (8,000 when `cmd.exe` parses it) moves the task to the
+  paste path too. A task, folder name or other text that `cmd.exe`
+  interprets as syntax is in scope. A `node.exe` or shim placed on `PATH`
+  by someone who can already write there is not. See `docs/registry.md`, Initial prompt delivery.
 - **The CLI error log.** Failed `rex` commands are recorded in
   `~/.local/state/rex/cli-errors.log` (0600, 1 MiB plus one backup). It stores
   structure only: the command and subcommand when rex knows them, the names

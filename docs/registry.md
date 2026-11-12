@@ -135,10 +135,10 @@ The wizard / quick-spawn task reaches the agent through the tool's `prompt_args`
 **Windows.** CreateProcess runs a `.cmd` or `.bat` file through `cmd.exe`, which would read `&`, `|`, `%VAR%`, `^`, quotes and line breaks in the task as commands. npm installs most agent CLIs as such shims (`claude.cmd`, `qwen.cmd`), so the daemon never lets the task reach `cmd.exe`:
 
 1. An npm shim is resolved to what it runs: `node.exe` (next to the shim, else on `PATH`, never another batch file) and the script, or the package's own `.exe`. Its target must be a regular file inside the shim's folder. That program is started directly, with `prompt_args` as usual.
-2. A shim rex cannot resolve (hand-written, target missing, no `node.exe`) is started only when every other argument is plain ASCII with no `cmd.exe` meaning (letters, digits, space and `- _ . , : / \ = + @ ~ #`), and the task goes the `prompt_paste` way: bracketed paste once the agent is ready. A `command` that is `cmd.exe` itself keeps its own arguments, and its task is pasted the same way.
-3. Otherwise the session does not start, and the error names the shim. Install the tool's native `.exe` or point `command` at the program.
+2. A shim rex cannot resolve (hand-written, target missing, no `node.exe`) is started only when its path and every argument, including the folder paths and JSON rex adds, are plain ASCII with no `cmd.exe` meaning (letters, digits, space and `- _ . , : / \ = + @ ~ #`), and the task goes the `prompt_paste` way: bracketed paste once the agent is ready. A `command` that is `cmd.exe` itself is treated the same way.
+3. Otherwise the session does not start, and the error names the shim and the argument. A command that does not resolve to an absolute path is refused too. Install the tool's native `.exe` or point `command` at the program.
 
-A Windows command line holds 32,767 characters, less than the 96 KiB prompt cap. When the command line would be over 32,000 (UTF-16 units, counting the quoting Go adds), the task is pasted instead of passed on argv; a command line that is too long without the task is refused. The daemon log says which way each launch went (`spawn: windows launch`, `via`).
+A Windows command line holds 32,767 characters, less than the 96 KiB prompt cap. When the command line would be over 32,000 (UTF-16 units, counting the quoting Go adds; 8,000 when `cmd.exe` parses it, which takes 8,191), the task is pasted instead of passed on argv; a command line that is too long without the task is refused. The daemon log says which way each launch went (`spawn: windows launch`, `via`).
 
 ### models_cmd
 

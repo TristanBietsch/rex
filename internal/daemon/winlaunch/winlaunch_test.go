@@ -109,7 +109,7 @@ func npmFS(shim string) fakeFS {
 }
 
 func TestIsBatch(t *testing.T) {
-	for _, p := range []string{`C:\x\claude.cmd`, `C:\x\CLAUDE.CMD`, `run.bat`, `C:/x/y.Bat`} {
+	for _, p := range []string{`C:\x\claude.cmd`, `C:\x\CLAUDE.CMD`, `run.bat`, `C:/x/y.Bat`, `C:\x\claude.cmd.`, `C:\x\claude.cmd . `} {
 		require.True(t, IsBatch(p), p)
 	}
 	for _, p := range []string{`C:\x\claude.exe`, `claude`, `C:\x.cmd\claude.exe`, `cmd`, ``} {
@@ -117,6 +117,7 @@ func TestIsBatch(t *testing.T) {
 	}
 	require.True(t, IsCmdShell(`C:\Windows\System32\CMD.EXE`))
 	require.True(t, IsCmdShell("cmd"))
+	require.True(t, IsCmdShell(`C:\Windows\cmd.exe.`))
 	require.False(t, IsCmdShell(`C:\x\cmdx.exe`))
 }
 
@@ -332,4 +333,44 @@ func TestSystemEnv(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "shim:safe-args", l.Via)
 	require.Equal(t, ".", winDir("claude.cmd"))
+}
+
+// Streams and trailing dots or spaces still name the batch file.
+func TestIsBatchStreams(t *testing.T) {
+	for _, p := range []string{`C:\x\a.cmd:s`, `C:\x\a.cmd::$DATA`, `C:\x\a.bat `} {
+		require.True(t, IsBatch(p), p)
+	}
+	require.True(t, IsCmdShell(`C:\Windows\cmd.exe::$DATA`))
+}
+
+// cmd.exe as the command: rex-added arguments (a folder name, JSON) are
+// checked like an unresolved shim's, and the line is capped at 8,000.
+func TestPlanShellChecksArgsAndCap(t *testing.T) {
+	fs := fakeFS{path: map[string]string{"cmd": `C:\Windows\System32\cmd.exe`}, files: map[string]string{}}
+	_, err := Plan(Request{Base: []string{"cmd", "/c", "tool", `["C:\dev\x&calc"]`}}, fs.env())
+	require.ErrorIs(t, err, ErrRefused)
+	require.Contains(t, err.Error(), `x&calc`)
+
+	long := strings.Repeat("a", MaxShellLine)
+	_, err = Plan(Request{Base: []string{"cmd", "/c", long}}, fs.env())
+	require.ErrorIs(t, err, ErrRefused)
+
+	shim := npmFS("@echo off\r\n")
+	_, err = Plan(Request{Base: []string{"claude", ""}}, shim.env())
+	require.ErrorIs(t, err, ErrRefused)
+	l, err := Plan(Request{Base: []string{"claude", long[:MaxShellLine-200]}}, shim.env())
+	require.NoError(t, err)
+	require.Equal(t, "shim:safe-args", l.Via)
+}
+
+// A command that does not resolve to an absolute path is refused.
+func TestPlanRefusesRelativeExe(t *testing.T) {
+	for _, p := range []string{`.\claude.cmd`, `claude.exe`, `bin\claude.exe`, `C:claude.exe`} {
+		fs := fakeFS{path: map[string]string{"claude": p}, files: map[string]string{}}
+		_, err := Plan(Request{Base: []string{"claude"}}, fs.env())
+		require.ErrorIs(t, err, ErrRefused, p)
+	}
+	fs := fakeFS{path: map[string]string{"claude": `\\host\share\claude.exe`}, files: map[string]string{}}
+	_, err := Plan(Request{Base: []string{"claude"}}, fs.env())
+	require.NoError(t, err)
 }

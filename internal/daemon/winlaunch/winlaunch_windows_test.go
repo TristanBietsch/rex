@@ -23,7 +23,7 @@ const argsOutEnv = "WINLAUNCH_TEST_ARGS_OUT"
 func TestMain(m *testing.M) {
 	if out := os.Getenv(argsOutEnv); out != "" {
 		b, _ := json.Marshal(os.Args[1:])
-		if err := os.WriteFile(out, b, 0o600); err != nil {
+		if err := os.WriteFile(out, b, 0o600); err != nil { //nolint:gosec // G703: test helper, path set by the test.
 			os.Exit(2)
 		}
 		os.Exit(0)
@@ -41,7 +41,7 @@ func stageAgent(t *testing.T, dir string) string {
 	src, err := os.Open(self)
 	require.NoError(t, err)
 	defer src.Close()
-	dst, err := os.OpenFile(exe, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
+	dst, err := os.OpenFile(exe, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700) //nolint:gosec // G302: an executable for the test.
 	require.NoError(t, err)
 	_, err = io.Copy(dst, src)
 	require.NoError(t, err)
