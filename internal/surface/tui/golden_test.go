@@ -128,6 +128,20 @@ func goldenScreens() []goldenScreen {
 		{"undo_shared", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "shared") }},
 		{"undo_forced", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "forced") }},
 		{"undo_done", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "done") }},
+		{"wizard_models", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, key("j"))
+			return sendKey(m, key("enter"))
+		}},
+		{"settings_onboarding", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
+			m, _ = openSettings(m)
+			m.Settings.CursorID = onboardPrefix + "codex"
+			return m
+		}},
 		{"board_frame", true, func(t *testing.T, sz goldenSize) Model {
 			return framedGolden(t, goldenBoard(t, sz, false), sz)
 		}},

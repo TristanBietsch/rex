@@ -122,6 +122,8 @@ Help, settings, stats, failures, overview and the wizard share one chrome: a squ
 - **Sections.** `tab` / `shift+tab` jump to the next / previous section (they wrap).
 - **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. `on` shows in the accent color.
 - **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
+- **Onboarding.** The last section lists the agents the new-session wizard leaves out because their binary is not on the daemon's `PATH`: dimmed rows reading `not on PATH`, with the command it looks for and an install hint in the detail pane (the tool's `install_hint`, else `install <command> and put it on your PATH`). The rows are read only and not stored settings. It is empty (absent) when every agent is installed.
+- **Quick-spawn pickers.** `default_spawn_tool` cycles through the installed tools only, and `default_spawn_model` through the daemon's merged model list; the detail pane adds `detected` when the current model was reported by the tool.
 - **Editing text.** `enter` on a free-form string (`auto_trust_dirs`, `prompt_glyph`) opens an inline editor in the pane, prefilled with the value: `enter` saves, `esc` cancels, `ctrl+u` clears. A refused value keeps the editor open and shows why. The check is the one `rex config set` and `rex setup` use. `prompt_glyph` must be one printable character (a single grapheme, 1 or 2 cells wide: no control characters, spaces or invisible marks); the arrow keys still cycle the presets.
 
 ## KEYS (board focus)
@@ -365,8 +367,8 @@ The dialog never changes a file until you confirm:
 
 `n` or `:new` opens a short flow. Steps that do not apply are skipped, in both directions, so the common path is a few Enter presses:
 
-1. **Provider**: the tool (`j`/`k`, `enter`).
-2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
+1. **Provider**: the tool (`j`/`k`, `enter`). Only installed tools are listed: the daemon reports which binaries are on its `PATH` (`Snapshot.tools`) and says so again when it reloads (`ToolsChanged`), and the open wizard updates in place, keeping your cursor on the same tool. With `extra_agents` off, qwen, cursor and grok never show. Against a daemon that predates the tool list every tool counts as installed. A long list scrolls.
+2. **Model**: the tool's model, from the daemon's merged list: the models the tool itself reported first, each tagged `detected`, then the built-in ones it did not list. A long list scrolls. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
 3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
 4. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
 5. **Describe**: the task. `enter` launches. The slug comes from the task.

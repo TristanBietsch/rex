@@ -237,7 +237,7 @@ var Registry = []Setting{
 	{
 		ID: "extra_agents", Label: "Extra agents", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. For now the three stay hidden in the wizard until you enable them in Onboarding (the wizard does not yet check this switch or your PATH). Off: the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
+		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. The new-session wizard offers each one only while its binary is on PATH; Settings → Onboarding lists the missing ones with an install hint. Off: the three never show in the wizard or the pickers, and the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
 	},
 	{
 		ID: "model_autodetect", Label: "Model auto-detect", Section: SectionFeatures, Apply: ApplyLive,

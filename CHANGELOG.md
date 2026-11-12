@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Qwen Code, Cursor CLI and Grok Build are `enabled_by_default: true` again:
+  visible in the wizard when installed and `extra_agents` is on. `rex setup`
+  offers them under the same rule.
 - `color_scheme` is now `theme`. The old key is still read (`theme` wins if a
   file has both) and the next save writes only `theme`. Names are no longer
   limited to the built-ins: any theme file name works.
@@ -67,6 +70,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: the new-session wizard lists only installed agents and shows the
+  daemon's merged model list with a `detected` tag (it follows the daemon's
+  `Snapshot.tools` and `ToolsChanged`, so an open wizard updates in place).
+  Settings → Onboarding lists the agents that are not on `PATH`, dimmed, with
+  an install hint (new `install_hint` registry field); the quick-spawn
+  pickers use the same lists. With `extra_agents` off qwen, cursor and grok
+  never show.
 - TUI: `:undo [sel] [-turns N]` and `:redo [sel]` (feature `turn_snapshots`).
   A confirm dialog built on the daemon's dry run: file counts to restore and
   delete, the "shell side effects are not undone" line, and the other live

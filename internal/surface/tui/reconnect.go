@@ -151,6 +151,7 @@ func adoptConnection(m Model, c *client.Client, snap *protocol.Snapshot) Model {
 	m = adoptSessions(m, snap.Sessions)
 	m.Overview = snap.Overview
 	m.Usage = snap.Usage
+	m = adoptSnapshotTools(m, snap.Tools)
 	m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
 	m.Err = ""
 	m.Notice = "reconnected to daemon"

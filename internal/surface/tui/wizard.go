@@ -63,9 +63,12 @@ func openWizard(m Model) (Model, tea.Cmd) {
 		m.Err = "wizard: " + err.Error()
 		return m, nil
 	}
-	visible := visibleTools(reg.Tools)
+	visible, missing := pickerTools(m, reg)
 	if len(visible) == 0 {
 		m.Err = "wizard: no tools enabled"
+		if len(missing) > 0 {
+			m.Err = "wizard: no agent is installed (see Settings → Onboarding)"
+		}
 		return m, nil
 	}
 	w := &WizardState{Step: wizProvider, Tools: visible}
@@ -628,15 +631,23 @@ func renderWizard(m Model) string {
 	case wizProvider:
 		title = styleSlug.Render("which provider?")
 		body = append(body, "")
+		var rows []string
 		for i, t := range m.Wizard.Tools {
-			body = append(body, wizOption(i == m.Wizard.ToolIdx, t.Icon, t.Name, t.Color))
+			rows = append(rows, wizOption(i == m.Wizard.ToolIdx, t.Icon, t.Name, t.Color))
 		}
+		body = append(body, windowLines(rows, m.Wizard.ToolIdx, wizardBodyLines-1)...)
 	case wizModel:
 		title = styleSlug.Render("which model?")
 		body = append(body, "")
+		var rows []string
 		for i, md := range m.Wizard.selectedTool().Models {
-			body = append(body, wizOption(i == m.Wizard.ModelIdx, "", md.Name, ""))
+			row := wizOption(i == m.Wizard.ModelIdx, "", protocol.FlattenDisplayText(md.Name), "")
+			if md.Detected {
+				row += "  " + styleDim.Render("detected") // listed by the tool itself
+			}
+			rows = append(rows, row)
 		}
+		body = append(body, windowLines(rows, m.Wizard.ModelIdx, wizardBodyLines-1)...)
 	case wizEffort:
 		title = styleSlug.Render("reasoning effort?")
 		body = append(body, "")

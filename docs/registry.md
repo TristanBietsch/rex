@@ -45,7 +45,7 @@ State detection (`detect`) selects an adapter that classifies PTY output into se
 3. Merge is by tool `id`. User fields replace builtin scalars when non-empty.
 4. Models merge by model `id` (replace or append).
 5. `enabled_by_default` is **not** merged from user YAML; it applies only on builtin entries.
-6. `trust_prompt`, `trust_args`, `skip_permissions_args`, `skill_args`, `resume`, `status_env`, `models_cmd`, `model_arg_template`, `model_effort`, `prompt_args`, `prompt_paste` and `login_regex` replace the builtin value when set (`prompt_args` and `prompt_paste` replace each other); an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead. A `resume` overlay replaces the whole block (no field-by-field merge).
+6. `trust_prompt`, `trust_args`, `skip_permissions_args`, `skill_args`, `resume`, `status_env`, `models_cmd`, `model_arg_template`, `model_effort`, `prompt_args`, `prompt_paste`, `login_regex` and `install_hint` replace the builtin value when set (`prompt_args` and `prompt_paste` replace each other); an empty value cannot clear it. To stop auto-trust, empty `auto_trust_dirs` instead. A `resume` overlay replaces the whole block (no field-by-field merge).
 7. A partial overlay of a retired built-in tool (`codex`, `gemini`, `ollama`, `grok`, `deepseek`, `kimi`) that has no built-in entry and is not a complete tool definition is dropped with a warning instead of failing the load. The daemon logs the warning at start and on reload, and the TUI splash shows it. Define the tool fully in `tools.yaml` to keep it. Any other invalid tool still fails the load.
 
 Duplicate tool or model ids are rejected at load time.
@@ -64,6 +64,7 @@ Duplicate tool or model ids are rejected at load time.
 | `status_env` | no | `NAME=value` entries added to the child's environment to turn its status channel on (`antigravity`: `["AGY_CLI_OSC7501=on"]`). Needs `detect.status`; names must be plain identifiers. Tools that answer the OSC 7501 query (`qwen`, `grok`) need none |
 | `prompt_args` | no | How the task text reaches the agent on argv, appended after every other argument. Must hold `{prompt}` exactly once; the text stays one argument whatever it holds (spaces, quotes). When `{prompt}` is an element of its own with no `--` before it, a task that starts with `-` gets one space in front so it can never read as an option; after `--`, or inside an element such as `--prompt-interactive={prompt}`, it is passed as is. See [Initial prompt delivery](#initial-prompt-delivery) |
 | `prompt_paste` | no | `{plain: bool, settle_ms: N}`: paste the task into the PTY once output has been quiet for `settle_ms` (0-10000), for REPLs where argv would run one-shot (`ollama`). Exclusive with `prompt_args` |
+| `install_hint` | no | Text shown in Settings → Onboarding next to the tool while its binary is not on `PATH`: a command or URL for the user to read (rex never runs it). Empty: `install <command> and put it on your PATH`. A user `tools.yaml` replaces the built-in hint |
 | `login_regex` | no | Regex on the screen text that shows the agent is signed out. While it is the latest thing shown (no `prompt_regex` match after it) the session is `needs_input` and its last line reads `<id>: not signed in — run `<command> login``. Must compile |
 | `models_cmd` | no | How rex asks the agent for its own model list. See [models_cmd](#models_cmd) |
 | `model_arg_template` | with `models_cmd` | Argv for a detected model, `{model}` replaced by its id: `["--model", "{model}"]`. One element each, never split. Required when `models_cmd` is set |
@@ -148,7 +149,7 @@ Built-in lists: `qwen --list-models` (`Name (id)`, header `MODEL`), `grok models
 
 ### Installed tools
 
-A tool is installed when the first word of `command` is found on the daemon's `PATH` (`exec.LookPath`, which applies `PATHEXT` on Windows). The daemon works this out at start and on every reload and sends it as `installed` on each tool of the `Snapshot` ([protocol.md](protocol.md)). The wizard offers installed tools only; Settings → Onboarding lists the missing ones dimmed with an install hint.
+A tool is installed when the first word of `command` is found on the daemon's `PATH` (`exec.LookPath`, which applies `PATHEXT` on Windows). The daemon works this out at start and on every reload and sends it as `installed` on each tool of the `Snapshot` ([protocol.md](protocol.md)). The new-session wizard and the quick-spawn pickers offer installed tools only (the TUI reads `Snapshot.tools` and `ToolsChanged`); Settings → Onboarding lists the missing ones dimmed with their `install_hint`.
 
 ### trust_prompt
 
@@ -223,7 +224,7 @@ effort:
 
 Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `qwen`, `cursor`, `grok`, `ollama`, `deepseek`, `kimi`. `deepseek` and `kimi` default to `enabled_by_default: false`.
 
-`qwen` (Qwen Code), `cursor` (Cursor CLI, binary `cursor-agent`) and `grok` (Grok Build) are `enabled_by_default: false` for now: the wizard hides them until you enable them in Settings → Onboarding, because the TUI does not yet check `extra_agents` or whether the binary is on `PATH` (the daemon does; see the `installed` flag in [protocol.md](protocol.md)). `qwen` and `grok` report their state on OSC 7501; `cursor` has no status channel, so it uses screen patterns only.
+`qwen` (Qwen Code), `cursor` (Cursor CLI, binary `cursor-agent`) and `grok` (Grok Build) are `enabled_by_default: true`: they are visible when installed. The wizard offers each only while its binary is on the daemon's `PATH` (the `installed` flag in [protocol.md](protocol.md)) and the `extra_agents` feature is on; `rex setup` applies the same rule with its own `PATH`. `qwen` and `grok` report their state on OSC 7501; `cursor` has no status channel, so it uses screen patterns only.
 
 **Permissions and trust of the new agents.** Check the agent's own safety settings before you point it at a folder you care about:
 

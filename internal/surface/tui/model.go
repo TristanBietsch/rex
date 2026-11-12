@@ -171,6 +171,12 @@ type Model struct {
 	BackendUnavailable       bool
 	BackendUnavailableReason string
 
+	// DaemonTools is the daemon's tool list (installed, merged models) from
+	// the Snapshot and ToolsChanged; toolsKnown says it was sent at all (not
+	// from a daemon that predates it: then every tool counts as installed).
+	DaemonTools []protocol.ToolInfo
+	toolsKnown  bool
+
 	// Overview is the daemon's board overview (headline over the buckets the
 	// TUI computes itself), from the Snapshot and Overview events. Nil
 	// until the daemon sends one, and from daemons that predate it.
@@ -334,7 +340,13 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m = adoptSessions(m, snap.Sessions)
 			m.Overview = snap.Overview
 			m.Usage = snap.Usage
+			m = adoptSnapshotTools(m, snap.Tools)
 			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
+		}
+	case protocol.EventToolsChanged:
+		var tc protocol.ToolsChanged
+		if err := json.Unmarshal(env.Data, &tc); err == nil {
+			m = adoptDaemonTools(m, tc.Tools)
 		}
 	case protocol.EventUsage:
 		var u protocol.Usage

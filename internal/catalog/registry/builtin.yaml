@@ -29,6 +29,7 @@ tools:
     name: "Claude Code"
     category: paid
     command: ["claude"]
+    install_hint: "npm install -g @anthropic-ai/claude-code"
     prompt_args: ["--", "{prompt}"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # Skills rex stages for one session load as a plugin folder (this session only).
@@ -84,6 +85,7 @@ tools:
     name: "OpenAI Codex"
     category: paid
     command: ["codex"]
+    install_hint: "npm install -g @openai/codex"
     prompt_args: ["--", "{prompt}"]
     detect:
       kind: heuristic
@@ -234,6 +236,7 @@ tools:
     name: "Ollama (local)"
     category: self_hosted
     command: ["ollama", "run"]
+    install_hint: "download from https://ollama.com"
     # run MODEL PROMPT is one-shot, so the task is pasted into the REPL.
     prompt_paste: {plain: true, settle_ms: 800}
     detect:
@@ -270,10 +273,11 @@ tools:
   - id: qwen
     name: "Qwen Code"
     category: paid
-    # Hidden from the wizard until the TUI honors extra_agents and Installed
-    # (round-2 follow-up); turn on in Settings → Onboarding.
-    enabled_by_default: false
+    # Visible when installed: the wizard offers it only while its binary is on
+    # PATH and the extra_agents feature is on.
+    enabled_by_default: true
     command: ["qwen"]
+    install_hint: "npm install -g @qwen-code/qwen-code"
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # --prompt-interactive keeps the session interactive (a bare positional
     # prompt is one-shot); the = form keeps a prompt that starts with "-" a value.
@@ -321,9 +325,9 @@ tools:
   - id: cursor
     name: "Cursor CLI"
     category: paid
-    # Hidden from the wizard until the TUI honors extra_agents and Installed
-    # (round-2 follow-up); turn on in Settings → Onboarding.
-    enabled_by_default: false
+    # Visible when installed: the wizard offers it only while its binary is on
+    # PATH and the extra_agents feature is on.
+    enabled_by_default: true
     command: ["cursor-agent"]
     skip_permissions_args: ["--yolo"]
     prompt_args: ["{prompt}"]
@@ -358,9 +362,9 @@ tools:
   - id: grok
     name: "Grok Build"
     category: paid
-    # Hidden from the wizard until the TUI honors extra_agents and Installed
-    # (round-2 follow-up); turn on in Settings → Onboarding.
-    enabled_by_default: false
+    # Visible when installed: the wizard offers it only while its binary is on
+    # PATH and the extra_agents feature is on.
+    enabled_by_default: true
     command: ["grok"]
     skip_permissions_args: ["--always-approve"]
     prompt_args: ["{prompt}"]

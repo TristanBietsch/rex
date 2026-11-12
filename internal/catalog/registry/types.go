@@ -14,7 +14,11 @@ type Tool struct {
 	Icon             string   `yaml:"icon"`
 	Color            string   `yaml:"color"`
 	EnabledByDefault *bool    `yaml:"enabled_by_default,omitempty"`
-	Models           []Model  `yaml:"models"`
+	// InstallHint is shown in Settings → Onboarding next to a tool whose
+	// binary is not on PATH (a command or a URL to read, never run by rex).
+	// Empty: "install <command> and put it on your PATH".
+	InstallHint string  `yaml:"install_hint,omitempty"`
+	Models      []Model `yaml:"models"`
 	// TrustPrompt describes the agent's folder-trust dialog so the daemon
 	// can accept it for sessions under auto_trust_dirs. nil: no dialog.
 	TrustPrompt *TrustPrompt `yaml:"trust_prompt,omitempty"`

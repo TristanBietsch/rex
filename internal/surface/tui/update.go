@@ -279,6 +279,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Sessions = msg.Snap.Sessions
 		m.Overview = msg.Snap.Overview
 		m.Usage = msg.Snap.Usage
+		m = adoptSnapshotTools(m, msg.Snap.Tools)
 		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
