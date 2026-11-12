@@ -13,8 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `rex new -name`, to set one.
 - Registry: how the first prompt reaches an agent is now data
   (`prompt_args`, `prompt_paste`) instead of a switch on the tool id; the
-  built-in tools behave as before. `trust_args` no longer has to contain
-  `{cwd_list}`. A user tool that relied on the id switch for `claude`,
+  built-in tools behave as before. `trust_args` still has to contain
+  `{cwd_list}`, unless the tool sets the new `trust_args_global: true` (a
+  switch that covers the whole run, as qwen's does). A user tool that relied on the id switch for `claude`,
   `codex`, `antigravity`, `gemini` or `ollama` under another id must now set
   `prompt_args` or `prompt_paste`.
 - TUI: the screensaver also starts when an overlay, prompt, the new-session
