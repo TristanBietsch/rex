@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -138,7 +139,10 @@ func stubTool(t *testing.T, dir, name, body string, mc ModelsCmd) Tool {
 	if runtime.GOOS == "windows" {
 		t.Skip("model-list stubs are POSIX shell scripts")
 	}
-	stubBinary(t, dir, name, body)
+	stubBinary(t, dir, name, "[ \"$REX_STUB_WARM\" = 1 ] && exit 0\n"+body)
+	warm := exec.Command(filepath.Join(dir, name)) //nolint:gosec // our own stub
+	warm.Env = append(os.Environ(), "REX_STUB_WARM=1")
+	require.NoError(t, warm.Run()) // pay the first-run cost (the OS scans a fresh script) before timeouts matter
 	// A fresh script can take seconds to run the first time on a loaded
 	// machine (the OS scans it); keep the default timeout out of the way.
 	if mc.TimeoutMs == 0 {
