@@ -72,6 +72,11 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) View() string {
+	return m.viewBody()
+}
+
+// viewBody renders the layout area.
+func (m Model) viewBody() string {
 	if m.Quitting {
 		return ""
 	}

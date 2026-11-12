@@ -36,13 +36,17 @@ const (
 
 // Model is the root Bubble Tea model.
 type Model struct {
-	Client     *client.Client
-	Socket     string // path to daemon UDS, forwarded to child `rex attach`
-	Focus      Focus
-	Width      int
-	Height     int
-	Sessions   []protocol.SessionSummary
-	SelectedID string
+	Client *client.Client
+	Socket string // path to daemon UDS, forwarded to child `rex attach`
+	Focus  Focus
+	// Width and Height are the layout area every view draws in. TermW and
+	// TermH are the terminal size; the area is smaller by the window frame
+	// when one is shown (frame.go). TermW is 0 for a model built without a
+	// WindowSizeMsg (tests, rex render): then there is never a frame.
+	Width, Height int
+	TermW, TermH  int
+	Sessions      []protocol.SessionSummary
+	SelectedID    string
 	// PendingSelectSlug is the slug of a session this TUI just asked the
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string
