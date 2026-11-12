@@ -72,6 +72,11 @@ var (
 	// styleFleet is the fleet bar's style by fleetColor index.
 	styleFleet []lipgloss.Style
 
+	// Quota meter levels (usage page and header): below 60%, below 85%, above.
+	styleQuotaOK     lipgloss.Style
+	styleQuotaWarn   lipgloss.Style
+	styleQuotaDanger lipgloss.Style
+
 	styleChipActive lipgloss.Style
 	styleChipDim    lipgloss.Style
 	styleChipSep    lipgloss.Style
@@ -191,6 +196,10 @@ func rebuildStyles() {
 	for i, c := range colorFleet {
 		styleFleet[i] = fg(c)
 	}
+
+	styleQuotaOK = fg(colorSuccess)
+	styleQuotaWarn = fg(colorWarn)
+	styleQuotaDanger = fg(colorDanger)
 
 	styleChipActive = fg(colorFgPrimary)
 	styleChipDim = quiet(colorFgDim)

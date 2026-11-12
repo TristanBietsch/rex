@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -65,9 +66,12 @@ func openWizard(m Model) (Model, tea.Cmd) {
 		m.Err = "wizard: " + err.Error()
 		return m, nil
 	}
-	visible := visibleTools(reg.Tools)
+	visible, missing := pickerTools(m, reg)
 	if len(visible) == 0 {
 		m.Err = "wizard: no tools enabled"
+		if len(missing) > 0 {
+			m.Err = "wizard: no agent is installed (see Settings → Onboarding)"
+		}
 		return m, nil
 	}
 	w := &WizardState{Step: wizProvider, Tools: visible}
@@ -81,6 +85,9 @@ func openWizard(m Model) (Model, tea.Cmd) {
 	}
 	presetModelDefault(w)
 	presetEffortDefault(w)
+	if w.SpawnTool != "" && !slices.ContainsFunc(visible, func(t registry.Tool) bool { return t.ID == w.SpawnTool }) {
+		m.Notice = unavailableNotice(w.SpawnTool, visible[0].ID)
+	}
 	m.Wizard = w
 	m.Focus = FocusWizard
 	if m.Audio != nil {
@@ -250,6 +257,15 @@ func (w *WizardState) stepApplies(step wizardStep) bool {
 	return false
 }
 
+// effortOptions are the chosen model's effort options, none when it has no
+// effort block.
+func (w *WizardState) effortOptions() []string {
+	if e := w.selectedModel().Effort; e != nil {
+		return e.Options
+	}
+	return nil
+}
+
 func (w *WizardState) currentEffort() string {
 	m := w.selectedModel()
 	if m.Effort == nil || len(m.Effort.Options) == 0 {
@@ -364,7 +380,7 @@ func moveWizard(m Model, delta int) Model {
 			moved = true
 		}
 	case wizEffort:
-		opts := m.Wizard.selectedModel().Effort.Options
+		opts := m.Wizard.effortOptions()
 		next := m.Wizard.EffortIdx + delta
 		if next >= 0 && next < len(opts) {
 			m.Wizard.EffortIdx = next
@@ -637,19 +653,27 @@ func renderWizard(m Model) string {
 	case wizProvider:
 		title = styleSlug.Render("which provider?")
 		body = append(body, "")
+		var rows []string
 		for i, t := range m.Wizard.Tools {
-			body = append(body, wizOption(i == m.Wizard.ToolIdx, t.Icon, t.Name, t.Color))
+			rows = append(rows, wizOption(i == m.Wizard.ToolIdx, t.Icon, t.Name, t.Color))
 		}
+		body = append(body, windowLines(rows, m.Wizard.ToolIdx, wizardBodyLines-1)...)
 	case wizModel:
 		title = styleSlug.Render("which model?")
 		body = append(body, "")
+		var rows []string
 		for i, md := range m.Wizard.selectedTool().Models {
-			body = append(body, wizOption(i == m.Wizard.ModelIdx, "", md.Name, ""))
+			row := wizOption(i == m.Wizard.ModelIdx, "", protocol.FlattenDisplayText(md.Name), "")
+			if md.Detected {
+				row += "  " + styleDim.Render("detected") // listed by the tool itself
+			}
+			rows = append(rows, row)
 		}
+		body = append(body, windowLines(rows, m.Wizard.ModelIdx, wizardBodyLines-1)...)
 	case wizEffort:
 		title = styleSlug.Render("reasoning effort?")
 		body = append(body, "")
-		opts := m.Wizard.selectedModel().Effort.Options
+		opts := m.Wizard.effortOptions()
 		for i, opt := range opts {
 			body = append(body, wizOption(i == m.Wizard.EffortIdx, "", opt, ""))
 		}

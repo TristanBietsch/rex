@@ -230,9 +230,14 @@ var Registry = []Setting{
 		Help: "How rex reads Claude Code's plan usage: it adds a status line that passes your own through unchanged. auto: only when you already have a status line (Claude hides its footer hints once one is set, and rex never changes that on its own). on: always. off: never; Claude rows use rex's own estimate. Needs usage on. Read at each spawn.",
 	},
 	{
+		ID: "usage_meter", Label: "Usage meter in the header", Section: SectionFeatures, Apply: ApplyLive,
+		Type: TypeEnum, Default: "compact", Options: []string{"off", "compact", "full"},
+		Help: "The right side of the header's top row: the worst quota window of each agent that has a live session, as a 5-cell bar and a percent (compact), or every window with its reset time (full). It drops before the counts when the row is short, and a click opens :usage. Needs usage on. off: no meter.",
+	},
+	{
 		ID: "extra_agents", Label: "Extra agents", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. For now the three stay hidden in the wizard until you enable them in Onboarding (the wizard does not yet check this switch or your PATH). Off: the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
+		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. The new-session wizard offers each one only while its binary is on PATH; Settings → Onboarding lists the missing ones with an install hint. Off: the three never show in the wizard or the pickers, and the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
 	},
 	{
 		ID: "model_autodetect", Label: "Model auto-detect", Section: SectionFeatures, Apply: ApplyLive,

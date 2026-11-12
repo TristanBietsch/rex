@@ -56,7 +56,8 @@ var applyModeOf = map[string]ApplyMode{
 	// SettingsHub subscribers (cmd/rex-daemon/main.go).
 	"board_filter": ApplyLive, "search": ApplyLive, "undo_complete": ApplyLive, "summary_preview": ApplyLive, "summary_schedule": ApplyLive,
 	"waiting_section": ApplyLive, "timestamps": ApplyLive, "cli_agent_auto": ApplyLive, "session_export": ApplyLive,
-	"turn_snapshots": ApplyLive, "usage": ApplyLive, "live_reload": ApplyLive, "loops": ApplyLive,
+	"turn_snapshots": ApplyLive, "usage": ApplyLive, "usage_meter": ApplyLive, // the TUI reads usage_meter on every frame
+	"live_reload": ApplyLive, "loops": ApplyLive,
 	"extra_agents": ApplyLive, "model_autodetect": ApplyLive, // catalog applier subscribes to both
 	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive,
 	"summary_detail": ApplyLive, "overview_enabled": ApplyLive, "cli_error_log": ApplyLive,

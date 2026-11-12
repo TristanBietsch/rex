@@ -60,6 +60,13 @@ func settingsDetail(m Model, s settings.Setting, inner, helpN int, expanded bool
 	if s.ReadOnly {
 		l1 += sep + styleMuted.Render("read-only")
 	}
+	if r, ok := onboardRowOf(m.Settings, s.ID); ok {
+		// An Onboarding row is not a stored setting: no id or default.
+		l1 = styleDim.Render("command ") + stylePrimary.Render(r.command()) + sep + styleMuted.Render("not on PATH")
+	}
+	if cur, ok := detectedModel(m, s.ID); ok && cur {
+		l1 += sep + styleMuted.Render("detected")
+	}
 	out := []string{ansi.Truncate(l1, inner, "…")}
 
 	// Options, or the range, or nothing.

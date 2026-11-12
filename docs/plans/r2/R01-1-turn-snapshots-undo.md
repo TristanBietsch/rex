@@ -47,7 +47,7 @@
 1. **R01-1-1 `snapshot` package.** `internal/features/snapshot`: `Store{root string}`, `Capture(ctx, cwd, sessionID string, phase Phase) (Tree, error)`, `Restore(ctx, cwd string, to Tree, opts RestoreOpts) (Result, error)`, `Changed(ctx, cwd string, a, b Tree) ([]FileChange, error)`. Git env built in one function `gitEnv(shadow, cwd, session)`. Tests (real `git` in `t.TempDir()`; skip if no git): capture/restore round trip; ignored file untouched by restore; file created by the turn removed; >2 MiB untracked skipped; user repo's `HEAD`, index and refs byte-identical before and after (`TestUserRepoUntouched`); user's global git hooks not run (stub `core.hooksPath` in a fake HOME).
 2. **R01-1-2 Daemon wiring + flag.** Subscriber on store events → per-folder worker queue; ledger writes; 10 s cap; flag check. Tests: echo-tool session produces start/end captures; flag off → no shadow dir created; capture failure does not change session state.
 3. **R01-1-3 Undo/redo intents.** `Undo{session, turns, force}`, `Redo{session}` (additive) → `UndoResult{restored, deleted []string, safety Tree}`. Tests: refuse while working; refuse with another live session in the folder unless force; safety capture allows redo; redo dropped after a new turn; old daemon → `bad_intent`.
-4. **R01-1-4 TUI + CLI.** (TUI part deferred: round 1 is restyling the TUI; only the CLI shipped. `:undo` / `:redo` and the dialog goldens come later.) `:undo`, `:redo`, confirm dialog listing file counts and the "shell effects are not undone" line; `rex undo|redo <sel> [--turns N] [--force] [-o …]`. Goldens for the dialog.
+4. **R01-1-4 TUI + CLI.** (The TUI part shipped after the CLI, see "TUI wiring" in the Build notes.) `:undo`, `:redo`, confirm dialog listing file counts and the "shell effects are not undone" line; `rex undo|redo <sel> [--turns N] [--force] [-o …]`. Goldens for the dialog.
 5. **R01-1-5 Retention + doctor.** Ref cleanup, daily gc, size cap; `rex doctor` shows store size per folder and whether `git` is found. Tests: retention removes refs of long-pruned sessions only.
 6. **R01-1-6 Docs.** `docs/snapshots.md` (new), `docs/paths.md`, `docs/tui.md`, `docs/cli.md`, SECURITY.md (snapshots hold file contents, incl. untracked secrets like `.env` unless ignored), CHANGELOG.
 
@@ -110,3 +110,13 @@ Deviations from the spec:
 - **Names**: `excludeLine` writes `?` for a newline (over-matches, the safe side). A case-only rename (macOS, Windows) is recognized by lowercase path and `os.SameFile` and is not a blocker.
 - **Performance** (`TestCapturePerformanceWithManyIgnoredFiles`, 50,000 individually ignored `*.o` files in 500 folders, one repo, macOS APFS): first capture about 2.8 s, a later capture about 1.5 s, a dry-run plan about 1.5 s. (10,000 files by default: 0.25 s, 0.18 s, 0.17 s; `REX_SNAPSHOT_PERF=full` runs the 50,000-file case). git matches the literal exclude lines quickly, so lines are not collapsed by parent folder.
 - `begin` checks the worktree with `rev-parse` only; the ignore listing runs once per capture or plan.
+
+### TUI wiring (feat/tui-wiring-a)
+
+R01-1-4's TUI part is built: `internal/surface/tui/undo_dialog.go`, `:undo [sel] [-turns N]` and `:redo [sel]` (command-table rows, flag `turn_snapshots`).
+
+- The dialog calls the daemon through `undoDoer` (`Do`, which `*client.Client` satisfies; tests swap a fake). The phases are planning (dry run), shared (force or cancel), confirm, running, done. Each request has a sequence number, so a reply for a closed dialog is dropped; `esc` during the dry run just lets go of it, and no real call can start before `y`.
+- Force is offered only when the dry run is refused with the daemon's "another live session" `bad_state` message; the forced dry run then shows the confirmation. If the guard trips again after force, it is a status-line notice, not another prompt.
+- Every other daemon refusal (working, no repo, nothing to undo, blocked paths, `off:`, unknown session) closes the dialog and shows the daemon's text as `undo: ...`. A failure of the real call stays in the dialog (the folder may be part way; `:redo` recovers).
+- Deviations: `:undo` takes `-turns N` as the CLI does (not a bare number, which would clash with short ids); the file lists are cut at 6 names per kind with `… and N more`; there is no `-yes` (the dialog is the confirmation).
+- Goldens: `undo_confirm`, `undo_shared`, `undo_forced`, `undo_done` at 80x24, 120x40 and 50x30 (mobile). `help` and `help_filtered` gained the two command rows.

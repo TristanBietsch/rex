@@ -184,6 +184,9 @@ func mergeOne(base, over Tool) Tool {
 	if over.LoginRegex != "" {
 		merged.LoginRegex = over.LoginRegex
 	}
+	if over.InstallHint != "" {
+		merged.InstallHint = over.InstallHint
+	}
 	// Models: extend by id rather than replace.
 	if len(over.Models) > 0 {
 		mi := make(map[string]int, len(merged.Models))

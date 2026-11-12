@@ -40,7 +40,7 @@ func TestSpawnSessionCmd_SendsSize(t *testing.T) {
 	require.NoError(t, store.Set("default_spawn_tool", "claude"))
 	require.NoError(t, store.Set("default_spawn_model", "opus"))
 	fake := &recordingClient{}
-	require.Nil(t, spawnSessionCmd(fake, store, nil, "x", 177, 44)())
+	require.Nil(t, spawnSessionCmd(fake, storeChoice(store), nil, "x", 177, 44)())
 	require.NotNil(t, fake.last)
 	require.Equal(t, [2]uint16{177, 44}, [2]uint16{fake.last.Cols, fake.last.Rows})
 }
