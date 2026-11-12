@@ -273,8 +273,9 @@ type ClaudeHooks struct {
 	subWaitSince time.Time
 	prompts      int // UserPromptSubmit count; survives a truncated file
 	// fg holds the running subagents started by the open Task wait (a
-	// foreground subagent); a main-thread wait- clears it, as any subagent
-	// still running then outlived its Task call (a background subagent).
+	// foreground subagent). It is cleared when that wait ends for good
+	// (clearWait): a subagent still running then outlived its Task call
+	// (a background subagent).
 	fg map[string]bool
 	// escAt is when the user last pressed an interrupt key (UserInterrupt),
 	// zero when none is pending. Any main-thread hook line clears it: the
@@ -344,9 +345,8 @@ func (a *ClaudeHooks) sync() {
 // on in the background: the session parks on it, as after a Stop, so it
 // is WAITING until the last one ends and READY once. Callers hold mu.
 func (a *ClaudeHooks) interrupt(esc time.Time) {
-	fgWait := a.waitOn == protocol.WaitSubagent && !a.waitEnding
 	for id := range a.fg {
-		if seen, ok := a.agents[id]; ok && fgWait && seen.Before(esc) {
+		if seen, ok := a.agents[id]; ok && seen.Before(esc) {
 			delete(a.agents, id) // not dropAgent: no wake for a killed subagent
 		}
 	}
@@ -366,6 +366,9 @@ func (a *ClaudeHooks) UserInterrupt() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.read()
+	if a.parked || a.last != protocol.StateWorking {
+		return // the main turn already ended: nothing to interrupt
+	}
 	a.escAt = a.now()
 }
 
@@ -436,6 +439,7 @@ func (a *ClaudeHooks) Waiting() (string, time.Time) {
 // clearWait ends the tool wait. Callers hold mu.
 func (a *ClaudeHooks) clearWait() {
 	a.waitOn, a.waitSince, a.waitEnding = "", time.Time{}, false
+	clear(a.fg)
 }
 
 // runningAgents counts subagents, dropping any quiet for subagentQuiet.
@@ -591,7 +595,6 @@ func (a *ClaudeHooks) apply(line string) {
 	case hookWaitEnd:
 		a.unpark() // main-thread activity
 		a.escAt = time.Time{}
-		clear(a.fg) // a subagent still running outlived its Task call
 		// One of several parallel Task calls ending leaves the wait on
 		// while other subagents run; the last stop (or a quiet timeout)
 		// ends it.

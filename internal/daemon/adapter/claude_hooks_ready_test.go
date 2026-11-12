@@ -336,3 +336,57 @@ func TestClaudeHooks_EscAtReadyThenPrompt(t *testing.T) {
 	*now = now.Add(time.Minute)
 	require.Equal(t, protocol.StateWorking, a.Detect(nil, time.Minute), "the old Esc does not end the new turn")
 }
+
+// Esc during a fan-out of two Task calls, one already returned: both
+// killed subagents stop counting.
+func TestClaudeHooks_EscDuringTaskFanOut(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt",
+		"working\nwait+ subagent", "agent+ a",
+		"working\nwait+ subagent", "agent+ b",
+		"working\nwait-", // one Task call returned, both subagents run on
+	)
+	require.Equal(t, 2, a.Subagents()) // read the lines before the Esc
+	*now = now.Add(time.Second)
+	a.UserInterrupt()
+	r := &readyEdges{a: a, last: protocol.StateWorking}
+	require.Equal(t, escBound, escTicks(r, now, time.Minute))
+	require.Equal(t, 1, r.edges)
+	require.Zero(t, a.Subagents())
+}
+
+// Esc during a Task call with a Bash call in parallel (the shell wait took
+// the slot): the killed subagent still stops counting.
+func TestClaudeHooks_EscTaskAndBashParallel(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt", "working\nwait+ subagent", "agent+ a", "working\nwait+ shell")
+	require.Equal(t, 1, a.Subagents()) // read the lines before the Esc
+	*now = now.Add(time.Second)
+	a.UserInterrupt()
+	r := &readyEdges{a: a, last: protocol.StateWorking}
+	require.Equal(t, escBound, escTicks(r, now, time.Minute))
+	require.Zero(t, a.Subagents())
+}
+
+// An Esc while parked on a background subagent (the main turn ended)
+// interrupts nothing, even after the subagent's own working word.
+func TestClaudeHooks_EscWhileParkedIgnored(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "agent+ bg", "needs_input\nturn-done", "working\nagent~ bg")
+	a.UserInterrupt()
+	*now = now.Add(time.Minute)
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, time.Minute))
+	require.Equal(t, 1, a.Subagents())
+	require.True(t, a.escAt.IsZero())
+}
+
+// A truncated hook file drops a pending Esc.
+func TestClaudeHooks_TruncateDropsEsc(t *testing.T) {
+	a, path, now := waitingAdapter(t)
+	replay(t, path, "working\nwait-\nprompt", "working\nwait+ shell")
+	a.UserInterrupt()
+	truncate(t, path)
+	replay(t, path, "working")
+	*now = now.Add(escBound)
+	require.Equal(t, protocol.StateWorking, a.Detect(nil, time.Second))
+}
