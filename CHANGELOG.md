@@ -239,6 +239,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: settings (`S`, `:settings`) and help (`?`, `:help`) open as
+  full-screen pages that look like the board: the `∴ REX` header with the
+  cursor row or the search in it, dividers, a hint row, and no board behind
+  them. A section (or help group) list sits on the left and the rows on the
+  right; settings keep their detail pane under both, and a search or filter
+  spans every section. `tab` switches panes, `1`–`9` and `[` / `]` pick a
+  section, `q` closes. Under 60 columns the list becomes a one-line strip.
+  Errors, such as a row `config.lua` locks, show on the bottom line, also
+  with `show_help_bar` off. `::settings` and `::help` while attached detach
+  first, as before. Turn `fullscreen_pages` (Features) off to get the
+  floating overlays back.
+- Three bundled themes: `dracula`, `tokyo_night` and `pantone_safe` (state
+  colors from the colorblind-safe border swatches). They are theme files
+  built into rex: a file of your own with the same name replaces one, and
+  `extends:` and `rex theme new -from` still take only the six built-ins.
+  The theme pickers list each name once.
 - `config.lua` (Settings → Features → *Lua config*, on, and inert without the
   file): set settings and themes in `~/.config/rex/config.lua` with
   `rex.set("theme", "noir")` and `rex.theme("mine", { extends = "noir",

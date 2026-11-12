@@ -23,7 +23,7 @@ Commands run in the TUI process. Some call the daemon over the TUI's socket; a f
 | `q`, `quit` | — | Confirm quit |
 | `q!` | — | Quit without confirm |
 | `bg`, `detach` | — | Save TUI state and exit |
-| `help` | — | Help overlay |
+| `help` | — | Help page |
 | `settings` | — | Settings page |
 | `reload` | — | Reload now, whatever `live_reload` says: sends a `Reload` request to the daemon (it re-reads `tools.yaml`, then `config.yaml`), and the TUI re-reads `config.yaml` and the theme files itself and applies what changed. A `config.yaml` that fails to parse keeps the previous values and says so on the status line |
 | `theme` | `[name]` | Set the theme: a built-in, `auto`, or one of your theme files. It applies at once and is saved to `config.yaml`. No name: the next theme in the list. An unknown name is an error that lists the names. See [themes.md](themes.md) |
