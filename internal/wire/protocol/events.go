@@ -137,6 +137,29 @@ type Snapshot struct {
 	// Usage is the daemon's live usage quotas. Nil while usage is off or
 	// nothing was published yet, and from daemons that predate it.
 	Usage *Usage `json:"usage,omitempty"`
+	// Tools is the daemon's tool registry as a client needs it for the
+	// new-session wizard and Settings: whether each binary is on the daemon's
+	// PATH and each tool's models (detected ones merged with the static list).
+	// Absent from daemons that predate it; treat every tool as installed then.
+	Tools []ToolInfo `json:"tools,omitempty"`
+}
+
+// ToolInfo is one registry tool as the daemon sees it.
+type ToolInfo struct {
+	ID string `json:"id"`
+	// Installed is whether the tool's binary is on the daemon's PATH. Computed
+	// at daemon start and on every reload.
+	Installed bool        `json:"installed"`
+	Models    []ModelInfo `json:"models,omitempty"`
+}
+
+// ModelInfo is one model a tool offers.
+type ModelInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Detected is true for a model found by the tool's own model-list command
+	// (as opposed to the registry's static list).
+	Detected bool `json:"detected,omitempty"`
 }
 
 // Ack is the success reply to an intent that carried an envelope ID. The

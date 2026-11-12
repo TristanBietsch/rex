@@ -142,9 +142,12 @@ type Server struct {
 	// cfg is immutable after New: handlers copy it without locking. Live
 	// settings live elsewhere — the concurrency cap in gate, the SIGHUP-swapped
 	// registry in reg.
-	cfg  Config
-	reg  atomic.Pointer[registry.Registry]
-	gate *concurrencyGate
+	cfg Config
+	reg atomic.Pointer[registry.Registry]
+	// tools is the wire form of reg (installed flags, merged models), rebuilt
+	// with it so a Hello does not probe PATH.
+	tools atomic.Pointer[[]protocol.ToolInfo]
+	gate  *concurrencyGate
 	// wg tracks the connection handlers and the retire reaper. Serve waits
 	// for it before it waits for sessions, so no handler can start a
 	// supervisor (sessions.Add) once sessions.Wait has begun.
@@ -234,7 +237,35 @@ type Server struct {
 // SetRegistry atomically swaps the registry used for future spawns.
 // Existing sessions are unaffected.
 func (s *Server) SetRegistry(reg *registry.Registry) {
+	infos := toolInfos(reg)
 	s.reg.Store(reg)
+	s.tools.Store(&infos)
+}
+
+// ToolInfos returns the current registry in wire form: whether each binary is
+// on PATH (probed when the registry was set) and each tool's models.
+func (s *Server) ToolInfos() []protocol.ToolInfo {
+	if p := s.tools.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// toolInfos is reg as protocol.ToolInfo.
+func toolInfos(reg *registry.Registry) []protocol.ToolInfo {
+	if reg == nil {
+		return nil
+	}
+	installed := reg.InstalledMap()
+	out := make([]protocol.ToolInfo, len(reg.Tools))
+	for i, t := range reg.Tools {
+		ti := protocol.ToolInfo{ID: t.ID, Installed: installed[t.ID]}
+		for _, m := range t.Models {
+			ti.Models = append(ti.Models, protocol.ModelInfo{ID: m.ID, Name: m.Name, Detected: m.Detected})
+		}
+		out[i] = ti
+	}
+	return out
 }
 
 // Registry returns the current registry.
@@ -264,7 +295,7 @@ func New(cfg Config) (*Server, error) {
 		handlers: defaultHandlers(),
 		ownerUID: os.Getuid(),
 	}
-	s.reg.Store(cfg.Registry)
+	s.SetRegistry(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
 	// Registry() / MaxConcurrentSessions() so nobody uses a stale copy.
 	s.cfg.Registry = nil

@@ -116,6 +116,8 @@ type Model struct {
 	Args       []string `yaml:"args,omitempty"`
 	ArgsPrompt string   `yaml:"args_prompt,omitempty"` // free-form value asked at launch
 	Effort     *Effort  `yaml:"effort,omitempty"`
+	// Detected marks a model found by the tool's models_cmd (never set in YAML).
+	Detected bool `yaml:"-"`
 }
 
 // Effort is an optional reasoning-effort spec.
