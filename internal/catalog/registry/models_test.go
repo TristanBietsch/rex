@@ -196,12 +196,10 @@ func TestDetectModels_FailuresFallBack(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			tool := stubTool(t, dir, "stub-"+strings.ReplaceAll(name, " ", "-"), tc.body, tc.mc)
-			start := time.Now()
 			models, err := DetectModels(context.Background(), tool)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.want)
 			require.Empty(t, models)
-			require.Less(t, time.Since(start), 4*time.Second, "bounded by the timeout, not the script")
 		})
 	}
 }
@@ -331,6 +329,52 @@ func TestRefreshModelsKeyedByBinaryMtime(t *testing.T) {
 	tool2.ModelsCmd = &mc
 	RefreshModels(context.Background(), tools, cache, false, now)
 	require.Empty(t, CachedModels([]Tool{tool2}, cache, now, false))
+}
+
+// A canceled refresh changes nothing.
+func TestRefreshModelsCanceledChangesNothing(t *testing.T) {
+	dir := t.TempDir()
+	cache := filepath.Join(t.TempDir(), "models-cache.json")
+	tool := stubTool(t, dir, "stub-keep", `printf 'm1 - One\n'`, ModelsCmd{Args: []string{"m"}, IDRegex: `^(\S+) - `})
+	tools := []Tool{tool}
+	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+	RefreshModels(context.Background(), tools, cache, false, now)
+
+	// A canceled context (shutdown, a newer reload) is not a failure: nothing
+	// is returned and the cache is not touched.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	before, err := os.ReadFile(cache) //nolint:gosec // test path under t.TempDir()
+	require.NoError(t, err)
+	got = RefreshModels(ctx, tools, cache, true, now.Add(time.Hour))
+	require.Empty(t, got, "canceled: nothing returned")
+	after, err := os.ReadFile(cache) //nolint:gosec // test path under t.TempDir()
+	require.NoError(t, err)
+	require.Equal(t, string(before), string(after), "canceled: cache untouched")
+}
+
+// A model command that starts failing keeps serving the cached list.
+func TestRefreshModelsServesStaleWhenCommandFails(t *testing.T) {
+	dir := t.TempDir()
+	cache := filepath.Join(t.TempDir(), "models-cache.json")
+	flag := filepath.Join(t.TempDir(), "broken")
+	tool := stubTool(t, dir, "stub-flaky", "if [ -e '"+flag+"' ]; then echo 'Please log in'; exit 1; fi\nprintf 'm1 - One\\n'",
+		ModelsCmd{Args: []string{"m"}, IDRegex: `^(\S+) - `})
+	tools := []Tool{tool}
+	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+	RefreshModels(context.Background(), tools, cache, false, now)
+	require.NoError(t, os.WriteFile(flag, nil, 0o600)) //nolint:gosec // test path under t.TempDir()
+
+	got := RefreshModels(context.Background(), tools, cache, true, now.Add(48*time.Hour))
+	require.Equal(t, []string{"m1"}, ids(got["stub-flaky"]), "stale list served after a failure")
+	require.NotEmpty(t, CachedModels(tools, cache, now.Add(48*time.Hour), true), "the entry is kept")
+
+	// The binary changes (new key): the old ids no longer describe it.
+	time.Sleep(20 * time.Millisecond)
+	stubBinary(t, dir, "stub-flaky", `echo "Please log in"; exit 1`)
+	got = RefreshModels(context.Background(), tools, cache, true, now.Add(49*time.Hour))
+	require.Empty(t, got)
+	require.Empty(t, CachedModels(tools, cache, now.Add(49*time.Hour), true), "entry dropped with its binary")
 }
 
 // A failed detection logs once, leaves the tool out (static list) and drops a

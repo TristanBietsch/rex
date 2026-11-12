@@ -181,6 +181,19 @@ func RefreshModels(ctx context.Context, tools []Tool, path string, force bool, n
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
+				if ctx.Err() != nil {
+					return // canceled or shutting down: not a failure, change nothing
+				}
+				// Keep the last good list while the binary and command are the
+				// ones it was fetched for (served stale); drop it only when
+				// they changed, since its ids then describe another tool.
+				if have && entryValid(e, t, now, true) {
+					slog.Warn("models: detection failed, keeping the last list", "tool", t.ID, "err", err)
+					if m := entryModels(t, e); len(m) > 0 {
+						out[t.ID] = m
+					}
+					return
+				}
 				slog.Warn("models: detection failed, using the static list", "tool", t.ID, "err", err)
 				if have {
 					delete(cache.Tools, t.ID)
