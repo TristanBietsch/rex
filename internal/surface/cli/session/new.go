@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -33,6 +34,7 @@ func RunNew(args []string) error {
 	name := fs.String("name", "", "display name (optional; the slug is shown when empty)")
 	var skillNames core.StringList
 	fs.Var(&skillNames, "skill", "skill from ~/.config/rex/skills to load into this session (repeatable; see `rex skills`)")
+	trust := fs.Bool("trust", false, "trust the working folder for this session only (answers the agent's trust dialog; nothing is saved, see `rex trust` to save it)")
 	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
 	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")
 	rest, err := out.ParseText(fs, args, 0)
@@ -54,6 +56,9 @@ func RunNew(args []string) error {
 		return err
 	}
 	*cwd = absCwd
+	if err := checkNewTrust(*trust, absCwd); err != nil {
+		return err
+	}
 
 	// Prompt = positional args joined, or stdin if not a TTY
 	prompt := strings.Join(rest, " ")
@@ -97,7 +102,7 @@ func RunNew(args []string) error {
 	req := protocol.NewSession{
 		ToolID: *tool, ModelID: *model, Effort: *effort,
 		Slug: *slug, Title: prompt, CWD: *cwd, InitialPrompt: prompt,
-		Fleet: *fleet, Name: *name, Skills: skillNames,
+		Fleet: *fleet, Name: *name, Skills: skillNames, TrustFolder: *trust,
 	}
 	// Start the agent at this terminal's size when there is one, so `rex
 	// attach` from it needs no first resize (0, 0 lets the daemon choose).
@@ -164,6 +169,18 @@ func checkNewExtras(name string, skillNames []string) (string, error) {
 		return "", core.NewExitError(core.ExitInvalidArgs, "new: -skill: "+err.Error())
 	}
 	return norm, nil
+}
+
+// checkNewTrust refuses -trust for a folder the daemon would refuse (home,
+// an ancestor of home, a filesystem root), before anything is sent.
+func checkNewTrust(trust bool, cwd string) error {
+	if !trust {
+		return nil
+	}
+	if _, err := settings.TrustDir(cwd); err != nil {
+		return core.Errorf(core.ExitInvalidArgs, "rex new -cwd <project folder> -trust", "new: -trust: %w", err)
+	}
+	return nil
 }
 
 // ignoredByDaemon says what an older rex-daemon silently dropped: it

@@ -52,6 +52,12 @@ type Model struct {
 	TermW, TermH  int
 	// BorderSeed seeds the "random" window border color: the launch folder.
 	BorderSeed string
+	// termLight is whether the terminal background was found to be light. Run
+	// asks the terminal once, before Bubble Tea starts, and only when theme is
+	// auto; otherwise (and in tests) it is false, the dark default. The auto
+	// theme reads it: a later switch to auto reuses it and never asks again.
+	termLight bool
+
 	// WS is the workspace this board is fixed to (`rex here`); nil on an
 	// ordinary board. wsTagging says the daemon tags sessions with their
 	// workspace (else the board shows every session); wsNoticed that the

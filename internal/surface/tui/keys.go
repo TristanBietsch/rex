@@ -167,6 +167,7 @@ var commands = []command{
 	{Names: []string{"border"}, Args: "[color]", Desc: "window border for this run: on, off, next, random, a color name or #rrggbb", Group: groupAppCmd, Run: runBorder},
 	{Names: []string{"help"}, Desc: "this overlay", Group: groupAppCmd, Run: runHelp},
 	{Names: []string{"settings"}, Desc: "open settings", Group: groupAppCmd, Run: runSettings},
+	{Names: []string{"trust"}, Args: "[folder]", Desc: "trust a project folder so agents skip the trust dialog; saved", Group: groupAppCmd, Run: runTrustCmd},
 	{Names: []string{"theme"}, Args: "[name]", Desc: "set the theme (no name: next); saved", Group: groupAppCmd, Run: runTheme},
 }
 

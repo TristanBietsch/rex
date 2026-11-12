@@ -23,6 +23,9 @@ type trustDecision struct {
 	// auto_trust_dirs, or trusted for this session. Only a trusted folder
 	// gets skip_permissions_args.
 	Trusted bool
+	// Detect is the tool's dialog text for an untrusted folder: nothing
+	// answers the dialog, but the supervisor logs once when it shows.
+	Detect *regexp.Regexp
 }
 
 // Why a folder is trusted, as logged.
@@ -38,13 +41,26 @@ const (
 func (s *Server) trustDecisionFor(tool registry.Tool, cwd string, session bool) trustDecision {
 	dir, why := s.trustedDir(cwd, session)
 	if why == "" {
-		return trustDecision{}
+		return trustDecision{Detect: trustDetectFor(tool)}
 	}
 	return trustDecision{
 		Args:    s.trustArgsFor(tool, cwd, dir, why),
 		Answer:  s.trustAnswerFor(tool, dir, why),
 		Trusted: true,
 	}
+}
+
+// trustDetectFor compiles tool's trust-dialog text, or nil when it has none
+// or it does not compile (trustAnswerFor already warns about that).
+func trustDetectFor(tool registry.Tool) *regexp.Regexp {
+	if tool.TrustPrompt == nil {
+		return nil
+	}
+	shown, err := regexp.Compile(tool.TrustPrompt.Shown)
+	if err != nil {
+		return nil
+	}
+	return shown
 }
 
 // trustedDir returns the folder that makes cwd trusted and why: "" when it is
