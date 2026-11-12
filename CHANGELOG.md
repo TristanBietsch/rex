@@ -27,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `rex config set` / `reset`, the Settings page and `rex setup` tell a running
+  daemon to reload when they change `skip_permissions` or `auto_trust_dirs`,
+  so revoking either applies at once. Hand edits of `config.yaml` still apply
+  within 5 s (or on `rex reload` with `live_reload` off).
 - Daemon: while `config.yaml` does not parse, `skip_permissions` and
   `auto_trust_dirs` read as off and empty (fail closed); other settings keep
   their previous values until the file is fixed.

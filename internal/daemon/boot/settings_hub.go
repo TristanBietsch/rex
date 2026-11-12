@@ -113,7 +113,7 @@ func (h *SettingsHub) reloadLocked() error {
 		// parses again they read as their defaults. Everything else keeps
 		// its previous value. The log names the file, never its contents.
 		slog.Warn("daemon: settings reload failed; skip_permissions and auto_trust_dirs are off until config.yaml parses (other settings keep their values)", "path", h.path)
-		closed := h.cur.Load().WithDefaults(failClosedIDs...)
+		closed := h.cur.Load().WithDefaults(settings.TrustSettingIDs...)
 		old := h.cur.Swap(closed)
 		h.notify(old, closed)
 		return fmt.Errorf("settings reload: %w", err)
@@ -198,10 +198,6 @@ func (h *SettingsHub) poll() {
 	slog.Info("daemon: settings changed, applying")
 	_ = h.reloadLocked() // a failure is logged there
 }
-
-// failClosedIDs are the settings that grant trust. While config.yaml does
-// not parse they read as their defaults (off, empty).
-var failClosedIDs = []string{"skip_permissions", "auto_trust_dirs"}
 
 // fileSig identifies one state of the settings file. exists is false when it
 // is missing (or unreadable), which is its own state.
