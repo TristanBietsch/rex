@@ -37,6 +37,7 @@ func TestVersionOfRunsChildWithPlainOutput(t *testing.T) {
 func TestSetupPreviewKeepsShellBlockLines(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("SHELL", "/bin/zsh")
 	for _, f := range []string{"text", "txt", "md"} {
 		p, out, _ := viewPrinter(t, f, 80, false)

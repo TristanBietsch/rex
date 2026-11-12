@@ -73,6 +73,7 @@ func TestErrLog_OptOut(t *testing.T) {
 	// The real checks: REX_ERROR_LOG=0, then the cli_error_log setting.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("REX_LOG_DIR", filepath.Dir(path))
 	require.True(t, errLogEnabled())
 	t.Setenv("REX_ERROR_LOG", "0")

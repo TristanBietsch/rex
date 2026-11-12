@@ -19,6 +19,7 @@ func TestInitOutputAutoAgent(t *testing.T) {
 	t.Cleanup(func() { SetOut(nil) })
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	_, err := InitOutput([]string{"ls"}, []string{"CLAUDECODE=1"})
 	require.NoError(t, err)

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -19,6 +20,10 @@ var errResumeCancelled = errors.New("session was deleted while resuming")
 // handleResume makes a session live and not marked done: a running session
 // just loses its done mark, an exited one is respawned in place with the
 // tool's resume arguments (same id, slug, row and transcript).
+// supervisorExitWait bounds how long Resume waits for a done session's
+// supervisor to finish its teardown (final meta write, slot release).
+const supervisorExitWait = 5 * time.Second
+
 func handleResume(c *client, env protocol.Envelope) (outcome, error) {
 	p, err := decodeSessionIntent(env, func(p protocol.Resume) string { return p.SessionID })
 	if err != nil {
@@ -34,8 +39,15 @@ func handleResume(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	// Only an exited session with no supervisor is respawned. One that is
 	// still starting (queued, no stop func yet) counts as live: touching its
-	// hook file or stop slot now would race its own startup.
-	if !srv.hasStop(p.SessionID) && state.IsTerminal(sess.Summary().State) {
+	// hook file or stop slot now would race its own startup. One already
+	// done whose supervisor is still winding down (it turns the row done a
+	// moment before it releases the slot) is waited for, not treated as
+	// live: a Resume right after the done event would otherwise do nothing.
+	exitedFree := !srv.hasStop(p.SessionID)
+	if !exitedFree && state.IsTerminal(sess.Summary().State) {
+		exitedFree = srv.waitSupervisorExit(c.ctx, p.SessionID, supervisorExitWait)
+	}
+	if exitedFree && state.IsTerminal(sess.Summary().State) {
 		resumed, err := srv.resumeExited(c.ctx, sess)
 		if err != nil {
 			return outcome{}, err

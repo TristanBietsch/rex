@@ -198,7 +198,7 @@ func TestRunLoop_StartRefusals(t *testing.T) {
 	require.Equal(t, 5, exitCodeOf(t, err))
 	err = RunLoop([]string{"-socket", "/nonexistent/rex.sock", "start", "fix", "-cwd", "/a/../b"})
 	require.Equal(t, 5, exitCodeOf(t, err))
-	err = RunLoop([]string{"-socket", "/nonexistent/rex.sock", "start", "fix", "-cwd", "/tmp"})
+	err = RunLoop([]string{"-socket", "/nonexistent/rex.sock", "start", "fix", "-cwd", t.TempDir()})
 	require.Equal(t, 4, exitCodeOf(t, err), "no daemon: exit 4")
 }
 

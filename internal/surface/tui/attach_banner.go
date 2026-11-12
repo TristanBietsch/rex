@@ -94,7 +94,7 @@ func shortCWD(p string) string {
 	if tp == "~" {
 		return tp
 	}
-	elems := strings.Split(strings.Trim(tp, string(filepath.Separator)), string(filepath.Separator))
+	elems := strings.Split(strings.Trim(filepath.ToSlash(tp), "/"), "/")
 	if len(elems) <= 2 {
 		return tp
 	}

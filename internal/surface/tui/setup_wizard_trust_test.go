@@ -79,7 +79,7 @@ func setupView(m SetupWizardModel) string { return ansi.Strip(m.View()) }
 func TestSetupWizard_TrustDefaultsToNo(t *testing.T) {
 	m, cfg := trustWizard(t)
 	require.False(t, m.trustYes)
-	require.Equal(t, "~"+string(filepath.Separator)+filepath.Join("dev", "project"), m.trustDir, "the checkout itself is suggested, not its parent")
+	require.Equal(t, "~/dev/project", m.trustDir, "the checkout itself is suggested, not its parent")
 	v := setupView(m)
 	require.Contains(t, v, "Only pick folders whose code you trust.")
 	require.Contains(t, v, "no, always ask")
@@ -96,10 +96,10 @@ func TestSetupWizard_TrustAcceptSuggestion(t *testing.T) {
 	m, cfg := trustWizard(t)
 	m = pressSetup(t, m, "y", "enter")
 	require.Equal(t, trustFolder, m.trustField)
-	require.Contains(t, setupView(m), "~"+string(filepath.Separator)+filepath.Join("dev", "project")+"|")
+	require.Contains(t, setupView(m), "~/dev/project"+"|")
 	m = pressSetup(t, m, "enter", "enter")
 	require.Equal(t, setupStepPreview, m.step)
-	want := "~" + string(filepath.Separator) + filepath.Join("dev", "project")
+	want := "~/dev/project"
 	require.Contains(t, setupView(m), "auto-trust: "+want)
 	require.Equal(t, want, writeAndLoad(t, m, cfg))
 }

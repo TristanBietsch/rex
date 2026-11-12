@@ -1491,7 +1491,8 @@ func ShellProfileBlock(shell string) string {
 }
 
 // tildePath shows p with the home directory abbreviated to "~", or as is
-// when p is outside it or the home directory is unknown.
+// when p is outside it or the home directory is unknown. Below "~" it uses
+// "/" on every OS, as the CLI does (core displayPath).
 func tildePath(p string) string {
 	home, err := paths.Home()
 	if err != nil {
@@ -1504,7 +1505,7 @@ func tildePath(p string) string {
 	case rel == ".":
 		return "~"
 	default:
-		return "~" + string(filepath.Separator) + rel
+		return "~/" + filepath.ToSlash(rel)
 	}
 }
 

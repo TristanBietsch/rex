@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -35,7 +36,9 @@ func TestSwapStateRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	fi, err := os.Stat(path)
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+	if runtime.GOOS != "windows" { // no Unix modes there
+		require.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+	}
 
 	st, err := readSwapState(path)
 	require.NoError(t, err)
@@ -60,6 +63,9 @@ func TestSwapStateRefusesOtherPIDAndOpenMode(t *testing.T) {
 	st.PID = os.Getpid()
 	path, err = writeSwapState(st)
 	require.NoError(t, err)
+	if runtime.GOOS == "windows" {
+		return // no Unix modes: the per-user state folder is the guard
+	}
 	require.NoError(t, os.Chmod(path, 0o644)) //nolint:gosec // G302: the test needs a group/world-readable file.
 	_, err = readSwapState(path)
 	require.Error(t, err)

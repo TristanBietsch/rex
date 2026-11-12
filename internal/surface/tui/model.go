@@ -144,6 +144,10 @@ type Model struct {
 	Rename *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
+	// SoundClaims dedupes session sounds across boards: before a session
+	// sound plays, the board claims the event; only the winner plays. nil
+	// plays every sound (tests, no home directory).
+	SoundClaims soundClaimer
 
 	// Clock overrides time.Now for rendering (tests). nil = wall clock.
 	Clock func() time.Time
@@ -331,8 +335,8 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m.Sessions = append(m.Sessions, sum)
 			stampEntered(&m, "", sum)
 			m = m.selectIfPending(sum)
-			if m.Audio != nil && inScope(m, sum) {
-				m.Audio.Play(audio.EventCreate)
+			if inScope(m, sum) {
+				m = m.playShared(audio.EventCreate, sum.ID)
 			}
 		}
 	case protocol.EventSessionRemoved:
@@ -369,8 +373,8 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			delete(m.rungPrompt, rem.SessionID)
 			delete(m.EnteredAt, rem.SessionID)
 			delete(m.SeenAt, rem.SessionID)
-			if m.Audio != nil && audible {
-				m.Audio.Play(audio.EventDelete)
+			if audible {
+				m = m.playShared(audio.EventDelete, rem.SessionID)
 			}
 		}
 	case protocol.EventSessionUpdated:
@@ -419,15 +423,18 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// done (cc, :done, rex done) leaves the session running, so no
 			// state patch announces it; the mark itself plays the done sound,
 			// once, even if the same patch also completes the session.
-			if (completed || (marked && audible)) && m.Audio != nil {
-				m.Audio.Play(audio.EventDone)
+			// soundKey names this patch the same way on every board, so the
+			// boards open at once play its sound once (see playShared).
+			soundKey := patchSoundKey(upd)
+			if completed || (marked && audible) {
+				m = m.playShared(audio.EventDone, soundKey)
 			}
 			m = m.forgetStaleTurn(upd.SessionID)
 			if audible && known && !hasState {
-				m = m.notifyQuestion(upd.SessionID, prevReason)
+				m = m.notifyQuestion(upd.SessionID, prevReason, soundKey)
 			}
 			if hasState && audible {
-				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
+				m = m.notifyStateChange(upd.SessionID, prevState, next, known, soundKey)
 				if m.Undo != nil && m.Undo.StateAt != next {
 					m = closeUndoIfStale(m, upd.SessionID, "undo: the session changed; run it again")
 				}

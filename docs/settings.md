@@ -226,6 +226,7 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 | `master_volume` | int | `40` | `0`–`50` |
 | `notify_on_state_change` | bool | `true` | |
 | `boot_voice` | bool | `true` | |
+| `audio_dedupe` | bool | `true` | |
 
 `master_volume` scales every sound linearly: the gain is the value / 50, so `40` is 80% and `50` is full volume. The settings page and `rex config get`/`list` (text and md output) show `max` at 50; `txt`, `agent` and JSON output keep the number. On the settings page ◂ ▸ step by 1.
 
@@ -241,6 +242,15 @@ All audio settings apply at once, on the settings page and from `rex config set`
 - No sound for states delivered in the initial snapshot or on reconnect, or for a session the TUI hasn't seen yet. Only live transitions chime.
 - `sound_enabled`, `soundset: off`, and `master_volume` still apply.
 - Changes take effect immediately from the settings page, and from `config.yaml`/`config.lua` on the next live-reload poll.
+
+`audio_dedupe` (Settings → Audio, "One sound across boards") plays a session's sound once however many boards are open. Every board gets each daemon event and would play its sound, a few milliseconds apart, which sounds like a double or an echo. With this on, a board claims the event in `~/.local/state/rex/sound-claims/` before it plays, and only the first board plays. It covers the needs-you and resume chimes, done (and marking done), a new session and a deleted one. Rules:
+
+- Only a board that would play the sound takes part. A workspace board never claims a session it does not show, and a board with no sound (muted, volume 0, no audio device) never claims one, so neither can silence another board.
+- A claim lasts about 10 s; a board that crashes leaves nothing that silences later sounds.
+- If the folder is unusable (a symlink, another user's, open to group or others, cannot be created), dedupe is off for that board and it plays every sound, as before. The log says why, once.
+- Sounds for your own keys and pages (nav, open, close, command) and boot sounds (startup tone, boot chimes, boot voice) belong to one board and are never deduped.
+- Boards from a build before this one do not take part: they keep playing every sound. Restart them.
+- Off: every board plays every sound.
 
 ### Advanced
 

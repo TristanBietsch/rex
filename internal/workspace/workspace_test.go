@@ -86,10 +86,17 @@ func TestFind_StopsAtHome(t *testing.T) {
 	require.Nil(t, w)
 }
 
+// fsRoot is the filesystem root: "/", or the temp dir's drive root (C:\) on
+// Windows, where a bare separator is not absolute.
+func fsRoot(t *testing.T) string {
+	t.Helper()
+	return filepath.VolumeName(t.TempDir()) + string(filepath.Separator)
+}
+
 func TestFind_StopsAtFilesystemRoot(t *testing.T) {
 	// The root itself is never examined: with home elsewhere, a path that
 	// reaches "/" ends there without error.
-	w, err := Find(string(filepath.Separator), t.TempDir())
+	w, err := Find(fsRoot(t), t.TempDir())
 	require.NoError(t, err)
 	require.Nil(t, w)
 }

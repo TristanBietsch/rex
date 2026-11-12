@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -75,4 +77,46 @@ func TestClientConn_EnqueueAfterFinishIsDropped(t *testing.T) {
 	c.finish()
 	require.NotPanics(t, func() { c.enqueue([]byte("late\n")) })
 	require.NotPanics(t, func() { c.sendEvent("Error", "", make(chan int)) }) // unencodable: logged, dropped
+}
+
+// After a protocol error reply, finish half-closes and drains the peer's
+// unread bytes before closing: the peer reads the reply and then EOF while
+// it is still sending, never a reset (Windows resets on a close with unread
+// input, which loses the reply).
+func TestClientConn_LingerDeliversReplyBeforeClose(t *testing.T) {
+	dir, err := os.MkdirTemp("", "rex-lin")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	ln, err := net.Listen("unix", filepath.Join(dir, "s.sock"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	peer, err := net.Dial("unix", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = peer.Close() })
+	server, err := ln.Accept()
+	require.NoError(t, err)
+
+	// Unread input on the daemon side, as an oversized line leaves.
+	_, err = peer.Write(make([]byte, 2048)) // below every socket buffer: never blocks
+	require.NoError(t, err)
+
+	c := newClientConn(server, 1, 16, time.Second)
+	c.enqueue([]byte("error line\n"))
+	c.linger.Store(true)
+	finished := make(chan struct{})
+	go func() { c.finish(); close(finished) }()
+
+	require.NoError(t, peer.SetReadDeadline(time.Now().Add(3*time.Second)))
+	br := bufio.NewReader(peer)
+	line, err := br.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "error line\n", line)
+	_, err = br.ReadByte()
+	require.ErrorIs(t, err, io.EOF, "half-closed after the reply")
+	require.NoError(t, peer.Close())
+	select {
+	case <-finished:
+	case <-time.After(3 * time.Second):
+		t.Fatal("finish did not return once the peer closed")
+	}
 }

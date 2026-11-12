@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (Windows)
+
+- Saving or loading settings while another rex saves `config.yaml` no
+  longer fails with "Access is denied" or a sharing violation.
+- A rejected request (an oversized line, say) gets its error reply instead
+  of a reset connection.
+- With no daemon running, commands say "rex-daemon is not running" and how
+  to start it, instead of a raw dial error.
+- `rex upgrade` keeps the board's place (selection, filter, scroll) across
+  the swap; the saved state was refused for its file mode.
+- Paths under your home folder show as `~/dev/rex` in the TUI, as in the
+  CLI, and `rex trust` saves the suggested folder that way.
+
 ## [2.0.0] - 2026-11-12
 
 The first release since v1. Details for every change follow the summary.
@@ -66,6 +79,17 @@ The first release since v1. Details for every change follow the summary.
 - **Render fixes**: popups stay straight with CJK and emoji text,
   multi-line pastes keep the help line on screen, short terminals keep the
   prompt, and prompts are typed without escape sequences.
+
+### Fixed (sound plays once across boards)
+
+- With several boards open, each session sound (needs you, resume, done,
+  new, deleted) played once per board, a few milliseconds apart, which
+  sounded like a double or an echo. Boards now claim each event in
+  `~/.local/state/rex/sound-claims/` (owner-only, claims last about 10 s)
+  and only the first plays it. A workspace board or a muted board never
+  claims a sound it would not play, so it can't silence another board.
+  `audio_dedupe` (Settings → Audio, on) turns it off. Boards from an older
+  build don't take part; restart them.
 
 ### Added (accent color)
 
@@ -219,6 +243,13 @@ Each is described in full under **Changed** below.
   <cmd>`, `rex <cmd> -h` and `rex <cmd> --help` now print help for every
   command, including `daemon`, `config`, `theme` and `ws`, and `rex help
   render` works although `render` uses `-h` for its height.
+
+### Changed (docs)
+
+- README rewritten: what rex is first, then install, a 60-second start, how
+  it works, concepts, common tasks, configuration, security, upgrading from
+  v1 and a map of every doc. The quickstart's `rex ls` example, the board
+  header in `docs/tui.md` and the glossary's board entry match v2.
 
 ### Changed (install and version)
 

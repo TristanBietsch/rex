@@ -205,6 +205,7 @@ func TestConfigEdit_createsConfigDirOwnerOnly(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("EDITOR", "true")
 	require.NoError(t, configEdit(nil))
 	info, err := os.Stat(filepath.Join(home, ".config", "rex"))

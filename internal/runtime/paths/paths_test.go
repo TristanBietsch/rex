@@ -60,6 +60,7 @@ func TestAccessors_UnderHome(t *testing.T) {
 		{"DaemonLog", paths.DaemonLog, j(".local", "state", "rex", "daemon.log")},
 		{"TUIStateFile", paths.TUIStateFile, j(".local", "state", "rex", "tui-state.json")},
 		{"ModelsCacheFile", paths.ModelsCacheFile, j(".local", "state", "rex", "models-cache.json")},
+		{"SoundClaimsDir", paths.SoundClaimsDir, j(".local", "state", "rex", "sound-claims")},
 		{"CacheDir", paths.CacheDir, j(".cache", "rex")},
 		{"Socket", paths.Socket, j(".cache", "rex", "rex.sock")},
 	}
@@ -123,7 +124,7 @@ func TestAccessors_NoHome(t *testing.T) {
 		"Home": paths.Home, "ConfigDir": paths.ConfigDir, "ConfigFile": paths.ConfigFile,
 		"ToolsFile": paths.ToolsFile, "LuaInitFile": paths.LuaInitFile, "LuaConfigFile": paths.LuaConfigFile, "LuaModuleDir": paths.LuaModuleDir, "SkillsDir": paths.SkillsDir, "ThemesDir": paths.ThemesDir, "DataDir": paths.DataDir,
 		"SessionsDir": paths.SessionsDir, "SnapshotsDir": paths.SnapshotsDir, "DaemonLock": paths.DaemonLock, "ExportsDir": paths.ExportsDir, "UsageLedger": paths.UsageLedger, "LogDir": paths.LogDir,
-		"DaemonLog": paths.DaemonLog, "TUIStateFile": paths.TUIStateFile, "ModelsCacheFile": paths.ModelsCacheFile, "CacheDir": paths.CacheDir,
+		"DaemonLog": paths.DaemonLog, "TUIStateFile": paths.TUIStateFile, "ModelsCacheFile": paths.ModelsCacheFile, "SoundClaimsDir": paths.SoundClaimsDir, "CacheDir": paths.CacheDir,
 		"Socket": paths.Socket,
 	}
 	for _, home := range []string{"", "relative/home", "."} {

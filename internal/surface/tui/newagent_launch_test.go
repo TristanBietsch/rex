@@ -83,7 +83,7 @@ func TestNewAgent_TrustKeysMatchWizard(t *testing.T) {
 		require.Contains(t, out, "folder not trusted")
 		require.Contains(t, out, "trust this session only")
 		require.Contains(t, out, "always trust (saved to auto_trust_dirs)")
-		require.Contains(t, flat, spawnCWD(m), "ctrl+t's folder, exact")
+		require.Contains(t, flat, filepath.ToSlash(spawnCWD(m)), "ctrl+t's folder, exact (slashed to wrap)")
 		m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlT})
 		require.Contains(t, ansi.Strip(m.View()), selectGlyph()+" ctrl+t", "the chosen key is marked")
 		for _, sz := range []goldenSize{{120, 40}, {80, 24}, {60, 20}, {59, 20}, {50, 20}, {40, 12}} {

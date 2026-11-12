@@ -40,6 +40,7 @@ type Worker struct {
 	// pending, perSess and sched are guarded by mu.
 	mu       sync.Mutex
 	pending  map[string]pendingReq
+	arrivals uint64 // counts new pending entries: pendingReq.seq
 	perSess  map[string]*sessionMeta
 	sched    map[string]*schedEntry
 	failures atomic.Int32

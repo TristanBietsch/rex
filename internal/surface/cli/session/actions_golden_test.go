@@ -2,6 +2,7 @@ package session
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,9 +81,13 @@ func TestActionCommandsGolden(t *testing.T) {
 			if name == "new" {
 				require.NoError(t, err)
 				s := findSession(t, d.Socket, slug)
-				// md output escapes "_", which macOS CI temp paths contain.
+				// md output escapes "_" (macOS CI temp paths), backslash and
+				// "~" (Windows ones); json escapes backslash.
+				jsonDir, jerr := json.Marshal(dir)
+				require.NoError(t, jerr)
+				mdDir := strings.NewReplacer(`\`, `\\`, "_", `\_`, "~", `\~`).Replace(dir)
 				r := strings.NewReplacer(s.ID, "FULLID", s.ShortID, "SID", dir, "DIR",
-					strings.ReplaceAll(dir, "_", `\_`), "DIR")
+					mdDir, "DIR", strings.Trim(string(jsonDir), `"`), "DIR")
 				norm = r.Replace
 				out = norm(out)
 			}

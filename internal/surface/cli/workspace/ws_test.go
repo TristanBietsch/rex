@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -56,6 +57,20 @@ func (r *rig) project(t *testing.T, name string) string {
 	d := filepath.Join(r.home, "dev", name)
 	require.NoError(t, os.MkdirAll(d, 0o750))
 	return d
+}
+
+// moveDir renames a project folder. Windows refuses to rename a folder while
+// any handle is open under it, and a virus scanner may still hold the files
+// rex just wrote there; retry briefly.
+func moveDir(t *testing.T, from, to string) {
+	t.Helper()
+	var err error
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		if err = os.Rename(from, to); err == nil || time.Now().After(deadline) {
+			break
+		}
+	}
+	require.NoError(t, err)
 }
 
 func exitCode(t *testing.T, err error) int {
@@ -234,14 +249,15 @@ func TestWs_NotFoundErrors(t *testing.T) {
 func TestWs_MovedFolderIsReportedNotGuessed(t *testing.T) {
 	r := newRig(t, true)
 	proj := r.project(t, "p")
-	t.Chdir(proj)
+	// Init by path, not from inside proj: Windows cannot rename a folder
+	// that is (or was just) the process's working folder.
+	t.Chdir(r.home)
 	r.printer(t, core.FormatFlags{Output: "json"})
-	require.NoError(t, RunWs([]string{"init"}))
+	require.NoError(t, RunWs([]string{"init", proj}))
 	id := decode[info](t, r).ID
 
 	moved := filepath.Join(r.home, "dev", "moved")
-	t.Chdir(r.home)
-	require.NoError(t, os.Rename(proj, moved))
+	moveDir(t, proj, moved)
 	err := RunWs([]string{"rename", id, "x"})
 	require.Equal(t, core.ExitSelectorNotFound, exitCode(t, err))
 	require.Contains(t, err.Error(), "not at")
@@ -281,14 +297,15 @@ func TestWs_OversizedWorkspaceJSONRefused(t *testing.T) {
 func TestWs_IDInAMovedFolderUpdatesTheRegistry(t *testing.T) {
 	r := newRig(t, true)
 	proj := r.project(t, "p")
-	t.Chdir(proj)
+	// Init by path, not from inside proj: Windows cannot rename a folder
+	// that is (or was just) the process's working folder.
+	t.Chdir(r.home)
 	r.printer(t, core.FormatFlags{Output: "json"})
-	require.NoError(t, RunWs([]string{"init"}))
+	require.NoError(t, RunWs([]string{"init", proj}))
 	id := decode[info](t, r).ID
 
 	moved := filepath.Join(r.home, "dev", "moved")
-	t.Chdir(r.home)
-	require.NoError(t, os.Rename(proj, moved))
+	moveDir(t, proj, moved)
 	require.Equal(t, core.ExitSelectorNotFound, exitCode(t, RunWs([]string{"rename", id, "x"})))
 
 	t.Chdir(moved)

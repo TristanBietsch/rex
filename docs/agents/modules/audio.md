@@ -47,7 +47,7 @@ Init failure degrades to silent no-op; no error returned from `New`.
 
 ## Gotchas
 
-TUI maps settings `sound_enabled`, `soundset`, `master_volume` into `Config` (`master_volume` is 0–50; `settings.VolumeGain` turns it into the 0–1 `Volume`). `notify_on_state_change` is read by the TUI (`internal/surface/tui/notify.go`), not the Player: it gates `EventAttention`/`EventResume` and debounces them per session (1.5 s). Every catalog must define every event; `TestBakeNonEmpty` enforces it. Headless CI typically gets no-op player.
+TUI maps settings `sound_enabled`, `soundset`, `master_volume` into `Config` (`master_volume` is 0–50; `settings.VolumeGain` turns it into the 0–1 `Volume`). `notify_on_state_change` is read by the TUI (`internal/surface/tui/notify.go`), not the Player: it gates `EventAttention`/`EventResume` and debounces them per session (1.5 s). Every catalog must define every event; `TestBakeNonEmpty` enforces it. Session sounds go through `Claims` (`claims.go`): the TUI's `playShared` (`internal/surface/tui/soundclaim.go`) claims `key|event` in `paths.SoundClaimsDir` with `O_CREATE|O_EXCL` before it plays, so N open boards play one sound (`audio_dedupe`). It asks `Player.Audible` first so a muted board never claims. Headless CI typically gets no-op player.
 
 ## See also
 
