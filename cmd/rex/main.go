@@ -11,6 +11,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/meta"
 	"github.com/tristanbietsch/rex/internal/surface/cli/session"
 	"github.com/tristanbietsch/rex/internal/surface/cli/setup"
+	"github.com/tristanbietsch/rex/internal/surface/cli/workspace"
 )
 
 func main() {
@@ -22,39 +23,58 @@ func main() {
 	restoreVT()
 	if err != nil {
 		core.Out().RenderError(err)
+		core.RecordError(os.Args[1:], err, core.ErrLogOptions{})
 		os.Exit(exitCodeFor(err))
 	}
 }
 
-// kitVerbs are the commands rendered through the output kit. They accept
-// -o/--output, --agent and -json; the rest still print their own format, so
-// an explicit output flag before one of them is refused rather than ignored.
-var kitVerbs = map[string]bool{"ls": true, "status": true, "skills": true, "overview": true, "usage": true, "export": true, "undo": true, "redo": true}
+// interactiveVerbs are the commands that need a terminal: the board (bare
+// `rex`) and attach. They cannot render as data, so an output flag before
+// one of them is refused, with the query that answers the same question.
+var interactiveVerbs = map[string]string{
+	"rex":    "rex ls",
+	"attach": "rex log <sel> -n 50",
+}
 
 func run(args []string) error {
-	if core.Out().Flags.Explicit() {
-		verb := "rex"
-		if len(args) > 0 {
-			verb = args[0]
-		}
-		if !kitVerbs[verb] {
-			return core.NewExitError(core.ExitInvalidArgs,
-				verb+": -o, --agent and -json are not supported yet")
-		}
+	verb := "rex"
+	if len(args) > 0 {
+		verb = args[0]
+	}
+	if hint, ok := interactiveVerbs[verb]; ok && core.Out().Flags.Explicit() {
+		return core.Errorf(core.ExitInvalidArgs, hint,
+			"%s: interactive; -o, --agent and -json do not apply (try `%s`)", verb, hint)
 	}
 	if len(args) == 0 {
+		// Includes agent mode switched on by CLAUDECODE: a board has no
+		// agent form.
+		if err := core.Out().RequireText("rex", interactiveVerbs["rex"]); err != nil {
+			return err
+		}
 		return meta.RunTUI(false)
 	}
 	switch args[0] {
+	case "--help", "-h":
+		return core.RunHelp(args[1:])
+	case "help":
+		// `rex help <command>` is `rex <command> -h`.
+		if len(args) >= 2 {
+			if _, ok := core.FindCommand(args[1]); ok {
+				return run(append([]string{args[1], "-h"}, args[2:]...))
+			}
+		}
+		return core.RunHelp(args[1:])
+	case "agent-help":
+		return core.RunAgentHelp(args[1:])
+	case "errors":
+		return inspect.RunErrors(args[1:])
 	case "--quiet-boot":
 		if len(args) > 1 {
 			return core.NewExitError(core.ExitInvalidArgs, "--quiet-boot takes no arguments")
 		}
 		return meta.RunTUI(true)
-	case "--help", "-h", "help":
-		return core.RunHelp()
 	case "--version", "-v", "version":
-		return core.RunVersion()
+		return core.RunVersion(args[1:])
 	case "status":
 		return inspect.RunStatus(args[1:])
 	case "ls":
@@ -87,6 +107,8 @@ func run(args []string) error {
 		return session.RunUndone(args[1:])
 	case "archive":
 		return session.RunArchive(args[1:])
+	case "resume":
+		return session.RunResume(args[1:])
 	case "complete":
 		return meta.RunComplete(args[1:])
 	case "reload":
@@ -123,29 +145,28 @@ func run(args []string) error {
 		return inspect.RunUsage(args[1:])
 	case "export":
 		return inspect.RunExport(args[1:])
+	case "audit":
+		return inspect.RunAudit(args[1:])
+	case "ws":
+		return workspace.RunWs(args[1:])
 	default:
 		return unknownCommand(args[0])
 	}
 }
 
-// commands is every name the switch in run accepts, for "did you mean".
-// Keep it in step with that switch (TestRun_EveryCommandIsKnown checks).
-var commands = []string{
-	"help", "version", "status", "ls", "new", "attach", "reply", "send", "log",
-	"wait", "rm", "prune", "rename", "name", "done", "retire", "undone",
-	"unretire", "archive", "complete", "reload", "daemon", "completion",
-	"render", "config", "setup", "doctor", "update", "uninstall", "digest",
-	"stats", "fleet", "skills", "overview", "export", "usage", "undo", "redo",
-}
+// commands is every name the switch in run accepts, for "did you mean". It
+// comes from the command table (TestRun_EveryCommandIsKnown checks the two
+// agree).
+var commands = core.CommandNames()
 
 // unknownCommand is the exit-5 error for a command rex does not have, with
 // the closest real one when it is within two edits.
 func unknownCommand(name string) error {
 	if s := core.Suggest(name, commands); s != "" {
 		return core.Errorf(core.ExitInvalidArgs, "rex "+s,
-			"unknown command %q; did you mean %q? (try `rex --help`)", name, s)
+			"unknown command %q; did you mean %q? (try `rex --help`)", name, s).WithID("unknown_command")
 	}
-	return core.Errorf(core.ExitInvalidArgs, "rex --help", "unknown command %q (try `rex --help`)", name)
+	return core.Errorf(core.ExitInvalidArgs, "rex --help", "unknown command %q (try `rex --help`)", name).WithID("unknown_command")
 }
 
 func exitCodeFor(err error) int {

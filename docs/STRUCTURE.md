@@ -46,7 +46,7 @@ internal/
 │   ├── state/              # in-memory store + disk persistence
 │   ├── pty/                # per-session PTY supervisor
 │   ├── adapter/            # PTY output → session state
-│   └── boot/               # daemon wiring (Lua, Ollama, SIGHUP reload)
+│   └── boot/               # daemon wiring (Lua, Ollama, SettingsHub, SIGHUP reload)
 ├── wire/                   # client ↔ daemon contract
 │   ├── protocol/           # JSONL types, codec
 │   └── client/             # dial, intents, event stream
@@ -57,6 +57,7 @@ internal/
 ├── runtime/                # paths, process control, logging
 │   ├── daemonctl/          # spawn/check daemon, socket paths
 │   ├── ids/                # session UUID / short id
+│   ├── redact/             # argv redaction for the daemon log
 │   └── rexlog/             # file-backed slog for daemon/TUI
 ├── features/               # optional enhancements
 │   ├── skills/             # skill library + per-session plugin staging
@@ -65,8 +66,10 @@ internal/
 │   ├── snapshot/           # turn snapshots: shadow git store, undo/redo, retention
 │   ├── usage/              # usage ledger, Claude status-line tap, quotas
 │   ├── export/             # session export: transcript frames, formatters, agent log
+│   ├── audit/              # audit trail: Record, Append, Read (jsonl, 0600, symlink-safe)
 │   ├── audio/              # UI sounds
 │   └── lua/                # optional daemon scripting
+├── workspace/              # workspace identity: .rex/ discovery, Init, registry, git exclude
 └── testutil/               # cross-package test helpers (test-only; golden = txtar goldens)
 ```
 
@@ -81,7 +84,7 @@ internal/
 | `daemon/boot/` | Extracted from `cmd/rex-daemon` so `main` stays thin |
 | `wire/` | Shared socket protocol + client SDK |
 | `catalog/` | `tools.yaml`, `config.yaml` and color palette domains |
-| `runtime/` | Socket paths, daemon spawn, IDs, slog setup |
+| `runtime/` | Socket paths, daemon spawn, IDs, argv redaction, slog setup |
 | `features/` | Can disable Ollama/Lua/audio without breaking core kanban |
 | `testutil/` | Shared daemon fixture for integration tests |
 
@@ -100,6 +103,7 @@ Add user-facing setting             → catalog/settings/registry.go only
 Add UI sound                        → features/audio/
 Add Ollama/summary behavior         → features/summarizer/
 Add Lua hook                        → features/lua/ + daemon/boot/
+Add audit/workspace behavior        → features/audit/, workspace/ (+ daemon/boot/audit.go)
 ```
 
 ## Conventions

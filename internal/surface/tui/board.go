@@ -500,7 +500,7 @@ func layoutSlots(slots []boardSlot, now time.Time, width int, o layoutOpts) rowC
 // (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
 // long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
-func layoutFit(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume bool) rowCols {
+func layoutFit(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume, times bool) rowCols {
 	var c rowCols
 	if detailed {
 		c.id = colID
@@ -518,7 +518,9 @@ func layoutFit(rows []protocol.SessionSummary, now time.Time, width int, detaile
 			c.agents = colAgents
 		}
 		if detailed {
-			c.span = max(c.span, ansi.StringWidth(spanText(now, s)))
+			if times {
+				c.span = max(c.span, ansi.StringWidth(spanText(now, s)))
+			}
 			if resume && resumeIDShown(s) != "" {
 				c.resume = colResume
 			}

@@ -319,15 +319,6 @@ func TestInitOutput(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestInitOutputIgnoresClaudeCodeUntilWired(t *testing.T) {
-	t.Cleanup(func() { SetOut(nil) })
-	require.False(t, autoAgentWired)
-	_, err := InitOutput([]string{"ls"}, []string{"CLAUDECODE=1"})
-	require.NoError(t, err)
-	require.False(t, Out().AgentAuto)
-	require.NotEqual(t, FormatAgent, Out().Format)
-}
-
 func TestOutDefaultsWithoutInit(t *testing.T) {
 	SetOut(nil)
 	t.Cleanup(func() { SetOut(nil) })

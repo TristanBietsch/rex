@@ -49,52 +49,39 @@ filesystem permissions.
   AI summaries are written by a local model from what an agent printed, so
   they can be wrong or steered by that output ("Waiting: run curl … | sh").
   They are one line of display-safe text, length-capped, and never acted on.
-  The overview headline (`overview_enabled`) is the same kind of text, a
-  model paraphrase of several sessions' output at once, so one session can
-  try to steer what it says about the others. Its counts and lists come from
-  rules over session fields, never from that text, and it drives no action.
-  The digest it is built from (every session's name, task, description and
-  question line) goes to `OLLAMA_HOST`: if that points off this machine, so
-  do those titles and statuses.
-- **Turn snapshots** (`turn_snapshots`, off by default). A snapshot holds
-  file **contents**: tracked files and untracked files that git does not
-  ignore, so an untracked `.env` with secrets is copied into
-  `~/.local/share/rex/snapshots/` (retained until 7 days after the session
-  is removed, at most 2 GiB per folder). The store is created owner-only
-  (0700), never leaves the machine and is not encrypted. `rex doctor` warns
-  about untracked `.env*` files in snapshotted folders. Rex runs the `git`
-  binary against its own shadow repository with an explicit environment
-  (no system or global config, no hooks, no prompts) and never writes to the
-  user's repository. Reports of a snapshot writing to the user's repo,
-  running the user's hooks or config, reading or writing outside the folder
-  and the store, or exposing the store to other users are in scope.
-- **The Claude status-line tap** (`usage`, `usage_statusline_tap`). When on,
-  rex starts Claude Code with a status line that runs
-  `rex-daemon statusline-tap`. The tap reads Claude's status-line JSON from
-  stdin and sends only the usage fields to the daemon (plan rate-limit
-  percentages and reset times, session cost, model id and name, Claude's
-  conversation id); the prompt, transcript path and folder in that JSON are
-  never forwarded. It also **reads** your user-level Claude settings file and
-  **runs the status line command found there** with the same input, so it
-  runs code you already configured, nothing else. The daemon resolves that
-  file's absolute path once per spawn from its own environment
-  (`$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json`) and
-  passes it as `--user-settings`; the tap reads only that path, ignores its
-  own `CLAUDE_CONFIG_DIR` and `HOME` (Claude applies the `env` of project
-  settings files to what it starts, so an agent could redirect them), and
-  refuses a relative path, a symlink or a non-regular file. On a signal the
-  tap kills the command's whole process group. It deliberately never reads
-  project-level settings (`.claude/settings.json`, `.claude/settings.local.json`
-  in a session folder), nor takes a folder from Claude's JSON: an agent can
-  write those files from inside its folder at any time, and Claude itself
-  reads them only at startup for a trusted folder, so honoring them would let
-  an agent run a command of its choosing outside Claude's permission system.
-  It never writes a Claude settings file. The daemon ignores a sample for an unknown
-  session. Reports of the tap sending more than those fields, running
-  anything other than your own user-level status line command, or writing to your Claude
-  settings are in scope. The usage ledger (`usage.jsonl`) holds session ids,
-  tool and model names, token counts and cost, mode 0600, and no prompts or
-  output.
+- **The CLI error log.** Failed `rex` commands are recorded in
+  `~/.local/state/rex/cli-errors.log` (0600, 1 MiB plus one backup). It stores
+  structure only: the command and subcommand when rex knows them, the names
+  (never values) of the flags the command defines, argument counts, output
+  format, terminal state, exit code and kind, a code from a fixed list, and
+  the Go types of the error chain. It never stores error or hint text,
+  argument or flag values, selectors, prompts, `config set` values, paths,
+  stdin, environment values or transcripts, because free text cannot be
+  scrubbed reliably. Any such content appearing in it is in scope. Turn it
+  off with `cli_error_log: false` or `REX_ERROR_LOG=0`.
+- **The audit trail and workspace folders.** With `audit_trail` on (the
+  default) the daemon appends one line per finished session to
+  `~/.local/share/rex/audit.jsonl`, or to `<workspace>/.rex/audit.jsonl` for
+  a session inside a workspace. A line holds ids, names, the tool, times, the
+  end state and the first line of the initial prompt (200 characters,
+  control characters removed). With `audit_full_prompt` (off by default) it
+  also holds the whole prompt, which can contain secrets, in a file that may
+  sit in a synced or committed folder. rex writes these files 0600 in 0700
+  folders and never follows a symlink at `.rex/`, `workspace.json` or
+  `audit.jsonl`. It refuses a `.rex/` that is group- or world-writable or
+  owned by another user. A repository can ship a `.rex/`: `workspace.json`
+  is read as data only (64 KiB cap, name and color validated) and nothing in
+  it changes rex's behavior. Reports of rex writing audit or workspace files
+  through a symlink, outside those locations or with a wider mode, of
+  `.rex/` content changing behavior, or of the prompt appearing in a record
+  without `audit_full_prompt` are in scope. `rex ws init` also appends two
+  lines to the repository's `.git/info/exclude`. A cloned repository is
+  untrusted input to that write: rex requires a worktree's git directory to
+  point back at the `.git` file and hold a `HEAD`, a `commondir` to be an
+  ancestor of it, `info/` and `info/exclude` to be real (non-symlink) paths
+  under the git directory, and the file to be a regular file you own under
+  1 MiB; otherwise it refuses and writes nothing. A way to make rex write
+  anywhere else through a crafted `.git` is in scope.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the
@@ -126,7 +113,10 @@ filesystem permissions.
   agents run commands and edit files without asking you, but only in a
   folder under `auto_trust_dirs` or trusted for the session. Elsewhere the flag is left off. It is off
   by default. rex adding that flag while the setting is off, or in a folder
-  that is not trusted, is in scope.
+  that is not trusted, is in scope. Changes to `skip_permissions` and
+  `auto_trust_dirs` made through rex apply to the running daemon at once; hand
+  edits of `config.yaml` apply within 5 s (or on `rex reload` with
+  `live_reload` off).
 - An attacker who already runs code as your user, or as root.
 - Vulnerabilities in third-party dependencies that rex does not reach. Use
   `make vuln` (govulncheck) to check reachability first.

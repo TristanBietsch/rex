@@ -24,8 +24,8 @@ import (
 // returned func unsubscribes from the store, then stops the dispatcher and
 // waits for it, interrupting a handler in flight. It may run before or after
 // Runtime.Close.
-func StartLuaRuntime(srv *server.Server, store *state.Store) (*lua.Runtime, func()) {
-	cfgPath := luaConfigPath()
+func StartLuaRuntime(srv *server.Server, store *state.Store, st *settings.Store) (*lua.Runtime, func()) {
+	cfgPath := luaConfigPathFrom(st)
 	if cfgPath == "" {
 		slog.Info("daemon: lua disabled (no config path)")
 		return nil, nil
@@ -99,13 +99,10 @@ func luaEvent(store *state.Store, e state.Event) (eventType string, data any, ok
 	}
 }
 
-// luaConfigPath returns the resolved path to the user's init.lua, or "" if
-// not configured or when a "~/" path cannot be resolved (no home directory).
-func luaConfigPath() string {
-	st, _, err := settings.LoadDefault()
-	if err != nil {
-		slog.Warn("daemon: settings load failed for lua path", "err", err)
-	}
+// luaConfigPathFrom returns the resolved path to the user's init.lua from
+// the lua_config_path setting in st, or "" if not configured or when a "~/"
+// path cannot be resolved (no home directory).
+func luaConfigPathFrom(st *settings.Store) string {
 	raw := st.String("lua_config_path")
 	if raw == "" {
 		return ""

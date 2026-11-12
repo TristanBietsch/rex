@@ -1,9 +1,36 @@
 package setup
 
 import (
+	"io"
 	"sync"
 	"time"
+
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
+
+// installPrinter sets the process Printer for a test: with interactive, the
+// text format with both terminals (so Confirm asks); otherwise txt on pipes.
+// Streams are discarded; commands with injected writers use core's WithIO.
+func installPrinter(interactive bool) {
+	env := core.Env{
+		Getenv: func(k string) string {
+			if k == "NO_COLOR" {
+				return "1"
+			}
+			return ""
+		},
+		InTTY: interactive, ErrTTY: interactive, Width: 80, Scheme: "default", GOOS: "linux",
+	}
+	fl := core.FormatFlags{}
+	if interactive {
+		fl.Output = "text"
+	}
+	p, err := core.NewPrinter(fl, env, io.Discard, io.Discard)
+	if err != nil {
+		panic(err)
+	}
+	core.SetOut(p)
+}
 
 // fakeDaemon stands in for rex-daemon in update and uninstall tests, so no
 // test ever signals a real process. Its socket answers while up; stop

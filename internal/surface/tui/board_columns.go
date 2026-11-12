@@ -88,6 +88,7 @@ const columnLayoutFit = "fit"
 type layoutOpts struct {
 	detailed bool // the detailed view (v)
 	resume   bool // the resume feature is on: the resume column exists
+	times    bool // the timestamps feature is on: the span column exists
 	fit      bool // column_layout: fit
 }
 
@@ -95,6 +96,7 @@ func layoutOptsOf(m Model) layoutOpts {
 	return layoutOpts{
 		detailed: m.Detailed,
 		resume:   m.featureOn("resume"),
+		times:    m.featureOn("timestamps"),
 		fit:      m.Store != nil && m.Store.String("column_layout") == columnLayoutFit,
 	}
 }
@@ -130,7 +132,7 @@ var classSpecs = [...]classSpec{
 // layoutRows sizes the row columns for a content width.
 func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, o layoutOpts) rowCols {
 	if o.fit {
-		return layoutFit(rows, now, width, o.detailed, o.resume)
+		return layoutFit(rows, now, width, o.detailed, o.resume, o.times)
 	}
 	return layoutFixed(width, o)
 }
@@ -154,6 +156,9 @@ func layoutFixed(width int, o layoutOpts) rowCols {
 		span: set.span, resume: set.resume, agents: set.agents, run: set.run}
 	if !o.resume {
 		c.resume = 0
+	}
+	if !o.times {
+		c.span = 0
 	}
 	for _, drop := range []*int{&c.run, &c.agents} {
 		if width-c.used() >= descMinNarrow {

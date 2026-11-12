@@ -1,0 +1,74 @@
+-- text.w40 --
+Doctor  v1 · linux/amd64
+
+  ✓ rex binary         /home/u/.local/bi
+                       n/rex
+  ! daemon reachable   socket not
+                       responding — run:
+                       rex daemon start
+                       (socket=/home/u/.
+                       cache/rex/rex.soc
+                       k)
+  ✓ config dir         /home/u/.config/r
+                       ex
+  ✗ rex-daemon binary  not found on PATH
+
+1 failure, 1 warning
+-- text.w80 --
+Doctor  v1 · linux/amd64
+
+  ✓ rex binary         /home/u/.local/bin/rex
+  ! daemon reachable   socket not responding — run: rex daemon start
+                       (socket=/home/u/.cache/rex/rex.sock)
+  ✓ config dir         /home/u/.config/rex
+  ✗ rex-daemon binary  not found on PATH
+
+1 failure, 1 warning
+-- text.w120 --
+Doctor  v1 · linux/amd64
+
+  ✓ rex binary         /home/u/.local/bin/rex
+  ! daemon reachable   socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)
+  ✓ config dir         /home/u/.config/rex
+  ✗ rex-daemon binary  not found on PATH
+
+1 failure, 1 warning
+-- text.color.w80 --
+␛[1;38;2;230;232;238mDoctor␛[0m  ␛[38;2;139;145;161mv1 · linux/amd64␛[0m
+
+  ␛[38;2;91;208;140m✓␛[0m rex binary         /home/u/.local/bin/rex
+  ␛[38;2;245;185;73m!␛[0m daemon reachable   socket not responding — run: rex daemon start
+                       (socket=/home/u/.cache/rex/rex.sock)
+  ␛[38;2;91;208;140m✓␛[0m config dir         /home/u/.config/rex
+  ␛[38;2;242;107;107m✗␛[0m rex-daemon binary  not found on PATH
+
+␛[38;2;139;145;161m1 failure, 1 warning␛[0m
+-- txt --
+v rex binary  /home/u/.local/bin/rex
+! daemon reachable  socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)
+v config dir  /home/u/.config/rex
+x rex-daemon binary  not found on PATH
+
+1 failure, 1 warning
+-- md --
+### Doctor
+
+*v1 · linux/amd64*
+
+| Status | Check | Detail |
+| --- | --- | --- |
+| PASS | rex binary | /home/u/.local/bin/rex |
+| WARN | daemon reachable | socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock) |
+| PASS | config dir | /home/u/.config/rex |
+| FAIL | rex-daemon binary | not found on PATH |
+
+> 1 failure, 1 warning
+-- json --
+{"v":1,"cmd":"doctor","data":{"checks":[{"name":"rex binary","status":"pass","detail":"/home/u/.local/bin/rex"},{"name":"daemon reachable","status":"warn","detail":"socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)"},{"name":"config dir","status":"pass","detail":"/home/u/.config/rex"},{"name":"tool: claude","status":"info","detail":"/usr/bin/claude"},{"name":"rex-daemon binary","status":"fail","detail":"not found on PATH"}],"ok":false,"fails":1,"warns":1}}
+-- agent --
+check name="rex binary" status=pass detail=/home/u/.local/bin/rex
+check name="daemon reachable" status=warn detail="socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)"
+check name="config dir" status=pass detail=/home/u/.config/rex
+check name="tool: claude" status=info detail=/usr/bin/claude
+check name="rex-daemon binary" status=fail detail="not found on PATH"
+fail cmd=doctor fails=1 warns=1

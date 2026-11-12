@@ -89,8 +89,7 @@ func TestRunUndo_NonTTYNeedsYes(t *testing.T) {
 
 func TestRunUndo_YesRestoresAndRedoBringsBack(t *testing.T) {
 	r := startUndoRig(t)
-	out := captureOut(t, "json")
-	withPruneIO(t, "", false)
+	out, _ := withPruneIOFormat(t, "", false, "json")
 	require.NoError(t, RunUndo([]string{"-socket", r.sock, "-yes", "alpha"}))
 	require.Equal(t, "one\n", r.file(t, "a.txt"))
 	require.Equal(t, "<missing>", r.file(t, "new.txt"))
@@ -98,7 +97,7 @@ func TestRunUndo_YesRestoresAndRedoBringsBack(t *testing.T) {
 	require.Contains(t, out.String(), `"deleted":["new.txt"]`)
 	require.Contains(t, out.String(), `"op":"undo"`)
 
-	out = captureOut(t, "txt")
+	out, _ = withPruneIOFormat(t, "", false, "txt")
 	require.NoError(t, RunRedo([]string{"-socket", r.sock, "-y", "alpha"}))
 	require.Equal(t, "two\n", r.file(t, "a.txt"))
 	require.Equal(t, "new\n", r.file(t, "new.txt"))
@@ -120,17 +119,15 @@ func TestRunUndo_ConfirmListsCountsAndShellNote(t *testing.T) {
 	require.Contains(t, errOut.String(), "[y/N]")
 	require.Equal(t, "two\n", r.file(t, "a.txt"), "declined: nothing changed")
 
-	out := captureOut(t, "txt")
-	withPruneIO(t, "yes\n", true)
+	out, _ := withPruneIO(t, "yes\n", true)
 	require.NoError(t, RunUndo([]string{"-socket", r.sock, "alpha"}))
 	require.Equal(t, "one\n", r.file(t, "a.txt"))
-	require.Contains(t, out.String(), "undo\t")
+	require.Contains(t, out.String(), "restored")
 }
 
 func TestRunUndo_TextViewTellsTheUser(t *testing.T) {
 	r := startUndoRig(t)
-	out := captureOut(t, "text")
-	withPruneIO(t, "", false)
+	out, _ := withPruneIOFormat(t, "", false, "text")
 	require.NoError(t, RunUndo([]string{"-socket", r.sock, "-yes", "alpha"}))
 	require.Contains(t, out.String(), "1 file(s) restored, 1 deleted")
 	require.Contains(t, out.String(), "a.txt")

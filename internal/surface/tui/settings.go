@@ -174,6 +174,7 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			_ = m.Store.Reset(m.Settings.CursorID)
 			applyLive(&m, s.ID, m.Store.Get(s.ID))
 			_ = m.Store.Save(m.StorePath)
+			reloadDaemonForTrust(m.reloader, m.Socket, s.ID)
 		}
 		return m, nil
 	}
@@ -433,6 +434,7 @@ func applySettingsAction(m Model, step int) Model {
 	}
 	applyLive(&m, s.ID, m.Store.Get(s.ID))
 	_ = m.Store.Save(m.StorePath)
+	reloadDaemonForTrust(m.reloader, m.Socket, s.ID)
 	return m
 }
 

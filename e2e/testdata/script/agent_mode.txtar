@@ -1,0 +1,61 @@
+# Agent mode: REX_AGENT=1, or CLAUDECODE=1 with a piped stdout, gives one line
+# per record, an ok trailer, one error line on stderr, and never prompts.
+
+daemon-start
+exec rex new -tool echo -model short -slug s1 hello
+
+env REX_AGENT=1
+exec rex ls
+stdout '^session id=\S+ state=\S+ tool=echo model=short effort="" slug=s1 idle_s=\d+ name=""$'
+stdout '^ok cmd=ls count=1$'
+! stderr .
+
+# rm without -force never prompts: refused, exit 6, one error line.
+exitcode 6 rex rm s1
+! stdout .
+stderr '^error code=6 kind=refused cmd=rm msg="rm: cannot ask in agent mode|rm: stdin is not a terminal; pass -force to delete without asking"'
+exec rex ls
+stdout '^ok cmd=ls count=1$'
+
+# Interactive commands refuse with a hint.
+exitcode 5 rex
+stderr '^error code=5 kind=invalid_args msg="rex: interactive; it cannot run in agent mode'
+stderr 'hint="rex ls"'
+exitcode 5 rex attach s1
+stderr '^error code=5 kind=invalid_args cmd=attach msg="attach: output \\"agent\\" is not supported'
+stderr 'hint="rex log <sel> -n 50"'
+exitcode 5 rex setup
+stderr 'the wizard is interactive'
+
+# rex --help is the agent card.
+exec rex --help
+stdout '^rex agent card v1:'
+env REX_AGENT=
+
+# CLAUDECODE=1 with a piped stdout switches agent mode on by itself...
+env CLAUDECODE=1
+exec rex status
+stdout '^ok cmd=status needs_input=0 working=\d queued=0 done=\d failed=0$'
+exitcode 5 rex
+stderr '^error code=5 kind=invalid_args msg='
+
+# ...unless REX_AGENT=0, an explicit format, or the setting says no.
+env REX_AGENT=0
+exec rex status
+stdout '^\d+ awaiting input'
+env REX_AGENT=
+exec rex status -o txt
+stdout '^\d+ awaiting input'
+exec rex config set cli_agent_auto false
+exec rex status
+stdout '^\d+ awaiting input'
+exec rex status --agent
+stdout '^ok cmd=status '
+env CLAUDECODE=
+exec rex config reset cli_agent_auto
+
+exec rex rm s1 -force
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false

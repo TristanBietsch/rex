@@ -21,6 +21,13 @@ type Result struct {
 	Meta map[string]any
 	// View is the human and agent layout.
 	View View
+	// Failed makes the agent trailer `fail` instead of `ok`: the result is
+	// the answer, but the command exits non-zero (doctor with failed checks).
+	Failed bool
+	// Content, when set, is the body verbatim for text, txt and agent (for
+	// `rex agent-help`, whose card is its own format). md fences it; json
+	// still carries Data.
+	Content string
 	// Legacy writes the command's pre-versioned -json output. It is required
 	// for commands registered with WithLegacyJSON.
 	Legacy func(io.Writer) error
@@ -30,7 +37,7 @@ type Result struct {
 type View []Block
 
 // Block is one element of a View. The kit's block types are Header, Section,
-// KV, Table, Checks, Note, Hint and Line.
+// KV, Table, Checks, Note, Hint, Line, Para and Defs.
 type Block interface{ isBlock() }
 
 // Cell is one value in a Table or KV.
@@ -142,6 +149,14 @@ type Table struct {
 	Rows [][]Cell
 	// Empty is shown instead of the table when there are no rows.
 	Empty string
+	// NoCount keeps the table's rows out of the agent trailer's count (a
+	// breakdown next to the main list).
+	NoCount bool
+	// TxtRecords prints the txt format as tab-separated rows with no header
+	// and no padding, the shape `prune -dry-run` has always had.
+	TxtRecords bool
+	// TxtFoot is a last line of the TxtRecords output ("would clear 2").
+	TxtFoot string
 }
 
 // Check is one doctor-style row.
@@ -175,6 +190,35 @@ type Line struct {
 	// Txt replaces the line in the txt format when non-empty (a tab-separated
 	// record, say).
 	Txt string
+	// Silent prints nothing in the txt format: the command has always been
+	// quiet there, and scripts rely on it. The other formats still show it.
+	Silent bool
+}
+
+// Para is a plain paragraph: wrapped to the terminal in text, as written in
+// the other human formats, and not part of agent output.
+type Para struct{ Text string }
+
+// Pre is preformatted text: its line breaks and spacing are kept (each line
+// is flattened), nothing is wrapped, and md fences it. Agent output skips it.
+type Pre struct{ Text string }
+
+// Def is one Defs entry.
+type Def struct {
+	Name, Desc string
+	// Key is the name in agent lines when it differs from the displayed Name
+	// ("-state" for "-state dir").
+	Key string
+	// Extra are further fields of the agent line, after name and desc.
+	Extra []Field
+}
+
+// Defs is an aligned two-column list: names in the accent color, wrapped
+// descriptions in dim, as in `rex --help`. In agent mode a Defs with Kind set
+// is one record line per entry.
+type Defs struct {
+	Kind  string
+	Items []Def
 }
 
 func (Header) isBlock()  {}
@@ -185,6 +229,9 @@ func (Checks) isBlock()  {}
 func (Note) isBlock()    {}
 func (Hint) isBlock()    {}
 func (Line) isBlock()    {}
+func (Para) isBlock()    {}
+func (Pre) isBlock()     {}
+func (Defs) isBlock()    {}
 
 // flat strips control, line-break and bidi characters from untrusted text.
 func flat(s string) string { return protocol.FlattenDisplayText(s) }
@@ -218,7 +265,7 @@ func (v View) sanitized() View {
 				p.Label, p.Glyph, p.Val = flat(p.Label), flat(p.Glyph), flatCell(p.Val)
 				pairs[j] = p
 			}
-			b.Pairs, b.Txt = pairs, flatKeepTab(b.Txt)
+			b.Pairs, b.Txt = pairs, flatTxtLines(b.Txt)
 			out[i] = b
 		case Table:
 			rows := make([][]Cell, len(b.Rows))
@@ -229,7 +276,7 @@ func (v View) sanitized() View {
 				}
 				rows[j] = cells
 			}
-			b.Rows, b.Empty = rows, flat(b.Empty)
+			b.Rows, b.Empty, b.TxtFoot = rows, flat(b.Empty), flat(b.TxtFoot)
 			out[i] = b
 		case Checks:
 			rows := make([]Check, len(b.Rows))
@@ -242,12 +289,36 @@ func (v View) sanitized() View {
 		case Hint:
 			out[i] = Hint{Text: flat(b.Text), Cmd: flat(b.Cmd)}
 		case Line:
-			out[i] = Line{Tone: b.Tone, Glyph: flat(b.Glyph), Text: flat(b.Text), Txt: flatKeepTab(b.Txt)}
+			out[i] = Line{Tone: b.Tone, Glyph: flat(b.Glyph), Text: flat(b.Text), Txt: flatKeepTab(b.Txt), Silent: b.Silent}
+		case Para:
+			out[i] = Para{Text: flat(b.Text)}
+		case Pre:
+			out[i] = Pre{Text: flatTxtLines(b.Text)}
+		case Defs:
+			items := make([]Def, len(b.Items))
+			for j, d := range b.Items {
+				items[j] = Def{Name: flat(d.Name), Desc: flat(d.Desc), Key: d.Key, Extra: d.Extra}
+			}
+			b.Items = items
+			out[i] = b
 		default:
 			out[i] = b
 		}
 	}
 	return out
+}
+
+// flatTxtLines is flatKeepTab for a block that may span lines: line breaks
+// are kept, each line is flattened.
+func flatTxtLines(s string) string {
+	if !strings.Contains(s, "\n") {
+		return flatKeepTab(s)
+	}
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = flatKeepTab(l)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func flatCell(c Cell) Cell {

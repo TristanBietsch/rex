@@ -1,0 +1,42 @@
+-- resuming.text --
+✓ resuming 7d4f fix-auth-flow
+-- resuming.txt --
+fix-auth-flow: resuming
+-- resuming.md --
+resuming 7d4f fix-auth-flow
+-- resuming.json --
+{"v":1,"cmd":"resume","data":{"id":"7d4f0000","short_id":"7d4f","slug":"fix-auth-flow","outcome":"resuming"}}
+-- resuming.agent --
+ok cmd=resume id=7d4f slug=fix-auth-flow outcome=resuming
+-- unmarked.text --
+✓ unmarked 7d4f fix-auth-flow
+-- unmarked.txt --
+fix-auth-flow: unmarked
+-- unmarked.md --
+unmarked 7d4f fix-auth-flow
+-- unmarked.json --
+{"v":1,"cmd":"resume","data":{"id":"7d4f0000","short_id":"7d4f","slug":"fix-auth-flow","outcome":"unmarked"}}
+-- unmarked.agent --
+ok cmd=resume id=7d4f slug=fix-auth-flow outcome=unmarked
+-- running.text --
+✓ 7d4f fix-auth-flow is already running
+-- running.txt --
+fix-auth-flow: already running
+-- running.md --
+7d4f fix-auth-flow is already running
+-- running.json --
+{"v":1,"cmd":"resume","data":{"id":"7d4f0000","short_id":"7d4f","slug":"fix-auth-flow","outcome":"running"}}
+-- running.agent --
+ok cmd=resume id=7d4f slug=fix-auth-flow outcome=running
+-- resuming.text.color --
+␛[38;2;91;208;140m✓ resuming 7d4f fix-auth-flow␛[0m
+-- print.text --
+7d4f3c8a-1234-4abc-89ab-cdefabcdef01
+-- print.txt --
+7d4f3c8a-1234-4abc-89ab-cdefabcdef01
+-- print.md --
+7d4f3c8a-1234-4abc-89ab-cdefabcdef01
+-- print.json --
+{"v":1,"cmd":"resume","data":{"id":"7d4f0000","resume_id":"7d4f3c8a-1234-4abc-89ab-cdefabcdef01"}}
+-- print.agent --
+ok cmd=resume id=7d4f resume_id=7d4f3c8a-1234-4abc-89ab-cdefabcdef01

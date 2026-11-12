@@ -370,7 +370,21 @@ func (s *Store) Reopen(id string) error {
 	sess.ExitCode = nil
 	sess.RetireAt = time.Time{}
 	sess.RetiredAt = time.Time{}
+	// A new run: its end gets its own audit record, and it records no
+	// prompt (the daemon no longer has the first run's).
+	sess.AuditWritten = false
+	sess.auditFirst, sess.auditPrompt = "", ""
 	return nil
+}
+
+// ReleaseReaping gives back the retire sweep's claim on a session whose
+// deletion was abandoned, so a later sweep claims it again.
+func (s *Store) ReleaseReaping(id string) {
+	if sess, ok := s.Get(id); ok {
+		sess.mu.Lock()
+		sess.reaping = false
+		sess.mu.Unlock()
+	}
 }
 
 // RetireCandidate is a marked session whose deadline has passed.

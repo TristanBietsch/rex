@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"strings"
 )
 
@@ -35,6 +36,7 @@ func ParseTextArgs(fs *flag.FlagSet, args []string, leading int) ([]string, erro
 }
 
 func parseArgs(fs *flag.FlagSet, args []string, leading int) ([]string, error) {
+	noteRegisteredFlags(fs)
 	var tail []string
 	for i, a := range args {
 		if a == "--" {
@@ -43,17 +45,25 @@ func parseArgs(fs *flag.FlagSet, args []string, leading int) ([]string, error) {
 			break
 		}
 	}
+	// The flag package prints its usage block as soon as it fails; hold it
+	// back. -h prints the command's help through the kit, and any other
+	// error gets a one-line usage hint after the error line.
+	defaultUsage := fs.Usage
+	defer func() { fs.Usage = defaultUsage }()
+	fs.Usage = func() {}
 	var pos []string
 	for len(args) > 0 {
 		if err := fs.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
+				showCommandHelp(fs)
 				return nil, ErrHelpShown
 			}
+			_, _ = fmt.Fprintf(fs.Output(), "Usage: rex %s [flags]  (run `rex %s -h` for the flags)\n", fs.Name(), fs.Name())
 			msg := err.Error()
 			if leading >= 0 && len(pos) >= leading && strings.HasPrefix(msg, "flag provided but not defined") {
 				msg += "; use -- before text that starts with -"
 			}
-			return nil, NewExitError(ExitInvalidArgs, msg)
+			return nil, NewExitError(ExitInvalidArgs, msg).WithID("invalid_flag")
 		}
 		rest := fs.Args()
 		if len(rest) == 0 {

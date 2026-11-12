@@ -124,20 +124,10 @@ func TestCheckStatus_String(t *testing.T) {
 	}
 }
 
-func TestRenderStatus_Symbols(t *testing.T) {
-	cases := []struct {
-		s       checkStatus
-		wantSym string
-	}{
-		{checkPass, "✓"},
-		{checkWarn, "!"},
-		{checkFail, "✗"},
-		{checkInfo, "·"},
-	}
-	for _, tc := range cases {
-		sym, _ := renderStatus(tc.s)
-		if sym != tc.wantSym {
-			t.Errorf("renderStatus(%v) sym = %q, want %q", tc.s, sym, tc.wantSym)
+func TestStatusWord(t *testing.T) {
+	for st, want := range map[checkStatus]string{checkPass: "pass", checkWarn: "warn", checkFail: "fail", checkInfo: "info"} {
+		if got := statusWord(st); got != want {
+			t.Errorf("statusWord(%v) = %q, want %q", st, got, want)
 		}
 	}
 }
