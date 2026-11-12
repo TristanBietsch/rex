@@ -259,35 +259,35 @@ type Server struct {
 	writerWait time.Duration
 
 	outputSubsMu sync.RWMutex
-	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
+	outputSubs   map[string]*state.Subs[func([]byte)] // sessionID -> callbacks
 
 	// summarizerHealthSubs is a global fan-out for SummarizerHealth events
 	// (not tied to any single session — every connected client subscribes
 	// after Hello).
 	summarizerHealthMu   sync.RWMutex
-	summarizerHealthSubs []func(protocol.SummarizerHealth)
+	summarizerHealthSubs state.Subs[func(protocol.SummarizerHealth)]
 
 	// overview is the latest board overview (memory only, never persisted),
 	// with a global fan-out like SummarizerHealth. overviewMu guards all
 	// three.
 	overviewMu   sync.RWMutex
 	overview     *protocol.Overview
-	overviewSubs []func(protocol.Overview)
+	overviewSubs state.Subs[func(protocol.Overview)]
 
 	// toolsSubs is the global fan-out for ToolsChanged.
 	toolsSubsMu sync.RWMutex
-	toolsSubs   []func(protocol.ToolsChanged)
+	toolsSubs   state.Subs[func(protocol.ToolsChanged)]
 
 	// usage is the latest live usage state (memory only, never persisted),
 	// with the same global fan-out as the overview. usageMu guards all three.
 	usageMu   sync.RWMutex
 	usage     *protocol.Usage
-	usageSubs []func(protocol.Usage)
+	usageSubs state.Subs[func(protocol.Usage)]
 
 	// loopSubs is the fan-out for Loop events (loops are kept by the
 	// service, not here). loopMu guards it.
 	loopMu   sync.RWMutex
-	loopSubs []func(protocol.LoopSummary)
+	loopSubs state.Subs[func(protocol.LoopSummary)]
 
 	// boardClients counts the connections that completed Hello as a board
 	// viewer (the rex TUI) and are still open.
@@ -333,7 +333,7 @@ type Server struct {
 func (s *Server) SetRegistry(reg *registry.Registry) {
 	s.storeRegistry(reg)
 	s.toolsSubsMu.RLock()
-	subs := slices.Clone(s.toolsSubs)
+	subs := s.toolsSubs.Clone()
 	s.toolsSubsMu.RUnlock()
 	if len(subs) == 0 {
 		return
@@ -358,14 +358,11 @@ func (s *Server) storeRegistry(reg *registry.Registry) {
 func (s *Server) SubscribeTools(fn func(protocol.ToolsChanged)) func() {
 	s.toolsSubsMu.Lock()
 	defer s.toolsSubsMu.Unlock()
-	idx := len(s.toolsSubs)
-	s.toolsSubs = append(s.toolsSubs, fn)
+	id := s.toolsSubs.Add(fn)
 	return func() {
 		s.toolsSubsMu.Lock()
 		defer s.toolsSubsMu.Unlock()
-		if idx < len(s.toolsSubs) {
-			s.toolsSubs[idx] = nil
-		}
+		s.toolsSubs.Remove(id)
 	}
 }
 
@@ -700,17 +697,23 @@ func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func(
 	s.outputSubsMu.Lock()
 	defer s.outputSubsMu.Unlock()
 	if s.outputSubs == nil {
-		s.outputSubs = make(map[string][]func([]byte))
+		s.outputSubs = make(map[string]*state.Subs[func([]byte)])
 	}
-	idx := len(s.outputSubs[sessionID])
-	s.outputSubs[sessionID] = append(s.outputSubs[sessionID], fn)
+	list := s.outputSubs[sessionID]
+	if list == nil {
+		list = &state.Subs[func([]byte)]{}
+		s.outputSubs[sessionID] = list
+	}
+	id := list.Add(fn)
 	return func() {
 		s.outputSubsMu.Lock()
 		defer s.outputSubsMu.Unlock()
-		list := s.outputSubs[sessionID]
-		if idx < len(list) {
-			list[idx] = nil
-			s.outputSubs[sessionID] = list
+		// The session's list may have been dropped (or replaced) since.
+		if cur := s.outputSubs[sessionID]; cur == list {
+			list.Remove(id)
+			if list.Len() == 0 {
+				delete(s.outputSubs, sessionID)
+			}
 		}
 	}
 }
@@ -719,10 +722,8 @@ func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func(
 func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 	s.outputSubsMu.RLock()
 	defer s.outputSubsMu.RUnlock()
-	for _, fn := range s.outputSubs[sessionID] {
-		if fn != nil {
-			fn(b)
-		}
+	for fn := range s.outputSubs[sessionID].All() {
+		fn(b)
 	}
 }
 
@@ -734,14 +735,11 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 func (s *Server) SubscribeSummarizerHealth(fn func(protocol.SummarizerHealth)) func() {
 	s.summarizerHealthMu.Lock()
 	defer s.summarizerHealthMu.Unlock()
-	idx := len(s.summarizerHealthSubs)
-	s.summarizerHealthSubs = append(s.summarizerHealthSubs, fn)
+	id := s.summarizerHealthSubs.Add(fn)
 	return func() {
 		s.summarizerHealthMu.Lock()
 		defer s.summarizerHealthMu.Unlock()
-		if idx < len(s.summarizerHealthSubs) {
-			s.summarizerHealthSubs[idx] = nil
-		}
+		s.summarizerHealthSubs.Remove(id)
 	}
 }
 
@@ -752,12 +750,8 @@ func (s *Server) BroadcastSummarizerHealth(available bool, reason string) {
 	payload := protocol.SummarizerHealth{Available: available, Reason: reason}
 	s.summarizerHealthMu.RLock()
 	defer s.summarizerHealthMu.RUnlock()
-	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", len(s.summarizerHealthSubs))
-	for _, fn := range s.summarizerHealthSubs {
-		if fn != nil {
-			fn(payload)
-		}
-	}
+	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", s.summarizerHealthSubs.Len())
+	s.summarizerHealthSubs.Each(func(fn func(protocol.SummarizerHealth)) { fn(payload) })
 }
 
 // SetOverview stores o as the current overview and sends it to every client
@@ -770,7 +764,7 @@ func (s *Server) SetOverview(o protocol.Overview) {
 	s.overviewMu.Lock()
 	cp := o
 	s.overview = &cp
-	subs := slices.Clone(s.overviewSubs)
+	subs := s.overviewSubs.Clone()
 	s.overviewMu.Unlock()
 	for _, fn := range subs {
 		if fn != nil {
@@ -796,14 +790,11 @@ func (s *Server) Overview() *protocol.Overview {
 func (s *Server) SubscribeOverview(fn func(protocol.Overview)) func() {
 	s.overviewMu.Lock()
 	defer s.overviewMu.Unlock()
-	idx := len(s.overviewSubs)
-	s.overviewSubs = append(s.overviewSubs, fn)
+	id := s.overviewSubs.Add(fn)
 	return func() {
 		s.overviewMu.Lock()
 		defer s.overviewMu.Unlock()
-		if idx < len(s.overviewSubs) {
-			s.overviewSubs[idx] = nil
-		}
+		s.overviewSubs.Remove(id)
 	}
 }
 
@@ -813,7 +804,7 @@ func (s *Server) SetUsage(u protocol.Usage) {
 	s.usageMu.Lock()
 	cp := u
 	s.usage = &cp
-	subs := slices.Clone(s.usageSubs)
+	subs := s.usageSubs.Clone()
 	s.usageMu.Unlock()
 	for _, fn := range subs {
 		if fn != nil {
@@ -840,14 +831,11 @@ func (s *Server) Usage() *protocol.Usage {
 func (s *Server) SubscribeUsage(fn func(protocol.Usage)) func() {
 	s.usageMu.Lock()
 	defer s.usageMu.Unlock()
-	idx := len(s.usageSubs)
-	s.usageSubs = append(s.usageSubs, fn)
+	id := s.usageSubs.Add(fn)
 	return func() {
 		s.usageMu.Lock()
 		defer s.usageMu.Unlock()
-		if idx < len(s.usageSubs) {
-			s.usageSubs[idx] = nil
-		}
+		s.usageSubs.Remove(id)
 	}
 }
 

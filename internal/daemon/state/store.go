@@ -42,7 +42,7 @@ type Store struct {
 	mu          sync.RWMutex
 	sessions    map[string]*Session
 	byShortID   map[string]string // short_id -> id
-	subscribers []func(Event)
+	subscribers Subs[func(Event)]
 	subsMu      sync.RWMutex
 }
 
@@ -819,23 +819,18 @@ func (s *Store) UpdateDescription(id, desc string) error {
 func (s *Store) Subscribe(fn func(Event)) func() {
 	s.subsMu.Lock()
 	defer s.subsMu.Unlock()
-	s.subscribers = append(s.subscribers, fn)
-	idx := len(s.subscribers) - 1
+	id := s.subscribers.Add(fn)
 	return func() {
 		s.subsMu.Lock()
 		defer s.subsMu.Unlock()
-		if idx < len(s.subscribers) {
-			s.subscribers[idx] = nil
-		}
+		s.subscribers.Remove(id)
 	}
 }
 
 func (s *Store) broadcast(e Event) {
 	s.subsMu.RLock()
 	defer s.subsMu.RUnlock()
-	for _, fn := range s.subscribers {
-		if fn != nil {
-			fn(e)
-		}
+	for fn := range s.subscribers.All() {
+		fn(e)
 	}
 }
