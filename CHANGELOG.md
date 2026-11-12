@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed (board polish)
+
+- Board rows no longer paint a background on the selected row (the patchy
+  bar behind its icon cells). The `▸` arrow marks the selection.
+- The `∴ REX` logo (board header, settings and help page headers,
+  screensaver) is drawn in the theme's primary text color instead of the
+  accent: white on dark themes, dark on light ones.
+- The row icon strip is right-aligned: it ends next to the age, and the
+  name takes the room on the left, so long names are no longer cut while
+  there is space.
+- A Ready row whose turn simply finished no longer shows `✓ review`; the
+  why slot shows only `? asks` and the waiting reasons. The legend drops
+  the `✓ review` row.
+
 ### Added (hot reload, board swap, daemon hot restart)
 
 - `rex daemon restart` is now a hot restart: the daemon re-execs itself in

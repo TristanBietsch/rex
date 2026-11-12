@@ -51,7 +51,7 @@ func TestReasonText_Question(t *testing.T) {
 
 		s.WaitReason = protocol.WaitReview
 		got, _ = reasonText(m, s)
-		require.Equal(t, "✓ review", got, "review wins over the line: %s", c.name)
+		require.Empty(t, got, "a finished turn shows nothing, whatever the line: %s", c.name)
 		s.WaitReason = protocol.WaitInput
 		got, _ = reasonText(m, s)
 		require.Equal(t, "? asks", got, "input: %s", c.name)

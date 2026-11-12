@@ -134,8 +134,10 @@ Rules per slot:
 Row grid with `row_icons` on:
 
 ```
-indent marker  [id]  name  unseen why [loop] subagents spend longrun  ‹spacer›  [model·effort tokens span resume]  age
+indent marker  [id]  name‹+spacer›  [model·effort tokens span resume]  unseen why [loop] subagents spend longrun  age
 ```
+
+(Grid as of 2026-11-12: the strip is right-anchored next to the age and the name cell takes the spacer. The original grid had the strip right after the name and the spacer before the detail columns.)
 
 - No column reads row content (`column_layout: fixed`). The spacer is blank and takes what is left; it replaces `rowCols.desc`.
 - Name widths: simple 32 / 24 / 20 (wide / normal / narrow), detailed 24 / 18 / 20. Narrow detailed = narrow simple (no detail columns), as today.
@@ -317,13 +319,15 @@ Accepted 2026-11-11 (user): D1–D12 as recommended. Phase 1 icons confirmed: wh
 
 2026-11-12 (user): the phase 2 context-used glyph is `◔` (U+25D4, EAW `N`, not emoji), not `⧗`, which reads as the waiting-icon hourglass set (`⧖ ⧑ ⧒`, `feat/waiting-spinner`). Checked against the state markers, agent icons, the strip glyphs (`⋔ ⟳ ✦ ▴ $ ↯`), the spinner frames and every waiting set (`◴◷◶◵ ⧖⧑⧒ ⣀⣄⣤⣦⣶⣷⣿ ◜◝◞◟ ⠂⡀⢀⠐ ∘◦⊚`). `◑` was rejected: EAW `A`. ASCII fallback stays `%`.
 
+2026-11-12 (user): board polish (`feat/board-polish`). (1) D3 reversed: the strip is right-anchored, ending one gap before the age; the detail columns sit between the name and the strip; the name cell takes the old spacer (class widths 32/24/20 and 24/18/20 become minimums). Widths still never read row content; squeeze order, mobile, `row_icons` off and `ascii_glyphs` unchanged. (2) No row background: strip cells of the selected row lose the `bg_sel` fill (the "per line highlighting"); the `▸` arrow is the selection. (3) `✓ review` is dropped from rows, the mobile line and the legend: a finished turn leaves the why slot blank (`WaitReview` wins over a `?` last line, as before, so it stays blank); `? asks` and the waiting reasons stay; the `review` glyph and its `+` ASCII form are gone. The header overview's "to review" count is unchanged. (4) Outside this spec: the `∴ REX` logo takes `fg` instead of `accent`.
+
 Recommendation first.
 
 | # | Question | Recommendation | Alternatives |
 |---|---|---|---|
 | D1 | Which module is "middle" | The row text column (task / AI summary in every row) | The header overview `»` line |
 | D2 | Row words after the change | Gone from rows in both views; the `↳` line carries question → summary → task for the selected row | Keep a short task column on 150+ only |
-| D3 | Freed width | Strip left-anchored right after the name, blank spacer before the detail columns; names widen (32/24/20) | Strip right-anchored next to the age |
+| D3 | Freed width | ~~Strip left-anchored right after the name, blank spacer before the detail columns; names widen (32/24/20)~~ Superseded 2026-11-12: strip right-anchored next to the age; the name takes the freed width | Strip left-anchored after the name |
 | D4 | Spend source | Real cost from the Claude status-line tap only (`cost_usd`); blank for other tools | Estimate from tokens × a price table, shown as `~$` |
 | D5 | Spend colors | Fixed: dim, ≥ $5 warm, ≥ $20 hot | A setting for the thresholds |
 | D6 | When does `✦` clear | Attach or `cc`; saved in `tui-state.json` | Also after the row is selected for 2 s |

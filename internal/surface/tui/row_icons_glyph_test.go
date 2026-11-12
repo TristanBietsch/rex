@@ -12,7 +12,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-var iconGlyphNames = []string{"unseen", "asks", "review", "loop", "subagents", "spend", "longrun"}
+var iconGlyphNames = []string{"unseen", "asks", "loop", "subagents", "spend", "longrun"}
 
 func iconModel(t *testing.T, kv ...any) Model {
 	t.Helper()

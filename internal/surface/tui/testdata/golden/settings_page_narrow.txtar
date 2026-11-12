@@ -21,7 +21,7 @@
   esc back · j/k move · ←→ change · enter toggle …
 -- styled.50x20 --
                                                   
-  ␛[1;38;2;179;146;240m∴ REX␛[0m␛[38;2;139;145;161m › SETTINGS␛[0m    ␛[38;2;139;145;161mBehavior › Mouse enabled␛[0m    
+  ␛[1;38;2;230;232;238m∴ REX␛[0m␛[38;2;139;145;161m › SETTINGS␛[0m    ␛[38;2;139;145;161mBehavior › Mouse enabled␛[0m    
 ␛[38;2;43;48;60m──────────────────────────────────────────────────␛[0m
                    ␛[38;2;179;146;240m‹ ␛[0m␛[1mBehavior␛[0m␛[38;2;179;146;240m ›␛[0m                   
   ␛[1mBehavior␛[0m                                        

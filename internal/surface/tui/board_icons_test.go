@@ -89,18 +89,16 @@ func TestIconLayout_RowWidthExact(t *testing.T) {
 	}
 }
 
-// slotOffsets is each present slot's start column in a row.
+// slotOffsets is each present slot's start column in a row. The strip is
+// right-anchored: its last slot ends one gap before the age column.
 func slotOffsets(c rowCols) map[iconSlot]int {
-	off := rowIndent + colMarker + colGap + c.slug
-	if c.id > 0 {
-		off += c.id + colGap
-	}
+	off := c.used() + c.spacer - colTime - colGap
 	out := map[iconSlot]int{}
-	for s := slotUnseen; s <= slotLongRun; s++ {
+	for s := slotLongRun; s >= slotUnseen; s-- {
 		if c.slots[s] > 0 {
-			off += colGap
+			off -= c.slots[s]
 			out[s] = off
-			off += c.slots[s]
+			off -= colGap
 		}
 	}
 	return out

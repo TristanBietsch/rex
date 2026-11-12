@@ -35,15 +35,16 @@ func TestEveryThemeRendersBoard(t *testing.T) {
 	}
 }
 
-// The logo takes the accent in every scheme.
-func TestLogoAndArrowUseAccent(t *testing.T) {
+// The logo takes the primary text tone (white on a dark scheme, ink on
+// paper) and the select arrow the accent, in every scheme.
+func TestLogoPrimaryArrowAccent(t *testing.T) {
 	t.Cleanup(func() { applyTheme("default") })
 	for _, name := range theme.Names() {
 		applyTheme(name)
 		p, _ := theme.Get(name)
-		accent := lipgloss.Color(p.Accent)
-		require.Equal(t, accent, styleLogo.GetForeground(), name)
-		require.Equal(t, accent, styleArrow.GetForeground(), name)
+		require.Equal(t, lipgloss.Color(p.Fg), styleLogo.GetForeground(), name)
+		require.True(t, styleLogo.GetBold(), name)
+		require.Equal(t, lipgloss.Color(p.Accent), styleArrow.GetForeground(), name)
 	}
 }
 

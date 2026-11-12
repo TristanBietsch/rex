@@ -95,9 +95,9 @@ Tokens under `colors:`:
 | Token | Paints |
 |-------|--------|
 | `bg` | The assumed terminal background. Never painted: used for contrast checks |
-| `fg`, `fg_dim`, `fg_muted` | Primary, secondary and quiet text |
-| `bg_sel`, `border`, `border_focus` | Selection background, frames, the focused overlay frame |
-| `accent` | The prompt arrow, selection marker, focused input, logo and command names |
+| `fg`, `fg_dim`, `fg_muted` | Primary (also the `∴ REX` logo), secondary and quiet text |
+| `bg_sel`, `border`, `border_focus` | Selection background (settings and list pages; board rows have none), frames, the focused overlay frame |
+| `accent` | The prompt arrow, selection marker, focused input and command names |
 | `working`, `queued`, `needs`, `done`, `failed`, `crashed` | One color per session state |
 | `warn`, `danger`, `success`, `info` | Feedback messages |
 | `fleet` | A list of 1 to 16 colors, one per fleet |
