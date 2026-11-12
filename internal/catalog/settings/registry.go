@@ -143,7 +143,7 @@ var Registry = []Setting{
 	},
 	{
 		ID: "board_hidden_sections", Label: "Hidden board sections", Section: SectionBehavior, Apply: ApplyLive,
-		Type: TypeString, Default: "",
+		Type: TypeString, Default: "", ListSep: ",",
 		Help: "Board sections hidden, comma-separated ids: needs, waiting, working, done (for example: done). Unknown ids are ignored. Applies at once and is the starting set; zh, z1-z9 and :filter change it for the current run; :bg keeps the choice for the next start.",
 	},
 	{
@@ -284,7 +284,7 @@ var Registry = []Setting{
 	{
 		ID: "auto_trust_dirs", Label: "Auto-trust folders", Section: SectionSpawn, Apply: ApplyNextSpawn,
 		Type: TypeString, Default: "",
-		Free: true, Normalize: normalizeAutoTrustDirs,
+		Free: true, Normalize: normalizeAutoTrustDirs, ListSep: string(filepath.ListSeparator),
 		Help: "Sessions started in these folders (or below them) skip the agent's \"trust this folder\" question: rex starts the agent with the folder trusted, or answers the question. " +
 			"Separate folders with " + string(filepath.ListSeparator) + "; ~/ is your home. Empty: always ask. " +
 			"Only list folders whose code you trust: accepting lets a repo's own agent settings apply.",

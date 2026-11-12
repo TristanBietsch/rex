@@ -7,6 +7,8 @@
 //	    config.yaml                ConfigFile: settings (rex setup, rex config, TUI)
 //	    tools.yaml                 ToolsFile: tool registry overlay
 //	    init.lua                   LuaInitFile: optional Lua hooks
+//	    config.lua                 LuaConfigFile: optional settings in Lua (lua_config)
+//	    lua/<name>.lua             LuaModuleDir: modules config.lua may require
 //	    skills/<name>/SKILL.md     SkillsDir: skill library (rex new -skill)
 //	    loops/<name>.yaml          LoopsDir: loop workflow files (loops feature)
 //	    themes/<name>.yaml         ThemesDir: user color themes
@@ -61,6 +63,8 @@ const (
 	configFileName   = "config.yaml"
 	toolsFileName    = "tools.yaml"
 	luaInitFileName  = "init.lua"
+	luaConfigName    = "config.lua"
+	luaModuleDirName = "lua"
 	skillsDirName    = "skills"
 	loopsDirName     = "loops"
 	themesDirName    = "themes"
@@ -91,6 +95,8 @@ type Layout struct {
 	ConfigFile     string // ~/.config/rex/config.yaml
 	ToolsFile      string // ~/.config/rex/tools.yaml
 	LuaInitFile    string // ~/.config/rex/init.lua
+	LuaConfigFile  string // ~/.config/rex/config.lua
+	LuaModuleDir   string // ~/.config/rex/lua
 	SkillsDir      string // ~/.config/rex/skills
 	LoopsDir       string // ~/.config/rex/loops
 	LoopStateDir   string // ~/.local/share/rex/loops
@@ -125,6 +131,8 @@ func ForHome(home string) Layout {
 		ConfigFile:      filepath.Join(config, configFileName),
 		ToolsFile:       filepath.Join(config, toolsFileName),
 		LuaInitFile:     filepath.Join(config, luaInitFileName),
+		LuaConfigFile:   filepath.Join(config, luaConfigName),
+		LuaModuleDir:    filepath.Join(config, luaModuleDirName),
 		SkillsDir:       filepath.Join(config, skillsDirName),
 		LoopsDir:        filepath.Join(config, loopsDirName),
 		LoopStateDir:    filepath.Join(data, loopsDirName),
@@ -211,6 +219,14 @@ func ToolsFile() (string, error) { return field(func(l Layout) string { return l
 // LuaInitFile returns ~/.config/rex/init.lua, the default Lua hooks file
 // (the lua_config_path setting can point elsewhere).
 func LuaInitFile() (string, error) { return field(func(l Layout) string { return l.LuaInitFile }) }
+
+// LuaConfigFile returns ~/.config/rex/config.lua, the optional file that sets
+// settings in Lua (the lua_config feature).
+func LuaConfigFile() (string, error) { return field(func(l Layout) string { return l.LuaConfigFile }) }
+
+// LuaModuleDir returns ~/.config/rex/lua, the only directory config.lua may
+// require modules from.
+func LuaModuleDir() (string, error) { return field(func(l Layout) string { return l.LuaModuleDir }) }
 
 // SkillsDir returns ~/.config/rex/skills, the skill library: one folder per
 // skill, each holding a SKILL.md (rex-daemon -skills-dir default).
