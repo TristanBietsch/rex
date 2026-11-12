@@ -75,6 +75,10 @@ func RunAudit(args []string) error {
 
 	recs, errs := audit.Read(scope.files, audit.Filter{Since: cutoff, Tool: *tool, State: *stateF})
 	for _, e := range errs {
+		if errors.Is(e, audit.ErrTruncated) {
+			scope.notes = append(scope.notes, "older records not shown: "+e.Error())
+			continue
+		}
 		scope.notes = append(scope.notes, "skipped: "+e.Error())
 	}
 	reverse(recs) // newest first

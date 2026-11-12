@@ -149,6 +149,32 @@ func checkRegular(path string) error {
 	return nil
 }
 
+// openRegular opens path with flags (0600 when created) without following a
+// symlink or blocking on a FIFO, and checks the handle is a regular file.
+// A refusal wraps ErrNotRegular.
+func openRegular(path string, flags int) (*os.File, error) {
+	f, err := os.OpenFile(path, flags|oNoFollow|oNonBlock, 0o600)
+	if err != nil {
+		if isLinkOpenErr(err) {
+			return nil, fmt.Errorf("%w: %s", ErrNotRegular, path)
+		}
+		if fi, lerr := os.Lstat(path); lerr == nil && !fi.Mode().IsRegular() {
+			return nil, fmt.Errorf("%w: %s", ErrNotRegular, path) // a directory, say
+		}
+		return nil, err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		_ = f.Close()
+		return nil, fmt.Errorf("%w: %s", ErrNotRegular, path)
+	}
+	return f, nil
+}
+
 // appendMu serializes appends within the process, so concurrent records do
 // not interleave their bytes.
 var appendMu sync.Mutex
@@ -169,10 +195,7 @@ func Append(path string, r Record) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	if err := checkRegular(path); err != nil {
-		return err
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := openRegular(path, os.O_RDWR|os.O_APPEND|os.O_CREATE)
 	if err != nil {
 		return err
 	}
@@ -183,12 +206,9 @@ func Append(path string, r Record) error {
 	// A crash can leave a torn last line with no newline; start on a fresh
 	// line so the new record is not glued to it.
 	if fi, serr := f.Stat(); serr == nil && fi.Size() > 0 {
-		if rf, rerr := os.Open(path); rerr == nil {
-			var last [1]byte
-			if _, rerr = rf.ReadAt(last[:], fi.Size()-1); rerr == nil && last[0] != '\n' {
-				b = append([]byte{'\n'}, b...)
-			}
-			_ = rf.Close()
+		var last [1]byte
+		if _, rerr := f.ReadAt(last[:], fi.Size()-1); rerr == nil && last[0] != '\n' {
+			b = append([]byte{'\n'}, b...)
 		}
 	}
 	_, err = f.Write(b) // one write: a crash leaves a whole line or a torn last one

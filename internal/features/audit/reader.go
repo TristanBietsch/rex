@@ -17,6 +17,13 @@ import (
 // Room for a MaxPromptRunes prompt of 4-byte runes and its JSON escapes.
 const maxLineBytes = 512 << 10
 
+// maxReadBytes is how much of the end of one file Read parses.
+const maxReadBytes = 8 << 20
+
+// ErrTruncated is wrapped by the error Read reports for a file larger than
+// maxReadBytes: its newest part was read, the older records were not.
+var ErrTruncated = errors.New("audit file is large")
+
 // Filter narrows what Read returns. A zero field matches everything.
 type Filter struct {
 	// Since keeps records that ended at or after it.
@@ -73,11 +80,8 @@ func Read(paths []string, f Filter) ([]Record, []error) {
 }
 
 // scanFile calls keep for each valid record of the file at path.
-func scanFile(path string, keep func(Record)) error {
-	if err := checkRegular(path); err != nil {
-		return err
-	}
-	file, err := os.Open(path)
+func scanFile(path string, keep func(Record)) (err error) {
+	file, err := openRegular(path, os.O_RDONLY)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -85,7 +89,24 @@ func scanFile(path string, keep func(Record)) error {
 		return err
 	}
 	defer file.Close()
+	var truncated error
 	r := bufio.NewReaderSize(file, 64<<10)
+	if fi, serr := file.Stat(); serr == nil && fi.Size() > maxReadBytes {
+		// Only the newest part: start at the tail and drop the partial line.
+		if _, err := file.Seek(fi.Size()-maxReadBytes, io.SeekStart); err != nil {
+			return err
+		}
+		r.Reset(file)
+		if _, err := r.ReadBytes('\n'); err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		truncated = fmt.Errorf("%w: only the newest %d MiB was read", ErrTruncated, maxReadBytes>>20)
+	}
+	defer func() {
+		if err == nil {
+			err = truncated
+		}
+	}()
 	var line []byte
 	skipping := false
 	for {

@@ -284,3 +284,41 @@ func TestFromSummary_LiveSessionAtTeardownIsRecordedAsFailed(t *testing.T) {
 	require.Equal(t, "crashed", r.State)
 	require.Equal(t, "fixing it", r.Description)
 }
+
+func TestRead_HugeFileReadsOnlyTheNewestPartAndSaysSo(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	require.NoError(t, Append(path, rec("old11111", t0.Add(-time.Hour))))
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+	require.NoError(t, err)
+	filler := strings.Repeat("x", 1<<20) + "\n"
+	for range 9 {
+		_, err = f.WriteString(filler)
+		require.NoError(t, err)
+	}
+	require.NoError(t, f.Close())
+	require.NoError(t, Append(path, rec("new22222", t0)))
+
+	got, errs := Read([]string{path}, Filter{})
+	require.Len(t, errs, 1)
+	require.ErrorIs(t, errs[0], ErrTruncated)
+	require.Len(t, got, 1, "the old record fell outside the tail")
+	require.Equal(t, "new22222", got[0].SessionID)
+}
+
+func TestAppend_UsesOneHandleAndRefusesAFIFO(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fifo")
+	}
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	require.NoError(t, syscallMkfifo(path))
+	done := make(chan error, 1)
+	go func() { done <- Append(path, rec("aaaa1111", t0)) }()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, ErrNotRegular)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Append blocked on a FIFO")
+	}
+	_, errs := Read([]string{path}, Filter{})
+	require.Len(t, errs, 1)
+}
