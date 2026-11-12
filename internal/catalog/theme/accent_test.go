@@ -255,3 +255,30 @@ func TestOklchRoundTrip(t *testing.T) {
 	require.InDelta(t, 0.7, c.toOklch().l, 0.02)
 	require.False(t, math.IsNaN(c.r))
 }
+
+// A mid-tone background: the direction is whichever extreme reads better,
+// not the background's own lightness.
+func TestReadableOnMidTone(t *testing.T) {
+	for _, bg := range []string{"#7A7A7A", "#8C8C8C", "#6E6E6E", "#777777", "#00A0A0"} {
+		for _, fg := range []string{"#808080", "#7B7B7B", "#6667AB", "#FFBE98"} {
+			got, adjusted := readableOn(fg, bg)
+			require.GreaterOrEqual(t, Contrast(got, bg), AccentMinContrast, "%s on %s", fg, bg)
+			require.Equal(t, Contrast(fg, bg) < AccentMinContrast, adjusted, "%s on %s", fg, bg)
+		}
+	}
+}
+
+func TestParseAccentMoreForms(t *testing.T) {
+	c, err := ParseAccent("oklch(0.62796 64.42% 29.234)") // chroma as % of 0.4
+	require.NoError(t, err)
+	require.Equal(t, "#FF0000", c.Dark)
+	for in, msg := range map[string]string{
+		"oklch(0.5 150% 30)": "out of range 0-100",
+		"oklch(0.5 0.1 10%)": "a hue is in degrees",
+		"hsl(0, 50%, 101%)":  "out of range 0-100",
+	} {
+		_, err := ParseAccent(in)
+		require.ErrorContains(t, err, msg, in)
+	}
+	require.Equal(t, -1.0, DeltaE("#ZZZZZZ", "#000000"))
+}

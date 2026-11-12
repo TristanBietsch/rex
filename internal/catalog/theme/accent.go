@@ -317,32 +317,28 @@ func WithAccent(p Palette, value string) (Palette, AccentResult, error) {
 	return p, res, nil
 }
 
-// readableOn moves hex's OKLCH lightness away from bg in small steps until
-// the pair reaches AccentMinContrast. A bg that is not a hex color (the
-// terminal decides it) leaves hex alone.
+// readableOn moves hex's OKLCH lightness toward white or black, whichever
+// contrasts more with bg, in small steps until the pair reaches
+// AccentMinContrast. The far end always does (white or black reaches at
+// least 4.58:1 on any background), so the loop ends there at the latest. A
+// bg that is not a hex color (the terminal decides it) leaves hex alone.
 func readableOn(hex, bg string) (string, bool) {
 	if Contrast(hex, bg) == 0 || Contrast(hex, bg) >= AccentMinContrast {
 		return hex, false
 	}
 	c, _ := hexRGB(hex)
 	o := c.toOklch()
-	b, _ := hexRGB(bg)
-	step := 0.01
-	if b.toOklch().l > 0.5 {
-		step = -0.01
+	step, end := 0.01, 1.0
+	if Contrast("#000000", bg) > Contrast("#FFFFFF", bg) {
+		step, end = -0.01, 0
 	}
-	best := hex
-	for i := 0; i < 100; i++ {
-		o.l += step
-		if o.l < 0 || o.l > 1 {
-			break
-		}
-		best = o.rgb().hex()
-		if Contrast(best, bg) >= AccentMinContrast {
-			return best, true
+	for {
+		o.l = math.Max(0, math.Min(1, o.l+step))
+		got := o.rgb().hex()
+		if Contrast(got, bg) >= AccentMinContrast || o.l == end {
+			return got, true
 		}
 	}
-	return best, best != hex
 }
 
 // Note is the one-line notice for r on the theme named themeName, or "" when
