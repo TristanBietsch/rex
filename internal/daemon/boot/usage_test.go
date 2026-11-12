@@ -3,6 +3,7 @@ package boot
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -62,7 +63,12 @@ func TestUsageTap_Table(t *testing.T) {
 			require.Contains(t, got, "--socket /some/other.sock", "a non-default socket is passed on")
 			// The daemon bakes in the absolute user-level settings path.
 			require.Contains(t, got, "--user-settings ")
-			require.Contains(t, got, filepath.Join(os.Getenv("HOME"), ".claude", "settings.json"))
+			// Slashed on Windows: Claude runs the command through Git Bash.
+			want := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
+			if runtime.GOOS == "windows" {
+				want = filepath.ToSlash(want)
+			}
+			require.Contains(t, got, want)
 		})
 	}
 }

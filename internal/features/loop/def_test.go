@@ -37,13 +37,14 @@ func TestParse_Defaults(t *testing.T) {
 }
 
 func TestParse_AllFields(t *testing.T) {
+	cwd := filepath.Join(t.TempDir(), "app") // absolute on every OS
 	d, err := Parse([]byte(`
 name: full
 kind: repeat
 tool: claude
 model: opus
 effort: high
-cwd: /work/app
+cwd: '`+cwd+`'
 prompt: "start"
 followup_prompt: "keep going"
 until:
@@ -55,7 +56,7 @@ until:
 `), "full")
 	require.NoError(t, err)
 	require.Equal(t, "high", d.Effort)
-	require.Equal(t, "/work/app", d.CWD)
+	require.Equal(t, cwd, d.CWD)
 	require.Equal(t, "keep going", d.FollowupPrompt)
 	require.Equal(t, 2*time.Hour, d.Until.CheckTimeout)
 	require.Equal(t, 100, d.Until.MaxIterations)

@@ -360,6 +360,9 @@ func TestRenderError(t *testing.T) {
 	render := func(fl FormatFlags, env Env, cmd string, e error) string {
 		var errw bytes.Buffer
 		env.Scheme, env.TrueColor = "default", true
+		if env.GOOS == "" {
+			env.GOOS = "linux" // Windows consoles get ASCII glyphs
+		}
 		if env.Getenv == nil {
 			env.Getenv = envOf()
 		}

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -172,15 +174,19 @@ func TestBannerParts(t *testing.T) {
 }
 
 func TestShortCWD(t *testing.T) {
-	t.Setenv("HOME", "/home/dev")
+	// /home/dev, or C:\home\dev on Windows (where a rooted path without a
+	// drive is not absolute, so it cannot be the home folder).
+	home := filepath.Join(filepath.VolumeName(os.TempDir())+string(filepath.Separator), "home", "dev")
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	for in, want := range map[string]string{
-		"/home/dev":          "~",
-		"/home/dev/rex":      "~/rex",
-		"/home/dev/a/b/rex":  "b/rex",
-		"/srv/app":           "/srv/app",
-		"/srv/x/y/app":       "y/app",
-		"":                   "",
-		"/home/dev/a\x1b[2J": "~/a",
+		home:                                 "~",
+		filepath.Join(home, "rex"):           "~/rex",
+		filepath.Join(home, "a", "b", "rex"): "b/rex",
+		"/srv/app":                           "/srv/app",
+		"/srv/x/y/app":                       "y/app",
+		"":                                   "",
+		filepath.Join(home, "a") + "\x1b[2J": "~/a",
 	} {
 		require.Equal(t, want, shortCWD(in), in)
 	}

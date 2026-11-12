@@ -184,6 +184,7 @@ func TestCLIStylesFollowTheme(t *testing.T) {
 func TestPrinterReadsSchemeFromSettings(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", home+"/.config")
 	require.NoError(t, os.MkdirAll(home+"/.config/rex", 0o700))
 	require.NoError(t, os.WriteFile(home+"/.config/rex/config.yaml", []byte("theme: paper\nspinner: moon\n"), 0o600))

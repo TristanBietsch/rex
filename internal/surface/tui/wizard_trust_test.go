@@ -90,8 +90,9 @@ func TestWizardDescribe_LineShowsExactPaths(t *testing.T) {
 	require.Contains(t, out, "ctrl+t")
 	require.Contains(t, out, "ctrl+a")
 	flat := strings.Join(strings.Fields(out), "")
-	require.Contains(t, flat, sub, "ctrl+t trusts the folder the session starts in")
-	require.Contains(t, flat, proj, "ctrl+a trusts the repo folder")
+	// The folders are shown slashed (wrapPath breaks them at "/").
+	require.Contains(t, flat, filepath.ToSlash(sub), "ctrl+t trusts the folder the session starts in")
+	require.Contains(t, flat, filepath.ToSlash(proj), "ctrl+a trusts the repo folder")
 	require.NotContains(t, out, "trusted (auto_trust_dirs)")
 }
 
@@ -204,8 +205,8 @@ func TestWizardDescribe_WorkspaceBoardTrustsWorkspaceRoot(t *testing.T) {
 		flat.WriteString(strings.TrimSpace(l))
 	}
 	lines := flat.String()
-	require.Contains(t, lines, ws)
-	require.NotContains(t, lines, proj)
+	require.Contains(t, lines, filepath.ToSlash(ws))
+	require.NotContains(t, lines, filepath.ToSlash(proj))
 
 	m = ctrl(m, tea.KeyCtrlA)
 	require.Empty(t, m.Err)

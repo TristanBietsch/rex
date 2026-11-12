@@ -98,7 +98,7 @@ func TestInit_RefusesHomeAndRootAndNonFolders(t *testing.T) {
 	require.ErrorIs(t, err, ErrRefusedRoot)
 	require.NoDirExists(t, filepath.Join(home, DirName))
 
-	_, err = Init(string(filepath.Separator), "", nil)
+	_, err = Init(fsRoot(t), "", nil)
 	require.ErrorIs(t, err, ErrRefusedRoot)
 
 	_, err = Init("rel", "", nil)
