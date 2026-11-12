@@ -365,7 +365,9 @@ func TestClaudeHooks_SIDLeavesStateAlone(t *testing.T) {
 	a := NewClaudeHooks(path)
 	appendLine(t, path, "agent+ a1")
 	appendLine(t, path, "needs_input")
+	appendLine(t, path, "notify permission_prompt")
 	appendLine(t, path, "sid "+testSID)
 	require.Equal(t, protocol.StateNeedsInput, a.Detect(nil, 0))
+	require.Equal(t, protocol.WaitInput, a.WaitReason())
 	require.Equal(t, 1, a.Subagents())
 }

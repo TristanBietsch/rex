@@ -531,6 +531,26 @@ func (s *Store) SetSubagents(id string, n int) error {
 	return nil
 }
 
+// SetPrompts records how many prompts the user sent a session's agent and
+// broadcasts a change. It is not activity: last_event_at is left alone.
+func (s *Store) SetPrompts(id string, n int) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.Prompts == n {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.Prompts = n
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"prompts": n}})
+	return nil
+}
+
 // SetWaitReason records why a needs_input session waits (protocol.WaitReview,
 // protocol.WaitInput, or "" for unknown or none) and broadcasts a change. It
 // is not activity: last_event_at is left alone.
