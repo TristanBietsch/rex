@@ -140,7 +140,7 @@ One on/off switch per optional feature. A feature that is off is inert: no backg
 | `default_spawn_tool` | string | `claude` | Tool id for `i` quick-spawn |
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
-| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex setup` or `rex config set`; both refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
+| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex trust`, the wizard's `ctrl+a`, `:trust`, `rex setup` or `rex config set`; all refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
 
@@ -152,10 +152,20 @@ Agents ask whether you trust a folder the first time they run in it. For a sessi
 - **Claude Code:** it asks "Is this a project you created or one you trust?" with **No, exit** selected. The daemon answers it: it moves the selection to **Yes, I trust this folder**, checks that it is selected, and confirms. It acts only within the first 60 s of the session and gives up after 4 moves. Anywhere else the dialog waits for you as before.
 
 ```sh
+rex trust                                  # the repo folder of the working directory
+rex trust ~/Documents/dev/api              # a folder you name
+rex trust -ls                              # what is trusted now
+rex trust -rm ~/Documents/dev/api          # stop trusting it
 rex config set auto_trust_dirs "~/Documents/dev"
 ```
 
-`rex setup` asks the same question once, with **no** as the default answer. When you run it from the root of a git checkout, it suggests the folder that holds that checkout, if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
+`rex trust` prints the exact folder it added and refuses the values listed below (exit 5). The TUI has the same two choices when you start a session: in the wizard's describe step `ctrl+t` trusts the session's folder for this one session only (nothing is saved) and `ctrl+a` saves the repo folder to `auto_trust_dirs` (see [tui.md](tui.md#new-session-wizard)); `:trust [folder]` saves a folder from the board. From the shell, `rex new -trust` trusts one session's folder only. The folder `ctrl+a`, `:trust` and `rex trust` offer is the repo folder: the root of the git checkout holding the working directory, or the folder itself when it is not in one. It is never the parent, so trusting one project does not trust its siblings.
+
+A per-session trust (`ctrl+t`, `rex new -trust`) acts as if the folder were listed, for that session only (and for its resumes): the dialog is answered or avoided, and `skip_permissions` may apply. The folder must pass the same checks as an entry. rex saves nothing for it. When the dialog is answered for Claude Code, Claude remembers the answer in its own config, exactly as if you had pressed yes yourself; rex never writes Claude's or Antigravity's config.
+
+If a dialog shows up in a folder that is not trusted, the session waits for you and the daemon log says `trust dialog shown; folder not trusted (rex trust, or ctrl+t in the wizard)` once. `rex doctor` warns about entries the daemon would ignore or that do not exist.
+
+`rex setup` asks the same question once, with **no** as the default answer. When you run it inside a git checkout, it suggests that checkout's root (or the folder you are in, outside a checkout), if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
 
 The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
 

@@ -317,7 +317,7 @@ Spawn a session.
 ```sh
 rex new [prompt] [-socket path] [-tool id] [-model id] [-effort tier]
            [-slug name] [-cwd dir] [-fleet name] [-name text] [-skill name]...
-           [-wait duration] [-no-attach]
+           [-trust] [-wait duration] [-no-attach]
 ```
 
 Defaults: `-tool echo`, `-model short`, `-cwd` `$PWD`. `-cwd` must be an existing folder (exit 5 otherwise); a relative path is made absolute by the CLI. Prompt from arguments or stdin when stdin is not a TTY.
@@ -329,6 +329,8 @@ Without `-slug` the slug is derived from the prompt (`session` if none) and suff
 `-name` sets the session's display name (see `rex name`; whitespace is collapsed, at most 64 characters). With no prompt and no `-slug`, the slug is derived from the name.
 
 `-skill name` loads a skill from the library at `~/.config/rex/skills` into this session only; repeat it for more (at most 16). The daemon copies the skills into the session's folder and starts Claude Code with `--plugin-dir`, so nothing is written to `~/.claude`. List the names with `rex skills`; see [howto/skills.md](howto/skills.md). Exit 5 when a name is invalid or not in the library, when the tool cannot load skills per session (Antigravity cannot), or when the `spawn_skills` setting is off (`off: enable in Settings → Features (rex config set spawn_skills true)`). Against a `rex-daemon` older than these flags, `rex new` still spawns and prints `warning: this rex-daemon ignored skills; run \`rex daemon restart\`` on stderr.
+
+`-trust` trusts the session's folder (`-cwd`) for this one session, as if it were listed in [`auto_trust_dirs`](settings.md#auto-trust): the agent's trust dialog is answered and `skip_permissions` may apply. Nothing is saved (use `rex trust` for that). Exit 5 before anything is sent when the folder is the home folder, a folder that holds it or a filesystem root.
 
 `-wait` (default `5s`) is how long to wait for the daemon to confirm the spawn. If it does not, `rex new` exits 1 with `daemon did not confirm the spawn within 5s; check \`rex ls\``: the session may still appear.
 
@@ -594,6 +596,22 @@ Exit **5** for a missing or extra argument, an unknown theme in `show` or `-from
 
 ---
 
+## rex trust
+
+```sh
+rex trust [dir] [-o FORMAT] [--agent]
+rex trust -ls [-o FORMAT] [--agent]
+rex trust -rm <dir> [-o FORMAT] [--agent]
+```
+
+Edits [`auto_trust_dirs`](settings.md#auto-trust) with the checks `rex config set` uses, and tells a running daemon at once. With no argument it trusts the repo folder of the working directory: the root of the git checkout holding it, or the folder itself when it is not in one. It never trusts the parent folder. The command prints the exact folder it trusted (`trusted /Users/you/dev/api`), or `already trusted ...` when a listed folder already covers it. `dir` is stored as typed (`~/` allowed).
+
+`-ls` lists the entries and the folder each one trusts, and marks one the daemon would ignore. `-rm <dir>` removes every entry that resolves to `dir`; a folder that is not listed is a no-op. In `-o json` the payload is `{action, dir, changed, value}` (`-ls`: `{value, dirs: [{entry, dir, ignored}]}`); agent mode gives an `ok cmd=trust action=... dir=... changed=...` line, or a `trust_dir entry=... dir=...` line per folder.
+
+Exit **5** for a folder that is relative, contains `..`, is a filesystem root, the home folder or a folder that holds it (the message says which), for no folder to suggest (the working directory is outside your home folder), for `-ls` with `-rm` or any other argument, and for a missing or extra argument. Only trust folders whose code you trust.
+
+---
+
 ## rex setup
 
 First-run wizard.
@@ -619,6 +637,8 @@ rex doctor [-o FORMAT] [--agent] [-json] [-socket path] [-verbose]
 ```
 
 Each check is a `✓` pass, `!` warn, `✗` fail or `·` info row. INFO rows are hidden in `text`/`txt`/`md` unless `-verbose`; `json` and `agent` always carry them. `agent` gives `check name=… status=… detail=…` lines then `ok cmd=doctor fails=0 warns=2`, or `fail cmd=doctor fails=1 …` when a check fails (exit 1). `-json` keeps the one-line legacy object.
+
+An `auto_trust_dirs` row appears when the setting is not empty: an info row naming the trusted folders, or a warning for each entry the daemon would ignore (the home folder, a folder that holds it, a relative path, `..`) or that does not exist (`rex trust -rm` removes it).
 
 With `-verbose`, an `agy version` row shows the installed Antigravity CLI version (`agy 1.5.5`). It warns below 1.5.5 (untested) or when `agy --version` fails or takes over 2 s, and is left out when `agy` is not on `PATH`.
 

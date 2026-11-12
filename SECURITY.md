@@ -129,8 +129,10 @@ filesystem permissions.
   `config.yaml`, which choose the programs rex spawns.
 - What the agent CLIs themselves do (Claude Code, Codex, Antigravity and others),
   including the commands they run in your repository.
-- Folders you list in the `auto_trust_dirs` setting or trust for one
-  session (`trust_folder`). For sessions there,
+- Folders you list in the `auto_trust_dirs` setting (`rex trust`, `:trust`,
+  the wizard's ctrl+a) or trust for one session (`trust_folder`: `rex new
+  -trust`, the wizard's ctrl+t). The folder those offer is the repo's own
+  folder, never its parent. For sessions there,
   rex starts the agent with the folder trusted (Antigravity, for that
   session only) or answers its "trust this folder" dialog (Claude Code),
   so the repository's own agent settings apply without that prompt. The

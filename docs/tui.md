@@ -330,9 +330,14 @@ The headline is written by the local summary model from the sessions' task title
 2. **Model**: the tool's model. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
 3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
 4. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
-5. **Describe**: the task. `enter` launches. The slug comes from the task.
+5. **Describe**: the task. `enter` launches. The slug comes from the task. Under the input a trust line says whether the session's folder is trusted:
+   - `folder not trusted` with two choices, each followed by the exact folder it trusts: `ctrl+t` trusts the folder the session starts in for this session only (nothing is saved), `ctrl+a` saves the repo folder (the root of the git checkout, or the folder itself; never its parent) to `auto_trust_dirs` when you launch, and trusts the session. Press the key again to take the choice back. Nothing is trusted unless you press one.
+   - `trusted (auto_trust_dirs)` when a listed folder already covers it.
+   - `home folder: start rex in a project folder to trust it` when rex was started in your home folder (or a folder that holds it): neither key works there.
 
 The wizard does not ask for a name; press `r` on the board to give a session a display name, or use `rex new -name`.
+
+`:trust [folder]` on the board does the same as `ctrl+a` without starting a session: it saves the repo folder of the selected session's folder (or of the folder rex runs in, or the folder you name) to `auto_trust_dirs` and says which folder it trusted. Sessions already running keep asking; new ones skip the dialog. A refused folder shows why on the status line. `rex trust` does the same from the shell.
 
 `b` goes back (on the describe step only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the skills field, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
 
