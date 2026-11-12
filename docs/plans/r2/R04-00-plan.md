@@ -4,6 +4,8 @@
 
 **Goal:** `:settings` and `:help` open as full-screen pages (board header, dividers, hint footer, window border) with a section list on the left. The old overlays stay in the code behind the `fullscreen_pages` flag. Three bundled themes are added.
 
+**Start condition (2026-11-11, user):** build subagent-driven (fresh builder + reviewer per task), and only after `feat/settings-onoff-style` (on/off values right-aligned in settings rows, "on" white, "off" gray via theme tokens) and `feat/hints-footer` (DONE-column chips moved into the bottom hint bar; new bottom-hints boolean setting) are merged into `integration/todo`. Before Task 1, re-read `settings.go`, `settings_view.go`, `styles.go` and the footer/hints code on the new head and carry both changes into the page renderers: the page rows keep the right-aligned colored on/off, and `pageFooter` honors the bottom-hints setting.
+
 **Architecture:** Keep `FocusSettings` / `FocusHelp`. `view()` and the key and mouse handlers branch on `fullscreen_pages`. A new `page.go` holds the shared frame: header, dividers, footer, pane join, section list and narrow tab strip. Settings and help each add a page renderer next to their overlay renderer. Bundled themes are YAML files embedded in `internal/catalog/theme`, parsed by the U2 parser and kept in a map separate from the Go built-ins, so a user file with the same name still overrides them.
 
 **Tech stack:** Go 1.26, bubbletea, lipgloss, `charmbracelet/x/ansi`, `internal/testutil/golden` (txtar, `-update`), `embed`.
@@ -24,11 +26,10 @@ Base: `integration/todo` at `bc28b0b` or later. Code on that base that this plan
 ## Global constraints
 - Flag `fullscreen_pages`: bool, default **true**, Section Features, `ApplyLive`. When it is off, both foci render byte-identical to the pre-R04 goldens. The keys `q`, `1`–`9`, `[`, `]` and pane focus change nothing, and `tab` keeps U1's section jump.
 - The flag is read on every frame and every key (`m.featureOn`), never cached. Turning it off from inside the settings page switches to the overlay on the next frame, with the same cursor.
-- Never draw a page over the attach PTY.
+- Never draw a page over the attach PTY. `::settings` / `::help` while attached detach, then open (D8).
 - No horizontal clipping at 80×24. Every `View()` line is at most the terminal width at any size, and the page is exactly `h` lines.
 - Left pane width = longest title + badge, capped at **24** columns. Under **60** columns, one column with a tab strip.
-- Height: header 2 rows (title row + divider) and footer 2 rows (divider + hints). The settings inspector is `2 + settingsHelpLines` (4), or `2 + settingsHelpLinesShort` (2) under `settingsTallHeight` (30) rows.
-- Notice text, exact: `detach first (qq) to open settings`, `detach first (qq) to open help`.
+- Height: header 3 rows (blank row + title row + divider, matching the board's blank top row so the logo lines up, D9) and footer 2 rows (divider + hints). The settings inspector is `2 + settingsHelpLines` (4), or `2 + settingsHelpLinesShort` (2) under `settingsTallHeight` (30) rows.
 - Theme names, exact: `dracula`, `tokyo_night`, `pantone_safe`.
 - Tests never touch the real `$HOME` (`t.Setenv("HOME", t.TempDir())`; `USERPROFILE` too where paths are resolved).
 - Commits: Conventional Commits, signed, one per task. CHANGELOG `[Unreleased]` for user-visible changes. Raise coverage floors in `tools/coverage/baseline.txt` when they rise. `make check` before the PR.
@@ -71,11 +72,11 @@ const (
 const (
     pageNarrowW      = 60
     pageSectionsMaxW = 24
-    pageChromeRows   = 4 // header + divider + divider + hints
+    pageChromeRows   = 5 // blank + header + divider + divider + hints
 )
 func pagesOn(m Model) bool                                   // m.featureOn("fullscreen_pages")
 func pageNarrow(w int) bool                                  // w < pageNarrowW
-func pageHeader(title, middle, right string, w int) []string // 2 lines
+func pageHeader(title, middle, right string, w int) []string // 3 lines: blank, title row, divider
 func pageFooter(hints [][2]string, w int) []string           // 2 lines: renderHR(w), renderHints(hints, w-2) indented 2
 func pageBodyHeight(h int) int                               // max(h-pageChromeRows, 1)
 func composePage(head, body, foot []string, w, h int) string // exactly h lines, each padLine'd to w; body padded or cut to pageBodyHeight(h)
@@ -98,7 +99,7 @@ func renderHelpPage(m Model, w, h int) string
 
 - [ ] **Step 1: failing tests** in `page_test.go`:
   - `TestPagesFlagDefaultOn`: `settings.Find("fullscreen_pages")` has default `true` and Section Features; `pagesOn(Model{})` is true.
-  - `TestPageFrameRows`: for `(w,h)` in `{120,40},{80,24},{50,20},{30,10}`, open settings and help. `View()` has exactly `h` lines, every line has `ansi.StringWidth ≤ w`, line 0 contains `∴ REX › SETTINGS` (or `› HELP`), line 1 and line `h-2` are all `─`, and line `h-1` contains `esc`.
+  - `TestPageFrameRows`: for `(w,h)` in `{120,40},{80,24},{50,20},{30,10}`, open settings and help. `View()` has exactly `h` lines, every line has `ansi.StringWidth ≤ w`, line 0 is blank (D9), line 1 contains `∴ REX › SETTINGS` (or `› HELP`) at the same column as the board header's logo, line 2 and line `h-2` are all `─`, and line `h-1` contains `esc`.
   - `TestPageNoBoardBehind`: with sessions `layoutSessions(goldenNow)`, the settings page's `View()` contains no session slug.
   - `TestPageEscKeepsSelection`: `SelectedID = "3"`, open settings, press `esc`: `Focus == FocusBoard`, `SelectedID == "3"`. Same for help, also with `q`.
   - `TestPageQInertWhenOff`: `overlayMode`, press `q` in settings and in help: focus unchanged.
@@ -276,22 +277,22 @@ func (c *Catalog) UserNamesExcept(known []string) []string // UserNames minus kn
 
 ---
 
-### Task 6 (R04-5): attach guard + docs
+### Task 6 (R04-5): attach test + docs
 
 **Files**
 - Modify `attach_cmd.go` `executeAttachCommand`. Test: `attach_cmd_test.go`.
 - Docs: `docs/tui.md` (rename "Overlay look", "Help overlay" and "Settings overlay" to page sections, with the pane keys, size classes and flag), `docs/settings.md` (`fullscreen_pages` row text; the theme row lists the 3 new names), `docs/themes.md` (bundled themes table and override rule), `CHANGELOG.md` `[Unreleased]`, `docs/plans/ANTI-fullscreen-settings-help-spec.md` (a `Status: superseded by U1, U2, R04, R05, R06` line at the top), `docs/plans/r2/00-roadmap.md` (R04 status).
 
 **Interfaces**
-- In `executeAttachCommand`, before the fallthrough detach: `case "settings", "help":` when `pagesOn(m)`, set `m.Notice = "detach first (qq) to open " + verb` and return `m, nil` (stay attached). With the flag off, keep today's behavior: detach, then open.
+- No behavior change in `executeAttachCommand`: `settings` / `help` keep falling through to detach, then open (D8). Only tests are added, so the page never renders while `Attach != nil`.
 
 - [ ] **Step 1: failing tests**:
-  - `TestAttachSettingsRefused`: attached model (`bannerModel`), `executeAttachCommand(m, "settings")` → `Focus == FocusAttach`, `Attach != nil`, `Notice == "detach first (qq) to open settings"`, `Settings == nil`. Same for `help`.
+  - `TestAttachSettingsDetachesThenOpens`: flag on, attached model (`bannerModel`), `executeAttachCommand(m, "settings")` → `Attach == nil`, `Focus == FocusSettings`, and `View()` is the page (not the PTY). Same for `help`.
   - `TestAttachSettingsOffDetaches`: `overlayMode`, same call → `Attach == nil`, `Focus == FocusSettings`.
-- [ ] **Step 2:** run, expect FAIL. **Step 3:** implement. **Step 4:** `go test ./internal/surface/tui`, PASS.
+- [ ] **Step 2:** run; these pin existing behavior, so they should PASS once Tasks 1–4 land. If one fails, fix the page code, not the attach path.
 - [ ] **Step 5:** write the docs. Use synthetic examples only.
 - [ ] **Step 6:** `make check`; raise the floors in `tools/coverage/baseline.txt` if `make cover` shows a rise.
-- [ ] **Step 7:** commit `feat(tui): refuse settings and help pages over an attached session; docs`.
+- [ ] **Step 7:** commit `test(tui): pin detach-then-open for settings and help pages; docs`.
 
 ---
 
@@ -305,6 +306,6 @@ func (c *Catalog) UserNamesExcept(known []string) []string // UserNames minus kn
 | Keys (D5), `h` no-op, `q` close, wheel (D6) | 2, 4 |
 | Size classes, 80×24 reachability, narrow strip | 1, 3, 4 |
 | Themes (D2), user override | 5 |
-| Attach guard | 6 |
+| Attach: detach then open (D8) | 6 |
 | Overlay code kept (D7) | 1 (overlay goldens pinned) |
 | Docs, ANTI superseded | 6 |

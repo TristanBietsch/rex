@@ -71,14 +71,14 @@ Status: design revised 2026-11-11 against `integration/todo` after round 1 (U1, 
 ### Size classes
 - ≥ 60 cols: two panes side by side.
 - < 60 cols: single column; left pane collapses to a one-line section tab strip (`‹ Appearance ›`) under the header; same keys (`tab` is a no-op, `[`/`]` and `1`–`9` switch section).
-- Height: header 2 rows + footer 2 rows; settings inspector keeps U1's fixed height (4 help lines, 2 under 30 rows). Lists window around the cursor with `↑ more` / `↓ more` markers (existing `windowLines`).
+- Height: header 3 rows (blank row, title row, divider: the same blank row the board has above its header, so the logo does not move between board and page) + footer 2 rows; settings inspector keeps U1's fixed height (4 help lines, 2 under 30 rows). Lists window around the cursor with `↑ more` / `↓ more` markers (existing `windowLines`).
 - 80×24 must show every setting and help row reachable without horizontal clipping (golden).
 
 ### Themes (D2)
-- Add `dracula`, `tokyo_night`, `pantone_safe` as embedded YAML files in `internal/catalog/theme/builtin/*.yaml` (`go:embed`), parsed by the U2 user-theme parser and merged into the built-in list. Each passes `TestThemeContrast`. `pantone_safe` reuses U4's colorblind-safe swatches. User files with the same name still override (existing U2 precedence).
+- Add `dracula`, `tokyo_night`, `pantone_safe` as embedded YAML files in `internal/catalog/theme/builtin/*.yaml` (`go:embed`), parsed by the U2 user-theme parser and merged into the built-in list. Each passes `TestThemeContrast`. `pantone_safe` reuses U4's colorblind-safe swatches. User files with the same name still override (existing U2 precedence). The bundled themes live in a `Bundled` map separate from the Go built-ins, so `extends:` and `rex theme new -from` accept only the original six built-ins.
 
 ### Attached session
-- `::settings` / `::help` while attached: refused with a notice `detach first (qq) to open settings`. Never draw a page over the PTY.
+- `::settings` / `::help` while attached: keep today's behavior: detach, then open the page. Never draw a page over the PTY. (D8)
 
 ## Feature flag
 - `fullscreen_pages` (default on), Settings → Features. Off = today's overlays, unchanged (overlay renderers stay in the tree).
@@ -89,7 +89,7 @@ Status: design revised 2026-11-11 against `integration/todo` after round 1 (U1, 
 2. **R04-2 Settings two-pane.** `SettingsState.Pane` (`paneList`/`paneDetail` naming per repo style), section list with modified badges, right list scoped to the section, search spans all sections, inspector reused. Key changes (`tab` = pane, `1`–`9`, `[`/`]`). Tests: pane focus cycle; section jump; search across sections then `esc` restores section; inline edit and `r` still work; narrow tab-strip layout.
 3. **R04-3 Help two-pane.** `HelpState.Group`, `HelpState.Pane`; group list left, `renderGroup` right; filter spans groups; legend group keeps live spinner. Tests: every group reachable; filter with zero hits shows the empty-state line; off-feature rows still dimmed.
 4. **R04-4 Themes.** Embedded YAML for the three themes. Tests: each loads, passes contrast, appears in the theme picker, user override wins.
-5. **R04-5 Attach guard + docs.** `::settings` / `::help` refusal; `docs/tui.md`, `docs/settings.md`, CHANGELOG `[Unreleased]`; mark ANTI spec superseded by U1/U2/R04/R05/R06.
+5. **R04-5 Attach test + docs.** Pin `::settings` / `::help` detach-then-open with the flag on; `docs/tui.md`, `docs/settings.md`, CHANGELOG `[Unreleased]`; mark ANTI spec superseded by U1/U2/R04/R05/R06.
 
 ## Review focus
 - Terminal resized while a page is open: panes and inspector reflow, no stale rows.
@@ -108,6 +108,9 @@ Status: design revised 2026-11-11 against `integration/todo` after round 1 (U1, 
 | D4 | New `FocusPage` vs keep foci | Keep `FocusHelp` / `FocusSettings`; swap only the renderer. Less churn in routing, `focusStateMissing`, mouse and tests. (agent call) |
 | D5 | `tab` clash | `tab` switches panes; section jump moves to `1`–`9` and `[`/`]`. (agent call) |
 | D6 | Mouse | Wheel only, as today; click targets out of scope. (agent call) |
+| D8 | `::settings` / `::help` while attached | Detach, then open (today's behavior); no refusal notice. (2026-11-11, user) |
+| D9 | Page header height | 3 rows with the board's blank top row so the logo lines up with the board. (2026-11-11, user) |
+| D10 | `:usage` | Stays a floating overlay; full-screen usage is out of R04. (2026-11-11, user) |
 | D7 | Overlay code | Kept behind the flag; R04-1's "overlays removed" dropped (contradicted the flag). (agent call) |
 
 ## Revision notes (2026-11-11)
@@ -116,3 +119,4 @@ Status: design revised 2026-11-11 against `integration/todo` after round 1 (U1, 
 - `FocusPage` replaced by D4.
 - `tab` key conflict with U1 section jump resolved by D5.
 - Added narrow-layout tab strip, attach guard as its own step, help empty state.
+- 2026-11-11 (user): attach refusal replaced by detach-then-open (D8); header gains the board's blank row (D9); `:usage` out of scope (D10); bundled-theme `extends:`/`-from` limit written down.
