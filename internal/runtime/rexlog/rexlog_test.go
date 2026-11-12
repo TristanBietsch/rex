@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -103,4 +104,7 @@ func TestInit_WritesToConfiguredDir(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(dir, "once-test.log"))
 	require.NoError(t, err)
 	require.True(t, strings.Contains(string(data), "rexlog: initialized"))
+	// Two TUIs (or a TUI and rex setup) append to the same file: every
+	// record names its process.
+	require.Contains(t, string(data), "pid="+strconv.Itoa(os.Getpid()))
 }
