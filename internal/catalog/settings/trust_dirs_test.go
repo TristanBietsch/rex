@@ -326,3 +326,42 @@ func TestRemoveTrustDir(t *testing.T) {
 	_, _, err = RemoveTrustDir(cur, "rel")
 	require.Error(t, err)
 }
+
+// rex doctor points at `rex trust -rm <entry>` for an entry the daemon
+// ignores; that entry must be removable by its text, and the other entries
+// must not block the removal.
+func TestRemoveTrustDir_RefusedEntryByText(t *testing.T) {
+	trustHome(t)
+	sep := string(filepath.ListSeparator)
+	cur := "~/dev/a" + sep + "~" + sep + "~/dev/c"
+
+	got, removed, err := RemoveTrustDir(cur, "~")
+	require.NoError(t, err)
+	require.True(t, removed)
+	require.Equal(t, "~/dev/a"+sep+"~/dev/c", got)
+
+	got, removed, err = RemoveTrustDir(cur, "~/dev/a")
+	require.NoError(t, err, "an ignored entry elsewhere does not block the removal")
+	require.True(t, removed)
+	require.Equal(t, "~"+sep+"~/dev/c", got)
+
+	_, _, err = RemoveTrustDir(cur, "~/dev/../x")
+	require.Error(t, err, "a refused folder that is not listed is still an error")
+}
+
+// On a case-insensitive filesystem a case variant names the same folder, so
+// removing it must drop the entry instead of saying "not in the list" while
+// the folder stays trusted.
+func TestRemoveTrustDir_CaseVariant(t *testing.T) {
+	_, dev := trustHome(t)
+	a := filepath.Join(dev, "proj")
+	require.NoError(t, os.MkdirAll(a, 0o700))
+	upper := filepath.Join(dev, "PROJ")
+	if _, err := os.Stat(upper); err != nil {
+		t.Skip("case-sensitive filesystem")
+	}
+	got, removed, err := RemoveTrustDir("~/dev/proj", upper)
+	require.NoError(t, err)
+	require.True(t, removed)
+	require.Empty(t, got)
+}

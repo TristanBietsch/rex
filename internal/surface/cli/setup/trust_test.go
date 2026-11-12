@@ -146,3 +146,34 @@ func TestRunTrust_BadArgs(t *testing.T) {
 	_, err = os.Stat(cfg)
 	require.True(t, os.IsNotExist(err), "bad args write nothing")
 }
+
+// rex doctor says `rex trust -rm <entry>` for an entry the daemon ignores:
+// that command must work.
+func TestRunTrust_RemoveIgnoredEntry(t *testing.T) {
+	_, project := trustHome(t)
+	cfg, err := paths.ConfigFile()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
+	sep := string(filepath.ListSeparator)
+	require.NoError(t, os.WriteFile(cfg, []byte("auto_trust_dirs: \""+project+sep+"~\"\n"), 0o600))
+
+	d := runTrustJSON(t, "-rm", "~")
+	require.True(t, d.Changed)
+	require.Equal(t, project, storedTrustDirs(t))
+}
+
+// Removing a folder that a listed parent still covers must say so: "not in
+// the list" alone reads as "no longer trusted".
+func TestRunTrust_RemoveReportsCoveringEntry(t *testing.T) {
+	home, project := trustHome(t)
+	runTrustJSON(t, filepath.Join(home, "dev"))
+	runTrustJSON(t, "-rm", project)
+
+	out, err := themeRun(t, "json", func() error { return RunTrust([]string{"-rm", project}) })
+	require.NoError(t, err)
+	require.Contains(t, out, `"covered_by":"`+filepath.Join(home, "dev")+`"`, out)
+
+	text, err := themeRun(t, "text", func() error { return RunTrust([]string{"-rm", project}) })
+	require.NoError(t, err)
+	require.Contains(t, text, "still trusted")
+}

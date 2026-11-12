@@ -17,6 +17,9 @@ type trustData struct {
 	Dir     string `json:"dir"`
 	Changed bool   `json:"changed"`
 	Value   string `json:"value"`
+	// CoveredBy is the listed entry that still trusts Dir after a removal
+	// (a parent folder); empty when Dir is no longer trusted.
+	CoveredBy string `json:"covered_by,omitempty"`
 }
 
 // trustListData is the `-o json` payload of rex trust -ls.
@@ -110,14 +113,13 @@ func trustAdd(dir string) error {
 		}
 		reloadDaemonForTrust(trustSettingID)
 	}
-	return emitTrust("add", resolved, changed, store.String(trustSettingID))
+	return emitTrust("add", resolved, changed, store.String(trustSettingID), "")
 }
 
 func trustRemove(dir string) error {
-	resolved, err := settings.TrustDir(dir)
-	if err != nil {
-		return trustRefused(" -rm", err)
-	}
+	// A folder the checks refuse can still be listed (a hand edit, or a
+	// HOME that moved): rex doctor names it, so -rm removes it by its text.
+	resolved, dirErr := settings.TrustDir(dir)
 	store, path, err := loadStore()
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
@@ -135,10 +137,15 @@ func trustRemove(dir string) error {
 		}
 		reloadDaemonForTrust(trustSettingID)
 	}
-	return emitTrust("remove", resolved, changed, store.String(trustSettingID))
+	shown, covered := dir, ""
+	if dirErr == nil {
+		shown = resolved
+		covered, _ = settings.CoveredBy(resolved, store.String(trustSettingID))
+	}
+	return emitTrust("remove", shown, changed, store.String(trustSettingID), covered)
 }
 
-func emitTrust(action, dir string, changed bool, value string) error {
+func emitTrust(action, dir string, changed bool, value, coveredBy string) error {
 	p := core.Out()
 	text, tone := "", core.ToneOK
 	switch {
@@ -151,6 +158,9 @@ func emitTrust(action, dir string, changed bool, value string) error {
 	default:
 		text, tone = "not in the list "+dir, core.ToneDim
 	}
+	if action == "remove" && coveredBy != "" {
+		text, tone = text+"; still trusted through "+coveredBy, core.ToneWarn
+	}
 	line := core.Line{Tone: tone, Glyph: p.Glyphs.OK, Text: text, Txt: dir}
 	view := core.ActionView(line,
 		core.Field{Key: "action", Val: action},
@@ -162,7 +172,7 @@ func emitTrust(action, dir string, changed bool, value string) error {
 	}
 	return p.Emit(core.Result{
 		Cmd:  "trust",
-		Data: trustData{Action: action, Dir: dir, Changed: changed, Value: value},
+		Data: trustData{Action: action, Dir: dir, Changed: changed, Value: value, CoveredBy: coveredBy},
 		View: view,
 	})
 }
