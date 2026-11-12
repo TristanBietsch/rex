@@ -43,6 +43,25 @@ func TestCheckHelper(t *testing.T) {
 		os.Exit(0)
 	case "hang":
 		time.Sleep(time.Hour)
+	case "count": // count <file> <n>: exit 0 from the n-th run on
+		var n, have int
+		_, _ = fmt.Sscan(args[2], &n)
+		if b, err := os.ReadFile(args[1]); err == nil {
+			_, _ = fmt.Sscan(string(b), &have)
+		}
+		have++
+		_ = os.WriteFile(args[1], []byte(fmt.Sprint(have)), 0o600)
+		fmt.Println("out line")
+		if have >= n {
+			os.Exit(0)
+		}
+		os.Exit(1)
+	case "sleepexit": // sleepexit <duration> <code>
+		d, _ := time.ParseDuration(args[1])
+		var n int
+		_, _ = fmt.Sscan(args[2], &n)
+		time.Sleep(d)
+		os.Exit(n)
 	}
 	os.Exit(99)
 }
