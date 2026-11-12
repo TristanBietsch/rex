@@ -294,7 +294,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "handshake", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
 			})
 		}
-		m.Sessions = msg.Snap.Sessions
+		m = adoptSessionsSeen(m, msg.Snap.Sessions)
 		m.Overview = msg.Snap.Overview
 		m.Usage = msg.Snap.Usage
 		m = adoptSnapshotTools(m, msg.Snap.Tools)

@@ -165,6 +165,22 @@ func adoptSeen(m *Model, before map[string]string) {
 	}
 }
 
+// adoptSessionsSeen installs a snapshot's sessions and runs adoptSeen on
+// them, recording each session's section before the swap once seenInit is
+// set. Boot, reconnect and the Snapshot event all go through it.
+func adoptSessionsSeen(m Model, sessions []protocol.SessionSummary) Model {
+	var before map[string]string
+	if seenOn(m) && m.seenInit {
+		before = make(map[string]string, len(m.Sessions))
+		for _, s := range m.Sessions {
+			before[s.ID] = sectionOf(m, s)
+		}
+	}
+	m = adoptSessions(m, sessions)
+	adoptSeen(&m, before)
+	return m
+}
+
 // pruneSeen is SeenAt limited to the live sessions, for saving. Nil with row
 // icons off or nothing to save.
 func pruneSeen(m Model) map[string]time.Time {

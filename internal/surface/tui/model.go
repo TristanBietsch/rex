@@ -405,15 +405,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSnapshot:
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
-			var before map[string]string
-			if seenOn(m) && m.seenInit {
-				before = make(map[string]string, len(m.Sessions))
-				for _, s := range m.Sessions {
-					before[s.ID] = sectionOf(m, s)
-				}
-			}
-			m = adoptSessions(m, snap.Sessions)
-			adoptSeen(&m, before)
+			m = adoptSessionsSeen(m, snap.Sessions)
 			m.Overview = snap.Overview
 			m.Usage = snap.Usage
 			m = adoptSnapshotTools(m, snap.Tools)

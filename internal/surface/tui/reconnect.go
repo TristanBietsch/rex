@@ -148,7 +148,7 @@ func handleReconnectResult(m Model, msg reconnectResultMsg) (Model, tea.Cmd) {
 func adoptConnection(m Model, c *client.Client, snap *protocol.Snapshot) Model {
 	m.Client = c
 	m.reconnect = nil
-	m = adoptSessions(m, snap.Sessions)
+	m = adoptSessionsSeen(m, snap.Sessions)
 	m.Overview = snap.Overview
 	m.Usage = snap.Usage
 	m = adoptSnapshotTools(m, snap.Tools)

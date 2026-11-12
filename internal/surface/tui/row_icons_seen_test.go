@@ -34,11 +34,16 @@ func seenPatch(t *testing.T, m Model, id string, patch map[string]any) Model {
 	return m.applyEvent(protocol.Envelope{Type: protocol.EventSessionUpdated, Data: raw})
 }
 
-func seenSnapshot(t *testing.T, m Model, sessions ...protocol.SessionSummary) Model {
+// seenBoot feeds a snapshot the way boot does: the handshake result message.
+func seenBoot(t *testing.T, m Model, sessions ...protocol.SessionSummary) Model {
 	t.Helper()
-	raw, err := json.Marshal(protocol.Snapshot{Sessions: sessions})
-	require.NoError(t, err)
-	return m.applyEvent(protocol.Envelope{Type: protocol.EventSnapshot, Data: raw})
+	next, _ := m.Update(snapshotResultMsg{Snap: &protocol.Snapshot{Sessions: sessions}})
+	return next.(Model)
+}
+
+// seenReconnect feeds a snapshot the way a reconnect does.
+func seenReconnect(m Model, sessions ...protocol.SessionSummary) Model {
+	return adoptConnection(m, nil, &protocol.Snapshot{Sessions: sessions})
 }
 
 func TestSeen_ReadyAfterAttachIsUnseen(t *testing.T) {
@@ -115,7 +120,7 @@ func TestSeen_WorkingNeverUnseen(t *testing.T) {
 func TestSeen_FirstStartAllSeen(t *testing.T) {
 	now := seenT0
 	m := seenModel(t, &now)
-	m = seenSnapshot(t, m,
+	m = seenBoot(t, m,
 		protocol.SessionSummary{ID: "r", Slug: "r", State: protocol.StateNeedsInput},
 		protocol.SessionSummary{ID: "d", Slug: "d", State: protocol.StateDone},
 		protocol.SessionSummary{ID: "w", Slug: "w", State: protocol.StateWorking})
@@ -132,7 +137,7 @@ func TestSeen_SavedSeenNoFlood(t *testing.T) {
 	now := seenT0
 	m := seenModel(t, &now)
 	m.SeenAt = map[string]time.Time{"old": seenT0.Add(-time.Hour)}
-	m = seenSnapshot(t, m,
+	m = seenBoot(t, m,
 		protocol.SessionSummary{ID: "new", Slug: "n", State: protocol.StateDone},
 		protocol.SessionSummary{ID: "old", Slug: "o", State: protocol.StateDone})
 	for _, s := range m.Sessions {
@@ -140,6 +145,35 @@ func TestSeen_SavedSeenNoFlood(t *testing.T) {
 	}
 	require.Equal(t, seenT0, m.SeenAt["new"])
 	require.Equal(t, seenT0.Add(-time.Hour), m.SeenAt["old"], "a saved time is kept")
+}
+
+func TestSeen_ReconnectNoFlood(t *testing.T) {
+	now := seenT0
+	m := seenModel(t, &now)
+	m = seenBoot(t, m, protocol.SessionSummary{ID: "d", Slug: "d", State: protocol.StateDone})
+	now = seenT0.Add(time.Minute)
+	m = seenReconnect(m, protocol.SessionSummary{ID: "d", Slug: "d", State: protocol.StateDone})
+	require.False(t, isUnseen(m, m.Sessions[0]))
+}
+
+func TestSeen_ReconnectWorkingToReadyIsUnseen(t *testing.T) {
+	now := seenT0
+	m := seenModel(t, &now)
+	m = seenBoot(t, m, protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateWorking})
+	now = seenT0.Add(time.Minute)
+	m = seenReconnect(m, protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateNeedsInput})
+	require.True(t, isUnseen(m, m.Sessions[0]))
+}
+
+func TestSeen_SnapshotEventWorkingToReadyIsUnseen(t *testing.T) {
+	now := seenT0
+	m := seenModel(t, &now)
+	m = seenBoot(t, m, protocol.SessionSummary{ID: "a", Slug: "a", State: protocol.StateWorking})
+	now = seenT0.Add(time.Minute)
+	raw, err := json.Marshal(protocol.Snapshot{Sessions: []protocol.SessionSummary{{ID: "a", Slug: "a", State: protocol.StateDone}}})
+	require.NoError(t, err)
+	m = m.applyEvent(protocol.Envelope{Type: protocol.EventSnapshot, Data: raw})
+	require.True(t, isUnseen(m, m.Sessions[0]))
 }
 
 func TestSeen_PrunedOnSave(t *testing.T) {
@@ -169,7 +203,7 @@ func TestSeen_OffWritesNothing(t *testing.T) {
 	now := seenT0
 	m := seenModel(t, &now, protocol.SessionSummary{ID: "a", State: protocol.StateWorking})
 	m = rowIconsOff(m)
-	m = seenSnapshot(t, m, protocol.SessionSummary{ID: "a", State: protocol.StateWorking})
+	m = seenBoot(t, m, protocol.SessionSummary{ID: "a", State: protocol.StateWorking})
 	markSeen(&m, "a")
 	now = seenT0.Add(time.Minute)
 	m = seenPatch(t, m, "a", map[string]any{"state": "done"})
