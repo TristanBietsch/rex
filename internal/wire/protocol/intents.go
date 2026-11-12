@@ -27,8 +27,8 @@ const (
 	// installed binary (a swap event); IntentBoards lists board connections.
 	IntentSwapBoards = "SwapBoards"
 	IntentBoards     = "Boards"
-	IntentUndo             = "Undo"
-	IntentRedo             = "Redo"
+	IntentUndo       = "Undo"
+	IntentRedo       = "Redo"
 )
 
 // Hello is the first message a client sends after connect. The daemon
