@@ -72,7 +72,7 @@ func runUpdate(args []string, d updateDeps) error {
 	check := fs.Bool("check", false, "print version info and exit without upgrading")
 	yes := fs.Bool("yes", false, "skip confirmation prompt")
 	yShort := fs.Bool("y", false, "skip confirmation prompt (shorthand)")
-	source := fs.String("source", "", "explicit source checkout path; run git pull + ./install.sh")
+	source := fs.String("source", "", "explicit source checkout path; run git pull + ./install.sh --from-source")
 	verbose := fs.Bool("verbose", false, "stream go install output instead of spinning")
 	_, err := out.Parse(fs, args)
 	if err != nil {
@@ -165,17 +165,21 @@ func printUpdatePlan(p *core.Printer, exePath, source string, mode installMode, 
 	p.EmitErr(core.View{core.KV{Pairs: pairs}})
 }
 
+// installerHint is the command that installs the latest release over a
+// binary-swap install (install.sh's default ~/.local/bin).
+const installerHint = "curl -fsSL https://raw.githubusercontent.com/TristanBietsch/rex/master/install.sh -o install.sh && sh install.sh"
+
 // refuseBinarySwap explains that a binary-swap install (anything not under
 // a Go bin dir, e.g. install.sh's ~/.local/bin) can't upgrade itself, and
 // returns the refusal. It runs before anything is stopped.
 func refuseBinarySwap(exePath string) error {
 	slog.Info("update: binary-swap mode, cannot self-upgrade", "exe", exePath)
 	if repoHint := guessSourceDir(exePath); repoHint != "" {
-		return core.Errorf(core.ExitOperationRefused, fmt.Sprintf("cd %s && ./install.sh", repoHint),
-			"cannot self-upgrade binary-swap install (rex is at %s); re-run the checkout's install script", exePath)
+		return core.Errorf(core.ExitOperationRefused, fmt.Sprintf("cd %s && git pull && ./install.sh --from-source", repoHint),
+			"cannot self-upgrade binary-swap install (rex is at %s); rebuild from the checkout", exePath)
 	}
-	return core.Errorf(core.ExitOperationRefused, "./install.sh",
-		"cannot self-upgrade binary-swap install (rex is at %s); re-run your original install script", exePath)
+	return core.Errorf(core.ExitOperationRefused, installerHint,
+		"cannot self-upgrade binary-swap install (rex is at %s); re-run the installer to get the latest release", exePath)
 }
 
 // stopDaemonForUpdate stops the daemon and waits for its socket to close,
@@ -316,7 +320,7 @@ func upgradeFromSource(dir string, verbose bool) error {
 		return runSourceStep(dir, verbose, "install.ps1", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(dir, "install.ps1"))
 	}
 	script := filepath.Join(dir, "install.sh")
-	return runSourceStep(dir, verbose, "./install.sh", script)
+	return runSourceStep(dir, verbose, "./install.sh --from-source", script, "--from-source")
 }
 
 // runSourceStep runs a single source-upgrade step with optional verbose output.

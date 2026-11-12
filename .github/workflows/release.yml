@@ -1,0 +1,166 @@
+name: release
+
+# Publishes a GitHub release when a version tag (v2.0.0, v2.1.0-rc.1, ...)
+# is pushed: runs the make check gate, builds rex and rex-daemon for
+# darwin/linux (amd64, arm64) and windows/amd64, writes SHA256SUMS, and
+# creates the release with notes from docs/releases/<tag>.md (or the
+# CHANGELOG section for the version).
+#
+# Linux rex links ALSA through cgo (oto), so each linux arch builds on its
+# own runner. ubuntu-22.04 keeps the glibc floor low (2.35).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Tag must be a version and have release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::tag $TAG is not vMAJOR.MINOR.PATCH"; exit 1 ;;
+          esac
+          ver="${TAG#v}"
+          if [ ! -f "docs/releases/$TAG.md" ] && ! grep -q "^## \[$ver\]" CHANGELOG.md; then
+            echo "::error::no docs/releases/$TAG.md and no '## [$ver]' in CHANGELOG.md"
+            exit 1
+          fi
+
+      - name: Check
+        run: make check
+
+  build:
+    needs: check
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            targets: linux/amd64 darwin/amd64 darwin/arm64 windows/amd64
+            name: linux-amd64-cross
+          - runner: ubuntu-22.04-arm
+            targets: linux/arm64
+            name: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Install ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev zip
+
+      - name: Build
+        env:
+          TAG: ${{ github.ref_name }}
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          # shellcheck disable=SC2086
+          tools/release/build.sh "$TAG" $TARGETS
+          rm dist/SHA256SUMS
+
+      - name: Smoke (native binary prints the tag)
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          arch="$(go env GOARCH)"
+          tar -xzf "dist/rex_${TAG#v}_linux_${arch}.tar.gz" -C "$RUNNER_TEMP"
+          got="$("$RUNNER_TEMP/rex_${TAG#v}_linux_${arch}/rex-daemon" -version)"
+          test "$got" = "$TAG" || { echo "::error::rex-daemon -version = $got, want $TAG"; exit 1; }
+          got="$(REX_AGENT=0 REX_OUTPUT=txt "$RUNNER_TEMP/rex_${TAG#v}_linux_${arch}/rex" --version)"
+          test "$got" = "$TAG" || { echo "::error::rex --version = $got, want $TAG"; exit 1; }
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          ls rex_*.tar.gz rex_*.zip | LC_ALL=C sort | xargs sha256sum > SHA256SUMS
+          cat SHA256SUMS
+          test "$(wc -l < SHA256SUMS)" -eq 5
+
+      - name: Release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -f "docs/releases/$TAG.md" ]; then
+            cp "docs/releases/$TAG.md" "$RUNNER_TEMP/notes.md"
+          else
+            awk -v ver="${TAG#v}" '
+              $0 ~ "^## \\[" ver "\\]" { on = 1; next }
+              on && /^## \[/ { exit }
+              on { print }
+            ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          fi
+          test -s "$RUNNER_TEMP/notes.md"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          # shellcheck disable=SC2086
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "rex $TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            $prerelease \
+            dist/rex_*.tar.gz dist/rex_*.zip dist/SHA256SUMS
