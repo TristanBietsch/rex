@@ -544,6 +544,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Daemon: a transient error accepting a client connection (for example
   "too many open files") no longer shuts the daemon down and stops every
   running session. It retries with backoff (5 ms up to 1 s) and logs it.
+- Daemon: a full disk no longer kills running agents. When an agent's
+  `transcript.log` can't be written, the session keeps running (attach and
+  the board still see all its output); the transcript pauses, retries every
+  30 s, and the daemon log records how many bytes are missing from it.
+  Before, the agent was killed and marked failed.
 - Settings: saving a `config.yaml` that is a symlink (a dotfiles manager
   such as stow) writes the linked file and keeps the link, instead of
   replacing the link with a plain file. A dangling link is an error. Two
