@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 
-	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/cli/inspect"
@@ -44,7 +43,7 @@ func installLuaLayer(args []string) {
 	if luaFreeVerbs[core.Verb(args)] {
 		return
 	}
-	settings.SetLayer(luacfg.Layer())
+	luacfg.Install()
 }
 
 // interactiveVerbs are the commands that need a terminal: the board (bare

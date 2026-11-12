@@ -32,17 +32,40 @@ type LayerReport struct {
 // nothing changed (luacfg memoises by file stamp).
 type Layer func() LayerReport
 
-var layer atomic.Pointer[Layer]
+// installed is the process's layer and the stamp of its files.
+type installed struct {
+	eval  Layer
+	stamp func() string
+}
 
-// SetLayer installs the process's layer; nil removes it. cmd/rex and
-// cmd/rex-daemon install luacfg's layer once at start; tests that do not
-// install one see YAML only.
-func SetLayer(l Layer) {
+var layer atomic.Pointer[installed]
+
+// SetLayer installs the process's layer without a stamp; nil removes it.
+// cmd/rex and cmd/rex-daemon install luacfg's layer once at start (with
+// SetLayerStamped); tests that do not install one see YAML only.
+func SetLayer(l Layer) { SetLayerStamped(l, nil) }
+
+// SetLayerStamped installs the process's layer and stamp, a function whose
+// result changes when the layer's files change (reloaders poll it). A nil
+// layer removes both.
+func SetLayerStamped(l Layer, stamp func() string) {
 	if l == nil {
 		layer.Store(nil)
 		return
 	}
-	layer.Store(&l)
+	layer.Store(&installed{eval: l, stamp: stamp})
+}
+
+// LayerStamp returns the installed layer's stamp, or "" when no layer or no
+// stamp is installed or luaOn (lua_config, LuaConfigOn) is false. With it
+// false nothing is stat'ed. Callers pass the flag rather than a store so a
+// background reader never touches a store the UI goroutine owns.
+func LayerStamp(luaOn bool) string {
+	l := layer.Load()
+	if l == nil || l.stamp == nil || !luaOn {
+		return ""
+	}
+	return l.stamp()
 }
 
 // LuaConfigOn reports whether lua_config is on in the YAML-only store s.
@@ -58,7 +81,7 @@ func LoadLayered(path string) (*Store, LayerReport, error) {
 	err := s.Load(path)
 	var rep LayerReport
 	if l := layer.Load(); l != nil && LuaConfigOn(s) {
-		rep = (*l)()
+		rep = l.eval()
 		s.applyLayer(rep)
 	}
 	return s, rep, err

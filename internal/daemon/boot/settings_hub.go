@@ -14,9 +14,11 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// SettingsHub is the daemon's one view of config.yaml. Spawn-time reads call
+// SettingsHub is the daemon's one view of config.yaml (with config.lua on
+// top while lua_config is on, settings.LoadLayered). Spawn-time reads call
 // Current instead of re-reading the file; features Subscribe to the settings
 // they follow instead of polling; Reload (SIGHUP, the Reload intent, a hand
 // edit noticed by Watch) swaps in a fresh Store and wakes the subscribers of
@@ -32,7 +34,7 @@ type SettingsHub struct {
 	// mu serializes reloads and guards last. Subscribers run under it, so
 	// they must not call Reload or Subscribe.
 	mu   sync.Mutex
-	last fileSig // state of the file as of the last load
+	last hubSig // state of the files as of the last load
 
 	subMu sync.Mutex
 	subs  []hubSub
@@ -56,7 +58,7 @@ func NewSettingsHub(path string, initial *settings.Store) *SettingsHub {
 	}
 	h := &SettingsHub{path: path, stat: statSig, wake: make(chan struct{}, 1)}
 	h.cur.Store(initial)
-	h.last = h.stat(path)
+	h.last = h.sig()
 	return h
 }
 
@@ -105,9 +107,9 @@ func (h *SettingsHub) Reload() error {
 func (h *SettingsHub) reloadLocked() error {
 	// Stat before reading: an edit landing during the read is seen by the
 	// next poll rather than lost.
-	sig := h.stat(h.path)
-	st := settings.NewStore()
-	if err := st.Load(h.path); err != nil {
+	sig := h.sig()
+	st, rep, err := settings.LoadLayered(h.path)
+	if err != nil {
 		h.last = sig // report a broken file once, not at every poll
 		// Fail closed on the settings that grant trust: until the file
 		// parses again they read as their defaults. Everything else keeps
@@ -117,6 +119,14 @@ func (h *SettingsHub) reloadLocked() error {
 		old := h.cur.Swap(closed)
 		h.notify(old, closed)
 		return fmt.Errorf("settings reload: %w", err)
+	}
+	if rep.Err != nil {
+		// The text is flattened by the evaluator; trust settings already
+		// read their defaults (settings.LoadLayered).
+		slog.Warn("daemon: config.lua failed; skip_permissions and auto_trust_dirs are off until it runs again", "err", protocol.FlattenDisplayText(rep.Err.Error()), "last_good", rep.LastGood)
+	}
+	if n := len(rep.Warnings); n > 0 {
+		slog.Warn("daemon: config.lua warnings", "count", n, "first", protocol.FlattenDisplayText(rep.Warnings[0]))
 	}
 	h.last = sig
 	old := h.cur.Swap(st)
@@ -192,11 +202,22 @@ func (h *SettingsHub) Watch(ctx context.Context, every time.Duration) {
 func (h *SettingsHub) poll() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.stat(h.path) == h.last {
+	if h.sig() == h.last {
 		return
 	}
 	slog.Info("daemon: settings changed, applying")
 	_ = h.reloadLocked() // a failure is logged there
+}
+
+// hubSig identifies one state of the settings files: config.yaml, plus
+// config.lua and lua/ (the layer's stamp) while lua_config is on.
+type hubSig struct {
+	yaml fileSig
+	lua  string
+}
+
+func (h *SettingsHub) sig() hubSig {
+	return hubSig{yaml: h.stat(h.path), lua: settings.LayerStamp(settings.LuaConfigOn(h.Current()))}
 }
 
 // fileSig identifies one state of the settings file. exists is false when it

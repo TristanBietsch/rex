@@ -47,7 +47,7 @@ A `done`, `failed` or `crashed` session whose tool has a `resume` block and whos
 
 `SIGHUP`, `rex reload` and `:reload` re-read `tools.yaml` and then `config.yaml`. Both are always attempted, so a bad `tools.yaml` does not hold back settings (the reload still reports the error). A `config.yaml` that fails to parse keeps the previous values, except `skip_permissions` and `auto_trust_dirs`, which fail closed (off, empty) until the file parses again. None of them re-read `init.lua`; restart the daemon for that.
 
-The daemon holds one copy of `config.yaml` (the settings hub). It polls the file every 5 s and, after an edit or a reload, applies what changed. Settings that apply live (see [settings.md](settings.md#which-settings-apply-live)):
+The daemon holds one copy of `config.yaml` (the settings hub), with `config.lua` on top while `lua_config` is on. It polls `config.yaml`, and `config.lua` plus `~/.config/rex/lua/` while `lua_config` is on, every 5 s and, after an edit or a reload, applies what changed. A `config.lua` that fails keeps its last good values in the daemon, puts `skip_permissions` and `auto_trust_dirs` back to their defaults until it runs again, and logs one flattened line. Settings that apply live (see [settings.md](settings.md#which-settings-apply-live)):
 
 - at once for the running feature: `summary_detail`, `summary_schedule`, `overview_enabled`, `turn_snapshots`, `usage`;
 - at the next spawn or `Resume`: `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap`.

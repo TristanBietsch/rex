@@ -80,3 +80,18 @@ func TestLayer_CannotSetItsOwnFlag(t *testing.T) {
 	require.True(t, settings.LuaConfigOn(s))
 	require.False(t, s.Locked("lua_config"))
 }
+
+func TestInstall_StampFollowsTheFile(t *testing.T) {
+	homeWithConfig(t, "rex.set('theme', 'noir')", "")
+	Install()
+	s, _, _, err := settings.LoadDefaultReport()
+	require.NoError(t, err)
+	require.Equal(t, "noir", s.Get("theme"))
+	st := settings.LayerStamp(settings.LuaConfigOn(s))
+	require.NotEmpty(t, st)
+	require.Equal(t, st, HomeStamp())
+
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	require.Equal(t, "", HomeStamp())
+}

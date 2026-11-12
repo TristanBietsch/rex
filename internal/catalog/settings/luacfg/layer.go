@@ -35,3 +35,17 @@ func Layer() settings.Layer {
 		}
 	}
 }
+
+// HomeStamp is Stamp for the current user's config.lua and lua/, or "" when
+// the home directory is unknown.
+func HomeStamp() string {
+	o, err := OptsForHome()
+	if err != nil {
+		return ""
+	}
+	return Stamp(o)
+}
+
+// Install makes config.lua the settings layer of this process, with its file
+// stamp for reloaders. Call it once at process start.
+func Install() { settings.SetLayerStamped(Layer(), HomeStamp) }

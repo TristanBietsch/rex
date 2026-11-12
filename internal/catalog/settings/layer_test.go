@@ -193,3 +193,16 @@ func TestSetLayerNilClears(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, *calls)
 }
+
+func TestLayerStamp(t *testing.T) {
+	SetLayer(nil)
+	require.Equal(t, "", LayerStamp(true), "no layer")
+	SetLayer(func() LayerReport { return LayerReport{} })
+	t.Cleanup(func() { SetLayer(nil) })
+	require.Equal(t, "", LayerStamp(true), "no stamp")
+	n := 0
+	SetLayerStamped(func() LayerReport { return LayerReport{} }, func() string { n++; return "s1" })
+	require.Equal(t, "s1", LayerStamp(true))
+	require.Equal(t, "", LayerStamp(false))
+	require.Equal(t, 1, n, "off: the stamp is never taken")
+}

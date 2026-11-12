@@ -66,7 +66,7 @@ func runTap(args []string) int {
 func run(args []string) error {
 	// config.lua goes on top of config.yaml for every settings load in this
 	// process (the hub, the boot checks), while lua_config is on.
-	settings.SetLayer(luacfg.Layer())
+	luacfg.Install()
 	fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
 	// Path defaults come from package paths. Without a home directory they
 	// are empty, and requireDefaults fails unless the flag was given.
