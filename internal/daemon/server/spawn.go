@@ -134,6 +134,9 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		slog.Info("spawn: initial_prompt via pty paste", "tool", p.ToolID, "bytes", len(ptyPrompt), "plain", delivery.plainPaste)
 	}
 
+	// Creation is the session's first activity: last_event_at starts at
+	// started_at so idle time is defined before any event arrives.
+	created := time.Now().UTC()
 	sess := &state.Session{
 		ID:          id,
 		ShortID:     short,
@@ -144,7 +147,8 @@ func handleNewSession(ctx context.Context, intentID string, p protocol.NewSessio
 		Title:       p.Title,
 		CWD:         p.CWD,
 		State:       protocol.StateQueued,
-		StartedAt:   time.Now().UTC(),
+		StartedAt:   created,
+		LastEventAt: created,
 		Fleet:       p.Fleet,
 		ResumeID:    resumeID,
 		TrustFolder: p.TrustFolder,

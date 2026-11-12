@@ -112,7 +112,7 @@ func TestLsAgentLines(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	require.Equal(t, `session id=a91c state=needs_input tool=antigravity model=gemini-3-pro effort="" slug=refactor-db idle_s=12 name=""`, lines[0])
 	require.Equal(t, `session id=7d4f state=working tool=claude model=opus effort=high slug=fix-auth-flow idle_s=120 name="Auth fix"`, lines[1])
-	require.Contains(t, lines[3], "idle_s=-1")
+	require.Contains(t, lines[3], "idle_s=0")
 	require.Equal(t, "ok cmd=ls count=5", lines[len(lines)-1])
 }
 
