@@ -88,6 +88,7 @@ func TestCheckName(t *testing.T) {
 	require.NoError(t, CheckName(File, "internal/auth/auth_test.go"))
 	for _, name := range []string{
 		"a\u2028b", "a\u2029b", "a\tb", "a\u0085b", "a\U000E0041b", "a\u200bb", "a\ufeffb", "a\u2066b", "a\ufffdb", "  ",
+		"a\ufe0fb", "a\U000E0100b", "a\u2062b",
 	} {
 		require.ErrorIs(t, CheckName(Paste, name), ErrBadItem, "%q", name)
 	}

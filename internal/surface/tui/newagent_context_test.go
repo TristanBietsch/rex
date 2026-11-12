@@ -435,3 +435,13 @@ func TestRename_RefusesTakenName(t *testing.T) {
 	require.Equal(t, "[paste 1 · 9 lines][paste 2 · 12 lines]", st.Task.String())
 	require.True(t, st.Renaming, "a refused name stays in the editor")
 }
+
+func TestContextList_OneLinePasteRowSingular(t *testing.T) {
+	m := naOpen(t, naModel(t))
+	m = naPaste(m, strings.Repeat("y", 1025)) // one line over 1 KiB: a chip
+	require.Len(t, m.NewAgent.Items, 1)
+	m.Width, m.Height = 80, 24
+	out := ansi.Strip(m.View())
+	require.Contains(t, out, "1 line ")
+	require.NotContains(t, out, "1 lines")
+}

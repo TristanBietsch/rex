@@ -272,13 +272,19 @@ func naTrustLines(tv naTrustView, st *NewAgentState) []string {
 	return []string{state, keys}
 }
 
-// naNotice is the open-time notice (a remembered agent that is gone), as a
-// warning line, or nil.
+// naNotice is the open-time notice (a remembered agent that is gone) and a
+// draft whose files are from another folder (naStaleRoot), as warning lines,
+// or nil.
 func naNotice(st *NewAgentState) []string {
-	if st.Notice == "" {
-		return nil
+	var out []string
+	if st.Notice != "" {
+		out = append(out, styleBootWarn.Render("! ")+styleDim.Render(protocol.FlattenDisplayText(st.Notice)))
 	}
-	return []string{styleBootWarn.Render("! ") + styleDim.Render(protocol.FlattenDisplayText(st.Notice))}
+	if naStaleRoot(st) {
+		out = append(out, styleBootWarn.Render("! ")+styleDim.Render("files from "+
+			protocol.FlattenDisplayText(tildePath(st.ItemsRoot))+", not this folder: x removes them"))
+	}
+	return out
 }
 
 // naForm is the Compose form fw wide for a body bh rows tall (mockups A
@@ -403,7 +409,7 @@ func naItemRow(m Model, st *NewAgentState, i, fw int, focused bool) string {
 	var meta string
 	switch it.Kind {
 	case spawnctx.Paste:
-		meta = strconv.Itoa(spawnctx.Lines(it.Text)) + " lines " + naBytes(it.Bytes)
+		meta = naLines(spawnctx.Lines(it.Text)) + " " + naBytes(it.Bytes)
 	case spawnctx.File:
 		meta = naBytes(it.Bytes)
 	case spawnctx.Dir:

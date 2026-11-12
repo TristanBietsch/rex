@@ -469,3 +469,117 @@ func TestNewAgent_OtherSpawnErrorLeavesLaunchingDraft(t *testing.T) {
 	m = naUpdate(m, newAgentLaunchedMsg{Slug: slug, gen: gen})
 	require.Nil(t, m.newAgentDraft, "the real answer still lands")
 }
+
+func TestNewAgent_PlainPasteRefusesNewlines(t *testing.T) {
+	m := naModel(t)
+	m.DaemonTools = daemonTools(t, "claude", "ollama")
+	m.lastSpawn = &quickChoice{Tool: "ollama"}
+	m = naOpen(t, m)
+	require.Equal(t, "ollama", m.NewAgent.choice().Tool)
+
+	// A one-line task with no context launches.
+	m = naType(m, "explain the build")
+	_, req, ok := naReq(t, m)
+	require.True(t, ok)
+	require.Equal(t, "explain the build", req.InitialPrompt)
+
+	// A second line is refused before anything launches.
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlJ})
+	m = naType(m, "then fix it")
+	m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	require.Nil(t, cmd)
+	require.False(t, m.NewAgent.Launching)
+	require.True(t, strings.HasPrefix(m.NewAgent.Err, "✗ "), m.NewAgent.Err)
+	require.Contains(t, m.NewAgent.Err, "Ollama (local) takes the prompt as typed lines")
+	require.Contains(t, m.NewAgent.Err, "one-line task")
+	require.Contains(t, m.NewAgent.Err, "another agent")
+
+	// Context makes the prompt multi-line too.
+	m.NewAgent.Task.Clear()
+	m = naType(m, "explain ")
+	m = naPaste(m, nLines(9))
+	m, cmd = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	require.Nil(t, cmd)
+	require.Contains(t, m.NewAgent.Err, "takes the prompt as typed lines")
+
+	// The same draft launches with an agent that takes argv or a bracketed paste.
+	m.NewAgent.choose(quickChoice{Tool: "claude"})
+	m, cmd = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	require.NotNil(t, cmd)
+	require.True(t, m.NewAgent.Launching)
+}
+
+// TestNewAgent_DraftFromAnotherFolder: a draft with files from one folder,
+// reopened while new agents start in another, says so, keeps its preview
+// on the old folder, refuses mixing in new paths, and goes back to normal
+// once the old ones are gone (final review I1).
+func TestNewAgent_DraftFromAnotherFolder(t *testing.T) {
+	m := naModel(t)
+	naFiles(t, map[string]string{"a.go": "package old\n"})
+	m = naIndexed(t, m)
+	require.NoError(t, addPath(m.NewAgent, "a.go", false))
+	m, _ = naKey(m, key("esc"))
+
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	other := filepath.Join(home, "dev", "other")
+	require.NoError(t, os.MkdirAll(filepath.Join(other, ".git"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(other, "a.go"), []byte("package newer\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(other, "b.go"), []byte("package b\n"), 0o600))
+	t.Chdir(other)
+	m = naIndexed(t, m)
+	st := m.NewAgent
+	require.Len(t, st.Items, 1)
+
+	// The page names the old folder, as a warning line.
+	m.Width, m.Height = 80, 24
+	v := ansi.Strip(m.View())
+	require.Contains(t, v, "! ")
+	require.Contains(t, v, "~/dev/proj")
+
+	// The preview reads the item from the folder it was added in.
+	st.Section = naContext
+	st.ItemIdx = 0
+	m, _ = naKey(m, key("enter"))
+	require.Contains(t, strings.Join(m.NewAgent.PrevLines, "\n"), "package old")
+	m, _ = naKey(m, key("esc"))
+
+	// A new path is refused while old ones are there; it is never blamed
+	// on the old folder.
+	err = addPath(st, "b.go", false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "~/dev/proj")
+	require.Contains(t, err.Error(), "~/dev/other")
+	require.Len(t, st.Items, 1)
+
+	// Launch names the old item and folder.
+	m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	require.Nil(t, cmd)
+	require.Contains(t, m.NewAgent.Err, "✗ a.go was added in ~/dev/proj")
+
+	// Removing the old item resets the folder: the notice goes, b.go adds
+	// and launches here.
+	require.Equal(t, naContext, m.NewAgent.Section)
+	m, _ = naKey(m, key("x"))
+	require.Empty(t, st.Items)
+	require.Equal(t, st.Root, st.ItemsRoot)
+	require.NotContains(t, ansi.Strip(m.View()), "~/dev/proj")
+	require.NoError(t, addPath(st, "b.go", false))
+	m.NewAgent.Err = ""
+	m = naType(m, "read b")
+	m, cmd = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	require.NotNil(t, cmd, m.NewAgent.Err)
+	require.True(t, m.NewAgent.Launching)
+}
+
+func TestNewAgent_ClearingTheDraftResetsItemsRoot(t *testing.T) {
+	m := naModel(t)
+	naFiles(t, map[string]string{"a.go": "package a\n"})
+	m = naIndexed(t, m)
+	st := m.NewAgent
+	require.NoError(t, addPath(st, "a.go", false))
+	st.ItemsRoot = filepath.Join(t.TempDir(), "elsewhere")
+	m, _ = naKey(m, key("ctrl+u"))
+	require.Empty(t, m.NewAgent.Items)
+	require.Equal(t, m.NewAgent.Root, m.NewAgent.ItemsRoot)
+}

@@ -25,6 +25,10 @@ func TestSanitize(t *testing.T) {
 		{"cjk kept", "界 ✓", "界 ✓"},
 		{"tag chars dropped", "a\U000E0001b\U000E0041\U000E007Fc", "abc"},
 		{"zero width dropped", "a\u200bb\u200cc\u200dd\u2060e\ufefff", "abcdef"},
+		{"variation selectors dropped", "a\ufe00b\ufe0fc\U000E0100d\U000E01EFe", "abcde"},
+		{"emoji presentation selector dropped", "\u2764\ufe0f", "\u2764"},
+		{"invisible operators dropped", "f\u2061x\u2062y\u2063z\u2064w", "fxyzw"},
+		{"neighbours kept", "\ufdff\ufe10\U000E00FF\U000E01F0\u2060\u2065", "\ufdff\ufe10\U000E00FF\U000E01F0\u2065"},
 		{"line separators kept", "a\u2028b\u2029c", "a\u2028b\u2029c"},
 	}
 	for _, tc := range cases {

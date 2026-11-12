@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -209,6 +210,14 @@ func (st *NewAgentState) request(cwd string, existing []string) (protocol.NewSes
 		}
 		return protocol.NewSession{}, naPromptErr(len(prompt), limit, name)
 	}
+	// A plain paste (no bracketed-paste markers) reaches a line REPL such
+	// as ollama's as typed input: every newline is Enter, so a multi-line
+	// prompt would go as several messages.
+	if pp := tool.PromptPaste; pp != nil && pp.Plain && strings.Contains(prompt, "\n") {
+		return protocol.NewSession{}, naErr{msg: protocol.FlattenDisplayText(tool.Name) +
+			" takes the prompt as typed lines, so each line break would send a message. " +
+			"Write a one-line task without context, or choose another agent (ctrl+g)."}
+	}
 	title := taskTitle(task)
 	return protocol.NewSession{
 		ToolID:         tool.ID,
@@ -332,6 +341,32 @@ func naHasPaths(items []spawnctx.Item) bool {
 	})
 }
 
+// naStaleRoot reports a draft whose files and folders were added in
+// another folder than the one this page indexes (a draft reopened after
+// the workspace changed): they cannot launch here, and new paths cannot
+// join them.
+func naStaleRoot(st *NewAgentState) bool {
+	return naHasPaths(st.Items) && st.ItemsRoot != "" && st.Root != "" &&
+		filepath.Clean(st.ItemsRoot) != filepath.Clean(st.Root)
+}
+
+// naItemsRootOf is the folder the file and folder items are relative to:
+// ItemsRoot, else the indexed folder.
+func naItemsRootOf(st *NewAgentState) string {
+	if st.ItemsRoot != "" {
+		return st.ItemsRoot
+	}
+	return st.Root
+}
+
+// naResetItemsRoot points ItemsRoot back at the indexed folder once no file
+// or folder item is left, so items added next belong to it.
+func naResetItemsRoot(st *NewAgentState) {
+	if !naHasPaths(st.Items) {
+		st.ItemsRoot = st.Root
+	}
+}
+
 // updateNewAgentKey routes a key on the page. A paste only ever inserts;
 // enter launches only as a real key in the task editor.
 func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
@@ -453,6 +488,7 @@ func newAgentEditKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			st.Trust = trustAsk
 			st.SkillSel = nil
 			st.Items, st.ItemIdx, st.PasteSeq = nil, 0, 0
+			naResetItemsRoot(st)
 			m.newAgentDraft = nil
 			return m, nil
 		}

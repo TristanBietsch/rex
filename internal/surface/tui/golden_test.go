@@ -195,6 +195,7 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"newagent_errors":        {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_frame":         {{80, 24}},
 	"newagent_ansi":          {{80, 24}, {50, 20}},
+	"newagent_highcontrast":  {{80, 24}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -474,6 +475,16 @@ func goldenScreens() []goldenScreen {
 				t.Fatal(err)
 			}
 			applyThemeNamed(&m, "ansi")
+			t.Cleanup(func() { applyTheme("default") })
+			return m
+		}},
+		{"newagent_highcontrast", true, func(t *testing.T, sz goldenSize) Model {
+			// Last too, for the same reason.
+			m := goldenNewAgentFilled(t, sz)
+			if err := m.Store.Set("theme", "high-contrast"); err != nil {
+				t.Fatal(err)
+			}
+			applyThemeNamed(&m, "high-contrast")
 			t.Cleanup(func() { applyTheme("default") })
 			return m
 		}},

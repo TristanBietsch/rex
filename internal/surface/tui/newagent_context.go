@@ -173,6 +173,7 @@ func removeItem(s *NewAgentState, i int) {
 	}
 	s.Items = slices.Delete(s.Items, i, i+1)
 	s.ItemIdx = min(s.ItemIdx, max(len(s.Items)-1, 0))
+	naResetItemsRoot(s)
 }
 
 // naNameTaken reports whether an item other than index skip has this name.

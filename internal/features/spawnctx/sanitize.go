@@ -21,8 +21,12 @@ import (
 //     the same way;
 //   - invisible characters go: the Unicode Tag block U+E0000–U+E007F (the
 //     "ASCII smuggling" channel: text a model reads but a terminal never
-//     shows) and the zero-width U+200B, U+200C, U+200D, U+2060 and U+FEFF.
-//     Emoji joined with U+200D come apart into their parts.
+//     shows), the zero-width U+200B, U+200C, U+200D, U+2060 and U+FEFF, the
+//     invisible math operators U+2061–U+2064, and the variation selectors
+//     U+FE00–U+FE0F and U+E0100–U+E01EF (runs of them after one visible
+//     character hide bytes the same way the Tag block does). Emoji joined
+//     with U+200D come apart into their parts, and an emoji written with
+//     U+FE0F loses its presentation hint.
 //
 // The result is valid UTF-8 and Sanitize is idempotent (FuzzSanitize).
 func Sanitize(s string) string {
@@ -55,10 +59,13 @@ func isBidi(r rune) bool {
 }
 
 // isInvisible reports a rune Sanitize drops because it draws as nothing
-// but still reaches the model: the Tag block and the zero-width characters.
+// but still reaches the model: the Tag block, the zero-width characters, the
+// invisible math operators and the variation selectors.
 func isInvisible(r rune) bool {
 	switch {
-	case r >= 0xE0000 && r <= 0xE007F:
+	case r >= 0xE0000 && r <= 0xE007F, r >= 0xE0100 && r <= 0xE01EF:
+		return true
+	case r >= 0xFE00 && r <= 0xFE0F, r >= 0x2061 && r <= 0x2064:
 		return true
 	case r == 0x200B, r == 0x200C, r == 0x200D, r == 0x2060, r == 0xFEFF:
 		return true

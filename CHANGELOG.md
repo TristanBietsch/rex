@@ -26,17 +26,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   gitignored files stay out; at most 10,000 entries or 300 ms). Items can
   be previewed (`enter`), renamed (`r`), removed (`x`) and, for pastes,
   edited in `$EDITOR`. The agent gets one first prompt: the task, then
-  `Context from rex (read before starting):` with a `- file:` / `- dir:` /
-  `- url:` line per reference and each paste in a `<pasted …>` block.
-  Files are referenced by workspace-relative path, never copied.
+  `Context from rex (read before starting):` with a `- file:` or `- dir:`
+  line per reference and each paste in a `<pasted …>` block. Files are
+  referenced by workspace-relative path, never copied. A draft whose files
+  were added in another folder says so (`!`) and takes no new paths until
+  they are removed.
 - Safety: a path must resolve, through every symlink, inside the session
   folder and be a regular file or folder (FIFOs, sockets and devices are
   refused unopened); names that look like secrets (`.env`, `*.pem`,
   `id_rsa*`, …) need a `y`. Pasted and typed text loses escape sequences,
-  control, bidi, zero-width and tag characters, and `</pasted>` inside a
-  paste is escaped. Caps: 32 KiB per paste, 64 KiB of pasted text, 32
+  control, bidi, zero-width, tag and variation-selector characters and the
+  invisible math operators, and `</pasted>` inside a paste is escaped. Caps: 32 KiB per paste, 64 KiB of pasted text, 32
   items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt);
-  the last row shows the prompt's size against the cap.
+  the last row shows the prompt's size against the cap. Ollama, which
+  takes its prompt as typed lines, only launches a one-line prompt with no
+  context.
 - Launch checks every cap and path again, then the page stays open with
   `⠋ starting…` until the daemon answers. A failure shows
   `✗ launch failed: … Your draft is kept.`; `esc` keeps the draft in

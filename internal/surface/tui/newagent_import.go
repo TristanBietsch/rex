@@ -112,6 +112,10 @@ func naItemsCap() error {
 // warning on the page.
 func addPath(st *NewAgentState, rel string, confirmed bool) error {
 	rel = strings.TrimSuffix(rel, "/")
+	if naStaleRoot(st) {
+		return naErr{msg: "the draft's files and folders were added in " + tildePath(st.ItemsRoot) +
+			"; new agents now start in " + tildePath(st.Root) + ". Remove them (x) before adding " + rel + "."}
+	}
 	info, err := spawnctx.ValidatePath(st.Root, rel)
 	if err != nil {
 		return naPathErr(st.Root, rel, err)
@@ -471,13 +475,17 @@ func naLoadPreview(st *NewAgentState) {
 	}
 	switch it := st.Items[st.ItemIdx]; it.Kind {
 	case spawnctx.File:
-		lines, more, err := spawnctx.Preview(st.Root, it.Name, naPreviewBytes, naPreviewMax)
+		lines, more, err := spawnctx.Preview(naItemsRootOf(st), it.Name, naPreviewBytes, naPreviewMax)
 		if err != nil {
 			st.PrevErr = "✗ " + err.Error()
 			return
 		}
 		st.PrevLines, st.PrevMore = lines, more
 	case spawnctx.Dir:
+		if naStaleRoot(st) {
+			st.PrevErr = it.Name + "/ was added in " + tildePath(st.ItemsRoot) + "; the index is of " + tildePath(st.Root)
+			return
+		}
 		if st.Indexing {
 			st.PrevErr = "the workspace is still being indexed"
 			return
