@@ -97,4 +97,14 @@ Each step is one commit with its tests; `make check` green at the end.
 | D8 | Summarizer down | At most one pending refresh per session; runs when the backend returns. |
 
 ## Build notes
-(filled in as built)
+As built (branch `feat/r15-desc-schedule`):
+
+- Files: `cadence.go` (`Cadence`, `DefaultCadence`, `Due`, `Late`, `Elapsed`), `desc_schedule.go` (live set, `SetSchedule`, `fireDue`, `nextTick`), `prompt_progress.go` (`KindProgress`), `Detail.Up` in `detail.go`; `worker.go`/`schedule.go` carry the hooks (`pendingReq.late`, `sessionMeta.callStart/callEnd`, `fromOutput`). `boot.SummaryScheduleApplier` subscribes through the SettingsHub; `rex-daemon` seeds `Config.Schedule` from `hub.Current()`.
+- `Config.Schedule` defaults to false in the library (`Defaults()`), so pre-R15 tests keep their meaning; the daemon sets it from the flag (default on).
+- Resume reaches the worker as a state patch without `NewState` (`resume.go` calls `Store.BroadcastPatch`), so the live-set tracking reads `Patch["state"]` too; the priority enqueue stays on `NewState` only (unchanged S1 behavior).
+- Sessions already live when the worker starts, and sessions when the flag turns on, count past ticks as fired and do not replay them.
+- `New` maps `MinInterval == 0` to 800 ms, so tests that want no gap pass 1 ms.
+- Tests use real timers with a scaled `Config.Cadence` (tens of ms) in `desc_schedule_test.go`; the cadence math in `cadence_test.go` is pure. `now` is an injectable clock for anchors and ticks, timers stay real.
+- New synthetic screens `claude_longrun`, `codex_migration` also entered the activity golden set.
+- Coverage floor for the summarizer stays at 93 (measured 93.4%).
+- `TestSnapshots_OldGitDisablesCaptures` fails in `internal/daemon/boot` on this machine; unrelated to R15 (not touched).

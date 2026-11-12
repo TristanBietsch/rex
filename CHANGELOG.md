@@ -30,6 +30,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Daemon: scheduled description refresh (`summary_schedule`, Settings →
+  Features, on by default). Each live session gets a new AI description 5, 10,
+  15, 20 and 25 minutes after its run started, then every 30 minutes, and the
+  descriptions from the 6th refresh on are one `summary_detail` level longer
+  and say what is finished plus what is happening now. A state change still
+  refreshes at once. Screen activity no longer triggers a refresh while the
+  switch is on; turn it off for the old behavior.
 - `rex config set` / `reset`, the Settings page and `rex setup` tell a running
   daemon to reload when they change `skip_permissions` or `auto_trust_dirs`,
   so revoking either applies at once. Hand edits of `config.yaml` still apply

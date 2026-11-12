@@ -49,10 +49,12 @@ A `done`, `failed` or `crashed` session whose tool has a `resume` block and whos
 
 The daemon holds one copy of `config.yaml` (the settings hub). It polls the file every 5 s and, after an edit or a reload, applies what changed. Settings that apply live (see [settings.md](settings.md#which-settings-apply-live)):
 
-- at once for the running feature: `summary_detail`, `overview_enabled`, `turn_snapshots`, `usage`;
+- at once for the running feature: `summary_detail`, `summary_schedule`, `overview_enabled`, `turn_snapshots`, `usage`;
 - at the next spawn or `Resume`: `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap`.
 
 Everything else (`summary_enabled`, `summary_model`, `retire_after_hours`, `lua_config_path`) is read once at daemon start. With the `live_reload` feature off the daemon does not poll at all, and every change above waits for `rex reload`, `:reload` or `SIGHUP`.
+
+**When descriptions refresh.** With `summary_enabled` on, the daemon writes each session's one-line description with the local model. With `summary_schedule` on (the default), a live session (queued, working or needs you) is refreshed 5, 10, 15, 20 and 25 minutes after its run started, then every 30 minutes; a Resume (T3) restarts that count. Refreshes from the 6th on are one detail level longer and say what is finished plus what is happening now. A change of state (for example working to needs you) refreshes at once and leaves the clock where it was; finished sessions get one final summary and no scheduled refreshes. Screen activity does not trigger a refresh. A tick that finds the screen unchanged makes no call but still counts; ticks that come due while the model is busy or Ollama is down merge into one refresh per session, run when the model is free. With `summary_schedule` off, a description is refreshed when the screen has been quiet for 500 ms (or every 15 s of continuous output) and on state changes. Logs name the session and tick number, never the screen text.
 
 With `overview_enabled` on, the daemon also writes a one-line overview of the board with the summary model. It runs 3 s after a session is added, removed, changes state, is renamed or is marked, at most once every 30 s, and a changed description alone refreshes it at most every 2 minutes. It skips the call when nothing changed, when only completed sessions are left, and while no `rex` board is connected (other clients such as `rex ls` do not count). The overview lives in memory only: it is not written to disk, and its text is never logged.
 
