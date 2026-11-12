@@ -185,15 +185,15 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 			shown = strings.TrimSpace(shown + " ✓done")
 		}
 		// An older daemon sends no last_event_at for a session that has not
-		// had activity yet; its start stands in. Idle is never negative.
+		// had activity yet; its start stands in. Idle is -1 only when both are unknown.
 		active := s.LastEventAt
 		if active.IsZero() {
 			active = s.StartedAt
 		}
 		ago := core.DurationAgoAt(active, now)
-		idleS := max(int(now.Sub(active).Seconds()), 0)
-		if active.IsZero() {
-			idleS = 0
+		idleS := -1
+		if !active.IsZero() {
+			idleS = max(int(now.Sub(active).Seconds()), 0)
 		}
 		tone := core.StateTone(s.State)
 		label := core.StateLabel(s.State)
