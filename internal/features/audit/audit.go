@@ -133,22 +133,6 @@ func FromSummary(sum protocol.SessionSummary, workspaceID, promptFirst, prompt s
 // regular file (a symlink, a directory, a device). It is never followed.
 var ErrNotRegular = errors.New("audit file is not a regular file")
 
-// checkRegular refuses an existing path that is not a regular file. A
-// missing file is fine.
-func checkRegular(path string) error {
-	fi, err := os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !fi.Mode().IsRegular() {
-		return fmt.Errorf("%w: %s", ErrNotRegular, path)
-	}
-	return nil
-}
-
 // openRegular opens path with flags (0600 when created) without following a
 // symlink or blocking on a FIFO, and checks the handle is a regular file.
 // A refusal wraps ErrNotRegular.

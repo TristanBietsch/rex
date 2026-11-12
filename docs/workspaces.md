@@ -23,7 +23,11 @@ myproject/.rex/
 └── audit.jsonl      # finished work, written by the daemon (see "Audit trail")
 ```
 
-`rex ws init` also adds `/.rex/` to the repository's `.git/info/exclude` (never to a tracked `.gitignore`), so git ignores it on your machine only. Inside a git worktree the shared exclude file is used. To share the workspace id with your team, commit `workspace.json` yourself.
+`rex ws init` also appends two lines to the repository's `.git/info/exclude` (never to a tracked `.gitignore`): `/.rex/`, and `/.rex/audit.jsonl` so that even an un-ignored `.rex/` never commits audits. Git then ignores `.rex/` on your machine only. Inside a linked git worktree the shared exclude file is used.
+
+To share the workspace id with your team, commit **only** `workspace.json` (`git add -f .rex/workspace.json`), never `audit.jsonl`: it holds prompt lines and, with `audit_full_prompt`, whole prompts.
+
+That write into `.git` is fenced in, because a repository you cloned is untrusted: for a worktree `.git` file rex requires the git directory it names to point back at that file and to hold a `HEAD`; a `commondir` must be an ancestor of that directory (the `.git/worktrees/<name>` layout); `.git/info` and `info/exclude` must not be symlinks and `info` must stay inside the git directory; the file must be a regular file you own and under 1 MiB. Anything else makes `rex ws init` fail with `unsafe .rex` and write nothing. (Submodule `.git` files have no such back-link and are refused too.)
 
 Running `rex ws init` in a folder that is already a workspace keeps its id (and renames it if you pass `--name`). `$HOME` and `/` are refused.
 
@@ -84,3 +88,6 @@ rex has no sync of its own. `.rex/` lives in your project folder, so it moves wi
 - Every file rex writes under `.rex/` is readable by you only (`0600`, folders `0700`).
 - A repository cloned from the internet can ship a `.rex/`. Opening it shows its workspace name and id, nothing more.
 - `rex ws init` refuses `$HOME` and `/`.
+- `rex ws init` writes outside `.rex/` once: two lines in `.git/info/exclude`, under the checks described above.
+- `rex audit` and the daemon read at most the newest 8 MiB of an audit file; `rex audit` says when older records were left out.
+- A session cleared before it ended (or still running) is recorded as `failed` with the note `deleted while running`. If its record cannot be written, the session is kept, an error is logged, and the next sweep or delete tries again.

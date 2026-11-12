@@ -39,7 +39,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   always before a session is cleared. `rex audit` filters it by `--ws`,
   `--all`, `--since`, `--tool` and `--state`. On by default (`audit_trail`);
   `audit_full_prompt` (off) also keeps the whole prompt, which can hold
-  secrets.
+  secrets. A session is never cleared without its record: if it cannot be
+  written the session is kept and retried. `rex ws init` also ignores
+  `/.rex/audit.jsonl`; commit only `workspace.json`.
 - Agent mode switches on by itself when `CLAUDECODE=1` and stdout is not a
   terminal (a Claude Code Bash tool, including inside rex-spawned
   sessions): one line per record, an `ok` trailer, one error line on

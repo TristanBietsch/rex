@@ -205,7 +205,7 @@ rex ws rename <id|path> <name>
 rex ws color <id|path> <#RRGGBB|1-7>
 ```
 
-`init` creates `<path>/.rex/workspace.json` (default: the current folder), registers it in `~/.local/share/rex/workspaces.json` and adds `/.rex/` to the repository's `.git/info/exclude`; on a folder that already is a workspace it keeps the id. `$HOME` and `/` are refused (exit 5). `id` prints the workspace around a folder, `ls` the known ones (with `(missing)` when the folder is gone). `<id|path>` is an 8-hex id or any folder inside the workspace. `color` takes `#RRGGBB` or a swatch number from the colorblind-safe palette (1-7). All take `-o text|txt|md|json|agent`.
+`init` creates `<path>/.rex/workspace.json` (default: the current folder), registers it in `~/.local/share/rex/workspaces.json` and adds `/.rex/` and `/.rex/audit.jsonl` to the repository's `.git/info/exclude`; on a folder that already is a workspace it keeps the id. `$HOME` and `/` are refused (exit 5). `id` prints the workspace around a folder, `ls` the known ones (with `(missing)` when the folder is gone). `<id|path>` is an 8-hex id or any folder inside the workspace. `color` takes `#RRGGBB` or a swatch number from the colorblind-safe palette (1-7). All take `-o text|txt|md|json|agent`.
 
 `json` is `{"v":1,"cmd":"ws init","data":{"id","name","color","root","created","git_excluded"}}` (`ws id`, `rename` and `color` carry the same fields without the last two); `ws ls` data is an array of `{"id","name","color","root","last_seen","present"}`.
 

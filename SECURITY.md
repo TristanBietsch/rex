@@ -74,7 +74,14 @@ filesystem permissions.
   it changes rex's behavior. Reports of rex writing audit or workspace files
   through a symlink, outside those locations or with a wider mode, of
   `.rex/` content changing behavior, or of the prompt appearing in a record
-  without `audit_full_prompt` are in scope.
+  without `audit_full_prompt` are in scope. `rex ws init` also appends two
+  lines to the repository's `.git/info/exclude`. A cloned repository is
+  untrusted input to that write: rex requires a worktree's git directory to
+  point back at the `.git` file and hold a `HEAD`, a `commondir` to be an
+  ancestor of it, `info/` and `info/exclude` to be real (non-symlink) paths
+  under the git directory, and the file to be a regular file you own under
+  1 MiB; otherwise it refuses and writes nothing. A way to make rex write
+  anywhere else through a crafted `.git` is in scope.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the
