@@ -181,6 +181,12 @@ func goldenScreens() []goldenScreen {
 			m = sendKey(m, key("j"))
 			return sendKey(m, key("enter"))
 		}},
+		{"wizard_all_agents", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"), true
+			m, _ = executeCommand(m, "new")
+			return m
+		}},
 		{"settings_onboarding", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true

@@ -118,8 +118,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   to their defaults) and never changes plain command output. A Lua theme beats
   a theme file with the same name. `rex complete` and `rex completion` never
   run it. Turn the feature off with `rex config set lua_config false`: the
-  files are then never read. The daemon polls `config.lua` and `lua/` with `config.yaml`
-  and follows an edit within about 5 s; a failure is one log line.
+  files are then never read. The daemon polls `config.lua` and `lua/` with
+  `config.yaml` and follows an edit within about 5 s; a failure is one log line.
   The TUI follows it within about 2 s (and on `:reload`), shows Lua themes
   with the theme files, has a `config.lua` boot row, and reports a failure
   as one status-line notice.
@@ -135,6 +135,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   list` marks Lua themes `lua`, and `rex doctor` has a `config.lua` check.
   `rex setup -yes` refuses a setting `config.lua` sets.
   Guide: `docs/howto/lua-config.md`.
+- `rex doctor` has `tool:` rows for the extra agents too: `qwen`,
+  `cursor-agent` and `grok` (with `-verbose`).
 - `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
   changed target is refused before anything is touched. `rex undo` and the
   TUI dialog send it on confirm.
