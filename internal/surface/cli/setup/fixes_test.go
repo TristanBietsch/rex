@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
 // The version probe runs the new binary with plain output, even when the
@@ -27,7 +29,7 @@ func TestVersionOfRunsChildWithPlainOutput(t *testing.T) {
 	script := "#!/bin/sh\nif [ \"$REX_AGENT\" = 0 ] && [ \"$REX_OUTPUT\" = txt ]; then echo v9.9.9; else echo \"ok cmd=version version=v9.9.9\"; fi\n"
 	require.NoError(t, os.WriteFile(exe, []byte(script), 0o700)) //nolint:gosec // G306: an executable stand-in.
 	require.Equal(t, "v9.9.9", versionOf(exe))
-	require.Equal(t, "v1", versionOf(filepath.Join(t.TempDir(), "missing")), "falls back to the running version")
+	require.Equal(t, core.Version, versionOf(filepath.Join(t.TempDir(), "missing")), "falls back to the running version")
 }
 
 // With shell integration on, the preview shows the shell block with its

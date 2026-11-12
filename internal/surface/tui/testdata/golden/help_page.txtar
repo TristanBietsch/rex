@@ -1,6 +1,6 @@
 -- plain.120x40 --
                                                                                                                         
-  ∴ REX › HELP                                                                                                  rex v1  
+  ∴ REX › HELP                                                                                                 rex dev  
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   SECTIONS            │ ── Navigation ────────────────────────────────────────────────────────────────────────────────  
   ▸ Navigation        │ j k  move row selection                                                                         
@@ -41,7 +41,7 @@
   esc back · j/k scroll · tab groups · 1-9 group · / filter                                                             
 -- plain.80x24 --
                                                                                 
-  ∴ REX › HELP                                                          rex v1  
+  ∴ REX › HELP                                                         rex dev  
 ────────────────────────────────────────────────────────────────────────────────
   SECTIONS            │ ── Navigation ────────────────────────────────────────  
   ▸ Navigation        │ j k  move row selection                                 

@@ -17,12 +17,12 @@ func TestRun_OfflineCommandRoutes(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"version"}, "v1\n"},
-		{[]string{"--version"}, "v1\n"},
-		{[]string{"-v"}, "v1\n"},
+		{[]string{"version"}, core.Version + "\n"},
+		{[]string{"--version"}, core.Version + "\n"},
+		{[]string{"-v"}, core.Version + "\n"},
 		{[]string{"errors", "-o", "agent"}, "ok cmd=errors count=0\n"},
 		{[]string{"config", "get", "spinner"}, "braille\n"},
-		{[]string{"update", "-check", "-o", "agent"}, "ok cmd=update version=v1 remote=\"\"\n"},
+		{[]string{"update", "-check", "-o", "agent"}, "ok cmd=update version=" + core.Version + " remote=\"\"\n"},
 	} {
 		out := capturePrinter(t, "txt")
 		require.NoError(t, run(tc.args), tc.args)

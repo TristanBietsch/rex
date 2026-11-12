@@ -1,15 +1,15 @@
 -- text --
-  version  v1
+  version  dev
   remote   (version check not yet wired — no remote lookup performed)
 -- txt --
-version  v1
+version  dev
 remote   (version check not yet wired — no remote lookup performed)
 -- md --
 | Key | Value |
 | --- | --- |
-| version | v1 |
+| version | dev |
 | remote | (version check not yet wired — no remote lookup performed) |
 -- json --
-{"v":1,"cmd":"update","data":{"version":"v1","remote":null}}
+{"v":1,"cmd":"update","data":{"version":"dev","remote":null}}
 -- agent --
-ok cmd=update version=v1 remote=""
+ok cmd=update version=dev remote=""

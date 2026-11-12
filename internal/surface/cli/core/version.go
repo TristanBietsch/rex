@@ -8,8 +8,9 @@ import (
 	"github.com/tristanbietsch/rex/internal/version"
 )
 
-// Version is the rex CLI release label (see package version).
-const Version = version.Version
+// Version is the rex CLI release label (see package version). It is a
+// variable because release builds set version.Version with -ldflags.
+var Version = version.Version
 
 // ExitCoder is any error that carries a specific exit code.
 type ExitCoder interface {

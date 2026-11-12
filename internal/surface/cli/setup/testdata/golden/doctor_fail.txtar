@@ -1,5 +1,5 @@
 -- text.w40 --
-Doctor  v1 · linux/amd64
+Doctor  dev · linux/amd64
 
   ✓ rex binary         /home/u/.local/bi
                        n/rex
@@ -15,7 +15,7 @@ Doctor  v1 · linux/amd64
 
 1 failure, 1 warning
 -- text.w80 --
-Doctor  v1 · linux/amd64
+Doctor  dev · linux/amd64
 
   ✓ rex binary         /home/u/.local/bin/rex
   ! daemon reachable   socket not responding — run: rex daemon start
@@ -25,7 +25,7 @@ Doctor  v1 · linux/amd64
 
 1 failure, 1 warning
 -- text.w120 --
-Doctor  v1 · linux/amd64
+Doctor  dev · linux/amd64
 
   ✓ rex binary         /home/u/.local/bin/rex
   ! daemon reachable   socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)
@@ -34,7 +34,7 @@ Doctor  v1 · linux/amd64
 
 1 failure, 1 warning
 -- text.color.w80 --
-␛[1;38;2;230;232;238mDoctor␛[0m  ␛[38;2;139;145;161mv1 · linux/amd64␛[0m
+␛[1;38;2;230;232;238mDoctor␛[0m  ␛[38;2;139;145;161mdev · linux/amd64␛[0m
 
   ␛[38;2;91;208;140m✓␛[0m rex binary         /home/u/.local/bin/rex
   ␛[38;2;245;185;73m!␛[0m daemon reachable   socket not responding — run: rex daemon start
@@ -53,7 +53,7 @@ x rex-daemon binary  not found on PATH
 -- md --
 ### Doctor
 
-*v1 · linux/amd64*
+*dev · linux/amd64*
 
 | Status | Check | Detail |
 | --- | --- | --- |
