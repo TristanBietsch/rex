@@ -226,7 +226,7 @@ func (s *Store) Save(path string) error {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("chmod tmp: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := replaceFile(tmp, path); err != nil {
 		_ = os.Remove(tmp)
 		return err
 	}
