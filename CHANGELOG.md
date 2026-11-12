@@ -63,6 +63,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TUI: `:usage` page with usage per agent and model, a total row, the quota
+  bar with percent and reset time, ranges today/7d/30d (`←`/`→` or `1`/`2`/`3`),
+  `r` refresh and `/` filter. Estimates are marked `~`, stale readings are dim.
+- TUI: a usage meter at the right end of the header (`usage_meter`: `off`,
+  `compact`, `full`; default `compact`). A click opens `:usage`. Both follow
+  the `usage` feature switch.
 - Loop workflows (Settings → Features → *Loop workflows*, off by default):
   `rex loop start <name>` runs a session in a repeat loop. The daemon
   re-sends your prompt each time the agent finishes a turn, until a check

@@ -55,11 +55,11 @@
      │   S      settings                                      :fail            failed sessions + daemon log       │
      │   q      quit (confirm)                                                 (:fails :failed)                   │
      │                                                        :stats           session statistics overlay         │
-     │   ── Mouse ────────────────────────────────────────    :overview        what is ready for you, what to     │
-     │   click         select row / filter chip                                review, what finished              │
-     │   double-click  attach to row                          :border [color]  window border for this run: on,    │
-     │   wheel         move row selection                                      off, next, random, a color name    │
-     │   hold ⌥ / ⇧    select text natively                                    or #rrggbb                         │
+     │   ── Mouse ────────────────────────────────────────    :usage           usage per agent and model,         │
+     │   click         select row / filter chip                                quota, resets                      │
+     │   double-click  attach to row                          :overview        what is ready for you, what to     │
+     │   wheel         move row selection                                      review, what finished              │
+     │   hold ⌥ / ⇧    select text natively                   :border [color]  window border for this run: on,    │
   ↳ d│   ↓ more                                                                                                   │     
 ─────│                                                                                                            │─────
   λ p│   j/k scroll · / filter · esc close                                                                        │     

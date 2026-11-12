@@ -32,6 +32,7 @@ const (
 	FocusRename
 	FocusSearch
 	FocusOverview
+	FocusUsage
 )
 
 // Model is the root Bubble Tea model.
@@ -92,6 +93,8 @@ type Model struct {
 	Help   *HelpState
 	Attach *AttachState
 	Fail   *FailState
+	// UsagePage is the :usage page's state; set while FocusUsage.
+	UsagePage *UsageState
 	Rename *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
@@ -162,6 +165,14 @@ type Model struct {
 	Overview *protocol.Overview
 	// OverviewSel is the selected row of the :overview overlay.
 	OverviewSel int
+
+	// Usage is the daemon's live usage quotas, from the Snapshot and Usage
+	// events. Nil until the daemon sends one, and from daemons that predate it.
+	Usage *protocol.Usage
+	// usager answers the :usage page's UsageQuery (nil: Client); usageSeq
+	// numbers its requests so a late reply for a closed page is dropped.
+	usager   usageQuerier
+	usageSeq int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
@@ -306,7 +317,13 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
 			m = adoptSessions(m, snap.Sessions)
 			m.Overview = snap.Overview
+			m.Usage = snap.Usage
 			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
+		}
+	case protocol.EventUsage:
+		var u protocol.Usage
+		if err := json.Unmarshal(env.Data, &u); err == nil {
+			m.Usage = &u
 		}
 	case protocol.EventOverview:
 		var o protocol.Overview

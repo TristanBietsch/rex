@@ -96,6 +96,10 @@ func updateBoardMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 		return clickRow(m, id)
 	}
 	m.lastClickID = ""
+	if headerMeterHit(m, msg.X, msg.Y) {
+		slog.Debug("tui: mouse click on usage meter")
+		return openUsage(m)
+	}
 	if filter := headerHitAt(m, msg.X, msg.Y); filter != "" {
 		slog.Debug("tui: mouse click on filter chip", "filter", filter)
 		return setFilter(m, filter), nil

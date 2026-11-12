@@ -156,6 +156,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleReconnectResult(m, msg)
 	case exportDoneMsg:
 		return applyExportDone(m, msg), nil
+	case usageReportMsg:
+		return applyUsageReport(m, msg), nil
 	case pruneDoneMsg:
 		return applyPruneDone(m, msg), nil
 	case CmdErrMsg:
@@ -258,6 +260,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.Sessions = msg.Snap.Sessions
 		m.Overview = msg.Snap.Overview
+		m.Usage = msg.Snap.Usage
 		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
@@ -310,6 +313,8 @@ func (m Model) focusStateMissing() bool {
 		return m.Fail == nil
 	case FocusRename:
 		return m.Rename == nil
+	case FocusUsage:
+		return m.UsagePage == nil
 	default:
 		return false // stateless foci (help, stats, prompts, confirms)
 	}
@@ -480,6 +485,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusOverview {
 		return updateOverviewKey(m, k)
+	}
+	if m.Focus == FocusUsage {
+		return updateUsageKey(m, k)
 	}
 	if m.Focus == FocusStats {
 		switch k.String() {

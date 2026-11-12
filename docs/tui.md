@@ -96,6 +96,7 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Help | `?` or `:help` | `esc`, `?` |
 | Stats | `:stats` | `esc`, `:` |
 | Overview | `:overview` | `esc`, `q`, `:overview` |
+| Usage | `:usage`, or a click on the header meter | `esc`, `q`, `:` |
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
@@ -321,6 +322,29 @@ The headline is written by the local summary model from the sessions' task title
 ---
 
 **Export.** `:export [sel] [json|yaml|md|txt]` writes the session as a readable document to `~/.local/share/rex/exports/` and shows the path ([export.md](export.md)). It belongs to the `session_export` feature.
+
+## USAGE
+
+What each agent used, and how much of its quota is left. Two places show it: the `:usage` page and a meter at the right end of the header. Both belong to the `usage` feature (Settings → Features, on by default); with it off `:usage` answers `off: enable in Settings → Features (rex config set usage true)` and the meter is hidden. The numbers come from the daemon (`rex usage` shows the same, see [cli.md](cli.md)); the TUI never reads the ledger.
+
+**`:usage` page.** A titled panel with the range (`today · 7d · 30d`) and a table: per agent with its models indented, then a `TOTAL` row.
+
+```
+AGENT / MODEL     SESSIONS   TOKENS      COST QUOTA          RESETS
+claude                  14     1.2M    $18.40 5h ▰▰▱▱▱  42%  2h10m
+                                               wk ▰▱▱▱▱  18%  4d
+  opus                   3     410k    $11.90
+grok                     2     ~88k     $0.70 mo ▰▰▱▱▱  31%  9d
+antigravity              1     ~40k         — wk ▰▰▰▰▰  91%  as of 11:20
+```
+
+- `←`/`→` (or `h`/`l`) step the range, `1` `2` `3` pick today, 7d, 30d. `r` asks the daemon again (it polls the tools that can be polled). `/` filters by tool or model name (the total follows the filter), `esc` clears it and then closes. `j`/`k`/`g`/`G` scroll a long table; the total stays pinned.
+- A `~` before a number marks rex's own token estimate (`output bytes / 4`), not a count the tool reported. A `—` cost means no counted session reported one.
+- Quota bars: green below 60%, amber from 60%, red from 85%. A reading older than 15 minutes (or one the daemon marks stale) is dimmed and shows `as of HH:MM` where the reset time would be. A tool that reports one quota for the whole plan shows it on the agent row; model rows show a quota only where the tool reports one per model.
+- Below about 66 columns, and in the mobile layout, each agent is a card: totals, models, quota lines last.
+- Errors say why there is no table: `update daemon: run 'rex daemon restart'` for a daemon that predates `UsageQuery`, the off message when the daemon has usage off, `not connected to the daemon` while it is down.
+
+**Header meter.** `usage_meter` (`off` | `compact` | `full`, default `compact`; Settings → Features) draws the right end of the header's top row: for each agent with a live session, the worst of its quota windows as a 5-cell bar and a percent (`claude ▰▰▱▱▱ 42% · codex ▰▰▰▰▱ 72%`). `full` lists every window with its reset time. Colors follow the same thresholds as the page, and a stale reading is dim. The counts always win: the meter drops agents from the right, then disappears, before the counts are cut. It is also hidden against a daemon that sends no quotas. A click on it opens `:usage`.
 
 ## NEW-SESSION WIZARD
 

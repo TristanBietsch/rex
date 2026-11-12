@@ -77,6 +77,7 @@ func TestCommand_EveryVerbEscapesToBoard(t *testing.T) {
 		{line: "fails"},
 		{line: "failed"},
 		{line: "stats"},
+		{line: "usage"},
 		{line: "no-such-verb"},
 	}
 	for _, tc := range cases {
