@@ -339,45 +339,101 @@ func renderSettingsPage(m Model, w, h int) string {
 		pageFooter(settingsPageHints(st, pane), w, helpBarOn(m) || modal), w, h)
 }
 
-// helpPageHints is the help page's footer for its state; esc leads so a
-// narrow page keeps it.
-func helpPageHints(st *HelpState) [][2]string {
+// helpPageHints is the help page's footer for its state, focused pane and
+// width; esc leads so a narrow page keeps it, and a narrow page (no pane to
+// tab to) leaves tab out.
+func helpPageHints(st *HelpState, pane pagePane, narrow bool) [][2]string {
 	switch {
 	case st.Filtering:
 		return [][2]string{{"enter", "keep"}, {"esc", "clear"}}
 	case st.Filter != "":
 		return [][2]string{{"esc", "clear"}, {"j/k", "scroll"}, {"/", "edit filter"}}
+	case pane == paneSections:
+		return [][2]string{{"esc", "back"}, {"j/k", "group"}, {"enter", "rows"}, {"tab", "rows"}, {"/", "filter"}}
+	case narrow:
+		return [][2]string{{"esc", "back"}, {"j/k", "scroll"}, {"1-9", "group"}, {"/", "filter"}}
 	}
-	return [][2]string{{"esc", "close"}, {"j/k", "scroll"}, {"/", "filter"}}
+	return [][2]string{{"esc", "back"}, {"j/k", "scroll"}, {"tab", "groups"}, {"1-9", "group"}, {"/", "filter"}}
+}
+
+// helpPageGroup is st's group, clamped to groups.
+func helpPageGroup(st *HelpState, groups []helpGroup) int {
+	return min(max(st.Group, 0), max(len(groups)-1, 0))
+}
+
+// helpPageRows is the help page's right pane at width colW: the selected
+// group, or under a filter every matching row across the groups (the
+// no-match line when there are none).
+func helpPageRows(st *HelpState, groups []helpGroup, colW int) []string {
+	if st.Filter == "" {
+		return renderGroup(groups[helpPageGroup(st, groups)], colW)
+	}
+	hits := filterGroups(groups, compileQuery(st.Filter))
+	if len(hits) == 0 {
+		return []string{styleDim.Render("no match for “" + protocol.FlattenDisplayText(st.Filter) + "”")}
+	}
+	return strings.Split(renderColumn(hits, colW), "\n")
+}
+
+// helpPageItems is the group pane's rows: muted under a filter when the
+// group has no hits.
+func helpPageItems(st *HelpState, groups []helpGroup) []paneItem {
+	terms := compileQuery(st.Filter)
+	items := make([]paneItem, len(groups))
+	for i, g := range groups {
+		items[i] = paneItem{Title: g.Title}
+		if len(terms) > 0 {
+			items[i].Dim = len(filterGroups([]helpGroup{g}, terms)) == 0
+		}
+	}
+	return items
 }
 
 // layoutHelpPage is the help page for a w x h layout area: box is the whole
-// page, h lines; the body scrolls under ↑/↓ markers.
+// page, h lines. The group list sits left of the selected group's rows (or
+// the filter's hits), or under pageNarrowW a group strip sits over them;
+// the rows scroll under ↑/↓ markers, and maxScroll and page are theirs.
 func layoutHelpPage(m Model, w, h int) helpLayout {
 	st := m.Help
 	if st == nil {
 		st = &HelpState{}
 	}
-	cols := 1
-	if w >= helpTwoColMinW {
-		cols = 2
+	groups := helpGroups(m)
+	cur := helpPageGroup(st, groups)
+	narrow := pageNarrow(w)
+	pane := st.Pane
+	if narrow {
+		pane = paneRows // a focus left over from a wider page
 	}
-	// helpBody lays out at bw-8 cells (an overlay's border and padding);
-	// the page body is w-4 cells, indented 2.
-	body := helpBody(m, w-4+8, cols)
 
-	vh := pageBodyHeight(h)
-	maxScroll := max(len(body)-vh, 0)
+	bh := pageBodyHeight(h)
+	var items []paneItem
+	leftW, colW, vh := 0, max(w-2-pageRightMargin, 1), max(bh-1, 1)
+	if !narrow {
+		items = helpPageItems(st, groups)
+		leftW = sectionPaneWidth(items)
+		colW, vh = max(w-leftW-3-pageRightMargin, 1), bh
+	}
+	rows := helpPageRows(st, groups, colW)
+	maxScroll := max(len(rows)-vh, 0)
 	start := min(max(st.Scroll, 0), maxScroll)
-	view := body
-	if len(body) > vh {
-		view = append([]string(nil), body[start:start+vh]...)
+	view := rows
+	if len(rows) > vh {
+		view = append([]string(nil), rows[start:start+vh]...)
 		if start > 0 {
 			view[0] = styleDim.Render("↑ more")
 		}
-		if start+vh < len(body) {
+		if start+vh < len(rows) {
 			view[len(view)-1] = styleDim.Render("↓ more")
 		}
+	}
+
+	var body []string
+	if narrow {
+		body = append([]string{renderSectionStrip(groups[cur].Title, w)}, indentLines(view, 2)...)
+	} else {
+		left := renderSectionPane(items, cur, pane == paneSections, leftW, bh)
+		body = joinPanes(left, view, leftW, bh)
 	}
 
 	middle := ""
@@ -385,9 +441,8 @@ func layoutHelpPage(m Model, w, h int) helpLayout {
 		middle = pageQuery(st.Filter, st.Filtering)
 	}
 	page := composePage(
-		pageHeader("HELP", middle, styleDim.Render("rex "+version.Version), w),
-		indentLines(view, 2),
-		pageFooter(helpPageHints(st), w, helpBarOn(m) || st.Filtering), w, h)
+		pageHeader("HELP", middle, styleDim.Render("rex "+version.Version), w), body,
+		pageFooter(helpPageHints(st, pane, narrow), w, helpBarOn(m) || st.Filtering), w, h)
 	return helpLayout{box: strings.Split(page, "\n"), maxScroll: maxScroll, page: max(vh-1, 1)}
 }
 

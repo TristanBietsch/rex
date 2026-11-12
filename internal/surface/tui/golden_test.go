@@ -95,6 +95,7 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"board_done_fold":      {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
 	"settings_page":        {{120, 40}, {80, 24}, {50, 20}},
 	"help_page":            {{120, 40}, {80, 24}, {50, 20}},
+	"help_page_narrow":     {{50, 20}},
 	"settings_page_frame":  {{80, 24}},
 	"settings_page_narrow": {{50, 20}},
 }
@@ -215,6 +216,20 @@ func goldenScreens() []goldenScreen {
 		{"help_page", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusHelp
+			return m
+		}},
+		{"help_page_filtered", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusHelp
+			m.Help = &HelpState{Filter: "undo"}
+			return m
+		}},
+		{"help_page_narrow", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusHelp
+			// Session commands, scrolled, with a group-pane focus left from
+			// a wider page (drawn as rows).
+			m.Help = &HelpState{Group: 6, Scroll: 2, Pane: paneSections}
 			return m
 		}},
 		{"settings_page_frame", true, func(t *testing.T, sz goldenSize) Model {

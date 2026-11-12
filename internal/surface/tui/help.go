@@ -37,6 +37,10 @@ type HelpState struct {
 	Filter string
 	// Filtering is whether keys edit Filter.
 	Filtering bool
+	// Group is the page's selected group (an index into helpGroups) and
+	// Pane its focused pane (fullscreen_pages on).
+	Group int
+	Pane  pagePane
 }
 
 const (
@@ -117,6 +121,13 @@ func helpLegend(m Model) helpGroup {
 		helpRow{Key: styleLongRun[0].Render("▴ 6h"), Desc: "working 6 hours or more"},
 	)
 	return helpGroup{Title: helpGroupLegend, Rows: rows, Styled: true}
+}
+
+// helpGroups is every help group in page order, rows of off features
+// flagged: the left column's groups, the legend, then the right column's.
+func helpGroups(m Model) []helpGroup {
+	all := append(append(helpLeft(m), helpLegend(m)), helpRight...)
+	return markOff(m, all)
 }
 
 // markOff flags the rows whose feature switch is off.
@@ -406,6 +417,11 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if pagesOn(m) && helpPageKey(&st, k.String(), pageNarrow(w), len(helpGroups(m))) {
+		m.Help = &st
+		return m, nil
+	}
+
 	switch k.String() {
 	case "esc":
 		if st.Filter != "" {
@@ -440,7 +456,59 @@ func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateHelpMouse scrolls the help overlay with the wheel.
+// helpPageKey handles the keys the page adds (fullscreen_pages on, not
+// filtering) on st, for a page of n groups; false hands the key to the
+// shared keys in updateHelpKey. A narrow page hides the group pane, so tab is a no-op there and a
+// group-pane focus left over from a wider page acts as rows.
+func helpPageKey(st *HelpState, key string, narrow bool, n int) bool {
+	setGroup := func(g int) {
+		if g != st.Group {
+			st.Group, st.Scroll = g, 0
+		}
+	}
+	switch key {
+	case "tab", "shift+tab":
+		if !narrow {
+			if st.Pane == paneRows {
+				st.Pane = paneSections
+			} else {
+				st.Pane = paneRows
+			}
+		}
+		return true
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		if g := int(key[0] - '1'); g < n {
+			setGroup(g)
+		}
+		return true
+	case "[":
+		setGroup((st.Group - 1 + n) % n)
+		return true
+	case "]":
+		setGroup((st.Group + 1) % n)
+		return true
+	case "/":
+		st.Filtering, st.Pane = true, paneRows
+		return true
+	case "esc", "q", "?":
+		return false
+	}
+	if st.Pane == paneSections && !narrow {
+		switch key {
+		case "j", "down":
+			setGroup(min(st.Group+1, n-1))
+		case "k", "up":
+			setGroup(max(st.Group-1, 0))
+		case "enter", "l", "right":
+			st.Pane = paneRows
+		}
+		return true
+	}
+	return false
+}
+
+// updateHelpMouse scrolls the help overlay with the wheel; on a page with
+// the group pane focused, the wheel moves the group (clamped).
 func updateHelpMouse(m Model, msg tea.MouseMsg) Model {
 	if !tea.MouseEvent(msg).IsWheel() {
 		return m
@@ -450,14 +518,23 @@ func updateHelpMouse(m Model, msg tea.MouseMsg) Model {
 		st = *m.Help
 	}
 	w, h := helpSize(m)
-	maxScroll := helpLayoutFor(m, w, h).maxScroll
+	delta := 0
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		st.Scroll -= 3
+		delta = -1
 	case tea.MouseButtonWheelDown:
-		st.Scroll += 3
+		delta = +1
 	default:
 	}
+	if pagesOn(m) && st.Pane == paneSections && !pageNarrow(w) {
+		if g := min(max(st.Group+delta, 0), len(helpGroups(m))-1); g != st.Group {
+			st.Group, st.Scroll = g, 0
+		}
+		m.Help = &st
+		return m
+	}
+	maxScroll := helpLayoutFor(m, w, h).maxScroll
+	st.Scroll += 3 * delta
 	st.Scroll = min(max(st.Scroll, 0), maxScroll)
 	m.Help = &st
 	return m

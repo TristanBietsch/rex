@@ -2,72 +2,73 @@
                                                                                                                         
   ∴ REX › HELP                                                                                                  rex v1  
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  ── Navigation ──────────────────────────────────────────    ── Session commands ────────────────────────────────────  
-  j k  move row selection                                     :new                    new-agent wizard                  
-  g G  top / bottom                                           :name [text]            rename selected (no text: open    
-  tab  next Ready session                                                             editor)                           
-  1-4  jump to Ready / Waiting / Working / Done (4 also       :rename <s> <slug>      change slug                       
-       folds a long Done column)                              :done [sel]             mark done                         
-  v    simple / detailed rows (id, model, tokens, AI          :undone [sel]           undo done                         
-       summary)                                               :uc :resume [sel]       undo done: unmark a running       
-                                                                                      session, or resume an exited one  
-  ── Filter & search ─────────────────────────────────────    :rid [sel]              show the full resume id           
-  t     cycle tool filter                                     :undo [sel] [-turns N]  restore the folder to before the  
-  /     search the board (every word must match)                                      agent's last turn (asks first)    
-  esc   clear the search                                                              (off)                             
-  zh    hide / show completed sections                        :redo [sel]             bring back what :undo replaced    
-  z1-9  hide / show section N                                                         (off)                             
-  z0    show every section                                    :complete [sel]         kill agent + mark done now        
-                                                              :rm <sel>               delete                            
-  ── Actions ─────────────────────────────────────────────    :prune                  clear Done (keeps sessions still  
-  enter  attach to selected session                                                   working)                          
-  n      new-agent wizard                                     :export [sel] [fmt]     write session to exports/         
-  r      rename selected (empty = slug)                       :loop pause|resume|st…  pause, resume or stop a loop      
-  cc     mark done / undo                                                             (stop asks first) (off)           
-  uc     undo done (unmark, or resume an exited session)      :loops                  list loops: state, turn, time,    
-  C      complete now (kill agent, mark done)                                         last check (off)                  
-  dd     delete selected                                      :filter [what]          tool, or hide|show|only           
-  i      focus λ prompt (new-session text)                                            <section…>; no argument clears    
-  S      settings                                                                     every filter                      
-  p      pause / resume the selected loop (off)               :search [text]          search the board (every word      
-  x      stop the selected loop (asks first) (off)                                    must match); no text clears       
-  L      list loops: state, turn, time, last check (off)                                                                
-  q      quit (confirm)                                       ── App commands ────────────────────────────────────────  
-                                                              :q :quit         quit (confirm)                           
-  ── Mouse ───────────────────────────────────────────────    :q!              force quit                               
-  click         select row / filter chip                      :bg :detach      detach, save place                       
-  ↓ more                                                                                                                
+  SECTIONS            │ ── Navigation ────────────────────────────────────────────────────────────────────────────────  
+  ▸ Navigation        │ j k  move row selection                                                                         
+    Filter & search   │ g G  top / bottom                                                                               
+    Actions           │ tab  next Ready session                                                                         
+    Mouse             │ 1-4  jump to Ready / Waiting / Working / Done (4 also folds a long Done column)                 
+    Modes             │ v    simple / detailed rows (id, model, tokens, AI summary)                                     
+    Legend            │                                                                                                 
+    Session commands  │                                                                                                 
+    App commands      │                                                                                                 
+    Attached session  │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
+                      │                                                                                                 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  esc close · j/k scroll · / filter                                                                                     
+  esc back · j/k scroll · tab groups · 1-9 group · / filter                                                             
 -- plain.80x24 --
                                                                                 
   ∴ REX › HELP                                                          rex v1  
 ────────────────────────────────────────────────────────────────────────────────
-  ── Navigation ──────────────────────────────────────────────────────────────  
-  j k  move row selection                                                       
-  g G  top / bottom                                                             
-  tab  next Ready session                                                       
-  1-4  jump to Ready / Waiting / Working / Done (4 also folds a long Done       
-       column)                                                                  
-  v    simple / detailed rows (id, model, tokens, AI summary)                   
-                                                                                
-  ── Filter & search ─────────────────────────────────────────────────────────  
-  t     cycle tool filter                                                       
-  /     search the board (every word must match)                                
-  esc   clear the search                                                        
-  zh    hide / show completed sections                                          
-  z1-9  hide / show section N                                                   
-  z0    show every section                                                      
-                                                                                
-  ── Actions ─────────────────────────────────────────────────────────────────  
-  enter  attach to selected session                                             
-  ↓ more                                                                        
+  SECTIONS            │ ── Navigation ────────────────────────────────────────  
+  ▸ Navigation        │ j k  move row selection                                 
+    Filter & search   │ g G  top / bottom                                       
+    Actions           │ tab  next Ready session                                 
+    Mouse             │ 1-4  jump to Ready / Waiting / Working / Done (4 also   
+    Modes             │      folds a long Done column)                          
+    Legend            │ v    simple / detailed rows (id, model, tokens, AI      
+    Session commands  │      summary)                                           
+    App commands      │                                                         
+    Attached session  │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
+                      │                                                         
 ────────────────────────────────────────────────────────────────────────────────
-  esc close · j/k scroll · / filter                                             
+  esc back · j/k scroll · tab groups · 1-9 group · / filter                     
 -- plain.50x20 --
                                                   
   ∴ REX › HELP                                    
 ──────────────────────────────────────────────────
+                  ‹ Navigation ›                  
   ── Navigation ────────────────────────────────  
   j k  move row selection                         
   g G  top / bottom                               
@@ -77,11 +78,10 @@
   v    simple / detailed rows (id, model,         
        tokens, AI summary)                        
                                                   
-  ── Filter & search ───────────────────────────  
-  t     cycle tool filter                         
-  /     search the board (every word must match)  
-  esc   clear the search                          
-  zh    hide / show completed sections            
-  ↓ more                                          
+                                                  
+                                                  
+                                                  
+                                                  
+                                                  
 ──────────────────────────────────────────────────
-  esc close · j/k scroll · / filter               
+  esc back · j/k scroll · 1-9 group · / filter    

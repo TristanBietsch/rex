@@ -32,7 +32,7 @@ func helpText(m Model) string { return ansi.Strip(m.View()) }
 // Every group is reachable by scrolling, whatever the terminal: nothing is
 // dropped, and the cut edges say so.
 func TestHelpScrolls(t *testing.T) {
-	m := helpModel(50, 20)
+	m := overlayMode(t, helpModel(50, 20))
 	top := helpText(m)
 	require.Contains(t, top, "Navigation")
 	require.Contains(t, top, "↓ more")
@@ -67,7 +67,7 @@ func TestHelpScrolls(t *testing.T) {
 }
 
 func TestHelpWheelScrolls(t *testing.T) {
-	m := helpModel(50, 20)
+	m := overlayMode(t, helpModel(50, 20))
 	next, _ := m.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
 	require.Positive(t, next.(Model).Help.Scroll)
 }
@@ -75,7 +75,7 @@ func TestHelpWheelScrolls(t *testing.T) {
 // `/` filters rows by key or description; esc clears the filter first and
 // only then closes.
 func TestHelpFilter(t *testing.T) {
-	m := helpModel(120, 40)
+	m := overlayMode(t, helpModel(120, 40))
 	m = helpPress(m, "/", "p", "r", "u", "n", "e")
 	require.True(t, m.Help.Filtering)
 	text := helpText(m)
@@ -126,7 +126,7 @@ func TestHelpFilterEditing(t *testing.T) {
 // The legend draws the real markers in their real styles.
 func TestHelpLegendUsesRealStyles(t *testing.T) {
 	withProfile(termenv.TrueColor, func() {
-		m := helpModel(120, 60)
+		m := overlayMode(t, helpModel(120, 60))
 		m.SpinnerTick = 0
 		legend := helpLegend(m)
 		require.Equal(t, helpGroupLegend, legend.Title)
@@ -166,7 +166,7 @@ func TestHelpLegendOmitsWaitingWhenOff(t *testing.T) {
 // A key whose feature is off is still listed, marked, so the overlay
 // explains why it does nothing.
 func TestHelpMarksFeaturesThatAreOff(t *testing.T) {
-	m := helpModel(200, 90)
+	m := overlayMode(t, helpModel(200, 90))
 	// Opt-in features show their rows as off: loops (p x L :loop :loops)
 	// and turn_snapshots (:undo :redo).
 	require.Equal(t, 7, strings.Count(helpText(m), "(off)"), "only the loop and undo rows are off by default")
