@@ -159,7 +159,7 @@ func TestWsTrust_PromptShowsConfig(t *testing.T) {
 	require.NoError(t, RunWs([]string{"init"}))
 	var b strings.Builder
 	b.WriteString("-- \x1b[31mred\x1b[0m \x1b]0;pwned\x07title\r\n")
-	b.WriteString("rex.set('theme', 'noir') -- ‮evil‬\tok\n")
+	b.WriteString("rex.set('theme', 'noir') -- \u202eevil\u202c\tok\n")
 	for i := 3; i <= trustPreviewLines+7; i++ {
 		b.WriteString("-- line " + strconv.Itoa(i) + "\n")
 	}
@@ -173,7 +173,7 @@ func TestWsTrust_PromptShowsConfig(t *testing.T) {
 	require.NotContains(t, q, "\x1b")
 	require.NotContains(t, q, "\a")
 	require.NotContains(t, q, "\r")
-	require.NotContains(t, q, "‮")
+	require.NotContains(t, q, "\u202e")
 	require.NotContains(t, q, "pwned", "the OSC sequence is dropped whole")
 	require.Contains(t, q, "red")
 	require.Contains(t, q, "rex.set('theme', 'noir')")
