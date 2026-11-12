@@ -156,6 +156,9 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 		LoopID:      loopID,
 		LoopIter:    loopIter,
 	}
+	if cfg.Audit != nil {
+		cfg.Audit.Begin(sess, p.InitialPrompt)
+	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
 		if pluginDir != "" {

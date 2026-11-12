@@ -87,6 +87,13 @@ func RemoveSession(root string, s *Session) error {
 	return RemoveSessionDir(root, s.ID)
 }
 
+// metaFile is meta.json: the wire summary plus what only the daemon keeps.
+type metaFile struct {
+	protocol.SessionSummary
+	// AuditWritten is Session.AuditWritten.
+	AuditWritten bool `json:"audit_written,omitempty"`
+}
+
 // WriteMeta persists a session's metadata atomically. Writers are serialized
 // per session and each uses its own temp file; a session already removed from
 // the store is skipped so a late write can't recreate its directory.
@@ -109,7 +116,7 @@ func WriteMeta(root string, s *Session) error {
 	// Snapshot under metaMu: whichever writer takes the lock last also takes
 	// the newest snapshot, so the file on disk never regresses.
 	sum := s.Summary()
-	b, err := json.MarshalIndent(sum, "", "  ")
+	b, err := json.MarshalIndent(metaFile{SessionSummary: sum, AuditWritten: s.AuditIsWritten()}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal meta: %w", err)
 	}
@@ -146,11 +153,13 @@ func LoadMeta(root, id string) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read meta %s: %w", path, err)
 	}
-	var sum protocol.SessionSummary
-	if err := json.Unmarshal(b, &sum); err != nil {
+	var mf metaFile
+	if err := json.Unmarshal(b, &mf); err != nil {
 		return nil, fmt.Errorf("parse meta %s: %w", path, err)
 	}
-	return fromSummary(sum), nil
+	sess := fromSummary(mf.SessionSummary)
+	sess.AuditWritten = mf.AuditWritten
+	return sess, nil
 }
 
 // LoadAll loads every session under root/sessions/. Any session whose persisted

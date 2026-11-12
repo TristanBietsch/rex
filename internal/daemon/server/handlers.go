@@ -106,6 +106,9 @@ func handleDelete(c *client, env protocol.Envelope) (outcome, error) {
 	// Stops a running supervisor first so its goroutines don't race with
 	// the on-disk cleanup; disk cleanup is best-effort.
 	if err := c.srv.deleteSession(p.SessionID, protocol.RemovedByUser); err != nil {
+		if errors.Is(err, errAuditFailed) {
+			return outcome{}, replyErr(protocol.ErrCodeInternal, err)
+		}
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	return outcome{sessionID: p.SessionID}, nil

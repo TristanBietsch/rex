@@ -211,12 +211,23 @@ func run(args []string) error {
 	// read srv only once Serve has started, after that assignment.
 	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
 	defer usageHub.Close()
+	// Audit trail: inert (no file, no workspace lookup, no prompt kept) while
+	// audit_trail is off. Without a home directory workspace discovery is off
+	// and records go to the global file.
+	home, _ := paths.Home()
+	auditTrail := boot.NewAudit(boot.AuditConfig{
+		StateDir: *stateDir,
+		Home:     home,
+		Persist:  boot.PersistMeta(*stateDir),
+	}, store)
+	defer auditTrail.Close()
+	auditTrail.Configure(settingsStore)
 	// One settings watcher: every feature adds its applier to this list.
 	// Loop workflows: never enabled (no goroutine, subscription or file
 	// read) while the loops setting is off.
 	loops := boot.NewLoops(*stateDir, *loopsDir, store, boot.LoopsEnabled)
 	defer loops.Close()
-	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier(), loops.Applier()}
+	appliers := []func(*settings.Store){snaps.Applier(), usageHub.Applier(), auditTrail.Applier(), loops.Applier()}
 
 	// ov is set below when the summarizer runs; the callbacks read it only
 	// once Serve has started, after that assignment.
@@ -240,6 +251,7 @@ func run(args []string) error {
 		OnUsageSample:         usageHub.Hub.Sample,
 		UsageQuery:            usageHub.Hub.Query,
 		Loops:                 loops,
+		Audit:                 auditTrail,
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },

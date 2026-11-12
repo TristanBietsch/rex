@@ -71,6 +71,29 @@ filesystem permissions.
   a command that did not come from such a file, answer a prompt on its own,
   or read a loop file from elsewhere is in scope. Loop state under
   `~/.local/share/rex/loops` is owner-only.
+- **The audit trail and workspace folders.** With `audit_trail` on (the
+  default) the daemon appends one line per finished session to
+  `~/.local/share/rex/audit.jsonl`, or to `<workspace>/.rex/audit.jsonl` for
+  a session inside a workspace. A line holds ids, names, the tool, times, the
+  end state and the first line of the initial prompt (200 characters,
+  control characters removed). With `audit_full_prompt` (off by default) it
+  also holds the whole prompt, which can contain secrets, in a file that may
+  sit in a synced or committed folder. rex writes these files 0600 in 0700
+  folders and never follows a symlink at `.rex/`, `workspace.json` or
+  `audit.jsonl`. It refuses a `.rex/` that is group- or world-writable or
+  owned by another user. A repository can ship a `.rex/`: `workspace.json`
+  is read as data only (64 KiB cap, name and color validated) and nothing in
+  it changes rex's behavior. Reports of rex writing audit or workspace files
+  through a symlink, outside those locations or with a wider mode, of
+  `.rex/` content changing behavior, or of the prompt appearing in a record
+  without `audit_full_prompt` are in scope. `rex ws init` also appends two
+  lines to the repository's `.git/info/exclude`. A cloned repository is
+  untrusted input to that write: rex requires a worktree's git directory to
+  point back at the `.git` file and hold a `HEAD`, a `commondir` to be an
+  ancestor of it, `info/` and `info/exclude` to be real (non-symlink) paths
+  under the git directory, and the file to be a regular file you own under
+  1 MiB; otherwise it refuses and writes nothing. A way to make rex write
+  anywhere else through a crafted `.git` is in scope.
 - **Malformed protocol input** that crashes or hangs the daemon.
 - **Resume ids reaching a command line.** A tool's conversation id (taken
   from the agent's hook, its exit text or `meta.json`) is passed to the
