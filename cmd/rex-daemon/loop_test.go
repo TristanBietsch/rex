@@ -20,7 +20,9 @@ func startLoopDaemon(t *testing.T, dir string) (c *client.Client, stop func()) {
 	t.Helper()
 	sock := filepath.Join(dir, "rex.sock")
 	errc := make(chan error, 1)
-	go func() { errc <- run([]string{"-socket", sock, "-state-dir", dir, "-tools", filepath.Join(dir, "tools.yaml")}) }()
+	go func() {
+		errc <- run([]string{"-socket", sock, "-state-dir", dir, "-tools", filepath.Join(dir, "tools.yaml")})
+	}()
 	require.Eventually(t, func() bool {
 		var derr error
 		c, derr = client.Dial(sock)
