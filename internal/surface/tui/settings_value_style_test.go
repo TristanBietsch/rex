@@ -31,26 +31,29 @@ func valueEnd(line string) int {
 }
 
 // Values sit flush right in the list, on and off alike, at every width and
-// on the selected row. Under 40 columns a value has its own line, which ends
-// at the same column for every row.
+// on the selected row: they end where the section rules do, also when a
+// narrow list gives each value its own line.
 func TestSettingsValuesRightAligned(t *testing.T) {
-	for _, w := range []int{30, 50, 80, 120} {
+	for _, w := range []int{30, 39, 44, 50, 80, 120} {
 		for _, cur := range []string{"theme", "reduce_motion", "blinking_enabled"} {
 			m := Model{Store: settings.NewStore(), Settings: &SettingsState{CursorID: cur}}
 			lines := strings.Split(renderSettings(m, w), "\n")
 			ends := map[string]int{}
 			for i, l := range lines {
+				require.LessOrEqual(t, ansi.StringWidth(l), w, "w=%d cur=%s: no line overflows", w, cur)
 				for _, lbl := range []string{"Spinner type", "Reduce motion", "Done blink", "Row density", "Theme"} {
 					if !strings.Contains(ansi.Strip(l), lbl) {
 						continue
 					}
-					if w < 40 {
-						l = lines[i+1]
+					if strings.HasSuffix(strings.TrimRight(ansi.Strip(l), " │"), lbl) {
+						l = lines[i+1] // a narrow list: the value has its own line
 					}
 					ends[lbl] = valueEnd(l)
 				}
 			}
 			require.Len(t, ends, 5, "w=%d", w)
+			rule := valueEnd(settingsRow(t, strings.Join(lines, "\n"), "── Appearance"))
+			require.Equal(t, rule, ends["Spinner type"], "w=%d cur=%s: values end where the section rule does", w, cur)
 			for lbl, e := range ends {
 				require.Equal(t, ends["Spinner type"], e, "w=%d cur=%s %s", w, cur, lbl)
 			}

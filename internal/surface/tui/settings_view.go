@@ -228,7 +228,7 @@ func renderSettings(m Model, termW int) string {
 		// The two cells before a value hold the modified bullet.
 		valAvail := inner - 2 - labelW - 1 - 2
 		if ownLine {
-			valAvail = inner - 4 - 2
+			valAvail = inner - 2 - 2 // indent, bullet: flush right like the rules
 		}
 		arrows := isSel && adjustable && !empty
 		if arrows {
