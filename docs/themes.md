@@ -46,6 +46,55 @@ Switching to `auto` later (`:theme auto`, the settings page, live reload of `con
 
 CLI output (`rex ls`, `rex --help`, ...) and `rex setup` never ask the terminal: for them `auto` is `default`. `rex theme list` shows `auto` with source `auto`. A theme file cannot be called `auto.yaml`. `rex theme show <name>` prints one theme's colors and glyphs.
 
+## Accent color
+
+The accent paints the prompt arrow (`λ`), the selection marker (`▸`), the focused input, the modified-setting bullet, key caps in the attach chrome, the row icon strip's unseen mark and command names in help and CLI output. Each theme has its own (violet in `default`). `accent_color` replaces it on top of whatever theme is active, built-in, bundled, a theme file or a `config.lua` theme, and changes nothing else:
+
+```sh
+rex config set accent_color very-peri          # a named color
+rex config set accent_color "#ff6f61"           # quote it: # starts a shell comment
+rex config set accent_color theme               # back to the theme's own (the default)
+```
+
+In the TUI: `:accent <color>` (`:accent` alone steps to the next name), or the settings page (`S`, row **Accent color**): `←`/`→` cycle `theme` and the names, `enter`, `e` or `#` open an editor for your own value with a live preview and the reason a value is refused. Lua: `rex.set("accent_color", "#ff6f61")`. A trusted workspace's `.rex/config.lua` may set it too.
+
+**Named colors.** Pantone Color of the Year inspired. The hex values are published sRGB approximations, not official Pantone values, and rex is not affiliated with Pantone. Names shared with the border colors ([settings.md](settings.md#border-colors)) use the same dark and light variants.
+
+| Name | Reference | Hex (dark / light) |
+|------|-----------|--------------------|
+| `very-peri` | 17-3938 Very Peri | `#6667AB` |
+| `classic-blue` | 19-4052 Classic Blue | `#4F83C0` / `#0F4C81` |
+| `cerulean` | 15-4020 Cerulean | `#9BB7D4` / `#758FA9` |
+| `emerald` | 17-5641 Emerald | `#009473` |
+| `greenery` | 15-0343 Greenery | `#88B04B` |
+| `illuminating` | 13-0647 Illuminating | `#F5DF4D` / `#A18C00` |
+| `mimosa` | 14-0848 Mimosa | `#F0C05A` / `#B18513` |
+| `tangerine` | 17-1463 Tangerine Tango | `#DD4124` |
+| `living-coral` | 16-1546 Living Coral | `#FF6F61` |
+| `peach-fuzz` | 13-1023 Peach Fuzz | `#FFBE98` |
+| `rose-quartz` | 13-1520 Rose Quartz | `#F7CAC9` |
+| `viva-magenta` | 18-1750 Viva Magenta | `#BE3455` |
+| `orchid` | 18-3224 Radiant Orchid | `#B163A3` |
+| `ultra-violet` | 18-3838 Ultra Violet | `#5F4B8B` |
+| `mocha-mousse` | 17-1230 Mocha Mousse | `#A47864` |
+| `ultimate-gray` | 17-5104 Ultimate Gray | `#939597` / `#8A8C8E` |
+
+**Your own color.** Case and spaces do not matter (`Very Peri`, `very_peri` and `very-peri` are one name). Values are separated by commas or spaces.
+
+| Form | Example | Notes |
+|------|---------|-------|
+| `#rrggbb`, `#rgb` | `#ff6f61`, `#f0f` | |
+| `rgb(r, g, b)` | `rgb(255, 111, 97)`, `rgb(100%, 44%, 38%)` | 0–255 or 0–100% per channel |
+| `hsl(h, s%, l%)` | `hsl(5, 100%, 69%)` | Hue in degrees (wraps; `deg` allowed); `%` optional |
+| `cmyk(c, m, y, k)` | `cmyk(0, 56, 62, 0)`, `cmyk(0, .56, .62, 0)` | 0–100%, or 0–1 when every plain value is at most 1. A naive conversion with no ink profile: printed colors only roughly match it |
+| `oklch(l c h)` | `oklch(0.7 0.15 30)`, `oklch(70% 0.15 30)` | Lightness 0–1 or %, chroma 0–0.5 (100% = 0.4), hue in degrees. A color outside sRGB loses chroma until it fits |
+
+Anything else is refused with the reason (`rex config set`, `rex.set` in Lua, `:accent`, the settings editor), and the old value stays. The setting keeps the value as you typed it (lowercased), so the settings row shows what you chose; it is turned into a color whenever a theme is applied. A value edited into `config.yaml` by hand that does not parse is ignored: the theme's accent is used and the boot log says why.
+
+**Contrast.** On a theme with a real background color, the accent must reach 4.5:1 against it, the same floor every shipped theme's accent meets. A color below it is not refused: rex lightens it (dark theme) or darkens it (light theme) in OKLCH, keeping its hue, until it passes. The status line says so (`accent #6667AB adjusted to #7476BB for contrast on default`), and so do the settings page's detail pane (`paints #7476BB (from #6667AB, for contrast)`) and `rex config get accent_color`. Switching themes re-checks it, so one value works on dark and light themes. On a theme with a light and a dark variant (`classic-blue`, `cerulean`, `illuminating`, `mimosa`, `ultimate-gray`), the variant for the theme's mode is used first. On `ansi` the background is the terminal's, so the color is used as given.
+
+**State colors.** The accent should not read as a session state. A color closer than ΔE 20 (CIE76) to the theme's working, needs, done or failed color is kept, with a warning (`accent #FF6F61 is close to the failed state color`).
+
 ## Your own themes
 
 Each theme is one file, `~/.config/rex/themes/<name>.yaml`. The file name (without `.yaml`) is the theme name: lowercase letters, digits, `-` and `_`, up to 32 characters, and not `auto` or the name of one of the six built-ins. A bundled theme's name is fine: your file replaces that theme.
@@ -132,5 +181,6 @@ While `live_reload` is on (the default), the TUI notices an edit to `config.yaml
 | `rex theme show <name>` | A theme's colors, glyphs and a sample line |
 | `rex theme new <name> [-from <builtin>] [-force]` | Write a commented skeleton; refuses to overwrite without `-force` |
 | `:theme [name]` | In the TUI: set the theme, or with no name the next one |
+| `:accent [color]` | In the TUI: set `accent_color` (see [Accent color](#accent-color)), or with no value the next name |
 
 See [cli.md](cli.md#rex-theme) for formats and exit codes, and [settings.md](settings.md) for the `theme` setting.

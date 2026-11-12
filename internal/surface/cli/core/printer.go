@@ -23,9 +23,11 @@ type Env struct {
 	GOOS                  string
 	// Width is the render width for the text format. Zero means 80.
 	Width int
-	// Scheme and Spinner override the theme and spinner settings. When
-	// both are empty and the format is text, the user's config is read.
-	Scheme, Spinner string
+	// Scheme, Spinner and Accent stand in for the theme, spinner and
+	// accent_color settings (tests and goldens set them). When Scheme and
+	// Spinner are both empty and the format is text, all three are read
+	// from the user's config instead.
+	Scheme, Spinner, Accent string
 	// TrueColor pins the TrueColor profile when color is on, instead of
 	// detecting one.
 	TrueColor bool
@@ -91,12 +93,12 @@ func NewPrinter(fl FormatFlags, env Env, out, errw io.Writer) (*Printer, error) 
 	p.Color = colorEnabled(res.Format, env.OutTTY, fl.NoColor, env.Getenv)
 	p.ErrColor = colorEnabled(res.Format, env.ErrTTY, fl.NoColor, env.Getenv)
 
-	scheme, spinner := env.Scheme, env.Spinner
+	scheme, spinner, accent := env.Scheme, env.Spinner, env.Accent
 	if scheme == "" && spinner == "" && res.Format == FormatText {
-		scheme, spinner = loadAppearance()
+		scheme, spinner, accent = loadAppearance()
 	}
-	p.Styles = streamStyles(out, p.Color, env.TrueColor, scheme)
-	p.ErrStyles = streamStyles(errw, p.ErrColor, env.TrueColor, scheme)
+	p.Styles = streamStyles(out, p.Color, env.TrueColor, scheme, accent)
+	p.ErrStyles = streamStyles(errw, p.ErrColor, env.TrueColor, scheme, accent)
 	ascii := res.Format != FormatText || useASCII(env.Getenv, env.GOOS)
 	p.Glyphs = GlyphsFor(ascii, spinner)
 	return p, nil

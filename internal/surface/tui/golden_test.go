@@ -183,6 +183,8 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"help_page":              {{120, 40}, {80, 24}, {50, 20}},
 	"help_page_narrow":       {{50, 20}},
 	"settings_page_frame":    {{80, 24}},
+	"settings_page_accent":   {{120, 40}, {80, 24}, {50, 20}},
+	"settings_accent_edit":   {{120, 40}, {80, 24}},
 	"settings_page_narrow":   {{50, 20}},
 	"screensaver":            {{80, 24}, {40, 6}},
 	"screensaver_vertical":   {{80, 24}, {40, 12}, {40, 6}, {40, 4}},
@@ -494,7 +496,38 @@ func goldenScreens() []goldenScreen {
 			t.Cleanup(func() { applyTheme("default") })
 			return m
 		}},
+		{"settings_page_accent", true, func(t *testing.T, sz goldenSize) Model {
+			// very-peri is too dark for default's background: the detail
+			// pane names the adjusted color the swatch shows.
+			m := goldenAccentPage(t, sz, "very-peri")
+			return m
+		}},
+		{"settings_accent_edit", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenAccentPage(t, sz, "theme")
+			m = openSettingEdit(m, mustFind(t, "accent_color"))
+			for _, r := range "rgb(255, 111, 97)" {
+				m = settingEditKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+			}
+			return m
+		}},
 	}
+}
+
+// goldenAccentPage is the settings page on the accent_color row with value
+// set (and applied, so the live accent follows it until the test ends).
+func goldenAccentPage(t *testing.T, sz goldenSize, value string) Model {
+	t.Helper()
+	m := goldenBoard(t, sz, false)
+	m.Focus = FocusSettings
+	m = defaultRowIcons(t, m)
+	if err := m.Store.Set("accent_color", value); err != nil {
+		t.Fatal(err)
+	}
+	applyLive(&m, "accent_color", value)
+	m.Notice, m.Err = "", ""
+	t.Cleanup(func() { accentChoice = ""; applyTheme("default") })
+	m.Settings = &SettingsState{CursorID: "accent_color"}
+	return m
 }
 
 // goldenNewAgentImport is mockup D: the picker over a small checkout,

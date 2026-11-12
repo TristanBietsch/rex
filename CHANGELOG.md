@@ -18,6 +18,10 @@ The first release since v1. Details for every change follow the summary.
 - **Themes**: a new default with a violet accent, bundled `dracula`,
   `tokyo_night` and `pantone_safe`, an opt-in `auto` theme, and your own
   theme files in `~/.config/rex/themes/` (`rex theme list|show|new`).
+- **Accent color**: pick the accent on top of any theme (`accent_color`,
+  `:accent`, settings page with a swatch and live preview): a
+  Pantone-inspired name or your own `#hex`, `rgb()`, `hsl()`, `cmyk()` or
+  `oklch()`, kept readable on dark and light themes.
 - **Lua config**: `~/.config/rex/config.lua` sets any setting, and a trusted
   workspace can carry its own `.rex/config.lua` for display settings.
 - **Folder trust with guards**: `rex trust`, the wizard's trust line and
@@ -62,6 +66,37 @@ The first release since v1. Details for every change follow the summary.
 - **Render fixes**: popups stay straight with CJK and emoji text,
   multi-line pastes keep the help line on screen, short terminals keep the
   prompt, and prompts are typed without escape sequences.
+
+### Added (accent color)
+
+- `accent_color` (Appearance, applies now; default `theme`, the active
+  theme's own accent, so nothing changes until you set it) replaces the
+  accent on top of any theme: built-in, bundled, a theme file or a
+  `config.lua` theme. The accent paints the prompt arrow, selection marker,
+  focused input, modified-setting bullet and command names in the TUI and in
+  CLI output.
+- Values: `theme`; one of 16 Pantone Color of the Year inspired names
+  (`very-peri`, `classic-blue`, `cerulean`, `emerald`, `greenery`,
+  `illuminating`, `mimosa`, `tangerine`, `living-coral`, `peach-fuzz`,
+  `rose-quartz`, `viva-magenta`, `orchid`, `ultra-violet`, `mocha-mousse`,
+  `ultimate-gray`; sRGB approximations, not official Pantone values); or
+  `#rrggbb`, `#rgb`, `rgb(r, g, b)` (0–255 or %), `hsl(h, s%, l%)`,
+  `cmyk(c, m, y, k)` (naive conversion, approximate) and `oklch(l c h)`.
+  Case and spaces do not matter; the value is stored as typed. Anything
+  else is refused with the reason by `rex config set`, Lua `rex.set`,
+  `:accent` and the settings editor.
+- Contrast: a color under 4.5:1 on the theme's background is lightened or
+  darkened in OKLCH (hue kept) until it passes, with a notice on the status
+  line, in the boot log, in the settings detail pane and in
+  `rex config get`/`set`. A color close to a state color (ΔE < 20) gets a
+  warning.
+- Settings page: the row shows a swatch in the painted color (`##` with
+  `ascii_glyphs`, none without color); `←`/`→` cycle `theme` and the names;
+  `enter`, `e` or `#` open the editor with a live preview. `e` now opens the
+  inline editor on any free-form row `config.lua` does not set.
+- `:accent [color]` sets it from the board (no value: the next name).
+- A trusted workspace's `.rex/config.lua` may set `accent_color` (display
+  only).
 
 ### Breaking changes
 

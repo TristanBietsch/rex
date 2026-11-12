@@ -6,8 +6,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -71,6 +73,9 @@ func settingsDetail(m Model, s settings.Setting, inner, helpN int, expanded bool
 	if cur, ok := detectedModel(m, s.ID); ok && cur {
 		l1 += sep + styleMuted.Render("detected")
 	}
+	if s.ID == "accent_color" {
+		l1 += sep + accentPaints()
+	}
 	out := []string{ansi.Truncate(l1, inner, "…")}
 
 	// Options, or the range, or nothing.
@@ -129,10 +134,16 @@ func settingsDetail(m Model, s settings.Setting, inner, helpN int, expanded bool
 			draft = ansi.TruncateLeft(draft, ansi.StringWidth(draft)-w+1, "…")
 		}
 		out[1] = styleArrow.Render("› ") + draft + cursorLit()
-		if e.Err != "" {
+		hints := renderHints([][2]string{{"enter", "save"}, {"esc", "cancel"}, {"ctrl+u", "clear"}}, inner)
+		switch {
+		case e.Err != "":
 			out[2] = styleFailed.Render(ansi.Truncate(protocol.FlattenDisplayText(e.Err), inner, "…"))
-		} else {
-			out[2] = renderHints([][2]string{{"enter", "save"}, {"esc", "cancel"}, {"ctrl+u", "clear"}}, inner)
+		case s.ID == "accent_color" && len(out) > 3:
+			// The draft's color (or why it is not one yet), then the keys.
+			out[2] = ansi.Truncate(accentPreviewLine(m, e.Text()), inner, "…")
+			out[3] = hints
+		default:
+			out[2] = hints
 		}
 	}
 	return out
@@ -241,6 +252,11 @@ func settingsRowsAt(m Model, list []settings.Setting, inner, labelW int, headers
 		if arrows {
 			valAvail -= 4
 		}
+		swatch, swatchW := "", 0
+		if s.ID == "accent_color" {
+			swatch, swatchW = accentSwatch(m, isSel)
+			valAvail -= swatchW
+		}
 		badge := settingLockBadge(m, s)
 		locked := badge != ""
 		if locked {
@@ -274,9 +290,9 @@ func settingsRowsAt(m Model, list []settings.Setting, inner, labelW int, headers
 				b = styleArrow.Render(bullet)
 			}
 			if ownLine {
-				lines = append(lines, "  "+styleDim.Render(label), "  "+gap+b+vs.Render(valCell)+badge)
+				lines = append(lines, "  "+styleDim.Render(label), "  "+gap+b+swatch+vs.Render(valCell)+badge)
 			} else {
-				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+gap+b+vs.Render(valCell)+badge)
+				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+gap+b+swatch+vs.Render(valCell)+badge)
 			}
 			continue
 		}
@@ -293,11 +309,11 @@ func settingsRowsAt(m Model, list []settings.Setting, inner, labelW int, headers
 		if ownLine {
 			first := marker + selBold.Render(label)
 			lines = append(lines, first+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(first)))))
-			second := selStyle.Render("  "+gap) + b + vs.Render(valCell) + badge
+			second := selStyle.Render("  "+gap) + b + swatch + vs.Render(valCell) + badge
 			lines = append(lines, second+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(second)))))
 			continue
 		}
-		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" "+gap) + b + vs.Render(valCell) + badge
+		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" "+gap) + b + swatch + vs.Render(valCell) + badge
 		lines = append(lines, row+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(row)))))
 	}
 	if len(list) == 0 {
@@ -405,4 +421,58 @@ func renderSettings(m Model, termW int) string {
 	}
 	box, _ := panelLines("SETTINGS", posText, strings.Split(content, "\n"), padH, 0, width)
 	return strings.Join(box, "\n")
+}
+
+// accentSwatch is the sample before the accent_color value: two full blocks
+// ("##" with ascii_glyphs) in the live accent and a space, and its width. A
+// terminal without color gets none, since the blocks would say nothing.
+func accentSwatch(m Model, sel bool) (string, int) {
+	if lipgloss.ColorProfile() == termenv.Ascii {
+		return "", 0
+	}
+	block := "██"
+	if asciiGlyphs(m) {
+		block = "##"
+	}
+	st, sp := styleAccent, lipgloss.NewStyle()
+	if sel {
+		st, sp = selectedStyle(st), selectedStyle(sp)
+	}
+	return st.Render(block) + sp.Render(" "), ansi.StringWidth(block) + 1
+}
+
+// accentPaints is the detail pane's note on the accent row: the color now
+// painted, and whether it was adjusted for contrast or is close to a state
+// color.
+func accentPaints() string {
+	out := styleDim.Render("paints ") + stylePrimary.Render(string(colorAccent))
+	if accentLast.Adjusted {
+		out += styleMuted.Render(" (from " + accentLast.Chosen + ", for contrast)")
+	}
+	if accentLast.Clash != "" {
+		out += styleMuted.Render(" (close to the " + accentLast.Clash + " color)")
+	}
+	if accentErr != nil {
+		out += styleMuted.Render(" (stored value invalid)")
+	}
+	return out
+}
+
+// accentPreviewLine describes a draft accent_color on the current theme:
+// the color it paints, or why it is not a color yet.
+func accentPreviewLine(m Model, draft string) string {
+	name := resolveThemeName(m, m.Store.String("theme"))
+	base, _ := m.Themes.Get(name)
+	p, res, err := theme.WithAccent(base, draft)
+	switch {
+	case err != nil:
+		return styleDim.Render(protocol.FlattenDisplayText(err.Error()))
+	case res.Final == "":
+		return styleDim.Render("the theme's own accent ") + swatchStyle(p.Accent).Render(p.Accent)
+	}
+	out := swatchStyle(res.Final).Render(res.Final)
+	if note := res.Note(name); note != "" {
+		out += styleDim.Render("  " + note)
+	}
+	return styleDim.Render("→ ") + out
 }

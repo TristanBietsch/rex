@@ -224,7 +224,7 @@ func handleConfigReloaded(m Model, msg configReloadedMsg) (Model, tea.Cmd) {
 	// have been edited, not just the setting that names it.
 	applyThemeNamed(&m, m.Store.String("theme"))
 	for _, id := range changedLiveSettings(old, m.Store) {
-		if id != "theme" {
+		if id != "theme" && id != "accent_color" {
 			applyLive(&m, id, m.Store.Get(id))
 		}
 	}

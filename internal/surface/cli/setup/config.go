@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -250,6 +251,10 @@ func configGet(args []string) error {
 	if at != "" {
 		fields = append(fields, core.Field{Key: "set_at", Val: at})
 	}
+	if hex, note := accentDetail(store, id); note != "" {
+		text += "  (" + note + ")"
+		fields = append(fields, core.Field{Key: "paints", Val: hex})
+	}
 	return core.Out().Emit(core.Result{
 		Cmd:  "config",
 		Data: configValueData{ID: id, Value: val, Source: src, SetAt: at},
@@ -282,7 +287,37 @@ func configSet(args []string) error {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	reloadDaemonForTrust(rest[0])
-	return emitConfigChange("set", rest[0], store.String(rest[0]), store.Display(rest[0]))
+	display := store.Display(rest[0])
+	if _, note := accentDetail(store, rest[0]); note != "" {
+		display += "  (" + note + ")"
+	}
+	return emitConfigChange("set", rest[0], store.String(rest[0]), display)
+}
+
+// accentDetail says what accent_color paints on the configured theme as CLI
+// output sees it: the color, and the contrast adjustment or the state color
+// it is close to. Both are "" for another setting, for "theme", and for a
+// value that does not parse (one edited into config.yaml by hand).
+func accentDetail(store *settings.Store, id string) (hex, note string) {
+	if id != "accent_color" {
+		return "", ""
+	}
+	base := core.ThemePalette(store.String("theme"))
+	p, res, err := theme.WithAccent(base, store.String(id))
+	if err != nil {
+		return "", "invalid: " + err.Error()
+	}
+	if res.Final == "" {
+		return "", ""
+	}
+	note = "paints " + p.Accent + " on " + base.Name
+	if res.Adjusted {
+		note += ", adjusted from " + res.Chosen + " for contrast"
+	}
+	if res.Clash != "" {
+		note += ", close to the " + res.Clash + " state color"
+	}
+	return p.Accent, note
 }
 
 func configReset(args []string) error {

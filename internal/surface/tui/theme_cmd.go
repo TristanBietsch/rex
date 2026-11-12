@@ -19,12 +19,86 @@ func themeOptions(m Model) []string {
 	return append(slices.Clone(s.Options), m.Themes.UserNamesExcept(s.Options)...)
 }
 
-// applyThemeNamed applies the named theme. An unknown name uses the default
-// palette and puts a notice on the status line.
+// applyThemeNamed applies the named theme with the stored accent_color. An
+// unknown name uses the default palette and puts a notice on the status
+// line.
 func applyThemeNamed(m *Model, name string) {
+	syncAccent(*m)
 	if !applyThemeFrom(m.Themes, resolveThemeName(*m, name)) {
 		m.Err = themeNotFound(m.Themes, name)
 	}
+}
+
+// syncAccent makes the stored accent_color the one applyPalette uses.
+func syncAccent(m Model) {
+	accentChoice = ""
+	if m.Store != nil {
+		accentChoice = m.Store.String("accent_color")
+	}
+}
+
+// reapplyTheme applies the current theme setting again with accentChoice as
+// it is (the settings editor's live preview).
+func reapplyTheme(m Model) {
+	name := theme.DefaultName
+	if m.Store != nil {
+		name = m.Store.String("theme")
+	}
+	applyThemeFrom(m.Themes, resolveThemeName(m, name))
+}
+
+// accentNotice is what the last theme apply has to say about accent_color:
+// a value that could not be used, a color adjusted for contrast, or one
+// close to a state color. "" when there is nothing to say.
+func accentNotice(themeName string) (msg string, isErr bool) {
+	if accentErr != nil {
+		return "accent_color: " + accentErr.Error() + " (using the theme's accent)", true
+	}
+	return accentLast.Note(themeName), false
+}
+
+// noteAccent puts accentNotice on the status line.
+func noteAccent(m *Model) {
+	name := theme.DefaultName
+	if m.Store != nil {
+		name = resolveThemeName(*m, m.Store.String("theme"))
+	}
+	if msg, isErr := accentNotice(name); isErr {
+		m.Err = msg
+	} else if msg != "" {
+		m.Notice = msg
+	}
+}
+
+// setAccentSetting stores, applies and saves an accent_color value.
+func setAccentSetting(m Model, value string) Model {
+	if settingLocked(&m, "accent_color") {
+		return m
+	}
+	if err := m.Store.Set("accent_color", value); err != nil {
+		m.Err = "accent: " + err.Error()
+		return m
+	}
+	applyLive(&m, "accent_color", m.Store.Get("accent_color"))
+	if err := m.Store.Save(m.StorePath); err != nil {
+		m.Err = "accent: save: " + err.Error()
+	}
+	return m
+}
+
+// runAccent is `:accent [value]`: set accent_color (any form the setting
+// takes, "theme" for the theme's own), or with no value step to the next
+// named color.
+func runAccent(m Model, c cmdCall) (Model, tea.Cmd) {
+	if m.Store == nil {
+		m.Err = "accent: no settings loaded"
+		return m, nil
+	}
+	if len(c.Args) == 0 {
+		s, _ := settings.Find("accent_color")
+		return setAccentSetting(m, cycleOption(s.Options, m.Store.String("accent_color"), +1)), nil
+	}
+	return setAccentSetting(m, strings.Join(c.Args, " ")), nil
 }
 
 // themeNotFound is the notice for a theme that cannot be applied: its file
