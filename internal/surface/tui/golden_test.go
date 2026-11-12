@@ -60,6 +60,21 @@ func goldenScreens() []goldenScreen {
 			m.Settings = &SettingsState{CursorID: settings.Registry[0].ID}
 			return m
 		}},
+		{"help_filtered", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusHelp
+			m.Help = &HelpState{Filter: "undo"}
+			return m
+		}},
+		{"settings_search", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusSettings
+			m.Settings = &SettingsState{CursorID: "spinner", Search: "spin"}
+			if err := m.Store.Set("spinner", "moon"); err != nil {
+				t.Fatal(err)
+			}
+			return m
+		}},
 		{"wizard", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusWizard

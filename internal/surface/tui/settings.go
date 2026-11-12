@@ -16,6 +16,12 @@ import (
 // SettingsState lives on Model when Focus == FocusSettings.
 type SettingsState struct {
 	CursorID string
+	// Search keeps the settings whose label, id, section or help contains
+	// every word; Searching is whether keys edit it.
+	Search    string
+	Searching bool
+	// HelpExpanded shows the whole help text in the detail pane.
+	HelpExpanded bool
 	// Tools backs the quick-spawn tool/model/effort pickers so they only
 	// offer combinations the daemon will accept.
 	Tools []registry.Tool
@@ -37,8 +43,8 @@ func openSettings(m Model) (Model, tea.Cmd) {
 	} else {
 		slog.Warn("tui: settings could not load tool registry; spawn pickers disabled", "err", err)
 	}
-	if len(settings.Registry) > 0 {
-		st.CursorID = settings.Registry[0].ID
+	if vis := settings.Visible(); len(vis) > 0 {
+		st.CursorID = vis[0].ID
 	}
 	m.Settings = st
 	m.Focus = FocusSettings
@@ -71,14 +77,33 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Settings == nil {
 		return m, nil
 	}
+	if m.Settings.Searching {
+		return settingsSearchKey(m, k), nil
+	}
 	switch k.String() {
 	case "esc":
+		if m.Settings.Search != "" {
+			m.Settings.Search = ""
+			return m, nil
+		}
 		return closeSettings(m), nil
+	case "/":
+		m.Settings.Searching = true
+		return m, nil
+	case "?":
+		m.Settings.HelpExpanded = !m.Settings.HelpExpanded
+		return m, nil
+	case "tab":
+		m.Settings.CursorID = settingsSectionJump(m.Settings, +1)
+		return m, nil
+	case "shift+tab":
+		m.Settings.CursorID = settingsSectionJump(m.Settings, -1)
+		return m, nil
 	case "j", "down":
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, +1)
+		m.Settings.CursorID = settingsAfter(m.Settings, +1)
 		return m, nil
 	case "k", "up":
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, -1)
+		m.Settings.CursorID = settingsAfter(m.Settings, -1)
 		return m, nil
 	case "enter", " ":
 		return applySettingsAction(m, 0), nil
@@ -98,26 +123,135 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// settingsAfter returns the id N positions after current in the visible registry order.
-func settingsAfter(current string, delta int) string {
-	if len(settings.Registry) == 0 {
-		return ""
+// settingsSearchKey edits the settings search. The query is bounded (see
+// compileQuery) and stripped of control runes.
+func settingsSearchKey(m Model, k tea.KeyMsg) Model {
+	st := m.Settings
+	switch k.Type {
+	case tea.KeyEsc:
+		st.Search, st.Searching = "", false
+	case tea.KeyEnter:
+		st.Searching = false
+	case tea.KeyBackspace:
+		if r := []rune(st.Search); len(r) > 0 {
+			st.Search = string(r[:len(r)-1])
+		}
+	case tea.KeyCtrlU:
+		st.Search = ""
+	case tea.KeyRunes, tea.KeySpace:
+		add := strings.Map(func(r rune) rune {
+			if r < ' ' || r == 0x7f {
+				return -1
+			}
+			return r
+		}, string(k.Runes))
+		if k.Type == tea.KeySpace {
+			add = " "
+		}
+		if len([]rune(st.Search+add)) <= maxSearchRunes {
+			st.Search += add
+		}
+	default:
+	}
+	st.CursorID = settingsKeepCursor(st)
+	return m
+}
+
+// settingsList is the settings the page lists: the visible ones that match
+// the search, in registry order.
+func settingsList(st *SettingsState) []settings.Setting {
+	vis := settings.Visible()
+	terms := compileQuery(st.Search)
+	if len(terms) == 0 {
+		return vis
+	}
+	var out []settings.Setting
+	for _, s := range vis {
+		hay := strings.ToLower(s.Label + " " + s.ID + " " + string(s.Section) + " " + s.Help)
+		ok := true
+		for _, t := range terms {
+			if !strings.Contains(hay, t) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// settingsKeepCursor is the cursor id after the list changed: the same row
+// when it is still listed, else the first one.
+func settingsKeepCursor(st *SettingsState) string {
+	list := settingsList(st)
+	for _, s := range list {
+		if s.ID == st.CursorID {
+			return st.CursorID
+		}
+	}
+	if len(list) > 0 {
+		return list[0].ID
+	}
+	return st.CursorID
+}
+
+// settingsAfter returns the id delta rows after the cursor in the listed
+// settings, stopping at the ends.
+func settingsAfter(st *SettingsState, delta int) string {
+	list := settingsList(st)
+	if len(list) == 0 {
+		return st.CursorID
 	}
 	idx := 0
-	for i, s := range settings.Registry {
-		if s.ID == current {
+	for i, s := range list {
+		if s.ID == st.CursorID {
 			idx = i
 			break
 		}
 	}
-	idx += delta
-	if idx < 0 {
-		idx = 0
+	idx = min(max(idx+delta, 0), len(list)-1)
+	return list[idx].ID
+}
+
+// settingsSectionJump moves the cursor to the first row of the next section
+// (dir +1, wrapping) or, going back, to the first row of the current section,
+// or of the previous one when it is already there.
+func settingsSectionJump(st *SettingsState, dir int) string {
+	list := settingsList(st)
+	if len(list) == 0 {
+		return st.CursorID
 	}
-	if idx >= len(settings.Registry) {
-		idx = len(settings.Registry) - 1
+	idx := 0
+	for i, s := range list {
+		if s.ID == st.CursorID {
+			idx = i
+			break
+		}
 	}
-	return settings.Registry[idx].ID
+	// starts are the indexes where a section begins.
+	var starts []int
+	for i, s := range list {
+		if i == 0 || s.Section != list[i-1].Section {
+			starts = append(starts, i)
+		}
+	}
+	cur := 0
+	for n, at := range starts {
+		if at <= idx {
+			cur = n
+		}
+	}
+	switch {
+	case dir > 0:
+		cur = (cur + 1) % len(starts)
+	case starts[cur] < idx:
+		// back inside a section: its own first row
+	default:
+		cur = (cur - 1 + len(starts)) % len(starts)
+	}
+	return list[starts[cur]].ID
 }
 
 // applySettingsAction mutates the cursor row.
@@ -431,7 +565,7 @@ func applyLive(m *Model, id string, value any) {
 }
 
 // settingsHints are the footer key hints, in display order.
-var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "r reset", "esc close"}
+var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "/ search", "tab section", "r reset", "? help", "esc close"}
 
 // wrapHints packs hints (3-space separated) into lines of at most width cells.
 func wrapHints(hints []string, width int) []string {
@@ -498,178 +632,4 @@ func padCells(s string, w int) string {
 		return s + strings.Repeat(" ", d)
 	}
 	return s
-}
-
-// renderSettings returns the finished settings box for a termW-wide terminal.
-func renderSettings(m Model, termW int) string {
-	if m.Settings == nil || m.Store == nil {
-		return ""
-	}
-	if termW <= 0 {
-		termW = 100
-	}
-
-	var (
-		width, padH int
-		bordered    = termW >= 40
-	)
-	switch {
-	case termW < 40:
-		width, padH = termW, 0
-	case termW < 60:
-		width, padH = termW-2, 1
-	default:
-		width, padH = termW-8, 3
-		if width < 56 {
-			width = 56
-		}
-		if width > 88 {
-			width = 88
-		}
-	}
-	inner := width
-	if bordered {
-		inner = width - 2 - 2*padH
-	}
-	labelW := 30
-	if lim := inner * 40 / 100; lim < labelW {
-		labelW = lim
-	}
-	if termW < 60 {
-		labelW = inner / 2
-	}
-	ownLine := inner < 40
-	selStyle := styleSelected
-	selBold := styleSelected.Bold(true)
-
-	var lines []string
-	focus := 0
-	curSection := ""
-	cursorIdx, total := 0, len(settings.Registry)
-	var sel settings.Setting
-	for i, s := range settings.Registry {
-		if string(s.Section) != curSection {
-			if curSection != "" {
-				lines = append(lines, "")
-			}
-			lines = append(lines, sectionHeader(string(s.Section), inner))
-			curSection = string(s.Section)
-		}
-		isSel := s.ID == m.Settings.CursorID
-		adjustable := settingAdjustable(m, s)
-		val := settingValueText(m, s)
-		empty := val == "—"
-		label := ansi.Truncate(s.Label, labelW, "…")
-
-		valAvail := inner - 2 - labelW - 1
-		if ownLine {
-			valAvail = inner - 4
-		}
-		arrows := isSel && adjustable && !empty
-		if arrows {
-			valAvail -= 4
-		}
-		if valAvail < 1 {
-			valAvail = 1
-		}
-		val = ansi.Truncate(val, valAvail, "…")
-		valCell := val
-		if arrows {
-			valCell = "◂ " + val + " ▸"
-		}
-
-		if !isSel {
-			vs := styleDim
-			if !s.ReadOnly && !empty {
-				vs = stylePrimary
-			}
-			if ownLine {
-				lines = append(lines, "  "+styleDim.Render(label), "    "+vs.Render(valCell))
-			} else {
-				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+vs.Render(valCell))
-			}
-			continue
-		}
-
-		cursorIdx = i + 1
-		sel = s
-		focus = len(lines)
-		marker := styleArrow.Render("▸ ")
-		if ownLine {
-			first := marker + selBold.Render(label)
-			lines = append(lines, first+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(first)))))
-			vs := selStyle
-			if s.ReadOnly || empty {
-				vs = selStyle.Foreground(colorFgDim)
-			}
-			second := selStyle.Render("    ") + vs.Render(valCell)
-			lines = append(lines, second+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(second)))))
-			continue
-		}
-		vs := selStyle
-		if s.ReadOnly || empty {
-			vs = selStyle.Foreground(colorFgDim)
-		}
-		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" ") + vs.Render(valCell)
-		lines = append(lines, row+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(row)))))
-	}
-
-	// Header: SETTINGS left, "n of N" right. A bordered panel carries both
-	// in its top edge; the borderless narrow layout keeps a header row.
-	posText := fmt.Sprintf("%d of %d", cursorIdx, total)
-	var header string
-	if !bordered {
-		title := styleBold.Render("SETTINGS")
-		pos := styleDim.Render(posText)
-		gap := inner - ansi.StringWidth(title) - ansi.StringWidth(pos)
-		header = title + strings.Repeat(" ", max(1, gap)) + pos
-		if gap < 1 {
-			header = ansi.Truncate(title, inner, "")
-		}
-	}
-
-	// Fixed 2-line help area so the layout never jumps.
-	help := []string{"", ""}
-	if sel.Help != "" {
-		wrapped := strings.Split(ansi.Wordwrap(sel.Help, inner, ""), "\n")
-		for i := 0; i < 2 && i < len(wrapped); i++ {
-			help[i] = wrapped[i]
-		}
-		if len(wrapped) > 2 {
-			help[1] = ansi.Truncate(help[1]+"…", inner, "…")
-		}
-	}
-	for i, h := range help {
-		help[i] = styleDim.Render(ansi.Truncate(h, inner, "…"))
-	}
-	footer := wrapHints(settingsHints, inner)
-
-	// Non-body rows: blank, help(2), blank, footer, plus two more: the
-	// borderless layout's header and blank, or a bordered panel's two border
-	// rows (its title sits in the top one).
-	chrome := 1 + 2 + 1 + len(footer) + 2
-	maxRows := 0
-	if m.Height > 0 {
-		maxRows = m.Height - chrome
-		if maxRows < 3 {
-			maxRows = 3
-		}
-	}
-
-	var out []string
-	if !bordered {
-		out = append(out, header, "")
-	}
-	out = append(out, windowLines(lines, focus, maxRows)...)
-	out = append(out, "")
-	out = append(out, help...)
-	out = append(out, "")
-	out = append(out, footer...)
-	content := strings.Join(out, "\n")
-
-	if !bordered {
-		return content
-	}
-	box, _ := panelLines("SETTINGS", posText, strings.Split(content, "\n"), padH, 0, width)
-	return strings.Join(box, "\n")
 }

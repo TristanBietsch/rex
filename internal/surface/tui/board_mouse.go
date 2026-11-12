@@ -129,9 +129,9 @@ func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
 	}
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, -1)
+		m.Settings.CursorID = settingsAfter(m.Settings, -1)
 	case tea.MouseButtonWheelDown:
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, +1)
+		m.Settings.CursorID = settingsAfter(m.Settings, +1)
 	}
 	return m
 }
