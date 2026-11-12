@@ -995,13 +995,24 @@ func rowDescription(s protocol.SessionSummary) string {
 // line is a question; otherwise last_line is usually the agent's own status
 // text ("Checking for updates"), which says nothing about what it needs.
 func rowText(s protocol.SessionSummary) string {
-	if s.State == protocol.StateNeedsInput && !isMarkedDone(s) {
-		if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
-			return q
-		}
+	if q := rowQuestion(s); q != "" {
+		return q
 	}
 	if t := protocol.FlattenDisplayText(s.Title); t != "" {
 		return t
 	}
 	return rowDescription(s)
+}
+
+// rowQuestion is the question a session waits on: its screen's last line,
+// flattened and trimmed, when the session needs input, is not marked done
+// and that line ends in "?". Empty otherwise.
+func rowQuestion(s protocol.SessionSummary) string {
+	if s.State != protocol.StateNeedsInput || isMarkedDone(s) {
+		return ""
+	}
+	if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
+		return q
+	}
+	return ""
 }
