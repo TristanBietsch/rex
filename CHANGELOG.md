@@ -94,8 +94,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Themes: write your own as YAML files in `~/.config/rex/themes/<name>.yaml`
   (`extends` a built-in, override colors, replace the state marker and
   selection glyphs). Files are validated as untrusted data (64 KiB and 64 file
-  caps, strict colors and one-cell glyphs, symlinks must stay inside the
-  folder, no file writable by others); a bad file is skipped with a reason and
+  caps, strict colors and one-cell glyphs, a linked file must itself be safe,
+  no file writable by others); a bad file is skipped with a reason and
   the TUI falls back to `default` with a notice. See [docs/themes.md](docs/themes.md).
 - `rex theme list`, `rex theme show <name>` and `rex theme new <name>
   [-from <builtin>] [-force]`, in every output format. `:theme [name]` in the

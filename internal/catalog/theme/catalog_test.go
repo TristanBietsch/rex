@@ -1,7 +1,9 @@
 package theme
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -122,25 +124,63 @@ func TestLoadDir_FileLimits(t *testing.T) {
 
 func TestLoadDir_SymlinkRules(t *testing.T) {
 	skipIfNoSymlinks(t)
+	if runtime.GOOS == "windows" {
+		t.Skip("windows keeps links inside the directory")
+	}
 	base := t.TempDir()
 	dir := filepath.Join(base, "themes")
 	writeTheme(t, dir, "real.yaml", `colors: {accent: "#EEEEEE"}`)
-	outside := filepath.Join(base, "outside.yaml")
-	require.NoError(t, os.WriteFile(outside, []byte("colors: {}"), 0o600))
+	repo := filepath.Join(base, "dotfiles")
+	writeTheme(t, repo, "stowed.yaml", `extends: paper`)
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "sub"), 0o700))
 
 	require.NoError(t, os.Symlink("real.yaml", filepath.Join(dir, "inside.yaml")))
-	require.NoError(t, os.Symlink("../outside.yaml", filepath.Join(dir, "escape.yaml")))
-	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "absolute.yaml")))
+	require.NoError(t, os.Symlink("../dotfiles/stowed.yaml", filepath.Join(dir, "relative-out.yaml")))
+	require.NoError(t, os.Symlink(filepath.Join(repo, "stowed.yaml"), filepath.Join(dir, "absolute-out.yaml")))
 	require.NoError(t, os.Symlink("gone.yaml", filepath.Join(dir, "dangling.yaml")))
 	require.NoError(t, os.Symlink("sub", filepath.Join(dir, "dirlink.yaml")))
+	require.NoError(t, os.Symlink("loop.yaml", filepath.Join(dir, "loop.yaml")))
+	writeTheme(t, repo, "open.yaml", "colors: {}")
+	testperm.Loosen(t, filepath.Join(repo, "open.yaml"), 0o666)
+	require.NoError(t, os.Symlink("../dotfiles/open.yaml", filepath.Join(dir, "writable-target.yaml")))
+	writeTheme(t, repo, "group.yaml", "colors: {}")
+	testperm.Loosen(t, filepath.Join(repo, "group.yaml"), 0o660)
+	require.NoError(t, os.Symlink("../dotfiles/group.yaml", filepath.Join(dir, "group-target.yaml")))
 
 	c := LoadDir(dir)
-	require.Equal(t, []string{"inside", "real"}, c.UserNames(), "a relative link that stays inside the directory is fine")
-	for _, f := range []string{"escape.yaml", "absolute.yaml", "dangling.yaml"} {
-		require.Contains(t, issueFor(c, f), "symlink must point inside", f)
-	}
+	require.Equal(t, []string{"absolute-out", "inside", "real", "relative-out"}, c.UserNames(),
+		"a link loads when its target is a safe regular file, wherever it is")
+	paper, _ := c.Get("relative-out")
+	require.Equal(t, Builtin["paper"].Bg, paper.Bg, "the target's content is what loads")
+	require.Contains(t, issueFor(c, "dangling.yaml"), "cannot open file")
+	require.Contains(t, issueFor(c, "loop.yaml"), "cannot open file")
 	require.Contains(t, issueFor(c, "dirlink.yaml"), "not a regular file")
+	require.Contains(t, issueFor(c, "writable-target.yaml"), "writable by group or others")
+	require.Contains(t, issueFor(c, "group-target.yaml"), "writable by group or others")
+}
+
+func TestLoadDir_LinkedTargetOverTheSizeCapIsSkipped(t *testing.T) {
+	skipIfNoSymlinks(t)
+	if runtime.GOOS == "windows" {
+		t.Skip("windows keeps links inside the directory")
+	}
+	base := t.TempDir()
+	dir := filepath.Join(base, "themes")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	writeTheme(t, base, "big.yaml", "# "+strings.Repeat("x", MaxFileSize)+"\n")
+	require.NoError(t, os.Symlink("../big.yaml", filepath.Join(dir, "big.yaml")))
+	c := LoadDir(dir)
+	require.Contains(t, issueFor(c, "big.yaml"), "larger than 64 KiB")
+}
+
+func TestLoadDir_ReadFailureIsReported(t *testing.T) {
+	dir := t.TempDir()
+	writeTheme(t, dir, "a.yaml", "colors: {}")
+	prev := readAll
+	t.Cleanup(func() { readAll = prev })
+	readAll = func(io.Reader) ([]byte, error) { return nil, errors.New("disk on fire") }
+	c := LoadDir(dir)
+	require.Contains(t, issueFor(c, "a.yaml"), "cannot read file: disk on fire")
 }
 
 func TestLoadDir_NotADirectory(t *testing.T) {
@@ -179,7 +219,7 @@ func TestLoadDir_UnreadableFile(t *testing.T) {
 	writeTheme(t, dir, "a.yaml", "colors: {}")
 	require.NoError(t, os.Chmod(filepath.Join(dir, "a.yaml"), 0))
 	c := LoadDir(dir)
-	require.Contains(t, issueFor(c, "a.yaml"), "cannot read file")
+	require.Contains(t, issueFor(c, "a.yaml"), "cannot open file")
 }
 
 func TestLoadDir_RefusesWritableFiles(t *testing.T) {

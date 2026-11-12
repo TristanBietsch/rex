@@ -5,8 +5,16 @@ package theme
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 )
+
+// openThemeFile opens dir/file, following a symlink wherever it points (the
+// caller checks the target on the handle). O_NONBLOCK keeps the open of a FIFO
+// from waiting for a writer; it does nothing for a regular file.
+func openThemeFile(dir, file string) (*os.File, error) {
+	return os.OpenFile(filepath.Join(dir, file), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+}
 
 // checkPrivateFile refuses a theme file that someone else could have written:
 // owned by another user, or writable by group or others. This mirrors what

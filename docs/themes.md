@@ -85,8 +85,8 @@ A file that breaks a rule below is skipped, with the reason in `rex theme list`,
 - Unknown keys, unknown color or glyph tokens: a warning; the rest of the file still loads.
 - A color or glyph that is not valid, an unknown `extends`, a name that is invalid or a built-in's, a file over 64 KiB, more than 64 files: the file (or the files past the limit) is skipped.
 - Low contrast between a color and the theme's own `bg` (text under 4.5:1, dim text and the accent and state colors under 3:1): a warning only.
-- Symlinks: a relative link that stays inside the themes directory works; one that points outside it, is absolute or is dangling is skipped. Copy a theme into the folder instead of linking it from elsewhere.
-- On macOS and Linux a theme file, and the `themes` directory, must be owned by you and not writable by group or others. Otherwise rex skips them and says `chmod go-w`. On Windows this check does not apply.
+- Symlinks work, so a theme can live in a dotfiles repo and be linked in (GNU stow does this). What the link points to must be a regular file that passes the same checks as any other theme file: owned by you, not writable by group or others, within the size cap. A dangling or looping link, a link to a directory, a FIFO or a device, and a link to a file someone else owns or others can write are skipped, with the reason. On Windows a link must stay inside the themes directory.
+- On macOS and Linux a theme file (or the file a link points to), and the `themes` directory, must be owned by you and not writable by group or others. Otherwise rex skips them and says `chmod go-w`. On Windows this check does not apply.
 
 Theme files are data, never code. They are safe to share, but rex still treats a downloaded one as untrusted: nothing in it can reach your terminal except through the checks above.
 

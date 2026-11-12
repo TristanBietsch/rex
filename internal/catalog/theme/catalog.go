@@ -1,8 +1,9 @@
 package theme
 
 import (
+	"errors"
 	"fmt"
-	"io/fs"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -113,9 +114,12 @@ func (c *Catalog) UserNames() []string {
 //
 //   - at most MaxFiles files, each at most MaxFileSize bytes;
 //   - the name must pass ValidName and must not be a built-in;
-//   - a symlink must resolve inside dir (and be relative);
+//   - a symlink is followed (a stow link into a dotfiles repo is fine), but
+//     what it resolves to must be a regular file that passes the same checks
+//     as a file in dir; a dangling link or a link to anything else is
+//     skipped. On Windows a link must stay inside dir;
 //   - on unix, nothing owned by another user or writable by group or others,
-//     the directory included.
+//     the directory and every link's target included.
 func LoadDir(dir string) *Catalog {
 	c := loadDir(dir)
 	for i := range c.Issues {
@@ -145,10 +149,7 @@ func loadDir(dir string) *Catalog {
 		c.Issues = append(c.Issues, Issue{File: here, Msg: err.Error() + "; no user themes loaded"})
 		return c
 	}
-	root, entries, err := openDir(dir)
-	if root != nil {
-		defer func() { _ = root.Close() }()
-	}
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		c.Issues = append(c.Issues, Issue{File: here, Msg: "cannot read the themes directory: " + err.Error()})
 		return c
@@ -163,7 +164,7 @@ func loadDir(dir string) *Catalog {
 			c.Issues = append(c.Issues, Issue{File: file, Msg: fmt.Sprintf("more than %d theme files; this and the rest are ignored", MaxFiles)})
 			break
 		}
-		data, err := readThemeFile(root, file)
+		data, err := readThemeFile(dir, file)
 		if err != nil {
 			c.Issues = append(c.Issues, Issue{File: file, Msg: err.Error()})
 			continue
@@ -182,26 +183,24 @@ func loadDir(dir string) *Catalog {
 	return c
 }
 
-// openDir opens dir as a Root (which refuses any path that leaves it) and
-// lists it. The Root is non-nil whenever it opened, so the caller closes it
-// even when listing failed.
-func openDir(dir string) (*os.Root, []fs.DirEntry, error) {
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-	entries, err := fs.ReadDir(root.FS(), ".")
-	return root, entries, err
-}
+// readAll is io.ReadAll; tests replace it to fail a read.
+var readAll = io.ReadAll
 
-// readThemeFile reads one theme file after the safety checks.
-func readThemeFile(root *os.Root, file string) ([]byte, error) {
-	fi, err := root.Stat(file) // follows a symlink, but not out of root, and not a dangling one
+// readThemeFile reads one theme file. The file is opened once and every check
+// runs on that handle (fstat), so what is checked is what is read: a link
+// swapped in between cannot slip a different file past the checks. A symlink
+// is followed; its target must be a regular file, owned by you and not
+// writable by group or others, within the size cap. The open never blocks on
+// a FIFO.
+func readThemeFile(dir, file string) ([]byte, error) {
+	f, err := openThemeFile(dir, file)
 	if err != nil {
-		return nil, fmt.Errorf("cannot use file (a symlink must point inside the themes directory): %w", err)
+		return nil, fmt.Errorf("cannot open file (a dangling or looping link, or one that is not allowed): %w", err)
 	}
-	if !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("not a regular file; refused")
+	defer func() { _ = f.Close() }()
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		return nil, errors.New("not a regular file (or a link to one); refused")
 	}
 	if fi.Size() > MaxFileSize {
 		return nil, fmt.Errorf("file is larger than %d KiB; refused", MaxFileSize>>10)
@@ -209,7 +208,7 @@ func readThemeFile(root *os.Root, file string) ([]byte, error) {
 	if err := checkPrivateFile(fi); err != nil {
 		return nil, err
 	}
-	data, err := root.ReadFile(file)
+	data, err := readAll(io.LimitReader(f, MaxFileSize+1)) // Parse refuses a file that grew past the cap
 	if err != nil {
 		return nil, fmt.Errorf("cannot read file: %w", err)
 	}

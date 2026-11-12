@@ -54,9 +54,13 @@ filesystem permissions.
   glyphs, never code. rex validates every color (`#RGB`, `#RRGGBB`, an ANSI
   index or empty) and every glyph (exactly one printable character, one cell
   wide, no control, escape, bidirectional or zero-width characters),
-  caps a file at 64 KiB and the directory at 64 files, skips a symlink that
-  leaves the directory, and on macOS and Linux skips a file or directory that
-  another user owns or that group or others can write. A bad file is skipped
+  caps a file at 64 KiB and the directory at 64 files, and on macOS and
+  Linux skips a file or directory that another user owns or that group or
+  others can write. A symlink is followed (a dotfiles manager may link themes
+  in), but its target must be a regular file that passes those same checks,
+  made on the opened file so a link swapped in between check and read cannot
+  skip them; dangling links, FIFOs, devices and directories are skipped. On
+  Windows a link must stay inside the themes directory. A bad file is skipped
   with a reason and never stops rex. A theme file that puts bytes on your
   terminal other than through those checks is in scope. On Windows the
   ownership and mode check does not apply (ACLs are out of scope).
