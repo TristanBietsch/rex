@@ -1728,9 +1728,10 @@ func ApplyDefaults(configPath, socket string, toolID, modelID, effortVal, autoTr
 		"config_path", configPath, "socket", socket,
 		"tool", toolID, "model", modelID, "effort", effortVal, "auto_trust", autoTrust)
 
-	store := settings.NewStore()
-	// Load existing so we don't wipe unrelated keys
-	_ = store.Load(configPath)
+	// Load existing so we don't wipe unrelated keys. config.lua is on top,
+	// so a setting it sets is refused with its location (Set), not written
+	// to config.yaml where it would have no effect.
+	store, _, _ := settings.LoadLayered(configPath)
 
 	spawn, spawnChanged, err := resolveSpawnDefaults(store, toolID, modelID, effortVal)
 	if err != nil {

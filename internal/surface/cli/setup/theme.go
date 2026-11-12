@@ -37,6 +37,7 @@ func RunTheme(args []string) error {
 const (
 	themeBuiltin = "builtin"
 	themeFile    = "file"
+	themeLua     = "lua"
 )
 
 // loadThemes reads the user's theme files and the current theme name. Neither
@@ -49,10 +50,15 @@ func loadThemes() (cat *theme.Catalog, dir, current string, err error) {
 		return nil, "", "", core.Errorf(core.ExitGeneric, "", "theme: %w", err)
 	}
 	current = theme.DefaultName
-	if store, _, lerr := settings.LoadDefault(); lerr == nil {
+	cat = theme.LoadDir(dir)
+	if store, rep, _, lerr := settings.LoadDefaultReport(); lerr == nil {
 		current = store.String("theme")
+		cat = cat.WithLua(rep.Themes, rep.ThemeIssues)
+		if rep.Err != nil {
+			cat.Issues = append(cat.Issues, theme.Issue{File: "config.lua", Msg: strings.TrimPrefix(rep.Err.Error(), "config.lua: ") + luaKeptSuffix(rep)})
+		}
 	}
-	return theme.LoadDir(dir), dir, current, nil
+	return cat, dir, current, nil
 }
 
 // themeNames is every theme name: the built-ins in the registry's order, then
@@ -76,7 +82,10 @@ func themeRows(cat *theme.Catalog, current string) []themeRow {
 	for _, name := range themeNames(cat) {
 		p, _ := cat.Get(name)
 		src := themeBuiltin
-		if cat.IsUser(name) {
+		switch {
+		case cat.IsLua(name):
+			src = themeLua
+		case cat.IsUser(name):
 			src = themeFile
 		}
 		rows = append(rows, themeRow{Name: name, Source: src, Current: name == current, Dark: p.Dark, Accent: p.Accent})

@@ -571,12 +571,13 @@ rex config list [-o FORMAT] [--agent] [-json]
 rex config get <id>...
 rex config set <id> <value>...
 rex config reset <id>...
-rex config edit
+rex config edit [-lua]
+rex config lua-export [-o FORMAT]
 ```
 
-`edit` opens `init.lua` in `$EDITOR`, not `config.yaml`. Keys: [settings.md](settings.md).
+`edit` opens `init.lua` in `$EDITOR`, not `config.yaml`; `edit -lua` opens `~/.config/rex/config.lua` ([howto/lua-config.md](howto/lua-config.md)), creating it from a commented template the first time (0600 in a 0700 folder, never over an existing file). `lua-export` prints the values `config.yaml` holds as `rex.set(…)` lines, a starter `config.lua` (strings quoted for Lua, non-ASCII bytes as `\ddd`); it never writes a file. Both exit 5 with `off: enable in Settings → Features (rex config set lua_config true)` while `lua_config` is off. Keys: [settings.md](settings.md).
 
-`list` prints `# Section` headings with `  id  value` rows in `txt` (unchanged), a `setting id=… section=… value=… default=…` line per setting in `agent`, and the rows as data in `-o json`; `-json` is the legacy JSONL. `get` prints the value (`ok cmd=config id=… value=…` in `agent`); `set` and `reset` print nothing in `txt`. `edit` takes `text`/`txt` only.
+`list` prints `# Section` headings with `  id  value` rows in `txt` (unchanged), an `ID VALUE SOURCE` table per section in `text` and `md` (source `default`, `config.yaml`, or `lua config.lua:12`), a `setting id=… section=… value=… default=… source=… set_at=…` line per setting in `agent`, and the rows as data with `source` (`default`, `file`, `lua`) and `set_at` (Lua only) in `-o json`; `-json` is the legacy JSONL, unchanged. `get` prints the value (with `(lua config.lua:12)` after it in `text` when `config.lua` sets it; the bare value in `txt`), `ok cmd=config id=… value=… source=… set_at=…` in `agent`, and `source`/`set_at` in `-o json`; `set` and `reset` print nothing in `txt`. `set` and `reset` on a setting `config.lua` sets exit 5 and name the file and line. When `config.lua` fails or refuses something, `list` and `get` print one warning on stderr; stdout keeps its shape. `edit` takes `text`/`txt` only.
 
 ---
 
@@ -588,7 +589,7 @@ rex theme show <name> [-o FORMAT] [--agent]
 rex theme new <name> [-from <builtin>] [-force] [-o FORMAT] [--agent]
 ```
 
-`list` shows the six built-in themes and the files in `~/.config/rex/themes`, marks the current one, and reports any file it skipped and why. `show` prints a theme's colors, glyphs and a sample line; in `-o json` it carries `colors`, `fleet`, `glyphs`, `warnings` and, for a file, its `path`. `new` writes a commented skeleton that extends `-from` (default `default`) to `~/.config/rex/themes/<name>.yaml`, mode 0600 in a 0700 folder; use it with `rex config set theme <name>`. Agent mode gives a `theme name=… source=… current=…` line per theme, a `color token=… value=…` and `glyph token=… value=…` line per token, and `ok cmd=theme name=… path=… from=…` for `new`. The file format is in [themes.md](themes.md).
+`list` shows the six built-in themes, the files in `~/.config/rex/themes` (source `file`) and the themes `config.lua` defines (source `lua`; one beats a file of the same name, with a warning), marks the current one, and reports any file it skipped and why, and a `config.lua` that failed. `show` prints a theme's colors, glyphs and a sample line; in `-o json` it carries `colors`, `fleet`, `glyphs`, `warnings` and, for a file, its `path`. `new` writes a commented skeleton that extends `-from` (default `default`) to `~/.config/rex/themes/<name>.yaml`, mode 0600 in a 0700 folder; use it with `rex config set theme <name>`. Agent mode gives a `theme name=… source=… current=…` line per theme, a `color token=… value=…` and `glyph token=… value=…` line per token, and `ok cmd=theme name=… path=… from=…` for `new`. The file format is in [themes.md](themes.md).
 
 Exit **5** for a missing or extra argument, an unknown theme in `show` or `-from`, and a name that is invalid or a built-in's. Exit **6** when `new` would overwrite a file and `-force` is not given. `new -force` replaces the file (a symlink at that path is replaced, never followed).
 

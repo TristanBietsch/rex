@@ -99,10 +99,10 @@ func tallyFailsWarns(checks []checkResult) int {
 
 func TestConfigListViewKeepsTxtLayout(t *testing.T) {
 	rows := []configRow{
-		{ID: "spinner", Section: "Appearance", Value: "braille", Default: "braille"},
-		{ID: "theme", Section: "Appearance", Value: "default", Default: "default"},
-		{ID: "board_hidden_sections", Section: "Behavior", Value: "", Default: ""},
-		{ID: "max_concurrent_sessions", Section: "Behavior", Value: 16, Default: 16},
+		{ID: "spinner", Section: "Appearance", Value: "braille", Default: "braille", Source: "default"},
+		{ID: "theme", Section: "Appearance", Value: "default", Default: "default", Source: "lua", SetAt: "config.lua:3"},
+		{ID: "board_hidden_sections", Section: "Behavior", Value: "", Default: "", Source: "file"},
+		{ID: "max_concurrent_sessions", Section: "Behavior", Value: 16, Default: 16, Source: "default"},
 	}
 	p, out, _ := viewPrinter(t, "txt", 80, false)
 	require.NoError(t, p.Emit(core.Result{Cmd: "config", Data: rows, View: configListView(rows)}))

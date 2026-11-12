@@ -20,10 +20,10 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
-// RunConfig dispatches: rex config {list|get|set|reset|edit}
+// RunConfig dispatches: rex config {list|get|set|reset|edit|lua-export}
 func RunConfig(args []string) error {
 	if len(args) == 0 {
-		return core.NewExitError(core.ExitInvalidArgs, "config: subcommand required (list|get|set|reset|edit)")
+		return core.NewExitError(core.ExitInvalidArgs, "config: subcommand required (list|get|set|reset|edit|lua-export)")
 	}
 	switch args[0] {
 	case "list":
@@ -36,6 +36,8 @@ func RunConfig(args []string) error {
 		return configReset(args[1:])
 	case "edit":
 		return configEdit(args[1:])
+	case "lua-export":
+		return configLuaExport(args[1:])
 	default:
 		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("config: unknown subcommand %q", args[0]))
 	}
@@ -49,18 +51,74 @@ func loadStore() (*settings.Store, string, error) {
 	return s, path, nil
 }
 
+// loadStoreReporting is loadStore for list and get, which report config.lua
+// problems: one warning line on stderr, never on stdout.
+func loadStoreReporting() (*settings.Store, error) {
+	s, rep, _, err := settings.LoadDefaultReport()
+	if err != nil {
+		return nil, err
+	}
+	reportLuaProblems(rep)
+	return s, nil
+}
+
+// reportLuaProblems warns on stderr about a config.lua that failed or
+// refused something. The text is flattened by the evaluator and again by
+// Warn.
+func reportLuaProblems(rep settings.LayerReport) {
+	p := core.Out()
+	switch {
+	case rep.Err != nil:
+		p.Warn(rep.Err.Error() + luaKeptSuffix(rep))
+	case len(rep.Warnings) > 0:
+		p.Warn(fmt.Sprintf("config.lua: %d warning(s), first: %s", len(rep.Warnings), rep.Warnings[0]))
+	}
+}
+
+func luaKeptSuffix(rep settings.LayerReport) string {
+	if rep.LastGood {
+		return " (kept its last good values)"
+	}
+	return " (config.yaml and defaults apply)"
+}
+
 // configRow is one setting in rex config list.
 type configRow struct {
 	ID      string `json:"id"`
 	Section string `json:"section"`
 	Value   any    `json:"value"`
 	Default any    `json:"default"`
+	// Source is "default", "file" (config.yaml) or "lua" (config.lua).
+	Source string `json:"source"`
+	// SetAt is where config.lua sets it ("config.lua:12"), for source lua.
+	SetAt string `json:"set_at,omitempty"`
+}
+
+// legacyConfigRow is the shape -json has always printed.
+type legacyConfigRow struct {
+	ID      string `json:"id"`
+	Section string `json:"section"`
+	Value   any    `json:"value"`
+	Default any    `json:"default"`
+}
+
+// sourceText is a row's source in the human formats: default, config.yaml,
+// or "lua" and where.
+func sourceText(src, at string) string {
+	switch settings.Source(src) {
+	case settings.SourceFile:
+		return "config.yaml"
+	case settings.SourceLua:
+		return strings.TrimSpace("lua " + at)
+	}
+	return src
 }
 
 func configRows(store *settings.Store) []configRow {
 	rows := make([]configRow, 0, len(settings.Registry))
 	for _, s := range settings.Registry {
-		rows = append(rows, configRow{ID: s.ID, Section: string(s.Section), Value: store.Get(s.ID), Default: s.Default})
+		rows = append(rows, configRow{ID: s.ID, Section: string(s.Section), Value: store.Get(s.ID), Default: s.Default,
+			Source: string(store.Source(s.ID)), SetAt: store.SetAt(s.ID)})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Section != rows[j].Section {
@@ -73,31 +131,40 @@ func configRows(store *settings.Store) []configRow {
 
 // configListView groups the rows by section. txt keeps the layout
 // `rex config list` always printed (`# Section`, then `  id value` with the
-// id padded to 26); agent mode gets one `setting` line per row.
+// id padded to 26); text and md show an ID, VALUE, SOURCE table per section;
+// agent mode gets one `setting` line per row.
 func configListView(rows []configRow) core.View {
 	var v core.View
 	agent := core.SetOf(core.FormatAgent)
 	human := core.SetOf(core.FormatText, core.FormatMD)
 	for i := 0; i < len(rows); {
 		sec := rows[i].Section
-		var pairs []core.Pair
 		var txt []string
+		var cells [][]core.Cell
 		for ; i < len(rows) && rows[i].Section == sec; i++ {
 			r := rows[i]
-			val := fmt.Sprint(r.Value)
 			txt = append(txt, fmt.Sprintf("  %-26s %v", r.ID, r.Value))
-			pairs = append(pairs, core.Pair{Key: r.ID, Label: r.ID, Val: core.Cell{Text: val}, Formats: human | core.SetOf(core.FormatTXT)})
+			src := core.Cell{Text: sourceText(r.Source, r.SetAt), Tone: core.ToneDim}
+			cells = append(cells, []core.Cell{{Text: r.ID}, {Text: fmt.Sprint(r.Value)}, src})
 		}
-		v = append(v, core.Section{Title: sec}, core.KV{Pairs: pairs, Txt: strings.Join(txt, "\n")})
+		v = append(v, core.Section{Title: sec},
+			core.KV{Txt: strings.Join(txt, "\n")},
+			core.Table{Rows: cells, Cols: []core.Col{
+				{Key: "id", Title: "ID", Formats: human},
+				{Key: "value", Title: "Value", Flex: true, Formats: human},
+				{Key: "source", Title: "Source", Formats: human},
+			}})
 	}
 	// One agent line per setting, in the same order.
 	cells := make([][]core.Cell, len(rows))
 	for i, r := range rows {
-		cells[i] = []core.Cell{{Text: r.ID}, {Text: r.Section}, {Text: fmt.Sprint(r.Value), Raw: r.Value}, {Text: fmt.Sprint(r.Default), Raw: r.Default}}
+		cells[i] = []core.Cell{{Text: r.ID}, {Text: r.Section}, {Text: fmt.Sprint(r.Value), Raw: r.Value}, {Text: fmt.Sprint(r.Default), Raw: r.Default},
+			{Text: r.Source}, {Text: r.SetAt}}
 	}
 	return append(v, core.Table{Kind: "setting", Rows: cells, Cols: []core.Col{
 		{Key: "id", Title: "ID", Formats: agent}, {Key: "section", Title: "Section", Formats: agent},
 		{Key: "value", Title: "Value", Formats: agent}, {Key: "default", Title: "Default", Formats: agent},
+		{Key: "source", Title: "Source", Formats: agent}, {Key: "set_at", Title: "Set at", Formats: agent},
 	}})
 }
 
@@ -107,7 +174,7 @@ func configList(args []string) error {
 	if _, err := out.Parse(fs, args); err != nil {
 		return err
 	}
-	store, _, err := loadStore()
+	store, err := loadStoreReporting()
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
@@ -118,7 +185,7 @@ func configList(args []string) error {
 		View: configListView(rows),
 		Legacy: func(w io.Writer) error {
 			for _, r := range rows {
-				b, _ := json.Marshal(r)
+				b, _ := json.Marshal(legacyConfigRow{ID: r.ID, Section: r.Section, Value: r.Value, Default: r.Default})
 				if _, err := w.Write(append(b, '\n')); err != nil {
 					return err
 				}
@@ -129,9 +196,12 @@ func configList(args []string) error {
 }
 
 // configValueData is the `-o json` payload of config get, set and reset.
+// get adds where the value comes from.
 type configValueData struct {
-	ID    string `json:"id"`
-	Value string `json:"value"`
+	ID     string `json:"id"`
+	Value  string `json:"value"`
+	Source string `json:"source,omitempty"`
+	SetAt  string `json:"set_at,omitempty"`
 }
 
 func configGet(args []string) error {
@@ -144,18 +214,24 @@ func configGet(args []string) error {
 	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "config get: <id> required")
 	}
-	store, _, err := loadStore()
-	if err != nil {
-		return core.NewExitError(core.ExitGeneric, err.Error())
-	}
 	if _, ok := settings.Find(rest[0]); !ok {
 		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("unknown setting %q", rest[0]))
 	}
-	val := store.String(rest[0])
+	store, err := loadStoreReporting()
+	if err != nil {
+		return core.NewExitError(core.ExitGeneric, err.Error())
+	}
+	id := rest[0]
+	val, src, at := store.String(id), string(store.Source(id)), store.SetAt(id)
+	text := val
+	if at != "" {
+		text = val + "  (" + sourceText(src, at) + ")"
+	}
 	return core.Out().Emit(core.Result{
 		Cmd:  "config",
-		Data: configValueData{ID: rest[0], Value: val},
-		View: core.ActionView(core.Line{Text: val, Txt: val}, core.Field{Key: "id", Val: rest[0]}, core.Field{Key: "value", Val: val}),
+		Data: configValueData{ID: id, Value: val, Source: src, SetAt: at},
+		View: core.ActionView(core.Line{Text: text, Txt: val}, core.Field{Key: "id", Val: id}, core.Field{Key: "value", Val: val},
+			core.Field{Key: "source", Val: src}, core.Field{Key: "set_at", Val: at}),
 	})
 }
 
@@ -236,10 +312,20 @@ func emitConfigChange(verb, id, value string) error {
 func configEdit(args []string) error {
 	fs := flag.NewFlagSet("config edit", flag.ContinueOnError)
 	out := core.AddOutputFlags(fs, core.TextFormats)
+	luaCfg := fs.Bool("lua", false, "open ~/.config/rex/config.lua (settings in Lua), created from a commented template the first time")
 	if _, err := out.Parse(fs, args); err != nil {
 		return err
 	}
-	path, err := paths.LuaInitFile()
+	var path string
+	var err error
+	if *luaCfg {
+		if err := requireLuaConfig(); err != nil {
+			return err
+		}
+		path, err = ensureLuaConfig()
+	} else {
+		path, err = paths.LuaInitFile()
+	}
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}

@@ -92,6 +92,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   muted `lua`, edits are refused with the file and line, and `e` opens the
   file at that line in `$EDITOR`. `:theme`, the quick-spawn cascade and the
   setup wizard leave locked settings alone.
+  `rex config list` has a SOURCE column (`default`, `config.yaml`, `lua
+  config.lua:12`) and `source`/`set_at` in json and agent mode, as does
+  `rex config get`; the `txt` layout is unchanged. `rex config edit -lua`
+  opens `config.lua` (from a commented template the first time), `rex config
+  lua-export` prints `config.yaml` as a starter `config.lua`, `rex theme
+  list` marks Lua themes `lua`, and `rex doctor` has a `config.lua` check.
+  `rex setup -yes` refuses a setting `config.lua` sets.
 - `Undo` and `Redo` take an optional `expect` (the dry run's `target`); a
   changed target is refused before anything is touched. `rex undo` and the
   TUI dialog send it on confirm.
