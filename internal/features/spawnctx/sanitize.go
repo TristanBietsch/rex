@@ -18,7 +18,11 @@ import (
 //   - bidi controls go: the embeddings and overrides U+202A–U+202E and the
 //     isolates U+2066–U+2069 (Trojan Source), and also the marks U+200E,
 //     U+200F and U+061C, which the spec does not list but which reorder text
-//     the same way.
+//     the same way;
+//   - invisible characters go: the Unicode Tag block U+E0000–U+E007F (the
+//     "ASCII smuggling" channel: text a model reads but a terminal never
+//     shows) and the zero-width U+200B, U+200C, U+200D, U+2060 and U+FEFF.
+//     Emoji joined with U+200D come apart into their parts.
 //
 // The result is valid UTF-8 and Sanitize is idempotent (FuzzSanitize).
 func Sanitize(s string) string {
@@ -32,7 +36,7 @@ func Sanitize(s string) string {
 		if r == '\n' || r == '\t' {
 			return r
 		}
-		if unicode.IsControl(r) || isBidi(r) {
+		if unicode.IsControl(r) || isBidi(r) || isInvisible(r) {
 			return -1
 		}
 		return r
@@ -48,6 +52,30 @@ func isBidi(r rune) bool {
 		return true
 	}
 	return false
+}
+
+// isInvisible reports a rune Sanitize drops because it draws as nothing
+// but still reaches the model: the Tag block and the zero-width characters.
+func isInvisible(r rune) bool {
+	switch {
+	case r >= 0xE0000 && r <= 0xE007F:
+		return true
+	case r == 0x200B, r == 0x200C, r == 0x200D, r == 0x2060, r == 0xFEFF:
+		return true
+	}
+	return false
+}
+
+// Lines is how many lines text has once its trailing newlines are dropped:
+// 0 for none. It is the lines attribute of a paste block and the L of the
+// page's "[paste N · L lines]" placeholder, so both count the same way.
+// Pass sanitized text.
+func Lines(text string) int {
+	text = strings.TrimRight(text, "\n")
+	if text == "" {
+		return 0
+	}
+	return strings.Count(text, "\n") + 1
 }
 
 // IsBinary reports text that is more than 1% NUL or U+FFFD (counting each

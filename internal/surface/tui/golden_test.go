@@ -14,6 +14,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/features/spawnctx"
 	"github.com/tristanbietsch/rex/internal/testutil/golden"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -186,6 +187,8 @@ var goldenScreenSizes = map[string][]goldenSize{
 	"newagent_empty":         {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_agent":         {{120, 40}, {80, 24}, {50, 20}},
 	"newagent_models_filter": {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_filled":        {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_preview":       {{120, 40}, {80, 24}, {50, 20}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -428,6 +431,13 @@ func goldenScreens() []goldenScreen {
 			m = sendKey(m, key("/"))
 			return typeText(m, "son")
 		}},
+		{"newagent_filled", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentFilled(t, sz)
+		}},
+		{"newagent_preview", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenNewAgentFilled(t, sz)
+			return sendKey(m, key("enter"))
+		}},
 	}
 }
 
@@ -454,6 +464,33 @@ func goldenNewAgentBoard(t *testing.T, sz goldenSize) (Model, string) {
 	}
 	m.WS = &WorkspaceScope{ID: wsA, Name: "rex", Root: repo}
 	return m, home
+}
+
+// goldenNewAgentFilled is mockup B: a task, a file, a folder and a 38-line
+// paste (the file and folder set directly until the import picker), the
+// folder trusted for the session, the paste under the context cursor.
+func goldenNewAgentFilled(t *testing.T, sz goldenSize) Model {
+	t.Helper()
+	m, _ := goldenNewAgentBoard(t, sz)
+	m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+	m, _ = executeCommand(m, "new")
+	m = typeText(m, "the auth test is flaky on CI, see the paste. fix it and add a regression test. ")
+	m.NewAgent.Items = []spawnctx.Item{
+		{Kind: spawnctx.File, Name: "internal/auth/auth_test.go", Bytes: 4300},
+		{Kind: spawnctx.Dir, Name: "internal/auth/testdata", Files: 12, Bytes: 1100},
+	}
+	log := "--- FAIL: TestLogin (0.31s)\n" +
+		"    auth_test.go:88: token expired: got 401, want 200\n" +
+		"FAIL\n" +
+		"FAIL  example.com/app/internal/auth 1.204s\n"
+	for i := range 34 {
+		log += fmt.Sprintf("    trace %02d: example.com/app/internal/auth.check\n", i+1)
+	}
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(log), Paste: true})
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlT})
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyTab}) // Context
+	m = sendKey(m, key("j"))
+	return sendKey(m, key("j"))
 }
 
 // wizardFlag turns new_agent_page off, so n and :new open the popup wizard.

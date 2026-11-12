@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
+
+	"github.com/tristanbietsch/rex/internal/features/spawnctx"
 )
 
 // Composer is the new-agent page's multi-line task editor (R16 D12: hand
@@ -28,29 +30,11 @@ func (c *Composer) norm() {
 	c.Col = min(max(c.Col, 0), len(c.Lines[c.Row]))
 }
 
-// composerText cleans typed or pasted text: \r\n and a lone \r become \n,
-// escape sequences, the bidi controls (Trojan Source) and every control but
-// \n and \t are dropped, and invalid UTF-8 becomes U+FFFD.
-func composerText(s string) string {
-	s = strings.ToValidUTF8(s, "�")
-	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\r", "\n")
-	s = ansi.Strip(s)
-	return strings.Map(func(r rune) rune {
-		switch {
-		case r == '\n' || r == '\t':
-			return r
-		case unicode.IsControl(r), r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069:
-			return -1
-		}
-		return r
-	}, s)
-}
-
-// Insert puts s at the cursor; each "\n" in it starts a new line.
+// Insert puts s at the cursor, cleaned by spawnctx.Sanitize; each "\n" in
+// it starts a new line.
 func (c *Composer) Insert(s string) {
 	c.norm()
-	for i, part := range strings.Split(composerText(s), "\n") {
+	for i, part := range strings.Split(spawnctx.Sanitize(s), "\n") {
 		if i > 0 {
 			c.Newline()
 		}
@@ -66,6 +50,44 @@ func (c *Composer) Insert(s string) {
 		c.Lines[c.Row] = next
 		c.Col += len(rs)
 	}
+}
+
+// ReplaceFirst replaces the first old in the text with repl and reports
+// whether there was one. The cursor stays on the same text: after the
+// match it moves with it, inside it it goes to the end of repl. repl must
+// be clean text (it is not sanitized again).
+func (c *Composer) ReplaceFirst(old, repl string) bool {
+	c.norm()
+	text := c.String()
+	at := strings.Index(text, old)
+	if old == "" || at < 0 {
+		return false
+	}
+	pos := 0 // the cursor as a rune offset into text
+	for i := range c.Row {
+		pos += len(c.Lines[i]) + 1
+	}
+	pos += c.Col
+	start := utf8.RuneCountInString(text[:at])
+	oldN, newN := utf8.RuneCountInString(old), utf8.RuneCountInString(repl)
+	switch {
+	case pos >= start+oldN:
+		pos += newN - oldN
+	case pos > start:
+		pos = start + newN
+	}
+	next := text[:at] + repl + text[at+len(old):]
+	c.Lines = c.Lines[:0]
+	for line := range strings.SplitSeq(next, "\n") {
+		c.Lines = append(c.Lines, []rune(line))
+	}
+	c.Row, c.Col = 0, 0
+	for c.Row < len(c.Lines)-1 && pos > len(c.Lines[c.Row]) {
+		pos -= len(c.Lines[c.Row]) + 1
+		c.Row++
+	}
+	c.Col = min(pos, len(c.Lines[c.Row]))
+	return true
 }
 
 // Newline splits the line at the cursor; the cursor starts the new line.

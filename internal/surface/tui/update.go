@@ -191,6 +191,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleConfigReloaded(m, msg)
 	case luaEditDoneMsg:
 		return handleLuaEditDone(m, msg)
+	case editorDoneMsg:
+		return handleEditorDone(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()

@@ -9,6 +9,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/features/skills"
+	"github.com/tristanbietsch/rex/internal/features/spawnctx"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -32,14 +33,16 @@ const (
 // naSectionNames are the rail's and the narrow strip's words.
 var naSectionNames = [naSectionCount]string{"Agent", "Task", "Context", "Trust"}
 
-// naScreen is the page's screen: Compose, or the Agent screen (agents,
-// models, effort and skills; newagent_agent.go). The import picker and the
-// preview come with later R16 tasks.
+// naScreen is the page's screen: Compose, the Agent screen (agents,
+// models, effort and skills; newagent_agent.go), or one context item's
+// preview (newagent_preview.go). The import picker comes with a later R16
+// task.
 type naScreen int
 
 const (
 	naCompose naScreen = iota
 	naAgentScreen
+	naPreview
 )
 
 // NewAgentState lives on Model while Focus == FocusNewAgent, and as
@@ -73,6 +76,28 @@ type NewAgentState struct {
 	Filtering  bool
 	SkillCur   int
 	Remembered quickChoice
+	// Items is the context (newagent_context.go), in prompt order; ItemIdx
+	// is the list cursor and PasteSeq the last paste number given, so a
+	// removed paste's number is never reused while its placeholder may
+	// still be in the task.
+	Items    []spawnctx.Item
+	ItemIdx  int
+	PasteSeq int
+	// Err is the page's error, "✗ " and words (a second line is a hint). It
+	// stays until the next key.
+	Err string
+	// Renaming is true while a new name for item ItemIdx is typed into
+	// RenameBuf. PrevScroll is the preview's first line.
+	Renaming   bool
+	RenameBuf  []rune
+	PrevScroll int
+	// Rev counts the page's changes: every key and editor result bumps it.
+	// The launch summary's assembled size is cached at sumRev.
+	Rev      int
+	sumRev   int
+	sumOK    bool
+	sumBytes int
+	sumErr   error
 }
 
 // selection is the state's agent choice as a WizardState, so the page
@@ -120,24 +145,30 @@ func taskTitle(task string) string {
 	return ""
 }
 
-// request builds the NewSession the page stands for, as the wizard's
-// request does: the whole task is the prompt, its first line the title and
-// the slug's source, made unique against existing.
-func (st *NewAgentState) request(cwd string, existing []string) protocol.NewSession {
+// request builds the NewSession the page stands for: the prompt is the
+// task with its context (spawnctx.Assemble), the task's first line the
+// title and the slug's source, made unique against existing. A context the
+// prompt cannot carry (a cap, a bad name) is an error and nothing launches.
+func (st *NewAgentState) request(cwd string, existing []string) (protocol.NewSession, error) {
 	w := st.selection()
 	task := strings.TrimSpace(st.Task.String())
+	prompt, err := spawnctx.Assemble(task, st.Items, spawnctx.DefaultCaps)
+	if err != nil {
+		return protocol.NewSession{}, err
+	}
 	title := taskTitle(task)
 	tool, model := w.selectedTool(), w.selectedModel()
 	return protocol.NewSession{
-		ToolID:        tool.ID,
-		ModelID:       model.ID,
-		Effort:        w.currentEffort(),
-		Slug:          deriveAgentSlug(tool.ID, model.ID, title, existing),
-		Title:         title,
-		CWD:           cwd,
-		InitialPrompt: task,
-		Skills:        w.chosenSkills(),
-	}
+		ToolID:         tool.ID,
+		ModelID:        model.ID,
+		Effort:         w.currentEffort(),
+		Slug:           deriveAgentSlug(tool.ID, model.ID, title, existing),
+		Title:          title,
+		CWD:            cwd,
+		InitialPrompt:  prompt,
+		Skills:         w.chosenSkills(),
+		ContextSummary: spawnctx.Summary(st.Items),
+	}, nil
 }
 
 // openNew is n and :new: the new-agent page while new_agent_page is on,
@@ -175,6 +206,7 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 	want := m.lastSpawn
 	if d := m.newAgentDraft; d != nil {
 		st.Section, st.Task, st.Trust, st.SkillSel = d.Section, d.Task, d.Trust, d.SkillSel
+		st.Items, st.ItemIdx, st.PasteSeq = d.Items, d.ItemIdx, d.PasteSeq
 		c := d.choice()
 		want = &c
 	}
@@ -229,7 +261,11 @@ func newAgentTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, 
 func launchNewAgent(m Model) (Model, tea.Cmd) {
 	st := m.NewAgent
 	cwd := spawnCWD(m)
-	req := st.request(cwd, existingSlugs(m))
+	req, err := st.request(cwd, existingSlugs(m))
+	if err != nil {
+		st.Err = naFail(err)
+		return m, nil
+	}
 	var ok bool
 	if m, req, ok = newAgentTrustRequest(m, cwd, req); !ok {
 		return m, nil
@@ -253,13 +289,21 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		// Turned off while open: back to the board, the draft kept.
 		return closeNewAgent(m, true), nil
 	}
-	m.Err = "" // an error stays until the next key
-	if st.Screen == naAgentScreen {
+	m.Err, st.Err = "", "" // an error stays until the next key
+	st.Rev++
+	switch {
+	case st.Screen == naAgentScreen:
 		return updateNewAgentAgentKey(m, k)
+	case st.Renaming:
+		return naRenameKey(m, k)
+	case st.Screen == naPreview:
+		return naPreviewKey(m, k)
 	}
 	if k.Paste {
 		st.Section = naTask
-		st.Task.Insert(string(k.Runes))
+		if err := addPaste(st, string(k.Runes)); err != nil {
+			st.Err = naFail(err)
+		}
 		return m, nil
 	}
 	if next, mode, ok := trustKeyToggle(m, k, st.Trust); ok {
@@ -284,6 +328,11 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if st.Section == naTask {
 		return newAgentEditKey(m, k)
+	}
+	if st.Section == naContext {
+		if m, cmd, ok := naContextKey(m, k); ok {
+			return m, cmd
+		}
 	}
 	if st.Section == naAgent && k.Type == tea.KeyEnter {
 		return openAgentScreen(m), nil
@@ -316,12 +365,15 @@ func newAgentEditKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case tea.KeyCtrlW:
 		c.DeleteWord()
+	case tea.KeyCtrlE:
+		return m, editInEditor(-1, c.String())
 	case tea.KeyCtrlU:
 		if c.Empty() {
 			// An empty editor: ctrl+u drops the whole draft (D4).
 			c.Clear()
 			st.Trust = trustAsk
 			st.SkillSel = nil
+			st.Items, st.ItemIdx, st.PasteSeq = nil, 0, 0
 			m.newAgentDraft = nil
 			return m, nil
 		}

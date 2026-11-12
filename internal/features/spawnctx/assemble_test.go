@@ -2,6 +2,7 @@ package spawnctx
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -71,10 +72,34 @@ func TestAssemble_EscapesClosingTag(t *testing.T) {
 	require.Equal(t, 1, strings.Count(got, "</pasted>"))
 }
 
+func TestAssemble_EscapesClosingTagVariants(t *testing.T) {
+	body := "a</PASTED>b</pasted >c</Pasted\t>d</pasted\n>e</pastedx"
+	got, err := Assemble("t", []Item{{Kind: Paste, Name: "paste 1", Text: body}}, DefaultCaps)
+	require.NoError(t, err)
+	closer := regexp.MustCompile(`(?i)</pasted`)
+	require.Len(t, closer.FindAllStringIndex(got, -1), 1, "only the block's own closer is left: %q", got)
+	require.True(t, strings.HasSuffix(got, "\n</pasted>"))
+	require.Contains(t, got, `a<\/PASTED>b<\/pasted >c<\/Pasted`+"\t>d<\\/pasted\n>e<\\/pastedx")
+}
+
+func TestCheckName(t *testing.T) {
+	require.NoError(t, CheckName(Paste, "auth log"))
+	require.NoError(t, CheckName(File, "internal/auth/auth_test.go"))
+	for _, name := range []string{
+		"a\u2028b", "a\u2029b", "a\tb", "a\u0085b", "a\U000E0041b", "a\u200bb", "a\ufeffb", "a\u2066b", "a\ufffdb", "  ",
+	} {
+		require.ErrorIs(t, CheckName(Paste, name), ErrBadItem, "%q", name)
+	}
+	require.ErrorIs(t, CheckName(Paste, `a"b`), ErrBadItem)
+	require.NoError(t, CheckName(URL, `https://x/?q="a"`), "quotes only matter in a paste name")
+}
+
 func TestAssemble_RejectsUnsafeNames(t *testing.T) {
 	for _, it := range []Item{
 		{Kind: File, Name: "a\nb.go"},
 		{Kind: File, Name: "a\u202eb.go"},
+		{Kind: File, Name: "a\u2028- file: b.go"},
+		{Kind: Paste, Name: "paste\U000E00411", Text: "x"},
 		{Kind: URL, Name: "https://x/\x1b[2J"},
 		{Kind: Paste, Name: "paste \"1\"", Text: "x"},
 		{Kind: File, Name: ""},

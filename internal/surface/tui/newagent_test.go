@@ -100,7 +100,8 @@ func TestNewAgent_EnterLaunchesCtrlJNewline(t *testing.T) {
 	require.Equal(t, FocusNewAgent, m.Focus, "newlines never launch")
 
 	st := m.NewAgent
-	req := st.request(spawnCWD(m), existingSlugs(m))
+	req, err := st.request(spawnCWD(m), existingSlugs(m))
+	require.NoError(t, err)
 	require.Equal(t, "fix\nit\nnow", req.InitialPrompt)
 	require.Equal(t, "fix", req.Title, "the title is the first line")
 	want := quickChoice{Tool: req.ToolID, Model: req.ModelID, Effort: req.Effort}
@@ -219,7 +220,8 @@ func TestNewAgent_TrustKeys(t *testing.T) {
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlT})
 	require.Empty(t, m.Err)
 	require.Equal(t, trustSession, m.NewAgent.Trust)
-	req := m.NewAgent.request(spawnCWD(m), nil)
+	req, err := m.NewAgent.request(spawnCWD(m), nil)
+	require.NoError(t, err)
 	_, req, ok := newAgentTrustRequest(m, spawnCWD(m), req)
 	require.True(t, ok)
 	require.True(t, req.TrustFolder)

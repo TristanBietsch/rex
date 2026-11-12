@@ -164,3 +164,32 @@ func TestComposer_ViewWrapsAndWindows(t *testing.T) {
 	require.Equal(t, "a\tb", f.String())
 	require.Equal(t, "a b", f.View(10, 1, false, "")[0])
 }
+
+func TestComposer_ReplaceFirstKeepsCursor(t *testing.T) {
+	var c Composer
+	c.Insert("ab [p 1]\ncd")
+	require.True(t, c.ReplaceFirst("[p 1]", "[log]"))
+	require.Equal(t, "ab [log]\ncd", c.String())
+	require.Equal(t, 1, c.Row)
+	require.Equal(t, 2, c.Col, "a cursor after the match stays on its text")
+
+	c.Row, c.Col = 0, 1
+	require.True(t, c.ReplaceFirst("[log]", ""))
+	require.Equal(t, "ab \ncd", c.String())
+	require.Equal(t, 0, c.Row)
+	require.Equal(t, 1, c.Col, "a cursor before the match does not move")
+
+	c.Row, c.Col = 1, 0
+	require.True(t, c.ReplaceFirst("ab \nc", "x"))
+	require.Equal(t, "xd", c.String())
+	require.Equal(t, 0, c.Row)
+	require.Equal(t, 1, c.Col, "a cursor inside the match goes to its end")
+	require.False(t, c.ReplaceFirst("zz", "y"))
+	require.False(t, c.ReplaceFirst("", "y"))
+}
+
+func TestComposer_InsertDropsInvisibles(t *testing.T) {
+	var c Composer
+	c.Insert("a\U000E0041\u200bb")
+	require.Equal(t, "ab", c.String())
+}

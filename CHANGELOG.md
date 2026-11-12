@@ -17,6 +17,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with `bad_intent` before anything is spawned, instead of a failed exec.
   `NewSession` takes an optional `context_summary` (kind, name, size of each
   item; no content), which older daemons ignore.
+- On the new-agent page a paste of more than 8 lines or 1 KiB becomes a
+  `paste N` context item with a `[paste N · L lines]` placeholder in the
+  task. The Context section lists items with their kind in words, name and
+  size; `enter` previews one (`j`/`k` scroll), `x` removes, `r` renames.
+  `e` in a paste's preview and `ctrl+e` in the task editor edit the text in
+  `$EDITOR` (run directly, never through a shell) via a private temp file
+  that is removed when the editor exits. A binary paste or one over a cap is
+  refused with a `✗` line. The last row shows the prompt's size against the
+  cap (16 KiB for agents that take a pasted prompt) and the slug. The launch
+  sends the assembled prompt and the context summary.
+- The sanitizer also drops Unicode Tag characters and zero-width characters,
+  every case and spacing of `</pasted` is escaped inside a paste, and item
+  names with control characters or line separators are refused.
 
 ### Added (row icons)
 

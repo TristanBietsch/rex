@@ -23,6 +23,9 @@ func TestSanitize(t *testing.T) {
 		{"marks dropped", "a\u200eb\u200fc\u061cd", "abcd"},
 		{"invalid utf8", "a\xffb", "a\ufffdb"},
 		{"cjk kept", "界 ✓", "界 ✓"},
+		{"tag chars dropped", "a\U000E0001b\U000E0041\U000E007Fc", "abc"},
+		{"zero width dropped", "a\u200bb\u200cc\u200dd\u2060e\ufefff", "abcdef"},
+		{"line separators kept", "a\u2028b\u2029c", "a\u2028b\u2029c"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -41,4 +44,12 @@ func TestIsBinary(t *testing.T) {
 	require.True(t, IsBinary("\x00\x00"+strings.Repeat("a", 98)))
 	require.True(t, IsBinary("\ufffd\ufffd"+strings.Repeat("a", 98)))
 	require.True(t, IsBinary("\xff\xfe"+strings.Repeat("a", 98)))
+}
+
+func TestLines(t *testing.T) {
+	require.Equal(t, 0, Lines(""))
+	require.Equal(t, 0, Lines("\n\n"))
+	require.Equal(t, 1, Lines("a"))
+	require.Equal(t, 1, Lines("a\n"))
+	require.Equal(t, 3, Lines("a\n\nb\n"))
 }
