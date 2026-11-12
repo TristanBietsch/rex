@@ -50,6 +50,16 @@ func (d Detail) String() string {
 	return "medium"
 }
 
+// Up is the next detail level, capped at long: the late phase of the
+// scheduled refresh (R15) says more than the user's setting, never more than
+// long's cap.
+func (d Detail) Up() Detail {
+	if d.valid() == DetailShort {
+		return DetailMedium
+	}
+	return DetailLong
+}
+
 // valid maps an out-of-range value to the default, medium.
 func (d Detail) valid() Detail {
 	if d < DetailMedium || d > DetailLong {
