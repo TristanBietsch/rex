@@ -221,7 +221,7 @@ func Save(w *Workspace) error {
 		if err := os.Mkdir(rexDir, 0o700); err != nil {
 			return err
 		}
-		if err := os.Chmod(rexDir, 0o700); err != nil {
+		if err := os.Chmod(rexDir, 0o700); err != nil { //nolint:gosec // a directory: owner rwx is the point
 			return err
 		}
 	case err != nil:

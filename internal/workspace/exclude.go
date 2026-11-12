@@ -117,6 +117,7 @@ func parseGitFile(path string) (string, error) {
 	if !filepath.IsAbs(gd) {
 		gd = filepath.Join(filepath.Dir(path), gd)
 	}
+	//nolint:gosec // gd comes from the repo's own .git file; only a stat, and the target must hold a HEAD file
 	if fi, err := os.Stat(filepath.Join(gd, "HEAD")); err != nil || !fi.Mode().IsRegular() {
 		return "", fmt.Errorf("workspace: %s: %s is not a git directory", path, gd)
 	}

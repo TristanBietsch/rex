@@ -19,7 +19,7 @@ func TestMain(m *testing.M) { testenv.Run(m) }
 func mkWS(t *testing.T, root, content string) string {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, DirName), 0o700))
-	require.NoError(t, os.Chmod(filepath.Join(root, DirName), 0o700))
+	require.NoError(t, os.Chmod(filepath.Join(root, DirName), 0o700)) //nolint:gosec // a directory
 	require.NoError(t, os.WriteFile(filepath.Join(root, DirName, FileName), []byte(content), 0o600))
 	return root
 }
@@ -38,7 +38,7 @@ func TestFind_NearestWins(t *testing.T) {
 	outer := mkWS(t, filepath.Join(home, "dev"), `{"id":"aaaaaaaa","name":"outer","color":"#E69F00"}`)
 	inner := mkWS(t, filepath.Join(outer, "rex"), goodJSON)
 	deep := filepath.Join(inner, "internal", "x")
-	require.NoError(t, os.MkdirAll(deep, 0o755))
+	require.NoError(t, os.MkdirAll(deep, 0o750))
 
 	w, err := Find(deep, home)
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestFind_CwdItselfCounts(t *testing.T) {
 func TestFind_NoneReturnsNil(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "a", "b")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.MkdirAll(dir, 0o750))
 	w, err := Find(dir, home)
 	require.NoError(t, err)
 	require.Nil(t, w)
@@ -74,7 +74,7 @@ func TestFind_StopsAtHome(t *testing.T) {
 	home := filepath.Join(base, "home")
 	mkWS(t, home, goodJSON) // a .rex in $HOME is never a workspace
 	dir := filepath.Join(home, "proj")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.MkdirAll(dir, 0o750))
 	w, err := Find(dir, home)
 	require.NoError(t, err)
 	require.Nil(t, w)
@@ -104,7 +104,7 @@ func TestFind_SymlinkedRexDirRefused(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, "p")
 	real := mkWS(t, filepath.Join(home, "elsewhere"), goodJSON)
-	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.MkdirAll(root, 0o750))
 	require.NoError(t, os.Symlink(filepath.Join(real, DirName), filepath.Join(root, DirName)))
 
 	w, err := Find(root, home)
@@ -130,12 +130,12 @@ func TestFind_GroupWritableRexDirRefused(t *testing.T) {
 	skipWindows(t)
 	home := t.TempDir()
 	root := mkWS(t, filepath.Join(home, "p"), goodJSON)
-	require.NoError(t, os.Chmod(filepath.Join(root, DirName), 0o770))
+	require.NoError(t, os.Chmod(filepath.Join(root, DirName), 0o770)) //nolint:gosec // the point: group-writable
 
 	_, err := Find(root, home)
 	require.ErrorIs(t, err, ErrUnsafe)
 
-	require.NoError(t, os.Chmod(filepath.Join(root, DirName), 0o702))
+	require.NoError(t, os.Chmod(filepath.Join(root, DirName), 0o702)) //nolint:gosec // test: the mode is what is under test
 	_, err = Find(root, home)
 	require.ErrorIs(t, err, ErrUnsafe)
 }
@@ -144,7 +144,7 @@ func TestFind_WritableWorkspaceJSONRefused(t *testing.T) {
 	skipWindows(t)
 	home := t.TempDir()
 	root := mkWS(t, filepath.Join(home, "p"), goodJSON)
-	require.NoError(t, os.Chmod(filepath.Join(root, DirName, FileName), 0o666))
+	require.NoError(t, os.Chmod(filepath.Join(root, DirName, FileName), 0o666)) //nolint:gosec // test: the mode is what is under test
 	_, err := Find(root, home)
 	require.ErrorIs(t, err, ErrUnsafe)
 }
@@ -154,7 +154,7 @@ func TestFind_UnsafeNearestDoesNotFallThroughToOuter(t *testing.T) {
 	home := t.TempDir()
 	outer := mkWS(t, filepath.Join(home, "dev"), goodJSON)
 	inner := mkWS(t, filepath.Join(outer, "evil"), `{"id":"bbbbbbbb"}`)
-	require.NoError(t, os.Chmod(filepath.Join(inner, DirName), 0o777))
+	require.NoError(t, os.Chmod(filepath.Join(inner, DirName), 0o777)) //nolint:gosec // test: the mode is what is under test
 	w, err := Find(inner, home)
 	require.ErrorIs(t, err, ErrUnsafe)
 	require.Nil(t, w)
@@ -182,7 +182,7 @@ func TestFind_HostileFields(t *testing.T) {
 
 func TestFind_NameControlRunesStripped(t *testing.T) {
 	home := t.TempDir()
-	root := mkWS(t, filepath.Join(home, "p"), `{"id":"7f3b89a2","name":"a\u001b[2Jb\nc‮d"}`)
+	root := mkWS(t, filepath.Join(home, "p"), `{"id":"7f3b89a2","name":"a\u001b[2Jb\nc\u202ed"}`)
 	w, err := Find(root, home)
 	require.NoError(t, err)
 	require.Equal(t, "a[2Jbcd", w.Name)
@@ -218,7 +218,7 @@ func TestFind_RexDirWithoutIdentityIsNotAWorkspace(t *testing.T) {
 func TestFind_RexFileIsIgnored(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, "p")
-	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.MkdirAll(root, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(root, DirName), []byte("x"), 0o600))
 	w, err := Find(root, home)
 	require.NoError(t, err)
@@ -228,7 +228,7 @@ func TestFind_RexFileIsIgnored(t *testing.T) {
 func TestSave_RoundTripAndModes(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, "p")
-	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.MkdirAll(root, 0o750))
 	w := &Workspace{ID: "7f3b89a2", Name: "demo", Color: "#0072B2", Root: root}
 	require.NoError(t, Save(w))
 

@@ -54,7 +54,7 @@ func (r *rig) printer(t *testing.T, fl core.FormatFlags) {
 func (r *rig) project(t *testing.T, name string) string {
 	t.Helper()
 	d := filepath.Join(r.home, "dev", name)
-	require.NoError(t, os.MkdirAll(d, 0o755))
+	require.NoError(t, os.MkdirAll(d, 0o750))
 	return d
 }
 
@@ -108,7 +108,7 @@ func TestWs_InitJSONThenIDLsRenameColor(t *testing.T) {
 	r := newRig(t, true)
 	proj := r.project(t, "demo")
 	nested := filepath.Join(proj, "src", "pkg")
-	require.NoError(t, os.MkdirAll(nested, 0o755))
+	require.NoError(t, os.MkdirAll(nested, 0o750))
 	t.Chdir(proj)
 
 	r.printer(t, core.FormatFlags{Output: "json"})
@@ -188,8 +188,8 @@ func TestWs_InitNameFlagAndAgentFormat(t *testing.T) {
 func TestWs_InitAddsGitExclude(t *testing.T) {
 	r := newRig(t, true)
 	proj := r.project(t, "repo")
-	require.NoError(t, os.MkdirAll(filepath.Join(proj, ".git"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(proj, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(proj, ".git"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(proj, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644)) //nolint:gosec // test: the mode is what is under test
 	t.Chdir(proj)
 	r.printer(t, core.FormatFlags{Output: "json"})
 	require.NoError(t, RunWs([]string{"init"}))
@@ -259,7 +259,7 @@ func TestWs_UnsafeRexRefused(t *testing.T) {
 	proj := r.project(t, "p")
 	t.Chdir(proj)
 	require.NoError(t, RunWs([]string{"init"}))
-	require.NoError(t, os.Chmod(filepath.Join(proj, ".rex"), 0o770))
+	require.NoError(t, os.Chmod(filepath.Join(proj, ".rex"), 0o770)) //nolint:gosec // test: the mode is what is under test
 	for _, args := range [][]string{{"id"}, {"init"}} {
 		err := RunWs(args)
 		require.Equal(t, core.ExitOperationRefused, exitCode(t, err), "%v", args)

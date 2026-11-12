@@ -149,7 +149,7 @@ func resolveAuditScope(wsRef string, all, wsOn bool) (auditScope, error) {
 	case err != nil:
 		sc := auditScope{files: []string{global}, label: "global"}
 		sc.notes = append(sc.notes, "this folder's .rex/ was not used: "+err.Error())
-		return sc, nil
+		return sc, nil //nolint:nilerr // an unusable .rex/ is a note, and the global trail still answers
 	case w != nil:
 		return workspaceScope(w), nil
 	}

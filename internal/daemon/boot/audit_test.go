@@ -165,7 +165,7 @@ func TestAudit_WorkspaceSessionGoesToTheWorkspaceFile(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, "dev", "proj")
 	cwd := filepath.Join(root, "src")
-	require.NoError(t, os.MkdirAll(cwd, 0o755))
+	require.NoError(t, os.MkdirAll(cwd, 0o750))
 	w, err := workspace.Init(root, "proj", nil)
 	require.NoError(t, err)
 	t.Setenv("HOME", home)
@@ -197,7 +197,7 @@ func TestAudit_WorkspaceSessionGoesToTheWorkspaceFile(t *testing.T) {
 func TestAudit_WorkspacesFlagOffMeansNoDiscovery(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, "proj")
-	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.MkdirAll(root, 0o750))
 	_, err := workspace.Init(root, "proj", nil)
 	require.NoError(t, err)
 	t.Setenv("HOME", home)
@@ -221,7 +221,7 @@ func TestAudit_UnwritableWorkspaceFileFallsBackToGlobal(t *testing.T) {
 	}
 	home := t.TempDir()
 	root := filepath.Join(home, "proj")
-	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.MkdirAll(root, 0o750))
 	_, err := workspace.Init(root, "proj", nil)
 	require.NoError(t, err)
 	// A symlinked audit.jsonl is refused, never followed.

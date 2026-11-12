@@ -29,7 +29,7 @@ func newReg(t *testing.T, home string) *Registry {
 func mkDir(t *testing.T, parts ...string) string {
 	t.Helper()
 	d := filepath.Join(parts...)
-	require.NoError(t, os.MkdirAll(d, 0o755))
+	require.NoError(t, os.MkdirAll(d, 0o750))
 	return d
 }
 

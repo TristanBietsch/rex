@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -53,7 +54,7 @@ func TestAppend_TightensWideExistingFile(t *testing.T) {
 		t.Skip("modes")
 	}
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
-	require.NoError(t, os.WriteFile(path, nil, 0o644))
+	require.NoError(t, os.WriteFile(path, nil, 0o644)) //nolint:gosec // the point: a too-wide file must be tightened
 	require.NoError(t, Append(path, rec("aaaa1111", t0)))
 	fi, err := os.Stat(path)
 	require.NoError(t, err)
@@ -112,7 +113,7 @@ func TestAppend_ConcurrentRecordsStayWholeLines(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			id := strings.Repeat(string(rune('a'+i%26)), 4) + string(rune('0'+i/26))
+			id := fmt.Sprintf("s%03d", i) + "xx"
 			require.NoError(t, Append(path, rec(id, t0.Add(time.Duration(i)*time.Second))))
 		}()
 	}

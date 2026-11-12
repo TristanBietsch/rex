@@ -177,7 +177,7 @@ func TestAudit_WsFlagNeedsTheWorkspacesFeature(t *testing.T) {
 func wsSetup(t *testing.T, r *auditRig) (*workspace.Workspace, string) {
 	t.Helper()
 	root := filepath.Join(r.home, "dev", "proj")
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "src"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "src"), 0o750))
 	regPath, err := paths.WorkspacesFile()
 	require.NoError(t, err)
 	reg, err := workspace.OpenRegistry(regPath)
@@ -237,7 +237,7 @@ func TestAudit_AllSkipsUnsafeWorkspaceWithANote(t *testing.T) {
 	}
 	r := newAuditRig(t, "workspaces: true\n")
 	_, root := wsSetup(t, r)
-	require.NoError(t, os.Chmod(filepath.Join(root, ".rex"), 0o777))
+	require.NoError(t, os.Chmod(filepath.Join(root, ".rex"), 0o777)) //nolint:gosec // test: the mode is what is under test
 	t.Chdir(r.home)
 
 	require.NoError(t, r.run(t, "text", "--all"))
