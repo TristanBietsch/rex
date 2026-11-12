@@ -67,6 +67,25 @@ func TestLsWaitingFlagOff(t *testing.T) {
 	}
 }
 
+// An older daemon sends no last_event_at for a queued session: idle falls
+// back to started_at, clock skew clamps to 0, and -1 is left for a session
+// with neither time.
+func TestLsIdleFallsBackToStartedAt(t *testing.T) {
+	ss := []protocol.SessionSummary{
+		{ID: "aaaa0000", ShortID: "aaaa", State: protocol.StateQueued, ToolID: "claude", ModelID: "opus",
+			Slug: "fresh", StartedAt: lsNow.Add(-30 * time.Second)},
+		{ID: "bbbb0000", ShortID: "bbbb", State: protocol.StateQueued, ToolID: "claude", ModelID: "opus",
+			Slug: "skewed", StartedAt: lsNow.Add(5 * time.Second), LastEventAt: lsNow.Add(5 * time.Second)},
+		{ID: "cccc0000", ShortID: "cccc", State: protocol.StateQueued, ToolID: "claude", ModelID: "opus",
+			Slug: "nothing"},
+	}
+	p, out := lsPrinter(t, "agent", 100, false)
+	require.NoError(t, p.Emit(core.Result{Cmd: "ls", Data: ss, View: lsView(ss, lsNow, p.Glyphs, lsOpts{})}))
+	require.Contains(t, out.String(), "slug=fresh idle_s=30 ")
+	require.Contains(t, out.String(), "slug=skewed idle_s=0 ")
+	require.Contains(t, out.String(), "slug=nothing idle_s=-1 ")
+}
+
 func TestLsJSONCarriesWaitFields(t *testing.T) {
 	ss := waitingSessions()[:1]
 	p, out := lsPrinter(t, "json", 100, false)
