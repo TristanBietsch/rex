@@ -74,7 +74,7 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 // the waiting_section feature off it matches nothing and they stay in
 // Working.
 var boardGroups = []boardGroup{
-	{ID: "needs", Title: "Needs you", Count: "need you", Alert: true, Empty: "nothing waiting on you", Match: func(s protocol.SessionSummary, _ groupCtx) bool {
+	{ID: "needs", Title: "Ready", Count: "ready", Alert: true, Empty: "nothing ready", Match: func(s protocol.SessionSummary, _ groupCtx) bool {
 		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
 	}},
 	{ID: waitingGroupID, Title: "Waiting", Count: "waiting", Empty: "nothing waiting on a tool", HideZero: true, Match: func(s protocol.SessionSummary, c groupCtx) bool {

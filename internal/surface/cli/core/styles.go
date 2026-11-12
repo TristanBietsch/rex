@@ -132,11 +132,11 @@ func loadAppearance() (scheme, spinner string) {
 	return scheme, spinner
 }
 
-// StateLabel is the human name of a session state ("needs you" for
+// StateLabel is the human name of a session state ("ready" for
 // needs_input).
 func StateLabel(s protocol.State) string {
 	if s == protocol.StateNeedsInput {
-		return "needs you"
+		return "ready"
 	}
 	return string(s)
 }

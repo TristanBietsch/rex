@@ -23,7 +23,7 @@ func nextNeedsYou(m Model) Model {
 	}
 	rows := visibleRows(m, groupNeeds)
 	if len(rows) == 0 {
-		m.Notice = "nothing needs you"
+		m.Notice = "nothing ready"
 		return m
 	}
 	next := 0
@@ -40,7 +40,7 @@ func nextNeedsYou(m Model) Model {
 // activeGroups is the indexes into boardGroups of the sections the board
 // has, in screen order: all of them, except Waiting while the
 // waiting_section feature is off. Number keys, z chords and section
-// references count within it, so with the feature off 1/2/3 are Needs you /
+// references count within it, so with the feature off 1/2/3 are Ready /
 // Working / Done again.
 func activeGroups(m Model) []int {
 	on := m.featureOn("waiting_section")
@@ -250,7 +250,7 @@ func ensureVisible(m Model) Model {
 }
 
 // jumpToSection moves selection to the first row of the group at the given index
-// (0=Needs you, 1=Working, 2=Done). No-op if the group is empty.
+// (0=Ready, 1=Working, 2=Done). No-op if the group is empty.
 func jumpToSection(m Model, groupIdx int) Model {
 	if groupIdx < 0 || groupIdx >= len(boardGroups) {
 		return m

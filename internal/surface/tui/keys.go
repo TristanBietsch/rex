@@ -48,8 +48,8 @@ type binding struct {
 var bindings = []binding{
 	{Keys: "j k", Desc: "move row selection", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"j", "k"}},
 	{Keys: "g G", Desc: "top / bottom", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"g", "G"}},
-	{Keys: "tab", Desc: "next session that needs you", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"tab"}, Line: "next"},
-	{Keys: sectionKeysLabel, Desc: "jump to Needs you / Waiting / Working / Done (4 also folds a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2", "3", "4"}},
+	{Keys: "tab", Desc: "next Ready session", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"tab"}, Line: "next"},
+	{Keys: sectionKeysLabel, Desc: "jump to Ready / Waiting / Working / Done (4 also folds a long Done column)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"1", "2", "3", "4"}},
 	{Keys: "v", Desc: "simple / detailed rows (id, model, tokens, AI summary)", Group: groupNavigation, Ctx: ctxBoard, Press: []string{"v"}},
 
 	{Keys: "t", Desc: "cycle tool filter", Group: groupFilter, Ctx: ctxBoard, Press: []string{"t"}, Flag: "board_filter"},
@@ -155,7 +155,7 @@ var commands = []command{
 	{Names: []string{"reload"}, Desc: "reload tools.yaml", Group: groupAppCmd, Run: runReload},
 	{Names: []string{"fail", "fails", "failed"}, Label: ":fail", Desc: "failed sessions + daemon log (:fails :failed)", Group: groupAppCmd, Run: runFail},
 	{Names: []string{"stats"}, Desc: "session statistics overlay", Group: groupAppCmd, Run: runStats},
-	{Names: []string{"overview"}, Desc: "what needs you, what is ready for review, what finished", Group: groupAppCmd, Run: runOverview},
+	{Names: []string{"overview"}, Desc: "what is ready for you, what to review, what finished", Group: groupAppCmd, Run: runOverview},
 	{Names: []string{"help"}, Desc: "this overlay", Group: groupAppCmd, Run: runHelp},
 	{Names: []string{"settings"}, Desc: "open settings", Group: groupAppCmd, Run: runSettings},
 }

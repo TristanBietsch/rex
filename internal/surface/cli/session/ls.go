@@ -231,7 +231,7 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 	for _, c := range []struct {
 		n     int
 		label string
-	}{{needs, "needs you"}, {waiting, "waiting"}, {working, "working"}, {done, "done"}} {
+	}{{needs, "ready"}, {waiting, "waiting"}, {working, "working"}, {done, "done"}} {
 		if c.n > 0 {
 			meta = append(meta, fmt.Sprintf("%d %s", c.n, c.label))
 		}

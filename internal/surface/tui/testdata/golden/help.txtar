@@ -3,9 +3,9 @@
   ∴ │   ── Navigation ──────────────────────────────────────────────────   │    
   al│   j k  move row selection                                            │    
     │   g G  top / bottom                                                  │
-────│   tab  next session that needs you                                   │────
-    │   1-4  jump to Needs you / Waiting / Working / Done (4 also folds    │
-  NE│        a long Done column)                                           │    
+────│   tab  next Ready session                                            │────
+    │   1-4  jump to Ready / Waiting / Working / Done (4 also folds a      │
+  RE│        long Done column)                                             │    
    ◆│   v    simple / detailed rows (id, model, tokens, AI summary)        │  4m
     │                                                                      │
   WA│   ── Filter & search ─────────────────────────────────────────────   │    
@@ -28,9 +28,9 @@
   ∴ R│   ── Navigation ───────────────────────────────────    ── Session commands ─────────────────────────────   │     
   all│   j k  move row selection                              :new                 new-agent wizard               │     
      │   g G  top / bottom                                    :name [text]         rename selected (no text:      │
-─────│   tab  next session that needs you                                          open editor)                   │─────
-     │   1-4  jump to Needs you / Waiting / Working / Done    :rename <s> <slug>   change slug                    │
-  NEE│        (4 also folds a long Done column)               :done [sel]          mark done                      │     
+─────│   tab  next Ready session                                                   open editor)                   │─────
+     │   1-4  jump to Ready / Waiting / Working / Done (4     :rename <s> <slug>   change slug                    │
+  REA│        also folds a long Done column)                  :done [sel]          mark done                      │     
    ◆ │   v    simple / detailed rows (id, model, tokens,      :undone [sel]        undo done                      │   4m
      │        AI summary)                                     :uc :resume [sel]    undo done: unmark a running    │
   WAI│                                                                             session, or resume an exited   │     
@@ -55,7 +55,7 @@
      │   S      settings                                      :fail        failed sessions + daemon log (:fails   │
      │   q      quit (confirm)                                             :failed)                               │
      │                                                        :stats       session statistics overlay             │
-     │   ── Mouse ────────────────────────────────────────    :overview    what needs you, what is ready for      │
+     │   ── Mouse ────────────────────────────────────────    :overview    what is ready for you, what to         │
      │   click         select row / filter chip                            review, what finished                  │
      │   double-click  attach to row                          :help        this overlay                           │
      │   wheel         move row selection                     :settings    open settings                          │

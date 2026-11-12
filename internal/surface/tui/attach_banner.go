@@ -168,7 +168,7 @@ func bannerElsewhere(m Model, self string) []bannerItem {
 			parts = append(parts, fmt.Sprintf("%d to review", n))
 		}
 		if n := len(g[overview.NeedsYou]); n > 0 {
-			parts = append(parts, fmt.Sprintf("%d needs you", n))
+			parts = append(parts, fmt.Sprintf("%d ready", n))
 		}
 		if n := len(g[overview.Failed]); n > 0 {
 			parts = append(parts, fmt.Sprintf("%d failed", n))

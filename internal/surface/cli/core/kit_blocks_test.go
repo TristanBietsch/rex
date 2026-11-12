@@ -13,7 +13,7 @@ import (
 )
 
 func TestStateLabelAndTone(t *testing.T) {
-	require.Equal(t, "needs you", StateLabel(protocol.StateNeedsInput))
+	require.Equal(t, "ready", StateLabel(protocol.StateNeedsInput))
 	require.Equal(t, "working", StateLabel(protocol.StateWorking))
 	for st, tone := range map[protocol.State]Tone{
 		protocol.StateNeedsInput: ToneNeeds, protocol.StateWorking: ToneWorking, protocol.StateQueued: ToneQueued,
