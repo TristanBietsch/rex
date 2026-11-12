@@ -290,7 +290,7 @@ func setupTools(all []registry.Tool, st *settings.Store) []registry.Tool {
 	extra := settings.FeatureOn(st, "extra_agents")
 	var out []registry.Tool
 	for _, t := range visibleTools(all) {
-		if slices.Contains(registry.ExtraAgentIDs, t.ID) && !(extra && registry.Installed(t)) {
+		if slices.Contains(registry.ExtraAgentIDs, t.ID) && (!extra || !registry.Installed(t)) {
 			continue
 		}
 		out = append(out, t)

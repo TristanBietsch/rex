@@ -105,7 +105,7 @@ func TestUsageMeter_ClickOpensThePage(t *testing.T) {
 	next, cmd := click(lo-3, 1)
 	require.Equal(t, FocusBoard, next.Focus, "left of the meter")
 	require.Nil(t, cmd)
-	next, cmd = click(lo+2, 2)
+	next, _ = click(lo+2, 2)
 	require.Equal(t, FocusBoard, next.Focus, "wrong row")
 	next, cmd = click(lo+2, 1)
 	require.Equal(t, FocusUsage, next.Focus)

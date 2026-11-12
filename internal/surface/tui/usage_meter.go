@@ -49,7 +49,7 @@ func meterTools(m Model, full bool) map[string][]protocol.UsageQuota {
 		if !live[q.Tool] || q.Model != "" {
 			continue
 		}
-		if q.UsedPct == nil && !(full && q.UsedUSD != nil && q.LimitUSD != nil) {
+		if q.UsedPct == nil && (!full || q.UsedUSD == nil || q.LimitUSD == nil) {
 			continue
 		}
 		out[q.Tool] = append(out[q.Tool], q)

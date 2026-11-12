@@ -122,8 +122,8 @@ func goldenScreens() []goldenScreen {
 			m, _ = executeCommand(m, "overview")
 			return m
 		}},
-		{"usage", true, func(t *testing.T, sz goldenSize) Model { return usageModelAt(t, sz) }},
-		{"header_meter", true, func(t *testing.T, sz goldenSize) Model { return meterModel(t, sz) }},
+		{"usage", true, usageModelAt},
+		{"header_meter", true, meterModel},
 		{"undo_confirm", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "confirm") }},
 		{"undo_shared", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "shared") }},
 		{"undo_forced", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "forced") }},
