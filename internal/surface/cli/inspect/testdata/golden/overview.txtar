@@ -9,16 +9,16 @@ Overview  updated 40s ago
 
 Review:
      ID    NAME           STATUS               AGE
-  ●  r1ab  billing-tests  Done: 48 tests pass   3m
-  ◆  r2cd  api docs       write api docs        9m
+  ✓  r1ab  billing-tests  Done: 48 tests pass   3m
+  ⚑  r2cd  api docs       write api docs        9m
 
 Ready:
      ID    NAME      STATUS           AGE
-  ◆  n1ef  deploy    Deploy to prod?  40s
+  ⚑  n1ef  deploy    Deploy to prod?  40s
 
 Failed:
      ID    NAME        STATUS                  AGE
-  ✕  f1gh  migrate-db  Failed: migration 004…   2h
+  ✗  f1gh  migrate-db  Failed: migration 004…   2h
 
 Working:
      ID    NAME        STATUS              AGE
@@ -26,7 +26,7 @@ Working:
 
 Completed (last 24 h):
      ID    NAME       STATUS        AGE
-  ●  c1kl  old-spike  spike          2h
+  ✓  c1kl  old-spike  spike          2h
 
 › rex attach <id>  open a session
 -- text.w80 --
@@ -39,16 +39,16 @@ Overview  updated 40s ago
 
 Review:
      ID    NAME           STATUS               AGE
-  ●  r1ab  billing-tests  Done: 48 tests pass   3m
-  ◆  r2cd  api docs       write api docs        9m
+  ✓  r1ab  billing-tests  Done: 48 tests pass   3m
+  ⚑  r2cd  api docs       write api docs        9m
 
 Ready:
      ID    NAME      STATUS           AGE
-  ◆  n1ef  deploy    Deploy to prod?  40s
+  ⚑  n1ef  deploy    Deploy to prod?  40s
 
 Failed:
      ID    NAME        STATUS                            AGE
-  ✕  f1gh  migrate-db  Failed: migration 0042 timed out   2h
+  ✗  f1gh  migrate-db  Failed: migration 0042 timed out   2h
 
 Working:
      ID    NAME        STATUS              AGE
@@ -56,7 +56,7 @@ Working:
 
 Completed (last 24 h):
      ID    NAME       STATUS        AGE
-  ●  c1kl  old-spike  spike          2h
+  ✓  c1kl  old-spike  spike          2h
 
 › rex attach <id>  open a session
 -- text.w120 --
@@ -68,16 +68,16 @@ Overview  updated 40s ago
 
 Review:
      ID    NAME           STATUS               AGE
-  ●  r1ab  billing-tests  Done: 48 tests pass   3m
-  ◆  r2cd  api docs       write api docs        9m
+  ✓  r1ab  billing-tests  Done: 48 tests pass   3m
+  ⚑  r2cd  api docs       write api docs        9m
 
 Ready:
      ID    NAME      STATUS           AGE
-  ◆  n1ef  deploy    Deploy to prod?  40s
+  ⚑  n1ef  deploy    Deploy to prod?  40s
 
 Failed:
      ID    NAME        STATUS                            AGE
-  ✕  f1gh  migrate-db  Failed: migration 0042 timed out   2h
+  ✗  f1gh  migrate-db  Failed: migration 0042 timed out   2h
 
 Working:
      ID    NAME        STATUS              AGE
@@ -85,7 +85,7 @@ Working:
 
 Completed (last 24 h):
      ID    NAME       STATUS        AGE
-  ●  c1kl  old-spike  spike          2h
+  ✓  c1kl  old-spike  spike          2h
 
 › rex attach <id>  open a session
 -- text.color.w80 --
@@ -94,20 +94,20 @@ Completed (last 24 h):
   ␛[38;2;139;145;161mHeadline␛[0m  billing-tests is ready for review; deploy asks a question and
             migrate-db failed
 
-␛[38;2;91;208;140m2 review␛[0m   ␛[38;2;245;185;73m1 ready␛[0m   ␛[38;2;242;107;107m1 failed␛[0m   ␛[38;2;110;168;254m1 working␛[0m   ␛[38;2;91;208;140m1 completed␛[0m
+␛[38;2;78;158;110m2 review␛[0m   ␛[38;2;75;227;127m1 ready␛[0m   ␛[38;2;242;107;107m1 failed␛[0m   ␛[38;2;110;168;254m1 working␛[0m   ␛[38;2;78;158;110m1 completed␛[0m
 
 ␛[1;38;2;230;232;238mReview:␛[0m
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m           ␛[38;2;139;145;161mSTATUS␛[0m               ␛[38;2;139;145;161mAGE␛[0m
-  ␛[38;2;91;208;140m●␛[0m  r1ab  billing-tests  Done: 48 tests pass   ␛[38;2;139;145;161m3m␛[0m
-  ␛[38;2;91;208;140m◆␛[0m  r2cd  api docs       write api docs        ␛[38;2;139;145;161m9m␛[0m
+  ␛[38;2;78;158;110m✓␛[0m  r1ab  billing-tests  Done: 48 tests pass   ␛[38;2;139;145;161m3m␛[0m
+  ␛[38;2;78;158;110m⚑␛[0m  r2cd  api docs       write api docs        ␛[38;2;139;145;161m9m␛[0m
 
 ␛[1;38;2;230;232;238mReady:␛[0m
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m      ␛[38;2;139;145;161mSTATUS␛[0m           ␛[38;2;139;145;161mAGE␛[0m
-  ␛[38;2;245;185;73m◆␛[0m  n1ef  deploy    Deploy to prod?  ␛[38;2;139;145;161m40s␛[0m
+  ␛[38;2;75;227;127m⚑␛[0m  n1ef  deploy    Deploy to prod?  ␛[38;2;139;145;161m40s␛[0m
 
 ␛[1;38;2;230;232;238mFailed:␛[0m
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m        ␛[38;2;139;145;161mSTATUS␛[0m                            ␛[38;2;139;145;161mAGE␛[0m
-  ␛[38;2;242;107;107m✕␛[0m  f1gh  migrate-db  Failed: migration 0042 timed out   ␛[38;2;139;145;161m2h␛[0m
+  ␛[38;2;242;107;107m✗␛[0m  f1gh  migrate-db  Failed: migration 0042 timed out   ␛[38;2;139;145;161m2h␛[0m
 
 ␛[1;38;2;230;232;238mWorking:␛[0m
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m        ␛[38;2;139;145;161mSTATUS␛[0m              ␛[38;2;139;145;161mAGE␛[0m
@@ -115,7 +115,7 @@ Completed (last 24 h):
 
 ␛[1;38;2;230;232;238mCompleted (last 24 h):␛[0m
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m       ␛[38;2;139;145;161mSTATUS␛[0m        ␛[38;2;139;145;161mAGE␛[0m
-  ␛[38;2;91;208;140m●␛[0m  c1kl  old-spike  spike          ␛[38;2;139;145;161m2h␛[0m
+  ␛[38;2;78;158;110m✓␛[0m  c1kl  old-spike  spike          ␛[38;2;139;145;161m2h␛[0m
 
 ␛[1;38;2;179;146;240m› rex attach <id>␛[0m  ␛[38;2;139;145;161mopen a session␛[0m
 -- txt --

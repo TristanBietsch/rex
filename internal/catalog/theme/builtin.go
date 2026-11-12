@@ -15,22 +15,27 @@ var classic = Palette{
 	Bg: "#0F1115", Fg: "#E6E6E6", FgDim: "#7A7F8C", FgMuted: "#4A4F5A",
 	BgSel: "#171922", Border: "#262A36", BorderFocus: "#FFFFFF",
 	Accent:  "#5B8DEF",
-	Working: "#5B8DEF", Queued: "#5B8DEF", Needs: "#E5B341", Done: "#4ADE80",
+	Working: "#5B8DEF", Queued: "#5B8DEF", Needs: "#4ADE80", Done: "#4E9A6A",
 	Failed: "#EF4444", Crashed: "#7A7F8C",
-	Warn: "#E5B341", Danger: "#EF4444", Success: "#4ADE80", Info: "#5B8DEF",
+	Warn: "#E5B341", Danger: "#EF4444", Success: "#4E9A6A", Info: "#5B8DEF",
 	Fleet: fleetColors,
 }
 
-// modern is the default. Violet is the accent because blue, amber, green and
-// red already mean states: "the cursor is here" must not read as "working".
+// modern is the default. Violet is the accent because blue, green and red
+// already mean states: "the cursor is here" must not read as "working".
+//
+// Every theme paints Ready (Needs) and Done in two greens: a bright,
+// saturated "go" green for Ready and a calmer, darker one for Done. They stay
+// at least 20 apart (CIE76) and the markers differ (⚑ vs ✓), so neither
+// color nor glyph alone has to carry the difference. Warn keeps the amber.
 var modern = Palette{
 	Name: "default", Dark: true,
 	Bg: "#0F1115", Fg: "#E6E8EE", FgDim: "#8B91A1", FgMuted: "#5A6070",
 	BgSel: "#1D212C", Border: "#2B303C", BorderFocus: "#AEB4C2",
 	Accent:  "#B392F0",
-	Working: "#6EA8FE", Queued: "#6EA8FE", Needs: "#F5B94A", Done: "#5BD08C",
+	Working: "#6EA8FE", Queued: "#6EA8FE", Needs: "#4BE37F", Done: "#4E9E6E",
 	Failed: "#F26B6B", Crashed: "#8B91A1",
-	Warn: "#F5B94A", Danger: "#F26B6B", Success: "#5BD08C", Info: "#6EA8FE",
+	Warn: "#F5B94A", Danger: "#F26B6B", Success: "#4E9E6E", Info: "#6EA8FE",
 	Fleet: fleetColors,
 }
 
@@ -39,9 +44,9 @@ var noir = Palette{
 	Bg: "#05080F", Fg: "#D8DDE6", FgDim: "#7A8291", FgMuted: "#434A59",
 	BgSel: "#121722", Border: "#1C212C", BorderFocus: "#9AA3B2",
 	Accent:  "#9C8CF0",
-	Working: "#7AA6F0", Queued: "#7AA6F0", Needs: "#D4B574", Done: "#5BC487",
+	Working: "#7AA6F0", Queued: "#7AA6F0", Needs: "#4FD982", Done: "#4A9A6C",
 	Failed: "#D85A5A", Crashed: "#7A8291",
-	Warn: "#D4B574", Danger: "#D85A5A", Success: "#5BC487", Info: "#7AA6F0",
+	Warn: "#D4B574", Danger: "#D85A5A", Success: "#4A9A6C", Info: "#7AA6F0",
 	Fleet: fleetColors,
 }
 
@@ -50,9 +55,9 @@ var paper = Palette{
 	Bg: "#FBFAF7", Fg: "#1C1D21", FgDim: "#5D6270", FgMuted: "#9A9EA8",
 	BgSel: "#EEECE6", Border: "#D9D7D0", BorderFocus: "#3A3D45",
 	Accent:  "#6E4BD8",
-	Working: "#2B5CC0", Queued: "#2B5CC0", Needs: "#966200", Done: "#1F7A45",
+	Working: "#2B5CC0", Queued: "#2B5CC0", Needs: "#14853B", Done: "#3D6650",
 	Failed: "#C23B3B", Crashed: "#6E7380",
-	Warn: "#966200", Danger: "#C23B3B", Success: "#1F7A45", Info: "#2B5CC0",
+	Warn: "#966200", Danger: "#C23B3B", Success: "#3D6650", Info: "#2B5CC0",
 	Fleet: fleetColors,
 }
 
@@ -61,9 +66,9 @@ var highContrast = Palette{
 	Bg: "#000000", Fg: "#FFFFFF", FgDim: "#C8C8C8", FgMuted: "#9A9A9A",
 	BgSel: "#303030", Border: "#808080", BorderFocus: "#FFFFFF",
 	Accent:  "#00E5FF",
-	Working: "#4DA3FF", Queued: "#4DA3FF", Needs: "#FFD000", Done: "#3CF07A",
+	Working: "#4DA3FF", Queued: "#4DA3FF", Needs: "#3CF07A", Done: "#57B07A",
 	Failed: "#FF5C5C", Crashed: "#C8C8C8",
-	Warn: "#FFD000", Danger: "#FF5C5C", Success: "#3CF07A", Info: "#4DA3FF",
+	Warn: "#FFD000", Danger: "#FF5C5C", Success: "#57B07A", Info: "#4DA3FF",
 	Fleet: fleetColors,
 }
 
@@ -73,11 +78,14 @@ var highContrast = Palette{
 // the terminal's defaults (""): dim and muted text and borders are the default
 // color drawn faint (Faint), because no fixed index is safe for them. Index 8
 // is the Solarized Dark background, and the bright indexes are grays there.
-// The selection is reverse video.
+// The selection is reverse video. Ready is the normal green (2) and Done the
+// bright green (10), the one bright index: where a terminal maps 10 to a gray
+// (Solarized), it is the finished state that recedes, never the one that
+// needs you.
 var ansi = Palette{
 	Name: "ansi", Dark: true, Faint: true,
 	Accent:  "5",
-	Working: "4", Queued: "4", Needs: "3", Done: "2", Failed: "1",
+	Working: "4", Queued: "4", Needs: "2", Done: "10", Failed: "1",
 	Warn: "3", Danger: "1", Success: "2", Info: "4",
 	Fleet:      []string{"4", "3", "2", "1", "5", "6"},
 	SelReverse: true,

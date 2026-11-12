@@ -6,7 +6,7 @@
 ────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                      
-   ◆  dark-mode         system theme vs explicit toggle…                      4m
+   ⚑  dark-mode         system theme vs explicit toggle…                      4m
 
   WAITING  0                                                                    
       nothing waiting on a tool
@@ -31,7 +31,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
 
   WAITING  0                                                                                                            
       nothing waiting on a tool

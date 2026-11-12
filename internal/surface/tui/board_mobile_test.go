@@ -71,7 +71,7 @@ func TestMobileTwoLineRows(t *testing.T) {
 	}
 	require.NotEmpty(t, first)
 	require.Equal(t, 40, ansi.StringWidth(first))
-	require.True(t, strings.HasPrefix(first, " ▸ ◆  release-notes"), "line 1: %q", first)
+	require.True(t, strings.HasPrefix(first, " ▸ ⚑  release-notes"), "line 1: %q", first)
 	require.Contains(t, first, subagentGlyph+" 2")
 	require.True(t, strings.HasSuffix(first, "11m"), "age flush right: %q", first)
 	require.Equal(t, 40, ansi.StringWidth(second))
@@ -189,7 +189,7 @@ func TestMobileHeaderHelpFit40x20(t *testing.T) {
 		top := ansi.Strip(strings.Split(renderHeader(m, 40), "\n")[0])
 		require.NotContains(t, top, "detailed (v)")
 		require.NotContains(t, top, "need you", "mobile always uses the glyph counts")
-		require.Contains(t, top, "◆")
+		require.Contains(t, top, "⚑")
 		help := ansi.Strip(renderHelpLine(m, 40))
 		require.Contains(t, help, "enter open")
 		require.Contains(t, help, "i new")

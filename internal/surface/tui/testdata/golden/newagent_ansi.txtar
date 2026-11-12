@@ -3,7 +3,7 @@
   ∴ REX › NEW AGENT    ~/dev/rex                                         draft  
 ────────────────────────────────────────────────────────────────────────────────
  STEPS           │ AGENT                                                        
- ✓ Agent         │ ◆ Claude Code  ·  opus  ·  effort max         ctrl+g change  
+ ✓ Agent         │ ✻ Claude Code  ·  opus  ·  effort max         ctrl+g change  
  ✓ Task          │                                                              
  ▸ Context    3  │ TASK                                                         
  ✓ Trust   sess  │ ┌─────────────────────────────────────────────────────────┐  
@@ -28,7 +28,7 @@
   ∴ REX › NEW AGENT                        draft  
 ──────────────────────────────────────────────────
   ‹ Agent · Task · [Context 3] · Trust ›          
-  ◆ Claude Code · opus · max                      
+  ✻ Claude Code · opus · max                      
   CONTEXT                         3 items · 7.1 KB
     file   internal/auth/auth_test.go       4.2 KB
     dir    internal/auth/testdata/        12 files
@@ -49,7 +49,7 @@
   ␛[1m∴ REX␛[0m␛[2m › NEW AGENT␛[0m    ␛[2m~/dev/rex␛[0m                                         ␛[2mdraft␛[0m  
 ␛[2m────────────────────────────────────────────────────────────────────────────────␛[0m
  ␛[1mSTEPS␛[0m          ␛[2m │ ␛[0m␛[1mAGENT␛[0m                                                        
- ␛[32m✓␛[0m Agent        ␛[2m │ ␛[0m␛[38;2;217;119;87m◆␛[0m Claude Code␛[2m  ·  ␛[0m␛[1mopus␛[0m␛[2m  ·  ␛[0m␛[2meffort ␛[0m␛[1mmax␛[0m         ␛[1mctrl+g␛[0m␛[2m change␛[0m  
+ ␛[32m✓␛[0m Agent        ␛[2m │ ␛[0m␛[38;2;217;119;87m✻␛[0m Claude Code␛[2m  ·  ␛[0m␛[1mopus␛[0m␛[2m  ·  ␛[0m␛[2meffort ␛[0m␛[1mmax␛[0m         ␛[1mctrl+g␛[0m␛[2m change␛[0m  
  ␛[32m✓␛[0m Task         ␛[2m │ ␛[0m                                                             
  ␛[35m▸ ␛[0m␛[1;7mContext␛[0m    ␛[2m3␛[0m ␛[2m │ ␛[0m␛[1mTASK␛[0m                                                         
  ␛[32m✓␛[0m Trust   ␛[2msess␛[0m ␛[2m │ ␛[0m␛[2m┌─────────────────────────────────────────────────────────┐␛[0m  
@@ -74,7 +74,7 @@
   ␛[1m∴ REX␛[0m␛[2m › NEW AGENT␛[0m                        ␛[2mdraft␛[0m  
 ␛[2m──────────────────────────────────────────────────␛[0m
   ␛[35m‹ ␛[0m␛[2mAgent␛[0m␛[2m · ␛[0m␛[2mTask␛[0m␛[2m · ␛[0m␛[1m[Context 3]␛[0m␛[2m · ␛[0m␛[2mTrust␛[0m␛[35m ›␛[0m          
-  ␛[38;2;217;119;87m◆␛[0m Claude Code␛[2m · ␛[0m␛[1mopus␛[0m␛[2m · ␛[0m␛[1mmax␛[0m                      
+  ␛[38;2;217;119;87m✻␛[0m Claude Code␛[2m · ␛[0m␛[1mopus␛[0m␛[2m · ␛[0m␛[1mmax␛[0m                      
   ␛[35mCONTEXT␛[0m                         ␛[2m3 items · 7.1 KB␛[0m
     ␛[2mfile  ␛[0m internal/auth/auth_test.go       ␛[2m4.2 KB␛[0m
     ␛[2mdir   ␛[0m internal/auth/testdata/        ␛[2m12 files␛[0m

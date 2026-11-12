@@ -52,7 +52,7 @@ The settings page shows this per row (the detail pane under the list), and the r
 
 | Scheme | For |
 |--------|-----|
-| `default` | Dark terminals. Violet accent for the prompt arrow, selection marker, focused inputs and logo; blue, amber, green and red stay the state colors |
+| `default` | Dark terminals. Violet accent for the prompt arrow, selection marker, focused inputs and logo; blue, green (a bright one for ready, a calmer one for done) and red stay the state colors |
 | `classic` | The previous look (blue accent) |
 | `noir` | Deeper, quieter dark |
 | `paper` | Light terminals |

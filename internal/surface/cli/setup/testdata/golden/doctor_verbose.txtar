@@ -35,10 +35,10 @@ all required checks passed, 1 warning
 -- text.color.w80 --
 ␛[1;38;2;230;232;238mDoctor␛[0m  ␛[38;2;139;145;161mdev · linux/amd64␛[0m
 
-  ␛[38;2;91;208;140m✓␛[0m rex binary        /home/u/.local/bin/rex
+  ␛[38;2;78;158;110m✓␛[0m rex binary        /home/u/.local/bin/rex
   ␛[38;2;245;185;73m!␛[0m daemon reachable  socket not responding — run: rex daemon start
                       (socket=/home/u/.cache/rex/rex.sock)
-  ␛[38;2;91;208;140m✓␛[0m config dir        /home/u/.config/rex
+  ␛[38;2;78;158;110m✓␛[0m config dir        /home/u/.config/rex
   ␛[38;2;89;96;112m·␛[0m tool: claude      /usr/bin/claude
 
 ␛[38;2;245;185;73mall required checks passed, 1 warning␛[0m

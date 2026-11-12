@@ -277,7 +277,7 @@ func spendStyle(usd float64) lipgloss.Style {
 	return styleDim
 }
 
-// loopSlotText is the loop slot's text: "⟳ 3/8" while running, else the
+// loopSlotText is the loop slot's text: "↻ 3/8" while running, else the
 // loop's state word. "" for a non-loop session.
 func loopSlotText(m Model, s protocol.SessionSummary) string {
 	if s.LoopID == "" {

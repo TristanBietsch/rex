@@ -59,7 +59,8 @@ var (
 	styleCursor       lipgloss.Style // lit cursor: reverse video
 
 	// Feedback.
-	styleAlert       lipgloss.Style // bold Needs: an alert column title
+	styleAlert       lipgloss.Style // bold Needs (green): the Ready title and count
+	styleWarn        lipgloss.Style // amber: a paused loop, the attach scroll chip
 	styleNeeds       lipgloss.Style
 	styleDone        lipgloss.Style
 	styleFailed      lipgloss.Style
@@ -197,6 +198,7 @@ func rebuildStyles() {
 
 	styleAlert = bold(colorNeeds)
 	styleNeeds = fg(colorNeeds)
+	styleWarn = fg(colorWarn)
 	styleDone = fg(colorDone)
 	styleFailed = fg(colorFailed)
 	styleStateFailed = bold(colorFailed)

@@ -17,8 +17,8 @@
 │                                                                           …  │
 │    j/k scroll · g/G top/bottom · esc close                                …  │
 └──────────────────────────────────────────────────────────────────────────────┘
-   ●  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
-   ✕  no-model          boot                                                   -
+   ✓  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
+   ✗  no-model          boot                                                   -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
@@ -31,7 +31,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
 
   WAITING  0                                                                                                            
       nothing waiting on a tool

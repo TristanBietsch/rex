@@ -77,10 +77,10 @@ on-disk snapshot
            nal/width/for/sure/ok
 
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mSTATE␛[0m  ␛[38;2;139;145;161mSLUG␛[0m                       ␛[38;2;139;145;161mN␛[0m  ␛[38;2;139;145;161mNAME␛[0m
-  ␛[38;2;245;185;73m◆␛[0m  a91c  ␛[38;2;245;185;73mready␛[0m  refactor-db-with-a-real…   7
-  ␛[38;2;91;208;140m●␛[0m  0b2e  ␛[38;2;91;208;140mdone␛[0m   日本語のスラッグ          12  a|b `c` <i>
+  ␛[38;2;75;227;127m◆␛[0m  a91c  ␛[38;2;75;227;127mready␛[0m  refactor-db-with-a-real…   7
+  ␛[38;2;78;158;110m●␛[0m  0b2e  ␛[38;2;78;158;110mdone␛[0m   日本語のスラッグ          12  a|b `c` <i>
 
-  ␛[38;2;91;208;140m✓␛[0m rex binary  ~/.local/bin/rex
+  ␛[38;2;78;158;110m✓␛[0m rex binary  ~/.local/bin/rex
   ␛[38;2;245;185;73m!␛[0m daemon      not responding
                 ␛[1;38;2;179;146;240m› rex daemon start␛[0m
   ␛[38;2;242;107;107m✗␛[0m config      bad
@@ -88,7 +88,7 @@ on-disk snapshot
 
 ␛[38;2;245;185;73mon-disk snapshot␛[0m
 
-␛[38;2;91;208;140m✓ started 7d4f␛[0m
+␛[38;2;78;158;110m✓ started 7d4f␛[0m
 
 ␛[1;38;2;179;146;240m› rex attach 7d4f␛[0m  ␛[38;2;139;145;161mopen a session␛[0m
 -- txt --

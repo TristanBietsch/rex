@@ -325,7 +325,7 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 	start := time.Now()
 	fd.setState(t, "s1", protocol.StateDone)
 	time.Sleep(700 * time.Millisecond) // flash toggles every 200ms for 1.6s
-	v := rawLineVariants(rec.since(start), "alpha", "●")
+	v := rawLineVariants(rec.since(start), "alpha", "✓")
 	require.GreaterOrEqual(t, len(v), 2, "done blink frozen (variants %d)", len(v))
 	waitIdleChain("after done blink")
 

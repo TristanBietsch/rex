@@ -5,13 +5,13 @@
 
 ┌─ which provider?                                                          … ─┐
 │                                                                           …  │
-│    ▸ ◆  Claude Code                                                       …  │
-│      ◇  OpenAI Codex                                                      …  │
-│      ◈  Antigravity CLI                                                   …  │
-│      ◉  Ollama (local)                                                    …  │
-│      ▣  Qwen Code                                                         …  │
-│      ▲  Cursor CLI                                                        …  │
-│      ◢  Grok Build                                                        …  │
+│    ▸ ✻  Claude Code                                                       …  │
+│      ❀  OpenAI Codex                                                      …  │
+│      ✧  Antigravity CLI                                                   …  │
+│      ⌂  Ollama (local)                                                    …  │
+│      ❖  Qwen Code                                                         …  │
+│      ◮  Cursor CLI                                                        …  │
+│      ⍁  Grok Build                                                        …  │
 │                                                                           …  │
 │                                                                           …  │
 │                                                                           …  │
@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
 
   WAITING  0                                                                                                            
       nothing waiting on a tool
 
   WORKING  3      ┌─ which provider?                                                                ─┐                  
  ▸ ⠋  release-note│                                                                                  │       ▴ 45m   11m
-   ⠋  日本語の長い│    ▸ ◆  Claude Code                                                              │                7s
-   ⠋  payment-migr│      ◇  OpenAI Codex                                                             │       ▴ 7h     2h
-                  │      ◈  Antigravity CLI                                                          │
-  DONE  3         │      ◉  Ollama (local)                                                           │                  
-   ●  test-coverag│      ▣  Qwen Code                                                                │                9d
-   ✕  no-model    │      ▲  Cursor CLI                                                               │                 -
-   ✕  failing-job │      ◢  Grok Build                                                               │                 -
+   ⠋  日本語の長い│    ▸ ✻  Claude Code                                                              │                7s
+   ⠋  payment-migr│      ❀  OpenAI Codex                                                             │       ▴ 7h     2h
+                  │      ✧  Antigravity CLI                                                          │
+  DONE  3         │      ⌂  Ollama (local)                                                           │                  
+   ✓  test-coverag│      ❖  Qwen Code                                                                │                9d
+   ✗  no-model    │      ◮  Cursor CLI                                                               │                 -
+   ✗  failing-job │      ⍁  Grok Build                                                               │                 -
                   │                                                                                  │
                   │                                                                                  │
                   │                                                                                  │

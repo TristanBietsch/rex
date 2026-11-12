@@ -282,8 +282,8 @@ func themeSample(p theme.Palette) string {
 		return def
 	}
 	g := p.Glyphs
-	return fmt.Sprintf("%s needs you   ⠋ working   %s queued   %s done   %s failed   %s crashed",
-		pick(g.Needs, "◆"), pick(g.Queued, "◌"), pick(g.Done, "●"), pick(g.Failed, "✕"), pick(g.Crashed, "○"))
+	return fmt.Sprintf("%s ready   ⠋ working   %s queued   %s done   %s failed   %s crashed",
+		pick(g.Needs, "⚑"), pick(g.Queued, "◌"), pick(g.Done, "✓"), pick(g.Failed, "✗"), pick(g.Crashed, "⊘"))
 }
 
 // themeNewData is the `-o json` payload of theme new.
@@ -386,6 +386,6 @@ func themeSkeleton(name, from string, base theme.Palette) string {
 		fmt.Fprintf(&b, "#   fleet: [%s]\n", strings.Join(quoted, ", "))
 	}
 	b.WriteString("\n# glyphs: one printable character, exactly one cell wide, each (the values below are the built-in markers)\n# glyphs:\n")
-	b.WriteString("#   needs: \"◆\"\n#   done: \"●\"\n#   failed: \"✕\"\n#   crashed: \"○\"\n#   queued: \"◌\"\n#   select: \"▸\"\n#   loop: \"⟳\"\n")
+	b.WriteString("#   needs: \"⚑\"\n#   done: \"✓\"\n#   failed: \"✗\"\n#   crashed: \"⊘\"\n#   queued: \"◌\"\n#   select: \"▸\"\n#   loop: \"↻\"\n")
 	return b.String()
 }

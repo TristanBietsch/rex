@@ -2,47 +2,47 @@
 Sessions  1 ready · 1 working · 1 done
 
      ID    STATE   MODEL   SLUG     IDLE
-  ◆  a91c  ready   gemin…  refact…   12s
+  ⚑  a91c  ready   gemin…  refact…   12s
   ⠋  7d4f  worki…  opus …  fix-au…    2m
      Auth fix
-  ●  0b2e  done    sonne…  write-…    1h
+  ✓  0b2e  done    sonne…  write-…    1h
      Tests ✓done
   ◌  1111  queued  short   a-slug…     -
      日本語の名前
-  ✕  2222  failed  a-mod…  日本語…    2d
+  ✗  2222  failed  a-mod…  日本語…    2d
 
 › rex attach <id>  open a session
 -- text.w80 --
 Sessions  1 ready · 1 working · 1 done
 
      ID    STATE    TOOL         MODEL         SLUG           IDLE  NAME
-  ◆  a91c  ready    antigravity  gemini-3-pro  refactor-db     12s
+  ⚑  a91c  ready    antigravity  gemini-3-pro  refactor-db     12s
   ⠋  7d4f  working  claude       opus · high   fix-auth-flow    2m  Auth fix
-  ●  0b2e  done     claude       sonnet · me…  write-tests      1h  Tests ✓done
+  ✓  0b2e  done     claude       sonnet · me…  write-tests      1h  Tests ✓done
   ◌  1111  queued   echo         short         a-slug-that-…     -  日本語の名前
-  ✕  2222  failed   echo         a-model-nam…  日本語のスラ…    2d
+  ✗  2222  failed   echo         a-model-nam…  日本語のスラ…    2d
 
 › rex attach <id>  open a session
 -- text.w120 --
 Sessions  1 ready · 1 working · 1 done
 
      ID    STATE    TOOL         MODEL                 SLUG                      IDLE  NAME
-  ◆  a91c  ready    antigravity  gemini-3-pro          refactor-db                12s
+  ⚑  a91c  ready    antigravity  gemini-3-pro          refactor-db                12s
   ⠋  7d4f  working  claude       opus · high           fix-auth-flow               2m  Auth fix
-  ●  0b2e  done     claude       sonnet · medium       write-tests                 1h  Tests ✓done
+  ✓  0b2e  done     claude       sonnet · medium       write-tests                 1h  Tests ✓done
   ◌  1111  queued   echo         short                 a-slug-that-is-much-lon…     -  日本語の名前
-  ✕  2222  failed   echo         a-model-name-longer…  日本語のスラッグ日本語…     2d
+  ✗  2222  failed   echo         a-model-name-longer…  日本語のスラッグ日本語…     2d
 
 › rex attach <id>  open a session
 -- text.color.w80 --
 ␛[1;38;2;230;232;238mSessions␛[0m  ␛[38;2;139;145;161m1 ready · 1 working · 1 done␛[0m
 
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mSTATE␛[0m    ␛[38;2;139;145;161mTOOL␛[0m         ␛[38;2;139;145;161mMODEL␛[0m         ␛[38;2;139;145;161mSLUG␛[0m           ␛[38;2;139;145;161mIDLE␛[0m  ␛[38;2;139;145;161mNAME␛[0m
-  ␛[38;2;245;185;73m◆␛[0m  a91c  ␛[38;2;245;185;73mready␛[0m    antigravity  gemini-3-pro  refactor-db     ␛[38;2;139;145;161m12s␛[0m
+  ␛[38;2;75;227;127m⚑␛[0m  a91c  ␛[38;2;75;227;127mready␛[0m    antigravity  gemini-3-pro  refactor-db     ␛[38;2;139;145;161m12s␛[0m
   ␛[38;2;110;168;254m⠋␛[0m  7d4f  ␛[38;2;110;168;254mworking␛[0m  claude       opus · high   fix-auth-flow    ␛[38;2;139;145;161m2m␛[0m  Auth fix
-  ␛[38;2;91;208;140m●␛[0m  0b2e  ␛[38;2;91;208;140mdone␛[0m     claude       sonnet · me…  write-tests      ␛[38;2;139;145;161m1h␛[0m  Tests ✓done
+  ␛[38;2;78;158;110m✓␛[0m  0b2e  ␛[38;2;78;158;110mdone␛[0m     claude       sonnet · me…  write-tests      ␛[38;2;139;145;161m1h␛[0m  Tests ✓done
   ␛[38;2;110;168;254m◌␛[0m  1111  ␛[38;2;110;168;254mqueued␛[0m   echo         short         a-slug-that-…     ␛[38;2;139;145;161m-␛[0m  日本語の名前
-  ␛[38;2;242;107;107m✕␛[0m  2222  ␛[38;2;242;107;107mfailed␛[0m   echo         a-model-nam…  日本語のスラ…    ␛[38;2;139;145;161m2d␛[0m
+  ␛[38;2;242;107;107m✗␛[0m  2222  ␛[38;2;242;107;107mfailed␛[0m   echo         a-model-nam…  日本語のスラ…    ␛[38;2;139;145;161m2d␛[0m
 
 ␛[1;38;2;179;146;240m› rex attach <id>␛[0m  ␛[38;2;139;145;161mopen a session␛[0m
 -- txt --

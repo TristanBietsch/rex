@@ -31,6 +31,6 @@ func TestIconsAreSpacedFromCounts(t *testing.T) {
 	m.Sessions = append(m.Sessions, protocol.SessionSummary{ID: "f", State: protocol.StateFailed},
 		protocol.SessionSummary{ID: "f2", State: protocol.StateCrashed})
 	header := ansi.Strip(renderHeader(m, 200))
-	require.Contains(t, header, "◆ 1  ◷ 2  ⟳ 2  ● 1")
-	require.Contains(t, header, "✕ 2")
+	require.Contains(t, header, "⚑ 1  ◷ 2  ⠋ 2  ✓ 1")
+	require.Contains(t, header, "✗ 2")
 }

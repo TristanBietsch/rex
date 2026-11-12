@@ -2,33 +2,33 @@
 Sessions  1 ready · 1 working · 1 done
 
      ID    STATE    TOOL         MODEL         SLUG           IDLE  NAME
-  ◆  a91c  ready    antigravity  gemini-3-pro  refactor-db     12s
+  ⚑  a91c  ready    antigravity  gemini-3-pro  refactor-db     12s
   ⠋  7d4f  working  claude       opus · high   fix-auth-flow    2m  Auth fix
-  ●  0b2e  done     claude       sonnet · me…  write-tests      1h  Tests ✓done
+  ✓  0b2e  done     claude       sonnet · me…  write-tests      1h  Tests ✓done
   ◌  1111  queued   echo         short         a-slug-that-…     -  日本語の名前
-  ✕  2222  failed   echo         a-model-nam…  日本語のスラ…    2d
+  ✗  2222  failed   echo         a-model-nam…  日本語のスラ…    2d
 
 › rex attach <id>  open a session
 -- text.w120 --
 Sessions  1 ready · 1 working · 1 done
 
      ID    STATE    TOOL         MODEL           SLUG             IDLE  STARTED           ENDED             NAME
-  ◆  a91c  ready    antigravity  gemini-3-pro    refactor-db       12s  2026-11-11 11:40  -
+  ⚑  a91c  ready    antigravity  gemini-3-pro    refactor-db       12s  2026-11-11 11:40  -
   ⠋  7d4f  working  claude       opus · high     fix-auth-flow      2m  2026-11-11 09:05  -                 Auth fix
-  ●  0b2e  done     claude       sonnet · medi…  write-tests        1h  2026-11-10 22:00  2026-11-11 11:00  Tests ✓done
+  ✓  0b2e  done     claude       sonnet · medi…  write-tests        1h  2026-11-10 22:00  2026-11-11 11:00  Tests ✓done
   ◌  1111  queued   echo         short           a-slug-that-is…     -  -                 -                 日本語の名前
-  ✕  2222  failed   echo         a-model-name-…  日本語のスラッ…    2d  2026-11-09 08:00  2026-11-09 08:30
+  ✗  2222  failed   echo         a-model-name-…  日本語のスラッ…    2d  2026-11-09 08:00  2026-11-09 08:30
 
 › rex attach <id>  open a session
 -- text.w160 --
 Sessions  1 ready · 1 working · 1 done
 
      ID    STATE    TOOL         MODEL            SLUG              IDLE  STARTED           ENDED             RESUME ID                             NAME
-  ◆  a91c  ready    antigravity  gemini-3-pro     refactor-db        12s  2026-11-11 11:40  -                 -
+  ⚑  a91c  ready    antigravity  gemini-3-pro     refactor-db        12s  2026-11-11 11:40  -                 -
   ⠋  7d4f  working  claude       opus · high      fix-auth-flow       2m  2026-11-11 09:05  -                 7d4f3c8a-1234-4abc-89ab-cdefabcdef01  Auth fix
-  ●  0b2e  done     claude       sonnet · medium  write-tests         1h  2026-11-10 22:00  2026-11-11 11:00  0b2e9f10-5678-4def-8abc-0123456789ab  Tests ✓done
+  ✓  0b2e  done     claude       sonnet · medium  write-tests         1h  2026-11-10 22:00  2026-11-11 11:00  0b2e9f10-5678-4def-8abc-0123456789ab  Tests ✓done
   ◌  1111  queued   echo         short            a-slug-that-is-…     -  -                 -                 -                                     日本語の名前
-  ✕  2222  failed   echo         a-model-name-l…  日本語のスラッ…     2d  2026-11-09 08:00  2026-11-09 08:30  -
+  ✗  2222  failed   echo         a-model-name-l…  日本語のスラッ…     2d  2026-11-09 08:00  2026-11-09 08:30  -
 
 › rex attach <id>  open a session
 -- txt --

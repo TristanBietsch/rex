@@ -26,14 +26,34 @@ A DONE column with more than 5 rows folds into its title line (`DONE  7 hidden`)
 
 The daemon auto-starts if the socket is unreachable (boot splash).
 
+## MARKERS
+
+Each row starts with a one-cell marker. READY and DONE are both green, in two clearly different greens (a bright, saturated one for READY and a calmer, darker one for DONE), and their glyphs differ too, so neither the color nor the shape alone has to carry the state: on a terminal without color, or for a reader who cannot tell the greens apart, `⚑` and `✓` still do.
+
+| Marker | State | Color | Why this glyph |
+|--------|-------|-------|----------------|
+| `⚑` | READY: waits on you | bright green | A raised flag: your turn |
+| spinner (`⠋`) | WORKING | blue | Moves while the agent works |
+| `◷` | WAITING on a tool | blue | A clock: it waits, not on you (`waiting_spinner` picks another set) |
+| `◌` | queued, agent not started | blue | A dotted circle: a placeholder |
+| `✓` | done | calm green | A check mark |
+| `✗` | failed | red | The ballot X that pairs with `✓` |
+| `⊘` | crashed | gray | A slashed circle: stopped dead |
+| `▍` | fleet member | per fleet | A bar that joins across rows |
+| `▸` | selected row | accent | |
+
+Every marker is East Asian narrow or neutral (never ambiguous, which CJK terminals draw two cells wide), has no emoji presentation, and is drawn by Menlo itself, so terminals using SF Mono, JetBrains Mono, Fira Code or Cascadia (which fall back to Menlo on macOS) keep it one cell wide. `▍` is the one ambiguous-width glyph kept, like the box-drawing borders, because a block element joins into a continuous bar. A theme file can replace any marker (`glyphs:` in [themes.md](themes.md)). The header counts follow the same colors: `N ready` is green while anything waits on you.
+
+`rex ls` and `rex status` use the same markers (`⚑ ✓ ✗ ⊘ ◌`; with `REX_ASCII=1`: `! v x - .`).
+
 ## ROW COLUMNS
 
 By default (`row_icons` on) a row shows state, name, a strip of fixed icon slots, and age. No row text: the preview line under the board carries it. The strip is right-aligned: it ends next to the age, and the name takes the room on the left.
 
 ```
-   ◆  dark-mode                 ✦  ? asks                     $0.31           4m
+   ⚑  dark-mode                 ✦  ? asks                     $0.31           4m
    ◷  api-research                 sub 3m              ⋔ 2    $1.07           2m
- ▸ ⠋  payment-migration-v2                   ⟳ 3/8     ⋔ 3    $4.92  ▴ 45m    1m
+ ▸ ⠋  payment-migration-v2                   ↻ 3/8     ⋔ 3    $4.92  ▴ 45m    1m
      state name                 unseen why     loop  subagents spend long-run  last event
 ```
 
@@ -45,12 +65,12 @@ The strip's slots, left to right, ending before the age. A slot that exists is a
 |------|-------|-------|
 | unseen | 1 | `✦`: a Ready or Done row that finished since you last looked at it (last attach or `cc`). On the first start every row counts as seen. Marked-done rows never show it |
 | why | 8 | Ready: `? asks` (the agent asks for an answer or approval, or its last line is a question); a row whose turn simply finished shows nothing. Waiting: what it waits on and for how long (`sh 42s`, `web 9s`, `sub 3m`). Blank otherwise |
-| loop | 8 | `⟳ 3/8` while the loop runs; `⟳ paused`, `⟳ capped`, `⟳ done`, `⟳ failed`, `⟳ stop` otherwise. Only while `loops` is on |
+| loop | 8 | `↻ 3/8` while the loop runs; `↻ paused`, `↻ capped`, `↻ done`, `↻ failed`, `↻ stop` otherwise. Only while `loops` is on |
 | subagents | 4 | `⋔ 3`: subagents the session runs now (Claude Code). Counts above 99 show as 99 |
 | spend | 6 | What the session has cost so far, right-aligned: `$0.42`, `$12.3`, `$123`, `$1.2k`. Warmer from $5, red from $20. Only while `usage` is on, and only for sessions the daemon sends a `cost_usd` for (Claude Code); blank otherwise, never `$0.00` |
 | long-run | 5 | The long-running badge (`▴ 45m`, see [LONG-RUNNING BADGE](#long-running-badge)) |
 
-`row_icon_set` (Settings → Appearance) removes slots: a comma-separated list of `unseen`, `reason`, `loop`, `subagents`, `spend`, `longrun` (unknown ids are ignored; the order is fixed). `ascii_glyphs` swaps the strip's glyphs for ASCII: `✦→*`, `⟳→@`, `⋔→Y`, `▴→^`; `?` and `$` stay. Every glyph has text next to it, so no meaning is color-only, and nothing in the strip animates.
+`row_icon_set` (Settings → Appearance) removes slots: a comma-separated list of `unseen`, `reason`, `loop`, `subagents`, `spend`, `longrun` (unknown ids are ignored; the order is fixed). `ascii_glyphs` swaps the strip's glyphs for ASCII: `✦→*`, `↻→@`, `⋔→Y`, `▴→^`; `?` and `$` stay. Every glyph has text next to it, so no meaning is color-only, and nothing in the strip animates.
 
 Under the board, a dim preview line (`↳ …`) shows the selected session's lead, first that exists: the question it waits on, its AI summary (with its age, `· 12s`), or `task: ` and the task you gave it. It takes one row (two on a terminal 30+ rows tall with `summary_detail: long`, none below 20 rows), reserved for the whole board so the layout does not move as the selection does. `summary_preview` in Settings → Features turns it off. For Antigravity sessions the board's last line skips agy's `Generating...` spinner and the text in its input box.
 
@@ -72,7 +92,7 @@ Under the board, a dim preview line (`↳ …`) shows the selected session's lea
 `row_icons` in Settings → Features turns the strip off and brings back the earlier board, a row with a text column:
 
 ```
- ▸ ◆  release-notes   Which feature should lead: search or export?          11m
+ ▸ ⚑  release-notes   Which feature should lead: search or export?          11m
      state name       text                                                  last event
 ```
 
@@ -102,13 +122,13 @@ With `row_icons` off the widths are those of the text-column board: name 22 / 20
 At 60 columns or fewer (a phone over SSH) the board stacks each session on two lines. `mobile_layout` in Settings → Appearance sets when: `auto` (the default) uses it at 60 columns or fewer, `always` forces it, `off` never uses it (the narrow columns then squeeze to fit, as above).
 
 ```
- ▸ ◆  release-notes   ✦ ?  ⋔ 2  ▴ 42m  11m
+ ▸ ⚑  release-notes   ✦ ?  ⋔ 2  ▴ 42m  11m
       draft the 0.9 release notes
 ```
 
 - Line 1 is the state, name, the unseen mark and the why glyph (`?` only, each one cell; with `row_icons` on), subagent count, long-run badge and age. The subagent and badge cells go below 36 columns. Loop and spend are not shown.
 - Line 2 is the text (simple view) or the AI summary (detailed view), cut on a word boundary. Clicking either line selects the session, and scrolling keeps both lines on screen.
-- The header shows the short counts (`◆ 4  ⟳ 2  ● 7`) whatever `header_style` says, without `· detailed (v)`. The backend banner is shortened.
+- The header shows the short counts (`⚑ 4  ⠋ 2  ✓ 7`, working with the spinner's first frame) whatever `header_style` says, without `· detailed (v)`. The backend banner is shortened.
 - The help line lists three keys: `enter open · i new · ? help`.
 - There is no summary preview line, since line 2 already shows the text.
 
@@ -153,7 +173,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 - **Groups.** `1`–`9` pick a group, `[` / `]` step through them (they wrap), and on the left pane `j` `k` move. `enter` or `l` moves to the rows. A new group starts at the top.
 - **Scroll.** On the rows pane a group that does not fit scrolls under `↑ more` / `↓ more` markers: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel. The wheel on the left pane changes the group.
 - **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`), from every group at once; groups with no hit are dimmed on the left, and no hit at all reads `no match for “…”`. `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The header shows the query.
-- **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, the `waiting_spinner` still glyph (`◷` by default) for waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, the row icon strip while `row_icons` is on (`✦` finished since you last looked, `? asks`, `sh 42s` while `waiting_section` is on, `⟳ 3/8` while `loops` is on, `$0.42` while `usage` is on; the ASCII forms with `ascii_glyphs`), and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
+- **Legend.** Drawn with the board's own styles, so it always matches what you see: `⚑` ready (green), the spinner for working, the `waiting_spinner` still glyph (`◷` by default) for waiting (only while `waiting_section` is on), `◌` queued, `✓` done (a calmer green), `✗` failed, `⊘` crashed, `▍` fleet member, `⋔ 3` subagents, the row icon strip while `row_icons` is on (`✦` finished since you last looked, `? asks`, `sh 42s` while `waiting_section` is on, `↻ 3/8` while `loops` is on, `$0.42` while `usage` is on; the ASCII forms with `ascii_glyphs`), and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
 - **Features that are off.** Keys and commands behind a Features switch (`t`, `/`, `esc` for search, `z…`, `uc`, `:filter`, `:search`, `:uc`, `:rid`, `:export`) stay listed, dimmed and tagged `(off)`.
 
 ### Settings page
@@ -419,7 +439,7 @@ The dialog never changes a file until you confirm:
   ∴ REX › NEW AGENT                 ~/dev/rex                       draft
 ──────────────────────────────────────────────────────────────────────────
   STEPS          │ AGENT
-  ✓ Agent        │ ◆ Claude Code  ·  opus  ·  effort max   ctrl+g change
+  ✓ Agent        │ ✻ Claude Code  ·  opus  ·  effort max   ctrl+g change
   ▸ Task         │ TASK
   · Context      │ ┌──────────────────────────────────────────────────┐
   ? Trust   ask  │ │ fix the flaky auth test█                         │

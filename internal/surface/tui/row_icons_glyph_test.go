@@ -51,7 +51,7 @@ func TestRowIconGlyphs(t *testing.T) {
 		}
 	}
 	// Reused with the same meaning.
-	reused := map[string]string{"⋔": subagentGlyph, "▴": "▴", "⟳": loopDefault}
+	reused := map[string]string{"⋔": subagentGlyph, "▴": "▴", "↻": loopDefault}
 	for g, want := range reused {
 		require.Equal(t, want, g)
 		delete(taken, g)

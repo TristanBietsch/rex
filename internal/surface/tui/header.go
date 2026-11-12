@@ -170,7 +170,7 @@ func showFilterChips(m Model) bool {
 
 // renderHeaderCounts formats the counts segment of the header per header_style.
 // verbose: "  4 ready · 1 waiting · 2 working · 7 done"
-// glyphs:  "  ◆ 4  ◷ 1  ⟳ 2  ● 7"
+// glyphs:  "  ⚑ 4  ◷ 1  ⠋ 2  ✓ 7" (working shows the spinner's first frame)
 // numbers: "  4 · 3 · 7" (waiting folded into working: a bare number has no
 // label to say it is a fourth bucket)
 // The waiting count is left out while it is 0.
@@ -184,24 +184,32 @@ func renderHeaderCounts(m Model, needs, waiting, working, done, failed int) stri
 	if mobileLayout(m) {
 		style = "glyphs" // the short counts: the verbose ones are 45 columns
 	}
-	var s string
+	meta := styleHeaderMeta.Render
+	// ready is the Ready count: green (the alert style) while anything waits
+	// on you, like the section title and the screensaver.
+	ready := meta
+	if needs > 0 {
+		ready = styleAlert.Render
+	}
+	var out string
 	switch style {
 	case "glyphs":
 		wait := ""
 		if waiting > 0 {
 			wait = fmt.Sprintf("%s %d  ", waitingStillFor(m), waiting)
 		}
-		s = fmt.Sprintf("    %s %d  %s⟳ %d  %s %d", stateGlyph(protocol.StateNeedsInput), needs, wait, working, stateGlyph(protocol.StateDone), done)
+		out = meta("    ") + styleMarker[protocol.StateNeedsInput].Render(stateGlyph(protocol.StateNeedsInput)) + ready(fmt.Sprintf(" %d", needs)) +
+			meta(fmt.Sprintf("  %s%s %d  ", wait, spinnerFramesFor(m)[0], working)) +
+			styleMarker[protocol.StateDone].Render(stateGlyph(protocol.StateDone)) + meta(fmt.Sprintf(" %d", done))
 	case "numbers":
-		s = fmt.Sprintf("    %d · %d · %d", needs, working+waiting, done)
+		out = meta("    ") + ready(fmt.Sprintf("%d", needs)) + meta(fmt.Sprintf(" · %d · %d", working+waiting, done))
 	default:
 		wait := ""
 		if waiting > 0 {
 			wait = fmt.Sprintf(" · %d %s", waiting, boardGroups[groupWaiting].Count)
 		}
-		s = fmt.Sprintf("    %d ready%s · %d working · %d done", needs, wait, working, done)
+		out = meta("    ") + ready(fmt.Sprintf("%d ready", needs)) + meta(fmt.Sprintf("%s · %d working · %d done", wait, working, done))
 	}
-	out := styleHeaderMeta.Render(s)
 	if failed > 0 {
 		if style == "verbose" {
 			out += styleStateFailed.Render(fmt.Sprintf("  · %d failed", failed))

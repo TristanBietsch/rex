@@ -95,10 +95,10 @@ func TestLoopSlotText(t *testing.T) {
 		{ID: "l2", State: protocol.LoopPaused, Iteration: 3, MaxIterations: 8},
 		{ID: "l3", State: protocol.LoopStopped},
 	}
-	require.Equal(t, "⟳ 3/8", loopSlotText(m, protocol.SessionSummary{LoopID: "l1"}))
-	require.Equal(t, "⟳ paused", loopSlotText(m, protocol.SessionSummary{LoopID: "l2"}))
-	require.Equal(t, "⟳ stop", loopSlotText(m, protocol.SessionSummary{LoopID: "l3"}))
-	require.Equal(t, "⟳ 3", loopSlotText(m, protocol.SessionSummary{LoopID: "gone", LoopIter: 3}))
+	require.Equal(t, "↻ 3/8", loopSlotText(m, protocol.SessionSummary{LoopID: "l1"}))
+	require.Equal(t, "↻ paused", loopSlotText(m, protocol.SessionSummary{LoopID: "l2"}))
+	require.Equal(t, "↻ stop", loopSlotText(m, protocol.SessionSummary{LoopID: "l3"}))
+	require.Equal(t, "↻ 3", loopSlotText(m, protocol.SessionSummary{LoopID: "gone", LoopIter: 3}))
 	require.Equal(t, "", loopSlotText(m, protocol.SessionSummary{}))
 }
 

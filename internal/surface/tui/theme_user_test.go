@@ -37,13 +37,13 @@ glyphs: {needs: "!", done: "+", select: ">"}
 	require.Equal(t, lipgloss.Color(theme.Builtin["noir"].Working), colorWorking, "the rest comes from the base")
 	require.Equal(t, "!", stateGlyph(protocol.StateNeedsInput))
 	require.Equal(t, "+", stateGlyph(protocol.StateDone))
-	require.Equal(t, "✕", stateGlyph(protocol.StateFailed), "an unset glyph keeps the built-in")
+	require.Equal(t, "✗", stateGlyph(protocol.StateFailed), "an unset glyph keeps the built-in")
 	require.Equal(t, ">", selectGlyph())
 	require.Contains(t, stateMarkerCellFor(m, protocol.StateNeedsInput, 0, false), "!")
 	require.Contains(t, renderHelpLegendText(m), "!")
 
 	m, _ = executeCommand(m, "theme default")
-	require.Equal(t, "◆", stateGlyph(protocol.StateNeedsInput), "leaving the theme restores the markers")
+	require.Equal(t, "⚑", stateGlyph(protocol.StateNeedsInput), "leaving the theme restores the markers")
 	require.Equal(t, "▸", selectGlyph())
 }
 

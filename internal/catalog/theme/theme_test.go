@@ -54,9 +54,14 @@ func TestDarkFlags(t *testing.T) {
 func TestSemanticAliasesMatchStates(t *testing.T) {
 	for _, name := range Names() {
 		p, _ := Get(name)
-		require.Equal(t, p.Needs, p.Warn, name)
+		// Warn keeps the amber; Ready (Needs) is green since v2.0.0.
+		require.NotEqual(t, p.Needs, p.Warn, name)
 		require.Equal(t, p.Failed, p.Danger, name)
-		require.Equal(t, p.Done, p.Success, name)
+		if name == "ansi" {
+			require.Equal(t, "2", p.Success, "ansi: success keeps a normal hue; done is the bright green") // TestAnsiThemeIndices
+		} else {
+			require.Equal(t, p.Done, p.Success, name)
+		}
 		require.Equal(t, p.Working, p.Info, name)
 	}
 }

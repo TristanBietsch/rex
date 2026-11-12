@@ -247,7 +247,7 @@ func attachViewRow(a *AttachState, y, cols int, cursorX int) string {
 
 // attachScrollChip is the "SCROLL ↑N/total" title chip.
 func attachScrollChip(a *AttachState) string {
-	return styleAlert.
+	return styleWarn.Bold(true).
 		Render(fmt.Sprintf("SCROLL ↑%d/%d", a.ScrollOff, a.sb.Len()))
 }
 
@@ -260,7 +260,7 @@ func attachScrollFooter(a *AttachState, width int) string {
 		kbdChip("G/esc") + styleDim.Render(" live")
 	right := attachScrollChip(a)
 	if a.scrollNew > 0 {
-		right = styleNeeds.
+		right = styleWarn.
 			Render(fmt.Sprintf("↓ %d new · G/esc to resume", a.scrollNew))
 	}
 	pad := width - lipglossWidth(left) - lipglossWidth(right)

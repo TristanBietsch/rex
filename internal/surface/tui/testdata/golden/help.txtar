@@ -6,7 +6,7 @@
 ────│   tab  next Ready session                                            │────
     │   1-4  jump to Ready / Waiting / Working / Done (4 also folds a      │
   RE│        long Done column)                                             │    
-   ◆│   v    simple / detailed rows (id, model, tokens, AI summary)        │  4m
+   ⚑│   v    simple / detailed rows (id, model, tokens, AI summary)        │  4m
     │                                                                      │
   WA│   ── Filter & search ─────────────────────────────────────────────   │    
     │   t     cycle tool filter                                            │
@@ -17,8 +17,8 @@
    ⠋│   z0    show every section                                           │  2h
     │                                                                      │
   DO│   ── Actions ─────────────────────────────────────────────────────   │    
-   ●│   enter  attach to selected session                                  │  9d
-   ✕│   n      new agent                                                   │   -
+   ✓│   enter  attach to selected session                                  │  9d
+   ✗│   n      new agent                                                   │   -
   ↳ │   ↓ more                                                             │    
 ────│                                                                      │────
   λ │   j/k scroll · / filter · esc close                                  │    
@@ -31,7 +31,7 @@
 ─────│   tab  next Ready session                                                      open editor)                │─────
      │   1-4  jump to Ready / Waiting / Working / Done (4     :rename <s> <slug>      change slug                 │
   REA│        also folds a long Done column)                  :done [sel]             mark done                   │     
-   ◆ │   v    simple / detailed rows (id, model, tokens,      :undone [sel]           undo done                   │   4m
+   ⚑ │   v    simple / detailed rows (id, model, tokens,      :undone [sel]           undo done                   │   4m
      │        AI summary)                                     :uc :resume [sel]       undo done: unmark a         │
   WAI│                                                                                running session, or         │     
      │   ── Filter & search ──────────────────────────────                            resume an exited one        │
@@ -42,9 +42,9 @@
    ⠋ │   z1-9  hide / show section N                          :redo [sel]             bring back what :undo       │   2h
      │   z0    show every section                                                     replaced (off)              │
   DON│                                                        :complete [sel]         kill agent + mark done      │     
-   ● │   ── Actions ──────────────────────────────────────                            now                         │   9d
-   ✕ │   enter  attach to selected session                    :rm <sel>               delete                      │    -
-   ✕ │   n      new agent                                     :prune                  clear Done (keeps           │    -
+   ✓ │   ── Actions ──────────────────────────────────────                            now                         │   9d
+   ✗ │   enter  attach to selected session                    :rm <sel>               delete                      │    -
+   ✗ │   n      new agent                                     :prune                  clear Done (keeps           │    -
      │   r      rename selected (empty = slug)                                        sessions still working)     │
      │   cc     mark done / undo                              :export [sel] [fmt]     write session to exports/   │
      │   uc     undo done (unmark, or resume an exited        :loop pause|resume|st…  pause, resume or stop a     │

@@ -3,8 +3,8 @@
   ∴ REX › NEW AGENT › AGENT    ~/dev/rex                                                                                
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  AGENTS          │ MODELS  Cursor CLI                                                         / filter   200 · 3 shown  
-   ◆ Claude Code │ > son█                                                                                               
- ▸ ▲ Cursor CLI  │ ▸ sonnet-4.6           detected                                                                      
+   ✻ Claude Code │ > son█                                                                                               
+ ▸ ◮ Cursor CLI  │ ▸ sonnet-4.6           detected                                                                      
                  │   sonnet-4.6-thinking  detected                                                                      
    not installed │   claude-4.5-sonnet    detected                                                                      
    · OpenAI Cod… │                                                                                                      
@@ -44,8 +44,8 @@
   ∴ REX › NEW AGENT › AGENT    ~/dev/rex                                        
 ────────────────────────────────────────────────────────────────────────────────
  AGENTS          │ MODELS  Cursor CLI                 / filter   200 · 3 shown  
-   ◆ Claude Code │ > son█                                                       
- ▸ ▲ Cursor CLI  │ ▸ sonnet-4.6           detected                              
+   ✻ Claude Code │ > son█                                                       
+ ▸ ◮ Cursor CLI  │ ▸ sonnet-4.6           detected                              
                  │   sonnet-4.6-thinking  detected                              
    not installed │   claude-4.5-sonnet    detected                              
    · OpenAI Cod… │                                                              

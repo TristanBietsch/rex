@@ -132,7 +132,7 @@ func loopIter(iter, maxIter int) string {
 	return fmt.Sprint(iter)
 }
 
-// loopChip is the text a loop session's row starts with: "⟳ 3/8 running".
+// loopChip is the text a loop session's row starts with: "↻ 3/8 running".
 // "" for an ordinary session, and while the loops feature is off. A loop the
 // daemon no longer lists (finished long ago) shows its turn only.
 func loopChip(m Model, s protocol.SessionSummary) string {
@@ -165,7 +165,7 @@ func loopStyle(l protocol.LoopSummary) lipgloss.Style {
 	case protocol.LoopRunning:
 		return styleWorking
 	case protocol.LoopPaused, protocol.LoopCapped:
-		return styleNeeds
+		return styleWarn
 	case protocol.LoopDone:
 		return styleDone
 	case protocol.LoopFailed:

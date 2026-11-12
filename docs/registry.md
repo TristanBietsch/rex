@@ -70,7 +70,7 @@ Duplicate tool or model ids are rejected at load time.
 | `model_arg_template` | with `models_cmd` | Argv for a detected model, `{model}` replaced by its id: `["--model", "{model}"]`. One element each, never split. Required when `models_cmd` is set |
 | `model_effort` | no | An `effort` block that detected models get (a detected model has no hand-written one). `qwen` and `grok` set it; `cursor` encodes effort in the model id and has none |
 | `detect` | yes | State classifier config |
-| `icon`, `color` | yes | TUI display (wizard, pickers). `icon` is one character one cell wide; each built-in has its own (`claude` `◆`, `codex` `◇`, `antigravity` `◈`, `ollama` `◉`, `qwen` `▣`, `cursor` `▲`, `grok` `◢`) |
+| `icon`, `color` | yes | TUI display (wizard, pickers). `icon` is one character one cell wide; each built-in has its own, see [Agent icons](#agent-icons) |
 | `enabled_by_default` | no | If false, hidden from wizard until enabled |
 | `models` | yes | At least one model |
 
@@ -247,6 +247,24 @@ Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `qwen`, `c
 
 `antigravity` runs the Antigravity CLI (`agy`), Google's successor to Gemini CLI, which was retired on 2026-06-18. `gemini` stays built in but hidden (`enabled_by_default: false`), so an existing install, a partial `gemini` overlay in `tools.yaml`, or a saved `default_spawn_tool: gemini` keeps working. The Gemini model's effort picks its slug (`--model=gemini-3.8-flash-<effort>`); the other models take `--effort`. Model slugs come from `agy models` and depend on your account.
 
+### Agent icons
+
+Each built-in's `icon` evokes its maker without using a logo. Every icon is one code point, one cell wide, East Asian narrow or neutral (never ambiguous), has no emoji presentation, is drawn by Menlo (so terminals on SF Mono, JetBrains Mono, Fira Code and Cascadia keep it one cell on macOS), and is never a board marker (`⚑ ✓ ✗ ⊘ ◌ ▸ ↻ ✦ ⋔ ▴`, spinner or waiting frames). Tests pin the set (`TestBuiltinGlyphSet`) and these rules (`TestBuiltinGlyphsUnique`, `TestAgentGlyphsAvoidMarkers`). An `icon` in `tools.yaml` overrides the built-in one.
+
+| Tool | Icon | Was | Why |
+|------|------|-----|-----|
+| `claude` | `✻` | `◆` | The teardrop asterisk Claude Code spins while it works: Anthropic's spark |
+| `codex` | `❀` | `◇` | A blossom, like OpenAI's knot mark |
+| `antigravity` | `✧` | `◈` | Google's four-point sparkle, drawn open (the filled `✦` is the unseen mark) |
+| `gemini` | `⁑` | `□` | Two stars, one above the other: the twins |
+| `ollama` | `⌂` | `◉` | A house: models that run at home, on your machine |
+| `qwen` | `❖` | `▣` | A four-part diamond, after Qwen's geometric mark |
+| `cursor` | `◮` | `▲` | A half-shaded triangle: Cursor's 3D prism (and its old `▲`) |
+| `grok` | `⍁` | `◢` | A slash through a frame, after the Grok slash mark |
+| `deepseek` | `≋` | `⊙` | Deep water, for the whale |
+| `kimi` | `☾` | `◗` | A crescent: Moonshot AI |
+| `echo` | `∿` | `◎` | A signal wave: it echoes a script (test tool) |
+
 ## Reload
 
 Edit `tools.yaml`, then:
@@ -271,7 +289,7 @@ tools:
       kind: heuristic
       prompt_regex: "(?m)^> "
       idle_ms: 1000
-    icon: "●"
+    icon: "◍"
     color: "#888888"
     models:
       - id: default

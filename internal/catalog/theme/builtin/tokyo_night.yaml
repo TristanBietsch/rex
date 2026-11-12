@@ -13,11 +13,11 @@ colors:
   accent: "#BB9AF7"
   working: "#7AA2F7"
   queued: "#7AA2F7"
-  needs: "#E0AF68"
-  done: "#9ECE6A"
+  needs: "#9ECE6A"  # ready: the bright green
+  done: "#4FA57A"  # calmer than ready
   failed: "#F7768E"
   crashed: "#868EB8"
   warn: "#E0AF68"
   danger: "#F7768E"
-  success: "#9ECE6A"
+  success: "#4FA57A"
   info: "#7AA2F7"

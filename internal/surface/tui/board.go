@@ -66,7 +66,7 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 
 // boardGroups is the canonical kanban layout. Done includes all terminal
 // states (done/failed/crashed) plus every session the user marked done,
-// whatever its live state; distinct markers (●/✕/○) preserve the at-a-glance
+// whatever its live state; distinct markers (✓/✗/⊘) preserve the at-a-glance
 // distinction within the column. Working also holds queued sessions (spawned,
 // agent not started yet; marker ◌): every state must land in some group, or
 // the session is invisible and unreachable by keyboard. Waiting holds
@@ -846,7 +846,7 @@ const waitingGlyph = "◷"
 
 // queuedGlyph marks a session that is spawned but whose agent hasn't
 // started yet. It sits in the Working column, so it must read as "not
-// running yet" next to the spinner without looking like crashed (○).
+// running yet" next to the spinner without looking like crashed (⊘).
 const queuedGlyph = "◌"
 
 // stateMarkerCellFor renders the marker glyph for a state, sourcing the

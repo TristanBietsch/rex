@@ -25,6 +25,8 @@ The first release since v1. Details for every change follow the summary.
 
 ### Highlights
 
+- **Green Ready, check-mark Done**: READY is a bright green `⚑`, DONE a
+  calmer green `✓`; new state markers and agent icons, all one cell wide.
 - **Full-screen settings and help pages** (`S`, `?`) that look like the
   board, with a section list, search and a detail pane
   (`fullscreen_pages`, on).
@@ -79,6 +81,30 @@ The first release since v1. Details for every change follow the summary.
 - **Render fixes**: popups stay straight with CJK and emoji text,
   multi-line pastes keep the help line on screen, short terminals keep the
   prompt, and prompts are typed without escape sequences.
+
+### Changed (green Ready, check-mark Done, new icons)
+
+- READY is green: its rows' marker, the section title, the `N ready`
+  header count (and `⚑ N` in the short counts), the `? asks` slot, the
+  screensaver count and the legend use a bright "go" green in every theme.
+  Warnings keep the amber; a paused loop and the attach scroll chip are
+  amber now too.
+- DONE rows show a green check mark `✓` (was `●`), in a calmer, darker
+  green than READY. The two greens are at least ΔE 20 apart, read at 4.5:1
+  on each theme, and stay apart under simulated protan, deutan and tritan
+  vision; the glyphs differ too, so no color is needed to tell them apart.
+  `ansi` uses green for READY and bright green for DONE.
+- New state markers: `⚑` ready (was `◆`), `✓` done (`●`), `✗` failed
+  (`✕`), `⊘` crashed (`○`); `◌` queued stays. The loop mark is `↻` (was
+  `⟳`, which some fonts drew wider than a cell), and the header's short
+  counts show working with the spinner's first frame instead of `⟳`. Every
+  marker is one cell, never East Asian ambiguous, and drawn by Menlo.
+- New agent icons: `claude` `✻`, `codex` `❀`, `antigravity` `✧`, `gemini`
+  `⁑`, `ollama` `⌂`, `qwen` `❖`, `cursor` `◮`, `grok` `⍁`, `deepseek` `≋`,
+  `kimi` `☾`, `echo` `∿` (rationale in [docs/registry.md](docs/registry.md#agent-icons)).
+- `rex ls` and `rex status` use the same markers; with `REX_ASCII=1` done
+  is `v` (was `o`).
+- The accent clash warning names `ready` instead of `needs`.
 
 ### Fixed (sound plays once across boards)
 
@@ -136,8 +162,11 @@ Each is described in full under **Changed** below.
   under `auto_trust_dirs`.
 - `show_help_bar` off hides only the key hints; errors and notices still
   show on the bottom line.
-- Glyphs: new agent icons (`qwen` `▣`, `cursor` `▲`, `grok` `◢`, `gemini`
-  `□`, `echo` `◎`), one space between an icon and its number (`⋔ 3`,
+- Glyphs: READY is green with a `⚑` marker (was amber `◆`), DONE is a green
+  `✓` (was `●`), failed `✗`, crashed `⊘`, loop `↻`; new agent icons
+  (`claude` `✻`, `codex` `❀`, `antigravity` `✧`, `gemini` `⁑`, `ollama` `⌂`,
+  `qwen` `❖`, `cursor` `◮`, `grok` `⍁`, `deepseek` `≋`, `kimi` `☾`, `echo`
+  `∿`). Themes that set `needs` or `done` colors or glyphs keep them. One space between an icon and its number (`⋔ 3`,
   `▴ 42m`), and row icons in place of the task text, right-aligned next to
   the age (`row_icons` off restores it). No `✓ review` mark; the selected
   row has no background (the `▸` arrow marks it); the `∴ REX` logo is the

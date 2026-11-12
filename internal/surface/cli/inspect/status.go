@@ -79,8 +79,8 @@ func countSessions(sessions []protocol.SessionSummary) statusCounts {
 	return c
 }
 
-// statusView builds the one-line summary. Text shows "◆ 1 ready   ⠋ 1
-// working   ● 2 done" (queued and failed only when non-zero); txt is the
+// statusView builds the one-line summary. Text shows "⚑ 1 ready   ⠋ 1
+// working   ✓ 2 done" (queued and failed only when non-zero); txt is the
 // exact line shell prompts have always parsed; agent gets the full set of
 // counts on the ok line.
 func statusView(c statusCounts, sessions []protocol.SessionSummary, g core.Glyphs) core.View {

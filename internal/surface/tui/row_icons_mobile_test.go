@@ -110,7 +110,7 @@ func TestLegend_RowIcons(t *testing.T) {
 	for _, want := range base {
 		require.Contains(t, got, want)
 	}
-	require.NotContains(t, strings.Join(got, "\n"), "⟳ 3/8")
+	require.NotContains(t, strings.Join(got, "\n"), "↻ 3/8")
 	require.NotContains(t, strings.Join(got, "\n"), "$0.42")
 	// Right after the subagent row.
 	for i, row := range got {
@@ -120,7 +120,7 @@ func TestLegend_RowIcons(t *testing.T) {
 	}
 
 	require.NoError(t, m.Store.Set("loops", true))
-	require.Contains(t, legendKeys(m), "⟳ 3/8 loop turn")
+	require.Contains(t, legendKeys(m), "↻ 3/8 loop turn")
 	require.NoError(t, m.Store.Set("usage", true))
 	require.Contains(t, legendKeys(m), "$0.42 spend so far (Claude)")
 

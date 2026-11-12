@@ -11,7 +11,7 @@ import (
 
 // Mobile rows. A session takes two lines, each exactly width wide:
 //
-//	▸ ◆  release-notes            ⋔ 2  ▴ 42m  11m
+//	▸ ⚑  release-notes            ⋔ 2  ▴ 42m  11m
 //	     Which feature should lead: search or export…
 //
 // Line 1 is the indent, state marker, name (the flexible cell), the subagent

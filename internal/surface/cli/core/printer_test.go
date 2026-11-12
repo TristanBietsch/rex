@@ -205,7 +205,7 @@ func TestPrinterReadsSchemeFromSettings(t *testing.T) {
 func TestGlyphs(t *testing.T) {
 	u := GlyphsFor(false, "")
 	require.Equal(t, "⠋", u.State["working"])
-	require.Equal(t, "◆", u.State["needs_input"])
+	require.Equal(t, "⚑", u.State["needs_input"])
 	require.Equal(t, "⠋", GlyphsFor(false, "bogus").State["working"])
 	a := GlyphsFor(true, "moon")
 	all := []string{a.OK, a.Warn, a.Fail, a.Info, a.Hint, a.Sep}

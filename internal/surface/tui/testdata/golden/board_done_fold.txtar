@@ -1,12 +1,12 @@
 -- plain.60x24 --
 
-  ∴ REX    ◆ 1  ⟳ 3  ● 4  ✕ 2                               
+  ∴ REX    ⚑ 1  ⠋ 3  ✓ 4  ✗ 2                               
   all · claude · codex · antigravity · ollama               
 
 ────────────────────────────────────────────────────────────
 
   READY  1                                                  
-   ◆  dark-mode                                           4m
+   ⚑  dark-mode                                           4m
       system theme vs explicit toggle — your call           
 
   WAITING  0                                                
@@ -31,7 +31,7 @@
 ────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                      
-   ◆  dark-mode         system theme vs explicit toggle…                      4m
+   ⚑  dark-mode         system theme vs explicit toggle…                      4m
 
   WAITING  0                                                                    
       nothing waiting on a tool
@@ -56,7 +56,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
 
   WAITING  0                                                                                                            
       nothing waiting on a tool
@@ -91,13 +91,13 @@
   enter open · i new · cc done · tab next · ? more · 4 show · :prune clear                                              
 -- plain.50x30 --
 
-  ∴ REX    ◆ 1  ⟳ 3  ● 4  ✕ 2                     
+  ∴ REX    ⚑ 1  ⠋ 3  ✓ 4  ✗ 2                     
   all · claude · codex · antigravity · ollama     
 
 ──────────────────────────────────────────────────
 
   READY  1                                        
-   ◆  dark-mode                                 4m
+   ⚑  dark-mode                                 4m
       system theme vs explicit toggle — your call 
 
   WAITING  0                                      

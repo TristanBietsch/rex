@@ -74,7 +74,7 @@ func TestWaitingSets_WidthOne(t *testing.T) {
 // (phase 2 included). No two sets share a frame.
 func TestWaitingSets_AvoidFixedGlyphs(t *testing.T) {
 	taken := map[string]string{}
-	for _, g := range []string{"◆", "◌", "●", "✕", "○", "▍", "▴", "⋔", "⟳", "✦", "✓", "$", "?", "▸", "↯", "⧗", "*",
+	for _, g := range []string{"⚑", "◌", "✓", "✗", "⊘", "▍", "▴", "⋔", "↻", "✦", "◔", "$", "?", "▸", "↯", "⧗", "*",
 		selectDefault, loopDefault, queuedGlyph, subagentGlyph} {
 		taken[g] = "board glyph"
 	}
@@ -148,5 +148,5 @@ func TestWaitingSets_Wired(t *testing.T) {
 	require.NotContains(t, legend, waitingGlyph)
 
 	require.NoError(t, m.Store.Set("header_style", "glyphs"))
-	require.Contains(t, ansi.Strip(renderHeader(m, 200)), "◆ 1  ⧖ 2  ⟳ 2  ● 1", "header counts")
+	require.Contains(t, ansi.Strip(renderHeader(m, 200)), "⚑ 1  ⧖ 2  ⠋ 2  ✓ 1", "header counts")
 }

@@ -138,7 +138,7 @@ func TestAnsiThemeIndices(t *testing.T) {
 	require.True(t, p.Faint)
 	require.False(t, isHex(p.Fg))
 	for name, v := range map[string]string{
-		"Accent": p.Accent, "Working": p.Working, "Queued": p.Queued, "Needs": p.Needs, "Done": p.Done,
+		"Accent": p.Accent, "Working": p.Working, "Queued": p.Queued, "Needs": p.Needs,
 		"Failed": p.Failed, "Warn": p.Warn, "Danger": p.Danger, "Success": p.Success, "Info": p.Info,
 	} {
 		n, err := strconv.Atoi(v)
@@ -158,8 +158,11 @@ func TestAnsiThemeIndices(t *testing.T) {
 		require.True(t, n >= 1 && n <= 6, "fleet color %d", n)
 	}
 	require.Equal(t, "1", p.Failed)
-	require.Equal(t, "2", p.Done)
-	require.Equal(t, "3", p.Needs)
+	// Ready is the green, Done the bright green: the one bright index. A
+	// terminal that maps 10 to a gray (Solarized) dims the finished state,
+	// never the one that needs you; the ✓ marker still says done.
+	require.Equal(t, "2", p.Needs)
+	require.Equal(t, "10", p.Done)
 	require.Equal(t, "4", p.Working)
 	require.Equal(t, "5", p.Accent)
 }
@@ -175,5 +178,42 @@ func TestSelReverseOnlyOnAnsi(t *testing.T) {
 	for _, name := range Names() {
 		p, _ := Get(name)
 		require.Equal(t, name == "ansi", p.SelReverse, name)
+	}
+}
+
+// oklchHue is the OKLCH hue angle of a "#RRGGBB" color, in degrees.
+func oklchHue(hex string) float64 {
+	c, _ := hexRGB(hex)
+	return c.toOklch().h
+}
+
+// Ready and Done are both green in every theme: a bright "go" green for Ready
+// and a calmer one for Done. They stay 20 apart (CIE76), and each reads at
+// 4.5:1 on the theme's background (TestBuiltinContrast); the markers differ
+// too (⚑ and ✓), so a reader who cannot tell the greens apart still can.
+func TestReadyDoneGreens(t *testing.T) {
+	for _, p := range hexThemes() {
+		for token, c := range map[string]string{"Needs": p.Needs, "Done": p.Done} {
+			h := oklchHue(c)
+			require.True(t, h >= 115 && h <= 170, "%s %s %s is green (OKLCH hue %.0f)", p.Name, token, c, h)
+			require.GreaterOrEqual(t, Contrast(c, p.Bg), 4.5, "%s %s %s on %s", p.Name, token, c, p.Bg)
+		}
+		require.GreaterOrEqual(t, deltaE(p.Needs, p.Done), 20.0, "%s: ready vs done", p.Name)
+		require.NotEqual(t, ansi256Index(p.Needs), ansi256Index(p.Done), "%s: ready vs done in 256 colors", p.Name)
+		// Ready is the brighter of the two on a dark theme and the more
+		// saturated one everywhere: it is the green that asks for you.
+		rc, _ := hexRGB(p.Needs)
+		dc, _ := hexRGB(p.Done)
+		require.Greater(t, rc.toOklch().c, dc.toOklch().c, "%s: ready is more saturated than done", p.Name)
+		if p.Dark {
+			require.Greater(t, Contrast(p.Needs, p.Bg), Contrast(p.Done, p.Bg), "%s: ready is brighter than done", p.Name)
+		}
+		require.Equal(t, p.Done, p.Success, "%s: success follows done", p.Name)
+		// The greens differ in lightness too, which survives color-vision
+		// deficiency: the pair stays apart under simulated protan, deutan
+		// and tritan vision, by the U4 edge pool's 6.5.
+		for vision := range cvdMatrices {
+			require.GreaterOrEqual(t, deltaEOK(p.Needs, p.Done, vision), 6.5, "%s: ready vs done under %s", p.Name, vision)
+		}
 	}
 }

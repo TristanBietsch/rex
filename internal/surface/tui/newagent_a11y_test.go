@@ -181,7 +181,7 @@ func TestNewAgent_NarrowMockupG(t *testing.T) {
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[1], " "), "draft"), "%q", lines[1])
 	require.NotContains(t, lines[1], "~/dev/proj")
 	require.Contains(t, out, "‹ Agent · [Task] · Context 2 · Trust ›")
-	require.Contains(t, out, "◆ Claude Code · opus · max")
+	require.Contains(t, out, "✻ Claude Code · opus · max")
 	require.NotContains(t, out, "effort")
 	require.Contains(t, out, "2 context items")
 

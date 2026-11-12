@@ -6,7 +6,7 @@
 ────────────────────│    working          3               │─────────────────────
                     │    queued           0               │
   READY  1          │    done             1               │                     
-   ◆  dark-mode     │    failed           2               │                   4m
+   ⚑  dark-mode     │    failed           2               │                   4m
                     │    crashed          0               │
   WAITING  0        │    total            7               │                     
       nothing waitin│                                     │
@@ -17,8 +17,8 @@
    ⠋  payment-migrat│    Time-to-first-response           │r…        ▴ 7h     2h
                     │    <1s      ████████████████████ 1  │
   DONE  3           │    1-3s     ░░░░░░░░░░░░░░░░░░░░ 0  │                     
-   ●  test-coverage │    3-10s    ░░░░░░░░░░░░░░░░░░░░ 0  │                   9d
-   ✕  no-model      │    10-30s   ░░░░░░░░░░░░░░░░░░░░ 0  │                    -
+   ✓  test-coverage │    3-10s    ░░░░░░░░░░░░░░░░░░░░ 0  │                   9d
+   ✗  no-model      │    10-30s   ░░░░░░░░░░░░░░░░░░░░ 0  │                    -
   ↳ draft ready — wh│    30s-2m   ░░░░░░░░░░░░░░░░░░░░ 0  │                     
 ────────────────────│    2-5m     ░░░░░░░░░░░░░░░░░░░░ 0  │─────────────────────
   λ press i to descr│    5m+      ░░░░░░░░░░░░░░░░░░░░ 0  │                     
@@ -31,7 +31,7 @@
 ────────────────────────────────────────│                                     │─────────────────────────────────────────
                                         │    State counts                     │
   READY  1                              │    needs input      1               │                                         
-   ◆  dark-mode             system theme│    working          3               │                                       4m
+   ⚑  dark-mode             system theme│    working          3               │                                       4m
                                         │    queued           0               │
   WAITING  0                            │    done             1               │                                         
       nothing waiting on a tool         │    failed           2               │
@@ -42,9 +42,9 @@
    ⠋  payment-migration-v…  porting bill│    total tokens     137K tk         │                              ▴ 7h     2h
                                         │    output bytes     0.0 KB          │
   DONE  3                               │                                     │                                         
-   ●  test-coverage         billing/ fro│    Time-to-first-response           │                                       9d
-   ✕  no-model              boot        │    <1s      ████████████████████ 1  │                                        -
-   ✕  failing-job                       │    1-3s     ░░░░░░░░░░░░░░░░░░░░ 0  │                                        -
+   ✓  test-coverage         billing/ fro│    Time-to-first-response           │                                       9d
+   ✗  no-model              boot        │    <1s      ████████████████████ 1  │                                        -
+   ✗  failing-job                       │    1-3s     ░░░░░░░░░░░░░░░░░░░░ 0  │                                        -
                                         │    3-10s    ░░░░░░░░░░░░░░░░░░░░ 0  │
                                         │    10-30s   ░░░░░░░░░░░░░░░░░░░░ 0  │
                                         │    30s-2m   ░░░░░░░░░░░░░░░░░░░░ 0  │

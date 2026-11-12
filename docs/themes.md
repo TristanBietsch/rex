@@ -17,13 +17,33 @@ The setting was called `color_scheme`. The old key is still read; if a file hold
 | `high-contrast` | Pure black and white with bright state colors |
 | `ansi` | Your terminal's own 16 colors; the selection is reverse video |
 
+### Ready and Done greens
+
+READY and DONE are both green in every theme: a bright, saturated "go" green for READY (the `needs` token: the marker `⚑`, the section title, the header's `N ready`, the `? asks` slot) and a calmer, darker green for DONE (`done`: the marker `✓`). Warnings keep the amber (`warn`). rex's tests hold every shipped theme to this: both greens read at 4.5:1 on the theme's `bg`, they are at least ΔE 20 (CIE76) apart and fall on different 256-color indexes, READY is the more saturated one (and the brighter one on dark themes), and the glyphs differ.
+
+| Theme | READY (`needs`) | DONE (`done`) | ΔE |
+|-------|-----------------|---------------|----|
+| `default` | `#4BE37F` 11.3:1 | `#4E9E6E` 5.8:1 | 38.7 |
+| `classic` | `#4ADE80` 10.8:1 | `#4E9A6A` 5.5:1 | 36.7 |
+| `noir` | `#4FD982` 11.1:1 | `#4A9A6C` 5.9:1 | 32.7 |
+| `paper` | `#14853B` 4.5:1 | `#3D6650` 6.3:1 | 36.5 |
+| `high-contrast` | `#3CF07A` 13.9:1 | `#57B07A` 7.9:1 | 43.0 |
+| `ansi` | `2` (green) | `10` (bright green) | terminal |
+| `dracula` | `#50FA7B` 12.1:1 | `#52A877` 5.7:1 | 50.7 |
+| `tokyo_night` | `#9ECE6A` 9.4:1 | `#4FA57A` 5.7:1 | 34.1 |
+| `pantone_safe` | `#B2D040` 10.8:1 | `#009473` 4.9:1 | 62.9 |
+
+`ansi` uses the terminal's own green for READY and bright green for DONE. A terminal that maps bright green to a gray (Solarized) dims DONE, the state that should recede, never READY.
+
+**Color vision.** For deuteranopia and protanopia, green next to green is the hard case, so the glyph carries the meaning first (`⚑` vs `✓`, also on a terminal with no color). The two greens also differ in lightness, which survives color-vision deficiency: in every shipped theme they stay at least 6.5 apart (OKLab ×100) under simulated protan, deutan and tritan vision. `pantone_safe` goes further and keeps every pair of its state colors that far apart. On the other themes READY's green can sit close to FAILED's red for a reader with deuteranopia; `⚑` and `✗` still differ.
+
 ## Bundled themes
 
 | Theme | For |
 |-------|-----|
 | `dracula` | The [Dracula](https://draculatheme.com) palette |
 | `tokyo_night` | The [Tokyo Night](https://github.com/folke/tokyonight.nvim) "night" palette |
-| `pantone_safe` | State colors from the colorblind-safe border swatches, Pantone Color of the Year inspired |
+| `pantone_safe` | State colors kept apart for protan, deutan and tritan vision, Pantone Color of the Year inspired (READY Greenery-lime, DONE Emerald) |
 
 These ship as theme files built into rex, written in the same format as your own. `dracula` and `tokyo_night` take their hues from the published palettes; secondary text is a little lighter than the originals so it stays readable. Two differences from the six built-ins:
 
@@ -93,7 +113,7 @@ Anything else is refused with the reason (`rex config set`, `rex.set` in Lua, `:
 
 **Contrast.** On a theme with a real background color, the accent must reach 4.5:1 against it, the same floor every shipped theme's accent meets. A color below it is not refused: rex lightens it (dark theme) or darkens it (light theme) in OKLCH, keeping its hue, until it passes. The status line says so (`accent #6667AB adjusted to #7476BB for contrast on default`), and so do the settings page's detail pane (`paints #7476BB (from #6667AB, for contrast)`) and `rex config get accent_color`. Switching themes re-checks it, so one value works on dark and light themes. On a theme with a light and a dark variant (`classic-blue`, `cerulean`, `illuminating`, `mimosa`, `ultimate-gray`), the variant for the theme's mode is used first. On `ansi` the background is the terminal's, so the color is used as given.
 
-**State colors.** The accent should not read as a session state. A color closer than ΔE 20 (CIE76) to the theme's working, needs, done or failed color is kept, with a warning (`accent #FF6F61 is close to the failed state color`).
+**State colors.** The accent should not read as a session state. A color closer than ΔE 20 (CIE76) to the theme's working, ready (`needs`), done or failed color is kept, with a warning (`accent #FF6F61 is close to the failed state color`). Since READY and DONE are green, a green accent warns about one of them.
 
 ## Your own themes
 
@@ -147,7 +167,7 @@ Tokens under `colors:`:
 | `fg`, `fg_dim`, `fg_muted` | Primary (also the `∴ REX` logo), secondary and quiet text |
 | `bg_sel`, `border`, `border_focus` | Selection background (settings and list pages; board rows have none), frames, the focused overlay frame |
 | `accent` | The prompt arrow, selection marker, focused input and command names |
-| `working`, `queued`, `needs`, `done`, `failed`, `crashed` | One color per session state |
+| `working`, `queued`, `needs`, `done`, `failed`, `crashed` | One color per session state (`needs` is READY) |
 | `warn`, `danger`, `success`, `info` | Feedback messages |
 | `fleet` | A list of 1 to 16 colors, one per fleet |
 
@@ -155,7 +175,7 @@ Tokens under `colors:`:
 
 ### Glyphs
 
-Under `glyphs:` you can replace the characters that mark a session's state and the selected row: `needs`, `done`, `failed`, `crashed`, `queued`, `select` and `loop` (the marker of a loop session's row). The working marker is the spinner (`spinner` setting). A glyph must be exactly one printable character, exactly one cell wide (emoji and other double-width characters such as `✅` are refused, because they would split the board's fixed columns), with no control, escape, bidirectional or zero-width characters. A line you leave out keeps the built-in marker.
+Under `glyphs:` you can replace the characters that mark a session's state and the selected row: `needs` (`⚑`), `done` (`✓`), `failed` (`✗`), `crashed` (`⊘`), `queued` (`◌`), `select` (`▸`) and `loop` (`↻`, the marker of a loop session's row). The working marker is the spinner (`spinner` setting). A glyph must be exactly one printable character, exactly one cell wide (emoji and other double-width characters such as `✅` are refused, because they would split the board's fixed columns), with no control, escape, bidirectional or zero-width characters. A line you leave out keeps the built-in marker.
 
 ### What rex checks
 

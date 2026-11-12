@@ -19,9 +19,9 @@ By model:
 
 Sessions:
      ID    SLUG      TOOL·MO…  ACTIVE  STATE
-  ●  a91c  refacto…  claude·…  1h 24m  done
-  ✕  7d4f  fix-aut…  claude·…    < 1m  failed
-  ○  0b2e  日本語…   antigra…     58m  crashed
+  ✓  a91c  refacto…  claude·…  1h 24m  done
+  ✗  7d4f  fix-aut…  claude·…    < 1m  failed
+  ⊘  0b2e  日本語…   antigra…     58m  crashed
 -- text.w80 --
 Digest  2026-11-11
 
@@ -43,9 +43,9 @@ By model:
 
 Sessions:
      ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
-  ●  a91c  refactor-db           claude·opus         1h 24m  done
-  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
-  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
+  ✓  a91c  refactor-db           claude·opus         1h 24m  done
+  ✗  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ⊘  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
 -- text.w120 --
 Digest  2026-11-11
 
@@ -67,9 +67,9 @@ By model:
 
 Sessions:
      ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
-  ●  a91c  refactor-db           claude·opus         1h 24m  done
-  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
-  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
+  ✓  a91c  refactor-db           claude·opus         1h 24m  done
+  ✗  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ⊘  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
 -- text.color.w80 --
 ␛[1;38;2;230;232;238mDigest␛[0m  ␛[38;2;139;145;161m2026-11-11␛[0m
 
@@ -91,9 +91,9 @@ Sessions:
 
 ␛[1;38;2;230;232;238mSessions:␛[0m
      ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mSLUG␛[0m                  ␛[38;2;139;145;161mTOOL·MODEL␛[0m          ␛[38;2;139;145;161mACTIVE␛[0m  ␛[38;2;139;145;161mSTATE␛[0m
-  ␛[38;2;91;208;140m●␛[0m  a91c  refactor-db           claude·opus         ␛[38;2;139;145;161m1h 24m␛[0m  ␛[38;2;91;208;140mdone␛[0m
-  ␛[38;2;242;107;107m✕␛[0m  7d4f  fix-auth-flow         claude·sonnet         ␛[38;2;139;145;161m< 1m␛[0m  ␛[38;2;242;107;107mfailed␛[0m
-  ␛[38;2;139;145;161m○␛[0m  0b2e  日本語のスラッグ日…   antigravity·gemin…     ␛[38;2;139;145;161m58m␛[0m  ␛[38;2;139;145;161mcrashed␛[0m
+  ␛[38;2;78;158;110m✓␛[0m  a91c  refactor-db           claude·opus         ␛[38;2;139;145;161m1h 24m␛[0m  ␛[38;2;78;158;110mdone␛[0m
+  ␛[38;2;242;107;107m✗␛[0m  7d4f  fix-auth-flow         claude·sonnet         ␛[38;2;139;145;161m< 1m␛[0m  ␛[38;2;242;107;107mfailed␛[0m
+  ␛[38;2;139;145;161m⊘␛[0m  0b2e  日本語のスラッグ日…   antigravity·gemin…     ␛[38;2;139;145;161m58m␛[0m  ␛[38;2;139;145;161mcrashed␛[0m
 -- txt --
 date      2026-11-11
 sessions  3
@@ -186,9 +186,9 @@ By model:
 
 Sessions:
      ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
-  ●  a91c  refactor-db           claude·opus         1h 24m  done
-  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
-  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
+  ✓  a91c  refactor-db           claude·opus         1h 24m  done
+  ✗  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ⊘  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
 -- disk.txt --
 daemon not running, showing on-disk snapshot only
 
@@ -255,6 +255,6 @@ By model:
 
 Sessions:
      ID    SLUG                  TOOL·MODEL          ACTIVE  STATE
-  ●  a91c  refactor-db           claude·opus         1h 24m  done
-  ✕  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
-  ○  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed
+  ✓  a91c  refactor-db           claude·opus         1h 24m  done
+  ✗  7d4f  fix-auth-flow         claude·sonnet         < 1m  failed
+  ⊘  0b2e  日本語のスラッグ日…   antigravity·gemin…     58m  crashed

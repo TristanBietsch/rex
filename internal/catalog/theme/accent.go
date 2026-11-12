@@ -288,7 +288,7 @@ type AccentResult struct {
 	Final string
 	// Adjusted is true when Final differs from Chosen for contrast.
 	Adjusted bool
-	// Clash names the state color ("working", "needs", "done", "failed")
+	// Clash names the state color ("working", "ready", "done", "failed")
 	// Final is too close to, or "".
 	Clash string
 }
@@ -307,7 +307,7 @@ func WithAccent(p Palette, value string) (Palette, AccentResult, error) {
 	res := AccentResult{Chosen: c.Hex(p.Dark)}
 	res.Final, res.Adjusted = readableOn(res.Chosen, p.Bg)
 	p.Accent = res.Final
-	states := []struct{ name, hex string }{{"working", p.Working}, {"needs", p.Needs}, {"done", p.Done}, {"failed", p.Failed}}
+	states := []struct{ name, hex string }{{"working", p.Working}, {"ready", p.Needs}, {"done", p.Done}, {"failed", p.Failed}}
 	for _, s := range states {
 		if d := DeltaE(res.Final, s.hex); d >= 0 && d < AccentClashDeltaE {
 			res.Clash = s.name

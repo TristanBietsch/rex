@@ -12,15 +12,15 @@ question or finishes, and lets you jump in with one key.
   ∴ REX    2 ready · 2 waiting · 3 working · 1 done  · 1 failed
   ──────────────────────────────────────────────────────────────────────────────
   READY  2
-   ◆  dark-mode                           ✦  ? asks           $0.31           4m
-   ◆  release-notes                                           $2.10          11m
+   ⚑  dark-mode                           ✦  ? asks           $0.31           4m
+   ⚑  release-notes                                           $2.10          11m
   WAITING  2
    ◷  invoice-rounding-tests                 sh 42s           $0.84  ▴ 12m   40s
   WORKING  3
  ▸ ⠋  payment-migration-v2                             ⋔ 3    $4.92  ▴ 45m    1m
    ⠋  docs-sweep                                                              7s
   DONE  2
-   ●  test-coverage                       ✦                   $3.40           9m
+   ✓  test-coverage                       ✦                   $3.40           9m
   ──────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session
   enter open · i new · cc done · tab next · ? more
@@ -130,10 +130,10 @@ that needs no API key: [docs/quickstart.md](docs/quickstart.md).
 |------|---------|
 | [session](docs/glossary.md#session) | One agent process, its transcript and its metadata. |
 | [board](docs/tui.md) | The full-screen kanban view you get from `rex`. |
-| [READY](docs/tui.md#description) | The agent waits on you: a question, or its turn ended. |
-| [WAITING](docs/tui.md#description) | The agent waits on a tool (shell, subagent, web), not on you. |
+| [READY](docs/tui.md#description) | `⚑`, in a bright green: the agent waits on you, a question or its turn ended. |
+| [WAITING](docs/tui.md#description) | `◷`: the agent waits on a tool (shell, subagent, web), not on you. |
 | [WORKING](docs/tui.md#description) | The agent is busy. |
-| [DONE](docs/tui.md#mark-done) | Finished, failed, or marked done with `cc`. |
+| [DONE](docs/tui.md#mark-done) | `✓` in a calmer green (`✗` failed, `⊘` crashed): finished, failed, or marked done with `cc`. |
 | [workspace](docs/workspaces.md) | A project folder with a `.rex/` folder: id, name, color, own board. |
 | [loop](docs/loops.md) | Re-sends a prompt each turn until your check command passes. |
 | [fleet](docs/cli.md#rex-fleet) | A label that groups related sessions. |

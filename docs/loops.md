@@ -76,12 +76,12 @@ file later does not change a loop that already started.
 ## On the board
 
 With `loops` on, a loop's session row starts its text with the loop marker
-(`⟳`, one cell; a theme can change it with `glyphs: loop:`), the turn and the
+(`↻`, one cell; a theme can change it with `glyphs: loop:`), the turn and the
 cap, and the loop's state:
 
 ```
- ⠋  fixer   ⟳ 3/8 running · make check green
- ◆  docs    ⟳ 2/5 paused: needs you · tidy the docs
+ ⠋  fixer   ↻ 3/8 running · make check green
+ ⚑  docs    ↻ 2/5 paused: needs you · tidy the docs
 ```
 
 States read `running`, `paused` (with why: `needs you`, `you typed`, `daemon
@@ -89,7 +89,7 @@ restarted`, `session ended`, `state changed`, `send failed`, `loops off`; a
 bare `paused` is your own pause), `done`, `capped: max iterations` or
 `capped: max minutes`, `failed` and `stopped`. A finished loop keeps its
 chip until the daemon deletes it (7 days); after that the row shows the turn
-alone (`⟳ 3`). With `loops` off no row shows a marker.
+alone (`↻ 3`). With `loops` off no row shows a marker.
 
 | Key | Command | What it does |
 |---|---|---|
@@ -110,8 +110,8 @@ restart'`.
 live ones first, newest first in each group:
 
 ```
- › ⟳ fix-until-green  running            3/8  12m/120m  check exit 1
-   ⟳ tidy-docs        paused: needs you  2/5  5m/60m    no check yet
+ › ↻ fix-until-green  running            3/8  12m/120m  check exit 1
+   ↻ tidy-docs        paused: needs you  2/5  5m/60m    no check yet
 ```
 
 Columns: name, state, turn over `max_iterations`, running time over

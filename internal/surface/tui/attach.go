@@ -608,7 +608,7 @@ func attachFooter(m Model, a *AttachState, width int) string {
 		if msg == "" {
 			msg = "session ended"
 		}
-		right = styleFailed.Render("✕ " + msg)
+		right = styleFailed.Render(stateGlyph(protocol.StateFailed) + " " + msg)
 	}
 	pad := width - lipglossWidth(left) - lipglossWidth(right)
 	if pad < 1 {

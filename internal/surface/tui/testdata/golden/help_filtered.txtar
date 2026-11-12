@@ -6,7 +6,7 @@
 ────┌─ HELP ───────────────────────────────────────────────────── rex dev ─┐────
     │   / undo                                                             │
   RE│   ── Actions ─────────────────────────────────────────────────────   │    
-   ◆│   cc  mark done / undo                                               │  4m
+   ⚑│   cc  mark done / undo                                               │  4m
     │   uc  undo done (unmark, or resume an exited session)                │
   WA│                                                                      │    
     │   ── Session commands ────────────────────────────────────────────   │
@@ -17,8 +17,8 @@
    ⠋│                           last turn (asks first) (off)               │  2h
     │   :redo [sel]             bring back what :undo replaced (off)       │
   DO│                                                                      │    
-   ●│   j/k scroll · / edit filter · esc clear                             │  9d
-   ✕└──────────────────────────────────────────────────────────────────────┘   -
+   ✓│   j/k scroll · / edit filter · esc clear                             │  9d
+   ✗└──────────────────────────────────────────────────────────────────────┘   -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
@@ -31,7 +31,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
 
   WAITING  0                                                                                                            
       nothing waiting on a tool
@@ -42,9 +42,9 @@
    ⠋ │   cc  mark done / undo                                 :undone [sel]           undo done                   │   2h
      │   uc  undo done (unmark, or resume an exited           :uc :resume [sel]       undo done: unmark a         │
   DON│       session)                                                                 running session, or         │     
-   ● │                                                                                resume an exited one        │   9d
-   ✕ │                                                        :undo [sel] [-turns N]  restore the folder to       │    -
-   ✕ │                                                                                before the agent's last     │    -
+   ✓ │                                                                                resume an exited one        │   9d
+   ✗ │                                                        :undo [sel] [-turns N]  restore the folder to       │    -
+   ✗ │                                                                                before the agent's last     │    -
      │                                                                                turn (asks first) (off)     │
      │                                                        :redo [sel]             bring back what :undo       │
      │                                                                                replaced (off)              │

@@ -131,7 +131,7 @@ func TestThemeShow(t *testing.T) {
 	text, err := themeRun(t, "text", func() error { return themeShow([]string{"mine"}) })
 	require.NoError(t, err)
 	require.Contains(t, text, "accent")
-	require.Contains(t, text, "! needs you")
+	require.Contains(t, text, "! ready")
 	require.Contains(t, text, "(built-in)", "an unset glyph says so")
 
 	out, err = themeRun(t, "json", func() error { return themeShow([]string{"ansi"}) })

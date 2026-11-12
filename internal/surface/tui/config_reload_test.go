@@ -68,7 +68,7 @@ func TestConfigReloadAppliesThemeFile(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "mine.yaml"), "colors: {accent: \"#00FF00\"}\n")
 	m, _ = runConfigCmd(t, m, loadConfig(cfg, dir, m.configStamp, false))
 	require.Equal(t, lipgloss.Color("#00FF00"), colorAccent)
-	require.Equal(t, "◆", stateGlyph("needs_input"))
+	require.Equal(t, "⚑", stateGlyph("needs_input"))
 
 	// Removing the file falls back to default with a note.
 	require.NoError(t, os.Remove(filepath.Join(dir, "mine.yaml")))

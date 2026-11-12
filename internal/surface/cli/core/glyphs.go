@@ -31,7 +31,7 @@ func GlyphsFor(ascii bool, spinner string) Glyphs {
 				protocol.StateNeedsInput: "!",
 				protocol.StateWorking:    "*",
 				protocol.StateQueued:     ".",
-				protocol.StateDone:       "o",
+				protocol.StateDone:       "v",
 				protocol.StateFailed:     "x",
 				protocol.StateCrashed:    "-",
 			},
@@ -44,12 +44,12 @@ func GlyphsFor(ascii bool, spinner string) Glyphs {
 	return Glyphs{
 		OK: "✓", Warn: "!", Fail: "✗", Info: "·", Hint: "›", Sep: "·",
 		State: map[protocol.State]string{
-			protocol.StateNeedsInput: "◆",
+			protocol.StateNeedsInput: "⚑",
 			protocol.StateWorking:    work,
 			protocol.StateQueued:     "◌",
-			protocol.StateDone:       "●",
-			protocol.StateFailed:     "✕",
-			protocol.StateCrashed:    "○",
+			protocol.StateDone:       "✓",
+			protocol.StateFailed:     "✗",
+			protocol.StateCrashed:    "⊘",
 		},
 	}
 }

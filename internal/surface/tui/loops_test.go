@@ -81,8 +81,8 @@ func loopModel(t *testing.T) Model {
 func TestLoopChip_StatesAndOff(t *testing.T) {
 	m := loopModel(t)
 	s := m.Sessions
-	require.Equal(t, "⟳ 3/8 running", loopChip(m, s[0]))
-	require.Equal(t, "⟳ 2/5 paused: needs you", loopChip(m, s[1]))
+	require.Equal(t, "↻ 3/8 running", loopChip(m, s[0]))
+	require.Equal(t, "↻ 2/5 paused: needs you", loopChip(m, s[1]))
 	require.Empty(t, loopChip(m, s[2]), "an ordinary session has no chip")
 
 	for _, tc := range []struct {
@@ -103,13 +103,13 @@ func TestLoopChip_StatesAndOff(t *testing.T) {
 
 	// The daemon no longer lists the loop: the turn alone.
 	m.Loops = nil
-	require.Equal(t, "⟳ 3", loopChip(m, s[0]))
+	require.Equal(t, "↻ 3", loopChip(m, s[0]))
 
 	// Off: no marker at all.
 	m = loopModel(t)
 	require.NoError(t, m.Store.Set("loops", false))
 	require.Empty(t, loopChip(m, s[0]))
-	require.NotContains(t, ansi.Strip(renderBoard(m, 120, 0)), "⟳")
+	require.NotContains(t, ansi.Strip(renderBoard(m, 120, 0)), "↻")
 }
 
 func TestLoopChip_ThemeGlyph(t *testing.T) {
@@ -125,16 +125,16 @@ func TestLoopChip_ThemeGlyph(t *testing.T) {
 func TestLoopRows_ShowChipInEveryLayout(t *testing.T) {
 	m := loopModel(t)
 	out := ansi.Strip(renderBoard(m, 120, 0))
-	require.Contains(t, out, "⟳ 3/8 running · make check green")
-	require.Contains(t, out, "⟳ 2/5 paused: needs you")
+	require.Contains(t, out, "↻ 3/8 running · make check green")
+	require.Contains(t, out, "↻ 2/5 paused: needs you")
 	require.Contains(t, out, "no loop here")
 
 	m.Detailed = true
-	require.Contains(t, ansi.Strip(renderBoard(m, 160, 0)), "⟳ 3/8 running")
+	require.Contains(t, ansi.Strip(renderBoard(m, 160, 0)), "↻ 3/8 running")
 
 	m.Detailed = false
 	require.NoError(t, m.Store.Set("mobile_layout", "always"))
-	require.Contains(t, ansi.Strip(renderBoard(m, 50, 0)), "⟳ 3/8")
+	require.Contains(t, ansi.Strip(renderBoard(m, 50, 0)), "↻ 3/8")
 }
 
 func TestLoopKey_PauseResumeToggles(t *testing.T) {

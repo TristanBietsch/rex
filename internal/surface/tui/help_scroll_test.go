@@ -137,8 +137,8 @@ func TestHelpLegendUsesRealStyles(t *testing.T) {
 		}
 		frames := spinnerFramesFor(m)
 		for glyph, st := range map[string]protocol.State{
-			"◆": protocol.StateNeedsInput, frames[0]: protocol.StateWorking, queuedGlyph: protocol.StateQueued,
-			"●": protocol.StateDone, "✕": protocol.StateFailed, "○": protocol.StateCrashed,
+			"⚑": protocol.StateNeedsInput, frames[0]: protocol.StateWorking, queuedGlyph: protocol.StateQueued,
+			"✓": protocol.StateDone, "✗": protocol.StateFailed, "⊘": protocol.StateCrashed,
 		} {
 			require.Equal(t, styleMarker[st].Render(glyph), keys[glyph], "%s marker", st)
 		}
@@ -146,7 +146,7 @@ func TestHelpLegendUsesRealStyles(t *testing.T) {
 		for i, badge := range []string{"▴ 6h", "▴ 2h", "▴ 30m", "▴ 10m"} {
 			require.Equal(t, styleLongRun[i].Render(badge), keys[badge], "tier %d", i)
 		}
-		require.Contains(t, m.View(), styleMarker[protocol.StateDone].Render("●"), "the overlay carries the styled legend")
+		require.Contains(t, m.View(), styleMarker[protocol.StateDone].Render("✓"), "the overlay carries the styled legend")
 	})
 }
 

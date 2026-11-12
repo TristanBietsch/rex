@@ -152,7 +152,7 @@ func TestHeader_Counts(t *testing.T) {
 	require.NotContains(t, ansi.Strip(renderHeader(none, 200)), "waiting")
 
 	for style, want := range map[string]string{
-		"glyphs":  "◆ 1  ◷ 2  ⟳ 2  ● 1",
+		"glyphs":  "⚑ 1  ◷ 2  ⠋ 2  ✓ 1",
 		"numbers": "1 · 4 · 1",
 	} {
 		st := settings.NewStore()
@@ -165,7 +165,7 @@ func TestHeader_Counts(t *testing.T) {
 	require.NoError(t, st.Set("header_style", "glyphs"))
 	gm := none
 	gm.Store = st
-	require.Contains(t, ansi.Strip(renderHeader(gm, 200)), "◆ 0  ⟳ 1  ● 0")
+	require.Contains(t, ansi.Strip(renderHeader(gm, 200)), "⚑ 0  ⠋ 1  ✓ 0")
 }
 
 func TestSaverCounts_IncludeWaiting(t *testing.T) {
