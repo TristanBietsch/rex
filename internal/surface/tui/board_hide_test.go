@@ -26,7 +26,7 @@ func TestHideSectionRemovesIt(t *testing.T) {
 		ids = append(ids, s.ID)
 	}
 	require.NotContains(t, ids, "d1")
-	require.Contains(t, strings.Join(plainBoard(m), "\n"), "NEEDS YOU")
+	require.Contains(t, strings.Join(plainBoard(m), "\n"), "READY")
 	require.NotContains(t, strings.Join(plainBoard(m), "\n"), "DONE")
 
 	// Hiding the first section leaves no leading gap.
@@ -85,9 +85,9 @@ func TestJumpToHiddenSectionNotice(t *testing.T) {
 	m.SelectedID = "w1"
 
 	for _, tc := range []struct{ key, notice string }{
-		{"1", "Needs you is hidden — z1 to show"},
+		{"1", "Ready is hidden — z1 to show"},
 		{"4", "Done is hidden — zh to show"},
-		{"tab", "Needs you is hidden — z1 to show"},
+		{"tab", "Ready is hidden — z1 to show"},
 	} {
 		got, _ := updateKey(m, key(tc.key))
 		require.Equal(t, tc.notice, got.Notice, tc.key)

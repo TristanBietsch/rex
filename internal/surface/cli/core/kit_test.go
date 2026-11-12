@@ -23,7 +23,7 @@ import (
 // agent-only columns.
 func kitView() View {
 	return View{
-		Header{Title: "Sessions", Meta: "1 needs you · 1 working"},
+		Header{Title: "Sessions", Meta: "1 ready · 1 working"},
 		Section{Title: "Fleet"},
 		KV{Kind: "info", Pairs: []Pair{
 			{Key: "version", Label: "Version", Val: Cell{Text: "v1"}},
@@ -37,7 +37,7 @@ func kitView() View {
 			{Key: "n", Title: "N", Align: AlignRight, Width: 3},
 			{Key: "name", Title: "Name"},
 		}, Rows: [][]Cell{
-			{{Text: "◆", Tone: ToneNeeds}, {Text: "a91c"}, {Text: "needs you", Txt: "needs_input", Raw: "needs_input", Tone: ToneNeeds}, {Text: "refactor-db-with-a-really-long-slug-name"}, {Text: "7", Raw: 7}, {Text: ""}},
+			{{Text: "◆", Tone: ToneNeeds}, {Text: "a91c"}, {Text: "ready", Txt: "needs_input", Raw: "needs_input", Tone: ToneNeeds}, {Text: "refactor-db-with-a-really-long-slug-name"}, {Text: "7", Raw: 7}, {Text: ""}},
 			{{Text: "●", Tone: ToneDone}, {Text: "0b2e"}, {Text: "done", Raw: "done", Tone: ToneDone}, {Text: "日本語のスラッグ"}, {Text: "12", Raw: 12}, {Text: "a|b `c` <i>"}},
 		}},
 		Checks{Rows: []Check{
@@ -163,10 +163,10 @@ func TestKitAgentKVTrailer(t *testing.T) {
 
 func TestKitInlineKV(t *testing.T) {
 	v := View{KV{Inline: true, Txt: "1 awaiting input · 2 working", Pairs: []Pair{
-		{Key: "needs_input", Label: "needs you", Glyph: "◆", Val: Cell{Text: "1", Tone: ToneNeeds}},
+		{Key: "needs_input", Label: "ready", Glyph: "◆", Val: Cell{Text: "1", Tone: ToneNeeds}},
 		{Key: "working", Label: "working", Glyph: "⠋", Val: Cell{Text: "2", Tone: ToneWorking}},
 	}}}
-	require.Equal(t, "◆ 1 needs you   ⠋ 2 working\n", emitKit(t, "text", 80, false, Result{View: v}))
+	require.Equal(t, "◆ 1 ready   ⠋ 2 working\n", emitKit(t, "text", 80, false, Result{View: v}))
 	require.Equal(t, "1 awaiting input · 2 working\n", emitKit(t, "txt", 80, false, Result{View: v}))
 }
 

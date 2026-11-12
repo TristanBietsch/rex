@@ -266,7 +266,7 @@ func TestScreensaverKeyWakesWithoutActing(t *testing.T) {
 			require.Equal(t, *now, m.lastInput, "waking restarts the idle countdown")
 			require.Equal(t, 1, fl.stops, "keep-awake stops with the screensaver")
 			require.False(t, m.keepAwake.holding())
-			require.Contains(t, ansi.Strip(m.View()), "NEEDS YOU", "the board is back")
+			require.Contains(t, ansi.Strip(m.View()), "READY", "the board is back")
 			_ = cmd
 		})
 	}
@@ -325,22 +325,22 @@ func TestScreensaverMouseWakesWithoutActing(t *testing.T) {
 func TestScreensaverCountsFollowDaemonEvents(t *testing.T) {
 	m, now, _ := saverModel(t, saverSessions()...)
 	m = idleTo(t, m, now, *now, 5*time.Minute)
-	require.Contains(t, ansi.Strip(m.View()), "1 need you · 2 working · 2 done · 1 failed")
+	require.Contains(t, ansi.Strip(m.View()), "1 ready · 2 working · 2 done · 1 failed")
 
 	m, _ = step(t, m, DaemonEventMsg{Env: stateUpdate(t, "b", protocol.StateNeedsInput)})
 	m, _ = step(t, m, DaemonEventMsg{Env: stateUpdate(t, "c", protocol.StateDone)})
 	require.True(t, m.saverOn, "daemon events don't wake it")
-	require.Contains(t, ansi.Strip(m.View()), "2 need you · 0 working · 3 done · 1 failed")
+	require.Contains(t, ansi.Strip(m.View()), "2 ready · 0 working · 3 done · 1 failed")
 }
 
 // The screensaver's numbers are the header's.
 func TestScreensaverCountsMatchHeader(t *testing.T) {
 	m := boardModel(saverSessions()...)
-	require.Contains(t, ansi.Strip(renderHeader(m, 200)), "1 need you · 2 working · 2 done  · 1 failed")
-	require.Equal(t, "1 need you · 2 working · 2 done · 1 failed", ansi.Strip(saverCounts(m)))
+	require.Contains(t, ansi.Strip(renderHeader(m, 200)), "1 ready · 2 working · 2 done  · 1 failed")
+	require.Equal(t, "1 ready · 2 working · 2 done · 1 failed", ansi.Strip(saverCounts(m)))
 
 	m = boardModel()
-	require.Equal(t, "0 need you · 0 working · 0 done", ansi.Strip(saverCounts(m)))
+	require.Equal(t, "0 ready · 0 working · 0 done", ansi.Strip(saverCounts(m)))
 }
 
 func TestScreensaverHighlightsNeedsYouOnlyWhenNonZero(t *testing.T) {
@@ -349,12 +349,12 @@ func TestScreensaverHighlightsNeedsYouOnlyWhenNonZero(t *testing.T) {
 	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
 
 	m := boardModel(saverSessions()...)
-	require.Contains(t, saverCounts(m), styleAlert().Render("1 need you"))
+	require.Contains(t, saverCounts(m), styleAlert.Render("1 ready"))
 	require.Contains(t, saverCounts(m), styleStateFailed.Render("1 failed"))
 
 	m = boardModel(protocol.SessionSummary{ID: "b", State: protocol.StateWorking})
-	require.NotContains(t, saverCounts(m), styleAlert().Render("0 need you"))
-	require.Contains(t, saverCounts(m), styleHeaderMeta.Render("0 need you"))
+	require.NotContains(t, saverCounts(m), styleAlert.Render("0 ready"))
+	require.Contains(t, saverCounts(m), styleHeaderMeta.Render("0 ready"))
 }
 
 func TestScreensaverKeepAwakeSetting(t *testing.T) {
@@ -480,7 +480,7 @@ func TestScreensaverViewCentered(t *testing.T) {
 	m = idleTo(t, m, now, *now, 5*time.Minute)
 
 	lines := strings.Split(ansi.Strip(m.View()), "\n")
-	counts := "1 need you · 2 working · 2 done · 1 failed"
+	counts := "1 ready · 2 working · 2 done · 1 failed"
 	top := (24 - 3) / 2
 	require.Equal(t, strings.Repeat(" ", (80-5)/2)+saverLogo, strings.TrimRight(lines[top], " "))
 	require.Empty(t, strings.TrimSpace(lines[top+1]))
@@ -551,7 +551,7 @@ func TestScreensaverDriftStaysOnSmallScreens(t *testing.T) {
 		*now = shown.Add(time.Duration(minute) * time.Minute)
 		lines := strings.Split(m.View(), "\n")
 		require.Len(t, lines, 3)
-		require.Contains(t, ansi.Strip(m.View()), "1 need you · 2 working · 2 done · 1 failed", "minute %d: never cut", minute)
+		require.Contains(t, ansi.Strip(m.View()), "1 ready · 2 working · 2 done · 1 failed", "minute %d: never cut", minute)
 	}
 }
 

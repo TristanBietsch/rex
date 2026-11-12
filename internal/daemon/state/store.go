@@ -17,6 +17,10 @@ const (
 	EventAdded EventKind = iota
 	EventUpdated
 	EventRemoved
+	// EventReopened follows a successful Reopen: the session starts a new
+	// run. It carries no patch; clients learn of it from the caller's own
+	// broadcast, so wire subscribers ignore this kind.
+	EventReopened
 )
 
 // Event is what subscribers receive on every change.
@@ -229,6 +233,21 @@ func (s *Store) RemoveWithReason(id, reason string) error {
 	return nil
 }
 
+// ErrDeleting is Transition's refusal of a terminal state for a session whose
+// teardown has begun.
+var ErrDeleting = errors.New("session is being deleted")
+
+// BeginDelete marks a session as being deleted. It must run before the
+// supervisor is stopped: from then on Transition (under the session lock)
+// refuses terminal states, so no failed/done patch can be broadcast.
+func (s *Store) BeginDelete(id string) {
+	if sess, ok := s.Get(id); ok {
+		sess.mu.Lock()
+		sess.deleting = true
+		sess.mu.Unlock()
+	}
+}
+
 // Transition changes a session's state and emits.
 func (s *Store) Transition(id string, newState protocol.State) error {
 	s.mu.RLock()
@@ -240,6 +259,10 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 	now := time.Now().UTC()
 	patch := map[string]any{"state": newState, "last_event_at": now}
 	sess.mu.Lock()
+	if sess.deleting && isTerminal(newState) {
+		sess.mu.Unlock()
+		return ErrDeleting
+	}
 	switch {
 	case newState == protocol.StateWorking && sess.WorkingSince.IsZero():
 		sess.WorkingSince = now
@@ -349,7 +372,17 @@ var ErrNotExited = errors.New("session has not exited")
 // and one that is gone. Like SetRetire it does not broadcast: the caller
 // persists meta, then broadcasts
 // {state, last_event_at, ended_at: nil, exit_code: nil, retire_at: nil, retired_at: nil}.
+// It does send subscribers an EventReopened (no patch) once the row is live,
+// which is how in-process features (the summarizer) learn a new run began.
 func (s *Store) Reopen(id string) error {
+	if err := s.reopen(id); err != nil {
+		return err
+	}
+	s.broadcast(Event{Kind: EventReopened, SessionID: id})
+	return nil
+}
+
+func (s *Store) reopen(id string) error {
 	sess, ok := s.Get(id)
 	if !ok {
 		return fmt.Errorf("session %s not found", id)
@@ -383,6 +416,7 @@ func (s *Store) ReleaseReaping(id string) {
 	if sess, ok := s.Get(id); ok {
 		sess.mu.Lock()
 		sess.reaping = false
+		sess.deleting = false
 		sess.mu.Unlock()
 	}
 }

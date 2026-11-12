@@ -38,5 +38,5 @@ func TestLsNarrowKeepsNameOnSecondLine(t *testing.T) {
 	require.Contains(t, out, "Tests ✓done")
 	require.Contains(t, out, "日本語の名前")
 	// Wide enough: NAME stays in its column.
-	require.Contains(t, emitLs(t, "text", 80, false, lsSessions()), "working    claude       opus · high  fix-auth-fl…    2m  Auth fix")
+	require.Contains(t, emitLs(t, "text", 80, false, lsSessions()), "working  claude       opus · high   fix-auth-flow    2m  Auth fix")
 }

@@ -119,7 +119,7 @@ func TestHeader_CountsQueuedAsWorking(t *testing.T) {
 		protocol.SessionSummary{ID: "3", State: protocol.StateQueued},
 		protocol.SessionSummary{ID: "4", State: protocol.StateDone},
 	)
-	require.Contains(t, ansi.Strip(renderHeader(m, 160)), "1 need you · 2 working · 1 done")
+	require.Contains(t, ansi.Strip(renderHeader(m, 160)), "1 ready · 2 working · 1 done")
 	stats := ansi.Strip(renderStatsOverlay(m))
 	require.Regexp(t, `queued\s+1`, stats)
 	require.Regexp(t, `total\s+4`, stats)

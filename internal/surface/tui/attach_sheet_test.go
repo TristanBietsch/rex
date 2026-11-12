@@ -46,8 +46,8 @@ func TestAttachSheet_FillsTheScreen(t *testing.T) {
 				for i, l := range lines {
 					require.Equal(t, w, ansi.StringWidth(l), "%s line %d", label, i)
 				}
-				require.True(t, strings.HasPrefix(lines[0], "╭"), "%s: the sheet starts at the top: %q", label, lines[0])
-				require.True(t, strings.HasPrefix(lines[h-1], "╰"), "%s: and ends at the bottom", label)
+				require.True(t, strings.HasPrefix(lines[0], "┌"), "%s: the sheet starts at the top: %q", label, lines[0])
+				require.True(t, strings.HasPrefix(lines[h-1], "└"), "%s: and ends at the bottom", label)
 				assertOriginMatchesRender(t, m, label)
 			}
 		}

@@ -13,6 +13,14 @@ type Config struct {
 	MinInterval    time.Duration // per-session floor between Ollama calls; default 800ms
 	MaxBytes       int           // transcript window size sent to the model; default 2048
 	Detail         Detail        // description detail level; zero value is DetailMedium
+	// Schedule turns on the scheduled refresh (R15): ticks per Cadence, and
+	// output-driven requests are ignored. Off (the zero value) is the
+	// pre-R15 behavior. The daemon sets it from summary_schedule; it can be
+	// flipped live with Worker.SetSchedule.
+	Schedule bool
+	// Cadence is the tick schedule; the zero value is DefaultCadence. Tests
+	// scale it down.
+	Cadence Cadence
 }
 
 // Defaults returns a Config populated with library-wide defaults.

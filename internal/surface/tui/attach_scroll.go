@@ -8,7 +8,6 @@ import (
 	"unsafe"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/hinshun/vt10x"
 )
 
@@ -248,7 +247,7 @@ func attachViewRow(a *AttachState, y, cols int, cursorX int) string {
 
 // attachScrollChip is the "SCROLL ↑N/total" title chip.
 func attachScrollChip(a *AttachState) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(colorNeeds).
+	return styleAlert.
 		Render(fmt.Sprintf("SCROLL ↑%d/%d", a.ScrollOff, a.sb.Len()))
 }
 
@@ -261,7 +260,7 @@ func attachScrollFooter(a *AttachState, width int) string {
 		kbdChip("G/esc") + styleDim.Render(" live")
 	right := attachScrollChip(a)
 	if a.scrollNew > 0 {
-		right = lipgloss.NewStyle().Foreground(colorNeeds).
+		right = styleNeeds.
 			Render(fmt.Sprintf("↓ %d new · G/esc to resume", a.scrollNew))
 	}
 	pad := width - lipglossWidth(left) - lipglossWidth(right)

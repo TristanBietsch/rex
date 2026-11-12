@@ -58,6 +58,8 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 		return updateBoardMouse(m, msg)
 	case FocusSettings:
 		return updateSettingsMouse(m, msg), nil
+	case FocusHelp:
+		return updateHelpMouse(m, msg), nil
 	default:
 		// Overlays and prompts own input; handled below.
 	}
@@ -122,14 +124,14 @@ func clickRow(m Model, id string) (Model, tea.Cmd) {
 // updateSettingsMouse lets the wheel move the settings cursor; clicks are
 // ignored (the rows are too dense to target reliably).
 func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
-	if m.Settings == nil {
+	if m.Settings == nil || m.Settings.Edit != nil {
 		return m
 	}
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, -1)
+		m.Settings.CursorID = settingsAfter(m.Settings, -1)
 	case tea.MouseButtonWheelDown:
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, +1)
+		m.Settings.CursorID = settingsAfter(m.Settings, +1)
 	}
 	return m
 }

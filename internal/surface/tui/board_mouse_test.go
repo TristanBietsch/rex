@@ -315,7 +315,7 @@ func TestSettingsMouse_WheelMovesCursor(t *testing.T) {
 	first := settings.Registry[0].ID
 	m.Settings = &SettingsState{CursorID: first}
 	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, settingsAfter(first, 1), m.Settings.CursorID)
+	require.Equal(t, settingsAfter(&SettingsState{CursorID: first}, 1), m.Settings.CursorID)
 	m, _ = updateMouse(m, wheel(false))
 	require.Equal(t, first, m.Settings.CursorID)
 }

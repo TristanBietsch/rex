@@ -52,11 +52,6 @@ func promptGlyph(m Model) string {
 	return "λ"
 }
 
-// cursorStyle is the lit cursor on a color terminal: reverse video.
-func cursorStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Reverse(true)
-}
-
 // cursorLit draws the lit cursor. termenv drops every attribute under the
 // Ascii profile (NO_COLOR, dumb terminals), which would leave a plain space,
 // so there it is a solid block glyph instead.
@@ -64,7 +59,7 @@ func cursorLit() string {
 	if lipgloss.ColorProfile() == termenv.Ascii {
 		return "█"
 	}
-	return cursorStyle().Render(" ")
+	return styleCursor.Render(" ")
 }
 
 func cursorBlock(m Model) string {
@@ -93,10 +88,10 @@ func renderHelpLine(m Model, width int) string {
 	}
 	if m.Focus == FocusRename {
 		parts := []string{
-			styleHeaderApp.Render("enter") + styleDim.Render(" save"),
-			styleHeaderApp.Render("esc") + styleDim.Render(" cancel"),
-			styleHeaderApp.Render("ctrl+u") + styleDim.Render(" clear"),
-			styleHeaderApp.Render("ctrl+w") + styleDim.Render(" delete word"),
+			styleKey.Render("enter") + styleDim.Render(" save"),
+			styleKey.Render("esc") + styleDim.Render(" cancel"),
+			styleKey.Render("ctrl+u") + styleDim.Render(" clear"),
+			styleKey.Render("ctrl+w") + styleDim.Render(" delete word"),
 			styleDim.Render("empty = show slug"),
 		}
 		return padLine("  "+strings.Join(parts, styleMuted.Render(" · ")), width)
@@ -105,7 +100,7 @@ func renderHelpLine(m Model, width int) string {
 		return searchHelpLine(width)
 	}
 	if m.PendingChord == "z" {
-		return padLine("  "+styleHeaderApp.Render("z")+styleDim.Render(": h completed · 1-9 section · 0 show all"), width)
+		return padLine("  "+styleKey.Render("z")+styleDim.Render(": h completed · 1-9 section · 0 show all"), width)
 	}
 	if m.Notice != "" {
 		return padLine("  "+styleBootReady.Render(truncate(m.Notice, width-2)), width)
@@ -117,7 +112,7 @@ func renderHelpLine(m Model, width int) string {
 	}
 	var parts []string
 	for _, k := range keys {
-		parts = append(parts, styleHeaderApp.Render(k)+styleDim.Render(" "+helpLineLabel(k)))
+		parts = append(parts, styleKey.Render(k)+styleDim.Render(" "+helpLineLabel(k)))
 	}
 	sep := styleMuted.Render(" · ")
 	return padLine("  "+strings.Join(parts, sep), width)

@@ -171,6 +171,7 @@ func run(args []string) error {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
 		cfg.Detail = summarizer.ParseDetail(settingsStore.String("summary_detail"))
+		cfg.Schedule = settings.FeatureOn(hub.Current(), "summary_schedule")
 		if u := boot.OllamaBaseURL(); u != "" {
 			cfg.BaseURL = u
 		}
@@ -230,7 +231,7 @@ func run(args []string) error {
 	}, store)
 	defer auditTrail.Close()
 	auditTrail.Configure(settingsStore)
-	hub.Subscribe([]string{"audit_trail", "audit_full_prompt"}, auditTrail.Applier())
+	hub.Subscribe(boot.AuditSettingIDs, auditTrail.Applier())
 	// Loop workflows: never enabled (no goroutine, subscription or file
 	// read) while the loops setting is off. The flag is read from the hub's
 	// current settings; a change enables or disables the runner.
@@ -307,6 +308,7 @@ func run(args []string) error {
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
 		hub.Subscribe([]string{"summary_detail"}, boot.SummaryDetailApplier(summaryWorker))
+		hub.Subscribe([]string{"summary_schedule"}, boot.SummaryScheduleApplier(summaryWorker))
 		hub.Subscribe([]string{"overview_enabled"}, ov.Applier())
 	}
 	// The one settings poller. With live_reload off it parks without polling;

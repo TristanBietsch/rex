@@ -194,7 +194,7 @@ func TestRunOverview_TextAndJSON(t *testing.T) {
 	out := captureStdout(t, func() { runErr = RunOverview([]string{"-socket", d.Socket, "-o", "text"}) })
 	require.NoError(t, runErr)
 	require.Contains(t, out, "Overview")
-	require.Contains(t, out, "Needs you")
+	require.Contains(t, out, "Ready")
 	require.Contains(t, out, "asks")
 	require.Contains(t, out, "overview is off", "the test daemon runs no overview")
 

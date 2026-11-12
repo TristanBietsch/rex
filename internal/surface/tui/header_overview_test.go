@@ -38,7 +38,7 @@ func TestHeaderOverviewLine(t *testing.T) {
 	lines := headerLines(m, 120)
 	require.Len(t, lines, 2, "top row and the overview line")
 	require.Equal(t, 2, headerHeight(m))
-	require.Contains(t, lines[1], "» 1 ready for review")
+	require.Contains(t, lines[1], "» 1 to review")
 	require.Contains(t, lines[1], "r1 is ready for review; w1 is still running")
 	require.Contains(t, lines[1], "· 40s")
 	require.Equal(t, 120, ansi.StringWidth(lines[1]), "padded to the width")
@@ -53,7 +53,7 @@ func TestHeaderOverviewLine(t *testing.T) {
 			m := overviewModel(t, true)
 			m.Overview = o
 			line := headerLines(m, 120)[1]
-			require.Contains(t, line, "» 1 ready for review")
+			require.Contains(t, line, "» 1 to review")
 			require.NotContains(t, line, "·")
 			require.NotContains(t, line, "stale")
 		}
@@ -78,7 +78,7 @@ func TestHeaderOverviewLine(t *testing.T) {
 	t.Run("a narrow screen drops the headline, keeps the counts", func(t *testing.T) {
 		line := headerLines(overviewModel(t, true), 24)[1]
 		require.LessOrEqual(t, ansi.StringWidth(line), 24)
-		require.Contains(t, line, "» 1 ready")
+		require.Contains(t, line, "» 1 to review")
 	})
 	t.Run("the headline is flattened", func(t *testing.T) {
 		m := overviewModel(t, true)
@@ -116,7 +116,7 @@ func TestHeaderOverviewLine_AfterChipsBeforeBanner(t *testing.T) {
 	require.Len(t, lines, 4)
 	require.Equal(t, 4, headerHeight(m))
 	require.Contains(t, lines[1], "claude", "chip row")
-	require.Contains(t, lines[2], "» 1 ready for review")
+	require.Contains(t, lines[2], "» 1 to review")
 	require.Contains(t, lines[3], "summary backend")
 }
 
@@ -156,7 +156,7 @@ func TestRenderFullScreen_WithOverviewLine(t *testing.T) {
 	m.Width, m.Height = 100, 24
 	lines := strings.Split(ansi.Strip(m.View()), "\n")
 	require.Len(t, lines, 24)
-	require.Contains(t, lines[2], "» 1 ready for review")
+	require.Contains(t, lines[2], "» 1 to review")
 	require.Contains(t, lines[2], "· 40s")
 }
 
@@ -175,7 +175,7 @@ func TestApplyEvent_Overview(t *testing.T) {
 	require.Equal(t, "x is ready", m.Overview.Headline)
 }
 
-// A wait_reason patch moves a waiting session between NEEDS YOU and READY
+// A wait_reason patch moves a waiting session between READY and READY
 // FOR REVIEW, and clearing it moves it back.
 func TestApplyEvent_WaitReasonPatchMovesBucket(t *testing.T) {
 	m := Model{Sessions: []protocol.SessionSummary{

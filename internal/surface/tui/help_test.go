@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -36,7 +35,7 @@ func TestRenderHelpFits(t *testing.T) {
 
 func TestRenderHelpGroupTitles(t *testing.T) {
 	plain := ansi.Strip(renderHelp(Model{}, 120, 60))
-	for _, gs := range [][]helpGroup{helpLeft(Model{}), helpRight} {
+	for _, gs := range [][]helpGroup{helpLeft(Model{}), helpRight, {helpLegend(Model{})}} {
 		for _, g := range gs {
 			if !strings.Contains(plain, g.Title) {
 				t.Errorf("missing group %q", g.Title)
@@ -57,8 +56,8 @@ func TestRenderHelpCommandVerbs(t *testing.T) {
 }
 
 func TestRenderHelpTwoColShorter(t *testing.T) {
-	two := lipgloss.Height(helpBox(Model{}, 110, 2, map[string]bool{}, false))
-	one := lipgloss.Height(helpBox(Model{}, 110, 1, map[string]bool{}, false))
+	two := len(helpBody(Model{}, 110, 2))
+	one := len(helpBody(Model{}, 110, 1))
 	if two >= one {
 		t.Errorf("two-col height %d not < single-col %d", two, one)
 	}

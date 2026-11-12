@@ -123,7 +123,7 @@ type waitData struct {
 func emitWait(s protocol.SessionSummary, state protocol.State) error {
 	text := s.Slug + " is " + string(state)
 	if state == protocol.StateNeedsInput {
-		text = s.Slug + " needs you"
+		text = s.Slug + " is ready"
 	}
 	return emitAction("wait", waitData{refOf(s), state}, text, "",
 		sessionFields(s, core.Field{Key: "state", Val: string(state)}))

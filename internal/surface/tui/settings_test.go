@@ -171,7 +171,7 @@ func TestRenderSettings_Layout(t *testing.T) {
 
 func TestRenderSettings_WindowingKeepsSelectedVisible(t *testing.T) {
 	for _, h := range []int{12, 16, 20, 30} {
-		for _, s := range settings.Registry {
+		for _, s := range settings.Visible() {
 			m := settingsLayoutModel(t, 100, h)
 			m.Settings.CursorID = s.ID
 			out := renderSettings(m, 100)

@@ -369,7 +369,7 @@ func TestBanner_ElsewhereExcludesSelf(t *testing.T) {
 	for _, it := range meta {
 		texts = append(texts, it.text)
 	}
-	require.Contains(t, texts, "elsewhere: 2 to review · 1 needs you · 1 failed")
+	require.Contains(t, texts, "elsewhere: 2 to review · 1 ready · 1 failed")
 	require.Contains(t, texts, "» billing is done; deploy asks a question", "the S4 headline follows, flattened")
 }
 

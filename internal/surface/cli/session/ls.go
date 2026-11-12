@@ -184,10 +184,16 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 		if !s.RetireAt.IsZero() {
 			shown = strings.TrimSpace(shown + " ✓done")
 		}
-		ago := core.DurationAgoAt(s.LastEventAt, now)
+		// An older daemon sends no last_event_at for a session that has not
+		// had activity yet; its start stands in. Idle is -1 only when both are unknown.
+		active := s.LastEventAt
+		if active.IsZero() {
+			active = s.StartedAt
+		}
+		ago := core.DurationAgoAt(active, now)
 		idleS := -1
-		if !s.LastEventAt.IsZero() {
-			idleS = int(now.Sub(s.LastEventAt).Seconds())
+		if !active.IsZero() {
+			idleS = max(int(now.Sub(active).Seconds()), 0)
 		}
 		tone := core.StateTone(s.State)
 		label := core.StateLabel(s.State)
@@ -231,7 +237,7 @@ func lsView(sessions []protocol.SessionSummary, now time.Time, g core.Glyphs, op
 	for _, c := range []struct {
 		n     int
 		label string
-	}{{needs, "needs you"}, {waiting, "waiting"}, {working, "working"}, {done, "done"}} {
+	}{{needs, "ready"}, {waiting, "waiting"}, {working, "working"}, {done, "done"}} {
 		if c.n > 0 {
 			meta = append(meta, fmt.Sprintf("%d %s", c.n, c.label))
 		}

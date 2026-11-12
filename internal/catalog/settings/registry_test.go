@@ -4,7 +4,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 )
+
+// color_scheme offers exactly the built-in themes, default first.
+func TestRegistry_ColorSchemeOptionsAreTheBuiltinThemes(t *testing.T) {
+	e, ok := findEntry("color_scheme")
+	require.True(t, ok)
+	require.Equal(t, "default", e.Options[0])
+	require.ElementsMatch(t, theme.Names(), e.Options)
+	for _, name := range e.Options {
+		require.NoError(t, NewStore().Set("color_scheme", name), name)
+	}
+}
 
 func TestRegistry_HasDefaultSpawnTool(t *testing.T) {
 	e, ok := findEntry("default_spawn_tool")

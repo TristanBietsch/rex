@@ -1,0 +1,66 @@
+-- plain.80x24 --
+    ┌─ HELP ────────────────────────────────────────────────────── rex v1 ─┐
+  ∴ │   ── Navigation ──────────────────────────────────────────────────   │    
+  al│   j k  move row selection                                            │    
+    │   g G  top / bottom                                                  │
+────│   tab  next Ready session                                            │────
+    │   1-4  jump to Ready / Waiting / Working / Done (4 also folds a      │
+  RE│        long Done column)                                             │    
+   ◆│   v    simple / detailed rows (id, model, tokens, AI summary)        │  4m
+    │                                                                      │
+  WA│   ── Filter & search ─────────────────────────────────────────────   │    
+    │   t     cycle tool filter                                            │
+    │   /     search the board (every word must match)                     │
+  WO│   esc   clear the search                                             │    
+ ▸ ⠋│   zh    hide / show completed sections                               │ 11m
+   ⠋│   z1-9  hide / show section N                                        │  7s
+   ⠋│   z0    show every section                                           │  2h
+    │                                                                      │
+  DO│   ── Actions ─────────────────────────────────────────────────────   │    
+   ●│   enter  attach to selected session                                  │  9d
+   ✕│   n      new-agent wizard                                            │   -
+  ↳ │   ↓ more                                                             │    
+────│                                                                      │────
+  λ │   j/k scroll · / filter · esc close                                  │    
+  en└──────────────────────────────────────────────────────────────────────┘    
+-- plain.120x40 --
+     ┌─ HELP ──────────────────────────────────────────────────────────────────────────────────────────── rex v1 ─┐
+  ∴ R│   ── Navigation ───────────────────────────────────    ── Session commands ─────────────────────────────   │     
+  all│   j k  move row selection                              :new                 new-agent wizard               │     
+     │   g G  top / bottom                                    :name [text]         rename selected (no text:      │
+─────│   tab  next Ready session                                                   open editor)                   │─────
+     │   1-4  jump to Ready / Waiting / Working / Done (4     :rename <s> <slug>   change slug                    │
+  REA│        also folds a long Done column)                  :done [sel]          mark done                      │     
+   ◆ │   v    simple / detailed rows (id, model, tokens,      :undone [sel]        undo done                      │   4m
+     │        AI summary)                                     :uc :resume [sel]    undo done: unmark a running    │
+  WAI│                                                                             session, or resume an exited   │     
+     │   ── Filter & search ──────────────────────────────                         one                            │
+     │   t     cycle tool filter                              :rid [sel]           show the full resume id        │
+  WOR│   /     search the board (every word must match)       :complete [sel]      kill agent + mark done now     │     
+ ▸ ⠋ │   esc   clear the search                               :rm <sel>            delete                         │  11m
+   ⠋ │   zh    hide / show completed sections                 :prune               clear Done (keeps sessions     │   7s
+   ⠋ │   z1-9  hide / show section N                                               still working)                 │   2h
+     │   z0    show every section                             :export [sel] [fmt]  write session to exports/      │
+  DON│                                                        :filter [what]       tool, or hide|show|only        │     
+   ● │   ── Actions ──────────────────────────────────────                         <section…>; no argument        │   9d
+   ✕ │   enter  attach to selected session                                         clears every filter            │    -
+   ✕ │   n      new-agent wizard                              :search [text]       search the board (every word   │    -
+     │   r      rename selected (empty = slug)                                     must match); no text clears    │
+     │   cc     mark done / undo                                                                                  │
+     │   uc     undo done (unmark, or resume an exited        ── App commands ─────────────────────────────────   │
+     │          session)                                      :q :quit         quit (confirm)                     │
+     │   C      complete now (kill agent, mark done)          :q!              force quit                         │
+     │   dd     delete selected                               :bg :detach      detach, save place                 │
+     │   i      focus λ prompt (new-session text)             :reload          reload tools.yaml                  │
+     │   S      settings                                      :fail            failed sessions + daemon log       │
+     │   q      quit (confirm)                                                 (:fails :failed)                   │
+     │                                                        :stats           session statistics overlay         │
+     │   ── Mouse ────────────────────────────────────────    :overview        what is ready for you, what to     │
+     │   click         select row / filter chip                                review, what finished              │
+     │   double-click  attach to row                          :border [color]  window border for this run: on,    │
+     │   wheel         move row selection                                      off, next, random, a color name    │
+     │   hold ⌥ / ⇧    select text natively                                    or #rrggbb                         │
+  ↳ d│   ↓ more                                                                                                   │     
+─────│                                                                                                            │─────
+  λ p│   j/k scroll · / filter · esc close                                                                        │     
+  ent└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘     

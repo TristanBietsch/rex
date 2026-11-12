@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
@@ -17,9 +16,68 @@ import (
 // SettingsState lives on Model when Focus == FocusSettings.
 type SettingsState struct {
 	CursorID string
+	// Search keeps the settings whose label, id, section or help contains
+	// every word; Searching is whether keys edit it.
+	Search    string
+	Searching bool
+	// HelpExpanded shows the whole help text in the detail pane.
+	HelpExpanded bool
+	// Edit is the open inline editor of a free-form string setting.
+	Edit *settingEdit
 	// Tools backs the quick-spawn tool/model/effort pickers so they only
 	// offer combinations the daemon will accept.
 	Tools []registry.Tool
+}
+
+// settingEdit is the inline editor of one free-form string setting. Saving
+// goes through Store.Set, so the registry's Normalize is the only validator
+// (the CLI and rex setup run the same one).
+type settingEdit struct {
+	ID  string
+	ed  lineEditor
+	Err string // why the last save was refused
+}
+
+// Text is the draft value.
+func (e *settingEdit) Text() string { return e.ed.Text }
+
+// settingFreeForm reports whether enter edits the setting as text. It is
+// opt-in (Setting.Free): a string without options is not free by type, since
+// the quick-spawn pickers have none in the registry yet cycle through the
+// tools registry (and repair their dependents) on enter.
+func settingFreeForm(s settings.Setting) bool {
+	return s.Free && s.Type == settings.TypeString && !s.ReadOnly
+}
+
+// openSettingEdit starts editing the cursor setting with its current value.
+func openSettingEdit(m Model, s settings.Setting) Model {
+	m.Settings.Edit = &settingEdit{ID: s.ID, ed: lineEditor{Text: m.Store.String(s.ID), StripControl: true}}
+	return m
+}
+
+// settingEditKey drives the inline editor: enter saves through Store.Set
+// (a refusal keeps the editor open with the reason), esc cancels, every
+// other key edits the text.
+func settingEditKey(m Model, k tea.KeyMsg) Model {
+	e := m.Settings.Edit
+	switch k.Type {
+	case tea.KeyEsc:
+		m.Settings.Edit = nil
+	case tea.KeyEnter:
+		if err := m.Store.Set(e.ID, e.ed.Text); err != nil {
+			e.Err = err.Error()
+			return m
+		}
+		applyLive(&m, e.ID, m.Store.Get(e.ID))
+		_ = m.Store.Save(m.StorePath)
+		reloadDaemonForTrust(m.reloader, m.Socket, e.ID)
+		m.Settings.Edit = nil
+	default:
+		if e.ed.Edit(k) {
+			e.Err = ""
+		}
+	}
+	return m
 }
 
 func openSettings(m Model) (Model, tea.Cmd) {
@@ -38,8 +96,8 @@ func openSettings(m Model) (Model, tea.Cmd) {
 	} else {
 		slog.Warn("tui: settings could not load tool registry; spawn pickers disabled", "err", err)
 	}
-	if len(settings.Registry) > 0 {
-		st.CursorID = settings.Registry[0].ID
+	if vis := settings.Visible(); len(vis) > 0 {
+		st.CursorID = vis[0].ID
 	}
 	m.Settings = st
 	m.Focus = FocusSettings
@@ -72,16 +130,41 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Settings == nil {
 		return m, nil
 	}
+	if m.Settings.Edit != nil {
+		return settingEditKey(m, k), nil
+	}
+	if m.Settings.Searching {
+		return settingsSearchKey(m, k), nil
+	}
 	switch k.String() {
 	case "esc":
+		if m.Settings.Search != "" {
+			m.Settings.Search = ""
+			return m, nil
+		}
 		return closeSettings(m), nil
+	case "/":
+		m.Settings.Searching = true
+		return m, nil
+	case "?":
+		m.Settings.HelpExpanded = !m.Settings.HelpExpanded
+		return m, nil
+	case "tab":
+		m.Settings.CursorID = settingsSectionJump(m.Settings, +1)
+		return m, nil
+	case "shift+tab":
+		m.Settings.CursorID = settingsSectionJump(m.Settings, -1)
+		return m, nil
 	case "j", "down":
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, +1)
+		m.Settings.CursorID = settingsAfter(m.Settings, +1)
 		return m, nil
 	case "k", "up":
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, -1)
+		m.Settings.CursorID = settingsAfter(m.Settings, -1)
 		return m, nil
 	case "enter", " ":
+		if s, ok := settings.Find(m.Settings.CursorID); ok && settingFreeForm(s) {
+			return openSettingEdit(m, s), nil
+		}
 		return applySettingsAction(m, 0), nil
 	case "+", "=", "l", "right":
 		return applySettingsAction(m, +1), nil
@@ -100,26 +183,135 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// settingsAfter returns the id N positions after current in the visible registry order.
-func settingsAfter(current string, delta int) string {
-	if len(settings.Registry) == 0 {
-		return ""
+// settingsSearchKey edits the settings search. The query is bounded (see
+// compileQuery) and stripped of control runes.
+func settingsSearchKey(m Model, k tea.KeyMsg) Model {
+	st := m.Settings
+	switch k.Type {
+	case tea.KeyEsc:
+		st.Search, st.Searching = "", false
+	case tea.KeyEnter:
+		st.Searching = false
+	case tea.KeyBackspace:
+		if r := []rune(st.Search); len(r) > 0 {
+			st.Search = string(r[:len(r)-1])
+		}
+	case tea.KeyCtrlU:
+		st.Search = ""
+	case tea.KeyRunes, tea.KeySpace:
+		add := strings.Map(func(r rune) rune {
+			if r < ' ' || r == 0x7f {
+				return -1
+			}
+			return r
+		}, string(k.Runes))
+		if k.Type == tea.KeySpace {
+			add = " "
+		}
+		if len([]rune(st.Search+add)) <= maxSearchRunes {
+			st.Search += add
+		}
+	default:
+	}
+	st.CursorID = settingsKeepCursor(st)
+	return m
+}
+
+// settingsList is the settings the page lists: the visible ones that match
+// the search, in registry order.
+func settingsList(st *SettingsState) []settings.Setting {
+	vis := settings.Visible()
+	terms := compileQuery(st.Search)
+	if len(terms) == 0 {
+		return vis
+	}
+	var out []settings.Setting
+	for _, s := range vis {
+		hay := strings.ToLower(s.Label + " " + s.ID + " " + string(s.Section) + " " + s.Help)
+		ok := true
+		for _, t := range terms {
+			if !strings.Contains(hay, t) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// settingsKeepCursor is the cursor id after the list changed: the same row
+// when it is still listed, else the first one.
+func settingsKeepCursor(st *SettingsState) string {
+	list := settingsList(st)
+	for _, s := range list {
+		if s.ID == st.CursorID {
+			return st.CursorID
+		}
+	}
+	if len(list) > 0 {
+		return list[0].ID
+	}
+	return st.CursorID
+}
+
+// settingsAfter returns the id delta rows after the cursor in the listed
+// settings, stopping at the ends.
+func settingsAfter(st *SettingsState, delta int) string {
+	list := settingsList(st)
+	if len(list) == 0 {
+		return st.CursorID
 	}
 	idx := 0
-	for i, s := range settings.Registry {
-		if s.ID == current {
+	for i, s := range list {
+		if s.ID == st.CursorID {
 			idx = i
 			break
 		}
 	}
-	idx += delta
-	if idx < 0 {
-		idx = 0
+	idx = min(max(idx+delta, 0), len(list)-1)
+	return list[idx].ID
+}
+
+// settingsSectionJump moves the cursor to the first row of the next section
+// (dir +1, wrapping) or, going back, to the first row of the current section,
+// or of the previous one when it is already there.
+func settingsSectionJump(st *SettingsState, dir int) string {
+	list := settingsList(st)
+	if len(list) == 0 {
+		return st.CursorID
 	}
-	if idx >= len(settings.Registry) {
-		idx = len(settings.Registry) - 1
+	idx := 0
+	for i, s := range list {
+		if s.ID == st.CursorID {
+			idx = i
+			break
+		}
 	}
-	return settings.Registry[idx].ID
+	// starts are the indexes where a section begins.
+	var starts []int
+	for i, s := range list {
+		if i == 0 || s.Section != list[i-1].Section {
+			starts = append(starts, i)
+		}
+	}
+	cur := 0
+	for n, at := range starts {
+		if at <= idx {
+			cur = n
+		}
+	}
+	switch {
+	case dir > 0:
+		cur = (cur + 1) % len(starts)
+	case starts[cur] < idx:
+		// back inside a section: its own first row
+	default:
+		cur = (cur - 1 + len(starts)) % len(starts)
+	}
+	return list[starts[cur]].ID
 }
 
 // applySettingsAction mutates the cursor row.
@@ -422,6 +614,9 @@ func applyLive(m *Model, id string, value any) {
 				m.Audio.SetVolume(v)
 			}
 		}
+	case "board_hidden_sections":
+		// The same reader as startup, so board_filter off still ignores it.
+		*m = applyHidden(*m, hiddenSectionsFrom(m.Store))
 	case "max_concurrent_sessions":
 		if m.Client != nil {
 			if n, ok := value.(int); ok {
@@ -434,7 +629,10 @@ func applyLive(m *Model, id string, value any) {
 }
 
 // settingsHints are the footer key hints, in display order.
-var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "r reset", "esc close"}
+var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "/ search", "tab section", "r reset", "? help", "esc close"}
+
+// settingsEditHints are the footer hints while the inline editor is open.
+var settingsEditHints = []string{"enter save", "esc cancel", "ctrl+u clear"}
 
 // wrapHints packs hints (3-space separated) into lines of at most width cells.
 func wrapHints(hints []string, width int) []string {
@@ -501,175 +699,4 @@ func padCells(s string, w int) string {
 		return s + strings.Repeat(" ", d)
 	}
 	return s
-}
-
-// renderSettings returns the finished settings box for a termW-wide terminal.
-func renderSettings(m Model, termW int) string {
-	if m.Settings == nil || m.Store == nil {
-		return ""
-	}
-	if termW <= 0 {
-		termW = 100
-	}
-
-	var (
-		width, padH, padV int
-		bordered          = termW >= 40
-	)
-	padV = 1
-	if m.Height > 0 && m.Height < 24 {
-		padV = 0
-	}
-	switch {
-	case termW < 40:
-		width, padH, padV = termW, 0, 0
-	case termW < 60:
-		width, padH = termW-2, 1
-	default:
-		width, padH = termW-8, 3
-		if width < 56 {
-			width = 56
-		}
-		if width > 88 {
-			width = 88
-		}
-	}
-	inner := width
-	if bordered {
-		inner = width - 2 - 2*padH
-	}
-	labelW := 30
-	if lim := inner * 40 / 100; lim < labelW {
-		labelW = lim
-	}
-	if termW < 60 {
-		labelW = inner / 2
-	}
-	ownLine := inner < 40
-	selStyle := styleSelected
-	selBold := styleSelected.Bold(true)
-
-	var lines []string
-	focus := 0
-	curSection := ""
-	cursorIdx, total := 0, len(settings.Registry)
-	var sel settings.Setting
-	for i, s := range settings.Registry {
-		if string(s.Section) != curSection {
-			if curSection != "" {
-				lines = append(lines, "")
-			}
-			lines = append(lines, sectionHeader(string(s.Section), inner))
-			curSection = string(s.Section)
-		}
-		isSel := s.ID == m.Settings.CursorID
-		adjustable := settingAdjustable(m, s)
-		val := settingValueText(m, s)
-		empty := val == "—"
-		label := ansi.Truncate(s.Label, labelW, "…")
-
-		valAvail := inner - 2 - labelW - 1
-		if ownLine {
-			valAvail = inner - 4
-		}
-		arrows := isSel && adjustable && !empty
-		if arrows {
-			valAvail -= 4
-		}
-		if valAvail < 1 {
-			valAvail = 1
-		}
-		val = ansi.Truncate(val, valAvail, "…")
-		valCell := val
-		if arrows {
-			valCell = "◂ " + val + " ▸"
-		}
-
-		if !isSel {
-			vs := styleDim
-			if !s.ReadOnly && !empty {
-				vs = lipgloss.NewStyle().Foreground(colorFgPrimary)
-			}
-			if ownLine {
-				lines = append(lines, "  "+styleDim.Render(label), "    "+vs.Render(valCell))
-			} else {
-				lines = append(lines, "  "+styleDim.Render(padCells(label, labelW))+" "+vs.Render(valCell))
-			}
-			continue
-		}
-
-		cursorIdx = i + 1
-		sel = s
-		focus = len(lines)
-		marker := styleArrow.Render("▸ ")
-		if ownLine {
-			first := marker + selBold.Render(label)
-			lines = append(lines, first+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(first)))))
-			vs := selStyle
-			if s.ReadOnly || empty {
-				vs = selStyle.Foreground(colorFgDim)
-			}
-			second := selStyle.Render("    ") + vs.Render(valCell)
-			lines = append(lines, second+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(second)))))
-			continue
-		}
-		vs := selStyle
-		if s.ReadOnly || empty {
-			vs = selStyle.Foreground(colorFgDim)
-		}
-		row := marker + selBold.Render(padCells(label, labelW)) + selStyle.Render(" ") + vs.Render(valCell)
-		lines = append(lines, row+selStyle.Render(strings.Repeat(" ", max(0, inner-ansi.StringWidth(row)))))
-	}
-
-	// Header: SETTINGS left, "n of N" right.
-	title := lipgloss.NewStyle().Bold(true).Render("SETTINGS")
-	pos := styleDim.Render(fmt.Sprintf("%d of %d", cursorIdx, total))
-	gap := inner - ansi.StringWidth(title) - ansi.StringWidth(pos)
-	header := title + strings.Repeat(" ", max(1, gap)) + pos
-	if gap < 1 {
-		header = ansi.Truncate(title, inner, "")
-	}
-
-	// Fixed 2-line help area so the layout never jumps.
-	help := []string{"", ""}
-	if sel.Help != "" {
-		wrapped := strings.Split(ansi.Wordwrap(sel.Help, inner, ""), "\n")
-		for i := 0; i < 2 && i < len(wrapped); i++ {
-			help[i] = wrapped[i]
-		}
-		if len(wrapped) > 2 {
-			help[1] = ansi.Truncate(help[1]+"…", inner, "…")
-		}
-	}
-	for i, h := range help {
-		help[i] = styleDim.Render(ansi.Truncate(h, inner, "…"))
-	}
-	footer := wrapHints(settingsHints, inner)
-
-	// Non-body rows: header, blank, blank, help(2), blank, footer, plus box chrome.
-	chrome := 1 + 1 + 1 + 2 + 1 + len(footer) + 2*padV
-	if bordered {
-		chrome += 2
-	}
-	maxRows := 0
-	if m.Height > 0 {
-		maxRows = m.Height - chrome
-		if maxRows < 3 {
-			maxRows = 3
-		}
-	}
-
-	var out []string
-	out = append(out, header, "")
-	out = append(out, windowLines(lines, focus, maxRows)...)
-	out = append(out, "")
-	out = append(out, help...)
-	out = append(out, "")
-	out = append(out, footer...)
-	content := strings.Join(out, "\n")
-
-	if !bordered {
-		return content
-	}
-	return panelStyle(width).Padding(padV, padH).Render(content)
 }

@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
+  all · claude · codex · antigravity · ollama                                   
+
+┌─ which provider?                                                          … ─┐
+│                                                                           …  │
+│    ▸ Echo (test)                                                          …  │
+│      Claude Code                                                          …  │
+│      OpenAI Codex                                                         …  │
+│      Gemini CLI                                                           …  │
+│      Ollama (local)                                                       …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│    j/k select   enter next   esc cancel                                   …  │
+└──────────────────────────────────────────────────────────────────────────────┘
+  ↳ draft ready — which feature leads?                                          
+────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  READY  1                                                                                                              
+   ◆  dark-mode             system theme vs explicit toggle — your call                                               4m
+
+  WAITING  0                                                                                                            
+      nothing waiting on a tool
+
+  WORKING  3      ┌─ which provider?                                                                ─┐                  
+ ▸ ⠋  release-note│                                                                                  │       ▴ 45m   11m
+   ⠋  日本語の長い│    ▸ Echo (test)                                                                 │                7s
+   ⠋  payment-migr│      Claude Code                                                                 │       ▴ 7h     2h
+                  │      OpenAI Codex                                                                │
+  DONE  3         │      Gemini CLI                                                                  │                  
+   ●  test-coverag│      Ollama (local)                                                              │                9d
+   ✕  no-model    │                                                                                  │                 -
+   ✕  failing-job │                                                                                  │                 -
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │    j/k select   enter next   esc cancel                                          │
+                  └──────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+
+
+  ↳ draft ready — which feature leads?                                                                                  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      

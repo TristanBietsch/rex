@@ -227,6 +227,14 @@ func SummaryDetailApplier(w *summarizer.Worker) func(*settings.Store) {
 	}
 }
 
+// SummaryScheduleApplier returns a SettingsHub subscriber that keeps w's
+// scheduled refresh in step with the summary_schedule feature.
+func SummaryScheduleApplier(w *summarizer.Worker) func(*settings.Store) {
+	return func(s *settings.Store) {
+		w.SetSchedule(settings.FeatureOn(s, "summary_schedule"))
+	}
+}
+
 // WireSpawnReads points cfg's spawn-time settings reads (AutoTrustDirs,
 // SkipPermissions, ResumeEnabled, SkillsEnabled, SnapshotsEnabled, UsageTap)
 // at the hub's current settings, so each spawn sees the latest reload. socket

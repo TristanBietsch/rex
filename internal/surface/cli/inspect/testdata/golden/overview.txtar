@@ -5,14 +5,14 @@ Overview  updated 40s ago
             deploy asks a question and migrate-db
             failed
 
-2 ready for review   1 needs you   1 failed   1 working   1 completed
+2 review   1 ready   1 failed   1 working   1 completed
 
-Ready for review:
+Review:
      ID    NAME           STATUS               AGE
   ●  r1ab  billing-tests  Done: 48 tests pass   3m
   ◆  r2cd  api docs       write api docs        9m
 
-Needs you:
+Ready:
      ID    NAME      STATUS           AGE
   ◆  n1ef  deploy    Deploy to prod?  40s
 
@@ -35,14 +35,14 @@ Overview  updated 40s ago
   Headline  billing-tests is ready for review; deploy asks a question and
             migrate-db failed
 
-2 ready for review   1 needs you   1 failed   1 working   1 completed
+2 review   1 ready   1 failed   1 working   1 completed
 
-Ready for review:
+Review:
      ID    NAME           STATUS               AGE
   ●  r1ab  billing-tests  Done: 48 tests pass   3m
   ◆  r2cd  api docs       write api docs        9m
 
-Needs you:
+Ready:
      ID    NAME      STATUS           AGE
   ◆  n1ef  deploy    Deploy to prod?  40s
 
@@ -64,14 +64,14 @@ Overview  updated 40s ago
 
   Headline  billing-tests is ready for review; deploy asks a question and migrate-db failed
 
-2 ready for review   1 needs you   1 failed   1 working   1 completed
+2 review   1 ready   1 failed   1 working   1 completed
 
-Ready for review:
+Review:
      ID    NAME           STATUS               AGE
   ●  r1ab  billing-tests  Done: 48 tests pass   3m
   ◆  r2cd  api docs       write api docs        9m
 
-Needs you:
+Ready:
      ID    NAME      STATUS           AGE
   ◆  n1ef  deploy    Deploy to prod?  40s
 
@@ -89,46 +89,46 @@ Completed (last 24 h):
 
 › rex attach <id>  open a session
 -- text.color.w80 --
-␛[1;38;2;230;230;230mOverview␛[0m  ␛[38;2;121;127;140mupdated 40s ago␛[0m
+␛[1;38;2;230;232;238mOverview␛[0m  ␛[38;2;139;145;161mupdated 40s ago␛[0m
 
-  ␛[38;2;121;127;140mHeadline␛[0m  billing-tests is ready for review; deploy asks a question and
+  ␛[38;2;139;145;161mHeadline␛[0m  billing-tests is ready for review; deploy asks a question and
             migrate-db failed
 
-␛[38;2;73;222;128m2 ready for review␛[0m   ␛[38;2;229;179;65m1 needs you␛[0m   ␛[38;2;239;68;68m1 failed␛[0m   ␛[38;2;91;141;239m1 working␛[0m   ␛[38;2;73;222;128m1 completed␛[0m
+␛[38;2;91;208;140m2 review␛[0m   ␛[38;2;245;185;73m1 ready␛[0m   ␛[38;2;242;107;107m1 failed␛[0m   ␛[38;2;110;168;254m1 working␛[0m   ␛[38;2;91;208;140m1 completed␛[0m
 
-␛[1;38;2;230;230;230mReady for review:␛[0m
-     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m           ␛[38;2;121;127;140mSTATUS␛[0m               ␛[38;2;121;127;140mAGE␛[0m
-  ␛[38;2;73;222;128m●␛[0m  r1ab  billing-tests  Done: 48 tests pass   ␛[38;2;121;127;140m3m␛[0m
-  ␛[38;2;73;222;128m◆␛[0m  r2cd  api docs       write api docs        ␛[38;2;121;127;140m9m␛[0m
+␛[1;38;2;230;232;238mReview:␛[0m
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m           ␛[38;2;139;145;161mSTATUS␛[0m               ␛[38;2;139;145;161mAGE␛[0m
+  ␛[38;2;91;208;140m●␛[0m  r1ab  billing-tests  Done: 48 tests pass   ␛[38;2;139;145;161m3m␛[0m
+  ␛[38;2;91;208;140m◆␛[0m  r2cd  api docs       write api docs        ␛[38;2;139;145;161m9m␛[0m
 
-␛[1;38;2;230;230;230mNeeds you:␛[0m
-     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m      ␛[38;2;121;127;140mSTATUS␛[0m           ␛[38;2;121;127;140mAGE␛[0m
-  ␛[38;2;229;179;65m◆␛[0m  n1ef  deploy    Deploy to prod?  ␛[38;2;121;127;140m40s␛[0m
+␛[1;38;2;230;232;238mReady:␛[0m
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m      ␛[38;2;139;145;161mSTATUS␛[0m           ␛[38;2;139;145;161mAGE␛[0m
+  ␛[38;2;245;185;73m◆␛[0m  n1ef  deploy    Deploy to prod?  ␛[38;2;139;145;161m40s␛[0m
 
-␛[1;38;2;230;230;230mFailed:␛[0m
-     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m        ␛[38;2;121;127;140mSTATUS␛[0m                            ␛[38;2;121;127;140mAGE␛[0m
-  ␛[38;2;239;68;68m✕␛[0m  f1gh  migrate-db  Failed: migration 0042 timed out   ␛[38;2;121;127;140m2h␛[0m
+␛[1;38;2;230;232;238mFailed:␛[0m
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m        ␛[38;2;139;145;161mSTATUS␛[0m                            ␛[38;2;139;145;161mAGE␛[0m
+  ␛[38;2;242;107;107m✕␛[0m  f1gh  migrate-db  Failed: migration 0042 timed out   ␛[38;2;139;145;161m2h␛[0m
 
-␛[1;38;2;230;230;230mWorking:␛[0m
-     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m        ␛[38;2;121;127;140mSTATUS␛[0m              ␛[38;2;121;127;140mAGE␛[0m
-  ␛[38;2;91;141;239m⠋␛[0m  w1ij  perf-audit  Running benchmarks   ␛[38;2;121;127;140m5s␛[0m
+␛[1;38;2;230;232;238mWorking:␛[0m
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m        ␛[38;2;139;145;161mSTATUS␛[0m              ␛[38;2;139;145;161mAGE␛[0m
+  ␛[38;2;110;168;254m⠋␛[0m  w1ij  perf-audit  Running benchmarks   ␛[38;2;139;145;161m5s␛[0m
 
-␛[1;38;2;230;230;230mCompleted (last 24 h):␛[0m
-     ␛[38;2;121;127;140mID␛[0m    ␛[38;2;121;127;140mNAME␛[0m       ␛[38;2;121;127;140mSTATUS␛[0m        ␛[38;2;121;127;140mAGE␛[0m
-  ␛[38;2;73;222;128m●␛[0m  c1kl  old-spike  spike          ␛[38;2;121;127;140m2h␛[0m
+␛[1;38;2;230;232;238mCompleted (last 24 h):␛[0m
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mNAME␛[0m       ␛[38;2;139;145;161mSTATUS␛[0m        ␛[38;2;139;145;161mAGE␛[0m
+  ␛[38;2;91;208;140m●␛[0m  c1kl  old-spike  spike          ␛[38;2;139;145;161m2h␛[0m
 
-␛[1;38;2;91;141;239m› rex attach <id>␛[0m  ␛[38;2;121;127;140mopen a session␛[0m
+␛[1;38;2;179;146;240m› rex attach <id>␛[0m  ␛[38;2;139;145;161mopen a session␛[0m
 -- txt --
 Headline  billing-tests is ready for review; deploy asks a question and migrate-db failed
 
 2 review · 1 needs_you · 1 failed · 1 working · 1 completed
 
-# Ready for review
+# Review
 ID     NAME                      STATE        STATUS               AGE
 r1ab   billing-tests             done         Done: 48 tests pass   3m
 r2cd   api docs                  needs_input  write api docs        9m
 
-# Needs you
+# Ready
 ID     NAME                      STATE        STATUS           AGE
 n1ef   deploy                    needs_input  Deploy to prod?  40s
 
@@ -154,20 +154,20 @@ c1kl   old-spike                 done   spike    2h
 
 | Key | Value |
 | --- | --- |
-| ready for review | 2 |
-| needs you | 1 |
+| review | 2 |
+| ready | 1 |
 | failed | 1 |
 | working | 1 |
 | completed | 1 |
 
-#### Ready for review
+#### Review
 
 | ID | Name | State | Status | Age |
 | --- | --- | --- | --- | ---: |
 | r1ab | billing-tests | done | Done: 48 tests pass | 3m |
 | r2cd | api docs | needs\_input | write api docs | 9m |
 
-#### Needs you
+#### Ready
 
 | ID | Name | State | Status | Age |
 | --- | --- | --- | --- | ---: |
@@ -208,7 +208,7 @@ Overview
 
 no headline: overview is off (rex config set overview_enabled true)
 
-0 ready for review   0 needs you   0 failed   0 working   0 completed
+0 review   0 ready   0 failed   0 working   0 completed
 -- empty.agent --
 ok cmd=overview review=0 needs_you=0 failed=0 working=0 completed=0
 -- empty.json --

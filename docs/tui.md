@@ -14,9 +14,9 @@ rex
 
 ## DESCRIPTION
 
-Four sections group sessions, top to bottom: **NEEDS YOU**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
+Four sections group sessions, top to bottom: **READY**, **WAITING**, **WORKING**, and **DONE** (includes `done`, `failed`, `crashed`, and every session marked done, whatever its live state). Each title shows its count. The header line reads `N need you · N waiting · N working · N done` (the waiting count is left out while it is 0).
 
-**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as NEEDS YOU while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
+**WAITING** holds working sessions that are blocked on a tool, not on you: a shell command, a subagent or a web fetch or search (Claude Code reports it through its tool hooks). A session moves there once the tool call has run for 3 seconds, so quick calls never make a row jump, and back to WORKING when the call ends. A session that needs your input is never in WAITING, and neither is one you marked done. Waiting rows play no sound and send no notification. Its marker is `◷`, which turns `◴ ◷ ◶ ◵` once a second (still `◷` with `reduce_motion`). Other agents have no tool reports yet, so their sessions stay in WORKING. Known limitation: a command that first needed a permission prompt shows as READY while you decide and as WORKING (not WAITING) after you approve it, because Claude reports the call's start before the prompt; the next tool call or turn corrects it. The Done key shown in the fold hint (`4`) is `3` while the section is off. `waiting_section` in Settings → Features turns the section off (they then show in WORKING). The bottom prompt (`λ` by default) accepts quick-spawn text, and the help bar lists five keys: `enter open · i new · cc done · tab next · ? more`. Everything else is under `?`.
 
 The filter bar (`all · claude · codex …`, cycled with `t`) only shows while sessions use more than one tool, a filter other than `all` is active, a section is hidden, or a search is active. Hidden sections are named after the chips (`done hidden (zh)`, or `needs, done hidden (z0 shows all)`), and a search reads `/auth · 3 matches · esc clear`. See FILTER AND SEARCH.
 
@@ -99,9 +99,28 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Confirm quit | `:q` | `y` / `n` |
 | Confirm delete | `dd` | `y` / `n` |
 
+### Overlay look
+
+Help, settings, stats, failures, overview and the wizard share one chrome: a square box with its title set into the top border (`┌─ HELP ──── rex v1 ─┐`). The board behind them is dimmed to one muted color so the overlay reads first. The attach popup uses the same square corners but keeps the board's colors around it.
+
 ### Help overlay
 
-`?` / `:help` opens a square-bordered panel (width `clamp(w-8, 60, 110)`, at most `w-2` on a narrow terminal). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes on the left; Session commands, App commands, Attached session, Long-running badges on the right. Narrower terminals get a single column with wrapped descriptions. If the box would not fit the height, the badges group and then the mouse group are dropped and a dim `(truncated, enlarge terminal)` note appears. It lists every `:` command, including `:settings` (open settings) and `:undone` (undo done, counterpart of `:done`).
+`?` / `:help` opens the panel (width `clamp(w-8, 60, 110)`, at most `w-2` on a narrow terminal). At 96+ columns it is two columns: Navigation, Filter & search, Actions, Mouse, Modes and the Legend on the left; Session commands, App commands and Attached session on the right. Narrower terminals get a single column with wrapped descriptions. It lists every `:` command, including `:settings` and `:undone`.
+
+- **Scroll.** The body scrolls when it does not fit, under `↑ more` / `↓ more` markers, so no group is ever dropped: `j` `k` (or arrows), `pgup` `pgdn` (or `ctrl+u` `ctrl+d`, `space`), `g` `G`, and the mouse wheel.
+- **Filter.** `/` opens an inline filter: only rows whose key or description contains every word stay (`prune` leaves `:prune`). `enter` keeps the filter, `esc` clears it first and a second `esc` closes. The panel shows the query in its first line.
+- **Legend.** Drawn with the board's own styles, so it always matches what you see: `◆` needs you, the spinner for working, `◷` waiting (only while `waiting_section` is on), `◌` queued, `●` done, `✕` failed, `○` crashed, `▍` fleet member, `⋔ 3` subagents, and the four long-running badges (`▴ 10m`, `▴ 30m`, `▴ 2h`, `▴ 6h`).
+- **Features that are off.** Keys and commands behind a Features switch (`t`, `/`, `esc` for search, `z…`, `uc`, `:filter`, `:search`, `:uc`, `:rid`, `:export`) stay listed, dimmed and tagged `(off)`.
+
+### Settings overlay
+
+`S` / `:settings` lists every setting by section; `rex config` lists the same registry (it also shows the one hidden row, `keybind_preset`, which the page hides until a second preset exists).
+
+- **Search.** `/` filters live over label, id, section and help text (`spin` leaves Spinner type). `enter` keeps the filter, `esc` clears it, a second `esc` closes. While you type, `j` `k` and the rest type; `ctrl+u` clears.
+- **Sections.** `tab` / `shift+tab` jump to the next / previous section (they wrap).
+- **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. `on` shows in the accent color.
+- **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
+- **Editing text.** `enter` on a free-form string (`auto_trust_dirs`, `prompt_glyph`) opens an inline editor in the pane, prefilled with the value: `enter` saves, `esc` cancels, `ctrl+u` clears. A refused value keeps the editor open and shows why. The check is the one `rex config set` and `rex setup` use. `prompt_glyph` must be one printable character (a single grapheme, 1 or 2 cells wide: no control characters, spaces or invisible marks); the arrow keys still cycle the presets.
 
 ## KEYS (board focus)
 
@@ -110,14 +129,14 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | `j`, `k`, `↓`, `↑` | Move selection |
 | `g`, `G` | First / last row |
 | `tab` | Next session that needs you (wraps) |
-| `1`, `2`, `3` | Jump to Needs you / Waiting / Working |
+| `1`, `2`, `3` | Jump to Ready / Waiting / Working |
 | `4` | Jump to Done; on a long Done column, show / hide it |
 | `v` | Simple / detailed rows |
 | `t` | Cycle tool filter (`all`, `claude`, `codex`, `antigravity`, `ollama`) |
 | `/` | Search the board (see FILTER AND SEARCH) |
 | `esc` | Clear the search |
 | `zh` | Hide / show every completed section (Done) |
-| `z1`-`z9` | Hide / show section N (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
+| `z1`-`z9` | Hide / show section N (`z1` Ready, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 | `enter` | Attach to selected session |
 | `n` | New-session wizard |
@@ -143,7 +162,7 @@ With `mouse_enabled` on (the default) rex captures the mouse once the board is u
 | Wheel up / down | Move the selection (same as `k` / `j`); the board scrolls with it |
 | Click a filter chip | Set that tool filter |
 
-Overlays (help, settings, stats, wizard, failures) and bottom-bar prompts swallow mouse events, so a click never changes the selection behind them; in settings the wheel moves the cursor.
+Overlays (help, settings, stats, wizard, failures) and bottom-bar prompts swallow mouse events, so a click never changes the selection behind them; in settings the wheel moves the cursor and in help it scrolls.
 
 Capturing the mouse turns off the terminal's own text selection. Hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) while dragging to select text natively, or turn `mouse_enabled` off in settings (`S`). The toggle applies immediately.
 
@@ -170,6 +189,7 @@ Typing `:` twice quickly (within 400 ms) inside the popup opens rex's command ba
 | `kill`, `complete` | Kill the agent now and mark it done |
 | `name <text>` | Set this session's display name (`name` alone clears it) |
 | `banner` | Hide or show the [banner](#banner) for this run (not saved) |
+| `border [arg]` | Same as `:border` ([window border](#window-border)); the popup stays open and the agent is resized by 2 columns and 2 rows |
 | anything else | Close the popup and run it as a board `:` command |
 
 ### Banner
@@ -182,7 +202,7 @@ One row between the title bar and the agent's screen says what the session is do
 
 - **Lead** (after `↳`): the AI description; without one, `task: ` and the task you gave it; without that, the question a waiting session is asking. Nothing otherwise.
 - **Meta**, in order: the folder (`~` for your home directory, otherwise the last two path elements); `working 12m` (since the current stretch began), `waiting 3m` (needs you) or `ended 14:02` (when it finished); `updated 40s ago` (age of the description, dim past 2 minutes, left out without one).
-- **With `overview_enabled` on:** `elsewhere: 2 to review · 1 needs you · 1 failed` (the other sessions, never this one; `quiet` when none needs anything), then the overview headline.
+- **With `overview_enabled` on:** `elsewhere: 2 to review · 1 ready · 1 failed` (the other sessions, never this one; `quiet` when none needs anything), then the overview headline.
 
 `attach_banner` (Settings → AI summary) picks how long text is shown:
 
@@ -261,7 +281,7 @@ A hidden section is gone from the board: no title, no rows, no navigation, and t
 | Key | Effect |
 |-----|--------|
 | `zh` | Hide every completed section (Done); again shows it |
-| `z1`-`z9` | Toggle section N in board order (`z1` Needs you, `z2` Waiting, `z3` Working, `z4` Done) |
+| `z1`-`z9` | Toggle section N in board order (`z1` Ready, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 
 `z` followed by any other key is just that key. While `z` is pending the help line lists the second keys. rex refuses to hide the last shown section.
@@ -281,7 +301,7 @@ What needs you, what is ready for review and what finished, at a glance. Three p
 **Header line.** With `overview_enabled` on (Settings → AI summary, off by default), one line follows the chip row (and comes before the summary-backend banner):
 
 ```
-  » 2 ready for review  billing-tests and api docs are ready for review; deploy asks a question · 40s
+  » 2 to review  billing-tests and api docs are ready for review; deploy asks a question · 40s
 ```
 
 The count is computed in the TUI from the sessions, so it is true even when the headline is stale or wrong; it reads `nothing to review` at zero. The headline is the daemon's one-line summary of the whole board, cut on a word boundary, with its age. Until the daemon has written one (or against an older daemon, or with the daemon's setting still switching on, which takes about 5 s) only the count shows. The row is reserved while the setting is on, so the board does not jump. Off, the header is exactly as before.
@@ -290,11 +310,11 @@ The count is computed in the TUI from the sessions, so it is true even when the 
 
 1. Marked done: **Completed**.
 2. `failed` or `crashed`: **Failed**.
-3. `done`: **Ready for review**. The agent says it finished and you have not marked it.
-4. Waiting for input (`needs_input`): **Ready for review** when the agent finished a turn (Claude's Stop hook, `wait_reason: review`) and the last line is not a question (does not end in `?`, the same rule as the row text); otherwise **Needs you**. Claude's idle reminder does not turn a finished turn into a question. Tools without hooks have no `wait_reason`, so a waiting session is always Needs you.
+3. `done`: **Review**. The agent says it finished and you have not marked it.
+4. Waiting for input (`needs_input`): **Review** when the agent finished a turn (Claude's Stop hook, `wait_reason: review`) and the last line is not a question (does not end in `?`, the same rule as the row text); otherwise **Ready**. Claude's idle reminder does not turn a finished turn into a question. Tools without hooks have no `wait_reason`, so a waiting session is always Ready.
 5. `working` or `queued`: **Working**.
 
-**`:overview` overlay.** The headline, wrapped, then the sections READY FOR REVIEW, NEEDS YOU, FAILED, WORKING and COMPLETED (last 24 h) with `marker name status age` rows; empty sections are left out. `j`/`k` (or arrows) select, `g`/`G` jump, `enter` attaches to the selected session, `esc` or `q` closes. It works with the setting off too: you get the lists and a line pointing at the setting.
+**`:overview` overlay.** The headline, wrapped, then the sections REVIEW, READY, FAILED, WORKING and COMPLETED (last 24 h) with `marker name status age` rows; empty sections are left out. `j`/`k` (or arrows) select, `g`/`G` jump, `enter` attaches to the selected session, `esc` or `q` closes. It works with the setting off too: you get the lists and a line pointing at the setting.
 
 The headline is written by the local summary model from the sessions' task titles, descriptions and question lines, so it can be wrong and can be steered by what an agent printed. It is one line of display-safe text, never acted on, and the lists next to it never come from it.
 
@@ -339,6 +359,17 @@ The wizard does not ask for a name; press `r` on the board to give a session a d
 
 With sound on, each soundset chimes when a session needs you (`working` → `needs_input`), when it resumes (`needs_input` → `working`), and when it finishes (→ `done`) or you mark it done (`cc`, `:done`, `rex done`). A flickering session chimes at most once every 1.5 s. Turn off the first two with `notify_on_state_change`; see [settings.md](settings.md#audio).
 
+## WINDOW BORDER
+
+`window_border` (Settings → Appearance; off by default) draws a thick colored frame around the whole screen, so several rex windows are easy to tell apart. It is built from block glyphs: `█` on the sides and corners, `▀` on top and `▄` at the bottom, so all four edges look equally thick.
+
+- The frame costs 2 columns and 2 rows. Every view lays out inside it, so the board, overlays and the attach popup need no frame code; the attached agent gets a terminal 2 columns and 2 rows smaller (a normal resize when the frame turns on or off).
+- It is hidden on the boot splash and on the screensaver (both fill the whole screen; the screensaver keeps the layout size, so an attached agent is not resized when it starts), and when the terminal is smaller than 50 columns by 16 rows (the layout area would be under 48 by 14).
+- `window_border_color` is `random` (default: one color per launch folder, so a project keeps its color), a color name or `#rrggbb`; see [settings.md](settings.md#border-colors). The `ansi` scheme uses the terminal's own palette index for the color.
+- `:border` toggles the frame for this run. `:border on|off` sets it, `:border next` moves to the next color of the random pool, `:border random` goes back to the folder's color, and `:border <name>` or `:border #rrggbb` picks one. It answers with a notice such as `border: tangerine (random · :border next)`, and says so when the terminal is too small to show it. `::border` does the same inside the attach popup. The choice lasts until rex exits and is never saved; use the settings for that. It works with `window_border` off.
+- With `NO_COLOR` the frame is still drawn, without color (`:border` says so).
+- Mouse clicks on the frame are ignored; other clicks are translated to the layout area, so the board, chips and attach popup behave as without a frame.
+
 ## SCREENSAVER
 
 After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the screen gives way to a small screen: `∴ rex` in the center and the header's counts under it.
@@ -346,10 +377,10 @@ After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the sc
 ```
              ∴ rex
 
-1 need you · 3 working · 7 done
+1 ready · 3 working · 7 done
 ```
 
-- The counts stay live: daemon events keep updating them. `need you` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
+- The counts stay live: daemon events keep updating them. `ready` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
 - Any key or mouse event (click, wheel), or a terminal resize, brings the screen back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
 - It starts whatever is open: an overlay, prompt, confirmation, the new-session wizard, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, wizard step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
 - Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `reduce_motion` it stays centered.

@@ -4,14 +4,39 @@ import (
 	"strconv"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/version"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// helpGroup is one titled block of key/command rows in the help overlay.
+// helpRow is one key/command row of the help overlay.
+type helpRow struct {
+	Key, Desc string
+	// Off marks a row whose feature switch is off: it is listed, dimmed
+	// and tagged, so the overlay explains why the key does nothing.
+	Off bool
+}
+
+// helpGroup is one titled block of rows in the help overlay.
 type helpGroup struct {
 	Title string
-	Rows  [][2]string // {key, description}
+	Rows  []helpRow
+	// Styled says the keys are already styled (the legend draws real
+	// markers), so the layout must not restyle them.
+	Styled bool
+}
+
+// HelpState is the help overlay's scroll position and `/` filter.
+type HelpState struct {
+	Scroll int
+	// Filter keeps the rows whose key or description contains every word.
+	Filter string
+	// Filtering is whether keys edit Filter.
+	Filtering bool
 }
 
 const (
@@ -20,18 +45,17 @@ const (
 	helpTwoColMinW  = 96
 	helpMinBoxW     = 60
 	helpMaxBoxW     = 110
-	helpTruncNote   = "(truncated, enlarge terminal)"
-	helpGroupMouse  = "Mouse"
-	helpGroupBadges = "Long-running badges"
+	helpMaxFilter   = 64
+	helpGroupLegend = "Legend"
 )
 
-// helpLeft and helpRight read the bindings and commands tables; only the
-// badge legend is written out here. The section-number row is built from
-// the sections the board has (sectionKeysRow).
+// helpLeft and helpRight read the bindings and commands tables; the legend
+// is drawn from the live styles (helpLegend). The section-number row is built
+// from the sections the board has (sectionKeysRow).
 func helpLeft(m Model) []helpGroup {
 	nav := bindingsIn(groupNavigation)
 	for i, r := range nav.Rows {
-		if r[0] == sectionKeysLabel {
+		if r.Key == sectionKeysLabel {
 			nav.Rows[i] = sectionKeysRow(m)
 		}
 	}
@@ -50,15 +74,15 @@ const sectionKeysLabel = "1-4"
 
 // sectionKeysRow is the help row for the number keys: one per active
 // section, in screen order ("1-3" while Waiting is off).
-func sectionKeysRow(m Model) [2]string {
+func sectionKeysRow(m Model) helpRow {
 	active := activeGroups(m)
 	titles := make([]string, len(active))
 	for n, gi := range active {
 		titles[n] = boardGroups[gi].Title
 	}
-	return [2]string{
-		"1-" + strconv.Itoa(len(active)),
-		"jump to " + strings.Join(titles, " / ") + " (" + strconv.Itoa(len(active)) + " also folds a long Done column)",
+	return helpRow{
+		Key:  "1-" + strconv.Itoa(len(active)),
+		Desc: "jump to " + strings.Join(titles, " / ") + " (" + strconv.Itoa(len(active)) + " also folds a long Done column)",
 	}
 }
 
@@ -66,12 +90,94 @@ var helpRight = []helpGroup{
 	commandsIn(groupSessionCmd),
 	commandsIn(groupAppCmd),
 	bindingsIn(groupAttached),
-	{helpGroupBadges, [][2]string{
-		{"▴ 12m", "dim"},
-		{"▴ 45m", "amber"},
-		{"▴ 3h", "red"},
-		{"▴ 7h", "red inverse (time working)"},
-	}},
+}
+
+// helpLegend is the marker legend, drawn with the styles the board uses, so
+// the help can never describe a color the board does not show.
+func helpLegend(m Model) helpGroup {
+	frames := spinnerFramesFor(m)
+	mark := func(st protocol.State, glyph string) string { return styleMarker[st].Render(glyph) }
+	rows := []helpRow{
+		{Key: mark(protocol.StateNeedsInput, "◆"), Desc: "ready"},
+		{Key: mark(protocol.StateWorking, frames[m.SpinnerTick%len(frames)]), Desc: "working"},
+	}
+	if m.featureOn("waiting_section") {
+		rows = append(rows, helpRow{Key: mark(protocol.StateWorking, waitingGlyph), Desc: "waiting on a tool, not on you"})
+	}
+	rows = append(rows,
+		helpRow{Key: mark(protocol.StateQueued, queuedGlyph), Desc: "queued, agent not started"},
+		helpRow{Key: mark(protocol.StateDone, "●"), Desc: "done"},
+		helpRow{Key: mark(protocol.StateFailed, "✕"), Desc: "failed"},
+		helpRow{Key: mark(protocol.StateCrashed, "○"), Desc: "crashed"},
+		helpRow{Key: styleFleet[0].Render("▍"), Desc: "fleet member (color per fleet)"},
+		helpRow{Key: styleWorking.Render(subagentGlyph + " 3"), Desc: "subagents running"},
+		helpRow{Key: styleLongRun[3].Render("▴ 10m"), Desc: "working 10 minutes or more"},
+		helpRow{Key: styleLongRun[2].Render("▴ 30m"), Desc: "working 30 minutes or more"},
+		helpRow{Key: styleLongRun[1].Render("▴ 2h"), Desc: "working 2 hours or more"},
+		helpRow{Key: styleLongRun[0].Render("▴ 6h"), Desc: "working 6 hours or more"},
+	)
+	return helpGroup{Title: helpGroupLegend, Rows: rows, Styled: true}
+}
+
+// markOff flags the rows whose feature switch is off.
+func markOff(m Model, groups []helpGroup) []helpGroup {
+	out := make([]helpGroup, len(groups))
+	for i, g := range groups {
+		g.Rows = append([]helpRow(nil), g.Rows...)
+		for j, r := range g.Rows {
+			if flag := rowFlag(g.Title, r.Key); flag != "" && !m.featureOn(flag) {
+				g.Rows[j].Off = true
+			}
+		}
+		out[i] = g
+	}
+	return out
+}
+
+// rowFlag is the Features switch that gates the row with this group and key
+// ("" = always on).
+func rowFlag(group, key string) string {
+	for _, b := range bindings {
+		if b.Group == group && b.Keys == key {
+			return b.Flag
+		}
+	}
+	for _, c := range commands {
+		if c.Group == group && c.helpKey() == key {
+			return c.Flag
+		}
+	}
+	return ""
+}
+
+// filterGroups keeps the rows whose plain key or description contains every
+// term, and drops the groups left empty.
+func filterGroups(groups []helpGroup, terms []string) []helpGroup {
+	if len(terms) == 0 {
+		return groups
+	}
+	var out []helpGroup
+	for _, g := range groups {
+		var rows []helpRow
+		for _, r := range g.Rows {
+			hay := strings.ToLower(ansi.Strip(r.Key) + " " + r.Desc)
+			ok := true
+			for _, t := range terms {
+				if !strings.Contains(hay, t) {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				rows = append(rows, r)
+			}
+		}
+		if len(rows) > 0 {
+			g.Rows = rows
+			out = append(out, g)
+		}
+	}
+	return out
 }
 
 // renderGroup renders one group at exactly-bounded width colW.
@@ -79,7 +185,7 @@ func renderGroup(g helpGroup, colW int) []string {
 	colW = max(colW, 1)
 	kw := 0
 	for _, r := range g.Rows {
-		if w := ansi.StringWidth(r[0]); w > kw {
+		if w := ansi.StringWidth(r.Key); w > kw {
 			kw = w
 		}
 	}
@@ -95,15 +201,27 @@ func renderGroup(g helpGroup, colW int) []string {
 	}
 	out := []string{sectionHeader(g.Title, colW)}
 	for _, r := range g.Rows {
-		key := ansi.Truncate(r[0], kw, "…")
+		key := ansi.Truncate(r.Key, kw, "…")
 		pad := strings.Repeat(" ", kw-ansi.StringWidth(key))
-		descLines := strings.Split(ansi.Wrap(r[1], dw, ""), "\n")
+		desc, descStyle := r.Desc, styleDim
+		keyStyle := styleKey
+		switch {
+		case g.Styled:
+			keyStyle = lipgloss.NewStyle()
+		case strings.HasPrefix(key, ":"):
+			keyStyle = styleCmd
+		}
+		if r.Off {
+			desc += " (off)"
+			keyStyle, descStyle = styleMuted, styleMuted
+		}
+		descLines := strings.Split(ansi.Wrap(desc, dw, ""), "\n")
 		for i, d := range descLines {
 			k := strings.Repeat(" ", kw)
 			if i == 0 {
-				k = styleSlug.Render(key) + pad
+				k = keyStyle.Render(key) + pad
 			}
-			out = append(out, k+"  "+styleDim.Render(d))
+			out = append(out, k+"  "+descStyle.Render(d))
 		}
 	}
 	return out
@@ -120,46 +238,38 @@ func renderColumn(groups []helpGroup, colW int) string {
 	return strings.Join(lines, "\n")
 }
 
-func filterGroups(gs []helpGroup, drop map[string]bool) []helpGroup {
-	var out []helpGroup
-	for _, g := range gs {
-		if !drop[g.Title] {
-			out = append(out, g)
-		}
+// helpBody lays every group (after the filter) out at box width bw in cols
+// (1 or 2) columns: the scrollable text of the overlay.
+func helpBody(m Model, bw, cols int) []string {
+	filter := ""
+	if m.Help != nil {
+		filter = m.Help.Filter
 	}
-	return out
-}
-
-// helpBox builds the bordered box at total width bw using cols (1 or 2)
-// columns, omitting groups named in drop. note adds the truncation notice.
-func helpBox(m Model, bw, cols int, drop map[string]bool, note bool) string {
+	left := filterGroups(markOff(m, append(helpLeft(m), helpLegend(m))), compileQuery(filter))
+	right := filterGroups(markOff(m, helpRight), compileQuery(filter))
+	if len(left)+len(right) == 0 {
+		return []string{styleDim.Render("  no match for “" + protocol.FlattenDisplayText(filter) + "”")}
+	}
 	inner := max(bw-8, 1) // border 2 + padding 6
-	left, right := filterGroups(helpLeft(m), drop), filterGroups(helpRight, drop)
-	var body string
 	if cols == 2 {
 		colW := max((inner-helpColGap)/2, 1)
-		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			renderColumn(left, colW), strings.Repeat(" ", helpColGap), renderColumn(right, colW))
-	} else {
-		body = renderColumn(append(append([]helpGroup{}, left...), right...), inner)
+		return strings.Split(lipgloss.JoinHorizontal(lipgloss.Top,
+			renderColumn(left, colW), strings.Repeat(" ", helpColGap), renderColumn(right, colW)), "\n")
 	}
-	footer := styleDim.Render("esc to close")
-	if note {
-		footer = styleDim.Render(helpTruncNote) + "\n" + footer
-	}
-	content := styleSlug.Render("HELP") + "\n\n" + body + "\n\n" + footer
-	return panelStyle(bw).Render(content)
+	return strings.Split(renderColumn(append(append([]helpGroup{}, left...), right...), inner), "\n")
 }
 
-// renderHelp returns the finished bordered help box, fitting within w x h.
-func renderHelp(m Model, w, h int) string {
-	bw := w - 8
-	if bw < helpMinBoxW {
-		bw = helpMinBoxW
-	}
-	if bw > helpMaxBoxW {
-		bw = helpMaxBoxW
-	}
+// helpLayout is the finished overlay plus what the keys need to scroll it.
+type helpLayout struct {
+	box       []string
+	maxScroll int // largest Scroll that still shows the last line
+	page      int // rows a page key moves
+}
+
+// layoutHelp builds the bordered box, fitting within w x h: the body
+// scrolls under ↑/↓ markers instead of dropping groups.
+func layoutHelp(m Model, w, h int) helpLayout {
+	bw := min(max(w-8, helpMinBoxW), helpMaxBoxW)
 	if bw > w-2 {
 		bw = max(w-2, 1)
 	}
@@ -167,24 +277,184 @@ func renderHelp(m Model, w, h int) string {
 	if w >= helpTwoColMinW {
 		cols = 2
 	}
-	drop := map[string]bool{}
-	box := helpBox(m, bw, cols, drop, false)
-	for _, g := range []string{helpGroupBadges, helpGroupMouse} {
-		if lipgloss.Height(box) <= h-2 {
+	st := m.Help
+	if st == nil {
+		st = &HelpState{}
+	}
+	body := helpBody(m, bw, cols)
+
+	var head []string
+	switch {
+	case st.Filtering:
+		head = []string{styleArrow.Render("/ ") + stylePrimary.Render(protocol.FlattenDisplayText(st.Filter)) + cursorLit()}
+	case st.Filter != "":
+		head = []string{styleDim.Render("/ " + protocol.FlattenDisplayText(st.Filter))}
+	}
+	hints := [][2]string{{"j/k", "scroll"}, {"/", "filter"}, {"esc", "close"}}
+	switch {
+	case st.Filtering:
+		hints = [][2]string{{"enter", "keep"}, {"esc", "clear"}}
+	case st.Filter != "":
+		hints = [][2]string{{"j/k", "scroll"}, {"/", "edit filter"}, {"esc", "clear"}}
+	}
+	footer := renderHints(hints, max(bw-8, 1))
+
+	// Rows around the body: filter line, blank, footer, two border rows.
+	vh := max(h-len(head)-1-1-2, 3)
+	maxScroll := max(len(body)-vh, 0)
+	start := min(max(st.Scroll, 0), maxScroll)
+	view := body
+	if len(body) > vh {
+		view = append([]string(nil), body[start:start+vh]...)
+		if start > 0 {
+			view[0] = styleDim.Render("↑ more")
+		}
+		if start+vh < len(body) {
+			view[len(view)-1] = styleDim.Render("↓ more")
+		}
+	}
+	content := append(append(append([]string{}, head...), view...), "", footer)
+	box, _ := panelLines("HELP", "rex "+version.Version, content, 3, 0, bw)
+	if len(box) > h { // a terminal too short for the chrome: keep the bottom border
+		box = append(box[:max(h-1, 1)], box[len(box)-1])
+	}
+	return helpLayout{box: box, maxScroll: maxScroll, page: max(vh-1, 1)}
+}
+
+// renderHelp returns the finished bordered help box, fitting within w x h.
+func renderHelp(m Model, w, h int) string {
+	return strings.Join(layoutHelp(m, w, h).box, "\n")
+}
+
+// renderHints is the footer format shared by the overlays: key caps in the
+// key style, descriptions dim, " · " between, cut to width.
+func renderHints(hints [][2]string, width int) string {
+	parts := make([]string, len(hints))
+	for i, h := range hints {
+		parts[i] = styleKey.Render(h[0]) + styleDim.Render(" "+h[1])
+	}
+	return ansi.Truncate(strings.Join(parts, styleMuted.Render(" · ")), width, "…")
+}
+
+// helpSize is the terminal size the help overlay is drawn for.
+func helpSize(m Model) (w, h int) {
+	w, h = m.Width, m.Height
+	if w <= 0 {
+		w = 100
+	}
+	if h <= 0 {
+		h = 32
+	}
+	return w, h
+}
+
+// openHelp shows the help overlay from the top, unfiltered.
+func openHelp(m Model) Model {
+	m.Focus = FocusHelp
+	m.Help = &HelpState{}
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventOpen)
+	}
+	return m
+}
+
+func closeHelp(m Model) Model {
+	m.Focus = FocusBoard
+	m.Help = nil
+	if m.Audio != nil {
+		m.Audio.Play(audio.EventClose)
+	}
+	return m
+}
+
+// updateHelpKey handles keys while the help overlay is open.
+func updateHelpKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	st := HelpState{}
+	if m.Help != nil {
+		st = *m.Help
+	}
+	w, h := helpSize(m)
+	lay := layoutHelp(m, w, h)
+
+	if st.Filtering {
+		switch k.Type {
+		case tea.KeyEsc:
+			st.Filter, st.Filtering, st.Scroll = "", false, 0
+		case tea.KeyEnter:
+			st.Filtering = false
+		case tea.KeyBackspace:
+			if r := []rune(st.Filter); len(r) > 0 {
+				st.Filter, st.Scroll = string(r[:len(r)-1]), 0
+			}
+		case tea.KeyCtrlU:
+			st.Filter, st.Scroll = "", 0
+		case tea.KeyRunes, tea.KeySpace:
+			if add := strings.Map(func(r rune) rune {
+				if r < ' ' || r == 0x7f {
+					return -1
+				}
+				return r
+			}, string(k.Runes)); len([]rune(st.Filter+add)) <= helpMaxFilter {
+				if k.Type == tea.KeySpace {
+					add = " "
+				}
+				st.Filter, st.Scroll = st.Filter+add, 0
+			}
+		default:
+		}
+		m.Help = &st
+		return m, nil
+	}
+
+	switch k.String() {
+	case "esc":
+		if st.Filter != "" {
+			st.Filter, st.Scroll = "", 0
 			break
 		}
-		drop[g] = true
-		box = helpBox(m, bw, cols, drop, true)
+		return closeHelp(m), nil
+	case "?":
+		return closeHelp(m), nil
+	case "/":
+		st.Filtering = true
+	case "j", "down":
+		st.Scroll++
+	case "k", "up":
+		st.Scroll--
+	case "pgdown", "ctrl+d", " ":
+		st.Scroll += lay.page
+	case "pgup", "ctrl+u":
+		st.Scroll -= lay.page
+	case "g", "home":
+		st.Scroll = 0
+	case "G", "end":
+		st.Scroll = lay.maxScroll
+	default:
 	}
-	if lipgloss.Height(box) > h {
-		// Hard clip: keep the top h-1 lines plus the bottom border.
-		lines := strings.Split(box, "\n")
-		if h >= 2 {
-			lines = append(lines[:h-1], lines[len(lines)-1])
-		} else {
-			lines = lines[:h]
-		}
-		box = strings.Join(lines, "\n")
+	st.Scroll = min(max(st.Scroll, 0), lay.maxScroll)
+	m.Help = &st
+	return m, nil
+}
+
+// updateHelpMouse scrolls the help overlay with the wheel.
+func updateHelpMouse(m Model, msg tea.MouseMsg) Model {
+	if !tea.MouseEvent(msg).IsWheel() {
+		return m
 	}
-	return box
+	st := HelpState{}
+	if m.Help != nil {
+		st = *m.Help
+	}
+	w, h := helpSize(m)
+	maxScroll := layoutHelp(m, w, h).maxScroll
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		st.Scroll -= 3
+	case tea.MouseButtonWheelDown:
+		st.Scroll += 3
+	default:
+	}
+	st.Scroll = min(max(st.Scroll, 0), maxScroll)
+	m.Help = &st
+	return m
 }

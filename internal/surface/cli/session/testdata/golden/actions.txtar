@@ -29,7 +29,7 @@ Auth fix
 -- send.text --
 ✓ sent 9 bytes to g-text-b
 -- wait.text --
-✓ g-text-b needs you
+✓ g-text-b is ready
 -- rm.refused.text --
 [error] rm: stdin is not a terminal; pass -force to delete without asking
 -- rm.text --
@@ -91,7 +91,7 @@ replied to g-md-b
 -- send.md --
 sent 9 bytes to g-md-b
 -- wait.md --
-g-md-b needs you
+g-md-b is ready
 -- rm.refused.md --
 [error] rm: stdin is not a terminal; pass -force to delete without asking
 -- rm.md --
