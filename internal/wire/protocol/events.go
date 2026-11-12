@@ -116,6 +116,11 @@ type SessionSummary struct {
 	WaitReason string `json:"wait_reason,omitempty"`
 	// Skills are the library skills loaded into this session (NewSession.Skills).
 	Skills []string `json:"skills,omitempty"`
+
+	// LoopID is the loop that owns this session (see LoopSummary); empty for
+	// an ordinary session. LoopIter is the loop's turn in progress.
+	LoopID   string `json:"loop_id,omitempty"`
+	LoopIter int    `json:"loop_iter,omitempty"`
 }
 
 // WaitReason values.
@@ -137,6 +142,10 @@ type Snapshot struct {
 	// Usage is the daemon's live usage quotas. Nil while usage is off or
 	// nothing was published yet, and from daemons that predate it.
 	Usage *Usage `json:"usage,omitempty"`
+	// Loops are the daemon's loops, running, paused and recently finished.
+	// Absent while the loops feature is off and from daemons that predate
+	// it; Loop events then update a client that has seen this.
+	Loops []LoopSummary `json:"loops,omitempty"`
 }
 
 // Ack is the success reply to an intent that carried an envelope ID. The

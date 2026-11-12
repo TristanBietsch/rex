@@ -30,6 +30,10 @@
 //	Undo, Redo        UndoResult                    files restored and deleted; the folder is changed before the reply
 //	UsageQuery        UsageResult (UsageReport)     not an Ack; bad_intent "usage is off" while the setting is off
 //	UsageSample       none (Ack if it had an ID)    sent by the status-line tap with no ID; dropped quietly when unusable
+//	StartLoop         Loop (LoopSummary)            not an Ack; bad_intent while the loops feature is off, at 2 live loops ("too many loops"), or for a bad file
+//	PauseLoop         Loop (LoopSummary)            bad_state unless the loop is running
+//	ResumeLoop        Loop (LoopSummary)            bad_state unless the loop is paused
+//	StopLoop          Loop (LoopSummary)            bad_state when the loop already ended
 //	Shutdown          Ack                           best effort, see below
 //	anything else     Error bad_intent              "intent not implemented"
 //
