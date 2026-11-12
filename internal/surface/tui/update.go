@@ -10,7 +10,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -591,9 +590,17 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			slog.Warn("tui: quick-spawn aborted, settings store not initialized")
 			return m, nil
 		}
-		m.PendingSelectSlug = quickSpawnSlug(m.Store, m.Sessions, text)
+		choice, notice := quickChoiceOf(m)
+		if notice != "" {
+			m.Notice = notice
+		}
+		m.PendingSelectSlug = quickSpawnSlug(choice, m.Sessions, text)
 		cols, rows := spawnSizeOf(m)
-		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text, cols, rows)
+		var spawner sessionSpawner = m.Client
+		if m.spawner != nil {
+			spawner = m.spawner
+		}
+		return m, spawnSessionCmd(spawner, choice, m.Sessions, text, cols, rows)
 	case tea.KeyBackspace:
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
@@ -613,12 +620,10 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 // from one created via the full wizard. Daemon-side validation surfaces errors
 // for unknown tool/model IDs via the existing DaemonErrMsg path. cols and
 // rows are the PTY size to start at (spawnSizeOf; 0 = daemon default).
-func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+func spawnSessionCmd(c sessionSpawner, choice quickChoice, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
 	return func() tea.Msg {
-		toolID, _ := store.Get("default_spawn_tool").(string)
-		modelID, _ := store.Get("default_spawn_model").(string)
-		effort, _ := store.Get("default_spawn_effort").(string)
-		slug := quickSpawnSlug(store, sessions, prompt)
+		toolID, modelID, effort := choice.Tool, choice.Model, choice.Effort
+		slug := quickSpawnSlug(choice, sessions, prompt)
 
 		cwd, _ := os.Getwd()
 		slog.Info("tui: quick-spawn",
@@ -644,9 +649,8 @@ func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protoco
 
 // quickSpawnSlug derives the slug a quick-spawn of prompt will get, so the
 // board can select the session when its SessionAdded arrives.
-func quickSpawnSlug(store *settings.Store, sessions []protocol.SessionSummary, prompt string) string {
-	toolID, _ := store.Get("default_spawn_tool").(string)
-	modelID, _ := store.Get("default_spawn_model").(string)
+func quickSpawnSlug(choice quickChoice, sessions []protocol.SessionSummary, prompt string) string {
+	toolID, modelID := choice.Tool, choice.Model
 	existing := make([]string, 0, len(sessions))
 	for _, s := range sessions {
 		if s.Slug != "" {

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -150,10 +151,18 @@ func refreshPickers(m Model) Model {
 	}
 	reg, err := loadToolsStrict()
 	if err != nil {
+		slog.Warn("tui: tool registry could not be reloaded; pickers keep their lists", "err", err)
 		return m
 	}
 	offer, onboarding := pickerTools(m, reg)
-	if m.Wizard != nil && len(offer) > 0 {
+	if m.Wizard != nil && len(offer) == 0 {
+		// Nothing left to offer (the last agent went away, or extra_agents
+		// was turned off): there is nothing to pick.
+		m.Wizard = nil
+		m.Focus = FocusBoard
+		m.Notice = "the new-session wizard closed: no agent is available (see Settings → Onboarding)"
+	}
+	if m.Wizard != nil {
 		w := *m.Wizard
 		toolID, modelID, effort := w.selectedTool().ID, w.selectedModel().ID, w.currentEffort()
 		w.Tools = offer
@@ -167,6 +176,11 @@ func refreshPickers(m Model) Model {
 		// The effort stays where the user put it while the model is the same
 		// and still offers it.
 		presetEffortDefault(&w)
+		// The step the user was on may not exist for the new tool or model
+		// (no effort block, no skills): step back to one that does.
+		for w.Step > wizProvider && !w.stepApplies(w.Step) {
+			w.Step--
+		}
 		if opts := w.selectedModel().Effort; opts != nil && w.selectedModel().ID == modelID {
 			if i := slices.Index(opts.Options, effort); i >= 0 {
 				w.EffortIdx = i
@@ -204,4 +218,44 @@ func detectedModel(m Model, id string) (detected, ok bool) {
 	}
 	_, model, _ := currentSpawnChoice(m)
 	return model.Detected, true
+}
+
+// unavailableNotice says a saved default tool is not offered and which one
+// replaces it.
+func unavailableNotice(tool, other string) string {
+	return protocol.FlattenDisplayText(tool) + " isn't available; using " + protocol.FlattenDisplayText(other)
+}
+
+// quickChoice is the tool, model and effort a quick-spawn (i) starts.
+type quickChoice struct{ Tool, Model, Effort string }
+
+// quickChoiceOf reads the quick-spawn defaults. A saved default_spawn_tool
+// that the pickers do not offer (hidden by extra_agents, or not installed)
+// is replaced by the first tool that is, with that tool's first model and
+// its default effort, and notice says so. With no registry or nothing
+// offered the saved values stand and the daemon decides.
+func quickChoiceOf(m Model) (c quickChoice, notice string) {
+	c.Tool, _ = m.Store.Get("default_spawn_tool").(string)
+	c.Model, _ = m.Store.Get("default_spawn_model").(string)
+	c.Effort, _ = m.Store.Get("default_spawn_effort").(string)
+	reg, err := loadToolsStrict()
+	if err != nil {
+		slog.Warn("tui: quick-spawn could not check the tool registry", "err", err)
+		return c, ""
+	}
+	offer, _ := pickerTools(m, reg)
+	if len(offer) == 0 || slices.ContainsFunc(offer, func(t registry.Tool) bool { return t.ID == c.Tool }) {
+		return c, ""
+	}
+	first := offer[0]
+	notice = unavailableNotice(c.Tool, first.ID)
+	c.Tool, c.Model, c.Effort = first.ID, "", ""
+	if len(first.Models) > 0 {
+		md := first.Models[0]
+		c.Model = md.ID
+		if md.Effort != nil {
+			c.Effort = md.Effort.Default
+		}
+	}
+	return c, notice
 }

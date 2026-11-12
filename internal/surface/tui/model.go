@@ -193,7 +193,9 @@ type Model struct {
 	usageSeq int
 	// undoer carries the :undo / :redo calls (nil: Client); undoSeq numbers
 	// them so a late reply for a closed dialog is dropped.
-	undoer  undoDoer
+	undoer undoDoer
+	// spawner replaces Client for the quick-spawn's NewSession (tests).
+	spawner sessionSpawner
 	undoSeq int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).

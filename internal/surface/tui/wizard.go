@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -82,6 +83,9 @@ func openWizard(m Model) (Model, tea.Cmd) {
 	}
 	presetModelDefault(w)
 	presetEffortDefault(w)
+	if w.SpawnTool != "" && !slices.ContainsFunc(visible, func(t registry.Tool) bool { return t.ID == w.SpawnTool }) {
+		m.Notice = unavailableNotice(w.SpawnTool, visible[0].ID)
+	}
 	m.Wizard = w
 	m.Focus = FocusWizard
 	if m.Audio != nil {
@@ -251,6 +255,15 @@ func (w *WizardState) stepApplies(step wizardStep) bool {
 	return false
 }
 
+// effortOptions are the chosen model's effort options, none when it has no
+// effort block.
+func (w *WizardState) effortOptions() []string {
+	if e := w.selectedModel().Effort; e != nil {
+		return e.Options
+	}
+	return nil
+}
+
 func (w *WizardState) currentEffort() string {
 	m := w.selectedModel()
 	if m.Effort == nil || len(m.Effort.Options) == 0 {
@@ -365,7 +378,7 @@ func moveWizard(m Model, delta int) Model {
 			moved = true
 		}
 	case wizEffort:
-		opts := m.Wizard.selectedModel().Effort.Options
+		opts := m.Wizard.effortOptions()
 		next := m.Wizard.EffortIdx + delta
 		if next >= 0 && next < len(opts) {
 			m.Wizard.EffortIdx = next
@@ -651,7 +664,7 @@ func renderWizard(m Model) string {
 	case wizEffort:
 		title = styleSlug.Render("reasoning effort?")
 		body = append(body, "")
-		opts := m.Wizard.selectedModel().Effort.Options
+		opts := m.Wizard.effortOptions()
 		for i, opt := range opts {
 			body = append(body, wizOption(i == m.Wizard.EffortIdx, "", opt, ""))
 		}

@@ -628,6 +628,8 @@ func applyLive(m *Model, id string, value any) {
 				m.Audio.SetVolume(v)
 			}
 		}
+	case "extra_agents":
+		*m = refreshPickers(*m) // the open wizard and pickers drop or regain qwen, cursor, grok
 	case "board_hidden_sections":
 		// The same reader as startup, so board_filter off still ignores it.
 		*m = applyHidden(*m, hiddenSectionsFrom(m.Store))
