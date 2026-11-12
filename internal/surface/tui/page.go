@@ -223,13 +223,19 @@ func paneDivider(leftW, w int) string {
 
 // settingsPageHints is the settings page's footer for its state, focused
 // pane and whether config.lua locks the cursor row; esc leads so a narrow
-// page keeps it, and a narrow page (no pane to tab to) leaves tab out.
+// page keeps it, and a narrow page (no section pane) says h/l step the
+// section.
 func settingsPageHints(st *SettingsState, pane pagePane, locked, narrow bool) [][2]string {
 	hints := settingsPageHintsAll(st, pane, locked)
 	if !narrow {
 		return hints
 	}
-	return slices.DeleteFunc(hints, func(h [2]string) bool { return h[0] == "tab" })
+	for i, h := range hints {
+		if h[0] == "h" {
+			hints[i] = [2]string{"h/l", "section"}
+		}
+	}
+	return slices.DeleteFunc(hints, func(h [2]string) bool { return h[0] == "[ ]" })
 }
 
 func settingsPageHintsAll(st *SettingsState, pane pagePane, locked bool) [][2]string {
@@ -244,16 +250,16 @@ func settingsPageHintsAll(st *SettingsState, pane pagePane, locked bool) [][2]st
 	case st.Searching:
 		return [][2]string{{"enter", "keep"}, {"esc", "cancel"}, {"ctrl+u", "clear"}}
 	case pane == paneSections:
-		return [][2]string{{"esc", "back"}, {"j/k", "section"}, {"enter", "rows"}, {"tab", "rows"}, {"/", "search"}}
+		return [][2]string{{"esc", "back"}, {"j/k", "section"}, {"l", "rows"}, {"gg/G", "first/last"}, {"/", "search"}}
 	case locked:
 		return [][2]string{
 			{"esc", "back"}, {"j/k", "move"}, {"e", "open config.lua"}, {"/", "search"},
-			{"tab", "sections"}, {"1-9", "section"}, {"?", "help"},
+			{"h", "sections"}, {"[ ]", "section"}, {"?", "help"},
 		}
 	}
 	return [][2]string{
 		{"esc", "back"}, {"j/k", "move"}, {"←→", "change"}, {"enter", "toggle"}, {"/", "search"},
-		{"tab", "sections"}, {"1-9", "section"}, {"r", "reset"}, {"?", "help"},
+		{"h", "sections"}, {"[ ]", "section"}, {"r", "reset"}, {"?", "help"},
 	}
 }
 
@@ -265,8 +271,8 @@ func settingsPageRows(m Model, list []settings.Setting, inner, h int) []string {
 	labelW := settingsLabelW(inner)
 	if st.Search == "" {
 		lines, focus := settingsRowsAt(m, list, inner, labelW, false)
-		title := styleBold.Render(string(settingsSectionOf(st)))
-		return append([]string{title}, windowLines(lines, focus, h-1)...)
+		sec := string(settingsSectionOf(st))
+		return append([]string{styleBold.Render(sec)}, st.rowsView.window(sec, lines, focus, h-1, "  ")...)
 	}
 	lines, focus := settingsRowsAt(m, list, inner, labelW, true)
 	if len(list) == 0 {
@@ -276,7 +282,7 @@ func settingsPageRows(m Model, list []settings.Setting, inner, h int) []string {
 	if len(list) == 1 {
 		count = "1 match"
 	}
-	return append([]string{styleDim.Render(count)}, windowLines(lines, focus, h-1)...)
+	return append([]string{styleDim.Render(count)}, st.rowsView.window("/"+st.Search, lines, focus, h-1, "  ")...)
 }
 
 // settingsPageItems is the section pane's rows: each section with its
@@ -380,11 +386,13 @@ func helpPageHints(st *HelpState, pane pagePane, narrow bool) [][2]string {
 	case st.Filter != "":
 		return [][2]string{{"esc", "clear"}, {"j/k", "scroll"}, {"/", "edit filter"}}
 	case pane == paneSections:
-		return [][2]string{{"esc", "back"}, {"j/k", "group"}, {"enter", "rows"}, {"tab", "rows"}, {"/", "filter"}}
+		return [][2]string{{"esc", "back"}, {"j/k", "group"}, {"l", "rows"}, {"gg/G", "first/last"}, {"/", "filter"}}
 	case narrow:
-		return [][2]string{{"esc", "back"}, {"j/k", "scroll"}, {"1-9", "group"}, {"/", "filter"}}
+		return [][2]string{{"esc", "back"}, {"j/k", "scroll"}, {"h/l", "group"}, {"/", "filter"}}
 	}
-	return [][2]string{{"esc", "back"}, {"j/k", "scroll"}, {"tab", "groups"}, {"1-9", "group"}, {"/", "filter"}}
+	return [][2]string{
+		{"esc", "back"}, {"j/k", "scroll"}, {"ctrl+d/u", "half page"}, {"h", "groups"}, {"[ ]", "group"}, {"/", "filter"},
+	}
 }
 
 // helpPageGroup is st's group, clamped to groups.
@@ -446,16 +454,24 @@ func layoutHelpPage(m Model, w, h int) helpLayout {
 		colW, vh = max(w-leftW-3-pageRightMargin, 1), bh
 	}
 	rows := helpPageRows(st, groups, colW)
-	maxScroll := max(len(rows)-vh, 0)
+	// The ↑ / ↓ markers take rows of their own (nav.go), so one scroll
+	// step hides one row: the last first row leaves the ↑ marker and the
+	// rest of the rows.
+	maxScroll := 0
+	if len(rows) > vh {
+		maxScroll = len(rows) - (vh - 1)
+	}
 	start := min(max(st.Scroll, 0), maxScroll)
 	view := rows
 	if len(rows) > vh {
-		view = append([]string(nil), rows[start:start+vh]...)
-		if start > 0 {
-			view[0] = styleDim.Render("↑ more")
+		from, to, up, down := navSpan(start, len(rows), vh)
+		view = nil
+		if up {
+			view = append(view, styleDim.Render("↑ more"))
 		}
-		if start+vh < len(rows) {
-			view[len(view)-1] = styleDim.Render("↓ more")
+		view = append(view, rows[from:to]...)
+		if down {
+			view = append(view, styleDim.Render("↓ more"))
 		}
 	}
 

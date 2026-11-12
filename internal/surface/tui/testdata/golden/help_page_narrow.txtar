@@ -4,6 +4,7 @@
 ──────────────────────────────────────────────────
                ‹ Session commands ›               
   ↑ more                                          
+  :name [text]            rename selected (no     
                           text: open editor)      
   :rename <s> <slug>      change slug             
   :done [sel]             mark done               
@@ -15,16 +16,16 @@
                           id                      
   :undo [sel] [-turns N]  restore the folder to   
                           before the agent's      
-                          last turn (asks first)  
   ↓ more                                          
 ──────────────────────────────────────────────────
-  esc back · j/k scroll · 1-9 group · / filter    
+  esc back · j/k scroll · h/l group · / filter    
 -- styled.50x20 --
                                                   
   ␛[1;38;2;230;232;238m∴ REX␛[0m␛[38;2;139;145;161m › HELP␛[0m                                    
 ␛[38;2;43;48;60m──────────────────────────────────────────────────␛[0m
                ␛[38;2;179;146;240m‹ ␛[0m␛[1mSession commands␛[0m␛[38;2;179;146;240m ›␛[0m               
   ␛[38;2;139;145;161m↑ more␛[0m                                          
+  ␛[1;38;2;179;146;240m:name [text]␛[0m            ␛[38;2;139;145;161mrename selected (no␛[0m     
                           ␛[38;2;139;145;161mtext: open editor)␛[0m      
   ␛[1;38;2;179;146;240m:rename <s> <slug>␛[0m      ␛[38;2;139;145;161mchange slug␛[0m             
   ␛[1;38;2;179;146;240m:done [sel]␛[0m             ␛[38;2;139;145;161mmark done␛[0m               
@@ -36,7 +37,6 @@
                           ␛[38;2;139;145;161mid␛[0m                      
   ␛[38;2;89;96;112m:undo [sel] [-turns N]␛[0m  ␛[38;2;89;96;112mrestore the folder to␛[0m   
                           ␛[38;2;89;96;112mbefore the agent's␛[0m      
-                          ␛[38;2;89;96;112mlast turn (asks first)␛[0m  
   ␛[38;2;139;145;161m↓ more␛[0m                                          
 ␛[38;2;43;48;60m──────────────────────────────────────────────────␛[0m
-  ␛[1;38;2;230;232;238mesc␛[0m␛[38;2;139;145;161m back␛[0m␛[38;2;89;96;112m · ␛[0m␛[1;38;2;230;232;238mj/k␛[0m␛[38;2;139;145;161m scroll␛[0m␛[38;2;89;96;112m · ␛[0m␛[1;38;2;230;232;238m1-9␛[0m␛[38;2;139;145;161m group␛[0m␛[38;2;89;96;112m · ␛[0m␛[1;38;2;230;232;238m/␛[0m␛[38;2;139;145;161m filter␛[0m    
+  ␛[1;38;2;230;232;238mesc␛[0m␛[38;2;139;145;161m back␛[0m␛[38;2;89;96;112m · ␛[0m␛[1;38;2;230;232;238mj/k␛[0m␛[38;2;139;145;161m scroll␛[0m␛[38;2;89;96;112m · ␛[0m␛[1;38;2;230;232;238mh/l␛[0m␛[38;2;139;145;161m group␛[0m␛[38;2;89;96;112m · ␛[0m␛[1;38;2;230;232;238m/␛[0m␛[38;2;139;145;161m filter␛[0m    

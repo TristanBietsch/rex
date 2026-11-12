@@ -88,6 +88,12 @@ func TestCommand_EveryVerbEscapesToBoard(t *testing.T) {
 				return
 			}
 			m = sendKey(m, key("esc"))
+			if tc.line == "new" {
+				// The new-agent page opens typing in the task editor: the
+				// first esc leaves the editor, the second the page.
+				require.Equal(t, FocusNewAgent, m.Focus)
+				m = sendKey(m, key("esc"))
+			}
 			require.Equal(t, FocusBoard, m.Focus, ":%s then esc returns to the board", tc.line)
 		})
 	}

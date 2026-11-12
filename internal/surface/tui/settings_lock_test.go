@@ -39,7 +39,8 @@ func lockedSettingsModel(t *testing.T, cursor string) Model {
 }
 
 func TestSettingsLockGuardRefusesEveryEdit(t *testing.T) {
-	for _, key := range []string{"enter", " ", "right", "left", "l", "h", "+", "-", "r"} {
+	// h and l are pane focus on the page (left and right step values).
+	for _, key := range []string{"enter", " ", "right", "left", "+", "-", "r"} {
 		m := lockedSettingsModel(t, "spinner")
 		m, _ = settingsKey(m, keyMsg(key))
 		require.Equal(t, "moon", m.Store.Get("spinner"), key)
@@ -196,7 +197,7 @@ func TestSettingsPageLockedRowFooter(t *testing.T) {
 	require.True(t, pagesOn(m))
 	require.Contains(t, ansi.Strip(m.View()), "e open config.lua")
 	require.NoError(t, m.Store.Set("show_help_bar", false))
-	m, _ = settingsKey(m, keyMsg("h"))
+	m, _ = settingsKey(m, keyMsg("left"))
 	require.Equal(t, "moon", m.Store.Get("spinner"))
 	lines := strings.Split(ansi.Strip(m.View()), "\n")
 	require.Contains(t, lines[len(lines)-1], "err: spinner: set in config.lua:1 — press e to open")

@@ -30,26 +30,43 @@ func naPreviewKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	it := st.Items[st.ItemIdx]
 	switch {
-	case k.Type == tea.KeyEsc:
-		st.Screen, st.Section = naCompose, naContext
+	case k.Type == tea.KeyEsc || isRune(k, 'q') || isRune(k, 'h') || k.Type == tea.KeyLeft:
+		st.Screen = naCompose
+		naFocus(st, naContext)
 		playNav(m)
 	case k.Type == tea.KeyCtrlS:
 		return launchNewAgent(m)
-	case k.Type == tea.KeyDown || isRune(k, 'j'):
-		st.PrevScroll = min(st.PrevScroll+1, naPreviewMaxScroll(m, st, it))
-	case k.Type == tea.KeyUp || isRune(k, 'k'):
-		st.PrevScroll = max(st.PrevScroll-1, 0)
-	case k.Type == tea.KeyDelete || isRune(k, 'x'):
+	case k.Type == tea.KeyDelete || isRune(k, 'x') || isRune(k, 'd'):
 		removeItem(st, st.ItemIdx)
-		st.Screen, st.Section = naCompose, naContext
+		st.Screen = naCompose
+		naFocus(st, naContext)
 	case isRune(k, 'r'):
 		naStartRename(st)
 	case k.Type == tea.KeyCtrlE || isRune(k, 'e'):
 		if it.Kind == spawnctx.Paste {
 			return m, editInEditor(st.ItemIdx, it.Text)
 		}
+	default:
+		if mv := vimMotion(k.String(), &st.gPending); mv != navNone && mv != navPending {
+			naPreviewScroll(m, mv)
+		}
 	}
 	return m, nil
+}
+
+// naPreviewScroll scrolls the preview by mv (the shared navigator over its
+// first line), clamped to the text.
+func naPreviewScroll(m Model, mv navMove) {
+	st := m.NewAgent
+	if st.ItemIdx >= len(st.Items) {
+		return
+	}
+	h := m.Height
+	if h <= 0 {
+		h = 32
+	}
+	last := naPreviewMaxScroll(m, st, st.Items[st.ItemIdx])
+	st.PrevScroll = navTarget(mv, min(st.PrevScroll, last), last+1, naPreviewTextRows(h, 0))
 }
 
 // naPreviewLines is what the preview shows of an item, one entry a line,

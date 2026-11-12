@@ -48,6 +48,15 @@ func naOpen(t *testing.T, m Model) Model {
 	return m
 }
 
+// naClose is esc until the page closes: the first one leaves the task
+// editor when the page is typing there.
+func naClose(m Model) (Model, tea.Cmd) {
+	if m.NewAgent != nil && m.NewAgent.Editing {
+		m, _ = naKey(m, key("esc"))
+	}
+	return naKey(m, key("esc"))
+}
+
 func naType(m Model, s string) Model {
 	for _, r := range s {
 		m, _ = naKey(m, key(string(r)))
@@ -148,20 +157,21 @@ func TestNewAgent_TabCyclesSections(t *testing.T) {
 	tab := tea.KeyMsg{Type: tea.KeyTab}
 	back := tea.KeyMsg{Type: tea.KeyShiftTab}
 	seen := []naSection{m.NewAgent.Section}
-	for range 4 {
+	for range 5 {
 		m, _ = naKey(m, tab)
 		seen = append(seen, m.NewAgent.Section)
 	}
-	require.Equal(t, []naSection{naTask, naContext, naTrust, naAgent, naTask}, seen)
+	require.Equal(t, []naSection{naTask, naContext, naTrust, naLaunchRow, naAgent, naTask}, seen)
+	require.False(t, m.NewAgent.Editing, "tab leaves the editor")
 	m, _ = naKey(m, back)
 	require.Equal(t, naAgent, m.NewAgent.Section)
 	m, _ = naKey(m, back)
-	require.Equal(t, naTrust, m.NewAgent.Section)
+	require.Equal(t, naLaunchRow, m.NewAgent.Section)
 
-	// 1-4 jump outside the editor; inside it they are text.
+	// 1-5 jump outside the editor; inside it they are text.
 	m = naType(m, "2")
 	require.Equal(t, naTask, m.NewAgent.Section)
-	m = naType(m, "3")
+	m = naType(m, "i3")
 	require.Equal(t, naTask, m.NewAgent.Section)
 	require.Equal(t, "3", m.NewAgent.Task.String())
 }
@@ -208,6 +218,9 @@ func TestNewAgent_EscKeepsDraft(t *testing.T) {
 	m = naType(m, "please")
 	m, cmd := naKey(m, key("esc"))
 	require.Nil(t, cmd)
+	require.Equal(t, FocusNewAgent, m.Focus, "the first esc leaves the editor")
+	m, cmd = naKey(m, key("esc"))
+	require.Nil(t, cmd)
 	require.Equal(t, FocusBoard, m.Focus)
 	require.Nil(t, m.NewAgent)
 	require.NotNil(t, m.newAgentDraft)
@@ -253,6 +266,7 @@ func TestNewAgent_DefaultsFromLastSpawn(t *testing.T) {
 	require.Equal(t, "codex", m.NewAgent.selection().selectedTool().ID, "the last launch wins")
 
 	// A remembered agent that is no longer offered falls back with a notice.
+	m, _ = naKey(m, key("esc")) // leaves the editor
 	m, _ = naKey(m, key("esc"))
 	require.Equal(t, "codex", m.newAgentDraft.choice().Tool, "the draft keeps its agent")
 	m.newAgentDraft = nil
@@ -319,14 +333,14 @@ func TestNewAgent_ViewEmptyState(t *testing.T) {
 		"AGENT", "Claude Code", "TASK", "describe the task", "CONTEXT",
 		"none yet: type @path, paste, or ctrl+o to import", "TRUST",
 		"folder not trusted: the agent will ask", "ctrl+t this session only", "ctrl+a always (~/dev/proj)",
-		"enter launch", "ctrl+j newline", "esc close",
+		"enter launch", "ctrl+j newline", "esc navigate", "· Launch", "describe the task first",
 	} {
 		require.Contains(t, out, want)
 	}
 
 	m.Width = 50
 	narrow := ansi.Strip(m.View())
-	require.Contains(t, narrow, "‹ Agent · [Task] · Context · Trust ›")
+	require.Contains(t, narrow, "‹ Agent · [Task] · Context · Trust · Launch ›")
 	require.NotContains(t, narrow, "STEPS")
 }
 

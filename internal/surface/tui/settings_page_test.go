@@ -67,9 +67,9 @@ func TestSettingsPageSectionKeys(t *testing.T) {
 	m = settingsPress(m, fmt.Sprint(len(secs)))
 	require.Equal(t, secs[len(secs)-1], cursorSection(t, m))
 	m = settingsPress(m, "]")
-	require.Equal(t, sectionRows(secs[0])[0].ID, m.Settings.CursorID, "] wraps to the first section")
-	m = settingsPress(m, "[")
-	require.Equal(t, secs[len(secs)-1], cursorSection(t, m), "[ wraps to the last section")
+	require.Equal(t, secs[len(secs)-1], cursorSection(t, m), "] clamps at the last section")
+	m = settingsPress(m, "1", "[")
+	require.Equal(t, sectionRows(secs[0])[0].ID, m.Settings.CursorID, "[ clamps at the first section")
 
 	m = settingsPress(m, "1")
 	cur := m.Settings.CursorID
@@ -85,11 +85,11 @@ func TestSettingsPageRowsScoped(t *testing.T) {
 		require.Equal(t, settings.SectionAudio, s.Section, "the page lists the cursor's section only")
 	}
 	m = settingsPress(m, "k")
-	require.Equal(t, audio[0].ID, m.Settings.CursorID, "k on the first row stays")
+	require.NotEqual(t, settings.SectionAudio, cursorSection(t, m), "k on the first row goes back a section")
 
 	m.Settings.CursorID = audio[len(audio)-1].ID
 	m = settingsPress(m, "j")
-	require.Equal(t, audio[len(audio)-1].ID, m.Settings.CursorID, "j on the last row stays")
+	require.NotEqual(t, settings.SectionAudio, cursorSection(t, m), "j on the last row goes on to the next section")
 
 	m.Settings.CursorID = audio[0].ID
 	m = settingsPress(m, "j")
@@ -120,13 +120,13 @@ func TestSettingsPageLeftPane(t *testing.T) {
 	require.Equal(t, paneRows, m.Settings.Pane, "l focuses the rows")
 }
 
-func TestSettingsPageHOnFixedRowStays(t *testing.T) {
+func TestSettingsPageHOnFixedRowFocusesSections(t *testing.T) {
 	m := pageSettings(t)
 	m.Settings.CursorID = "mouse_enabled" // bool: not adjustable
 	before := m.Store.Snapshot()
 	m = settingsPress(m, "h")
-	require.Equal(t, paneRows, m.Settings.Pane, "h does not move focus")
-	require.Equal(t, before, m.Store.Snapshot(), "h on a non-adjustable row changes nothing")
+	require.Equal(t, paneSections, m.Settings.Pane, "h focuses the sections")
+	require.Equal(t, before, m.Store.Snapshot(), "h changes nothing")
 }
 
 func TestSettingsPageSearchEscRestores(t *testing.T) {
@@ -171,8 +171,8 @@ func TestSettingsPageEditAndReset(t *testing.T) {
 
 	m.Settings.CursorID = "spinner"
 	def := m.Store.String("spinner")
-	m = settingsPress(m, "l")
-	require.NotEqual(t, def, m.Store.String("spinner"), "l changes the value")
+	m = settingsPress(m, "right")
+	require.NotEqual(t, def, m.Store.String("spinner"), "→ changes the value")
 	m = settingsPress(m, "r")
 	require.Equal(t, def, m.Store.String("spinner"), "r restores the default")
 }
@@ -216,17 +216,15 @@ func TestSettingsPageWheel(t *testing.T) {
 	m := pageSettings(t)
 	require.NoError(t, m.Store.Set("mouse_enabled", true))
 	secs := settingsSections(m.Settings)
-	m.Settings.Pane = paneSections
-	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, sectionRows(secs[1])[0].ID, m.Settings.CursorID, "wheel on the sections: next section")
+	m, _ = updateMouse(m, wheel(true)) // x 10: over the sections
+	require.Equal(t, sectionRows(secs[1])[0].ID, m.Settings.CursorID, "wheel over the sections: next section")
 
-	m.Settings.Pane = paneRows
 	rows := sectionRows(secs[1])
-	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, rows[1].ID, m.Settings.CursorID, "wheel on the rows: next row")
+	m, _ = updateMouse(m, wheelAt(true, 60, 10))
+	require.Equal(t, rows[1].ID, m.Settings.CursorID, "wheel over the rows: next row")
 	m.Settings.CursorID = rows[len(rows)-1].ID
-	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, rows[len(rows)-1].ID, m.Settings.CursorID, "the wheel stays in the section")
+	m, _ = updateMouse(m, wheelAt(true, 60, 10))
+	require.Equal(t, sectionRows(secs[2])[0].ID, m.Settings.CursorID, "the wheel goes on to the next section, as j")
 }
 
 func TestSettingsModifiedIn(t *testing.T) {
@@ -306,9 +304,9 @@ func TestSettingsPageSectionKeysSkipNoHits(t *testing.T) {
 	m = settingsPress(m, "]")
 	require.Equal(t, feat, m.Settings.CursorID, "] skips sections without hits")
 	m = settingsPress(m, "]")
-	require.Equal(t, app, m.Settings.CursorID, "] wraps past sections without hits")
+	require.Equal(t, feat, m.Settings.CursorID, "] clamps at the last section with hits")
 	m = settingsPress(m, "[")
-	require.Equal(t, feat, m.Settings.CursorID, "[ wraps past sections without hits")
+	require.Equal(t, app, m.Settings.CursorID, "[ skips back past sections without hits")
 
 	m.Settings.CursorID = app
 	m = settingsPress(m, "tab", "j")
@@ -435,7 +433,7 @@ func TestSettingsPageThemeLive(t *testing.T) {
 	m := pageModel(t, 120, 40, FocusSettings)
 	m.Settings.CursorID = "theme"
 	old := theme.Builtin["default"].Accent
-	next, cmd := m.Update(key("l"))
+	next, cmd := m.Update(vk("right"))
 	_ = cmd // the restyle must not wait on a Cmd
 	m = next.(Model)
 	require.Equal(t, "classic", m.Store.Get("theme"))

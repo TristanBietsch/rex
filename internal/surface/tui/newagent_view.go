@@ -53,7 +53,7 @@ func renderNewAgent(m Model, w, h int) string {
 	}
 	head := naHeader("NEW AGENT", middle, styleDim.Render("draft"), w)
 	var body []string
-	hints := naHints(&NewAgentState{Section: naTask}, narrow)
+	hints := naHints(&NewAgentState{Section: naTask, Editing: true}, narrow)
 	if st != nil {
 		tv := naTrustOf(m, st)
 		preview := st.Screen == naPreview && st.ItemIdx < len(st.Items)
@@ -101,41 +101,52 @@ func naHeader(title, middle, right string, w int) []string {
 	return head
 }
 
-// naHints is the footer for the focused section.
+// naHints is the footer for the mode and the focused section: the editor's
+// keys while typing, else the section's own keys and the navigation ones.
 func naHints(st *NewAgentState, narrow bool) [][2]string {
-	section := st.Section
-	if st.Launching {
+	switch {
+	case st.Launching:
 		return [][2]string{{"esc", "close (keeps the draft)"}}
-	}
-	if len(st.Pending) > 0 {
+	case len(st.Pending) > 0:
 		return naPendingHints()
-	}
-	if st.Renaming {
+	case st.Renaming:
 		return [][2]string{{"enter", "save"}, {"esc", "cancel"}}
-	}
-	if section == naContext && len(st.Items) > 0 {
-		if narrow {
-			return [][2]string{{"enter", "preview"}, {"x", "remove"}, {"esc", "close"}}
-		}
-		return [][2]string{
-			{"enter", "preview"}, {"x", "remove"}, {"r", "rename"}, {"tab", "next"},
-			{"ctrl+s", "launch"}, {"esc", "close"},
-		}
-	}
-	launch := [2]string{"ctrl+s", "launch"}
-	if section == naTask {
-		launch = [2]string{"enter", "launch"}
-	}
-	if narrow {
-		return [][2]string{launch, {"tab", "next"}, {"esc", "close"}}
-	}
-	if section == naTask {
+	case st.Editing && narrow:
+		return [][2]string{{"enter", "launch"}, {"esc", "navigate"}, {"tab", "next"}}
+	case st.Editing:
 		return [][2]string{
 			{"enter", "launch"}, {"ctrl+j", "newline"}, {"@", "file"}, {"ctrl+o", "import"},
-			{"tab", "next"}, {"esc", "close"},
+			{"esc", "navigate"}, {"tab", "next"},
 		}
+	case st.OnRail && !narrow:
+		return [][2]string{{"j/k", "step"}, {"l", "open"}, {"ctrl+s", "launch"}, {"esc", "close"}}
 	}
-	return [][2]string{launch, {"tab", "next"}, {"1-4", "section"}, {"esc", "close"}}
+	var own [][2]string
+	switch st.Section {
+	case naAgent:
+		own = [][2]string{{"enter", "change"}}
+	case naTask:
+		own = [][2]string{{"i", "edit"}}
+	case naContext:
+		if len(st.Items) > 0 {
+			own = [][2]string{{"enter", "preview"}, {"x", "remove"}, {"r", "rename"}, {"e", "edit"}}
+		} else {
+			own = [][2]string{{"ctrl+o", "import"}}
+		}
+	case naTrust:
+		own = [][2]string{{"enter", "trust"}}
+	case naLaunchRow:
+		own = [][2]string{{"enter", "launch"}}
+	case naSectionCount:
+	}
+	if narrow {
+		return append(own[:min(len(own), 2):min(len(own), 2)], [2]string{"j/k", "move"}, [2]string{"esc", "close"})
+	}
+	own = append(own, [2]string{"j/k", "move"}, [2]string{"h", "steps"})
+	if st.Section != naLaunchRow {
+		own = append(own, [2]string{"ctrl+s", "launch"})
+	}
+	return append(own, [2]string{"esc", "close"})
 }
 
 // naMark is a section's rail mark and word, styled: ✓ done, · empty, ? ask.
@@ -153,6 +164,11 @@ func naMark(st *NewAgentState, tv naTrustView, s naSection) (mark, word string) 
 			return styleBootReady.Render(tv.mark), styleDim.Render(tv.word)
 		}
 		return styleBootWarn.Render(tv.mark), styleBootWarn.Render(tv.word)
+	case naLaunchRow:
+		if st.Task.Empty() && len(st.Items) == 0 {
+			return styleMuted.Render("·"), ""
+		}
+		return styleArrow.Render("›"), ""
 	default: // naContext: the number of items
 		if len(st.Items) == 0 {
 			return styleMuted.Render("·"), ""
@@ -165,13 +181,16 @@ func naMark(st *NewAgentState, tv naTrustView, s naSection) (mark, word string) 
 // focused one) and its word flush right. Every row fits naRailW whole, so no
 // word is ever cut (1-column indent: " ✓ Trust" + "trusted" is 16).
 func naRail(st *NewAgentState, tv naTrustView) []string {
-	lines := []string{" " + styleSectionTitle.Render("STEPS")}
+	lines := []string{" " + naTitle("STEPS", st.OnRail)}
 	for s := range naSectionCount {
 		mark, word := naMark(st, tv, s)
 		name := naSectionNames[s]
 		left := " " + mark + " " + stylePrimary.Render(name)
-		if s == st.Section {
+		switch {
+		case s == st.Section && st.OnRail:
 			left = " " + styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render(name)
+		case s == st.Section:
+			left = " " + styleArrow.Render("▸ "+name)
 		}
 		if word != "" {
 			gap := max(1, naRailW-1-ansi.StringWidth(left)-ansi.StringWidth(word))
@@ -215,19 +234,21 @@ func naAgentLine(st *NewAgentState, sep string, narrow bool) string {
 }
 
 // naEditorBox is the task editor in a box w wide with rows text rows: the
-// placeholder while empty, the cursor while focused.
-func naEditorBox(m Model, st *NewAgentState, w, rows int, focused bool) []string {
+// placeholder while empty, the focus border while the task is the focused
+// step, the cursor only while typing (Editing).
+func naEditorBox(m Model, st *NewAgentState, w, rows int) []string {
 	w = max(w, 5)
 	inner := w - 4
+	focused := st.Section == naTask && !st.OnRail
 	border := styleBorderFg
 	if focused {
 		border = styleBorderFocus
 	}
 	cur := ""
-	if focused {
+	if st.Editing {
 		cur = cursorBlock(m)
 	}
-	text := st.Task.View(inner, rows, focused, cur)
+	text := st.Task.View(inner, rows, st.Editing, cur)
 	if st.Task.Empty() {
 		hint := styleMuted.Render(ansi.Truncate(naPlaceholder, inner, "…"))
 		if rows > 1 {
@@ -303,15 +324,11 @@ func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 	if gap := fw - ansi.StringWidth(agent) - ansi.StringWidth(change); gap >= 2 {
 		agent += strings.Repeat(" ", gap) + change
 	}
-	summary := !st.Task.Empty() || len(st.Items) > 0 || st.Launching
 	// Eleven rows are fixed (headings, agent, box edges, two trust rows and
-	// two blanks). Four stay free at the bottom as in mockup A; with a
-	// summary, a blank and the summary row. The focused trust section shows
-	// every key with its exact folder (P2's lines), so it takes more.
-	free := 4
-	if summary {
-		free = 2
-	}
+	// two blanks); a blank and the launch row stay at the bottom. The
+	// focused trust section shows every key with its exact folder (P2's
+	// lines), so it takes more.
+	free := 2
 	trust := indentLines(naTrustLines(tv, st), 2)
 	if st.Section == naTrust {
 		trust = trustLines(m, st.Trust, spawnCWD(m), fw)
@@ -321,24 +338,21 @@ func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 	listRows := min(max(len(st.Items), 1), max(1, budget-1))
 	rows := max(1, min(10, budget-listRows))
 
-	lines := []string{naTitle("AGENT", st.Section == naAgent), agent}
+	on := func(s naSection) bool { return st.Section == s && !st.OnRail }
+	lines := []string{naTitle("AGENT", on(naAgent)), agent}
 	lines = append(lines, notice...)
-	lines = append(lines, "", naTitle("TASK", st.Section == naTask))
-	lines = append(lines, naEditorBox(m, st, fw, rows, st.Section == naTask)...)
+	lines = append(lines, "", naTitle("TASK", on(naTask)))
+	lines = append(lines, naEditorBox(m, st, fw, rows)...)
 	lines = append(lines, comp...)
 	lines = append(lines, naContextLines(m, st, fw, listRows)...)
 	lines = append(lines, errs...)
-	lines = append(lines, "", naTitle("TRUST", st.Section == naTrust))
+	lines = append(lines, "", naTitle("TRUST", on(naTrust)))
 	lines = append(lines, trust...)
-	if summary && len(lines) < bh {
+	if len(lines) < bh {
 		for len(lines) < bh-1 {
 			lines = append(lines, "")
 		}
-		if st.Launching {
-			lines = append(lines, naStartingLine(m))
-		} else {
-			lines = append(lines, naLaunchSummary(m, st))
-		}
+		lines = append(lines, naLaunchLine(m, st))
 	}
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, fw, "…")
@@ -350,7 +364,7 @@ func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
 // right) over the item list, at most rows rows, windowed on the cursor; or
 // the empty state.
 func naContextLines(m Model, st *NewAgentState, fw, rows int) []string {
-	focused := st.Section == naContext
+	focused := st.Section == naContext && !st.OnRail
 	head := naTitle("CONTEXT", focused)
 	if len(st.Items) == 0 && st.Indexing {
 		return []string{head, "  " + naLoadingRow(m, st, fw-2)} // mockup F
@@ -362,16 +376,11 @@ func naContextLines(m Model, st *NewAgentState, fw, rows int) []string {
 	if gap := fw - ansi.StringWidth(head) - ansi.StringWidth(total); gap >= 2 {
 		head += strings.Repeat(" ", gap) + total
 	}
-	rows = max(rows, 1)
-	start := 0
-	if len(st.Items) > rows {
-		start = min(max(st.ItemIdx-rows/2, 0), len(st.Items)-rows)
+	items := make([]string, len(st.Items))
+	for i := range st.Items {
+		items[i] = naItemRow(m, st, i, fw, focused)
 	}
-	lines := []string{head}
-	for i := start; i < min(start+rows, len(st.Items)); i++ {
-		lines = append(lines, naItemRow(m, st, i, fw, focused))
-	}
-	return lines
+	return append([]string{head}, st.itemsView.window("items", items, st.ItemIdx, max(rows, 1), "  ")...)
 }
 
 // naItemsTotal is "N items · X KB": the count and the summed sizes.
@@ -527,6 +536,23 @@ func naLaunchSummary(m Model, st *NewAgentState) string {
 	return lead + size + styleDim.Render(" of "+naBytes(limit)) + tail
 }
 
+// naLaunchLine is the launch row: "▸ launch" while it is the focused step
+// (enter launches), then the summary once there is a task or context, or
+// the launch's progress.
+func naLaunchLine(m Model, st *NewAgentState) string {
+	if st.Launching {
+		return naStartingLine(m)
+	}
+	head := "  " + styleDim.Render("launch")
+	if st.Section == naLaunchRow && !st.OnRail {
+		head = styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render("launch")
+	}
+	if st.Task.Empty() && len(st.Items) == 0 {
+		return head + styleMuted.Render("  describe the task first")
+	}
+	return head + styleMuted.Render("  ·  ") + naLaunchSummary(m, st)
+}
+
 // naStrip is the narrow page's section strip: ‹ Agent · [Task] · Context 2
 // · Trust ›, the focused section bracketed and bold, the context counted.
 func naStrip(st *NewAgentState) string {
@@ -556,21 +582,19 @@ func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []strin
 	if st.Section == naTrust {
 		trust = trustLines(m, st.Trust, spawnCWD(m), w)
 	}
-	if st.Launching {
-		trust = append(trust, "  "+naStartingLine(m))
-	}
+	trust = append(trust, "  "+naLaunchLine(m, st))
 	rows := max(1, min(8, bh-7-len(trust)-len(notice)-len(naErrLines(st, w-2))-len(comp)))
 	lines := []string{naStrip(st), "  " + naAgentRow(m, st, " · ", true, w-2)}
 	lines = append(lines, indentLines(notice, 2)...)
 	if st.Section == naContext && len(st.Items) > 0 {
 		lines = append(lines, indentLines(naContextLines(m, st, max(w-2, 1), rows+2), 2)...)
 	} else {
-		lines = append(lines, indentLines(naEditorBox(m, st, w-2, rows, st.Section == naTask), 2)...)
+		lines = append(lines, indentLines(naEditorBox(m, st, w-2, rows), 2)...)
 		lines = append(lines, indentLines(comp, 2)...)
 		ctx := styleDim.Render("context: none yet")
 		if n := len(st.Items); n > 0 {
 			ctx = styleDim.Render(strings.Replace(naItemsTotal(st.Items), "item", "context item", 1)) +
-				styleMuted.Render("  (tab to view)")
+				styleMuted.Render("  (j to view)")
 		}
 		lines = append(lines, "  "+ctx)
 	}

@@ -204,11 +204,11 @@ func TestAgentScreen_EffortBracketed(t *testing.T) {
 	m = naPickTool(t, m, "claude")
 	require.Contains(t, naView(m), "["+m.NewAgent.choice().Effort+"]")
 	for range 6 {
-		m, _ = naKey(m, key("h"))
+		m, _ = naKey(m, key("-"))
 	}
-	require.Equal(t, "low", m.NewAgent.choice().Effort, "h stops at the first option")
-	m, _ = naKey(m, key("l"))
-	m, _ = naKey(m, key("l"))
+	require.Equal(t, "low", m.NewAgent.choice().Effort, "- stops at the first option")
+	m, _ = naKey(m, key("+"))
+	m, _ = naKey(m, key("+"))
 	require.Equal(t, "high", m.NewAgent.choice().Effort)
 	v := naView(m)
 	require.Contains(t, v, "[high]")
@@ -230,6 +230,8 @@ func TestAgentScreen_SkillsOnlyWithSkillArgs(t *testing.T) {
 	m = naPickTool(t, m, "claude")
 	require.Contains(t, naView(m), "SKILLS")
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
+	require.Equal(t, naPaneEffort, m.NewAgent.Pane, "models, then effort")
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
 	require.Equal(t, naPaneSkills, m.NewAgent.Pane)
 	m, _ = naKey(m, key(" "))
@@ -310,5 +312,5 @@ func TestAgentScreen_FitsEverySize(t *testing.T) {
 		}
 	}
 	m.Width, m.Height = 50, 20
-	require.Contains(t, naView(m), "‹ Agents · [Models] · Skills ›")
+	require.Contains(t, naView(m), "‹ Agents · [Models] · Effort · Skills ›")
 }

@@ -38,7 +38,7 @@
                       │                                                                                                 
                       │                                                                                                 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  esc back · j/k scroll · tab groups · 1-9 group · / filter                                                             
+  esc back · j/k scroll · ctrl+d/u half page · h groups · [ ] group · / filter                                          
 -- plain.80x24 --
                                                                                 
   ∴ REX › HELP                                                         rex dev  
@@ -63,7 +63,7 @@
                       │                                                         
                       │                                                         
 ────────────────────────────────────────────────────────────────────────────────
-  esc back · j/k scroll · tab groups · 1-9 group · / filter                     
+  esc back · j/k scroll · ctrl+d/u half page · h groups · [ ] group · / filter  
 -- plain.50x20 --
                                                   
   ∴ REX › HELP                                    
@@ -84,4 +84,4 @@
                                                   
                                                   
 ──────────────────────────────────────────────────
-  esc back · j/k scroll · 1-9 group · / filter    
+  esc back · j/k scroll · h/l group · / filter    
