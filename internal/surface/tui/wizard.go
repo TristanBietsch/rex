@@ -55,6 +55,8 @@ type WizardState struct {
 	// (default_spawn_tool / default_spawn_model): the model step starts on
 	// SpawnModel when its tool is the selected one.
 	SpawnTool, SpawnModel string
+	// Trust is the describe step's folder-trust choice (wizard_trust.go).
+	Trust wizTrustMode
 }
 
 func openWizard(m Model) (Model, tea.Cmd) {
@@ -387,10 +389,17 @@ func updateWizardDescribeStep(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if k.Type == tea.KeyEsc || k.String() == "esc" {
 		return closeWizard(m), nil
 	}
+	if m2, ok := wizardTrustKey(m, k); ok {
+		return m2, nil
+	}
 	switch k.Type {
 	case tea.KeyEnter:
 		cwd, _ := os.Getwd()
 		req := m.Wizard.request(cwd, existingSlugs(m))
+		var ok bool
+		if m, req, ok = wizardTrustRequest(m, cwd, req); !ok {
+			return m, nil
+		}
 		req.Cols, req.Rows = spawnSizeOf(m)
 		m.PendingSelectSlug = req.Slug
 		m.PendingSpawn = pendingSpawn{Skills: req.Skills}
@@ -652,6 +661,8 @@ func renderWizard(m Model) string {
 		title = styleSlug.Render("describe the task")
 		body = append(body, "")
 		body = append(body, wizInputBoxLines(m.Wizard.TaskText, m)...)
+		body = append(body, "")
+		body = append(body, wizTrustLines(m)...)
 	}
 
 	// Pad / truncate to a fixed line budget so the popup stays the same size.
@@ -678,7 +689,7 @@ func wizardFooter(step wizardStep) string {
 	case wizSkills:
 		return styleDim.Render("  j/k move   space toggle   enter next   b back   esc cancel")
 	case wizDescribe:
-		return styleDim.Render("  enter launch   b back (when empty)   esc cancel")
+		return styleDim.Render("  enter launch   ctrl+t/ctrl+a trust   b back (when empty)   esc cancel")
 	}
 	return ""
 }
