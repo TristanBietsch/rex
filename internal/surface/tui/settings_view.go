@@ -110,6 +110,20 @@ func settingsDetail(m Model, s settings.Setting, inner, helpN int, expanded bool
 		}
 		out = append(out, styleDim.Render(ansi.Truncate(line, inner, "…")))
 	}
+	if e := m.Settings.Edit; e != nil && e.ID == s.ID {
+		// The editor takes the option strip's line; the reason a save was
+		// refused takes the first help line.
+		draft := stylePrimary.Render(protocol.FlattenDisplayText(e.Text()))
+		if w := inner - 3; ansi.StringWidth(draft) > w {
+			draft = ansi.TruncateLeft(draft, ansi.StringWidth(draft)-w+1, "…")
+		}
+		out[1] = styleArrow.Render("› ") + draft + cursorLit()
+		if e.Err != "" {
+			out[2] = styleFailed.Render(ansi.Truncate(protocol.FlattenDisplayText(e.Err), inner, "…"))
+		} else {
+			out[2] = renderHints([][2]string{{"enter", "save"}, {"esc", "cancel"}, {"ctrl+u", "clear"}}, inner)
+		}
+	}
 	return out
 }
 
@@ -283,7 +297,11 @@ func renderSettings(m Model, termW int) string {
 	for len(detail) < 2+helpN {
 		detail = append(detail, "")
 	}
-	footer := wrapHints(settingsHints, inner)
+	hints := settingsHints
+	if st.Edit != nil {
+		hints = settingsEditHints
+	}
+	footer := wrapHints(hints, inner)
 
 	// Non-body rows: search line, blank, detail, blank, footer, plus two
 	// more: the borderless layout's header and blank, or a bordered panel's

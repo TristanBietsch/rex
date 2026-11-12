@@ -86,7 +86,7 @@ func TestRename_OpenEditSubmit(t *testing.T) {
 
 	m, _ = updateKey(m, key("r"))
 	require.Equal(t, FocusRename, m.Focus)
-	require.Equal(t, "old", m.Rename.Draft, "draft pre-filled with current name")
+	require.Equal(t, "old", m.Rename.Edit.Text, "draft pre-filled with current name")
 
 	m, _ = updateKey(m, key("ctrl+u"))
 	m = typeText(m, "auth  fix")
@@ -120,7 +120,7 @@ func TestRename_EmptyClearsAndCap(t *testing.T) {
 	m.namer = fn
 	m, _ = updateKey(m, key("r"))
 	m = typeText(m, strings.Repeat("y", protocol.MaxSessionNameRunes+10))
-	require.Equal(t, protocol.MaxSessionNameRunes, len([]rune(m.Rename.Draft)), "input capped at the limit")
+	require.Equal(t, protocol.MaxSessionNameRunes, len([]rune(m.Rename.Edit.Text)), "input capped at the limit")
 
 	m, _ = updateKey(m, key("ctrl+u"))
 	_, cmd := updateKey(m, key("enter"))

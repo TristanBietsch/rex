@@ -30,7 +30,8 @@ var Registry = []Setting{
 		ID: "prompt_glyph", Label: "Prompt glyph", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "λ",
 		Options: []string{"λ", "›", "❯", "▸", ">", "∷", "∴", "⛬", "⍜", "%"},
-		Help:    "Grapheme that prefixes the bottom prompt.",
+		Free:    true, Normalize: normalizePromptGlyph,
+		Help: "One character that prefixes the bottom prompt: pick a preset with the arrows, or press enter and type your own.",
 	},
 	{
 		ID: "reduce_motion", Label: "Reduce motion", Section: SectionAppearance, Apply: ApplyLive,

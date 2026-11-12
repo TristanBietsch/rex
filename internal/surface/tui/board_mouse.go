@@ -124,7 +124,7 @@ func clickRow(m Model, id string) (Model, tea.Cmd) {
 // updateSettingsMouse lets the wheel move the settings cursor; clicks are
 // ignored (the rows are too dense to target reliably).
 func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
-	if m.Settings == nil {
+	if m.Settings == nil || m.Settings.Edit != nil {
 		return m
 	}
 	switch msg.Button {

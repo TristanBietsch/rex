@@ -22,9 +22,60 @@ type SettingsState struct {
 	Searching bool
 	// HelpExpanded shows the whole help text in the detail pane.
 	HelpExpanded bool
+	// Edit is the open inline editor of a free-form string setting.
+	Edit *settingEdit
 	// Tools backs the quick-spawn tool/model/effort pickers so they only
 	// offer combinations the daemon will accept.
 	Tools []registry.Tool
+}
+
+// settingEdit is the inline editor of one free-form string setting. Saving
+// goes through Store.Set, so the registry's Normalize is the only validator
+// (the CLI and rex setup run the same one).
+type settingEdit struct {
+	ID  string
+	ed  lineEditor
+	Err string // why the last save was refused
+}
+
+// Text is the draft value.
+func (e *settingEdit) Text() string { return e.ed.Text }
+
+// settingFreeForm reports whether enter edits the setting as text: a
+// writable string with no fixed options, or one that accepts any valid value
+// beyond its suggested options (Free).
+func settingFreeForm(s settings.Setting) bool {
+	return s.Type == settings.TypeString && !s.ReadOnly && (len(s.Options) == 0 || s.Free)
+}
+
+// openSettingEdit starts editing the cursor setting with its current value.
+func openSettingEdit(m Model, s settings.Setting) Model {
+	m.Settings.Edit = &settingEdit{ID: s.ID, ed: lineEditor{Text: m.Store.String(s.ID), StripControl: true}}
+	return m
+}
+
+// settingEditKey drives the inline editor: enter saves through Store.Set
+// (a refusal keeps the editor open with the reason), esc cancels, every
+// other key edits the text.
+func settingEditKey(m Model, k tea.KeyMsg) Model {
+	e := m.Settings.Edit
+	switch k.Type {
+	case tea.KeyEsc:
+		m.Settings.Edit = nil
+	case tea.KeyEnter:
+		if err := m.Store.Set(e.ID, e.ed.Text); err != nil {
+			e.Err = err.Error()
+			return m
+		}
+		applyLive(&m, e.ID, m.Store.Get(e.ID))
+		_ = m.Store.Save(m.StorePath)
+		m.Settings.Edit = nil
+	default:
+		if e.ed.Edit(k) {
+			e.Err = ""
+		}
+	}
+	return m
 }
 
 func openSettings(m Model) (Model, tea.Cmd) {
@@ -77,6 +128,9 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Settings == nil {
 		return m, nil
 	}
+	if m.Settings.Edit != nil {
+		return settingEditKey(m, k), nil
+	}
 	if m.Settings.Searching {
 		return settingsSearchKey(m, k), nil
 	}
@@ -106,6 +160,9 @@ func settingsKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		m.Settings.CursorID = settingsAfter(m.Settings, -1)
 		return m, nil
 	case "enter", " ":
+		if s, ok := settings.Find(m.Settings.CursorID); ok && settingFreeForm(s) {
+			return openSettingEdit(m, s), nil
+		}
 		return applySettingsAction(m, 0), nil
 	case "+", "=", "l", "right":
 		return applySettingsAction(m, +1), nil
@@ -566,6 +623,9 @@ func applyLive(m *Model, id string, value any) {
 
 // settingsHints are the footer key hints, in display order.
 var settingsHints = []string{"↑↓ select", "←→ change", "enter toggle", "/ search", "tab section", "r reset", "? help", "esc close"}
+
+// settingsEditHints are the footer hints while the inline editor is open.
+var settingsEditHints = []string{"enter save", "esc cancel", "ctrl+u clear"}
 
 // wrapHints packs hints (3-space separated) into lines of at most width cells.
 func wrapHints(hints []string, width int) []string {

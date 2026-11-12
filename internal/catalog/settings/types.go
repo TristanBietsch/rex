@@ -47,6 +47,10 @@ type Setting struct {
 	// Hidden keeps the row off the TUI settings page. The setting stays in
 	// the registry, the store and `rex config`.
 	Hidden bool
+	// Free says any value that passes Normalize is accepted, so Options
+	// are only suggestions and the TUI offers a text editor as well as the
+	// cycle. A TypeString setting with no Options is free by type.
+	Free bool
 	// Normalize, when set, validates and tidies a string value in Store.Set
 	// (after type coercion). Load does not call it: a bad stored value stays
 	// visible so doctor can report it.
