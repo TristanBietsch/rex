@@ -27,6 +27,10 @@ type CheckResult struct {
 	Output []byte
 	// Truncated is true when output beyond the cap was dropped.
 	Truncated bool
+	// Leaked is true when the command exited 0 but a child it started kept
+	// its output open past the wait delay; the check counts as exit 0 and the
+	// leftover process group was killed.
+	Leaked bool
 	// Err is why the command could not start or finish (not found, bad
 	// folder, canceled); nil otherwise, including for a non-zero exit.
 	Err error
@@ -93,6 +97,13 @@ func RunCheck(ctx context.Context, argv []string, dir string, timeout time.Durat
 	switch {
 	case err == nil:
 		res.ExitCode = 0
+	case errors.Is(err, exec.ErrWaitDelay):
+		// The command itself exited 0; only a child it left behind held the
+		// output pipe. Kill what is left of its group.
+		res.ExitCode, res.Leaked = 0, true
+		if cmd.Cancel != nil {
+			_ = cmd.Cancel()
+		}
 	case errors.As(err, &ee):
 		res.ExitCode = ee.ExitCode()
 	default:
