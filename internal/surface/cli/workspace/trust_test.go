@@ -66,13 +66,20 @@ func TestWsTrust_TrustAndRevoke(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, wsp.ConfigHash(body), h)
 
-	// Unchanged: no question, nothing to confirm.
+	// Unchanged: no question, nothing to confirm, and nothing written, so
+	// an agent re-running it cannot re-add trust a concurrent rex ws
+	// trust -rm just removed (the check and a write are not atomic).
+	before, err := os.ReadFile(trustStore(t).Path())
+	require.NoError(t, err)
 	r.printer(t, core.FormatFlags{Output: "json"})
 	require.NoError(t, RunWs([]string{"trust", proj}))
 	d := decode[trustInfo](t, r)
 	require.False(t, d.Changed)
 	require.True(t, d.Config)
 	require.Equal(t, len(body), d.Size)
+	after, err := os.ReadFile(trustStore(t).Path())
+	require.NoError(t, err)
+	require.Equal(t, string(before), string(after), "the trust file is not rewritten")
 
 	// An id is refused: the registry could map it to a copy elsewhere.
 	require.Equal(t, core.ExitInvalidArgs, exitCode(t, RunWs([]string{"trust", w.ID})))

@@ -77,13 +77,16 @@ func (e env) trust(pos []string, rm bool) error {
 	sha := wsp.ConfigHash(body)
 	prev, was := ts.TrustedHash(w)
 	was = was && prev == sha
+	// Already trusted with these bytes: nothing to ask and nothing to
+	// write. Writing here (with no question, so from an agent too) could
+	// re-add trust a concurrent rex ws trust -rm removed after the check.
 	if !was {
 		if err := confirmTrust(w, body, sha); err != nil {
 			return err
 		}
-	}
-	if err := ts.Trust(w, sha); err != nil {
-		return wsError("ws trust", err)
+		if err := ts.Trust(w, sha); err != nil {
+			return wsError("ws trust", err)
+		}
 	}
 	_ = e.reg.Seen(w) // best effort, as rex ws id
 	data := trustInfo{Action: "trust", Changed: !was, ID: w.ID, Name: w.Name, Root: w.Root,
