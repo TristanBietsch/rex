@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -211,4 +212,20 @@ func TestWizardDescribe_WorkspaceBoardTrustsWorkspaceRoot(t *testing.T) {
 	require.True(t, req.TrustFolder)
 	require.Equal(t, ws, req.CWD)
 	require.Equal(t, "~/dev/other", m.Store.String("auto_trust_dirs"))
+}
+
+// A folder name is not trusted text: a checkout can hold a folder whose name
+// carries an escape sequence. The trust line must not send it raw to the
+// terminal.
+func TestWizardDescribe_TrustLineFlattensFolderName(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("control characters are not legal in Windows folder names")
+	}
+	m, _, proj, _ := spawnTrustWizard(t)
+	evil := filepath.Join(proj, "x\x1b]0;pwned\x07y")
+	require.NoError(t, os.MkdirAll(evil, 0o700))
+	t.Chdir(evil)
+	out := renderWizard(m)
+	require.NotContains(t, out, "\x1b]0;", "an OSC from a folder name reaches the terminal")
+	require.NotContains(t, out, "\x07")
 }

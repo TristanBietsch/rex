@@ -166,7 +166,7 @@ func wizTrustLines(m Model) []string {
 	case o.Covered != "":
 		return []string{"  " + styleDim.Render("trusted ("+trustSettingID+")")}
 	case o.Refused != "":
-		return []string{"  " + styleBootWarn.Render(o.Refused)}
+		return []string{"  " + styleBootWarn.Render(protocol.FlattenDisplayText(o.Refused))}
 	}
 	lines := []string{"  " + styleBootWarn.Render("folder not trusted") + styleDim.Render(": the agent will ask")}
 	lines = append(lines, trustOption(m.Wizard.Trust == trustSession, "ctrl+t", "trust this session only", o.SessionDir)...)
@@ -178,8 +178,10 @@ func wizTrustLines(m Model) []string {
 
 // trustOption is one choice: the key and what it does, then the exact folder
 // on its own line (cut from the left when very long, so the project name
-// stays).
+// stays). The folder name comes from disk, not from rex: it is flattened so
+// an escape sequence in it never reaches the terminal.
 func trustOption(on bool, key, what, dir string) []string {
+	dir = protocol.FlattenDisplayText(dir)
 	mark := "  "
 	if on {
 		mark = styleArrow.Render(selectGlyph()) + " "
