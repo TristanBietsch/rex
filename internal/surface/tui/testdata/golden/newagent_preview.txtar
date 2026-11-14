@@ -1,0 +1,87 @@
+-- plain.120x40 --
+                                                                                                                        
+  ∴ REX › NEW AGENT    ~/dev/rex                                                                                 draft  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ STEPS           │ PASTE 1                                                                           38 lines · 1.8 KB  
+ ✓ Agent         │ ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  
+ ✓ Task          │ │ --- FAIL: TestLogin (0.31s)                                                                     │  
+ ▸ Context    3  │ │     auth_test.go:88: token expired: got 401, want 200                                           │  
+ ✓ Trust   sess  │ │ FAIL                                                                                            │  
+ › Launch        │ │ FAIL  example.com/app/internal/auth 1.204s                                                      │  
+                 │ │     trace 01: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 02: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 03: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 04: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 05: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 06: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 07: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 08: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 09: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 10: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 11: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 12: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 13: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 14: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 15: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 16: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 17: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 18: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 19: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 20: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 21: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 22: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 23: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 24: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 25: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 26: example.com/app/internal/auth.check                                               │  
+                 │ │     trace 27: example.com/app/internal/auth.check                                               │  
+                 │ │ … 7 more lines                                                                                  │  
+                 │ └─────────────────────────────────────────────────────────────────────────────────────────────────┘  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  e edit · r rename · x remove · j/k scroll · esc back                                                                  
+-- plain.80x24 --
+                                                                                
+  ∴ REX › NEW AGENT    ~/dev/rex                                         draft  
+────────────────────────────────────────────────────────────────────────────────
+ STEPS           │ PASTE 1                                   38 lines · 1.8 KB  
+ ✓ Agent         │ ┌─────────────────────────────────────────────────────────┐  
+ ✓ Task          │ │ --- FAIL: TestLogin (0.31s)                             │  
+ ▸ Context    3  │ │     auth_test.go:88: token expired: got 401, want 200   │  
+ ✓ Trust   sess  │ │ FAIL                                                    │  
+ › Launch        │ │ FAIL  example.com/app/internal/auth 1.204s              │  
+                 │ │     trace 01: example.com/app/internal/auth.check       │  
+                 │ │     trace 02: example.com/app/internal/auth.check       │  
+                 │ │     trace 03: example.com/app/internal/auth.check       │  
+                 │ │     trace 04: example.com/app/internal/auth.check       │  
+                 │ │     trace 05: example.com/app/internal/auth.check       │  
+                 │ │     trace 06: example.com/app/internal/auth.check       │  
+                 │ │     trace 07: example.com/app/internal/auth.check       │  
+                 │ │     trace 08: example.com/app/internal/auth.check       │  
+                 │ │     trace 09: example.com/app/internal/auth.check       │  
+                 │ │     trace 10: example.com/app/internal/auth.check       │  
+                 │ │     trace 11: example.com/app/internal/auth.check       │  
+                 │ │ … 23 more lines                                         │  
+                 │ └─────────────────────────────────────────────────────────┘  
+────────────────────────────────────────────────────────────────────────────────
+  e edit · r rename · x remove · j/k scroll · esc back                          
+-- plain.50x20 --
+                                                  
+  ∴ REX › NEW AGENT                        draft  
+──────────────────────────────────────────────────
+  PASTE 1                        38 lines · 1.8 KB
+  ┌──────────────────────────────────────────────┐
+  │ --- FAIL: TestLogin (0.31s)                  │
+  │     auth_test.go:88: token expired: got 401… │
+  │ FAIL                                         │
+  │ FAIL  example.com/app/internal/auth 1.204s   │
+  │     trace 01: example.com/app/internal/auth… │
+  │     trace 02: example.com/app/internal/auth… │
+  │     trace 03: example.com/app/internal/auth… │
+  │     trace 04: example.com/app/internal/auth… │
+  │     trace 05: example.com/app/internal/auth… │
+  │     trace 06: example.com/app/internal/auth… │
+  │     trace 07: example.com/app/internal/auth… │
+  │ … 27 more lines                              │
+  └──────────────────────────────────────────────┘
+──────────────────────────────────────────────────
+  e edit · j/k scroll · esc back                  

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
+	"regexp"
+	"strings"
+	"sync"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
@@ -14,43 +16,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// StartLuaRuntime initializes the Lua scripting runtime and subscribes it to
-// store events. Returns (nil, nil) if Lua is disabled or fails to init —
-// daemon startup must not depend on user scripts.
-//
-// Running init.lua is bounded by lua.DefaultLoadTimeout. Handlers never run
-// on the store's broadcast path: events go through a lua.Dispatcher (bounded
-// queue, one goroutine, each call bounded by lua.DefaultHandlerTimeout). The
-// returned func unsubscribes from the store, then stops the dispatcher and
-// waits for it, interrupting a handler in flight. It may run before or after
-// Runtime.Close.
-func StartLuaRuntime(srv *server.Server, store *state.Store) (*lua.Runtime, func()) {
-	cfgPath := luaConfigPath()
-	if cfgPath == "" {
-		slog.Info("daemon: lua disabled (no config path)")
-		return nil, nil
-	}
-	return startLua(cfgPath, store, lua.Options{
-		Sender: func(sessionID, text string) error {
-			ch := srv.InputChannel(sessionID)
-			if ch == nil {
-				return fmt.Errorf("session %q has no input channel", sessionID)
-			}
-			payload := []byte(text)
-			select {
-			case ch <- payload:
-				return nil
-			case <-time.After(lua.DefaultSendTimeout):
-				return errors.New("send timed out")
-			}
-		},
-		Lister: func() []protocol.SessionSummary {
-			return store.Snapshot()
-		},
-	})
-}
-
-// startLua is StartLuaRuntime after the config path and callbacks are known.
+// startLua is StartLuaHost's start after the config path and callbacks are known.
 func startLua(cfgPath string, store *state.Store, opts lua.Options) (*lua.Runtime, func()) {
 	rt, err := lua.New(opts)
 	if err != nil {
@@ -62,14 +28,19 @@ func startLua(cfgPath string, store *state.Store, opts lua.Options) (*lua.Runtim
 		slog.Error("daemon: lua load failed; runtime still active for future reloads", "path", cfgPath, "err", err)
 	}
 
+	return rt, subscribeLua(rt, store)
+}
+
+// subscribeLua feeds store events to rt through a dispatcher; the returned
+// func stops it.
+func subscribeLua(rt *lua.Runtime, store *state.Store) func() {
 	d := lua.NewDispatcher(rt, lua.DispatcherOptions{})
 	unsubscribe := store.Subscribe(func(e state.Event) {
 		if eventType, data, ok := luaEvent(store, e); ok {
 			d.Enqueue(eventType, e.SessionID, data)
 		}
 	})
-
-	return rt, func() {
+	return func() {
 		unsubscribe()
 		d.Close()
 	}
@@ -99,13 +70,10 @@ func luaEvent(store *state.Store, e state.Event) (eventType string, data any, ok
 	}
 }
 
-// luaConfigPath returns the resolved path to the user's init.lua, or "" if
-// not configured or when a "~/" path cannot be resolved (no home directory).
-func luaConfigPath() string {
-	st, _, err := settings.LoadDefault()
-	if err != nil {
-		slog.Warn("daemon: settings load failed for lua path", "err", err)
-	}
+// luaConfigPathFrom returns the resolved path to the user's init.lua from
+// the lua_config_path setting in st, or "" if not configured or when a "~/"
+// path cannot be resolved (no home directory).
+func luaConfigPathFrom(st *settings.Store) string {
 	raw := st.String("lua_config_path")
 	if raw == "" {
 		return ""
@@ -116,4 +84,111 @@ func luaConfigPath() string {
 		return ""
 	}
 	return p
+}
+
+// LuaHost owns the daemon's init.lua runtime so a reload can rebuild it
+// (R20). The path is lua_config_path as read at daemon start (that setting
+// applies after a restart).
+type LuaHost struct {
+	mu    sync.Mutex
+	path  string
+	store *state.Store
+	opts  lua.Options
+	rt    *lua.Runtime
+	stop  func()
+	// closed: Close ran; a late Reload installs nothing.
+	closed bool
+}
+
+// StartLuaHost is StartLuaRuntime behind a LuaHost. It never fails: with no
+// path the host holds nothing and Reload does nothing.
+func StartLuaHost(srv *server.Server, store *state.Store, st *settings.Store) *LuaHost {
+	h := &LuaHost{path: luaConfigPathFrom(st), store: store, opts: lua.Options{
+		Sender: func(sessionID, text string) error {
+			return srv.SendRaw(sessionID, []byte(text), lua.DefaultSendTimeout)
+		},
+		Lister: func() []protocol.SessionSummary { return store.Snapshot() },
+	}}
+	if h.path == "" {
+		slog.Info("daemon: lua disabled (no config path)")
+		return h
+	}
+	h.rt, h.stop = startLua(h.path, store, h.opts)
+	return h
+}
+
+// Path is init.lua's path, "" when Lua is off.
+func (h *LuaHost) Path() string { return h.path }
+
+// Reload rebuilds the runtime from init.lua. A file that fails to load
+// keeps the previous runtime and its handlers (the error names
+// file:line); a missing file leaves no handlers.
+func (h *LuaHost) Reload() error {
+	if h == nil || h.path == "" {
+		return nil
+	}
+	rt, err := lua.New(h.opts)
+	if err != nil {
+		return fmt.Errorf("init.lua: %w", err)
+	}
+	if err := rt.LoadFile(h.path); err != nil {
+		rt.Close()
+		return luaFileError(err)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		rt.Close()
+		return nil
+	}
+	// The old dispatcher stops before the new one starts: an event is
+	// never handled twice (a handler may send input to a session).
+	if h.stop != nil {
+		h.stop()
+	}
+	if h.rt != nil {
+		h.rt.Close()
+	}
+	h.rt = rt
+	h.stop = subscribeLua(rt, h.store)
+	slog.Info("daemon: init.lua reloaded", "path", h.path)
+	return nil
+}
+
+// Close stops the runtime.
+func (h *LuaHost) Close() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.closed = true
+	if h.stop != nil {
+		h.stop()
+		h.stop = nil
+	}
+	if h.rt != nil {
+		h.rt.Close()
+		h.rt = nil
+	}
+}
+
+// luaSyntaxPos matches gopher-lua's parse error position,
+// "path line:N(column:M) near ...", so it can read path:N: near ....
+var luaSyntaxPos = regexp.MustCompile(` line:(\d+)\(column:\d+\) `)
+
+// luaFileError strips the runtime's `lua: LoadFile "path":` prefix and the
+// stack traceback so the message reads file:line: message on one line.
+func luaFileError(err error) error {
+	msg := err.Error()
+	if i := strings.Index(msg, "\": "); strings.HasPrefix(msg, "lua: LoadFile \"") && i > 0 {
+		msg = msg[i+3:]
+	}
+	if i := strings.Index(msg, "\nstack traceback:"); i >= 0 {
+		msg = msg[:i]
+	}
+	if loc := luaSyntaxPos.FindStringSubmatchIndex(msg); loc != nil {
+		msg = msg[:loc[0]] + ":" + msg[loc[2]:loc[3]] + ": " + msg[loc[1]:]
+	}
+	return errors.New(protocol.FlattenDisplayText(strings.TrimSpace(msg)))
 }

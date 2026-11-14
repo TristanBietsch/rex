@@ -27,6 +27,8 @@ Package also exports sanitize helpers used internally (see `sanitize.go`; not al
 
 ## Invariants
 
+`SupervisorConfig.ResumeCapture` (optional regexp) reads the resume id from the last output at exit. Exit order, on child exit and on `CompleteCh`: refresh screen text, capture, clear side-channels, set exit and write meta.json, `Transition`, then the `resume_id` patch.
+
 `Run` blocks until child exit, context cancel (`StateFailed`), or `CompleteCh` (`StateDone`). `Adapter` nil skips state classification.
 
 `OutputSink` must be non-blocking (server uses buffered fan-out).
@@ -47,7 +49,7 @@ Spawn and PTY errors fail `Run`. Context cancel marks failed state (distinct fro
 
 Initial prompt goroutine waits for `Adapter.IsReadyForInput` before pasting `InitialPrompt`. Idle sampling defaults to 200ms if `IdleTick` zero. `ReadySettle` additionally requires that much output silence; `PlainPaste` skips bracketed-paste markers (line REPLs like ollama). Tools that take the prompt on argv (claude/codex/antigravity/gemini) never use the paste path.
 
-A vt10x screen mirrors the child's output (resized with the PTY). Each chunk's transcript write, `OutputSink` call and screen write happen under one mutex, which the attach hook holds, so an attach snapshot never loses or doubles a chunk. Each tick with new visible output derives `last_line` and the summarizer's screen text (`Store.SetScreen`) from it via `internal/daemon/termtext`. Adapter-reported `done` is sticky. `meta.json` is written at start and on every state transition. `Env` entries are appended to the child environment (`REX_HOOK_FILE`, `REX_SESSION_ID`).
+A vt10x screen mirrors the child's output (resized with the PTY). Each chunk's transcript write, `OutputSink` call and screen write happen under one mutex, which the attach hook holds, so an attach snapshot never loses or doubles a chunk. A transcript write error (full disk) never ends the session: `pausingTranscript` drops transcript bytes for 30 s, retries, and logs the gap (`dropped_bytes`) when writing resumes; the screen, `OutputSink` and attach clients still get every byte. Each tick with new visible output derives `last_line` and the summarizer's screen text (`Store.SetScreen`) from it via `internal/daemon/termtext`. Adapter-reported `done` is sticky. `meta.json` is written at start and on every state transition. `Env` entries are appended to the child environment (`REX_HOOK_FILE`, `REX_SESSION_ID`).
 
 ## See also
 

@@ -2,6 +2,7 @@
 package state
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -36,6 +37,25 @@ type Session struct {
 	// restored from meta.json: subagents do not outlive the daemon.
 	Subagents int
 
+	// CostUSD is the session's cost so far, nil when unknown (usage off or
+	// no cost reported). Persisted in meta.json.
+	CostUSD *float64
+
+	// Prompts is how many prompts the user sent the agent (Claude Code's
+	// UserPromptSubmit hook), 0 when unknown. Not restored from meta.json.
+	Prompts int
+
+	// WaitReason is why a needs_input session waits (protocol.WaitReview or
+	// protocol.WaitInput), "" when unknown. Not restored from meta.json.
+	WaitReason string
+	// WaitingOn and WaitingSince say what a working session is blocked on
+	// (protocol.WaitShell and friends) and since when. Both are zero unless
+	// State is working; Store.Transition, SetExit and SetWaiting keep it so.
+	// They are written to meta.json but not restored by LoadAll (a restart
+	// maps a working session to crashed).
+	WaitingOn    string
+	WaitingSince time.Time
+
 	// Fleet optionally groups this session under a named label.
 	Fleet string
 
@@ -53,11 +73,52 @@ type Session struct {
 	// State is working). Maintained by Store.Transition.
 	WorkingSince time.Time
 
+	// EndedAt is the first time State became terminal (zero while live). It
+	// is never moved later, and cleared when the session goes live again.
+	EndedAt time.Time
+
+	// ResumeID is the agent's own conversation id (valid per
+	// protocol.ValidResumeID, lowercase), or "" when unknown.
+	ResumeID string
+
+	// TrustFolder is whether the folder was trusted for this session when
+	// it was created (NewSession.TrustFolder). Resume applies it again.
+	TrustFolder bool
+
+	// Skills are the library skills staged for this session
+	// (NewSession.Skills). Resume loads them again.
+	Skills []string
+
+	// LoopID and LoopIter name the loop that owns the session and its turn
+	// in progress ("" and 0 for an ordinary session).
+	LoopID   string
+	LoopIter int
+
+	// WorkspaceID is the workspace the daemon found around the session's
+	// CWD at spawn ("" for none). Never taken from a client.
+	WorkspaceID string
+
+	// AuditWritten is whether the current run's audit record was written. It
+	// is persisted in meta.json (so a restart does not write it twice) but
+	// is not part of the wire summary, and it clears when the session goes
+	// live again, so a resumed session writes a new record at its next end.
+	AuditWritten bool
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
+	// auditMu makes the audit write for one session run one at a time.
+	auditMu sync.Mutex
+	// auditFirst and auditPrompt are the initial prompt's first line and,
+	// when the audit_full_prompt setting was on at spawn, the whole prompt.
+	// Memory only: never persisted, never sent to clients.
+	auditFirst, auditPrompt string
 	// reaping is set once the retire sweep has claimed the session for
 	// deletion; Unretire is refused from then on.
 	reaping bool
+	// deleting is set when teardown starts, before the supervisor is stopped.
+	// Transition refuses terminal states from then on, so the supervisor's
+	// exit can never broadcast failed/done for a session being deleted.
+	deleting bool
 	// removed is set when the session leaves the store; WriteMeta skips
 	// removed sessions so a late write can't resurrect a deleted session.
 	removed bool
@@ -74,29 +135,75 @@ func (s *Session) Summary() protocol.SessionSummary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return protocol.SessionSummary{
-		ID:           s.ID,
-		ShortID:      s.ShortID,
-		ToolID:       s.ToolID,
-		ModelID:      s.ModelID,
-		Effort:       s.Effort,
-		Slug:         s.Slug,
-		Title:        s.Title,
-		CWD:          s.CWD,
-		State:        s.State,
-		StartedAt:    s.StartedAt,
-		LastEventAt:  s.LastEventAt,
-		LastLine:     s.LastLine,
-		Description:  s.Description,
-		ExitCode:     s.ExitCode,
-		Tokens:       s.Tokens,
-		OutputBytes:  s.OutputBytes,
-		Subagents:    s.Subagents,
-		Fleet:        s.Fleet,
-		Name:         s.Name,
-		RetireAt:     s.RetireAt,
-		RetiredAt:    s.RetiredAt,
-		WorkingSince: s.WorkingSince,
+		ID:            s.ID,
+		ShortID:       s.ShortID,
+		ToolID:        s.ToolID,
+		ModelID:       s.ModelID,
+		Effort:        s.Effort,
+		Slug:          s.Slug,
+		Title:         s.Title,
+		CWD:           s.CWD,
+		State:         s.State,
+		StartedAt:     s.StartedAt,
+		LastEventAt:   s.LastEventAt,
+		LastLine:      s.LastLine,
+		Description:   s.Description,
+		DescriptionAt: s.DescriptionAt,
+		ExitCode:      s.ExitCode,
+		Tokens:        s.Tokens,
+		OutputBytes:   s.OutputBytes,
+		Subagents:     s.Subagents,
+		CostUSD:       copyFloat(s.CostUSD),
+		Prompts:       s.Prompts,
+		WaitReason:    s.WaitReason,
+		WaitingOn:     s.WaitingOn,
+		WaitingSince:  s.WaitingSince,
+		Fleet:         s.Fleet,
+		Name:          s.Name,
+		RetireAt:      s.RetireAt,
+		RetiredAt:     s.RetiredAt,
+		WorkingSince:  s.WorkingSince,
+		EndedAt:       s.EndedAt,
+		ResumeID:      s.ResumeID,
+		TrustFolder:   s.TrustFolder,
+		Skills:        slices.Clone(s.Skills),
+		LoopID:        s.LoopID,
+		LoopIter:      s.LoopIter,
+		WorkspaceID:   s.WorkspaceID,
 	}
+}
+
+// IsTerminal reports whether st is done, failed or crashed.
+func IsTerminal(st protocol.State) bool { return isTerminal(st) }
+
+// isTerminal reports whether st is a state a session does not leave on its own.
+func isTerminal(st protocol.State) bool {
+	switch st {
+	case protocol.StateDone, protocol.StateFailed, protocol.StateCrashed:
+		return true
+	case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
+		return false
+	}
+	return false
+}
+
+// noteStateLocked updates EndedAt for a move to newState at now and returns
+// the patch entries to broadcast: ended_at (the value) when newState is
+// terminal, ended_at: nil when it clears a recorded end, else nil. The first
+// terminal time is kept. Caller holds s.mu.
+func (s *Session) noteStateLocked(newState protocol.State, now time.Time) map[string]any {
+	if isTerminal(newState) {
+		if s.EndedAt.IsZero() {
+			s.EndedAt = now
+		}
+		return map[string]any{"ended_at": s.EndedAt}
+	}
+	if !s.EndedAt.IsZero() {
+		s.EndedAt = time.Time{}
+		s.AuditWritten = false // a new run; its end gets its own record
+		return map[string]any{"ended_at": nil}
+	}
+	return nil
 }
 
 // SetExit records how the child exited (state + optional exit code) under
@@ -112,12 +219,66 @@ func (s *Session) SetExit(final protocol.State, code *int) {
 	}
 	if final != protocol.StateWorking {
 		s.WorkingSince = time.Time{}
+		s.WaitingOn, s.WaitingSince = "", time.Time{}
 	}
-	s.LastEventAt = time.Now().UTC()
+	now := time.Now().UTC()
+	s.noteStateLocked(final, now)
+	s.LastEventAt = now
 }
 
 func (s *Session) isRemoved() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.removed
+}
+
+// SetAuditText keeps the initial prompt for the audit trail: its first line
+// and (possibly "") the whole prompt. It lives in memory only.
+func (s *Session) SetAuditText(first, full string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.auditFirst, s.auditPrompt = first, full
+}
+
+// AuditText returns what SetAuditText stored.
+func (s *Session) AuditText() (first, full string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.auditFirst, s.auditPrompt
+}
+
+// AuditOnce runs write unless this run's audit record is already written.
+// Callers for one session run one after another, so a second caller sees
+// the first one's result. The run counts as written only when write
+// returns nil. wrote reports whether write ran and succeeded.
+func (s *Session) AuditOnce(write func() error) (wrote bool, err error) {
+	s.auditMu.Lock()
+	defer s.auditMu.Unlock()
+	if s.AuditIsWritten() {
+		return false, nil
+	}
+	if err := write(); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	s.AuditWritten = true
+	s.mu.Unlock()
+	return true, nil
+}
+
+// AuditIsWritten reports whether the current run's record was written.
+func (s *Session) AuditIsWritten() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.AuditWritten
+}
+
+// copyFloat returns a pointer to a copy of *p (nil stays nil), so a summary
+// never aliases the session's value.
+func copyFloat(p *float64) *float64 {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
 }

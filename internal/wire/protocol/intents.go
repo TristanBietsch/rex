@@ -19,7 +19,19 @@ const (
 	IntentSetSessionName   = "SetSessionName"
 	IntentRetire           = "Retire"
 	IntentUnretire         = "Unretire"
+	IntentResume           = "Resume"
 	IntentReload           = "Reload"
+	// IntentRestart asks the daemon to restart; see Restart.
+	IntentRestart = "Restart"
+	// IntentSwapBoards asks every connected board to re-exec into the
+	// installed binary (a swap event); IntentBoards lists board connections.
+	IntentSwapBoards = "SwapBoards"
+	IntentBoards     = "Boards"
+	IntentUndo       = "Undo"
+	IntentRedo       = "Redo"
+	// IntentRescanTools asks the daemon to probe PATH for the registry's
+	// tools again; the reply is a ToolsChanged event with the intent's ID.
+	IntentRescanTools = "RescanTools"
 )
 
 // Hello is the first message a client sends after connect. The daemon
@@ -30,9 +42,49 @@ type Hello struct {
 	// Clients before acks sent their program name here.
 	ClientVersion string `json:"client_version"`
 	// Client names the client program ("rex-cli", "rex-tui", ...), for
-	// the daemon log. Empty from older clients.
+	// the daemon log and, for ClientTUI, to count a board viewer. Empty from
+	// older clients.
 	Client string `json:"client,omitempty"`
+	// PID and Build identify the client process and its binary build (R20
+	// rex upgrade reports per process). Optional.
+	PID   int    `json:"pid,omitempty"`
+	Build string `json:"build,omitempty"`
 }
+
+// RestartHot is Restart.Mode for a hot restart: the daemon re-execs itself
+// in place and every running session survives. The only mode the daemon
+// takes; a cold restart is a Shutdown plus a start, done by the client.
+const RestartHot = "hot"
+
+// Restart is the payload of IntentRestart. On success the daemon never
+// replies: the connection closes when the new image takes over, and the
+// client confirms through a new Hello (Snapshot.DaemonStartedAt changes).
+// A refused or failed restart replies with an Error and the old daemon
+// keeps running.
+type Restart struct {
+	Mode string `json:"mode"`
+}
+
+// BoardInfo is one board connection (IntentBoards, IntentSwapBoards).
+type BoardInfo struct {
+	PID   int    `json:"pid,omitempty"`
+	Build string `json:"build,omitempty"`
+}
+
+// Boards is the Ack payload of IntentBoards and IntentSwapBoards.
+type Boards struct {
+	Boards []BoardInfo `json:"boards"`
+}
+
+// SwapBoards is the payload of IntentSwapBoards: boards whose build is not
+// Build re-exec into their installed binary.
+type SwapBoards struct {
+	Build string `json:"build,omitempty"`
+}
+
+// ClientTUI is the Hello.Client of the rex board. The daemon counts only
+// these connections as someone looking at the board.
+const ClientTUI = "rex-tui"
 
 // Subscribe controls what events flow back. SessionID == "" means board-wide updates only.
 // Replay asks the daemon to emit the tail of the session's transcript as a SessionOutput
@@ -72,6 +124,50 @@ type NewSession struct {
 	InitialPrompt string `json:"initial_prompt,omitempty"`
 	// Fleet optionally assigns the new session to a named fleet.
 	Fleet string `json:"fleet,omitempty"`
+	// TrustFolder asks the daemon to trust CWD for this session as if it
+	// were listed in auto_trust_dirs: the agent's folder-trust dialog is
+	// answered or avoided, and skip_permissions may apply. CWD must be an
+	// absolute folder that is neither a filesystem root nor the home folder
+	// and has no "..", else the intent is bad_intent. The choice is kept for
+	// Resume.
+	TrustFolder bool `json:"trust_folder,omitempty"`
+	// Name is the session's display name (see NormalizeSessionName); empty
+	// shows the slug. SetSessionName changes it later.
+	Name string `json:"name,omitempty"`
+	// Skills are names from the daemon's skill library to load into this
+	// session only (at most 16, unique). The daemon copies them into the
+	// session directory; the tool must declare skill_args and the
+	// spawn_skills setting must be on, else the intent is bad_intent. Names
+	// only: the daemon never takes a path from a client.
+	Skills []string `json:"skills,omitempty"`
+	// Cols and Rows are the PTY size to start the agent at, so a client that
+	// will attach at a known size needs no first resize. The daemon clamps
+	// them (see ClampTermSize); 0 means the default (120x32). A daemon that
+	// predates the fields ignores them.
+	Cols uint16 `json:"cols,omitempty"`
+	Rows uint16 `json:"rows,omitempty"`
+	// ContextSummary lists the context items the client folded into
+	// InitialPrompt (kind, name, size; never content), for the card detail
+	// and audit. Metadata only: the daemon accepts it and does not store it
+	// yet. A daemon that predates the field ignores it.
+	ContextSummary []ContextRef `json:"context_summary,omitempty"`
+}
+
+// MaxInitialPromptBytes caps NewSession.InitialPrompt (UTF-8 bytes). It
+// stays under Linux's 128 KiB per-argv-element limit (MAX_ARG_STRLEN), so a
+// prompt that is too big is bad_intent instead of a failed exec.
+const MaxInitialPromptBytes = 96 << 10
+
+// ContextRef describes one context item of a new session's first prompt.
+type ContextRef struct {
+	// Kind is "paste", "file", "dir" or "url".
+	Kind string `json:"kind"`
+	// Name is "paste N", a workspace-relative path (a dir ends in "/") or
+	// the URL.
+	Name string `json:"name"`
+	// Bytes is the paste or file size, the listed files' total for a dir,
+	// 0 for a URL.
+	Bytes int `json:"bytes,omitempty"`
 }
 
 // SetSessionFleet updates the fleet label of an existing session.
@@ -150,4 +246,50 @@ type Retire struct {
 // started clearing the session.
 type Unretire struct {
 	SessionID string `json:"session_id"`
+}
+
+// Resume makes a session live and not marked done. A running session just
+// loses its done mark. An exited (done, failed or crashed) session is
+// respawned in place with the tool's resume arguments: same id, slug, row
+// and transcript. Fails with bad_state when the tool cannot resume the
+// session (no resume block, or no known resume id) or the daemon has
+// started clearing it, and with too_many_sessions at the concurrency cap.
+type Resume struct {
+	SessionID string `json:"session_id"`
+}
+
+// Undo restores a session's folder to how it was before its last Turns
+// agent turns (default 1), from the turn snapshots (setting turn_snapshots).
+// The daemon first captures the folder's current state, so Redo can bring it
+// back. The reply is an UndoResult. It fails with bad_intent when turn
+// snapshots are off, and with bad_state when the session is working, when
+// another live session shares the folder (unless Force), when the folder is
+// not inside a repository, or when there is no recorded turn to undo.
+type Undo struct {
+	SessionID string `json:"session_id"`
+	// Turns is how many turns to go back. 0 means 1.
+	Turns int `json:"turns,omitempty"`
+	// Force undoes although another live session works in the same folder
+	// (its changes are reverted too).
+	Force bool `json:"force,omitempty"`
+	// DryRun makes no change: the reply lists what would be restored and
+	// deleted, and has no safety tree. The same refusals apply.
+	DryRun bool `json:"dry_run,omitempty"`
+	// Expect is the Target of the dry run the user confirmed. When set and
+	// the turn to go back to is now a different one (the session ran another
+	// turn), the daemon refuses with bad_state and changes nothing.
+	Expect string `json:"expect,omitempty"`
+}
+
+// Redo brings back the state the latest Undo replaced. The reply is an
+// UndoResult. Redo history is dropped when the session starts another turn.
+// The failures are Undo's, plus bad_state when nothing is waiting to be
+// redone.
+type Redo struct {
+	SessionID string `json:"session_id"`
+	// Force and DryRun: as for Undo.
+	Force  bool `json:"force,omitempty"`
+	DryRun bool `json:"dry_run,omitempty"`
+	// Expect: as for Undo.
+	Expect string `json:"expect,omitempty"`
 }

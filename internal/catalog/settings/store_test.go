@@ -14,7 +14,7 @@ import (
 
 func TestStore_DefaultsPopulated(t *testing.T) {
 	s := NewStore()
-	require.Equal(t, "default", s.Get("color_scheme"))
+	require.Equal(t, "default", s.Get("theme"))
 	require.Equal(t, "braille", s.Get("spinner"))
 	require.Equal(t, true, s.Get("mouse_enabled"))
 	require.Equal(t, 16, s.Get("max_concurrent_sessions"))
@@ -50,7 +50,7 @@ func TestStore_LoadOverridesDefaults(t *testing.T) {
 	s := NewStore()
 	require.NoError(t, s.Load(path))
 	require.Equal(t, "pulse", s.Get("spinner"))
-	require.Equal(t, 0.5, s.Get("master_volume"))
+	require.Equal(t, 25, s.Get("master_volume"), "a legacy 0.5 reads as 25 of 50")
 }
 
 func TestLoadDefault(t *testing.T) {
@@ -141,4 +141,22 @@ func TestStore_SaveModes(t *testing.T) {
 		require.NoError(t, s.Save(path))
 		requireMode(t, path, mode)
 	}
+}
+
+func TestSetAutoTrustDirsValidates(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	for _, bad := range []string{"/", "~", "rel", "a/../b", "/ok" + string(filepath.ListSeparator) + "rel"} {
+		s := NewStore()
+		require.Error(t, s.Set("auto_trust_dirs", bad), bad)
+		require.Equal(t, "", s.String("auto_trust_dirs"), bad)
+	}
+
+	s := NewStore()
+	require.NoError(t, s.Set("auto_trust_dirs", ""))
+	sep := string(filepath.ListSeparator)
+	dir := t.TempDir()
+	require.NoError(t, s.Set("auto_trust_dirs", " "+dir+sep+sep+" "+dir+"/x "))
+	require.Equal(t, dir+sep+dir+"/x", s.String("auto_trust_dirs"))
 }

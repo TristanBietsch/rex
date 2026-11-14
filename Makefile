@@ -1,4 +1,4 @@
-.PHONY: build build-all install uninstall \
+.PHONY: build build-all install uninstall dist \
 	test test-race test-e2e vet lint lint-windows vuln \
 	cover cover-check fuzz check clean \
 	bench bench-integration bench-profile bench-check bench-compare
@@ -17,14 +17,25 @@ GOLANGCI_LINT ?= go run $(GOLANGCI_LINT_PKG)
 GOLANGCI_LINT_WINDOWS ?= go run -exec 'env GOOS=windows' $(GOLANGCI_LINT_PKG)
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
+# VERSION is stamped into both binaries (rex --version). Release builds pass
+# the tag (tools/release/build.sh); local builds use git describe, or "dev".
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION_LDFLAGS := -X github.com/tristanbietsch/rex/internal/version.Version=$(VERSION)
+
 # FUZZTIME is how long `make fuzz` runs each fuzz target.
 FUZZTIME ?= 30s
 
 build: build-all
 
 build-all:
-	go build -o rex-daemon ./cmd/rex-daemon
-	go build -o rex ./cmd/rex
+	go build -ldflags '$(VERSION_LDFLAGS)' -o rex-daemon ./cmd/rex-daemon
+	go build -ldflags '$(VERSION_LDFLAGS)' -o rex ./cmd/rex
+
+# dist builds the release archives and SHA256SUMS into dist/ for the
+# targets this host can build (see tools/release/build.sh).
+# Example: make dist VERSION=v2.0.0
+dist:
+	tools/release/build.sh $(VERSION)
 
 # install drops the rex and rex-daemon binaries into $(PREFIX)/bin.
 # Default PREFIX is ~/.local — make sure ~/.local/bin is on your PATH.

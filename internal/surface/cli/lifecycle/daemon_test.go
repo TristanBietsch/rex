@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -265,4 +266,80 @@ func TestDaemonRestart_stopFailureDoesNotStart(t *testing.T) {
 	err := f.ctl(t).restart()
 	requireExitCode(t, err, core.ExitGeneric)
 	require.Equal(t, []string{"shutdown"}, f.calls)
+}
+
+func TestRunDaemon_help(t *testing.T) {
+	for _, a := range []string{"-h", "--help", "help"} {
+		require.ErrorIs(t, RunDaemon([]string{a}), core.ErrHelpShown, a)
+	}
+}
+
+// R20: a reachable daemon is hot-restarted by default; nothing is stopped
+// or started, and the report says how many sessions were kept.
+func TestDaemonRestart_hotByDefault(t *testing.T) {
+	f := &fakeCtl{up: true, pid: "123"}
+	c := f.ctl(t)
+	c.hot = func(context.Context, string) (daemonctl.HotResult, error) {
+		f.calls = append(f.calls, "hot")
+		return daemonctl.HotResult{
+			Before: daemonctl.DaemonInfo{PID: 123, Build: "aaa", Live: 2},
+			After:  daemonctl.DaemonInfo{PID: 123, Build: "bbb", Live: 2},
+		}, nil
+	}
+	require.NoError(t, c.restart())
+	require.Equal(t, []string{"hot"}, f.calls)
+	require.Contains(t, f.out.String(), "hot-restarted (pid 123, 2 session(s) kept, build aaa → bbb)")
+}
+
+// An old daemon (or a refused hot restart) falls back to a cold restart,
+// which asks first when sessions would die; without a terminal it needs
+// -yes and stops nothing.
+func TestDaemonRestart_coldFallbackAsks(t *testing.T) {
+	f := &fakeCtl{up: true, pid: "123"}
+	c := f.ctl(t)
+	c.hot = func(context.Context, string) (daemonctl.HotResult, error) {
+		return daemonctl.HotResult{}, fmt.Errorf("%w: this rex-daemon predates hot restart", daemonctl.ErrHotUnavailable)
+	}
+	c.info = func(context.Context, string) (daemonctl.DaemonInfo, error) { return daemonctl.DaemonInfo{Live: 3}, nil }
+	var asked string
+	c.confirm = func(q string, r core.Refusal) (bool, error) {
+		asked = q
+		return false, core.Errorf(core.ExitOperationRefused, r.Hint, "needs -yes")
+	}
+	err := c.restart()
+	requireExitCode(t, err, core.ExitOperationRefused)
+	require.Contains(t, asked, "kills 3 running session(s)")
+	require.Empty(t, f.calls, "nothing stopped without consent")
+	require.Contains(t, f.errOut.String(), "predates hot restart")
+
+	c.yes = true
+	require.NoError(t, c.restart())
+	require.Equal(t, []string{"shutdown", "start"}, f.calls)
+}
+
+// -cold skips the hot path; with no live session it does not ask.
+func TestDaemonRestart_coldFlag(t *testing.T) {
+	f := &fakeCtl{up: true, pid: "123"}
+	c := f.ctl(t)
+	c.cold = true
+	c.hot = func(context.Context, string) (daemonctl.HotResult, error) {
+		t.Fatal("hot restart with -cold")
+		return daemonctl.HotResult{}, nil
+	}
+	c.info = func(context.Context, string) (daemonctl.DaemonInfo, error) { return daemonctl.DaemonInfo{}, nil }
+	require.NoError(t, c.restart())
+	require.Equal(t, []string{"shutdown", "start"}, f.calls)
+}
+
+// A hot restart that failed after the request (the daemon did not come
+// back) is an error, never silently followed by a cold start.
+func TestDaemonRestart_hotFailureIsReported(t *testing.T) {
+	f := &fakeCtl{up: true}
+	c := f.ctl(t)
+	c.hot = func(context.Context, string) (daemonctl.HotResult, error) {
+		return daemonctl.HotResult{}, errors.New("rex-daemon did not come back")
+	}
+	err := c.restart()
+	requireExitCode(t, err, core.ExitGeneric)
+	require.Empty(t, f.calls)
 }

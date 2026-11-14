@@ -9,7 +9,8 @@ Router for AI agents working in this repository.
 | New agent: current state, open work | [HANDOFF.md](HANDOFF.md) |
 | Navigation / "what is this?" | [README.md](README.md) |
 | Layout / new file placement | [../STRUCTURE.md](../STRUCTURE.md) |
-| Edit CLI | [modules/cli.md](modules/cli.md), [interfaces/cli.md](interfaces/cli.md) |
+| Edit CLI | [modules/cli.md](modules/cli.md) (the output-kit contract), [interfaces/cli.md](interfaces/cli.md) |
+| Drive rex from an agent | `REX_AGENT=1 rex …`; `rex agent-help` prints the usage card ([../howto/agents.md](../howto/agents.md)) |
 | Edit TUI | [modules/tui.md](modules/tui.md) |
 | Edit daemon / sessions | [modules/server.md](modules/server.md), [modules/pty.md](modules/pty.md) |
 | Protocol or API shape | [modules/protocol.md](modules/protocol.md), [data/schemas.md](data/schemas.md) |

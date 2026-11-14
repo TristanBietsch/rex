@@ -1,0 +1,22 @@
+-- text --
+  version  v2.0.0
+  remote   v2.1.0
+  status   update-available
+
+› rex update  install it
+-- txt --
+version  v2.0.0
+remote   v2.1.0
+status   update-available
+-- md --
+| Key | Value |
+| --- | --- |
+| version | v2.0.0 |
+| remote | v2.1.0 |
+| status | update-available |
+
+`rex update` install it
+-- json --
+{"v":1,"cmd":"update","data":{"version":"v2.0.0","remote":"v2.1.0","status":"update-available"}}
+-- agent --
+ok cmd=update version=v2.0.0 remote=v2.1.0 status=update-available

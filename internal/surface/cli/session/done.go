@@ -27,11 +27,13 @@ func defaultRetireAfter() time.Duration {
 func RunDone(args []string) error {
 	fs := flag.NewFlagSet("done", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	after := fs.Duration("after", 0, "clear after this long (e.g. 2h, 72h); default retire_after_hours")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := out.Parse(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "done: <selector> [-after 72h]")
 	}
 	ttl := *after
@@ -46,13 +48,17 @@ func RunDone(args []string) error {
 		return err
 	}
 	defer c.Close()
-	sess, err := core.ResolveSelector(c, fs.Arg(0))
+	sess, err := core.ResolveSelector(c, rest[0])
 	if err != nil {
 		return err
 	}
 	if !sess.RetireAt.IsZero() {
-		fmt.Printf("%s: already marked done — clears in %s (rex undone to cancel)\n", sess.Slug, shortDuration(time.Until(sess.RetireAt)))
-		return nil
+		left := time.Until(sess.RetireAt)
+		return emitAction("done", doneData{refOf(sess), "already_marked", int(left.Seconds())},
+			sess.Slug+" is already marked done · clears in "+shortDuration(left),
+			fmt.Sprintf("%s: already marked done — clears in %s (rex undone to cancel)", sess.Slug, shortDuration(left)),
+			sessionFields(sess, core.Field{Key: "outcome", Val: "already_marked"}, core.Field{Key: "clears_in_s", Val: int(left.Seconds())}),
+			core.Hint{Cmd: "rex undone " + sess.ShortID, Text: "cancel"})
 	}
 	reqID := "cli-done-" + sess.ShortID
 	if err := c.Retire(sess.ID, ttl, reqID); err != nil {
@@ -61,18 +67,23 @@ func RunDone(args []string) error {
 	if err := awaitPatch(c, sess.ID, reqID, "retire_at"); err != nil {
 		return err
 	}
-	fmt.Printf("%s: marked done — clears in %s (rex undone %s to cancel)\n", sess.Slug, shortDuration(ttl), sess.ShortID)
-	return nil
+	return emitAction("done", doneData{refOf(sess), "marked", int(ttl.Seconds())},
+		"marked done "+sess.ShortID+" "+sess.Slug+" · clears in "+shortDuration(ttl),
+		fmt.Sprintf("%s: marked done — clears in %s (rex undone %s to cancel)", sess.Slug, shortDuration(ttl), sess.ShortID),
+		sessionFields(sess, core.Field{Key: "outcome", Val: "marked"}, core.Field{Key: "clears_in_s", Val: int(ttl.Seconds())}),
+		core.Hint{Cmd: "rex undone " + sess.ShortID, Text: "cancel"})
 }
 
 // RunUndone cancels a pending `rex done`.
 func RunUndone(args []string) error {
 	fs := flag.NewFlagSet("undone", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	rest, err := out.Parse(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "undone: <selector>")
 	}
 	c, err := socket.Dial()
@@ -80,13 +91,13 @@ func RunUndone(args []string) error {
 		return err
 	}
 	defer c.Close()
-	sess, err := core.ResolveSelector(c, fs.Arg(0))
+	sess, err := core.ResolveSelector(c, rest[0])
 	if err != nil {
 		return err
 	}
 	if sess.RetireAt.IsZero() {
-		fmt.Printf("%s: not marked done\n", sess.Slug)
-		return nil
+		return emitAction("undone", undoneData{refOf(sess), "not_marked"}, sess.Slug+" is not marked done",
+			sess.Slug+": not marked done", sessionFields(sess, core.Field{Key: "outcome", Val: "not_marked"}))
 	}
 	reqID := "cli-undone-" + sess.ShortID
 	if err := c.Unretire(sess.ID, reqID); err != nil {
@@ -95,6 +106,22 @@ func RunUndone(args []string) error {
 	if err := awaitPatch(c, sess.ID, reqID, "retire_at"); err != nil {
 		return err
 	}
-	fmt.Printf("%s: unmarked\n", sess.Slug)
-	return nil
+	return emitAction("undone", undoneData{refOf(sess), "unmarked"}, "unmarked "+sess.ShortID+" "+sess.Slug,
+		sess.Slug+": unmarked", sessionFields(sess, core.Field{Key: "outcome", Val: "unmarked"}))
+}
+
+// doneData is the `-o json` payload of rex done.
+type doneData struct {
+	actionData
+	// Outcome is "marked" or "already_marked".
+	Outcome string `json:"outcome"`
+	// ClearsInS is the seconds until the daemon clears the session.
+	ClearsInS int `json:"clears_in_s"`
+}
+
+// undoneData is the `-o json` payload of rex undone.
+type undoneData struct {
+	actionData
+	// Outcome is "unmarked" or "not_marked".
+	Outcome string `json:"outcome"`
 }

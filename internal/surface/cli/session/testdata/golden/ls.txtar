@@ -1,0 +1,85 @@
+-- text.w40 --
+Sessions  1 ready · 1 working · 1 done
+
+     ID    STATE   MODEL   SLUG     IDLE
+  ⚑  a91c  ready   gemin…  refact…   12s
+  ⠋  7d4f  worki…  opus …  fix-au…    2m
+     Auth fix
+  ✓  0b2e  done    sonne…  write-…    1h
+     Tests ✓done
+  ◌  1111  queued  short   a-slug…     -
+     日本語の名前
+  ✗  2222  failed  a-mod…  日本語…    2d
+
+› rex attach <id>  open a session
+-- text.w80 --
+Sessions  1 ready · 1 working · 1 done
+
+     ID    STATE    TOOL         MODEL         SLUG           IDLE  NAME
+  ⚑  a91c  ready    antigravity  gemini-3-pro  refactor-db     12s
+  ⠋  7d4f  working  claude       opus · high   fix-auth-flow    2m  Auth fix
+  ✓  0b2e  done     claude       sonnet · me…  write-tests      1h  Tests ✓done
+  ◌  1111  queued   echo         short         a-slug-that-…     -  日本語の名前
+  ✗  2222  failed   echo         a-model-nam…  日本語のスラ…    2d
+
+› rex attach <id>  open a session
+-- text.w120 --
+Sessions  1 ready · 1 working · 1 done
+
+     ID    STATE    TOOL         MODEL                 SLUG                      IDLE  NAME
+  ⚑  a91c  ready    antigravity  gemini-3-pro          refactor-db                12s
+  ⠋  7d4f  working  claude       opus · high           fix-auth-flow               2m  Auth fix
+  ✓  0b2e  done     claude       sonnet · medium       write-tests                 1h  Tests ✓done
+  ◌  1111  queued   echo         short                 a-slug-that-is-much-lon…     -  日本語の名前
+  ✗  2222  failed   echo         a-model-name-longer…  日本語のスラッグ日本語…     2d
+
+› rex attach <id>  open a session
+-- text.color.w80 --
+␛[1;38;2;230;232;238mSessions␛[0m  ␛[38;2;139;145;161m1 ready · 1 working · 1 done␛[0m
+
+     ␛[38;2;139;145;161mID␛[0m    ␛[38;2;139;145;161mSTATE␛[0m    ␛[38;2;139;145;161mTOOL␛[0m         ␛[38;2;139;145;161mMODEL␛[0m         ␛[38;2;139;145;161mSLUG␛[0m           ␛[38;2;139;145;161mIDLE␛[0m  ␛[38;2;139;145;161mNAME␛[0m
+  ␛[38;2;75;227;127m⚑␛[0m  a91c  ␛[38;2;75;227;127mready␛[0m    antigravity  gemini-3-pro  refactor-db     ␛[38;2;139;145;161m12s␛[0m
+  ␛[38;2;110;168;254m⠋␛[0m  7d4f  ␛[38;2;110;168;254mworking␛[0m  claude       opus · high   fix-auth-flow    ␛[38;2;139;145;161m2m␛[0m  Auth fix
+  ␛[38;2;78;158;110m✓␛[0m  0b2e  ␛[38;2;78;158;110mdone␛[0m     claude       sonnet · me…  write-tests      ␛[38;2;139;145;161m1h␛[0m  Tests ✓done
+  ␛[38;2;110;168;254m◌␛[0m  1111  ␛[38;2;110;168;254mqueued␛[0m   echo         short         a-slug-that-…     ␛[38;2;139;145;161m-␛[0m  日本語の名前
+  ␛[38;2;242;107;107m✗␛[0m  2222  ␛[38;2;242;107;107mfailed␛[0m   echo         a-model-nam…  日本語のスラ…    ␛[38;2;139;145;161m2d␛[0m
+
+␛[1;38;2;179;146;240m› rex attach <id>␛[0m  ␛[38;2;139;145;161mopen a session␛[0m
+-- txt --
+ID     STATE         TOOL       MODEL                 SLUG                      LAST EVENT  NAME
+a91c   needs_input   antigravity  gemini-3-pro          refactor-db               12s ago     
+7d4f   working       claude     opus · high           fix-auth-flow             2m ago      Auth fix
+0b2e   done          claude     sonnet · medium       write-tests               1h ago      Tests ✓done
+1111   queued        echo       short                 a-slug-that-is-much-lon…  -           日本語の名前
+2222   failed        echo       a-model-name-longer…  日本語のスラッグ日本語…   2d ago      
+-- md --
+### Sessions
+
+*1 ready · 1 working · 1 done*
+
+| ID | State | Tool | Model | Slug | Idle | Name |
+| --- | --- | --- | --- | --- | ---: | --- |
+| a91c | ready | antigravity | gemini-3-pro | refactor-db | 12s |  |
+| 7d4f | working | claude | opus · high | fix-auth-flow | 2m | Auth fix |
+| 0b2e | done | claude | sonnet · medium | write-tests | 1h | Tests |
+| 1111 | queued | echo | short | a-slug-that-is-much-longer-than-twenty-four-cells | - | 日本語の名前 |
+| 2222 | failed | echo | a-model-name-longer-than-20-cells | 日本語のスラッグ日本語のスラッグ日本語のスラッグ | 2d |  |
+
+`rex attach <id>` open a session
+-- json --
+{"v":1,"cmd":"ls","data":[{"id":"a91c0000","short_id":"a91c","tool_id":"antigravity","model_id":"gemini-3-pro","slug":"refactor-db","cwd":"","state":"needs_input","started_at":"0001-01-01T00:00:00Z","last_event_at":"2026-11-11T11:59:48Z"},{"id":"7d4f0000","short_id":"7d4f","tool_id":"claude","model_id":"opus","effort":"high","slug":"fix-auth-flow","cwd":"","state":"working","started_at":"0001-01-01T00:00:00Z","last_event_at":"2026-11-11T11:58:00Z","name":"Auth fix"}]}
+-- agent --
+session id=a91c state=needs_input tool=antigravity model=gemini-3-pro effort="" slug=refactor-db idle_s=12 name=""
+session id=7d4f state=working tool=claude model=opus effort=high slug=fix-auth-flow idle_s=120 name="Auth fix"
+session id=0b2e state=done tool=claude model=sonnet effort=medium slug=write-tests idle_s=3600 name=Tests
+session id=1111 state=queued tool=echo model=short effort="" slug=a-slug-that-is-much-longer-than-twenty-four-cells idle_s=-1 name="日本語の名前"
+session id=2222 state=failed tool=echo model=a-model-name-longer-than-20-cells effort="" slug="日本語のスラッグ日本語のスラッグ日本語のスラッグ" idle_s=180000 name=""
+ok cmd=ls count=5
+-- empty.text --
+Sessions
+
+  (no sessions)
+-- empty.txt --
+(no sessions)
+-- empty.agent --
+ok cmd=ls count=0

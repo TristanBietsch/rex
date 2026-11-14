@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,8 +25,18 @@ type AttachState struct {
 	Term      vt10x.Terminal
 	Cols      int
 	Rows      int
-	Ended     bool
-	EndedMsg  string
+	// BannerRows is the number of banner rows (0 or 1) between the title bar
+	// and the rule above the agent's screen. Rows already excludes them:
+	// attachPopupInnerSize(w, h, BannerRows) is the one source of geometry.
+	BannerRows int
+	// BannerSince is when the marquee loop last restarted: the popup opened,
+	// or this session's description changed. Zero reads as just now.
+	BannerSince time.Time
+	// resize sends the agent's new size to the daemon. openAttach binds it to
+	// the session's Client; tests replace it with a recorder.
+	resize   func(cols, rows uint16) error
+	Ended    bool
+	EndedMsg string
 
 	// outCh / errCh feed listenAttach. A background pump goroutine pulls
 	// envelopes off the daemon connection so listenAttach can drain multiple
@@ -33,6 +44,10 @@ type AttachState struct {
 	// and re-rendering the popup on every chunk causes visible flicker.
 	outCh chan AttachOutputMsg
 	errCh chan AttachClosedMsg
+	// done is closed when the popup closes: the pump and a pending listener
+	// stop instead of blocking forever on channels nobody serves again.
+	done      chan struct{}
+	closeOnce sync.Once
 
 	// held is a lone ':' or 'q' waiting to see if its twin follows ("::"
 	// opens rex's command bar, "qq" detaches); 0 when nothing is held.
@@ -56,16 +71,37 @@ type AttachState struct {
 	// Render caches (see attach_render.go). Only View touches them.
 	paint    *glyphPainter
 	rowCache []attachRowCache
+	// bg is the board rendered behind the popup, kept across frames that
+	// only bring agent output (see attachBackground).
+	bg attachBgCache
+}
+
+// attachBgCache holds one rendered board background for a w×h screen.
+type attachBgCache struct {
+	w, h int
+	s    string
+	ok   bool
 }
 
 type AttachOutputMsg struct {
 	SessionID string
 	Bytes     []byte
+	// from is the popup whose listener produced the message (nil when
+	// unknown); Update ignores a message from a popup that is not open.
+	from *AttachState
 }
 
 type AttachClosedMsg struct {
 	SessionID string
 	Err       error
+	from      *AttachState
+}
+
+// fromOpenPopup reports whether a listener message for sessionID, produced
+// by from, belongs to the open popup. An earlier popup on the same session
+// (detach, then attach again) does not.
+func fromOpenPopup(m Model, sessionID string, from *AttachState) bool {
+	return m.Attach != nil && sessionID == m.Attach.SessionID && (from == nil || from == m.Attach)
 }
 
 // altScreenTools are agents whose TUI lives entirely in the alt-screen and
@@ -87,6 +123,8 @@ var altScreenTools = map[string]bool{
 	"antigravity": true,
 	"gemini":      true,
 	"grok":        true,
+	"qwen":        true,
+	"cursor":      true,
 	"deepseek":    true,
 	"kimi":        true,
 }
@@ -107,7 +145,10 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 		m.Err = "attach: " + err.Error()
 		return m, nil
 	}
-	cols, rows := attachPopupInnerSize(m.Width, m.Height)
+	markSeen(&m, sessionID)
+	chrome := attachChromeOf(m)
+	banner := chrome.banner
+	cols, rows := chrome.innerSize(m.Width, m.Height)
 	toolID := ""
 	for _, s := range m.Sessions {
 		if s.ID == sessionID {
@@ -119,7 +160,8 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	// Size the PTY first: the daemon resizes its screen mirror with it, so
 	// the repaint below has the popup's geometry. A real size change also
 	// makes the agent redraw (SIGWINCH).
-	_ = c.Resize(sessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
+	resize := func(cols, rows uint16) error { return c.Resize(sessionID, cols, rows) }
+	_ = resize(uint16(cols), uint16(rows)) //nolint:gosec // G115: attachChrome.innerSize is bounded by the terminal size, far below 65536.
 	// Alt-screen agents skip replay and get a repaint of the daemon's
 	// screen mirror instead; mode sync (for daemons without repaints) tells
 	// our emulator which terminal modes they already switched on.
@@ -158,12 +200,13 @@ func openAttach(m Model, sessionID string) (Model, tea.Cmd) {
 	slog.Info("tui: attach opened", "session", sessionID, "cols", cols, "rows", rows, "mouse", mouse, "mode_sync", true,
 		"repaint", fullScreen, "scrollback_lines", scrollback)
 	st := &AttachState{
-		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows,
+		SessionID: sessionID, Slug: slug, Client: c, Cols: cols, Rows: rows, BannerRows: banner, resize: resize, BannerSince: m.now(),
 		outCh: make(chan AttachOutputMsg, 64),
 		errCh: make(chan AttachClosedMsg, 1),
+		done:  make(chan struct{}),
 	}
 	st.Term = newAttachTerm(st, cols, rows, scrollback)
-	go pumpAttach(c, sessionID, watch, st.outCh, st.errCh)
+	go pumpAttach(c, sessionID, watch, st)
 	m.Attach = st
 	m.Focus = FocusAttach
 	if m.Audio != nil {
@@ -181,6 +224,8 @@ func closeAttach(m Model) Model {
 	if m.Attach != nil {
 		slog.Info("tui: attach closed", "session", m.Attach.SessionID)
 		logAttachScrollbackTotals(m.Attach)
+		markSeen(&m, m.Attach.SessionID) // anything that finished while attached was seen
+		m.Attach.stop()
 		if m.Attach.Client != nil {
 			_ = m.Attach.Client.Close()
 		}
@@ -193,50 +238,52 @@ func closeAttach(m Model) Model {
 	return m
 }
 
-func attachPopupInnerSize(termW, termH int) (cols, rows int) {
-	if termW <= 0 {
-		termW = 100
+// stop ends the popup's pump and listener; safe to call more than once.
+func (a *AttachState) stop() {
+	if a.done == nil {
+		return
 	}
-	if termH <= 0 {
-		termH = 32
-	}
-	// lipgloss border+padding eats 6 cells horizontally and 4 lines vertically;
-	// renderAttach adds title+hr+hr+footer (4 more lines) on top.
-	popupW := termW - 8
-	popupH := termH - 4
-	cols = popupW - 6
-	rows = popupH - 4 - 4
-	if cols < 40 {
-		cols = 40
-	}
-	if rows < 8 {
-		rows = 8
-	}
-	return cols, rows
+	a.closeOnce.Do(func() { close(a.done) })
+}
+
+// attachEvents is the pump's event source (*client.Client; tests fake it).
+type attachEvents interface {
+	NextEvent() (protocol.Envelope, error)
+}
+
+// attachPopupInnerSize returns the agent's terminal size inside the desktop
+// popup (not the mobile sheet; attachChromeOf(m).innerSize picks between
+// them). bannerRows (0 or 1) is the banner row the popup shows above the
+// rule; the agent loses that many rows.
+func attachPopupInnerSize(termW, termH, bannerRows int) (cols, rows int) {
+	return attachChrome{banner: bannerRows}.innerSize(termW, termH)
 }
 
 func resizeAttach(m Model) {
 	if m.Attach == nil {
 		return
 	}
-	cols, rows := attachPopupInnerSize(m.Width, m.Height)
-	if cols == m.Attach.Cols && rows == m.Attach.Rows {
+	chrome := attachChromeOf(m)
+	banner := chrome.banner
+	cols, rows := chrome.innerSize(m.Width, m.Height)
+	if cols == m.Attach.Cols && rows == m.Attach.Rows && banner == m.Attach.BannerRows {
 		return
 	}
-	slog.Info("tui: attach resize", "session", m.Attach.SessionID, "cols", cols, "rows", rows)
-	m.Attach.Cols, m.Attach.Rows = cols, rows
+	slog.Info("tui: attach resize", "session", m.Attach.SessionID, "cols", cols, "rows", rows, "banner", banner)
+	m.Attach.Cols, m.Attach.Rows, m.Attach.BannerRows = cols, rows, banner
 	m.Attach.Term.Resize(cols, rows)
 	// A shrink can push rows into scrollback; keep the offset in range.
 	m.Attach.ScrollOff = min(m.Attach.ScrollOff, m.Attach.sb.Len())
-	_ = m.Attach.Client.Resize(m.Attach.SessionID, uint16(cols), uint16(rows)) //nolint:gosec // G115: attachPopupInnerSize returns at least 40x8 and otherwise tracks the terminal size, far below 65536.
+	_ = m.Attach.resize(uint16(cols), uint16(rows)) //nolint:gosec // G115: attachChrome.innerSize is bounded by the terminal size, far below 65536.
 }
 
 // pumpAttach is the background reader goroutine. It blocks on the daemon
 // connection and pushes parsed messages onto the AttachState channels until the
-// connection closes. One pump per AttachState; closing the client unblocks it.
+// connection closes or the popup closes (st.done). One pump per AttachState;
+// closing the client unblocks the read, st.done a send nobody drains.
 // watch (nil for replayed agents) sees every event, in order, to decide on
 // the redraw nudge.
-func pumpAttach(c *client.Client, sessionID string, watch *client.RepaintWatch, outCh chan<- AttachOutputMsg, errCh chan<- AttachClosedMsg) {
+func pumpAttach(c attachEvents, sessionID string, watch *client.RepaintWatch, st *AttachState) {
 	defer watch.Stop()
 	for {
 		env, err := c.NextEvent()
@@ -244,7 +291,7 @@ func pumpAttach(c *client.Client, sessionID string, watch *client.RepaintWatch, 
 			// Non-blocking send: if nobody's listening (popup already closed)
 			// drop the error rather than leaking the goroutine.
 			select {
-			case errCh <- AttachClosedMsg{SessionID: sessionID, Err: err}:
+			case st.errCh <- AttachClosedMsg{SessionID: sessionID, Err: err, from: st}:
 			default:
 			}
 			slog.Debug("tui: attach pump exit", "session", sessionID, "err", err)
@@ -262,9 +309,14 @@ func pumpAttach(c *client.Client, sessionID string, watch *client.RepaintWatch, 
 		if so.SessionID != sessionID {
 			continue
 		}
-		// Buffered channel — if full (TUI fell behind), block briefly so we
-		// don't drop bytes. The TUI will drain on the next render.
-		outCh <- AttachOutputMsg{SessionID: so.SessionID, Bytes: so.Bytes}
+		// Buffered channel — if full (TUI fell behind), block so we don't
+		// drop bytes; the TUI drains it on the next render. A closed popup
+		// never will: stop then.
+		select {
+		case st.outCh <- AttachOutputMsg{SessionID: so.SessionID, Bytes: so.Bytes}:
+		case <-st.done:
+			return
+		}
 	}
 }
 
@@ -280,9 +332,12 @@ const attachCoalesceWindow = 30 * time.Millisecond
 func listenAttach(st *AttachState) tea.Cmd {
 	out := st.outCh
 	errc := st.errCh
+	done := st.done // nil (never ready) for a popup built without one
 	sessionID := st.SessionID
 	return func() tea.Msg {
 		select {
+		case <-done:
+			return nil
 		case msg := <-out:
 			merged := msg.Bytes
 			chunks := 1
@@ -300,8 +355,9 @@ func listenAttach(st *AttachState) tea.Cmd {
 			if chunks > 1 {
 				slog.Debug("tui: attach coalesced chunks", "session", sessionID, "chunks", chunks, "bytes", len(merged))
 			}
-			return AttachOutputMsg{SessionID: sessionID, Bytes: merged}
+			return AttachOutputMsg{SessionID: sessionID, Bytes: merged, from: st}
 		case ec := <-errc:
+			ec.from = st
 			return ec
 		}
 	}
@@ -442,10 +498,13 @@ func renderAttach(m Model) string {
 	cols, rows := a.Term.Size()
 	cur := a.Term.Cursor()
 	cursorVisible := a.Term.CursorVisible()
-	lines := make([]string, 0, rows+4)
+	lines := make([]string, 0, rows+4+a.BannerRows)
 	// Chrome lines are clipped to the terminal width: a wider line would
 	// widen the popup and shift it off the geometry mouse hit-testing assumes.
 	lines = append(lines, ansi.Truncate(attachTitleBar(m, a, cols), cols, "…"))
+	if a.BannerRows > 0 {
+		lines = append(lines, renderAttachBanner(m, a, cols))
+	}
 	lines = append(lines, styleBorderFg.Render(strings.Repeat("─", cols)))
 	for y := 0; y < rows; y++ {
 		cx := -1
@@ -469,9 +528,12 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 	sum, haveSum := findSession(m.Sessions, a.SessionID)
 	var stateChip string
 	if a.Ended {
-		stateChip = lipgloss.NewStyle().Bold(true).Foreground(colorFailed).Render("✕ ended")
+		stateChip = styleMarker[protocol.StateFailed].Render(stateGlyph(protocol.StateFailed) + " ended")
 	} else if haveSum {
 		stateChip = attachStateChip(m, sum.State)
+		if waitingKindOf(m, sum) != "" {
+			stateChip = waitingChip(m, sum)
+		}
 	} else {
 		stateChip = styleDim.Render("· unknown")
 	}
@@ -484,7 +546,7 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 			title += styleDim.Render(" · " + protocol.FlattenDisplayText(sum.Slug))
 		}
 	}
-	slug := styleHeaderApp.Render(title)
+	slug := styleKey.Render(title)
 	var meta string
 	if haveSum {
 		meta = styleDim.Render(protocol.FlattenDisplayText(sum.ToolID + " · " + modelLabel(sum)))
@@ -506,22 +568,21 @@ func attachTitleBar(m Model, a *AttachState, width int) string {
 }
 
 func attachStateChip(m Model, st protocol.State) string {
-	bold := lipgloss.NewStyle().Bold(true)
 	switch st {
 	case protocol.StateWorking:
 		frames := spinnerFramesFor(m)
 		g := frames[m.SpinnerTick%len(frames)]
-		return bold.Foreground(colorWorking).Render(g + " working")
+		return styleMarker[protocol.StateWorking].Render(g + " working")
 	case protocol.StateQueued:
-		return bold.Foreground(colorWorking).Render(queuedGlyph + " queued")
+		return styleMarker[protocol.StateQueued].Render(stateGlyph(protocol.StateQueued) + " queued")
 	case protocol.StateNeedsInput:
-		return bold.Foreground(colorNeeds).Render("◆ needs input")
+		return styleMarker[protocol.StateNeedsInput].Render(stateGlyph(protocol.StateNeedsInput) + " needs input")
 	case protocol.StateDone:
-		return bold.Foreground(colorDone).Render("● done")
+		return styleMarker[protocol.StateDone].Render(stateGlyph(protocol.StateDone) + " done")
 	case protocol.StateFailed:
-		return bold.Foreground(colorFailed).Render("✕ failed")
+		return styleMarker[protocol.StateFailed].Render(stateGlyph(protocol.StateFailed) + " failed")
 	case protocol.StateCrashed:
-		return bold.Foreground(colorCrashed).Render("○ crashed")
+		return styleMarker[protocol.StateCrashed].Render(stateGlyph(protocol.StateCrashed) + " crashed")
 	default:
 		return styleDim.Render("· " + string(st))
 	}
@@ -547,7 +608,7 @@ func attachFooter(m Model, a *AttachState, width int) string {
 		if msg == "" {
 			msg = "session ended"
 		}
-		right = lipgloss.NewStyle().Foreground(colorFailed).Render("✕ " + msg)
+		right = styleFailed.Render(stateGlyph(protocol.StateFailed) + " " + msg)
 	}
 	pad := width - lipglossWidth(left) - lipglossWidth(right)
 	if pad < 1 {
@@ -557,7 +618,7 @@ func attachFooter(m Model, a *AttachState, width int) string {
 }
 
 func kbdChip(k string) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(colorWorking).Render(k)
+	return styleKbd.Render(k)
 }
 
 func findSession(sessions []protocol.SessionSummary, id string) (protocol.SessionSummary, bool) {

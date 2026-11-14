@@ -4,14 +4,33 @@ Goal: install Rex, spawn one test session, and read its status from the shell.
 
 End state: `rex-daemon` running, one `echo` session on the board, and a `rex status` line you can parse.
 
-Requires: macOS or Linux, Go 1.26+ if you build from source, network not required after build.
+Requires: macOS, Linux or Windows 10 1809+. Go (the version in `go.mod`) only if you build from source. Network not required after install.
 
-## 1. Build and install
+## 1. Install
+
+The latest release, checked against its `SHA256SUMS`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/TristanBietsch/rex/master/install.sh -o install.sh
+sh install.sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+On Windows (PowerShell):
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/TristanBietsch/rex/master/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+It installs into `~\.local\bin` and prints the command that adds it to
+your PATH if needed (it never edits PATH itself). Upgrade later with
+`rex update`.
 
 From a repository checkout:
 
 ```sh
-./install.sh
+./install.sh --from-source
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
@@ -23,6 +42,15 @@ export PATH="$PWD:$PATH"
 ```
 
 ## 2. First-time config
+
+At a terminal, the guided tour checks the install, lists the coding agents
+you have (with install hints for the rest) and runs the setup wizard:
+
+```sh
+rex onboard
+```
+
+Scripted, without prompts:
 
 ```sh
 rex setup --yes --force
@@ -64,10 +92,10 @@ The `echo` tool is built in. It needs no API keys.
 rex ls
 ```
 
-Example output:
+Example output (piped; at a terminal the columns differ a little):
 
 ```text
-ID     STATE         TOOL       MODEL                 SLUG                      LAST EVENT
+ID     STATE         TOOL       MODEL                 SLUG                      LAST EVENT  NAME
 17af   working       echo       short                 quickstart-demo           0s ago
 ```
 

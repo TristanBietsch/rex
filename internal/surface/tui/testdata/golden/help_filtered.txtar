@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
+  all · claude · codex · antigravity · ollama                                   
+
+────┌─ HELP ───────────────────────────────────────────────────── rex dev ─┐────
+    │   / undo                                                             │
+  RE│   ── Actions ─────────────────────────────────────────────────────   │    
+    │   cc  mark done / undo                                               │  4m
+    │   uc  undo done (unmark, or resume an exited session)                │
+  WA│                                                                      │    
+    │   ── Session commands ────────────────────────────────────────────   │
+    │   :undone [sel]           undo done                                  │
+  WO│   :uc :resume [sel]       undo done: unmark a running session, or    │    
+ ▸  │                           resume an exited one                       │ 11m
+    │   :undo [sel] [-turns N]  restore the folder to before the agent's   │  7s
+    │                           last turn (asks first) (off)               │  2h
+    │   :redo [sel]             bring back what :undo replaced (off)       │
+  DO│                                                                      │    
+    │   j/k scroll · / edit filter · esc clear                             │  9d
+    └──────────────────────────────────────────────────────────────────────┘   -
+  ↳ draft ready — which feature leads?                                          
+────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  READY  1                                                                                                              
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
+
+  WAITING  0                                                                                                            
+       nothing waiting on a tool
+
+  WOR┌─ HELP ─────────────────────────────────────────────────────────────────────────────────────────── rex dev ─┐     
+ ▸  ⠋│   / undo                                                                                                   │  11m
+    ⠋│   ── Actions ──────────────────────────────────────    ── Session commands ─────────────────────────────   │   7s
+    ⠋│   cc  mark done / undo                                 :undone [sel]           undo done                   │   2h
+     │   uc  undo done (unmark, or resume an exited           :uc :resume [sel]       undo done: unmark a         │
+  DON│       session)                                                                 running session, or         │     
+    ✓│                                                                                resume an exited one        │   9d
+    ✗│                                                        :undo [sel] [-turns N]  restore the folder to       │    -
+    ✗│                                                                                before the agent's last     │    -
+     │                                                                                turn (asks first) (off)     │
+     │                                                        :redo [sel]             bring back what :undo       │
+     │                                                                                replaced (off)              │
+     │                                                                                                            │
+     │   j/k scroll · / edit filter · esc clear                                                                   │
+     └────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+
+
+
+  ↳ draft ready — which feature leads?                                                                                  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      

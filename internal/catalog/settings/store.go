@@ -3,8 +3,10 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -16,6 +18,45 @@ import (
 // config.yaml (paths.ConfigFile).
 type Store struct {
 	values map[string]any
+	src    map[string]Source
+	// dirty holds the ids changed since the last Save: true for Set (Save
+	// writes the key), false for Reset (Save deletes it).
+	dirty map[string]bool
+	// setAt holds, for each id whose source is SourceLua, where config.lua
+	// set it ("config.lua:12").
+	setAt map[string]string
+	// file holds config.yaml's own layer: what Load read, then what Set
+	// stored (Reset deletes). config.lua and fail-closed resets never
+	// touch it (FileString).
+	file map[string]any
+}
+
+// Source says where a setting's current value comes from.
+type Source string
+
+const (
+	// SourceDefault is the registry default: the key is not in config.yaml.
+	SourceDefault Source = "default"
+	// SourceFile is a value read from, or destined for, config.yaml.
+	SourceFile Source = "file"
+	// SourceLua is a value config.lua set. It is never written to
+	// config.yaml, and Set and Reset refuse it (ErrManagedByLua).
+	SourceLua Source = "lua"
+)
+
+// ErrManagedByLua is what Set and Reset answer for a setting config.lua sets:
+// the value lives in the Lua file, so change it there.
+type ErrManagedByLua struct {
+	ID string
+	// At is where config.lua sets it, such as "config.lua:12".
+	At string
+}
+
+func (e *ErrManagedByLua) Error() string {
+	if WorkspaceSetAt(e.At) {
+		return fmt.Sprintf("%s is set in %s; edit it there, or run rex outside the workspace", e.ID, e.At)
+	}
+	return fmt.Sprintf("%s is set in %s; edit it there (rex config edit -lua)", e.ID, e.At)
 }
 
 // errNoPath is Save's answer to an empty path, so a caller whose config
@@ -25,28 +66,45 @@ var errNoPath = errors.New("settings: no config file path")
 // LoadDefault returns a Store holding the defaults overlaid with the user's
 // config file, and that file's path (paths.ConfigFile). A missing file is
 // not an error. On error the Store still holds the defaults, so best-effort
-// callers can use it; path is "" when the home directory is unknown.
+// callers can use it; path is "" when the home directory is unknown. When
+// the process installed a layer (SetLayer) and lua_config is on, config.lua's
+// values are on top; its problems are silent here (see LoadDefaultReport).
 func LoadDefault() (store *Store, path string, err error) {
-	store = NewStore()
+	store, _, path, err = LoadDefaultReport()
+	return store, path, err
+}
+
+// LoadDefaultReport is LoadDefault plus the layer's report, for the few
+// callers that show config.lua's problems: rex doctor, rex config, rex theme
+// and the TUI.
+func LoadDefaultReport() (store *Store, rep LayerReport, path string, err error) {
 	path, err = paths.ConfigFile()
 	if err != nil {
-		return store, "", fmt.Errorf("settings: %w", err)
+		return NewStore(), LayerReport{}, "", fmt.Errorf("settings: %w", err)
 	}
-	return store, path, store.Load(path)
+	store, rep, err = LoadLayered(path)
+	return store, rep, path, err
 }
 
 // NewStore returns a Store populated with the registry's defaults.
 func NewStore() *Store {
-	s := &Store{values: make(map[string]any, len(Registry))}
+	s := &Store{
+		values: make(map[string]any, len(Registry)),
+		src:    make(map[string]Source, len(Registry)),
+		dirty:  make(map[string]bool),
+		setAt:  make(map[string]string),
+		file:   make(map[string]any),
+	}
 	for _, r := range Registry {
 		s.values[r.ID] = r.Default
+		s.src[r.ID] = SourceDefault
 	}
 	return s
 }
 
 // Load reads values from path and applies them on top of defaults. Missing file = no-op.
 func (s *Store) Load(path string) error {
-	raw, err := os.ReadFile(path)
+	raw, err := readConfig(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -60,29 +118,91 @@ func (s *Store) Load(path string) error {
 	for k, v := range data {
 		setting, ok := Find(k)
 		if !ok {
-			continue // tolerate unknown keys for forward compat
+			// An alias (an older key name) counts only when the canonical
+			// key is absent from the file.
+			if setting, ok = findByAlias(k); !ok {
+				continue // tolerate unknown keys for forward compat
+			}
+			if _, both := data[setting.ID]; both {
+				continue
+			}
 		}
 		coerced, err := coerce(setting, v)
 		if err != nil {
 			continue // skip invalid entries silently
 		}
-		s.values[k] = coerced
+		s.values[setting.ID] = coerced
+		s.src[setting.ID] = SourceFile
+		s.file[setting.ID] = coerced
 	}
 	return nil
 }
 
-// Save writes the current values to path atomically (temp file, then
-// rename). A missing directory is created 0700. A new file is 0600; an
-// existing one keeps its permission bits, so Save never widens a private
-// config.yaml and never undoes a mode its owner chose.
+// findByAlias returns the setting that lists key as an alias.
+func findByAlias(key string) (Setting, bool) {
+	for _, r := range Registry {
+		if slices.Contains(r.Aliases, key) {
+			return r, true
+		}
+	}
+	return Setting{}, false
+}
+
+// Save writes this Store's changes to path atomically (temp file, then
+// rename). It re-reads the file and applies only the ids changed on this
+// Store since it was created or last saved (Set writes the key, Reset
+// deletes it), so another process's edit to a different key survives and
+// defaults are never pinned into the file. Keys this build does not know
+// are kept. An unparseable file is an error and is left untouched. A
+// missing directory is created 0700. A new file is 0600; an existing one
+// keeps its permission bits, so Save never widens a private config.yaml.
+//
+// There is no file lock: an edit landing between the read and the rename is
+// lost, a much smaller window than the whole-file overwrite it replaces.
 func (s *Store) Save(path string) error {
 	if path == "" {
 		return errNoPath
 	}
+	// A symlinked config.yaml (a dotfiles manager such as stow) is saved
+	// through the link: renaming over the link itself would replace it
+	// with a plain file and quietly detach the config from its repo. A
+	// dangling link is an error, never clobbered.
+	if fi, err := os.Lstat(path); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", path, err)
+		}
+		path = real
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
-	b, err := yaml.Marshal(s.values)
+	data := map[string]any{}
+	raw, err := readConfig(path)
+	switch {
+	case err == nil:
+		if err := yaml.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		if data == nil {
+			data = map[string]any{}
+		}
+	case !os.IsNotExist(err):
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	for id, set := range s.dirty {
+		if set {
+			data[id] = s.values[id]
+		} else {
+			delete(data, id)
+		}
+		if setting, ok := Find(id); ok {
+			for _, alias := range setting.Aliases {
+				delete(data, alias) // the canonical key replaces the old name
+			}
+		}
+	}
+	b, err := yaml.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
@@ -90,17 +210,28 @@ func (s *Store) Save(path string) error {
 	if info, err := os.Stat(path); err == nil {
 		mode = info.Mode().Perm()
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	// A temp file of its own (0600, never a leftover or a planted link),
+	// so two processes saving at once can't write or rename each other's.
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("create tmp: %w", err)
+	}
+	tmp := f.Name()
+	_, werr := f.Write(b)
+	if err := errors.Join(werr, f.Close()); err != nil {
+		_ = os.Remove(tmp)
 		return fmt.Errorf("write tmp: %w", err)
 	}
-	// WriteFile keeps the mode of a leftover tmp and is subject to the
-	// umask, so set the final mode explicitly.
 	if err := os.Chmod(tmp, mode); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("chmod tmp: %w", err)
 	}
-	return os.Rename(tmp, path)
+	if err := replaceFile(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	clear(s.dirty)
+	return nil
 }
 
 // Get returns the current value or nil.
@@ -115,7 +246,92 @@ func (s *Store) String(id string) string {
 	return fmt.Sprintf("%v", v)
 }
 
-// Set validates the new value against the Setting spec and stores it.
+// Display is id's value as the settings page and human CLI output show it
+// (Setting.Display): "max" for master_volume at 50, say. String stays the
+// plain value for scripts and JSON.
+func (s *Store) Display(id string) string {
+	setting, ok := Find(id)
+	if !ok {
+		return s.String(id)
+	}
+	return setting.Display(s.values[id])
+}
+
+// FileString is id's value in config.yaml's own layer, as a string: what
+// Load read or Set stored, else the registry default. Unlike String it never
+// shows a config.lua value or a trust setting that a broken config.lua
+// failed closed, so a read-modify-write of a YAML list (rex trust adding to
+// auto_trust_dirs) keeps the entries the file already has.
+func (s *Store) FileString(id string) string {
+	v, ok := s.file[id]
+	if !ok {
+		def, found := Find(id)
+		if !found || def.Default == nil {
+			return ""
+		}
+		v = def.Default
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// Source reports where id's value comes from (SourceDefault for unknown ids).
+func (s *Store) Source(id string) Source {
+	if src, ok := s.src[id]; ok {
+		return src
+	}
+	return SourceDefault
+}
+
+// SetAt says where config.lua sets id ("config.lua:12"), or "" when it does
+// not.
+func (s *Store) SetAt(id string) string {
+	if s.src[id] != SourceLua {
+		return ""
+	}
+	return s.setAt[id]
+}
+
+// Locked reports whether config.lua sets id, so Set and Reset refuse it.
+func (s *Store) Locked(id string) bool { return s.src[id] == SourceLua }
+
+// Overlay puts values on top of the store as SourceLua, remembering where each
+// came from. The values must already be validated. It never marks an id
+// dirty, so Save never writes them to config.yaml.
+func (s *Store) Overlay(values map[string]any, setAt map[string]string) {
+	for id, v := range values {
+		s.values[id] = v
+		s.src[id] = SourceLua
+		s.setAt[id] = setAt[id]
+	}
+}
+
+// Validate coerces raw to the Go type of setting id, checks it against the
+// setting's options and range, and applies its Normalize func. It is what
+// Set runs, exported for callers that must check a value without storing it.
+func Validate(id string, raw any) (any, error) {
+	setting, ok := Find(id)
+	if !ok {
+		return nil, fmt.Errorf("unknown setting %q", id)
+	}
+	return validate(setting, raw)
+}
+
+func validate(setting Setting, raw any) (any, error) {
+	v, err := coerce(setting, raw)
+	if err != nil {
+		return nil, err
+	}
+	if str, ok := v.(string); ok && setting.Normalize != nil {
+		if str, err = setting.Normalize(str); err != nil {
+			return nil, fmt.Errorf("%s: %w", setting.ID, err)
+		}
+		v = str
+	}
+	return v, nil
+}
+
+// Set validates the new value against the Setting spec and stores it. The
+// next Save writes the key.
 func (s *Store) Set(id string, raw any) error {
 	setting, ok := Find(id)
 	if !ok {
@@ -124,21 +340,33 @@ func (s *Store) Set(id string, raw any) error {
 	if setting.ReadOnly {
 		return fmt.Errorf("setting %q is read-only", id)
 	}
-	v, err := coerce(setting, raw)
+	if s.src[id] == SourceLua {
+		return &ErrManagedByLua{ID: id, At: s.setAt[id]}
+	}
+	v, err := validate(setting, raw)
 	if err != nil {
 		return err
 	}
 	s.values[id] = v
+	s.src[id] = SourceFile
+	s.file[id] = v
+	s.dirty[id] = true
 	return nil
 }
 
-// Reset restores the setting to its default.
+// Reset restores the setting to its default. The next Save deletes the key.
 func (s *Store) Reset(id string) error {
 	setting, ok := Find(id)
 	if !ok {
 		return fmt.Errorf("unknown setting %q", id)
 	}
+	if s.src[id] == SourceLua {
+		return &ErrManagedByLua{ID: id, At: s.setAt[id]}
+	}
 	s.values[id] = setting.Default
+	s.src[id] = SourceDefault
+	delete(s.file, id)
+	s.dirty[id] = false
 	return nil
 }
 
@@ -151,9 +379,42 @@ func (s *Store) Snapshot() map[string]any {
 	return out
 }
 
+// WithDefaults returns a copy of s in which each of ids holds its registry
+// default. s is not changed and the copy carries no dirty marks. An id that
+// is not a setting is a programming error and panics.
+func (s *Store) WithDefaults(ids ...string) *Store {
+	c := NewStore()
+	for k, v := range s.values {
+		c.values[k] = v
+		c.src[k] = s.src[k]
+	}
+	for k, v := range s.setAt {
+		c.setAt[k] = v
+	}
+	for k, v := range s.file {
+		c.file[k] = v
+	}
+	for _, id := range ids {
+		def, ok := Find(id)
+		if !ok {
+			panic("settings: WithDefaults: unknown setting " + id)
+		}
+		c.values[id] = def.Default
+		c.src[id] = SourceDefault
+		delete(c.setAt, id)
+	}
+	return c
+}
+
 // coerce converts raw input (typically string-from-CLI or interface{}-from-YAML) into the
 // concrete Go type expected by the setting and validates it against options/range.
 func coerce(setting Setting, raw any) (any, error) {
+	if setting.Migrate != nil {
+		var err error
+		if raw, err = setting.Migrate(raw); err != nil {
+			return nil, err
+		}
+	}
 	switch setting.Type {
 	case TypeBool:
 		switch v := raw.(type) {
@@ -206,6 +467,9 @@ func coerce(setting Setting, raw any) (any, error) {
 			f = parsed
 		default:
 			return nil, fmt.Errorf("%s: expected float, got %T", setting.ID, raw)
+		}
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return nil, fmt.Errorf("%s: %v is not a number", setting.ID, f)
 		}
 		if setting.Max > setting.Min && (f < setting.Min || f > setting.Max) {
 			return nil, fmt.Errorf("%s: %v out of range [%v, %v]", setting.ID, f, setting.Min, setting.Max)

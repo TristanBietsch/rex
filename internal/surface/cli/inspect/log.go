@@ -3,6 +3,7 @@ package inspect
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,17 +18,22 @@ import (
 func RunLog(args []string) error {
 	fs := flag.NewFlagSet("log", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.ContentFormats)
 	stateDir := fs.String("state-dir", "", "state dir (default ~/.local/share/rex; rarely needed)")
 	follow := fs.Bool("f", false, "follow the transcript (like tail -f)")
 	tailN := fs.Int("n", 0, "show only the last N lines (0 = all)")
 	asBytes := fs.Bool("bytes", false, "print raw bytes (including ANSI)")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	rest, err := out.Parse(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "log: exactly one selector required")
 	}
-	sel := fs.Arg(0)
+	sel := rest[0]
+	if *tailN < 0 {
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("log: -n %d: must not be negative", *tailN))
+	}
 
 	c, err := socket.Dial()
 	if err != nil {
@@ -48,7 +54,7 @@ func RunLog(args []string) error {
 	path := filepath.Join(root, "sessions", sess.ID, "transcript.log")
 	// -f runs until the process is interrupted; the default SIGINT handler
 	// ends it, so no cancellation is wired here.
-	if err := streamFile(context.Background(), path, os.Stdout, *follow, *tailN, *asBytes); err != nil {
+	if err := streamFile(context.Background(), path, core.Out().Out, *follow, *tailN, *asBytes); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	return nil

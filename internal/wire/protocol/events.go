@@ -10,7 +10,15 @@ const (
 	EventSessionRemoved   = "SessionRemoved"
 	EventSessionOutput    = "SessionOutput"
 	EventSummarizerHealth = "SummarizerHealth"
-	EventError            = "Error"
+	// EventOverview carries the board-wide overview (see Overview).
+	EventOverview = "Overview"
+	// EventToolsChanged carries the daemon's tool list again after a reload,
+	// a feature switch or a rescan changed it (see ToolsChanged). It is also
+	// the reply to RescanTools.
+	EventToolsChanged = "ToolsChanged"
+	// EventUndoResult is the success reply to Undo and Redo.
+	EventUndoResult = "UndoResult"
+	EventError      = "Error"
 	// EventAck is the success reply to an intent that carried an ID and has
 	// no more specific reply (see the package doc for the table).
 	EventAck = "Ack"
@@ -54,6 +62,27 @@ type SessionSummary struct {
 	// 0 when the last one stops.
 	Subagents int `json:"subagents,omitempty"`
 
+	// CostUSD is what the session has cost so far in US dollars (Claude
+	// Code, from the usage hub). Nil means unknown; it is never sent while
+	// the usage setting is off.
+	CostUSD *float64 `json:"cost_usd,omitempty"`
+
+	// Prompts is how many prompts the user sent the agent (Claude Code, from
+	// its UserPromptSubmit hook); it only goes up. 0 means unknown. Clients
+	// use it to play the READY sound once per turn.
+	Prompts int `json:"prompts,omitempty"`
+
+	// WaitingOn is what a working session's main thread is blocked on, one of
+	// WaitShell, WaitSubagent or WaitWeb (Claude Code, from its tool hooks).
+	// Empty when it is not waiting on a tool. State stays working; clients
+	// that predate the field show the session as working. Patches send null
+	// or "" to clear it, and it is always cleared when State leaves working.
+	WaitingOn string `json:"waiting_on,omitempty"`
+
+	// WaitingSince is when that tool call began. Zero unless WaitingOn is
+	// set. Clients show a session as waiting only after WaitingAfter.
+	WaitingSince time.Time `json:"waiting_since,omitzero"`
+
 	// Fleet groups related sessions under a named label.
 	Fleet string `json:"fleet,omitempty"`
 
@@ -74,7 +103,65 @@ type SessionSummary struct {
 	// WorkingSince is when the current uninterrupted working stretch began.
 	// Zero unless State is working. Drives the long-running badge.
 	WorkingSince time.Time `json:"working_since,omitzero"`
+
+	// EndedAt is the first time the session reached a terminal state (done,
+	// failed or crashed). Zero while it is live. Patches send null to clear
+	// it when the session goes live again.
+	EndedAt time.Time `json:"ended_at,omitzero"`
+
+	// DescriptionAt is when Description was last written by the summarizer.
+	// Zero when there is no description yet. Lets a client show how old the
+	// summary is. A timestamp, not free text.
+	DescriptionAt time.Time `json:"description_at,omitzero"`
+
+	// ResumeID is the id the agent itself uses to resume this conversation
+	// (a canonical UUID, lowercase; see ValidResumeID). Empty when unknown or
+	// when the tool cannot resume.
+	ResumeID string `json:"resume_id,omitempty"`
+
+	// TrustFolder is whether the folder was trusted for this session when it
+	// was created (NewSession.TrustFolder). Resume applies it again.
+	TrustFolder bool `json:"trust_folder,omitempty"`
+
+	// WaitReason says why a needs_input session is waiting: WaitReview (the
+	// agent finished a turn) or WaitInput (it asks for an answer or an
+	// approval). Empty means unknown, which is always the case for adapters
+	// that only read the screen.
+	WaitReason string `json:"wait_reason,omitempty"`
+	// Skills are the library skills loaded into this session (NewSession.Skills).
+	Skills []string `json:"skills,omitempty"`
+
+	// LoopID is the loop that owns this session (see LoopSummary); empty for
+	// an ordinary session. LoopIter is the loop's turn in progress.
+	LoopID   string `json:"loop_id,omitempty"`
+	LoopIter int    `json:"loop_iter,omitempty"`
+
+	// WorkspaceID is the id of the workspace (the nearest .rex/ above CWD)
+	// the session was spawned in: 8 lowercase hex digits, empty outside any
+	// workspace, while the workspaces feature is off, and from daemons that
+	// predate it. The daemon sets it; a client never sends one.
+	WorkspaceID string `json:"workspace_id,omitempty"`
 }
+
+// ValidWorkspaceID reports whether id has the form of a workspace id: 8
+// lowercase hex digits. Ids from meta.json are checked before use.
+func ValidWorkspaceID(id string) bool {
+	if len(id) != 8 {
+		return false
+	}
+	for _, c := range id {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// WaitReason values.
+const (
+	WaitReview = "review"
+	WaitInput  = "input"
+)
 
 // Snapshot is the daemon's response to Hello: full board state.
 type Snapshot struct {
@@ -83,6 +170,89 @@ type Snapshot struct {
 	// DaemonVersion is the daemon's release label. Empty from daemons that
 	// predate acks; such a daemon never sends Ack.
 	DaemonVersion string `json:"daemon_version,omitempty"`
+	// Overview is the daemon's current board overview. Nil until the daemon
+	// has published one, and from daemons that predate it.
+	Overview *Overview `json:"overview,omitempty"`
+	// Usage is the daemon's live usage quotas. Nil while usage is off or
+	// nothing was published yet, and from daemons that predate it.
+	Usage *Usage `json:"usage,omitempty"`
+	// Loops are the daemon's loops, running, paused and recently finished.
+	// Absent while the loops feature is off and from daemons that predate
+	// it; Loop events then update a client that has seen this.
+	Loops []LoopSummary `json:"loops,omitempty"`
+	// WorkspaceTagging is true when the daemon tags sessions with their
+	// workspace (the workspaces feature is on there): every session then
+	// carries workspace_id or none belongs to a workspace. Absent from
+	// daemons that predate it and while the feature is off.
+	WorkspaceTagging bool `json:"workspace_tagging,omitempty"`
+	// Tools is the daemon's tool registry as a client needs it for the
+	// new-session wizard and Settings: whether each binary is on the daemon's
+	// PATH and each tool's models (detected ones merged with the static list).
+	// Absent from daemons that predate it; treat every tool as installed then.
+	Tools []ToolInfo `json:"tools,omitempty"`
+	// DaemonPID, DaemonBuild and DaemonStartedAt identify the daemon image
+	// (R20): a hot restart keeps the pid and changes the start time and,
+	// after an install, the build. Absent from older daemons.
+	DaemonPID       int       `json:"daemon_pid,omitempty"`
+	DaemonBuild     string    `json:"daemon_build,omitempty"`
+	DaemonStartedAt time.Time `json:"daemon_started_at,omitzero"`
+}
+
+// EventSwap asks a board to re-exec into its installed binary (rex
+// upgrade). Payload: SwapBoards.
+const EventSwap = "Swap"
+
+// EventReloaded answers IntentReload. Payload: ReloadReport. Daemons
+// before R20 answer with an Ack (or an Error when tools.yaml failed).
+const EventReloaded = "Reloaded"
+
+// ReloadReport says what a reload did.
+type ReloadReport struct {
+	// Changed are the setting ids whose value changed.
+	Changed []string `json:"changed,omitempty"`
+	// Restart are the changed ids that apply only after a daemon restart.
+	Restart []string `json:"restart,omitempty"`
+	// Reloaded names the layers read: tools.yaml, config.yaml, config.lua,
+	// init.lua.
+	Reloaded []string `json:"reloaded,omitempty"`
+	// Errors are layers that failed, as "file:line: message" where the
+	// line is known. A failed layer keeps its previous values (trust
+	// settings fail closed).
+	Errors []string `json:"errors,omitempty"`
+	// Warnings are non-fatal notes (refused config.lua calls).
+	Warnings []string `json:"warnings,omitempty"`
+	// Legacy is set by the client, never sent: the daemon predates R20 and
+	// answered with a plain Ack (or nothing), so no detail is known.
+	Legacy bool `json:"-"`
+}
+
+// EventBoards answers IntentBoards and IntentSwapBoards. Payload: Boards.
+const EventBoards = "Boards"
+
+// ToolsChanged is sent to every connection that has sent Hello when the
+// daemon's registry changed (a reload, extra_agents, detected models): the
+// same list as Snapshot.tools.
+type ToolsChanged struct {
+	Tools []ToolInfo `json:"tools"`
+}
+
+// ToolInfo is one registry tool as the daemon sees it.
+type ToolInfo struct {
+	ID string `json:"id"`
+	// Installed is whether the tool's binary is on the daemon's PATH. Computed
+	// at daemon start, on every reload, and on each rescan (RescanTools and
+	// the daemon's periodic one).
+	Installed bool        `json:"installed"`
+	Models    []ModelInfo `json:"models,omitempty"`
+}
+
+// ModelInfo is one model a tool offers.
+type ModelInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Detected is true for a model found by the tool's own model-list command
+	// (as opposed to the registry's static list).
+	Detected bool `json:"detected,omitempty"`
 }
 
 // Ack is the success reply to an intent that carried an envelope ID. The
@@ -130,6 +300,17 @@ type SummarizerHealth struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+// Overview is the board-wide overview: one model-written headline over the
+// buckets clients compute themselves from the sessions. It is kept in the
+// daemon's memory only. Headline is untrusted model output, sanitized to at
+// most MaxOverviewRunes.
+type Overview struct {
+	// Enabled is false while the daemon has overview_enabled off.
+	Enabled     bool      `json:"enabled"`
+	Headline    string    `json:"headline,omitempty"`
+	GeneratedAt time.Time `json:"generated_at,omitzero"`
+}
+
 // ErrorEvent surfaces an error correlated to an intent's id.
 type ErrorEvent struct {
 	ID      string `json:"id,omitempty"`
@@ -146,8 +327,29 @@ const (
 	ErrCodeSpawn           = "spawn_failed"
 	ErrCodeTooManySessions = "too_many_sessions"
 	ErrCodeBadState        = "bad_state"
+	// ErrCodeRestartRefused: a hot restart was refused or failed; the
+	// daemon is still running as before.
+	ErrCodeRestartRefused = "restart_refused"
 	// The daemon sends these, then closes the connection.
 	ErrCodeLineTooLong        = "line_too_long"       // a line exceeded MaxLineBytes
 	ErrCodeUnsupportedVersion = "unsupported_version" // envelope "v" is not ProtocolVersion
 	ErrCodeInternal           = "internal_error"      // a daemon bug while handling the intent
 )
+
+// UndoResult is the reply to Undo and Redo: the files written and deleted
+// (slash paths relative to the session's folder, sorted), and the tree id of
+// the capture taken just before, which Redo restores after an Undo.
+type UndoResult struct {
+	SessionID string   `json:"session_id"`
+	Restored  []string `json:"restored"`
+	Deleted   []string `json:"deleted"`
+	Safety    string   `json:"safety"`
+	// Target is the tree id the operation restores. A client passes it back
+	// as Expect to confirm what the dry run showed. Absent from daemons that
+	// predate it.
+	Target string `json:"target,omitempty"`
+	// Warnings are things to show the user: the folder changed while the
+	// restore ran, or the session started working during it. Absent from
+	// daemons that predate the field.
+	Warnings []string `json:"warnings,omitempty"`
+}

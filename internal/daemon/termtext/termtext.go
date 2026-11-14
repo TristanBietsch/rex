@@ -78,6 +78,14 @@ func Tail(b []byte, max int) string {
 // (claude ❯, codex ›) or a selection cursor in a dialog.
 var inputMarkers = []string{"❯", "›"}
 
+// bottomInputRe matches agy's input row: a bare ">" prompt, optionally
+// followed by the user's draft, optionally inside a box border.
+var bottomInputRe = regexp.MustCompile(`^[│┃|]?\s*>(?: |$)`)
+
+// maxRowsBelowInput is how many non-blank rows may sit under agy's input row
+// (its footer) for the row still to count as the input box.
+const maxRowsBelowInput = 3
+
 // ScreenLines returns the readable content of a rendered screen (rows joined
 // by '\n', e.g. vt10x String()). Everything from the agent's input row down —
 // the prompt box, mode toggles, model/cwd status bars — is UI, not output, so
@@ -93,7 +101,38 @@ func ScreenLines(screen string) []string {
 			}
 		}
 	}
-	return Lines([]byte(screen))
+	if i := bottomInputRow(rows); i >= 0 {
+		rows = rows[:i]
+	}
+	return Lines([]byte(strings.Join(rows, "\n")))
+}
+
+// bottomInputRow returns the index of agy's input row, or -1. Only the
+// bottom-most ">" row qualifies, and only when what is below it is footer
+// (blank or chrome rows, or at most maxRowsBelowInput rows): a ">" row
+// higher up is a markdown quote or history and stays.
+func bottomInputRow(rows []string) int {
+	for i := len(rows) - 1; i >= 0; i-- {
+		if !bottomInputRe.MatchString(strings.TrimSpace(rows[i])) {
+			continue
+		}
+		below, allChrome := 0, true
+		for _, r := range rows[i+1:] {
+			r = collapse(r)
+			if r == "" {
+				continue
+			}
+			below++
+			if !IsChrome(r) {
+				allChrome = false
+			}
+		}
+		if allChrome || below <= maxRowsBelowInput {
+			return i
+		}
+		return -1
+	}
+	return -1
 }
 
 // LastLine returns the last readable line of b, or "" when none.
@@ -134,6 +173,13 @@ var chromeHints = []string{
 // ("✻ Cooked for 2s · done").
 var turnDoneRe = regexp.MustCompile(`^\S+ \p{L}+(?:…| for \d+(?:\.\d+)?[smh]\b)`)
 
+// agySpinnerRe matches agy's ASCII-ellipsis spinner rows: a spinner glyph
+// then one to three words ("⣷  Generating...", "◐ Reading files... (3s)"), or
+// a lone "Thinking..." word. Only braille frames (U+2800-U+28FF) and the
+// quarter-circle glyphs count as spinner glyphs: Claude's "⏺" bullet and "-"
+// or "*" list bullets start agent prose ("⏺ Let me check...") that must stay.
+var agySpinnerRe = regexp.MustCompile(`^(?:[\x{2800}-\x{28FF}◐◓◑◒◴◵◶◷]\s+\p{L}+(?:\s+\p{L}+){0,2}|\p{L}+)\.\.\.(?:\s+\(.*\))?$`)
+
 // IsChrome reports whether line is UI furniture rather than content: spinner
 // frames, box borders, counters, key hints, or fragments with too few letters
 // to carry meaning.
@@ -144,7 +190,7 @@ func IsChrome(line string) bool {
 			return true
 		}
 	}
-	if turnDoneRe.MatchString(line) || strings.HasPrefix(line, "⚠") {
+	if turnDoneRe.MatchString(line) || agySpinnerRe.MatchString(line) || strings.HasPrefix(line, "⚠") {
 		return true
 	}
 	letters := 0

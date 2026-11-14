@@ -3,6 +3,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -16,6 +17,10 @@ const (
 	EventAdded EventKind = iota
 	EventUpdated
 	EventRemoved
+	// EventReopened follows a successful Reopen: the session starts a new
+	// run. It carries no patch; clients learn of it from the caller's own
+	// broadcast, so wire subscribers ignore this kind.
+	EventReopened
 )
 
 // Event is what subscribers receive on every change.
@@ -30,14 +35,14 @@ type Event struct {
 
 // ErrReaping is returned by ClearRetire once the retire sweep has claimed the
 // session: the undo lost the race and the session is being cleared.
-var ErrReaping = errors.New("session is already being cleared")
+var ErrReaping = errors.New(protocol.MsgClearing)
 
 // Store is the central session table.
 type Store struct {
 	mu          sync.RWMutex
 	sessions    map[string]*Session
 	byShortID   map[string]string // short_id -> id
-	subscribers []func(Event)
+	subscribers Subs[func(Event)]
 	subsMu      sync.RWMutex
 }
 
@@ -228,6 +233,21 @@ func (s *Store) RemoveWithReason(id, reason string) error {
 	return nil
 }
 
+// ErrDeleting is Transition's refusal of a terminal state for a session whose
+// teardown has begun.
+var ErrDeleting = errors.New("session is being deleted")
+
+// BeginDelete marks a session as being deleted. It must run before the
+// supervisor is stopped: from then on Transition (under the session lock)
+// refuses terminal states, so no failed/done patch can be broadcast.
+func (s *Store) BeginDelete(id string) {
+	if sess, ok := s.Get(id); ok {
+		sess.mu.Lock()
+		sess.deleting = true
+		sess.mu.Unlock()
+	}
+}
+
 // Transition changes a session's state and emits.
 func (s *Store) Transition(id string, newState protocol.State) error {
 	s.mu.RLock()
@@ -239,6 +259,10 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 	now := time.Now().UTC()
 	patch := map[string]any{"state": newState, "last_event_at": now}
 	sess.mu.Lock()
+	if sess.deleting && isTerminal(newState) {
+		sess.mu.Unlock()
+		return ErrDeleting
+	}
 	switch {
 	case newState == protocol.StateWorking && sess.WorkingSince.IsZero():
 		sess.WorkingSince = now
@@ -247,6 +271,21 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 		sess.WorkingSince = time.Time{}
 		patch["working_since"] = nil
 	}
+	// SetExit (the supervisor's exit paths) clears WorkingSince before it
+	// calls Transition, so the case above sees nothing to clear. A terminal
+	// change still tells clients the stretch is over.
+	if isTerminal(newState) {
+		if _, ok := patch["working_since"]; !ok {
+			patch["working_since"] = nil
+		}
+	}
+	// SetExit clears the wait before it calls Transition (see WorkingSince),
+	// so a terminal change always tells clients the wait is over.
+	if newState != protocol.StateWorking && (sess.WaitingOn != "" || isTerminal(newState)) {
+		sess.WaitingOn, sess.WaitingSince = "", time.Time{}
+		patch["waiting_on"], patch["waiting_since"] = nil, nil
+	}
+	maps.Copy(patch, sess.noteStateLocked(newState, now))
 	sess.State = newState
 	sess.LastEventAt = now
 	sess.mu.Unlock()
@@ -321,6 +360,67 @@ func (s *Store) ClearRetire(id string) (changed bool, err error) {
 	return true, nil
 }
 
+// ErrNotExited is returned by Reopen for a session that is not done, failed
+// or crashed.
+var ErrNotExited = errors.New("session has not exited")
+
+// Reopen turns an exited (done, failed or crashed) session back into a queued
+// one so a respawn can reuse its row: State=queued, LastEventAt=now, and
+// EndedAt, ExitCode, RetireAt and RetiredAt cleared. StartedAt, tokens,
+// description and slug stay. It refuses a live session (ErrNotExited), a
+// session the retire sweep has claimed (ErrReaping, atomic with the claim)
+// and one that is gone. Like SetRetire it does not broadcast: the caller
+// persists meta, then broadcasts
+// {state, last_event_at, ended_at: nil, exit_code: nil, retire_at: nil, retired_at: nil}.
+// It does send subscribers an EventReopened (no patch) once the row is live,
+// which is how in-process features (the summarizer) learn a new run began.
+func (s *Store) Reopen(id string) error {
+	if err := s.reopen(id); err != nil {
+		return err
+	}
+	s.broadcast(Event{Kind: EventReopened, SessionID: id})
+	return nil
+}
+
+func (s *Store) reopen(id string) error {
+	sess, ok := s.Get(id)
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	switch {
+	case sess.removed:
+		return fmt.Errorf("session %s not found", id)
+	case sess.reaping:
+		return ErrReaping
+	case !isTerminal(sess.State):
+		return ErrNotExited
+	}
+	sess.State = protocol.StateQueued
+	sess.LastEventAt = time.Now().UTC()
+	sess.EndedAt = time.Time{}
+	sess.ExitCode = nil
+	sess.RetireAt = time.Time{}
+	sess.RetiredAt = time.Time{}
+	// A new run: its end gets its own audit record, and it records no
+	// prompt (the daemon no longer has the first run's).
+	sess.AuditWritten = false
+	sess.auditFirst, sess.auditPrompt = "", ""
+	return nil
+}
+
+// ReleaseReaping gives back the retire sweep's claim on a session whose
+// deletion was abandoned, so a later sweep claims it again.
+func (s *Store) ReleaseReaping(id string) {
+	if sess, ok := s.Get(id); ok {
+		sess.mu.Lock()
+		sess.reaping = false
+		sess.deleting = false
+		sess.mu.Unlock()
+	}
+}
+
 // RetireCandidate is a marked session whose deadline has passed.
 type RetireCandidate struct {
 	ID       string
@@ -385,6 +485,32 @@ func (s *Store) BroadcastTokenPatch(id string, tokens, outputBytes int64) {
 	s.BroadcastPatch(id, map[string]any{"tokens": tokens, "output_bytes": outputBytes})
 }
 
+// SetResumeID records the agent's conversation id (lowercased) and reports
+// whether it changed. It does not broadcast: the caller persists meta.json
+// first and then sends the resume_id patch (BroadcastPatch), so a client that
+// reads meta.json after the patch sees the id. It is not activity:
+// last_event_at is left alone. An id that fails protocol.ValidResumeID is an
+// error: ids end up on an argv.
+func (s *Store) SetResumeID(id, resumeID string) (bool, error) {
+	norm, ok := protocol.NormalizeResumeID(resumeID)
+	if !ok {
+		return false, fmt.Errorf("invalid resume id %q", resumeID)
+	}
+	s.mu.RLock()
+	sess, found := s.sessions[id]
+	s.mu.RUnlock()
+	if !found {
+		return false, fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.ResumeID == norm {
+		return false, nil
+	}
+	sess.ResumeID = norm
+	return true, nil
+}
+
 // SetSubagents records how many subagents a session's agent is running and
 // broadcasts a change. It is not activity: last_event_at is left alone.
 func (s *Store) SetSubagents(id string, n int) error {
@@ -402,6 +528,131 @@ func (s *Store) SetSubagents(id string, n int) error {
 	sess.Subagents = n
 	sess.mu.Unlock()
 	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"subagents": n}})
+	return nil
+}
+
+// SetCost records what a session has cost so far and broadcasts a change. It
+// is not activity: last_event_at is left alone.
+func (s *Store) SetCost(id string, usd float64) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.CostUSD != nil && *sess.CostUSD == usd {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.CostUSD = &usd
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"cost_usd": usd}})
+	return nil
+}
+
+// SetPrompts records how many prompts the user sent a session's agent and
+// broadcasts a change. It is not activity: last_event_at is left alone.
+func (s *Store) SetPrompts(id string, n int) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.Prompts == n {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.Prompts = n
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"prompts": n}})
+	return nil
+}
+
+// SetWaitReason records why a needs_input session waits (protocol.WaitReview,
+// protocol.WaitInput, or "" for unknown or none) and broadcasts a change. It
+// is not activity: last_event_at is left alone.
+func (s *Store) SetWaitReason(id, reason string) error {
+	switch reason {
+	case "", protocol.WaitReview, protocol.WaitInput:
+	default:
+		return fmt.Errorf("invalid wait reason %q", reason)
+	}
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.WaitReason == reason {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.WaitReason = reason
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"wait_reason": reason}})
+	return nil
+}
+
+// SetLoop records the loop that owns a session and its turn in progress, and
+// broadcasts a change. It is not activity: last_event_at is left alone.
+func (s *Store) SetLoop(id, loopID string, iter int) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.LoopID == loopID && sess.LoopIter == iter {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.LoopID, sess.LoopIter = loopID, iter
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"loop_id": loopID, "loop_iter": iter}})
+	return nil
+}
+
+// SetWaiting records what a working session is blocked on and since when,
+// and broadcasts a change. An empty kind clears it. A session that is not
+// working cannot wait, so kind is then treated as empty. It is not
+// activity: last_event_at is left alone. An unknown kind, or a kind with no
+// start time, is an error (nothing changes).
+func (s *Store) SetWaiting(id, kind string, since time.Time) error {
+	if kind != "" && !protocol.ValidWaitKind(kind) {
+		return fmt.Errorf("invalid wait kind %q", kind)
+	}
+	if kind != "" && since.IsZero() {
+		return fmt.Errorf("wait %q needs a start time", kind)
+	}
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.State != protocol.StateWorking {
+		kind = ""
+	}
+	if kind == "" {
+		since = time.Time{}
+	}
+	if sess.WaitingOn == kind && sess.WaitingSince.Equal(since) {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.WaitingOn, sess.WaitingSince = kind, since
+	sess.mu.Unlock()
+	patch := map[string]any{"waiting_on": nil, "waiting_since": nil}
+	if kind != "" {
+		patch["waiting_on"], patch["waiting_since"] = kind, since
+	}
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: patch})
 	return nil
 }
 
@@ -550,7 +801,7 @@ func (s *Store) UpdateDescription(id, desc string) error {
 	s.broadcast(Event{
 		Kind:      EventUpdated,
 		SessionID: id,
-		Patch:     map[string]any{"description": desc},
+		Patch:     map[string]any{"description": desc, "description_at": now},
 	})
 	return nil
 }
@@ -568,23 +819,18 @@ func (s *Store) UpdateDescription(id, desc string) error {
 func (s *Store) Subscribe(fn func(Event)) func() {
 	s.subsMu.Lock()
 	defer s.subsMu.Unlock()
-	s.subscribers = append(s.subscribers, fn)
-	idx := len(s.subscribers) - 1
+	id := s.subscribers.Add(fn)
 	return func() {
 		s.subsMu.Lock()
 		defer s.subsMu.Unlock()
-		if idx < len(s.subscribers) {
-			s.subscribers[idx] = nil
-		}
+		s.subscribers.Remove(id)
 	}
 }
 
 func (s *Store) broadcast(e Event) {
 	s.subsMu.RLock()
 	defer s.subsMu.RUnlock()
-	for _, fn := range s.subscribers {
-		if fn != nil {
-			fn(e)
-		}
+	for fn := range s.subscribers.All() {
+		fn(e)
 	}
 }

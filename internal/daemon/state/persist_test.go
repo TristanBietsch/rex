@@ -92,3 +92,77 @@ func TestTranscriptFile_TailVisibleBeforeClose(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "still running", string(b))
 }
+
+// A WriteMeta cut off between creating its temp file and the rename (a
+// crash, power loss) left meta-*.tmp behind forever. The daemon removes
+// them at startup, under the state lock and before any writer; LoadAll,
+// which the CLI also runs against a live daemon, leaves them alone.
+func TestRemoveStaleMetaTemps(t *testing.T) {
+	dir := t.TempDir()
+	sess := &Session{ID: "id1", ShortID: "id1", State: protocol.StateDone, StartedAt: time.Now().UTC()}
+	require.NoError(t, WriteMeta(dir, sess))
+	sdir := filepath.Join(dir, "sessions", "id1")
+	stale := filepath.Join(sdir, "meta-123456.tmp")
+	require.NoError(t, os.WriteFile(stale, []byte("{"), 0o600))
+	keep := filepath.Join(sdir, "notes.tmp")
+	require.NoError(t, os.WriteFile(keep, []byte("x"), 0o600))
+
+	loaded, err := LoadAll(dir)
+	require.NoError(t, err)
+	require.Len(t, loaded, 1)
+	_, err = os.Stat(stale)
+	require.NoError(t, err, "LoadAll is read-only")
+
+	RemoveStaleMetaTemps(dir)
+	_, err = os.Stat(stale)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(keep)
+	require.NoError(t, err, "only WriteMeta's temp files go")
+}
+
+// Attach replays a tail into a terminal emulator: a tail cut from the
+// middle of the transcript must not start inside an escape sequence or a
+// UTF-8 rune, or the screen comes up garbled.
+func TestReplayTail_StartsAtASafeBoundary(t *testing.T) {
+	dir := t.TempDir()
+	body := "first line\x1b[38;5;196mred\x1b[0m\nsecond é line\n"
+	require.NoError(t, AppendTranscript(dir, "id1", []byte(body)))
+
+	// Whole file: unchanged.
+	b, err := ReplayTail(dir, "id1", 1024)
+	require.NoError(t, err)
+	require.Equal(t, body, string(b))
+
+	// Cut inside "\x1b[38;5;196m": start at the next ESC.
+	b, err = ReplayTail(dir, "id1", len(body)-len("first line\x1b[38"))
+	require.NoError(t, err)
+	require.Equal(t, "\x1b[0m\nsecond é line\n", string(b))
+
+	// Cut inside the line before a newline: start after it.
+	b, err = ReplayTail(dir, "id1", len("0m\nsecond é line\n"))
+	require.NoError(t, err)
+	require.Equal(t, "second é line\n", string(b))
+
+	// No newline or ESC in the tail: start at the next rune.
+	require.NoError(t, AppendTranscript(dir, "id2", []byte("aaaé bbb")))
+	b, err = ReplayTail(dir, "id2", len("\xa9 bbb")) // cut inside "é"
+	require.NoError(t, err)
+	require.Equal(t, " bbb", string(b))
+}
+
+// A cut tail of only UTF-8 continuation bytes has no safe start; a missing
+// transcript replays nothing.
+func TestReplayTail_EdgeCases(t *testing.T) {
+	dir := t.TempDir()
+	b, err := ReplayTail(dir, "none", 64)
+	require.NoError(t, err)
+	require.Nil(t, b)
+
+	require.NoError(t, AppendTranscript(dir, "id1", []byte("a日")))
+	b, err = ReplayTail(dir, "id1", 2) // the last two bytes of 日
+	require.NoError(t, err)
+	require.Empty(t, b)
+
+	_, err = ReplayTail(dir, "../escape", 64)
+	require.Error(t, err)
+}

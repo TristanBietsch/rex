@@ -2,13 +2,23 @@
 
 User settings live in `~/.config/rex/config.yaml`. Keys are flat top-level YAML entries. Unknown keys are ignored on load. Invalid values for known keys are skipped silently.
 
+Saving is sparse: rex re-reads the file and writes only the keys it changed (`rex config reset` deletes the key), so the TUI and `rex config set` do not overwrite each other. There is no file lock; two saves in the same instant can still lose one.
+
 The TUI settings page (`S`), `rex config`, and the daemon read the same registry defined in code.
+
+Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`, then (in rex commands run inside a workspace you trusted, and on its board) the workspace's `.rex/config.lua` ([workspaces.md](workspaces.md#workspace-settings)). A broken `config.lua` (either one) keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again. Saving those two from `rex trust`, `:trust` or the wizard edits the list `config.yaml` holds, so a broken `config.lua` never makes them drop the folders already there.
+
+A workspace `.rex/config.lua` may set only display settings: `theme`, `spinner`, `waiting_spinner`, `row_density`, `prompt_glyph`, `selector_glyph`, `selector_gap`, `selector_bold`, `selector_blink`, `selector_blink_ms`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `window_border`, `window_border_color`, `accent_color`, `column_layout`, `mobile_layout`, `mouse_enabled`, `attach_scrollback_lines`, `screensaver_enabled`, `screensaver_after_minutes`, `screensaver_counts`, `screensaver_clock`, `screensaver_drift`, `board_filter`, `search`, `timestamps`, `summary_preview`, `waiting_section`, `usage_meter`, `summary_detail`, `desc_animation` and `attach_banner`. Every other setting is refused with a warning.
 
 ## Files
 
 | Path | Role |
 |------|------|
 | `~/.config/rex/config.yaml` | Persisted values |
+| `~/.config/rex/config.lua` | Optional Lua settings and themes; wins over `config.yaml` while `lua_config` is on ([howto/lua-config.md](howto/lua-config.md)) |
+| `~/.config/rex/lua/` | Modules `config.lua` may `require` |
+| `<workspace>/.rex/config.lua` | Optional workspace settings, on top of `config.lua`; read only after `rex ws trust` ([workspaces.md](workspaces.md#workspace-settings)) |
+| `~/.config/rex/themes/<name>.yaml` | Your own themes ([themes.md](themes.md)) |
 
 ## Commands
 
@@ -18,7 +28,61 @@ rex config get <id>...
 rex config set <id> <value>...
 rex config reset <id>...
 rex config edit          # opens init.lua in $EDITOR, not config.yaml
+rex config edit -lua     # opens config.lua (settings in Lua)
+rex config lua-export    # prints config.yaml as a starter config.lua
 ```
+
+## When a change applies
+
+The settings page shows this per row (the detail pane under the list), and the registry carries it as `Apply`:
+
+| Mode | Meaning |
+|------|---------|
+| applies now | In the TUI at once (also when you edit `config.yaml` by hand: the TUI polls it every 2 s while `live_reload` is on), or through the daemon's settings watcher within seconds |
+| next attach | Read when an attach popup opens or resizes (`attach_banner`, `attach_scrollback_lines`) |
+| applies now (set from the TUI) | `max_concurrent_sessions`: the TUI sends it to the running daemon; the daemon ignores the YAML |
+| next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
+| after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
+
+## Themes
+
+`accent_color` changes only the accent on top of any theme; see [themes.md](themes.md#accent-color).
+
+`rex config set theme <name>` or `:theme <name>` in the TUI (your own theme files are in [themes.md](themes.md)); the TUI applies it at once and CLI output follows it. `theme` was called `color_scheme`: the old key is still read (`theme` wins if both are in the file), and the next save writes `theme`. An unknown name uses `default`.
+
+| Scheme | For |
+|--------|-----|
+| `default` | Dark terminals. Violet accent for the prompt arrow, selection marker, focused inputs and logo; blue, green (a bright one for ready, a calmer one for done) and red stay the state colors |
+| `classic` | The previous look (blue accent) |
+| `noir` | Deeper, quieter dark |
+| `paper` | Light terminals |
+| `high-contrast` | Pure black and white with bright state colors |
+| `auto` | Opt-in: `default` on a dark terminal, `paper` on a light one. The TUI checks `COLORFGBG`, then asks the terminal (OSC 11), once at start and only when the theme is `auto`; switching to `auto` later reuses that answer (dark if it never asked). CLI output treats it as `default`. See [themes.md](themes.md#auto) |
+| `ansi` | Your terminal's own six normal hues (a Solarized or Gruvbox terminal theme gives a matching rex); dim text is the default color drawn faint, since no fixed index is safe (8 is the Solarized Dark background); the selection is reverse video. Also a good fallback on a 16-color terminal |
+| `dracula` | Bundled: the Dracula palette |
+| `tokyo_night` | Bundled: the Tokyo Night "night" palette |
+| `pantone_safe` | Bundled: state colors from the colorblind-safe border swatches, so the states stay apart with protan, deutan and tritan vision |
+
+The three bundled themes are theme files that ship inside rex; a file of your own with the same name replaces one, and they cannot be extended ([themes.md](themes.md#bundled-themes)). Every scheme with real colors is tested against its own background: text 7:1, state colors, accent and dim text 4.5:1, focus border 3:1, and the four state colors stay distinct from one another (also after a 256-color terminal quantizes them).
+
+## Border colors
+
+`window_border_color` takes one of ten Pantone-inspired names. The hex values are approximations, not official Pantone values, and rex is not affiliated with Pantone. Each hue sits next to an Okabe-Ito (or IBM color-blind-safe) role, and every value is at least 3:1 against every scheme's background (WCAG non-text contrast); light schemes use the darker variant.
+
+| Name | Reference | Dark / light hex | Okabe-Ito role | `ansi` scheme |
+|------|-----------|------------------|----------------|---------------|
+| `tangerine` | 17-1463 Tangerine Tango | `#DD4124` | vermillion | 9 |
+| `mimosa` | 14-0848 Mimosa | `#F0C05A` / `#B18513` | orange | 3 |
+| `illuminating` | 13-0647 Illuminating | `#F5DF4D` / `#A18C00` | yellow | 11 |
+| `emerald` | 17-5641 Emerald | `#009473` | bluish green | 2 |
+| `cerulean` | 15-4020 Cerulean | `#9BB7D4` / `#758FA9` | sky blue | 14 |
+| `classic-blue` | 19-4052 Classic Blue | `#4F83C0` / `#0F4C81` | blue | 12 |
+| `very-peri` | 17-3938 Very Peri | `#6667AB` | (IBM indigo) | 13 |
+| `orchid` | 18-3224 Radiant Orchid | `#B163A3` | reddish purple | 5 |
+| `viva-magenta` | 18-1750 Viva Magenta | `#BE3455` | (IBM magenta) | 1 |
+| `ultimate-gray` | 17-5104 Ultimate Gray | `#939597` / `#8A8C8E` | neutral | 8 |
+
+`random` picks from a smaller pool whose colors stay far apart for normal vision and protan, deutan and tritan color vision (OKLab distance, Machado 2009 simulation, tested): seven colors on dark schemes (`tangerine`, `illuminating`, `cerulean`, `very-peri`, `viva-magenta`, `mimosa`, `ultimate-gray`), five on light ones (`mimosa`, `cerulean`, `very-peri`, `viva-magenta`, `classic-blue`). The other colors are only offered by name. The seed is the folder rex was started in (the repository root, inside a repository).
 
 ## Keys
 
@@ -26,29 +90,80 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 
 | ID | Type | Default | Options |
 |----|------|---------|---------|
-| `color_scheme` | enum | `default` | `default`, `noir`, `paper` |
+| `theme` | string | `default` | A theme name: `default` (violet accent), `classic` (the look before the violet accent), `noir`, `paper` (light terminals), `high-contrast`, `ansi` (your terminal's own 16 colors), the bundled `dracula`, `tokyo_night` and `pantone_safe` (colorblind-safe state colors), `auto` (`default` or `paper` by the terminal's background, TUI only), or a file in `~/.config/rex/themes` ([themes.md](themes.md)). An unknown name uses `default`. Applies to the TUI and to CLI output. Formerly `color_scheme`, still read |
+| `accent_color` | string | `theme` | The accent (prompt arrow, selection marker, focused input, command names) on top of any theme. `theme` keeps the theme's own. A Pantone-inspired name (`very-peri`, `living-coral`, ... approximations, not official values), `#rrggbb`, `#rgb`, `rgb(r, g, b)`, `hsl(h, s%, l%)`, `cmyk(c, m, y, k)` (naive, approximate) or `oklch(l c h)`; case and spaces do not matter. Stored as typed. A color under 4.5:1 on the theme's background is lightened or darkened until it passes, with a notice; one close to a state color gets a warning. The settings page shows a swatch, cycles the names with the arrows and takes your own value with `enter`, `e` or `#`, previewed live. See [themes.md](themes.md#accent-color) |
 | `spinner` | enum | `braille` | `braille`, `ascii_line`, `moon`, `pulse`, `blocks` |
+| `waiting_spinner` | enum | `clock` | The Waiting marker (label Waiting icon), one step a second, still under `reduce_motion`: `clock` `◴ ◷ ◶ ◵` (still `◷`), `hourglass` `⧖ ⧑ ⧖ ⧒` (turns over; still `⧖`), `sand` `⣀ ⣄ ⣤ ⣦ ⣶ ⣷ ⣿` (still `⣤`), `orbit` `◜ ◝ ◞ ◟` (still `◜`), `pendulum` `⠂ ⡀ ⢀ ⠐ ⢀ ⡀` (still `⡀`), `pulse` `∘ ◦ ⊚ ◦` (still `◦`). The header counts and the legend show the still glyph |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
-| `prompt_glyph` | string | `λ` | Suggested graphemes in TUI |
+| `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
+| `selector_glyph` | string | `theme` | The selected row's marker on the board and in every picker. `theme` keeps the theme's own (`▸` by default). Presets `▸` `❯` `➜` `➤` `☞`, or any glyph that passes the `prompt_glyph` check (1 or 2 cells). `☞` is East Asian ambiguous width: a terminal set to draw those wide shifts the selected row by one column. `👉` is always 2 cells. With `ascii_glyphs` on a non-ASCII glyph draws as `>` |
+| `selector_gap` | int | `2` | Blank columns between the board selector and the state marker, 1 to 3 |
+| `selector_bold` | bool | `true` | Draw the selector bold |
+| `selector_blink` | enum | `off` | `off`, `blink` (hidden every other half period, keeping its width), `pulse` (dimmed instead of hidden). Board only. Solid right after any key or click, after a minute without input, off the board and with `reduce_motion` |
+| `selector_blink_ms` | int | `600` | One blink period, 200 to 2000 ms, rounded to 100 ms |
 | `reduce_motion` | bool | `false` | |
 | `blinking_enabled` | bool | `true` | Completed-row blink |
-| `show_help_bar` | bool | `true` | Bottom help line |
+| `show_help_bar` | bool | `true` | The key hints on the bottom line, including a long Done column's `4 show · :prune clear`. Off blanks them (the row stays); errors, notices and prompts such as rename or search still show there |
 | `header_style` | enum | `verbose` | `verbose`, `glyphs`, `numbers` |
+| `window_border` | bool | `false` | A thick colored frame around the whole screen (see [tui.md](tui.md#window-border)). It costs 2 columns and 2 rows and gives way on small terminals |
+| `window_border_color` | string | `random` | `random` (stable per launch folder: a project keeps its color), a color name (see below), or `#rrggbb` (`#rgb` is expanded). The settings page cycles the names with the arrows and takes a typed hex with enter |
+| `column_layout` | enum | `fixed` | `fixed`, `fit`. `fixed` gives board columns set widths that change only at width breakpoints (see [tui.md](tui.md#column-widths)); `fit` sizes them to their content |
+| `mobile_layout` | enum | `auto` | `auto`, `always`, `off`. Two-line rows, a compact header and a three-key help line. `auto` uses it at 60 columns or fewer; `always` and `off` force it (see [tui.md](tui.md#mobile-layout)) |
+| `row_icon_set` | string | `unseen,reason,loop,subagents,spend,longrun` | Which icon slots a board row shows, comma-separated: `unseen`, `reason`, `loop`, `subagents`, `spend`, `longrun`. Unknown ids are ignored; the order is fixed (this removes slots, it cannot reorder them). The loop slot also needs `loops` and the spend slot `usage`. Needs `row_icons` on (see [tui.md](tui.md#row-columns)). Live |
+| `ascii_glyphs` | bool | `false` | Draw the row icons and their legend rows in plain ASCII (`*` `+` `@` `Y` `^`; `?` and `$` stay) for fonts that lack the symbols, and a non-ASCII selector as `>`. Live |
 
 ### Behavior
 
 | ID | Type | Default | Range | Notes |
 |----|------|---------|-------|-------|
-| `keybind_preset` | enum | `default` | `default` only | |
+| `keybind_preset` | enum | `default` | `default` only | Hidden on the TUI settings page until a second preset exists; `rex config` still lists it |
 | `mouse_enabled` | bool | `true` | | Board and attach-popup mouse: click selects, double-click attaches, wheel moves the selection. Capturing the mouse disables the terminal's native text selection; hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) to select anyway, or turn this off. Applies live |
 | `max_concurrent_sessions` | int | `16` | 1–64 | See below |
 | `attach_scrollback_lines` | int | `5000` | 0–50000 | Lines the attach popup keeps after they scroll off a primary-screen agent (see [tui.md](tui.md#scrollback)). `0` disables. Also capped at 8 MiB per popup. Read when a popup opens |
-| `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`cc`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, so changes apply immediately; the daemon reads it at startup as its default |
-| `screensaver_enabled` | bool | `true` | | After `screensaver_after_minutes` with no key or click on the board, show a small `∴ rex` with the counts. The key or click that wakes it does nothing else. See [tui.md](tui.md#screensaver) |
-| `screensaver_after_minutes` | int | `5` | 1–120 | Idle minutes before the screensaver shows. Only time on the bare board counts: overlays, prompts and the attach popup never time out. A change applies within a minute |
+| `retire_after_hours` | int | `168` | 1–8760 | How long a session marked done (`cc`, `rex done`) lingers before it is cleared. The TUI and CLI send it with each mark, and the daemon's default for a mark without one follows the setting, so changes apply immediately |
+| `screensaver_enabled` | bool | `true` | | After `screensaver_after_minutes` with no key or click, show a small `∴ rex` with the counts. The key or click that wakes it does nothing else. See [tui.md](tui.md#screensaver) |
+| `screensaver_after_minutes` | int | `5` | 1–120 | Idle minutes before the screensaver shows. Overlays, prompts, the wizard and the attach popup time out too; waking returns to them. A change applies within a minute |
+| `screensaver_counts` | enum | `horizontal` | `horizontal`, `vertical`, `off` | How the screensaver shows the counts: on one line, one per line under the logo (one line again when the terminal is too short), or not at all. See [tui.md](tui.md#screensaver) |
+| `screensaver_clock` | enum | `off` | `off`, `24h`, `12h` | Show the time under the screensaver's logo (`14:05` or `2:05 PM`). It updates on the minute |
+| `screensaver_drift` | bool | `true` | | Move the screensaver a little once a minute. Off, or with `reduce_motion`, it stays centered |
+| `skip_permissions` | bool | `false` | | Start Claude Code and Antigravity with `--dangerously-skip-permissions` (the tool's `skip_permissions_args`). Agents then edit files and run commands without asking you first. Only applies in a trusted folder: one under `auto_trust_dirs`, or one trusted for that session (`ctrl+t` / `ctrl+a` in the wizard, `rex new -trust`); anywhere else the flag is left off and the daemon log says `skip_permissions ignored: folder not trusted`. Off by default; read at each spawn (and each resume), so it applies to the next session. `rex config set` / `reset` change it only at a terminal (exit 6 for agents and pipes). A change made through rex (`rex config set` / `reset`, the Settings page, `rex setup`) reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off. See [SECURITY.md](../SECURITY.md) |
 | `screensaver_keep_awake` | bool | `true` | | macOS only: keep the display from sleeping while the screensaver shows (`caffeinate -d`, stopped when it goes away or rex exits). Does nothing on other systems. See [tui.md](tui.md#keep-awake-macos) |
+| `board_hidden_sections` | string | `""` | | Board sections hidden at startup: comma-separated ids from `needs`, `waiting`, `working`, `done` (for example `done`). Unknown ids are ignored, and a list naming every section is ignored. `zh`, `z1`-`z9` and `:filter` change it for the current run; `:bg` keeps that choice for the next start, which overrides this setting once. Read at startup only. See [tui.md](tui.md#filters) |
 
 `max_concurrent_sessions` in YAML does **not** set the daemon cap at startup. The daemon uses `-max-concurrent-sessions` (default 16). The TUI can apply a new cap live via the settings UI (`SetMaxConcurrent` intent). Restart the daemon to pick up a YAML change for startup behavior.
+
+### Features
+
+One on/off switch per optional feature. A feature that is off is inert: no background work, no file writes, its keys do nothing and its commands refuse with `off: enable in Settings → Features (rex config set <flag> true)`. Existing toggles (`summary_enabled`, `skip_permissions`, …) stay in their own sections. Code reads a switch with `settings.FeatureOn(store, id)`, which panics for an id outside this section.
+
+| ID | Type | Default | Notes |
+|----|------|---------|-------|
+| `board_filter` | bool | `true` | Tool filter chips, `:filter`, section hiding (`zh`, `z1`-`z9`) and `board_hidden_sections`. Off: no chip row, `t` and the `z` chords do nothing, `:filter` refuses, and hidden sections, `board_hidden_sections` and a saved tool filter are ignored. See [tui.md](tui.md#filter-and-search) |
+| `search` | bool | `true` | Board search: `/` and `:search`. Off: `/` does nothing, `:search` refuses, and a saved or stale query is ignored |
+| `undo_complete` | bool | `true` | The `uc` key and `:uc` / `:resume`, which take a session out of Done. Off: `uc` does nothing and the commands refuse; `:undone` (unmark only) still works |
+| `resume` | bool | `true` | Track each session's agent conversation id (resume id) so an exited session can be resumed: the resume id column, `:rid` and the `Resume` intent. Off: no `--session-id` is preassigned, no id is captured from hooks or `capture_regex`, the column and `:rid` go away, and `Resume` is refused with `bad_intent` `resume is off`. The daemon reads it at each spawn and `Resume`; the TUI at each frame. Ids already stored stay in `meta.json` |
+| `timestamps` | bool | `true` | Start and end times: the start→end span column in the detailed board view and `STARTED` / `ENDED` in `rex ls -wide`. Off: no column and no such columns. The end time (`ended_at`) is still recorded. Read at each frame and each `rex ls` |
+| `cli_agent_auto` | bool | `true` | Switch rex's CLI to agent mode (one line per record, no color, no prompts) when `CLAUDECODE=1` and stdout is not a terminal. Off: only `--agent`, `-o agent` and `REX_AGENT=1` do. `REX_AGENT=0` turns it off for one run. See [cli.md](cli.md#agent-mode) |
+| `summary_preview` | bool | `true` | A line under the board with the selected session's full AI summary and its age. Shown only while some session has a summary. Off: no line and no row reserved |
+| `row_icons` | bool | `true` | Board rows show an icon strip, right-aligned next to the age: `✦` finished since you last looked, why it needs you (`? asks`, `sh 42s`), the loop turn, subagents, spend (Claude), the long-run badge (see [tui.md](tui.md#row-columns)). The text moves to the preview line. Which rows you have seen is saved in `tui-state.json` (`seen`, pruned to live sessions). Off: the earlier board with the task text column, and nothing about seen rows is tracked or written. Live |
+| `summary_schedule` | bool | `true` | Scheduled description refresh. Each running session (queued, working or needs you) gets a new AI description 5, 10, 15, 20 and 25 minutes after its run started, then every 30 minutes. From the 6th refresh on the description is one `summary_detail` level longer (short→medium, medium→long, long stays at 180 characters) and says what is finished so far plus what is happening now. A state change still refreshes at once and does not move the clock; a Resume restarts the 5-minute phase. Screen activity no longer triggers a refresh, and an unchanged screen makes no call. Applies within about 5 s with `live_reload` on (otherwise on `rex reload`), no daemon restart. Needs `summary_enabled`. A session with no description yet still refreshes on screen activity until its first description lands. Each session's clock is shifted by up to 5% of 5 minutes so sessions started together do not tick together. Off: refresh when the screen goes quiet and on state changes, as before; no timer |
+| `turn_snapshots` | bool | `false` | Snapshot a session's folder at the start and end of every agent turn into a private store under `~/.local/share/rex/snapshots`, so `rex undo` can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as `.env` unless they are gitignored. Off: no snapshot, no git call, no file written, and `rex undo` / `rex redo` refuse. Read live by the daemon (within about 5 s). See [snapshots](snapshots.md) |
+| `waiting_section` | bool | `true` | A Waiting section below Ready for working sessions blocked on a shell command, subagent or web call for 3 s or more (Claude Code), with its own `◷` marker and count. Off: those sessions stay in Working, the section, its count and its key go away, and `1` `2` `3` (and `z1`-`z3`) are Ready / Working / Done again. The daemon still records `waiting_on` / `waiting_since`; the switch is read by the TUI and `rex ls` |
+| `spawn_skills` | bool | `true` | Load skills from `~/.config/rex/skills` into one session: the wizard's skills step and `rex new -skill`. Off: the step is hidden, `-skill` exits 5 (`off: enable in Settings → Features (rex config set spawn_skills true)`), `NewSession` with skills is `bad_intent` `skills are off`, and no `--plugin-dir` is added, also on resume. The daemon reads it at each spawn and `Resume`. See [howto/skills.md](howto/skills.md) |
+| `loops` | bool | `false` | Run an agent session in a repeat loop (`rex loop`): the daemon re-sends your prompt each time the agent finishes a turn, until a check command you wrote exits 0 or a cap is reached. Loop files are read only from `~/.config/rex/loops`, and their check commands run on your machine. A permission or question prompt pauses the loop; rex never answers it. Off: no loop runs, no loop file is read, nothing is written, and `rex loop` exits 5. Read at every request and followed within about 5 s. See [loops](loops.md) |
+| `usage` | bool | `true` | Track agent usage: the per-session ledger (`~/.local/share/rex/usage.jsonl`, see [paths.md](paths.md)) behind `rex usage`, and the quota Claude Code reports through its status line. Off: no status-line tap is added to Claude, no ledger is written or trimmed, nothing is polled, and `rex usage` exits 5 (`off: enable in Settings → Features (rex config set usage true)`). The daemon reads it at each spawn and each ledger write |
+| `usage_statusline_tap` | `auto` \| `on` \| `off` | `auto` | How rex reads Claude Code's plan usage. rex gives Claude a status line (`rex-daemon statusline-tap`) that sends the usage fields to the daemon and then runs **your own** status line command with the same input, so yours looks unchanged. `auto` adds it only when you already have a user-level status line (see below), because Claude hides its footer hints (`esc to interrupt`, `? for shortcuts`) once any status line is set and rex never changes that on its own. `on` always adds it (the footer hints go away). `off` never adds it; Claude rows then use rex's own token estimate (`~`). Ignored while `usage` is off. Read at each spawn and `Resume`, and within about 5 s while the daemon runs (it follows `config.yaml`); a session already running keeps the status line it was started with |
+| `usage_meter` | `off` \| `compact` \| `full` | `compact` | The right end of the header's top row: for each agent with a live session, its worst quota window as a 5-cell bar and a percent (`compact`), or every window with its reset time (`full`). It gives way to the counts when the row is short, and a click on it opens `:usage` ([tui.md](tui.md#usage)). Ignored while `usage` is off, and hidden against a daemon that sends no quotas. Live |
+| `extra_agents` | bool | `true` | Qwen Code (`qwen`), Cursor CLI (`cursor`, binary `cursor-agent`) and Grok Build (`grok`). Their default modes can edit files or run commands without asking, and rex does not answer their folder-trust dialogs (see [registry.md](registry.md#built-in-tools)). The new-session wizard offers each only while its binary is on the daemon's `PATH` (Settings → Onboarding lists the missing ones with an install hint); `rex setup` applies the same rule with its own `PATH`. Off: the three never show in the wizard, the quick-spawn pickers or `rex setup`, they are gone from the daemon's registry, and a spawn is refused with `bad_intent` `off: enable in Settings → Features (`rex config set extra_agents true`)`. The daemon follows `config.yaml` within about 5 s |
+| `model_autodetect` | bool | `true` | Ask each installed agent for its own model list (`qwen --list-models`, `grok models`, `cursor-agent models`) and cache it in `~/.local/state/rex/models-cache.json` for 24 h ([paths.md](paths.md)). Detected models show in the wizard and in the quick-spawn model choices. Refreshed at daemon start, by `rex reload`, and when the switch is turned on. Off: no command is run, the cache is neither read nor written, and only the built-in model lists show. See [registry.md](registry.md#models_cmd) |
+| `live_reload` | bool | `true` | The daemon polls `config.yaml` every 5 s and applies the settings that can change live (see [below](#which-settings-apply-live)). Off: no polling and no file is stat'ed; `rex reload`, `:reload` and `SIGHUP` still reload by hand. Turning it off takes effect at the next poll; turning it back on needs one manual reload |
+| `session_export` | bool | `true` | `rex export` and `:export`: write one session as a json, yaml, md or txt document (the transcript replayed to clean text). Off: both refuse (`off: enable in Settings → Features (rex config set session_export true)`, exit 5 on the CLI). Exports can hold whatever the agent printed. See [export.md](export.md) |
+| `fullscreen_pages` | bool | `true` | Settings (`S`, `:settings`) and help (`?`, `:help`) open as full-screen pages that look like the board: the same header logo, dividers and hint row, no board behind them, with the sections (or help groups) in a pane on the left. `tab` switches panes, `1`–`9` and `[` / `]` pick a section, `q` closes a page as well as `esc`; under 60 columns the section pane becomes a one-line strip. Off: they open as the older floating overlays over the dimmed board, where `tab` jumps a section and the page keys do nothing. Applies live, keeping the cursor ([tui.md](tui.md#page-look)) |
+| `new_agent_page` | bool | `true` | `n` opens the new-agent page: task, context (paste, `@file`, import) and trust on one full-screen page ([tui.md](tui.md#new-agent-page)). Off: the older popup wizard, and none of the page's keys or its workspace listing run. Turning it off while the page is open closes it and keeps the draft in memory; the wizard then starts with the task text only. Applies live |
+| `workspaces` | bool | `false` | Workspaces: `rex ws init` marks a project folder with a `.rex/` holding an id, a name and a color; `rex audit --ws` and workspace audit files use it. Off: rex never looks for or writes a `.rex/` folder, `rex ws` exits 5 and the daemon does no workspace lookup. See [workspaces.md](workspaces.md) |
+| `audit_trail` | bool | `true` | Write one line per finished session (who, tool, state, times, first line of the prompt) to `~/.local/share/rex/audit.jsonl`, or `<workspace>/.rex/audit.jsonl` for a workspace session, for `rex audit`. Off: no file is written, the prompt is not kept in memory and `rex audit` exits 5. The daemon follows `config.yaml` within about 5 s |
+| `audit_full_prompt` | bool | `false` | Also store each session's whole first prompt (20,000 characters at most) in the audit trail. Prompts can hold secrets and a workspace `audit.jsonl` may be synced or committed. Needs `audit_trail`. Applies to sessions started after it is turned on |
+| `lua_config` | bool | `true` | Read `~/.config/rex/config.lua` on top of `config.yaml` (see [howto/lua-config.md](howto/lua-config.md)). Inert without the file. Values it sets win over `config.yaml`, are never written to it, and `rex config set` / `reset` on them exit 5 with the file and line. Read from `config.yaml` only (`config.lua` cannot turn itself off). Off: `config.lua` and `~/.config/rex/lua/` are never stat'ed, read or run, and every row is unlocked |
 
 ### Spawn
 
@@ -57,7 +172,7 @@ rex config edit          # opens init.lua in $EDITOR, not config.yaml
 | `default_spawn_tool` | string | `claude` | Tool id for `i` quick-spawn |
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
-| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex setup` or `rex config set` |
+| `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex trust`, the wizard's `ctrl+a`, `:trust`, `rex setup -auto-trust` or `rex config set` (the CLI ones only at a terminal; exit 6 for agents and pipes); all refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
 
@@ -69,10 +184,20 @@ Agents ask whether you trust a folder the first time they run in it. For a sessi
 - **Claude Code:** it asks "Is this a project you created or one you trust?" with **No, exit** selected. The daemon answers it: it moves the selection to **Yes, I trust this folder**, checks that it is selected, and confirms. It acts only within the first 60 s of the session and gives up after 4 moves. Anywhere else the dialog waits for you as before.
 
 ```sh
+rex trust                                  # the repo folder of the working directory
+rex trust ~/Documents/dev/api              # a folder you name
+rex trust -ls                              # what is trusted now
+rex trust -rm ~/Documents/dev/api          # stop trusting it
 rex config set auto_trust_dirs "~/Documents/dev"
 ```
 
-`rex setup` asks the same question once, with **no** as the default answer. When you run it from the root of a git checkout, it suggests the folder that holds that checkout, if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
+`rex trust` prints the exact folder it added and refuses the values listed below (exit 5). The TUI has the same two choices when you start a session: in the wizard's describe step `ctrl+t` trusts the session's folder for this one session only (nothing is saved) and `ctrl+a` saves the repo folder to `auto_trust_dirs` (see [tui.md](tui.md#new-session-wizard)); `:trust [folder]` saves a folder from the board. From the shell, `rex new -trust` trusts one session's folder only. The folder `ctrl+a`, `:trust` and `rex trust` offer is the repo folder: the root of the git checkout holding the working directory, or the folder itself when it is not in one. It is never the parent, so trusting one project does not trust its siblings.
+
+A per-session trust (`ctrl+t`, `rex new -trust`) acts as if the folder were listed, for that session only (and for its resumes): the dialog is answered or avoided, and `skip_permissions` may apply. The folder must pass the same checks as an entry. rex saves nothing for it. When the dialog is answered for Claude Code, Claude remembers the answer in its own config, exactly as if you had pressed yes yourself; rex never writes Claude's or Antigravity's config.
+
+If a dialog shows up in a folder that is not trusted, the session waits for you and the daemon log says `trust dialog shown; folder not trusted (rex trust, or ctrl+t in the wizard)` once. `rex doctor` warns about entries the daemon would ignore or that do not exist.
+
+`rex setup` asks the same question once, with **no** as the default answer. When you run it inside a git checkout, it suggests that checkout's root (or the folder you are in, outside a checkout), if that folder is inside your home folder (never the home folder itself, and not through a link that leads out of it). You can accept the folder, edit it, or say no. Without the wizard, `rex setup -yes -auto-trust "~/Documents/dev"` sets it; if `config.yaml` already exists, add `-force` (your other settings are kept) or use `rex config set`. Both need a terminal for this setting (exit 6 in agent mode, with `-o` or a pipe). Setup refuses the values listed below with a message, instead of writing a setting the daemon would ignore.
 
 The setting is read at each spawn; no restart is needed. These are ignored, because they would trust far more than your projects:
 
@@ -90,9 +215,12 @@ Symlinks are resolved on both sides, so a link inside a trusted folder that poin
 |----|------|---------|---------|
 | `summary_enabled` | bool | `true` | |
 | `summary_model` | string | `gemma2:2b` | Use a small model: `gemma2:2b`, `llama3.2:3b`, `llama3.2:1b`, `gemma3:1b`, `qwen2.5:3b`, `phi3:mini` |
+| `summary_detail` | enum | `medium` | Applies within about 5 s, no daemon restart. `short` (about 8 words, 60 characters), `medium` (about 15 words, 110), `long` (about 28 words, 180). Each step up costs roughly 0.5-1.5 s more per call on a small local model |
 | `desc_animation` | enum | `typewriter` | `typewriter`, `decode`, `wipe`, `off` |
+| `overview_enabled` | bool | `false` | Applies within about 5 s, no daemon restart. Needs `summary_enabled`. The daemon asks the summary model for a one-line headline over the whole board (at most one call every 30 s, only while a rex board is open and something needs you, is ready for review, failed or is running). Off: no call, no goroutine |
+| `attach_banner` | enum | `marquee` | `marquee`, `static`, `off`. One row above the agent in the attach popup (what it is doing, where, for how long). Read when a popup opens and on every resize; the agent's terminal is one row shorter while it shows. Hidden below 25 terminal rows. No Ollama call: built from fields the board already has |
 
-Requires a running Ollama instance when enabled. If `summary_model` is not pulled, the daemon substitutes the first pulled model from that small-model list; it never falls back to an arbitrary (large) model. The board shows the session's task (`title`) until the first summary arrives. See `OLLAMA_HOST` in [paths.md](paths.md).
+Requires a running Ollama instance when enabled. If `summary_model` is not pulled, the daemon substitutes the first pulled model from that small-model list; it never falls back to an arbitrary (large) model. The board shows the session's task (`title`) until the first summary arrives. See `OLLAMA_HOST` in [paths.md](paths.md). If the configured model is not pulled, the substitute is used and logged; run `ollama pull <model>` to use the configured one. Descriptions are written by the model from what the agent printed: they can be wrong, and an `OLLAMA_HOST` that points off this machine receives that screen text. Descriptions start with a verb ("Editing api/webhooks.go"), never "Claude is…", and a finished session gets one final summary ("Done: …").
 
 ### Audio
 
@@ -100,9 +228,16 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 |----|------|---------|---------|
 | `sound_enabled` | bool | `true` | |
 | `soundset` | enum | `factorio` | `factorio`, `evangelion`, `bell`, `chiptune`, `off` |
-| `master_volume` | float | `0.80` | `0.0`–`1.0` |
+| `master_volume` | int | `40` | `0`–`50` |
 | `notify_on_state_change` | bool | `true` | |
 | `boot_voice` | bool | `true` | |
+| `audio_dedupe` | bool | `true` | |
+
+`master_volume` scales every sound linearly: the gain is the value / 50, so `40` is 80% and `50` is full volume. The settings page and `rex config get`/`list` (text and md output) show `max` at 50; `txt`, `agent` and JSON output keep the number. On the settings page ◂ ▸ step by 1.
+
+Before the 0–50 scale it was a float from `0.0` to `1.0`. An old value converts on load, in memory, to round(value × 50) (`0.8` → 40); `config.yaml` keeps the old value until you change the volume. The rule: a decimal literal from 0 to 1 (`0.8`, `1.0`, `0.0`, also in `rex config set`) is the old scale; a whole number (`1`, `0`, `40`) is the new one, so `1.0` means 50 and `1` means 1. In `config.lua` a number has no int/float distinction, so only a fraction (`0.8`) is read as the old scale; `1` and `1.0` both mean 1. A fraction outside 0–1 (`1.5`) is refused. `rex doctor` has a `master_volume` warning row, with the file and line, when `config.lua` (or a trusted workspace's `.rex/config.lua`) sets a number above 0 and at most 1: an old `master_volume = 1.0` (full) now reads as 1/50, nearly silent, and a fraction still uses the old scale. `0` is not flagged, since it is mute on both scales.
+
+All audio settings apply at once, on the settings page and from `rex config set`, `config.yaml` or `config.lua` (within a few seconds, with `live_reload` on). A board started with sound off opens the audio device the first time `sound_enabled` turns on, so no restart is needed.
 
 `boot_voice` plays a short spoken "rex" in the lifeOS boot voice (macOS Ralph, flat ~94 Hz robotic monotone, no effects; original audio, generated by `internal/features/audio/voice/gen.sh`) right after the startup tone when the board appears. Independent of `soundset`; requires `sound_enabled` and scales with `master_volume`.
 
@@ -111,18 +246,28 @@ Requires a running Ollama instance when enabled. If `summary_model` is not pulle
 - At most one state-change chime per session every 1.5 s, so a heuristic adapter flickering between `needs_input` and `working` chimes once.
 - No sound for states delivered in the initial snapshot or on reconnect, or for a session the TUI hasn't seen yet. Only live transitions chime.
 - `sound_enabled`, `soundset: off`, and `master_volume` still apply.
-- Changes take effect immediately from the settings page.
+- Changes take effect immediately from the settings page, and from `config.yaml`/`config.lua` on the next live-reload poll.
+
+`audio_dedupe` (Settings → Audio, "One sound across boards") plays a session's sound once however many boards are open. Every board gets each daemon event and would play its sound, a few milliseconds apart, which sounds like a double or an echo. With this on, a board claims the event in `~/.local/state/rex/sound-claims/` before it plays, and only the first board plays. It covers the needs-you and resume chimes, done (and marking done), a new session and a deleted one. Rules:
+
+- Only a board that would play the sound takes part. A workspace board never claims a session it does not show, and a board with no sound (muted, volume 0, no audio device) never claims one, so neither can silence another board.
+- A claim lasts about 10 s; a board that crashes leaves nothing that silences later sounds.
+- If the folder is unusable (a symlink, another user's, open to group or others, cannot be created), dedupe is off for that board and it plays every sound, as before. The log says why, once.
+- Sounds for your own keys and pages (nav, open, close, command) and boot sounds (startup tone, boot chimes, boot voice) belong to one board and are never deduped.
+- Boards from a build before this one do not take part: they keep playing every sound. Restart them.
+- Off: every board plays every sound.
 
 ### Advanced
 
 | ID | Type | Default | Notes |
 |----|------|---------|-------|
 | `lua_config_path` | string | `~/.config/rex/init.lua` | Read-only in TUI; path for Lua hooks |
+| `cli_error_log` | bool | `true` | Keep a private record of failed `rex` commands in `~/.local/state/rex/cli-errors.log`: structure only (command, flag names, exit code and kind, error type names), never any message, prompt, value or path. 1 MiB plus one backup, 0600. Read with `rex errors`. `REX_ERROR_LOG=0` also turns it off |
 
 ## Example
 
 ```yaml
-color_scheme: noir
+theme: noir
 sound_enabled: false
 default_spawn_tool: echo
 default_spawn_model: short
@@ -134,3 +279,31 @@ default_spawn_model: short
 - [howto/lua-hooks.md](howto/lua-hooks.md)
 - [registry.md](registry.md) — tool ids for spawn defaults
 - [paths.md](paths.md)
+
+### How the Claude status-line tap finds your status line
+
+The **daemon** works out the path once, when it starts a session, from its own environment: `$CLAUDE_CONFIG_DIR/settings.json` when that variable is set to an absolute folder, else `<home>/.claude/settings.json`. It bakes the absolute path into the tap's command (`--user-settings <path>`) and the tap reads only that file, read-only. The tap ignores its own `CLAUDE_CONFIG_DIR` and `HOME`: Claude applies the `env` block of settings files, project ones included, to the processes it starts, so an agent that writes a project settings file could otherwise point the tap at a file of its own. A missing or relative path, a symlink, or anything that is not a regular file means no status line (the tap runs nothing and exits 0). A symlinked `~/.claude/settings.json` (a dotfiles manager, say) is therefore not followed: with `auto` rex then adds no tap, and with `on` your status line is not passed through. The file's `statusLine` is used when it has `"type": "command"` and a non-empty command.
+
+Project files (`<folder>/.claude/settings.json` and `settings.local.json`) are never read, and no folder named in Claude's status-line JSON is used. The tap runs your command on every status-line render, and an agent can write a project settings file from inside its own folder at any moment, while Claude itself reads those files only at startup and only for a trusted folder. Passing through a project-level command would let an agent run a command of its choosing outside Claude's permission system. Consequences:
+
+- A status line that exists only in a project file does not count as "you have a status line": `auto` does not add the tap because of it.
+- With `on`, rex's status line replaces a project-level one for that session (rex's `--settings` take precedence), and only the user-level command is passed through.
+
+Not supported: enterprise managed settings, and a `--settings` file you pass to `claude` yourself (rex starts Claude). A missing or invalid file means no status line. A command that already runs `statusline-tap` is ignored. rex never writes any Claude settings file: the tap is injected through the `--settings` argument rex already passes, which also holds the hooks. At run time the tap runs your command through `sh -c` (`bash -c` on Windows) with the identical stdin bytes and passes its stdout, stderr and exit code through. With no user-level status line it prints nothing and exits 0.
+
+## Which settings apply live
+
+The daemon keeps one copy of `config.yaml` and refreshes it about 5 s after an edit (or at once on `rex reload`, `:reload` or `SIGHUP`). With `live_reload` off it refreshes only on those.
+
+The TUI does the same on its own: every 2 s it checks `config.yaml` and the theme files, and when they changed it swaps in the new values and applies the settings marked "applies now" that differ (theme, audio, mouse, hidden sections, `max_concurrent_sessions` and the display settings). `:reload` does it at once, with `live_reload` off too. While `lua_config` is on it checks `config.lua` and `~/.config/rex/lua/` too. A `config.yaml` that fails to parse leaves the TUI's values in place and says so on the status line; a `config.lua` that fails keeps its last good values and puts one flattened line (200 characters at most) on the status line. The boot splash has a `config.lua` row: SKIP (off or no file), WARN (failed or refused something, with the reason) or OK. With `live_reload` off the TUI starts no timer and reads no file.
+
+| Applies | Settings |
+|---------|----------|
+| To the running feature | `summary_detail`, `summary_schedule`, `overview_enabled`, `turn_snapshots`, `usage` |
+| At the next spawn or `Resume` | `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap` |
+| To the running feature (also) | `retire_after_hours`, `init.lua` handlers (on a manual reload) |
+| At daemon start only | `summary_enabled`, `summary_model`, `lua_config_path`; `rex daemon restart` (hot) applies them and keeps sessions |
+
+`rex reload`, `:reload` and the Settings page's `R` report the changed ids and, among them, the ones in the last row ("needs a daemon restart").
+
+A `config.yaml` that fails to parse is ignored until it is fixed: the previous values stay in force, except `skip_permissions` and `auto_trust_dirs`, which fail closed (off, empty) until the file parses again. The daemon log says so once per failed reload.

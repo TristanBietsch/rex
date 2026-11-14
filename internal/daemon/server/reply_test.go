@@ -33,7 +33,7 @@ func TestIntentReply_TextThenSeparateCarriageReturn(t *testing.T) {
 	require.Eventually(t, func() bool { _, err := os.Stat(sock); return err == nil }, 2*time.Second, 10*time.Millisecond)
 
 	ch := make(chan []byte, 4)
-	srv.RegisterInputChannel("sess-1", ch)
+	registerInput(srv, "sess-1", ch)
 
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
@@ -52,4 +52,35 @@ func TestIntentReply_TextThenSeparateCarriageReturn(t *testing.T) {
 	}
 	require.Equal(t, []byte("blue"), recv())
 	require.Equal(t, []byte{'\r'}, recv())
+}
+
+// Reply text is typed text: escapes and controls in it are dropped, so a
+// CR can't submit early and an escape can't act as a key.
+func TestIntentReply_DropsEscapesAndControls(t *testing.T) {
+	dir, err := os.MkdirTemp("", "rex-rp")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "rex.sock")
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	srv, err := New(Config{Socket: sock, StateDir: dir, Registry: reg, Store: state.NewStore()})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = srv.Serve(ctx) }()
+	require.Eventually(t, func() bool { _, err := os.Stat(sock); return err == nil }, 2*time.Second, 10*time.Millisecond)
+
+	ch := make(chan []byte, 4)
+	registerInput(srv, "sess-1", ch)
+	conn, err := net.Dial("unix", sock)
+	require.NoError(t, err)
+	defer conn.Close()
+	w, _ := helloOnConn(t, conn)
+	require.NoError(t, w.WriteIntent(protocol.IntentReply, "r", protocol.Reply{SessionID: "sess-1", Text: "y\x1b[Ae\rs\x03"}))
+	select {
+	case b := <-ch:
+		require.Equal(t, "ye\ns", string(b))
+	case <-time.After(2 * time.Second):
+		t.Fatal("no input delivered")
+	}
 }

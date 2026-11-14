@@ -1,0 +1,316 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
+	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/loop"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
+)
+
+// LoopService is what the loop intents call. The daemon's implementation
+// (internal/daemon/boot) refuses with loop.ErrOff while the loops feature is
+// off. Errors should be *loop.Error: the handlers map their Kind to a code.
+type LoopService interface {
+	Start(protocol.StartLoop) (protocol.LoopSummary, error)
+	Pause(id string) (protocol.LoopSummary, error)
+	Resume(id string) (protocol.LoopSummary, error)
+	Stop(id string) (protocol.LoopSummary, error)
+	// Snapshot lists the loops for a joining client; nil while off.
+	Snapshot() []protocol.LoopSummary
+	// UserInput is told of a client keystroke for a session. It must not
+	// block.
+	UserInput(sessionID string)
+}
+
+func (s *Server) loopSnapshot() []protocol.LoopSummary {
+	if s.cfg.Loops == nil {
+		return nil
+	}
+	return s.cfg.Loops.Snapshot()
+}
+
+func (s *Server) userInput(sessionID string) {
+	if s.cfg.Loops != nil {
+		s.cfg.Loops.UserInput(sessionID)
+	}
+}
+
+// SubscribeLoops registers a global callback for Loop events. Returns a
+// cancel func. fn follows the SubscribeSessionOutput contract: it must not
+// block or (un)subscribe.
+func (s *Server) SubscribeLoops(fn func(protocol.LoopSummary)) func() {
+	s.loopMu.Lock()
+	defer s.loopMu.Unlock()
+	id := s.loopSubs.Add(fn)
+	return func() {
+		s.loopMu.Lock()
+		defer s.loopMu.Unlock()
+		s.loopSubs.Remove(id)
+	}
+}
+
+// PublishLoop sends a loop's new state to every connected client.
+func (s *Server) PublishLoop(l protocol.LoopSummary) {
+	s.loopMu.RLock()
+	defer s.loopMu.RUnlock()
+	s.loopSubs.Each(func(fn func(protocol.LoopSummary)) { fn(l) })
+}
+
+// SpawnLoopSession starts a loop's session through the normal NewSession
+// path, owned by the loop.
+func (s *Server) SpawnLoopSession(ctx context.Context, req loop.SpawnRequest) (string, error) {
+	return spawnSession(ctx, "", protocol.NewSession{
+		ToolID: req.Tool, ModelID: req.Model, Effort: req.Effort,
+		Slug: req.Slug, Title: req.Title, CWD: req.CWD, InitialPrompt: req.Prompt,
+	}, s, req.LoopID, req.Iter)
+}
+
+// lockInput takes the session's input lock and returns its unlock.
+func (s *Server) lockInput(sessionID string) func() {
+	v, _ := s.inputLocks.LoadOrStore(sessionID, &sync.Mutex{})
+	m, _ := v.(*sync.Mutex)
+	m.Lock()
+	return m.Unlock
+}
+
+// SendText types text into a session and presses Enter, as a Reply does,
+// without counting as the user's activity. It holds the session's input lock
+// for the whole send, and calls guard (nil: always send) once the lock is
+// held, and again right before Enter after the short pause that separates
+// text from Enter: when it says false nothing more is sent and sent is false
+// (text already typed stays unsubmitted). The loop runner's guard says the
+// session is still at a finished turn and the user has not typed.
+func (s *Server) SendText(sessionID, text string, guard func() bool) (sent bool, err error) {
+	ch := s.InputChannel(sessionID)
+	if ch == nil {
+		return false, errors.New("session not running")
+	}
+	defer s.lockInput(sessionID)()
+	if guard != nil && !guard() {
+		return false, nil
+	}
+	// One unit on the session's writer: the text, the pause, the guard once
+	// more, then Enter, with nothing else written in between.
+	return s.writeInput(sessionID, pty.WriteUnit{
+		Parts: [][]byte{[]byte(text), {'\r'}}, Gap: replySubmitDelay, Guard: guard, Wait: true,
+	}, inputWaitTimeout)
+}
+
+// How long a unit may wait for room in the writer's queue (a client's bytes),
+// or to be written (a text and its Enter, which includes the 120 ms pause).
+const (
+	inputQueueTimeout = 2 * time.Second
+	inputWaitTimeout  = 15 * time.Second
+)
+
+// errInputNotReady is what input gets while a session has no PTY writer: it
+// is starting (its input channel exists before its writer does), or exiting,
+// or its console never started. The bytes are not queued anywhere, so nothing
+// is reported as sent.
+var errInputNotReady = errors.New("session input not ready")
+
+// RegisterUnitWriter attaches a session's single PTY writer; the supervisor
+// does this once its writer runs. Input before that gets errInputNotReady.
+func (s *Server) RegisterUnitWriter(sessionID string, w pty.UnitWriter) {
+	s.unitWriters.Store(sessionID, w)
+	if v, ok := s.writerReady.Load(sessionID); ok {
+		if c, ok := v.(chan struct{}); ok {
+			select {
+			case <-c:
+			default:
+				close(c)
+			}
+		}
+	}
+}
+
+// defaultWriterWait is how long input waits for a starting session's writer.
+const defaultWriterWait = 3 * time.Second
+
+// UnregisterUnitWriter removes it when the session's writer ends.
+func (s *Server) UnregisterUnitWriter(sessionID string) { s.unitWriters.Delete(sessionID) }
+
+func (s *Server) unitWriter(sessionID string) (pty.UnitWriter, bool) {
+	v, ok := s.unitWriters.Load(sessionID)
+	if !ok {
+		return nil, false
+	}
+	w, ok := v.(pty.UnitWriter)
+	return w, ok
+}
+
+// writeInput writes u to the session through its single PTY writer, and
+// reports whether it was written (or, without Wait, queued): false when the
+// guard dropped it. With no writer registered it fails with errInputNotReady
+// and queues nothing.
+func (s *Server) writeInput(sessionID string, u pty.WriteUnit, timeout time.Duration) (bool, error) {
+	w, ok := s.unitWriter(sessionID)
+	if !ok {
+		// A session that is still starting gets a moment to bring its
+		// writer up (the first keys of an attach arrive right behind the
+		// session); one whose writer is gone, or that never registered an
+		// input channel, is refused at once. Nothing is queued either way.
+		v, known := s.writerReady.Load(sessionID)
+		c, _ := v.(chan struct{})
+		if !known || c == nil {
+			return false, errInputNotReady
+		}
+		select {
+		case <-c:
+		default:
+			wait := s.writerWait
+			if wait <= 0 {
+				wait = defaultWriterWait
+			}
+			select {
+			case <-c:
+			case <-time.After(min(wait, timeout)):
+			}
+		}
+		if w, ok = s.unitWriter(sessionID); !ok {
+			return false, errInputNotReady
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	sent, err := w(ctx, u)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return false, errors.New("send timed out")
+	}
+	return sent, err
+}
+
+// SendRaw writes payload to a session's input under its input lock, so it is
+// never interleaved with another writer's multi-part send (a loop's text and
+// Enter), waiting up to timeout for room. It is not the user's activity: no
+// loop or pending retire reacts to it.
+func (s *Server) SendRaw(sessionID string, payload []byte, timeout time.Duration) error {
+	if s.InputChannel(sessionID) == nil {
+		return fmt.Errorf("session %q has no input channel", sessionID)
+	}
+	defer s.lockInput(sessionID)()
+	_, err := s.writeInput(sessionID, pty.WriteUnit{Parts: [][]byte{payload}}, timeout)
+	return err
+}
+
+// SetSessionLoop records the loop and turn on a session and persists it.
+func (s *Server) SetSessionLoop(sessionID, loopID string, iter int) {
+	if err := s.cfg.Store.SetLoop(sessionID, loopID, iter); err != nil {
+		return
+	}
+	if sess, ok := s.cfg.Store.Get(sessionID); ok {
+		_ = state.WriteMeta(s.cfg.StateDir, sess)
+	}
+}
+
+// EnsureLive respawns an exited session in place (as Resume does); a live
+// session is left alone.
+func (s *Server) EnsureLive(ctx context.Context, sessionID string) error {
+	sess, ok := s.cfg.Store.Get(sessionID)
+	if !ok {
+		return errors.New("session not found")
+	}
+	if s.hasStop(sessionID) || !state.IsTerminal(sess.Summary().State) {
+		return nil
+	}
+	if !s.resumeOn() {
+		return errors.New("resume is off")
+	}
+	resumed, err := s.resumeExited(ctx, sess)
+	if err != nil {
+		return err
+	}
+	if !resumed {
+		return nil // lost the race: it is live now
+	}
+	return nil
+}
+
+// loopReplyErr maps a LoopService error to its Error code.
+func loopReplyErr(err error) error {
+	var le *loop.Error
+	if !errors.As(err, &le) {
+		return replyErr(protocol.ErrCodeBadIntent, err)
+	}
+	switch le.Kind {
+	case loop.KindBadState:
+		return replyErr(protocol.ErrCodeBadState, err)
+	case loop.KindSpawn:
+		switch {
+		case isBadIntent(le.Err):
+			return replyErr(protocol.ErrCodeBadIntent, err)
+		case strings.Contains(err.Error(), "too many concurrent sessions"):
+			return replyErr(protocol.ErrCodeTooManySessions, err)
+		}
+		return replyErr(protocol.ErrCodeSpawn, err)
+	case loop.KindBadInput, loop.KindNotFound:
+		return replyErr(protocol.ErrCodeBadIntent, err)
+	}
+	return replyErr(protocol.ErrCodeBadIntent, err)
+}
+
+func (c *client) loopService() (LoopService, error) {
+	if c.srv.cfg.Loops == nil {
+		return nil, replyMsg(protocol.ErrCodeBadIntent, "intent not implemented")
+	}
+	return c.srv.cfg.Loops, nil
+}
+
+func handleStartLoop(c *client, env protocol.Envelope) (outcome, error) {
+	svc, err := c.loopService()
+	if err != nil {
+		return outcome{}, err
+	}
+	p, err := decodeIntent[protocol.StartLoop](env)
+	if err != nil {
+		return outcome{}, err
+	}
+	sum, err := svc.Start(p)
+	if err != nil {
+		return outcome{}, loopReplyErr(err)
+	}
+	c.sendEvent(protocol.EventLoop, env.ID, sum)
+	return outcome{replied: true}, nil
+}
+
+func handlePauseLoop(c *client, env protocol.Envelope) (outcome, error) {
+	return loopControl(c, env, func(svc LoopService, id string) (protocol.LoopSummary, error) { return svc.Pause(id) },
+		func(p protocol.PauseLoop) string { return p.LoopID })
+}
+
+func handleResumeLoop(c *client, env protocol.Envelope) (outcome, error) {
+	return loopControl(c, env, func(svc LoopService, id string) (protocol.LoopSummary, error) { return svc.Resume(id) },
+		func(p protocol.ResumeLoop) string { return p.LoopID })
+}
+
+func handleStopLoop(c *client, env protocol.Envelope) (outcome, error) {
+	return loopControl(c, env, func(svc LoopService, id string) (protocol.LoopSummary, error) { return svc.Stop(id) },
+		func(p protocol.StopLoop) string { return p.LoopID })
+}
+
+func loopControl[P any](c *client, env protocol.Envelope, do func(LoopService, string) (protocol.LoopSummary, error), id func(P) string) (outcome, error) {
+	svc, err := c.loopService()
+	if err != nil {
+		return outcome{}, err
+	}
+	p, err := decodeIntent[P](env)
+	if err != nil {
+		return outcome{}, err
+	}
+	if !protocol.ValidLoopID(id(p)) {
+		return outcome{}, replyErr(protocol.ErrCodeBadIntent, fmt.Errorf("invalid loop id"))
+	}
+	sum, err := do(svc, id(p))
+	if err != nil {
+		return outcome{}, loopReplyErr(err)
+	}
+	c.sendEvent(protocol.EventLoop, env.ID, sum)
+	return outcome{replied: true}, nil
+}

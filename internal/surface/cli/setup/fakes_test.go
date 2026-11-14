@@ -1,9 +1,37 @@
 package setup
 
 import (
+	"io"
 	"sync"
+	"testing"
 	"time"
+
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
+
+// installPrinter sets the process Printer for a test: with interactive, the
+// text format with both terminals (so Confirm asks); otherwise txt on pipes.
+// Streams are discarded; commands with injected writers use core's WithIO.
+func installPrinter(interactive bool) {
+	env := core.Env{
+		Getenv: func(k string) string {
+			if k == "NO_COLOR" {
+				return "1"
+			}
+			return ""
+		},
+		InTTY: interactive, ErrTTY: interactive, Width: 80, Scheme: "default", GOOS: "linux",
+	}
+	fl := core.FormatFlags{}
+	if interactive {
+		fl.Output = "text"
+	}
+	p, err := core.NewPrinter(fl, env, io.Discard, io.Discard)
+	if err != nil {
+		panic(err)
+	}
+	core.SetOut(p)
+}
 
 // fakeDaemon stands in for rex-daemon in update and uninstall tests, so no
 // test ever signals a real process. Its socket answers while up; stop
@@ -75,4 +103,24 @@ func (f *fakeDaemon) stopCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.stops
+}
+
+// atTerminal installs a text Printer with stdin, stdout and stderr all
+// terminals: a person at a terminal, the only one who may change a trust
+// setting from the CLI. Output is discarded.
+func atTerminal(t *testing.T) {
+	t.Helper()
+	atFakeTTY(t, core.Env{InTTY: true, OutTTY: true, ErrTTY: true})
+}
+
+// atFakeTTY installs a text Printer with the terminals env names.
+func atFakeTTY(t *testing.T, env core.Env) {
+	t.Helper()
+	env.Getenv, env.Width, env.Scheme, env.GOOS = func(string) string { return "" }, 80, "default", "linux"
+	p, err := core.NewPrinter(core.FormatFlags{NoColor: true}, env, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	core.SetOut(p)
+	t.Cleanup(func() { core.SetOut(nil) })
 }

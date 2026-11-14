@@ -1,0 +1,41 @@
+-- view --
+
+  ∴ REX    2 ready · 1 working · 3 done  · 1 failed                                                                     
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  READY  2                                                                                                              
+    ⚑  api docs              write api docs                                                                           9m
+    ⚑  deploy                Deploy to prod?                                                                         40s
+         ┌─ Overview ─────────────────────────────────────────────────────────────────────────────────────────┐
+  WAITING│                                                                                                    │         
+       no│  Turn on overview_enabled in Settings for a one-line summary.                                      │
+         │                                                                                                    │
+  WORKING│  REVIEW (2)                                                                                        │         
+    ⠋  pe│  › ✓ billing-tests Done: 48 tests pass                                                         3m  │       5s
+         │    ⚑ api docs      write api docs                                                              9m  │
+  DONE  4│                                                                                                    │         
+ ▸  ✓  bi│  READY (1)                                                                                         │       3m
+    ✗  mi│    ⚑ deploy        Deploy to prod?                                                            40s  │       2h
+    ✓  ol│                                                                                                    │       3h
+    ✓  an│  FAILED (1)                                                                                        │       1d
+         │    ✗ migrate-db    Failed: migration 0042 timed out                                            2h  │
+         │                                                                                                    │
+         │  WORKING (1)                                                                                       │
+         │    ⠋ perf-audit    Running benchmarks                                                          5s  │
+         │                                                                                                    │
+         │  COMPLETED (last 24 h) (1)                                                                         │
+         │    ✓ old-spike     spike                                                                       2h  │
+         │                                                                                                    │
+         │    j/k select · enter attach · esc close                                                           │
+         └────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+  ↳ Done: 48 tests pass                                                                                                 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      

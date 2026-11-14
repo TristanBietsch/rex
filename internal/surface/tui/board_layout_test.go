@@ -19,7 +19,7 @@ func layoutSessions(now time.Time) []protocol.SessionSummary {
 	return []protocol.SessionSummary{
 		{ID: "1", ShortID: "7d4f", ToolID: "claude", ModelID: "opus", Effort: "max", Tokens: 12345,
 			Slug: "dark-mode", Description: "system theme vs explicit toggle — your call",
-			State: protocol.StateNeedsInput, LastEventAt: now.Add(-4 * time.Minute)},
+			State: protocol.StateNeedsInput, StartedAt: now.Add(-5 * time.Hour), LastEventAt: now.Add(-4 * time.Minute)},
 		{ID: "2", ShortID: "b203", ToolID: "codex", ModelID: "gpt-5-codex", Effort: "medium", Tokens: 123456,
 			Slug: "release-notes", Description: "draft ready — which feature leads?",
 			State: protocol.StateWorking, WorkingSince: now.Add(-45 * time.Minute), LastEventAt: now.Add(-11 * time.Minute)},
@@ -31,17 +31,34 @@ func layoutSessions(now time.Time) []protocol.SessionSummary {
 			State: protocol.StateWorking, WorkingSince: now.Add(-7 * time.Hour), LastEventAt: now.Add(-2 * time.Hour)},
 		{ID: "5", ShortID: "2b7e", ToolID: "claude", ModelID: "haiku",
 			Slug: "test-coverage", Description: "billing/ from 61% → 92% — PR #408 merged",
-			State: protocol.StateDone, RetireAt: now.Add(4 * time.Minute), RetiredAt: now.Add(-3 * time.Hour), LastEventAt: now.Add(-9 * 24 * time.Hour)},
+			State: protocol.StateDone, StartedAt: now.Add(-30 * time.Hour), EndedAt: now.Add(-28 * time.Hour), RetireAt: now.Add(4 * time.Minute), RetiredAt: now.Add(-3 * time.Hour), LastEventAt: now.Add(-9 * 24 * time.Hour)},
 		{ID: "6", ShortID: "aa01", ToolID: "claude", Slug: "no-model", Title: "boot", State: protocol.StateFailed},
 	}
 }
 
 // layoutModel is the detailed view (v): the column layout tests exercise
-// the id, model and token columns, which the simple view hides.
+// the id, model and token columns, which the simple view hides. row_icons
+// is off: these tests and the goldens pin the text-column layout.
 func layoutModel(now time.Time, width int, sessions ...protocol.SessionSummary) Model {
+	store := settings.NewStore()
+	if err := store.Set("row_icons", false); err != nil {
+		panic(err)
+	}
 	m := Model{Sessions: sessions, Filter: "all", SelectedID: "2", Width: width, Height: 30,
-		Focus: FocusBoard, Store: settings.NewStore(), Detailed: true}
+		Focus: FocusBoard, Store: store, Detailed: true}
 	m.Clock = func() time.Time { return now }
+	return m
+}
+
+// rowIconsOff turns row_icons off (a store with defaults if m has none): the
+// fixture of a test that pins the text-column row.
+func rowIconsOff(m Model) Model {
+	if m.Store == nil {
+		m.Store = settings.NewStore()
+	}
+	if err := m.Store.Set("row_icons", false); err != nil {
+		panic(err)
+	}
 	return m
 }
 
@@ -54,7 +71,7 @@ func boardRows(t *testing.T, m Model, width int) map[string]string {
 	for _, line := range strings.Split(out, "\n") {
 		plain := ansi.Strip(line)
 		for _, s := range m.Sessions {
-			if len(plain) > rowIndent+colMarker+colGap+colID &&
+			if len(plain) > rowIndent()+colMarker+colGap+colID &&
 				strings.Contains(plain, "  "+s.ShortID+"  ") {
 				rows[s.ID] = plain
 			}
@@ -64,7 +81,7 @@ func boardRows(t *testing.T, m Model, width int) map[string]string {
 	return rows
 }
 
-var layoutWidths = []int{40, 60, 80, 100, 120, 160, 220}
+var layoutWidths = []int{30, 40, 45, 60, 61, 80, 109, 110, 149, 150, 220}
 
 // Every row is exactly the board width (never wraps, never overflows) and the
 // time column sits flush right on every row.
@@ -115,7 +132,7 @@ func TestBoardLayout_ColumnsAlignVertically(t *testing.T) {
 	require.Equal(t, tkEnd, col(rows["2"], "123K tk")+len("123K tk"))
 	require.Equal(t, tkEnd, col(rows["4"], "900 tk")+len("900 tk"))
 	// Badge column.
-	require.Equal(t, col(rows["2"], "▴45m"), col(rows["4"], "▴7h"))
+	require.Equal(t, col(rows["2"], "▴ 45m"), col(rows["4"], "▴ 7h"))
 	// Name and description columns.
 	require.Equal(t, col(rows["1"], "dark-mode"), col(rows["2"], "release-notes"))
 	require.Equal(t, col(rows["1"], "system theme"), col(rows["2"], "draft ready"))
@@ -129,10 +146,10 @@ func TestBoardLayout_WideShowsEverything(t *testing.T) {
 	require.Contains(t, rows["1"], "12.3K tk")
 	require.Contains(t, rows["2"], "gpt-5-codex · medium")
 	require.Contains(t, rows["2"], "123K tk")
-	require.Contains(t, rows["2"], "▴45m")
+	require.Contains(t, rows["2"], "▴ 45m")
 	require.Contains(t, rows["2"], "11m")
 	require.Contains(t, rows["3"], "日本語")
-	require.Contains(t, rows["4"], "▴7h")
+	require.Contains(t, rows["4"], "▴ 7h")
 	require.NotContains(t, rows["5"], "done")
 	require.NotContains(t, rows["5"], "clears")
 	require.True(t, strings.HasSuffix(rows["6"], "-"), "zero time renders as -")
@@ -142,17 +159,17 @@ func TestBoardLayout_WideShowsEverything(t *testing.T) {
 // readable, and the time is never cut.
 func TestBoardLayout_EightyColumns(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	m := layoutModel(now, 80, layoutSessions(now)...)
+	m := fitModel(t, layoutModel(now, 80, layoutSessions(now)...))
 	cols := boardLayout(m, 80)
 	require.GreaterOrEqual(t, cols.desc, descMin)
 	rows := boardRows(t, m, 80)
 	require.Contains(t, rows["1"], "opus · max")
-	require.Contains(t, rows["2"], "▴45m")
+	require.Contains(t, rows["2"], "▴ 45m")
 	require.True(t, strings.HasSuffix(rows["2"], "11m"))
 }
 
-// No blank badge column is reserved when no row has a badge, and no tokens
-// column when no row has tokens.
+// column_layout: fit reserves no blank badge column when no row has a badge,
+// and no tokens column when no row has tokens.
 func TestBoardLayout_OptionalColumnsCollapse(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	plain := []protocol.SessionSummary{
@@ -161,7 +178,7 @@ func TestBoardLayout_OptionalColumnsCollapse(t *testing.T) {
 		{ID: "b", ShortID: "bbbb", ModelID: "sonnet", Slug: "beta", Description: "other",
 			State: protocol.StateDone, LastEventAt: now.Add(-2 * time.Minute)},
 	}
-	m := layoutModel(now, 120, plain...)
+	m := fitModel(t, layoutModel(now, 120, plain...))
 	cols := boardLayout(m, 120)
 	require.Zero(t, cols.run)
 	require.Zero(t, cols.tokens)
@@ -176,11 +193,11 @@ func TestBoardLayout_OptionalColumnsCollapse(t *testing.T) {
 func TestBoardLayout_NarrowDegradation(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	sessions := layoutSessions(now)
-	prev := boardLayout(layoutModel(now, 220, sessions...), 220)
+	prev := boardLayout(fitModel(t, layoutModel(now, 220, sessions...)), 220)
 	require.NotZero(t, prev.tokens)
 	require.NotZero(t, prev.model)
 	for w := 219; w >= 40; w-- {
-		c := boardLayout(layoutModel(now, w, sessions...), w)
+		c := boardLayout(fitModel(t, layoutModel(now, w, sessions...)), w)
 		if c.model > 0 {
 			require.GreaterOrEqual(t, c.desc, descMin, "width %d: model kept while desc under min", w)
 		}
@@ -198,7 +215,7 @@ func TestBoardLayout_NoneAlignsWithIDColumn(t *testing.T) {
 	m := layoutModel(now, 120, layoutSessions(now)[0])
 	var noneLine, rowLine string
 	for _, line := range strings.Split(ansi.Strip(renderBoard(m, 120, 0)), "\n") {
-		if strings.Contains(line, emptyGroupText[groupWorking]) && noneLine == "" {
+		if strings.Contains(line, boardGroups[groupWorking].Empty) && noneLine == "" {
 			noneLine = line
 		}
 		if strings.Contains(line, "7d4f") {
@@ -210,5 +227,5 @@ func TestBoardLayout_NoneAlignsWithIDColumn(t *testing.T) {
 		require.GreaterOrEqual(t, i, 0, "board has no line containing %q", needle)
 		return ansi.StringWidth(line[:i])
 	}
-	require.Equal(t, x(rowLine, "7d4f"), x(noneLine, emptyGroupText[groupWorking]))
+	require.Equal(t, x(rowLine, "7d4f"), x(noneLine, boardGroups[groupWorking].Empty))
 }

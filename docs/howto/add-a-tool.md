@@ -20,7 +20,7 @@ tools:
       kind: heuristic
       prompt_regex: "(?m)^> "
       idle_ms: 1000
-    icon: "●"
+    icon: "◍"
     color: "#666666"
     models:
       - id: default

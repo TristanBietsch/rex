@@ -1,0 +1,20 @@
+# State colors from the colorblind-safe edge pool (theme.EdgeColors), so the
+# states stay apart with protan, deutan and tritan vision. The hues are
+# inspired by Pantone Colors of the Year; the values are approximations,
+# lightened where needed to read at 4.5:1. rex is not affiliated with Pantone.
+# Ready and Done are both green; they stay apart by lightness, which survives
+# protan, deutan and tritan vision, and their markers differ (⚑ vs ✓).
+extends: default
+dark: true
+colors:
+  accent: "#8384C6"  # 17-3938 Very Peri, lightened
+  working: "#9BB7D4"  # 15-4020 Cerulean
+  queued: "#9BB7D4"  # 15-4020 Cerulean
+  needs: "#B2D040"  # 15-0343 Greenery, brightened toward lime
+  done: "#009473"  # 17-5641 Emerald
+  failed: "#E5512F"  # 17-1463 Tangerine Tango, lightened
+  crashed: "#939597"  # 17-5104 Ultimate Gray
+  warn: "#F0C05A"  # 14-0848 Mimosa
+  danger: "#E5512F"  # 17-1463 Tangerine Tango, lightened
+  success: "#009473"  # 17-5641 Emerald
+  info: "#9BB7D4"  # 15-4020 Cerulean

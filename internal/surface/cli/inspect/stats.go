@@ -4,13 +4,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
-	"os"
 	"sort"
-	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -21,10 +19,11 @@ import (
 func RunStats(args []string) error {
 	fs := flag.NewFlagSet("stats", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	asJSON := fs.Bool("json", false, "output JSON")
+	out := core.AddOutputFlags(fs, core.AllFormats, core.WithLegacyJSON())
 	showAll := fs.Bool("all", false, "include zero-usage models")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := out.Parse(fs, args)
+	if err != nil {
+		return err
 	}
 
 	sessions, fromDaemon := loadSessionsForStats(socket)
@@ -32,10 +31,13 @@ func RunStats(args []string) error {
 
 	agg := aggregateSessions(sessions)
 
-	if *asJSON {
-		return writeStatsJSON(os.Stdout, agg, *showAll)
-	}
-	return writeStatsTable(os.Stdout, agg, *showAll)
+	p := core.Out()
+	return p.Emit(core.Result{
+		Cmd:    "stats",
+		Data:   statsResultData(agg, *showAll),
+		View:   statsView(agg, *showAll),
+		Legacy: func(w io.Writer) error { return writeStatsJSON(w, agg, *showAll) },
+	})
 }
 
 // loadSessionsForStats tries the daemon first, then falls back to on-disk state.
@@ -191,7 +193,8 @@ func sessionDuration(s protocol.SessionSummary) time.Duration {
 		return 0
 	}
 	end := s.LastEventAt
-	if end.IsZero() || s.State == protocol.StateWorking || s.State == protocol.StateNeedsInput {
+	// A queued session's last_event_at is its creation, not an end.
+	if end.IsZero() || s.State == protocol.StateQueued || s.State == protocol.StateWorking || s.State == protocol.StateNeedsInput {
 		end = time.Now()
 	}
 	d := end.Sub(s.StartedAt)
@@ -213,138 +216,6 @@ func formatTokens(n int64) string {
 	}
 }
 
-// --- table output ---
-
-var (
-	statsAccent = lipgloss.NewStyle().Foreground(lipgloss.Color("#5B8DEF"))
-	statsBold   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E6E6E6"))
-	statsDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	statsHR     = lipgloss.NewStyle().Foreground(lipgloss.Color("#262A36"))
-	statsLabel  = lipgloss.NewStyle().Foreground(lipgloss.Color("#E6E6E6"))
-	statsMuted  = lipgloss.NewStyle().Foreground(lipgloss.Color("#4A4F5A"))
-)
-
-func writeStatsTable(w *os.File, agg statsAggregate, showAll bool) error {
-	var b strings.Builder
-	hr := statsHR.Render(strings.Repeat("─", 44))
-
-	b.WriteString("\n")
-	b.WriteString("  " + statsAccent.Render("∴") + " " + statsBold.Render("rex stats") + "\n")
-	b.WriteString("  " + hr + "\n")
-
-	// Lifetime summary line.
-	t := agg.totals
-	lifeline := fmt.Sprintf("%s sessions · %s done · %s failed · %s active/other",
-		statsBold.Render(fmt.Sprintf("%d", t.Sessions)),
-		statsDim.Render(fmt.Sprintf("%d", t.Done)),
-		statsDim.Render(fmt.Sprintf("%d", t.Failed)),
-		statsDim.Render(fmt.Sprintf("%d", t.Other)),
-	)
-	b.WriteString("\n  " + statsLabel.Render("lifetime") + "   " + lifeline + "\n")
-
-	// By model section.
-	b.WriteString("\n  " + statsLabel.Render("by model") + "\n")
-
-	rows := agg.byModel
-	if !showAll {
-		// filter out zero-session rows (shouldn't happen, but be safe)
-		filtered := rows[:0]
-		for _, r := range rows {
-			if r.Sessions > 0 {
-				filtered = append(filtered, r)
-			}
-		}
-		rows = filtered
-	}
-
-	if len(rows) == 0 {
-		b.WriteString("    " + statsDim.Render("(no sessions)") + "\n")
-	} else {
-		// Compute column widths.
-		maxModel := 0
-		for _, r := range rows {
-			if l := len(r.Model); l > maxModel {
-				maxModel = l
-			}
-		}
-		maxModel = max(maxModel, 5) // min "model" header width
-
-		var totalTokens int64
-		for _, r := range rows {
-			totalTokens += r.Tokens
-		}
-
-		for _, r := range rows {
-			pad := strings.Repeat(" ", maxModel-len(r.Model)+2)
-			line := fmt.Sprintf("    %s%s%s · %s",
-				statsLabel.Render(r.Model),
-				pad,
-				statsDim.Render(fmt.Sprintf("%d sessions", r.Sessions)),
-				statsDim.Render(formatDuration(r.duration)),
-			)
-			if agg.hasTokens && r.Tokens > 0 {
-				line += " · " + statsDim.Render(formatTokens(r.Tokens))
-			}
-			b.WriteString(line + "\n")
-		}
-
-		if agg.hasTokens && totalTokens > 0 {
-			pad := strings.Repeat(" ", maxModel+2)
-			sepLine := fmt.Sprintf("    %s%s",
-				pad,
-				statsHR.Render(strings.Repeat("─", 12)),
-			)
-			b.WriteString(sepLine + "\n")
-			totalLine := fmt.Sprintf("    %s%s%s",
-				statsDim.Render("total"),
-				strings.Repeat(" ", maxModel-3),
-				statsLabel.Render(formatTokens(totalTokens)),
-			)
-			b.WriteString(totalLine + "\n")
-		}
-	}
-
-	// By tool section.
-	b.WriteString("\n  " + statsLabel.Render("by tool") + "\n")
-
-	toolRows := agg.byTool
-	if !showAll {
-		filtered := toolRows[:0]
-		for _, r := range toolRows {
-			if r.Sessions > 0 {
-				filtered = append(filtered, r)
-			}
-		}
-		toolRows = filtered
-	}
-
-	if len(toolRows) == 0 {
-		b.WriteString("    " + statsDim.Render("(no sessions)") + "\n")
-	} else {
-		maxTool := 0
-		for _, r := range toolRows {
-			if l := len(r.Tool); l > maxTool {
-				maxTool = l
-			}
-		}
-		maxTool = max(maxTool, 4)
-		for _, r := range toolRows {
-			pad := strings.Repeat(" ", maxTool-len(r.Tool)+2)
-			line := fmt.Sprintf("    %s%s%s",
-				statsLabel.Render(r.Tool),
-				pad,
-				statsDim.Render(fmt.Sprintf("%d sessions", r.Sessions)),
-			)
-			b.WriteString(line + "\n")
-		}
-	}
-
-	b.WriteString("\n")
-	_ = statsMuted
-	fmt.Fprint(w, b.String())
-	return nil
-}
-
 // --- JSON output ---
 
 type statsJSONOut struct {
@@ -360,7 +231,7 @@ type statsModelJSONRow struct {
 	Tokens     int64  `json:"tokens,omitempty"`
 }
 
-func writeStatsJSON(w *os.File, agg statsAggregate, showAll bool) error {
+func writeStatsJSON(w io.Writer, agg statsAggregate, showAll bool) error {
 	rows := agg.byModel
 	if !showAll {
 		filtered := make([]statsModelRow, 0, len(rows))

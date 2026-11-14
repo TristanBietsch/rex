@@ -3,12 +3,12 @@ package tui
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -30,7 +30,7 @@ const (
 
 func openFail(m Model) (Model, tea.Cmd) {
 	failed := make([]protocol.SessionSummary, 0)
-	for _, s := range m.Sessions {
+	for _, s := range scopedSessions(m) {
 		if s.State == protocol.StateFailed || s.State == protocol.StateCrashed {
 			failed = append(failed, s)
 		}
@@ -80,6 +80,9 @@ func updateFailKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// tailLogWindow is how much of the end of the daemon log tailDaemonLog reads.
+const tailLogWindow = 256 << 10
+
 func tailDaemonLog(n int) []string {
 	path, err := paths.DaemonLog()
 	if err != nil {
@@ -90,11 +93,26 @@ func tailDaemonLog(n int) []string {
 		return []string{fmt.Sprintf("(no log at %s)", path)}
 	}
 	defer f.Close()
+	// Only the end of the log matters: skip to its last tailLogWindow bytes
+	// (and past the line cut there) instead of reading a log that may have
+	// grown to many MiB.
+	skipFirst := false
+	if info, err := f.Stat(); err == nil && info.Size() > tailLogWindow {
+		// Start one byte early: if that byte ends a line, the window
+		// starts on a whole line and the skipped "partial" line is empty.
+		if _, err := f.Seek(info.Size()-tailLogWindow-1, io.SeekStart); err == nil {
+			skipFirst = true
+		}
+	}
 	// Ring buffer of last n lines.
 	ring := make([]string, 0, n+1)
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
+		if skipFirst {
+			skipFirst = false
+			continue
+		}
 		ring = append(ring, sc.Text())
 		if len(ring) > n {
 			ring = ring[1:]
@@ -162,7 +180,7 @@ func renderFailEntry(s protocol.SessionSummary) string {
 	}
 	// Session strings are sanitized before styling; LastLine goes through
 	// truncate, which sanitizes.
-	id := lipgloss.NewStyle().Foreground(colorFgDim).Render(protocol.FlattenDisplayText(s.ShortID))
+	id := styleDim.Render(protocol.FlattenDisplayText(s.ShortID))
 	slug := styleSlug.Render(protocol.FlattenDisplayText(s.Slug))
 	meta := styleDim.Render(protocol.FlattenDisplayText(fmt.Sprintf("%s · %s · exit=%s · %s ago", s.ToolID, s.ModelID, exit, when)))
 	line1 := fmt.Sprintf("  %s  %s    %s", id, slug, meta)

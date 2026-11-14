@@ -2,13 +2,20 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -17,36 +24,48 @@ import (
 func RunNew(args []string) error {
 	fs := flag.NewFlagSet("new", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.AllFormats)
 	tool := fs.String("tool", "echo", "tool id")
 	model := fs.String("model", "short", "model id within tool")
 	effort := fs.String("effort", "", "reasoning effort")
 	slug := fs.String("slug", "", "session slug (defaults to derived from prompt)")
 	cwd := fs.String("cwd", "", "working directory for the agent (defaults to $PWD)")
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
-	noAttach := fs.Bool("no-attach", true, "spawn and exit (default)")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	name := fs.String("name", "", "display name (optional; the slug is shown when empty)")
+	var skillNames core.StringList
+	fs.Var(&skillNames, "skill", "skill from ~/.config/rex/skills to load into this session (repeatable; see `rex skills`)")
+	trust := fs.Bool("trust", false, "trust the working folder for this session only (answers the agent's trust dialog; nothing is saved, see `rex trust` to save it)")
+	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
+	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")
+	rest, err := out.ParseText(fs, args, 0)
+	if err != nil {
+		return err
 	}
 	_ = noAttach
+	if *wait <= 0 {
+		return core.NewExitError(core.ExitInvalidArgs, fmt.Sprintf("new: -wait %s: must be positive", *wait))
+	}
 
-	if *cwd == "" {
-		wd, err := os.Getwd()
-		if err != nil {
-			return core.NewExitError(core.ExitGeneric, err.Error())
-		}
-		*cwd = wd
+	*name, err = checkNewExtras(*name, skillNames)
+	if err != nil {
+		return err
+	}
+
+	absCwd, err := resolveNewCwd(*cwd)
+	if err != nil {
+		return err
+	}
+	*cwd = absCwd
+	if err := checkNewTrust(*trust, absCwd); err != nil {
+		return err
 	}
 
 	// Prompt = positional args joined, or stdin if not a TTY
-	prompt := strings.Join(fs.Args(), " ")
+	prompt := strings.Join(rest, " ")
 	if prompt == "" {
-		fi, _ := os.Stdin.Stat()
-		if (fi.Mode() & os.ModeCharDevice) == 0 {
-			b, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return core.NewExitError(core.ExitGeneric, err.Error())
-			}
-			prompt = string(b)
+		var err error
+		if prompt, err = promptFromStdin(os.Stdin); err != nil {
+			return core.NewExitError(core.ExitGeneric, err.Error())
 		}
 	}
 
@@ -54,8 +73,11 @@ func RunNew(args []string) error {
 	// use); a derived one is made unique against the snapshot below.
 	derived := *slug == ""
 	if derived {
-		if prompt != "" {
+		switch {
+		case prompt != "":
 			*slug = deriveSlug(prompt)
+		case *name != "":
+			*slug = deriveSlug(*name)
 		}
 		if *slug == "" {
 			*slug = "session"
@@ -71,7 +93,7 @@ func RunNew(args []string) error {
 	defer c.Close()
 	snap, err := c.Hello("rex-cli")
 	if err != nil {
-		return core.NewExitError(core.ExitDaemonUnreachable, err.Error())
+		return core.HelloFailed(err)
 	}
 	if derived {
 		*slug = uniqueSlug(*slug, snap.Sessions)
@@ -80,18 +102,25 @@ func RunNew(args []string) error {
 	req := protocol.NewSession{
 		ToolID: *tool, ModelID: *model, Effort: *effort,
 		Slug: *slug, Title: prompt, CWD: *cwd, InitialPrompt: prompt,
-		Fleet: *fleet,
+		Fleet: *fleet, Name: *name, Skills: skillNames, TrustFolder: *trust,
 	}
+	// Start the agent at this terminal's size when there is one, so `rex
+	// attach` from it needs no first resize (0, 0 lets the daemon choose).
+	req.Cols, req.Rows = core.StdoutSize()
 	if err := c.NewSession(req); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 
 	// Wait for SessionAdded to surface the new id.
-	if err := c.SetReadDeadline(core.DeadlineSeconds(5)); err != nil {
+	if err := c.SetReadDeadline(time.Now().Add(*wait)); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	for {
 		env, err := c.NextEvent()
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			return core.Errorf(core.ExitGeneric, "rex ls",
+				"new: daemon did not confirm the spawn within %s; check `rex ls`", *wait)
+		}
 		if err != nil {
 			return core.NewExitError(core.ExitGeneric, err.Error())
 		}
@@ -101,10 +130,16 @@ func RunNew(args []string) error {
 			if err := json.Unmarshal(env.Data, &sum); err != nil {
 				return core.NewExitError(core.ExitGeneric, err.Error())
 			}
-			if _, err := os.Stdout.WriteString(sum.ShortID + "\t" + sum.Slug + "\n"); err != nil {
-				return core.NewExitError(core.ExitGeneric, err.Error())
+			// SessionAdded goes to every client: another spawn racing this
+			// one is not ours. Slugs are unique, so ours carries req.Slug.
+			if sum.Slug != req.Slug {
+				continue
 			}
-			return nil
+			err := emitNew(sum)
+			if msg := ignoredByDaemon(req, sum); msg != "" {
+				core.Out().Warn(msg)
+			}
+			return err
 		case protocol.EventError:
 			var ee protocol.ErrorEvent
 			_ = json.Unmarshal(env.Data, &ee)
@@ -116,6 +151,95 @@ func RunNew(args []string) error {
 			return core.NewExitError(code, "spawn failed: "+ee.Message)
 		}
 	}
+}
+
+// checkNewExtras validates -name and -skill before anything is sent, and
+// returns the normalized name. -skill needs the spawn_skills feature (checked
+// here so a switched-off feature answers before the daemon is dialed).
+func checkNewExtras(name string, skillNames []string) (string, error) {
+	norm, err := protocol.NormalizeSessionName(name)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -name: "+err.Error())
+	}
+	if name != "" && norm == "" {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -name: no displayable text")
+	}
+	if len(skillNames) == 0 {
+		return norm, nil
+	}
+	if err := core.RequireFeature("spawn_skills"); err != nil {
+		return "", err
+	}
+	if err := skills.ValidateNames(skillNames); err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -skill: "+err.Error())
+	}
+	return norm, nil
+}
+
+// checkNewTrust refuses -trust for a folder the daemon would refuse (home,
+// an ancestor of home, a filesystem root), before anything is sent.
+func checkNewTrust(trust bool, cwd string) error {
+	if !trust {
+		return nil
+	}
+	if _, err := settings.TrustDir(cwd); err != nil {
+		return core.Errorf(core.ExitInvalidArgs, "rex new -cwd <project folder> -trust", "new: -trust: %w", err)
+	}
+	return nil
+}
+
+// ignoredByDaemon says what an older rex-daemon silently dropped: it
+// predates the name and skills fields and echoes neither in SessionAdded.
+func ignoredByDaemon(req protocol.NewSession, sum protocol.SessionSummary) string {
+	var what []string
+	if req.Name != "" && sum.Name == "" {
+		what = append(what, "the name")
+	}
+	if len(req.Skills) > 0 && len(sum.Skills) == 0 {
+		what = append(what, "skills")
+	}
+	if len(what) == 0 {
+		return ""
+	}
+	return "this rex-daemon ignored " + strings.Join(what, " and ") + "; run `rex daemon restart`"
+}
+
+// promptFromStdin reads the prompt from in unless in is a terminal. A closed
+// or missing stdin has no prompt.
+func promptFromStdin(in *os.File) (string, error) {
+	if in == nil || core.IsTerminal(in) {
+		return "", nil
+	}
+	b, err := io.ReadAll(in)
+	if errors.Is(err, os.ErrClosed) || errors.Is(err, syscall.EBADF) {
+		return "", nil
+	}
+	return string(b), err
+}
+
+// resolveNewCwd turns -cwd into the absolute path the daemon requires: empty
+// is the working directory, anything else is made absolute here, not against
+// the daemon's own working directory. It must exist and be a folder.
+func resolveNewCwd(cwd string) (string, error) {
+	if cwd == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", core.NewExitError(core.ExitGeneric, err.Error())
+		}
+		return wd, nil
+	}
+	abs, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+": "+err.Error())
+	}
+	fi, err := os.Stat(abs)
+	if err != nil {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+": "+err.Error())
+	}
+	if !fi.IsDir() {
+		return "", core.NewExitError(core.ExitInvalidArgs, "new: -cwd "+cwd+" is not a folder")
+	}
+	return abs, nil
 }
 
 // uniqueSlug returns base, or base-2, base-3, … — the first not already
@@ -157,4 +281,47 @@ func deriveSlug(prompt string) string {
 		}
 	}
 	return strings.TrimRight(b.String(), "-")
+}
+
+// newData is the `-o json` payload of rex new.
+type newData struct {
+	actionData
+	Tool   string `json:"tool"`
+	Model  string `json:"model"`
+	Effort string `json:"effort"`
+	CWD    string `json:"cwd"`
+}
+
+// emitNew reports the started session: `7d4f\tfix-auth` in txt (scripts and
+// e2e read it), a ✓ line in text, and an ok line in agent mode.
+func emitNew(s protocol.SessionSummary) error {
+	p := core.Out()
+	what := s.ToolID + " " + s.ModelID
+	if s.Effort != "" {
+		what += " · " + s.Effort
+	}
+	text := "started " + s.ShortID + " " + s.Slug + " · " + what + " · " + displayPath(s.CWD)
+	line := core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: text, Txt: s.ShortID + "\t" + s.Slug}
+	fields := sessionFields(s, core.Field{Key: "tool", Val: s.ToolID}, core.Field{Key: "model", Val: s.ModelID},
+		core.Field{Key: "effort", Val: s.Effort})
+	return p.Emit(core.Result{
+		Cmd:  "new",
+		Data: newData{refOf(s), s.ToolID, s.ModelID, s.Effort, s.CWD},
+		View: append(core.ActionView(line, fields...), core.Hint{Cmd: "rex attach " + s.ShortID}),
+	})
+}
+
+// displayPath shortens a path under the home folder to ~/….
+func displayPath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if rel, err := filepath.Rel(home, path); err == nil && !strings.HasPrefix(rel, "..") {
+		if rel == "." {
+			return "~"
+		}
+		return "~/" + filepath.ToSlash(rel)
+	}
+	return path
 }

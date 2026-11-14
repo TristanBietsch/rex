@@ -4,11 +4,40 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
+
+// statusError is a non-200 reply from Ollama.
+type statusError struct{ Code int }
+
+func (e *statusError) Error() string { return fmt.Sprintf("ollama status %d", e.Code) }
+
+// transient reports whether err is worth one retry: the server was not
+// reachable (refused, reset, cut off) or answered 5xx. A deadline is never
+// transient: the call already spent its whole budget, and a second one would
+// stall every session behind it.
+func transient(err error) bool {
+	if err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return false
+	}
+	var se *statusError
+	if errors.As(err, &se) {
+		return se.Code >= 500
+	}
+	return errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF)
+}
 
 // Client is a thin wrapper over the Ollama HTTP API. Holds a single keep-alive
 // connection so we don't repeatedly handshake against the local daemon.
@@ -61,9 +90,11 @@ func (c *Client) Model() string {
 }
 
 type generateRequest struct {
-	Model   string         `json:"model"`
-	Prompt  string         `json:"prompt"`
-	Stream  bool           `json:"stream"`
+	Model  string `json:"model"`
+	System string `json:"system,omitempty"`
+	Prompt string `json:"prompt"`
+	Stream bool   `json:"stream"`
+	// Options carries temperature, num_predict and stop.
 	Options map[string]any `json:"options,omitempty"`
 	// KeepAlive keeps the model resident between calls so only the first
 	// call pays the cold-load cost.
@@ -74,17 +105,38 @@ type generateResponse struct {
 	Response string `json:"response"`
 }
 
-// Generate calls /api/generate with the configured model and returns the response text.
+// CompleteRequest is one /api/generate call. Zero NumPredict and empty Stop
+// leave the model's defaults; Temperature is always sent.
+type CompleteRequest struct {
+	System      string
+	Prompt      string
+	NumPredict  int
+	Stop        []string
+	Temperature float64
+}
+
+// Generate calls /api/generate with the configured model and returns the
+// response text. It is the health probe's call: a bare prompt, 30 tokens.
 func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
+	return c.Complete(ctx, CompleteRequest{Prompt: prompt, NumPredict: 30, Temperature: 0.2})
+}
+
+// Complete calls /api/generate (non-streaming) with the configured model.
+func (c *Client) Complete(ctx context.Context, cr CompleteRequest) (string, error) {
+	opts := map[string]any{"temperature": cr.Temperature}
+	if cr.NumPredict > 0 {
+		opts["num_predict"] = cr.NumPredict
+	}
+	if len(cr.Stop) > 0 {
+		opts["stop"] = cr.Stop
+	}
 	body := generateRequest{
 		Model:     c.Model(),
-		Prompt:    prompt,
+		System:    cr.System,
+		Prompt:    cr.Prompt,
 		Stream:    false,
 		KeepAlive: "30m",
-		Options: map[string]any{
-			"num_predict": 30,
-			"temperature": 0.2,
-		},
+		Options:   opts,
 	}
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(body); err != nil {
@@ -101,7 +153,7 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("ollama status %d", resp.StatusCode)
+		return "", &statusError{Code: resp.StatusCode}
 	}
 	var out generateResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -128,7 +180,7 @@ func (c *Client) Tags(ctx context.Context) ([]string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama status %d", resp.StatusCode)
+		return nil, &statusError{Code: resp.StatusCode}
 	}
 	var out tagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {

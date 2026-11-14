@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -32,8 +34,15 @@ func WriteSessionsTable(w io.Writer, sessions []protocol.SessionSummary) error {
 		if !s.RetireAt.IsZero() {
 			name = strings.TrimSpace(name + " ✓done")
 		}
-		row := fmt.Sprintf("%-5s  %-12s  %-9s  %-20s  %-24s  %-10s  %s",
-			s.ShortID, s.State, s.ToolID, Truncate(model, 20), Truncate(s.Slug, 24), ago, name)
+		row := strings.Join([]string{
+			padCells(s.ShortID, 5),
+			padCells(string(s.State), 12),
+			padCells(s.ToolID, 9),
+			padCells(Truncate(model, 20), 20),
+			padCells(Truncate(s.Slug, 24), 24),
+			padCells(ago, 10),
+			name,
+		}, "  ")
 		if _, err := fmt.Fprintln(w, row); err != nil {
 			return err
 		}
@@ -57,6 +66,12 @@ func WriteSessionsJSONL(w io.Writer, sessions []protocol.SessionSummary) error {
 
 // WriteAggregateLine prints "N awaiting input · N working · N completed".
 func WriteAggregateLine(w io.Writer, sessions []protocol.SessionSummary) error {
+	_, err := fmt.Fprintln(w, AggregateLine(sessions))
+	return err
+}
+
+// AggregateLine is the line WriteAggregateLine prints, without the newline.
+func AggregateLine(sessions []protocol.SessionSummary) string {
 	var working, needsInput, done, failed, crashed int
 	for _, s := range sessions {
 		switch s.State {
@@ -82,8 +97,7 @@ func WriteAggregateLine(w io.Writer, sessions []protocol.SessionSummary) error {
 	if failed+crashed > 0 {
 		parts = append(parts, fmt.Sprintf("%d failed", failed+crashed))
 	}
-	_, err := fmt.Fprintln(w, strings.Join(parts, " · "))
-	return err
+	return strings.Join(parts, " · ")
 }
 
 // WriteAggregateJSON prints counts as one JSON object.
@@ -115,22 +129,38 @@ func WriteAggregateJSON(w io.Writer, sessions []protocol.SessionSummary) error {
 	return err
 }
 
-// Truncate shortens s to at most n runes, appending "…" when clipped.
+// Truncate shortens s to at most n display cells, appending "…" when
+// clipped. It never splits a multi-byte character.
 func Truncate(s string, n int) string {
-	if len(s) <= n {
+	if n <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(s) <= n {
 		return s
 	}
-	if n <= 1 {
-		return s[:n]
+	if n == 1 {
+		return ansi.Truncate(s, 1, "")
 	}
-	return s[:n-1] + "…"
+	return ansi.Truncate(s, n, "…")
 }
 
-func durationAgo(t time.Time) string {
+// padCells right-pads s with spaces to w display cells.
+func padCells(s string, w int) string {
+	if gap := w - ansi.StringWidth(s); gap > 0 {
+		return s + strings.Repeat(" ", gap)
+	}
+	return s
+}
+
+func durationAgo(t time.Time) string { return DurationAgoAt(t, time.Now()) }
+
+// DurationAgoAt formats now-t as "12s ago", "3m ago", "2h ago" or "4d ago",
+// and a zero t as "-".
+func DurationAgoAt(t, now time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}
-	d := time.Since(t)
+	d := now.Sub(t)
 	switch {
 	case d < time.Minute:
 		return fmt.Sprintf("%ds ago", int(d.Seconds()))

@@ -1,0 +1,66 @@
+-- text.w40 --
+Doctor  dev · linux/amd64
+
+  ✓ rex binary        /home/u/.local/bin
+                      /rex
+  ! daemon reachable  socket not
+                      responding — run:
+                      rex daemon start
+                      (socket=/home/u/.c
+                      ache/rex/rex.sock)
+  ✓ config dir        /home/u/.config/re
+                      x
+
+all required checks passed, 1 warning
+-- text.w80 --
+Doctor  dev · linux/amd64
+
+  ✓ rex binary        /home/u/.local/bin/rex
+  ! daemon reachable  socket not responding — run: rex daemon start
+                      (socket=/home/u/.cache/rex/rex.sock)
+  ✓ config dir        /home/u/.config/rex
+
+all required checks passed, 1 warning
+-- text.w120 --
+Doctor  dev · linux/amd64
+
+  ✓ rex binary        /home/u/.local/bin/rex
+  ! daemon reachable  socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)
+  ✓ config dir        /home/u/.config/rex
+
+all required checks passed, 1 warning
+-- text.color.w80 --
+␛[1;38;2;230;232;238mDoctor␛[0m  ␛[38;2;139;145;161mdev · linux/amd64␛[0m
+
+  ␛[38;2;78;158;110m✓␛[0m rex binary        /home/u/.local/bin/rex
+  ␛[38;2;245;185;73m!␛[0m daemon reachable  socket not responding — run: rex daemon start
+                      (socket=/home/u/.cache/rex/rex.sock)
+  ␛[38;2;78;158;110m✓␛[0m config dir        /home/u/.config/rex
+
+␛[38;2;245;185;73mall required checks passed, 1 warning␛[0m
+-- txt --
+v rex binary  /home/u/.local/bin/rex
+! daemon reachable  socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)
+v config dir  /home/u/.config/rex
+
+all required checks passed, 1 warning
+-- md --
+### Doctor
+
+*dev · linux/amd64*
+
+| Status | Check | Detail |
+| --- | --- | --- |
+| PASS | rex binary | /home/u/.local/bin/rex |
+| WARN | daemon reachable | socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock) |
+| PASS | config dir | /home/u/.config/rex |
+
+> all required checks passed, 1 warning
+-- json --
+{"v":1,"cmd":"doctor","data":{"checks":[{"name":"rex binary","status":"pass","detail":"/home/u/.local/bin/rex"},{"name":"daemon reachable","status":"warn","detail":"socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)"},{"name":"config dir","status":"pass","detail":"/home/u/.config/rex"},{"name":"tool: claude","status":"info","detail":"/usr/bin/claude"}],"ok":true,"fails":0,"warns":1}}
+-- agent --
+check name="rex binary" status=pass detail=/home/u/.local/bin/rex
+check name="daemon reachable" status=warn detail="socket not responding — run: rex daemon start  (socket=/home/u/.cache/rex/rex.sock)"
+check name="config dir" status=pass detail=/home/u/.config/rex
+check name="tool: claude" status=info detail=/usr/bin/claude
+ok cmd=doctor fails=0 warns=1

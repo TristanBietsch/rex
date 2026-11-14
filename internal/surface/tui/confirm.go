@@ -17,9 +17,15 @@ func renderQuitConfirm(width int) string {
 // user can see which row they're about to nuke.
 func renderDeleteConfirm(m Model, width int) string {
 	if n := len(m.PendingPrune); n > 0 {
+		// :prune ignores the board's filters: say so, so nobody reads the
+		// count as "what is visible".
+		scope := ""
+		if rowFilterOf(m).rowsActive() || len(rowFilterOf(m).hidden) > 0 {
+			scope = " (all Done sessions, filters ignored)"
+		}
 		line := styleArrowYellow.Render("?") + " " +
-			stylePrimary.Render(fmt.Sprintf("clear %d completed? kills their agents and removes their transcripts%s — ",
-				n, PruneKeptNote(m.PendingPruneKept))) +
+			stylePrimary.Render(fmt.Sprintf("clear %d completed%s? kills their agents and removes their transcripts%s — ",
+				n, scope, PruneKeptNote(m.PendingPruneKept))) +
 			styleDim.Render("y / N")
 		return padLine(" "+line, width)
 	}

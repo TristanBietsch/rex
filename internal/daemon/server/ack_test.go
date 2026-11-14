@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -47,15 +46,15 @@ func startAckServer(t *testing.T) *ackEnv {
 		RetireSweepInterval: time.Hour,
 		// Counted, not acted on: the connection must outlive Shutdown here.
 		OnShutdown: func() { e.shutdowns.Add(1) },
-		OnReload: func() error {
+		OnReload: func() protocol.ReloadReport {
 			if e.failNext.Swap(false) {
-				return errors.New("bad tools.yaml")
+				return protocol.ReloadReport{Errors: []string{"bad tools.yaml"}}
 			}
-			return nil
+			return protocol.ReloadReport{Reloaded: []string{"tools.yaml"}}
 		},
 	})
 	require.NoError(t, err)
-	e.srv.RegisterInputChannel("s1", make(chan []byte, 64))
+	registerInput(e.srv, "s1", make(chan []byte, 64))
 	e.srv.RegisterResize("s1", func(uint16, uint16) error { return nil })
 	serveTest(t, e.srv)
 	return e
@@ -111,7 +110,7 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 
 		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ToolID: "echo", ModelID: "short", Slug: "fresh", CWD: e.dir}, want: ack, session: "*"},
 		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ModelID: "short", Slug: "x", CWD: e.dir}, want: fail, code: bad},
-		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ToolID: "nope", ModelID: "x", Slug: "y", CWD: e.dir}, want: fail, code: protocol.ErrCodeSpawn},
+		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ToolID: "nope", ModelID: "x", Slug: "y", CWD: e.dir}, want: fail, code: bad},
 
 		{intent: protocol.IntentSubscribe, payload: protocol.Subscribe{}, want: ack},
 		{intent: protocol.IntentSubscribe, payload: protocol.Subscribe{SessionID: "s1", ModeSync: true}, want: ack, session: "s1"},
@@ -151,6 +150,9 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 				require.Len(t, claimed, 1)
 			},
 		},
+		{intent: protocol.IntentResume, payload: protocol.Resume{SessionID: "zz"}, want: fail, code: unknown},
+		{intent: protocol.IntentResume, payload: protocol.Resume{SessionID: "s3"}, want: fail, code: bad}, // seed has no model
+		{intent: protocol.IntentResume, payload: protocol.Resume{SessionID: "../x"}, want: fail, code: bad},
 
 		{intent: protocol.IntentResize, payload: protocol.Resize{SessionID: "s1", Cols: 80, Rows: 24}, want: ack, session: "s1"},
 		{intent: protocol.IntentResize, payload: protocol.Resize{SessionID: "s1"}, want: ack, session: "s1"}, // 0x0 is ignored
@@ -166,10 +168,54 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		{intent: protocol.IntentSetMaxConcurrent, payload: protocol.SetMaxConcurrent{N: 8}, want: ack},
 		{intent: protocol.IntentSetMaxConcurrent, payload: "eight", want: fail, code: bad},
 
-		{intent: protocol.IntentReload, payload: struct{}{}, want: ack},
-		{intent: protocol.IntentReload, payload: struct{}{}, want: fail, code: bad, before: func() { e.failNext.Store(true) }},
+		// R20: a reload always answers with its report; a failed layer is
+		// in the report's errors, not an Error event.
+		{intent: protocol.IntentReload, payload: struct{}{}, want: protocol.EventReloaded},
+		{intent: protocol.IntentReload, payload: struct{}{}, want: protocol.EventReloaded, before: func() { e.failNext.Store(true) }},
 		{intent: protocol.IntentShutdown, payload: struct{}{}, want: ack},
 
+		// Turn snapshots are off in this server; the success reply is
+		// UndoResult, covered in undo_test.go.
+		{intent: protocol.IntentUndo, payload: protocol.Undo{SessionID: "s1"}, want: fail, code: bad},
+		{intent: protocol.IntentRedo, payload: protocol.Redo{SessionID: "s1"}, want: fail, code: bad},
+		{intent: protocol.IntentUsageQuery, payload: protocol.UsageQuery{}, want: fail, code: bad}, // no hook: not implemented
+		{
+			intent: protocol.IntentUsageQuery, payload: protocol.UsageQuery{Range: "7d"}, want: protocol.EventUsageResult,
+			before: func() {
+				e.srv.cfg.UsageQuery = func(protocol.UsageQuery) (protocol.UsageReport, error) {
+					return protocol.UsageReport{Range: "7d", Tools: []protocol.UsageToolRow{}}, nil
+				}
+			},
+		},
+		{intent: protocol.IntentUsageQuery, payload: protocol.UsageQuery{Range: "year"}, want: fail, code: bad},
+		{intent: protocol.IntentUsageSample, payload: protocol.UsageSample{SessionID: "s1"}, want: fail, code: bad}, // no hook
+		{
+			intent: protocol.IntentUsageSample, payload: protocol.UsageSample{SessionID: "s1", ModelID: "m"}, want: ack, session: "s1",
+			before: func() { e.srv.cfg.OnUsageSample = func(protocol.UsageSample) {} },
+		},
+		{intent: protocol.IntentUsageSample, payload: "not an object", want: fail, code: bad},
+
+		{intent: protocol.IntentStartLoop, payload: protocol.StartLoop{Name: "x"}, want: fail, code: bad}, // no service: not implemented
+		{intent: protocol.IntentPauseLoop, payload: protocol.PauseLoop{LoopID: "loop-00000001"}, want: fail, code: bad},
+		{intent: protocol.IntentResumeLoop, payload: protocol.ResumeLoop{LoopID: "loop-00000001"}, want: fail, code: bad},
+		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "loop-00000001"}, want: fail, code: bad},
+		{
+			intent: protocol.IntentStartLoop, payload: protocol.StartLoop{Name: "x"}, want: protocol.EventLoop,
+			before: func() { e.srv.cfg.Loops = &fakeLoops{} },
+		},
+		{intent: protocol.IntentPauseLoop, payload: protocol.PauseLoop{LoopID: "loop-00000001"}, want: protocol.EventLoop},
+		{intent: protocol.IntentResumeLoop, payload: protocol.ResumeLoop{LoopID: "loop-00000001"}, want: protocol.EventLoop},
+		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "loop-00000001"}, want: protocol.EventLoop},
+		{intent: protocol.IntentStopLoop, payload: protocol.StopLoop{LoopID: "nope"}, want: fail, code: bad},
+		{intent: protocol.IntentStartLoop, payload: "not an object", want: fail, code: bad},
+
+		{intent: protocol.IntentRestart, payload: protocol.Restart{Mode: "cold"}, want: fail, code: bad},
+		{intent: protocol.IntentRestart, payload: protocol.Restart{Mode: protocol.RestartHot}, want: fail, code: protocol.ErrCodeRestartRefused}, // no Hot config
+		{intent: protocol.IntentRestart, payload: "not an object", want: fail, code: bad},
+		{intent: protocol.IntentRescanTools, payload: struct{}{}, want: protocol.EventToolsChanged},
+		{intent: protocol.IntentBoards, payload: struct{}{}, want: protocol.EventBoards},
+		{intent: protocol.IntentSwapBoards, payload: protocol.SwapBoards{Build: "x"}, want: protocol.EventBoards},
+		{intent: protocol.IntentSwapBoards, payload: "not an object", want: fail, code: bad},
 		{intent: protocol.IntentOpenSession, payload: protocol.OpenSession{SessionID: "s1"}, want: fail, code: bad},
 		{intent: "Bogus", payload: struct{}{}, want: fail, code: bad},
 	}

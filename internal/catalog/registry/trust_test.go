@@ -78,7 +78,8 @@ func TestBuiltinAntigravity(t *testing.T) {
 	agy, ok := reg.Find("antigravity")
 	require.True(t, ok)
 	require.Equal(t, []string{"agy"}, agy.Command)
-	require.Nil(t, agy.TrustPrompt, "agy trusts the folder from --settings; no keystrokes")
+	require.Equal(t, []string{"--dangerously-skip-permissions"}, agy.SkipPermissionsArgs)
+	require.NotNil(t, agy.TrustPrompt, "fallback if --settings is ignored")
 	require.Equal(t, []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}, agy.TrustArgs)
 	gemini, ok := reg.Find("gemini")
 	require.True(t, ok, "kept so partial overlays and saved defaults still work")
@@ -98,9 +99,24 @@ func TestValidateTrustArgs(t *testing.T) {
 	ok.TrustArgs = []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}
 	require.NoError(t, validate([]Tool{ok}))
 
+	// A typo'd placeholder (an overlay) is rejected...
+	typo := base
+	typo.TrustArgs = []string{"--settings", `{"trustedWorkspaces":{cwd-list}}`}
+	require.ErrorContains(t, validate([]Tool{typo}), "must name the folder")
+
+	// ...unless the switch covers the whole run (qwen turns folder trust off).
 	noFolder := base
-	noFolder.TrustArgs = []string{"--trust-everything"}
-	require.ErrorContains(t, validate([]Tool{noFolder}), "must name the folder")
+	noFolder.TrustArgs = []string{"--settings", `{"security":{"folderTrust":{"enabled":false}}}`}
+	require.ErrorContains(t, validate([]Tool{noFolder}), "trust_args_global")
+	noFolder.TrustArgsGlobal = true
+	require.NoError(t, validate([]Tool{noFolder}))
+	orphan := base
+	orphan.TrustArgsGlobal = true
+	require.ErrorContains(t, validate([]Tool{orphan}), "needs trust_args")
+
+	empty := base
+	empty.TrustArgs = []string{"--settings", ""}
+	require.ErrorContains(t, validate([]Tool{empty}), "trust_args")
 }
 
 func TestMergeTrustArgs(t *testing.T) {
@@ -116,4 +132,27 @@ func TestValidateBusyRegex(t *testing.T) {
 	require.ErrorContains(t, validate([]Tool{tool}), "busy_regex")
 	tool.Detect.BusyRegex = "esc to cancel"
 	require.NoError(t, validate([]Tool{tool}))
+}
+
+func TestSkipPermissionsArgs(t *testing.T) {
+	reg, err := Load("")
+	require.NoError(t, err)
+	for _, id := range []string{"claude", "antigravity"} {
+		tool, ok := reg.Find(id)
+		require.True(t, ok)
+		require.Equal(t, []string{"--dangerously-skip-permissions"}, tool.SkipPermissionsArgs, id)
+		require.NotContains(t, tool.Command, "--dangerously-skip-permissions", "%s: opt-in only", id)
+	}
+	echo, _ := reg.Find("echo")
+	require.Empty(t, echo.SkipPermissionsArgs)
+
+	merged := mergeOne(Tool{ID: "claude", SkipPermissionsArgs: []string{"--a"}}, Tool{ID: "claude", SkipPermissionsArgs: []string{"--b"}})
+	require.Equal(t, []string{"--b"}, merged.SkipPermissionsArgs, "an overlay replaces the builtin value")
+	kept := mergeOne(Tool{ID: "claude", SkipPermissionsArgs: []string{"--a"}}, Tool{ID: "claude", Name: "x"})
+	require.Equal(t, []string{"--a"}, kept.SkipPermissionsArgs)
+
+	bad := Tool{ID: "x", Models: []Model{{ID: "m"}}, Detect: Detect{Kind: "hooks", Format: "claude"}, SkipPermissionsArgs: []string{"--a", ""}}
+	require.ErrorContains(t, validate([]Tool{bad}), "skip_permissions_args")
+	bad.SkipPermissionsArgs = []string{"--a"}
+	require.NoError(t, validate([]Tool{bad}))
 }

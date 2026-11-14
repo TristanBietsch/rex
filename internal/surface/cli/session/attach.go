@@ -46,6 +46,8 @@ var redrawKickTools = map[string]bool{
 	"antigravity": true,
 	"gemini":      true,
 	"grok":        true,
+	"qwen":        true,
+	"cursor":      true,
 	"deepseek":    true,
 	"kimi":        true,
 }
@@ -60,13 +62,17 @@ func RunAttach(args []string) error {
 	socket := core.AddSocketFlag(fs)
 	readOnly := fs.Bool("read-only", false, "attach as observer (no input forwarding; Ctrl+] detaches)")
 	noReplay := fs.Bool("no-replay", false, "skip transcript backlog on attach")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	// Attach is a terminal session: text, or txt when piped. json, md and
+	// agent (including the agent mode CLAUDECODE switches on) are refused.
+	out := core.AddOutputFlags(fs, core.TextFormats, core.WithHint("rex log <sel> -n 50"))
+	rest, err := out.Parse(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "attach: exactly one selector required")
 	}
-	sel := fs.Arg(0)
+	sel := rest[0]
 
 	c, err := socket.Dial()
 	if err != nil {

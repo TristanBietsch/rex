@@ -3,8 +3,6 @@ package tui
 import (
 	"log/slog"
 	"strconv"
-	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,7 +16,8 @@ type RenameState struct {
 	SessionID string
 	Slug      string
 	Orig      string
-	Draft     string
+	// Edit holds the draft name.
+	Edit lineEditor
 }
 
 // sessionNamer is the narrow client surface rename needs.
@@ -35,7 +34,7 @@ func openRename(m Model) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	m.Rename = &RenameState{SessionID: sum.ID, Slug: sum.Slug, Orig: sum.Name, Draft: sum.Name}
+	m.Rename = &RenameState{SessionID: sum.ID, Slug: sum.Slug, Orig: sum.Name, Edit: lineEditor{Text: sum.Name, Max: protocol.MaxSessionNameRunes}}
 	m.Focus = FocusRename
 	m.Err = ""
 	slog.Info("tui: rename opened", "session", sum.ID, "has_name", sum.Name != "")
@@ -57,7 +56,7 @@ func updateRenameKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyEnter:
 		m.Rename = nil
 		m.Focus = FocusBoard
-		name, err := protocol.NormalizeSessionName(r.Draft)
+		name, err := protocol.NormalizeSessionName(r.Edit.Text)
 		if err != nil {
 			m.Err = "rename: " + err.Error()
 			return m, nil
@@ -77,40 +76,10 @@ func updateRenameKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		slog.Info("tui: rename submitted", "session", r.SessionID, "cleared", name == "", "runes", utf8.RuneCountInString(name))
 		slog.Debug("tui: rename text", "session", r.SessionID, "name", name)
 		return m, setNameCmd(namerOf(m), r.SessionID, name)
-	case tea.KeyBackspace:
-		r.Draft = dropLastRune(r.Draft)
-	case tea.KeyCtrlU:
-		r.Draft = ""
-	case tea.KeyCtrlW:
-		r.Draft = dropLastWord(r.Draft)
-	case tea.KeySpace:
-		r.Draft = appendCapped(r.Draft, " ")
-	case tea.KeyRunes:
-		r.Draft = appendCapped(r.Draft, string(k.Runes))
+	default:
+		r.Edit.Edit(k)
 	}
 	return m, nil
-}
-
-// appendCapped appends add to s without exceeding MaxSessionNameRunes.
-func appendCapped(s, add string) string {
-	room := protocol.MaxSessionNameRunes - utf8.RuneCountInString(s)
-	if room <= 0 {
-		return s
-	}
-	rs := []rune(add)
-	if len(rs) > room {
-		rs = rs[:room]
-	}
-	return s + string(rs)
-}
-
-func dropLastWord(s string) string {
-	s = strings.TrimRightFunc(s, unicode.IsSpace)
-	i := strings.LastIndexFunc(s, unicode.IsSpace)
-	if i < 0 {
-		return ""
-	}
-	return s[:i+1]
 }
 
 // namerOf returns the model's client as a sessionNamer, or a nil interface
@@ -146,9 +115,9 @@ func renderRenamePrompt(m Model, width int) string {
 		return padLine("", width)
 	}
 	head := styleArrowYellow.Render("✎ rename") + " " + styleDim.Render(truncate(r.Slug, 24)) + styleMuted.Render(" › ")
-	count := styleMuted.Render(" " + strconv.Itoa(utf8.RuneCountInString(r.Draft)) + "/" + strconv.Itoa(protocol.MaxSessionNameRunes))
+	count := styleMuted.Render(" " + strconv.Itoa(utf8.RuneCountInString(r.Edit.Text)) + "/" + strconv.Itoa(protocol.MaxSessionNameRunes))
 	room := width - 2 - ansi.StringWidth(head) - ansi.StringWidth(count) - 1
-	draft := protocol.FlattenDisplayText(r.Draft) // prefilled from the session's current name
+	draft := protocol.FlattenDisplayText(r.Edit.Text) // prefilled from the session's current name
 	if room < 1 {
 		room = 1
 	}
@@ -156,7 +125,7 @@ func renderRenamePrompt(m Model, width int) string {
 		draft = ansi.TruncateLeft(draft, ansi.StringWidth(draft)-room+1, "…")
 	}
 	body := stylePrimary.Render(draft) + cursorBlock(m)
-	if r.Draft == "" {
+	if r.Edit.Text == "" {
 		body = cursorBlock(m) + styleDim.Render(truncate("empty = show slug", room))
 	}
 	return padLine("  "+head+body+count, width)

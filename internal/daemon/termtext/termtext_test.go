@@ -41,6 +41,10 @@ func TestIsChrome(t *testing.T) {
 		"✳ Unfurling… (5s · thought for 4s)",
 		"✻ Cooked for 2s · done 3:55 PM",
 		">>> Send a message (/? for help)",
+		"⣷  Generating...",
+		"⣾ Generating... (3s)",
+		"Thinking...",
+		"◐ Reading files...",
 	} {
 		require.True(t, IsChrome(l), l)
 	}
@@ -48,6 +52,12 @@ func TestIsChrome(t *testing.T) {
 		"Pushed to origin/master (fee653a..223102e).",
 		"running pnpm test:billing",
 		"⏺ Bash(git status)",
+		"Running tests...",
+		"⏺ Let me check...",
+		"- Installing...",
+		"* Checking the build...",
+		"Waiting for the build...",
+		"Loading… done in 3 files",
 	} {
 		require.False(t, IsChrome(l), l)
 	}
@@ -97,4 +107,42 @@ func TestScreenLines_CutsInputBoxAndStatusBars(t *testing.T) {
 
 	plain := "hello there\nsecond line"
 	require.Equal(t, []string{"hello there", "second line"}, ScreenLines(plain))
+}
+
+// Synthetic agy screens (no recorded text): the bottom input box carries the
+// user's draft, the footer is chrome.
+func TestScreenLines_AgyCutsInputRow(t *testing.T) {
+	agy := strings.Join([]string{
+		"⏺ Reading internal/cache/cache_test.go",
+		"  The flaky test sleeps instead of waiting on the fake clock.",
+		"⣷  Generating...",
+		"",
+		"> fix the flaky test",
+		"",
+		"? for shortcuts",
+	}, "\n")
+	lines := ScreenLines(agy)
+	require.Equal(t, []string{
+		"⏺ Reading internal/cache/cache_test.go",
+		"The flaky test sleeps instead of waiting on the fake clock.",
+	}, lines)
+
+	empty := strings.Join([]string{"Done editing cache.go", "> ", "? for shortcuts"}, "\n")
+	require.Equal(t, []string{"Done editing cache.go"}, ScreenLines(empty))
+
+	bare := strings.Join([]string{"Done editing cache.go", ">", "esc to cancel"}, "\n")
+	require.Equal(t, []string{"Done editing cache.go"}, ScreenLines(bare))
+
+	boxed := strings.Join([]string{"Done editing cache.go", "│ > fix it", "? for shortcuts"}, "\n")
+	require.Equal(t, []string{"Done editing cache.go"}, ScreenLines(boxed))
+}
+
+func TestScreenLines_KeepsMidScreenQuote(t *testing.T) {
+	rows := []string{"The maintainer wrote:", "> keep the cache small", "and then explained why."}
+	for range 8 {
+		rows = append(rows, "line of output here")
+	}
+	lines := ScreenLines(strings.Join(rows, "\n"))
+	require.Contains(t, lines, "> keep the cache small")
+	require.Contains(t, lines, "and then explained why.")
 }

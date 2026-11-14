@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -21,6 +22,7 @@ const (
 	FocusPrompt
 	FocusCommand
 	FocusWizard
+	FocusNewAgent
 	FocusHelp
 	FocusConfirmQuit
 	FocusConfirmDelete
@@ -30,27 +32,86 @@ const (
 	FocusBoot
 	FocusStats
 	FocusRename
+	FocusSearch
+	FocusOverview
+	FocusLoops
+	FocusConfirmLoopStop
+	FocusUsage
+	FocusUndo
 )
 
 // Model is the root Bubble Tea model.
 type Model struct {
-	Client     *client.Client
-	Socket     string // path to daemon UDS, forwarded to child `rex attach`
-	Focus      Focus
-	Width      int
-	Height     int
-	Sessions   []protocol.SessionSummary
-	SelectedID string
+	Client *client.Client
+	Socket string // path to daemon UDS, forwarded to child `rex attach`
+	Focus  Focus
+	// Width and Height are the layout area every view draws in. TermW and
+	// TermH are the terminal size; the area is smaller by the window frame
+	// when one is shown (frame.go). TermW is 0 for a model built without a
+	// WindowSizeMsg (tests, rex render): then there is never a frame.
+	Width, Height int
+	TermW, TermH  int
+	// BorderSeed seeds the "random" window border color: the launch folder.
+	BorderSeed string
+	// termLight is whether the terminal background was found to be light. Run
+	// asks the terminal once, before Bubble Tea starts, and only when theme is
+	// auto; otherwise (and in tests) it is false, the dark default. The auto
+	// theme reads it: a later switch to auto reuses it and never asks again.
+	termLight bool
+
+	// WS is the workspace this board is fixed to (`rex here`); nil on an
+	// ordinary board. wsTagging says the daemon tags sessions with their
+	// workspace (else the board shows every session); wsNoticed that the
+	// one notice about it was shown.
+	WS        *WorkspaceScope
+	wsTagging bool
+	wsNoticed bool
+
+	// Loops are the daemon's loops (Snapshot.Loops and Loop events); LoopsSel
+	// is the selected row of the :loops overlay. PendingLoopStop is the loop
+	// a stop confirmation asks about, loopStopBack the focus to return to.
+	// looper overrides Client for the loop intents (tests).
+	Loops           []protocol.LoopSummary
+	LoopsSel        int
+	PendingLoopStop string
+	loopStopBack    Focus
+	looper          loopController
+	// borderRunOn and borderRunColor are :border's choices for this run. They
+	// are never saved; nil / "" fall back to the window_border settings.
+	borderRunOn    *bool
+	borderRunColor string
+	Sessions       []protocol.SessionSummary
+	SelectedID     string
 	// PendingSelectSlug is the slug of a session this TUI just asked the
 	// daemon to spawn; its SessionAdded selects it.
 	PendingSelectSlug string
-	Filter            string
+	// PendingSpawn is what the wizard sent beyond what any daemon honors: a
+	// daemon that predates the skills field drops it silently, so
+	// SessionAdded of PendingSelectSlug is checked against it.
+	PendingSpawn pendingSpawn
+	Filter       string
+	// Search is the board search text (/ or :search): every term must match a
+	// row. Session-only; :bg saves it.
+	Search string
+	// searchOrig is Search when the editor opened; esc restores it.
+	searchOrig string
 	// Detailed shows the short id, model · effort and token columns and the
 	// AI description (v toggles). The simple view shows the task.
 	Detailed bool
 	// DoneExpanded shows every Done row; a long Done column otherwise folds
 	// into its title line (3 toggles).
 	DoneExpanded bool
+	// Hidden holds the IDs of board sections hidden from view. Treat it as
+	// immutable: setSectionHidden is the only writer, and it clones.
+	Hidden map[string]bool
+	// EnteredAt is when this TUI saw each row enter Ready or Done; SeenAt is
+	// when you last attached to it or pressed cc (saved). A row is unseen
+	// while EnteredAt is after SeenAt. Nil until first written: use markSeen
+	// and stampEntered, and assign the Model back.
+	EnteredAt map[string]time.Time
+	SeenAt    map[string]time.Time
+	// seenInit is set once the first snapshot has seeded SeenAt.
+	seenInit     bool
 	PromptText   string
 	CmdText      string
 	PendingChord string
@@ -61,29 +122,64 @@ type Model struct {
 	SpinnerTick int
 	Quitting    bool
 
+	// NewAgent is the new-agent page (newagent.go), set while
+	// FocusNewAgent; newAgentDraft is the page left with esc, restored by
+	// the next n (memory only, R16 D4). lastSpawn is the agent, model and
+	// effort of the last launch from the page (D3).
+	NewAgent      *NewAgentState
+	newAgentDraft *NewAgentState
+	lastSpawn     *quickChoice
+
 	Wizard   *WizardState
 	Settings *SettingsState
-	Attach   *AttachState
-	Fail     *FailState
-	Rename   *RenameState
+	// Help is the help overlay's scroll and filter; nil reads as the top,
+	// unfiltered.
+	Help   *HelpState
+	Attach *AttachState
+	Fail   *FailState
+	// UsagePage is the :usage page's state; set while FocusUsage.
+	UsagePage *UsageState
+	// Undo is the :undo / :redo dialog; set while FocusUndo.
+	Undo   *UndoState
+	Rename *RenameState
 	// Audio is the active soundset player. Interface so tests can swap a recording fake.
 	Audio audioPlayer
+	// SoundClaims dedupes session sounds across boards: before a session
+	// sound plays, the board claims the event; only the winner plays. nil
+	// plays every sound (tests, no home directory).
+	SoundClaims soundClaimer
 
 	// Clock overrides time.Now for rendering (tests). nil = wall clock.
 	Clock func() time.Time
 	// namer / retirer / deleter override Client for those intents (tests).
 	namer   sessionNamer
 	retirer sessionRetirer
+	resumer sessionResumer
 	deleter sessionDeleter
 	// reloader sends :reload's Reload intent to the daemon on a socket.
 	// nil means daemonctl.ReloadDaemon; tests swap it so no real daemon is
 	// reached.
 	reloader func(ctx context.Context, socket string) error
+	// reportReloader sends :reload's (and the Settings page's R) Reload
+	// intent and returns the daemon's report. nil means
+	// daemonctl.ReloadDaemonReport.
+	reportReloader func(ctx context.Context, socket string) (protocol.ReloadReport, error)
 
 	// Store is the live settings store. Renderers read from it; the settings
 	// page mutates it and triggers live-apply side effects.
 	Store     *settings.Store
 	StorePath string
+	// Themes is the user's theme files (nil: built-in themes only). It is
+	// replaced whole, on the UI goroutine, when the files are (re)loaded.
+	Themes *theme.Catalog
+	// configStamp is the state of config.yaml and the theme files as last
+	// read; live reload compares against it. configTicking says the poll
+	// timer chain is running.
+	configStamp   string
+	configTicking bool
+	// luaLayer is what config.lua produced at the last settings load (zero
+	// while lua_config is off or before boot).
+	luaLayer settings.LayerReport
 
 	// PendingDeleteID is the session targeted by an in-progress delete confirmation.
 	PendingDeleteID string
@@ -98,6 +194,9 @@ type Model struct {
 	// lastNotify is when each session last played a state-change sound
 	// (debounce; see notify.go). Pruned on SessionRemoved.
 	lastNotify map[string]time.Time
+	// rungPrompt is the prompts count of the turn whose attention sound
+	// already played, per session (see notify.go). Pruned on SessionRemoved.
+	rungPrompt map[string]int
 
 	// DescAnim is the active per-session description animation. Entries are
 	// pruned by the descTickMsg handler once the animation completes.
@@ -107,6 +206,15 @@ type Model struct {
 	// spinnerGen / spinnerRunning track the single live spinner tick chain.
 	spinnerGen     int
 	spinnerRunning bool
+	// bannerGen / bannerRunning track the attach banner's marquee tick chain.
+	bannerGen     int
+	bannerRunning bool
+	// bannerHidden is ::banner: the attach banner is off for this run. Not
+	// persisted; attach_banner is the setting.
+	bannerHidden bool
+
+	// exporting holds the sessions with a :export still running.
+	exporting map[string]bool
 
 	// reconnect is non-nil while the daemon connection is down and the TUI
 	// is redialing it (see reconnect.go). dialDaemon overrides the redial's
@@ -118,6 +226,34 @@ type Model struct {
 	// via SummarizerHealth events.
 	BackendUnavailable       bool
 	BackendUnavailableReason string
+
+	// DaemonTools is the daemon's tool list (installed, merged models) from
+	// the Snapshot and ToolsChanged; toolsKnown says it was sent at all (not
+	// from a daemon that predates it: then every tool counts as installed).
+	DaemonTools []protocol.ToolInfo
+	toolsKnown  bool
+	toolsSnap   bool // a Snapshot came: an unknown list now means an old daemon
+
+	// Overview is the daemon's board overview (headline over the buckets the
+	// TUI computes itself), from the Snapshot and Overview events. Nil
+	// until the daemon sends one, and from daemons that predate it.
+	Overview *protocol.Overview
+	// OverviewSel is the selected row of the :overview overlay.
+	OverviewSel int
+
+	// Usage is the daemon's live usage quotas, from the Snapshot and Usage
+	// events. Nil until the daemon sends one, and from daemons that predate it.
+	Usage *protocol.Usage
+	// usager answers the :usage page's UsageQuery (nil: Client); usageSeq
+	// numbers its requests so a late reply for a closed page is dropped.
+	usager   usageQuerier
+	usageSeq int
+	// undoer carries the :undo / :redo calls (nil: Client); undoSeq numbers
+	// them so a late reply for a closed dialog is dropped.
+	undoer undoDoer
+	// spawner replaces Client for the quick-spawn's NewSession (tests).
+	spawner sessionSpawner
+	undoSeq int
 
 	// ScrollOffset is how many board lines to skip from the top (for scroll).
 	ScrollOffset int
@@ -143,6 +279,21 @@ type Model struct {
 	idleDone   <-chan struct{}
 	keepAwake  *displayAwake
 
+	// Hot swap (swap.go). bin is the executable this board runs, checked
+	// every binCheckEvery; newBuild is set once another build is
+	// installed. swapIn is the view a swap carried over (applied when the
+	// board is up); swapPath is set when the board quit to swap.
+	// swapWanted is a rex upgrade request waiting for a safe moment.
+	// reattachFor is the session an attach popup re-attaches to after the
+	// daemon dropped its connection.
+	bin         binStamp
+	binTicking  bool
+	newBuild    bool
+	swapWanted  bool
+	swapIn      *swapState
+	swapPath    string
+	reattachFor string
+
 	// Boot / splash state.
 	BootLog     []bootLine
 	BootStep    int
@@ -151,6 +302,9 @@ type Model struct {
 	BootDone    bool
 	BootFailed  bool
 	BootError   error
+	// QuietBoot skips the boot chimes, startup tone and boot voice, for a
+	// relaunch nobody is watching. Board sounds after boot still play.
+	QuietBoot bool
 }
 
 // audioPlayer is the subset of *audio.Player the TUI uses.
@@ -167,32 +321,37 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 	case protocol.EventSessionAdded:
 		var sum protocol.SessionSummary
 		if err := json.Unmarshal(env.Data, &sum); err == nil {
-			m.Sessions = append(m.Sessions, sum)
-			if m.PendingSelectSlug != "" && sum.Slug == m.PendingSelectSlug {
-				m.SelectedID = sum.ID
-				m.PendingSelectSlug = ""
+			m = noteSessionWorkspace(m, sum)
+			if i := sessionIndex(m.Sessions, sum.ID); i >= 0 {
+				// Already listed (a snapshot taken after the add raced
+				// its event): refresh the row, don't show it twice. It
+				// may still be the spawn waiting to be selected.
+				before := sectionOf(m, m.Sessions[i])
+				m.Sessions[i] = sum
+				stampEntered(&m, before, sum)
+				m = m.selectIfPending(sum)
+				break
 			}
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventCreate)
+			m.Sessions = append(m.Sessions, sum)
+			stampEntered(&m, "", sum)
+			m = m.selectIfPending(sum)
+			if inScope(m, sum) {
+				m = m.playShared(audio.EventCreate, sum.ID)
 			}
 		}
 	case protocol.EventSessionRemoved:
 		var rem protocol.SessionRemoved
 		if err := json.Unmarshal(env.Data, &rem); err == nil {
-			if m.Attach != nil && m.Attach.SessionID == rem.SessionID {
-				m.Attach.Ended = true
-				m.Attach.EndedMsg = "session deleted"
-				if rem.Reason == protocol.RemovedRetired {
-					m.Attach.EndedMsg = "session cleared (marked done)"
-				}
-				slog.Info("tui: session removed while attached", "session", rem.SessionID, "reason", rem.Reason)
+			endedMsg := "session deleted"
+			if rem.Reason == protocol.RemovedRetired {
+				endedMsg = "session cleared (marked done)"
 			}
-			if m.Rename != nil && m.Rename.SessionID == rem.SessionID {
-				m.Rename = nil
-				m.Focus = FocusBoard
-				m.Err = "rename: session removed"
-				slog.Info("tui: rename target removed", "session", rem.SessionID)
+			// Another workspace's session leaves a scoped board silently.
+			audible := m.wsFilterID() == ""
+			if sum, ok := findSession(m.Sessions, rem.SessionID); ok {
+				audible = inScope(m, sum)
 			}
+			m = dropTargets(m, rem.SessionID, endedMsg)
 			if rem.Reason == protocol.RemovedRetired {
 				if sum, ok := findSession(m.Sessions, rem.SessionID); ok {
 					m.Notice = "cleared " + displayName(sum) + " (marked done)"
@@ -201,7 +360,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			if m.SelectedID == rem.SessionID {
 				m.SelectedID = neighborOf(m, rem.SessionID)
 			}
-			out := m.Sessions[:0]
+			// A new slice: Model copies (and Cmds) made before this event
+			// share the old backing array.
+			out := make([]protocol.SessionSummary, 0, len(m.Sessions))
 			for _, s := range m.Sessions {
 				if s.ID != rem.SessionID {
 					out = append(out, s)
@@ -209,8 +370,11 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			}
 			m.Sessions = out
 			delete(m.lastNotify, rem.SessionID)
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventDelete)
+			delete(m.rungPrompt, rem.SessionID)
+			delete(m.EnteredAt, rem.SessionID)
+			delete(m.SeenAt, rem.SessionID)
+			if audible {
+				m = m.playShared(audio.EventDelete, rem.SessionID)
 			}
 		}
 	case protocol.EventSessionUpdated:
@@ -219,17 +383,28 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// prevState is the state before this patch; known is false for a
 			// session this TUI never saw (no live transition to announce).
 			var prevState protocol.State
+			var prevReason string
 			known, marked := false, false
+			// audible is false for another workspace's session on a scoped
+			// board: no blink, sound or notification for it.
+			audible := m.wsFilterID() == ""
 			for i := range m.Sessions {
 				if m.Sessions[i].ID == upd.SessionID {
 					known = true
+					audible = inScope(m, m.Sessions[i])
 					prevState = m.Sessions[i].State
+					prevReason = m.Sessions[i].WaitReason
 					prevDesc := m.Sessions[i].Description
 					wasMarked := !m.Sessions[i].RetireAt.IsZero()
+					beforeSection := sectionOf(m, m.Sessions[i])
 					applyPatch(&m.Sessions[i], upd.Patch)
+					stampEntered(&m, beforeSection, m.Sessions[i])
 					marked = !wasMarked && !m.Sessions[i].RetireAt.IsZero()
 					if m.Sessions[i].Description != prevDesc {
 						m = registerDescAnim(m, m.Sessions[i].ID, prevDesc, m.Sessions[i].Description)
+						if m.Attach != nil && m.Attach.SessionID == m.Sessions[i].ID {
+							m.Attach.BannerSince = m.now() // read the new summary from its start
+						}
 					}
 					break
 				}
@@ -237,7 +412,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			s, hasState := upd.Patch["state"].(string)
 			next := protocol.State(s)
 			// A repeated done patch is not a new completion; stay silent.
-			completed := hasState && next == protocol.StateDone && (!known || prevState != protocol.StateDone)
+			completed := audible && hasState && next == protocol.StateDone && (!known || prevState != protocol.StateDone)
 			if completed {
 				if m.BlinkUntil == nil {
 					m.BlinkUntil = make(map[string]time.Time)
@@ -248,20 +423,53 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			// done (cc, :done, rex done) leaves the session running, so no
 			// state patch announces it; the mark itself plays the done sound,
 			// once, even if the same patch also completes the session.
-			if (completed || marked) && m.Audio != nil {
-				m.Audio.Play(audio.EventDone)
+			// soundKey names this patch the same way on every board, so the
+			// boards open at once play its sound once (see playShared).
+			soundKey := patchSoundKey(upd)
+			if completed || (marked && audible) {
+				m = m.playShared(audio.EventDone, soundKey)
 			}
-			if hasState {
-				m = m.notifyStateChange(upd.SessionID, prevState, next, known)
+			m = m.forgetStaleTurn(upd.SessionID)
+			if audible && known && !hasState {
+				m = m.notifyQuestion(upd.SessionID, prevReason, soundKey)
+			}
+			if hasState && audible {
+				m = m.notifyStateChange(upd.SessionID, prevState, next, known, soundKey)
+				if m.Undo != nil && m.Undo.StateAt != next {
+					m = closeUndoIfStale(m, upd.SessionID, "undo: the session changed; run it again")
+				}
 			}
 		}
 	case protocol.EventSnapshot:
 		var snap protocol.Snapshot
 		if err := json.Unmarshal(env.Data, &snap); err == nil {
-			m.Sessions = snap.Sessions
-			if snap.Filter != "" {
-				m.Filter = snap.Filter
-			}
+			m = adoptSessionsSeen(m, snap.Sessions)
+			m.Overview = snap.Overview
+			m.Usage = snap.Usage
+			m = adoptSnapshotTools(m, snap.Tools)
+			m = adoptWorkspaceTagging(m, &snap)
+			m = adoptLoops(m, &snap)
+			m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
+		}
+	case protocol.EventToolsChanged:
+		var tc protocol.ToolsChanged
+		if err := json.Unmarshal(env.Data, &tc); err == nil {
+			m = adoptDaemonTools(m, tc.Tools)
+		}
+	case protocol.EventUsage:
+		var u protocol.Usage
+		if err := json.Unmarshal(env.Data, &u); err == nil {
+			m.Usage = &u
+		}
+	case protocol.EventLoop:
+		var l protocol.LoopSummary
+		if err := json.Unmarshal(env.Data, &l); err == nil && protocol.ValidLoopID(l.ID) {
+			m = upsertLoop(m, l)
+		}
+	case protocol.EventOverview:
+		var o protocol.Overview
+		if err := json.Unmarshal(env.Data, &o); err == nil {
+			m.Overview = &o
 		}
 	case protocol.EventError:
 		var ee protocol.ErrorEvent
@@ -270,6 +478,7 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 			m.Err = "daemon: " + friendlyDaemonError(ee)
 			// A rejected spawn will never produce SessionAdded.
 			m.PendingSelectSlug = ""
+			m.PendingSpawn = pendingSpawn{}
 		}
 	case protocol.EventSummarizerHealth:
 		var h protocol.SummarizerHealth
@@ -301,6 +510,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["description"].(string); ok {
 		s.Description = v
 	}
+	if t, ok := patchTime(patch, "description_at"); ok {
+		s.DescriptionAt = t
+	}
 	if v, ok := patch["fleet"].(string); ok {
 		s.Fleet = v
 	}
@@ -316,8 +528,22 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if t, ok := patchTime(patch, "retired_at"); ok {
 		s.RetiredAt = t
 	}
+	if t, ok := patchTime(patch, "ended_at"); ok {
+		s.EndedAt = t
+	}
 	if t, ok := patchTime(patch, "working_since"); ok {
 		s.WorkingSince = t
+	}
+	if v, present := patch["waiting_on"]; present {
+		// null or "" clears. A kind this version doesn't know (a newer
+		// daemon's) reads as not waiting: the session stays in Working.
+		s.WaitingOn = ""
+		if kind, _ := v.(string); protocol.ValidWaitKind(kind) {
+			s.WaitingOn = kind
+		}
+	}
+	if t, ok := patchTime(patch, "waiting_since"); ok {
+		s.WaitingSince = t
 	}
 	// Token fields come as float64 over JSON; coerce safely.
 	if v, ok := patch["tokens"].(float64); ok {
@@ -328,6 +554,38 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	}
 	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
 		s.Subagents = int(v)
+	}
+	if raw, ok := patch["cost_usd"]; ok { // null clears it
+		if v, isNum := raw.(float64); isNum && v >= 0 {
+			s.CostUSD = &v
+		} else {
+			s.CostUSD = nil
+		}
+	}
+	if v, ok := patch["prompts"].(float64); ok && v >= 0 {
+		s.Prompts = int(v)
+	}
+	if raw, ok := patch["wait_reason"]; ok { // "" or null clears it
+		v, _ := raw.(string)
+		s.WaitReason = v
+	}
+	if v, ok := patch["resume_id"].(string); ok {
+		s.ResumeID = v
+	}
+	if v, ok := patch["loop_id"].(string); ok {
+		s.LoopID = v
+	}
+	if v, ok := patch["loop_iter"].(float64); ok && v >= 0 {
+		s.LoopIter = int(v)
+	}
+	if v, present := patch["exit_code"]; present {
+		switch code := v.(type) {
+		case nil:
+			s.ExitCode = nil // a resumed session starts over
+		case float64:
+			n := int(code)
+			s.ExitCode = &n
+		}
 	}
 }
 
@@ -362,8 +620,112 @@ func friendlyDaemonError(ee protocol.ErrorEvent) string {
 		return "daemon is older than rex — run 'rex daemon restart'"
 	case ee.Code == protocol.ErrCodeBadState && strings.HasPrefix(ee.ID, "unretire-"):
 		return "too late — session is already being cleared"
+	case strings.HasPrefix(ee.ID, "resume-") && ee.Code == protocol.ErrCodeBadState && ee.Message == protocol.MsgClearing:
+		return "too late — session is already being cleared"
+	case strings.HasPrefix(ee.ID, "resume-") && ee.Code == protocol.ErrCodeBadIntent && ee.Message == "resume is off":
+		return offMessage("resume")
 	}
 	return ee.Message
+}
+
+// selectIfPending selects sum when it is the session this TUI just spawned
+// (PendingSelectSlug), and reports spawn options the daemon ignored.
+func (m Model) selectIfPending(sum protocol.SessionSummary) Model {
+	if m.PendingSelectSlug == "" || sum.Slug != m.PendingSelectSlug {
+		return m
+	}
+	m.SelectedID = sum.ID
+	m.PendingSelectSlug = ""
+	if msg := m.PendingSpawn.ignoredBy(sum); msg != "" {
+		m.Err = msg
+	}
+	m.PendingSpawn = pendingSpawn{}
+	if indexOfSelected(m) < 0 {
+		m.Notice = sum.Slug + " is hidden by the filter"
+	}
+	return m
+}
+
+// sessionIndex is the index of session id in sessions, or -1.
+func sessionIndex(sessions []protocol.SessionSummary, id string) int {
+	for i := range sessions {
+		if sessions[i].ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// dropTargets closes whatever still points at session id once it is gone:
+// the attach popup shows endedMsg, a rename or a delete confirmation for it
+// closes. Without this a confirmation answered after another client deleted
+// the session sent a delete for an id the daemon no longer knows.
+func dropTargets(m Model, id, endedMsg string) Model {
+	if m.Attach != nil && m.Attach.SessionID == id && !m.Attach.Ended {
+		m.Attach.Ended = true
+		m.Attach.EndedMsg = endedMsg
+		slog.Info("tui: session removed while attached", "session", id, "msg", endedMsg)
+	}
+	if m.Rename != nil && m.Rename.SessionID == id {
+		m.Rename = nil
+		m.Focus = FocusBoard
+		m.Err = "rename: session removed"
+		slog.Info("tui: rename target removed", "session", id)
+	}
+	m = closeUndoIfStale(m, id, "undo: the session was removed")
+	if m.PendingDeleteID != "" && m.PendingDeleteID == id {
+		m.PendingDeleteID = ""
+		if m.Focus == FocusConfirmDelete {
+			m.Focus = FocusBoard
+		}
+		m.Notice = "already deleted"
+		slog.Info("tui: delete target removed before confirm", "session", id)
+	}
+	return m
+}
+
+// adoptSessions replaces the session list with a fresh snapshot. Targets of
+// sessions missing from it are dropped as if each got SessionRemoved.
+func adoptSessions(m Model, sessions []protocol.SessionSummary) Model {
+	for _, id := range []string{m.PendingDeleteID, m.renameTarget(), m.attachTarget(), m.undoTarget()} {
+		if id != "" && sessionIndex(sessions, id) < 0 {
+			m = dropTargets(m, id, "session deleted")
+		}
+	}
+	if m.Undo != nil {
+		if i := sessionIndex(sessions, m.Undo.SessionID); i >= 0 && sessions[i].State != m.Undo.StateAt {
+			m = closeUndoIfStale(m, m.Undo.SessionID, "undo: the session changed; run it again")
+		}
+	}
+	m.Sessions = sessions
+	return m
+}
+
+// reselectIfGone moves a selection whose session left the list to the first
+// row.
+func reselectIfGone(m Model) Model {
+	if sessionIndex(m.Sessions, m.SelectedID) >= 0 {
+		return m
+	}
+	m.SelectedID = ""
+	if rows := orderedSessions(m); len(rows) > 0 {
+		m.SelectedID = rows[0].ID
+	}
+	return m
+}
+
+func (m Model) renameTarget() string {
+	if m.Rename == nil {
+		return ""
+	}
+	return m.Rename.SessionID
+}
+
+func (m Model) attachTarget() string {
+	if m.Attach == nil {
+		return ""
+	}
+	return m.Attach.SessionID
 }
 
 // neighborOf picks the row to select after id leaves the board: the next row

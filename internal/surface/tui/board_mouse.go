@@ -58,6 +58,10 @@ func updateMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 		return updateBoardMouse(m, msg)
 	case FocusSettings:
 		return updateSettingsMouse(m, msg), nil
+	case FocusHelp:
+		return updateHelpMouse(m, msg), nil
+	case FocusNewAgent:
+		return updateNewAgentMouse(m, msg), nil
 	default:
 		// Overlays and prompts own input; handled below.
 	}
@@ -94,6 +98,10 @@ func updateBoardMouse(m Model, msg tea.MouseMsg) (Model, tea.Cmd) {
 		return clickRow(m, id)
 	}
 	m.lastClickID = ""
+	if headerMeterHit(m, msg.X, msg.Y) {
+		slog.Debug("tui: mouse click on usage meter")
+		return openUsage(m)
+	}
 	if filter := headerHitAt(m, msg.X, msg.Y); filter != "" {
 		slog.Debug("tui: mouse click on filter chip", "filter", filter)
 		return setFilter(m, filter), nil
@@ -119,18 +127,37 @@ func clickRow(m Model, id string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateSettingsMouse lets the wheel move the settings cursor; clicks are
-// ignored (the rows are too dense to target reliably).
+// updateSettingsMouse lets the wheel move the settings cursor (on a page,
+// the section over the section pane, else the row as j/k move it);
+// clicks are ignored (the rows are too dense to target
+// reliably).
 func updateSettingsMouse(m Model, msg tea.MouseMsg) Model {
-	if m.Settings == nil {
+	if m.Settings == nil || m.Settings.Edit != nil {
 		return m
 	}
+	delta := 0
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, -1)
+		delta = -1
 	case tea.MouseButtonWheelDown:
-		m.Settings.CursorID = settingsAfter(m.Settings.CursorID, +1)
+		delta = +1
+	default:
+		return m
 	}
+	st := m.Settings
+	st.gPending = false
+	if !pagesOn(m) {
+		st.CursorID = settingsStep(m, delta)
+		return m
+	}
+	// The page: one step on the pane under the pointer, as j/k there (a
+	// narrow page has no section pane).
+	defer settingsRememberRow(st)
+	if !pageNarrow(m.Width) && msg.X-frameInset(m) < sectionPaneWidth(settingsPageItems(m))+1 {
+		st.CursorID = settingsSectionMove(st, delta)
+		return m
+	}
+	m, _ = settingsRowsNav(m, map[int]string{-1: "k", 1: "j"}[delta])
 	return m
 }
 
@@ -144,7 +171,7 @@ func sessionAtScreenRow(m Model, y int) string {
 	}
 	slots := boardSlots(m)
 	line := clampScroll(m.ScrollOffset, len(slots), bh) + rel
-	if line >= len(slots) || slots[line].kind != slotRow {
+	if line >= len(slots) || (slots[line].kind != slotRow && slots[line].kind != slotRowCont) {
 		return ""
 	}
 	return slots[line].sess.ID
@@ -155,7 +182,7 @@ func sessionAtScreenRow(m Model, y int) string {
 // rendered header text, so it can't drift from the layout.
 func headerHitAt(m Model, x, y int) string {
 	row := y - 1
-	if row != 1 || !showFilterChips(m) {
+	if row != 1 || !showFilterChips(m) || !m.featureOn("board_filter") {
 		return "" // no chip row: row 1 may be the summary banner
 	}
 	w := m.Width
@@ -168,7 +195,7 @@ func headerHitAt(m Model, x, y int) string {
 	}
 	line := ansi.Strip(lines[row])
 	from := 0
-	for _, t := range filterTools {
+	for _, t := range filterTools(m) {
 		lo, hi, next, ok := cellSpan(line, t, from)
 		if !ok {
 			return ""

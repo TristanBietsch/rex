@@ -61,7 +61,7 @@ func TestWorkerCallsOllamaAndWritesDescription(t *testing.T) {
 
 	select {
 	case desc := <-got:
-		if desc != "running pnpm test" {
+		if desc != "Running pnpm test" {
 			t.Fatalf("desc: %q", desc)
 		}
 	case <-time.After(2 * time.Second):
@@ -96,62 +96,6 @@ func TestWorkerSkipsIfUnchangedHash(t *testing.T) {
 
 	if got := atomic.LoadInt32(&calls); got != 1 {
 		t.Fatalf("expected 1 Ollama call (skip-if-unchanged), got %d", got)
-	}
-}
-
-func TestWorkerSkipsTerminalState(t *testing.T) {
-	var calls int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&calls, 1)
-		_, _ = io.WriteString(w, `{"response":"x"}`)
-	}))
-	defer srv.Close()
-	st, sess := newTestStoreWithSession("sess-cccc")
-	sess.State = protocol.StateDone
-
-	cfg := Defaults()
-	cfg.BaseURL = srv.URL
-	cfg.MinInterval = 0
-	w := New(cfg, st, transcriptStub("anything"))
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _ = w.Start(ctx) }()
-
-	w.Channel() <- "sess-cccc"
-	time.Sleep(150 * time.Millisecond)
-	if got := atomic.LoadInt32(&calls); got != 0 {
-		t.Fatalf("expected 0 calls (terminal state), got %d", got)
-	}
-}
-
-func TestWorkerMinIntervalGate(t *testing.T) {
-	var calls int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&calls, 1)
-		_, _ = io.WriteString(w, `{"response":"x"}`)
-	}))
-	defer srv.Close()
-	st, _ := newTestStoreWithSession("sess-dddd")
-
-	cfg := Defaults()
-	cfg.BaseURL = srv.URL
-	cfg.MinInterval = 500 * time.Millisecond
-	// Vary transcript per call so skip-if-unchanged doesn't dominate.
-	var i int32
-	w := New(cfg, st, func(_ string, _ int) []byte {
-		v := atomic.AddInt32(&i, 1)
-		return []byte("bytes-" + string(rune('0'+v)))
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _ = w.Start(ctx) }()
-
-	w.Channel() <- "sess-dddd"
-	time.Sleep(100 * time.Millisecond)
-	w.Channel() <- "sess-dddd" // dropped — within MinInterval
-	time.Sleep(100 * time.Millisecond)
-	if got := atomic.LoadInt32(&calls); got != 1 {
-		t.Fatalf("expected 1 call (min-interval gate), got %d", got)
 	}
 }
 

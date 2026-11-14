@@ -6,13 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -34,6 +38,14 @@ func (g *concurrencyGate) TryAcquire() bool {
 	}
 	g.active++
 	return true
+}
+
+// Force takes a slot even over the cap (a session handed over by a hot
+// restart is already running).
+func (g *concurrencyGate) Force() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.active++
 }
 
 func (g *concurrencyGate) Release() {
@@ -72,6 +84,41 @@ type Config struct {
 	// folder-trust dialog accepted (setting auto_trust_dirs). Called at each
 	// spawn, so a changed setting applies to the next session. nil: never.
 	AutoTrustDirs func() []string
+	// SkipPermissions reports whether new sessions get their tool's
+	// skip_permissions_args (setting skip_permissions). Called at each
+	// spawn. nil: never.
+	SkipPermissions func() bool
+	// ResumeEnabled reports whether the resume feature is on (setting
+	// resume). Called at each spawn and Resume. Off: no conversation id is
+	// preassigned or captured, and a Resume intent is refused. nil: on.
+	ResumeEnabled func() bool
+	// SkillsDir is the skill library (~/.config/rex/skills). NewSession
+	// resolves skill names under it; "" means no library.
+	SkillsDir string
+	// SkillsEnabled reports whether the spawn_skills feature is on. Called
+	// at each spawn and Resume. Off: skills are refused at NewSession and no
+	// plugin folder is added. nil: on.
+	SkillsEnabled func() bool
+	// Snapshots is the turn-snapshot store behind Undo and Redo, and
+	// SnapshotsEnabled reports whether the turn_snapshots feature is on
+	// (called per Undo/Redo). Off or nil: both intents are refused.
+	Snapshots        *snapshot.Store
+	SnapshotsEnabled func() bool
+	// UsageTap returns the statusLine command to add to a Claude session's
+	// --settings (the usage status-line tap), or "" for none. Called at each
+	// spawn and Resume with the session id. nil: none.
+	UsageTap func(sessionID string) string
+	// OnUsageSample receives the usage fields a Claude status-line tap sent
+	// (the UsageSample intent). Runs on the connection's goroutine and must
+	// not block. nil: the intent is rejected as not implemented.
+	OnUsageSample func(protocol.UsageSample)
+	// UsageQuery answers a UsageQuery intent. An error becomes bad_intent
+	// with its message ("usage is off", a bad range). nil: the intent is
+	// rejected as not implemented.
+	UsageQuery func(protocol.UsageQuery) (protocol.UsageReport, error)
+	// Loops serves the loop intents (the loops feature). nil: they are
+	// rejected as not implemented. See LoopService.
+	Loops LoopService
 	// RetireDefaultTTL applies when a Retire intent carries no ttl (0 = 7 days).
 	RetireDefaultTTL time.Duration
 	// RetireSweepInterval is how often expired retires are cleared (0 = 2s).
@@ -81,17 +128,88 @@ type Config struct {
 	OnShutdown func()
 	// OnReload handles a Reload intent (nil = intent rejected): re-read
 	// tools.yaml and swap the registry, same as SIGHUP.
-	OnReload func() error
+	OnReload func() protocol.ReloadReport
+	// Audit receives the audit-trail hooks (nil: no audit trail). Begin runs
+	// at spawn with the initial prompt; End runs in the shared teardown path
+	// before a session's directory is removed.
+	Audit AuditHook
+	// Workspaces tags new sessions with the workspace around their CWD and
+	// keeps the workspace's session index. nil: nothing is tagged.
+	Workspaces WorkspaceHook
+	// OnBoardClient runs after a board viewer (Hello.Client ==
+	// protocol.ClientTUI) completed its Hello and was counted. nil: nothing.
+	// It runs on the connection's goroutine and must not block.
+	OnBoardClient func()
+	// Hot enables the Restart intent (hot restart, R20); nil refuses it.
+	Hot *HotConfig
+	// Listener, when set, is the listening socket inherited from the
+	// previous daemon image; Serve uses it instead of binding Socket.
+	Listener *net.UnixListener
+	// Adopt are the sessions handed over by the previous image; Serve
+	// supervises them once it runs.
+	Adopt []AdoptSession
+	// Build and StartedAt identify this daemon image in Snapshot.
+	Build     string
+	StartedAt time.Time
 }
+
+// AuditHook is how the server feeds the audit trail (see package audit).
+// Implementations are inert while the audit_trail setting is off.
+type AuditHook interface {
+	// Begin hands over a new session's initial prompt ("" when none) before
+	// the session starts. It keeps only what it needs, in memory.
+	Begin(sess *state.Session, prompt string)
+	// End writes the session's audit record unless it is already written.
+	// The server calls it before it removes the session's directory, and
+	// keeps the session when it fails.
+	End(sess *state.Session) error
+}
+
+// WorkspaceHook is how the server tags sessions with their workspace (see
+// the workspaces feature). Implementations are inert while it is off.
+type WorkspaceHook interface {
+	// Tag discovers the workspace around sess.CWD and sets sess.WorkspaceID
+	// before the session is announced. The id never comes from a client.
+	Tag(sess *state.Session)
+	// Enabled reports whether the feature is on (Snapshot.WorkspaceTagging).
+	Enabled() bool
+	// Started records the spawned session in the workspace's index.
+	Started(sess *state.Session)
+}
+
+// resumeOn reports whether the resume feature is on.
+func (s *Server) resumeOn() bool { return s.cfg.ResumeEnabled == nil || s.cfg.ResumeEnabled() }
+
+// statusLineFor is the usage tap command for a new or resumed session of
+// tool, "" when the tool is not Claude (hooks format) or usage is off.
+func (s *Server) statusLineFor(tool registry.Tool, sessionID string) string {
+	if s.cfg.UsageTap == nil || tool.Detect.Kind != "hooks" || tool.Detect.Format != "claude" {
+		return ""
+	}
+	return s.cfg.UsageTap(sessionID)
+}
+
+// skillsOn reports whether the spawn_skills feature is on.
+func (s *Server) skillsOn() bool { return s.cfg.SkillsEnabled == nil || s.cfg.SkillsEnabled() }
 
 // Server owns the UDS listener and accepts clients.
 type Server struct {
 	// cfg is immutable after New: handlers copy it without locking. Live
 	// settings live elsewhere — the concurrency cap in gate, the SIGHUP-swapped
 	// registry in reg.
-	cfg  Config
-	reg  atomic.Pointer[registry.Registry]
-	gate *concurrencyGate
+	cfg Config
+	// adopt is cfg.Adopt, moved out at New so cfg stays immutable: only
+	// Serve's goroutine reads it, once, and then drops it.
+	adopt []AdoptSession
+	reg   atomic.Pointer[registry.Registry]
+	// retireTTL is retire_after_hours set live (ns; 0 = cfg.RetireDefaultTTL).
+	retireTTL atomic.Int64
+	// tools is the wire form of reg (installed flags, merged models), rebuilt
+	// with it so a Hello does not probe PATH.
+	tools atomic.Pointer[[]protocol.ToolInfo]
+	gate  *concurrencyGate
+	// removeSession deletes a session's directory (state.RemoveSession; a test seam).
+	removeSession func(root string, s *state.Session) error
 	// wg tracks the connection handlers and the retire reaper. Serve waits
 	// for it before it waits for sessions, so no handler can start a
 	// supervisor (sessions.Add) once sessions.Wait has begun.
@@ -127,15 +245,56 @@ type Server struct {
 
 	inputMu       sync.Mutex
 	inputChannels map[string]chan []byte
+	// inputLocks holds one mutex per session (*sync.Mutex), taken around
+	// every write of input to its PTY channel so a multi-part send (text,
+	// delay, Enter) is never interleaved with another writer's bytes.
+	inputLocks sync.Map
+	// unitWriters holds each running session's pty.UnitWriter (its single
+	// PTY writer). All input goes through it as units; a session without one
+	// refuses input ("session input not ready"), it never queues it.
+	unitWriters sync.Map
+	// writerReady holds, per session whose input channel is registered, a
+	// channel closed once its writer has been registered. Input that arrives
+	// while the session is still starting waits on it (briefly); input after
+	// the writer is gone (the session is exiting) is refused at once.
+	writerReady sync.Map
+	// writerWait bounds that wait (0 = defaultWriterWait). Tests shrink it.
+	writerWait time.Duration
 
 	outputSubsMu sync.RWMutex
-	outputSubs   map[string][]func([]byte) // sessionID -> callbacks
+	outputSubs   map[string]*state.Subs[func([]byte)] // sessionID -> callbacks
 
 	// summarizerHealthSubs is a global fan-out for SummarizerHealth events
 	// (not tied to any single session — every connected client subscribes
 	// after Hello).
 	summarizerHealthMu   sync.RWMutex
-	summarizerHealthSubs []func(protocol.SummarizerHealth)
+	summarizerHealthSubs state.Subs[func(protocol.SummarizerHealth)]
+
+	// overview is the latest board overview (memory only, never persisted),
+	// with a global fan-out like SummarizerHealth. overviewMu guards all
+	// three.
+	overviewMu   sync.RWMutex
+	overview     *protocol.Overview
+	overviewSubs state.Subs[func(protocol.Overview)]
+
+	// toolsSubs is the global fan-out for ToolsChanged.
+	toolsSubsMu sync.RWMutex
+	toolsSubs   state.Subs[func(protocol.ToolsChanged)]
+
+	// usage is the latest live usage state (memory only, never persisted),
+	// with the same global fan-out as the overview. usageMu guards all three.
+	usageMu   sync.RWMutex
+	usage     *protocol.Usage
+	usageSubs state.Subs[func(protocol.Usage)]
+
+	// loopSubs is the fan-out for Loop events (loops are kept by the
+	// service, not here). loopMu guards it.
+	loopMu   sync.RWMutex
+	loopSubs state.Subs[func(protocol.LoopSummary)]
+
+	// boardClients counts the connections that completed Hello as a board
+	// viewer (the rex TUI) and are still open.
+	boardClients atomic.Int32
 
 	resizeMu    sync.RWMutex
 	resizeFuncs map[string]func(cols, rows uint16) error
@@ -148,6 +307,15 @@ type Server struct {
 
 	stopMu    sync.Mutex
 	stopFuncs map[string]func()
+	// reserved holds the placeholder reservations in stopFuncs (see
+	// reserveStop), so unreserveStop and promoteStop can tell their own
+	// placeholder from a real stop func.
+	reserved map[string]*stopReservation
+	// exited holds, per supervised session, a channel closed when its
+	// supervisor goroutine has returned (registerExited). A session turns
+	// done inside the supervisor, a moment before its stop slot is
+	// released; Resume waits on this to tell that apart from a live one.
+	exited map[string]<-chan struct{}
 
 	completeMu    sync.Mutex
 	completeFuncs map[string]func()
@@ -155,12 +323,127 @@ type Server struct {
 	// retireWaitLogged dedups the "expired but busy" log line per session.
 	retireWaitMu     sync.Mutex
 	retireWaitLogged map[string]bool
+
+	// Hot restart (hot.go).
+	freezeMu    sync.Mutex
+	freezeFuncs map[string]pty.FreezeFunc
+	hotMu       sync.Mutex
+	// hotActive is set while a hot restart quiesces and execs: spawns and
+	// stops of frozen sessions are refused (startGuard, frozenGuard).
+	hotActive    atomic.Bool
+	listener     *net.UnixListener
+	acceptMu     sync.Mutex
+	acceptPaused chan struct{}
 }
 
 // SetRegistry atomically swaps the registry used for future spawns.
 // Existing sessions are unaffected.
 func (s *Server) SetRegistry(reg *registry.Registry) {
+	s.storeRegistry(reg)
+	s.broadcastTools()
+}
+
+// RescanInstalled probes PATH again for every tool in the current registry
+// and, when a binary appeared or went away, stores the new tool list and
+// sends ToolsChanged. The registry and its models stay as they are. It
+// reports whether anything changed. A SetRegistry racing with it wins: the
+// rescan then stores nothing.
+func (s *Server) RescanInstalled() bool {
+	// tools before reg: storeRegistry stores reg then tools, so a
+	// SetRegistry landing between these loads changes tools and the CAS
+	// below fails, whatever the order.
+	old := s.tools.Load()
+	reg := s.reg.Load()
+	if reg == nil {
+		return false
+	}
+	infos := toolInfos(reg)
+	if old != nil && sameInstalled(*old, infos) {
+		return false
+	}
+	if !s.tools.CompareAndSwap(old, &infos) {
+		return false
+	}
+	slog.Info("server: installed tools changed")
+	s.broadcastTools()
+	return true
+}
+
+// sameInstalled reports whether a and b list the same tools with the same
+// installed bit.
+func sameInstalled(a, b []protocol.ToolInfo) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID || a[i].Installed != b[i].Installed {
+			return false
+		}
+	}
+	return true
+}
+
+// broadcastTools sends the current tool list to every ToolsChanged
+// subscriber.
+func (s *Server) broadcastTools() {
+	s.toolsSubsMu.RLock()
+	subs := s.toolsSubs.Clone()
+	s.toolsSubsMu.RUnlock()
+	if len(subs) == 0 {
+		return
+	}
+	msg := protocol.ToolsChanged{Tools: s.ToolInfos()}
+	for _, fn := range subs {
+		if fn != nil {
+			fn(msg)
+		}
+	}
+}
+
+func (s *Server) storeRegistry(reg *registry.Registry) {
+	infos := toolInfos(reg)
 	s.reg.Store(reg)
+	s.tools.Store(&infos)
+}
+
+// SubscribeTools registers a global callback for registry changes and returns
+// its cancel func. fn follows the SubscribeOverview contract: no blocking, no
+// I/O.
+func (s *Server) SubscribeTools(fn func(protocol.ToolsChanged)) func() {
+	s.toolsSubsMu.Lock()
+	defer s.toolsSubsMu.Unlock()
+	id := s.toolsSubs.Add(fn)
+	return func() {
+		s.toolsSubsMu.Lock()
+		defer s.toolsSubsMu.Unlock()
+		s.toolsSubs.Remove(id)
+	}
+}
+
+// ToolInfos returns the current registry in wire form: whether each binary is
+// on PATH (probed when the registry was set) and each tool's models.
+func (s *Server) ToolInfos() []protocol.ToolInfo {
+	if p := s.tools.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// toolInfos is reg as protocol.ToolInfo.
+func toolInfos(reg *registry.Registry) []protocol.ToolInfo {
+	if reg == nil {
+		return nil
+	}
+	installed := reg.InstalledMap()
+	out := make([]protocol.ToolInfo, len(reg.Tools))
+	for i, t := range reg.Tools {
+		ti := protocol.ToolInfo{ID: t.ID, Installed: installed[t.ID]}
+		for _, m := range t.Models {
+			ti.Models = append(ti.Models, protocol.ModelInfo{ID: m.ID, Name: m.Name, Detected: m.Detected})
+		}
+		out[i] = ti
+	}
+	return out
 }
 
 // Registry returns the current registry.
@@ -184,13 +467,17 @@ func New(cfg Config) (*Server, error) {
 	if cfg.RetireSweepInterval <= 0 {
 		cfg.RetireSweepInterval = defaultRetireSweepInterval
 	}
+	adopt := cfg.Adopt
+	cfg.Adopt = nil
 	s := &Server{
-		cfg:      cfg,
-		gate:     &concurrencyGate{max: cfg.MaxConcurrentSessions},
-		handlers: defaultHandlers(),
-		ownerUID: os.Getuid(),
+		cfg:           cfg,
+		adopt:         adopt,
+		gate:          &concurrencyGate{max: cfg.MaxConcurrentSessions},
+		handlers:      defaultHandlers(),
+		ownerUID:      os.Getuid(),
+		removeSession: state.RemoveSession,
 	}
-	s.reg.Store(cfg.Registry)
+	s.storeRegistry(cfg.Registry)
 	// Registry and MaxConcurrentSessions are seeds only; read them through
 	// Registry() / MaxConcurrentSessions() so nobody uses a stale copy.
 	s.cfg.Registry = nil
@@ -201,7 +488,8 @@ func New(cfg Config) (*Server, error) {
 // long enough for a kill, a PTY drain and a final meta write.
 const defaultSupervisorWait = 5 * time.Second
 
-// Serve listens until ctx is canceled or Accept fails, then shuts down:
+// Serve listens until ctx is canceled or the listener closes (transient
+// Accept errors are retried, see acceptConn), then shuts down:
 // it closes every client connection, waits for the handlers and the retire
 // reaper, and waits (bounded by supervisorWait) for the session supervisors,
 // which stop with ctx. Serve may be called at most once per Server.
@@ -211,10 +499,22 @@ const defaultSupervisorWait = 5 * time.Second
 // return it unlinks the socket only if the path still names the socket it
 // created.
 func (s *Server) Serve(ctx context.Context) error {
-	l, ours, err := listenSocket(ctx, s.cfg.Socket)
-	if err != nil {
+	var l *net.UnixListener
+	var ours os.FileInfo
+	var err error
+	if s.cfg.Listener != nil {
+		// Inherited from the previous image: already bound and 0600.
+		l = s.cfg.Listener
+		l.SetUnlinkOnClose(false)
+		if ours, err = os.Lstat(s.cfg.Socket); err != nil {
+			return fmt.Errorf("stat inherited socket %s: %w", s.cfg.Socket, err)
+		}
+	} else if l, ours, err = listenSocket(ctx, s.cfg.Socket); err != nil {
 		return err
 	}
+	s.acceptMu.Lock()
+	s.listener = l
+	s.acceptMu.Unlock()
 	defer func() {
 		_ = l.Close()
 		removeOwnSocket(s.cfg.Socket, ours)
@@ -238,9 +538,21 @@ func (s *Server) Serve(ctx context.Context) error {
 		defer s.wg.Done()
 		s.runRetireReaper(serveCtx)
 	}()
+	s.startAdopted(serveCtx)
 
 	for {
-		conn, err := l.Accept()
+		conn, err := acceptConn(serveCtx, l)
+		if err != nil && errors.Is(err, os.ErrDeadlineExceeded) && serveCtx.Err() == nil {
+			// Accepting is paused for a hot restart: wait for a resume
+			// (the restart failed) or the end of this image.
+			if gate := s.acceptGate(); gate != nil {
+				select {
+				case <-gate:
+				case <-serveCtx.Done():
+				}
+			}
+			continue
+		}
 		if err != nil {
 			requested := ctx.Err() != nil
 			cancel()
@@ -263,6 +575,42 @@ func (s *Server) Serve(ctx context.Context) error {
 			handleClient(serveCtx, conn, s)
 			slog.Debug("server: client disconnected")
 		}()
+	}
+}
+
+// Backoff between Accept retries after a transient error.
+const (
+	acceptRetryMin = 5 * time.Millisecond
+	acceptRetryMax = time.Second
+)
+
+// acceptConn returns the next connection. Accept errors other than the
+// listener closing (too many open files, a connection reset before Accept
+// took it) are retried with backoff: returning them ended Serve, which
+// stopped every running session over one bad moment. It returns an error
+// only once the listener is closed or ctx is done.
+func acceptConn(ctx context.Context, l net.Listener) (net.Conn, error) {
+	delay := time.Duration(0)
+	for {
+		conn, err := l.Accept()
+		if err == nil {
+			if delay > 0 {
+				slog.Info("server: accept recovered")
+			}
+			return conn, nil
+		}
+		if ctx.Err() != nil || errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrDeadlineExceeded) {
+			return nil, err
+		}
+		delay = min(max(2*delay, acceptRetryMin), acceptRetryMax)
+		slog.Warn("server: accept failed; retrying", "err", err, "in", delay)
+		t := time.NewTimer(delay)
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+			t.Stop()
+			return nil, err
+		}
 	}
 }
 
@@ -367,6 +715,7 @@ func (s *Server) MaxConcurrentSessions() int {
 // RegisterInputChannel attaches a channel for forwarding raw bytes to a session.
 // Called by the spawn handler at session creation time.
 func (s *Server) RegisterInputChannel(sessionID string, ch chan []byte) {
+	s.writerReady.Store(sessionID, make(chan struct{}))
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	if s.inputChannels == nil {
@@ -380,6 +729,9 @@ func (s *Server) UnregisterInputChannel(sessionID string) {
 	s.inputMu.Lock()
 	defer s.inputMu.Unlock()
 	delete(s.inputChannels, sessionID)
+	s.inputLocks.Delete(sessionID)
+	s.unitWriters.Delete(sessionID)
+	s.writerReady.Delete(sessionID)
 }
 
 // InputChannel returns the channel for a session, or nil if none registered.
@@ -402,17 +754,23 @@ func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func(
 	s.outputSubsMu.Lock()
 	defer s.outputSubsMu.Unlock()
 	if s.outputSubs == nil {
-		s.outputSubs = make(map[string][]func([]byte))
+		s.outputSubs = make(map[string]*state.Subs[func([]byte)])
 	}
-	idx := len(s.outputSubs[sessionID])
-	s.outputSubs[sessionID] = append(s.outputSubs[sessionID], fn)
+	list := s.outputSubs[sessionID]
+	if list == nil {
+		list = &state.Subs[func([]byte)]{}
+		s.outputSubs[sessionID] = list
+	}
+	id := list.Add(fn)
 	return func() {
 		s.outputSubsMu.Lock()
 		defer s.outputSubsMu.Unlock()
-		list := s.outputSubs[sessionID]
-		if idx < len(list) {
-			list[idx] = nil
-			s.outputSubs[sessionID] = list
+		// The session's list may have been dropped (or replaced) since.
+		if cur := s.outputSubs[sessionID]; cur == list {
+			list.Remove(id)
+			if list.Len() == 0 {
+				delete(s.outputSubs, sessionID)
+			}
 		}
 	}
 }
@@ -421,10 +779,8 @@ func (s *Server) SubscribeSessionOutput(sessionID string, fn func([]byte)) func(
 func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 	s.outputSubsMu.RLock()
 	defer s.outputSubsMu.RUnlock()
-	for _, fn := range s.outputSubs[sessionID] {
-		if fn != nil {
-			fn(b)
-		}
+	for fn := range s.outputSubs[sessionID].All() {
+		fn(b)
 	}
 }
 
@@ -436,14 +792,11 @@ func (s *Server) broadcastSessionOutput(sessionID string, b []byte) {
 func (s *Server) SubscribeSummarizerHealth(fn func(protocol.SummarizerHealth)) func() {
 	s.summarizerHealthMu.Lock()
 	defer s.summarizerHealthMu.Unlock()
-	idx := len(s.summarizerHealthSubs)
-	s.summarizerHealthSubs = append(s.summarizerHealthSubs, fn)
+	id := s.summarizerHealthSubs.Add(fn)
 	return func() {
 		s.summarizerHealthMu.Lock()
 		defer s.summarizerHealthMu.Unlock()
-		if idx < len(s.summarizerHealthSubs) {
-			s.summarizerHealthSubs[idx] = nil
-		}
+		s.summarizerHealthSubs.Remove(id)
 	}
 }
 
@@ -454,13 +807,99 @@ func (s *Server) BroadcastSummarizerHealth(available bool, reason string) {
 	payload := protocol.SummarizerHealth{Available: available, Reason: reason}
 	s.summarizerHealthMu.RLock()
 	defer s.summarizerHealthMu.RUnlock()
-	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", len(s.summarizerHealthSubs))
-	for _, fn := range s.summarizerHealthSubs {
+	slog.Debug("server: broadcast SummarizerHealth", "available", available, "reason", reason, "subscribers", s.summarizerHealthSubs.Len())
+	s.summarizerHealthSubs.Each(func(fn func(protocol.SummarizerHealth)) { fn(payload) })
+}
+
+// SetOverview stores o as the current overview and sends it to every client
+// that has said Hello. The headline is model output, so it is sanitized again
+// here (one line, no escapes, at most protocol.MaxOverviewRunes): whatever the
+// caller did, no escape sequence reaches a terminal. Nothing is logged or
+// persisted.
+func (s *Server) SetOverview(o protocol.Overview) {
+	o.Headline = protocol.SanitizeDisplayText(o.Headline, protocol.MaxOverviewRunes)
+	s.overviewMu.Lock()
+	cp := o
+	s.overview = &cp
+	subs := s.overviewSubs.Clone()
+	s.overviewMu.Unlock()
+	for _, fn := range subs {
 		if fn != nil {
-			fn(payload)
+			fn(o)
 		}
 	}
 }
+
+// Overview returns a copy of the current overview, nil until SetOverview ran.
+func (s *Server) Overview() *protocol.Overview {
+	s.overviewMu.RLock()
+	defer s.overviewMu.RUnlock()
+	if s.overview == nil {
+		return nil
+	}
+	cp := *s.overview
+	return &cp
+}
+
+// SubscribeOverview registers a global callback for overview changes and
+// returns its cancel func. Every connected client subscribes once; fn follows
+// the SubscribeSessionOutput contract: no blocking, no I/O.
+func (s *Server) SubscribeOverview(fn func(protocol.Overview)) func() {
+	s.overviewMu.Lock()
+	defer s.overviewMu.Unlock()
+	id := s.overviewSubs.Add(fn)
+	return func() {
+		s.overviewMu.Lock()
+		defer s.overviewMu.Unlock()
+		s.overviewSubs.Remove(id)
+	}
+}
+
+// SetUsage stores u as the current usage state and sends it to every client
+// that has said Hello. Nothing is logged or persisted.
+func (s *Server) SetUsage(u protocol.Usage) {
+	s.usageMu.Lock()
+	cp := u
+	s.usage = &cp
+	subs := s.usageSubs.Clone()
+	s.usageMu.Unlock()
+	for _, fn := range subs {
+		if fn != nil {
+			fn(u)
+		}
+	}
+}
+
+// Usage returns a copy of the current usage state, nil until SetUsage ran.
+func (s *Server) Usage() *protocol.Usage {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	if s.usage == nil {
+		return nil
+	}
+	cp := *s.usage
+	cp.Quotas = slices.Clone(cp.Quotas)
+	return &cp
+}
+
+// SubscribeUsage registers a global callback for usage changes and returns
+// its cancel func. fn follows the SubscribeOverview contract: no blocking,
+// no I/O.
+func (s *Server) SubscribeUsage(fn func(protocol.Usage)) func() {
+	s.usageMu.Lock()
+	defer s.usageMu.Unlock()
+	id := s.usageSubs.Add(fn)
+	return func() {
+		s.usageMu.Lock()
+		defer s.usageMu.Unlock()
+		s.usageSubs.Remove(id)
+	}
+}
+
+// BoardClients is how many open connections are board viewers (said Hello as
+// protocol.ClientTUI). The overview runner generates only while it is above
+// zero.
+func (s *Server) BoardClients() int { return int(s.boardClients.Load()) }
 
 // RegisterResize stores a resize callback for a session. Called by the supervisor at PTY start.
 func (s *Server) RegisterResize(sessionID string, fn func(cols, rows uint16) error) {
@@ -576,6 +1015,100 @@ func (s *Server) UnregisterStop(sessionID string) {
 	s.stopMu.Lock()
 	defer s.stopMu.Unlock()
 	delete(s.stopFuncs, sessionID)
+	delete(s.exited, sessionID)
+}
+
+// registerExited records done, closed when sessionID's supervisor goroutine
+// returns. UnregisterStop forgets it.
+func (s *Server) registerExited(sessionID string, done <-chan struct{}) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.exited == nil {
+		s.exited = make(map[string]<-chan struct{})
+	}
+	s.exited[sessionID] = done
+}
+
+// waitSupervisorExit waits, up to max or ctx, for sessionID's supervisor to
+// return and release its stop slot. It reports whether the slot is free.
+// A slot held by a resume reservation is not waited on.
+func (s *Server) waitSupervisorExit(ctx context.Context, sessionID string, max time.Duration) bool {
+	s.stopMu.Lock()
+	done := s.exited[sessionID]
+	s.stopMu.Unlock()
+	if done == nil {
+		return !s.hasStop(sessionID)
+	}
+	t := time.NewTimer(max)
+	defer t.Stop()
+	select {
+	case <-done:
+	case <-t.C:
+		return false
+	case <-ctx.Done():
+		return false
+	}
+	// close(done) runs after UnregisterStop (deferred in reverse order).
+	return !s.hasStop(sessionID)
+}
+
+// stopReservation holds a session's stop slot between the decision to
+// respawn it and the supervisor's registration. StopSession on the slot
+// (a Delete) cancels the reservation instead of blocking.
+type stopReservation struct {
+	cancelled atomic.Bool
+}
+
+// reserveStop atomically claims id's stop slot with a placeholder. It
+// reports false, and changes nothing, when the slot is taken: a live
+// supervisor or another resume already holds it. hasStop is true while
+// reserved, so a second Resume sees a live session and spawns nothing.
+func (s *Server) reserveStop(id string) (*stopReservation, bool) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.stopFuncs[id] != nil {
+		return nil, false
+	}
+	r := &stopReservation{}
+	if s.stopFuncs == nil {
+		s.stopFuncs = make(map[string]func())
+	}
+	if s.reserved == nil {
+		s.reserved = make(map[string]*stopReservation)
+	}
+	s.stopFuncs[id] = func() {} // marks the slot taken; StopSession cancels r itself
+	s.reserved[id] = r
+	return r, true
+}
+
+// unreserveStop releases r's placeholder if it still holds the slot (a
+// promoted or already-released reservation is left alone).
+func (s *Server) unreserveStop(id string, r *stopReservation) {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.reserved[id] != r {
+		return
+	}
+	delete(s.reserved, id)
+	delete(s.stopFuncs, id)
+}
+
+// promoteStop swaps r's placeholder for the real stop func, atomically with
+// the cancelled check: it reports false, with the slot released, when a
+// Delete cancelled the reservation first. The supervisor must then not start.
+func (s *Server) promoteStop(id string, r *stopReservation, stop func()) bool {
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if s.reserved[id] != r {
+		return false
+	}
+	delete(s.reserved, id)
+	if r.cancelled.Load() {
+		delete(s.stopFuncs, id)
+		return false
+	}
+	s.stopFuncs[id] = stop
+	return true
 }
 
 // hasStop reports whether a session has a live supervisor.
@@ -596,6 +1129,15 @@ func (s *Server) dropOutputSubs(sessionID string) {
 // Blocks until the supervisor goroutine has exited.
 func (s *Server) StopSession(sessionID string) {
 	s.stopMu.Lock()
+	if r := s.reserved[sessionID]; r != nil {
+		// A resume holds the slot: cancel it under the lock, so a promote
+		// either happened before this (and the real stop is used below) or
+		// sees the flag. Calling a copied placeholder after unlocking could
+		// land after the swap and be lost.
+		r.cancelled.Store(true)
+		s.stopMu.Unlock()
+		return
+	}
 	stop := s.stopFuncs[sessionID]
 	s.stopMu.Unlock()
 	if stop != nil {
@@ -625,6 +1167,10 @@ func (s *Server) UnregisterComplete(sessionID string) {
 // Unlike StopSession, this does NOT block on supervisor exit — the closure
 // is a non-blocking send to a buffered channel.
 func (s *Server) CompleteSession(sessionID string) {
+	if err := s.frozenGuard(sessionID); err != nil {
+		slog.Warn("session: complete refused during hot restart", "session", sessionID)
+		return
+	}
 	s.completeMu.Lock()
 	fn := s.completeFuncs[sessionID]
 	s.completeMu.Unlock()

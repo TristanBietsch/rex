@@ -10,7 +10,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -48,18 +47,35 @@ func scheduleDescTick() tea.Cmd {
 // branch can leave the TUI focused on a component that doesn't exist. It
 // also keeps the screensaver's idle timer armed (armIdle).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	next, cmd := m.dispatch(msg)
+	dropAttachBackground(m, msg)
+	var next tea.Model
+	var cmd tea.Cmd
+	if sm, c, ok := updateSwap(m, msg); ok {
+		next, cmd = sm, c
+	} else {
+		next, cmd = m.dispatch(msg)
+	}
 	nm, ok := next.(Model)
 	if !ok {
 		return next, cmd
 	}
 	nm = normalizeFocus(nm)
+	nm = syncLayout(nm)
 	nm = keepSelectionVisible(nm)
 	var arm tea.Cmd
 	if nm, arm = armSpinner(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
+	if nm, arm = armBanner(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
 	if nm, arm = armIdle(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
+	if nm, arm = armConfig(nm); arm != nil {
+		cmd = tea.Batch(cmd, arm)
+	}
+	if nm, arm = armBinWatch(nm); arm != nil {
 		cmd = tea.Batch(cmd, arm)
 	}
 	return nm, cmd
@@ -69,21 +85,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
-		resizeAttach(m)
-		return ensureVisible(m), nil
+		m.TermW, m.TermH = msg.Width, msg.Height
+		// A resize means someone is at the terminal (or a tmux client just
+		// attached): restart the idle countdown and show the real screen.
+		// The first size at startup isn't input; lastInput starts at hand-off.
+		if m.Focus != FocusBoot {
+			m.lastInput = m.now()
+			if m.saverOn {
+				m = wakeSaver(m, "resize")
+			}
+		}
+		return relayout(m), nil
 	case AttachOutputMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID && len(msg.Bytes) > 0 {
+		// Only the open popup's own listener is re-armed: re-arming from an
+		// earlier popup's message would put a second listener on this one
+		// and split its chunks.
+		if !fromOpenPopup(m, msg.SessionID, msg.from) {
+			return m, nil
+		}
+		if len(msg.Bytes) > 0 {
 			_, _ = m.Attach.Term.Write(msg.Bytes)
 			afterAttachOutput(m.Attach)
 		}
-		if m.Attach != nil {
-			return m, listenAttach(m.Attach)
-		}
-		return m, nil
+		return m, listenAttach(m.Attach)
 	case AttachClosedMsg:
-		if m.Attach != nil && msg.SessionID == m.Attach.SessionID {
+		if fromOpenPopup(m, msg.SessionID, msg.from) && msg.Err != nil && isConnClosed(msg.Err) {
+			// The daemon dropped the connection (a hot restart): the
+			// session runs on, so the popup re-attaches.
+			id := msg.SessionID
+			m = closeAttach(m)
+			m.reattachFor = id
+			m.Notice = "reattaching…"
+			return m, scheduleReattach(id, 0)
+		}
+		if fromOpenPopup(m, msg.SessionID, msg.from) {
 			m.Attach.Ended = true
 			if msg.Err != nil {
 				m.Attach.EndedMsg = msg.Err.Error()
@@ -142,8 +177,18 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleReconnectTick(m, msg)
 	case reconnectResultMsg:
 		return handleReconnectResult(m, msg)
+	case exportDoneMsg:
+		return applyExportDone(m, msg), nil
+	case undoReplyMsg:
+		return applyUndoReply(m, msg), nil
+	case usageReportMsg:
+		return applyUsageReport(m, msg), nil
 	case pruneDoneMsg:
 		return applyPruneDone(m, msg), nil
+	case loopActionMsg:
+		return handleLoopAction(m, msg), nil
+	case daemonReloadedMsg:
+		return applyDaemonReload(m, msg), nil
 	case CmdErrMsg:
 		slog.Warn("tui: daemon request failed", "op", msg.Op, "err", msg.Err)
 		m.Err = msg.Op + ": " + msg.Err.Error()
@@ -161,6 +206,20 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinnerRunning = false
 		slog.Debug("tui: spinner idle", "gen", m.spinnerGen, "tick", m.SpinnerTick)
 		return m, nil
+	case bannerTickMsg:
+		return handleBannerTick(m, msg)
+	case configTickMsg:
+		return handleConfigTick(m)
+	case configReloadedMsg:
+		return handleConfigReloaded(m, msg)
+	case luaEditDoneMsg:
+		return handleLuaEditDone(m, msg)
+	case editorDoneMsg:
+		return handleEditorDone(m, msg)
+	case indexDoneMsg:
+		return handleIndexDone(m, msg)
+	case newAgentLaunchedMsg:
+		return handleNewAgentLaunched(m, msg)
 	case attachDoneMsg:
 		if msg.err != nil {
 			m.Err = "attach: " + msg.err.Error()
@@ -172,6 +231,11 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case settingsResultMsg:
 		m.Store = msg.Store
 		m.StorePath = msg.Path
+		m.Hidden = hiddenSectionsFrom(msg.Store)
+		m.luaLayer = msg.Lua
+		if msg.Lua.Err != nil {
+			m.Err = luaNotice(msg.Lua)
+		}
 		if !msg.Found {
 			return m.appendBootStep(bootStepMsg{
 				Name: "settings.load", Status: stepSkip, Desc: "no config file (defaults)", Dur: msg.Dur,
@@ -186,20 +250,65 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Name: "settings.load", Status: stepOK, Desc: msg.Path, Dur: msg.Dur,
 		})
 
+	case themesLoadedMsg:
+		m.Themes = msg.Themes
+		m.configStamp = msg.Stamp
+		return m.appendBootStep(themesLoadedStep(msg))
+
+	case themeApplyMsg:
+		if msg.Scheme == "" {
+			return m.appendBootStep(bootStepMsg{
+				Name: "theme.apply", Status: stepSkip, Desc: "default", Dur: msg.Dur,
+			})
+		}
+		name := resolveThemeName(m, msg.Scheme)
+		syncAccent(m)
+		if !applyThemeFrom(m.Themes, name) {
+			return m.appendBootStep(bootStepMsg{
+				Name: "theme.apply", Status: stepWarn, Desc: themeNotFound(m.Themes, msg.Scheme), Dur: msg.Dur,
+			})
+		}
+		desc := msg.Scheme
+		if name != msg.Scheme {
+			desc += " (" + name + ")"
+		}
+		status := stepOK
+		if note, isErr := accentNotice(name); note != "" {
+			desc += "; " + note
+			if isErr {
+				status = stepWarn
+			}
+		}
+		return m.appendBootStep(bootStepMsg{
+			Name: "theme.apply", Status: status, Desc: desc, Dur: msg.Dur,
+		})
+
 	case stateRestoreResultMsg:
 		if !msg.OK {
 			return m.appendBootStep(bootStepMsg{
 				Name: "state.restore", Status: stepSkip, Desc: "first run", Dur: msg.Dur,
 			})
 		}
-		m.SelectedID = msg.Selection
-		if msg.Filter != "" {
-			m.Filter = msg.Filter
+		if m.featureOn("search") {
+			m.Search = appendSearch("", msg.State.Search) // user-editable file: drop control runes, cap
+		}
+		if seenOn(m) && len(msg.State.Seen) > 0 {
+			m.SeenAt = make(map[string]time.Time, len(msg.State.Seen))
+			for id, t := range msg.State.Seen {
+				m.SeenAt[id] = t
+			}
+		}
+		m.SelectedID = msg.State.Selection
+		if msg.State.Filter != "" && m.featureOn("board_filter") {
+			m.Filter = msg.State.Filter
+		}
+		if msg.State.HiddenSections != nil && m.featureOn("board_filter") {
+			m.Hidden = hiddenSectionsFromIDs(*msg.State.HiddenSections)
 		}
 		m = ensureVisible(m)
 		return m.appendBootStep(bootStepMsg{
 			Name: "state.restore", Status: stepOK,
-			Desc: fmt.Sprintf("selected=%s · filter=%s", short8(msg.Selection), msg.Filter),
+			Desc: fmt.Sprintf("selected=%s · filter=%s", short8(msg.State.Selection), msg.State.Filter),
 			Dur:  msg.Dur,
 		})
 
@@ -222,10 +331,13 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Name: "handshake", Status: stepFail, Err: msg.Err, Desc: msg.Err.Error(), Dur: msg.Dur,
 			})
 		}
-		m.Sessions = msg.Snap.Sessions
-		if msg.Snap.Filter != "" {
-			m.Filter = msg.Snap.Filter
-		}
+		m = adoptSessionsSeen(m, msg.Snap.Sessions)
+		m.Overview = msg.Snap.Overview
+		m.Usage = msg.Snap.Usage
+		m = adoptSnapshotTools(m, msg.Snap.Tools)
+		m = adoptWorkspaceTagging(m, msg.Snap)
+		m = adoptLoops(m, msg.Snap)
+		m = adoptSnapshotFilter(m, msg.Snap.Filter)
 		return m.appendBootStep(bootStepMsg{
 			Name: "handshake", Status: stepOK,
 			Desc: "接続 · rex-tui",
@@ -253,6 +365,10 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.saverOn {
 			return wakeSaver(m, "mouse"), nil
 		}
+		msg, ok := translateMouse(m, msg)
+		if !ok {
+			return m, nil
+		}
 		return updateMouse(m, msg)
 	}
 	return m, nil
@@ -265,6 +381,8 @@ func (m Model) focusStateMissing() bool {
 	switch m.Focus {
 	case FocusWizard:
 		return m.Wizard == nil
+	case FocusNewAgent:
+		return m.NewAgent == nil
 	case FocusSettings:
 		return m.Settings == nil
 	case FocusAttach:
@@ -273,6 +391,10 @@ func (m Model) focusStateMissing() bool {
 		return m.Fail == nil
 	case FocusRename:
 		return m.Rename == nil
+	case FocusUsage:
+		return m.UsagePage == nil
+	case FocusUndo:
+		return m.Undo == nil
 	default:
 		return false // stateless foci (help, stats, prompts, confirms)
 	}
@@ -283,6 +405,7 @@ func (m Model) focusStateMissing() bool {
 // via `:new`, P0-07), so it is logged and the board takes focus back rather
 // than leaving the user stuck.
 func normalizeFocus(m Model) Model {
+	m = closeNewAgentIfOff(m)
 	if !m.focusStateMissing() {
 		return m
 	}
@@ -315,6 +438,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusRename {
 		return updateRenameKey(m, k)
 	}
+	if m.Focus == FocusSearch {
+		return updateSearchKey(m, k)
+	}
 	// Focused prompt: characters are input.
 	if m.Focus == FocusPrompt {
 		return updatePromptKey(m, k)
@@ -322,41 +448,11 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 
 	// Board focus: navigation, mode switches, single-key actions, and 'dd'/'cc' chords.
 	if m.Focus == FocusBoard {
-		// Chord handling — only the first 'd' arms the chord; second 'd' opens
-		// the delete confirmation prompt.
-		if k.String() == "d" {
-			if m.PendingChord == "d" {
-				m.PendingChord = ""
-				if m.SelectedID != "" && indexOfSelected(m) >= 0 {
-					m.PendingDeleteID = m.SelectedID
-					m.PendingPrune, m.PendingPruneKept = nil, 0
-					m.Focus = FocusConfirmDelete
-					if m.Audio != nil {
-						m.Audio.Play(audio.EventOpen)
-					}
-				}
-				return m, nil
-			}
-			m.PendingChord = "d"
-			return m, nil
+		var cmd tea.Cmd
+		var consumed bool
+		if m, cmd, consumed = handleBoardChord(m, k.String()); consumed {
+			return m, cmd
 		}
-		// 'cc' is the soft "mark done": the session keeps running, moves to
-		// Done, and is cleared after retire_after_hours; 'cc' again undoes it.
-		if k.String() == "c" {
-			if m.PendingChord == "c" {
-				m.PendingChord = ""
-				if m.SelectedID == "" || indexOfSelected(m) < 0 {
-					slog.Debug("tui: 'cc' pressed with no selection — no-op")
-					return m, nil
-				}
-				return toggleRetire(m, m.SelectedID)
-			}
-			m.PendingChord = "c"
-			return m, nil
-		}
-		// Any other key clears the pending chord and the transient notice.
-		m.PendingChord = ""
-		m.Notice = ""
 
 		switch k.String() {
 		case "ctrl+c":
@@ -392,32 +488,36 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			return m, completeSessionCmd(m.Client, m.SelectedID)
 		case "r":
 			return openRename(m)
-		case "1":
-			return jumpToSection(m, 0), nil
-		case "2":
-			return jumpToSection(m, 1), nil
-		case "3":
-			return toggleDone(m), nil
+		case "1", "2", "3", "4":
+			return jumpToNumber(m, int(k.String()[0]-'0')), nil
 		case "tab":
 			return nextNeedsYou(m), nil
 		case "v":
 			m.Detailed = !m.Detailed
 			return ensureVisible(m), nil
 		case "t":
+			if !m.featureOn("board_filter") {
+				return m, nil
+			}
 			if m.Audio != nil {
 				m.Audio.Play(audio.EventFilter)
 			}
 			return cycleFilter(m), nil
 		case "n":
-			return openWizard(m)
+			return openNew(m)
 		case "?":
-			m.Focus = FocusHelp
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventOpen)
-			}
-			return m, nil
+			return openHelp(m), nil
 		case "S":
 			return openSettings(m)
+		case "p":
+			return loopKey(m, "pause")
+		case "x":
+			return loopKey(m, "stop")
+		case "L":
+			if refuseOff(&m, loopsFlag) {
+				return m, nil
+			}
+			return openLoops(m), nil
 		case "i":
 			m.Focus = FocusPrompt
 			m.Err = ""
@@ -430,6 +530,17 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 			return chooseAttach(m, m.SelectedID)
+		case "/":
+			if !m.featureOn("search") {
+				return m, nil
+			}
+			return openSearch(m)
+		case "esc":
+			if m.Search == "" {
+				return m, nil
+			}
+			m.Search = ""
+			return refilter(m), nil
 		case ":":
 			m.Focus = FocusCommand
 			m.CmdText = ""
@@ -453,15 +564,11 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusWizard {
 		return updateWizardKey(m, k)
 	}
+	if m.Focus == FocusNewAgent {
+		return updateNewAgentKey(m, k)
+	}
 	if m.Focus == FocusHelp {
-		switch k.String() {
-		case "esc", "?":
-			m.Focus = FocusBoard
-			if m.Audio != nil {
-				m.Audio.Play(audio.EventClose)
-			}
-		}
-		return m, nil
+		return updateHelpKey(m, k)
 	}
 	if m.Focus == FocusSettings {
 		return updateSettingsKey(m, k)
@@ -469,9 +576,25 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	if m.Focus == FocusFail {
 		return updateFailKey(m, k)
 	}
+	if m.Focus == FocusOverview {
+		return updateOverviewKey(m, k)
+	}
+	if m.Focus == FocusLoops {
+		return updateLoopsKey(m, k)
+	}
+	if m.Focus == FocusConfirmLoopStop {
+		return updateConfirmLoopStopKey(m, k)
+	}
+	if m.Focus == FocusUsage {
+		return updateUsageKey(m, k)
+	}
+	if m.Focus == FocusUndo {
+		return updateUndoKey(m, k)
+	}
 	if m.Focus == FocusStats {
-		switch k.String() {
-		case "esc", ":":
+		// esc only: any other key is swallowed, so a typed ":stats" can't
+		// close the overlay on ':' and run the rest as board keys.
+		if k.String() == "esc" {
 			m.Focus = FocusBoard
 			slog.Debug("tui: stats overlay closed via key")
 		}
@@ -547,13 +670,22 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			slog.Warn("tui: quick-spawn aborted, settings store not initialized")
 			return m, nil
 		}
-		m.PendingSelectSlug = quickSpawnSlug(m.Store, m.Sessions, text)
-		return m, spawnSessionCmd(m.Client, m.Store, m.Sessions, text)
+		choice, notice := quickChoiceOf(m)
+		if notice != "" {
+			m.Notice = notice
+		}
+		m.PendingSelectSlug = quickSpawnSlug(choice, m.Sessions, text)
+		cols, rows := spawnSizeOf(m)
+		var spawner sessionSpawner = m.Client
+		if m.spawner != nil {
+			spawner = m.spawner
+		}
+		return m, spawnSessionIn(spawnCWD(m), spawner, choice, m.Sessions, text, cols, rows)
 	case tea.KeyBackspace:
 		m.PromptText = dropLastRune(m.PromptText)
 		return m, nil
 	case tea.KeyRunes:
-		m.PromptText += string(k.Runes)
+		m.PromptText += typedPromptText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.PromptText += " "
@@ -566,15 +698,23 @@ func updatePromptKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 // configured default tool/model/effort from the settings store and uses the
 // wizard's existing slug helpers so a quick-spawned session is indistinguishable
 // from one created via the full wizard. Daemon-side validation surfaces errors
-// for unknown tool/model IDs via the existing DaemonErrMsg path.
-func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protocol.SessionSummary, prompt string) tea.Cmd {
-	return func() tea.Msg {
-		toolID, _ := store.Get("default_spawn_tool").(string)
-		modelID, _ := store.Get("default_spawn_model").(string)
-		effort, _ := store.Get("default_spawn_effort").(string)
-		slug := quickSpawnSlug(store, sessions, prompt)
+// for unknown tool/model IDs via the existing DaemonErrMsg path. cols and
+// rows are the PTY size to start at (spawnSizeOf; 0 = daemon default).
+func spawnSessionCmd(c sessionSpawner, choice quickChoice, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+	cwd, _ := os.Getwd()
+	return spawnSessionIn(cwd, c, choice, sessions, prompt, cols, rows)
+}
 
-		cwd, _ := os.Getwd()
+// spawnSessionIn is spawnSessionCmd with the folder the session starts in
+// (a workspace board starts it at the workspace root).
+//
+// The slug is chosen here, on the caller's goroutine (Update): the Cmd runs
+// on its own, and sessions is the Model's slice, which later events change.
+func spawnSessionIn(cwd string, c sessionSpawner, choice quickChoice, sessions []protocol.SessionSummary, prompt string, cols, rows uint16) tea.Cmd {
+	slug := quickSpawnSlug(choice, sessions, prompt)
+	return func() tea.Msg {
+		toolID, modelID, effort := choice.Tool, choice.Model, choice.Effort
+
 		slog.Info("tui: quick-spawn",
 			"tool", toolID, "model", modelID, "effort", effort,
 			"slug", slug, "cwd", cwd, "prompt_len", len(prompt))
@@ -586,6 +726,8 @@ func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protoco
 			Title:         prompt,
 			CWD:           cwd,
 			InitialPrompt: prompt,
+			Cols:          cols,
+			Rows:          rows,
 		}); err != nil {
 			slog.Warn("tui: quick-spawn NewSession failed", "err", err, "slug", slug)
 			return CmdErrMsg{Op: "spawn", Err: err}
@@ -596,9 +738,8 @@ func spawnSessionCmd(c sessionSpawner, store *settings.Store, sessions []protoco
 
 // quickSpawnSlug derives the slug a quick-spawn of prompt will get, so the
 // board can select the session when its SessionAdded arrives.
-func quickSpawnSlug(store *settings.Store, sessions []protocol.SessionSummary, prompt string) string {
-	toolID, _ := store.Get("default_spawn_tool").(string)
-	modelID, _ := store.Get("default_spawn_model").(string)
+func quickSpawnSlug(choice quickChoice, sessions []protocol.SessionSummary, prompt string) string {
+	toolID, modelID := choice.Tool, choice.Model
 	existing := make([]string, 0, len(sessions))
 	for _, s := range sessions {
 		if s.Slug != "" {
@@ -646,7 +787,7 @@ func updateCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyRunes:
-		m.CmdText += string(k.Runes)
+		m.CmdText += typedText(k.Runes)
 		return m, nil
 	case tea.KeySpace:
 		m.CmdText += " "
@@ -705,12 +846,12 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 	if msg.Status == stepFail {
 		m.BootFailed = true
 		m.BootError = msg.Err
-		if m.Audio != nil {
+		if m.Audio != nil && !m.QuietBoot {
 			m.Audio.Play(audio.EventBootFail)
 		}
 		return m, nil
 	}
-	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil {
+	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil && !m.QuietBoot {
 		m.Audio.Play(ev)
 	}
 	m.BootStep++

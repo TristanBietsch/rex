@@ -107,7 +107,8 @@ func renderStatsOverlay(m Model) string {
 	durBuckets := make([]int, len(durLabels))
 	var durValues []float64
 	for _, s := range sessions {
-		if !s.StartedAt.IsZero() && !s.LastEventAt.IsZero() {
+		// A queued session's last_event_at is its creation: no duration yet.
+		if s.State != protocol.StateQueued && !s.StartedAt.IsZero() && !s.LastEventAt.IsZero() {
 			durValues = append(durValues, s.LastEventAt.Sub(s.StartedAt).Seconds())
 		}
 	}
@@ -148,7 +149,7 @@ func renderStatsOverlay(m Model) string {
 	lines = append(lines, renderHistogram(durLabels, durBuckets))
 	lines = append(lines, "")
 
-	lines = append(lines, styleMuted.Render("  esc or :stats to close"))
+	lines = append(lines, styleMuted.Render("  esc to close"))
 
 	return strings.Join(lines, "\n")
 }

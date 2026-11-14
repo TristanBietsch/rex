@@ -1,0 +1,344 @@
+package tui
+
+import (
+	"fmt"
+	"log/slog"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/catalog/settings"
+)
+
+// builtinChips are the built-in tools: all is every id, enabled the ones the
+// wizard offers by default (visibleTools), in registry order.
+type builtinChips struct {
+	all     map[string]bool
+	enabled []string
+}
+
+var loadBuiltinChips = sync.OnceValue(func() builtinChips {
+	out := builtinChips{all: map[string]bool{}}
+	reg, err := registry.Load("")
+	if err != nil {
+		slog.Warn("tui: built-in registry did not load; filter chips show only all", "err", err)
+		return out
+	}
+	for _, t := range reg.Tools {
+		out.all[t.ID] = true
+	}
+	for _, t := range visibleTools(reg.Tools) {
+		out.enabled = append(out.enabled, t.ID)
+	}
+	return out
+})
+
+// filterTools is the filter chip order (header chips, chip clicks and the t
+// cycle): "all", then the agents. With the daemon's tool list known these
+// are the installed ones, in its order, leaving out the echo test tool and
+// opt-in built-ins (gemini, deepseek, kimi); a user's own tool counts.
+// Without it (a daemon that predates the list) they are the enabled
+// built-ins less qwen, cursor and grok, which show only once known to be
+// installed. Those three also drop out while extra_agents is off.
+func filterTools(m Model) []string {
+	b := loadBuiltinChips()
+	out := []string{"all"}
+	extra := func(id string) bool { return slices.Contains(registry.ExtraAgentIDs, id) }
+	if !m.toolsKnown {
+		for _, id := range b.enabled {
+			if !extra(id) {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+	extrasOn := m.featureOn("extra_agents")
+	for _, t := range m.DaemonTools {
+		if !t.Installed || hiddenInWizard[t.ID] || extra(t.ID) && !extrasOn {
+			continue
+		}
+		if b.all[t.ID] && !slices.Contains(b.enabled, t.ID) {
+			continue
+		}
+		out = append(out, t.ID)
+	}
+	return out
+}
+
+// filterCommand runs `:filter`.
+//
+//	:filter                 clear every filter (and the search)
+//	:filter <tool>          show one tool's sessions ("all" shows every tool)
+//	:filter hide <sec…>     hide sections
+//	:filter show <sec…|all> show sections
+//	:filter only <sec…>     show only these sections
+//
+// A section is an ID, a unique ID prefix, a title or a 1-based number
+// (resolveSection).
+func filterCommand(m Model, args []string) Model {
+	if len(args) == 0 {
+		m.Hidden = nil
+		m.Search = ""
+		return setFilter(m, "all")
+	}
+	switch args[0] {
+	case "hide", "show", "only":
+		return filterSections(m, args[0], args[1:])
+	}
+	if len(args) != 1 || !knownFilterTool(m, args[0]) {
+		m.Err = "filter: unknown tool or subcommand " + strings.Join(args, " ")
+		return m
+	}
+	return setFilter(m, args[0])
+}
+
+// filterSections runs hide, show or only. It changes nothing when any
+// reference is bad or the result would hide every section.
+func filterSections(m Model, verb string, refs []string) Model {
+	if len(refs) == 0 {
+		m.Err = "filter: " + verb + " needs a section"
+		return m
+	}
+	if verb == "show" && len(refs) == 1 && refs[0] == "all" {
+		return showAllSections(m)
+	}
+	named := map[string]bool{}
+	for _, ref := range refs {
+		gi, err := resolveSection(m, ref)
+		if err != nil {
+			m.Err = "filter: " + err.Error()
+			return m
+		}
+		named[boardGroups[gi].ID] = true
+	}
+	next := map[string]bool{}
+	for _, g := range boardGroups {
+		switch {
+		case verb == "only":
+			next[g.ID] = !named[g.ID]
+		case named[g.ID]:
+			next[g.ID] = verb == "hide"
+		default:
+			next[g.ID] = m.Hidden[g.ID]
+		}
+	}
+	return applyHidden(m, next)
+}
+
+// applyHidden installs a hidden-section set (cloned from next, false
+// entries dropped) and re-seats the view. It refuses a set that hides every
+// section.
+func applyHidden(m Model, next map[string]bool) Model {
+	clean := map[string]bool{}
+	for _, g := range boardGroups {
+		if next[g.ID] {
+			clean[g.ID] = true
+		}
+	}
+	if (rowFilter{hidden: clean}).hidesAllOf(activeGroups(m)) {
+		m.Err = "filter: can't hide every section"
+		return m
+	}
+	if len(clean) == 0 {
+		clean = nil
+	}
+	m.Hidden = clean
+	return refilter(m)
+}
+
+// setSectionHidden hides or shows one section by ID. Hiding the last shown
+// section is refused.
+func setSectionHidden(m Model, id string, hide bool) Model {
+	next := make(map[string]bool, len(m.Hidden)+1)
+	for k, v := range m.Hidden {
+		next[k] = v
+	}
+	next[id] = hide
+	return applyHidden(m, next)
+}
+
+// hiddenNotice sets a Notice and reports true when section gi is hidden: a
+// jump aimed at it would have nowhere to go.
+func hiddenNotice(m *Model, gi int) bool {
+	g := boardGroups[gi]
+	if !rowFilterOf(*m).hidden[g.ID] {
+		return false
+	}
+	hint := "z" + strconv.Itoa(sectionNumber(*m, gi))
+	if g.Completed {
+		hint = "zh"
+	}
+	m.Notice = g.Title + " is hidden — " + hint + " to show"
+	return true
+}
+
+// adoptSnapshotFilter takes the daemon's snapshot filter only while the TUI
+// has none of its own. The daemon always sends "all", so adopting it
+// unconditionally reset the user's tool filter on every reconnect.
+func adoptSnapshotFilter(m Model, snapFilter string) Model {
+	if m.Filter == "" && snapFilter != "" {
+		m.Filter = snapFilter
+	}
+	return m
+}
+
+// knownFilterTool reports whether tool is a filter chip or a tool with a
+// session on the board.
+func knownFilterTool(m Model, tool string) bool {
+	for _, t := range filterTools(m) {
+		if t == tool {
+			return true
+		}
+	}
+	for _, s := range m.Sessions {
+		if s.ToolID == tool {
+			return true
+		}
+	}
+	return false
+}
+
+// chordSection is z...: zh toggles every completed section, z1-z9 toggle
+// section N, z0 shows every section. Any other second key is not part of
+// the chord.
+func chordSection(m Model, second string) (Model, tea.Cmd, bool) {
+	switch second {
+	case "h":
+		return toggleCompleted(m), nil, true
+	case "0":
+		return showAllSections(m), nil, true
+	}
+	n, err := strconv.Atoi(second)
+	if err != nil || n < 1 || n > 9 {
+		return m, nil, false
+	}
+	active := activeGroups(m)
+	if n > len(active) {
+		m.Notice = fmt.Sprintf("no section %d: use z1-z%d", n, len(active))
+		return m, nil, true
+	}
+	id := boardGroups[active[n-1]].ID
+	return setSectionHidden(m, id, !m.Hidden[id]), nil, true
+}
+
+// toggleCompleted hides every completed section, or shows them when they
+// are all hidden already.
+func toggleCompleted(m Model) Model {
+	hide := false
+	for _, g := range boardGroups {
+		if g.Completed && !m.Hidden[g.ID] {
+			hide = true
+		}
+	}
+	for _, g := range boardGroups {
+		if g.Completed {
+			m = setSectionHidden(m, g.ID, hide)
+		}
+	}
+	return m
+}
+
+// showAllSections clears every hidden section.
+func showAllSections(m Model) Model {
+	m.Hidden = nil
+	return refilter(m)
+}
+
+// renderFilterStatus is the dim note after the filter chips: which sections
+// are hidden ("done hidden (zh)") and the active search ("/auth · 3 matches
+// · esc clear"), or "" when neither applies. It sits after the chips so
+// headerHitAt still finds every chip.
+func renderFilterStatus(m Model) string {
+	var notes []string
+	if hidden := hiddenStatus(m); hidden != "" {
+		notes = append(notes, hidden)
+	}
+	if search := searchStatus(m); search != "" {
+		notes = append(notes, search)
+	}
+	if len(notes) == 0 {
+		return ""
+	}
+	return styleDim.Render(strings.Join(notes, " · "))
+}
+
+// searchStatus is the search part of the filter status: the query, how many
+// rows match, a hint to clear it (the editor has its own hints), and how
+// many more matches sit in hidden sections.
+func searchStatus(m Model) string {
+	if !rowFilterOf(m).searching() {
+		return ""
+	}
+	parts := []string{"/" + truncate(strings.TrimSpace(m.Search), 24), matchesLabel(searchMatchCount(m))}
+	if m.Focus != FocusSearch {
+		parts = append(parts, "esc clear")
+	}
+	if n := searchHiddenCount(m); n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d in hidden sections (z0)", n))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// hiddenStatus names the hidden sections ("done hidden (zh)"), or "".
+func hiddenStatus(m Model) string {
+	hidden := rowFilterOf(m).hidden
+	var names []string
+	var first int
+	for i, g := range boardGroups {
+		if hidden[g.ID] {
+			if len(names) == 0 {
+				first = i
+			}
+			names = append(names, g.ID)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	hint := "z0 shows all"
+	if len(names) == 1 {
+		hint = "z" + strconv.Itoa(sectionNumber(m, first))
+		if boardGroups[first].Completed {
+			hint = "zh"
+		}
+	}
+	return strings.Join(names, ", ") + " hidden (" + hint + ")"
+}
+
+// hiddenSectionsFrom reads the board_hidden_sections setting.
+func hiddenSectionsFrom(st *settings.Store) map[string]bool {
+	if st == nil || !settings.FeatureOn(st, "board_filter") {
+		return nil
+	}
+	raw, _ := st.Get("board_hidden_sections").(string)
+	return hiddenSectionsFromIDs(strings.Split(raw, ","))
+}
+
+// hiddenSectionsFromIDs keeps the known section IDs (case-insensitive,
+// trimmed). Unknown IDs are dropped, and a list that would hide every
+// section is ignored. Nothing hidden is a nil map.
+func hiddenSectionsFromIDs(ids []string) map[string]bool {
+	known := map[string]bool{}
+	for _, g := range boardGroups {
+		known[g.ID] = true
+	}
+	out := map[string]bool{}
+	for _, id := range ids {
+		if id = strings.ToLower(strings.TrimSpace(id)); known[id] {
+			out[id] = true
+		}
+	}
+	if len(out) == 0 || len(out) == len(boardGroups) {
+		return nil
+	}
+	// A list from before the Waiting section (needs,working,done) hid
+	// everything and was ignored: it still is, not read as "only Waiting".
+	if len(out) == len(boardGroups)-1 && !out[waitingGroupID] {
+		return nil
+	}
+	return out
+}

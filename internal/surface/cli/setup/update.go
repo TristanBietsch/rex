@@ -1,7 +1,6 @@
 package setup
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -9,22 +8,15 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
+	"github.com/tristanbietsch/rex/internal/runtime/selfupdate"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
-)
-
-var (
-	updateOK     = lipgloss.NewStyle().Foreground(lipgloss.Color("#5FC96E"))
-	updateBullet = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	updateKey    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E6E6E6"))
-	updateVal    = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	updateErr    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E05C5C"))
 )
 
 // updateDeps are RunUpdate's side effects. Tests replace them so the
@@ -38,6 +30,22 @@ type updateDeps struct {
 	goInstall        func(verbose bool) error
 	fromSource       func(dir string, verbose bool) error
 	installedVersion func() string
+	// release is where release builds come from (GitHub by default).
+	release releaseSource
+	// version is the running rex's version (core.Version).
+	version      string
+	goos, goarch string
+	getenv       func(string) string
+	tempDir      string // "" is the system temp dir
+	hasUpgrade   func(exe string) bool
+	checkTimeout time.Duration
+	fetchTimeout time.Duration
+}
+
+// releaseSource looks up and downloads release builds.
+type releaseSource interface {
+	Latest(ctx context.Context) (string, error)
+	Fetch(ctx context.Context, tag, goos, goarch, tmpDir string) (*selfupdate.Archive, error)
 }
 
 // defaultUpdateDeps wires RunUpdate to the real system. It fails when the
@@ -47,25 +55,39 @@ func defaultUpdateDeps() (updateDeps, error) {
 	if err != nil {
 		return updateDeps{}, err
 	}
+	p := core.Out()
 	return updateDeps{
-		out:              os.Stdout,
-		errOut:           os.Stderr,
-		stdin:            os.Stdin,
+		out:              p.Out,
+		errOut:           p.Err,
+		stdin:            p.In,
 		detectMode:       detectInstallMode,
 		daemon:           daemon,
 		goInstall:        upgradeGoInstall,
 		fromSource:       upgradeFromSource,
 		installedVersion: readInstalledVersion,
+		release:          &selfupdate.Source{Token: os.Getenv("GITHUB_TOKEN")},
+		version:          core.Version,
+		goos:             runtime.GOOS,
+		goarch:           runtime.GOARCH,
+		getenv:           os.Getenv,
+		hasUpgrade:       hasUpgradeCommand,
 	}, nil
+}
+
+// updateFlags are rex update's options.
+type updateFlags struct {
+	check, yes, force, verbose bool
+	source, version            string
 }
 
 // RunUpdate upgrades the rex and rex-daemon binaries in place.
 //
 // Ordering invariant: everything that can refuse (install-mode detection,
-// the binary-swap refusal, the confirmation prompt) runs before the daemon
-// is stopped, so a refused or cancelled update never kills the user's
-// sessions. The daemon is stopped, and its socket confirmed closed, only
-// right before the upgrade itself.
+// the version checks, the confirmation prompt) runs before anything is
+// stopped or written, so a refused or cancelled update changes nothing.
+// A release install (install.sh, install.ps1, a release archive) is
+// updated from GitHub releases and its daemon is left running. A go install
+// or -source upgrade stops the daemon right before the upgrade.
 func RunUpdate(args []string) error {
 	d, err := defaultUpdateDeps()
 	if err != nil {
@@ -77,110 +99,163 @@ func RunUpdate(args []string) error {
 func runUpdate(args []string, d updateDeps) error {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(d.errOut)
-	check := fs.Bool("check", false, "print version info and exit without upgrading")
-	yes := fs.Bool("yes", false, "skip confirmation prompt")
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	var o updateFlags
+	fs.BoolVar(&o.check, "check", false, "look up the latest release and compare; changes nothing")
+	fs.BoolVar(&o.yes, "yes", false, "skip confirmation prompt")
 	yShort := fs.Bool("y", false, "skip confirmation prompt (shorthand)")
-	source := fs.String("source", "", "explicit source checkout path; run git pull + ./install.sh")
-	verbose := fs.Bool("verbose", false, "stream go install output instead of spinning")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	fs.BoolVar(&o.force, "force", false, "install even when the release is not newer, or the running version is unknown")
+	fs.StringVar(&o.version, "version", "", "install this release (vX.Y.Z) instead of the latest; also REX_VERSION")
+	fs.StringVar(&o.source, "source", "", "explicit source checkout path; run git pull + ./install.sh --from-source")
+	fs.BoolVar(&o.verbose, "verbose", false, "stream go install output instead of spinning")
+	_, err := out.Parse(fs, args)
+	if err != nil {
+		return err
+	}
+	o.yes = o.yes || *yShort
+	if o.version == "" && d.getenv != nil {
+		o.version = d.getenv("REX_VERSION")
+	}
+	// The result goes to d.out, progress, the plan and the question to d.errOut.
+	p, err := core.Out().WithIO(d.out, d.errOut, d.stdin)
+	if err != nil {
+		return err
 	}
 
-	slog.Info("update: starting", "check", *check, "source", *source, "verbose", *verbose)
+	slog.Info("update: starting", "check", o.check, "source", o.source, "version", o.version)
 
-	// --check: print version and bail.
-	if *check {
-		return runUpdateCheck(d.out)
+	if o.check {
+		return runUpdateCheck(p, d, o)
 	}
 
 	mode, exePath, err := d.detectMode()
 	if err != nil {
 		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: could not determine install mode: %v", err))
 	}
-	if *source == "" && mode == installModeBinarySwap {
-		return refuseBinarySwap(d.out, exePath)
+	if o.source == "" {
+		switch mode {
+		case installModePackage:
+			return refusePackageManager(exePath)
+		case installModeRelease:
+			if repo := guessSourceDir(exePath); repo != "" {
+				return refuseSourceCheckout(exePath, repo)
+			}
+			return runReleaseUpdate(p, d, o, exePath)
+		case installModeGoInstall:
+			// go install below.
+		}
+	}
+
+	if o.source == "" && o.version != "" {
+		// go install always builds @latest (the module path has no /v2,
+		// so Go ignores release tags); refuse rather than ignore the pin.
+		return core.Errorf(core.ExitInvalidArgs, "rex update",
+			"update: -version and REX_VERSION apply to release installs; a go install build updates to the latest master")
 	}
 
 	daemonRunning := d.daemon.running()
-	printUpdatePlan(d.out, exePath, *source, mode, daemonRunning)
+	printUpdatePlan(p, exePath, o.source, mode, daemonRunning)
 
-	skipConfirm := *yes || *yShort
-	if !skipConfirm && !confirmUpdate(d) {
-		slog.Info("update: user declined")
-		return core.NewExitError(core.ExitOperationRefused, "upgrade cancelled")
+	if !o.yes {
+		ok, err := p.Confirm("upgrade now?", core.Refusal{Cmd: "update", Flag: "-yes", What: "upgrade",
+			Hint: "rex update -yes", DefaultYes: true})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			slog.Info("update: user declined")
+			return core.Errorf(core.ExitOperationRefused, "", "upgrade cancelled")
+		}
 	}
 
 	if daemonRunning {
-		stopDaemonForUpdate(d)
+		stopDaemonForUpdate(p, d)
 	}
 
-	if err := runUpgrade(d, *source, *verbose); err != nil {
+	if err := runUpgrade(d, o.source, o.verbose); err != nil {
 		return core.NewExitError(core.ExitGeneric, fmt.Sprintf("update: %v", err))
 	}
 
 	newVer := d.installedVersion()
-	fmt.Fprintf(d.out, "\n  %s %s\n", updateOK.Render("✓"), updateKey.Render(fmt.Sprintf("rex %s → %s", core.Version, newVer)))
+	slog.Info("update: complete", "old_version", d.version, "new_version", newVer)
+	v := core.ActionView(core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: fmt.Sprintf("rex %s → %s", d.version, newVer)},
+		core.Field{Key: "from", Val: d.version}, core.Field{Key: "to", Val: newVer},
+		core.Field{Key: "daemon_restart", Val: daemonRunning})
 	if daemonRunning {
-		fmt.Fprintf(d.out, "  %s %s\n", updateBullet.Render("·"), updateVal.Render("daemon will restart on next `rex`"))
+		v = append(v, core.Note{Text: "daemon will restart on next `rex`"})
 	}
-	fmt.Fprintln(d.out)
-
-	slog.Info("update: complete", "old_version", core.Version, "new_version", newVer)
-	return nil
+	return p.Emit(core.Result{Cmd: "update", Data: updateData{From: d.version, To: newVer, DaemonRestart: daemonRunning}, View: v})
 }
 
-// printUpdatePlan shows what the upgrade will do before asking.
-func printUpdatePlan(w io.Writer, exePath, source string, mode installMode, daemonRunning bool) {
-	fmt.Fprintln(w)
-	printKV(w, "current", core.Version)
-	printKV(w, "binary", exePath)
+// updateData is the `-o json` payload of rex update.
+type updateData struct {
+	From          string `json:"from"`
+	To            string `json:"to"`
+	DaemonRestart bool   `json:"daemon_restart"`
+	// Next is the command that moves a running daemon to the new binary
+	// (release updates only; empty when no daemon runs).
+	Next string `json:"next,omitempty"`
+}
+
+// printUpdatePlan shows what the upgrade will do before asking, on stderr in
+// the text format only (it is part of the question, not of the result).
+func printUpdatePlan(p *core.Printer, exePath, source string, mode installMode, daemonRunning bool) {
+	if p.Format != core.FormatText {
+		return
+	}
+	pairs := []core.Pair{
+		{Label: "current", Val: core.Cell{Text: core.Version}},
+		{Label: "binary", Val: core.Cell{Text: exePath}},
+	}
 	if source != "" {
-		printKV(w, "mode", "source checkout (--source)")
-		printKV(w, "source", source)
+		pairs = append(pairs, core.Pair{Label: "mode", Val: core.Cell{Text: "source checkout (-source)"}},
+			core.Pair{Label: "source", Val: core.Cell{Text: source}})
 	} else {
-		printKV(w, "mode", modeLabel(mode))
+		pairs = append(pairs, core.Pair{Label: "mode", Val: core.Cell{Text: modeLabel(mode)}})
 	}
+	daemon := "not running"
 	if daemonRunning {
-		printKV(w, "daemon", "running (will stop, then restart on next `rex`)")
-	} else {
-		printKV(w, "daemon", "not running")
+		daemon = "running (will stop, then restart on next `rex`)"
 	}
-	fmt.Fprintln(w)
+	pairs = append(pairs, core.Pair{Label: "daemon", Val: core.Cell{Text: daemon}})
+	p.EmitErr(core.View{core.KV{Pairs: pairs}})
 }
 
-// confirmUpdate asks "upgrade now? [Y/n]"; an empty answer means yes.
-func confirmUpdate(d updateDeps) bool {
-	fmt.Fprint(d.out, "  upgrade now? [Y/n] ")
-	answer, _ := bufio.NewReader(d.stdin).ReadString('\n')
-	answer = strings.TrimSpace(strings.ToLower(answer))
-	return answer == "" || answer == "y" || answer == "yes"
+// installerHint is the command that installs the latest release with
+// install.sh.
+const installerHint = "curl -fsSL https://raw.githubusercontent.com/TristanBietsch/rex/master/install.sh -o install.sh && sh install.sh"
+
+// refuseSourceCheckout refuses to overwrite a binary that sits in a source
+// checkout (built there, not installed): rebuilding is the upgrade.
+func refuseSourceCheckout(exePath, repo string) error {
+	slog.Info("update: binary in a source checkout, not updating from releases", "exe", exePath)
+	return core.Errorf(core.ExitOperationRefused, fmt.Sprintf("rex update -source %s", repo),
+		"rex at %s was built in a source checkout; rebuild it there (or use -source)", exePath)
 }
 
-// refuseBinarySwap explains that a binary-swap install (anything not under
-// a Go bin dir, e.g. install.sh's ~/.local/bin) can't upgrade itself, and
-// returns the refusal. It runs before anything is stopped.
-func refuseBinarySwap(w io.Writer, exePath string) error {
-	fmt.Fprintf(w, "\n  %s\n", updateErr.Render("cannot self-upgrade binary-swap install"))
-	fmt.Fprintf(w, "  your rex binary is at: %s\n", updateKey.Render(exePath))
-	if repoHint := guessSourceDir(exePath); repoHint != "" {
-		fmt.Fprintf(w, "  re-run the checkout's install script to upgrade:\n\n")
-		fmt.Fprintf(w, "    %s\n\n", updateKey.Render(fmt.Sprintf("cd %s && ./install.sh", repoHint)))
-	} else {
-		fmt.Fprintf(w, "  re-run your original install script (e.g. %s) to upgrade.\n\n",
-			updateKey.Render("./install.sh"))
+// refusePackageManager refuses to overwrite a binary a package manager owns.
+func refusePackageManager(exePath string) error {
+	mgr := packageManagerOf(exePath)
+	slog.Info("update: package-manager install, not updating", "exe", exePath, "manager", mgr)
+	hint := ""
+	switch mgr {
+	case "Homebrew":
+		hint = "brew upgrade rex"
+	case "Scoop":
+		hint = "scoop update rex"
 	}
-	slog.Info("update: binary-swap mode, cannot self-upgrade", "exe", exePath)
-	return core.NewExitError(core.ExitOperationRefused, "re-run your install script to upgrade (see above)")
+	return core.Errorf(core.ExitOperationRefused, hint,
+		"rex at %s is managed by %s; upgrade it there", exePath, mgr)
 }
 
 // stopDaemonForUpdate stops the daemon and waits for its socket to close,
 // so the next `rex` starts the new daemon binary. Failure is only a
 // warning: replacing the binaries under a running daemon is still safe on
 // Unix, and the old daemon keeps serving until it is restarted.
-func stopDaemonForUpdate(d updateDeps) {
+func stopDaemonForUpdate(p *core.Printer, d updateDeps) {
 	slog.Info("update: stopping daemon before upgrade")
 	if err := d.daemon.stopAndWait(); err != nil {
-		fmt.Fprintf(d.errOut, "  %s  warning: could not stop daemon: %v\n", updateErr.Render("!"), err)
+		p.Warn(fmt.Sprintf("could not stop daemon: %v", err))
 		slog.Info("update: daemon stop warning", "err", err)
 		return
 	}
@@ -211,8 +286,13 @@ func runUpgrade(d updateDeps, source string, verbose bool) error {
 type installMode int
 
 const (
-	installModeGoInstall  installMode = iota
-	installModeBinarySwap installMode = iota
+	installModeGoInstall installMode = iota
+	// installModeRelease is a release build in a folder rex owns
+	// (install.sh's ~/.local/bin, install.ps1, an unpacked archive).
+	installModeRelease
+	// installModePackage is a binary a package manager owns (Homebrew,
+	// Scoop, Nix, a distro package): rex never overwrites it.
+	installModePackage
 )
 
 // detectInstallMode classifies the running rex binary and returns its
@@ -222,10 +302,13 @@ func detectInstallMode() (installMode, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
-	// Resolve symlinks so we compare real paths.
+	// Resolve symlinks so we compare real paths (a Homebrew bin link
+	// resolves into the Cellar).
+	// An unresolved link could hide a package manager's file, so a
+	// failure here refuses rather than guessing.
 	real, err := filepath.EvalSymlinks(exe)
 	if err != nil {
-		real = exe
+		return 0, "", fmt.Errorf("resolving %s: %w", exe, err)
 	}
 	gopath := os.Getenv("GOPATH")
 	home, err := paths.Home()
@@ -234,29 +317,80 @@ func detectInstallMode() (installMode, string, error) {
 		// nothing meaningful.
 		return 0, "", err
 	}
-	return classifyInstall(real, home, gopath), real, nil
+	return classifyInstall(real, home, gopath, os.Getenv("GOBIN")), real, nil
 }
 
 // classifyInstall reports go-install mode when exe is under $GOPATH/bin
-// (default ~/go/bin) or ~/go/bin, and binary-swap mode otherwise.
-func classifyInstall(exe, home, gopath string) installMode {
+// (default ~/go/bin) or ~/go/bin, package mode when a package manager owns
+// it, and release mode otherwise.
+func classifyInstall(exe, home, gopath, gobin string) installMode {
 	if gopath == "" {
 		gopath = filepath.Join(home, "go")
 	}
-	for _, binDir := range []string{filepath.Join(gopath, "bin"), filepath.Join(home, "go", "bin")} {
-		if strings.HasPrefix(exe, binDir+string(os.PathSeparator)) {
+	dirs := []string{filepath.Join(gopath, "bin"), filepath.Join(home, "go", "bin")}
+	if gobin != "" {
+		dirs = append(dirs, gobin)
+	}
+	for _, binDir := range dirs {
+		if hasPathPrefix(exe, binDir) {
 			return installModeGoInstall
 		}
 	}
-	return installModeBinarySwap
+	if packageManagerOf(exe) != "" {
+		return installModePackage
+	}
+	return installModeRelease
+}
+
+// hasPathPrefix reports whether p is inside dir. Windows paths compare
+// case-insensitively.
+func hasPathPrefix(p, dir string) bool {
+	prefix := filepath.Clean(dir) + string(os.PathSeparator)
+	if runtime.GOOS == "windows" {
+		return strings.HasPrefix(strings.ToLower(p), strings.ToLower(prefix))
+	}
+	return strings.HasPrefix(p, prefix)
+}
+
+// packageManagers maps a path fragment (slash-separated, lower case) to the
+// package manager whose files live there.
+var packageManagers = []struct{ frag, name string }{
+	{"/cellar/", "Homebrew"},
+	{"/homebrew/", "Homebrew"},
+	{"/linuxbrew/", "Homebrew"},
+	{"/nix/store/", "Nix"},
+	{"/snap/", "Snap"},
+	{"/flatpak/", "Flatpak"},
+	{"/opt/local/", "MacPorts"},
+	{"/scoop/", "Scoop"},
+	{"/chocolatey/", "Chocolatey"},
+	{"/winget/", "WinGet"},
+}
+
+// packageManagerOf names the package manager that owns exe, or "" when
+// none does. /usr/bin and /bin hold distro packages.
+func packageManagerOf(exe string) string {
+	p := strings.ToLower(strings.ReplaceAll(exe, "\\", "/"))
+	for _, m := range packageManagers {
+		if strings.Contains(p, m.frag) {
+			return m.name
+		}
+	}
+	switch path.Dir(p) {
+	case "/usr/bin", "/usr/sbin", "/bin", "/sbin":
+		return "the system package manager"
+	}
+	return ""
 }
 
 func modeLabel(m installMode) string {
 	switch m {
 	case installModeGoInstall:
 		return "go install"
+	case installModePackage:
+		return "package manager"
 	default:
-		return "binary swap (manual install)"
+		return "release build"
 	}
 }
 
@@ -279,15 +413,15 @@ func upgradeGoInstall(verbose bool) error {
 
 		cmd := exec.CommandContext(ctx, "go", "install", target)
 		if verbose {
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			fmt.Printf("  %s go install %s\n", updateBullet.Render("·"), target)
+			cmd.Stdout = core.Out().Err
+			cmd.Stderr = core.Out().Err
+			core.Out().Progress("go install " + target)
 		} else {
 			// Capture output; surface only on error.
 			combined := new(strings.Builder)
 			cmd.Stdout = combined
 			cmd.Stderr = combined
-			fmt.Printf("  %s installing %s ...\n", updateBullet.Render("·"), target)
+			core.Out().Progress("installing " + target + " ...")
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("go install %s: %w\n%s", target, err, combined.String())
 			}
@@ -308,10 +442,10 @@ func upgradeFromSource(dir string, verbose bool) error {
 	}
 
 	if runtime.GOOS == "windows" {
-		return runSourceStep(dir, verbose, "install.ps1", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(dir, "install.ps1"))
+		return runSourceStep(dir, verbose, "install.ps1", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(dir, "install.ps1"), "-FromSource")
 	}
 	script := filepath.Join(dir, "install.sh")
-	return runSourceStep(dir, verbose, "./install.sh", script)
+	return runSourceStep(dir, verbose, "./install.sh --from-source", script, "--from-source")
 }
 
 // runSourceStep runs a single source-upgrade step with optional verbose output.
@@ -322,14 +456,14 @@ func runSourceStep(dir string, verbose bool, label string, name string, extraArg
 	cmd := exec.CommandContext(ctx, name, allArgs...)
 	cmd.Dir = dir
 	if verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		fmt.Printf("  %s %s\n", updateBullet.Render("·"), label)
+		cmd.Stdout = core.Out().Err
+		cmd.Stderr = core.Out().Err
+		core.Out().Progress(label)
 	} else {
 		combined := new(strings.Builder)
 		cmd.Stdout = combined
 		cmd.Stderr = combined
-		fmt.Printf("  %s %s ...\n", updateBullet.Render("·"), label)
+		core.Out().Progress(label + " ...")
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("%s in %s: %w\n%s", label, dir, err, combined.String())
 		}
@@ -345,15 +479,6 @@ func runSourceStep(dir string, verbose bool, label string, name string, extraArg
 // Helpers
 // ---------------------------------------------------------------------------
 
-func runUpdateCheck(w io.Writer) error {
-	fmt.Fprintln(w)
-	printKV(w, "version", core.Version)
-	printKV(w, "remote", "(version check not yet wired — no remote lookup performed)")
-	fmt.Fprintln(w)
-	slog.Info("update: --check mode, printed version", "version", core.Version)
-	return nil
-}
-
 // readInstalledVersion runs `rex --version` on the current executable to get
 // the post-upgrade version string. Falls back to core.Version constant on error
 // (go install replaces the binary, so os.Executable() may now be new).
@@ -362,9 +487,22 @@ func readInstalledVersion() string {
 	if err != nil {
 		return core.Version
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	return versionOf(exe)
+}
+
+// versionProbeTimeout bounds `exe --version`; tests on a loaded machine
+// raise it.
+var versionProbeTimeout = 5 * time.Second
+
+// versionOf runs `exe --version` and returns its one line. The child gets
+// plain output: an inherited CLAUDECODE, REX_AGENT or REX_OUTPUT would make
+// it print an agent or json line instead of the version.
+func versionOf(exe string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), versionProbeTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, exe, "--version").Output()
+	cmd := exec.CommandContext(ctx, exe, "--version")
+	cmd.Env = append(os.Environ(), "REX_AGENT=0", "REX_OUTPUT=txt")
+	out, err := cmd.Output()
 	if err != nil {
 		return core.Version
 	}
@@ -392,9 +530,4 @@ func guessSourceDir(exePath string) string {
 		dir = parent
 	}
 	return ""
-}
-
-func printKV(w io.Writer, key, val string) {
-	k := fmt.Sprintf("  %-10s", key)
-	fmt.Fprintf(w, "%s %s\n", updateKey.Render(k), updateVal.Render(val))
 }

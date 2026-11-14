@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,18 +22,18 @@ func TestSaveTUIState_ownerOnly(t *testing.T) {
 	testperm.RequireMode(t, filepath.Dir(statePath), 0o700)
 	testperm.RequireMode(t, statePath, 0o600)
 
-	sel, filter, ok := LoadTUIState()
+	st, ok := LoadTUIState()
 	require.True(t, ok)
-	require.Equal(t, "s1", sel)
-	require.Equal(t, "all", filter)
+	require.Equal(t, "s1", st.Selection)
+	require.Equal(t, "all", st.Filter)
 }
 
 func TestTildePath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	sep := string(filepath.Separator)
-	require.Equal(t, "~"+sep+".zshrc", tildePath(filepath.Join(home, ".zshrc")))
+	require.Equal(t, "~/.zshrc", tildePath(filepath.Join(home, ".zshrc")))
+	require.Equal(t, "~/a/b", tildePath(filepath.Join(home, "a", "b")), "slashed on every OS")
 	require.Equal(t, "~", tildePath(home))
 	other := filepath.Join(filepath.Dir(home), "other", ".zshrc")
 	require.Equal(t, other, tildePath(other))
@@ -44,7 +45,7 @@ func TestTUIState_noHome(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
 	require.ErrorIs(t, SaveTUIState(Model{SelectedID: "s1"}), paths.ErrNoHome)
-	_, _, ok := LoadTUIState()
+	_, ok := LoadTUIState()
 	require.False(t, ok)
 
 	msg := runBootStep(t, stepPathsEnsure(Model{}))
@@ -90,4 +91,68 @@ func TestInstallShellBlock_modes(t *testing.T) {
 	require.NoError(t, installShellBlock(rc))
 	testperm.RequireMode(t, filepath.Dir(rc), 0o700)
 	testperm.RequireMode(t, rc, 0o600)
+}
+
+// The state file is replaced by rename: no temp files are left behind and a
+// second save overwrites the first.
+func TestSaveTUIState_atomicReplace(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.NoError(t, SaveTUIState(Model{SelectedID: "s1"}))
+	require.NoError(t, SaveTUIState(Model{SelectedID: "s2"}))
+	statePath := paths.ForHome(home).TUIStateFile
+	entries, err := os.ReadDir(filepath.Dir(statePath))
+	require.NoError(t, err)
+	for _, e := range entries {
+		require.NotContains(t, e.Name(), ".tmp", "no temp file left behind")
+	}
+	testperm.RequireMode(t, statePath, 0o600)
+	st, ok := LoadTUIState()
+	require.True(t, ok)
+	require.Equal(t, "s2", st.Selection)
+}
+
+// A daemon log far bigger than the tail window still yields its last lines,
+// and never the partial line where the window starts.
+func TestTailDaemonLog_readsOnlyTheEnd(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	logPath, err := paths.DaemonLog()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(logPath), 0o700))
+	f, err := os.Create(logPath)
+	require.NoError(t, err)
+	line := strings.Repeat("x", 99) + "\n"
+	for range (2*tailLogWindow)/len(line) + 7 {
+		_, err = f.WriteString(line)
+		require.NoError(t, err)
+	}
+	_, err = f.WriteString("last-1\nlast-2\n")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	got := tailDaemonLog(3)
+	require.Equal(t, []string{line[:99], "last-1", "last-2"}, got)
+
+	all := tailDaemonLog(1 << 20)
+	for _, l := range all {
+		require.True(t, l == line[:99] || strings.HasPrefix(l, "last-"), "partial first line skipped: %q", l)
+	}
+}
+
+// A window that starts exactly on a line keeps that line.
+func TestTailDaemonLog_windowOnLineBoundary(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	logPath, err := paths.DaemonLog()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(logPath), 0o700))
+	head := strings.Repeat("h", 99) + "\n"
+	body := "first-in-window\n" + strings.Repeat("b", tailLogWindow-len("first-in-window\n")-1) + "\n"
+	require.NoError(t, os.WriteFile(logPath, []byte(head+body), 0o600))
+	got := tailDaemonLog(1 << 20)
+	require.Equal(t, "first-in-window", got[0])
 }

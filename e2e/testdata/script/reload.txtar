@@ -11,7 +11,7 @@ exec rex reload
 # A broken tools.yaml is reported, and the daemon keeps serving.
 cp broken.yaml home/.config/rex/tools.yaml
 exitcode 1 rex reload
-stderr '^rex: rex-daemon could not reload tools\.yaml: reload \S+/tools\.yaml: parse user registry '
+stderr '^rex: rex-daemon could not reload: reload \S+/tools\.yaml: parse user registry '
 ! stdout .
 exec rex ls -json
 
@@ -24,5 +24,6 @@ daemon-stop
 
 -- home/.config/rex/config.yaml --
 summary_enabled: false
+model_autodetect: false
 -- broken.yaml --
 tools: [

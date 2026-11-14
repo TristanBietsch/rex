@@ -3,23 +3,28 @@ package session
 import (
 	"flag"
 	"fmt"
-	"os"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
 
-// RunRm deletes a session.
+// RunRm deletes a session. Without a terminal it needs -force, like prune
+// needs -yes: a script never deletes without saying so.
 func RunRm(args []string) error {
 	fs := flag.NewFlagSet("rm", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
-	force := fs.Bool("force", false, "skip confirmation when stdin is a TTY")
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	out := core.AddOutputFlags(fs, core.AllFormats)
+	var force bool
+	fs.BoolVar(&force, "force", false, "do not ask (required when stdin is not a terminal)")
+	fs.BoolVar(&force, "yes", false, "alias for -force")
+	fs.BoolVar(&force, "y", false, "alias for -force")
+	rest, err := out.Parse(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() != 1 {
+	if len(rest) != 1 {
 		return core.NewExitError(core.ExitInvalidArgs, "rm: exactly one selector required")
 	}
-	sel := fs.Arg(0)
+	sel := rest[0]
 
 	c, err := socket.Dial()
 	if err != nil {
@@ -31,18 +36,19 @@ func RunRm(args []string) error {
 		return err
 	}
 
-	fi, _ := os.Stdin.Stat()
-	if !*force && (fi.Mode()&os.ModeCharDevice) != 0 {
-		fmt.Fprintf(os.Stderr, "delete %s (%s)? [y/N] ", sess.ShortID, sess.Slug)
-		var ans string
-		_, _ = fmt.Fscanln(os.Stdin, &ans)
-		if ans != "y" && ans != "Y" && ans != "yes" {
-			return core.NewExitError(core.ExitGeneric, "aborted")
+	if !force {
+		ok, err := core.Out().Confirm(fmt.Sprintf("delete %s (%s)?", sess.ShortID, sess.Slug), core.Refusal{
+			Cmd: "rm", Flag: "-force", What: "delete", Hint: "rex rm " + sel + " -force"})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return core.Errorf(core.ExitOperationRefused, "", "rm: not confirmed, nothing deleted")
 		}
 	}
 
 	if err := c.Delete(sess.ID); err != nil {
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
-	return nil
+	return emitAction("rm", refOf(sess), "deleted "+sess.ShortID+" "+sess.Slug, "", sessionFields(sess))
 }

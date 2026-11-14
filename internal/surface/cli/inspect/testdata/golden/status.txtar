@@ -1,0 +1,20 @@
+-- text --
+⚑ 1 ready   ⠋ 1 working   ◌ 1 queued   ✓ 2 done   ✗ 1 failed
+-- text.color --
+␛[38;2;75;227;127m⚑ 1 ready␛[0m   ␛[38;2;110;168;254m⠋ 1 working␛[0m   ␛[38;2;110;168;254m◌ 1 queued␛[0m   ␛[38;2;78;158;110m✓ 2 done␛[0m   ␛[38;2;242;107;107m✗ 1 failed␛[0m
+-- text.quiet --
+⚑ 0 ready   ⠋ 0 working   ✓ 1 done
+-- txt --
+1 awaiting input · 1 working · 2 completed · 1 failed
+-- md --
+| Key | Value |
+| --- | --- |
+| ready | 1 |
+| working | 1 |
+| queued | 1 |
+| done | 2 |
+| failed | 1 |
+-- json --
+{"v":1,"cmd":"status","data":{"needs_input":1,"working":1,"queued":1,"done":2,"failed":1}}
+-- agent --
+ok cmd=status needs_input=1 working=1 queued=1 done=2 failed=1

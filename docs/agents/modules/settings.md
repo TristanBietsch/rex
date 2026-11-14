@@ -17,7 +17,7 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 
 - `Type` — `TypeEnum`, `TypeBool`, `TypeInt`, `TypeFloat`, `TypeString`.
 - `Section` constants — `SectionAppearance`, `SectionBehavior`, `SectionSpawn`, `SectionSummary`, `SectionAudio`, `SectionAdvanced`.
-- `Setting` — `ID`, `Label`, `Section`, `Type`, `Default`, `Options`, `Min`, `Max`, `Help`, `ReadOnly`.
+- `Setting` — `ID`, `Label`, `Section`, `Type`, `Default`, `Options`, `Min`, `Max`, `Help`, `ReadOnly`, `Apply`, `Hidden`, `Free`, `Normalize`. `Apply` (`ApplyLive`, `ApplyNextAttach`, `ApplyNextSpawn`, `ApplyDaemonRestart`; `ApplyMode.Label()`) says when a change takes effect and every row must set it. `Hidden` keeps a row off the TUI page (CLI and store unaffected). `Free` marks a string whose `Options` are only suggestions: the TUI also offers a text editor, and `Normalize` (run by `Store.Set`, the one validator) decides what is accepted.
 - `Store` — `NewStore`, `Load`, `Save`, `Get`, `String`, `Set`, `Reset`, `Snapshot`.
 
 ### Variables
@@ -27,16 +27,18 @@ Canonical list of Rex user settings (`Registry`) and YAML load/save (`Store`) at
 ### Functions
 
 - `DefaultPath() string` — `~/.config/rex/config.yaml`.
+- `Visible() []Setting` — the settings the TUI page lists (no `Hidden` ones).
 - `Find(id string) (Setting, bool)`
 - `SplitTrustDirs`, `TrustDir`, `CheckAutoTrustDirs`, `CanonicalDir`, `CanonicalHome` (`trust_dirs.go`) — the `auto_trust_dirs` checks. The daemon (`boot.AutoTrustDirs`, `server.underAutoTrustDir`) ignores what fails them; `rex setup` refuses it.
 
 ### Setting IDs (from `registry.go`)
 
-`color_scheme`, `spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `sound_enabled`, `soundset`, `master_volume`, `notify_on_state_change`, `boot_voice`, `keybind_preset`, `mouse_enabled`, `max_concurrent_sessions`, `screensaver_enabled`, `screensaver_after_minutes`, `screensaver_keep_awake` (TUI only, `screensaver.go`), `summary_enabled`, `summary_model`, `desc_animation`, `default_spawn_tool`, `default_spawn_model`, `default_spawn_effort`, `auto_trust_dirs` (read by the daemon at each spawn via `boot.AutoTrustDirs`), `lua_config_path` (read-only in registry).
+`theme` (formerly `color_scheme`, read through `Setting.Aliases`; the name is checked by `theme.ValidName`), `spinner`, `waiting_spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `sound_enabled`, `soundset`, `master_volume`, `notify_on_state_change`, `boot_voice`, `keybind_preset`, `mouse_enabled`, `max_concurrent_sessions`, `screensaver_enabled`, `screensaver_after_minutes`, `screensaver_counts`, `screensaver_clock`, `screensaver_drift`, `screensaver_keep_awake` (TUI only, `screensaver.go`), `summary_enabled`, `summary_model`, `desc_animation`, `default_spawn_tool`, `default_spawn_model`, `default_spawn_effort`, `auto_trust_dirs` (read by the daemon at each spawn via `boot.AutoTrustDirs`), `lua_config_path` (read-only in registry).
 
 ## Internal structure
 
-- `types.go` — `Setting`, `Type`, sections.
+- `types.go` — `Setting`, `Type`, sections. `Setting.MaxText` (shown for a value equal to `Max`, via `Setting.Display` / `Store.Display`) and `Setting.Migrate` (rewrites an older encoding before coercion).
+- `volume.go` — `master_volume` (0–50): `migrateVolume` (old 0.0–1.0 floats → round(v×50)), `VolumeGain` (value/50, clamped).
 - `registry.go` — `Registry` slice.
 - `store.go` — YAML persistence.
 - `registry_test.go`, `store_test.go`
@@ -60,6 +62,8 @@ Registry completeness; store round-trip; type coercion.
 ## Gotchas
 
 `max_concurrent_sessions` documents "next daemon start" — live cap is `rex-daemon -max-concurrent-sessions` / `SetMaxConcurrent` intent. `lua_config_path` is read-only in UI. Adding a setting requires one `Setting` literal in `registry.go` only (comment in file).
+
+`config.lua` is a layer, not part of `Load`: `settings` cannot import `luacfg` (cycle), so a process installs it with `luacfg.Install()` (`SetLayerStamped`) and `LoadLayered`/`LoadDefault` apply it while `lua_config` (read from YAML only) is on. Lua values are `SourceLua` with `SetAt`; `LayerReport.Given` keeps the Lua number `rex.set` was passed before `Validate` (read by `rex doctor`'s `master_volume` row); `Set`/`Reset` return `*ErrManagedByLua`; `Overlay` never marks dirty, so `Save` never writes them. On a layer error the trust ids read their defaults. Tests without an installed layer are YAML-only. `StackLayers` composes scopes (R06).
 
 ## See also
 

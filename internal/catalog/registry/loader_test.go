@@ -43,7 +43,7 @@ func TestLoad_BadYAMLFails(t *testing.T) {
 func TestLoad_RealToolsPresent(t *testing.T) {
 	reg, err := Load("")
 	require.NoError(t, err)
-	for _, id := range []string{"claude", "codex", "antigravity", "ollama", "grok", "deepseek", "kimi"} {
+	for _, id := range []string{"claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok", "deepseek", "kimi"} {
 		_, ok := reg.Find(id)
 		require.True(t, ok, "tool %s missing", id)
 	}
@@ -52,7 +52,7 @@ func TestLoad_RealToolsPresent(t *testing.T) {
 func TestLoad_OptInDefaults(t *testing.T) {
 	reg, err := Load("")
 	require.NoError(t, err)
-	for _, id := range []string{"grok", "deepseek", "kimi"} {
+	for _, id := range []string{"deepseek", "kimi"} {
 		tool, ok := reg.Find(id)
 		require.True(t, ok)
 		require.NotNil(t, tool.EnabledByDefault, "tool %s should have explicit enabled_by_default", id)

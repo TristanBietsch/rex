@@ -77,6 +77,7 @@ func TestCommand_EveryVerbEscapesToBoard(t *testing.T) {
 		{line: "fails"},
 		{line: "failed"},
 		{line: "stats"},
+		{line: "usage"},
 		{line: "no-such-verb"},
 	}
 	for _, tc := range cases {
@@ -87,14 +88,20 @@ func TestCommand_EveryVerbEscapesToBoard(t *testing.T) {
 				return
 			}
 			m = sendKey(m, key("esc"))
+			if tc.line == "new" {
+				// The new-agent page opens typing in the task editor: the
+				// first esc leaves the editor, the second the page.
+				require.Equal(t, FocusNewAgent, m.Focus)
+				m = sendKey(m, key("esc"))
+			}
 			require.Equal(t, FocusBoard, m.Focus, ":%s then esc returns to the board", tc.line)
 		})
 	}
 }
 
-// :new opens the same wizard as `n`.
+// :new opens the same wizard as `n` (new_agent_page off).
 func TestCommand_NewOpensWizard(t *testing.T) {
-	m := typeCommand(commandModel(t), "new")
+	m := typeCommand(wizardFlag(t, commandModel(t)), "new")
 	require.Equal(t, FocusWizard, m.Focus)
 	require.NotNil(t, m.Wizard)
 	require.NotEmpty(t, m.Wizard.Tools)
@@ -125,19 +132,60 @@ func TestCommand_ReloadUsesTheTUISocket(t *testing.T) {
 	m := commandModel(t)
 	m.Socket = "/tmp/rex-test/custom.sock"
 	var got []string
-	m.reloader = func(_ context.Context, socket string) error {
+	m.reportReloader = func(_ context.Context, socket string) (protocol.ReloadReport, error) {
 		got = append(got, socket)
-		return nil
+		return protocol.ReloadReport{}, nil
 	}
 	_, cmd := executeCommand(m, "reload")
 	require.NotNil(t, cmd)
-	require.Nil(t, cmd())
+	for _, msg := range collectMsgs(t, cmd) {
+		_, isErr := msg.(CmdErrMsg)
+		require.False(t, isErr, "a successful reload reports no error")
+	}
 	require.Equal(t, []string{"/tmp/rex-test/custom.sock"}, got)
 
-	m.reloader = func(context.Context, string) error { return daemonctl.ErrNotRunning }
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		return protocol.ReloadReport{}, daemonctl.ErrNotRunning
+	}
 	_, cmd = executeCommand(m, "reload")
-	msg, ok := cmd().(CmdErrMsg)
-	require.True(t, ok, "a failed reload must be reported")
-	require.Equal(t, "reload", msg.Op)
-	require.ErrorIs(t, msg.Err, daemonctl.ErrNotRunning)
+	var failed *CmdErrMsg
+	for _, msg := range collectMsgs(t, cmd) {
+		if e, ok := msg.(CmdErrMsg); ok {
+			failed = &e
+		}
+	}
+	require.NotNil(t, failed, "a failed reload must be reported")
+	require.Equal(t, "reload", failed.Op)
+	require.ErrorIs(t, failed.Err, daemonctl.ErrNotRunning)
+}
+
+// R20: :reload shows the daemon's report on the status line: what changed
+// and what needs a restart, or the failed layer with its file:line.
+func TestCommand_ReloadShowsReport(t *testing.T) {
+	m := commandModel(t)
+	m.reportReloader = func(context.Context, string) (protocol.ReloadReport, error) {
+		return protocol.ReloadReport{Changed: []string{"theme", "summary_model"}, Restart: []string{"summary_model"}}, nil
+	}
+	_, cmd := executeCommand(m, "reload")
+	var rep *daemonReloadedMsg
+	for _, msg := range collectMsgs(t, cmd) {
+		if r, ok := msg.(daemonReloadedMsg); ok {
+			rep = &r
+		}
+	}
+	require.NotNil(t, rep)
+	next, _ := m.dispatch(*rep)
+	got := next.(Model)
+	require.Contains(t, got.Notice, "changed: theme, summary_model")
+	require.Contains(t, got.Notice, "needs daemon restart: summary_model")
+	require.Empty(t, got.Err)
+
+	next, _ = m.dispatch(daemonReloadedMsg{Report: protocol.ReloadReport{}})
+	require.Equal(t, "reloaded · nothing changed", next.(Model).Notice)
+
+	next, _ = m.dispatch(daemonReloadedMsg{Report: protocol.ReloadReport{Errors: []string{"/x/init.lua:2: boom", "tools.yaml: bad"}}})
+	require.Equal(t, "reload: /x/init.lua:2: boom (+1 more, see rex reload)", next.(Model).Err)
+
+	next, _ = m.dispatch(daemonReloadedMsg{Report: protocol.ReloadReport{Legacy: true}})
+	require.Equal(t, "reloaded", next.(Model).Notice)
 }

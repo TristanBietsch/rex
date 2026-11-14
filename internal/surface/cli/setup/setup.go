@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
@@ -22,8 +20,9 @@ import (
 func RunSetup(args []string) error {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	preview := fs.Bool("preview", false, "print plan only, no writes")
-	yes := fs.Bool("yes", false, "apply defaults non-interactively")
-	fs.Bool("y", false, "alias for --yes") // parsed below via shorthand
+	var doYes bool
+	fs.BoolVar(&doYes, "yes", false, "apply defaults non-interactively")
+	fs.BoolVar(&doYes, "y", false, "alias for -yes")
 	tool := fs.String("tool", "", "override default tool id")
 	model := fs.String("model", "", "override default model id")
 	effort := fs.String("effort", "", "override default effort")
@@ -33,9 +32,11 @@ func RunSetup(args []string) error {
 	configPath := fs.String("config", "", "path to config.yaml (default ~/.config/rex/config.yaml)")
 	socketFlag := core.AddSocketFlag(fs)
 	force := fs.Bool("force", false, "overwrite existing config without prompting")
+	out := core.AddOutputFlags(fs, core.AllFormats)
 
-	if err := fs.Parse(args); err != nil {
-		return core.NewExitError(core.ExitInvalidArgs, err.Error())
+	_, err := out.Parse(fs, args)
+	if err != nil {
+		return err
 	}
 	// Refuse what the daemon would ignore, before anything runs or is written.
 	if *autoTrust != "" {
@@ -44,16 +45,14 @@ func RunSetup(args []string) error {
 			return core.NewExitError(core.ExitInvalidArgs, "-auto-trust: "+err.Error())
 		}
 		*autoTrust = v
-	}
-
-	// -y is an alias
-	shortY := false
-	for _, a := range args {
-		if a == "-y" || a == "--y" {
-			shortY = true
+		// -auto-trust writes auto_trust_dirs (with -yes, or pre-filled in
+		// the wizard): a person at a terminal only. -preview writes nothing.
+		if !*preview {
+			if err := requireTerminal("setup -auto-trust", "rex setup -auto-trust "+v); err != nil {
+				return err
+			}
 		}
 	}
-	doYes := *yes || shortY
 
 	if *configPath == "" {
 		path, err := paths.ConfigFile()
@@ -66,6 +65,10 @@ func RunSetup(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Same for a tool, model or effort the registry does not have.
+	if _, _, err := tui.ResolveSpawnDefaults(*configPath, *tool, *model, *effort); err != nil {
+		return core.Errorf(core.ExitInvalidArgs, "", "-tool/-model/-effort: %s", err)
+	}
 
 	rexlog.Init("setup")
 	defer rexlog.Close()
@@ -74,9 +77,9 @@ func RunSetup(args []string) error {
 		"tool", *tool, "model", *model, "effort", *effort,
 		"no_shell", *noShell, "auto_trust", *autoTrust, "config", *configPath, "socket", socket)
 
+	p := core.Out()
 	if *preview {
-		printPreview(*configPath, socket, *tool, *model, *effort, *autoTrust, *noShell)
-		return nil
+		return emitSetupPreview(p, *configPath, socket, *tool, *model, *effort, *autoTrust, *noShell)
 	}
 
 	if doYes {
@@ -84,91 +87,130 @@ func RunSetup(args []string) error {
 		if !*force {
 			if b, err := os.ReadFile(*configPath); err == nil && len(strings.TrimSpace(string(b))) > 0 {
 				return core.NewExitError(core.ExitInvalidArgs,
-					fmt.Sprintf("config already exists at %s — rerun with --force to overwrite", *configPath))
+					fmt.Sprintf("config already exists at %s — rerun with -force to overwrite", *configPath))
 			}
 		}
-		return tui.ApplyDefaultsNonInteractive(*configPath, socket, *tool, *model, *effort, *autoTrust, *noShell)
+		rep, err := tui.ApplyDefaults(*configPath, socket, *tool, *model, *effort, *autoTrust, *noShell)
+		if err != nil {
+			return err
+		}
+		return emitSetupApplied(p, rep)
 	}
 
+	// The wizard is interactive: it needs the text format and a terminal.
+	if p.Format != core.FormatText {
+		return core.Errorf(core.ExitInvalidArgs, "rex setup -yes",
+			"setup: the wizard is interactive and cannot run in %s mode; use -yes (or -preview)", p.Format)
+	}
 	return tui.RunSetupWizard(*configPath, socket, *autoTrust)
 }
 
-// ── Preview renderer (cli-side, uses cli lipgloss palette) ───────────────────
+// setupData is the `-o json` payload of rex setup -preview and -yes.
+type setupData struct {
+	// Mode is "preview" or "applied".
+	Mode       string `json:"mode"`
+	ConfigPath string `json:"config_path"`
+	AutoTrust  string `json:"auto_trust,omitempty"`
+	ShellRC    string `json:"shell_rc,omitempty"`
+	// ShellState: preview says "append", "rewrite", "none" or "skipped";
+	// applied says "installed", "present", "failed" or "skipped".
+	ShellState      string `json:"shell_state"`
+	ShellBlock      string `json:"shell_block,omitempty"`
+	Socket          string `json:"socket,omitempty"`
+	DaemonReachable *bool  `json:"daemon_reachable,omitempty"`
+	NextCommand     string `json:"next_command"`
+}
 
-var (
-	setupBold    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E6E6E6"))
-	setupSection = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E6E6E6"))
-	setupCmd     = lipgloss.NewStyle().Foreground(lipgloss.Color("#E6E6E6"))
-	setupDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("#7A7F8C"))
-	setupAccent  = lipgloss.NewStyle().Foreground(lipgloss.Color("#5B8DEF"))
-	setupHR      = lipgloss.NewStyle().Foreground(lipgloss.Color("#262A36"))
-)
-
-func printPreview(configPath, socket, toolID, modelID, effortVal, autoTrust string, noShell bool) {
-	slog.Info("setup: preview mode", "config_path", configPath)
-
-	fmt.Println()
-	fmt.Println("  " + setupAccent.Render("✦") + " " + setupBold.Render("rex setup --preview"))
-	fmt.Println("  " + setupHR.Render(strings.Repeat("─", 44)))
-	fmt.Println()
-
-	fmt.Println("  " + setupSection.Render("FILES THAT WOULD BE WRITTEN"))
-	fmt.Println()
-	fmt.Println("  " + setupAccent.Render("▸") + " " + setupCmd.Render(configPath))
-	fmt.Println("    " + setupDim.Render("config.yaml — written via settings.Store.Save() (atomic temp+rename)"))
-	if autoTrust != "" {
-		fmt.Println("    " + setupDim.Render("auto_trust_dirs: ") + setupCmd.Render(autoTrust))
+func agentPairs(fields ...core.Field) core.KV {
+	pairs := make([]core.Pair, len(fields))
+	for i, f := range fields {
+		pairs[i] = core.Pair{Key: f.Key, Val: core.Cell{Text: fmt.Sprint(f.Val), Raw: f.Val}, Formats: core.SetOf(core.FormatAgent)}
 	}
-	fmt.Println()
+	return core.KV{Pairs: pairs}
+}
 
+func emitSetupPreview(p *core.Printer, configPath, socket, toolID, modelID, effortVal, autoTrust string, noShell bool) error {
+	slog.Info("setup: preview mode", "config_path", configPath)
+	data := setupData{Mode: "preview", ConfigPath: configPath, AutoTrust: autoTrust, Socket: socket, ShellState: "skipped"}
+
+	files := []core.Def{{Name: configPath, Key: configPath, Desc: "config.yaml — written via settings.Store.Save() (atomic temp+rename)"}}
+	if autoTrust != "" {
+		files = append(files, core.Def{Name: "auto_trust_dirs", Desc: autoTrust})
+	}
+	var rcNote string
 	if !noShell {
-		rcPath := tui.DetectShellRC()
-		if rcPath != "" {
-			if tui.HasShellBlock(rcPath) {
-				fmt.Println("  " + setupAccent.Render("▸") + " " + setupCmd.Render(rcPath) +
-					setupDim.Render("  (block already present — rewrite in place)"))
+		data.ShellState = "none"
+		if rc := tui.DetectShellRC(); rc != "" {
+			data.ShellRC = rc
+			if tui.HasShellBlock(rc) {
+				data.ShellState = "rewrite"
+				files = append(files, core.Def{Name: rc, Desc: "block already present — rewrite in place"})
 			} else {
-				fmt.Println("  " + setupAccent.Render("▸") + " " + setupCmd.Render(rcPath) +
-					setupDim.Render("  (append shell block)"))
+				data.ShellState = "append"
+				files = append(files, core.Def{Name: rc, Desc: "append shell block"})
 			}
 		} else {
-			fmt.Println("  " + setupDim.Render("(no shell RC detected — skip shell integration)"))
+			rcNote = "no shell profile detected — skip shell integration"
 		}
 	} else {
-		fmt.Println("  " + setupDim.Render("(--no-shell: shell integration skipped)"))
+		rcNote = "-no-shell: shell integration skipped"
 	}
+	data.ShellBlock = tui.ShellProfileBlock(filepath.Base(os.Getenv("SHELL")))
 
-	fmt.Println()
-	fmt.Println("  " + setupSection.Render("SHELL BLOCK"))
-	fmt.Println()
-	for _, line := range strings.Split(tui.ShellProfileBlock(filepath.Base(os.Getenv("SHELL"))), "\n") {
-		fmt.Println("  " + setupDim.Render(line))
+	reachable := daemonctl.Reachable(socket)
+	data.DaemonReachable = &reachable
+	daemonLine := "not running — interactive mode offers to start it"
+	if reachable {
+		daemonLine = "reachable at " + socket
 	}
-
-	fmt.Println()
-	fmt.Println("  " + setupSection.Render("DAEMON"))
-	if daemonctl.Reachable(socket) {
-		fmt.Println("  " + setupCmd.Render("reachable") + setupDim.Render(" at "+socket))
-	} else {
-		fmt.Println("  " + setupDim.Render("not running — interactive mode offers to start it"))
-	}
-
-	fmt.Println()
-	fmt.Println("  " + setupSection.Render("NEXT COMMAND AFTER SETUP"))
-	toolDisplay := toolID
+	toolDisplay, modelDisplay := toolID, modelID
 	if toolDisplay == "" {
 		toolDisplay = "claude"
 	}
-	modelDisplay := modelID
 	if modelDisplay == "" {
 		modelDisplay = "opus"
 	}
-	nextCmd := fmt.Sprintf(`rex new "your first task" --tool %s --model %s`, toolDisplay, modelDisplay)
-	if effortVal != "" {
-		nextCmd += " --effort " + effortVal
+	data.NextCommand = tui.NextCommand(toolDisplay, modelDisplay, effortVal)
+
+	v := core.View{
+		core.Header{Title: "Setup", Meta: "preview"},
+		core.Section{Title: "Files that would be written"},
+		core.Defs{Items: files},
 	}
-	fmt.Println("  " + setupCmd.Render(nextCmd))
-	fmt.Println()
-	fmt.Println("  " + setupDim.Render("Docs: https://github.com/tristanbietsch/rex"))
-	fmt.Println()
+	if rcNote != "" {
+		v = append(v, core.Note{Text: rcNote})
+	}
+	v = append(v,
+		core.Section{Title: "Shell block"}, core.Pre{Text: data.ShellBlock},
+		core.Section{Title: "Daemon"}, core.Para{Text: daemonLine},
+		core.Section{Title: "Next command"}, core.Defs{Items: []core.Def{{Name: data.NextCommand}}},
+		core.Note{Text: "Docs: https://github.com/tristanbietsch/rex"},
+		agentPairs(core.Field{Key: "mode", Val: "preview"}, core.Field{Key: "config", Val: configPath},
+			core.Field{Key: "shell_rc", Val: data.ShellRC}, core.Field{Key: "shell", Val: data.ShellState},
+			core.Field{Key: "daemon", Val: map[bool]string{true: "reachable", false: "down"}[reachable]},
+			core.Field{Key: "next", Val: data.NextCommand}),
+	)
+	return p.Emit(core.Result{Cmd: "setup", Data: data, View: v})
+}
+
+func emitSetupApplied(p *core.Printer, rep tui.DefaultsReport) error {
+	data := setupData{Mode: "applied", ConfigPath: rep.ConfigPath, AutoTrust: rep.AutoTrust, ShellRC: rep.RCPath,
+		ShellState: rep.RCState, NextCommand: rep.NextCommand}
+	if rep.RCState == "failed" {
+		p.Warn(fmt.Sprintf("could not install shell block into %s: %s", rep.RCPath, rep.RCError))
+	}
+	v := core.View{core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: "wrote " + rep.ConfigPath, Silent: true}}
+	if rep.AutoTrust != "" {
+		msg := "auto-trust: agents started under " + rep.AutoTrust + " skip the folder trust prompt"
+		v = append(v, core.Line{Text: msg, Txt: msg})
+	}
+	v = append(v,
+		core.Line{Tone: core.ToneOK, Glyph: p.Glyphs.OK, Text: "setup complete", Txt: "setup complete. Next: " + rep.NextCommand},
+		core.Hint{Cmd: rep.NextCommand},
+		core.Note{Text: "Docs: https://github.com/tristanbietsch/rex"},
+		agentPairs(core.Field{Key: "mode", Val: "applied"}, core.Field{Key: "config", Val: rep.ConfigPath},
+			core.Field{Key: "shell_rc", Val: rep.RCPath}, core.Field{Key: "shell", Val: rep.RCState},
+			core.Field{Key: "next", Val: rep.NextCommand}),
+	)
+	return p.Emit(core.Result{Cmd: "setup", Data: data, View: v})
 }

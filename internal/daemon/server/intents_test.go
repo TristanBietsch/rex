@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -102,7 +103,7 @@ func TestIntentNewSession_RejectsMissingFields(t *testing.T) {
 	w, r := helloOnConn(t, conn)
 
 	require.NoError(t, w.WriteIntent(protocol.IntentNewSession, "n", protocol.NewSession{
-		ToolID: "echo", ModelID: "short", Slug: "", CWD: "/tmp",
+		ToolID: "echo", ModelID: "short", Slug: "", CWD: os.TempDir(),
 	}))
 
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
@@ -122,7 +123,7 @@ func TestIntentNewSession_RejectsUnknownEffort(t *testing.T) {
 	w, r := helloOnConn(t, conn)
 
 	require.NoError(t, w.WriteIntent(protocol.IntentNewSession, "n", protocol.NewSession{
-		ToolID: "claude", ModelID: "haiku", Effort: "max", Slug: "x", CWD: "/tmp",
+		ToolID: "claude", ModelID: "haiku", Effort: "max", Slug: "x", CWD: os.TempDir(),
 	}))
 
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck

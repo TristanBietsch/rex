@@ -4,21 +4,25 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
 // Screensaver.
 //
-// After screensaver_after_minutes without a key or mouse event while the
-// board itself has focus, the board gives way to a small centered "∴ rex"
-// with the session counts under it. The next key or mouse event brings the
-// board back and does nothing else. Daemon events keep the counts live.
-// Overlays, prompts, confirms, the wizard and the attach popup never time
-// out: there the user is in the middle of something.
+// After screensaver_after_minutes without a key or mouse event, the screen
+// gives way to a small centered "∴ rex" with the session counts under it.
+// That holds whatever has focus: an overlay, prompt, confirm, the wizard or
+// the attach popup left open is still an idle screen. Only the boot splash
+// never times out. The focused component keeps its state underneath; the
+// next key or mouse event (or a terminal resize) brings it back and does
+// nothing else. Daemon events keep the counts live, and an attached
+// session's output still reaches its terminal.
 //
 // One slow timer drives it (idleTickMsg). It fires when the idle deadline
 // passes and otherwise at most once a minute, which also picks up a changed
@@ -86,6 +90,9 @@ func idleDelay(m Model, now time.Time) time.Duration {
 		if saverMotion(m) {
 			d = saverDriftEvery - now.Sub(m.saverSince)%saverDriftEvery
 		}
+		if saverClockFormat(m) != "" { // the next minute, so the clock is never behind
+			d = min(d, now.Truncate(time.Minute).Add(time.Minute).Sub(now))
+		}
 	case saverEnabled(m):
 		if left := m.lastInput.Add(saverAfter(m)).Sub(now); left > 0 {
 			d = left
@@ -104,10 +111,18 @@ func handleIdleTick(m Model, msg idleTickMsg) Model {
 	return checkIdle(m, m.now())
 }
 
-// checkIdle shows the screensaver when it is on, the board has focus, and
-// no key or mouse event came for screensaver_after_minutes.
+// checkIdle shows the screensaver when it is on, the boot splash is gone,
+// and no key or mouse event came for screensaver_after_minutes. A
+// screensaver already showing goes away if the setting was turned off
+// meanwhile (a live reload).
 func checkIdle(m Model, now time.Time) Model {
-	if m.saverOn || m.Focus != FocusBoard || !saverEnabled(m) {
+	if m.saverOn {
+		if !saverEnabled(m) {
+			return wakeSaver(m, "disabled")
+		}
+		return m
+	}
+	if m.Focus == FocusBoot || !saverEnabled(m) {
 		return m
 	}
 	if now.Sub(m.lastInput) < saverAfter(m) {
@@ -120,7 +135,7 @@ func checkIdle(m Model, now time.Time) Model {
 	if keepAwake {
 		m.keepAwake.Start()
 	}
-	slog.Info("tui: screensaver on", "idle", now.Sub(m.lastInput).Round(time.Second), "keep_awake", keepAwake)
+	slog.Info("tui: screensaver on", "idle", now.Sub(m.lastInput).Round(time.Second), "focus", m.Focus, "keep_awake", keepAwake)
 	return m
 }
 
@@ -162,13 +177,40 @@ func saverKeepAwake(m Model) bool {
 	return b
 }
 
-// saverMotion reports whether the screensaver drifts (not with reduce_motion).
+// saverMotion reports whether the screensaver drifts: screensaver_drift on
+// and reduce_motion off.
 func saverMotion(m Model) bool {
 	if m.Store == nil {
 		return true
 	}
 	rm, _ := m.Store.Get("reduce_motion").(bool)
-	return !rm
+	drift, ok := m.Store.Get("screensaver_drift").(bool)
+	return !rm && (drift || !ok)
+}
+
+// saverCountsLayout is screensaver_counts: "horizontal" (default),
+// "vertical" or "off".
+func saverCountsLayout(m Model) string {
+	if m.Store != nil {
+		if v, _ := m.Store.Get("screensaver_counts").(string); v != "" {
+			return v
+		}
+	}
+	return "horizontal"
+}
+
+// saverClockFormat is the time layout for screensaver_clock, "" when off.
+func saverClockFormat(m Model) string {
+	if m.Store == nil {
+		return ""
+	}
+	switch m.Store.Get("screensaver_clock") {
+	case "24h":
+		return "15:04"
+	case "12h":
+		return "3:04 PM"
+	}
+	return ""
 }
 
 // renderScreensaver draws the screensaver: exactly h lines of exactly w
@@ -199,53 +241,127 @@ func renderScreensaver(m Model, w, h int) string {
 	return strings.Join(out, "\n")
 }
 
-// saverBlock is the screensaver's lines: logo, blank, counts, and while the
-// daemon is unreachable a blank and the reconnect status (the counts are
-// stale then). A short terminal drops the blanks first, then the logo.
+// saverBlock is the screensaver's lines: the logo, the clock
+// (screensaver_clock), a blank, the counts (screensaver_counts) and, while
+// the daemon is unreachable, a blank and the reconnect status (the counts
+// are stale then). A short terminal drops the blanks first, then the clock;
+// vertical counts that still don't fit fall back to one line; then the
+// logo goes and the rest is cut.
 func saverBlock(m Model, h int) []string {
-	logo := styleHeaderApp.Render(saverLogo)
-	counts := saverCounts(m)
+	logo := styleLogo.Render(saverLogo)
+	clock := ""
+	if f := saverClockFormat(m); f != "" {
+		clock = styleHeaderMeta.Render(m.now().Format(f))
+	}
 	status := ""
 	if m.reconnect != nil {
 		status = styleStateFailed.Render(reconnectStatus)
 	}
-	block := []string{logo, "", counts}
-	if status != "" {
-		block = append(block, "", status)
+	layouts := []string{saverCountsLayout(m)}
+	if layouts[0] == "vertical" {
+		layouts = append(layouts, "horizontal")
 	}
-	if len(block) <= h {
-		return block
-	}
-	block = []string{logo, counts}
-	if status != "" {
-		block = append(block, status)
-	}
-	if len(block) <= h {
-		return block
+	var block []string
+	for _, layout := range layouts {
+		counts := saverCountLines(m, layout)
+		for _, try := range []struct{ blanks, clock bool }{{true, true}, {false, true}, {false, false}} {
+			block = []string{logo}
+			if try.clock && clock != "" {
+				block = append(block, clock)
+			}
+			if len(counts) > 0 {
+				if try.blanks {
+					block = append(block, "")
+				}
+				block = append(block, counts...)
+			}
+			if status != "" {
+				if try.blanks {
+					block = append(block, "")
+				}
+				block = append(block, status)
+			}
+			if len(block) <= h {
+				return block
+			}
+		}
 	}
 	block = block[1:]
 	return block[:min(len(block), max(h, 0))]
 }
 
-// saverCounts is "1 need you · 3 working · 7 done": one count per board
-// column in board order (boardGroups), an Alert column highlighted while it
-// holds any session, and "· N failed" when something failed. The numbers
-// match the header's.
+// saverCountLines is the counts in the given screensaver_counts layout:
+// one line (saverCounts) for "horizontal", one line per count for
+// "vertical" (numbers right-aligned in one column, every line padded to the
+// widest so the block centers as a unit), none for "off".
+func saverCountLines(m Model, layout string) []string {
+	switch layout {
+	case "off":
+		return nil
+	case "vertical":
+	default:
+		return []string{saverCounts(m)}
+	}
+	parts := saverCountParts(m)
+	numW, lineW := 0, 0
+	for _, p := range parts {
+		numW = max(numW, len(strconv.Itoa(p.n)))
+	}
+	for _, p := range parts {
+		lineW = max(lineW, numW+1+ansi.StringWidth(p.label))
+	}
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		num := strconv.Itoa(p.n)
+		lead := numW - len(num)
+		trail := lineW - numW - 1 - ansi.StringWidth(p.label)
+		out[i] = strings.Repeat(" ", lead) + p.render() + strings.Repeat(" ", trail)
+	}
+	return out
+}
+
+// saverCounts is "1 ready · 3 working · 7 done": the counts on one line
+// (saverCountParts).
 func saverCounts(m Model) string {
-	cols, failed := columnCounts(m.Sessions)
-	parts := make([]string, 0, len(cols)+1)
+	parts := saverCountParts(m)
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		out[i] = p.render()
+	}
+	return strings.Join(out, styleHeaderMeta.Render(" · "))
+}
+
+// saverCount is one screensaver count: "3 working" in its style.
+type saverCount struct {
+	n     int
+	label string
+	style lipgloss.Style
+}
+
+func (c saverCount) render() string { return c.style.Render(fmt.Sprintf("%d %s", c.n, c.label)) }
+
+// saverCountParts is the screensaver's counts: one per board column in
+// board order (boardGroups), an Alert column highlighted while it holds any
+// session, and "N failed" when something failed. The numbers match the
+// header's.
+func saverCountParts(m Model) []saverCount {
+	cols, failed := columnCounts(scopedSessions(m), rowFilterOf(m).ctx)
+	parts := make([]saverCount, 0, len(cols)+1)
 	for gi, n := range cols {
 		g := boardGroups[gi]
+		if g.HideZero && n == 0 {
+			continue
+		}
 		style := styleHeaderMeta
 		if g.Alert && n > 0 {
-			style = styleAlert()
+			style = styleAlert
 		}
-		parts = append(parts, style.Render(fmt.Sprintf("%d %s", n, g.Count)))
+		parts = append(parts, saverCount{n, g.Count, style})
 	}
 	if failed > 0 {
-		parts = append(parts, styleStateFailed.Render(fmt.Sprintf("%d failed", failed)))
+		parts = append(parts, saverCount{failed, "failed", styleStateFailed})
 	}
-	return strings.Join(parts, styleHeaderMeta.Render(" · "))
+	return parts
 }
 
 // saverDrift is the screensaver's offset from the center: (0, 0) when it

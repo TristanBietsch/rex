@@ -48,32 +48,94 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | Type | Implemented | Payload summary |
 |------|-------------|-----------------|
 | `Hello` | yes | `client_version` (release label; older clients sent their name here), `client` (program name, optional) |
-| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt`, `fleet` |
+| `NewSession` | yes | `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `initial_prompt` (at most 96 KiB), `fleet`, `trust_folder`, `name`, `skills`, `context_summary` |
 | `Subscribe` | yes | `session_id`, `replay`, `mode_sync`, `repaint` |
 | `SendInput` | yes | `session_id`, `bytes` (base64), `synthetic` (client-generated, e.g. the ^L redraw nudge; does not cancel a retire) |
 | `Reply` | yes | `session_id`, `text` (daemon writes text, then `\r` as Enter ~120ms later) |
 | `Rename` | yes | `session_id`, `slug`, `title` (empty = unchanged; at least one required). Broadcast as `SessionUpdated`; `bad_intent` echoing the request id if the slug is malformed or held by another session |
 | `Delete` | yes | `session_id` |
-| `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored) |
+| `Resize` | yes | `session_id`, `cols`, `rows` (0 ignored; clamped to 20-1000 columns and 5-500 rows) |
 | `SetSessionFleet` | yes | `session_id`, `fleet` |
 | `SetMaxConcurrent` | yes | `n` (`n <= 0` uncaps) |
 | `Complete` | yes | `session_id` |
 | `SetSessionName` | yes | `session_id`, `name` (always sent; `""` clears; normalized, max 64 runes) |
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
+| `Resume` | yes | `session_id`. Makes the session live and not marked done; see [Resume](#resume) |
+| `Undo` | yes | `session_id`, `turns` (0 = 1; at most 1000), `force`, `dry_run`, `expect`. Restores the folder from the turn snapshots; see [Undo and Redo](#undo-and-redo) |
+| `Redo` | yes | `session_id`, `force`, `dry_run`, `expect`. Brings back what the last `Undo` replaced |
 | `FocusFilter` | no-op | Accepted (and acked); not stored |
 | `OpenSession` | **no** | `bad_intent` "intent not implemented" |
 | `Shutdown` | yes | No fields. Stops the daemon, same as SIGTERM. Its `Ack` is best effort (see [Replies](#replies)) |
-| `Reload` | yes | No fields. Re-reads `tools.yaml`, same as SIGHUP. `Ack` once the new registry is in use; `bad_intent` with the load error on failure |
+| `UsageSample` | no | Sent by `rex-daemon statusline-tap`, fire and forget (no `id`, no reply, no `Hello`). `session_id` (the rex session), optional `claude_session_id`, `five_hour` and `seven_day` (`used_pct`, `resets_at` in Unix epoch seconds), `spend_limit` (the same plus `used_usd`, `limit_usd`, `period`), `cost_usd`, `model_id`, `model_name`. Every field may be absent. A sample for an unknown session, one with nothing in it, or one that arrives while `usage` is off is dropped without an error. Nothing else of Claude's status-line JSON is ever sent |
+| `StartLoop` | yes | `name` (the loop file's name, never a path), optional `cwd` (absolute, no `..`). Starts a repeat loop and spawns its session. Reply is a `Loop` event with the intent's `id`. `bad_intent` while `loops` is off (`off: enable loops in Settings → Features`), for a bad or invalid file, a missing folder, and `too many loops` at 2 live loops; `spawn_failed` / `too_many_sessions` as for `NewSession`. `(*client.Client).StartLoop(ctx, p)` |
+| `PauseLoop`, `ResumeLoop`, `StopLoop` | yes | `loop_id`. Reply is a `Loop` event. `bad_state` unless the loop is running (pause), paused (resume) or not yet ended (stop); `bad_intent` for an unknown or malformed id. The session keeps running. `PauseLoop`, `ResumeLoop`, `StopLoop` on the client |
+| `UsageQuery` | yes | `range` (`today`, `7d` or `30d`; empty is `today`) and optional `tool`. Reply is a `UsageResult` event with the intent's `id` (see below); `bad_intent` `usage is off` while the setting is off, and for a bad range. `(*client.Client).UsageQuery(ctx, q)` |
+| `Reload` | yes | No fields. Reloads every layer, same as SIGHUP: `tools.yaml`, `config.yaml` + `config.lua`, `init.lua`. Reply is a `Reloaded` event: `reloaded` (layers read), `changed` (setting ids), `restart` (changed ids that need a daemon restart), `errors` (`file:line: message` per failed layer) and `warnings`. A failed layer is in `errors`, not an `Error` event. Daemons before this answer `Ack`, or `bad_intent` with the `tools.yaml` error |
+| `RescanTools` | yes | No fields. Probes `PATH` again for every registry tool (a binary installed since the last probe), without reloading anything. Reply is a `ToolsChanged` event with the intent's `id`, the list after the probe. Other connections get `ToolsChanged` only when an `installed` bit changed. The daemon also rescans every 30 seconds. Older daemons answer `bad_intent` |
+| `Restart` | yes | `mode`: `hot` (only value accepted). Hot restart: the daemon re-execs in place and keeps every session ([daemon.md](daemon.md#hot-restart)). On success there is **no reply**: the connection closes, and a new `Hello` shows a later `daemon_started_at`. Refused or failed: `Error` `restart_refused` (Windows, a restart already running, a session still starting, the new binary refused the handoff), and the old daemon runs on. Older daemons answer `bad_intent` |
+| `Boards` | yes | No fields. Reply is a `Boards` event: `boards`, each `pid` and `build` from the board's `Hello` |
+| `SwapBoards` | yes | `build`: every board connection whose build differs gets a `Swap` event and re-execs into its installed binary. Reply is a `Boards` event listing the boards asked |
 
 ### NewSession fields
 
 | Field | Required |
 |-------|----------|
 | `tool_id`, `model_id`, `slug`, `cwd` | yes |
-| `effort`, `title`, `initial_prompt`, `fleet` | no |
+| `effort`, `title`, `initial_prompt`, `fleet`, `trust_folder`, `name`, `skills`, `cols`, `rows`, `context_summary` | no |
+
+`initial_prompt` is at most 96 KiB (98,304 UTF-8 bytes, `protocol.MaxInitialPromptBytes`), which keeps it inside Linux's 128 KiB limit for one argv element. A longer one is `bad_intent` `initial_prompt is <n> bytes; the limit is 98304`, checked before anything is spawned or written. (The R16 spec calls this `prompt_too_long`; the protocol has no per-cause codes for validation, so it is `bad_intent` with that message.) A daemon that predates the cap lets the exec fail with `spawn_failed`.
+
+`context_summary` (list, optional) describes the context items a client folded into `initial_prompt`: `kind` (`paste`, `file`, `dir` or `url`), `name` (`paste N`, a workspace-relative path, a dir ending in `/`, or the URL; `url` and its `- url: <url>` prompt line are reserved for later: no client builds a URL item yet) and `bytes` (omitted when 0). Metadata only, never content. The daemon accepts it and does not store it yet (the session's `meta.json` has no slot for it); a daemon that predates the field ignores it. The TUI's new-agent page builds the prompt with `spawnctx.Assemble`: the task, a `Context from rex (read before starting):` list (`- file: <path>`, `- dir: <path>/ (<n> files)`), then each paste as `<pasted name="paste N" lines="L">` … `</pasted>`.
+
+`trust_folder` (bool, default false) trusts `cwd` for this session as if it were listed in `auto_trust_dirs`: the agent's folder-trust dialog is answered (or avoided with `trust_args`) and `skip_permissions` may apply. `cwd` must be absolute, without `..`, and neither a filesystem root nor the home folder; otherwise the intent is `bad_intent` with a `trust_folder: ...` message. The choice is stored in `meta.json` and shown as `trust_folder` in session summaries, and `Resume` applies it again (re-checking the stored `cwd`; a folder that no longer passes is not trusted). Nothing is written to the agent's own config by rex.
+
+`cols` and `rows` (numbers, default 0) are the PTY size to start the agent at, so a client that will attach at a known size needs no first `Resize`. The daemon clamps them to 20-1000 columns and 5-500 rows; 0 means the default, 120x32. A daemon that predates the fields ignores them and starts at 120x32.
+
+`name` is the display name, normalized like `SetSessionName` (whitespace collapsed, control characters dropped, at most 64 characters; too long is `bad_intent`). Empty shows the slug.
+
+`skills` is a list of skill names (at most 16, unique, each `[a-z0-9][a-z0-9-]{0,63}`) from the daemon's skill library (`-skills-dir`, default `~/.config/rex/skills`). The daemon copies them into `sessions/<id>/plugin` (regular files only, at most 256 files and 4 MiB; a symlink is an error) and adds the tool's `skill_args` with `{plugin_dir}` after the resume args and before the hook args. It never takes a path from a client. The intent is `bad_intent` when the `spawn_skills` setting is off (`skills are off`), the tool has no `skill_args` (`tool X cannot load skills per session`), a name is invalid or missing from the library, or a limit is exceeded; nothing is created then. The names are stored in `meta.json`, shown as `skills` in session summaries, and `Resume` loads the same plugin folder again (staging it from the library if it is gone). A daemon that predates these fields ignores them silently, so a client that sent `skills` should check the `SessionAdded` summary for them.
+
+`cwd` must be an absolute path (`bad_intent` otherwise); the daemon never resolves it against its own working directory.
 
 `slug` must be free of whitespace and control characters and unique among all sessions in the daemon (any state). The daemon does not rename on collision: it answers `bad_intent` `slug "x" already in use by <short_id>`, so clients that derive slugs disambiguate them first (`-2`, `-3`, …).
+
+### Resume
+
+`Resume{session_id}` means "make this session live and not marked done".
+
+- **Running session** (including one that is starting): clears a done mark (`retire_at` and `retired_at` patch `null`, as `Unretire` does) and acks. Nothing is spawned. An unmarked running session just acks.
+- **Exited session** (done, failed or crashed): respawned in place with the tool's `resume.args` and the stored `resume_id`. The row keeps its id, slug, start time, tokens, description and transcript, and the transcript gains the new run. The daemon:
+  1. checks the tool and model are still in the registry (`bad_intent` `tool <tool>/<model> not in registry`, the same error `NewSession` gives), the stored effort is still offered and the tool has a `resume` block and the session has a valid `resume_id` (`bad_state` `session exited and <tool> cannot be resumed`), and the working directory is still a directory (`spawn_failed`);
+  2. takes the session's slot atomically, so concurrent `Resume`s start one process and the others ack as for a running session, then a concurrency slot (`too_many_sessions`);
+  3. moves the session to `queued` and broadcasts one patch, `{state: "queued", last_event_at, ended_at: null, exit_code: null, retire_at: null, retired_at: null}`, after writing `meta.json`;
+  4. truncates the session's hook file, recomputes folder trust from the current config and the session's `trust_folder`, and starts the agent without an initial prompt. The usual state patches follow (`working`, ...), and `ended_at` is set again when the run ends.
+- `bad_state` `session is already being cleared` when the retire sweep has claimed the session (also for a running one).
+- A `Delete` that lands while a resume is starting wins: the session is removed, no process is started and no directory is left behind. The `Resume` fails with `unknown_session`.
+- If the agent cannot start, the session ends `failed` and the `Resume` fails with `spawn_failed`. An agent that starts but cannot find its conversation (never saved) fails after the ack, like any exit.
+
+While the `resume` feature is off (Settings → Features) the daemon answers every `Resume` with `bad_intent` `resume is off`, and assigns or captures no resume ids.
+
+Clients: `(*client.Client).Resume(sessionID, reqID)`. An older daemon answers `bad_intent` "intent not implemented".
+
+### Undo and Redo
+
+`Undo{session_id, turns, force, dry_run}` restores the session's folder to how it was before its last `turns` agent turns, from the turn snapshots (the `turn_snapshots` setting; see [snapshots](snapshots.md)). `Redo{session_id, force, dry_run}` restores the capture `Undo` took first. Both are additive: no `ProtocolVersion` bump, and an older daemon answers `bad_intent` "intent not implemented".
+
+The reply is an `UndoResult` event (not an `Ack`): `session_id`, `restored` and `deleted` (sorted slash paths relative to the session's folder, never null), `safety`, the tree id of the capture taken just before the restore, and `warnings` (absent when empty): the folder changed while the restore ran, or the session started working during it. The folder is already changed when the reply is sent. With `dry_run` nothing changes and nothing is captured: the same checks run and the reply lists what would be restored and deleted, with an empty `safety`. `target` is the tree id the operation restores (also in a dry run); a client passes it back as `expect` when it confirms, and the daemon refuses with `bad_state` "the session changed since the preview — run it again", changing nothing, when the session ran another turn meanwhile and the target is now a different one.
+
+Checks, in order:
+
+1. The feature is on, else `bad_intent` "off: enable turn_snapshots in Settings → Features". `turns` outside 0 to 1000 is `bad_intent`.
+2. The session exists (`unknown_session`).
+3. It is not `working` (`bad_state`).
+4. No other live session (state not `done`, `failed` or `crashed`) has a `cwd` that is the same folder, inside it or around it (paths cleaned and symlink-resolved), unless `force` (`bad_state`, naming the others' slugs). Checks 3 and 4 run again after the safety capture, just before the first file changes; `force` never overrides check 3.
+5. The folder is inside a git worktree (git 2.32 or newer), and there is a turn to undo (or an undo to redo): else `bad_state` with the reason ("snapshots need a git repo", "nothing to undo", "nothing to redo", "that turn was not captured, so it cannot be undone").
+6. Nothing a restore would overwrite or remove is missing from the snapshots (a nested repo or clone, a file over 2 MiB, an ignored folder or a symlink at a path it must write): else `bad_state` naming the blocking paths, with nothing changed. `force` does not override it.
+
+The restore runs on a context detached from the connection, so a client that disconnects does not stop it half way. After the final check the restore and its verification run without a deadline. If it fails part way, the `bad_state` message says `rex redo` brings back the state from before. A session whose folder ledger was found corrupt and reset gets a `bad_state` "history for this folder was reset at <time> (the old ledger is kept as <file>); older turns can't be undone".
+
+Snapshots are taken by the daemon at turn boundaries and are not an intent. Redo history is dropped when a session starts another turn. Clients: `(*client.Client).Do(ctx, protocol.IntentUndo, protocol.Undo{...})`.
 
 ## Replies
 
@@ -89,12 +151,20 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 | `Rename`, `SetSessionName` | `Ack` | The `SessionUpdated` broadcast arrives first |
 | `SetSessionFleet` | `Ack` | |
 | `Retire`, `Unretire` | `Ack` | Also when nothing changed |
+| `Resume` | `Ack` | The `queued` patch arrives first when an exited session respawns; also when it was already running |
 | `Delete` | `Ack` | The `SessionRemoved` broadcast arrives first |
 | `Complete` | `Ack` | Termination requested, not finished |
 | `Resize` | `Ack` | Also for the ignored 0×0 size |
 | `FocusFilter`, `SetMaxConcurrent` | `Ack` | |
-| `Reload` | `Ack` | After the new registry is in use |
+| `Undo`, `Redo` | `UndoResult` | The folder is changed before the reply; with `dry_run` it is not |
+| `Reload` | `Reloaded` | The report; a failed layer is listed, not an `Error` |
+| `RescanTools` | `ToolsChanged` | Not an `Ack`: the payload is the tool list |
+| `Restart` | none on success | The connection closes as the new image takes over |
+| `Boards`, `SwapBoards` | `Boards` | |
 | `Shutdown` | `Ack` | Queued before shutdown starts; the daemon may close the connection first, so treat the close as success |
+| `UsageQuery` | `UsageResult` | Not an `Ack`: the payload is the aggregates |
+| `StartLoop`, `PauseLoop`, `ResumeLoop`, `StopLoop` | `Loop` | Not an `Ack`: the payload is the loop's new state |
+| `UsageSample` | `Ack` only if it carried an `id` | The tap sends none |
 | `OpenSession`, unknown types | — | `Error` `bad_intent` "intent not implemented" |
 
 - Any failure is an `Error` event with the intent's `id` instead.
@@ -107,22 +177,29 @@ An intent whose envelope carries a non-empty `id` gets exactly one terminal repl
 
 | Type | Payload summary |
 |------|-----------------|
-| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks) |
+| `Swap` | `build`: sent to a board by `SwapBoards`; the board re-execs into its installed binary |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it), `loops` (the daemon's loops, running, paused and recently finished; absent while `loops` is off and from daemons that predate it), `workspace_tagging` (true when the daemon tags sessions with `workspace_id`, so `rex here` knows to scope; absent while `workspaces` is off and from daemons that predate it), `daemon_pid`, `daemon_build` (12 hex of the executable's SHA-256) and `daemon_started_at` (when this image started; changes on a hot restart while the pid stays), absent from daemons that predate hot restart |
+| `Snapshot` | `sessions[]`, `filter` (cosmetic; often `"all"`), `daemon_version` (absent from daemons that predate acks), `overview` (absent until the daemon publishes one, and from daemons that predate it), `usage` (the live quotas, below; absent while `usage` is off, before the first one and from daemons that predate it), `tools[]` (the registry as the daemon sees it: `{id, installed, models[]}`, each model `{id, name, detected}`; `installed` is whether the binary is on the daemon's `PATH`, worked out at daemon start, on every reload and on each rescan; `detected` marks a model found by the tool's own model command and is omitted when false; a later change is sent as `ToolsChanged`; absent from daemons that predate it, and a client then treats every tool as installed) |
 | `Ack` | `intent`, `session_id` (optional). Success reply to an intent with an `id` |
 | `SessionAdded` | `SessionSummary` |
 | `SessionUpdated` | `session_id`, `patch` (sparse map) |
 | `SessionRemoved` | `session_id`, `reason` (`user` \| `retired`; empty from older daemons) |
 | `SessionOutput` | `session_id`, `bytes` (base64), `repaint` (true only on the one that answers `Subscribe` `repaint`; omitted otherwise) |
 | `SummarizerHealth` | `available`, `reason` |
+| `Overview` | `enabled`, `headline` (sanitized model text, at most 200 runes), `generated_at`. Sent to every connection that has sent `Hello`; the latest value is also in `Snapshot.overview` |
+| `ToolsChanged` | `tools[]`, the same list as `Snapshot.tools`. Sent to every connection that has sent `Hello` when the daemon's registry changes: a reload, `extra_agents` switched, detected models arriving, or a rescan that found a tool installed or removed. A client that ignores it sees the change at its next `Hello` |
+| `Usage` | `enabled`, `quotas[]`: the latest plan-quota reading per tool and window, `{tool, model, window, used_pct, resets_at, used_usd, limit_usd, at, stale}`. Window is `5h`, `week` or a spend period such as `month`; `model` is empty for a plan-wide quota; `resets_at` is RFC 3339 and omitted when unknown; every number may be absent (an API-key plan has no quota). Sent to every connection that has sent `Hello` when a quota changes (a reading that repeats the same numbers is not republished) and when `usage` is switched on or off (`enabled: false`: drop what you hold). A reading with `at` older than 15 minutes is stale. The latest value is also in `Snapshot.usage` |
+| `Loop` | A `LoopSummary`: `id`, `name`, `kind`, `state` (`running`, `paused`, `done`, `capped`, `stopped`, `failed`), `pause_reason`, `stop_reason`, `session_id`, `cwd`, `iteration`, `max_iterations`, `max_minutes`, `elapsed_s` (running time when `updated_at` was written; both absent from daemons that predate them), `last_check_exit`, `started_at`, `updated_at`, `notice`. Sent to every connection that has sent `Hello` whenever a loop changes, and as the reply to the four loop intents. The loops are also in `Snapshot.loops` |
+| `UsageResult` | Reply to `UsageQuery`: `range`, `since`, `tool`, `total`, `tools[]` (each with `models[]`) and `quotas[]`. A row is `{sessions, tokens, tokens_estimated, cost_usd}`; `cost_usd` is absent when no counted session reported a cost. Rows count each session once, by its latest ledger line (or its live totals) falling inside the range |
 | `Error` | `id`, `code`, `message` |
 
 ### SessionSummary fields
 
-`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `retired_at` (RFC 3339; when the session was marked done; omitted when not marked and for marks persisted before the field existed), `working_since` (start of the current working stretch; omitted unless working), `subagents` (subagents the agent is running now; Claude Code only; omitted when 0, and patches send `0` when the last one stops).
+`id`, `short_id`, `tool_id`, `model_id`, `effort`, `slug`, `title`, `cwd`, `state`, `started_at`, `last_event_at`, `last_line`, `description`, `exit_code`, `tokens`, `output_bytes`, `fleet`, `name`, `retire_at` (RFC 3339; omitted when not marked), `retired_at` (RFC 3339; when the session was marked done; omitted when not marked and for marks persisted before the field existed), `working_since` (start of the current working stretch; omitted unless working), `ended_at` (RFC 3339; the first time the session reached done, failed or crashed; omitted while live; a daemon that predates it never sends it, so clients fall back to `last_event_at` for terminal sessions), `subagents` (subagents the agent is running now; Claude Code only; omitted when 0, and patches send `0` when the last one stops), `cost_usd` (what the session has cost so far in US dollars, from the usage hub; Claude Code only; omitted when unknown and while the usage setting is off; patches send it when the total moved by at least $0.01, at most every 2 seconds per session; persisted in `meta.json`; an older client ignores it), `prompts` (how many prompts the user sent the agent, from Claude Code's UserPromptSubmit hook; only goes up while the agent runs; omitted when 0 or unknown; clients use it to chime once per turn; an older client ignores it), `waiting_on` (`shell`, `subagent` or `web`: what a **working** session's main thread is blocked on, from Claude Code's tool hooks; omitted when not waiting; the state stays `working`, so a client that predates the field shows the session as working; patches send `null` to clear it, and the daemon clears it whenever the state leaves `working`; clients ignore a kind they do not know), `waiting_since` (RFC 3339; when that tool call began; omitted unless `waiting_on` is set; patched together with `waiting_on`; the TUI shows the session as waiting only after 3 seconds), `description_at` (RFC 3339; when `description` was last written by the summarizer; omitted until the first summary, and a daemon that predates it never sends it; patches for `description` carry it too), `resume_id` (the agent's own conversation id, a canonical UUID in lowercase; omitted when unknown; a patch carries it when it becomes known or changes; an older client ignores it), `trust_folder` (true when the folder was trusted for the session at creation; omitted otherwise), `skills` (names of the library skills loaded into the session; omitted when none), `wait_reason` (why a `needs_input` session waits: `review` when the agent finished a turn, `input` when it asks for an answer or approval; omitted when unknown, which is always so for tools without hooks; cleared when the session works again; unrelated to `waiting_on`, which is only for working sessions).
 
-`last_event_at` is the last real activity — a state change, a new screen line, or the child's exit; stats and digest treat it as a finished session's end. Metadata edits (`rename`, fleet, `name`, retire, AI `description`) leave it unchanged and their patches omit it.
+`last_event_at` is the last real activity — the session's creation (it equals `started_at` until something else happens; a daemon that predates this leaves it zero until the first event, and clients then fall back to `started_at`), a state change, a new screen line, or the child's exit; stats and digest treat it as a finished session's end. Metadata edits (`rename`, fleet, `name`, retire, AI `description`) leave it unchanged and their patches omit it.
 
-Patches for `name` always carry the key (`""` = cleared). Patches for `retire_at`, `retired_at` and `working_since` send `null` to clear; a mark patches `retire_at` and `retired_at` together.
+Patches for `name` always carry the key (`""` = cleared). Patches for `retire_at`, `retired_at`, `working_since` and `ended_at` send `null` to clear (`ended_at` clears when a session goes live again; every terminal state change carries `ended_at` and `working_since: null`; a `Resume` of an exited session also patches `exit_code: null`); a mark patches `retire_at` and `retired_at` together.
 
 On disk the same shape is stored in `meta.json`. See [paths.md](paths.md).
 
@@ -150,6 +227,14 @@ Nothing is sent for a session that is not running.
 
 Additive changes (new optional fields, new intents, new events, new patch keys) keep `v: 1`; both sides ignore unknown fields and event types. An older daemon answers new intents with `bad_intent "intent not implemented"`; clients tell the user to run `rex daemon restart`.
 
+The overview is in the daemon's memory only. An `Overview` published while the daemon builds a client's `Snapshot` is sent right after it (it may also be in the `Snapshot`). An older client ignores the event and `snapshot.overview`; against an older daemon a newer client sees neither and shows only what it computes itself.
+
+Usage is the same: the quotas are in the daemon's memory only, and a `Usage` published while the daemon builds a client's `Snapshot` is sent right after it. An older daemon answers `UsageQuery` with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`) and ignores `UsageSample`, so a tap talking to it just loses its usage; an older client ignores the `Usage` event and `snapshot.usage`. `ProtocolVersion` is unchanged.
+
+Loops are kept by the daemon's loop runner and persisted in its state dir. A `Loop` published while the daemon builds a client's `Snapshot` is sent right after it. An older daemon answers the four loop intents with `bad_intent` "intent not implemented" (the CLI says to run `rex daemon restart`); an older client ignores the `Loop` event, `snapshot.loops` and the `loop_id` / `loop_iter` session fields. `ProtocolVersion` is unchanged.
+
+Sessions carry `workspace_id` (8 lowercase hex digits; the workspace around the session's folder when it was started, set by the daemon while `workspaces` is on, never taken from a client: `NewSession` has no such field and an unknown one is ignored). Older clients ignore it; a board scoped by `rex here` shows every session, with a notice, when the daemon sends neither `workspace_id` nor `snapshot.workspace_tagging`.
+
 A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon_version`. A client that sees no `daemon_version` must not wait for an `Ack`; the Go client's `Do` then fails at once with `ErrNoAcks`.
 
 A daemon that predates `repaint` ignores the field and answers `mode_sync` as before. A client tells by the `Subscribe`'s reply: send it with an `id`, and if the `Ack` arrives with no `repaint: true` output before it, there was no repaint. A daemon that predates acks sends no reply at all, so wait for it only briefly. rex's attach clients (`client.RepaintWatch`: 250 ms, or 2 s after a replay) then fall back to the `^L` redraw nudge. Clients that do not set `repaint` get exactly what they got before, and no `repaint` key on the wire.
@@ -158,13 +243,13 @@ A daemon that predates `repaint` ignores the field and answers `mode_sync` as be
 
 | Code | Emitted when |
 |------|----------------|
-| `bad_intent` | Wrong kind, parse error, unimplemented intent, invalid/missing fields (incl. `NewSession`), slug already in use (`NewSession`, `Rename`) |
-| `unknown_session` | No such session (or input buffer full) |
-| `spawn_failed` | `NewSession` failed after validation (unknown tool/model, effort, PTY start) |
+| `bad_intent` | Wrong kind, parse error, unimplemented intent, invalid/missing fields (incl. `NewSession`), slug already in use (`NewSession`, `Rename`), tool or model not in the registry (`NewSession`, `Resume`) |
+| `unknown_session` | No such session (or input buffer full); `Resume` of a session deleted while it started |
+| `spawn_failed` | `NewSession` failed after validation (effort, PTY start); `Resume` with a missing working directory or an agent that did not start |
 | `too_many_sessions` | Concurrency cap |
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
-| `bad_state` | `Unretire` after the reaper started clearing the session |
+| `bad_state` | `Undo` or `Redo` refused (session working, another live session in the folder without `force`, folder not in a git repo, nothing to undo or redo, a turn that was not captured); `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
 | `line_too_long` | A line exceeded 16 MiB; the daemon closes the connection |
 | `unsupported_version` | The envelope's `v` is not `1`; the daemon closes the connection |
 | `internal_error` | A daemon bug while handling the intent; the daemon closes the connection |

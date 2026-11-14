@@ -151,9 +151,10 @@ func TestSupervisor_NeedsInputToWorkingRegression(t *testing.T) {
 
 	sup := New(SupervisorConfig{
 		StateDir: stateDir, Store: store,
-		Command:  []string{"sleep", "0.5"},
-		Adapter:  stub,
-		IdleTick: 10 * time.Millisecond,
+		Command:   []string{"sleep", "0.5"},
+		ReadyHold: -1, // not about the hold
+		Adapter:   stub,
+		IdleTick:  10 * time.Millisecond,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -594,4 +595,112 @@ func TestSupervisor_ReportsSubagents(t *testing.T) {
 	meta, err := os.ReadFile(filepath.Join(stateDir, "sessions", sess.ID, "meta.json"))
 	require.NoError(t, err)
 	require.NotContains(t, string(meta), "subagents", "the final meta.json keeps no count")
+}
+
+// reasonAdapter reports a wait reason that the test changes.
+type reasonAdapter struct {
+	stubAdapter
+	reason atomic.Value // string
+}
+
+func (r *reasonAdapter) WaitReason() string {
+	v, _ := r.reason.Load().(string)
+	return v
+}
+
+// The supervisor patches the wait reason while the agent runs and clears it
+// when the agent exits, before the final meta.json write. Driven by the
+// patches themselves, not by sleeps.
+func TestSupervisor_ReportsWaitReason(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the child reads its exit signal from a Unix tty")
+	}
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{ID: "wr1", ShortID: "wr1", ToolID: "claude", Slug: "wr",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	ad := &reasonAdapter{}
+	ad.reason.Store(protocol.WaitReview)
+	release := make(chan struct{})
+	var (
+		mu   sync.Mutex
+		seen []string
+		once sync.Once
+	)
+	store.Subscribe(func(e state.Event) {
+		v, ok := e.Patch["wait_reason"].(string)
+		if !ok {
+			return
+		}
+		mu.Lock()
+		seen = append(seen, v)
+		mu.Unlock()
+		switch v {
+		case protocol.WaitReview:
+			ad.reason.Store(protocol.WaitInput)
+		case protocol.WaitInput:
+			once.Do(func() { close(release) })
+		}
+	})
+	input := make(chan []byte, 1)
+	go func() {
+		<-release
+		input <- []byte("\n")
+	}()
+	sup := New(SupervisorConfig{
+		StateDir: stateDir, Store: store,
+		Command:  []string{"sh", "-c", "read x"},
+		Adapter:  ad,
+		InputCh:  input,
+		IdleTick: 20 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Run(ctx, sess))
+
+	mu.Lock()
+	require.Equal(t, []string{protocol.WaitReview, protocol.WaitInput, ""}, seen, "one patch per change, cleared at exit")
+	mu.Unlock()
+	meta, err := os.ReadFile(filepath.Join(stateDir, "sessions", sess.ID, "meta.json"))
+	require.NoError(t, err)
+	require.NotContains(t, string(meta), "wait_reason", "the final meta.json keeps no reason")
+}
+
+// The initial prompt is typed text: escape sequences and controls in it are
+// dropped before the paste, so they can't reach the agent as keystrokes.
+func TestSupervisor_InitialPromptDropsEscapesAndControls(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The child echoes raw input with stty raw and cat -v, which needs a
+		// Unix tty: under ConPTY Git Bash's cat fails the non-blocking read.
+		// TypedText's own tests cover the filtering on every OS.
+		t.Skip("relies on a Unix tty in raw mode")
+	}
+	stateDir := t.TempDir()
+	store := state.NewStore()
+	sess := &state.Session{
+		ID: "esc1", ShortID: "esc1", ToolID: "ollama", Slug: "test",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC(),
+	}
+	require.NoError(t, store.Add(sess))
+
+	sup := New(SupervisorConfig{
+		StateDir: stateDir,
+		Store:    store,
+		// cat -v shows every byte that arrives (ESC as ^[, CR as ^M); the
+		// raw read returns EOF after half a second without input.
+		Command:       []string{"bash", "-c", `stty -echo raw min 0 time 5; cat -v; sleep 0.2`},
+		Adapter:       &stubAdapter{ready: true},
+		InitialPrompt: "a\x1b[201~b\x07c",
+		PlainPaste:    true,
+		IdleTick:      50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = sup.Run(ctx, sess)
+
+	tail, err := state.TranscriptTail(stateDir, sess.ID, 8192)
+	require.NoError(t, err)
+	require.Contains(t, string(tail), "abc^M")
+	require.NotContains(t, string(tail), "^[")
 }

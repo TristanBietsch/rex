@@ -85,9 +85,10 @@ func openFullScreenAttach(t *testing.T, d *testutil.Daemon, sum protocol.Session
 	sum.ToolID = "claude" // full-screen path: no replay
 	m := boardModel(sum)
 	m.Socket = d.Socket
-	m.Width, m.Height = 134, 44
+	m.Width, m.Height = 134, 45 // 45-12 chrome rows-1 banner row = 32
 	m, _ = openAttach(m, sum.ID)
 	require.NotNil(t, m.Attach, "attach failed: %s", m.Err)
+	require.Equal(t, 1, m.Attach.BannerRows, "the banner is on by default; the PTY is sized for it")
 	require.Equal(t, 120, m.Attach.Cols)
 	require.Equal(t, 32, m.Attach.Rows)
 	st := m.Attach
@@ -143,7 +144,18 @@ func TestAttachE2E_SilentFullScreenAgentIsNotBlank(t *testing.T) {
 // primary screen. The repaint redraws the visible screen in place, so none
 // of it lands in the popup's scrollback as history.
 func TestAttachE2E_SilentInlineAgentIsNotBlank(t *testing.T) {
-	d, sum := startSilentSession(t, "inline", "prompt")
+	// The "> prompt" row is input chrome to termtext, so last_line stops at
+	// the line above it.
+	d, sum := startSilentSession(t, "inline", "history 60")
+	// The agent opens input.log right after it prints the prompt. Wait for
+	// it and give the PTY a beat to pass the prompt on, so the repaint is of
+	// the finished frame (ConPTY forwards output in frames, later than a
+	// Unix PTY; a prompt arriving after the repaint scrolls the popup).
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(filepath.Join(sum.CWD, "input.log"))
+		return err == nil
+	}, 5*time.Second, 20*time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	m := openFullScreenAttach(t, d, sum)
 	m = pumpPopup(t, m, 2*time.Second, func(m Model) bool { return strings.Contains(popupText(m), "> prompt") })
 

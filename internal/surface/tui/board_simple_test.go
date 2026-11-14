@@ -14,7 +14,7 @@ import (
 )
 
 func simpleBoard(sessions ...protocol.SessionSummary) Model {
-	m := boardModel(sessions...)
+	m := rowIconsOff(boardModel(sessions...)) // pins the text column
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	m.Clock = func() time.Time { return now }
 	return m
@@ -116,7 +116,7 @@ func TestFilterChipsOnlyWhenUseful(t *testing.T) {
 	for _, m := range []Model{one, two} {
 		screen := strings.Split(renderFullScreen(m, 120, 30), "\n")
 		require.Len(t, screen, 30)
-		require.Contains(t, ansi.Strip(screen[boardTop(m)]), "NEEDS YOU")
+		require.Contains(t, ansi.Strip(screen[boardTop(m)]), "READY")
 	}
 }
 
@@ -139,17 +139,20 @@ func TestDoneCollapsesPastFive(t *testing.T) {
 	require.NotContains(t, text, "done-0")
 	title := lineWith(t, text, "DONE")
 	require.Contains(t, title, "6 hidden")
-	require.Contains(t, title, "3 show")
-	require.Contains(t, title, ":prune clear")
+	require.NotContains(t, title, "4 show", "the fold keys live in the help line")
+	require.NotContains(t, title, ":prune")
+	help := ansi.Strip(renderHelpLine(m, 200))
+	require.Contains(t, help, "4 show")
+	require.Contains(t, help, ":prune clear")
 	require.Equal(t, []string{"live"}, sessionIDs(orderedSessions(m)), "hidden rows are not navigable")
 
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.True(t, m.DoneExpanded)
-	require.Equal(t, "d0", m.SelectedID, "3 expands and selects the first Done row")
+	require.Equal(t, "d0", m.SelectedID, "4 expands and selects the first Done row")
 	require.Contains(t, boardText(m), "done-5")
-	require.Contains(t, lineWith(t, boardText(m), "DONE"), "3 hide")
+	require.Contains(t, ansi.Strip(renderHelpLine(m, 200)), "4 hide")
 
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.False(t, m.DoneExpanded)
 	require.Equal(t, "live", m.SelectedID, "folding moves the selection off the hidden rows")
 }
@@ -186,7 +189,7 @@ func TestTabCyclesSessionsThatNeedYou(t *testing.T) {
 	none := simpleBoard(protocol.SessionSummary{ID: "w", Slug: "w", State: protocol.StateWorking})
 	none, _ = updateKey(none, key("tab"))
 	require.Equal(t, "w", none.SelectedID)
-	require.Equal(t, "nothing needs you", none.Notice)
+	require.Equal(t, "nothing ready", none.Notice)
 }
 
 func TestHelpBarHasFiveKeys(t *testing.T) {
@@ -195,11 +198,11 @@ func TestHelpBarHasFiveKeys(t *testing.T) {
 	require.Equal(t, "enter open · i new · cc done · tab next · ? more", line)
 }
 
-// 3 on a short Done column keeps its old meaning: jump to Done.
-func TestThreeOnShortDoneJumps(t *testing.T) {
+// 4 on a short Done column just jumps to Done.
+func TestFourOnShortDoneJumps(t *testing.T) {
 	m := simpleBoard(doneSessions(2)...)
 	m.SelectedID = "live"
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.Equal(t, "d0", m.SelectedID)
 	require.False(t, m.DoneExpanded)
 }
@@ -208,7 +211,7 @@ func TestThreeOnShortDoneJumps(t *testing.T) {
 // the next time it grows.
 func TestDoneFoldsAgainAfterShrinking(t *testing.T) {
 	m := simpleBoard(doneSessions(doneCollapseAt + 1)...)
-	m, _ = updateKey(m, key("3"))
+	m, _ = updateKey(m, key("4"))
 	require.True(t, m.DoneExpanded)
 
 	m.Sessions = m.Sessions[:len(m.Sessions)-2] // e.g. two pruned
@@ -265,18 +268,19 @@ func TestSubagentColumn(t *testing.T) {
 		State: protocol.StateWorking}
 
 	none := simpleBoard(calm)
-	require.Zero(t, boardLayout(none, 140).agents, "no column while nothing runs subagents")
+	require.Positive(t, boardLayout(none, 140).agents, "fixed: the column is reserved while nothing runs subagents")
+	require.Zero(t, boardLayout(fitModel(t, none), 140).agents, "fit: no column while nothing runs subagents")
 	require.NotContains(t, boardText(none), subagentGlyph)
 
 	m := simpleBoard(busy, calm)
-	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+"3")
+	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+" 3")
 	require.NotContains(t, lineWith(t, boardText(m), "calm"), subagentGlyph)
 	m.Detailed = true
-	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+"3")
+	require.Contains(t, lineWith(t, boardText(m), "busy"), subagentGlyph+" 3")
 
 	big := busy
 	big.Subagents = 150
-	require.Contains(t, lineWith(t, boardText(simpleBoard(big)), "busy"), subagentGlyph+"99")
+	require.Contains(t, lineWith(t, boardText(simpleBoard(big)), "busy"), subagentGlyph+" 99")
 
 	// Rows stay exactly the board width with the column, down to narrow.
 	for _, detailed := range []bool{false, true} {

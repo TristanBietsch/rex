@@ -148,16 +148,13 @@ func handleReconnectResult(m Model, msg reconnectResultMsg) (Model, tea.Cmd) {
 func adoptConnection(m Model, c *client.Client, snap *protocol.Snapshot) Model {
 	m.Client = c
 	m.reconnect = nil
-	m.Sessions = snap.Sessions
-	if snap.Filter != "" {
-		m.Filter = snap.Filter
-	}
-	if _, ok := findSession(m.Sessions, m.SelectedID); !ok {
-		m.SelectedID = ""
-		if rows := orderedSessions(m); len(rows) > 0 {
-			m.SelectedID = rows[0].ID
-		}
-	}
+	m = adoptSessionsSeen(m, snap.Sessions)
+	m.Overview = snap.Overview
+	m.Usage = snap.Usage
+	m = adoptSnapshotTools(m, snap.Tools)
+	m = adoptWorkspaceTagging(m, snap)
+	m = adoptLoops(m, snap)
+	m = reselectIfGone(adoptSnapshotFilter(m, snap.Filter))
 	m.Err = ""
 	m.Notice = "reconnected to daemon"
 	return ensureVisible(m)

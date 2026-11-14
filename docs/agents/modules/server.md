@@ -13,7 +13,7 @@ Unix domain socket listener: one goroutine per client, intent dispatch, PTY sess
 
 ### Types
 
-- `Config` — `Socket`, `StateDir`, `Registry`, `Store`, `MaxConcurrentSessions`, `SummaryRequest chan<- string`.
+- `Config` — `Socket`, `StateDir`, `Registry`, `Store`, `MaxConcurrentSessions`, `SummaryRequest chan<- string`, `SkillsDir` (skill library; `NewSession.Skills` names resolve under it, staged by `internal/features/skills`), `SkillsEnabled func() bool` (the `spawn_skills` flag; off: skills refused as bad_intent, no `--plugin-dir`).
 - `Server` — `New(cfg Config) (*Server, error)`, `Serve(ctx context.Context) error`, `SetRegistry`, `Registry`.
 
 Session lifecycle / IO registration (used by `client.go` handlers and supervisor):
@@ -21,6 +21,7 @@ Session lifecycle / IO registration (used by `client.go` handlers and supervisor
 - `TryAcquireSession`, `ReleaseSession`, `SetMaxConcurrentSessions`, `MaxConcurrentSessions`
 - `RegisterInputChannel`, `UnregisterInputChannel`, `InputChannel`
 - `SubscribeSessionOutput`, `SubscribeSummarizerHealth`, `BroadcastSummarizerHealth`
+- `SetOverview` (sanitizes the headline again, stores it in memory, fans it out as an `Overview` event), `Overview`, `SubscribeOverview`, `BoardClients` (open connections that said Hello as `protocol.ClientTUI`), `Config.OnBoardClient`
 - `RegisterResize`, `UnregisterResize`, `Resize`
 - `RegisterModePreamble`, `UnregisterModePreamble`, `ModePreamble`
 - `RegisterAttach`, `UnregisterAttach` — the supervisor's output-hold hook; `handleSubscribe` sends replay/repaint and registers its sink inside it (`withOutputHeld`)
@@ -41,6 +42,8 @@ Per-connection handling lives in unexported `client.go` (`handleClient`, intent 
 `New` unlinks stale socket file. `Serve` unlinks socket on return. After `Hello`, client receives `EventSnapshot` then live store events.
 
 Concurrent session cap enforced at spawn via `TryAcquireSession`.
+
+On Windows `startSupervisor` runs the launch plan first (`launch_plan.go`, `internal/daemon/winlaunch`): an npm `.cmd` shim becomes the program it runs, an unresolvable shim or `cmd.exe` gets the prompt pasted (safe arguments only, rex-added ones included), a command line over 32,000 UTF-16 units (8,000 through cmd.exe) moves the prompt to the paste path, anything else is refused. `winlaunch.Plan` is pure over an `Env`, so it is tested on every platform.
 
 ## Side effects
 

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -101,4 +102,40 @@ func TestAttach_PastedQQPassesThrough(t *testing.T) {
 	require.False(t, ok)
 	_, ok = loneRune(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q"), Paste: true})
 	require.False(t, ok)
+}
+
+// D8: a page is never drawn over the attach PTY. `::settings` and `::help`
+// detach first, then open the full-screen page.
+func TestAttachSettingsDetachesThenOpens(t *testing.T) {
+	for verb, want := range map[string]struct {
+		focus Focus
+		title string
+	}{
+		"settings": {FocusSettings, "∴ REX › SETTINGS"},
+		"help":     {FocusHelp, "∴ REX › HELP"},
+	} {
+		t.Run(verb, func(t *testing.T) {
+			m := bannerModel(t, 120, 40, bannerSession())
+			require.True(t, pagesOn(m))
+			m, _ = executeAttachCommand(m, verb)
+			require.Nil(t, m.Attach)
+			require.Equal(t, want.focus, m.Focus)
+			view := ansi.Strip(m.View())
+			require.Contains(t, view, want.title)
+			require.NotContains(t, view, "fix billing tests", "the attach popup is gone")
+		})
+	}
+}
+
+// With the pages off, the same verbs still detach, then open the overlay.
+func TestAttachSettingsOffDetaches(t *testing.T) {
+	for verb, focus := range map[string]Focus{"settings": FocusSettings, "help": FocusHelp} {
+		t.Run(verb, func(t *testing.T) {
+			m := overlayMode(t, bannerModel(t, 120, 40, bannerSession()))
+			m, _ = executeAttachCommand(m, verb)
+			require.Nil(t, m.Attach)
+			require.Equal(t, focus, m.Focus)
+			require.NotContains(t, ansi.Strip(m.View()), "∴ REX ›")
+		})
+	}
 }

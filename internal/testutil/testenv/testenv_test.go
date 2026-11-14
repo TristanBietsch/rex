@@ -19,6 +19,8 @@ func TestIsolate_PointsEveryPathVarIntoDir(t *testing.T) {
 		t.Setenv(key, os.Getenv(key)) // restored after the test
 	}
 	t.Setenv("OLLAMA_HOST", "example.invalid:1")
+	t.Setenv("CLAUDECODE", "1")
+	t.Setenv("REX_AGENT", "1")
 	t.Setenv("PATH", realBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	dir := t.TempDir()
@@ -30,8 +32,10 @@ func TestIsolate_PointsEveryPathVarIntoDir(t *testing.T) {
 		require.Truef(t, strings.HasPrefix(val, dir), "%s=%q not under %q", key, val, dir)
 		require.DirExists(t, val)
 	}
-	_, ok := os.LookupEnv("OLLAMA_HOST")
-	require.False(t, ok, "OLLAMA_HOST must be unset")
+	for _, key := range []string{"OLLAMA_HOST", "CLAUDECODE", "REX_AGENT"} {
+		_, ok := os.LookupEnv(key)
+		require.Falsef(t, ok, "%s must be unset", key)
+	}
 	for _, p := range filepath.SplitList(os.Getenv("PATH")) {
 		require.NotEqual(t, filepath.Clean(realBin), filepath.Clean(p), "real ~/.local/bin left on PATH")
 	}

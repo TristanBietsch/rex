@@ -237,6 +237,7 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 		Focus: FocusBoot, Filter: "all", BootStart: time.Now(),
 		Store: store, StorePath: filepath.Join(t.TempDir(), "settings.toml"),
 	}
+	m = overlayMode(t, m) // the board, and its spinner, stays behind help and settings
 	in := newIdleInput()
 	defer in.Close()
 	p := tea.NewProgram(probeModel{inner: m, rec: rec},
@@ -311,7 +312,7 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 
 	// 7. Attach popup: the title-bar state chip spins.
 	send(mutateMsg{fn: func(m Model) Model {
-		cols, rows := attachPopupInnerSize(m.Width, m.Height)
+		cols, rows := attachPopupInnerSize(m.Width, m.Height, 0)
 		m.Attach = &AttachState{SessionID: "s1", Slug: "alpha", Term: vt10x.New(vt10x.WithSize(cols, rows)), Cols: cols, Rows: rows}
 		m.Focus = FocusAttach
 		return m
@@ -324,7 +325,7 @@ func TestSpinner_RuntimeHeadlessProgram(t *testing.T) {
 	start := time.Now()
 	fd.setState(t, "s1", protocol.StateDone)
 	time.Sleep(700 * time.Millisecond) // flash toggles every 200ms for 1.6s
-	v := rawLineVariants(rec.since(start), "alpha", "●")
+	v := rawLineVariants(rec.since(start), "alpha", "✓")
 	require.GreaterOrEqual(t, len(v), 2, "done blink frozen (variants %d)", len(v))
 	waitIdleChain("after done blink")
 

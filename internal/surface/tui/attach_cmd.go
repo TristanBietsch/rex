@@ -127,7 +127,7 @@ func updateAttachCommandKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		m.CmdText += string(k.Runes)
+		m.CmdText += typedText(k.Runes)
 		return m, nil
 	}
 	return m, nil
@@ -149,8 +149,10 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 	switch verb {
 	case "q", "q!", "quit", "detach", "close":
 		return detach(m)
-	case "done", "undone":
+	case "done":
 		return toggleRetire(m, a.SessionID)
+	case "undone":
+		return unmarkDone(m, a.SessionID)
 	case "complete", "kill":
 		if m.Client == nil {
 			return m, nil
@@ -158,7 +160,13 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 		return m, completeSessionCmd(m.Client, a.SessionID)
 	case "name", "rename":
 		return m, setNameCmd(namerOf(m), a.SessionID, rest)
+	case "banner":
+		return toggleBanner(m), nil
+	case "border":
+		return borderCommand(m, parts[1:]), nil
 	}
+	// Everything else, :settings and :help included, detaches first: a page
+	// or overlay is never drawn over the attach PTY.
 	m, off := detach(m)
 	m, cmd := executeCommand(m, line)
 	return m, tea.Batch(off, cmd)
@@ -166,7 +174,7 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 
 // renderAttachCommandBar replaces the attach footer while "::" is open.
 func renderAttachCommandBar(m Model, width int) string {
-	hint := styleMuted.Render("  q detach (or qq while attached) · done · kill · name <text> · ::: types \"::\" · esc back")
+	hint := styleMuted.Render("  q detach (or qq while attached) · done · kill · name <text> · banner · border · ::: types \"::\" · esc back")
 	line := styleArrowYellow.Render(":") + " " + stylePrimary.Render(m.CmdText) + cursorBlock(m)
 	pad := width - lipgloss.Width(line) - lipgloss.Width(hint)
 	if pad < 1 {

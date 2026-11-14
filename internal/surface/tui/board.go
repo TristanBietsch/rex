@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,9 +14,12 @@ import (
 )
 
 // boardGroup defines one section of the kanban. All board grouping (rendering,
-// navigation, jump-to-section) reads from boardGroups so the three views stay
-// in sync. Adding a new state means updating exactly one place.
+// navigation, jump-to-section) reads from boardGroups so the views stay in
+// sync. Adding a new state means updating exactly one place.
 type boardGroup struct {
+	// ID is the stable handle for the section ("needs", "waiting", "working",
+	// "done").
+	ID    string
 	Title string
 	// Count names the column's sessions after a number, as on the
 	// screensaver ("2 working").
@@ -23,8 +27,38 @@ type boardGroup struct {
 	// Alert marks a column that wants the user: its title and count are
 	// highlighted while it holds any session.
 	Alert bool
-	Match func(protocol.SessionSummary) bool
+	// Empty is the line an empty column shows.
+	Empty string
+	// Completed marks the column that holds finished work (it folds past
+	// doneCollapseAt rows).
+	Completed bool
+	// HideZero leaves the section's count out of the header and the
+	// screensaver while it is 0.
+	HideZero bool
+	Match    func(protocol.SessionSummary, groupCtx) bool
 }
+
+// groupCtx is what grouping needs besides the session: the clock (a
+// session only counts as waiting after protocol.WaitingAfter) and whether
+// the waiting_section feature is on. The zero value is the classic board:
+// no Waiting section, waiting sessions are Working. Grouping stays pure:
+// tests pass a fixed now.
+type groupCtx struct {
+	now     time.Time
+	waiting bool
+}
+
+// isWaiting reports whether a session shows in Waiting at now: it is
+// working on a tool call (shell, subagent or web) that began at least
+// protocol.WaitingAfter ago. Marked-done, needs_input and queued sessions
+// never are.
+func isWaiting(s protocol.SessionSummary, now time.Time) bool {
+	return s.WaitingFor(now) != ""
+}
+
+// waitingGroupID is the ID of the Waiting section, which exists only while
+// the waiting_section feature is on.
+const waitingGroupID = "waiting"
 
 // isMarkedDone reports whether the user marked the session done (it then
 // lives in Done whatever its live state).
@@ -32,24 +66,27 @@ func isMarkedDone(s protocol.SessionSummary) bool { return !s.RetireAt.IsZero() 
 
 // boardGroups is the canonical kanban layout. Done includes all terminal
 // states (done/failed/crashed) plus every session the user marked done,
-// whatever its live state; distinct markers (●/✕/○) preserve the at-a-glance
+// whatever its live state; distinct markers (✓/✗/⊘) preserve the at-a-glance
 // distinction within the column. Working also holds queued sessions (spawned,
 // agent not started yet; marker ◌): every state must land in some group, or
-// the session is invisible and unreachable by keyboard.
+// the session is invisible and unreachable by keyboard. Waiting holds
+// working sessions blocked on a tool for a few seconds (see groupCtx); with
+// the waiting_section feature off it matches nothing and they stay in
+// Working.
 var boardGroups = []boardGroup{
-	{Title: "Needs you", Count: "need you", Alert: true, Match: func(s protocol.SessionSummary) bool {
+	{ID: "needs", Title: "Ready", Count: "ready", Alert: true, Empty: "nothing ready", Match: func(s protocol.SessionSummary, _ groupCtx) bool {
 		return !isMarkedDone(s) && s.State == protocol.StateNeedsInput
 	}},
-	{Title: "Working", Count: "working", Match: func(s protocol.SessionSummary) bool {
-		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued)
+	{ID: waitingGroupID, Title: "Waiting", Count: "waiting", Empty: "nothing waiting on a tool", HideZero: true, Match: func(s protocol.SessionSummary, c groupCtx) bool {
+		return c.waiting && isWaiting(s, c.now)
 	}},
-	{Title: "Done", Count: "done", Match: inCompleted},
-}
-
-// styleAlert highlights an Alert column's title and count while it holds
-// any session. Built per call: the palette changes with color_scheme.
-func styleAlert() lipgloss.Style {
-	return lipgloss.NewStyle().Bold(true).Foreground(colorNeeds)
+	{ID: "working", Title: "Working", Count: "working", Empty: "nothing running", Match: func(s protocol.SessionSummary, c groupCtx) bool {
+		return !isMarkedDone(s) && (s.State == protocol.StateWorking || s.State == protocol.StateQueued) &&
+			(!c.waiting || !isWaiting(s, c.now))
+	}},
+	{ID: "done", Title: "Done", Count: "done", Empty: "nothing finished yet", Completed: true, Match: func(s protocol.SessionSummary, _ groupCtx) bool {
+		return inCompleted(s)
+	}},
 }
 
 // columnCounts counts every session (tool filter ignored) per board column,
@@ -57,7 +94,7 @@ func styleAlert() lipgloss.Style {
 // marked done: those are counted apart so a failure stands out instead of
 // hiding in the done total. Each session is counted at most once, so the
 // numbers add up to the stats overlay's total.
-func columnCounts(sessions []protocol.SessionSummary) (cols []int, failed int) {
+func columnCounts(sessions []protocol.SessionSummary, ctx groupCtx) (cols []int, failed int) {
 	cols = make([]int, len(boardGroups))
 	for _, s := range sessions {
 		if !isMarkedDone(s) && (s.State == protocol.StateFailed || s.State == protocol.StateCrashed) {
@@ -65,7 +102,7 @@ func columnCounts(sessions []protocol.SessionSummary) (cols []int, failed int) {
 			continue
 		}
 		for i, g := range boardGroups {
-			if g.Match(s) {
+			if g.Match(s, ctx) {
 				cols[i]++
 				break
 			}
@@ -77,6 +114,7 @@ func columnCounts(sessions []protocol.SessionSummary) (cols []int, failed int) {
 // Board group indexes.
 const (
 	groupNeeds = iota
+	groupWaiting
 	groupWorking
 	groupDone
 )
@@ -86,21 +124,68 @@ const (
 const doneCollapseAt = 5
 
 // doneCollapsed reports whether the Done column shows only its title line.
+// A search unfolds it: hits are never folded away.
 func doneCollapsed(m Model) bool {
-	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], m.Filter)) > doneCollapseAt
+	f := rowFilterOf(m)
+	if f.searching() {
+		return false
+	}
+	return !m.DoneExpanded && len(filterByGroup(m.Sessions, boardGroups[groupDone], f)) > doneCollapseAt
+}
+
+// doneRowCount is the Done column's length under the tool filter, ignoring
+// the search: whether the column is long enough to fold must not change as
+// the query narrows it.
+func doneRowCount(m Model) int {
+	f := rowFilterOf(m)
+	f.terms = nil
+	return len(filterByGroup(m.Sessions, boardGroups[groupDone], f))
 }
 
 // visibleRows is group gi's rows as the board shows them: none while Done
-// is collapsed.
+// is collapsed or the section is hidden.
 func visibleRows(m Model, gi int) []protocol.SessionSummary {
+	if !rowFilterOf(m).showsSection(boardGroups[gi]) {
+		return nil
+	}
 	if gi == groupDone && doneCollapsed(m) {
 		return nil
 	}
-	return filterByGroup(m.Sessions, boardGroups[gi], m.Filter)
+	return filterByGroup(m.Sessions, boardGroups[gi], rowFilterOf(m))
 }
 
-// emptyGroupText is the line an empty column shows.
-var emptyGroupText = []string{"nothing waiting on you", "nothing running", "nothing finished yet"}
+// resolveSection maps a user reference to a boardGroups index: an ID, a
+// unique ID prefix, the title with spaces ignored, or a 1-based number. It
+// only knows the active sections (activeGroups): with waiting_section off,
+// "waiting" is unknown and 2 is Working.
+func resolveSection(m Model, ref string) (int, error) {
+	active := activeGroups(m)
+	r := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(ref), " ", ""))
+	if n, err := strconv.Atoi(r); err == nil {
+		if n >= 1 && n <= len(active) {
+			return active[n-1], nil
+		}
+	} else if r != "" {
+		prefix, hits := 0, 0
+		for _, i := range active {
+			g := boardGroups[i]
+			if r == g.ID || r == strings.ToLower(strings.ReplaceAll(g.Title, " ", "")) {
+				return i, nil
+			}
+			if strings.HasPrefix(g.ID, r) {
+				prefix, hits = i, hits+1
+			}
+		}
+		if hits == 1 {
+			return prefix, nil
+		}
+	}
+	ids := make([]string, len(active))
+	for n, i := range active {
+		ids[n] = boardGroups[i].ID
+	}
+	return 0, fmt.Errorf("unknown section %q: use %s or 1-%d", ref, strings.Join(ids, ", "), len(active))
+}
 
 // inCompleted reports whether a session sits in the Done column.
 func inCompleted(s protocol.SessionSummary) bool {
@@ -109,13 +194,10 @@ func inCompleted(s protocol.SessionSummary) bool {
 }
 
 // filterByGroup applies the group predicate plus the active tool filter.
-func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter string) []protocol.SessionSummary {
+func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, f rowFilter) []protocol.SessionSummary {
 	out := make([]protocol.SessionSummary, 0, len(sessions))
 	for _, s := range sessions {
-		if !g.Match(s) {
-			continue
-		}
-		if filter != "all" && filter != "" && s.ToolID != filter {
+		if !g.Match(s, f.ctx) || !f.keep(s) {
 			continue
 		}
 		out = append(out, s)
@@ -123,18 +205,18 @@ func filterByGroup(sessions []protocol.SessionSummary, g boardGroup, filter stri
 	return out
 }
 
-// partitionSessions buckets sessions into board columns in one pass (O(n) vs 3× scan).
-func partitionSessions(sessions []protocol.SessionSummary, filter string) [][]protocol.SessionSummary {
+// partitionSessions buckets sessions into board columns in one pass (O(n) vs per-column scans).
+func partitionSessions(sessions []protocol.SessionSummary, f rowFilter) [][]protocol.SessionSummary {
 	out := make([][]protocol.SessionSummary, len(boardGroups))
 	for i := range out {
 		out[i] = make([]protocol.SessionSummary, 0, len(sessions)/len(boardGroups)+1)
 	}
 	for _, s := range sessions {
-		if filter != "all" && filter != "" && s.ToolID != filter {
+		if !f.keep(s) {
 			continue
 		}
 		for i, g := range boardGroups {
-			if g.Match(s) {
+			if g.Match(s, f.ctx) {
 				out[i] = append(out[i], s)
 				break
 			}
@@ -143,31 +225,18 @@ func partitionSessions(sessions []protocol.SessionSummary, filter string) [][]pr
 	return out
 }
 
-// fleetPalette is a small set of distinct lipgloss colors that work on both
-// dark and light terminals. The color for a fleet name is selected by:
-//
-//	fnv32(name) % len(fleetPalette)
-//
-// This ensures the same name always maps to the same color.
-var fleetPalette = []lipgloss.Color{
-	"#5B8DEF", // blue
-	"#E5B341", // amber
-	"#4ADE80", // green
-	"#EF4444", // red
-	"#A78BFA", // violet
-	"#22D3EE", // cyan
-	"#FB923C", // orange
-	"#F472B6", // pink
-	"#84CC16", // lime
-	"#14B8A6", // teal
+// fleetIndex picks a stable, deterministic palette slot for a fleet name:
+// fnv32(name) % len(fleet colors), so the same name always gets the same
+// color. The colors come from the theme (theme.Palette.Fleet).
+func fleetIndex(name string) int {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	return int(h.Sum32()) % len(colorFleet)
 }
 
 // fleetColor returns a stable, deterministic color for the given fleet name.
 func fleetColor(name string) lipgloss.Color {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(name))
-	idx := int(h.Sum32()) % len(fleetPalette)
-	return fleetPalette[idx]
+	return colorFleet[fleetIndex(name)]
 }
 
 // spinnerFrameSets is the full catalog of spinner glyph sets. Selected at
@@ -220,6 +289,9 @@ const (
 	slotTitle
 	slotNone
 	slotRow
+	// slotRowCont is the second line of a stacked (mobile) row; it carries
+	// the same session as the slotRow above it.
+	slotRowCont
 )
 
 // boardSlot is one line of the unscrolled board. renderBoard, scrolling
@@ -233,10 +305,15 @@ type boardSlot struct {
 
 func boardSlots(m Model) []boardSlot {
 	gapBetween := densityGap(m)
+	stacked := mobileLayout(m)
 	collapsed := doneCollapsed(m)
+	f := rowFilterOf(m)
 	var slots []boardSlot
 	for i := range boardGroups {
-		if i > 0 {
+		if !f.showsSection(boardGroups[i]) {
+			continue
+		}
+		if len(slots) > 0 { // a gap before every shown section but the first
 			for j := 0; j < gapBetween; j++ {
 				slots = append(slots, boardSlot{kind: slotGap, group: i})
 			}
@@ -252,36 +329,53 @@ func boardSlots(m Model) []boardSlot {
 		}
 		for _, s := range rows {
 			slots = append(slots, boardSlot{kind: slotRow, group: i, sess: s})
+			if stacked {
+				slots = append(slots, boardSlot{kind: slotRowCont, group: i, sess: s})
+			}
 		}
 	}
 	return slots
 }
 
-// groupTitle renders a column title: NAME, its count, and for a long Done
-// column how to show, hide or clear it. It is cut and padded to width: a
+// groupTitle renders a column title: NAME, its count, and "hidden" for a
+// folded Done column (its keys are in the help line, doneFoldHints). It is cut and padded to width: a
 // wrapped title would push every row below it off the layout math.
 func groupTitle(m Model, gi, width int) string {
 	return padLine(groupTitleText(m, gi), width)
 }
 
 func groupTitleText(m Model, gi int) string {
-	n := len(filterByGroup(m.Sessions, boardGroups[gi], m.Filter))
+	f := rowFilterOf(m)
+	n := len(filterByGroup(m.Sessions, boardGroups[gi], f))
 	title := styleSectionTitle.Render(strings.ToUpper(boardGroups[gi].Title))
 	if boardGroups[gi].Alert && n > 0 {
-		title = styleAlert().Render(strings.ToUpper(boardGroups[gi].Title))
+		title = styleAlert.Render(strings.ToUpper(boardGroups[gi].Title))
 	}
-	out := "  " + title + styleDim.Render(fmt.Sprintf("  %d", n))
-	if gi != groupDone || n <= doneCollapseAt {
-		return out
+	count := fmt.Sprintf("  %d", n)
+	if f.rowsActive() { // a filter or search narrows the rows: show n of the section's total
+		count = fmt.Sprintf("  %d/%d", n, len(filterByGroup(m.Sessions, boardGroups[gi], rowFilter{ctx: f.ctx, workspace: f.workspace})))
 	}
-	sep := styleMuted.Render("  ·  ")
-	verb := " hide"
-	if doneCollapsed(m) {
+	out := "  " + title + styleDim.Render(count)
+	if gi == groupDone && doneCollapsed(m) {
 		out += styleDim.Render(" hidden")
-		verb = " show"
 	}
-	return out + sep + styleHeaderApp.Render("3") + styleDim.Render(verb) + sep +
-		styleHeaderApp.Render(":prune") + styleDim.Render(" clear")
+	return out
+}
+
+// doneFoldHints are the help-line hints for a Done column long enough to
+// fold: the key that shows or hides it and :prune. They are nil while the
+// column is short, a search unfolds it, or the section is hidden.
+func doneFoldHints(m Model) [][2]string {
+	f := rowFilterOf(m)
+	if !f.showsSection(boardGroups[groupDone]) || f.searching() ||
+		len(filterByGroup(m.Sessions, boardGroups[groupDone], f)) <= doneCollapseAt {
+		return nil
+	}
+	verb := "hide"
+	if doneCollapsed(m) {
+		verb = "show"
+	}
+	return [][2]string{{strconv.Itoa(sectionNumber(m, groupDone)), verb}, {":prune", "clear"}}
 }
 
 // clampScroll bounds offset to [0, total-height] so the board never scrolls
@@ -296,7 +390,7 @@ func clampScroll(offset, total, height int) int {
 	return offset
 }
 
-// renderBoard renders the three sections sized to fit `width` x `height`.
+// renderBoard renders the sections sized to fit `width` x `height`.
 // Long boards scroll: m.ScrollOffset skips that many lines from the top.
 func renderBoard(m Model, width, height int) string {
 	slots := boardSlots(m)
@@ -308,9 +402,11 @@ func renderBoard(m Model, width, height int) string {
 	if end > len(slots) {
 		end = len(slots)
 	}
-	cols := layoutSlots(slots, m.now(), width, m.Detailed)
+	cols := layoutSlots(slots, m.now(), width, layoutOptsOf(m))
 	// An empty column's text starts where row content does.
-	noneIndent := strings.Repeat(" ", rowIndent+colMarker+colGap)
+	noneIndent := strings.Repeat(" ", rowIndent()+colMarker+colGap)
+	searching := rowFilterOf(m).searching()
+	stacked := mobileLayout(m)
 	lines := make([]string, 0, height)
 	for _, sl := range slots[off:end] {
 		switch sl.kind {
@@ -319,9 +415,22 @@ func renderBoard(m Model, width, height int) string {
 		case slotTitle:
 			lines = append(lines, groupTitle(m, sl.group, width))
 		case slotNone:
-			lines = append(lines, noneIndent+styleMuted.Render(emptyGroupText[sl.group]))
+			none := boardGroups[sl.group].Empty
+			if searching {
+				none = "no matches"
+			}
+			none = ansi.Truncate(none, max(width-ansi.StringWidth(noneIndent), 0), "…")
+			lines = append(lines, noneIndent+styleMuted.Render(none))
 		case slotRow:
-			lines = append(lines, renderRow(m, sl.sess, cols))
+			if stacked {
+				name, _ := renderRowStacked(m, sl.sess, width)
+				lines = append(lines, name)
+			} else {
+				lines = append(lines, renderRow(m, sl.sess, cols))
+			}
+		case slotRowCont:
+			_, text := renderRowStacked(m, sl.sess, width)
+			lines = append(lines, text)
 		}
 	}
 
@@ -334,7 +443,7 @@ func renderBoard(m Model, width, height int) string {
 
 // Row grid. Left to right:
 //
-//	indent marker  [id]  name  text  [model·effort  tokens]  subagents  run-badge  time
+//	indent marker  [id]  name  text  [model·effort  tokens  span  resume-id]  subagents  run-badge  time
 //
 // The bracketed columns only show in the detailed view (v). indent, marker,
 // id and time are fixed. name, model and tokens are sized to
@@ -347,11 +456,11 @@ const (
 	colSlug   = 22 // name column cap
 	colModel  = 24 // model · effort column cap
 	colTokens = 8  // "99.9M tk"
-	colRun    = 4  // long-running badge: "▴42m"
-	colAgents = 3  // running subagents: subagentGlyph + count, "⋔12"
+	colRun    = 5  // long-running badge: "▴ 42m"
+	colAgents = 4  // running subagents: subagentGlyph, space, count: "⋔ 12"
 	colTime   = 4  // "59m", "23h", "12d"
+	colSpan   = 13 // start→end: "Jan 2→Jan 2" at most
 	colGap    = 2
-	rowIndent = 3 // " " + arrow/space + " "
 
 	descMin       = 20 // desc width kept before info columns start shrinking
 	descMinNarrow = 8  // desc floor once every info column is gone
@@ -360,15 +469,28 @@ const (
 )
 
 // rowCols holds the per-frame column widths. 0 hides id, model, tokens,
-// agents and run (no cell, no gap).
+// span, agents and run (no cell, no gap).
+//
+// With icons set (row_icons on) the row is the icon strip instead of the
+// text column: slots holds each iconSlot's width (0 = absent, no gap),
+// spacer is the room left, added to the name cell (the strip is
+// right-anchored next to the age), and desc, agents and run stay 0.
 type rowCols struct {
-	id, slug, desc, model, tokens, agents, run int
+	id, slug, desc, model, tokens, span, resume, agents, run int
+
+	icons  bool
+	slots  [len(slotWidth)]int
+	spacer int
 }
 
-// used is the row width of everything except the description cell.
+// used is the row width of everything except the description cell (the
+// spacer on the icons path).
 func (c rowCols) used() int {
-	w := rowIndent + colMarker + colGap + c.slug + colGap + colGap + colTime
-	for _, x := range []int{c.id, c.model, c.tokens, c.agents, c.run} {
+	if c.icons {
+		return c.usedIcons()
+	}
+	w := rowIndent() + colMarker + colGap + c.slug + colGap + colGap + colTime
+	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.resume, c.agents, c.run} {
 		if x > 0 {
 			w += colGap + x
 		}
@@ -379,25 +501,27 @@ func (c rowCols) used() int {
 // boardLayout sizes the columns for every row the board renders (all
 // sections, not just the scrolled window, so scrolling never shifts columns).
 func boardLayout(m Model, width int) rowCols {
-	return layoutSlots(boardSlots(m), m.now(), width, m.Detailed)
+	return layoutSlots(boardSlots(m), m.now(), width, layoutOptsOf(m))
 }
 
-func layoutSlots(slots []boardSlot, now time.Time, width int, detailed bool) rowCols {
+func layoutSlots(slots []boardSlot, now time.Time, width int, o layoutOpts) rowCols {
 	rows := make([]protocol.SessionSummary, 0, len(slots))
 	for _, sl := range slots {
 		if sl.kind == slotRow {
 			rows = append(rows, sl.sess)
 		}
 	}
-	return layoutRows(rows, now, width, detailed)
+	return layoutRows(rows, now, width, o)
 }
 
-// layoutRows sizes columns to content, then degrades for narrow widths in a
-// fixed order until the description gets descMin: drop tokens, shrink model
+// layoutFit sizes columns to content, then degrades for narrow widths in a
+// fixed order until the description gets descMin: drop the resume id, drop
+// the start→end span,
+// drop tokens, shrink model
 // (to modelMin), shrink name (to slugMin), drop model, drop subagents, drop
 // long-run badge. Below that
 // the description shrinks to descMinNarrow, then the name gives way.
-func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detailed bool) rowCols {
+func layoutFit(rows []protocol.SessionSummary, now time.Time, width int, detailed, resume, times bool) rowCols {
 	var c rowCols
 	if detailed {
 		c.id = colID
@@ -414,10 +538,19 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		if s.Subagents > 0 {
 			c.agents = colAgents
 		}
+		if detailed {
+			if times {
+				c.span = max(c.span, ansi.StringWidth(spanText(now, s)))
+			}
+			if resume && resumeIDShown(s) != "" {
+				c.resume = colResume
+			}
+		}
 	}
 	c.slug = min(c.slug, colSlug)
 	c.model = min(c.model, colModel)
 	c.tokens = min(c.tokens, colTokens)
+	c.span = min(c.span, colSpan)
 	if !detailed {
 		c.model, c.tokens = 0, 0
 	}
@@ -430,6 +563,8 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 		}
 	}
 	steps := []func(){
+		func() { c.resume = 0 }, // an id to copy, not to glance at: first to go
+		func() { c.span = 0 },
 		func() { c.tokens = 0 },
 		func() { shrink(&c.model, modelMin) },
 		func() { shrink(&c.slug, slugMin) },
@@ -450,6 +585,12 @@ func layoutRows(rows []protocol.SessionSummary, now time.Time, width int, detail
 	return c
 }
 
+// rowIndent is the width of a row's left edge: a space, the selector slot
+// (the selector glyph's width) and the selector_gap.
+func rowIndent() int {
+	return 1 + selectSlotW() + curSelector.gap
+}
+
 // cell renders s truncated and padded to exactly w columns. It is the board
 // row's choke point for session strings: truncate sanitizes s, so a cell is
 // always one line of printable text.
@@ -457,59 +598,97 @@ func cell(style lipgloss.Style, s string, w int) string {
 	return style.Width(w).Render(truncate(s, w))
 }
 
-func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
-	selected := m.SelectedID == s.ID
-
+// rowLead is a row's left edge: the rowIndent columns (selection arrow, fleet
+// bar or blank, padded to the selector slot, then the gap) and the state
+// marker, plus whether the row shows as waiting.
+func rowLead(m Model, s protocol.SessionSummary) (indent, marker string, waiting bool) {
 	// Marker is the only indicator for the selected row — no bg fill,
 	// avoids the chunky highlight artifacts.
+	slot := selectSlotW()
 	var markerPrefix string
-	if selected {
-		markerPrefix = styleArrow.Render("▸")
+	if m.SelectedID == s.ID {
+		markerPrefix = selectorMark(m, slot)
 	} else if s.Fleet != "" {
 		// Fleet indicator: tinted left border using the fleet's stable color.
-		markerPrefix = lipgloss.NewStyle().Foreground(fleetColor(s.Fleet)).Render("▍")
+		markerPrefix = styleFleet[fleetIndex(s.Fleet)].Render("▍") + strings.Repeat(" ", slot-1)
 	} else {
-		markerPrefix = " "
+		markerPrefix = strings.Repeat(" ", slot)
 	}
-
-	now := m.now()
-	retiring := !s.RetireAt.IsZero()
-	dim := lipgloss.NewStyle().Foreground(colorFgDim)
 	state := s.State
-	if retiring {
+	if !s.RetireAt.IsZero() {
 		state = protocol.StateDone // marked done reads green whatever the live state
 	}
-	marker := stateMarkerCellFor(m, state, m.SpinnerTick, false)
-	// A marked-done row recedes: muted name and description.
-	slugStyle := lipgloss.NewStyle().Foreground(colorFgPrimary).Bold(true)
-	if retiring && !selected {
-		slugStyle = dim
+	marker = stateMarkerCellFor(m, state, m.SpinnerTick, false)
+	waiting = waitingKindOf(m, s) != ""
+	if waiting {
+		marker = waitingMarkerCell(m, false)
 	}
-	slug := cell(slugStyle, displayName(s), c.slug)
-	descColor := colorFgDim
-	if selected {
-		descColor = colorFgPrimary
-	} else if retiring {
-		descColor = colorFgMuted
+	return " " + markerPrefix + strings.Repeat(" ", curSelector.gap), marker, waiting
+}
+
+// rowNameStyle is the name's style: a marked-done row recedes.
+func rowNameStyle(s protocol.SessionSummary, selected bool) lipgloss.Style {
+	if !s.RetireAt.IsZero() && !selected {
+		return styleDim
 	}
-	descSource := rowText(s)
-	if m.Detailed {
-		descSource = rowDescription(s)
-		if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
-			descSource = renderAnimFrame(anim, c.desc, now)
-		}
-	} else if !retiring && s.State == protocol.StateNeedsInput && !selected {
-		descColor = colorFgPrimary // what needs you reads first
+	return styleSlug
+}
+
+// rowDescStyle is the text's style: the selected row reads first, then a
+// session that needs you (simple view), while a marked-done row recedes.
+func rowDescStyle(m Model, s protocol.SessionSummary, selected bool) lipgloss.Style {
+	switch {
+	case selected:
+		return stylePrimary
+	case !s.RetireAt.IsZero():
+		return styleMuted
+	case !m.Detailed && s.State == protocol.StateNeedsInput:
+		return stylePrimary // what needs you reads first
 	}
-	desc := cell(lipgloss.NewStyle().Foreground(descColor), descSource, c.desc)
+	return styleDim
+}
+
+// rowDescText is the text column's content before it is cut to descW: the
+// task (simple view) or the AI summary, animated while it types in, with the
+// waiting reason in front (detailed view).
+func rowDescText(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
+	return withLoopChip(m, s, rowDescBase(m, s, descW, waiting))
+}
+
+// rowDescBase is rowDescText without the loop chip.
+func rowDescBase(m Model, s protocol.SessionSummary, descW int, waiting bool) string {
+	if !m.Detailed {
+		return rowText(s)
+	}
+	now := m.now()
+	src := rowDescription(s)
+	if anim, ok := m.DescAnim[s.ID]; ok && anim.Active(now) {
+		src = renderAnimFrame(anim, descW, now)
+	}
+	if waiting { // the reason and how long: "shell 42s · summary"
+		src = strings.TrimSuffix(waitingLabel(m, s)+" · "+src, " · ")
+	}
+	return src
+}
+
+func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
+	if c.icons && rowIconsOn(m) {
+		return renderRowIcons(m, s, c)
+	}
+	selected := m.SelectedID == s.ID
+	now := m.now()
+	retiring := !s.RetireAt.IsZero()
+	dim := styleDim
+	indent, marker, waiting := rowLead(m, s)
+	slug := cell(rowNameStyle(s, selected), displayName(s), c.slug)
+	desc := rowDescStyle(m, s, selected).Width(c.desc).Render(truncateWords(rowDescText(m, s, c.desc, waiting), c.desc))
 
 	gap := strings.Repeat(" ", colGap)
-	indent := " " + markerPrefix + " " // 3 chars total: marker arrow indent
 
 	var b strings.Builder
 	b.WriteString(indent + marker + gap)
 	if c.id > 0 {
-		b.WriteString(cell(lipgloss.NewStyle().Foreground(colorFgMuted), s.ShortID, c.id) + gap)
+		b.WriteString(cell(styleMuted, s.ShortID, c.id) + gap)
 	}
 	b.WriteString(slug + gap + desc)
 	if c.model > 0 {
@@ -522,6 +701,12 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		}
 		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
 	}
+	if c.span > 0 {
+		b.WriteString(gap + cell(dim, spanText(now, s), c.span))
+	}
+	if c.resume > 0 {
+		b.WriteString(gap + resumeCell(s, c.resume))
+	}
 	if c.agents > 0 {
 		b.WriteString(gap + subagentCell(s, c.agents, retiring && !selected))
 	}
@@ -529,14 +714,77 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 		b.WriteString(gap + longRunCell(now, s, c.run))
 	}
 	b.WriteString(gap + cell(dim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
-	row := b.String()
+	return blinkRow(m, s.ID, b.String())
+}
 
-	if blinkEnabled(m) {
-		if until, ok := m.BlinkUntil[s.ID]; ok && time.Now().Before(until) {
-			if time.Now().UnixMilli()/200%2 == 0 {
-				row = lipgloss.NewStyle().Foreground(colorDone).Render(row)
-			}
+// renderRowIcons is renderRow with row_icons on: the icon strip in place of
+// the text column, right-anchored next to the age. The name takes the blank
+// room the text column left (its cell is slug+spacer wide), then the detail
+// columns, then the strip. Grid:
+//
+//	indent marker  [id]  name‹+spacer›  {gap detail}…  {gap slot}…  age
+func renderRowIcons(m Model, s protocol.SessionSummary, c rowCols) string {
+	selected := m.SelectedID == s.ID
+	now := m.now()
+	indent, marker, _ := rowLead(m, s)
+	gap := strings.Repeat(" ", colGap)
+
+	var b strings.Builder
+	b.WriteString(indent + marker + gap)
+	if c.id > 0 {
+		b.WriteString(cell(styleMuted, s.ShortID, c.id) + gap)
+	}
+	b.WriteString(cell(rowNameStyle(s, selected), displayName(s), c.slug+c.spacer))
+	b.WriteString(rowDetailCells(m, s, c))
+	for slot, w := range c.slots {
+		if w > 0 {
+			b.WriteString(gap + slotCell(m, s, iconSlot(slot), w, selected))
 		}
+	}
+	b.WriteString(gap + cell(styleDim.Align(lipgloss.Right), durationAgoAt(now, s.LastEventAt), colTime))
+	return blinkRow(m, s.ID, b.String())
+}
+
+// rowDetailCells is the detailed view's model, tokens, span and resume
+// cells, each after a gap, as renderRow draws them.
+func rowDetailCells(m Model, s protocol.SessionSummary, c rowCols) string {
+	dim := styleDim
+	gap := strings.Repeat(" ", colGap)
+	var b strings.Builder
+	if c.model > 0 {
+		b.WriteString(gap + cell(dim, modelEffortLabel(s), c.model))
+	}
+	if c.tokens > 0 {
+		tk := ""
+		if s.Tokens > 0 {
+			tk = formatTokens(s.Tokens)
+		}
+		b.WriteString(gap + cell(dim.Align(lipgloss.Right), tk, c.tokens))
+	}
+	if c.span > 0 {
+		b.WriteString(gap + cell(dim, spanText(m.now(), s), c.span))
+	}
+	if c.resume > 0 {
+		b.WriteString(gap + resumeCell(s, c.resume))
+	}
+	return b.String()
+}
+
+// blinkNow is the blink clock; tests pin it.
+var blinkNow = time.Now
+
+// blinkRow flashes a just-completed row green on every other 200 ms while
+// its BlinkUntil lasts. A stacked row applies it to both lines. The lit
+// phase redraws the row's text in the done color: every cell of a rendered
+// row sets its own color, so wrapping the styled row only colored its
+// padding and the flash was invisible.
+func blinkRow(m Model, id, row string) string {
+	if !blinkEnabled(m) {
+		return row
+	}
+	now := blinkNow()
+	if until, ok := m.BlinkUntil[id]; ok && now.Before(until) && now.UnixMilli()/200%2 == 0 {
+		return styleDone.Render(ansi.Strip(row))
 	}
 	return row
 }
@@ -545,15 +793,15 @@ func renderRow(m Model, s protocol.SessionSummary, c rowCols) string {
 const subagentGlyph = "⋔"
 
 // subagentCell renders how many subagents the session is running, e.g.
-// "⋔3", or blank. Counts above 99 show as 99.
+// "⋔ 3", or blank. Counts above 99 show as 99.
 func subagentCell(s protocol.SessionSummary, w int, dim bool) string {
 	text := ""
 	if s.Subagents > 0 {
-		text = fmt.Sprintf("%s%d", subagentGlyph, min(s.Subagents, 99))
+		text = fmt.Sprintf("%s %d", subagentGlyph, min(s.Subagents, 99))
 	}
-	style := lipgloss.NewStyle().Foreground(colorWorking)
+	style := styleWorking
 	if dim {
-		style = lipgloss.NewStyle().Foreground(colorFgMuted)
+		style = styleMuted
 	}
 	return style.Width(w).Render(text)
 }
@@ -597,32 +845,42 @@ func blinkEnabled(m Model) bool {
 	return b
 }
 
+// waitingGlyph marks a session in Waiting: it is working, but blocked on a
+// shell command, subagent or web call (it does not need you). While it
+// waits the row marker turns through its waiting_spinner set; this is the
+// still form of the default set, clock (waitingSets).
+const waitingGlyph = "◷"
+
 // queuedGlyph marks a session that is spawned but whose agent hasn't
 // started yet. It sits in the Working column, so it must read as "not
-// running yet" next to the spinner without looking like crashed (○).
+// running yet" next to the spinner without looking like crashed (⊘).
 const queuedGlyph = "◌"
 
 // stateMarkerCellFor renders the marker glyph for a state, sourcing the
 // spinner from the live store on m.
 func stateMarkerCellFor(m Model, st protocol.State, tick int, selected bool) string {
-	style := lipgloss.NewStyle().Bold(true).Width(colMarker)
+	style, ok := styleMarker[st]
+	if !ok {
+		style = styleBold
+	}
+	style = style.Width(colMarker)
 	if selected {
-		style = style.Background(colorBgElev)
+		style = selectedStyle(style)
 	}
 	switch st {
 	case protocol.StateWorking:
 		frames := spinnerFramesFor(m)
-		return style.Foreground(colorWorking).Render(frames[tick%len(frames)])
+		return style.Render(frames[tick%len(frames)])
 	case protocol.StateQueued:
-		return style.Foreground(colorWorking).Render(queuedGlyph)
+		return style.Render(stateGlyph(st))
 	case protocol.StateNeedsInput:
-		return style.Foreground(colorNeeds).Render("◆")
+		return style.Render(stateGlyph(st))
 	case protocol.StateDone:
-		return style.Foreground(colorDone).Render("●")
+		return style.Render(stateGlyph(st))
 	case protocol.StateFailed:
-		return style.Foreground(colorFailed).Render("✕")
+		return style.Render(stateGlyph(st))
 	case protocol.StateCrashed:
-		return style.Foreground(colorCrashed).Render("○")
+		return style.Render(stateGlyph(st))
 	default:
 		return style.Render(" ")
 	}
@@ -685,6 +943,30 @@ func truncate(s string, n int) string {
 	return ansi.Truncate(s, n, "…")
 }
 
+// truncateWords is truncate for prose: when it has to cut, it cuts on a word
+// boundary (backing up to the last space when that keeps at least 60% of the
+// cell), trims trailing separators and ends in "…". s is sanitized like
+// truncate's.
+func truncateWords(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	s = protocol.FlattenDisplayText(s)
+	if ansi.StringWidth(s) <= n {
+		return s
+	}
+	if n == 1 {
+		return "…"
+	}
+	cut := ansi.Truncate(s, n-1, "")
+	if !strings.HasPrefix(s[len(cut):], " ") { // cut a word in half
+		if i := strings.LastIndexByte(cut, ' '); i >= 0 && ansi.StringWidth(cut[:i]) >= (n-1)*6/10 {
+			cut = cut[:i]
+		}
+	}
+	return strings.TrimRight(cut, " ,;:—-") + "…"
+}
+
 func durationAgo(t time.Time) string {
 	return durationAgoAt(time.Now(), t)
 }
@@ -725,13 +1007,31 @@ func rowDescription(s protocol.SessionSummary) string {
 // line is a question; otherwise last_line is usually the agent's own status
 // text ("Checking for updates"), which says nothing about what it needs.
 func rowText(s protocol.SessionSummary) string {
-	if s.State == protocol.StateNeedsInput && !isMarkedDone(s) {
-		if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
-			return q
-		}
+	if q := rowQuestion(s); q != "" {
+		return q
 	}
 	if t := protocol.FlattenDisplayText(s.Title); t != "" {
 		return t
 	}
 	return rowDescription(s)
+}
+
+// rowQuestion is the question a session waits on: lastLineQuestion, when
+// the session needs input and is not marked done. Empty otherwise. The row
+// text, the why slot and the preview line use it.
+func rowQuestion(s protocol.SessionSummary) string {
+	if s.State != protocol.StateNeedsInput || isMarkedDone(s) {
+		return ""
+	}
+	return lastLineQuestion(s)
+}
+
+// lastLineQuestion is the screen's last line, flattened and trimmed, when it
+// ends in "?". Empty otherwise. Whatever the state: the attach banner uses
+// it as is.
+func lastLineQuestion(s protocol.SessionSummary) string {
+	if q := strings.TrimSpace(protocol.FlattenDisplayText(s.LastLine)); strings.HasSuffix(q, "?") {
+		return q
+	}
+	return ""
 }

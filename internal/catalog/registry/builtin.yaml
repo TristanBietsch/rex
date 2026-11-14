@@ -12,7 +12,7 @@ tools:
       kind: heuristic
       prompt_regex: "(?m)^awaiting input:"
       idle_ms: 800
-    icon: "◉"
+    icon: "∿"
     color: "#94A3B8"
     models:
       - id: short
@@ -29,6 +29,16 @@ tools:
     name: "Claude Code"
     category: paid
     command: ["claude"]
+    install_hint: "see https://code.claude.com/docs/en/setup"
+    prompt_args: ["--", "{prompt}"]
+    skip_permissions_args: ["--dangerously-skip-permissions"]
+    # Skills rex stages for one session load as a plugin folder (this session only).
+    skill_args: ["--plugin-dir", "{plugin_dir}"]
+    # rex preassigns the conversation id at spawn (new_args) and the SessionStart
+    # hook keeps it current across /clear and in-app /resume; args resumes it.
+    resume:
+      args: ["--resume", "{id}"]
+      new_args: ["--session-id", "{id}"]
     # State comes from Claude Code hooks injected with --settings at spawn
     # (stream-json output only exists with --print, never in the TUI).
     detect:
@@ -46,7 +56,7 @@ tools:
       selected: "❯[ \\t]*(\\d+\\.[ \\t]*)?(Yes, I trust this folder|Yes, proceed)"
       move: "\e[B"
       confirm: "\r"
-    icon: "◆"
+    icon: "✻"
     color: "#D97757"
     models:
       - id: opus
@@ -72,16 +82,18 @@ tools:
           arg_template: "--effort={value}"
 
   - id: codex
-    name: "OpenAI Codex"
+    name: "Codex"
     category: paid
     command: ["codex"]
+    install_hint: "see https://github.com/openai/codex"
+    prompt_args: ["--", "{prompt}"]
     detect:
       kind: heuristic
       # Full-screen TUI draws the prompt with leading whitespace; bare "^› "
       # never matches (see live gemini/codex transcripts).
       prompt_regex: "(?m)^[ \\t]*›"
       idle_ms: 1200
-    icon: "◇"
+    icon: "❀"
     color: "#10A37F"
     models:
       - id: gpt-5.5
@@ -124,9 +136,11 @@ tools:
   # retired 2026-06-18. A full-screen TUI. Model slugs come from
   # `agy models`; a Gemini slug carries its effort, so the effort picks it.
   - id: antigravity
-    name: "Antigravity CLI"
+    name: "Antigravity"
     category: paid
     command: ["agy"]
+    prompt_args: ["--prompt-interactive={prompt}"]
+    skip_permissions_args: ["--dangerously-skip-permissions"]
     detect:
       kind: heuristic
       # agy keeps its ">" input line on screen while it works, so only the
@@ -139,10 +153,34 @@ tools:
       prompt_regex: "\\? for shortcuts"
       busy_regex: "esc to cancel"
       idle_ms: 1200
+      # status: osc7501 makes the daemon answer agy's status query and set status_env, so agy also
+      # reports working / idle / blocked / error on a terminal status
+      # sequence. Once one arrives it decides the state at once (a trust
+      # dialog or question is blocked, not working); the footer above is the
+      # fallback before the first sequence.
+      status: osc7501
+    # agy reports only with this env var; tools that answer the OSC 7501
+    # query on the PTY (qwen, grok) need none.
+    status_env: ["AGY_CLI_OSC7501=on"]
     # Folders in auto_trust_dirs: agy trusts them itself for this session
     # (--settings is session-only and never saved), so no dialog shows.
     trust_args: ["--settings", "{\"trustedWorkspaces\":{cwd_list}}"]
-    icon: "◈"
+    # Fallback if a future agy ignores trust_args: its dialog is "Do you trust
+    # the contents of this project?" with "> Yes, I trust this folder" first
+    # (selected marker "> ") and "No, exit" second. Answered only in trusted
+    # folders, like Claude's. "shown" needs the header before the option.
+    trust_prompt:
+      shown: "(?s)Do you trust the contents of this project\\?.*Yes, I trust this folder"
+      selected: "(?m)^[ \\t]*>[ \\t]+Yes, I trust this folder"
+      move: "\e[B"
+      confirm: "\r"
+    # agy cannot preassign a conversation id, so there is no new_args. On exit
+    # it prints "Resume with -c (or command below):" and then
+    # "agy --conversation=<uuid>"; the id is read from that line.
+    resume:
+      args: ["--conversation={id}"]
+      capture_regex: "agy --conversation=([0-9a-fA-F-]{36})"
+    icon: "✧"
     color: "#4285F4"
     models:
       - id: gemini-3.8-flash
@@ -177,13 +215,14 @@ tools:
     name: "Gemini CLI"
     category: paid
     command: ["gemini"]
+    prompt_args: ["--prompt-interactive={prompt}"]
     enabled_by_default: false
     detect:
       kind: heuristic
       # [ \t] not \s: \s matches newlines and lets ">" span lines.
       prompt_regex: "(?m)^[ \\t]*>[ \\t]"
       idle_ms: 1200
-    icon: "◈"
+    icon: "⁑"
     color: "#4285F4"
     models:
       - id: 2.5-pro
@@ -194,15 +233,18 @@ tools:
         args: ["--model", "gemini-2.5-flash"]
 
   - id: ollama
-    name: "Ollama (local)"
+    name: "Ollama"
     category: self_hosted
     command: ["ollama", "run"]
+    install_hint: "download from https://ollama.com"
+    # run MODEL PROMPT is one-shot, so the task is pasted into the REPL.
+    prompt_paste: {plain: true, settle_ms: 800}
     detect:
       kind: heuristic
       # Wait for the full placeholder line, not a transient spinner frame with ">>>".
       prompt_regex: "(?m)^>>> Send a message"
       idle_ms: 1500
-    icon: "◉"
+    icon: "⌂"
     color: "#B8A382"
     models:
       - id: llama3.1
@@ -224,28 +266,136 @@ tools:
         name: "deepseek-r1"
         args: ["deepseek-r1"]
 
-  - id: grok
-    name: "Grok (xAI)"
+  # Qwen Code. A full-screen TUI that speaks OSC 7501: rex answers its status
+  # query on the PTY, so state is exact (a permission prompt is blocked, not
+  # working). The footer regexes are the fallback before the first report.
+  # `? for shortcuts` stays on screen while it works, so busy_regex is needed.
+  - id: qwen
+    name: "Qwen Code"
     category: paid
-    command: ["grok"]
+    # Visible when installed: the wizard offers it only while its binary is on
+    # PATH and the extra_agents feature is on.
+    enabled_by_default: true
+    command: ["qwen"]
+    install_hint: "see https://github.com/QwenLM/qwen-code"
+    skip_permissions_args: ["--dangerously-skip-permissions"]
+    # --prompt-interactive keeps the session interactive (a bare positional
+    # prompt is one-shot); the = form keeps a prompt that starts with "-" a value.
+    prompt_args: ["--prompt-interactive={prompt}"]
     detect:
       kind: heuristic
-      prompt_regex: "(?m)^> $"
+      prompt_regex: "\\? for shortcuts|Apply this change\\?|Do you trust the files in this folder\\?"
+      busy_regex: "esc to cancel"
       idle_ms: 1200
-    icon: "⬢"
-    color: "#E5544D"
-    enabled_by_default: false
+      status: osc7501
+    # Session-only: turns qwen's folder-trust check off for this run and
+    # writes nothing. Added only for folders in auto_trust_dirs; elsewhere
+    # the user answers qwen's trust dialog.
+    trust_args: ["--settings", "{\"security\":{\"folderTrust\":{\"enabled\":false}}}"]
+    trust_args_global: true
+    # Detected ids (`qwen --list-models`: "Name (id)" per line, header MODEL).
+    models_cmd:
+      args: ["--list-models"]
+      parse: lines
+      id_regex: "\\(([^)]+)\\)\\s*$"
+      skip_header: 1
+      timeout_ms: 5000
+    model_arg_template: ["--model", "{model}"]
+    model_effort:
+      options: [low, medium, high]
+      default: medium
+      arg_template: "--reasoning-effort={value}"
+    icon: "❖"
+    color: "#6F42C1"
     models:
-      - id: grok-4
-        name: "Grok 4"
-        args: ["--model", "grok-4"]
+      - id: default
+        name: "Default model"
         effort:
           options: [low, medium, high]
           default: medium
           arg_template: "--reasoning-effort={value}"
-      - id: grok-4-mini
-        name: "Grok 4 Mini"
-        args: ["--model", "grok-4-mini"]
+
+  # Cursor CLI (binary cursor-agent). No OSC 7501, so screen heuristics only:
+  # a spinner line plus a verb is working; approvals and the trust dialog need
+  # the user. Its idle screen has no text of its own that a busy repaint lacks
+  # (the status line is redrawn below the spinner), so an idle cursor reads as
+  # waiting through the 15 s stale-silence rule.
+  # rex never answers its trust dialog and never passes --trust (it is saved
+  # globally). Its default mode runs safe tool calls without asking.
+  - id: cursor
+    name: "Cursor CLI"
+    category: paid
+    # Visible when installed: the wizard offers it only while its binary is on
+    # PATH and the extra_agents feature is on.
+    enabled_by_default: true
+    command: ["cursor-agent"]
+    skip_permissions_args: ["--yolo"]
+    prompt_args: ["{prompt}"]
+    detect:
+      kind: heuristic
+      prompt_regex: "Waiting for approval|Run this command\\?|Workspace Trust Required"
+      busy_regex: "^\\s*[\\x{2800}-\\x{28FF}]{1,2} [A-Z][a-z]+"
+      idle_ms: 1500
+    # Signed out: "Press any key to log in...".
+    login_regex: "Press any key to log in"
+    # `cursor-agent models`: "Available models", a blank line, then
+    # "id - Name" per line. Effort is part of the id, so no effort block.
+    models_cmd:
+      args: ["models"]
+      parse: lines
+      id_regex: "^(\\S+) - "
+      skip_header: 2
+      timeout_ms: 8000
+    model_arg_template: ["--model", "{model}"]
+    icon: "◮"
+    color: "#1F2937"
+    models:
+      - id: auto
+        name: "Auto"
+        args: ["--model", "auto"]
+
+  # Grok Build. Speaks OSC 7501 like qwen (rex answers the query and strips
+  # TMUX*/TERM_PROGRAM* from the child env, or grok never asks). rex never
+  # answers its trust dialog and never passes --trust (saved globally), so a
+  # new folder shows "needs you" until the user presses y once. Its default
+  # mode can edit files and run commands without asking.
+  - id: grok
+    name: "Grok Build"
+    category: paid
+    # Visible when installed: the wizard offers it only while its binary is on
+    # PATH and the extra_agents feature is on.
+    enabled_by_default: true
+    command: ["grok"]
+    skip_permissions_args: ["--always-approve"]
+    prompt_args: ["{prompt}"]
+    detect:
+      kind: heuristic
+      prompt_regex: "Shift\\+Tab:mode|Do you trust the contents of this directory\\?"
+      busy_regex: "Ctrl\\+c:cancel"
+      idle_ms: 1200
+      status: osc7501
+    login_regex: "Approve in your browser to finish signing in"
+    # `grok models`: "Available models:" then "  * id (default)" per line.
+    models_cmd:
+      args: ["models"]
+      parse: lines
+      id_regex: "^\\s*\\*\\s+(\\S+)"
+      skip_header: 1
+      timeout_ms: 5000
+    model_arg_template: ["--model", "{model}"]
+    model_effort:
+      options: [low, medium, high]
+      default: medium
+      arg_template: "--reasoning-effort={value}"
+    icon: "⍁"
+    color: "#E5544D"
+    models:
+      - id: default
+        name: "Default model"
+        effort:
+          options: [low, medium, high]
+          default: medium
+          arg_template: "--reasoning-effort={value}"
 
   - id: deepseek
     name: "DeepSeek"
@@ -255,7 +405,7 @@ tools:
       kind: heuristic
       prompt_regex: "(?m)^> $"
       idle_ms: 1200
-    icon: "⊙"
+    icon: "≋"
     color: "#5E72E4"
     enabled_by_default: false
     models:
@@ -274,14 +424,14 @@ tools:
           arg_template: "--effort={value}"
 
   - id: kimi
-    name: "Kimi (Moonshot)"
+    name: "Kimi"
     category: paid
     command: ["kimi"]
     detect:
       kind: heuristic
       prompt_regex: "(?m)^> $"
       idle_ms: 1200
-    icon: "◗"
+    icon: "☾"
     color: "#7C3AED"
     enabled_by_default: false
     models:

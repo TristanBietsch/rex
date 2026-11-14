@@ -59,7 +59,7 @@ func TestEndToEndSummaryDelivery(t *testing.T) {
 	w.Channel() <- "sess-eeee"
 	select {
 	case desc := <-got:
-		if desc != "running pnpm test:billing" {
+		if desc != "Running pnpm test:billing" {
 			t.Fatalf("desc: %q", desc)
 		}
 	case <-time.After(2 * time.Second):

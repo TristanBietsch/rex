@@ -261,7 +261,12 @@ func (c *Client) Hello(clientName string) (*protocol.Snapshot, error) {
 // returns, the daemon broadcasts board events to the event stream and
 // DaemonVersion reports the daemon's version.
 func (c *Client) HelloContext(ctx context.Context, clientName string) (*protocol.Snapshot, error) {
-	env, err := c.do(ctx, protocol.IntentHello, protocol.Hello{ClientVersion: version.Version, Client: clientName})
+	hello := protocol.Hello{ClientVersion: version.Version, Client: clientName}
+	if clientName == protocol.ClientTUI {
+		// A board says who it is, so rex upgrade can report it per process.
+		hello.PID, hello.Build = os.Getpid(), version.Build()
+	}
+	env, err := c.do(ctx, protocol.IntentHello, hello)
 	if err != nil {
 		return nil, err
 	}
@@ -651,6 +656,12 @@ func (c *Client) Retire(sessionID string, ttl time.Duration, reqID string) error
 // Unretire cancels a pending Retire. reqID is echoed on the reply.
 func (c *Client) Unretire(sessionID, reqID string) error {
 	return c.send(protocol.IntentUnretire, reqID, protocol.Unretire{SessionID: sessionID})
+}
+
+// Resume makes a session live and not marked done: it unmarks a running
+// one and respawns an exited one in place. reqID is echoed on the reply.
+func (c *Client) Resume(sessionID, reqID string) error {
+	return c.send(protocol.IntentResume, reqID, protocol.Resume{SessionID: sessionID})
 }
 
 // Delete removes a session.

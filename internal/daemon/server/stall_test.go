@@ -115,7 +115,7 @@ func TestStalledClient_DoesNotBlockOutputOrOtherClients(t *testing.T) {
 	require.Eventually(t, func() bool {
 		srv.outputSubsMu.RLock()
 		defer srv.outputSubsMu.RUnlock()
-		return len(srv.outputSubs["live"]) == 2
+		return srv.outputSubs["live"].Len() == 2
 	}, 3*time.Second, 10*time.Millisecond)
 
 	// The healthy client acks every output chunk, which paces the producer

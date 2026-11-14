@@ -9,7 +9,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
@@ -89,36 +91,88 @@ type settingsResultMsg struct {
 	Err   error
 	Found bool
 	Dur   time.Duration
+	// Lua is what config.lua produced (zero while lua_config is off).
+	Lua settings.LayerReport
 }
 
 func stepSettingsLoad(_ Model) tea.Cmd {
 	return func() tea.Msg {
 		t0 := time.Now()
-		s := settings.NewStore()
 		path, err := paths.ConfigFile()
 		if err != nil {
-			return settingsResultMsg{Store: s, Found: true, Err: err, Dur: time.Since(t0)}
+			return settingsResultMsg{Store: settings.NewStore(), Found: true, Err: err, Dur: time.Since(t0)}
 		}
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return settingsResultMsg{Store: s, Path: path, Found: false, Dur: time.Since(t0)}
-		}
-		err = s.Load(path)
-		return settingsResultMsg{Store: s, Path: path, Found: true, Err: err, Dur: time.Since(t0)}
+		_, statErr := os.Stat(path)
+		s, rep, err := settings.LoadLayered(path)
+		return settingsResultMsg{Store: s, Path: path, Found: !os.IsNotExist(statErr), Err: err, Lua: rep, Dur: time.Since(t0)}
 	}
 }
 
-func stepThemeApply(m Model) tea.Cmd {
-	return emit("theme.apply", func() (bootStatus, string, error) {
-		if m.Store == nil {
-			return stepSkip, "default", nil
+// stepLuaConfig is the boot row for config.lua, from what stepSettingsLoad
+// read: SKIP when lua_config is off or there is no file, WARN with the
+// (flattened) reason when it failed or refused something, else OK.
+func stepLuaConfig(m Model) tea.Cmd {
+	return emit("config.lua", func() (bootStatus, string, error) {
+		rep := m.luaLayer
+		switch {
+		case m.Store != nil && !settings.LuaConfigOn(m.Store):
+			return stepSkip, "off (Settings → Features)", nil
+		case !rep.Exists:
+			return stepSkip, "no config.lua", nil
+		case rep.Err != nil:
+			return stepWarn, luaNotice(rep), rep.Err
 		}
-		scheme, _ := m.Store.Get("color_scheme").(string)
-		if scheme == "" {
-			return stepSkip, "default", nil
+		desc := fmt.Sprintf("%d setting(s), %d theme(s)", len(rep.Values), len(rep.Themes))
+		if n := len(rep.Warnings); n > 0 {
+			return stepWarn, configNotice(desc, rep.Warnings[0], ""), nil
 		}
-		applyTheme(scheme)
-		return stepOK, scheme, nil
+		if n := len(rep.ThemeIssues); n > 0 {
+			return stepWarn, configNotice(desc, rep.ThemeIssues[0].String(), ""), nil
+		}
+		return stepOK, desc, nil
 	})
+}
+
+// themesLoadedMsg carries the user's theme files, read on a step Cmd (file
+// I/O stays off the UI goroutine) and installed by Update before the theme is
+// applied.
+type themesLoadedMsg struct {
+	Themes *theme.Catalog
+	// Stamp is the state of config.yaml and the theme files as of the read,
+	// the baseline for live reload.
+	Stamp string
+	Dur   time.Duration
+}
+
+func stepThemesLoad(m Model) tea.Cmd {
+	return func() tea.Msg {
+		t0 := time.Now()
+		dir := themesDir()
+		return themesLoadedMsg{
+			Themes: themesWithLua(dir, m.luaLayer),
+			Stamp:  configStamp(m.StorePath, dir, m.Store == nil || settings.LuaConfigOn(m.Store)),
+			Dur:    time.Since(t0),
+		}
+	}
+}
+
+// themeApplyMsg asks Update to apply the color scheme. The palette is
+// global state the View reads, so it is only written on the UI goroutine,
+// never from a step Cmd.
+type themeApplyMsg struct {
+	Scheme string // "": nothing configured, keep the default
+	Dur    time.Duration
+}
+
+func stepThemeApply(m Model) tea.Cmd {
+	return func() tea.Msg {
+		t0 := time.Now()
+		scheme := ""
+		if m.Store != nil {
+			scheme, _ = m.Store.Get("theme").(string)
+		}
+		return themeApplyMsg{Scheme: scheme, Dur: time.Since(t0)}
+	}
 }
 
 func stepAudioInit(m Model) tea.Cmd {
@@ -128,17 +182,17 @@ func stepAudioInit(m Model) tea.Cmd {
 		}
 		enabled, _ := m.Store.Get("sound_enabled").(bool)
 		soundset, _ := m.Store.Get("soundset").(string)
-		vol, _ := m.Store.Get("master_volume").(float64)
+		vol := m.Store.Display("master_volume")
 		if !enabled || soundset == "off" {
 			m.Audio.SetEnabled(false)
 			return stepSkip, "muted", nil
 		}
 		m.Audio.SetEnabled(true)
-		m.Audio.SetVolume(vol)
+		m.Audio.SetVolume(settings.VolumeGain(m.Store.Get("master_volume")))
 		voice, _ := m.Store.Get("boot_voice").(bool)
 		m.Audio.SetBootVoice(voice)
 		slog.Info("tui: audio init", "soundset", soundset, "volume", vol, "boot_voice", voice)
-		return stepOK, fmt.Sprintf("soundset=%s · vol=%.2f · voice=%t", soundset, vol, voice), nil
+		return stepOK, fmt.Sprintf("soundset=%s · vol=%s · voice=%t", soundset, vol, voice), nil
 	})
 }
 
@@ -165,24 +219,32 @@ func stepAudioLoad(m Model) tea.Cmd {
 func stepRegistryLoad(_ Model) tea.Cmd {
 	return emit("registry.load", func() (bootStatus, string, error) {
 		reg, _, userErr, err := loadUserTools()
-		if err != nil {
-			return stepFail, err.Error(), err
-		}
-		if userErr != nil {
-			// Validation errors don't name the file; say which one to fix.
-			return stepWarn, fmt.Sprintf("tools.yaml ignored, using built-in tools: %v", userErr), userErr
-		}
-		enabled, hidden := 0, 0
-		for _, t := range reg.Tools {
-			if t.EnabledByDefault != nil && *t.EnabledByDefault {
-				enabled++
-			} else {
-				hidden++
-			}
-		}
-		desc := fmt.Sprintf("%d tools (%d enabled · %d hidden)", len(reg.Tools), enabled, hidden)
-		return stepOK, desc, nil
+		return registryLoadStatus(reg, userErr, err)
 	})
+}
+
+// registryLoadStatus maps a registry load outcome to a splash step result.
+func registryLoadStatus(reg *registry.Registry, userErr, err error) (bootStatus, string, error) {
+	if err != nil {
+		return stepFail, err.Error(), err
+	}
+	if userErr != nil {
+		// Validation errors don't name the file; say which one to fix.
+		return stepWarn, fmt.Sprintf("tools.yaml ignored, using built-in tools: %v", userErr), userErr
+	}
+	if len(reg.Warnings) > 0 {
+		return stepWarn, strings.Join(reg.Warnings, "; "), nil
+	}
+	enabled, hidden := 0, 0
+	for _, t := range reg.Tools {
+		if t.EnabledByDefault != nil && *t.EnabledByDefault {
+			enabled++
+		} else {
+			hidden++
+		}
+	}
+	desc := fmt.Sprintf("%d tools (%d enabled · %d hidden)", len(reg.Tools), enabled, hidden)
+	return stepOK, desc, nil
 }
 
 func stepKeymapBind(_ Model) tea.Cmd {
@@ -206,6 +268,8 @@ func init() {
 		stepPathsEnsure,
 		stepTTYProbe,
 		stepSettingsLoad,
+		stepLuaConfig,
+		stepThemesLoad,
 		stepThemeApply,
 		stepAudioInit,
 		stepAudioLoad,
@@ -317,17 +381,23 @@ func stepSnapshotParse(m Model) tea.Cmd {
 }
 
 type stateRestoreResultMsg struct {
-	Selection string
-	Filter    string
-	OK        bool
-	Dur       time.Duration
+	State persistedState
+	OK    bool
+	Dur   time.Duration
 }
 
-func stepStateRestore(_ Model) tea.Cmd {
+func stepStateRestore(m Model) tea.Cmd {
+	if st := m.swapIn; st != nil {
+		// A swap carries the view itself; tui-state.json stays for a
+		// normal start.
+		hidden := append([]string{}, st.Hidden...)
+		ps := persistedState{Selection: st.Selection, Filter: st.Filter, Search: st.Search, HiddenSections: &hidden}
+		return func() tea.Msg { return stateRestoreResultMsg{State: ps, OK: true} }
+	}
 	return func() tea.Msg {
 		t0 := time.Now()
-		sel, filt, ok := LoadTUIState()
-		return stateRestoreResultMsg{Selection: sel, Filter: filt, OK: ok, Dur: time.Since(t0)}
+		st, ok := LoadTUIState()
+		return stateRestoreResultMsg{State: st, OK: ok, Dur: time.Since(t0)}
 	}
 }
 
@@ -340,7 +410,8 @@ func short8(s string) string {
 
 func stepRendererWarm(_ Model) tea.Cmd {
 	return emit("renderer.warm", func() (bootStatus, string, error) {
-		rebuildStyles()
+		// Report only: styles are built by init/applyTheme, and a step Cmd
+		// must not write them while the splash View reads them.
 		return stepOK, "styles cached", nil
 	})
 }

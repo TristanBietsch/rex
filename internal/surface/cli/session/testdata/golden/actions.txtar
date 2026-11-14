@@ -1,0 +1,158 @@
+-- new.text --
+✓ started SID g-text · echo prompt · DIR
+
+› rex attach SID
+-- rename.text --
+✓ renamed g-text to g-text-b
+-- name.set.text --
+✓ named g-text-b "Auth fix" (8/64)
+-- name.show.text --
+Auth fix
+-- name.clear.text --
+✓ cleared the name of g-text-b
+-- done.text --
+✓ marked done SID g-text-b · clears in 7d
+
+› rex undone SID  cancel
+-- done.again.text --
+✓ g-text-b is already marked done · clears in 6d
+
+› rex undone SID  cancel
+-- undone.text --
+✓ unmarked SID g-text-b
+-- undone.again.text --
+✓ g-text-b is not marked done
+-- archive.text --
+✓ archived g-text-b
+-- reply.text --
+✓ replied to g-text-b
+-- send.text --
+✓ sent 9 bytes to g-text-b
+-- wait.text --
+✓ g-text-b is ready
+-- rm.refused.text --
+[error] rm: stdin is not a terminal; pass -force to delete without asking
+-- rm.text --
+✓ deleted SID g-text-b
+-- new.txt --
+SID	g-txt
+-- rename.txt --
+g-txt: renamed to g-txt-b
+-- name.set.txt --
+g-txt-b: named "Auth fix" (8/64)
+-- name.show.txt --
+Auth fix
+-- name.clear.txt --
+g-txt-b: name cleared
+-- done.txt --
+g-txt-b: marked done — clears in 7d (rex undone SID to cancel)
+-- done.again.txt --
+g-txt-b: already marked done — clears in 6d (rex undone to cancel)
+-- undone.txt --
+g-txt-b: unmarked
+-- undone.again.txt --
+g-txt-b: not marked done
+-- archive.txt --
+g-txt-b: archived
+-- reply.txt --
+-- send.txt --
+-- wait.txt --
+-- rm.refused.txt --
+[error] rm: stdin is not a terminal; pass -force to delete without asking
+-- rm.txt --
+-- new.md --
+started SID g-md · echo prompt · DIR
+
+`rex attach SID` 
+-- rename.md --
+renamed g-md to g-md-b
+-- name.set.md --
+named g-md-b "Auth fix" (8/64)
+-- name.show.md --
+Auth fix
+-- name.clear.md --
+cleared the name of g-md-b
+-- done.md --
+marked done SID g-md-b · clears in 7d
+
+`rex undone SID` cancel
+-- done.again.md --
+g-md-b is already marked done · clears in 6d
+
+`rex undone SID` cancel
+-- undone.md --
+unmarked SID g-md-b
+-- undone.again.md --
+g-md-b is not marked done
+-- archive.md --
+archived g-md-b
+-- reply.md --
+replied to g-md-b
+-- send.md --
+sent 9 bytes to g-md-b
+-- wait.md --
+g-md-b is ready
+-- rm.refused.md --
+[error] rm: stdin is not a terminal; pass -force to delete without asking
+-- rm.md --
+deleted SID g-md-b
+-- new.json --
+{"v":1,"cmd":"new","data":{"id":"FULLID","short_id":"SID","slug":"g-json","tool":"echo","model":"prompt","effort":"","cwd":"DIR"}}
+-- rename.json --
+{"v":1,"cmd":"rename","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","old_slug":"g-json"}}
+-- name.set.json --
+{"v":1,"cmd":"name","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","name":"Auth fix"}}
+-- name.show.json --
+{"v":1,"cmd":"name","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","name":"Auth fix"}}
+-- name.clear.json --
+{"v":1,"cmd":"name","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","name":""}}
+-- done.json --
+{"v":1,"cmd":"done","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","outcome":"marked","clears_in_s":604800}}
+-- done.again.json --
+{"v":1,"cmd":"done","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","outcome":"already_marked","clears_in_s":604799}}
+-- undone.json --
+{"v":1,"cmd":"undone","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","outcome":"unmarked"}}
+-- undone.again.json --
+{"v":1,"cmd":"undone","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","outcome":"not_marked"}}
+-- archive.json --
+{"v":1,"cmd":"archive","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b"}}
+-- reply.json --
+{"v":1,"cmd":"reply","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","bytes":3,"raw":false}}
+-- send.json --
+{"v":1,"cmd":"send","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","bytes":9}}
+-- wait.json --
+{"v":1,"cmd":"wait","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b","state":"needs_input"}}
+-- rm.refused.json --
+[error] rm: stdin is not a terminal; pass -force to delete without asking
+-- rm.json --
+{"v":1,"cmd":"rm","data":{"id":"FULLID","short_id":"SID","slug":"g-json-b"}}
+-- new.agent --
+ok cmd=new id=SID slug=g-agent tool=echo model=prompt effort=""
+-- rename.agent --
+ok cmd=rename id=SID slug=g-agent-b old_slug=g-agent
+-- name.set.agent --
+ok cmd=name id=SID slug=g-agent-b name="Auth fix"
+-- name.show.agent --
+ok cmd=name id=SID slug=g-agent-b name="Auth fix"
+-- name.clear.agent --
+ok cmd=name id=SID slug=g-agent-b name=""
+-- done.agent --
+ok cmd=done id=SID slug=g-agent-b outcome=marked clears_in_s=604800
+-- done.again.agent --
+ok cmd=done id=SID slug=g-agent-b outcome=already_marked clears_in_s=604799
+-- undone.agent --
+ok cmd=undone id=SID slug=g-agent-b outcome=unmarked
+-- undone.again.agent --
+ok cmd=undone id=SID slug=g-agent-b outcome=not_marked
+-- archive.agent --
+ok cmd=archive id=SID slug=g-agent-b
+-- reply.agent --
+ok cmd=reply id=SID slug=g-agent-b bytes=3
+-- send.agent --
+ok cmd=send id=SID slug=g-agent-b bytes=9
+-- wait.agent --
+ok cmd=wait id=SID slug=g-agent-b state=needs_input
+-- rm.refused.agent --
+[error] rm: stdin is not a terminal; pass -force to delete without asking
+-- rm.agent --
+ok cmd=rm id=SID slug=g-agent-b

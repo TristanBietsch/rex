@@ -1,35 +1,87 @@
 # Top-level help and version need no daemon and exit 0.
 
 exec rex help
-stdout 'USAGE'
+stdout '^# Usage$'
 stdout 'rex <command> \[flags\]'
-stdout 'completion <shell>'
+stdout 'completion bash.zsh.fish'
 ! stderr .
 
 exec rex --help
-stdout 'USAGE'
+stdout '^# Usage$'
 
 exec rex -h
-stdout 'USAGE'
+stdout '^# Usage$'
 
 exec rex version
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 ! stderr .
 
 exec rex --version
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 
 exec rex -v
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 
 exec rex-daemon -version
-stdout '^v1$'
+stdout '^v0.0.0-e2e$'
 
-# An unknown verb is a generic failure, not invalid args.
-exitcode 1 rex frobnicate
+# An unknown verb is invalid args; a near miss names the real command.
+exitcode 5 rex frobnicate
 stderr '^rex: unknown command "frobnicate" \(try `rex --help`\)$'
+exitcode 5 rex lss
+stderr 'did you mean "ls"\?'
 
-# BUG: subcommand -h is reported as invalid args and exits 5; flip to 0 when fixed.
-exitcode 5 rex ls -h
-stderr 'Usage of ls:'
-stderr '^rex: flag: help requested$'
+# -h on a subcommand prints its usage and exits 0, with no error line.
+exec rex ls -h
+stdout 'Usage: rex ls'
+! stderr '^rex:'
+
+exec rex new -h
+stdout 'Usage: rex new'
+! stderr '^rex:'
+
+exec rex wait p1 -h
+stdout 'Usage: rex wait'
+! stderr '^rex:'
+
+# The agent card: rex agent-help, rex help agent, and --help in agent mode.
+exec rex agent-help
+stdout '^rex agent card v1:'
+stdout '^exit: 0 ok 1 error 2 not_found'
+! stderr .
+exec rex help agent
+stdout '^rex agent card v1:'
+exec rex --agent --help
+stdout '^rex agent card v1:'
+exec rex agent-help -o json
+stdout '^\{"v":1,"cmd":"agent-help","data":\{"card":1,'
+
+# rex help <command> is rex <command> -h.
+exec rex help ls
+stdout '^Usage: rex ls \[flags\]$'
+# Command groups have help too.
+exec rex help daemon
+stdout '^Usage: rex daemon start\|stop\|restart\|status\|logs$'
+exec rex daemon -h
+stdout '^Usage: rex daemon '
+exec rex help render
+stdout '^Usage: rex render '
+exitcode 5 rex help nonsense
+stderr 'help: unknown topic "nonsense"'
+
+# version, update -check and config on the kit.
+exec rex version -o json
+stdout '^\{"v":1,"cmd":"version","data":\{"version":"v0.0.0-e2e"\}\}$'
+exec rex --agent version
+stdout '^ok cmd=version version=v0.0.0-e2e$'
+# -version pins the release, so -check makes no network call.
+exec rex update -check -version v2.0.0 -o agent
+stdout '^ok cmd=update version=v0.0.0-e2e remote=v2.0.0 status=update-available$'
+exec rex config get spinner --agent
+stdout '^ok cmd=config id=spinner value=braille source=default$'
+exec rex config list -o agent
+stdout '^setting id=spinner section=Appearance value=braille default=braille source=default set_at=""$'
+stdout '^ok cmd=config count='
+exec rex uninstall -dry-run -o agent
+stdout '^removal kind=binaries '
+stdout '^ok cmd=uninstall count=.* dry_run=true$'

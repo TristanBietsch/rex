@@ -3,6 +3,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -67,10 +68,45 @@ func TrustDir(entry string) (string, error) {
 		// A home that is set but cannot be resolved could hide that the
 		// entry is the home folder: refuse rather than guess.
 		return "", fmt.Errorf("cannot check %q against the home folder: %w", d, err)
-	case h == dir:
+	case h == dir || sameFolder(dir, h):
 		return "", homeFolderError(d)
+	case holdsFolder(dir, h):
+		return "", fmt.Errorf("%q holds your home folder; pick a folder inside it, such as ~/dev", d)
 	}
 	return dir, nil
+}
+
+// holdsFolder reports whether dir is a proper ancestor of home h. Whole path
+// elements are compared first (so /Users2 does not hold /Users/me); then each
+// parent of h is compared by identity on disk, which catches a case variant
+// on a case-insensitive filesystem.
+func holdsFolder(dir, h string) bool {
+	if strings.HasPrefix(h, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator)) {
+		return true
+	}
+	for p := filepath.Dir(h); ; p = filepath.Dir(p) {
+		if sameFolder(dir, p) {
+			return true
+		}
+		if filepath.Dir(p) == p {
+			return false
+		}
+	}
+}
+
+// sameFolder reports whether a and b are the same folder on disk. The path
+// strings of a case variant differ on a case-insensitive filesystem (macOS,
+// Windows) though they name one folder.
+func sameFolder(a, b string) bool {
+	ai, err := os.Stat(a)
+	if err != nil {
+		return false
+	}
+	bi, err := os.Stat(b)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(ai, bi)
 }
 
 // CanonicalHome returns the home folder resolved through symlinks, or an
@@ -111,6 +147,15 @@ func CheckAutoTrustDirs(value string) (string, error) {
 	return strings.Join(keep, string(filepath.ListSeparator)), nil
 }
 
+// normalizeAutoTrustDirs is the Normalize func of auto_trust_dirs: empty
+// (always ask) stays empty, anything else must pass CheckAutoTrustDirs.
+func normalizeAutoTrustDirs(v string) (string, error) {
+	if v == "" {
+		return "", nil
+	}
+	return CheckAutoTrustDirs(v)
+}
+
 // CanonicalDir resolves an absolute path through symlinks in its deepest
 // existing ancestor, so a folder not created yet still compares equal to
 // its resolved parent (on macOS /var is a link to /private/var).
@@ -149,4 +194,115 @@ func hasDotDot(p string) bool {
 
 func homeFolderError(d string) error {
 	return fmt.Errorf("%q is your home folder; pick a folder inside it, such as ~/dev", d)
+}
+
+// SuggestTrustDir offers the folder to trust for a session started in cwd:
+// the root of the git checkout holding cwd, or cwd itself when it is not in
+// one. It never offers the parent of a project. The suggestion is the
+// "~/..." form of the resolved folder and must pass the checks a typed value
+// does and lie strictly inside the resolved home folder, so it is never the
+// home folder, a filesystem root or anything outside home (such as /tmp).
+// The search for a checkout stops below home, so a repo in home (dotfiles)
+// does not turn every project into the home folder. It returns "" when
+// nothing fits.
+func SuggestTrustDir(cwd string) string {
+	dir, ok := CanonicalDir(cwd)
+	if !ok {
+		return ""
+	}
+	home, err := CanonicalHome()
+	if err != nil {
+		return ""
+	}
+	prefix := home + string(filepath.Separator)
+	if !strings.HasPrefix(dir, prefix) {
+		return ""
+	}
+	for cur := dir; strings.HasPrefix(cur, prefix); cur = filepath.Dir(cur) {
+		if _, err := os.Stat(filepath.Join(cur, ".git")); err == nil {
+			dir = cur
+			break
+		}
+	}
+	// Slashed on every OS, as rex shows ~ paths everywhere; ExpandHome reads
+	// "~/" on Windows too.
+	short := "~/" + filepath.ToSlash(strings.TrimPrefix(dir, prefix))
+	// A name holding the list separator would be read back as two folders,
+	// and one with outer spaces would be trimmed into another folder.
+	if strings.ContainsRune(short, filepath.ListSeparator) {
+		return ""
+	}
+	if v, err := CheckAutoTrustDirs(short); err != nil || v != short {
+		return ""
+	}
+	return short
+}
+
+// AppendTrustDir adds dir to the auto_trust_dirs value cur. It reports false
+// and returns cur tidied when dir is already covered (it is, or lies inside,
+// a listed folder). dir must pass TrustDir and the whole new value
+// CheckAutoTrustDirs, so a refused folder or a cur the daemon would ignore
+// is an error, never carried along.
+func AppendTrustDir(cur, dir string) (string, bool, error) {
+	entry := strings.TrimSpace(dir)
+	if strings.ContainsRune(entry, filepath.ListSeparator) {
+		return "", false, fmt.Errorf("%q holds %q, which separates folders; add one folder at a time",
+			entry, string(filepath.ListSeparator))
+	}
+	want, err := TrustDir(entry)
+	if err != nil {
+		return "", false, err
+	}
+	if strings.TrimSpace(cur) != "" {
+		tidy, err := CheckAutoTrustDirs(cur)
+		if err != nil {
+			return "", false, err
+		}
+		for _, e := range filepath.SplitList(tidy) {
+			if got, err := TrustDir(e); err == nil && (got == want || strings.HasPrefix(want, got+string(filepath.Separator))) {
+				return tidy, false, nil
+			}
+		}
+		entry = tidy + string(filepath.ListSeparator) + entry
+	}
+	v, err := CheckAutoTrustDirs(entry)
+	if err != nil {
+		return "", false, err
+	}
+	return v, true, nil
+}
+
+// RemoveTrustDir drops from the auto_trust_dirs value cur every entry that
+// resolves to dir (by identity on disk, so a case variant on a
+// case-insensitive filesystem counts) or is written exactly as dir, and
+// reports whether any did. The text match lets an entry the daemon ignores
+// (rex doctor names it) be removed, and other ignored entries never block a
+// removal. The result may be empty (always ask). A dir that matches no entry
+// by text must pass TrustDir.
+func RemoveTrustDir(cur, dir string) (string, bool, error) {
+	entry := strings.TrimSpace(dir)
+	want, wantErr := TrustDir(entry)
+	var keep []string
+	removed := false
+	for _, e := range filepath.SplitList(cur) {
+		e = strings.TrimSpace(e)
+		if e == "" {
+			continue
+		}
+		if e == entry || (wantErr == nil && resolvesTo(e, want)) {
+			removed = true
+			continue
+		}
+		keep = append(keep, e)
+	}
+	if !removed && wantErr != nil {
+		return "", false, wantErr
+	}
+	return strings.Join(keep, string(filepath.ListSeparator)), removed, nil
+}
+
+// resolvesTo reports whether entry passes TrustDir and names the folder want.
+func resolvesTo(entry, want string) bool {
+	got, err := TrustDir(entry)
+	return err == nil && (got == want || sameFolder(got, want))
 }

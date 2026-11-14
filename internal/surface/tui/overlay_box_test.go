@@ -25,7 +25,7 @@ func TestOverlayBoxMatchesLipgloss(t *testing.T) {
 		prev := lipgloss.ColorProfile()
 		lipgloss.SetColorProfile(profile)
 		for _, c := range contents {
-			want := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			want := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).
 				BorderForeground(colorBorder).Padding(1, 2).Render(c)
 			lines, w := overlayBox(c)
 			got := strings.Join(lines, "\n")

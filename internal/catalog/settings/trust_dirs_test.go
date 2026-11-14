@@ -3,6 +3,7 @@ package settings
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -190,4 +191,177 @@ func TestCanonicalDir(t *testing.T) {
 	sep := string(filepath.Separator)
 	_, ok = CanonicalDir(dev + sep + ".." + sep + "x")
 	require.False(t, ok, "dot-dot")
+}
+
+func gitDir(t *testing.T, dir string) string {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o700))
+	return dir
+}
+
+func TestSuggestTrustDir(t *testing.T) {
+	home, dev := trustHome(t)
+	sep := string(filepath.Separator)
+	list := string(filepath.ListSeparator)
+
+	// The repo's own folder, never its parent.
+	app := gitDir(t, filepath.Join(dev, "app"))
+	require.Equal(t, "~/dev/app", SuggestTrustDir(app), "slashed on every OS")
+	// From inside the repo: its root.
+	sub := filepath.Join(app, "pkg", "x")
+	require.NoError(t, os.MkdirAll(sub, 0o700))
+	require.Equal(t, "~/dev/app", SuggestTrustDir(sub))
+	// Not a repo: the folder itself.
+	plain := filepath.Join(dev, "plain")
+	require.NoError(t, os.MkdirAll(plain, 0o700))
+	require.Equal(t, "~/dev/plain", SuggestTrustDir(plain))
+	// A repo directly in home is a folder directly in home.
+	require.Equal(t, "~/app2", SuggestTrustDir(gitDir(t, filepath.Join(home, "app2"))))
+
+	// Never home itself, even when home is a repo (dotfiles) ...
+	require.Empty(t, SuggestTrustDir(home))
+	gitDir(t, home)
+	require.Empty(t, SuggestTrustDir(home), "home is a repo")
+	// ... and a plain folder under a home that is a repo is still itself.
+	require.Equal(t, "~/dev/plain", SuggestTrustDir(plain))
+
+	// Never root, outside home, empty, relative or with "..".
+	require.Empty(t, SuggestTrustDir(filepath.VolumeName(home)+sep))
+	require.Empty(t, SuggestTrustDir(gitDir(t, filepath.Join(t.TempDir(), "app"))), "outside home")
+	require.Empty(t, SuggestTrustDir(""))
+	require.Empty(t, SuggestTrustDir("dev"+sep+"app"), "relative")
+	require.Empty(t, SuggestTrustDir(dev+sep+"plain"+sep+".."+sep+"app"), "dotdot")
+
+	// A link inside home that leads out of it is not inside home.
+	outside := filepath.Join(t.TempDir(), "code")
+	gitDir(t, filepath.Join(outside, "app"))
+	require.NoError(t, os.Symlink(outside, filepath.Join(home, "code")))
+	require.Empty(t, SuggestTrustDir(filepath.Join(home, "code", "app")), "link out of home")
+
+	// Names that would be read back as other folders.
+	require.Empty(t, SuggestTrustDir(gitDir(t, filepath.Join(home, "a"+list, "app"))), "separator in a name")
+	require.Empty(t, SuggestTrustDir(gitDir(t, filepath.Join(home, "x"+list+"y"))), "separator in a name")
+	if runtime.GOOS != "windows" { // Windows does not allow a trailing space in a name
+		require.Empty(t, SuggestTrustDir(gitDir(t, filepath.Join(home, "dev "))), "outer space")
+	}
+}
+
+func TestAppendTrustDir(t *testing.T) {
+	home, dev := trustHome(t)
+	sep := string(filepath.ListSeparator)
+	a := filepath.Join(dev, "a")
+	require.NoError(t, os.MkdirAll(a, 0o700))
+
+	got, added, err := AppendTrustDir("", "~/dev/a")
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, "~/dev/a", got)
+
+	got, added, err = AppendTrustDir(got, "~/dev/b")
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, "~/dev/a"+sep+"~/dev/b", got, "order kept")
+
+	// Already listed, or covered by a listed parent: no-op.
+	for _, dir := range []string{"~/dev/a", a, "~/dev/a/sub", "  ~/dev/b  "} {
+		same, added, err := AppendTrustDir(got, dir)
+		require.NoError(t, err, dir)
+		require.False(t, added, dir)
+		require.Equal(t, got, same, dir)
+	}
+	// A parent of a listed entry is not covered by it.
+	got2, added, err := AppendTrustDir(got, "~/dev")
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, got+sep+"~/dev", got2)
+
+	// A tidied current value.
+	got, _, err = AppendTrustDir(" ~/dev/a "+sep+sep, "~/dev/c")
+	require.NoError(t, err)
+	require.Equal(t, "~/dev/a"+sep+"~/dev/c", got)
+
+	root := filepath.VolumeName(home) + string(filepath.Separator)
+	for name, dir := range map[string]string{
+		"blank": " ", "relative": "dev/a", "dotdot": "~/dev/../x", "dotdot abs": dev + "/a/../b",
+		"root": root, "home": "~/", "home abs": home, "bare tilde": "~",
+		"separator": "~/dev/x" + sep + "~/dev/y",
+	} {
+		same, added, err := AppendTrustDir("~/dev/a", dir)
+		require.Error(t, err, name)
+		require.False(t, added, name)
+		require.Empty(t, same, name)
+	}
+	// A current value the daemon would ignore is refused, not carried along.
+	_, _, err = AppendTrustDir("rel", "~/dev/a")
+	require.Error(t, err)
+}
+
+func TestRemoveTrustDir(t *testing.T) {
+	_, dev := trustHome(t)
+	sep := string(filepath.ListSeparator)
+	cur := "~/dev/a" + sep + dev + "/b" + sep + "~/dev/c"
+
+	got, removed, err := RemoveTrustDir(cur, "~/dev/b")
+	require.NoError(t, err)
+	require.True(t, removed, "absolute entry matched by ~/ form")
+	require.Equal(t, "~/dev/a"+sep+"~/dev/c", got)
+
+	got, removed, err = RemoveTrustDir(cur, "~/dev/zzz")
+	require.NoError(t, err)
+	require.False(t, removed)
+	require.Equal(t, cur, got)
+
+	got, removed, err = RemoveTrustDir("~/dev/a", "~/dev/a")
+	require.NoError(t, err)
+	require.True(t, removed)
+	require.Empty(t, got, "empty is allowed: always ask")
+
+	got, removed, err = RemoveTrustDir("", "~/dev/a")
+	require.NoError(t, err)
+	require.False(t, removed)
+	require.Empty(t, got)
+
+	_, _, err = RemoveTrustDir(cur, "~/dev/../a")
+	require.Error(t, err)
+	_, _, err = RemoveTrustDir(cur, "rel")
+	require.Error(t, err)
+}
+
+// rex doctor points at `rex trust -rm <entry>` for an entry the daemon
+// ignores; that entry must be removable by its text, and the other entries
+// must not block the removal.
+func TestRemoveTrustDir_RefusedEntryByText(t *testing.T) {
+	trustHome(t)
+	sep := string(filepath.ListSeparator)
+	cur := "~/dev/a" + sep + "~" + sep + "~/dev/c"
+
+	got, removed, err := RemoveTrustDir(cur, "~")
+	require.NoError(t, err)
+	require.True(t, removed)
+	require.Equal(t, "~/dev/a"+sep+"~/dev/c", got)
+
+	got, removed, err = RemoveTrustDir(cur, "~/dev/a")
+	require.NoError(t, err, "an ignored entry elsewhere does not block the removal")
+	require.True(t, removed)
+	require.Equal(t, "~"+sep+"~/dev/c", got)
+
+	_, _, err = RemoveTrustDir(cur, "~/dev/../x")
+	require.Error(t, err, "a refused folder that is not listed is still an error")
+}
+
+// On a case-insensitive filesystem a case variant names the same folder, so
+// removing it must drop the entry instead of saying "not in the list" while
+// the folder stays trusted.
+func TestRemoveTrustDir_CaseVariant(t *testing.T) {
+	_, dev := trustHome(t)
+	a := filepath.Join(dev, "proj")
+	require.NoError(t, os.MkdirAll(a, 0o700))
+	upper := filepath.Join(dev, "PROJ")
+	if _, err := os.Stat(upper); err != nil {
+		t.Skip("case-sensitive filesystem")
+	}
+	got, removed, err := RemoveTrustDir("~/dev/proj", upper)
+	require.NoError(t, err)
+	require.True(t, removed)
+	require.Empty(t, got)
 }

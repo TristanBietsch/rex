@@ -86,7 +86,7 @@ func TestRename_OpenEditSubmit(t *testing.T) {
 
 	m, _ = updateKey(m, key("r"))
 	require.Equal(t, FocusRename, m.Focus)
-	require.Equal(t, "old", m.Rename.Draft, "draft pre-filled with current name")
+	require.Equal(t, "old", m.Rename.Edit.Text, "draft pre-filled with current name")
 
 	m, _ = updateKey(m, key("ctrl+u"))
 	m = typeText(m, "auth  fix")
@@ -120,7 +120,7 @@ func TestRename_EmptyClearsAndCap(t *testing.T) {
 	m.namer = fn
 	m, _ = updateKey(m, key("r"))
 	m = typeText(m, strings.Repeat("y", protocol.MaxSessionNameRunes+10))
-	require.Equal(t, protocol.MaxSessionNameRunes, len([]rune(m.Rename.Draft)), "input capped at the limit")
+	require.Equal(t, protocol.MaxSessionNameRunes, len([]rune(m.Rename.Edit.Text)), "input capped at the limit")
 
 	m, _ = updateKey(m, key("ctrl+u"))
 	_, cmd := updateKey(m, key("enter"))
@@ -223,17 +223,17 @@ func TestMarkedDone_MovesToCompleted(t *testing.T) {
 		protocol.SessionSummary{ID: "w", Slug: "w", State: protocol.StateWorking, RetireAt: now.Add(time.Hour), RetiredAt: now},
 		protocol.SessionSummary{ID: "d", Slug: "d", State: protocol.StateDone},
 	)
-	parts := partitionSessions(m.Sessions, "all")
-	require.Len(t, parts[0], 1)
-	require.Len(t, parts[1], 0, "marked working session leaves Working")
-	require.Len(t, parts[2], 2)
+	parts := partitionSessions(m.Sessions, rowFilter{})
+	require.Len(t, parts[groupNeeds], 1)
+	require.Len(t, parts[groupWorking], 0, "marked working session leaves Working")
+	require.Len(t, parts[groupDone], 2)
 	var ids []string
 	for _, s := range orderedSessions(m) {
 		ids = append(ids, s.ID)
 	}
 	require.Equal(t, []string{"n", "w", "d"}, ids)
 	m.Sessions[1].RetireAt = time.Time{}
-	require.Len(t, partitionSessions(m.Sessions, "all")[1], 1, "unmarking returns it to Working")
+	require.Len(t, partitionSessions(m.Sessions, rowFilter{})[groupWorking], 1, "unmarking returns it to Working")
 }
 
 func TestLongRunTiers(t *testing.T) {
@@ -249,7 +249,7 @@ func TestLongRunTiers(t *testing.T) {
 	idle := w(7 * time.Hour)
 	idle.State = protocol.StateNeedsInput
 	require.Equal(t, -1, longRunTier(now, idle), "only working sessions get the badge")
-	require.Contains(t, longRunBadge(now, w(45*time.Minute)), "▴45m")
+	require.Contains(t, longRunBadge(now, w(45*time.Minute)), "▴ 45m")
 }
 
 func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
@@ -273,7 +273,7 @@ func TestBoardRow_NameRetireAndBadgeFitWidth(t *testing.T) {
 	require.Contains(t, row, "日本語")
 	require.NotContains(t, row, "done", "marked-done rows carry no badge")
 	require.NotContains(t, row, "clears")
-	require.Contains(t, row, "▴3h")
+	require.Contains(t, row, "▴ 3h")
 	require.Contains(t, ansi.Strip(renderRow(m, m.Sessions[1], cols)), "plain")
 }
 

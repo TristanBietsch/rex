@@ -25,6 +25,7 @@ Go source wins when docs disagree with code.
 | [registry.md](registry.md) | `tools.yaml` schema and merge rules |
 | [protocol.md](protocol.md) | JSONL wire format, intents, events |
 | [daemon.md](daemon.md) | `rex-daemon` flags and operations |
+| [loops.md](loops.md) | Loop workflows: the file format, stop conditions, safety |
 | [paths.md](paths.md) | Files, directories, environment variables |
 | [glossary.md](glossary.md) | Terms |
 
@@ -34,10 +35,17 @@ Go source wins when docs disagree with code.
 |----------|---------|
 | [quickstart.md](quickstart.md) | Install to first working session |
 | [howto/add-a-tool.md](howto/add-a-tool.md) | Add a tool to the registry |
+| [howto/skills.md](howto/skills.md) | Load skills into one session |
+| [snapshots.md](snapshots.md) | Turn snapshots, `rex undo` and `rex redo` |
+| [export.md](export.md) | Export a session as json, yaml, md or txt |
+| [workspaces.md](workspaces.md) | Workspaces (`rex ws`) and the audit trail (`rex audit`) |
 | [howto/lua-hooks.md](howto/lua-hooks.md) | Lua event hooks |
+| [howto/lua-config.md](howto/lua-config.md) | Settings and themes in Lua (`config.lua`) |
 | [howto/headless-ci.md](howto/headless-ci.md) | Script sessions without the TUI |
 | [howto/shell-integration.md](howto/shell-integration.md) | PATH, completion, prompt |
+| [howto/agents.md](howto/agents.md) | Drive rex from an LLM agent (agent mode, the card) |
 | [howto/customize-appearance.md](howto/customize-appearance.md) | Colors, density, sounds |
+| [themes.md](themes.md) | Your own color themes (YAML files), `rex theme` |
 
 ## Architecture and layout
 

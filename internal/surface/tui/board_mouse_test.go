@@ -283,7 +283,7 @@ func TestBoardMouse_IgnoredWhenDisabled(t *testing.T) {
 // board underneath.
 func TestBoardMouse_OverlaysDoNotLeak(t *testing.T) {
 	foci := map[string]Focus{
-		"help": FocusHelp, "stats": FocusStats, "wizard": FocusWizard, "fail": FocusFail,
+		"help": FocusHelp, "stats": FocusStats, "overview": FocusOverview, "wizard": FocusWizard, "fail": FocusFail,
 		"confirm-delete": FocusConfirmDelete, "confirm-quit": FocusConfirmQuit,
 		"prompt": FocusPrompt, "command": FocusCommand, "rename": FocusRename,
 		"settings": FocusSettings, "boot": FocusBoot,
@@ -314,9 +314,9 @@ func TestSettingsMouse_WheelMovesCursor(t *testing.T) {
 	m.Focus = FocusSettings
 	first := settings.Registry[0].ID
 	m.Settings = &SettingsState{CursorID: first}
-	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, settingsAfter(first, 1), m.Settings.CursorID)
-	m, _ = updateMouse(m, wheel(false))
+	m, _ = updateMouse(m, wheelAt(true, m.Width-4, 10)) // over the rows pane
+	require.Equal(t, settingsAfter(&SettingsState{CursorID: first}, 1), m.Settings.CursorID)
+	m, _ = updateMouse(m, wheelAt(false, m.Width-4, 10))
 	require.Equal(t, first, m.Settings.CursorID)
 }
 

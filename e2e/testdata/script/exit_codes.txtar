@@ -23,12 +23,18 @@ exitcode 5 rex wait ''
 stderr '^rex: empty selector$'
 exitcode 5 rex wait
 stderr '^rex: wait: exactly one selector required$'
+exitcode 5 rex wait -until bogus x
+stderr 'wait: -until "bogus": want one of working, needs_input, done, failed, any'
+exitcode 5 rex wait -timeout -1s x
+stderr 'wait: -timeout -1s: must not be negative'
 exitcode 5 rex rename onlyone
 stderr '^rex: rename: <selector> <new-slug>$'
 exitcode 5 rex ls -bogus
 stderr 'flag provided but not defined: -bogus'
 exitcode 5 rex new -slug 'a b' x
 stderr '^rex: new: slug must not contain whitespace$'
+exitcode 5 rex log -n -5 s1
+stderr 'log: -n -5: must not be negative'
 exitcode 5 rex daemon
 stderr 'daemon: subcommand required'
 exitcode 5 rex daemon bogus
@@ -42,3 +48,4 @@ exitcode 4 rex ls
 
 -- home/.config/rex/config.yaml --
 summary_enabled: false
+model_autodetect: false

@@ -44,7 +44,7 @@ func notifyOnStateChange(m Model) bool {
 // patch, subject to the setting and the per-session debounce. known is false
 // when the session wasn't in m.Sessions before the patch: its prior state is
 // unknown (never seen live), so nothing plays.
-func (m Model) notifyStateChange(id string, prev, next protocol.State, known bool) Model {
+func (m Model) notifyStateChange(id string, prev, next protocol.State, known bool, key string) Model {
 	ev := stateChangeEvent(prev, next)
 	if ev == "" {
 		return m
@@ -57,6 +57,39 @@ func (m Model) notifyStateChange(id string, prev, next protocol.State, known boo
 		slog.Debug("tui: state notify suppressed", "session", id, "event", ev, "from", prev, "to", next, "reason", "setting_off")
 		return m
 	}
+	prompts := m.sessionPrompts(id)
+	if ev == audio.EventAttention && prompts > 0 && m.rungPrompt[id] == prompts {
+		slog.Debug("tui: state notify suppressed", "session", id, "event", ev, "from", prev, "to", next,
+			"reason", "same_turn", "prompts", prompts)
+		return m
+	}
+	return m.playNotify(id, ev, prev, next, prompts, key)
+}
+
+// notifyQuestion plays the attention sound when a wait_reason patch turns a
+// READY session's reason into input (a new question). The state patch of
+// the same question comes first and, when it played, the debounce keeps
+// this one silent; when the turn already rang, this is the only sound.
+func (m Model) notifyQuestion(id, prevReason, key string) Model {
+	s, ok := m.sessionByID(id)
+	if !ok || s.State != protocol.StateNeedsInput || s.WaitReason != protocol.WaitInput || prevReason == protocol.WaitInput {
+		return m
+	}
+	// A question is not the end of the turn: the READY that ends it after
+	// the answer must still chime, so the turn is not marked as rung.
+	delete(m.rungPrompt, id)
+	if !notifyOnStateChange(m) {
+		return m
+	}
+	return m.playNotify(id, audio.EventAttention, s.State, s.State, 0, key)
+}
+
+// playNotify plays ev for a session unless it played a sound within
+// notifyDebounce, and records the turn an attention sound belongs to. key
+// names the daemon event for playShared. The debounce and the turn are
+// recorded even when another board wins the claim, so every board keeps the
+// same view of what has sounded.
+func (m Model) playNotify(id, ev string, prev, next protocol.State, prompts int, key string) Model {
 	now := m.now()
 	if last, ok := m.lastNotify[id]; ok && now.Sub(last) < notifyDebounce {
 		slog.Debug("tui: state notify suppressed", "session", id, "event", ev, "from", prev, "to", next,
@@ -64,11 +97,14 @@ func (m Model) notifyStateChange(id string, prev, next protocol.State, known boo
 		return m
 	}
 	m = m.stampNotify(id, now)
-	slog.Info("tui: state notify", "session", id, "event", ev, "from", prev, "to", next)
-	if m.Audio != nil {
-		m.Audio.Play(ev)
+	if ev == audio.EventAttention && prompts > 0 {
+		if m.rungPrompt == nil {
+			m.rungPrompt = make(map[string]int)
+		}
+		m.rungPrompt[id] = prompts
 	}
-	return m
+	slog.Info("tui: state notify", "session", id, "event", ev, "from", prev, "to", next, "prompts", prompts)
+	return m.playShared(ev, key)
 }
 
 // stampNotify records a played session sound so the debounce window starts
@@ -78,5 +114,30 @@ func (m Model) stampNotify(id string, at time.Time) Model {
 		m.lastNotify = make(map[string]time.Time)
 	}
 	m.lastNotify[id] = at
+	return m
+}
+
+// sessionByID returns the session with that id.
+func (m Model) sessionByID(id string) (protocol.SessionSummary, bool) {
+	for _, s := range m.Sessions {
+		if s.ID == id {
+			return s, true
+		}
+	}
+	return protocol.SessionSummary{}, false
+}
+
+// sessionPrompts is a session's prompts count, 0 when unknown.
+func (m Model) sessionPrompts(id string) int {
+	s, _ := m.sessionByID(id)
+	return s.Prompts
+}
+
+// forgetStaleTurn re-arms the attention sound when a session's prompts
+// count went below the rung turn (the agent restarted its count).
+func (m Model) forgetStaleTurn(id string) Model {
+	if r, ok := m.rungPrompt[id]; ok && m.sessionPrompts(id) < r {
+		delete(m.rungPrompt, id)
+	}
 	return m
 }

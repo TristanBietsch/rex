@@ -4,14 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
 func TestRenderHelpFits(t *testing.T) {
 	for _, sz := range [][2]int{{120, 40}, {80, 30}, {50, 20}} {
 		w, h := sz[0], sz[1]
-		out := renderHelp(w, h)
+		out := renderHelp(Model{}, w, h)
 		lines := strings.Split(out, "\n")
 		if len(lines) > h {
 			t.Errorf("%dx%d: height %d > %d", w, h, len(lines), h)
@@ -35,8 +34,8 @@ func TestRenderHelpFits(t *testing.T) {
 }
 
 func TestRenderHelpGroupTitles(t *testing.T) {
-	plain := ansi.Strip(renderHelp(120, 50))
-	for _, gs := range [][]helpGroup{helpLeft, helpRight} {
+	plain := ansi.Strip(renderHelp(Model{}, 120, 80)) // tall enough for every group unscrolled
+	for _, gs := range [][]helpGroup{helpLeft(Model{}), helpRight, {helpLegend(Model{})}} {
 		for _, g := range gs {
 			if !strings.Contains(plain, g.Title) {
 				t.Errorf("missing group %q", g.Title)
@@ -46,10 +45,10 @@ func TestRenderHelpGroupTitles(t *testing.T) {
 }
 
 func TestRenderHelpCommandVerbs(t *testing.T) {
-	plain := ansi.Strip(renderHelp(120, 60))
+	plain := ansi.Strip(renderHelp(Model{}, 120, 60))
 	for _, v := range []string{"q", "quit", "q!", "bg", "detach", "help", "settings", "reload",
 		"filter", "rm", "rename", "name", "done", "undone", "complete", "new", "fail", "fails",
-		"failed", "stats"} {
+		"failed", "stats", "search"} {
 		if !strings.Contains(plain, ":"+v) {
 			t.Errorf("missing command :%s", v)
 		}
@@ -57,8 +56,8 @@ func TestRenderHelpCommandVerbs(t *testing.T) {
 }
 
 func TestRenderHelpTwoColShorter(t *testing.T) {
-	two := lipgloss.Height(helpBox(110, 2, map[string]bool{}, false))
-	one := lipgloss.Height(helpBox(110, 1, map[string]bool{}, false))
+	two := len(helpBody(Model{}, 110, 2))
+	one := len(helpBody(Model{}, 110, 1))
 	if two >= one {
 		t.Errorf("two-col height %d not < single-col %d", two, one)
 	}

@@ -52,6 +52,7 @@ func TestRunSetup_AutoTrustRefused(t *testing.T) {
 
 func TestRunSetup_AutoTrustWritten(t *testing.T) {
 	home, cfg := setupHome(t)
+	atTerminal(t) // -auto-trust writes a trust setting: a person at a terminal only
 	sep := string(filepath.ListSeparator)
 	work := filepath.Join(home, "work")
 
@@ -65,4 +66,56 @@ func TestRunSetup_AutoTrustWritten(t *testing.T) {
 	require.NoError(t, os.Remove(cfg))
 	require.NoError(t, RunSetup([]string{"-preview", "-no-shell", "-config", cfg, "-auto-trust", "~/dev"}))
 	require.NoFileExists(t, cfg)
+}
+
+// -tool, -model and -effort are checked against the registry: a wrong one
+// exits 5 and lists the valid ids, with nothing written.
+func TestRunSetup_SpawnDefaultsRefused(t *testing.T) {
+	_, cfg := setupHome(t)
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"-tool", "nope"}, `unknown tool "nope" (valid: claude`},
+		{[]string{"-tool", "claude", "-model", "gpt-9"}, "valid: opus, sonnet, haiku"},
+		{[]string{"-tool", "claude", "-model", "opus", "-effort", "turbo"}, "valid: low, medium, high, xhigh, max"},
+	}
+	for _, tc := range cases {
+		for _, mode := range []string{"-yes", "-preview"} {
+			args := append([]string{mode, "-no-shell", "-config", cfg}, tc.args...)
+			err := RunSetup(args)
+			var ee core.ExitError
+			require.True(t, errors.As(err, &ee), "%v", err)
+			require.Equal(t, core.ExitInvalidArgs, ee.Code)
+			require.Contains(t, ee.Msg, tc.want)
+			require.NoFileExists(t, cfg)
+		}
+	}
+}
+
+func TestRunSetup_SpawnDefaultsWritten(t *testing.T) {
+	_, cfg := setupHome(t)
+	require.NoError(t, RunSetup([]string{"-yes", "-no-shell", "-config", cfg,
+		"-tool", "antigravity", "-model", "claude-opus-4-6", "-effort", "high"}))
+	st := settings.NewStore()
+	require.NoError(t, st.Load(cfg))
+	require.Equal(t, "antigravity", st.String("default_spawn_tool"))
+	require.Equal(t, "claude-opus-4-6", st.String("default_spawn_model"))
+	require.Equal(t, "high", st.String("default_spawn_effort"))
+}
+
+// -y is a real alias of -yes, not a scan of the arguments: it takes
+// -y=true and -y=false like any bool flag.
+func TestRunSetup_YAlias(t *testing.T) {
+	for _, arg := range []string{"-y", "-y=true", "--y", "-yes", "-yes=true"} {
+		t.Run(arg, func(t *testing.T) {
+			_, cfg := setupHome(t)
+			require.NoError(t, RunSetup([]string{arg, "-no-shell", "-config", cfg}))
+			require.FileExists(t, cfg)
+		})
+	}
+	// Flags may follow the others.
+	_, cfg := setupHome(t)
+	require.NoError(t, RunSetup([]string{"-no-shell", "-config", cfg, "-y"}))
+	require.FileExists(t, cfg)
 }

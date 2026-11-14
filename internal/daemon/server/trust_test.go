@@ -73,16 +73,16 @@ func TestTrustAnswerFor(t *testing.T) {
 	tool := registry.Tool{ID: "claude", TrustPrompt: &registry.TrustPrompt{Shown: "s", Selected: "t", Move: "\x1b[B", Confirm: "\r"}}
 
 	off := &Server{cfg: Config{}}
-	require.Nil(t, off.trustAnswerFor(tool, dir), "no AutoTrustDirs: never")
+	require.Nil(t, off.trustDecisionFor(tool, dir, false).Answer, "no AutoTrustDirs: never")
 
 	on := &Server{cfg: Config{AutoTrustDirs: func() []string { return []string{dir} }}}
-	a := on.trustAnswerFor(tool, filepath.Join(dir, "x"))
+	a := on.trustDecisionFor(tool, filepath.Join(dir, "x"), false).Answer
 	require.NotNil(t, a)
 	require.Equal(t, "\x1b[B", string(a.Move))
-	require.Nil(t, on.trustAnswerFor(tool, t.TempDir()), "folder not listed")
+	require.Nil(t, on.trustDecisionFor(tool, t.TempDir(), false).Answer, "folder not listed")
 
 	noPrompt := registry.Tool{ID: "codex"}
-	require.Nil(t, on.trustAnswerFor(noPrompt, dir), "tool without a trust_prompt")
+	require.Nil(t, on.trustDecisionFor(noPrompt, dir, false).Answer, "tool without a trust_prompt")
 }
 
 func TestTrustArgsFor(t *testing.T) {
@@ -95,7 +95,7 @@ func TestTrustArgsFor(t *testing.T) {
 	tool := registry.Tool{ID: "antigravity", TrustArgs: []string{"--settings", `{"trustedWorkspaces":{cwd_list}}`}}
 
 	on := &Server{cfg: Config{AutoTrustDirs: func() []string { return []string{real} }}}
-	args := on.trustArgsFor(tool, filepath.Join(link, "project"))
+	args := on.trustDecisionFor(tool, filepath.Join(link, "project"), false).Args
 	require.Len(t, args, 2)
 	require.Equal(t, "--settings", args[0])
 	var settings struct {
@@ -107,9 +107,9 @@ func TestTrustArgsFor(t *testing.T) {
 	require.Equal(t, []string{filepath.Join(link, "project"), resolved}, settings.TrustedWorkspaces,
 		"the folder as given and resolved")
 
-	require.Nil(t, on.trustArgsFor(tool, t.TempDir()), "folder not listed")
-	require.Nil(t, (&Server{cfg: Config{}}).trustArgsFor(tool, project), "no setting")
-	require.Nil(t, on.trustArgsFor(registry.Tool{ID: "codex"}, project), "tool without trust_args")
+	require.Nil(t, on.trustDecisionFor(tool, t.TempDir(), false).Args, "folder not listed")
+	require.Nil(t, (&Server{cfg: Config{}}).trustDecisionFor(tool, project, false).Args, "no setting")
+	require.Nil(t, on.trustDecisionFor(registry.Tool{ID: "codex"}, project, false).Args, "tool without trust_args")
 
 	// A folder whose name needs JSON escaping stays one valid entry. Windows
 	// forbids " and \ in names, so those are tried on Unix only.
@@ -120,7 +120,7 @@ func TestTrustArgsFor(t *testing.T) {
 	for _, name := range names {
 		odd := filepath.Join(real, name)
 		require.NoError(t, os.MkdirAll(odd, 0o700))
-		args = on.trustArgsFor(tool, odd)
+		args = on.trustDecisionFor(tool, odd, false).Args
 		require.NoError(t, json.Unmarshal([]byte(args[1]), &settings), name)
 		require.Contains(t, settings.TrustedWorkspaces, odd)
 	}

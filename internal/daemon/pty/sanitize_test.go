@@ -26,6 +26,10 @@ func TestSanitizeForDisplay(t *testing.T) {
 		{"strips_c1_range_ends", "\u0080p\u009fq", "p q"},
 		{"keeps_latin1_after_c1", "caf\u00e9\u0085ok", "caf\u00e9 ok"},
 		{"escape_after_invalid_utf8", "\xc9\x1b[31mred", "red"},
+		// Bidi overrides reorder what clients draw after them; line and
+		// paragraph separators would break the row.
+		{"strips_bidi_overrides", "abc\u202edef\u2066g\u200fh", "abcdefgh"},
+		{"separators_become_space", "a\u2028b\u2029c", "a b c"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -63,5 +67,25 @@ func TestHasVisibleText(t *testing.T) {
 				t.Fatalf("hasVisibleText(%q) = %v, want %v", c.in, got, c.want)
 			}
 		})
+	}
+}
+
+// Text typed into an agent (the initial prompt, a Reply) must not carry
+// terminal input of its own: an ESC[201~ in it closed the bracketed paste
+// early and the rest reached the agent as keystrokes. Line breaks and tabs
+// stay; "\r\n" and "\r" become "\n".
+func TestTypedText(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"plain prompt", "plain prompt"},
+		{"list:\n- a\n\t- b", "list:\n- a\n\t- b"},
+		{"crlf\r\nline\rend", "crlf\nline\nend"},
+		{"before\x1b[201~after\r", "beforeafter\n"},
+		{"osc\x1b]0;title\x07 bell\x07 del\x7f c1\u0085 x", "osc bell del c1 x"},
+		{"bad\xffutf8", "badutf8"},
+	}
+	for _, c := range cases {
+		if got := TypedText(c.in); got != c.want {
+			t.Errorf("TypedText(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }

@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    2 ready · 2 waiting · 3 working · 1 done  · 1 failed                 
+  all · claude · codex · antigravity · ollama                                   
+
+────────────────────────────────────────────────────────────────────────────────
+
+  READY  2                                                                      
+    ⚑  dark-mode                *  ? asks                     $0.31           4m
+    ⚑  release-notes                                          $2.10          11m
+  WAITING  2                                                                    
+    ◷  invoice-rounding-tests      sh 42s                     $0.84  ^ 12m   40s
+    ◷  api-research                sub 3m              Y 2    $1.07           2m
+  WORKING  3                                                                    
+ >  ⠋  payment-migration-v2                  @ 3/8     Y 3    $4.92  ^ 45m    1m
+    ⠋  docs-sweep                                                             7s
+    ⠋  i18n-strings-extractio…                                       ^ 2h     3m
+  DONE  2                                                                       
+    ✓  test-coverage            *                             $3.40           9m
+    ✗  failing-job              *                                              -
+
+  ↳ porting billing to the new processor: 12 of 14 handlers moved, webhooks next
+────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    2 ready · 2 waiting · 3 working · 1 done  · 1 failed                                                         
+  all · claude · codex · antigravity · ollama                                                                           
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  READY  2                                                                                                              
+    ⚑  dark-mode                                                        *  ? asks                     $0.31           4m
+    ⚑  release-notes                                                                                  $2.10          11m
+
+  WAITING  2                                                                                                            
+    ◷  invoice-rounding-tests                                              sh 42s                     $0.84  ^ 12m   40s
+    ◷  api-research                                                        sub 3m              Y 2    $1.07           2m
+
+  WORKING  3                                                                                                            
+ >  ⠋  payment-migration-v2                                                          @ 3/8     Y 3    $4.92  ^ 45m    1m
+    ⠋  docs-sweep                                                                                                     7s
+    ⠋  i18n-strings-extraction-pass                                                                          ^ 2h     3m
+
+  DONE  2                                                                                                               
+    ✓  test-coverage                                                    *                             $3.40           9m
+    ✗  failing-job                                                      *                                              -
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↳ porting billing to the new processor: 12 of 14 handlers moved, webhooks next                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      

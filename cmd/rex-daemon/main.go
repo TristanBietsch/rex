@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,26 +14,61 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/settings/luacfg"
 	"github.com/tristanbietsch/rex/internal/daemon/boot"
+	"github.com/tristanbietsch/rex/internal/daemon/handoff"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
+	"github.com/tristanbietsch/rex/internal/features/overview"
+	"github.com/tristanbietsch/rex/internal/features/snapshot"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
+	"github.com/tristanbietsch/rex/internal/features/usage"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/version"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
+	"github.com/tristanbietsch/rex/internal/workspace"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == usage.TapSubcommand {
+		os.Exit(runTap(os.Args[2:]))
+	}
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "rex-daemon:", err)
 		os.Exit(1)
 	}
 }
 
+// runTap is `rex-daemon statusline-tap --session <id> [--socket path] [--user-settings path]`, the
+// status-line command rex gives Claude Code. Its stdout is Claude's status
+// line, so it never prints a message of its own; a flag it cannot parse only
+// means no usage is sent. It does not start logging or touch any state.
+func runTap(args []string) int {
+	fs := flag.NewFlagSet(usage.TapSubcommand, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	session := fs.String("session", "", "rex session id")
+	socket := fs.String("socket", "", "daemon socket (default: the standard one)")
+	userSettings := fs.String("user-settings", "", "absolute path of the user-level Claude settings file")
+	if err := fs.Parse(args); err != nil {
+		*session = "" // run the user's command, send nothing
+	}
+	// Claude stops a status line with a signal; it must stop the user's
+	// command with it, not leave it running.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	return usage.RunTap(ctx, usage.TapOptions{
+		Session: *session, Socket: *socket, UserSettings: *userSettings,
+		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
+	})
+}
+
 func run(args []string) error {
+	// config.lua goes on top of config.yaml for every settings load in this
+	// process (the hub, the boot checks), while lua_config is on.
+	luacfg.Install()
 	fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
 	// Path defaults come from package paths. Without a home directory they
 	// are empty, and requireDefaults fails unless the flag was given.
@@ -41,8 +77,12 @@ func run(args []string) error {
 	socketPath := fs.String("socket", defaultSocket, "UDS path")
 	stateDir := fs.String("state-dir", layout.DataDir, "state directory")
 	toolsPath := fs.String("tools", layout.ToolsFile, "path to tools.yaml override (optional)")
+	skillsDir := fs.String("skills-dir", layout.SkillsDir, "skill library directory (rex new -skill)")
+	loopsDir := fs.String("loops-dir", layout.LoopsDir, "loop workflow files directory (rex loop)")
 	printVersion := fs.Bool("version", false, "print version and exit")
 	maxConcurrent := fs.Int("max-concurrent-sessions", 16, "cap on live PTY sessions")
+	handoffPath := fs.String("handoff", "", "take over from the previous image of this process (hot restart; internal)")
+	handoffCheck := fs.String("handoff-check", "", "check that this build can take over a handoff file, then exit (internal)")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -51,6 +91,10 @@ func run(args []string) error {
 		fmt.Println(version.Version)
 		return nil
 	}
+	if *handoffCheck != "" {
+		return runHandoffCheck(*handoffCheck)
+	}
+	startedAt := time.Now().UTC()
 	if err := requireDefaults(fs, map[string]error{
 		"socket": socketErr, "state-dir": homeErr, "tools": homeErr,
 	}); err != nil {
@@ -61,21 +105,24 @@ func run(args []string) error {
 	defer rexlog.Close()
 	slog.Info("daemon: starting", "version", version.Version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
 
-	reg, err := registry.Load(*toolsPath)
-	if err != nil {
-		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
-		return fmt.Errorf("registry: %w", err)
-	}
-	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
-
 	// Owner-only: sessions hold prompts, cwds and full agent output.
 	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
 		return fmt.Errorf("state dir: %w", err)
 	}
 	// One daemon per state dir, held for the process lifetime: taken before
 	// any state is read, released last (defers run in reverse).
-	lock, err := state.AcquireLock(*stateDir)
-	if err != nil {
+	// A hot restart hands the lock, the listener and the live PTYs over
+	// in this same process; otherwise take the lock as usual.
+	var hot *takeover
+	var lock *state.Lock
+	var err error
+	if *handoffPath != "" {
+		if hot, err = takeOver(*handoffPath, *stateDir, *socketPath); err != nil {
+			slog.Error("daemon: hot restart takeover failed", "err", err)
+			return fmt.Errorf("hot restart: %w", err)
+		}
+		lock = hot.lock
+	} else if lock, err = state.AcquireLock(*stateDir); err != nil {
 		return lockError(err, *socketPath)
 	}
 	defer func() {
@@ -94,7 +141,10 @@ func run(args []string) error {
 	}
 
 	store := state.NewStore()
-	prior, err := state.LoadAll(*stateDir)
+	// Under the state lock and before any writer (a hot restart replaced
+	// the old daemon in this process): no live WriteMeta owns a temp file.
+	state.RemoveStaleMetaTemps(*stateDir)
+	prior, err := state.LoadAllKeep(*stateDir, hot.liveIDs())
 	if err != nil {
 		slog.Error("daemon: load prior sessions failed", "state_dir", *stateDir, "err", err)
 		return fmt.Errorf("load prior sessions: %w", err)
@@ -116,6 +166,25 @@ func run(args []string) error {
 	if err != nil {
 		slog.Warn("daemon: settings load failed (using defaults)", "path", settingsPath, "err", err)
 	}
+	// The one settings hub: spawn-time reads call hub.Current, features
+	// subscribe, and one poller (below) feeds it.
+	hub := boot.NewSettingsHub(settingsPath, settingsStore)
+	// The registry follows two settings (extra_agents, model_autodetect), so it
+	// loads once the hub holds the settings.
+	reg, err := boot.LoadRegistry(*toolsPath, hub.Current())
+	if err != nil && hot != nil {
+		// After a hot restart, exiting would close every handed-over PTY:
+		// serve with the built-in registry instead (rex reload retries).
+		slog.Error("daemon: registry load failed after a hot restart; using the built-in tools until tools.yaml loads", "tools", *toolsPath, "err", err)
+		fmt.Fprintf(os.Stderr, "rex-daemon: %v (using the built-in tools)\n", err)
+		reg, err = boot.LoadRegistry("", hub.Current())
+	}
+	if err != nil {
+		slog.Error("daemon: registry load failed", "tools", *toolsPath, "err", err)
+		return fmt.Errorf("registry: %w", err)
+	}
+	boot.LogRegistryWarnings(*toolsPath, reg)
+	slog.Info("daemon: registry loaded", "tools", *toolsPath, "count", len(reg.Tools))
 	summaryEnabled, _ := settingsStore.Get("summary_enabled").(bool)
 	summaryModel, _ := settingsStore.Get("summary_model").(string)
 	if summaryModel == "" {
@@ -123,8 +192,8 @@ func run(args []string) error {
 	}
 	slog.Info("daemon: summarizer config", "enabled", summaryEnabled, "model", summaryModel)
 	retireTTL := server.DefaultRetireTTL
-	if h, ok := settingsStore.Get("retire_after_hours").(int); ok && h > 0 {
-		retireTTL = time.Duration(h) * time.Hour
+	if d := boot.RetireTTL(settingsStore); d > 0 {
+		retireTTL = d
 	}
 	slog.Info("daemon: retire config", "default_ttl", retireTTL)
 
@@ -133,6 +202,8 @@ func run(args []string) error {
 	if summaryEnabled {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
+		cfg.Detail = summarizer.ParseDetail(settingsStore.String("summary_detail"))
+		cfg.Schedule = settings.FeatureOn(hub.Current(), "summary_schedule")
 		if u := boot.OllamaBaseURL(); u != "" {
 			cfg.BaseURL = u
 		}
@@ -159,37 +230,140 @@ func run(args []string) error {
 	// shutdown is stuck instead of being swallowed.
 	context.AfterFunc(ctx, stop)
 
+	// Turn snapshots: inert (no goroutine, no file, no subprocess) while the
+	// turn_snapshots setting is off. The store lives under the state dir.
+	snapStore := snapshot.NewStore(filepath.Join(*stateDir, "snapshots"))
+	snaps := boot.NewSnapshots(ctx, snapStore, store)
+	defer snaps.Close()
+	snaps.SetEnabled(settings.FeatureOn(settingsStore, "turn_snapshots"))
+	// Retention touches the store (ledgers, refs, gc), so with the feature off
+	// it does not run at all.
+	if settings.FeatureOn(settingsStore, "turn_snapshots") {
+		go retainSnapshots(ctx, snapStore, store)
+	}
+
 	var srv *server.Server
-	srv, err = server.New(server.Config{
+	// cat is set once srv exists; the reload callbacks read it only after Serve
+	// has started.
+	var cat *boot.Catalog
+	// luaHost is set once srv exists, like cat.
+	var luaHost *boot.LuaHost
+	// Usage tracking: inert while the usage setting is off. Its callbacks
+	// read srv only once Serve has started, after that assignment.
+	usageHub := boot.NewUsage(ctx, *stateDir, store, func(u protocol.Usage) { srv.SetUsage(u) })
+	defer usageHub.Close()
+	hub.Subscribe([]string{"turn_snapshots"}, snaps.Applier())
+	hub.Subscribe([]string{"usage"}, usageHub.Applier())
+	// Audit trail: inert (no file, no workspace lookup, no prompt kept) while
+	// audit_trail is off. Without a home directory workspace discovery is off
+	// and records go to the global file.
+	home, _ := paths.Home()
+	auditTrail := boot.NewAudit(boot.AuditConfig{
+		StateDir: *stateDir,
+		Home:     home,
+		Persist:  boot.PersistMeta(*stateDir),
+	}, store)
+	defer auditTrail.Close()
+	auditTrail.Configure(settingsStore)
+	hub.Subscribe(boot.AuditSettingIDs, auditTrail.Applier())
+	// Workspace tagging and the per-workspace session index: inert while the
+	// workspaces setting is off (no discovery, no registry or index write).
+	// The registry lives in the state dir, so a test daemon never touches
+	// the real one.
+	wsReg, err := workspace.OpenRegistry(filepath.Join(*stateDir, paths.WorkspacesFileName))
+	if err != nil {
+		slog.Warn("daemon: workspace registry unavailable", "err", err)
+		wsReg = nil
+	}
+	wsTags := boot.NewWorkspaces(boot.WorkspacesConfig{Home: home, Registry: wsReg}, store)
+	defer wsTags.Close()
+	wsTags.Configure(settingsStore)
+	hub.Subscribe(boot.WorkspacesSettingIDs, wsTags.Applier())
+	// Loop workflows: never enabled (no goroutine, subscription or file
+	// read) while the loops setting is off. The flag is read from the hub's
+	// current settings; a change enables or disables the runner.
+	loops := boot.NewLoops(ctx, *stateDir, *loopsDir, store, func() bool { return settings.FeatureOn(hub.Current(), "loops") })
+	defer loops.Close()
+	hub.Subscribe([]string{"loops"}, loops.Applier())
+
+	// ov is set below when the summarizer runs; the callbacks read it only
+	// once Serve has started, after that assignment.
+	var ov *boot.Overview
+	srvCfg := server.Config{
 		Socket:                *socketPath,
 		StateDir:              *stateDir,
 		Registry:              reg,
 		Store:                 store,
-		MaxConcurrentSessions: *maxConcurrent,
+		MaxConcurrentSessions: maxConcurrentFrom(fs, *maxConcurrent, settingsStore),
 		SummaryRequest:        summaryCh,
 		RetireDefaultTTL:      retireTTL,
-		AutoTrustDirs:         boot.AutoTrustDirs,
+		SkillsDir:             *skillsDir,
+		Snapshots:             snapStore,
+		OnUsageSample:         usageHub.Hub.Sample,
+		UsageQuery:            usageHub.Hub.Query,
+		Loops:                 loops,
+		Audit:                 auditTrail,
+		Workspaces:            wsTags,
 		OnShutdown:            stop,
-		OnReload:              func() error { return boot.ReloadRegistry(srv, *toolsPath) },
-	})
+		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
+		OnReload:              func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) },
+		Build:                 handoff.BuildID(),
+		StartedAt:             startedAt,
+		Adopt:                 hot.adoptions(store),
+	}
+	if hot != nil {
+		srvCfg.Listener = hot.listener
+	}
+	if handoff.Supported {
+		if exe, exeErr := os.Executable(); exeErr == nil {
+			flagArgs := args
+			srvCfg.Hot = &server.HotConfig{
+				Exe:       exe,
+				LockFD:    lock.FD(),
+				Argv:      func(p string) []string { return handoffArgv(flagArgs, p) },
+				Preflight: preflight,
+				Exec:      handoff.Exec,
+			}
+		} else {
+			slog.Warn("daemon: hot restart off: executable path unknown", "err", exeErr)
+		}
+	}
+	hub.WireSpawnReads(&srvCfg, *socketPath)
+	srv, err = server.New(srvCfg)
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
 
+	// Model lists are detected in the background (inert while model_autodetect
+	// is off); the registry above already holds whatever the cache had.
+	cat = boot.NewCatalog(srv, *toolsPath)
+	defer cat.Wait()
+	cat.Refresh(ctx, hub.Current(), false)
+	hub.Subscribe([]string{"extra_agents", "model_autodetect"}, cat.Applier(ctx, hub.Current()))
+	hub.Subscribe([]string{"retire_after_hours"}, boot.RetireTTLApplier(srv))
+
+	// Started only now: switching usage on publishes its state through srv.
+	usageHub.SetEnabled(settings.FeatureOn(settingsStore, "usage"))
+	loops.SetServer(srv)
+	loops.SetEnabled(settings.FeatureOn(settingsStore, "loops"))
+
 	// Lua scripting hook. Best-effort: failure to init never blocks daemon startup.
-	luaRT, luaCancel := boot.StartLuaRuntime(srv, store)
-	if luaCancel != nil {
-		defer luaCancel()
-	}
-	if luaRT != nil {
-		defer luaRT.Close()
-	}
+	luaHost = boot.StartLuaHost(srv, store, hub.Current())
+	defer luaHost.Close()
 
 	// Start summarizer worker + health probe (when enabled).
 	if summaryWorker != nil {
+		// The overview shares the summarizer's model; with overview_enabled
+		// off it holds no goroutine and makes no call.
+		ov = boot.NewOverview(ctx, overview.DefaultConfig(), store, srv, summaryWorker)
+		defer ov.Close()
+		ov.SetEnabled(boot.OverviewEnabled(settingsStore))
 		summaryWorker.SetHealthCallback(func(available bool, reason string) {
 			slog.Info("daemon: summarizer health flip", "available", available, "reason", reason)
 			srv.BroadcastSummarizerHealth(available, reason)
+			if available {
+				ov.Notify(overview.StructuralChange) // retry what waited for the backend
+			}
 		})
 		go func() {
 			if err := summaryWorker.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -197,10 +371,17 @@ func run(args []string) error {
 			}
 		}()
 		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
+		hub.Subscribe([]string{"summary_detail"}, boot.SummaryDetailApplier(summaryWorker))
+		hub.Subscribe([]string{"summary_schedule"}, boot.SummaryScheduleApplier(summaryWorker))
+		hub.Subscribe([]string{"overview_enabled"}, ov.Applier())
 	}
+	// The one settings poller. With live_reload off it parks without polling;
+	// SIGHUP, rex reload and :reload still reload by hand.
+	go hub.Watch(ctx, 5*time.Second)
+	go cat.WatchInstalled(ctx, boot.InstalledRescanEvery)
 
-	// SIGHUP → reload tools.yaml.
-	go boot.ReloadOnHUP(ctx, srv, *toolsPath)
+	// SIGHUP → reload tools.yaml, then config.yaml.
+	go boot.ReloadOnHUP(ctx, func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) })
 
 	fmt.Fprintf(os.Stderr, "rex-daemon %s listening on %s\n", version.Version, *socketPath)
 	slog.Info("daemon: listening", "socket", *socketPath)
@@ -211,6 +392,41 @@ func run(args []string) error {
 		slog.Info("daemon: serve exited cleanly")
 	}
 	return err
+}
+
+// retainSnapshots applies the snapshot retention rules once at start: refs of
+// sessions removed more than 7 days ago go, a store over 2 GiB loses its
+// oldest sessions, and a store is garbage collected at most once a day. It
+// runs only while turn_snapshots is on at daemon start: with it off nothing
+// under the store is touched, so old snapshots wait until it is on again.
+func retainSnapshots(ctx context.Context, st *snapshot.Store, sessions *state.Store) {
+	rep, err := st.Retain(ctx, snapshot.RetainOpts{Live: func(id string) bool {
+		_, ok := sessions.Get(id)
+		return ok
+	}})
+	if err != nil && ctx.Err() == nil {
+		slog.Warn("daemon: snapshot retention failed", "err", err)
+		return
+	}
+	if len(rep.Dropped) > 0 || rep.GCRuns > 0 {
+		slog.Info("daemon: snapshot retention", "dropped_sessions", len(rep.Dropped), "gc_runs", rep.GCRuns)
+	}
+}
+
+// maxConcurrentFrom is the session cap to start with: the
+// -max-concurrent-sessions flag when it was given, else the
+// max_concurrent_sessions setting (the TUI saves it to config.yaml, and
+// clients start the daemon without flags), else the flag's default.
+func maxConcurrentFrom(fs *flag.FlagSet, flagVal int, st *settings.Store) int {
+	explicit := false
+	fs.Visit(func(f *flag.Flag) { explicit = explicit || f.Name == "max-concurrent-sessions" })
+	if explicit || st == nil {
+		return flagVal
+	}
+	if n, ok := st.Get("max_concurrent_sessions").(int); ok && n > 0 {
+		return n
+	}
+	return flagVal
 }
 
 // lockError explains a failed state-dir lock. When another daemon holds it,

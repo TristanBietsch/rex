@@ -12,7 +12,14 @@ func (t *State) parse(c rune) {
 		}
 	}
 	// TODO: update selection; see st.c:2450
+	t.printRune(c)
+	t.lastc = c
+}
 
+// printRune writes c at the cursor (wrapping first when a wrap is pending)
+// and advances it. c is the rune as received: the line-drawing charset is
+// applied by setChar, so REP, which repeats the received rune, maps it again.
+func (t *State) printRune(c rune) {
 	if t.mode&ModeWrap != 0 && t.cur.State&cursorWrapNext != 0 {
 		t.lines[t.cur.Y][t.cur.X].Mode |= attrWrap
 		t.newline(true)
@@ -164,6 +171,11 @@ func (t *State) parseEscTest(c rune) {
 func (t *State) handleControlCodes(c rune) bool {
 	if !isControlCode(c) {
 		return false
+	}
+	// A control character ends the run REP could repeat. ESC is the
+	// exception: it starts the CSI b that asks for the repeat.
+	if c != 033 {
+		t.lastc = 0
 	}
 	switch c {
 	// HT

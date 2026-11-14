@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -61,6 +62,10 @@ func safeSessionDir(root, id string) (string, error) {
 	return dir, nil
 }
 
+// SessionDir returns <root>/sessions/<id>, failing with ErrUnsafeSessionID
+// for an id that is not a single path element.
+func SessionDir(root, id string) (string, error) { return safeSessionDir(root, id) }
+
 // RemoveSessionDir deletes a session's persisted directory (transcript + meta).
 // Used on session delete so the session doesn't reappear after a daemon restart.
 // Prefer RemoveSession when the *Session is at hand: it also fences off
@@ -81,6 +86,13 @@ func RemoveSession(root string, s *Session) error {
 	s.metaMu.Lock()
 	defer s.metaMu.Unlock()
 	return RemoveSessionDir(root, s.ID)
+}
+
+// metaFile is meta.json: the wire summary plus what only the daemon keeps.
+type metaFile struct {
+	protocol.SessionSummary
+	// AuditWritten is Session.AuditWritten.
+	AuditWritten bool `json:"audit_written,omitempty"`
 }
 
 // WriteMeta persists a session's metadata atomically. Writers are serialized
@@ -105,7 +117,7 @@ func WriteMeta(root string, s *Session) error {
 	// Snapshot under metaMu: whichever writer takes the lock last also takes
 	// the newest snapshot, so the file on disk never regresses.
 	sum := s.Summary()
-	b, err := json.MarshalIndent(sum, "", "  ")
+	b, err := json.MarshalIndent(metaFile{SessionSummary: sum, AuditWritten: s.AuditIsWritten()}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal meta: %w", err)
 	}
@@ -142,17 +154,24 @@ func LoadMeta(root, id string) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read meta %s: %w", path, err)
 	}
-	var sum protocol.SessionSummary
-	if err := json.Unmarshal(b, &sum); err != nil {
+	var mf metaFile
+	if err := json.Unmarshal(b, &mf); err != nil {
 		return nil, fmt.Errorf("parse meta %s: %w", path, err)
 	}
-	return fromSummary(sum), nil
+	sess := fromSummary(mf.SessionSummary)
+	sess.AuditWritten = mf.AuditWritten
+	return sess, nil
 }
 
 // LoadAll loads every session under root/sessions/. Any session whose persisted
 // state was "working", "queued", or "needs_input" gets reloaded as "crashed"
 // because the live PTY didn't survive whatever caused the daemon to stop.
-func LoadAll(root string) ([]*Session, error) {
+func LoadAll(root string) ([]*Session, error) { return LoadAllKeep(root, nil) }
+
+// LoadAllKeep is LoadAll, except that the sessions named in live keep
+// their persisted state: their PTYs were handed over by a daemon hot
+// restart and are still running.
+func LoadAllKeep(root string, live map[string]bool) ([]*Session, error) {
 	dir := filepath.Join(root, "sessions")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -178,6 +197,10 @@ func LoadAll(root string) ([]*Session, error) {
 			slog.Warn("state: meta id/dir mismatch; skipped", "dir", e.Name(), "id", sess.ID)
 			continue
 		}
+		if live[sess.ID] && !isTerminal(sess.State) {
+			out = append(out, sess)
+			continue
+		}
 		switch sess.State {
 		case protocol.StateQueued, protocol.StateWorking, protocol.StateNeedsInput:
 			sess.State = protocol.StateCrashed
@@ -185,9 +208,33 @@ func LoadAll(root string) ([]*Session, error) {
 			// Terminal states survive a daemon restart unchanged.
 		}
 		sess.WorkingSince = time.Time{}
+		// Older files, and sessions just marked crashed, have no end time;
+		// the last event is the best estimate. Written on the next WriteMeta.
+		if isTerminal(sess.State) && sess.EndedAt.IsZero() {
+			sess.EndedAt = sess.LastEventAt
+		}
 		out = append(out, sess)
 	}
 	return out, nil
+}
+
+// RemoveStaleMetaTemps deletes the meta-*.tmp files a WriteMeta cut off
+// before its rename (a crash, power loss) left in the session dirs under
+// root. Only the daemon may call it, at startup, holding the state lock and
+// before any writer: a reader such as the CLI's disk fallback would race a
+// live daemon's WriteMeta.
+func RemoveStaleMetaTemps(root string) {
+	stale, err := filepath.Glob(filepath.Join(root, "sessions", "*", "meta-*.tmp"))
+	if err != nil {
+		return
+	}
+	for _, p := range stale {
+		if err := os.Remove(p); err != nil {
+			slog.Warn("state: could not remove stale meta temp file", "path", p, "err", err)
+			continue
+		}
+		slog.Info("state: removed stale meta temp file", "path", p)
+	}
 }
 
 // TranscriptFile is a kept-open transcript handle for the lifetime of one PTY session.
@@ -234,6 +281,31 @@ func CreateHookFile(root, id string) (string, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm)
 	if err != nil {
 		return "", fmt.Errorf("create hook file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("close hook file: %w", err)
+	}
+	return path, nil
+}
+
+// ResetHookFile empties an existing session's hook state file (owner-only)
+// and returns its path, so a respawned agent's adapter does not replay the
+// previous run's lines. Unlike CreateHookFile it never creates the session
+// directory: a session deleted while a resume was in flight must not come
+// back as an orphan directory.
+func ResetHookFile(root, id string) (string, error) {
+	dir, err := safeSessionDir(root, id)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "hooks.log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, filePerm)
+	if err != nil {
+		return "", fmt.Errorf("reset hook file: %w", err)
+	}
+	if err := f.Chmod(filePerm); err != nil {
+		_ = f.Close()
+		return "", fmt.Errorf("chmod hook file: %w", err)
 	}
 	if err := f.Close(); err != nil {
 		return "", fmt.Errorf("close hook file: %w", err)
@@ -328,58 +400,130 @@ func AppendTranscript(root, id string, b []byte) error {
 	return tf.Write(b)
 }
 
+// ReplayTail is TranscriptTail for replaying into a terminal emulator
+// (attach). A tail cut from the middle of the transcript starts at an
+// arbitrary byte, and a start inside an escape sequence or a UTF-8 rune
+// garbles the screen: a cut tail starts just after its first newline or at
+// its first ESC, whichever comes first, else at its first rune start.
+func ReplayTail(root, id string, max int) ([]byte, error) {
+	b, cut, err := transcriptTail(root, id, max)
+	if err != nil || !cut {
+		return b, err
+	}
+	for i, c := range b {
+		switch c {
+		case '\n':
+			return b[i+1:], nil
+		case 0x1b:
+			return b[i:], nil
+		}
+	}
+	for i := range b {
+		if utf8.RuneStart(b[i]) {
+			return b[i:], nil
+		}
+	}
+	return nil, nil
+}
+
 // TranscriptTail returns the last max bytes of a session's transcript.log
 // (or all of it, if smaller). Missing files return (nil, nil).
 func TranscriptTail(root, id string, max int) ([]byte, error) {
+	b, _, err := transcriptTail(root, id, max)
+	return b, err
+}
+
+// transcriptTail is TranscriptTail that also reports whether the tail was
+// cut from a longer file.
+func transcriptTail(root, id string, max int) (tail []byte, cut bool, err error) {
 	dir, err := safeSessionDir(root, id)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	path := filepath.Join(dir, "transcript.log")
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, false, nil
 		}
-		return nil, fmt.Errorf("open transcript: %w", err)
+		return nil, false, fmt.Errorf("open transcript: %w", err)
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("stat transcript: %w", err)
+		return nil, false, fmt.Errorf("stat transcript: %w", err)
 	}
 	size := info.Size()
-	if int64(max) > size {
+	cut = int64(max) < size
+	if !cut {
 		max = int(size)
 	}
 	if max <= 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	if _, err := f.Seek(-int64(max), io.SeekEnd); err != nil {
-		return nil, fmt.Errorf("seek transcript: %w", err)
+		return nil, false, fmt.Errorf("seek transcript: %w", err)
 	}
 	buf := make([]byte, max)
 	n, err := io.ReadFull(f, buf)
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return nil, fmt.Errorf("read transcript: %w", err)
+		return nil, false, fmt.Errorf("read transcript: %w", err)
 	}
-	return buf[:n], nil
+	return buf[:n], cut, nil
+}
+
+// maxSkills mirrors the per-session cap of the skills package, which state
+// does not import.
+const maxSkills = 16
+
+// sanitizeSkills makes persisted skill names display-safe and bounded.
+// meta.json is not trusted: the names are validated again, strictly, when
+// they are used to stage a plugin.
+func sanitizeSkills(in []string) []string {
+	var out []string
+	for _, n := range in {
+		if len(out) == maxSkills {
+			break
+		}
+		if n = protocol.SanitizeDisplayText(n, 64); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // fromSummary rebuilds a session from its persisted summary. Free-text
 // display fields are sanitized again: meta written before ingest
 // sanitization (S-03) may still hold escapes or newlines.
 func fromSummary(sum protocol.SessionSummary) *Session {
+	// meta.json is not trusted for argv: keep only a valid resume id.
+	resumeID, _ := protocol.NormalizeResumeID(sum.ResumeID)
+	// Likewise the loop id, which names files elsewhere.
+	loopID, loopIter := "", 0
+	if protocol.ValidLoopID(sum.LoopID) && sum.LoopIter > 0 && sum.LoopIter <= 1000 {
+		loopID, loopIter = sum.LoopID, sum.LoopIter
+	}
+	// And the workspace id, which names a registry entry.
+	wsID := ""
+	if protocol.ValidWorkspaceID(sum.WorkspaceID) {
+		wsID = sum.WorkspaceID
+	}
 	return &Session{
-		ID: sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
+		WorkspaceID: wsID,
+		ID:          sum.ID, ShortID: sum.ShortID, ToolID: sum.ToolID, ModelID: sum.ModelID,
 		Effort: sum.Effort, Slug: sum.Slug, CWD: sum.CWD,
-		Title:       protocol.SanitizeDisplayText(sum.Title, protocol.MaxTitleRunes),
-		Description: protocol.SanitizeDisplayText(sum.Description, protocol.MaxDescriptionRunes),
-		Fleet:       protocol.SanitizeDisplayText(sum.Fleet, protocol.MaxFleetRunes),
-		State:       sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
+		Title:         protocol.SanitizeDisplayText(sum.Title, protocol.MaxTitleRunes),
+		Description:   protocol.SanitizeDisplayText(sum.Description, protocol.MaxDescriptionRunes),
+		DescriptionAt: sum.DescriptionAt,
+		Fleet:         protocol.SanitizeDisplayText(sum.Fleet, protocol.MaxFleetRunes),
+		State:         sum.State, StartedAt: sum.StartedAt, LastEventAt: sum.LastEventAt,
 		LastLine: sum.LastLine, ExitCode: sum.ExitCode,
 		Tokens: sum.Tokens, OutputBytes: sum.OutputBytes,
-		Name: sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
-		WorkingSince: sum.WorkingSince,
+		CostUSD: copyFloat(sum.CostUSD),
+		Name:    sum.Name, RetireAt: sum.RetireAt, RetiredAt: sum.RetiredAt,
+		WorkingSince: sum.WorkingSince, EndedAt: sum.EndedAt,
+		ResumeID: resumeID, TrustFolder: sum.TrustFolder,
+		Skills: sanitizeSkills(sum.Skills),
+		LoopID: loopID, LoopIter: loopIter,
 	}
 }

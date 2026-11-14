@@ -20,12 +20,21 @@
 //	SetSessionName    Ack{session_id}               SessionUpdated is broadcast first
 //	SetSessionFleet   Ack{session_id}
 //	Retire, Unretire  Ack{session_id}               also when nothing changed
+//	Resume            Ack{session_id}               SessionUpdated (state queued) is broadcast first when a dead session respawns
 //	Delete            Ack{session_id}               SessionRemoved is broadcast first
 //	Complete          Ack{session_id}               termination requested, not finished
 //	Resize            Ack{session_id}               also for the 0x0 no-op
 //	FocusFilter       Ack
 //	SetMaxConcurrent  Ack
 //	Reload            Ack                           after the new registry is in use
+//	RescanTools       ToolsChanged                  the tool list after the probe, changed or not
+//	Undo, Redo        UndoResult                    files restored and deleted; the folder is changed before the reply
+//	UsageQuery        UsageResult (UsageReport)     not an Ack; bad_intent "usage is off" while the setting is off
+//	UsageSample       none (Ack if it had an ID)    sent by the status-line tap with no ID; dropped quietly when unusable
+//	StartLoop         Loop (LoopSummary)            not an Ack; bad_intent while the loops feature is off, at 2 live loops ("too many loops"), or for a bad file
+//	PauseLoop         Loop (LoopSummary)            bad_state unless the loop is running
+//	ResumeLoop        Loop (LoopSummary)            bad_state unless the loop is paused
+//	StopLoop          Loop (LoopSummary)            bad_state when the loop already ended
 //	Shutdown          Ack                           best effort, see below
 //	anything else     Error bad_intent              "intent not implemented"
 //

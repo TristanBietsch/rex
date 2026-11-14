@@ -5,6 +5,8 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // hasVisibleText reports whether b contains any printable (non-whitespace,
@@ -80,5 +82,23 @@ func sanitizeForDisplay(line string) string {
 		b.WriteRune(r)
 		prevSpace = false
 	}
-	return strings.TrimRight(b.String(), " ")
+	// Controls are spaces by now; this drops bidi overrides (they reorder
+	// what clients draw after them) and turns U+2028/U+2029 into spaces.
+	return strings.TrimRight(protocol.FlattenDisplayText(b.String()), " ")
+}
+
+// TypedText makes text safe to type into an agent's PTY (the initial
+// prompt, a Reply): escape sequences, C0 controls other than newline and
+// tab, DEL, C1 controls and invalid UTF-8 are dropped, and "\r\n" and "\r"
+// become "\n". Without this, an ESC[201~ in a prompt closed the bracketed
+// paste early and everything after it reached the agent as keystrokes (a
+// "\r" there submits, other controls act as key bindings).
+func TypedText(s string) string {
+	s = strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(strings.ToValidUTF8(s, ""))
+	return strings.Map(func(r rune) rune {
+		if r != '\n' && r != '\t' && unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, ansi.Strip(s))
 }

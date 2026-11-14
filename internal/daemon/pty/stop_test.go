@@ -2,6 +2,7 @@ package pty
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,4 +46,36 @@ func TestSupervisor_KillsProcessGroup(t *testing.T) {
 	// would leave the reader blocked until the drain timeout.
 	_, took := runUntilCanceled(t, []string{"sh", "-c", "sleep 100 & wait"}, nil)
 	require.Less(t, took, 1500*time.Millisecond, "process group kill should unblock the reader promptly")
+}
+
+// A deleting session whose child exits on its own path (the errc branch, which
+// exec.CommandContext's kill takes when it wins the select against ctx.Done)
+// must not broadcast failed.
+func TestSupervisor_ChildExitWhileDeleting_NoTerminalBroadcast(t *testing.T) {
+	store := state.NewStore()
+	sess := &state.Session{ID: "del1", ShortID: "del1", ToolID: "echo", Slug: "t",
+		State: protocol.StateQueued, StartedAt: time.Now().UTC()}
+	require.NoError(t, store.Add(sess))
+	var mu sync.Mutex
+	var terminal []protocol.State
+	store.Subscribe(func(e state.Event) {
+		if e.Kind == state.EventUpdated && e.NewState != nil && *e.NewState != protocol.StateWorking {
+			mu.Lock()
+			terminal = append(terminal, *e.NewState)
+			mu.Unlock()
+		}
+	})
+	store.BeginDelete(sess.ID)
+	sup := New(SupervisorConfig{StateDir: t.TempDir(), Store: store,
+		Command: []string{"sh", "-c", "exit 3"}, StopDrainTimeout: 2 * time.Second})
+	done := make(chan struct{})
+	go func() { _ = sup.Run(context.Background(), sess); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("supervisor did not exit")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	require.Empty(t, terminal, "a session being deleted must not broadcast a terminal state")
 }

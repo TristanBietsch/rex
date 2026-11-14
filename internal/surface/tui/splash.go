@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/tristanbietsch/rex/internal/features/audio"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // bootLine is one rendered row in the splash log.
@@ -84,7 +87,7 @@ func renderSplash(m Model, w, h int) string {
 		if m.BootError != nil {
 			rows = append(rows, leftPad+styleDim.Render("cause: ")+styleBootCause.Render(m.BootError.Error()))
 		}
-		if hint, ok := bootFixHints[lastFailedStep(m)]; ok {
+		if hint, ok := bootFixHint(lastFailedStep(m), m.BootError); ok {
 			rows = append(rows, leftPad+styleDim.Render("fix:   ")+stylePrimary.Render(hint))
 		}
 		rows = append(rows, "", lipgloss.PlaceHorizontal(w-2, lipgloss.Right, styleDim.Render("press q · ctrl+c to quit")))
@@ -111,7 +114,7 @@ func renderSplashStatusLine(m Model, elapsed time.Duration) string {
 func renderBootLine(ln bootLine) string {
 	token := bootStatusToken(ln.Status)
 	cat := padCategory(ln.Name)
-	desc := ln.Desc
+	desc := protocol.FlattenDisplayText(ln.Desc) // descriptions can carry file names and file contents
 	return token + " " + stylePrimary.Render(cat) + "  " +
 		styleDim.Render("·") + " " + stylePrimary.Render(desc)
 }
@@ -194,6 +197,17 @@ var bootFixHints = map[string]string{
 	"subscribe":      "the daemon rejected the event subscription — check daemon.log",
 }
 
+// bootFixHint is the next step for a failed boot step. A daemon that would
+// not start is only a PATH problem when rex-daemon was not found; any other
+// cause (a bind error, a bad registry, a socket timeout) is in daemon.log.
+func bootFixHint(step string, cause error) (string, bool) {
+	if step == "daemon" && !errors.Is(cause, exec.ErrNotFound) {
+		return "see daemon.log (rex daemon logs)", true
+	}
+	hint, ok := bootFixHints[step]
+	return hint, ok
+}
+
 // lastFailedStep returns the name of the most recent stepFail row.
 func lastFailedStep(m Model) string {
 	for i := len(m.BootLog) - 1; i >= 0; i-- {
@@ -205,12 +219,13 @@ func lastFailedStep(m Model) string {
 }
 
 // handOffToBoard transitions from FocusBoot to FocusBoard, releases the boot
-// log, plays the startup chime, and starts the daemon-event listener.
+// log, plays the startup chime (unless QuietBoot), and starts the
+// daemon-event listener.
 func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	m.Focus = FocusBoard
 	m.BootLog = nil
 	m.lastInput = m.now() // the screensaver's idle time starts with the board
-	if m.Audio != nil {
+	if m.Audio != nil && !m.QuietBoot {
 		m.Audio.Play(audio.EventStartup)
 		// Voice self-schedules after the startup tone and no-ops when boot_voice is off.
 		m.Audio.Play(audio.EventBootVoice)
@@ -225,6 +240,10 @@ func (m Model) handOffToBoard() (Model, tea.Cmd) {
 	}
 	if m.Client != nil {
 		cmds = append(cmds, listenDaemon(m.Client))
+	}
+	if m.swapIn != nil {
+		m, c = applySwapPage(m)
+		cmds = append(cmds, c)
 	}
 	return m, tea.Batch(cmds...)
 }

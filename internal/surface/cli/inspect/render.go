@@ -7,7 +7,6 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
-	"github.com/tristanbietsch/rex/internal/wire/client"
 )
 
 // RunRender connects to the daemon, fetches a snapshot, and prints the
@@ -16,26 +15,24 @@ import (
 func RunRender(args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
 	socket := core.AddSocketFlag(fs)
+	out := core.AddOutputFlags(fs, core.ContentFormats)
 	widthFlag := fs.String("w", "120", "render width")
 	heightFlag := fs.String("h", "30", "render height")
-	if err := fs.Parse(args); err != nil {
+	_, err := out.Parse(fs, args)
+	if err != nil {
 		return err
 	}
 	w, _ := strconv.Atoi(*widthFlag)
 	h, _ := strconv.Atoi(*heightFlag)
 
-	sock, err := socket.Path()
+	c, err := socket.Dial()
 	if err != nil {
 		return err
-	}
-	c, err := client.Dial(sock)
-	if err != nil {
-		return fmt.Errorf("dial daemon: %w", err)
 	}
 	defer c.Close()
 	snap, err := c.Hello("rex-render")
 	if err != nil {
-		return fmt.Errorf("hello: %w", err)
+		return core.HelloFailed(err)
 	}
 
 	m := tui.Model{
@@ -47,6 +44,6 @@ func RunRender(args []string) error {
 	if len(snap.Sessions) > 0 {
 		m.SelectedID = snap.Sessions[0].ID
 	}
-	fmt.Println(m.View())
-	return nil
+	_, err = fmt.Fprintln(core.Out().Out, m.View())
+	return err
 }

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/catalog/theme"
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -27,7 +29,7 @@ const (
 	setupStepWelcome    setupStep = iota
 	setupStepDaemon               // check / start daemon
 	setupStepDefaults             // tool, model, effort
-	setupStepAppearance           // color_scheme, spinner, row_density
+	setupStepAppearance           // theme, spinner, row_density
 	setupStepAudio                // sound_enabled, soundset
 	setupStepTrust                // auto_trust_dirs: opt in, default no
 	setupStepShell                // show profile block, offer install
@@ -49,7 +51,7 @@ const (
 type appearanceField int
 
 const (
-	appearanceColorScheme appearanceField = iota
+	appearanceTheme appearanceField = iota
 	appearanceSpinner
 	appearanceRowDensity
 )
@@ -75,7 +77,11 @@ type setupDaemonStartMsg struct {
 	pid int
 	err error
 }
-type setupWriteMsg struct{ err error }
+type setupWriteMsg struct {
+	err error
+	// locked are the settings config.lua sets: the wizard left them alone.
+	locked []string
+}
 
 // ── Top-level model ──────────────────────────────────────────────────────────
 
@@ -102,19 +108,19 @@ type SetupWizardModel struct {
 	tools         []registry.Tool
 	toolIdx       int
 	defaultModel  string // free text
-	modelCursor   int    // cursor position in modelInput
 	effortOptions []string
 	effortIdx     int
 	defaultsField defaultsField
 
 	// step: appearance
-	colorSchemeOptions []string
-	colorSchemeIdx     int
-	spinnerOptions     []string
-	spinnerIdx         int
-	rowDensityOptions  []string
-	rowDensityIdx      int
-	appearanceField    appearanceField
+	themes            *theme.Catalog // the user's theme files
+	themeOptions      []string
+	themeIdx          int
+	spinnerOptions    []string
+	spinnerIdx        int
+	rowDensityOptions []string
+	rowDensityIdx     int
+	appearanceField   appearanceField
 
 	// step: audio
 	soundEnabled bool
@@ -141,6 +147,9 @@ type SetupWizardModel struct {
 
 	// step: done
 	writeErr error
+	// writeLocked are the settings the write left alone because config.lua
+	// sets them.
+	writeLocked []string
 
 	// esc-confirm overlay
 	confirmCancel bool
@@ -179,10 +188,10 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	} else {
 		all = reg.Tools
 	}
-	visible := visibleTools(all)
 
 	// settings options from registry
-	colorSchemeOpts := enumOptions("color_scheme")
+	themes := theme.LoadDir(themesDir())
+	themeOpts := append(slices.Clone(enumOptions("theme")), themes.UserNamesExcept(enumOptions("theme"))...)
 	spinnerOpts := enumOptions("spinner")
 	rowDensityOpts := enumOptions("row_density")
 	soundsetOpts := enumOptions("soundset")
@@ -191,7 +200,14 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 	st := settings.NewStore()
 	_ = st.Load(configPath)
 
-	colorSchemeIdx := indexIn(colorSchemeOpts, st.String("color_scheme"))
+	visible := setupTools(all, st)
+
+	// A configured theme that is not on offer (its file was skipped or
+	// removed) stays selected, so finishing the wizard does not reset it.
+	if cur := st.String("theme"); !slices.Contains(themeOpts, cur) {
+		themeOpts = append(themeOpts, cur)
+	}
+	themeIdx := indexIn(themeOpts, st.String("theme"))
 	spinnerIdx := indexIn(spinnerOpts, st.String("spinner"))
 	rowDensityIdx := indexIn(rowDensityOpts, st.String("row_density"))
 	soundEnabled, _ := st.Get("sound_enabled").(bool)
@@ -216,7 +232,7 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 		trustDir, trustYes = v, true
 	} else if strings.TrimSpace(trustDir) == "" {
 		cwd, _ := os.Getwd()
-		trustDir = suggestTrustDir(cwd)
+		trustDir = settings.SuggestTrustDir(cwd)
 	}
 
 	// shell RC
@@ -244,13 +260,14 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 		effortIdx:     effortIdx,
 		defaultsField: defaultsTool,
 
-		colorSchemeOptions: colorSchemeOpts,
-		colorSchemeIdx:     colorSchemeIdx,
-		spinnerOptions:     spinnerOpts,
-		spinnerIdx:         spinnerIdx,
-		rowDensityOptions:  rowDensityOpts,
-		rowDensityIdx:      rowDensityIdx,
-		appearanceField:    appearanceColorScheme,
+		themes:            themes,
+		themeOptions:      themeOpts,
+		themeIdx:          themeIdx,
+		spinnerOptions:    spinnerOpts,
+		spinnerIdx:        spinnerIdx,
+		rowDensityOptions: rowDensityOpts,
+		rowDensityIdx:     rowDensityIdx,
+		appearanceField:   appearanceTheme,
 
 		soundEnabled: soundEnabled,
 		soundsetOpts: soundsetOpts,
@@ -270,6 +287,22 @@ func NewSetupWizardModel(configPath, socket string) SetupWizardModel {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// setupTools is the tools `rex setup` offers as the default: the enabled
+// ones, except that the extra agents (qwen, cursor, grok) show only while
+// extra_agents is on and their binary is on PATH (there is no daemon yet to
+// ask; this process looks itself).
+func setupTools(all []registry.Tool, st *settings.Store) []registry.Tool {
+	extra := settings.FeatureOn(st, "extra_agents")
+	var out []registry.Tool
+	for _, t := range visibleTools(all) {
+		if slices.Contains(registry.ExtraAgentIDs, t.ID) && (!extra || !registry.Installed(t)) {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
 
 func enumOptions(id string) []string {
 	s, ok := settings.Find(id)
@@ -347,6 +380,7 @@ func (m SetupWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case setupWriteMsg:
 		m.writing = false
 		m.writeErr = msg.err
+		m.writeLocked = msg.locked
 		m.step = setupStepDone
 		if msg.err != nil {
 			slog.Error("setup: write failed", "err", msg.err)
@@ -499,7 +533,6 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if len(m.tools[m.toolIdx].Models) > 0 {
 					m.defaultModel = m.tools[m.toolIdx].Models[0].ID
 				}
-				m.modelCursor = len(m.defaultModel)
 			}
 		case defaultsEffort:
 			if m.effortIdx+1 < len(m.effortOptions) {
@@ -518,7 +551,6 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if len(m.tools[m.toolIdx].Models) > 0 {
 					m.defaultModel = m.tools[m.toolIdx].Models[0].ID
 				}
-				m.modelCursor = len(m.defaultModel)
 			}
 		case defaultsEffort:
 			if m.effortIdx > 0 {
@@ -531,17 +563,13 @@ func (m SetupWizardModel) keyDefaults(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.defaultsField == defaultsModel {
 			m.touched = true
 			switch k.Type {
+			// The field draws its cursor at the end: edit there, by rune.
 			case tea.KeyBackspace:
-				if m.modelCursor > 0 {
-					m.defaultModel = m.defaultModel[:m.modelCursor-1] + m.defaultModel[m.modelCursor:]
-					m.modelCursor--
-				}
+				m.defaultModel = dropLastRune(m.defaultModel)
 			case tea.KeyRunes:
-				m.defaultModel = m.defaultModel[:m.modelCursor] + string(k.Runes) + m.defaultModel[m.modelCursor:]
-				m.modelCursor += len([]rune(string(k.Runes)))
+				m.defaultModel += typedText(k.Runes)
 			case tea.KeySpace:
-				m.defaultModel = m.defaultModel[:m.modelCursor] + " " + m.defaultModel[m.modelCursor:]
-				m.modelCursor++
+				m.defaultModel += " "
 			}
 		}
 	}
@@ -552,29 +580,29 @@ func (m SetupWizardModel) keyAppearance(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "tab", "right", "enter":
 		switch m.appearanceField {
-		case appearanceColorScheme:
+		case appearanceTheme:
 			m.appearanceField = appearanceSpinner
 		case appearanceSpinner:
 			m.appearanceField = appearanceRowDensity
 		case appearanceRowDensity:
 			m.step = setupStepAudio
-			m.appearanceField = appearanceColorScheme
+			m.appearanceField = appearanceTheme
 		}
 	case "shift+tab", "left":
 		switch m.appearanceField {
-		case appearanceColorScheme:
+		case appearanceTheme:
 			m.step = setupStepDefaults
 		case appearanceSpinner:
-			m.appearanceField = appearanceColorScheme
+			m.appearanceField = appearanceTheme
 		case appearanceRowDensity:
 			m.appearanceField = appearanceSpinner
 		}
 	case "j", "down":
 		m.moved()
 		switch m.appearanceField {
-		case appearanceColorScheme:
-			if m.colorSchemeIdx+1 < len(m.colorSchemeOptions) {
-				m.colorSchemeIdx++
+		case appearanceTheme:
+			if m.themeIdx+1 < len(m.themeOptions) {
+				m.themeIdx++
 			}
 		case appearanceSpinner:
 			if m.spinnerIdx+1 < len(m.spinnerOptions) {
@@ -588,9 +616,9 @@ func (m SetupWizardModel) keyAppearance(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.moved()
 		switch m.appearanceField {
-		case appearanceColorScheme:
-			if m.colorSchemeIdx > 0 {
-				m.colorSchemeIdx--
+		case appearanceTheme:
+			if m.themeIdx > 0 {
+				m.themeIdx--
 			}
 		case appearanceSpinner:
 			if m.spinnerIdx > 0 {
@@ -739,40 +767,6 @@ func (m SetupWizardModel) withAutoTrust(folders string) SetupWizardModel {
 	return m
 }
 
-// suggestTrustDir offers the folder that holds the current project: the
-// parent of cwd when cwd is the root of a git checkout. The suggestion must
-// pass the checks a typed value does and, with symlinks resolved, lie
-// inside the home folder. It never offers the home folder itself or
-// anything outside it (such as /tmp), and returns "" when nothing fits.
-func suggestTrustDir(cwd string) string {
-	if cwd == "" {
-		return ""
-	}
-	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
-		return ""
-	}
-	short := tildePath(filepath.Dir(cwd))
-	// A name holding the list separator would be read back as two folders,
-	// and one with outer spaces would be trimmed into another folder.
-	if !paths.IsHomeRelative(short) || strings.ContainsRune(short, filepath.ListSeparator) {
-		return ""
-	}
-	if v, err := settings.CheckAutoTrustDirs(short); err != nil || v != short {
-		return ""
-	}
-	// Compare resolved paths: a link such as ~/code -> /Volumes/x/code reads
-	// as inside home but is not.
-	dir, err := settings.TrustDir(short)
-	if err != nil {
-		return ""
-	}
-	home, err := settings.CanonicalHome()
-	if err != nil || !strings.HasPrefix(dir, home+string(filepath.Separator)) {
-		return ""
-	}
-	return short
-}
-
 func (m SetupWizardModel) keyShell(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "tab", "right", "enter":
@@ -893,9 +887,9 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 	if m.effortIdx < len(m.effortOptions) {
 		effortVal = m.effortOptions[m.effortIdx]
 	}
-	colorScheme := ""
-	if m.colorSchemeIdx < len(m.colorSchemeOptions) {
-		colorScheme = m.colorSchemeOptions[m.colorSchemeIdx]
+	themeName := ""
+	if m.themeIdx < len(m.themeOptions) {
+		themeName = m.themeOptions[m.themeIdx]
 	}
 	spinner := ""
 	if m.spinnerIdx < len(m.spinnerOptions) {
@@ -907,26 +901,65 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 	}
 	soundEnabled := m.soundEnabled
 	autoTrust := m.autoTrustValue()
+	daemonSocket := m.daemonSocket
 	soundset := ""
 	if m.soundsetIdx < len(m.soundsetOpts) {
 		soundset = m.soundsetOpts[m.soundsetIdx]
 	}
 
+	tools := m.tools
+
 	return func() tea.Msg {
-		// apply settings to store
-		_ = store.Set("color_scheme", colorScheme)
-		_ = store.Set("spinner", spinner)
-		_ = store.Set("row_density", rowDensity)
-		_ = store.Set("sound_enabled", soundEnabled)
-		_ = store.Set("soundset", soundset)
-		// Only on a yes: the store starts at the default, empty (off).
+		// The model field is free text: refuse one the tool does not have
+		// before anything is written.
+		var spawn registry.SpawnChoice
+		if toolID != "" {
+			var err error
+			if spawn, err = wizardSpawnChoice(tools, toolID, modelID, effortVal); err != nil {
+				return setupWriteMsg{err: err}
+			}
+		}
+		// Save is sparse: it writes only the keys set or reset here and keeps
+		// the rest of an existing config.yaml. A value the wizard cannot
+		// produce is reset (key deleted) rather than left at what the file
+		// holds, so an old setting never outlives the answer given here.
+		// Settings config.lua sets are neither written nor reset: the
+		// value lives in the Lua file. They are listed in the summary.
+		layered, _, _ := settings.LoadLayered(configPath)
+		var locked []string
+		skip := func(id string) bool {
+			if layered.Locked(id) {
+				locked = append(locked, id)
+				return true
+			}
+			return false
+		}
+		setOrReset := func(id string, v any) {
+			if skip(id) {
+				return
+			}
+			if err := store.Set(id, v); err != nil {
+				_ = store.Reset(id)
+			}
+		}
+		setOrReset("theme", themeName)
+		setOrReset("spinner", spinner)
+		setOrReset("row_density", rowDensity)
+		setOrReset("sound_enabled", soundEnabled)
+		setOrReset("soundset", soundset)
+		// "No, always ask" must delete a previously saved folder list, or
+		// rex would keep auto-trusting after the user said no.
 		if autoTrust != "" {
-			_ = store.Set("auto_trust_dirs", autoTrust)
+			setOrReset("auto_trust_dirs", autoTrust)
+		} else if !skip("auto_trust_dirs") {
+			_ = store.Reset("auto_trust_dirs")
 		}
 
-		// store tool/model/effort as extension keys (not in registry, skip validation)
-		// They're informational for the "done" screen; actual session args come from `rex new` flags.
-		// We persist what we can via the registry keys.
+		if toolID != "" {
+			setOrReset("default_spawn_tool", spawn.Tool)
+			setOrReset("default_spawn_model", spawn.Model)
+			setOrReset("default_spawn_effort", spawn.Effort)
+		}
 
 		slog.Info("setup: writing config", "path", configPath,
 			"tool", toolID, "model", modelID, "effort", effortVal)
@@ -934,6 +967,8 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 			return setupWriteMsg{err: err}
 		}
 		slog.Info("setup: config written", "path", configPath)
+		// The wizard may have granted or revoked folder trust.
+		reloadDaemonForTrust(nil, daemonSocket, "auto_trust_dirs")
 
 		if installShell && shellRC != "" {
 			slog.Info("setup: installing shell block", "rc", shellRC)
@@ -945,7 +980,7 @@ func (m SetupWizardModel) doWriteCmd() tea.Cmd {
 			slog.Info("setup: skipping shell block install", "install", installShell, "rc", shellRC)
 		}
 
-		return setupWriteMsg{}
+		return setupWriteMsg{locked: locked}
 	}
 }
 
@@ -1082,7 +1117,7 @@ func (m SetupWizardModel) renderDaemon() (string, []string, string) {
 	} else if m.daemonStartErr != nil {
 		body = append(body, "  "+styleBootFail.Render("✗")+" failed to start: "+m.daemonStartErr.Error())
 		body = append(body, "")
-		body = append(body, "  You can start it manually with: "+styleSlug.Render("rex daemon"))
+		body = append(body, "  You can start it manually with: "+styleSlug.Render("rex daemon start"))
 	} else {
 		body = append(body, "  "+styleBootWarn.Render("!")+" daemon not running at "+styleDim.Render(m.daemonSocket))
 		body = append(body, "")
@@ -1155,7 +1190,7 @@ func (m SetupWizardModel) renderAppearance() (string, []string, string) {
 		idx   int
 		field appearanceField
 	}{
-		{"color_scheme", "color scheme", m.colorSchemeOptions, m.colorSchemeIdx, appearanceColorScheme},
+		{"theme", "theme", m.themeOptions, m.themeIdx, appearanceTheme},
 		{"spinner", "spinner type", m.spinnerOptions, m.spinnerIdx, appearanceSpinner},
 		{"row_density", "row density", m.rowDensityOptions, m.rowDensityIdx, appearanceRowDensity},
 	}
@@ -1214,8 +1249,8 @@ func (m SetupWizardModel) renderTrust() (string, []string, string) {
 	folderActive := m.trustField == trustFolder
 	body := []string{
 		"",
-		"  Claude Code asks \"do you trust this folder?\" the first time it opens one.",
-		"  rex can say yes for you in the folder below and every folder inside it.",
+		"  Claude Code and Antigravity ask \"do you trust this folder?\" when they",
+		"  open one. rex can say yes in the folder below and every folder inside it.",
 		"  " + styleBootWarn.Render("Only pick folders whose code you trust."),
 		"",
 		"  " + setupLabel("skip that question?", answerActive),
@@ -1352,6 +1387,10 @@ func (m SetupWizardModel) renderDone() (string, []string, string) {
 		body = append(body, "  "+icon+" "+r.label)
 	}
 
+	if len(m.writeLocked) > 0 {
+		body = append(body, "  "+styleDim.Render("- kept from config.lua: "+strings.Join(m.writeLocked, ", ")))
+	}
+
 	body = append(body, "")
 
 	// first tool
@@ -1387,14 +1426,14 @@ func (m SetupWizardModel) renderDone() (string, []string, string) {
 func setupOption(selected bool, glyph, name, glyphColor string) string {
 	var cursor string
 	if selected {
-		cursor = styleArrow.Render("▸") + " "
+		cursor = selectCursor()
 	} else {
 		cursor = "  "
 	}
 	var g string
 	if glyph != "" {
 		if glyphColor != "" {
-			g = lipgloss.NewStyle().Foreground(lipgloss.Color(glyphColor)).Render(glyph) + "  "
+			g = brandStyle(glyphColor).Render(glyph) + "  "
 		} else {
 			g = glyph + "  "
 		}
@@ -1412,7 +1451,7 @@ func setupInput(value string, width int) string {
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorWorking).
+		BorderForeground(colorAccent).
 		Padding(0, 1).
 		Width(width).
 		Render(stylePrimary.Render(value))
@@ -1452,7 +1491,8 @@ func ShellProfileBlock(shell string) string {
 }
 
 // tildePath shows p with the home directory abbreviated to "~", or as is
-// when p is outside it or the home directory is unknown.
+// when p is outside it or the home directory is unknown. Below "~" it uses
+// "/" on every OS, as the CLI does (core displayPath).
 func tildePath(p string) string {
 	home, err := paths.Home()
 	if err != nil {
@@ -1465,7 +1505,7 @@ func tildePath(p string) string {
 	case rel == ".":
 		return "~"
 	default:
-		return "~" + string(filepath.Separator) + rel
+		return "~/" + filepath.ToSlash(rel)
 	}
 }
 
@@ -1590,6 +1630,12 @@ func rewriteShellBlock(content, block string) string {
 func RunSetupWizard(configPath, socket, autoTrust string) error {
 	slog.Info("setup: launching TUI wizard", "config_path", configPath, "socket", socket)
 	model := NewSetupWizardModel(configPath, socket).withAutoTrust(autoTrust)
+	// Draw the wizard in the user's own theme and accent, not the
+	// built-in default.
+	st := settings.NewStore()
+	_ = st.Load(configPath)
+	accentChoice = st.String("accent_color")
+	applyThemeFrom(model.themes, model.themeOptions[model.themeIdx])
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := p.Run()
 	if err != nil {
@@ -1598,27 +1644,119 @@ func RunSetupWizard(configPath, socket, autoTrust string) error {
 	return err
 }
 
-// ApplyDefaultsNonInteractive writes the config without prompting. Used by --yes.
-// A non-empty autoTrust is written to auto_trust_dirs after the same checks
-// the daemon applies; empty leaves the current value alone.
+// wizardSpawnChoice resolves the wizard's tool and free-text model against
+// the registry. The effort list the wizard shows belongs to the tool's first
+// model, so an effort the typed model does not offer falls back to that
+// model's default instead of failing.
+func wizardSpawnChoice(tools []registry.Tool, toolID, modelID, effort string) (registry.SpawnChoice, error) {
+	reg := &registry.Registry{Tools: tools}
+	choice, _, err := reg.ResolveSpawn(registry.SpawnChoice{}, toolID, modelID, "")
+	if err != nil {
+		return registry.SpawnChoice{}, err
+	}
+	if effort != "" {
+		if c, _, err := reg.ResolveSpawn(choice, "", "", effort); err == nil {
+			choice = c
+		}
+	}
+	return choice, nil
+}
+
+// ResolveSpawnDefaults checks the tool, model and effort given to rex setup
+// against the registry, on top of the spawn defaults already in the config
+// at configPath. An empty tool, model and effort changes nothing. The error
+// names the valid ids.
+func ResolveSpawnDefaults(configPath, toolID, modelID, effortVal string) (registry.SpawnChoice, bool, error) {
+	if toolID == "" && modelID == "" && effortVal == "" {
+		return registry.SpawnChoice{}, false, nil
+	}
+	store := settings.NewStore()
+	if err := store.Load(configPath); err != nil {
+		return registry.SpawnChoice{}, false, err
+	}
+	return resolveSpawnDefaults(store, toolID, modelID, effortVal)
+}
+
+func resolveSpawnDefaults(store *settings.Store, toolID, modelID, effortVal string) (registry.SpawnChoice, bool, error) {
+	if toolID == "" && modelID == "" && effortVal == "" {
+		return registry.SpawnChoice{}, false, nil
+	}
+	reg, err := loadToolsStrict()
+	if err != nil {
+		return registry.SpawnChoice{}, false, fmt.Errorf("load tools: %w", err)
+	}
+	cur := registry.SpawnChoice{
+		Tool:   store.String("default_spawn_tool"),
+		Model:  store.String("default_spawn_model"),
+		Effort: store.String("default_spawn_effort"),
+	}
+	return reg.ResolveSpawn(cur, toolID, modelID, effortVal)
+}
+
+// DefaultsReport says what ApplyDefaults did, for the caller to render.
+type DefaultsReport struct {
+	// ConfigPath is the config.yaml that was written.
+	ConfigPath string
+	// RCPath is the shell profile the block went into, "" when none was
+	// touched; RCState is "installed", "present" (already there), "failed"
+	// or "skipped" (-no-shell, or no profile found).
+	RCPath, RCState string
+	// RCError is why the block could not be installed (RCState "failed").
+	RCError string
+	// AutoTrust is the auto_trust_dirs value written, "" when unchanged.
+	AutoTrust string
+	// NextCommand is the command to run after setup.
+	NextCommand string
+}
+
+// ApplyDefaultsNonInteractive is ApplyDefaults for callers that do not
+// render the report.
 func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, effortVal, autoTrust string, noShell bool) error {
+	_, err := ApplyDefaults(configPath, socket, toolID, modelID, effortVal, autoTrust, noShell)
+	return err
+}
+
+// ApplyDefaults writes the config without prompting. Used by -yes.
+// A non-empty autoTrust is written to auto_trust_dirs after the same checks
+// the daemon applies; empty leaves the current value alone. It prints
+// nothing: the caller renders the report.
+func ApplyDefaults(configPath, socket string, toolID, modelID, effortVal, autoTrust string, noShell bool) (DefaultsReport, error) {
+	rep := DefaultsReport{ConfigPath: configPath, RCState: "skipped"}
 	slog.Info("setup: non-interactive start",
 		"config_path", configPath, "socket", socket,
 		"tool", toolID, "model", modelID, "effort", effortVal, "auto_trust", autoTrust)
 
-	store := settings.NewStore()
-	// Load existing so we don't wipe unrelated keys
-	_ = store.Load(configPath)
+	// Load existing so we don't wipe unrelated keys. config.lua is on top,
+	// so a setting it sets is refused with its location (Set), not written
+	// to config.yaml where it would have no effect.
+	store, _, _ := settings.LoadLayered(configPath)
+
+	spawn, spawnChanged, err := resolveSpawnDefaults(store, toolID, modelID, effortVal)
+	if err != nil {
+		return rep, err
+	}
 
 	if autoTrust != "" {
 		v, err := settings.CheckAutoTrustDirs(autoTrust)
 		if err != nil {
-			return fmt.Errorf("auto-trust: %w", err)
+			return rep, fmt.Errorf("auto-trust: %w", err)
 		}
 		if err := store.Set("auto_trust_dirs", v); err != nil {
-			return fmt.Errorf("auto-trust: %w", err)
+			return rep, fmt.Errorf("auto-trust: %w", err)
 		}
-		autoTrust = v
+		rep.AutoTrust = v
+	}
+
+	if spawnChanged {
+		for id, v := range map[string]string{
+			"default_spawn_tool":   spawn.Tool,
+			"default_spawn_model":  spawn.Model,
+			"default_spawn_effort": spawn.Effort,
+		} {
+			if err := store.Set(id, v); err != nil {
+				return rep, fmt.Errorf("%s: %w", id, err)
+			}
+		}
 	}
 
 	// Check if config already exists and is non-empty — non-interactive treats
@@ -1627,22 +1765,28 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 
 	slog.Info("setup: writing config", "path", configPath)
 	if err := store.Save(configPath); err != nil {
-		return fmt.Errorf("save config: %w", err)
+		return rep, fmt.Errorf("save config: %w", err)
 	}
 	slog.Info("setup: config written", "path", configPath)
+	if autoTrust != "" {
+		reloadDaemonForTrust(nil, socket, "auto_trust_dirs")
+	}
 
 	if !noShell {
 		rcPath := detectShellRC()
 		if rcPath != "" {
+			rep.RCPath = rcPath
 			if hasShellBlock(rcPath) {
+				rep.RCState = "present"
 				slog.Info("setup: shell block already installed, skipping", "rc", rcPath)
 			} else {
 				slog.Info("setup: installing shell block", "rc", rcPath)
 				if err := installShellBlock(rcPath); err != nil {
 					// non-fatal: warn and continue
 					slog.Error("setup: shell block install failed", "rc", rcPath, "err", err)
-					fmt.Fprintf(os.Stderr, "warning: could not install shell block into %s: %v\n", rcPath, err)
+					rep.RCState, rep.RCError = "failed", err.Error()
 				} else {
+					rep.RCState = "installed"
 					slog.Info("setup: shell block installed", "rc", rcPath)
 				}
 			}
@@ -1661,16 +1805,17 @@ func ApplyDefaultsNonInteractive(configPath, socket string, toolID, modelID, eff
 	if modelDisplay == "" {
 		modelDisplay = "opus"
 	}
-	nextCmd := fmt.Sprintf(`rex new "your first task" --tool %s --model %s`, toolDisplay, modelDisplay)
-	if effortVal != "" {
-		nextCmd += " --effort " + effortVal
+	rep.NextCommand = NextCommand(toolDisplay, modelDisplay, effortVal)
+	return rep, nil
+}
+
+// NextCommand is the command setup suggests running next.
+func NextCommand(tool, model, effort string) string {
+	next := fmt.Sprintf(`rex new -tool %s -model %s -- "your first task"`, tool, model)
+	if effort != "" {
+		next = fmt.Sprintf(`rex new -tool %s -model %s -effort %s -- "your first task"`, tool, model, effort)
 	}
-	if autoTrust != "" {
-		fmt.Printf("auto-trust: agents started under %s skip the folder trust prompt\n", autoTrust)
-	}
-	fmt.Printf("setup complete. Next: %s\n", nextCmd)
-	fmt.Println("Docs: https://github.com/tristanbietsch/rex")
-	return nil
+	return next
 }
 
 // styleArrow is declared in prompt.go and shared across the tui package.

@@ -16,7 +16,7 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 - `Run(socket string) error` — main TUI program.
 - `RunSetupWizard(configPath, socket, autoTrust string) error`
 - `ApplyDefaultsNonInteractive(configPath, socket, toolID, modelID, effortVal, autoTrust string, noShell bool) error`
-- `SaveTUIState(m Model) error`, `LoadTUIState() (selection, filter string, ok bool)` — `~/.local/state/rex/tui-state.json`
+- `SaveTUIState(m Model) error`, `LoadTUIState() (persistedState, ok bool)` — `~/.local/state/rex/tui-state.json`
 - `ShellProfileBlock(shell string) string`, `DetectShellRC() string`, `HasShellBlock(rcPath string) bool`
 
 ### Types (Bubble Tea)
@@ -26,6 +26,14 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 - Message types: `DaemonEventMsg`, `DaemonErrMsg`, `SpinnerTickMsg`, `AttachOutputMsg`, `AttachClosedMsg`
 - `AttachState`, `WizardState`, `SettingsState`, `FailState`, `SetupWizardModel`, `DescAnim`
 
+## Colors and styles
+
+Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `applyTheme(name)` fills the `color*` tokens and `rebuildStyles` prebuilds every style; renderers never build a colored style or name a hex value (`TestNoHardcodedHex`, `TestNoInlineColoredStyles`). Call `applyTheme` from `Update`, never from a `tea.Cmd` goroutine. User themes (`~/.config/rex/themes/*.yaml`, `theme.LoadDir`) live in `Model.Themes`; `applyThemeFrom(m.Themes, name)` applies one, and the marker glyphs come from `stateGlyph` / `selectGlyph` (`glyphs.go`). The `themes.load` boot step installs the catalog before `theme.apply`. `config_reload.go` polls `config.yaml` and the theme files (`armConfig`, `configTickMsg`, `configReloadedMsg`); `handleConfigReloaded` swaps the store and calls `applyLive` for changed `ApplyLive` settings only.
+
+- Tokens: `colorFgPrimary/FgDim/FgMuted`, `colorBorder/BorderFocus`, `colorBgSel`, `colorAccent`, `colorWorking/Queued/Needs/Done/Failed/Crashed`, `colorWarn/Danger/Success/Info`, `colorFleet`.
+- Styles: `styleLogo`, `styleKey` (bold key caps), `styleKbd`, `styleCmd` (`:command` names), `styleBold`, `styleDim`, `styleMuted`, `stylePrimary`, `styleAlert`, `styleNeeds/Done/Failed/Working`, `styleMarker[state]`, `styleLongRun[tier]`, `styleFleet[i]`, `styleArrow` (accent), `styleArrowYellow` (warn), `styleBorderFocus`, `styleCursor`; `selectedStyle(style)` marks a selection (background, or reverse video under `ansi`). `brandStyle` is the one place a tool's own registry color is used.
+- Screens are pinned by `golden_test.go` (txtar under `testdata/golden`): plain text at 80x24 and 120x40, TrueColor for the board and settings. `go test ./internal/surface/tui -run TestGolden -update` rewrites them; a refactor must leave them byte-identical.
+
 ## Internal structure
 
 | File | Role |
@@ -33,24 +41,37 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 | `tui.go` | Program entry, tea.NewProgram |
 | `model.go` | Model struct and Init |
 | `update.go` | Update loop, daemon intents, spawn |
-| `board.go` | Kanban columns render |
+| `board.go` | Kanban columns render; section registry (`boardGroups`, `resolveSection`) |
+| `row_icons.go` | Row icon strip behind `row_icons`: slots (`iconSlots`, `slotWidth`), glyphs (`iconGlyph`, ASCII forms), `slotCell`, unseen tracking (`markSeen`, `isUnseen`, `SeenAt`/`EnteredAt`); grid in `board_columns.go`, mobile line 1 in `board_mobile.go` (`mobileIcons`), legend in `help.go` (`rowIconLegend`) |
+| `rowfilter.go` | `rowFilter`: the one predicate every board view applies |
+| `filter.go` | `:filter` grammar, hidden sections (`setSectionHidden`, `z` chord, `board_hidden_sections`), filter-bar status |
+| `chords.go` | Board chord table (`dd`, `cc`; first key to handler) |
+| `frame.go` | Window frame: `relayout`/`syncLayout` (terminal size `TermW/TermH` vs layout size `Width/Height`), `frameInset`, `wrapFrame` + row cache, `translateMouse`, border color (`borderEdge`, `borderColorOf`; random = `PickEdge(BorderSeed)`) |
 | `header.go` | Aggregate counts |
 | `prompt.go` | Bottom prompt |
-| `command.go` | `/` command palette |
+| `command.go` | `:` command line: parse and look up in `commands` |
+| `keys.go` | `commands` table (names, args, help text, `Run`) and `bindings` table (help rows, board help line); add a `:` command here |
 | `wizard.go` | New-session wizard |
+| `newagent*.go`, `composer.go` | New-agent page behind `new_agent_page` (`openNew` picks it or the wizard): state and keys (`newagent.go`), view incl. narrow strip (`newagent_view.go`), Agent screen, context list, import picker and `@`, preview, launch; `Composer` is the multi-line task editor. Prompt assembly and path rules live in `internal/features/spawnctx` |
 | `attach.go` | Full-screen attach (vt10x) |
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |
 | `attach_scroll.go` | Popup scrollback ring + scroll mode (primary-screen agents) |
 | `attach_render.go` | Popup cell painter (cached SGR per color/attribute set) and per-row render cache |
-| `attach_cmd.go` | `::` command bar and `qq` detach inside the popup |
-| `settings.go` | Settings overlay |
+| `attach_cmd.go` | `::` command bar and `qq` detach inside the popup (`::banner`, `::border`) |
+| `border_cmd.go` | `:border` / `::border`: per-run frame choice (`borderRunOn`, `borderRunColor`), notices; never saved |
+| `attach_banner.go` | Attach banner row: `attachBannerRows` (the one place that decides whether it shows), `bannerParts`, static layout, `marqueeWindow`, tick chain, `::banner` |
+| `settings.go` | Settings state and keys (page and overlay): search, section jump (`settingsSectionJump`), page panes and section keys (`settingsPageKey`, `settingsSections`, `settingsPageList`), inline editor (`settingEdit`; saves through `Store.Set`) |
+| `page.go` | Full-screen page frame behind `fullscreen_pages` (`pagesOn`): header, footer, `composePage`, section pane and narrow strip, `renderSettingsPage`, `layoutHelpPage`, `renderHelpPage` |
+| `settings_view.go` | Settings render: list, modified marker, fixed-height detail pane (`settingsDetail`) |
+| `lineedit.go` | `lineEditor`: one-line text editing shared by rename and the settings editor |
+| `panel.go` | `panelLines`: the titled square panel every overlay uses; `dimBoard` mutes the board behind it |
 | `setup_wizard.go` | First-run wizard |
 | `splash.go`, `splash_steps.go` | Boot splash + daemon start |
 | `keymap.go` | Key bindings |
-| `help.go` | `?` overlay |
+| `help.go` | `?` page and overlay: groups (`helpGroups`), scrollable body (`layoutHelp`; `helpLayoutFor` picks it or the page's `layoutHelpPage`), `/` filter, live legend (`helpLegend`), `(off)` marks from `binding.Flag` / `command.Flag` |
 | `confirm.go` | Quit/delete confirms |
 | `persist.go` | tui-state.json |
-| `styles.go`, `anim.go` | Lipgloss and description animation |
+| `styles.go`, `anim.go` | Palette tokens and prebuilt styles (see below), description animation |
 | `stats_overlay.go` | Token histogram overlay |
 | `events.go` | tea.Msg wrappers |
 | `fail.go` | Backend failure UI |

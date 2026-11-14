@@ -1,0 +1,8 @@
+⏺ Read(internal/billing/invoice.go)
+  ⎿  Read 212 lines
+⏺ Update(internal/billing/invoice.go)
+  ⎿  Updated internal/billing/invoice.go with 6 additions and 2 removals
+       41 -	total := price * qty
+       41 +	total := roundCents(price * qty)
+⏺ Bash(go test ./internal/billing/...)
+  ⎿  ok  	example.com/app/internal/billing	0.412s

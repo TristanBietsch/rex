@@ -3,9 +3,11 @@ package server
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/tristanbietsch/rex/internal/daemon/state"
+	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -29,11 +31,28 @@ func validateNewSession(p protocol.NewSession) error {
 	if strings.TrimSpace(p.ModelID) == "" {
 		return fmt.Errorf("model_id required")
 	}
+	// Before anything is made: a prompt past one argv element's room would
+	// only fail later, at exec.
+	if n := len(p.InitialPrompt); n > protocol.MaxInitialPromptBytes {
+		return fmt.Errorf("initial_prompt is %d bytes; the limit is %d", n, protocol.MaxInitialPromptBytes)
+	}
 	if err := protocol.ValidateSlug(p.Slug); err != nil {
 		return err
 	}
 	if strings.TrimSpace(p.CWD) == "" {
 		return fmt.Errorf("cwd required")
+	}
+	// The daemon's own working directory is meaningless to the client.
+	if !filepath.IsAbs(p.CWD) {
+		return fmt.Errorf("cwd must be an absolute path, got %q", p.CWD)
+	}
+	if err := skills.ValidateNames(p.Skills); err != nil {
+		return err
+	}
+	if p.TrustFolder {
+		if _, err := sessionTrustDir(p.CWD); err != nil {
+			return fmt.Errorf("trust_folder: cannot trust cwd: %w", err)
+		}
 	}
 	return nil
 }
@@ -95,6 +114,13 @@ func normalizeNewSession(p protocol.NewSession) (protocol.NewSession, error) {
 		return p, err
 	}
 	p.Fleet = fleet
+	name, err := protocol.NormalizeSessionName(p.Name)
+	if err != nil {
+		return p, err
+	}
+	p.Name = name
+	// The size seeds the daemon's screen mirror: bound it (0 stays 0, the default).
+	p.Cols, p.Rows = protocol.ClampTermSize(p.Cols, p.Rows)
 	return p, nil
 }
 

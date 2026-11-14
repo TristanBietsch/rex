@@ -59,14 +59,20 @@ These bounds protect the daemon's **liveness**, not its security. They do not li
 
 `init.lua` is **trusted user code**, like a shell rc file:
 
+- `LoadFile` reads it through `internal/runtime/privfile`: a regular file (or a link to one) owned by the daemon user, not group- or world-writable, at most 1 MiB, in a folder with the same rule. Anything else is refused with a `lua: refusing init.lua` log line.
+
 - It runs in-process as the daemon user, with full access to the `rex.*` Go callbacks.
 - `require`, `dofile`, `loadfile` and `load` are available, so it can run any Lua file the user can read.
 - `rex.send` can type arbitrary text, and therefore commands, into any session's PTY.
 - Only load a script you wrote or reviewed. The timeouts above keep a buggy script from hanging the daemon; they do not contain a malicious one.
 
+## Not to be confused with `config.lua`
+
+`~/.config/rex/config.lua` (settings and themes, read by every rex process) is evaluated by `internal/catalog/settings/luacfg`, not by this runtime: a fresh, restricted state per evaluation with only `rex.set`, `rex.theme`, `rex.platform` and a `require` limited to `~/.config/rex/lua/`. See `docs/howto/lua-config.md`.
+
 ## Wiring (daemon integration)
 
-`boot.StartLuaRuntime` does this for the daemon:
+`boot.StartLuaHost` does this for the daemon (and rebuilds it on `rex reload`):
 
 1. Instantiate a `*lua.Runtime` via `lua.New(lua.Options{...})` with:
    - `Sender`: deliver the text to the session's PTY input channel.

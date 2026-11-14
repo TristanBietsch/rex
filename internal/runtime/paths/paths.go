@@ -7,13 +7,28 @@
 //	    config.yaml                ConfigFile: settings (rex setup, rex config, TUI)
 //	    tools.yaml                 ToolsFile: tool registry overlay
 //	    init.lua                   LuaInitFile: optional Lua hooks
+//	    config.lua                 LuaConfigFile: optional settings in Lua (lua_config)
+//	    lua/<name>.lua             LuaModuleDir: modules config.lua may require
+//	    skills/<name>/SKILL.md     SkillsDir: skill library (rex new -skill)
+//	    loops/<name>.yaml          LoopsDir: loop workflow files (loops feature)
+//	    themes/<name>.yaml         ThemesDir: user color themes
 //	~/.local/share/rex/            DataDir: durable session data (rex-daemon -state-dir)
 //	    daemon.lock                DaemonLock: one daemon per DataDir
+//	    usage.jsonl                UsageLedger: per-session tokens and cost (usage feature)
+//	    workspaces.json            WorkspacesFile: registry of workspace ids and folders (workspaces feature)
+//	    workspace-trust.json       WorkspaceTrustFile: workspaces whose .rex/config.lua runs (rex ws trust)
+//	    audit.jsonl                AuditFile: one line per finished session outside a workspace (audit_trail)
 //	    sessions/<id>/             SessionsDir: meta.json, transcript.log, hook file
+//	    snapshots/<key>/           SnapshotsDir: turn-snapshot shadow stores, 0700
+//	    exports/                   ExportsDir: files :export writes (0600)
+//	    loops/<id>.json, <id>.log  LoopStateDir: loop state and log (0600)
 //	~/.local/state/rex/            LogDir: logs and ephemeral TUI state
 //	    daemon.log                 DaemonLog: rex-daemon stderr (rex daemon start)
 //	    <name>.log                 rexlog files (daemon, tui, setup, ...)
+//	    cli-errors.log             CLIErrorLog: failed rex commands (+ .1 backup)
 //	    tui-state.json             TUIStateFile: board selection kept across :bg
+//	    models-cache.json          ModelsCacheFile: detected model ids per tool (model_autodetect)
+//	    sound-claims/              SoundClaimsDir: one sound per event across boards (0700)
 //	~/.cache/rex/                  CacheDir
 //	    rex.sock                   Socket, when $XDG_RUNTIME_DIR is unset
 //	$XDG_RUNTIME_DIR/rex.sock      Socket, when $XDG_RUNTIME_DIR is set
@@ -46,15 +61,28 @@ import (
 // File and directory names inside the layout. They are part of the on-disk
 // contract: changing one strands existing user data.
 const (
-	appDir           = "rex"
-	configFileName   = "config.yaml"
-	toolsFileName    = "tools.yaml"
-	luaInitFileName  = "init.lua"
-	sessionsDirName  = "sessions"
-	daemonLockName   = "daemon.lock"
-	daemonLogName    = "daemon.log"
-	tuiStateFileName = "tui-state.json"
-	socketName       = "rex.sock"
+	appDir             = "rex"
+	configFileName     = "config.yaml"
+	toolsFileName      = "tools.yaml"
+	luaInitFileName    = "init.lua"
+	luaConfigName      = "config.lua"
+	luaModuleDirName   = "lua"
+	skillsDirName      = "skills"
+	loopsDirName       = "loops"
+	themesDirName      = "themes"
+	sessionsDirName    = "sessions"
+	snapshotsDirName   = "snapshots"
+	exportsDirName     = "exports"
+	daemonLockName     = "daemon.lock"
+	usageLedgerName    = "usage.jsonl"
+	workspacesName     = "workspaces.json"
+	workspaceTrustName = "workspace-trust.json"
+	auditFileName      = "audit.jsonl"
+	daemonLogName      = "daemon.log"
+	tuiStateFileName   = "tui-state.json"
+	modelsCacheName    = "models-cache.json"
+	soundClaimsName    = "sound-claims"
+	socketName         = "rex.sock"
 )
 
 // ErrNoHome reports that the home directory is unset, empty or not an
@@ -66,18 +94,35 @@ var ErrNoHome = errors.New("cannot determine the home directory (set HOME)")
 // with ForHome, or Resolve for the current user. The socket is not part of
 // it because it also depends on $XDG_RUNTIME_DIR; see Socket.
 type Layout struct {
-	Home         string // the home directory the layout derives from
-	ConfigDir    string // ~/.config/rex
-	ConfigFile   string // ~/.config/rex/config.yaml
-	ToolsFile    string // ~/.config/rex/tools.yaml
-	LuaInitFile  string // ~/.config/rex/init.lua
-	DataDir      string // ~/.local/share/rex
-	SessionsDir  string // ~/.local/share/rex/sessions
-	DaemonLock   string // ~/.local/share/rex/daemon.lock
-	LogDir       string // ~/.local/state/rex
-	DaemonLog    string // ~/.local/state/rex/daemon.log
-	TUIStateFile string // ~/.local/state/rex/tui-state.json
-	CacheDir     string // ~/.cache/rex
+	Home           string // the home directory the layout derives from
+	ConfigDir      string // ~/.config/rex
+	ConfigFile     string // ~/.config/rex/config.yaml
+	ToolsFile      string // ~/.config/rex/tools.yaml
+	LuaInitFile    string // ~/.config/rex/init.lua
+	LuaConfigFile  string // ~/.config/rex/config.lua
+	LuaModuleDir   string // ~/.config/rex/lua
+	SkillsDir      string // ~/.config/rex/skills
+	LoopsDir       string // ~/.config/rex/loops
+	LoopStateDir   string // ~/.local/share/rex/loops
+	ThemesDir      string // ~/.config/rex/themes
+	DataDir        string // ~/.local/share/rex
+	SessionsDir    string // ~/.local/share/rex/sessions
+	SnapshotsDir   string // ~/.local/share/rex/snapshots
+	ExportsDir     string // ~/.local/share/rex/exports
+	DaemonLock     string // ~/.local/share/rex/daemon.lock
+	UsageLedger    string // ~/.local/share/rex/usage.jsonl
+	WorkspacesFile string // ~/.local/share/rex/workspaces.json
+	// WorkspaceTrustFile is ~/.local/share/rex/workspace-trust.json.
+	WorkspaceTrustFile string
+	AuditFile          string // ~/.local/share/rex/audit.jsonl
+	LogDir             string // ~/.local/state/rex
+	DaemonLog          string // ~/.local/state/rex/daemon.log
+	TUIStateFile       string // ~/.local/state/rex/tui-state.json
+	// ModelsCacheFile is ~/.local/state/rex/models-cache.json.
+	ModelsCacheFile string
+	// SoundClaimsDir is ~/.local/state/rex/sound-claims.
+	SoundClaimsDir string
+	CacheDir       string // ~/.cache/rex
 }
 
 // ForHome returns the layout under home. It is pure: it neither reads the
@@ -89,18 +134,32 @@ func ForHome(home string) Layout {
 	data := filepath.Join(home, ".local", "share", appDir)
 	logs := filepath.Join(home, ".local", "state", appDir)
 	return Layout{
-		Home:         home,
-		ConfigDir:    config,
-		ConfigFile:   filepath.Join(config, configFileName),
-		ToolsFile:    filepath.Join(config, toolsFileName),
-		LuaInitFile:  filepath.Join(config, luaInitFileName),
-		DataDir:      data,
-		SessionsDir:  filepath.Join(data, sessionsDirName),
-		DaemonLock:   filepath.Join(data, daemonLockName),
-		LogDir:       logs,
-		DaemonLog:    filepath.Join(logs, daemonLogName),
-		TUIStateFile: filepath.Join(logs, tuiStateFileName),
-		CacheDir:     filepath.Join(home, ".cache", appDir),
+		Home:               home,
+		ConfigDir:          config,
+		ConfigFile:         filepath.Join(config, configFileName),
+		ToolsFile:          filepath.Join(config, toolsFileName),
+		LuaInitFile:        filepath.Join(config, luaInitFileName),
+		LuaConfigFile:      filepath.Join(config, luaConfigName),
+		LuaModuleDir:       filepath.Join(config, luaModuleDirName),
+		SkillsDir:          filepath.Join(config, skillsDirName),
+		LoopsDir:           filepath.Join(config, loopsDirName),
+		LoopStateDir:       filepath.Join(data, loopsDirName),
+		ThemesDir:          filepath.Join(config, themesDirName),
+		DataDir:            data,
+		SessionsDir:        filepath.Join(data, sessionsDirName),
+		SnapshotsDir:       filepath.Join(data, snapshotsDirName),
+		ExportsDir:         filepath.Join(data, exportsDirName),
+		DaemonLock:         filepath.Join(data, daemonLockName),
+		UsageLedger:        filepath.Join(data, usageLedgerName),
+		WorkspacesFile:     filepath.Join(data, workspacesName),
+		WorkspaceTrustFile: filepath.Join(data, workspaceTrustName),
+		AuditFile:          filepath.Join(data, auditFileName),
+		LogDir:             logs,
+		DaemonLog:          filepath.Join(logs, daemonLogName),
+		TUIStateFile:       filepath.Join(logs, tuiStateFileName),
+		ModelsCacheFile:    filepath.Join(logs, modelsCacheName),
+		SoundClaimsDir:     filepath.Join(logs, soundClaimsName),
+		CacheDir:           filepath.Join(home, ".cache", appDir),
 	}
 }
 
@@ -171,17 +230,93 @@ func ToolsFile() (string, error) { return field(func(l Layout) string { return l
 // (the lua_config_path setting can point elsewhere).
 func LuaInitFile() (string, error) { return field(func(l Layout) string { return l.LuaInitFile }) }
 
+// LuaConfigFile returns ~/.config/rex/config.lua, the optional file that sets
+// settings in Lua (the lua_config feature).
+func LuaConfigFile() (string, error) { return field(func(l Layout) string { return l.LuaConfigFile }) }
+
+// LuaModuleDir returns ~/.config/rex/lua, the only directory config.lua may
+// require modules from.
+func LuaModuleDir() (string, error) { return field(func(l Layout) string { return l.LuaModuleDir }) }
+
+// SkillsDir returns ~/.config/rex/skills, the skill library: one folder per
+// skill, each holding a SKILL.md (rex-daemon -skills-dir default).
+func SkillsDir() (string, error) { return field(func(l Layout) string { return l.SkillsDir }) }
+
+// LoopsDir returns ~/.config/rex/loops, where the user's loop workflow files
+// (*.yaml) live. Only files the user owns are read from it.
+func LoopsDir() (string, error) { return field(func(l Layout) string { return l.LoopsDir }) }
+
+// LoopStateDir returns ~/.local/share/rex/loops, where the daemon keeps one
+// <id>.json state file and one <id>.log per loop (mode 0600).
+func LoopStateDir() (string, error) { return field(func(l Layout) string { return l.LoopStateDir }) }
+
+// LoopStateDirName is the loop state folder's name inside a state directory,
+// for a daemon started with a -state-dir other than DataDir.
+const LoopStateDirName = loopsDirName
+
+// ThemesDir returns ~/.config/rex/themes, where the user's own color themes
+// live, one <name>.yaml per theme. The caller creates it.
+func ThemesDir() (string, error) { return field(func(l Layout) string { return l.ThemesDir }) }
+
 // DataDir returns ~/.local/share/rex, the durable session data root
 // (rex-daemon -state-dir default).
 func DataDir() (string, error) { return field(func(l Layout) string { return l.DataDir }) }
+
+// OnboardedFile returns ~/.local/share/rex/onboarded, written when rex
+// onboard finishes; the board stops suggesting the tour once it exists.
+func OnboardedFile() (string, error) {
+	return field(func(l Layout) string { return filepath.Join(l.DataDir, "onboarded") })
+}
+
+// SnapshotsDir returns ~/.local/share/rex/snapshots, the root of the turn
+// snapshot shadow stores (one folder store per working folder, 0700).
+func SnapshotsDir() (string, error) { return field(func(l Layout) string { return l.SnapshotsDir }) }
 
 // SessionsDir returns ~/.local/share/rex/sessions, which holds one
 // directory per session.
 func SessionsDir() (string, error) { return field(func(l Layout) string { return l.SessionsDir }) }
 
+// ExportsDir returns ~/.local/share/rex/exports, where the TUI's :export
+// writes (one file per session, mode 0600). The caller creates it.
+func ExportsDir() (string, error) { return field(func(l Layout) string { return l.ExportsDir }) }
+
 // DaemonLock returns ~/.local/share/rex/daemon.lock, the lock that keeps a
 // second daemon off the same DataDir.
 func DaemonLock() (string, error) { return field(func(l Layout) string { return l.DaemonLock }) }
+
+// UsageLedger returns ~/.local/share/rex/usage.jsonl, the append-only usage
+// ledger (one JSON line per session snapshot, mode 0600).
+func UsageLedger() (string, error) { return field(func(l Layout) string { return l.UsageLedger }) }
+
+// UsageLedgerFileName is the ledger's file name inside a state directory,
+// for a daemon started with a -state-dir other than DataDir.
+const UsageLedgerFileName = usageLedgerName
+
+// AuditFileName is the audit file's name inside a state directory, for a
+// daemon started with a -state-dir other than DataDir.
+const AuditFileName = auditFileName
+
+// WorkspacesFileName is the registry's file name inside a state directory,
+// for a daemon started with a -state-dir other than DataDir.
+const WorkspacesFileName = workspacesName
+
+// WorkspacesFile returns ~/.local/share/rex/workspaces.json, the registry of
+// workspace ids and the folders they were last seen at.
+func WorkspacesFile() (string, error) {
+	return field(func(l Layout) string { return l.WorkspacesFile })
+}
+
+// WorkspaceTrustFile returns ~/.local/share/rex/workspace-trust.json: the
+// workspaces (folder and id) the user trusted with rex ws trust, whose
+// .rex/config.lua rex evaluates. It never lives inside a .rex/, so a cloned
+// repo cannot ship its own trust.
+func WorkspaceTrustFile() (string, error) {
+	return field(func(l Layout) string { return l.WorkspaceTrustFile })
+}
+
+// AuditFile returns ~/.local/share/rex/audit.jsonl, the audit trail of
+// sessions that ran outside any workspace (mode 0600).
+func AuditFile() (string, error) { return field(func(l Layout) string { return l.AuditFile }) }
 
 // LogDir returns ~/.local/state/rex, the directory of logs and ephemeral
 // TUI state. It ignores REX_LOG_DIR, which only rexlog honors.
@@ -194,6 +329,20 @@ func DaemonLog() (string, error) { return field(func(l Layout) string { return l
 // TUIStateFile returns ~/.local/state/rex/tui-state.json, the board
 // selection and filter the TUI saves on :bg and reads once on next launch.
 func TUIStateFile() (string, error) { return field(func(l Layout) string { return l.TUIStateFile }) }
+
+// ModelsCacheFile returns ~/.local/state/rex/models-cache.json, where the
+// daemon keeps the model ids it detected from each agent (a cache: losing it
+// only costs one detection run).
+func ModelsCacheFile() (string, error) {
+	return field(func(l Layout) string { return l.ModelsCacheFile })
+}
+
+// SoundClaimsDir returns ~/.local/state/rex/sound-claims, where boards claim
+// a session sound so it plays once however many boards are open (0700, files
+// 0600, each kept about 10 s).
+func SoundClaimsDir() (string, error) {
+	return field(func(l Layout) string { return l.SoundClaimsDir })
+}
 
 // CacheDir returns ~/.cache/rex.
 func CacheDir() (string, error) { return field(func(l Layout) string { return l.CacheDir }) }

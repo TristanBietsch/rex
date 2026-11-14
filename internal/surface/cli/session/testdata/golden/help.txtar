@@ -1,0 +1,216 @@
+-- ls.text --
+Usage: rex ls [flags]
+
+List sessions, newest state first. -wide adds start and end times and the resume
+id.
+
+Flags:
+  -model string   filter by model id
+  -short          (deprecated, no effect)
+  -show-archived  (deprecated, no effect)
+  -socket path    daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else
+                  ~/.cache/rex/rex.sock)
+  -state string   filter by state
+  -tool string    filter by tool id
+  -wide           add STARTED and ENDED columns
+
+Output:
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+  -json                legacy JSON shape (prefer -o json)
+
+Example:
+  rex ls -state needs_input
+-- ls.txt --
+Usage: rex ls [flags]
+
+List sessions, newest state first. -wide adds start and end times and the resume id.
+
+# Flags
+  -model string   filter by model id
+  -short          (deprecated, no effect)
+  -show-archived  (deprecated, no effect)
+  -socket path    daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
+  -state string   filter by state
+  -tool string    filter by tool id
+  -wide           add STARTED and ENDED columns
+
+# Output
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+  -json                legacy JSON shape (prefer -o json)
+
+# Example
+  rex ls -state needs_input
+-- ls.agent --
+flag name=-model desc="filter by model id" arg=string default=""
+flag name=-short desc="(deprecated, no effect)" arg="" default=""
+flag name=-show-archived desc="(deprecated, no effect)" arg="" default=""
+flag name=-socket desc="daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)" arg=path default=""
+flag name=-state desc="filter by state" arg=string default=""
+flag name=-tool desc="filter by tool id" arg=string default=""
+flag name=-wide desc="add STARTED and ENDED columns" arg="" default=""
+ok cmd=help count=7 usage="rex ls [flags]" desc="List sessions, newest state first. -wide adds start and end times and the resume id."
+-- ls.json --
+{"v":1,"cmd":"help","data":{"command":"ls","usage":"rex ls [flags]","desc":"List sessions, newest state first. -wide adds start and end times and the resume id.","flags":[{"name":"-model","arg":"string","desc":"filter by model id"},{"name":"-short","desc":"(deprecated, no effect)"},{"name":"-show-archived","desc":"(deprecated, no effect)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-state","arg":"string","desc":"filter by state"},{"name":"-tool","arg":"string","desc":"filter by tool id"},{"name":"-wide","desc":"add STARTED and ENDED columns"}],"formats":["text","txt","md","json","agent"],"example":"rex ls -state needs_input"}}
+-- new.text --
+Usage: rex new [flags] -- <prompt>
+
+Start a session in the daemon and print its short id and slug. Put -- before a
+prompt that starts with -.
+
+Flags:
+  -cwd string        working directory for the agent (defaults to $PWD)
+  -effort string     reasoning effort
+  -fleet string      fleet name (optional; groups related sessions)
+  -model string      model id within tool (default short)
+  -name string       display name (optional; the slug is shown when empty)
+  -no-attach         (deprecated, no effect) (default true)
+  -skill rex skills  skill from ~/.config/rex/skills to load into this session
+                     (repeatable; see rex skills)
+  -slug string       session slug (defaults to derived from prompt)
+  -socket path       daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else
+                     ~/.cache/rex/rex.sock)
+  -tool string       tool id (default echo)
+  -trust             trust the working folder for this session only (answers the
+                     agent's trust dialog; nothing is saved, see rex trust to
+                     save it)
+  -wait duration     how long to wait for the daemon to confirm the spawn
+                     (default 5s)
+
+Output:
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
+Example:
+  rex new -tool claude -model opus -- fix the failing test
+-- new.txt --
+Usage: rex new [flags] -- <prompt>
+
+Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -.
+
+# Flags
+  -cwd string        working directory for the agent (defaults to $PWD)
+  -effort string     reasoning effort
+  -fleet string      fleet name (optional; groups related sessions)
+  -model string      model id within tool (default short)
+  -name string       display name (optional; the slug is shown when empty)
+  -no-attach         (deprecated, no effect) (default true)
+  -skill rex skills  skill from ~/.config/rex/skills to load into this session (repeatable; see rex skills)
+  -slug string       session slug (defaults to derived from prompt)
+  -socket path       daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
+  -tool string       tool id (default echo)
+  -trust             trust the working folder for this session only (answers the agent's trust dialog; nothing is saved, see rex trust to save it)
+  -wait duration     how long to wait for the daemon to confirm the spawn (default 5s)
+
+# Output
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
+# Example
+  rex new -tool claude -model opus -- fix the failing test
+-- new.agent --
+flag name=-cwd desc="working directory for the agent (defaults to $PWD)" arg=string default=""
+flag name=-effort desc="reasoning effort" arg=string default=""
+flag name=-fleet desc="fleet name (optional; groups related sessions)" arg=string default=""
+flag name=-model desc="model id within tool (default short)" arg=string default=short
+flag name=-name desc="display name (optional; the slug is shown when empty)" arg=string default=""
+flag name=-no-attach desc="(deprecated, no effect) (default true)" arg="" default=true
+flag name=-skill desc="skill from ~/.config/rex/skills to load into this session (repeatable; see rex skills)" arg="rex skills" default=""
+flag name=-slug desc="session slug (defaults to derived from prompt)" arg=string default=""
+flag name=-socket desc="daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)" arg=path default=""
+flag name=-tool desc="tool id (default echo)" arg=string default=echo
+flag name=-trust desc="trust the working folder for this session only (answers the agent's trust dialog; nothing is saved, see rex trust to save it)" arg="" default=""
+flag name=-wait desc="how long to wait for the daemon to confirm the spawn (default 5s)" arg=duration default=5s
+ok cmd=help count=12 usage="rex new [flags] -- <prompt>" desc="Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -."
+-- new.json --
+{"v":1,"cmd":"help","data":{"command":"new","usage":"rex new [flags] -- <prompt>","desc":"Start a session in the daemon and print its short id and slug. Put -- before a prompt that starts with -.","flags":[{"name":"-cwd","arg":"string","desc":"working directory for the agent (defaults to $PWD)"},{"name":"-effort","arg":"string","desc":"reasoning effort"},{"name":"-fleet","arg":"string","desc":"fleet name (optional; groups related sessions)"},{"name":"-model","arg":"string","default":"short","desc":"model id within tool"},{"name":"-name","arg":"string","desc":"display name (optional; the slug is shown when empty)"},{"name":"-no-attach","default":"true","desc":"(deprecated, no effect)"},{"name":"-skill","arg":"rex skills","desc":"skill from ~/.config/rex/skills to load into this session (repeatable; see rex skills)"},{"name":"-slug","arg":"string","desc":"session slug (defaults to derived from prompt)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-tool","arg":"string","default":"echo","desc":"tool id"},{"name":"-trust","desc":"trust the working folder for this session only (answers the agent's trust dialog; nothing is saved, see rex trust to save it)"},{"name":"-wait","arg":"duration","default":"5s","desc":"how long to wait for the daemon to confirm the spawn"}],"formats":["text","txt","md","json","agent"],"example":"rex new -tool claude -model opus -- fix the failing test"}}
+-- rm.text --
+Usage: rex rm <sel> [-force]
+
+Delete a session and its files. Asks first; without a terminal it needs -force.
+
+Flags:
+  -force        do not ask (required when stdin is not a terminal)
+  -socket path  daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else
+                ~/.cache/rex/rex.sock)
+  -y            alias for -force
+  -yes          alias for -force
+
+Output:
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
+Example:
+  rex rm fix-auth -force
+-- rm.txt --
+Usage: rex rm <sel> [-force]
+
+Delete a session and its files. Asks first; without a terminal it needs -force.
+
+# Flags
+  -force        do not ask (required when stdin is not a terminal)
+  -socket path  daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
+  -y            alias for -force
+  -yes          alias for -force
+
+# Output
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
+# Example
+  rex rm fix-auth -force
+-- rm.agent --
+flag name=-force desc="do not ask (required when stdin is not a terminal)" arg="" default=""
+flag name=-socket desc="daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)" arg=path default=""
+flag name=-y desc="alias for -force" arg="" default=""
+flag name=-yes desc="alias for -force" arg="" default=""
+ok cmd=help count=4 usage="rex rm <sel> [-force]" desc="Delete a session and its files. Asks first; without a terminal it needs -force."
+-- rm.json --
+{"v":1,"cmd":"help","data":{"command":"rm","usage":"rex rm <sel> [-force]","desc":"Delete a session and its files. Asks first; without a terminal it needs -force.","flags":[{"name":"-force","desc":"do not ask (required when stdin is not a terminal)"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-y","desc":"alias for -force"},{"name":"-yes","desc":"alias for -force"}],"formats":["text","txt","md","json","agent"],"example":"rex rm fix-auth -force"}}
+-- resume.text --
+Usage: rex resume <sel> [-print]
+
+Respawn an exited session in place, or unmark a running one marked done. -print
+prints the full resume id and sends nothing.
+
+Flags:
+  -print        print only the full resume id; send nothing
+  -socket path  daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else
+                ~/.cache/rex/rex.sock)
+
+Output:
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
+Example:
+  rex resume fix-auth
+-- resume.txt --
+Usage: rex resume <sel> [-print]
+
+Respawn an exited session in place, or unmark a running one marked done. -print prints the full resume id and sends nothing.
+
+# Flags
+  -print        print only the full resume id; send nothing
+  -socket path  daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
+
+# Output
+  -o, --output FORMAT  text, txt, md, json, agent
+  --agent              one line per record, no color, no prompts
+  --no-color           never emit ANSI color
+
+# Example
+  rex resume fix-auth
+-- resume.agent --
+flag name=-print desc="print only the full resume id; send nothing" arg="" default=""
+flag name=-socket desc="daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)" arg=path default=""
+ok cmd=help count=2 usage="rex resume <sel> [-print]" desc="Respawn an exited session in place, or unmark a running one marked done. -print prints the full resume id and sends nothing."
+-- resume.json --
+{"v":1,"cmd":"help","data":{"command":"resume","usage":"rex resume <sel> [-print]","desc":"Respawn an exited session in place, or unmark a running one marked done. -print prints the full resume id and sends nothing.","flags":[{"name":"-print","desc":"print only the full resume id; send nothing"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"}],"formats":["text","txt","md","json","agent"],"example":"rex resume fix-auth"}}

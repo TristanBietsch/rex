@@ -1,0 +1,11 @@
+⏺ Update(internal/billing/tax.go)
+  ⎿  Updated internal/billing/tax.go with 14 additions and 9 removals
+⏺ Bash(go test ./internal/billing/...)
+  ⎿  ok  	example.com/app/internal/billing	0.388s
+⏺ Update(internal/export/csv.go)
+  ⎿  Updated internal/export/csv.go with 9 additions and 3 removals
+⏺ Bash(go vet ./internal/export/...)
+  ⎿  (no output)
+⏺ Read(internal/export/csv_test.go)
+  ⎿  Read 96 lines
+✻ Writing the quoting test for embedded commas… (2m 14s)

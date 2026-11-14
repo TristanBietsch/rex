@@ -1,15 +1,80 @@
 package setup
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 )
+
+func withAgyVersion(t *testing.T, fn func(context.Context) (string, error)) {
+	t.Helper()
+	old, oldTO := agyVersion, agyVersionTimeout
+	agyVersion = fn
+	t.Cleanup(func() { agyVersion, agyVersionTimeout = old, oldTO })
+}
+
+func TestCheckAgyVersion(t *testing.T) {
+	cases := []struct {
+		name       string
+		out        string
+		err        error
+		wantStatus checkStatus
+		wantDetail string
+		wantRows   int
+	}{
+		{"ok", "agy 1.5.5\n", nil, checkInfo, "agy 1.5.5", 1},
+		{"newer", "1.6.0", nil, checkInfo, "agy 1.6.0", 1},
+		{"old", "agy 1.4.9", nil, checkWarn, "untested", 1},
+		{"not installed", "", exec.ErrNotFound, 0, "", 0},
+		{"error", "", errors.New("boom"), checkWarn, "boom", 1},
+		{"unparsable", "hello", nil, checkWarn, "hello", 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			withAgyVersion(t, func(context.Context) (string, error) { return tc.out, tc.err })
+			rows := checkAgyVersion()
+			require.Len(t, rows, tc.wantRows)
+			if tc.wantRows == 0 {
+				return
+			}
+			require.Equal(t, "agy version", rows[0].Name)
+			require.Equal(t, tc.wantStatus, rows[0].Status)
+			require.Contains(t, rows[0].Detail, tc.wantDetail)
+		})
+	}
+}
+
+func TestCheckAgyVersion_Timeout(t *testing.T) {
+	withAgyVersion(t, func(ctx context.Context) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	})
+	agyVersionTimeout = 20 * time.Millisecond
+	rows := checkAgyVersion()
+	require.Len(t, rows, 1)
+	require.Equal(t, checkWarn, rows[0].Status)
+	require.Contains(t, rows[0].Detail, "timed out")
+}
+
+func TestRunAllChecks_IncludesAgyVersion(t *testing.T) {
+	withAgyVersion(t, func(context.Context) (string, error) { return "agy 1.5.5", nil })
+	t.Setenv("HOME", t.TempDir())
+	var names []string
+	for _, r := range runAllChecks(&core.SocketFlag{}) {
+		names = append(names, r.Name)
+	}
+	require.Contains(t, names, "agy version")
+}
 
 func TestSummaryLine_NoFailNoWarn(t *testing.T) {
 	got := summaryLine(0, 0)
@@ -59,20 +124,10 @@ func TestCheckStatus_String(t *testing.T) {
 	}
 }
 
-func TestRenderStatus_Symbols(t *testing.T) {
-	cases := []struct {
-		s       checkStatus
-		wantSym string
-	}{
-		{checkPass, "✓"},
-		{checkWarn, "!"},
-		{checkFail, "✗"},
-		{checkInfo, "·"},
-	}
-	for _, tc := range cases {
-		sym, _ := renderStatus(tc.s)
-		if sym != tc.wantSym {
-			t.Errorf("renderStatus(%v) sym = %q, want %q", tc.s, sym, tc.wantSym)
+func TestStatusWord(t *testing.T) {
+	for st, want := range map[checkStatus]string{checkPass: "pass", checkWarn: "warn", checkFail: "fail", checkInfo: "info"} {
+		if got := statusWord(st); got != want {
+			t.Errorf("statusWord(%v) = %q, want %q", st, got, want)
 		}
 	}
 }
@@ -150,9 +205,29 @@ func TestConfigEdit_createsConfigDirOwnerOnly(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("EDITOR", "true")
 	require.NoError(t, configEdit(nil))
 	info, err := os.Stat(filepath.Join(home, ".config", "rex"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+}
+
+// The extra agents (Qwen Code, Cursor CLI, Grok Build) get a tool row like
+// the others, by binary name. With none on PATH, "agents installed" fails.
+func TestCheckToolBinaries_ListsExtraAgents(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	rows := checkToolBinaries()
+	var names []string
+	for _, r := range rows[:len(rows)-1] {
+		names = append(names, r.Name)
+		require.Equal(t, "not found on PATH", r.Detail)
+	}
+	require.Equal(t, []string{
+		"tool: claude", "tool: codex", "tool: agy", "tool: ollama",
+		"tool: qwen", "tool: cursor-agent", "tool: grok",
+	}, names)
+	last := rows[len(rows)-1]
+	require.Equal(t, "agents installed", last.Name)
+	require.Equal(t, checkFail, last.Status)
 }

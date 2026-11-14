@@ -1,0 +1,5 @@
+• Running pnpm test:billing
+  FAIL  src/invoice.spec.ts
+  ✕ rounds half cents up (4 ms)
+  ✕ keeps currency fixtures (2 ms)
+  Tests: 2 failed, 46 passed, 48 total

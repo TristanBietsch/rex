@@ -10,6 +10,14 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
+// A queued session's last_event_at equals its creation; its duration still
+// runs to now rather than collapsing to zero.
+func TestSessionDurationQueuedIsLive(t *testing.T) {
+	start := time.Now().Add(-time.Hour)
+	d := sessionDuration(protocol.SessionSummary{State: protocol.StateQueued, StartedAt: start, LastEventAt: start})
+	require.GreaterOrEqual(t, d, 59*time.Minute)
+}
+
 func TestAggregateSessionsEmpty(t *testing.T) {
 	agg := aggregateSessions(nil)
 	if agg.totals.Sessions != 0 {

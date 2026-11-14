@@ -6,7 +6,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/features/audio"
@@ -42,6 +41,7 @@ func toggleRetire(m Model, id string) (Model, tea.Cmd) {
 	if r == nil {
 		return m, nil
 	}
+	markSeen(&m, id) // cc counts as looking at it
 	retiring := !sum.RetireAt.IsZero()
 	ttl := retireTTL(m.Store)
 	label := displayName(sum)
@@ -119,15 +119,12 @@ func shortDuration(d time.Duration) string {
 // Long-running tiers: how long a session has been working without a break.
 // Below the first tier the badge is blank.
 var longRunTiers = []struct {
-	min   time.Duration
-	style func() lipgloss.Style
+	min time.Duration
 }{
-	{6 * time.Hour, func() lipgloss.Style {
-		return lipgloss.NewStyle().Bold(true).Reverse(true).Foreground(colorFailed)
-	}},
-	{2 * time.Hour, func() lipgloss.Style { return lipgloss.NewStyle().Bold(true).Foreground(colorFailed) }},
-	{30 * time.Minute, func() lipgloss.Style { return lipgloss.NewStyle().Foreground(colorNeeds) }},
-	{10 * time.Minute, func() lipgloss.Style { return lipgloss.NewStyle().Foreground(colorFgDim) }},
+	{min: 6 * time.Hour},
+	{min: 2 * time.Hour},
+	{min: 30 * time.Minute},
+	{min: 10 * time.Minute},
 }
 
 // longRunTier returns the tier index (0 = most severe) or -1 when the
@@ -145,13 +142,13 @@ func longRunTier(now time.Time, s protocol.SessionSummary) int {
 	return -1
 }
 
-// longRunBadge renders the small long-running column: "▴42m", colored by tier.
+// longRunBadge renders the small long-running column: "▴ 42m", colored by tier.
 func longRunBadge(now time.Time, s protocol.SessionSummary) string {
 	tier := longRunTier(now, s)
 	if tier < 0 {
 		return ""
 	}
-	return longRunTiers[tier].style().Render("▴" + shortDuration(now.Sub(s.WorkingSince)))
+	return styleLongRun[tier].Render(longRunGlyph + " " + shortDuration(now.Sub(s.WorkingSince)))
 }
 
 // displayName is the name column text: the user's label, else the slug.
