@@ -192,3 +192,19 @@ These rules override anything above that disagrees.
 
 ### Settings
 - Z1. A stored `new_agent_page` stays harmless: YAML ignores it; add it to a Lua removed-keys allowlist so `config.lua` does not warn. Docs note the removal.
+
+## Handoff (2026-11-13)
+
+Branch `feat/new-agent-steps`, worktree `.claude/worktrees/new-agent-steps`. All commits signed (`git log --format='%h %G? %s'`). Up to date with `integration/todo` @ `e73021e` (onboard + U7 selector merged in; cursors use `selectCursor()` via `naMarkCol`).
+
+Done:
+- Spec, spec review (25 findings, folded in as "Iteration 1"), implementation, code review (12 findings, all fixed with tests), `:new!`.
+- Popup wizard, `FocusWizard`, `new_agent_page` removed; Lua `removedSettings` allowlist ignores a stored value.
+- Goldens `newagent_step_*` read by eye at 120x40, 80x24, 50x20, 40x12.
+- `make check` on the merged branch: vet, lint (`0 issues.` host + windows), vuln, e2e green. Only failures: `cmd/rex-daemon` `TestHotRestart*` and `spawnctx` `TestWalk_GitKilledAtBudgetKeepsWhatItListed`, known load flakes (tristan-2d confirmed); both pass alone with `-race`. Because go test failed, the gate's coverage step did not run; per-package numbers from that run are above floors (tui 88.5 vs 88, settings 93.5 vs 93, luacfg 97.7 vs 97).
+
+Next:
+1. User tries it: `cd .claude/worktrees/new-agent-steps && go run ./cmd/rex`, press `n`. Open question for the user: esc on a step before the one the page opened on closes the page (K1 literal); maybe it should go back one step instead.
+2. Re-run `make check` on a quiet machine until the coverage gate runs green.
+3. Merge to `integration/todo` per the merge-queue rule: main checkout clean, no `.git/MERGE_HEAD`, message the active sessions (tristan-0e, tristan-2d) "starting", wait for ack, `git merge --no-ff -S feat/new-agent-steps`, `make check` in main, message "finished". Never bypass signing.
+4. Optional follow-ups: rename `WizardState`/`wizard*.go` leftovers to selection/trust names; parked branch `fix/agent-label-names` (agent rename edits, not ours) still unmerged.
