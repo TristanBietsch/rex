@@ -63,6 +63,36 @@ var Registry = []Setting{
 		Help: "One character that prefixes the bottom prompt: pick a preset with the arrows, or press enter and type your own.",
 	},
 	{
+		ID: "selector_glyph", Label: "Selector glyph", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeString, Default: "theme",
+		Options: []string{"theme", "▸", "❯", "➜", "➤", "☞"},
+		Free:    true, Normalize: normalizeSelectorGlyph,
+		Help: "The marker left of the selected row in the board and every picker. theme keeps the theme's own (▸ by default). Pick a preset with the arrows or press enter and type your own. ☞ is drawn two cells wide by terminals set to treat ambiguous-width characters as wide, which shifts the selected row by one column; 👉 is always two cells.",
+	},
+	{
+		ID: "selector_gap", Label: "Selector gap", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeInt, Default: 2,
+		Min: 1, Max: 3,
+		Help: "Blank columns between the board's selector and the state marker.",
+	},
+	{
+		ID: "selector_bold", Label: "Selector bold", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Draw the selector bold, so it reads a little bigger.",
+	},
+	{
+		ID: "selector_blink", Label: "Selector blink", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeEnum, Default: "off",
+		Options: []string{"off", "blink", "pulse"},
+		Help:    "Animate the board's selector: blink hides it every other half period, pulse dims it. It is solid right after you move, after a minute without input and with reduce_motion on.",
+	},
+	{
+		ID: "selector_blink_ms", Label: "Selector blink (ms)", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeInt, Default: 600,
+		Min: 200, Max: 2000,
+		Help: "One blink period in milliseconds, rounded to 100 ms.",
+	},
+	{
 		ID: "reduce_motion", Label: "Reduce motion", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
 		Help: "Disable all animations.",
@@ -109,7 +139,7 @@ var Registry = []Setting{
 	{
 		ID: "ascii_glyphs", Label: "ASCII glyphs", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
-		Help: "Draw the row icons with plain ASCII (* + @ Y ^) for fonts that lack the symbols. Off: the symbol forms.",
+		Help: "Draw the row icons with plain ASCII (* + @ Y ^), and a non-ASCII selector as >, for fonts that lack the symbols. Off: the symbol forms.",
 	},
 	{
 		ID: "mobile_layout", Label: "Mobile layout", Section: SectionAppearance, Apply: ApplyLive,

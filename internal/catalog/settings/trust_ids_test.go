@@ -36,6 +36,8 @@ func TestWorkspaceAllowIDs_Exact(t *testing.T) {
 	why := map[string]string{
 		"theme": "colors", "accent_color": "colors", "spinner": "animation", "waiting_spinner": "animation", "row_density": "layout",
 		"prompt_glyph": "a glyph", "reduce_motion": "animation",
+		"selector_glyph": "a glyph", "selector_gap": "layout", "selector_bold": "layout",
+		"selector_blink": "animation", "selector_blink_ms": "animation",
 		"blinking_enabled": "animation", "show_help_bar": "layout",
 		"header_style": "layout", "window_border": "layout",
 		"window_border_color": "colors", "column_layout": "layout",
