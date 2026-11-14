@@ -1,7 +1,8 @@
 # Handoff: start here
 
 For the next coding agent on rex. Read this first, then follow the
-onboarding order. Last updated 2026-11-10, after PRs #6–#17 and #19.
+onboarding order. Last updated 2026-11-13, after `rex onboard` (ON1) and
+the shorter agent names; see [section 7](#7-latest-rex-onboard-2026-11-13).
 
 ## 1. Onboarding order
 
@@ -48,6 +49,19 @@ Keep the version in step with `GOLANGCI_LINT_PKG` in the `Makefile`.
   - `HOME` vs `USERPROFILE` (set both, or resolve through `internal/paths`);
   - `t.TempDir()` cleanup fails while a child process still runs in it;
     stop the child before the test ends.
+- **Shared main checkout.** Several sessions use the main checkout. Work
+  in your own worktree (`.claude/worktrees/<name>`) and only fast-forward
+  or merge into `integration/todo` there. Before you do: `git status`
+  clean, no `.git/MERGE_HEAD`, and send "starting" to any session that
+  merges there and wait for its ack. Uncommitted edits in main that no live
+  session owns: park them unchanged on their own signed branch, never
+  discard them.
+- **Known load flakes.** Under a full `make check` on a busy machine (load
+  average ~8+), these fail and pass alone: `TestHotRestart*`
+  (`cmd/rex-daemon`, 10 s dial), `TestWalk_GitKilledAtBudgetKeepsWhatItListed`
+  (`spawnctx`), `TestEvalRequireCycleAndLimits` (`luacfg`, 250 ms timeout).
+  The same failures happen on `4d4f6a8`, before ON1. Re-run them with
+  `go test -race -run <name> <pkg>` before blaming a change.
 - **The repo is public.** Never paste live session output (`rex render`,
   `rex ls`, transcripts, screen dumps) into PRs, issues or commits. Use
   synthetic examples. No real names, emails or personal paths.
@@ -105,3 +119,45 @@ Keep the version in step with `GOLANGCI_LINT_PKG` in the `Makefile`.
   (`bad_intent`); documented as such in `docs/protocol.md`.
 - `docs/agents/modules/*.md` were not re-checked line by line for
   PRs #6–#17. Check the module doc against source before relying on it.
+
+## 7. Latest: `rex onboard` (2026-11-13)
+
+On `integration/todo` (not pushed; ahead of `origin`):
+
+- `522ed38`, `678e55a`: **`rex onboard`**. Spec and decisions:
+  [../plans/ON1-onboard.md](../plans/ON1-onboard.md). User docs:
+  [../cli.md](../cli.md#rex-onboard).
+  - Five-step tour: install checks (starts the daemon), coding agents
+    (installed with path, missing with `install_hint`), `rex setup` on `s`,
+    board keys (from `tui.BoardKeyDesc`, so the tour follows `?`), next
+    steps. A failed check blocks the tour; `r` rechecks. Finishing writes
+    `~/.local/share/rex/onboarded` (`paths.OnboardedFile`).
+  - `rex onboard -check`: the checks without prompts, all formats, exit 1
+    with no usable agent. Outside a terminal the tour exits 5.
+  - Stale daemon `PATH` (CLI finds an agent, daemon does not): warning
+    pointing at `rex daemon restart -cold` (hot restart keeps the old env).
+  - Code: `internal/surface/cli/setup/onboard.go`, `agents.go`; test seams
+    `onboardDaemonTools`, `onboardStartDaemon`, `onboardRunSetup`,
+    `onboardInstallChecks`.
+- **Live agent detection.** `Server.RescanInstalled` re-probes `PATH` (one
+  `LookPath` per tool) and sends `ToolsChanged` only when an installed bit
+  changes. Runs every 30 s (`Catalog.WatchInstalled`) and on the new
+  `RescanTools` intent, which the board sends via `Do` when the new-agent
+  page opens (an older daemon's `bad_intent` reply is dropped, never shown).
+- `rex doctor` builds its `tool:` rows from the registry and **fails** with
+  no usable agent (`agents installed`). Intended (spec); CI or containers
+  without an agent will see exit 1.
+- The board opened with no config and no marker shows "new to rex? quit (q)
+  and run rex onboard" (`meta.firstRunNotice`).
+- `8fe3edd`: shorter agent display names (Codex, Antigravity, Ollama, Kimi).
+  Found uncommitted in main with no owner, parked, reviewed, merged.
+
+Open:
+
+1. Push `integration/todo` when the user says so.
+2. The interactive tour was tested with scripted stdin only, never driven
+   in a real terminal. Try `rex onboard` by hand once.
+3. Settings → Onboarding and the new-agent page "N more" row predate ON1;
+   unchanged by decision. Revisit if users want missing agents hidden.
+4. `RescanTools` is not exposed as a CLI command; `rex reload` still works.
+
