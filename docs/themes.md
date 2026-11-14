@@ -175,7 +175,7 @@ Tokens under `colors:`:
 
 ### Glyphs
 
-Under `glyphs:` you can replace the characters that mark a session's state and the selected row: `needs` (`⚑`), `done` (`✓`), `failed` (`✗`), `crashed` (`⊘`), `queued` (`◌`), `select` (`▸`) and `loop` (`↻`, the marker of a loop session's row). The working marker is the spinner (`spinner` setting). A glyph must be exactly one printable character, exactly one cell wide (emoji and other double-width characters such as `✅` are refused, because they would split the board's fixed columns), with no control, escape, bidirectional or zero-width characters. A line you leave out keeps the built-in marker.
+Under `glyphs:` you can replace the characters that mark a session's state and the selected row: `needs` (`⚑`), `done` (`✓`), `failed` (`✗`), `crashed` (`⊘`), `queued` (`◌`), `select` (`▸`; the `selector_glyph` setting overrides it unless set to `theme`) and `loop` (`↻`, the marker of a loop session's row). The working marker is the spinner (`spinner` setting). A glyph must be exactly one printable character, exactly one cell wide (emoji and other double-width characters such as `✅` are refused, because they would split the board's fixed columns), with no control, escape, bidirectional or zero-width characters. A line you leave out keeps the built-in marker.
 
 ### What rex checks
 

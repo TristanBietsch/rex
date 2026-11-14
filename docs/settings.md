@@ -8,7 +8,7 @@ The TUI settings page (`S`), `rex config`, and the daemon read the same registry
 
 Precedence, lowest first: registry defaults, `config.yaml`, `config.lua`, then (in rex commands run inside a workspace you trusted, and on its board) the workspace's `.rex/config.lua` ([workspaces.md](workspaces.md#workspace-settings)). A broken `config.lua` (either one) keeps the values of its last good run in that process (none at first start) and puts `auto_trust_dirs` and `skip_permissions` back to their defaults until it runs again. Saving those two from `rex trust`, `:trust` or the wizard edits the list `config.yaml` holds, so a broken `config.lua` never makes them drop the folders already there.
 
-A workspace `.rex/config.lua` may set only display settings: `theme`, `spinner`, `waiting_spinner`, `row_density`, `prompt_glyph`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `window_border`, `window_border_color`, `accent_color`, `column_layout`, `mobile_layout`, `mouse_enabled`, `attach_scrollback_lines`, `screensaver_enabled`, `screensaver_after_minutes`, `screensaver_counts`, `screensaver_clock`, `screensaver_drift`, `board_filter`, `search`, `timestamps`, `summary_preview`, `waiting_section`, `usage_meter`, `summary_detail`, `desc_animation` and `attach_banner`. Every other setting is refused with a warning.
+A workspace `.rex/config.lua` may set only display settings: `theme`, `spinner`, `waiting_spinner`, `row_density`, `prompt_glyph`, `selector_glyph`, `selector_gap`, `selector_bold`, `selector_blink`, `selector_blink_ms`, `reduce_motion`, `blinking_enabled`, `show_help_bar`, `header_style`, `window_border`, `window_border_color`, `accent_color`, `column_layout`, `mobile_layout`, `mouse_enabled`, `attach_scrollback_lines`, `screensaver_enabled`, `screensaver_after_minutes`, `screensaver_counts`, `screensaver_clock`, `screensaver_drift`, `board_filter`, `search`, `timestamps`, `summary_preview`, `waiting_section`, `usage_meter`, `summary_detail`, `desc_animation` and `attach_banner`. Every other setting is refused with a warning.
 
 ## Files
 
@@ -96,6 +96,11 @@ The three bundled themes are theme files that ship inside rex; a file of your ow
 | `waiting_spinner` | enum | `clock` | The Waiting marker (label Waiting icon), one step a second, still under `reduce_motion`: `clock` `◴ ◷ ◶ ◵` (still `◷`), `hourglass` `⧖ ⧑ ⧖ ⧒` (turns over; still `⧖`), `sand` `⣀ ⣄ ⣤ ⣦ ⣶ ⣷ ⣿` (still `⣤`), `orbit` `◜ ◝ ◞ ◟` (still `◜`), `pendulum` `⠂ ⡀ ⢀ ⠐ ⢀ ⡀` (still `⡀`), `pulse` `∘ ◦ ⊚ ◦` (still `◦`). The header counts and the legend show the still glyph |
 | `row_density` | enum | `normal` | `compact`, `normal`, `roomy` |
 | `prompt_glyph` | string | `λ` | One printable character, 1 or 2 cells wide. The TUI suggests presets and takes any glyph that passes the same check as `rex config set` |
+| `selector_glyph` | string | `theme` | The selected row's marker on the board and in every picker. `theme` keeps the theme's own (`▸` by default). Presets `▸` `❯` `➜` `➤` `☞`, or any glyph that passes the `prompt_glyph` check (1 or 2 cells). `☞` is East Asian ambiguous width: a terminal set to draw those wide shifts the selected row by one column. `👉` is always 2 cells. With `ascii_glyphs` on a non-ASCII glyph draws as `>` |
+| `selector_gap` | int | `2` | Blank columns between the board selector and the state marker, 1 to 3 |
+| `selector_bold` | bool | `true` | Draw the selector bold |
+| `selector_blink` | enum | `off` | `off`, `blink` (hidden every other half period, keeping its width), `pulse` (dimmed instead of hidden). Board only. Solid right after any key or click, after a minute without input, off the board and with `reduce_motion` |
+| `selector_blink_ms` | int | `600` | One blink period, 200 to 2000 ms, rounded to 100 ms |
 | `reduce_motion` | bool | `false` | |
 | `blinking_enabled` | bool | `true` | Completed-row blink |
 | `show_help_bar` | bool | `true` | The key hints on the bottom line, including a long Done column's `4 show · :prune clear`. Off blanks them (the row stays); errors, notices and prompts such as rename or search still show there |
@@ -105,7 +110,7 @@ The three bundled themes are theme files that ship inside rex; a file of your ow
 | `column_layout` | enum | `fixed` | `fixed`, `fit`. `fixed` gives board columns set widths that change only at width breakpoints (see [tui.md](tui.md#column-widths)); `fit` sizes them to their content |
 | `mobile_layout` | enum | `auto` | `auto`, `always`, `off`. Two-line rows, a compact header and a three-key help line. `auto` uses it at 60 columns or fewer; `always` and `off` force it (see [tui.md](tui.md#mobile-layout)) |
 | `row_icon_set` | string | `unseen,reason,loop,subagents,spend,longrun` | Which icon slots a board row shows, comma-separated: `unseen`, `reason`, `loop`, `subagents`, `spend`, `longrun`. Unknown ids are ignored; the order is fixed (this removes slots, it cannot reorder them). The loop slot also needs `loops` and the spend slot `usage`. Needs `row_icons` on (see [tui.md](tui.md#row-columns)). Live |
-| `ascii_glyphs` | bool | `false` | Draw the row icons and their legend rows in plain ASCII (`*` `+` `@` `Y` `^`; `?` and `$` stay) for fonts that lack the symbols. Live |
+| `ascii_glyphs` | bool | `false` | Draw the row icons and their legend rows in plain ASCII (`*` `+` `@` `Y` `^`; `?` and `$` stay) for fonts that lack the symbols, and a non-ASCII selector as `>`. Live |
 
 ### Behavior
 

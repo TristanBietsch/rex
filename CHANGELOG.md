@@ -17,6 +17,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - An agent installed while the daemon runs is offered on the new-agent
   page within 30 seconds, or at once when the page opens; no `rex reload`
   needed.
+- The board's selector (the arrow on the selected row) is now a setting:
+  `selector_glyph` picks `▸` `❯` `➜` `➤` `☞` or any glyph you type, and
+  every picker (wizards, settings, new agent, pages) uses it too. `theme`,
+  the default, keeps the theme's own.
+- `selector_gap` (default 2, one more column than before) gives the
+  selector room, and `selector_bold` (on) draws it bold.
+- `selector_blink` (`off`, `blink`, `pulse`) and `selector_blink_ms` make
+  it blink. It is solid right after you move, rests after a minute without
+  input and holds still under `reduce_motion`.
 
 ### Changed
 
