@@ -66,7 +66,7 @@ User rule (2026-11-11): every feature, round 1 and round 2, can be turned on and
 | `auto_model` | R13 auto model in insert mode | off |
 | `waiting_section` | R14 Waiting section (off = waiting sessions show in Working; the daemon still records the fields) | on |
 | `summary_schedule` | R15 scheduled description refresh (off = output-driven refreshes, no ticks) | on |
-| `new_agent_page` | R16 new-agent page (off = popup wizard) | on |
+| `new_agent_page` | removed in R21 (the page is the only flow; a stored value is ignored) | n/a |
 | `row_icons` | R18 icon strip instead of the row text column (off = text column) | on |
 | `turn_snapshots` | R01-1 per-turn snapshots + `:undo` | off |
 | `session_diff` | R01-2 diff / review page (needs `turn_snapshots`) | on |

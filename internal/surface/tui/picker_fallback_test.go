@@ -1,14 +1,12 @@
 package tui
 
 import (
-	"encoding/json"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
-	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // storeChoice is the quick-spawn choice a store's defaults give, without a
@@ -28,7 +26,7 @@ func quickModel(t *testing.T, tool string, installed ...string) Model {
 }
 
 // A saved default tool that is hidden or not installed falls back to the
-// first offered tool, with a notice, for the quick-spawn and the wizard.
+// first offered tool, with a notice, for the quick-spawn and the new-agent page.
 func TestQuickSpawn_FallsBackWhenTheDefaultToolIsNotOffered(t *testing.T) {
 	t.Run("not installed", func(t *testing.T) {
 		m := quickModel(t, "claude", "qwen")
@@ -65,61 +63,6 @@ func TestQuickSpawn_FallsBackWhenTheDefaultToolIsNotOffered(t *testing.T) {
 		require.Equal(t, "qwen", fake.last.ToolID)
 		require.NotEqual(t, "claude", fake.last.ToolID)
 	})
-}
-
-func TestWizard_NoticeWhenItsDefaultToolIsHidden(t *testing.T) {
-	m := quickModel(t, "claude", "qwen")
-	m, _ = executeCommand(m, "new")
-	require.Equal(t, "claude isn't available; using qwen", m.Notice)
-	require.Equal(t, "qwen", m.Wizard.selectedTool().ID)
-
-	m = quickModel(t, "qwen", "qwen")
-	m, _ = executeCommand(m, "new")
-	require.Empty(t, m.Notice)
-}
-
-// ToolsChanged on the effort step: the model the cursor was on may have no
-// effort block any more. The wizard steps back instead of panicking.
-func TestWizard_ToolsChangedOnTheEffortStep(t *testing.T) {
-	m := pickerModel(t, "claude", "qwen")
-	m, _ = executeCommand(m, "new")
-	require.Equal(t, "claude", m.Wizard.selectedTool().ID)
-	// claude's models have effort; walk to its effort step.
-	for m.Wizard.Step != wizEffort {
-		before := m.Wizard.Step
-		m = sendKey(m, key("enter"))
-		require.NotEqual(t, before, m.Wizard.Step)
-	}
-
-	// claude's models are replaced by one with no effort block.
-	infos := daemonTools(t, "claude", "qwen")
-	for i := range infos {
-		if infos[i].ID == "claude" {
-			infos[i].Models = []protocol.ModelInfo{{ID: "plain", Name: "plain", Detected: true}}
-		}
-	}
-	data, err := json.Marshal(protocol.ToolsChanged{Tools: infos})
-	require.NoError(t, err)
-	require.NotPanics(t, func() {
-		m = m.applyEvent(protocol.Envelope{Type: protocol.EventToolsChanged, Data: data})
-		_ = m.View()
-		m = sendKey(m, key("j"))
-		m = sendKey(m, key("k"))
-	})
-	require.Less(t, m.Wizard.Step, wizEffort, "stepped back to a step that applies")
-	require.True(t, m.Wizard.stepApplies(m.Wizard.Step))
-	require.Equal(t, wizProvider, m.Wizard.Step, "one model and no effort: only the provider step is left")
-}
-
-func TestWizard_ClosesWhenNoAgentIsLeft(t *testing.T) {
-	m := pickerModel(t, "claude")
-	m, _ = executeCommand(m, "new")
-	data, err := json.Marshal(protocol.ToolsChanged{Tools: daemonTools(t)})
-	require.NoError(t, err)
-	m = m.applyEvent(protocol.Envelope{Type: protocol.EventToolsChanged, Data: data})
-	require.Equal(t, FocusBoard, m.Focus)
-	require.Nil(t, m.Wizard)
-	require.Contains(t, m.Notice, "no agent is available")
 }
 
 // Turning extra_agents off in Settings takes the three out of the open

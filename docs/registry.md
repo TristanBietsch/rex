@@ -70,8 +70,8 @@ Duplicate tool or model ids are rejected at load time.
 | `model_arg_template` | with `models_cmd` | Argv for a detected model, `{model}` replaced by its id: `["--model", "{model}"]`. One element each, never split. Required when `models_cmd` is set |
 | `model_effort` | no | An `effort` block that detected models get (a detected model has no hand-written one). `qwen` and `grok` set it; `cursor` encodes effort in the model id and has none |
 | `detect` | yes | State classifier config |
-| `icon`, `color` | yes | TUI display (wizard, pickers). `icon` is one character one cell wide; each built-in has its own, see [Agent icons](#agent-icons) |
-| `enabled_by_default` | no | If false, hidden from wizard until enabled |
+| `icon`, `color` | yes | TUI display (new-agent page, pickers). `icon` is one character one cell wide; each built-in has its own, see [Agent icons](#agent-icons) |
+| `enabled_by_default` | no | If false, hidden from the new-agent page until enabled |
 | `models` | yes | At least one model |
 
 ## detect
@@ -122,7 +122,7 @@ State semantics for all kinds: a finished agent turn is `needs_input` (waiting o
 
 ### Initial prompt delivery
 
-The wizard / quick-spawn task reaches the agent through the tool's `prompt_args` (argv, after every other argument), or `prompt_paste` (pasted into the PTY), or, with neither, pasted once `prompt_regex` matches. Built in:
+The new-agent page / quick-spawn task reaches the agent through the tool's `prompt_args` (argv, after every other argument), or `prompt_paste` (pasted into the PTY), or, with neither, pasted once `prompt_regex` matches. Built in:
 
 | Tool | Delivery |
 |------|----------|
@@ -236,7 +236,7 @@ effort:
 
 Shipped ids include: `echo` (test), `claude`, `codex`, `antigravity`, `qwen`, `cursor`, `grok`, `ollama`, `deepseek`, `kimi`. `deepseek` and `kimi` default to `enabled_by_default: false`.
 
-`qwen` (Qwen Code), `cursor` (Cursor CLI, binary `cursor-agent`) and `grok` (Grok Build) are `enabled_by_default: true`: they are visible when installed. The wizard offers each only while its binary is on the daemon's `PATH` (the `installed` flag in [protocol.md](protocol.md)) and the `extra_agents` feature is on; `rex setup` applies the same rule with its own `PATH`. `qwen` and `grok` report their state on OSC 7501; `cursor` has no status channel, so it uses screen patterns only.
+`qwen` (Qwen Code), `cursor` (Cursor CLI, binary `cursor-agent`) and `grok` (Grok Build) are `enabled_by_default: true`: they are visible when installed. The new-agent page offers each only while its binary is on the daemon's `PATH` (the `installed` flag in [protocol.md](protocol.md)) and the `extra_agents` feature is on; `rex setup` applies the same rule with its own `PATH`. `qwen` and `grok` report their state on OSC 7501; `cursor` has no status channel, so it uses screen patterns only.
 
 **Permissions and trust of the new agents.** Check the agent's own safety settings before you point it at a folder you care about:
 

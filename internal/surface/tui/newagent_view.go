@@ -10,78 +10,40 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// naRailW is the step rail's width, its 2-column indent included.
-const naRailW = 16
-
 // naPlaceholder is the empty task editor's hint.
 const naPlaceholder = "describe the task. @ adds a file, paste adds context"
 
-// naTrustView is what the rail and the trust section say about the folder:
-// the rail mark and word, and the offer they come from.
-type naTrustView struct {
-	offer      trustOffer
-	mark, word string
-	ok         bool // trusted one way or another (the mark is a success)
-}
+// naKeyW is the transcript's key column: "summary" and two spaces.
+const naKeyW = 9
 
-func naTrustOf(m Model, st *NewAgentState) naTrustView {
-	v := naTrustView{offer: trustOfferFor(m, spawnCWD(m)), mark: "?", word: "ask"}
-	switch {
-	case v.offer.Covered != "":
-		v.mark, v.word, v.ok = "✓", "trusted", true
-	case v.offer.Refused != "":
-	case st.Trust == trustSession:
-		v.mark, v.word, v.ok = "✓", "sess", true
-	case st.Trust == trustAlways:
-		v.mark, v.word, v.ok = "✓", "always", true
+// naIndentFor is the body's left indent: 6 columns, 4 under pageNarrowW.
+// A list keeps its cursor column inside it (two cells), so its text lines
+// up with the rest of the body.
+func naIndentFor(w int) int {
+	if pageNarrow(w) {
+		return 4
 	}
-	return v
+	return 6
 }
 
-// renderNewAgent is the new-agent page for a w x h layout area: the step
-// rail beside the form, or under pageNarrowW a section strip over a
-// one-column form. Exactly h lines, none wider than w.
+// renderNewAgent is the new-agent page for a w x h layout area: the header
+// with the step count, the transcript and the current step's body, the
+// footer's keys. One layout at every width. Exactly h lines, none wider
+// than w.
 func renderNewAgent(m Model, w, h int) string {
 	st := m.NewAgent
 	middle := styleDim.Render(protocol.FlattenDisplayText(tildePath(spawnCWD(m))))
-	narrow := pageNarrow(w)
-	bh := pageBodyHeight(h)
-	if st != nil && st.Screen == naAgentScreen {
-		head := pageHeader("NEW AGENT › AGENT", middle, "", w)
-		foot := pageFooter(m, naAgentHints(st, narrow), w, helpBarOn(m))
-		return composePage(head, naAgentBody(m, st, w, bh), foot, w, h)
+	if st == nil {
+		return composePage(naHeader("NEW AGENT", middle, "", w), nil, pageFooter(m, nil, w, helpBarOn(m)), w, h)
 	}
-	head := naHeader("NEW AGENT", middle, styleDim.Render("draft"), w)
-	var body []string
-	hints := naHints(&NewAgentState{Section: naTask, Editing: true}, narrow)
-	if st != nil {
-		tv := naTrustOf(m, st)
-		preview := st.Screen == naPreview && st.ItemIdx < len(st.Items)
-		picker := st.Screen == naImportScreen
-		fw := max(w-naRailW-3-pageRightMargin, 1)
-		switch {
-		case picker && narrow:
-			body = indentLines(naImportBody(m, st, max(w-2, 1), bh), 2)
-		case picker:
-			body = joinPanes(naRail(st, tv), naImportBody(m, st, fw, bh), naRailW, bh)
-		case preview && narrow:
-			body = indentLines(naPreviewBody(m, st, max(w-2, 1), bh), 2)
-		case preview:
-			body = joinPanes(naRail(st, tv), naPreviewBody(m, st, fw, bh), naRailW, bh)
-		case narrow:
-			body = naNarrowBody(m, st, tv, w, bh)
-		default:
-			body = joinPanes(naRail(st, tv), naForm(m, st, tv, fw, bh), naRailW, bh)
-		}
-		hints = naHints(st, narrow)
-		switch {
-		case picker:
-			hints = naImportHints(st, narrow)
-		case preview:
-			hints = naPreviewHints(st, narrow)
-		}
+	right := "step " + strconv.Itoa(int(st.Step)+1) + "/" + strconv.Itoa(int(naStepCount))
+	if st.Launching {
+		right = "starting…"
 	}
-	return composePage(head, body, pageFooter(m, hints, w, helpBarOn(m)), w, h)
+	head := naHeader("NEW AGENT", middle, styleDim.Render(right), w)
+	body := naBodyLines(m, st, w, pageBodyHeight(h))
+	foot := pageFooter(m, naHints(m, st, pageNarrow(w)), w, helpBarOn(m))
+	return composePage(head, body, foot, w, h)
 }
 
 // naHeader is pageHeader, but under pageNarrowW the folder gives way so
@@ -101,9 +63,22 @@ func naHeader(title, middle, right string, w int) []string {
 	return head
 }
 
-// naHints is the footer for the mode and the focused section: the editor's
-// keys while typing, else the section's own keys and the navigation ones.
-func naHints(st *NewAgentState, narrow bool) [][2]string {
+// naEscWord is what esc does on the current step, for the footer.
+func naEscWord(st *NewAgentState) string {
+	switch {
+	case st.ReturnToSummary:
+		return "summary"
+	case st.Step <= st.Opened:
+		return "close"
+	}
+	return "back"
+}
+
+// naHints is the footer for the screen and step: the keys of what has the
+// keyboard now, then the step's own and the navigation ones.
+func naHints(m Model, st *NewAgentState, narrow bool) [][2]string {
+	esc := [2]string{"esc", naEscWord(st)}
+	help := [2]string{"?", "help"}
 	switch {
 	case st.Launching:
 		return [][2]string{{"esc", "close (keeps the draft)"}}
@@ -111,144 +86,329 @@ func naHints(st *NewAgentState, narrow bool) [][2]string {
 		return naPendingHints()
 	case st.Renaming:
 		return [][2]string{{"enter", "save"}, {"esc", "cancel"}}
-	case st.Editing && narrow:
-		return [][2]string{{"enter", "launch"}, {"esc", "navigate"}, {"tab", "next"}}
-	case st.Editing:
-		return [][2]string{
-			{"enter", "launch"}, {"ctrl+j", "newline"}, {"@", "file"}, {"ctrl+o", "import"},
-			{"esc", "navigate"}, {"tab", "next"},
-		}
-	case st.OnRail && !narrow:
-		return [][2]string{{"j/k", "step"}, {"l", "open"}, {"ctrl+s", "launch"}, {"esc", "close"}}
+	case st.Screen == naImportScreen:
+		return naImportHints(st, narrow)
+	case st.Screen == naPreview:
+		return naPreviewHints(st, narrow)
+	case st.Filtering:
+		return [][2]string{{"type", "filter"}, {"↑/↓", "model"}, {"enter", "keep"}, {"esc", "clear"}}
 	}
-	var own [][2]string
-	switch st.Section {
-	case naAgent:
-		own = [][2]string{{"enter", "change"}}
-	case naTask:
-		own = [][2]string{{"i", "edit"}}
-	case naContext:
-		if len(st.Items) > 0 {
-			own = [][2]string{{"enter", "preview"}, {"x", "remove"}, {"r", "rename"}, {"e", "edit"}}
+	var hints [][2]string
+	switch st.Step {
+	case naStepAgent:
+		if st.OnMissing {
+			hints = [][2]string{{"enter", "onboarding"}, {"k", "agents"}}
 		} else {
-			own = [][2]string{{"ctrl+o", "import"}}
+			hints = [][2]string{{"j/k", "agent"}, {"enter", "next"}}
 		}
-	case naTrust:
-		own = [][2]string{{"enter", "trust"}}
-	case naLaunchRow:
-		own = [][2]string{{"enter", "launch"}}
-	case naSectionCount:
+	case naStepModel:
+		hints = [][2]string{{"j/k", "model"}, {"/", "filter"}}
+		if len(st.selection().effortOptions()) > 0 {
+			hints = append(hints, [2]string{"h/l", "effort"})
+		}
+		hints = append(hints, [2]string{"enter", "next"})
+	case naStepSkills:
+		hints = [][2]string{{"space", "toggle"}, {"enter", "next"}}
+	case naStepTask:
+		if narrow {
+			return [][2]string{{"enter", "next"}, {"ctrl+j", "newline"}, esc}
+		}
+		return [][2]string{{"enter", "next"}, {"ctrl+j", "newline"}, {"@", "file"}, {"ctrl+o", "import"}, {"tab", "next"}, esc}
+	case naStepContext:
+		if len(st.Items) > 0 {
+			hints = [][2]string{{"enter", "preview"}, {"tab", "next"}, {"x", "remove"}, {"ctrl+o", "import"}}
+		} else {
+			hints = [][2]string{{"enter", "next"}, {"ctrl+o", "import"}}
+		}
+	case naStepTrust:
+		hints = [][2]string{{"j/k", "move"}, {"space", "pick"}, {"enter", "next"}}
+	case naStepSummary:
+		hints = [][2]string{{"enter", "launch"}, {"j/k", "row"}, {"e", "edit row"}}
+	case naStepCount:
 	}
 	if narrow {
-		return append(own[:min(len(own), 2):min(len(own), 2)], [2]string{"j/k", "move"}, [2]string{"esc", "close"})
+		// Esc and ? come before the step's extras, so the cut never drops them.
+		return append([][2]string{hints[0], esc, help}, hints[1:]...)[:min(len(hints)+2, 4)]
 	}
-	own = append(own, [2]string{"j/k", "move"}, [2]string{"h", "steps"})
-	if st.Section != naLaunchRow {
-		own = append(own, [2]string{"ctrl+s", "launch"})
-	}
-	return append(own, [2]string{"esc", "close"})
+	return append(hints, esc, help)
 }
 
-// naMark is a section's rail mark and word, styled: ✓ done, · empty, ? ask.
-func naMark(st *NewAgentState, tv naTrustView, s naSection) (mark, word string) {
-	switch s {
-	case naAgent:
-		return styleBootReady.Render("✓"), ""
-	case naTask:
-		if st.Task.Empty() {
-			return styleMuted.Render("·"), ""
-		}
-		return styleBootReady.Render("✓"), ""
-	case naTrust:
-		if tv.ok {
-			return styleBootReady.Render(tv.mark), styleDim.Render(tv.word)
-		}
-		return styleBootWarn.Render(tv.mark), styleBootWarn.Render(tv.word)
-	case naLaunchRow:
-		if st.Task.Empty() && len(st.Items) == 0 {
-			return styleMuted.Render("·"), ""
-		}
-		return styleArrow.Render("›"), ""
-	default: // naContext: the number of items
-		if len(st.Items) == 0 {
-			return styleMuted.Render("·"), ""
-		}
-		return styleBootReady.Render("✓"), styleDim.Render(strconv.Itoa(len(st.Items)))
+// naMarkDone styles a transcript line's mark: ✓ done, – skipped.
+func naMarkDone(skipped bool) string {
+	if skipped {
+		return styleMuted.Render("–")
 	}
+	return styleBootReady.Render("✓")
 }
 
-// naRail is the step rail: STEPS, then each section with its mark (▸ on the
-// focused one) and its word flush right. Every row fits naRailW whole, so no
-// word is ever cut (1-column indent: " ✓ Trust" + "trusted" is 16).
-func naRail(st *NewAgentState, tv naTrustView) []string {
-	lines := []string{" " + naTitle("STEPS", st.OnRail)}
-	for s := range naSectionCount {
-		mark, word := naMark(st, tv, s)
-		name := naSectionNames[s]
-		left := " " + mark + " " + stylePrimary.Render(name)
-		switch {
-		case s == st.Section && st.OnRail:
-			left = " " + styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render(name)
-		case s == st.Section:
-			left = " " + styleArrow.Render("▸ "+name)
-		}
-		if word != "" {
-			gap := max(1, naRailW-1-ansi.StringWidth(left)-ansi.StringWidth(word))
-			left += strings.Repeat(" ", gap) + word
-		}
-		lines = append(lines, left)
+// naAgentValue is the chosen agent: brand glyph and name, or the spinner
+// words while the daemon's tool list is on its way.
+func naAgentValue(m Model, st *NewAgentState) string {
+	if naToolsLoading(m) {
+		return styleArrow.Render(naSpinner(m)) + styleDim.Render(" checking which agents are installed…")
 	}
-	return lines
-}
-
-// naTitle is a form section's heading, in the accent while focused.
-func naTitle(title string, focused bool) string {
-	if focused {
-		return styleArrow.Render(title)
-	}
-	return styleSectionTitle.Render(title)
-}
-
-// naAgentLine is the chosen agent: brand glyph, name, model and effort; sep
-// sits between them. The narrow line (mockup G) drops the word "effort".
-func naAgentLine(st *NewAgentState, sep string, narrow bool) string {
-	w := st.selection()
-	t := w.selectedTool()
+	t := st.selection().selectedTool()
 	glyph := ""
 	if t.Icon != "" {
 		glyph = brandStyle(t.Color).Render(protocol.FlattenDisplayText(t.Icon)) + " "
 	}
-	line := glyph + stylePrimary.Render(protocol.FlattenDisplayText(t.Name))
-	if md := w.selectedModel(); md.ID != "" {
-		line += styleMuted.Render(sep) + styleSlug.Render(protocol.FlattenDisplayText(md.ID))
-	}
+	return glyph + stylePrimary.Render(protocol.FlattenDisplayText(t.Name))
+}
+
+// naModelValue is the chosen model and, when it has one, its effort.
+func naModelValue(st *NewAgentState) string {
+	w := st.selection()
+	out := styleSlug.Render(protocol.FlattenDisplayText(w.selectedModel().ID))
 	if e := w.currentEffort(); e != "" {
-		if !narrow {
-			line += styleMuted.Render(sep) + styleDim.Render("effort ")
-		} else {
-			line += styleMuted.Render(sep)
+		out += styleMuted.Render(" · ") + styleDim.Render("effort ") + styleSlug.Render(protocol.FlattenDisplayText(e))
+	}
+	return out
+}
+
+// naSkillsValue is the chosen skills, comma separated, or "none".
+func naSkillsValue(st *NewAgentState) string {
+	names := st.selection().chosenSkills()
+	if len(names) == 0 {
+		return styleDim.Render("none")
+	}
+	flat := make([]string, len(names))
+	for i, n := range names {
+		flat[i] = protocol.FlattenDisplayText(n)
+	}
+	return styleSlug.Render(strings.Join(flat, ", "))
+}
+
+// naTaskValue is the task's first line and how many more it has.
+func naTaskValue(st *NewAgentState) string {
+	task := strings.TrimSpace(st.Task.String())
+	if task == "" {
+		return styleDim.Render("empty")
+	}
+	out := stylePrimary.Render(protocol.FlattenDisplayText(taskTitle(task)))
+	if n := strings.Count(task, "\n"); n > 0 {
+		out += styleDim.Render(" (+" + naLines(n) + ")")
+	}
+	return out
+}
+
+// naContextValue is the context's count and size, or "none".
+func naContextValue(st *NewAgentState) string {
+	if len(st.Items) == 0 {
+		return styleDim.Render("none")
+	}
+	return stylePrimary.Render(naItemsTotal(st.Items))
+}
+
+// naDoneLine is a finished step as a transcript line: "✓ key  value", or
+// a dim "– key  not available" for a step that did not apply.
+func naDoneLine(m Model, st *NewAgentState, s naStep) string {
+	key := padRight(naStepNames[s], naKeyW)
+	if naSkipped(st, s) {
+		return "  " + naMarkDone(true) + " " + styleDim.Render(key+"not available")
+	}
+	var val string
+	switch s {
+	case naStepAgent:
+		val = naAgentValue(m, st)
+	case naStepModel:
+		val = naModelValue(st)
+	case naStepSkills:
+		val = naSkillsValue(st)
+	case naStepTask:
+		val = naTaskValue(st)
+	case naStepContext:
+		val = naContextValue(st)
+	case naStepTrust:
+		val = stylePrimary.Render(naTrustDone(m, st))
+	case naStepSummary, naStepCount:
+	}
+	return "  " + naMarkDone(false) + " " + styleDim.Render(key) + val
+}
+
+// naStepAsk is the current step's question.
+var naStepAsk = [naStepCount]string{
+	"pick an agent", "pick a model and effort", "pick any (optional)", "what should it do?",
+	"add files or paste (optional)", "trust this folder?", "review, then launch",
+}
+
+// naCurrentLine is the current step's "› key  question" line; on the
+// context step the total sits flush right.
+func naCurrentLine(st *NewAgentState, w int) string {
+	line := "  " + styleArrow.Render("›") + " " + selectedStyle(stylePrimary).Bold(true).Render(padRight(naStepNames[st.Step], naKeyW)) +
+		styleDim.Render(naStepAsk[st.Step])
+	if st.Step == naStepContext && len(st.Items) > 0 {
+		total := styleDim.Render(naItemsTotal(st.Items))
+		if gap := w - pageRightMargin - ansi.StringWidth(line) - ansi.StringWidth(total); gap >= 2 {
+			line += strings.Repeat(" ", gap) + total
 		}
-		line += styleSlug.Render(protocol.FlattenDisplayText(e))
 	}
 	return line
 }
 
+// naNotice is the open-time notice (a remembered agent that is gone) and,
+// on the context step, a draft whose files are from another folder
+// (naStaleRoot), as warning lines, or nil.
+func naNotice(st *NewAgentState) []string {
+	var out []string
+	if st.Notice != "" {
+		out = append(out, styleBootWarn.Render("! ")+styleDim.Render(protocol.FlattenDisplayText(st.Notice)))
+	}
+	if st.Step == naStepContext && naStaleRoot(st) {
+		out = append(out, styleBootWarn.Render("! ")+styleDim.Render("files from "+
+			protocol.FlattenDisplayText(tildePath(st.ItemsRoot))+", not this folder: x removes them"))
+	}
+	return out
+}
+
+// naUnder is what sits right under the current line: the notices, the
+// launch's progress and the page's errors (the summary shows its errors
+// under the launch row instead), every line indented to the body and at most
+// limit of them: notices give way first, then the errors are cut short with
+// …, so the launch's progress and the first error always show.
+func naUnder(m Model, st *NewAgentState, w, limit int) []string {
+	ind := naIndentFor(w)
+	fw := max(w-ind-pageRightMargin, 1)
+	notices := naNotice(st)
+	var launching, errs []string
+	if st.Launching {
+		launching = []string{naStartingLine(m)}
+	}
+	if st.Step != naStepSummary || st.Screen != naSteps {
+		errs = naErrLines(st, fw)
+	}
+	for len(notices)+len(launching)+len(errs) > limit && len(notices) > 0 {
+		notices = notices[1:]
+	}
+	if room := limit - len(launching); len(errs) > room {
+		room = max(room, 1)
+		errs = errs[:room]
+		errs[room-1] = ansi.Truncate(errs[room-1], max(fw-1, 1), "") + "…"
+	}
+	under := append(append(notices, launching...), errs...)
+	return indentLines(under, ind)
+}
+
+// naTranscript is the finished steps as lines. A step the page is past
+// shows; the ones not reached yet do not. The summary replaces the
+// transcript with its own review, so it has none.
+func naTranscript(m Model, st *NewAgentState) []string {
+	if st.Step == naStepSummary && st.Screen == naSteps {
+		return nil
+	}
+	var out []string
+	for s := range st.Step {
+		out = append(out, naDoneLine(m, st, s))
+	}
+	return out
+}
+
+// naTop is everything above the body: the transcript, the current line and
+// what sits under it. On a screen too short for all of it the oldest
+// transcript lines give way, so the current line always shows.
+func naTop(m Model, st *NewAgentState, w, bh int) []string {
+	need := 1 // body rows kept under the top: one, four for the trust step
+	if st.Step == naStepTrust && st.Screen == naSteps {
+		need = 4
+	}
+	limit := max(bh-2-need, 0) // the current line and a blank sit with the body
+	if st.Step == naStepSummary && st.Screen == naSteps {
+		limit = naSummaryUnderLimit(st, w, bh)
+	}
+	under := naUnder(m, st, w, limit)
+	tr := naTranscript(m, st)
+	if keep := max(bh-2-need-len(under), 0); len(tr) > keep {
+		tr = tr[len(tr)-keep:]
+	}
+	top := make([]string, 0, len(tr)+1+len(under))
+	top = append(top, tr...)
+	top = append(top, naCurrentLine(st, w))
+	top = append(top, under...)
+	for i, l := range top {
+		top[i] = ansi.Truncate(l, max(w-pageRightMargin, 1), "…")
+	}
+	return top
+}
+
+// naBodyRows is the rows the body has under the top lines and a blank, on
+// the page as drawn at the model's size.
+func naBodyRows(m Model, st *NewAgentState) int {
+	w, h := helpSize(m)
+	bh := pageBodyHeight(h)
+	return max(bh-len(naTop(m, st, w, bh))-1, 1)
+}
+
+// naBodyLines is the page body for a w wide, bh tall area: the top, a blank
+// and the step's body (or the picker's, or the preview's) in the rows
+// left. The summary is its own layout.
+func naBodyLines(m Model, st *NewAgentState, w, bh int) []string {
+	if st.Step == naStepSummary && st.Screen == naSteps {
+		return naSummaryLines(m, st, w, bh)
+	}
+	top := naTop(m, st, w, bh)
+	rows := max(bh-len(top)-1, 1)
+	ind := naIndentFor(w)
+	lw := max(w-(ind-2)-pageRightMargin, 1) // a list's width: its cursor column starts 2 in
+	fw := max(w-ind-pageRightMargin, 1)
+	lines := make([]string, 0, bh)
+	lines = append(lines, top...)
+	lines = append(lines, "")
+	switch {
+	case st.Screen == naImportScreen:
+		lines = append(lines, indentLines(naImportBody(m, st, lw, rows), ind-2)...)
+	case st.Screen == naPreview && st.ItemIdx < len(st.Items):
+		lines = append(lines, indentLines(naPreviewBody(m, st, lw, rows), ind-2)...)
+	default:
+		lines = append(lines, naStepBody(m, st, fw, lw, rows, ind)...)
+	}
+	for i, l := range lines {
+		lines[i] = ansi.Truncate(l, w, "…")
+	}
+	return lines
+}
+
+// naStepBody is the current step's body: fw wide for text and boxes, lw for
+// lists (their cursor column sits ind-2 in), at most rows rows, every line
+// indented.
+func naStepBody(m Model, st *NewAgentState, fw, lw, rows, ind int) []string {
+	list := func(lines []string) []string { return indentLines(lines, ind-2) }
+	switch st.Step {
+	case naStepAgent:
+		return list(naAgentBody(m, st, lw, rows))
+	case naStepModel:
+		return list(naModelBody(m, st, lw, rows))
+	case naStepSkills:
+		return list(naSkillLines(st, rows))
+	case naStepTask:
+		return indentLines(naTaskBody(m, st, fw, rows), ind)
+	case naStepContext:
+		return list(naContextBody(m, st, lw, rows))
+	case naStepTrust:
+		return list(naTrustBody(m, st, lw, rows))
+	case naStepSummary, naStepCount:
+	}
+	return nil
+}
+
+// naTaskBody is the task editor box fw wide, rows high with the @ list
+// under it (at most what is left after a one-row box), as L1 says: the box
+// takes every row the completion does not.
+func naTaskBody(m Model, st *NewAgentState, fw, rows int) []string {
+	comp := naCompleteLines(m, st, fw)
+	if keep := max(rows-3, 0); len(comp) > keep { // two box edges and one text row
+		comp = comp[:keep]
+	}
+	text := max(rows-2-len(comp), 1)
+	return append(naEditorBox(m, st, fw, text), comp...)
+}
+
 // naEditorBox is the task editor in a box w wide with rows text rows: the
-// placeholder while empty, the focus border while the task is the focused
-// step, the cursor only while typing (Editing).
+// placeholder while empty, the focus border and the cursor always (the task
+// step types).
 func naEditorBox(m Model, st *NewAgentState, w, rows int) []string {
 	w = max(w, 5)
 	inner := w - 4
-	focused := st.Section == naTask && !st.OnRail
-	border := styleBorderFg
-	if focused {
-		border = styleBorderFocus
-	}
-	cur := ""
-	if st.Editing {
-		cur = cursorBlock(m)
-	}
-	text := st.Task.View(inner, rows, st.Editing, cur)
+	cur := cursorBlock(m)
+	text := st.Task.View(inner, rows, true, cur)
 	if st.Task.Empty() {
 		hint := styleMuted.Render(ansi.Truncate(naPlaceholder, inner, "…"))
 		if rows > 1 {
@@ -257,6 +417,7 @@ func naEditorBox(m Model, st *NewAgentState, w, rows int) []string {
 			text[0] = ansi.Truncate(cur+hint, inner, "…")
 		}
 	}
+	border := styleBorderFocus
 	out := []string{border.Render("┌" + strings.Repeat("─", w-2) + "┐")}
 	for _, l := range text {
 		out = append(out, border.Render("│ ")+padLine(l, inner)+border.Render(" │"))
@@ -264,123 +425,28 @@ func naEditorBox(m Model, st *NewAgentState, w, rows int) []string {
 	return append(out, border.Render("└"+strings.Repeat("─", w-2)+"┘"))
 }
 
-// naTrustLines is the trust section: the folder's state in words, then the
-// keys and the folder ctrl+a saves.
-func naTrustLines(tv naTrustView, st *NewAgentState) []string {
-	o := tv.offer
-	switch {
-	case o.Covered != "":
-		return []string{styleDim.Render("trusted (" + trustSettingID + ")")}
-	case o.Refused != "":
-		return []string{styleBootWarn.Render(protocol.FlattenDisplayText(o.Refused))}
-	}
-	var state string
-	switch st.Trust {
-	case trustSession:
-		state = styleBootReady.Render("trusted for this session only")
-	case trustAlways:
-		state = styleBootReady.Render("always trusted") +
-			styleDim.Render(": "+protocol.FlattenDisplayText(o.AlwaysEntry)+" is saved to "+trustSettingID+" at launch")
-	default:
-		state = styleBootWarn.Render("folder not trusted") + styleDim.Render(": the agent will ask")
-	}
-	keys := styleKey.Render("ctrl+t") + styleDim.Render(" this session only") + styleMuted.Render(" · ")
-	if o.AlwaysDir == "" {
-		keys += styleKey.Render("ctrl+a") + styleDim.Render(": only folders inside your home can be saved")
-	} else {
-		keys += styleKey.Render("ctrl+a") + styleDim.Render(" always ("+protocol.FlattenDisplayText(o.AlwaysEntry)+")")
-	}
-	return []string{state, keys}
-}
-
-// naNotice is the open-time notice (a remembered agent that is gone) and a
-// draft whose files are from another folder (naStaleRoot), as warning lines,
-// or nil.
-func naNotice(st *NewAgentState) []string {
-	var out []string
-	if st.Notice != "" {
-		out = append(out, styleBootWarn.Render("! ")+styleDim.Render(protocol.FlattenDisplayText(st.Notice)))
-	}
-	if naStaleRoot(st) {
-		out = append(out, styleBootWarn.Render("! ")+styleDim.Render("files from "+
-			protocol.FlattenDisplayText(tildePath(st.ItemsRoot))+", not this folder: x removes them"))
-	}
-	return out
-}
-
-// naForm is the Compose form fw wide for a body bh rows tall (mockups A
-// and B): agent, task editor, context list and trust, each under its
-// heading, and once there is a task or context the launch summary on the
-// last row. The editor gives up rows to the list first, down to one; a list
-// longer than what is left scrolls with its cursor.
-func naForm(m Model, st *NewAgentState, tv naTrustView, fw, bh int) []string {
-	notice := naNotice(st)
-	errs := naErrLines(st, fw)
-	agent := naAgentRow(m, st, "  ·  ", false, fw)
-	change := styleKey.Render("ctrl+g") + styleDim.Render(" change")
-	if naToolsLoading(m) {
-		change = ""
-	}
-	if gap := fw - ansi.StringWidth(agent) - ansi.StringWidth(change); gap >= 2 {
-		agent += strings.Repeat(" ", gap) + change
-	}
-	// Eleven rows are fixed (headings, agent, box edges, two trust rows and
-	// two blanks); a blank and the launch row stay at the bottom. The
-	// focused trust section shows every key with its exact folder (P2's
-	// lines), so it takes more.
-	free := 2
-	trust := indentLines(naTrustLines(tv, st), 2)
-	if st.Section == naTrust {
-		trust = trustLines(m, st.Trust, spawnCWD(m), fw)
-	}
-	comp := naCompleteLines(m, st, fw)
-	budget := bh - 11 - free - len(notice) - len(errs) - len(comp) - (len(trust) - 2)
-	listRows := min(max(len(st.Items), 1), max(1, budget-1))
-	rows := max(1, min(10, budget-listRows))
-
-	on := func(s naSection) bool { return st.Section == s && !st.OnRail }
-	lines := []string{naTitle("AGENT", on(naAgent)), agent}
-	lines = append(lines, notice...)
-	lines = append(lines, "", naTitle("TASK", on(naTask)))
-	lines = append(lines, naEditorBox(m, st, fw, rows)...)
-	lines = append(lines, comp...)
-	lines = append(lines, naContextLines(m, st, fw, listRows)...)
-	lines = append(lines, errs...)
-	lines = append(lines, "", naTitle("TRUST", on(naTrust)))
-	lines = append(lines, trust...)
-	if len(lines) < bh {
-		for len(lines) < bh-1 {
-			lines = append(lines, "")
-		}
-		lines = append(lines, naLaunchLine(m, st))
-	}
-	for i, l := range lines {
-		lines[i] = ansi.Truncate(l, fw, "…")
-	}
-	return lines
-}
-
-// naContextLines is the CONTEXT heading (with the count and size flush
-// right) over the item list, at most rows rows, windowed on the cursor; or
-// the empty state.
-func naContextLines(m Model, st *NewAgentState, fw, rows int) []string {
-	focused := st.Section == naContext && !st.OnRail
-	head := naTitle("CONTEXT", focused)
-	if len(st.Items) == 0 && st.Indexing {
-		return []string{head, "  " + naLoadingRow(m, st, fw-2)} // mockup F
-	}
+// naContextBody is the context step's list lw wide in at most rows rows:
+// the items (windowed on the cursor) and a "next ›" row last, or the empty
+// state naming the three ways to add context.
+func naContextBody(m Model, st *NewAgentState, lw, rows int) []string {
 	if len(st.Items) == 0 {
-		return []string{head, "  " + styleMuted.Render("none yet: type @path, paste, or ctrl+o to import")}
+		out := []string{}
+		if st.Indexing {
+			out = append(out, "  "+naLoadingRow(m, st, lw-2), "")
+		}
+		return append(out,
+			"  "+styleMuted.Render("nothing added yet"),
+			"  "+styleKey.Render("ctrl+o")+styleDim.Render("  import files and folders"),
+			"  "+styleKey.Render("@")+styleDim.Render("       in the task: add a file"),
+			"  "+styleKey.Render("paste")+styleDim.Render("   in the task: add text"),
+		)
 	}
-	total := styleDim.Render(naItemsTotal(st.Items))
-	if gap := fw - ansi.StringWidth(head) - ansi.StringWidth(total); gap >= 2 {
-		head += strings.Repeat(" ", gap) + total
-	}
-	items := make([]string, len(st.Items))
+	items := make([]string, 0, len(st.Items)+1)
 	for i := range st.Items {
-		items[i] = naItemRow(m, st, i, fw, focused)
+		items = append(items, naItemRow(m, st, i, lw, true))
 	}
-	return append([]string{head}, st.itemsView.window("items", items, st.ItemIdx, max(rows, 1), "  ")...)
+	next := naMarkCol(st.ItemIdx >= len(st.Items)) + stylePrimary.Render("next ›")
+	return st.itemsView.window("items", append(items, next), st.ItemIdx, max(rows, 1), "  ")
 }
 
 // naItemsTotal is "N items · X KB": the count and the summed sizes.
@@ -511,111 +577,7 @@ func naPromptCap(st *NewAgentState) int {
 	return spawnctx.DefaultCaps.Prompt
 }
 
-// naLaunchSummary is the last body row (mockup B): the assembled prompt's
-// size against the cap and the slug the launch would take. Assembling runs
-// only when the page changed since the last time (Rev).
-func naLaunchSummary(m Model, st *NewAgentState) string {
-	if !st.sumOK || st.sumRev != st.Rev {
-		prompt, err := spawnctx.Assemble(strings.TrimSpace(st.Task.String()), st.Items, spawnctx.DefaultCaps)
-		st.sumRev, st.sumOK, st.sumBytes, st.sumErr = st.Rev, true, len(prompt), err
-	}
-	w := st.selection()
-	tool, model := w.selectedTool(), w.selectedModel()
-	slug := deriveAgentSlug(tool.ID, model.ID, taskTitle(st.Task.String()), existingSlugs(m))
-	tail := styleDim.Render(" · slug ") + styleSlug.Render(protocol.FlattenDisplayText(slug))
-	if st.sumErr != nil {
-		return styleStateFailed.Render("✗ prompt: "+protocol.FlattenDisplayText(st.sumErr.Error())) + tail
-	}
-	limit := naPromptCap(st)
-	size := stylePrimary.Render(naBytes(st.sumBytes))
-	lead := styleDim.Render("prompt ")
-	if st.sumBytes > limit {
-		lead = styleBootWarn.Render("! prompt ")
-		size = styleBootWarn.Render(naBytes(st.sumBytes))
-	}
-	return lead + size + styleDim.Render(" of "+naBytes(limit)) + tail
-}
-
-// naLaunchLine is the launch row: "▸ launch" while it is the focused step
-// (enter launches), then the summary once there is a task or context, or
-// the launch's progress.
-func naLaunchLine(m Model, st *NewAgentState) string {
-	if st.Launching {
-		return naStartingLine(m)
-	}
-	head := "  " + styleDim.Render("launch")
-	if st.Section == naLaunchRow && !st.OnRail {
-		head = styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render("launch")
-	}
-	if st.Task.Empty() && len(st.Items) == 0 {
-		return head + styleMuted.Render("  describe the task first")
-	}
-	return head + styleMuted.Render("  ·  ") + naLaunchSummary(m, st)
-}
-
-// naStrip is the narrow page's section strip: ‹ Agent · [Task] · Context 2
-// · Trust ›, the focused section bracketed and bold, the context counted.
-func naStrip(st *NewAgentState) string {
-	parts := make([]string, naSectionCount)
-	for s := range naSectionCount {
-		name := naSectionNames[s]
-		if s == naContext && len(st.Items) > 0 {
-			name += " " + strconv.Itoa(len(st.Items))
-		}
-		if s == st.Section {
-			parts[s] = styleBold.Render("[" + name + "]")
-		} else {
-			parts[s] = styleDim.Render(name)
-		}
-	}
-	return "  " + styleArrow.Render("‹ ") + strings.Join(parts, styleMuted.Render(" · ")) + styleArrow.Render(" ›")
-}
-
-// naNarrowBody is the one-column page under pageNarrowW (mockup G).
-func naNarrowBody(m Model, st *NewAgentState, tv naTrustView, w, bh int) []string {
-	notice := naNotice(st)
-	comp := naCompleteLines(m, st, max(w-2, 1))
-	trust := []string{"  " + styleDim.Render("trust: ") + styleBootWarn.Render(tv.word)}
-	if tv.ok {
-		trust = []string{"  " + styleDim.Render("trust: ") + styleBootReady.Render(tv.word)}
-	}
-	if st.Section == naTrust {
-		trust = trustLines(m, st.Trust, spawnCWD(m), w)
-	}
-	trust = append(trust, "  "+naLaunchLine(m, st))
-	rows := max(1, min(8, bh-7-len(trust)-len(notice)-len(naErrLines(st, w-2))-len(comp)))
-	lines := []string{naStrip(st), "  " + naAgentRow(m, st, " · ", true, w-2)}
-	lines = append(lines, indentLines(notice, 2)...)
-	if st.Section == naContext && len(st.Items) > 0 {
-		lines = append(lines, indentLines(naContextLines(m, st, max(w-2, 1), rows+2), 2)...)
-	} else {
-		lines = append(lines, indentLines(naEditorBox(m, st, w-2, rows), 2)...)
-		lines = append(lines, indentLines(comp, 2)...)
-		ctx := styleDim.Render("context: none yet")
-		if n := len(st.Items); n > 0 {
-			ctx = styleDim.Render(strings.Replace(naItemsTotal(st.Items), "item", "context item", 1)) +
-				styleMuted.Render("  (j to view)")
-		}
-		lines = append(lines, "  "+ctx)
-	}
-	lines = append(lines, indentLines(naErrLines(st, w-2), 2)...)
-	lines = append(lines, trust...)
-	for i, l := range lines {
-		lines[i] = ansi.Truncate(l, w, "…")
-	}
-	return lines
-}
-
 // naToolsLoading reports whether the daemon's tool list is still on its way:
 // no Snapshot yet. A Snapshot without one is an old daemon, and every tool
 // counts as installed (pickerTools), so the agent shows.
 func naToolsLoading(m Model) bool { return !m.toolsKnown && !m.toolsSnap }
-
-// naAgentRow is the AGENT section's row: the chosen agent, or while the
-// daemon's tool list is unknown the spinner and words of mockup F.
-func naAgentRow(m Model, st *NewAgentState, sep string, narrow bool, w int) string {
-	if naToolsLoading(m) {
-		return ansi.Truncate(styleArrow.Render(naSpinner(m))+styleDim.Render(" checking which agents are installed…"), max(w, 1), "…")
-	}
-	return naAgentLine(st, sep, narrow)
-}

@@ -22,12 +22,12 @@ func naUpdate(m Model, msg tea.Msg) Model {
 	return next.(Model)
 }
 
-// naLaunch types task and presses enter; the page must start launching.
+// naLaunch types task and presses ctrl+s; the page must start launching.
 func naLaunch(t *testing.T, m Model, task string) (Model, tea.Cmd) {
 	t.Helper()
 	m = naType(m, task)
-	m, cmd := naKey(m, key("enter"))
-	require.NotNil(t, cmd, "enter launches")
+	m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	require.NotNil(t, cmd, "ctrl+s launches")
 	require.NotNil(t, m.NewAgent, "the page stays open until the daemon answers")
 	require.True(t, m.NewAgent.Launching)
 	return m, cmd
@@ -68,24 +68,18 @@ func TestNewAgent_TrustKeysMatchWizard(t *testing.T) {
 		require.True(t, req.TrustFolder)
 		require.Equal(t, "~/dev/proj", m.Store.String("auto_trust_dirs"))
 	})
-	t.Run("the trust section names the exact folders", func(t *testing.T) {
+	t.Run("the trust step names the exact folders", func(t *testing.T) {
 		m := naOpen(t, naModel(t))
 		m.Width, m.Height = 120, 40
-		m.NewAgent.Section = naTrust
+		m = naAt(m, naStepTrust)
 		out := ansi.Strip(m.View())
-		var pane strings.Builder // the form column, without the rail
-		for _, l := range strings.Split(out, "\n") {
-			if _, right, ok := strings.Cut(l, "│"); ok {
-				pane.WriteString(strings.Join(strings.Fields(right), ""))
-			}
-		}
-		flat := pane.String()
-		require.Contains(t, out, "folder not trusted")
-		require.Contains(t, out, "trust this session only")
-		require.Contains(t, out, "always trust (saved to auto_trust_dirs)")
-		require.Contains(t, flat, filepath.ToSlash(spawnCWD(m)), "ctrl+t's folder, exact (slashed to wrap)")
+		flat := strings.Join(strings.Fields(out), "")
+		require.Contains(t, out, "ask: the agent will ask")
+		require.Contains(t, out, "this session only")
+		require.Contains(t, out, "always: saves ~/dev/proj to auto_trust_dirs")
+		require.Contains(t, flat, filepath.ToSlash(spawnCWD(m)), "the session's folder, exact (slashed to wrap)")
 		m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlT})
-		require.Contains(t, ansi.Strip(m.View()), selectGlyph()+" ctrl+t", "the chosen key is marked")
+		require.Contains(t, ansi.Strip(m.View()), "(•) this session only", "the chosen row is marked")
 		for _, sz := range []goldenSize{{120, 40}, {80, 24}, {60, 20}, {59, 20}, {50, 20}, {40, 12}} {
 			m.Width, m.Height = sz.w, sz.h
 			lines := strings.Split(m.View(), "\n")
@@ -102,7 +96,7 @@ func TestNewAgent_TrustKeysMatchWizard(t *testing.T) {
 		_, req, ok := naReq(t, m)
 		require.True(t, ok)
 		require.False(t, req.TrustFolder, "already covered: nothing to ask the daemon")
-		m.NewAgent.Section = naTrust
+		m = naAt(m, naStepTrust)
 		require.Contains(t, ansi.Strip(m.View()), "trusted (auto_trust_dirs)")
 	})
 	t.Run("the home folder is refused on the page", func(t *testing.T) {
@@ -123,8 +117,9 @@ func TestNewAgent_TrustKeysMatchWizard(t *testing.T) {
 		m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlA})
 		m.Store = nil
 		m = naType(m, "task")
-		m, cmd := naKey(m, key("enter"))
+		m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
 		require.Nil(t, cmd, "nothing is sent")
+		require.Equal(t, naStepSummary, m.NewAgent.Step, "a trust failure lands on the summary")
 		require.Equal(t, FocusNewAgent, m.Focus)
 		require.False(t, m.NewAgent.Launching)
 		require.Empty(t, m.Err)
@@ -190,7 +185,7 @@ func TestNewAgent_LaunchErrorKeepsDraft(t *testing.T) {
 			require.Empty(t, m.Err, "not a board error too")
 			require.Empty(t, m.PendingSelectSlug)
 			flat := strings.Join(strings.Fields(naView(m)), " ")
-			require.Contains(t, flat, "✗ launch failed: daemon is not running (rex daemon start). │ Your draft is kept.",
+			require.Contains(t, flat, "✗ launch failed: daemon is not running (rex daemon start). Your draft is kept.",
 				"wrapped at a word, never cut")
 
 			// The next key clears it, and a retry launches again.
@@ -268,7 +263,7 @@ func TestNewAgent_LaunchRevalidates(t *testing.T) {
 		require.NoError(t, os.Symlink(outside, link))
 
 		m = naType(m, "read the notes")
-		m, cmd := naKey(m, key("enter"))
+		m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
 		require.Nil(t, cmd, "nothing is sent")
 		require.False(t, m.NewAgent.Launching)
 		require.Contains(t, m.NewAgent.Err, "✗ notes.txt links to ")
@@ -342,31 +337,6 @@ func TestNewAgent_PromptCapInKB(t *testing.T) {
 	require.NotContains(t, m.NewAgent.Err, "too big")
 }
 
-func TestNewAgent_FlagOffKeepsDraft(t *testing.T) {
-	m := naOpen(t, naModel(t))
-	m.Width, m.Height = 80, 24
-	m = naType(m, "keep this")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlJ})
-	m = naType(m, "and this")
-	m = naPaste(m, nLines(12))
-	m = setFlag(t, m, "new_agent_page", false)
-	require.NotContains(t, ansi.Strip(m.View()), "NEW AGENT", "never drawn while off")
-
-	// Any message closes it, not only a key.
-	m = naUpdate(m, SpinnerTickMsg{Gen: -1})
-	require.Equal(t, FocusBoard, m.Focus)
-	require.Nil(t, m.NewAgent)
-	require.NotNil(t, m.newAgentDraft)
-	require.Len(t, m.newAgentDraft.Items, 1)
-
-	// The older wizard gets the task text only, and says so.
-	m, _ = naKey(m, key("n"))
-	require.Equal(t, FocusWizard, m.Focus)
-	require.Equal(t, "keep this and this[paste 1 · 12 lines]", m.Wizard.TaskText)
-	require.Contains(t, m.Notice, "1 context item was dropped")
-	require.NotNil(t, m.newAgentDraft, "the draft stays for when the page is back")
-}
-
 func TestNewAgent_RequestCarriesSummary(t *testing.T) {
 	m := naModel(t)
 	naFiles(t, map[string]string{"a.go": "package a\n", "pkg/b.go": "package b\n"})
@@ -392,14 +362,15 @@ func TestNewAgent_ContextLoadingRow(t *testing.T) {
 	m := naOpen(t, naModel(t)) // the walk never comes back
 	m.Width, m.Height = 80, 24
 	m.NewAgent.indexCount.Store(3812)
+	m = naAt(m, naStepContext)
 	out := naView(m)
 	require.Contains(t, out, "indexing workspace… 3,812 files")
 	require.Contains(t, out, "(picker usable after)")
-	require.NotContains(t, out, "none yet")
 
 	m.NewAgent.Indexing = false
 	out = naView(m)
-	require.Contains(t, out, "none yet: type @path, paste, or ctrl+o to import")
+	require.Contains(t, out, "nothing added yet")
+	require.Contains(t, out, "ctrl+o  import files and folders")
 	require.NotContains(t, out, "indexing workspace")
 }
 
@@ -533,12 +504,13 @@ func TestNewAgent_DraftFromAnotherFolder(t *testing.T) {
 
 	// The page names the old folder, as a warning line.
 	m.Width, m.Height = 80, 24
+	m = naAt(m, naStepContext)
 	v := ansi.Strip(m.View())
 	require.Contains(t, v, "! ")
 	require.Contains(t, v, "~/dev/proj")
 
 	// The preview reads the item from the folder it was added in.
-	st.Section = naContext
+	naGo(m, naStepContext)
 	st.ItemIdx = 0
 	m, _ = naKey(m, key("enter"))
 	require.Contains(t, strings.Join(m.NewAgent.PrevLines, "\n"), "package old")
@@ -559,7 +531,7 @@ func TestNewAgent_DraftFromAnotherFolder(t *testing.T) {
 
 	// Removing the old item resets the folder: the notice goes, b.go adds
 	// and launches here.
-	require.Equal(t, naContext, m.NewAgent.Section)
+	require.Equal(t, naStepContext, m.NewAgent.Step, "a path error on launch goes to the context step")
 	m, _ = naKey(m, key("x"))
 	require.Empty(t, st.Items)
 	require.Equal(t, st.Root, st.ItemsRoot)
@@ -579,7 +551,8 @@ func TestNewAgent_ClearingTheDraftResetsItemsRoot(t *testing.T) {
 	st := m.NewAgent
 	require.NoError(t, addPath(st, "a.go", false))
 	st.ItemsRoot = filepath.Join(t.TempDir(), "elsewhere")
-	m, _ = naKey(m, key("ctrl+u"))
+	m = naAt(m, naStepContext)
+	m, _ = naKey(m, key("x")) // removing the last file item resets the folder
 	require.Empty(t, m.NewAgent.Items)
 	require.Equal(t, m.NewAgent.Root, m.NewAgent.ItemsRoot)
 }

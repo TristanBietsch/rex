@@ -82,21 +82,12 @@ func countWalks(t *testing.T) (*atomic.Int32, *context.Context) {
 	return &n, &last
 }
 
-func TestImport_WalkOnlyWithTheFlag(t *testing.T) {
+func TestImport_WalkOnlyWhilePageIsOpen(t *testing.T) {
 	m := naModel(t)
 	naFiles(t, map[string]string{"a.go": "package a\n"})
 	walks, ctx := countWalks(t)
 
-	off := setFlag(t, m, "new_agent_page", false)
-	off, cmd := naKey(off, key("n"))
-	require.Equal(t, FocusWizard, off.Focus)
-	if cmd != nil {
-		_ = cmd()
-	}
-	off, _ = naKey(off, tea.KeyMsg{Type: tea.KeyCtrlO})
-	require.Zero(t, walks.Load(), "flag off: no workspace walk")
-
-	m = setFlag(t, m, "new_agent_page", true) // the store is shared
+	require.Zero(t, walks.Load(), "page closed: no workspace walk")
 	m = naIndexed(t, m)
 	require.Equal(t, int32(1), walks.Load())
 	require.Equal(t, []string{"a.go"}, m.NewAgent.Index.Paths)
@@ -107,7 +98,6 @@ func TestImport_WalkOnlyWithTheFlag(t *testing.T) {
 	m, _ = naClose(m)
 	require.Equal(t, FocusBoard, m.Focus)
 	require.ErrorIs(t, (*ctx).Err(), context.Canceled)
-	_ = off
 }
 
 func TestImport_StaleWalkIgnored(t *testing.T) {
@@ -169,8 +159,8 @@ func TestImport_MarkAndAdd(t *testing.T) {
 	require.Contains(t, naView(m), "enter add 2")
 	m, _ = naKey(m, key("enter"))
 	st := m.NewAgent
-	require.Equal(t, naCompose, st.Screen)
-	require.Equal(t, naContext, st.Section)
+	require.Equal(t, naSteps, st.Screen)
+	require.Equal(t, naStepContext, st.Step)
 	require.Equal(t, []spawnctx.Item{
 		{Kind: spawnctx.File, Name: "internal/auth/auth_test.go", Bytes: 4300},
 		{Kind: spawnctx.File, Name: "cmd/rex/auth_test_helpers.go", Bytes: 12},
@@ -206,7 +196,7 @@ func TestImport_MarkAndAdd(t *testing.T) {
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
 	m, _ = naKey(m, key("esc"))
 	require.Equal(t, FocusNewAgent, m.Focus)
-	require.Equal(t, naCompose, m.NewAgent.Screen)
+	require.Equal(t, naSteps, m.NewAgent.Screen)
 	require.Len(t, m.NewAgent.Items, 3)
 }
 
@@ -230,7 +220,7 @@ func TestImport_DenyNeedsConfirm(t *testing.T) {
 	m, _ = naKey(m, key("enter"))
 	m, _ = naKey(m, key("y"))
 	require.Equal(t, []spawnctx.Item{{Kind: spawnctx.File, Name: ".env.test", Bytes: 8}}, m.NewAgent.Items)
-	require.Equal(t, naCompose, m.NewAgent.Screen)
+	require.Equal(t, naSteps, m.NewAgent.Screen)
 }
 
 func TestImport_RefusesOutsideAndCaps(t *testing.T) {
@@ -298,7 +288,7 @@ func TestAt_CompletionInsertsAndAdds(t *testing.T) {
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyUp})
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	require.Equal(t, naTask, m.NewAgent.Section, "tab takes the row, focus stays")
+	require.Equal(t, naStepTask, m.NewAgent.Step, "tab takes the row, focus stays")
 	require.Equal(t, "fix @internal/auth/auth_test.go and @internal/", m.NewAgent.Task.String())
 	require.Equal(t, spawnctx.Item{Kind: spawnctx.Dir, Name: "internal", Files: 1}, m.NewAgent.Items[1])
 
@@ -335,10 +325,7 @@ func TestAt_EscKeepsText(t *testing.T) {
 	require.Equal(t, "see @read", m.NewAgent.Task.String())
 	require.Empty(t, m.NewAgent.Items)
 	m, _ = naKey(m, key("esc"))
-	require.Equal(t, FocusNewAgent, m.Focus, "then the editor")
-	require.False(t, m.NewAgent.Editing)
-	m, _ = naKey(m, key("esc"))
-	require.Equal(t, FocusBoard, m.Focus)
+	require.Equal(t, FocusBoard, m.Focus, "then the page, from the step it opened on")
 }
 
 func TestAt_OpensOnlyAtAWordStart(t *testing.T) {
@@ -380,7 +367,7 @@ func TestPreview_FileAndFolder(t *testing.T) {
 	require.NoError(t, addPath(st, "main.go", false))
 	require.NoError(t, addPath(st, "pkg", false))
 	require.NoError(t, addPath(st, "bin/tool", false))
-	st.Section = naContext
+	naGo(m, naStepContext)
 
 	m, _ = naKey(m, key("enter"))
 	v := naView(m)

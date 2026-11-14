@@ -3,7 +3,6 @@ package tui
 import (
 	"errors"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -14,10 +13,10 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// The trust line of the spawn wizard (P2): ctrl+t trusts the session's
-// folder for this one session, ctrl+a saves the repo folder to
-// auto_trust_dirs. Nothing is trusted unless one of them is pressed, and the
-// line always names the exact folder each key trusts.
+// The trust choice of a new agent (P2): this session only trusts the
+// session's folder for one session, always saves the repo folder to
+// auto_trust_dirs. Nothing is trusted unless one is chosen, and the new-agent
+// page always names the exact folder each choice trusts.
 
 const trustSettingID = "auto_trust_dirs"
 
@@ -77,19 +76,9 @@ func refusalText(cwd string, err error) string {
 	return err.Error()
 }
 
-// wizardTrustKey handles ctrl+t and ctrl+a on the describe step. ok is false
-// for any other key. Each key toggles its mode and switches the other off.
-func wizardTrustKey(m Model, k tea.KeyMsg) (Model, bool) {
-	m, mode, ok := trustKeyToggle(m, k, m.Wizard.Trust)
-	if ok {
-		m.Wizard.Trust = mode
-	}
-	return m, ok
-}
-
 // trustKeyToggle is ctrl+t / ctrl+a applied to the trust choice cur: the
 // new choice, or cur with m.Err saying why it cannot change. ok is false
-// for any other key. The wizard and the new-agent page share it.
+// for any other key. ctrl+t and ctrl+a use it on the new-agent page.
 func trustKeyToggle(m Model, k tea.KeyMsg, cur wizTrustMode) (Model, wizTrustMode, bool) {
 	var want wizTrustMode
 	switch k.Type {
@@ -118,19 +107,10 @@ func trustKeyToggle(m Model, k tea.KeyMsg, cur wizTrustMode) (Model, wizTrustMod
 	return m, want, true
 }
 
-// wizardTrustRequest applies the chosen trust mode to req just before launch.
-// For ctrl+a it saves the repo folder to auto_trust_dirs first; when that
+// trustRequest applies the trust choice mode to req just before launch.
+// For "always" it saves the repo folder to auto_trust_dirs first; when that
 // fails ok is false, m.Err says why and nothing is launched. A folder that
 // is already covered needs nothing.
-func wizardTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, protocol.NewSession, bool) {
-	if m.Wizard == nil {
-		return m, req, true
-	}
-	return trustRequest(m, m.Wizard.Trust, cwd, req)
-}
-
-// trustRequest applies the trust choice mode to req, as wizardTrustRequest
-// describes; the wizard and the new-agent page share it.
 func trustRequest(m Model, mode wizTrustMode, cwd string, req protocol.NewSession) (Model, protocol.NewSession, bool) {
 	if mode == trustAsk {
 		return m, req, true
@@ -161,7 +141,7 @@ func trustRequest(m Model, mode wizTrustMode, cwd string, req protocol.NewSessio
 				m.Err = "trust: " + err.Error()
 				return m, req, false
 			}
-			slog.Info("tui: trusted folder from the wizard", "dir", o.AlwaysDir)
+			slog.Info("tui: trusted folder from the new-agent page", "dir", o.AlwaysDir)
 		}
 	}
 	req.TrustFolder = true
@@ -183,48 +163,6 @@ func saveTrustDirs(m *Model, value string) error {
 	}
 	reloadDaemonForTrust(m.reloader, m.Socket, trustSettingID)
 	return nil
-}
-
-// wizTrustLines renders the trust block under the task input.
-func wizTrustLines(m Model) []string {
-	return trustLines(m, m.Wizard.Trust, spawnCWD(m), wizardWidth)
-}
-
-// trustLines is the trust block for a session started in cwd with the
-// choice mode, w cells wide: the folder's state, then each key with the
-// exact folder it trusts. The wizard and the new-agent page share it.
-func trustLines(m Model, mode wizTrustMode, cwd string, w int) []string {
-	o := trustOfferFor(m, cwd)
-	switch {
-	case o.Covered != "":
-		return []string{"  " + styleDim.Render("trusted ("+trustSettingID+")")}
-	case o.Refused != "":
-		return []string{"  " + styleBootWarn.Render(protocol.FlattenDisplayText(o.Refused))}
-	}
-	lines := []string{"  " + styleBootWarn.Render("folder not trusted") + styleDim.Render(": the agent will ask")}
-	lines = append(lines, trustOption(mode == trustSession, "ctrl+t", "trust this session only", o.SessionDir, w)...)
-	if o.AlwaysDir == "" {
-		return append(lines, "  "+styleDim.Render("ctrl+a: only folders inside your home can be saved"))
-	}
-	return append(lines, trustOption(mode == trustAlways, "ctrl+a", "always trust (saved to "+trustSettingID+")", o.AlwaysDir, w)...)
-}
-
-// trustOption is one choice: the key and what it does, then the exact folder
-// on its own line (cut from the left when very long, so the project name
-// stays), for a block w cells wide. The folder name comes from disk, not
-// from rex: it is flattened so an escape sequence in it never reaches the
-// terminal.
-func trustOption(on bool, key, what, dir string, w int) []string {
-	dir = protocol.FlattenDisplayText(dir)
-	mark := "  "
-	if on {
-		mark = styleArrow.Render(selectGlyph()) + " "
-	}
-	out := []string{"  " + mark + styleKey.Render(key) + "  " + styleSlug.Render(what)}
-	for _, part := range wrapPath(filepath.ToSlash(dir), max(w-8, 8), 2) {
-		out = append(out, "        "+styleDim.Render(part))
-	}
-	return out
 }
 
 // wrapPath cuts p into at most maxLines pieces of width cells so the exact
@@ -289,7 +227,7 @@ func runTrustCmd(m Model, c cmdCall) (Model, tea.Cmd) {
 		m.Err = "trust: " + err.Error()
 		return m, nil
 	}
-	next, changed, err := settings.AppendTrustDir(m.Store.FileString(trustSettingID), entry) // YAML layer, see wizardTrustRequest
+	next, changed, err := settings.AppendTrustDir(m.Store.FileString(trustSettingID), entry) // YAML layer, see trustRequest
 	if err != nil {
 		m.Err = "trust: " + err.Error()
 		return m, nil

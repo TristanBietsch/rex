@@ -16,7 +16,7 @@ import (
 func naGoldenScreens() []goldenScreen {
 	var out []goldenScreen
 	for _, sc := range goldenScreens() {
-		if strings.HasPrefix(sc.name, "newagent_") {
+		if strings.HasPrefix(sc.name, "newagent_step_") {
 			out = append(out, sc)
 		}
 	}
@@ -37,7 +37,7 @@ func naHasCursor(name, plain string) bool {
 // shows its cursor.
 func TestNewAgent_ResizeEveryScreen(t *testing.T) {
 	for _, sc := range naGoldenScreens() {
-		if sc.name == "newagent_frame" {
+		if sc.name == "newagent_step_frame" {
 			continue // the frame is pinned to its terminal size
 		}
 		t.Run(sc.name, func(t *testing.T) {
@@ -77,35 +77,28 @@ func TestNewAgent_NoColorOnlyState(t *testing.T) {
 			}
 			st := m.NewAgent
 			require.NotNil(t, st, at)
-			switch st.Screen {
-			case naAgentScreen:
-				if !st.Filtering && st.Pane == naPaneAgents {
-					require.Contains(t, plain, "▸", "%s: the selected agent has ▸", at)
-				}
-				if len(st.selection().effortOptions()) > 1 {
-					require.Contains(t, plain, "[", "%s: the effort is bracketed", at)
-				}
-			case naCompose:
-				trust := naTrustOf(m, st).word
-				if pageNarrow(sz.w) {
-					require.Contains(t, plain, "trust: "+trust, "%s: the trust word", at)
-				} else {
-					require.Regexp(t, `Trust +`+trust, plain, "%s: the rail's trust word", at)
-				}
-			case naPreview, naImportScreen: // their marks are checked line by line above
+			require.Contains(t, plain, "› ", "%s: the current step has its mark", at)
+			switch {
+			case st.Screen != naSteps:
+			case st.Step == naStepTrust:
+				require.Contains(t, plain, "(•)", "%s: the chosen trust row has its mark", at)
+			case st.Step == naStepSummary:
+				require.Contains(t, plain, "▸ launch", "%s: the cursor row has ▸", at)
+			case st.Step == naStepModel && len(st.selection().effortOptions()) > 1:
+				require.Contains(t, plain, "[", "%s: the effort is bracketed", at)
 			}
 		}
 	}
 }
 
-// naSpecKeys is every key of the spec's Keys table (R16 "Keys").
+// naSpecKeys is every key of the spec's Keys table (R21 "Keys").
 var naSpecKeys = []string{
-	"n", ":new", "tab", "shift+tab", "1-5", "ctrl+g", "enter", "ctrl+s", "ctrl+j", "alt+enter",
+	"n", ":new", "tab", "shift+tab", "1-7", "ctrl+g", "enter", "ctrl+s", "ctrl+j", "alt+enter",
 	"paste", "@", "ctrl+o", "ctrl+e", "ctrl+u", "ctrl+w", "alt+backspace", "←", "→", "home", "end",
-	"↑", "↓", "j", "k", "x", "delete", "r", "ctrl+t", "ctrl+a", "/", "h", "l", "space", "esc", "?",
+	"↑", "↓", "j", "k", "gg", "G", "x", "delete", "r", "ctrl+t", "ctrl+a", "/", "h", "l", "space", "esc", "?",
 }
 
-// ? on the page (not in the editor) opens help on the new-agent group
+// ? on the page (not in a typed task) opens help on the new-agent group
 // alone, every key of the spec's table in it; esc goes back to the page.
 func TestNewAgent_HelpGroup(t *testing.T) {
 	var keys []string
@@ -120,11 +113,12 @@ func TestNewAgent_HelpGroup(t *testing.T) {
 	}
 
 	m := naOpen(t, naModel(t))
+	m = naType(m, "why")
 	m, _ = naKey(m, key("?"))
-	require.Equal(t, FocusNewAgent, m.Focus, "in the editor ? is a letter")
-	require.Equal(t, "?", m.NewAgent.Task.String())
+	require.Equal(t, FocusNewAgent, m.Focus, "in a typed task ? is a letter")
+	require.Equal(t, "why?", m.NewAgent.Task.String())
 
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab}) // Context
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab}) // context
 	m, _ = naKey(m, key("?"))
 	require.Equal(t, FocusHelp, m.Focus)
 	require.NotNil(t, m.Help)
@@ -143,7 +137,8 @@ func TestNewAgent_HelpGroup(t *testing.T) {
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyEsc})
 	require.Equal(t, FocusNewAgent, m.Focus, "esc goes back to the page")
 	require.NotNil(t, m.NewAgent)
-	require.Equal(t, "?", m.NewAgent.Task.String(), "the draft is untouched")
+	require.Equal(t, "why?", m.NewAgent.Task.String(), "the draft is untouched")
+	require.Equal(t, naStepContext, m.NewAgent.Step)
 
 	m = openHelp(closeNewAgent(m, true))
 	require.Empty(t, m.Help.Only, "help from the board shows every group")
@@ -151,74 +146,74 @@ func TestNewAgent_HelpGroup(t *testing.T) {
 	require.Equal(t, FocusBoard, m.Focus)
 }
 
-// The Agent screen's ? also opens the group, unless the filter takes keys.
-func TestNewAgent_HelpFromAgentScreen(t *testing.T) {
+// The agent step's ? also opens the group, unless the model filter takes keys.
+func TestNewAgent_HelpFromAgentAndModelSteps(t *testing.T) {
 	m := naOpen(t, naModel(t))
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
 	m, _ = naKey(m, key("?"))
 	require.Equal(t, FocusHelp, m.Focus)
 	m, _ = naKey(m, key("?"))
 	require.Equal(t, FocusNewAgent, m.Focus)
-	require.Equal(t, naAgentScreen, m.NewAgent.Screen)
+	require.Equal(t, naStepAgent, m.NewAgent.Step)
 
+	m, _ = naKey(m, key("enter")) // model
 	m, _ = naKey(m, key("/"))
 	m, _ = naKey(m, key("?"))
 	require.Equal(t, FocusNewAgent, m.Focus, "the filter takes ?")
 	require.Equal(t, "?", m.NewAgent.Filter)
 }
 
-// Mockup G: at 50 columns the header keeps "draft" (the folder goes), the
-// agent line drops the word effort, and the strip counts the context.
-func TestNewAgent_NarrowMockupG(t *testing.T) {
+// Under 60 columns the header keeps the step count (the folder goes), and
+// the same layout holds: the transcript, the current line, the body.
+func TestNewAgent_NarrowHeaderKeepsStepCount(t *testing.T) {
 	m := naOpen(t, naModel(t))
 	m.Width, m.Height = 50, 20
 	m = naType(m, "fix the flaky auth test")
-	require.NoError(t, addPaste(m.NewAgent, strings.Repeat("log line\n", 10)))
-	require.NoError(t, addPaste(m.NewAgent, strings.Repeat("more\n", 10)))
-	out := ansi.Strip(m.View())
-	lines := strings.Split(out, "\n")
+	lines := strings.Split(ansi.Strip(m.View()), "\n")
 	require.Contains(t, lines[1], "∴ REX › NEW AGENT")
-	require.True(t, strings.HasSuffix(strings.TrimRight(lines[1], " "), "draft"), "%q", lines[1])
+	require.True(t, strings.HasSuffix(strings.TrimRight(lines[1], " "), "step 4/7"), "%q", lines[1])
 	require.NotContains(t, lines[1], "~/dev/proj")
-	require.Contains(t, out, "‹ Agent · [Task] · Context 2 · Trust · Launch ›")
-	require.Contains(t, out, "✻ Claude Code · opus · max")
-	require.NotContains(t, out, "effort")
-	require.Contains(t, out, "2 context items")
 
 	m.Width = 80
 	wide := strings.Split(ansi.Strip(m.View()), "\n")
 	require.Contains(t, wide[1], "~/dev/proj", "wide keeps the folder")
-	require.Contains(t, ansi.Strip(m.View()), "effort max")
+	require.True(t, strings.HasSuffix(strings.TrimRight(wide[1], " "), "step 4/7"), "%q", wide[1])
 }
 
-// Mockup F: until the daemon's tool list is known, the AGENT section says
-// it is checking; an old daemon (a snapshot without one) keeps today's
+// Until the daemon's tool list is known, the agent step says it is
+// checking; an old daemon (a snapshot without one) keeps today's
 // every-tool-counts fallback without the row.
 func TestNewAgent_AgentLoadingRow(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools, m.toolsKnown = nil, false
 	m = naOpen(t, m)
 	m.Width, m.Height = 80, 24
-	require.Contains(t, ansi.Strip(m.View()), "checking which agents are installed…")
+	m = naAt(m, naStepAgent)
+	require.Contains(t, naView(m), "checking which agents are installed…")
 	m.Width, m.Height = 50, 20
-	require.Contains(t, ansi.Strip(m.View()), "checking which agents")
+	require.Contains(t, naView(m), "checking which agents")
 
 	m = adoptSnapshotTools(m, nil) // an old daemon: no list in the snapshot
 	m.Width, m.Height = 80, 24
-	out := ansi.Strip(m.View())
+	out := naView(m)
 	require.NotContains(t, out, "checking which agents")
 	require.Contains(t, out, "Claude Code")
 
 	m.toolsSnap = false
 	m = adoptDaemonTools(m, daemonTools(t, "claude", "codex"))
-	require.NotContains(t, ansi.Strip(m.View()), "checking which agents")
+	require.NotContains(t, naView(m), "checking which agents")
 }
 
-// The Agent screen's footer offers h/l only when the model has an effort.
+// The model step's footer offers h/l only when the model has an effort.
 func TestNewAgent_EffortHintOnlyWithEffort(t *testing.T) {
-	st := &NewAgentState{Tools: []registry.Tool{{ID: "x", Name: "X"}}}
-	hints := naAgentHints(st, false)
-	for _, h := range hints {
+	st := &NewAgentState{Step: naStepModel, Tools: []registry.Tool{{ID: "x", Name: "X"}}}
+	for _, h := range naHints(Model{}, st, false) {
 		require.NotEqual(t, "h/l", h[0], "no effort options, no h/l")
 	}
+	m := naModelOpen(t, naModel(t))
+	var has bool
+	for _, h := range naHints(m, m.NewAgent, false) {
+		has = has || h[0] == "h/l"
+	}
+	require.True(t, has)
 }

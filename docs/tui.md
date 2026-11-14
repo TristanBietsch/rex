@@ -143,7 +143,6 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Search | `/` | `enter` keeps the query, `esc` restores the previous one |
 | Attach | `enter` on selected row | `qq`, `ctrl+]` or `::q` |
 | New-agent page | `n` or `:new` | `esc` (keeps the draft), or a launch |
-| Wizard | `n` or `:new` with `new_agent_page` off | wizard flow |
 | Settings | `S` or `:settings` | `esc`, `q` (page only) |
 | Help | `?` or `:help` | `esc`, `?`, `q` (page only) |
 | Stats | `:stats` | `esc`, `:` |
@@ -178,7 +177,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 - **Close.** `esc` (it clears a search or filter first) or `q`; `?` also closes help.
 - **While attached.** `::settings` and `::help` detach first, then open the page; a page is never drawn over a running agent.
 
-`fullscreen_pages` (Features, on by default) turns the pages off: settings and help then open as the older floating overlays over the dimmed board (a square box with its title set into the top border, `┌─ HELP ──── rex v1 ─┐`), as stats, failures, overview, `:usage` and the wizard always do. In the overlays `tab` / `shift+tab` jump to the next / previous section of settings, and the page keys (`q`, `1`–`9`, `[`, `]`) do nothing; `j` `k` `h` `l` and the wheel keep their overlay meaning (rows within the list, `h` / `l` step a value). The change applies on the next frame, with the cursor kept. The attach popup uses the same square corners but keeps the board's colors around it.
+`fullscreen_pages` (Features, on by default) turns the pages off: settings and help then open as the older floating overlays over the dimmed board (a square box with its title set into the top border, `┌─ HELP ──── rex v1 ─┐`), as stats, failures, overview and `:usage` always do. In the overlays `tab` / `shift+tab` jump to the next / previous section of settings, and the page keys (`q`, `1`–`9`, `[`, `]`) do nothing; `j` `k` `h` `l` and the wheel keep their overlay meaning (rows within the list, `h` / `l` step a value). The change applies on the next frame, with the cursor kept. The attach popup uses the same square corners but keeps the board's colors around it.
 
 ### Help page
 
@@ -201,7 +200,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 - **Modified marker.** A `•` before a value means it differs from the default; `r` resets the row. Values sit flush right; a switch's `on` is drawn in the primary text color and `off` in the dim one.
 - **Set in config.lua.** A row that `config.lua` sets shows its value dimmed with a muted `lua` after it, and the detail pane says where (`set in config.lua:12`). Enter, `←`/`→`, `r` and the inline editor refuse with `<id>: set in config.lua:12 — press e to open` on the bottom line; `e` opens that file at that line in `$EDITOR` (with `+N` for vi, vim, nvim, nano, emacs and micro) and reloads when the editor exits. `:theme` refuses the same way when `config.lua` sets `theme`, a quick-spawn tool or model change that would reset a model or effort `config.lua` sets is refused, and the setup wizard leaves such settings alone and lists them in its summary.
 - **Detail pane.** Under the list, for the selected row: its **id** (what `rex config set <id>` takes), its **default**, **when a change applies** (`applies now`, `next attach`, `next new session`, `after a daemon restart`), the **options** with the current one lit (or the numeric range), and up to four lines of help (two on a terminal under 30 rows). `?` shows the full help text.
-- **Onboarding.** The last section lists the agents the new-session wizard leaves out because their binary is not on the daemon's `PATH`: dimmed rows reading `not on PATH`, with the command it looks for and an install hint in the detail pane (the tool's `install_hint`, else `install <command> and put it on your PATH`). The rows are read only and not stored settings. It is empty (absent) when every agent is installed.
+- **Onboarding.** The last section lists the agents the new-agent page leaves out because their binary is not on the daemon's `PATH`: dimmed rows reading `not on PATH`, with the command it looks for and an install hint in the detail pane (the tool's `install_hint`, else `install <command> and put it on your PATH`). The rows are read only and not stored settings. It is empty (absent) when every agent is installed.
 - **Quick-spawn pickers.** `default_spawn_tool` cycles through the installed tools only, and `default_spawn_model` through the daemon's merged model list; the detail pane adds `detected` when the current model was reported by the tool.
 - **Editing text.** `enter` on a free-form string (`auto_trust_dirs`, `prompt_glyph`) opens an inline editor in the pane, prefilled with the value: `enter` saves, `esc` cancels, `ctrl+u` clears. A refused value keeps the editor open and shows why. The check is the one `rex config set` and `rex setup` use. `prompt_glyph` must be one printable character (a single grapheme, 1 or 2 cells wide: no control characters, spaces or invisible marks); the arrow keys still cycle the presets.
 - **Accent color.** The `accent_color` row shows a swatch (`██`, `##` with `ascii_glyphs`, none on a terminal without color) in the accent being painted, before the value. `←`/`→` cycle `theme` and the named colors and apply at once. `enter`, `e` or `#` open the editor for your own value (`#ff6f61`, `rgb(255, 111, 97)`, `hsl(...)`, `cmyk(...)`, `oklch(...)`): it starts empty when the value is `theme`, a value that parses repaints the accent as you type, and the line under the draft shows the color (`→ #FF6F61`) or why it is not one yet. `esc` puts the saved accent back. The detail pane's first line says what the row paints and whether it was adjusted for contrast. See [themes.md](themes.md#accent-color).
@@ -223,7 +222,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 | `z1`-`z9` | Hide / show section N (`z1` Ready, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 | `enter` | Attach to selected session |
-| `n` | New-agent page (the wizard with `new_agent_page` off) |
+| `n` | New-agent page (seven steps, one per screen) |
 | `i` | Focus bottom prompt (quick-spawn) |
 | `r` | Rename selected (display name; empty resets to slug) |
 | `cc` | Mark selected done / undo (see MARK DONE) |
@@ -249,7 +248,7 @@ With `mouse_enabled` on (the default) rex captures the mouse once the board is u
 | Wheel up / down | Move the selection (same as `k` / `j`); the board scrolls with it |
 | Click a filter chip | Set that tool filter |
 
-Overlays (help, settings, stats, wizard, failures) and bottom-bar prompts swallow mouse events, so a click never changes the selection behind them; in settings the wheel moves the cursor and in help it scrolls.
+Overlays (help, settings, stats, failures) and bottom-bar prompts swallow mouse events, so a click never changes the selection behind them; in settings the wheel moves the cursor and in help it scrolls.
 
 Capturing the mouse turns off the terminal's own text selection. Hold Option (iTerm2/Terminal.app) or Shift (Ghostty/kitty) while dragging to select text natively, or turn `mouse_enabled` off in settings (`S`). The toggle applies immediately.
 
@@ -261,7 +260,7 @@ Detach with `qq` (two quick `q`s), **Ctrl+]** (ASCII 0x1d) or `::q`. The session
 
 The popup is never wider than the screen: its agent terminal is 40 columns wide at least while the popup fits, and follows the screen below that. In the mobile layout (60 columns or fewer, see [Mobile layout](#mobile-layout)) the popup becomes a sheet: it fills the screen with only its border, no margin and no padding, so the agent gets `columns - 2` columns. Crossing the breakpoint while attached resizes the agent.
 
-New agents (quick-spawn `i` and the wizard) start at the size the popup will give them, so the first attach needs no resize; agents that lay their screen out once, like Antigravity, stay correct. Until the terminal size is known the daemon default (120x32) is used.
+New agents (quick-spawn `i` and the new-agent page) start at the size the popup will give them, so the first attach needs no resize; agents that lay their screen out once, like Antigravity, stay correct. Until the terminal size is known the daemon default (120x32) is used.
 
 `rex attach <sel>` from a shell uses the same detach key. It has no banner (see [Banner](#banner)): the agent draws straight on your terminal.
 
@@ -448,72 +447,54 @@ The dialog never changes a file until you confirm:
 
 ## NEW-AGENT PAGE
 
-`n` or `:new` opens one full-screen page (`new_agent_page`, Features, on by default) with everything a new agent needs: the agent, a multi-line task, context and folder trust. It lands typing in the task editor with the agent you launched last (else `default_spawn_tool` / `_model` / `_effort`), so the common path stays `n`, type, `enter`.
+`n` or `:new` opens one full-screen page that walks **seven steps**, one per screen: `agent`, `model`, `skills`, `task`, `context`, `trust`, `summary`. Finished steps stack at the top as one line each, like a shell installer; the current step is a `›` line with its body under it, using every row left. Steps not reached yet are not drawn; the header says `step 3/7` (or `starting…` while a launch waits for the daemon). One layout at every width: the body is indented 6 columns, 4 under 60.
 
 ```
-  ∴ REX › NEW AGENT                 ~/dev/rex                       draft
+  ∴ REX › NEW AGENT    ~/dev/rex                                  step 3/7
 ──────────────────────────────────────────────────────────────────────────
-  STEPS          │ AGENT
-  ✓ Agent        │ ✻ Claude Code  ·  opus  ·  effort max   ctrl+g change
-  ▸ Task         │ TASK
-  · Context      │ ┌──────────────────────────────────────────────────┐
-  ? Trust   ask  │ │ fix the flaky auth test█                         │
-  › Launch       │ └──────────────────────────────────────────────────┘
-                 │ CONTEXT
-                 │   none yet: type @path, paste, or ctrl+o to import
-                 │ TRUST
-                 │   folder not trusted: the agent will ask
-                 │
-                 │   launch  ·  prompt 23 B of 96 KB · slug cc.opus.fix-the-flaky
+  ✓ agent    ✻ Claude Code
+  ✓ model    opus · effort max
+  › skills   pick any (optional)
+
+    ▸ [x] go-testing  table-driven tests and goldens
+      [ ] release     cut a release branch
+
 ──────────────────────────────────────────────────────────────────────────
-  enter launch · ctrl+j newline · @ file · ctrl+o import · esc navigate · tab next
+  space toggle · enter next · esc close · ? help
 ```
 
-The page has two modes, as in vim:
+The page opens on the step the kept draft was on, else on the `agent` step when the remembered agent is gone (a `!` notice says so), else on the `task` with the agent you launched last (else `default_spawn_tool` / `_model` / `_effort`): the common path stays `n`, type, `enter`, `enter` through to the summary, `enter` on `launch` (or `ctrl+s` from the task).
 
-- **Editing** (where it opens): keys type into the task. `enter` launches, `ctrl+j` / `alt+enter` add a line, `esc` leaves the editor (an open `@` list closes first), `tab` / `shift+tab` leave it for the next or previous step. `ctrl+s`, `ctrl+g`, `ctrl+o`, `ctrl+t` and `ctrl+a` work here too.
-- **Navigating**: the form is one list, Agent, Task, each context item, Trust, Launch. `j` / `k` walk it (clamped), `gg` / `G` go to the agent row and the launch row, `h` focuses the step rail (`j` / `k` there move a step at a time, `l` or `enter` come back), `[` / `]` and `1`–`5` jump a step. `i`, `I` (start of line), `a`, `A` (end of line) or `enter` on the task type again. `enter` acts on the step: the Agent screen, the item's preview, the next trust choice (`space` too: ask, this session, always), or the launch. `esc` or `q` closes the page and keeps the draft.
+| Key | Action |
+|---|---|
+| `enter` | confirm the step and go to the next one that applies; on the `task` it goes next and never launches |
+| `esc` | close the innermost thing (`@` list, a kept model filter, picker, preview); then back to the summary after a jump from it; else close the page from the step it opened on (the draft is kept), else one step back |
+| `tab` / `shift+tab` | next / previous step (no wrap) |
+| `1`–`7` | jump to a step (not while typing in the task; a skipped step is a no-op); `ctrl+g` goes to the agent step |
+| `ctrl+s` | launch from any step |
+| `j` / `k`, `gg` / `G`, `ctrl+d` / `ctrl+u` | move the step's list |
+| `q`, `?` | close (draft kept); help on the page's keys (on an empty task too) |
 
-| Key | Editing | Navigating |
-|---|---|---|
-| letters, digits | type | page keys (`j` `k` `h` `l` `g` `G` `i` `a` `x` `d` `r` `e` `q` `1`–`5` …) |
-| `enter` | launch | act on the step |
-| `esc` | leave the editor | close the page |
-| `tab` / `shift+tab` | leave the editor: next / previous step | next / previous step (wraps) |
-| `ctrl+s` | launch | launch |
+- **agent.** Installed agents with their brand glyph; the cursor's agent is the chosen one. Agents that are not installed are dimmed under `not installed`; `enter` there opens Settings → Onboarding. Until the daemon has said which agents are installed the list reads `⠋ checking which agents are installed…` and `enter` waits; against a daemon that predates the tool list every tool counts as installed. Confirming the agent clears the open-time notice.
+- **model.** The agent's models (the ones the tool reported itself first, tagged `detected`), then an `effort  low  medium  high  [max]` row for a model that has one (`h` / `l`, `←` / `→`, `+` / `-` change it). `/` filters: keys type and `↑` / `↓` move through the matches; `enter` keeps the filter and stops typing (a second `enter` goes next); `esc` clears the typed text, then a kept filter, then goes back. A tool with 200 models scrolls one row at a time. Skipped for an agent with no models.
+- **skills.** A checklist of `~/.config/rex/skills` (`space` toggles). Skipped (`– skills   not available`) when `spawn_skills` is off, the library is empty or the agent cannot load skills per session. See [howto/skills.md](howto/skills.md).
+- **task.** The editor, full width, as tall as the screen allows. `enter` goes to the next step; `ctrl+j` or `alt+enter` adds a line; `ctrl+w` / `alt+backspace` delete a word; `ctrl+u` clears the line, and on an empty line the task text (never the context, trust or skills); `ctrl+e` edits the task in `$EDITOR`. A paste never advances: one of more than 8 lines or 1 KiB becomes a `paste N` context item with a `[paste N · L lines]` placeholder in the task. A paste on any other step jumps to the task and inserts there.
+- **context.** Pastes, workspace files and folders, with the total flush right on the `›` line. `@` at a word start in the task opens a completion list of workspace paths; `ctrl+o` (task or context) opens the import picker (type to match, `space` marks, `enter` adds, `→` / `←` browse folders). In the list `j` / `k` move, `enter` previews, `x`, `d` or `delete` removes, `r` renames and `e` edits a paste in `$EDITOR`; a final `next ›` row (or `enter` with no items, or `tab`) goes on. The preview scrolls with `j` / `k`, `gg` / `G` and `ctrl+d` / `ctrl+u`; `esc`, `q` or `h` go back. The transcript stays above the picker and the preview. A path must resolve inside the session folder and be a regular file or folder; a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added only after `y`. Limits: 32 KiB per paste, 64 KiB of pasted text, 32 items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt). Ollama takes its prompt as typed lines, so it only launches a one-line prompt with no context. A draft whose files were added in another folder shows `! files from <folder>, not this folder` on this step and takes no new paths until `x` removes them.
+- **trust.** A radio list: `ask: the agent will ask`, `this session only` and `always: saves ~/dev/rex to auto_trust_dirs`, each with the exact resolved folder it trusts under it. `space` picks the cursor's row (the cursor opens on the current choice); `ctrl+t` and `ctrl+a` toggle the same choices from any step. `enter` goes next and never picks. A folder an `auto_trust_dirs` entry already covers shows one `trusted (auto_trust_dirs)` line; one that can never be trusted shows its reason and only `ask`; outside your home folder `always` is dimmed with the reason and skipped. Launching writes `auto_trust_dirs` only for an explicitly chosen `always`.
+- **summary.** The review of everything the launch sends: a row for each step, the context items under it when they fit, the prompt's size against the limit (`! prompt` in the warning style over it), the slug, and the equivalent `$ rex new -tool … -model … -effort … -skill … -trust 'task'` line (display only; context and an `always` trust have no flag, so a `# + context` comment says what is left out). `j` / `k` walk the rows, `enter` or `e` on a step row jumps to that step and `enter` there returns straight to the summary (after an agent change through the model and skills steps first); `enter` on the `launch` row, where the cursor starts, launches. Short screens window the rows and drop the `rex new` line, then the context items, first.
+- **Launch.** `enter` on the `launch` row, or `ctrl+s` anywhere. The page checks every cap and path first, then stays open with `⠋ starting…` under the `›` line until the daemon answers: success closes it and selects the new card. A problem with a file, folder or paste (it names the step: `go to context (5), x removes it`) lands on the context step; any other failure shows `✗ launch failed: …` under the launch row on the summary and keeps everything.
+- **Draft.** Leaving the page keeps the draft (its step too) in memory for the next `n`; nothing of it is written to disk. A board swap (`:swap`, `rex upgrade`) never carries it: the swap waits while the page is open, `auto_swap` waits while a draft is kept, and an explicit swap over a kept draft drops it and the new board says so.
+- **Mouse.** The wheel moves one row, as `j` / `k`, on the step's list (agents, models, skills, items, trust, summary); the task ignores it, the preview scrolls.
 
-- **Steps.** The left rail lists Agent, Task, Context, Trust and Launch, each with a mark and a word (`✓`, `·` empty, the item count, `ask` / `sess` / `always` / `trusted`); `tab` / `shift+tab` move between steps and `1`–`5` jump (outside the editor). Under 60 columns the rail becomes a strip, `‹ Agent · [Task] · Context 2 · Trust · Launch ›`, `h` / `l` step through it, the header keeps `draft` and drops the folder, and the form is one column.
-- **Agent.** `ctrl+g` (or `enter` on the agent row) opens the Agent screen: agents on the left with their brand glyph (missing ones dimmed under `not installed`; `enter` there opens Settings → Onboarding), and on the right models with a `/` filter, effort as `low  [medium]  high` and skills. `h` / `l` move between the agents and the right column; `j` / `k` move within: on the right they go from the last model on to effort, then to skills, and back. `gg` / `G` and `ctrl+d` / `ctrl+u` work on the agents, models and skills lists (the effort row is one row: `gg` / `G` do nothing there) (a tool with 200 models scrolls one row at a time). On the effort row `←` / `→` change it (`+` / `-` change it from any pane); `space` toggles a skill; `tab` / `shift+tab` and `1`–`4` pick agents, models, effort or skills. While you type the filter, keys type and `↑` / `↓` move through the matches; `enter` keeps the filter and `j` / `k` then move through the matches; `esc` clears it. `enter` is done and `esc` (or `q`) comes back. Until the daemon has said which agents are installed, the AGENT section reads `⠋ checking which agents are installed…`; against a daemon that predates the tool list every tool counts as installed.
-- **Task.** `enter` launches; `ctrl+j` or `alt+enter` adds a line; `ctrl+w` / `alt+backspace` delete a word; `ctrl+u` clears the line, and on an empty editor drops the whole draft; `ctrl+e` edits the task in `$EDITOR`. A paste never launches: one of more than 8 lines or 1 KiB becomes a `paste N` context item with a `[paste N · L lines]` placeholder in the task.
-- **Context.** Pastes, workspace files and folders. `@` at a word start opens a completion list of workspace paths; `ctrl+o` opens the import picker (type to match, `space` marks, `enter` adds, `→` / `←` browse folders). In the list `j` / `k` move (on past the last item to Trust), `enter` previews, `x`, `d` or `delete` removes, `r` renames and `e` edits a paste in `$EDITOR`. The preview scrolls with `j` / `k`, `gg` / `G` and `ctrl+d` / `ctrl+u`; `esc`, `q` or `h` go back. A path must resolve inside the session folder and be a regular file or folder; a name that looks like secrets (`.env`, `*.pem`, `id_rsa*`, …) is added only after `y`. Limits: 32 KiB per paste, 64 KiB of pasted text, 32 items, a 96 KiB prompt (16 KiB for agents that take a pasted prompt). Ollama takes its prompt as typed lines, so it only launches a one-line prompt with no context. A draft whose files were added in another folder shows `! files from <folder>, not this folder` and takes no new paths until `x` removes them. The last row shows the prompt's size against that limit and the slug.
-- **Trust.** `ctrl+t` trusts the folder for this session only, `ctrl+a` saves it to `auto_trust_dirs` at launch; `enter` or `space` on the Trust step cycles ask, this session, always. The focused section names the exact folder each key trusts (as in the wizard below).
-- **Launch.** `enter` in the editor, `enter` on the Launch row (the last row: `▸ launch · prompt 2.0 KB of 96 KB · slug …`), or `ctrl+s` anywhere. The page checks every cap and path first, then stays open with `⠋ starting…` until the daemon answers: success closes it and selects the new card; a failure shows `✗ launch failed: …` and keeps the task and context.
-- **Draft.** `esc` closes the innermost thing (completion, editor, picker, preview, Agent screen, then the page). Leaving the page keeps the draft in memory for the next `n`; nothing of it is written to disk. A board swap (`:swap`, `rex upgrade`) never carries it: the swap waits while the page is open, `auto_swap` waits while a draft is kept, and an explicit swap over a kept draft drops it and the new board says so.
-- **Help.** `?` outside the editor opens help on the page's keys alone; `esc` comes back.
-- **Mouse.** The wheel moves one row, as `j` / `k`, on the pane under the pointer (the rail or the form; on the Agent screen the agents or the right column); it leaves the editor.
-
-Every state has a glyph or a word besides its color: `▸` on the cursor, `[x]` marks, the bracketed effort, `✓` / `·` / `?` rail marks, `✗` errors and `!` warnings.
+Every state has a glyph or a word besides its color: `✓` done, `›` current, `–` skipped, `▸` cursor, `[x]` and `(•)` marks, the bracketed effort, `✗` errors and `!` warnings.
 
 The first prompt is the task, then `Context from rex (read before starting):` with one `- file:` or `- dir:` line per reference (workspace-relative paths; the agent reads them itself), then each paste in a `<pasted name="paste 1" lines="38">` block. No file is copied and no shell runs.
 
-## NEW-SESSION WIZARD (with `new_agent_page` off)
-
-With `new_agent_page` off, `n` or `:new` opens a short flow. Steps that do not apply are skipped, in both directions, so the common path is a few Enter presses:
-
-1. **Provider**: the tool (`j`/`k`, `enter`). Only installed tools are listed: the daemon reports which binaries are on its `PATH` (`Snapshot.tools`) and says so again when it reloads (`ToolsChanged`), and the open wizard updates in place, keeping your cursor on the same tool. Qwen Code, Cursor CLI and Grok Build are listed after the others (Claude Code, OpenAI Codex, Antigravity CLI, Ollama) when their binaries (`qwen`, `cursor-agent`, `grok`) are on the daemon's `PATH`; a missing one is under Settings → Onboarding with its install hint. With `extra_agents` off, qwen, cursor and grok never show. Against a daemon that predates the tool list every tool counts as installed. A long list scrolls.
-2. **Model**: the tool's model, from the daemon's merged list: the models the tool itself reported first, each tagged `detected`, then the built-in ones it did not list. A long list scrolls. Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
-3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
-4. **Skills**: a checklist of the skills in `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues; long lists scroll). Loaded for this session only. Skipped when the library is empty, when the tool cannot load skills per session (Antigravity cannot), and when `spawn_skills` is off in Settings → Features. See [howto/skills.md](howto/skills.md).
-5. **Describe**: the task. `enter` launches. The slug comes from the task. Under the input a trust line says whether the session's folder is trusted:
-   - `folder not trusted` with two choices, each followed by the exact folder it trusts: `ctrl+t` trusts the folder the session starts in for this session only (nothing is saved), `ctrl+a` saves the repo folder (the root of the git checkout, or the folder itself; never its parent) to `auto_trust_dirs` when you launch, and trusts the session. Press the key again to take the choice back. Nothing is trusted unless you press one.
-   - `trusted (auto_trust_dirs)` when a listed folder already covers it.
-   - `home folder: start rex in a project folder to trust it` when rex was started in your home folder (or a folder that holds it): neither key works there.
-
-The wizard does not ask for a name; press `r` on the board to give a session a display name, or use `rex new -name`.
+The page replaced the older popup wizard and its `new_agent_page` setting (R21); a stored `new_agent_page` is ignored, and `config.lua` may still set it without a warning. The popup's provider, model, effort, skills and describe steps are the page's agent, model, skills and task steps. It does not ask for a name; press `r` on the board to give a session a display name, or use `rex new -name`.
 
 `:trust [folder]` on the board does the same as `ctrl+a` without starting a session: it saves the repo folder of the selected session's folder (or of the folder rex runs in, or the folder you name) to `auto_trust_dirs` and says which folder it trusted. Sessions already running keep asking; new ones skip the dialog. A refused folder shows why on the status line. `rex trust` does the same from the shell.
 
-`b` goes back (on the describe step only while the field is empty), `esc` cancels. If the `rex-daemon` is older than the skills field, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
+If the `rex-daemon` is older than the skills field, the status line says `this rex-daemon ignored skills; run \`rex daemon restart\``. Quick-spawn (`i`) is unchanged.
 
 ---
 
@@ -546,7 +527,7 @@ With several boards open (more terminals, a workspace board next to the system b
 
 - The header starts with `[<id> <name>]` in the workspace color (`[<id>]` in the mobile layout). A color that is not `#RRGGBB` is ignored and the chip uses the default style.
 - The window border is on by default and uses the workspace color while `window_border` was never set and `window_border_color` is `random`. `window_border`, an explicit `window_border_color`, and `:border` all win. `:border` says `workspace color` instead of `random` in its notice.
-- The wizard and the `i` quick spawn start in the workspace root.
+- The new-agent page and the `i` quick spawn start in the workspace root.
 - A daemon that does not tag sessions shows every session, with the one notice ``daemon doesn't tag workspaces — `rex daemon restart` ``.
 - With `workspaces` off the scope is inert: the board shows everything, with no chip.
 
@@ -584,7 +565,7 @@ After 5 minutes (`screensaver_after_minutes`) with no key or mouse event, the sc
 - `screensaver_clock` (`24h` or `12h`) shows the time under the logo. It changes on the minute. On a short terminal the blank lines go first, then the clock, then the logo; the counts stay.
 - The counts stay live: daemon events keep updating them. `ready` is highlighted while it is above 0, and `· N failed` shows in red while a session has failed or crashed. While the daemon is unreachable, the reconnect status shows under the counts.
 - Any key or mouse event (click, wheel), or a terminal resize, brings the screen back. That key or click does nothing else, so an `enter`, `q` or `ctrl+c` that wakes the board never opens, quits or deletes anything. A half-typed `dd` or `cc` from before is dropped.
-- It starts whatever is open: an overlay, prompt, confirmation, the new-session wizard, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, wizard step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
+- It starts whatever is open: an overlay, prompt, confirmation, the new-agent page, the settings page or the attach popup left open still times out. Waking returns to it as you left it (typed text, new-agent step, attached session). An attached session's output keeps reaching its terminal meanwhile. Only the boot splash never times out.
 - Once a minute it moves a little (at most 6 columns and 2 rows from the center), so a screen left on for hours does not keep one image in the same place. With `screensaver_drift` off or `reduce_motion` on it stays centered.
 - It uses no CPU while idle: the spinner stops, and one timer fires at most once a minute (with the clock on, on the minute). It plays no sound.
 
@@ -615,9 +596,9 @@ A small column before the time column flags sessions that have been **working** 
 
 ## LOADING A NEW BUILD (`:swap`)
 
-The board checks its own executable every 10 s. When a new build is installed (`make install`, `rex update`) the status line says `new rex build installed · :swap to load it`. `:swap` re-execs the board into the new binary at once; with `auto_swap` on (the default) it also does so by itself once it has sat on the board for 60 s with no key, no overlay, wizard, dialog or editor open. `rex upgrade` asks every board to swap right away.
+The board checks its own executable every 10 s. When a new build is installed (`make install`, `rex update`) the status line says `new rex build installed · :swap to load it`. `:swap` re-execs the board into the new binary at once; with `auto_swap` on (the default) it also does so by itself once it has sat on the board for 60 s with no key, no overlay, new-agent page, dialog or editor open. `rex upgrade` asks every board to swap right away.
 
-A swap keeps the view: selection, scroll, tool filter, search, hidden sections, the open page (board, help, settings, usage, stats, overview, loops) and the attach popup when its session is still running. The state goes through `tui-swap-<pid>.json` next to `tui-state.json` (0600, read once and removed, pid-checked). The new board boots quietly (no boot sounds, as `--quiet-boot`). An open wizard, new-agent page, confirm dialog, rename or inline editor is not carried: an automatic or `rex upgrade` swap waits until none is open. If the exec fails the board keeps running and says why. Not on Windows (the status line says so).
+A swap keeps the view: selection, scroll, tool filter, search, hidden sections, the open page (board, help, settings, usage, stats, overview, loops) and the attach popup when its session is still running. The state goes through `tui-swap-<pid>.json` next to `tui-state.json` (0600, read once and removed, pid-checked). The new board boots quietly (no boot sounds, as `--quiet-boot`). An open new-agent page, confirm dialog, rename or inline editor is not carried: an automatic or `rex upgrade` swap waits until none is open. If the exec fails the board keeps running and says why. Not on Windows (the status line says so).
 
 When the daemon hot-restarts, boards reconnect by themselves and an open attach popup re-attaches to the same session (backoff 250 ms to 2 s, 10 tries) instead of showing it as ended.
 
