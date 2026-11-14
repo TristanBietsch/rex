@@ -1,8 +1,10 @@
 # Handoff: start here
 
 For the next coding agent on rex. Read this first, then follow the
-onboarding order. Last updated 2026-11-13, after `rex onboard` (ON1) and
-the shorter agent names; see [section 7](#7-latest-rex-onboard-2026-11-13).
+onboarding order. Last updated 2026-11-13, after `rex onboard` (ON1),
+the shorter agent names and the U7 selector settings; see
+[section 7](#7-latest-rex-onboard-2026-11-13) and
+[section 8](#8-latest-u7-board-selector-settings-2026-11-13).
 
 ## 1. Onboarding order
 
@@ -161,3 +163,64 @@ Open:
    unchanged by decision. Revisit if users want missing agents hidden.
 4. `RescanTools` is not exposed as a CLI command; `rex reload` still works.
 
+## 8. Latest: U7 board selector settings (2026-11-13)
+
+On `integration/todo` (not pushed):
+
+Plan and decisions: [../plans/U7-selector-glyph-gutter-blink-settings.md](../plans/U7-selector-glyph-gutter-blink-settings.md).
+Commits `5dbf94e`, `d15d7a1`, `46f6c4b` (+ TODO line `e73021e`).
+
+- Five Appearance settings: `selector_glyph` (`theme` default, presets
+  `▸ ❯ ➜ ➤ ☞`, free entry 1–2 cells), `selector_gap` (1–3, default 2),
+  `selector_bold` (on), `selector_blink` (`off`/`blink`/`pulse`),
+  `selector_blink_ms` (200–2000, default 600). All five are in
+  `WorkspaceAllowIDs`.
+- `internal/surface/tui/glyphs.go`: `curSelector` is loaded from the Store
+  by `syncSelector(m.Store)` at the top of `View`. `selectGlyph()` →
+  setting, else theme `glyphs.select`, else `▸`; `ascii_glyphs` turns a
+  non-ASCII glyph into `>`. `selectCursor()` is the 2-column picker cell
+  every picker uses (no hardcoded `▸ ` left in the TUI).
+- Board: `rowIndent()` is a func now (was a const 3); the gutter is
+  `1 + glyph width + selector_gap`. Fleet bars and blanks pad to the slot.
+- Blink lives in `selector.go`: phase counts from `Model.lastInput`, so
+  any key leaves it solid; it rests after `selectorIdle` (1 min), off the
+  board, under the screensaver and with `reduce_motion`.
+  `wantsSpinnerTick` includes `selectorBlinking`, so an idle board with
+  blink off never ticks.
+
+Open:
+
+1. Follow-ups:
+   - `feat/new-agent-steps` (another agent, unmerged on 2026-11-13)
+     rewrites `newagent_view.go`, `newagent_agent.go`, `keys.go` and cuts
+     `wizard.go` down. It must keep calling `selectCursor()` in the new step
+     views; check for a reintroduced hardcoded `▸ ` after it lands.
+   - `☞` is East Asian *ambiguous* width (user decision D1 in the plan). A
+     terminal set to draw ambiguous characters wide shifts the selected row
+     one column. Not fixable without knowing the terminal; `👉` is the safe
+     2-cell finger.
+   - A theme file's `glyphs.select` must be 1 cell, but `selector_glyph`
+     takes 2. Harmless (the board slot follows the width), just
+     inconsistent.
+   - Tests that render a picker without going through `View` see whatever
+     `curSelector` the last test left. Reset it with
+     `t.Cleanup(func() { curSelector = selectorDefaults })` (see
+     `selector_test.go`).
+2. Known `make check` flakes under full-suite load, also on older bases:
+   `cmd/rex-daemon` `TestHotRestart*` and `spawnctx`
+   `TestWalk_GitKilledAtBudgetKeepsWhatItListed`. Rerun the package alone
+   (`go test -race -count=1 ./cmd/rex-daemon/`) before treating them as
+   real. `cover-check` also prints "2 package(s) have no floor" (`e2e`,
+   `pty/ptytest`); that is a warning, exit 0.
+3. Manual TUI check without touching the real config or daemon: build
+   `rex` and `rex-daemon` into a temp `bin`, then run with `HOME=<tmp>`,
+   `XDG_RUNTIME_DIR=<short dir>` and that `bin` first on `PATH`.
+   - Keep the socket path under ~100 bytes: a long `XDG_RUNTIME_DIR`
+     fails with `connect: invalid argument`.
+   - Use `rex daemon start`, then `rex new -no-attach "<prompt>"` (the
+     built-in `echo` tool, no real agent), and `rex config set ...`.
+   - Drive the TUI in a private tmux server: `tmux -L <name> new-session
+     -d -x 110 -y 22 rex`, then `send-keys` and `capture-pane -e -p`. The
+     `-e` keeps the colors, so you can see the blink and pulse.
+4. The user has not yet run `make install` + `rex daemon restart` to try
+   U7 in their own rex; the installed binary predates it.
