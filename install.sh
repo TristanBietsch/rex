@@ -346,7 +346,7 @@ fi
 
 printf "\n"
 if [ ! -d "$HOME/.config/rex" ]; then
-  printf "  %snext:%s run %srex setup%s to configure rex\n\n" "$C_MUTED" "$C_RESET" "$C_ACCENT" "$C_RESET"
+  printf "  %snext:%s run %srex onboard%s for a guided first run\n\n" "$C_MUTED" "$C_RESET" "$C_ACCENT" "$C_RESET"
 else
   printf "  %snext:%s run %srex%s to launch\n\n" "$C_MUTED" "$C_RESET" "$C_ACCENT" "$C_RESET"
 fi

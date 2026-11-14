@@ -55,6 +55,20 @@ func (r onboardRow) hint() string {
 	return "install " + r.command() + " and put it on your PATH"
 }
 
+// KnownAgents are the agents a user can be offered, in registry order:
+// visibleTools, so the echo test adapter and opt-in tools stay out. rex
+// doctor and rex onboard list these.
+func KnownAgents(reg *registry.Registry) []registry.Tool {
+	return visibleTools(reg.Tools)
+}
+
+// AgentCommand is the binary tool t needs on PATH.
+func AgentCommand(t registry.Tool) string { return onboardRow{Tool: t}.command() }
+
+// AgentInstallHint is how to install tool t, as Settings → Onboarding shows
+// it.
+func AgentInstallHint(t registry.Tool) string { return onboardRow{Tool: t}.hint() }
+
 // pickerTools is what the wizard and the quick-spawn pickers offer, and the
 // Onboarding rows for the tools left out because they are not installed.
 // reg is the registry the TUI loaded. The extra agents (qwen, cursor, grok)

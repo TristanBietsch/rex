@@ -43,6 +43,15 @@ export PATH="$PWD:$PATH"
 
 ## 2. First-time config
 
+At a terminal, the guided tour checks the install, lists the coding agents
+you have (with install hints for the rest) and runs the setup wizard:
+
+```sh
+rex onboard
+```
+
+Scripted, without prompts:
+
 ```sh
 rex setup --yes --force
 ```

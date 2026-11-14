@@ -126,6 +126,19 @@ var bindings = []binding{
 	{Keys: "?", Desc: "this help (not in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 }
 
+// BoardKeyDesc is the help text of the board or attach binding labelled
+// keys ("cc", "qq / ctrl+]"), as ? shows it; rex onboard teaches keys
+// through it so its tour cannot drift from the help. ok is false for a
+// label the table does not have.
+func BoardKeyDesc(keys string) (desc string, ok bool) {
+	for _, b := range bindings {
+		if b.Keys == keys && b.Ctx&(ctxBoard|ctxAttach) != 0 {
+			return b.Desc, true
+		}
+	}
+	return "", false
+}
+
 // helpLineKeys is the board help line, in order; each is the Keys of a
 // binding that has a Line label.
 var helpLineKeys = []string{"enter", "i", "cc", "tab", "?"}

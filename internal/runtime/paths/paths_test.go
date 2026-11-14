@@ -48,6 +48,7 @@ func TestAccessors_UnderHome(t *testing.T) {
 		{"LoopStateDir", paths.LoopStateDir, j(".local", "share", "rex", "loops")},
 		{"ThemesDir", paths.ThemesDir, j(".config", "rex", "themes")},
 		{"DataDir", paths.DataDir, j(".local", "share", "rex")},
+		{"OnboardedFile", paths.OnboardedFile, j(".local", "share", "rex", "onboarded")},
 		{"SessionsDir", paths.SessionsDir, j(".local", "share", "rex", "sessions")},
 		{"SnapshotsDir", paths.SnapshotsDir, j(".local", "share", "rex", "snapshots")},
 		{"ExportsDir", paths.ExportsDir, j(".local", "share", "rex", "exports")},
@@ -122,7 +123,7 @@ func TestAccessors_NoHome(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", "")
 	accessors := map[string]func() (string, error){
 		"Home": paths.Home, "ConfigDir": paths.ConfigDir, "ConfigFile": paths.ConfigFile,
-		"ToolsFile": paths.ToolsFile, "LuaInitFile": paths.LuaInitFile, "LuaConfigFile": paths.LuaConfigFile, "LuaModuleDir": paths.LuaModuleDir, "SkillsDir": paths.SkillsDir, "ThemesDir": paths.ThemesDir, "DataDir": paths.DataDir,
+		"ToolsFile": paths.ToolsFile, "LuaInitFile": paths.LuaInitFile, "LuaConfigFile": paths.LuaConfigFile, "LuaModuleDir": paths.LuaModuleDir, "SkillsDir": paths.SkillsDir, "ThemesDir": paths.ThemesDir, "DataDir": paths.DataDir, "OnboardedFile": paths.OnboardedFile,
 		"SessionsDir": paths.SessionsDir, "SnapshotsDir": paths.SnapshotsDir, "DaemonLock": paths.DaemonLock, "ExportsDir": paths.ExportsDir, "UsageLedger": paths.UsageLedger, "LogDir": paths.LogDir,
 		"DaemonLog": paths.DaemonLog, "TUIStateFile": paths.TUIStateFile, "ModelsCacheFile": paths.ModelsCacheFile, "SoundClaimsDir": paths.SoundClaimsDir, "CacheDir": paths.CacheDir,
 		"Socket": paths.Socket,

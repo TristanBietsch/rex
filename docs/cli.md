@@ -653,6 +653,34 @@ The wizard asks whether agents may skip the folder trust prompt in one folder; t
 
 ---
 
+## rex onboard
+
+Guided tour for a new user.
+
+```sh
+rex onboard [-step N] [-socket path]
+rex onboard -check [-o FORMAT] [--agent] [-socket path]
+```
+
+Five steps, one screen each. `enter` goes on, `b` goes back, `q` quits and prints `rex onboard -step N` to pick up where you left off.
+
+1. **Check install**: the `rex` and `rex-daemon` binaries, the daemon (started if it is not running) and the config. A failed check stops the tour until it passes (`r` checks again).
+2. **Coding agents**: one row per agent rex knows (the same list as the new-agent page): `✓` with its path, or not installed with the install hint. While the tour opens, the agents are probed in the background. Rows that need you:
+   - no installed agent: a failed `agents installed` row; the tour waits until you install one and press `r` (rescan). rex never installs an agent.
+   - an agent rex finds but the daemon does not: a warning that the daemon started with an older `PATH`, and `rex daemon restart -cold` to fix it (it asks before it ends running agents; a hot restart keeps the old `PATH`).
+   - Qwen Code, Cursor CLI or Grok Build installed while `extra_agents` is off: `rex config set extra_agents true`.
+3. **Configure**: with no config, `s` runs [`rex setup`](#rex-setup); with one, it shows the default agent, model and effort, and warns when the default agent is not installed (with `rex config set default_spawn_tool <id>` for each one that is).
+4. **The board**: the four sections and the keys `n`, `enter`, `qq`, `tab`, `cc`, `uc`, `S` and `?`, described as `?` describes them.
+5. **Next steps**: the commands to go on with. Finishing writes `~/.local/share/rex/onboarded`; until then, the board opened with no config shows a notice suggesting `rex onboard`.
+
+The tour needs a terminal: in agent mode, with `-o` or a pipe it exits **5** (`needs_terminal`), pointing at `-check`.
+
+`-check` runs steps 1 and 2 without prompts and without starting the daemon, in any format, and exits **1** when a check fails (no installed agent, say). `-o json` gives `{checks, agents, ok}`; each agent is `{id, name, bin, path, installed, offered, daemon_installed, hint}` (`daemon_installed` is absent without a running daemon). `-check` with `-step` exits **5**.
+
+An agent installed while the daemon runs is offered on the new-agent page within 30 seconds, or at once when the page opens: the daemon checks `PATH` again for every agent then, with no `rex reload`.
+
+---
+
 ## rex doctor
 
 Diagnostics. Exit **1** if any check fails.
@@ -667,7 +695,7 @@ A `workspace config.lua` row appears inside a workspace (with `workspaces` and `
 
 An `auto_trust_dirs` row appears when the setting is not empty: an info row naming the trusted folders, or a warning for each entry the daemon would ignore (the home folder, a folder that holds it, a relative path, `..`) or that does not exist (`rex trust -rm` removes it).
 
-With `-verbose`, the `tool:` rows show where each agent binary is on `PATH`, or `not found on PATH`: `claude`, `codex`, `agy`, `ollama`, `qwen`, `cursor-agent` and `grok`.
+With `-verbose`, the `tool:` rows show where each agent binary is on `PATH`, or `not found on PATH`, for every agent rex knows (the registry, `tools.yaml` included): `claude`, `codex`, `agy`, `ollama`, `qwen`, `cursor-agent` and `grok` by default. An extra agent found while `extra_agents` is off says it is not offered. The `agents installed` row fails when no agent rex offers is on `PATH`; `rex onboard` lists them with install hints.
 
 With `-verbose`, an `agy version` row shows the installed Antigravity CLI version (`agy 1.5.5`). It warns below 1.5.5 (untested) or when `agy --version` fails or takes over 2 s, and is left out when `agy` is not on `PATH`.
 

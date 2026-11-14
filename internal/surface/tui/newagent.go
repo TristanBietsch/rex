@@ -258,6 +258,11 @@ func openNew(m Model) (Model, tea.Cmd) {
 // (D3), else the quick-spawn defaults; one no longer offered falls back
 // with a notice.
 func openNewAgent(m Model) (Model, tea.Cmd) {
+	// An agent installed since the daemon last looked shows up through
+	// ToolsChanged, on this page or at the next n.
+	if m.Client != nil {
+		_ = m.Client.RescanTools()
+	}
 	reg, err := loadToolsStrict()
 	if err != nil {
 		m.Err = "new agent: " + err.Error()
@@ -267,7 +272,7 @@ func openNewAgent(m Model) (Model, tea.Cmd) {
 	if len(visible) == 0 {
 		m.Err = "new agent: no tools enabled"
 		if len(missing) > 0 {
-			m.Err = "new agent: no agent is installed (see Settings → Onboarding)"
+			m.Err = "new agent: no agent is installed (run rex onboard, or see Settings → Onboarding)"
 		}
 		return m, nil
 	}

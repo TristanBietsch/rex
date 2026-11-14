@@ -40,6 +40,7 @@ func defaultHandlers() map[string]intentHandler {
 		protocol.IntentSetMaxConcurrent: handleSetMaxConcurrent,
 		protocol.IntentShutdown:         handleShutdown,
 		protocol.IntentReload:           handleReload,
+		protocol.IntentRescanTools:      handleRescanTools,
 		protocol.IntentRestart:          handleRestart,
 		protocol.IntentSwapBoards:       handleSwapBoards,
 		protocol.IntentBoards:           handleBoards,
@@ -488,6 +489,18 @@ func handleReload(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	rep := c.srv.cfg.OnReload()
 	c.sendEvent(protocol.EventReloaded, env.ID, rep)
+	return outcome{replied: true}, nil
+}
+
+// handleRescanTools probes PATH for the registry's tools again (a binary
+// installed since the last probe) and answers with the tool list. Every
+// other connection gets ToolsChanged only when something changed.
+func handleRescanTools(c *client, env protocol.Envelope) (outcome, error) {
+	c.srv.RescanInstalled()
+	if env.ID == "" {
+		return outcome{}, nil
+	}
+	c.sendEvent(protocol.EventToolsChanged, env.ID, protocol.ToolsChanged{Tools: c.srv.ToolInfos()})
 	return outcome{replied: true}, nil
 }
 

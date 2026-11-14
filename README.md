@@ -40,7 +40,7 @@ macOS or Linux. Download the installer, read it, then run it:
 curl -fsSL https://raw.githubusercontent.com/TristanBietsch/rex/master/install.sh -o install.sh
 sh install.sh                      # or: REX_VERSION=v2.0.0 sh install.sh
 export PATH="$HOME/.local/bin:$PATH"   # if the installer says it is not on PATH
-rex setup
+rex onboard
 ```
 
 The installer downloads the latest
@@ -49,12 +49,18 @@ arch, checks it against `SHA256SUMS`, and installs `rex` and `rex-daemon`
 into `~/.local/bin` (`PREFIX=/some/dir` for another place). No sudo. It never
 edits your shell profile. On Linux, sound needs ALSA (`libasound2`).
 
+`rex onboard` is a five-step tour for a new user: it checks the install,
+lists the coding agents on your `PATH` (with an install hint for each
+missing one; rex needs at least one), runs `rex setup` to pick the default
+agent and model, and walks through the board keys. `rex onboard -check` runs
+just the checks, for scripts. `rex setup` alone is the config wizard.
+
 Windows (PowerShell):
 
 ```powershell
 Invoke-WebRequest https://raw.githubusercontent.com/TristanBietsch/rex/master/install.ps1 -OutFile install.ps1
 powershell -ExecutionPolicy Bypass -File .\install.ps1   # or: -Version v2.0.0
-rex setup
+rex onboard
 ```
 
 It installs `rex.exe` and `rex-daemon.exe` into `~\.local\bin` and prints
@@ -99,7 +105,9 @@ rex upgrade       # load the new build; running agents keep going
 5. When the work is finished, press `cc` to mark it done. Press `cc` again
    to undo.
 
-Press `?` for every key and `S` for settings. Step-by-step with a test agent
+New to rex? `rex onboard` walks through this. The new-agent page (`n`)
+offers only the agents you have installed; install another and it shows up
+within 30 seconds. Press `?` for every key and `S` for settings. Step-by-step with a test agent
 that needs no API key: [docs/quickstart.md](docs/quickstart.md).
 
 ## How it works
@@ -157,6 +165,7 @@ that needs no API key: [docs/quickstart.md](docs/quickstart.md).
 | Open a workspace board | `rex here` (needs `workspaces`) | [workspaces.md](docs/workspaces.md) |
 | Undo an agent's turn | `rex undo <sel>` (needs `turn_snapshots`) | [snapshots.md](docs/snapshots.md) |
 | Export a transcript | `rex export <sel>` | [export.md](docs/export.md) |
+| Guided tour, agent check | `rex onboard`, `rex onboard -check` | [cli.md](docs/cli.md#rex-onboard) |
 | Check the install | `rex doctor` | [cli.md](docs/cli.md#rex-doctor) |
 | Script rex from CI or an agent | `rex --agent ...`, `rex wait` | [howto/headless-ci.md](docs/howto/headless-ci.md) |
 

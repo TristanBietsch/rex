@@ -340,6 +340,49 @@ type Server struct {
 // Existing sessions are unaffected.
 func (s *Server) SetRegistry(reg *registry.Registry) {
 	s.storeRegistry(reg)
+	s.broadcastTools()
+}
+
+// RescanInstalled probes PATH again for every tool in the current registry
+// and, when a binary appeared or went away, stores the new tool list and
+// sends ToolsChanged. The registry and its models stay as they are. It
+// reports whether anything changed. A SetRegistry racing with it wins: the
+// rescan then stores nothing.
+func (s *Server) RescanInstalled() bool {
+	reg := s.reg.Load()
+	old := s.tools.Load()
+	if reg == nil {
+		return false
+	}
+	infos := toolInfos(reg)
+	if old != nil && sameInstalled(*old, infos) {
+		return false
+	}
+	if !s.tools.CompareAndSwap(old, &infos) {
+		return false
+	}
+	slog.Info("server: installed tools changed")
+	s.broadcastTools()
+	return true
+}
+
+// sameInstalled reports whether a and b list the same tools with the same
+// installed bit.
+func sameInstalled(a, b []protocol.ToolInfo) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID || a[i].Installed != b[i].Installed {
+			return false
+		}
+	}
+	return true
+}
+
+// broadcastTools sends the current tool list to every ToolsChanged
+// subscriber.
+func (s *Server) broadcastTools() {
 	s.toolsSubsMu.RLock()
 	subs := s.toolsSubs.Clone()
 	s.toolsSubsMu.RUnlock()

@@ -146,6 +146,9 @@ func TestClient_RenameDeleteResizeFleetMaxConcurrent(t *testing.T) {
 		require.NoError(t, json.Unmarshal(b, &p))
 		require.Equal(t, "claude", p.ToolID)
 	})
+
+	go func() { require.NoError(t, c.RescanTools()) }()
+	check(protocol.IntentRescanTools, func([]byte) {})
 }
 
 func TestClient_RenameCarriesRequestID(t *testing.T) {

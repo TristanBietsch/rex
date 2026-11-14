@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `rex onboard`: a five-step tour for new users. It checks the install,
+  lists the coding agents on your `PATH` with install hints for the
+  missing ones, runs `rex setup` when there is no config, and teaches the
+  board keys. `rex onboard -check` runs the checks alone, in any format,
+  and exits 1 with no agent installed. The board suggests it on a first
+  run with no config.
+- An agent installed while the daemon runs is offered on the new-agent
+  page within 30 seconds, or at once when the page opens; no `rex reload`
+  needed.
+
+### Changed
+
+- `rex doctor` lists every agent from the registry (your `tools.yaml`
+  included) and fails when no agent is installed.
+
 ### Fixed (Windows)
 
 - Saving or loading settings while another rex saves `config.yaml` no

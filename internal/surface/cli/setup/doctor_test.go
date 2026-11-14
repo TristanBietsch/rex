@@ -214,11 +214,12 @@ func TestConfigEdit_createsConfigDirOwnerOnly(t *testing.T) {
 }
 
 // The extra agents (Qwen Code, Cursor CLI, Grok Build) get a tool row like
-// the others, by binary name.
+// the others, by binary name. With none on PATH, "agents installed" fails.
 func TestCheckToolBinaries_ListsExtraAgents(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
+	rows := checkToolBinaries()
 	var names []string
-	for _, r := range checkToolBinaries() {
+	for _, r := range rows[:len(rows)-1] {
 		names = append(names, r.Name)
 		require.Equal(t, "not found on PATH", r.Detail)
 	}
@@ -226,4 +227,7 @@ func TestCheckToolBinaries_ListsExtraAgents(t *testing.T) {
 		"tool: claude", "tool: codex", "tool: agy", "tool: ollama",
 		"tool: qwen", "tool: cursor-agent", "tool: grok",
 	}, names)
+	last := rows[len(rows)-1]
+	require.Equal(t, "agents installed", last.Name)
+	require.Equal(t, checkFail, last.Status)
 }

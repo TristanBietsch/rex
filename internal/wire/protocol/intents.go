@@ -29,6 +29,9 @@ const (
 	IntentBoards     = "Boards"
 	IntentUndo       = "Undo"
 	IntentRedo       = "Redo"
+	// IntentRescanTools asks the daemon to probe PATH for the registry's
+	// tools again; the reply is a ToolsChanged event with the intent's ID.
+	IntentRescanTools = "RescanTools"
 )
 
 // Hello is the first message a client sends after connect. The daemon

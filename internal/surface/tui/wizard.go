@@ -70,7 +70,7 @@ func openWizard(m Model) (Model, tea.Cmd) {
 	if len(visible) == 0 {
 		m.Err = "wizard: no tools enabled"
 		if len(missing) > 0 {
-			m.Err = "wizard: no agent is installed (see Settings → Onboarding)"
+			m.Err = "wizard: no agent is installed (run rex onboard, or see Settings → Onboarding)"
 		}
 		return m, nil
 	}

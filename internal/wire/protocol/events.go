@@ -12,8 +12,9 @@ const (
 	EventSummarizerHealth = "SummarizerHealth"
 	// EventOverview carries the board-wide overview (see Overview).
 	EventOverview = "Overview"
-	// EventToolsChanged carries the daemon's tool list again after a reload or
-	// a feature switch changed it (see ToolsChanged).
+	// EventToolsChanged carries the daemon's tool list again after a reload,
+	// a feature switch or a rescan changed it (see ToolsChanged). It is also
+	// the reply to RescanTools.
 	EventToolsChanged = "ToolsChanged"
 	// EventUndoResult is the success reply to Undo and Redo.
 	EventUndoResult = "UndoResult"
@@ -239,7 +240,8 @@ type ToolsChanged struct {
 type ToolInfo struct {
 	ID string `json:"id"`
 	// Installed is whether the tool's binary is on the daemon's PATH. Computed
-	// at daemon start and on every reload.
+	// at daemon start, on every reload, and on each rescan (RescanTools and
+	// the daemon's periodic one).
 	Installed bool        `json:"installed"`
 	Models    []ModelInfo `json:"models,omitempty"`
 }
