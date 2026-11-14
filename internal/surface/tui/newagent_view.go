@@ -188,9 +188,9 @@ func naRail(st *NewAgentState, tv naTrustView) []string {
 		left := " " + mark + " " + stylePrimary.Render(name)
 		switch {
 		case s == st.Section && st.OnRail:
-			left = " " + styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render(name)
+			left = " " + selectCursor() + selectedStyle(stylePrimary).Bold(true).Render(name)
 		case s == st.Section:
-			left = " " + styleArrow.Render("▸ "+name)
+			left = " " + selectCursor() + styleArrow.Render(name)
 		}
 		if word != "" {
 			gap := max(1, naRailW-1-ansi.StringWidth(left)-ansi.StringWidth(word))
@@ -408,7 +408,7 @@ func naItemRow(m Model, st *NewAgentState, i, fw int, focused bool) string {
 	}
 	name := stylePrimary.Render(label)
 	if cur {
-		left = styleArrow.Render("▸ ")
+		left = selectCursor()
 		name = selectedStyle(stylePrimary).Bold(true).Render(label)
 	}
 	if cur && st.Renaming {
@@ -536,7 +536,7 @@ func naLaunchSummary(m Model, st *NewAgentState) string {
 	return lead + size + styleDim.Render(" of "+naBytes(limit)) + tail
 }
 
-// naLaunchLine is the launch row: "▸ launch" while it is the focused step
+// naLaunchLine is the launch row: "<selector> launch" while it is the focused step
 // (enter launches), then the summary once there is a task or context, or
 // the launch's progress.
 func naLaunchLine(m Model, st *NewAgentState) string {
@@ -545,7 +545,7 @@ func naLaunchLine(m Model, st *NewAgentState) string {
 	}
 	head := "  " + styleDim.Render("launch")
 	if st.Section == naLaunchRow && !st.OnRail {
-		head = styleArrow.Render("▸ ") + selectedStyle(stylePrimary).Bold(true).Render("launch")
+		head = selectCursor() + selectedStyle(stylePrimary).Bold(true).Render("launch")
 	}
 	if st.Task.Empty() && len(st.Items) == 0 {
 		return head + styleMuted.Render("  describe the task first")

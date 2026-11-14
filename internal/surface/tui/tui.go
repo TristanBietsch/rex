@@ -130,6 +130,7 @@ func (m Model) View() string {
 	if m.saverOn && m.TermW > 0 {
 		m.Width, m.Height = m.TermW, m.TermH
 	}
+	syncSelector(m.Store)
 	body, w := m.viewRaw()
 	if !frameShown(m) {
 		return clipWidth(body, w)

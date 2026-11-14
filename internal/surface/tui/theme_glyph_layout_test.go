@@ -33,7 +33,7 @@ glyphs: {needs: "!", done: "+", failed: "x", crashed: "o", queued: ".", select: 
 				sawSelect = plain[:3] == " > " || plain[:2] == "> " || plain[1] == '>'
 			}
 			if s.ID == "1" {
-				sawNeeds = plain[rowIndent] == '!' || plain[rowIndent+1] == '!'
+				sawNeeds = plain[rowIndent()] == '!' || plain[rowIndent()+1] == '!'
 			}
 		}
 		require.True(t, sawSelect, "select glyph on the selected row, width %d", w)

@@ -484,11 +484,11 @@ func naAgentHints(st *NewAgentState, narrow bool) [][2]string {
 	return append(hints, [2]string{"enter", "done"}, [2]string{"esc", "back"})
 }
 
-// naMarkCol is the cursor column of a list row: ▸ on the cursor, else two
+// naMarkCol is the cursor column of a list row: the selector on the cursor, else two
 // spaces.
 func naMarkCol(on bool) string {
 	if on {
-		return styleArrow.Render(selectGlyph()) + " "
+		return selectCursor()
 	}
 	return "  "
 }

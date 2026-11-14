@@ -7,20 +7,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  2                                                                                                              
-   ⚑  api┌─ Overview ─────────────────────────────────────────────────────────────────────────────────────────┐       9m
-   ⚑  dep│                                                                                                    │      40s
+    ⚑  ap┌─ Overview ─────────────────────────────────────────────────────────────────────────────────────────┐       9m
+    ⚑  de│                                                                                                    │      40s
          │  billing-tests and api docs are ready for review; deploy asks a question and migrate-db failed     │
   WAITING│  updated 40s ago                                                                                   │         
-      not│                                                                                                    │
+       no│                                                                                                    │
          │  REVIEW (2)                                                                                        │
   WORKING│  › ✓ billing-tests Done: 48 tests pass                                                         3m  │         
-   ⠋  per│    ⚑ api docs      write api docs                                                              9m  │       5s
+    ⠋  pe│    ⚑ api docs      write api docs                                                              9m  │       5s
          │                                                                                                    │
   DONE  4│  READY (1)                                                                                         │         
- ▸ ✓  bil│    ⚑ deploy        Deploy to prod?                                                            40s  │       3m
-   ✗  mig│                                                                                                    │       2h
-   ✓  old│  FAILED (1)                                                                                        │       3h
-   ✓  anc│    ✗ migrate-db    Failed: migration 0042 timed out                                            2h  │       1d
+ ▸  ✓  bi│    ⚑ deploy        Deploy to prod?                                                            40s  │       3m
+    ✗  mi│                                                                                                    │       2h
+    ✓  ol│  FAILED (1)                                                                                        │       3h
+    ✓  an│    ✗ migrate-db    Failed: migration 0042 timed out                                            2h  │       1d
          │                                                                                                    │
          │  WORKING (1)                                                                                       │
          │    ⠋ perf-audit    Running benchmarks                                                          5s  │

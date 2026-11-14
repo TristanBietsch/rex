@@ -6,19 +6,19 @@
 ────────────────────────────────────────────────────────────────────────────────
     ┌─ UNDO ───────────────────────────────────────────────────────────────┐
   RE│  release-notes · 1 turn                                              │    
-   ⚑│                                                                      │  4m
+    │                                                                      │  4m
     │  restore 3 files, delete 1 file                                      │
   WA│    restore internal/api/handler.go                                   │    
     │    restore internal/api/handler_test.go                              │
     │    restore README.md                                                 │
   WO│    delete scratch/notes.txt                                          │    
- ▸ ⠋│                                                                      │ 11m
-   ⠋│  shell side effects (installs, databases, files outside the folder)  │  7s
-   ⠋│  are not undone                                                      │  2h
+ ▸  │                                                                      │ 11m
+    │  shell side effects (installs, databases, files outside the folder)  │  7s
+    │  are not undone                                                      │  2h
     │                                                                      │
   DO│  y undo · esc cancel                                                 │    
-   ✓└──────────────────────────────────────────────────────────────────────┘  9d
-   ✗  no-model          boot                                                   -
+    └──────────────────────────────────────────────────────────────────────┘  9d
+    ✗  no-model          boot                                                  -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3                                                                                                            
- ▸ ⠋  release-notes   ┌─ UNDO ───────────────────────────────────────────────────────────────────┐           ▴ 45m   11m
-   ⠋  日本語の長いタス│  release-notes · 1 turn                                                  │                    7s
-   ⠋  payment-migratio│                                                                          │           ▴ 7h     2h
+ ▸  ⠋  release-notes  ┌─ UNDO ───────────────────────────────────────────────────────────────────┐           ▴ 45m   11m
+    ⠋  日本語の長いタ │  release-notes · 1 turn                                                  │                    7s
+    ⠋  payment-migrati│                                                                          │           ▴ 7h     2h
                       │  restore 3 files, delete 1 file                                          │
   DONE  3             │    restore internal/api/handler.go                                       │                      
-   ✓  test-coverage   │    restore internal/api/handler_test.go                                  │                    9d
-   ✗  no-model        │    restore README.md                                                     │                     -
-   ✗  failing-job     │    delete scratch/notes.txt                                              │                     -
+    ✓  test-coverage  │    restore internal/api/handler_test.go                                  │                    9d
+    ✗  no-model       │    restore README.md                                                     │                     -
+    ✗  failing-job    │    delete scratch/notes.txt                                              │                     -
                       │                                                                          │
                       │  shell side effects (installs, databases, files outside the folder) are  │
                       │  not undone                                                              │
@@ -72,26 +72,26 @@
 ──────────────────────────────────────────────────
 
   READY  1                                        
-   ⚑┌─ UNDO ─────────────────────────────────┐  4m
-    │  release-notes · 1 turn                │all 
+    ┌─ UNDO ─────────────────────────────────┐  4m
+    │  release-notes · 1 turn                │call
     │                                        │
   WA│  restore 3 files, delete 1 file        │    
     │    restore internal/api/handler.go     │
     │    restore internal/api/handler_tes…   │
   WO│    restore README.md                   │    
- ▸ ⠋│    delete scratch/notes.txt            │ 11m
+ ▸  │    delete scratch/notes.txt            │ 11m
     │                                        │    
-   ⠋│  shell side effects (installs,         │  7s
+    │  shell side effects (installs,         │  7s
     │  databases, files outside the folder)  │    
-   ⠋│  are not undone                        │  2h
-    │                                        │2/14
+    │  are not undone                        │  2h
+    │                                        │    
     │  y undo · esc cancel                   │
   DO└────────────────────────────────────────┘    
-   ✓  test-coverage                             9d
-      billing/ from 61% → 92% — PR #408 merged    
-   ✗  no-model                                   -
-      boot                                        
-   ✗  failing-job                                -
+    ✓  test-coverage                            9d
+       billing/ from 61% → 92% — PR #408 merged   
+    ✗  no-model                                  -
+       boot                                       
+    ✗  failing-job                               -
 ──────────────────────────────────────────────────
   λ press i to describe a task for a new session  
   enter open · i new · ? more                     

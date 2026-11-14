@@ -574,7 +574,7 @@ func naPathRow(st *NewAgentState, rel string, cur, box, marked bool, fw int) str
 	label := protocol.FlattenDisplayText(rel)
 	name := stylePrimary.Render(label)
 	if cur {
-		left = styleArrow.Render("▸ ")
+		left = selectCursor()
 		name = selectedStyle(stylePrimary).Bold(true).Render(label)
 	}
 	_, denied := spawnctx.Denied(rel)

@@ -218,7 +218,7 @@ func trustOption(on bool, key, what, dir string, w int) []string {
 	dir = protocol.FlattenDisplayText(dir)
 	mark := "  "
 	if on {
-		mark = styleArrow.Render(selectGlyph()) + " "
+		mark = selectCursor()
 	}
 	out := []string{"  " + mark + styleKey.Render(key) + "  " + styleSlug.Render(what)}
 	for _, part := range wrapPath(filepath.ToSlash(dir), max(w-8, 8), 2) {

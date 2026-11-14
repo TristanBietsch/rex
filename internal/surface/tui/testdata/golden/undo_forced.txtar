@@ -6,19 +6,19 @@
 ────│  release-notes · 1 turn                                              │────
     │                                                                      │
   RE│  restore 3 files, delete 1 file                                      │    
-   ⚑│    restore internal/api/handler.go                                   │  4m
+    │    restore internal/api/handler.go                                   │  4m
     │    restore internal/api/handler_test.go                              │
   WA│    restore README.md                                                 │    
     │    delete scratch/notes.txt                                          │
     │                                                                      │
   WO│  forced: this reverts the changes of every live session in this      │    
- ▸ ⠋│  folder, not only this one                                           │ 11m
-   ⠋│                                                                      │  7s
-   ⠋│  shell side effects (installs, databases, files outside the folder)  │  2h
+ ▸  │  folder, not only this one                                           │ 11m
+    │                                                                      │  7s
+    │  shell side effects (installs, databases, files outside the folder)  │  2h
     │  are not undone                                                      │
   DO│                                                                      │    
-   ✓│  y undo · esc cancel                                                 │  9d
-   ✗└──────────────────────────────────────────────────────────────────────┘   -
+    │  y undo · esc cancel                                                 │  9d
+    └──────────────────────────────────────────────────────────────────────┘   -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
                       ┌─ UNDO ───────────────────────────────────────────────────────────────────┐
   WORKING  3          │  release-notes · 1 turn                                                  │                      
- ▸ ⠋  release-notes   │                                                                          │           ▴ 45m   11m
-   ⠋  日本語の長いタス│  restore 3 files, delete 1 file                                          │                    7s
-   ⠋  payment-migratio│    restore internal/api/handler.go                                       │           ▴ 7h     2h
+ ▸  ⠋  release-notes  │                                                                          │           ▴ 45m   11m
+    ⠋  日本語の長いタ │  restore 3 files, delete 1 file                                          │                    7s
+    ⠋  payment-migrati│    restore internal/api/handler.go                                       │           ▴ 7h     2h
                       │    restore internal/api/handler_test.go                                  │
   DONE  3             │    restore README.md                                                     │                      
-   ✓  test-coverage   │    delete scratch/notes.txt                                              │                    9d
-   ✗  no-model        │                                                                          │                     -
-   ✗  failing-job     │  forced: this reverts the changes of every live session in this folder,  │                     -
+    ✓  test-coverage  │    delete scratch/notes.txt                                              │                    9d
+    ✗  no-model       │                                                                          │                     -
+    ✗  failing-job    │  forced: this reverts the changes of every live session in this folder,  │                     -
                       │  not only this one                                                       │
                       │                                                                          │
                       │  shell side effects (installs, databases, files outside the folder) are  │
@@ -72,26 +72,26 @@
 ──────────────────────────────────────────────────
     ┌─ UNDO ─────────────────────────────────┐
   RE│  release-notes · 1 turn                │    
-   ⚑│                                        │  4m
-    │  restore 3 files, delete 1 file        │all 
+    │                                        │  4m
+    │  restore 3 files, delete 1 file        │call
     │    restore internal/api/handler.go     │
   WA│    restore internal/api/handler_tes…   │    
     │    restore README.md                   │
     │    delete scratch/notes.txt            │
   WO│                                        │    
- ▸ ⠋│  forced: this reverts the changes of   │ 11m
+ ▸  │  forced: this reverts the changes of   │ 11m
     │  every live session in this folder,    │    
-   ⠋│  not only this one                     │  7s
+    │  not only this one                     │  7s
     │                                        │    
-   ⠋│  shell side effects (installs,         │  2h
-    │  databases, files outside the folder)  │2/14
+    │  shell side effects (installs,         │  2h
+    │  databases, files outside the folder)  │    
     │  are not undone                        │
   DO│                                        │    
-   ✓│  y undo · esc cancel                   │  9d
-    └────────────────────────────────────────┘    
-   ✗  no-model                                   -
-      boot                                        
-   ✗  failing-job                                -
+    │  y undo · esc cancel                   │  9d
+    └────────────────────────────────────────┘d   
+    ✗  no-model                                  -
+       boot                                       
+    ✗  failing-job                               -
 ──────────────────────────────────────────────────
   λ press i to describe a task for a new session  
   enter open · i new · ? more                     

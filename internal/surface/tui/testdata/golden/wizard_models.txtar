@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3      ┌─ which model?                                                                   ─┐                  
- ▸ ⠋  release-note│                                                                                  │       ▴ 45m   11m
-   ⠋  日本語の長い│    ▸ qwen3-coder-plus  detected                                                  │                7s
-   ⠋  payment-migr│      qwen3-max  detected                                                         │       ▴ 7h     2h
+ ▸  ⠋  release-not│                                                                                  │       ▴ 45m   11m
+    ⠋  日本語の長 │    ▸ qwen3-coder-plus  detected                                                  │                7s
+    ⠋  payment-mig│      qwen3-max  detected                                                         │       ▴ 7h     2h
                   │      Default model                                                               │
   DONE  3         │                                                                                  │                  
-   ✓  test-coverag│                                                                                  │                9d
-   ✗  no-model    │                                                                                  │                 -
-   ✗  failing-job │                                                                                  │                 -
+    ✓  test-covera│                                                                                  │                9d
+    ✗  no-model   │                                                                                  │                 -
+    ✗  failing-job│                                                                                  │                 -
                   │                                                                                  │
                   │                                                                                  │
                   │                                                                                  │

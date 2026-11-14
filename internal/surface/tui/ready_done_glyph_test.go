@@ -97,7 +97,7 @@ func TestGoldenReadyDoneNoColor(t *testing.T) {
 		if len([]rune(line)) < 4 || strings.TrimSpace(line) == "" {
 			continue
 		}
-		mark := string([]rune(line)[3])
+		mark := string([]rune(line)[rowIndent()])
 		switch section {
 		case "READY":
 			require.Equal(t, "⚑", mark, line)

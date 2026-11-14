@@ -6,19 +6,19 @@
 ────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                      
-   ⚑  dark-mode         ↻ 2/5 paused: needs you · system…                     4m
+    ⚑  dark-mode         ↻ 2/5 paused: needs you · system…                    4m
 
   WAITING  0                                                                    
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3                                                                    
- ▸ ⠋  release-notes     draft ready — which feature leads?           ▴ 45m   11m
-   ⠋  日本語の長いタ…   ↻ 3/8 running · events_org_ts index…                  7s
-   ⠋  payment-migrati…  porting billing to the new processor…        ▴ 7h     2h
+ ▸  ⠋  release-notes     draft ready — which feature leads?          ▴ 45m   11m
+    ⠋  日本語の長いタ…   ↻ 3/8 running · events_org_ts index…                 7s
+    ⠋  payment-migrati…  porting billing to the new…                 ▴ 7h     2h
 
   DONE  3                                                                       
-   ✓  test-coverage     billing/ from 61% → 92% — PR #408…                    9d
-   ✗  no-model          boot                                                   -
+    ✓  test-coverage     billing/ from 61% → 92% — PR #408…                   9d
+    ✗  no-model          boot                                                  -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             ↻ 2/5 paused: needs you · system theme vs explicit toggle — your call                     4m
+    ⚑  dark-mode             ↻ 2/5 paused: needs you · system theme vs explicit toggle — your call                    4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3                                                                                                            
- ▸ ⠋  release-notes         draft ready — which feature leads?                                               ▴ 45m   11m
-   ⠋  日本語の長いタスク…   ↻ 3/8 running · events_org_ts index live — p95 38ms                                       7s
-   ⠋  payment-migration-v…  porting billing to the new processor — 12/14                                     ▴ 7h     2h
+ ▸  ⠋  release-notes         draft ready — which feature leads?                                              ▴ 45m   11m
+    ⠋  日本語の長いタスク…   ↻ 3/8 running · events_org_ts index live — p95 38ms                                      7s
+    ⠋  payment-migration-v…  porting billing to the new processor — 12/14                                    ▴ 7h     2h
 
   DONE  3                                                                                                               
-   ✓  test-coverage         billing/ from 61% → 92% — PR #408 merged                                                  9d
-   ✗  no-model              boot                                                                                       -
-   ✗  failing-job                                                                                                      -
+    ✓  test-coverage         billing/ from 61% → 92% — PR #408 merged                                                 9d
+    ✗  no-model              boot                                                                                      -
+    ✗  failing-job                                                                                                     -
 
 
 
@@ -72,19 +72,19 @@
 ␛[38;2;43;48;60m────────────────────────────────────────────────────────────────────────────────␛[0m
 
   ␛[1;38;2;75;227;127mREADY␛[0m␛[38;2;139;145;161m  1␛[0m                                                                      
-   ␛[1;38;2;75;227;127m⚑␛[0m  ␛[1;38;2;230;232;238mdark-mode␛[0m         ␛[38;2;230;232;238m↻ 2/5 paused: needs you · system…␛[0m      ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m4m␛[0m
+    ␛[1;38;2;75;227;127m⚑␛[0m  ␛[1;38;2;230;232;238mdark-mode␛[0m         ␛[38;2;230;232;238m↻ 2/5 paused: needs you · system…␛[0m     ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m4m␛[0m
 
   ␛[1;38;2;230;232;238mWAITING␛[0m␛[38;2;139;145;161m  0␛[0m                                                                    
-      ␛[38;2;89;96;112mnothing waiting on a tool␛[0m
+       ␛[38;2;89;96;112mnothing waiting on a tool␛[0m
 
   ␛[1;38;2;230;232;238mWORKING␛[0m␛[38;2;139;145;161m  3␛[0m                                                                    
- ␛[38;2;179;146;240m▸␛[0m ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mrelease-notes␛[0m     ␛[38;2;230;232;238mdraft ready — which feature leads?␛[0m     ␛[38;2;110;168;254m␛[0m      ␛[38;2;245;185;73m▴ 45m␛[0m   ␛[38;2;139;145;161m11m␛[0m
-   ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238m日本語の長いタ…␛[0m   ␛[38;2;139;145;161m↻ 3/8 running · events_org_ts index…␛[0m   ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m7s␛[0m
-   ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mpayment-migrati…␛[0m  ␛[38;2;139;145;161mporting billing to the new processor…␛[0m  ␛[38;2;110;168;254m␛[0m      ␛[1;7;38;2;242;107;107m▴ 7h␛[0m     ␛[38;2;139;145;161m2h␛[0m
+ ␛[1;38;2;179;146;240m▸␛[0m  ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mrelease-notes␛[0m     ␛[38;2;230;232;238mdraft ready — which feature leads?␛[0m    ␛[38;2;110;168;254m␛[0m      ␛[38;2;245;185;73m▴ 45m␛[0m   ␛[38;2;139;145;161m11m␛[0m
+    ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238m日本語の長いタ…␛[0m   ␛[38;2;139;145;161m↻ 3/8 running · events_org_ts index…␛[0m  ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m7s␛[0m
+    ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mpayment-migrati…␛[0m  ␛[38;2;139;145;161mporting billing to the new…␛[0m           ␛[38;2;110;168;254m␛[0m      ␛[1;7;38;2;242;107;107m▴ 7h␛[0m     ␛[38;2;139;145;161m2h␛[0m
 
   ␛[1;38;2;230;232;238mDONE␛[0m␛[38;2;139;145;161m  3␛[0m                                                                       
-   ␛[1;38;2;78;158;110m✓␛[0m  ␛[38;2;139;145;161mtest-coverage␛[0m     ␛[38;2;89;96;112mbilling/ from 61% → 92% — PR #408…␛[0m     ␛[38;2;89;96;112m␛[0m               ␛[38;2;139;145;161m9d␛[0m
-   ␛[1;38;2;242;107;107m✗␛[0m  ␛[1;38;2;230;232;238mno-model␛[0m          ␛[38;2;139;145;161mboot␛[0m                                   ␛[38;2;110;168;254m␛[0m                ␛[38;2;139;145;161m-␛[0m
+    ␛[1;38;2;78;158;110m✓␛[0m  ␛[38;2;139;145;161mtest-coverage␛[0m     ␛[38;2;89;96;112mbilling/ from 61% → 92% — PR #408…␛[0m    ␛[38;2;89;96;112m␛[0m               ␛[38;2;139;145;161m9d␛[0m
+    ␛[1;38;2;242;107;107m✗␛[0m  ␛[1;38;2;230;232;238mno-model␛[0m          ␛[38;2;139;145;161mboot␛[0m                                  ␛[38;2;110;168;254m␛[0m                ␛[38;2;139;145;161m-␛[0m
 ␛[38;2;139;145;161m  ↳ draft ready — which feature leads?␛[0m                                          
 ␛[38;2;43;48;60m────────────────────────────────────────────────────────────────────────────────␛[0m
   ␛[38;2;179;146;240mλ␛[0m ␛[38;2;139;145;161mpress i to describe a task for a new session␛[0m                                
@@ -97,20 +97,20 @@
 ␛[38;2;43;48;60m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────␛[0m
 
   ␛[1;38;2;75;227;127mREADY␛[0m␛[38;2;139;145;161m  1␛[0m                                                                                                              
-   ␛[1;38;2;75;227;127m⚑␛[0m  ␛[1;38;2;230;232;238mdark-mode␛[0m             ␛[38;2;230;232;238m↻ 2/5 paused: needs you · system theme vs explicit toggle — your call␛[0m      ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m4m␛[0m
+    ␛[1;38;2;75;227;127m⚑␛[0m  ␛[1;38;2;230;232;238mdark-mode␛[0m             ␛[38;2;230;232;238m↻ 2/5 paused: needs you · system theme vs explicit toggle — your call␛[0m     ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m4m␛[0m
 
   ␛[1;38;2;230;232;238mWAITING␛[0m␛[38;2;139;145;161m  0␛[0m                                                                                                            
-      ␛[38;2;89;96;112mnothing waiting on a tool␛[0m
+       ␛[38;2;89;96;112mnothing waiting on a tool␛[0m
 
   ␛[1;38;2;230;232;238mWORKING␛[0m␛[38;2;139;145;161m  3␛[0m                                                                                                            
- ␛[38;2;179;146;240m▸␛[0m ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mrelease-notes␛[0m         ␛[38;2;230;232;238mdraft ready — which feature leads?␛[0m                                         ␛[38;2;110;168;254m␛[0m      ␛[38;2;245;185;73m▴ 45m␛[0m   ␛[38;2;139;145;161m11m␛[0m
-   ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238m日本語の長いタスク…␛[0m   ␛[38;2;139;145;161m↻ 3/8 running · events_org_ts index live — p95 38ms␛[0m                        ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m7s␛[0m
-   ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mpayment-migration-v…␛[0m  ␛[38;2;139;145;161mporting billing to the new processor — 12/14␛[0m                               ␛[38;2;110;168;254m␛[0m      ␛[1;7;38;2;242;107;107m▴ 7h␛[0m     ␛[38;2;139;145;161m2h␛[0m
+ ␛[1;38;2;179;146;240m▸␛[0m  ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mrelease-notes␛[0m         ␛[38;2;230;232;238mdraft ready — which feature leads?␛[0m                                        ␛[38;2;110;168;254m␛[0m      ␛[38;2;245;185;73m▴ 45m␛[0m   ␛[38;2;139;145;161m11m␛[0m
+    ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238m日本語の長いタスク…␛[0m   ␛[38;2;139;145;161m↻ 3/8 running · events_org_ts index live — p95 38ms␛[0m                       ␛[38;2;110;168;254m␛[0m               ␛[38;2;139;145;161m7s␛[0m
+    ␛[1;38;2;110;168;254m⠋␛[0m  ␛[1;38;2;230;232;238mpayment-migration-v…␛[0m  ␛[38;2;139;145;161mporting billing to the new processor — 12/14␛[0m                              ␛[38;2;110;168;254m␛[0m      ␛[1;7;38;2;242;107;107m▴ 7h␛[0m     ␛[38;2;139;145;161m2h␛[0m
 
   ␛[1;38;2;230;232;238mDONE␛[0m␛[38;2;139;145;161m  3␛[0m                                                                                                               
-   ␛[1;38;2;78;158;110m✓␛[0m  ␛[38;2;139;145;161mtest-coverage␛[0m         ␛[38;2;89;96;112mbilling/ from 61% → 92% — PR #408 merged␛[0m                                   ␛[38;2;89;96;112m␛[0m               ␛[38;2;139;145;161m9d␛[0m
-   ␛[1;38;2;242;107;107m✗␛[0m  ␛[1;38;2;230;232;238mno-model␛[0m              ␛[38;2;139;145;161mboot␛[0m                                                                       ␛[38;2;110;168;254m␛[0m                ␛[38;2;139;145;161m-␛[0m
-   ␛[1;38;2;242;107;107m✗␛[0m  ␛[1;38;2;230;232;238mfailing-job␛[0m           ␛[38;2;139;145;161m␛[0m                                                                           ␛[38;2;110;168;254m␛[0m                ␛[38;2;139;145;161m-␛[0m
+    ␛[1;38;2;78;158;110m✓␛[0m  ␛[38;2;139;145;161mtest-coverage␛[0m         ␛[38;2;89;96;112mbilling/ from 61% → 92% — PR #408 merged␛[0m                                  ␛[38;2;89;96;112m␛[0m               ␛[38;2;139;145;161m9d␛[0m
+    ␛[1;38;2;242;107;107m✗␛[0m  ␛[1;38;2;230;232;238mno-model␛[0m              ␛[38;2;139;145;161mboot␛[0m                                                                      ␛[38;2;110;168;254m␛[0m                ␛[38;2;139;145;161m-␛[0m
+    ␛[1;38;2;242;107;107m✗␛[0m  ␛[1;38;2;230;232;238mfailing-job␛[0m           ␛[38;2;139;145;161m␛[0m                                                                          ␛[38;2;110;168;254m␛[0m                ␛[38;2;139;145;161m-␛[0m
 
 
 

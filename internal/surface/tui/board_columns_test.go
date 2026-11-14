@@ -77,7 +77,7 @@ func TestFixedColumnsReservedSometimesEmpty(t *testing.T) {
 		require.Equal(t, c.model, cols.model > 0, "model width %d", c.w)
 		require.Equal(t, c.id, cols.id > 0, "id width %d", c.w)
 		require.Equal(t, c.run, cols.agents > 0 && cols.run > 0, "agents and run width %d", c.w)
-		require.GreaterOrEqual(t, cols.desc, 18, "width %d", c.w)
+		require.GreaterOrEqual(t, cols.desc, 18-(rowIndent()-3), "width %d (a wider selector gutter takes desc columns)", c.w)
 		require.Equal(t, c.w, cols.used()+cols.desc, "width %d", c.w)
 	}
 }

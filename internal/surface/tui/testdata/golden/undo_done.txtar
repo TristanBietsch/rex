@@ -6,19 +6,19 @@
 ────────────────────────────────────────────────────────────────────────────────
     ┌─ UNDO  done ─────────────────────────────────────────────────────────┐
   RE│  release-notes · 1 turn                                              │    
-   ⚑│                                                                      │  4m
+    │                                                                      │  4m
     │  3 files restored, 1 deleted                                         │
   WA│  ! the folder changed while the restore ran: 1 file differs          │    
     │                                                                      │
     │  shell side effects (installs, databases, files outside the folder)  │
   WO│  are not undone                                                      │    
- ▸ ⠋│  The agent was not told; it still remembers that turn. Tell it, for  │ 11m
-   ⠋│  example: "I reverted your last change".                             │  7s
-   ⠋│  :redo brings the changes back.                                      │  2h
+ ▸  │  The agent was not told; it still remembers that turn. Tell it, for  │ 11m
+    │  example: "I reverted your last change".                             │  7s
+    │  :redo brings the changes back.                                      │  2h
     │                                                                      │
   DO│  esc close                                                           │    
-   ✓└──────────────────────────────────────────────────────────────────────┘  9d
-   ✗  no-model          boot                                                   -
+    └──────────────────────────────────────────────────────────────────────┘  9d
+    ✗  no-model          boot                                                  -
   ↳ draft ready — which feature leads?                                          
 ────────────────────────────────────────────────────────────────────────────────
   λ press i to describe a task for a new session                                
@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3                                                                                                            
- ▸ ⠋  release-notes   ┌─ UNDO  done ─────────────────────────────────────────────────────────────┐           ▴ 45m   11m
-   ⠋  日本語の長いタス│  release-notes · 1 turn                                                  │                    7s
-   ⠋  payment-migratio│                                                                          │           ▴ 7h     2h
+ ▸  ⠋  release-notes  ┌─ UNDO  done ─────────────────────────────────────────────────────────────┐           ▴ 45m   11m
+    ⠋  日本語の長いタ │  release-notes · 1 turn                                                  │                    7s
+    ⠋  payment-migrati│                                                                          │           ▴ 7h     2h
                       │  3 files restored, 1 deleted                                             │
   DONE  3             │  ! the folder changed while the restore ran: 1 file differs              │                      
-   ✓  test-coverage   │                                                                          │                    9d
-   ✗  no-model        │  shell side effects (installs, databases, files outside the folder) are  │                     -
-   ✗  failing-job     │  not undone                                                              │                     -
+    ✓  test-coverage  │                                                                          │                    9d
+    ✗  no-model       │  shell side effects (installs, databases, files outside the folder) are  │                     -
+    ✗  failing-job    │  not undone                                                              │                     -
                       │  The agent was not told; it still remembers that turn. Tell it, for      │
                       │  example: "I reverted your last change".                                 │
                       │  :redo brings the changes back.                                          │
@@ -72,26 +72,26 @@
 ──────────────────────────────────────────────────
 
   RE┌─ UNDO  done ───────────────────────────┐    
-   ⚑│  release-notes · 1 turn                │  4m
-    │                                        │all 
+    │  release-notes · 1 turn                │  4m
+    │                                        │call
     │  3 files restored, 1 deleted           │
   WA│  ! the folder changed while the        │    
     │  restore ran: 1 file differs           │
     │                                        │
   WO│  shell side effects (installs,         │    
- ▸ ⠋│  databases, files outside the folder)  │ 11m
+ ▸  │  databases, files outside the folder)  │ 11m
     │  are not undone                        │    
-   ⠋│  The agent was not told; it still      │  7s
+    │  The agent was not told; it still      │  7s
     │  remembers that turn. Tell it, for     │    
-   ⠋│  example: "I reverted your last        │  2h
-    │  change".                              │2/14
+    │  example: "I reverted your last        │  2h
+    │  change".                              │    
     │  :redo brings the changes back.        │
   DO│                                        │    
-   ✓│  esc close                             │  9d
-    └────────────────────────────────────────┘    
-   ✗  no-model                                   -
-      boot                                        
-   ✗  failing-job                                -
+    │  esc close                             │  9d
+    └────────────────────────────────────────┘d   
+    ✗  no-model                                  -
+       boot                                       
+    ✗  failing-job                               -
 ──────────────────────────────────────────────────
   λ press i to describe a task for a new session  
   enter open · i new · ? more                     

@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3      ┌─ which provider?                                                                ─┐                  
- ▸ ⠋  release-note│                                                                                  │       ▴ 45m   11m
-   ⠋  日本語の長い│    ▸ Echo (test)                                                                 │                7s
-   ⠋  payment-migr│      Claude Code                                                                 │       ▴ 7h     2h
+ ▸  ⠋  release-not│                                                                                  │       ▴ 45m   11m
+    ⠋  日本語の長 │    ▸ Echo (test)                                                                 │                7s
+    ⠋  payment-mig│      Claude Code                                                                 │       ▴ 7h     2h
                   │      OpenAI Codex                                                                │
   DONE  3         │      Gemini CLI                                                                  │                  
-   ✓  test-coverag│      Ollama (local)                                                              │                9d
-   ✗  no-model    │                                                                                  │                 -
-   ✗  failing-job │                                                                                  │                 -
+    ✓  test-covera│      Ollama (local)                                                              │                9d
+    ✗  no-model   │                                                                                  │                 -
+    ✗  failing-job│                                                                                  │                 -
                   │                                                                                  │
                   │                                                                                  │
                   │                                                                                  │

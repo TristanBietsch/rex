@@ -31,20 +31,20 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3      ┌─ which provider?                                                                ─┐                  
- ▸ ⠋  release-note│                                                                                  │       ▴ 45m   11m
-   ⠋  日本語の長い│    ▸ ✻  Claude Code                                                              │                7s
-   ⠋  payment-migr│      ❀  OpenAI Codex                                                             │       ▴ 7h     2h
+ ▸  ⠋  release-not│                                                                                  │       ▴ 45m   11m
+    ⠋  日本語の長 │    ▸ ✻  Claude Code                                                              │                7s
+    ⠋  payment-mig│      ❀  OpenAI Codex                                                             │       ▴ 7h     2h
                   │      ✧  Antigravity CLI                                                          │
   DONE  3         │      ⌂  Ollama (local)                                                           │                  
-   ✓  test-coverag│      ❖  Qwen Code                                                                │                9d
-   ✗  no-model    │      ◮  Cursor CLI                                                               │                 -
-   ✗  failing-job │      ⍁  Grok Build                                                               │                 -
+    ✓  test-covera│      ❖  Qwen Code                                                                │                9d
+    ✗  no-model   │      ◮  Cursor CLI                                                               │                 -
+    ✗  failing-job│      ⍁  Grok Build                                                               │                 -
                   │                                                                                  │
                   │                                                                                  │
                   │                                                                                  │
