@@ -349,8 +349,11 @@ func (s *Server) SetRegistry(reg *registry.Registry) {
 // reports whether anything changed. A SetRegistry racing with it wins: the
 // rescan then stores nothing.
 func (s *Server) RescanInstalled() bool {
-	reg := s.reg.Load()
+	// tools before reg: storeRegistry stores reg then tools, so a
+	// SetRegistry landing between these loads changes tools and the CAS
+	// below fails, whatever the order.
 	old := s.tools.Load()
+	reg := s.reg.Load()
 	if reg == nil {
 		return false
 	}

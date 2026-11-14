@@ -239,8 +239,9 @@ type tour struct {
 	socket string
 	// scan is the background agent probe, started before step 1.
 	scan chan []agentStatus
-	// agents is the last probe's result.
-	agents []agentStatus
+	// agents is the last probe's result; scanned says it arrived.
+	agents  []agentStatus
+	scanned bool
 }
 
 func newTour(p *core.Printer, socket string) *tour {
@@ -268,7 +269,7 @@ var tourSteps = [onboardSteps]tourStep{
 			if key != "r" {
 				return false
 			}
-			t.agents = scanAgents()
+			t.agents, t.scanned = scanAgents(), true
 			return true
 		}},
 	{title: "Configure", render: (*tour).stepConfig, keys: "s run rex setup",
@@ -362,8 +363,8 @@ func (t *tour) stepInstall() bool {
 // agentList is the background probe's result, waiting for it the first
 // time (the tour may start past step 2).
 func (t *tour) agentList() []agentStatus {
-	if t.agents == nil {
-		t.agents = <-t.scan
+	if !t.scanned {
+		t.agents, t.scanned = <-t.scan, true
 	}
 	return t.agents
 }

@@ -1,11 +1,18 @@
 package tui
 
 import (
+	"context"
+	"net"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/wire/client"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // KnownAgents is the wizard's list: no echo, no opt-in tools.
@@ -46,4 +53,47 @@ func TestBoardKeyDesc(t *testing.T) {
 	require.False(t, ok, "a new-agent page key is not a board key")
 	_, ok = BoardKeyDesc("nope")
 	require.False(t, ok)
+}
+
+// A daemon that predates RescanTools rejects it with an Error carrying the
+// intent's ID. The rescan swallows it: nothing reaches the board's event
+// stream, where an Error would show as a daemon error and drop a pending
+// spawn.
+func TestRescanTools_OldDaemonErrorStaysOffTheBoard(t *testing.T) {
+	require.Nil(t, rescanTools(nil))
+
+	dir, err := os.MkdirTemp("", "rx")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "s.sock")
+	ln, err := net.Listen("unix", sock)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	stop, served := make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() { close(stop); <-served })
+	go func() {
+		defer close(served)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		env, err := protocol.NewReader(conn).Read()
+		if err != nil {
+			return
+		}
+		_ = protocol.NewWriter(conn).WriteEvent(protocol.EventError, env.ID,
+			protocol.ErrorEvent{ID: env.ID, Code: protocol.ErrCodeBadIntent, Message: "intent not implemented"})
+		<-stop
+	}()
+
+	c, err := client.Dial(sock)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
+	require.Nil(t, rescanTools(c)())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	_, err = c.NextEventContext(ctx)
+	require.Error(t, err, "the rejection went to the Do waiter, not the event stream")
 }

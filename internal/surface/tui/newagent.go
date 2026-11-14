@@ -2,10 +2,12 @@ package tui
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/features/audio"
 	"github.com/tristanbietsch/rex/internal/features/skills"
 	"github.com/tristanbietsch/rex/internal/features/spawnctx"
+	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -258,11 +261,34 @@ func openNew(m Model) (Model, tea.Cmd) {
 // (D3), else the quick-spawn defaults; one no longer offered falls back
 // with a notice.
 func openNewAgent(m Model) (Model, tea.Cmd) {
-	// An agent installed since the daemon last looked shows up through
-	// ToolsChanged, on this page or at the next n.
-	if m.Client != nil {
-		_ = m.Client.RescanTools()
+	m, cmd := openNewAgentPage(m)
+	return m, tea.Batch(cmd, rescanTools(m.Client))
+}
+
+// rescanTools asks the daemon to probe PATH again, so an agent installed
+// since it last looked shows up through ToolsChanged, on this page or at
+// the next n. It waits for the reply and drops it: a daemon that predates
+// RescanTools answers with an Error carrying the intent's ID, which must
+// not reach the board as a daemon error.
+func rescanTools(c *client.Client) tea.Cmd {
+	if c == nil {
+		return nil
 	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), rescanTimeout)
+		defer cancel()
+		if _, err := c.Do(ctx, protocol.IntentRescanTools, struct{}{}); err != nil {
+			slog.Debug("tui: rescan tools", "err", err)
+		}
+		return nil
+	}
+}
+
+// rescanTimeout bounds the wait for a RescanTools reply.
+const rescanTimeout = 3 * time.Second
+
+// openNewAgentPage is openNewAgent without the rescan.
+func openNewAgentPage(m Model) (Model, tea.Cmd) {
 	reg, err := loadToolsStrict()
 	if err != nil {
 		m.Err = "new agent: " + err.Error()

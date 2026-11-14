@@ -685,13 +685,6 @@ func (c *Client) Reload() error {
 	return c.send(protocol.IntentReload, "", struct{}{})
 }
 
-// RescanTools asks the daemon to probe PATH for its tools again. A change
-// arrives as a ToolsChanged event; Do(ctx, protocol.IntentRescanTools,
-// struct{}{}) returns the list itself.
-func (c *Client) RescanTools() error {
-	return c.send(protocol.IntentRescanTools, "", struct{}{})
-}
-
 // FocusFilter sets the cosmetic tool filter.
 func (c *Client) FocusFilter(toolID string) error {
 	return c.send(protocol.IntentFocusFilter, "", protocol.FocusFilter{ToolID: toolID})
