@@ -7,9 +7,9 @@
 │                                                                           …  │
 │    ▸ Echo (test)                                                          …  │
 │      Claude Code                                                          …  │
-│      OpenAI Codex                                                         …  │
+│      Codex                                                                …  │
 │      Gemini CLI                                                           …  │
-│      Ollama (local)                                                       …  │
+│      Ollama                                                               …  │
 │                                                                           …  │
 │                                                                           …  │
 │                                                                           …  │
@@ -40,9 +40,9 @@
  ▸  ⠋  release-not│                                                                                  │       ▴ 45m   11m
     ⠋  日本語の長 │    ▸ Echo (test)                                                                 │                7s
     ⠋  payment-mig│      Claude Code                                                                 │       ▴ 7h     2h
-                  │      OpenAI Codex                                                                │
+                  │      Codex                                                                       │
   DONE  3         │      Gemini CLI                                                                  │                  
-    ✓  test-covera│      Ollama (local)                                                              │                9d
+    ✓  test-covera│      Ollama                                                                      │                9d
     ✗  no-model   │                                                                                  │                 -
     ✗  failing-job│                                                                                  │                 -
                   │                                                                                  │

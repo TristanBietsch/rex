@@ -7,9 +7,9 @@
  ▸ ◮ Cursor CLI  │ ▸ sonnet-4.6           detected                                                                      
                  │   sonnet-4.6-thinking  detected                                                                      
    not installed │   claude-4.5-sonnet    detected                                                                      
-   · OpenAI Cod… │                                                                                                      
-   · Antigravit… │ EFFORT  (none for this model)                                                                        
-   · Ollama (lo… │                                                                                                      
+   · Codex       │                                                                                                      
+   · Antigravity │ EFFORT  (none for this model)                                                                        
+   · Ollama      │                                                                                                      
    · Qwen Code   │                                                                                                      
    · Grok Build  │                                                                                                      
                  │                                                                                                      
@@ -48,9 +48,9 @@
  ▸ ◮ Cursor CLI  │ ▸ sonnet-4.6           detected                              
                  │   sonnet-4.6-thinking  detected                              
    not installed │   claude-4.5-sonnet    detected                              
-   · OpenAI Cod… │                                                              
-   · Antigravit… │ EFFORT  (none for this model)                                
-   · Ollama (lo… │                                                              
+   · Codex       │                                                              
+   · Antigravity │ EFFORT  (none for this model)                                
+   · Ollama      │                                                              
    · Qwen Code   │                                                              
    · Grok Build  │                                                              
                  │                                                              

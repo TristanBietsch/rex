@@ -309,7 +309,7 @@ func TestRunOnboard_CheckText(t *testing.T) {
 	require.NoError(t, RunOnboard([]string{"-check"}))
 	require.Contains(t, out.String(), "Onboard check")
 	require.Contains(t, out.String(), "Claude Code (claude)")
-	require.Contains(t, out.String(), "OpenAI Codex (codex)", "info rows are shown")
+	require.Contains(t, out.String(), "Codex (codex)", "info rows are shown")
 }
 
 // b goes back a step; an unknown key is named and the step stays.

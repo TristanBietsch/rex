@@ -138,7 +138,8 @@ func TestWizard_OffersInstalledToolsOnly(t *testing.T) {
 	require.Contains(t, out, "Claude Code")
 	require.Contains(t, out, "Qwen Code")
 	require.NotContains(t, out, "Grok Build")
-	require.NotContains(t, out, "OpenAI Codex")
+	require.NotContains(t, toolIDs(m.Wizard.Tools), "codex")
+	require.NotContains(t, out, "Codex")
 
 	// Nothing installed: the wizard refuses and points at Onboarding.
 	none := pickerModel(t)
@@ -276,9 +277,14 @@ func TestSettings_OnboardingListsMissingAgents(t *testing.T) {
 	require.True(t, last.ReadOnly)
 
 	m.Settings.CursorID = onboardPrefix + "codex"
+	for _, s := range list {
+		if s.ID == onboardPrefix+"codex" {
+			require.Equal(t, "Codex", s.Label, "the row is labelled with the tool's name")
+		}
+	}
 	out := ansi.Strip(m.View())
 	require.Contains(t, out, "Onboarding")
-	require.Contains(t, out, "OpenAI Codex")
+	require.Contains(t, out, "Codex")
 	require.Contains(t, out, "not on PATH")
 	require.Contains(t, out, "command codex")
 	require.Contains(t, squash(out), squash("see https://github.com/openai/codex"), "the install hint")

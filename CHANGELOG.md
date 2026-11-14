@@ -31,6 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `rex doctor` lists every agent from the registry (your `tools.yaml`
   included) and fails when no agent is installed.
+- Shorter agent names so the agents column is not cut off: Codex (was
+  OpenAI Codex), Antigravity (was Antigravity CLI), Ollama (was Ollama
+  (local)) and Kimi (was Kimi (Moonshot)).
 
 ### Fixed (Windows)
 

@@ -39,9 +39,9 @@ func demoTools() []registry.Tool {
 		{ID: "claude", Name: "Claude Code", Category: "paid",
 			Models: []registry.Model{{ID: "opus", Name: "Opus 4.7", Effort: &registry.Effort{Options: []string{"minimal", "default", "high", "max"}, Default: "default"}},
 				{ID: "sonnet", Name: "Sonnet 4.6"}, {ID: "haiku", Name: "Haiku 4.5"}}},
-		{ID: "codex", Name: "OpenAI Codex", Category: "paid"},
+		{ID: "codex", Name: "Codex", Category: "paid"},
 		{ID: "gemini", Name: "Gemini CLI", Category: "paid"},
-		{ID: "ollama", Name: "Ollama (local)", Category: "self_hosted"},
+		{ID: "ollama", Name: "Ollama", Category: "self_hosted"},
 	}
 }
 

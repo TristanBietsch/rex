@@ -5,6 +5,7 @@
 
 ## Workspaces / state
 
+- [ ] add random thick colored border around the current rex window (configurable in settings) that is random by default but can be set to a specific color in settings default colors use pantone colors and are colorblind friendly. (done: R06 W1/W2 border + color; left: system-wide border + color, W5)
 - [ ] per-workspace `.rex` folder (like cursor's `.cursor`) instead of JUST relying on the daemon: holds the rex config, per-folder harness history, and state (list of agents, their states, etc). Copy the folder to another machine and it works. Daemon can still sync between machines but is not required. Make a spec, plan it, then implement on a new branch. (done: R06 spec + W1 ids/colors, W2 workspace boards + `sessions.jsonl`, W3 `.rex/config.lua`, W4 audit; left: W5 system-wide management; daemon sync dropped, R06 D4)
   - [x] `rex` cmd itself does not change: it is the system-wide session (R06: `rex here` / `rex ws open` open workspace boards)
   - [x] per-workspace sessions get a unique color on the top / bottom / left / right edges of the window, and a unique rex id (random 8-char string, generated at session creation) shown in the top left corner. The id identifies the session in the audit trail, the cli cmds and the daemon (so the daemon can sync it between machines) (done: R06 W1/W2 8-hex id + Okabe-Ito color, `[<id> <name>]` in the header, border in workspace color, `workspace_id` in daemon/audit/CLI; daemon sync dropped by decision in R06 D4)

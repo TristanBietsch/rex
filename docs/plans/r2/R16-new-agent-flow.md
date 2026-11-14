@@ -122,7 +122,7 @@ Kind words (`file`, `dir`, `paste`, `url`) are text, not color only. The last bo
 ────────────────────────────────────────────────────────────────────────────────
   AGENTS         │ MODELS  Cursor CLI                  / filter   200 · 3 shown 
     ◆ Claude Code│ > son█                                                        
-    ◇ OpenAI Cod…│ ▸ sonnet-4.6               detected                           
+    ◇ Codex      │ ▸ sonnet-4.6               detected                           
     ◈ Antigravity│   sonnet-4.6-thinking      detected                           
     ◉ Ollama     │   claude-4.5-sonnet        detected                           
     ◇ Qwen Code  │                                                               

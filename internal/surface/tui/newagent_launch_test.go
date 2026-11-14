@@ -318,7 +318,7 @@ func TestNewAgent_PTYPasteCap(t *testing.T) {
 	m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
 	require.Nil(t, cmd, "over 16 KB is refused for a prompt_paste agent")
 	require.False(t, m.NewAgent.Launching)
-	require.Contains(t, m.NewAgent.Err, "✗ the prompt is 17 KB; Ollama (local) takes it as a terminal paste and the limit for that is 16 KB.")
+	require.Contains(t, m.NewAgent.Err, "✗ the prompt is 17 KB; Ollama takes it as a terminal paste and the limit for that is 16 KB.")
 	require.Contains(t, m.NewAgent.Err, "\n", "with a hint line")
 
 	// The same draft fits another agent's 96 KB.
@@ -490,7 +490,7 @@ func TestNewAgent_PlainPasteRefusesNewlines(t *testing.T) {
 	require.Nil(t, cmd)
 	require.False(t, m.NewAgent.Launching)
 	require.True(t, strings.HasPrefix(m.NewAgent.Err, "✗ "), m.NewAgent.Err)
-	require.Contains(t, m.NewAgent.Err, "Ollama (local) takes the prompt as typed lines")
+	require.Contains(t, m.NewAgent.Err, "Ollama takes the prompt as typed lines")
 	require.Contains(t, m.NewAgent.Err, "one-line task")
 	require.Contains(t, m.NewAgent.Err, "another agent")
 

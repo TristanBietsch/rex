@@ -6,9 +6,9 @@
 ┌─ which provider?                                                          … ─┐
 │                                                                           …  │
 │    ▸ ✻  Claude Code                                                       …  │
-│      ❀  OpenAI Codex                                                      …  │
-│      ✧  Antigravity CLI                                                   …  │
-│      ⌂  Ollama (local)                                                    …  │
+│      ❀  Codex                                                             …  │
+│      ✧  Antigravity                                                       …  │
+│      ⌂  Ollama                                                            …  │
 │      ❖  Qwen Code                                                         …  │
 │      ◮  Cursor CLI                                                        …  │
 │      ⍁  Grok Build                                                        …  │
@@ -39,9 +39,9 @@
   WORKING  3      ┌─ which provider?                                                                ─┐                  
  ▸  ⠋  release-not│                                                                                  │       ▴ 45m   11m
     ⠋  日本語の長 │    ▸ ✻  Claude Code                                                              │                7s
-    ⠋  payment-mig│      ❀  OpenAI Codex                                                             │       ▴ 7h     2h
-                  │      ✧  Antigravity CLI                                                          │
-  DONE  3         │      ⌂  Ollama (local)                                                           │                  
+    ⠋  payment-mig│      ❀  Codex                                                                    │       ▴ 7h     2h
+                  │      ✧  Antigravity                                                              │
+  DONE  3         │      ⌂  Ollama                                                                   │                  
     ✓  test-covera│      ❖  Qwen Code                                                                │                9d
     ✗  no-model   │      ◮  Cursor CLI                                                               │                 -
     ✗  failing-job│      ⍁  Grok Build                                                               │                 -

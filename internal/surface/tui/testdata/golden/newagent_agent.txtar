@@ -4,13 +4,13 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  AGENTS          │ MODELS  Claude Code                                                             / filter   3 models  
  ▸ ✻ Claude Code │ ▸ opus    Opus 4.7                                                                                   
-   ❀ OpenAI Cod… │   sonnet  Sonnet 4.6                                                                                 
-   ⌂ Ollama (lo… │   haiku   Haiku 4.5                                                                                  
+   ❀ Codex       │   sonnet  Sonnet 4.6                                                                                 
+   ⌂ Ollama      │   haiku   Haiku 4.5                                                                                  
    ◮ Cursor CLI  │                                                                                                      
    ⍁ Grok Build  │ EFFORT  low  medium  high  xhigh  [max]                                                              
                  │                                                                                                      
    not installed │ SKILLS  optional                                                                                     
-   · Antigravit… │   [x] go-testing  table-driven tests and goldens                                                     
+   · Antigravity │   [x] go-testing  table-driven tests and goldens                                                     
    · Qwen Code   │   [ ] release     cut a release branch                                                               
                  │                                                                                                      
                  │                                                                                                      
@@ -45,13 +45,13 @@
 ────────────────────────────────────────────────────────────────────────────────
  AGENTS          │ MODELS  Claude Code                     / filter   3 models  
  ▸ ✻ Claude Code │ ▸ opus    Opus 4.7                                           
-   ❀ OpenAI Cod… │   sonnet  Sonnet 4.6                                         
-   ⌂ Ollama (lo… │   haiku   Haiku 4.5                                          
+   ❀ Codex       │   sonnet  Sonnet 4.6                                         
+   ⌂ Ollama      │   haiku   Haiku 4.5                                          
    ◮ Cursor CLI  │                                                              
    ⍁ Grok Build  │ EFFORT  low  medium  high  xhigh  [max]                      
                  │                                                              
    not installed │ SKILLS  optional                                             
-   · Antigravit… │   [x] go-testing  table-driven tests and goldens             
+   · Antigravity │   [x] go-testing  table-driven tests and goldens             
    · Qwen Code   │   [ ] release     cut a release branch                       
                  │                                                              
                  │                                                              
@@ -71,13 +71,13 @@
   ‹ [Agents] · Models · Effort · Skills ›         
   AGENTS                                          
   ▸ ✻ Claude Code                                 
-    ❀ OpenAI Codex                                
-    ⌂ Ollama (local)                              
+    ❀ Codex                                       
+    ⌂ Ollama                                      
     ◮ Cursor CLI                                  
     ⍁ Grok Build                                  
                                                   
     not installed                                 
-    · Antigravity CLI                             
+    · Antigravity                                 
     · Qwen Code                                   
                                                   
                                                   
@@ -91,13 +91,13 @@
 ␛[38;2;43;48;60m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────␛[0m
  ␛[38;2;179;146;240mAGENTS␛[0m         ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;230;232;238mMODELS␛[0m  ␛[38;2;230;232;238mClaude Code␛[0m                                                             ␛[1;38;2;230;232;238m/␛[0m␛[38;2;139;145;161m filter   3 models␛[0m  
  ␛[1;38;2;179;146;240m▸␛[0m ␛[38;2;217;119;87m✻␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mClaude Code␛[0m␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mopus␛[0m    ␛[38;2;139;145;161mOpus 4.7␛[0m                                                                                   
-   ␛[38;2;16;163;127m❀␛[0m ␛[38;2;230;232;238mOpenAI Cod…␛[0m␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238msonnet␛[0m  ␛[38;2;139;145;161mSonnet 4.6␛[0m                                                                                 
-   ␛[38;2;184;163;130m⌂␛[0m ␛[38;2;230;232;238mOllama (lo…␛[0m␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238mhaiku␛[0m   ␛[38;2;139;145;161mHaiku 4.5␛[0m                                                                                  
+   ␛[38;2;16;163;127m❀␛[0m ␛[38;2;230;232;238mCodex␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238msonnet␛[0m  ␛[38;2;139;145;161mSonnet 4.6␛[0m                                                                                 
+   ␛[38;2;184;163;130m⌂␛[0m ␛[38;2;230;232;238mOllama␛[0m     ␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238mhaiku␛[0m   ␛[38;2;139;145;161mHaiku 4.5␛[0m                                                                                  
    ␛[38;2;31;40;55m◮␛[0m ␛[38;2;230;232;238mCursor CLI␛[0m ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
    ␛[38;2;229;84;77m⍁␛[0m ␛[38;2;230;232;238mGrok Build␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;230;232;238mEFFORT␛[0m  ␛[38;2;139;145;161mlow␛[0m  ␛[38;2;139;145;161mmedium␛[0m  ␛[38;2;139;145;161mhigh␛[0m  ␛[38;2;139;145;161mxhigh␛[0m  ␛[1m[max]␛[0m                                                              
                 ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
    ␛[38;2;139;145;161mnot installed␛[0m␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;230;232;238mSKILLS␛[0m  ␛[38;2;139;145;161moptional␛[0m                                                                                     
-   ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mAntigravit…␛[0m␛[38;2;43;48;60m │ ␛[0m  [x] ␛[1;38;2;230;232;238mgo-testing␛[0m  ␛[38;2;139;145;161mtable-driven tests and goldens␛[0m                                                     
+   ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mAntigravity␛[0m␛[38;2;43;48;60m │ ␛[0m  [x] ␛[1;38;2;230;232;238mgo-testing␛[0m  ␛[38;2;139;145;161mtable-driven tests and goldens␛[0m                                                     
    ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mQwen Code␛[0m  ␛[38;2;43;48;60m │ ␛[0m  [ ] ␛[1;38;2;230;232;238mrelease␛[0m     ␛[38;2;139;145;161mcut a release branch␛[0m                                                               
                 ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
                 ␛[38;2;43;48;60m │ ␛[0m                                                                                                     
@@ -132,13 +132,13 @@
 ␛[38;2;43;48;60m────────────────────────────────────────────────────────────────────────────────␛[0m
  ␛[38;2;179;146;240mAGENTS␛[0m         ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;230;232;238mMODELS␛[0m  ␛[38;2;230;232;238mClaude Code␛[0m                     ␛[1;38;2;230;232;238m/␛[0m␛[38;2;139;145;161m filter   3 models␛[0m  
  ␛[1;38;2;179;146;240m▸␛[0m ␛[38;2;217;119;87m✻␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mClaude Code␛[0m␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mopus␛[0m    ␛[38;2;139;145;161mOpus 4.7␛[0m                                           
-   ␛[38;2;16;163;127m❀␛[0m ␛[38;2;230;232;238mOpenAI Cod…␛[0m␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238msonnet␛[0m  ␛[38;2;139;145;161mSonnet 4.6␛[0m                                         
-   ␛[38;2;184;163;130m⌂␛[0m ␛[38;2;230;232;238mOllama (lo…␛[0m␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238mhaiku␛[0m   ␛[38;2;139;145;161mHaiku 4.5␛[0m                                          
+   ␛[38;2;16;163;127m❀␛[0m ␛[38;2;230;232;238mCodex␛[0m      ␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238msonnet␛[0m  ␛[38;2;139;145;161mSonnet 4.6␛[0m                                         
+   ␛[38;2;184;163;130m⌂␛[0m ␛[38;2;230;232;238mOllama␛[0m     ␛[38;2;43;48;60m │ ␛[0m  ␛[1;38;2;230;232;238mhaiku␛[0m   ␛[38;2;139;145;161mHaiku 4.5␛[0m                                          
    ␛[38;2;31;40;55m◮␛[0m ␛[38;2;230;232;238mCursor CLI␛[0m ␛[38;2;43;48;60m │ ␛[0m                                                             
    ␛[38;2;229;84;77m⍁␛[0m ␛[38;2;230;232;238mGrok Build␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;230;232;238mEFFORT␛[0m  ␛[38;2;139;145;161mlow␛[0m  ␛[38;2;139;145;161mmedium␛[0m  ␛[38;2;139;145;161mhigh␛[0m  ␛[38;2;139;145;161mxhigh␛[0m  ␛[1m[max]␛[0m                      
                 ␛[38;2;43;48;60m │ ␛[0m                                                             
    ␛[38;2;139;145;161mnot installed␛[0m␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;230;232;238mSKILLS␛[0m  ␛[38;2;139;145;161moptional␛[0m                                             
-   ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mAntigravit…␛[0m␛[38;2;43;48;60m │ ␛[0m  [x] ␛[1;38;2;230;232;238mgo-testing␛[0m  ␛[38;2;139;145;161mtable-driven tests and goldens␛[0m             
+   ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mAntigravity␛[0m␛[38;2;43;48;60m │ ␛[0m  [x] ␛[1;38;2;230;232;238mgo-testing␛[0m  ␛[38;2;139;145;161mtable-driven tests and goldens␛[0m             
    ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mQwen Code␛[0m  ␛[38;2;43;48;60m │ ␛[0m  [ ] ␛[1;38;2;230;232;238mrelease␛[0m     ␛[38;2;139;145;161mcut a release branch␛[0m                       
                 ␛[38;2;43;48;60m │ ␛[0m                                                             
                 ␛[38;2;43;48;60m │ ␛[0m                                                             
@@ -158,13 +158,13 @@
   ␛[38;2;179;146;240m‹ ␛[0m␛[1m[Agents]␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mModels␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mEffort␛[0m␛[38;2;89;96;112m · ␛[0m␛[38;2;139;145;161mSkills␛[0m␛[38;2;179;146;240m ›␛[0m         
   ␛[38;2;179;146;240mAGENTS␛[0m                                          
   ␛[1;38;2;179;146;240m▸␛[0m ␛[38;2;217;119;87m✻␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mClaude Code␛[0m                                 
-    ␛[38;2;16;163;127m❀␛[0m ␛[38;2;230;232;238mOpenAI Codex␛[0m                                
-    ␛[38;2;184;163;130m⌂␛[0m ␛[38;2;230;232;238mOllama (local)␛[0m                              
+    ␛[38;2;16;163;127m❀␛[0m ␛[38;2;230;232;238mCodex␛[0m                                       
+    ␛[38;2;184;163;130m⌂␛[0m ␛[38;2;230;232;238mOllama␛[0m                                      
     ␛[38;2;31;40;55m◮␛[0m ␛[38;2;230;232;238mCursor CLI␛[0m                                  
     ␛[38;2;229;84;77m⍁␛[0m ␛[38;2;230;232;238mGrok Build␛[0m                                  
                                                   
     ␛[38;2;139;145;161mnot installed␛[0m                                 
-    ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mAntigravity CLI␛[0m                             
+    ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mAntigravity␛[0m                                 
     ␛[38;2;89;96;112m· ␛[0m␛[38;2;89;96;112mQwen Code␛[0m                                   
                                                   
                                                   
