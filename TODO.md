@@ -62,5 +62,6 @@
 - [x] make more settings modular and editable / hackable via lua config files and add themes *** (U2 YAML themes + `rex theme`, R05 `config.lua`)
 - [x] add a cmd to add a thick colored border around the current rex window (configurable in settings) that is random by default but can be set to a specific color in settings default colors use pantone colors and are colorblind friendly. *** (U4: `:border`, `window_border`, `window_border_color`)
 - [x] make cols fixed width and not resizeable by default (configurable in settings) but responsive to window size changes including a mobile version (configurable in settings) *** (U5: `column_layout`, `mobile_layout`)
+- [x] change the leftmost selector (agent picker): 5 unicode options incl. a finger pointing right, a little more room, a bit bigger, blink and other cursor settings, all editable in settings *** (U7: `selector_glyph` `▸ ❯ ➜ ➤ ☞`, `selector_gap`, `selector_bold`, `selector_blink`, `selector_blink_ms`)
 - [x] fix antigravity logo in the acutal agent window (not the board) to be centered and not cut off on the right side *** (U6: vt10x REP/tabs, spawn at popup size)
 - [x] change gemini to antigravity and improve functionality with it like you did with claude code (yes, trust this folder etc) *** (PR #15 + A1: OSC 7501 status, resume id, trust fallback)
