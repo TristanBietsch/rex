@@ -262,6 +262,12 @@ func ThemesDir() (string, error) { return field(func(l Layout) string { return l
 // (rex-daemon -state-dir default).
 func DataDir() (string, error) { return field(func(l Layout) string { return l.DataDir }) }
 
+// OnboardedFile returns ~/.local/share/rex/onboarded, written when rex
+// onboard finishes; the board stops suggesting the tour once it exists.
+func OnboardedFile() (string, error) {
+	return field(func(l Layout) string { return filepath.Join(l.DataDir, "onboarded") })
+}
+
 // SnapshotsDir returns ~/.local/share/rex/snapshots, the root of the turn
 // snapshot shadow stores (one folder store per working folder, 0700).
 func SnapshotsDir() (string, error) { return field(func(l Layout) string { return l.SnapshotsDir }) }

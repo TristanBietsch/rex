@@ -129,6 +129,25 @@ func (c *Catalog) Refresh(ctx context.Context, st *settings.Store, force bool) {
 	}()
 }
 
+// InstalledRescanEvery is how often WatchInstalled probes PATH.
+const InstalledRescanEvery = 30 * time.Second
+
+// WatchInstalled probes PATH for the registry's tools every interval until
+// ctx ends, so an agent installed while the daemon runs is offered without a
+// reload. Each probe is a LookPath per tool: no subprocess, no file read.
+func (c *Catalog) WatchInstalled(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			c.srv.RescanInstalled()
+		}
+	}
+}
+
 // stopRefresh cancels the running refresh, if any.
 func (c *Catalog) stopRefresh() {
 	c.mu.Lock()

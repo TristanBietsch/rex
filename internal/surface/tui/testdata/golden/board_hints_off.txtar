@@ -6,15 +6,15 @@
 ────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                      
-   ⚑  dark-mode         system theme vs explicit toggle…                      4m
+    ⚑  dark-mode         system theme vs explicit toggle…                     4m
 
   WAITING  0                                                                    
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3                                                                    
- ▸ ⠋  release-notes     draft ready — which feature leads?           ▴ 45m   11m
-   ⠋  日本語の長いタ…   events_org_ts index live — p95 38ms                   7s
-   ⠋  payment-migrati…  porting billing to the new processor…        ▴ 7h     2h
+ ▸  ⠋  release-notes     draft ready — which feature leads?          ▴ 45m   11m
+    ⠋  日本語の長いタ…   events_org_ts index live — p95 38ms                  7s
+    ⠋  payment-migrati…  porting billing to the new…                 ▴ 7h     2h
 
   DONE  6 hidden                                                                
 
@@ -31,15 +31,15 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   READY  1                                                                                                              
-   ⚑  dark-mode             system theme vs explicit toggle — your call                                               4m
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
 
   WAITING  0                                                                                                            
-      nothing waiting on a tool
+       nothing waiting on a tool
 
   WORKING  3                                                                                                            
- ▸ ⠋  release-notes         draft ready — which feature leads?                                               ▴ 45m   11m
-   ⠋  日本語の長いタスク…   events_org_ts index live — p95 38ms                                                       7s
-   ⠋  payment-migration-v…  porting billing to the new processor — 12/14                                     ▴ 7h     2h
+ ▸  ⠋  release-notes         draft ready — which feature leads?                                              ▴ 45m   11m
+    ⠋  日本語の長いタスク…   events_org_ts index live — p95 38ms                                                      7s
+    ⠋  payment-migration-v…  porting billing to the new processor — 12/14                                    ▴ 7h     2h
 
   DONE  6 hidden                                                                                                        
 

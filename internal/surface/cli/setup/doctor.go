@@ -245,17 +245,28 @@ func checkSettingsLoad() checkResult {
 // checkToolBinaries checks each known tool binary via PATH lookup, the extra
 // agents (Qwen Code, Cursor CLI, Grok Build) included.
 func checkToolBinaries() []checkResult {
-	tools := []string{"claude", "codex", "agy", "ollama", "qwen", "cursor-agent", "grok"}
-	var results []checkResult
-	for _, tool := range tools {
-		path, err := exec.LookPath(tool)
-		if err != nil {
-			results = append(results, checkResult{fmt.Sprintf("tool: %s", tool), checkInfo, "not found on PATH"})
-		} else {
-			results = append(results, checkResult{fmt.Sprintf("tool: %s", tool), checkInfo, path})
+	agents := scanAgents()
+	results := make([]checkResult, 0, len(agents)+1)
+	for _, a := range agents {
+		name := "tool: " + a.Bin
+		switch {
+		case !a.Installed:
+			results = append(results, checkResult{name, checkInfo, "not found on PATH"})
+		case a.Off:
+			results = append(results, checkResult{name, checkInfo, a.Path + " (not offered while extra_agents is off)"})
+		default:
+			results = append(results, checkResult{name, checkInfo, a.Path})
 		}
 	}
-	return results
+	return append(results, checkAgentsInstalled(agents))
+}
+
+// checkAgentsInstalled fails when rex has no installed agent to start.
+func checkAgentsInstalled(agents []agentStatus) checkResult {
+	if n := usableAgents(agents); n > 0 {
+		return checkResult{"agents installed", checkPass, strconv.Itoa(n)}
+	}
+	return checkResult{"agents installed", checkFail, "no coding agent on PATH; install one (rex onboard lists them)"}
 }
 
 // agyMinVersion is the oldest agy rex was tested against.

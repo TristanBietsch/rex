@@ -71,7 +71,7 @@ func boardRows(t *testing.T, m Model, width int) map[string]string {
 	for _, line := range strings.Split(out, "\n") {
 		plain := ansi.Strip(line)
 		for _, s := range m.Sessions {
-			if len(plain) > rowIndent+colMarker+colGap+colID &&
+			if len(plain) > rowIndent()+colMarker+colGap+colID &&
 				strings.Contains(plain, "  "+s.ShortID+"  ") {
 				rows[s.ID] = plain
 			}

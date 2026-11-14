@@ -35,6 +35,7 @@ var applyModeOf = map[string]ApplyMode{
 	// Appearance and the TUI's own behavior: read on every frame or applied
 	// by applyLive.
 	"theme": ApplyLive, "accent_color": ApplyLive, "spinner": ApplyLive, "waiting_spinner": ApplyLive, "row_density": ApplyLive, "prompt_glyph": ApplyLive,
+	"selector_glyph": ApplyLive, "selector_gap": ApplyLive, "selector_bold": ApplyLive, "selector_blink": ApplyLive, "selector_blink_ms": ApplyLive,
 	"reduce_motion": ApplyLive, "blinking_enabled": ApplyLive, "show_help_bar": ApplyLive,
 	"header_style": ApplyLive, "window_border": ApplyLive, "window_border_color": ApplyLive, "column_layout": ApplyLive, "mobile_layout": ApplyLive,
 	"row_icon_set": ApplyLive, "ascii_glyphs": ApplyLive, "row_icons": ApplyLive,

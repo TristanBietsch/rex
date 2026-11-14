@@ -244,7 +244,7 @@ func refreshNewAgent(m Model, offer []registry.Tool, missing []onboardRow) Model
 // spaces.
 func naMarkCol(on bool) string {
 	if on {
-		return styleArrow.Render(selectGlyph()) + " "
+		return selectCursor()
 	}
 	return "  "
 }

@@ -105,7 +105,7 @@
                                                                                                                         
       ␛[38;2;139;145;161m$ rex new -tool claude -model opus -effort max -skill go-testing -trust -cwd /private/var/folders/…  # + context␛[0m  
                                                                                                                         
-    ␛[38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mlaunch␛[0m                                                                                                            
+    ␛[1;38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mlaunch␛[0m                                                                                                            
       ␛[1;38;2;242;107;107m✗ launch failed: daemon is not running (rex daemon start). Your draft is kept.␛[0m                                    
                                                                                                                         
                                                                                                                         
@@ -146,7 +146,7 @@
                                                                                 
       ␛[38;2;139;145;161m$ rex new -tool claude -model opus -effort max -skill go-t…  # + context␛[0m  
                                                                                 
-    ␛[38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mlaunch␛[0m                                                                    
+    ␛[1;38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mlaunch␛[0m                                                                    
       ␛[1;38;2;242;107;107m✗ launch failed: daemon is not running (rex daemon start). Your draft is␛[0m  
       ␛[1;38;2;242;107;107m  kept.␛[0m                                                                   
 ␛[38;2;43;48;60m────────────────────────────────────────────────────────────────────────────────␛[0m
@@ -166,7 +166,7 @@
     ␛[38;2;139;145;161mprompt␛[0m   ␛[38;2;230;232;238m2.0 KB␛[0m␛[38;2;139;145;161m of 96 KB␛[0m                      
     ␛[38;2;139;145;161mslug     ␛[0m␛[1;38;2;230;232;238mcc.opus.the-auth-test-is-flaky-on-ci␛[0m 
                                                   
-  ␛[38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mlaunch␛[0m                                        
+  ␛[1;38;2;179;146;240m▸␛[0m ␛[1;38;2;230;232;238;48;2;29;32;44mlaunch␛[0m                                        
     ␛[1;38;2;242;107;107m✗ launch failed: daemon is not running (rex␛[0m   
     ␛[1;38;2;242;107;107m  daemon start). Your draft is kept.␛[0m          
                                                   

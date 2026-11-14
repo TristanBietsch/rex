@@ -404,7 +404,7 @@ func renderBoard(m Model, width, height int) string {
 	}
 	cols := layoutSlots(slots, m.now(), width, layoutOptsOf(m))
 	// An empty column's text starts where row content does.
-	noneIndent := strings.Repeat(" ", rowIndent+colMarker+colGap)
+	noneIndent := strings.Repeat(" ", rowIndent()+colMarker+colGap)
 	searching := rowFilterOf(m).searching()
 	stacked := mobileLayout(m)
 	lines := make([]string, 0, height)
@@ -461,7 +461,6 @@ const (
 	colTime   = 4  // "59m", "23h", "12d"
 	colSpan   = 13 // start→end: "Jan 2→Jan 2" at most
 	colGap    = 2
-	rowIndent = 3 // " " + arrow/space + " "
 
 	descMin       = 20 // desc width kept before info columns start shrinking
 	descMinNarrow = 8  // desc floor once every info column is gone
@@ -490,7 +489,7 @@ func (c rowCols) used() int {
 	if c.icons {
 		return c.usedIcons()
 	}
-	w := rowIndent + colMarker + colGap + c.slug + colGap + colGap + colTime
+	w := rowIndent() + colMarker + colGap + c.slug + colGap + colGap + colTime
 	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.resume, c.agents, c.run} {
 		if x > 0 {
 			w += colGap + x
@@ -586,6 +585,12 @@ func layoutFit(rows []protocol.SessionSummary, now time.Time, width int, detaile
 	return c
 }
 
+// rowIndent is the width of a row's left edge: a space, the selector slot
+// (the selector glyph's width) and the selector_gap.
+func rowIndent() int {
+	return 1 + selectSlotW() + curSelector.gap
+}
+
 // cell renders s truncated and padded to exactly w columns. It is the board
 // row's choke point for session strings: truncate sanitizes s, so a cell is
 // always one line of printable text.
@@ -593,19 +598,21 @@ func cell(style lipgloss.Style, s string, w int) string {
 	return style.Width(w).Render(truncate(s, w))
 }
 
-// rowLead is a row's left edge: the 3-column indent (selection arrow, fleet
-// bar or blank) and the state marker, plus whether the row shows as waiting.
+// rowLead is a row's left edge: the rowIndent columns (selection arrow, fleet
+// bar or blank, padded to the selector slot, then the gap) and the state
+// marker, plus whether the row shows as waiting.
 func rowLead(m Model, s protocol.SessionSummary) (indent, marker string, waiting bool) {
 	// Marker is the only indicator for the selected row — no bg fill,
 	// avoids the chunky highlight artifacts.
+	slot := selectSlotW()
 	var markerPrefix string
 	if m.SelectedID == s.ID {
-		markerPrefix = styleArrow.Render(selectGlyph())
+		markerPrefix = selectorMark(m, slot)
 	} else if s.Fleet != "" {
 		// Fleet indicator: tinted left border using the fleet's stable color.
-		markerPrefix = styleFleet[fleetIndex(s.Fleet)].Render("▍")
+		markerPrefix = styleFleet[fleetIndex(s.Fleet)].Render("▍") + strings.Repeat(" ", slot-1)
 	} else {
-		markerPrefix = " "
+		markerPrefix = strings.Repeat(" ", slot)
 	}
 	state := s.State
 	if !s.RetireAt.IsZero() {
@@ -616,7 +623,7 @@ func rowLead(m Model, s protocol.SessionSummary) (indent, marker string, waiting
 	if waiting {
 		marker = waitingMarkerCell(m, false)
 	}
-	return " " + markerPrefix + " ", marker, waiting // indent: 3 chars
+	return " " + markerPrefix + strings.Repeat(" ", curSelector.gap), marker, waiting
 }
 
 // rowNameStyle is the name's style: a marked-done row recedes.

@@ -71,3 +71,32 @@ func TestHello_SnapshotCarriesTools(t *testing.T) {
 	require.True(t, got.Installed)
 	require.Equal(t, []protocol.ModelInfo{{ID: "auto", Name: "Auto", Detected: true}}, got.Models)
 }
+
+// A binary installed while the daemon runs is found by the next rescan,
+// without a reload: running clients get one ToolsChanged, a rescan that
+// finds nothing new sends none, and RescanTools answers with the list.
+func TestRescanInstalled_FindsNewBinary(t *testing.T) {
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	srv, sock, _ := newTestServer(t, state.NewStore())
+	serveTest(t, srv)
+	require.False(t, toolByID(t, srv.ToolInfos(), "claude").Installed)
+	require.False(t, srv.RescanInstalled(), "nothing new on PATH")
+
+	conn := dialTest(t, sock)
+	w, r, _ := helloAs(t, conn, "rex-tui")
+	stubOnPath(t, bin, "claude")
+	require.True(t, srv.RescanInstalled())
+	env := waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.Type == protocol.EventToolsChanged })
+	var changed protocol.ToolsChanged
+	require.NoError(t, json.Unmarshal(env.Data, &changed))
+	require.True(t, toolByID(t, changed.Tools, "claude").Installed)
+	require.False(t, srv.RescanInstalled(), "a second rescan finds no change")
+
+	// RescanTools replies with the list, carrying the intent's id.
+	require.NoError(t, w.WriteIntent(protocol.IntentRescanTools, "rs1", struct{}{}))
+	env = waitEvent(t, conn, r, func(e protocol.Envelope) bool { return e.ID == "rs1" })
+	require.Equal(t, protocol.EventToolsChanged, env.Type)
+	require.NoError(t, json.Unmarshal(env.Data, &changed))
+	require.True(t, toolByID(t, changed.Tools, "claude").Installed)
+}

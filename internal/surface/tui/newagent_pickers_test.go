@@ -28,7 +28,7 @@ func TestNewAgent_OffersInstalledToolsOnly(t *testing.T) {
 	none := pickerModel(t)
 	none, _ = executeCommand(none, "new")
 	require.Equal(t, FocusBoard, none.Focus)
-	require.Equal(t, "new agent: no agent is installed (see Settings → Onboarding)", none.Err)
+	require.Equal(t, "new agent: no agent is installed (run rex onboard, or see Settings → Onboarding)", none.Err)
 }
 
 // With every agent installed the agent step lists Qwen Code, Cursor CLI and

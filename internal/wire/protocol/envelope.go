@@ -27,6 +27,7 @@
 //	FocusFilter       Ack
 //	SetMaxConcurrent  Ack
 //	Reload            Ack                           after the new registry is in use
+//	RescanTools       ToolsChanged                  the tool list after the probe, changed or not
 //	Undo, Redo        UndoResult                    files restored and deleted; the folder is changed before the reply
 //	UsageQuery        UsageResult (UsageReport)     not an Ack; bad_intent "usage is off" while the setting is off
 //	UsageSample       none (Ack if it had an ID)    sent by the status-line tap with no ID; dropped quietly when unusable

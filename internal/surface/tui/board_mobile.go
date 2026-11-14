@@ -18,10 +18,10 @@ import (
 // and long-run cells and the age. With row_icons on, the unseen mark and the
 // 1-cell why glyph (?) follow the name: "dark-mode  ✦ ?". Line 2 is the
 // text under the name.
-const (
-	mobileTextIndent = rowIndent + colMarker + colGap // line 2 starts under the name
-	mobileMarksMin   = 36                             // below this width the subagent and badge cells are dropped
-)
+const mobileMarksMin = 36 // below this width the subagent and badge cells are dropped
+
+// mobileTextIndent is where line 2 starts: under the name.
+func mobileTextIndent() int { return rowIndent() + colMarker + colGap }
 
 // renderRowStacked renders a session's two mobile lines.
 func renderRowStacked(m Model, s protocol.SessionSummary, width int) (nameLine, textLine string) {
@@ -40,13 +40,13 @@ func renderRowStacked(m Model, s protocol.SessionSummary, width int) (nameLine, 
 	}
 	icons, iconsW := mobileIcons(m, s, selected)
 	right, rightW = icons+right, iconsW+rightW
-	nameW := max(width-mobileTextIndent-rightW, 0)
+	nameW := max(width-mobileTextIndent()-rightW, 0)
 	nameLine = indent + marker + gap + cell(rowNameStyle(s, selected), displayName(s), nameW) + right
 
-	textW := max(width-mobileTextIndent, 0)
+	textW := max(width-mobileTextIndent(), 0)
 	text := rowDescStyle(m, s, selected).Width(textW).
 		Render(truncateWords(rowDescText(m, s, textW, waiting), textW))
-	textLine = strings.Repeat(" ", mobileTextIndent) + text
+	textLine = strings.Repeat(" ", mobileTextIndent()) + text
 	return blinkRow(m, s.ID, nameLine), blinkRow(m, s.ID, textLine)
 }
 

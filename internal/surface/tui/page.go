@@ -175,9 +175,9 @@ func renderSectionPane(items []paneItem, cur int, focused bool, w, h int) []stri
 			if badgeW > 0 {
 				badge = selectedStyle(styleDim).Render(it.Badge)
 			}
-			lines = append(lines, "  "+styleArrow.Render("▸ ")+sel.Bold(true).Render(title)+sel.Render(gap)+badge)
+			lines = append(lines, "  "+selectCursor()+sel.Bold(true).Render(title)+sel.Render(gap)+badge)
 		case i == cur:
-			lines = append(lines, "  "+styleArrow.Render("▸ "+title)+gap+badge)
+			lines = append(lines, "  "+selectCursor()+styleArrow.Render(title)+gap+badge)
 		case it.Dim:
 			lines = append(lines, "    "+styleMuted.Render(title)+gap+badge)
 		default:

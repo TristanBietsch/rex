@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -171,4 +172,34 @@ func TestCatalog_StaleRefreshDropped(t *testing.T) {
 	cat.Refresh(ctx, st, true)
 	cat.Wait()
 	require.False(t, hasModel(srv.Registry(), "qwen", "qfmodel"), "canceled refresh swaps nothing")
+}
+
+// WatchInstalled finds a binary installed after the daemon started, and
+// stops with its context.
+func TestWatchInstalled_FindsNewBinary(t *testing.T) {
+	catalogHome(t, "")
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	srv, cat := newCatalogServer(t, loadSettings(t))
+	installed := func() bool {
+		for _, ti := range srv.ToolInfos() {
+			if ti.ID == "claude" {
+				return ti.Installed
+			}
+		}
+		return false
+	}
+	require.False(t, installed())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { cat.WatchInstalled(ctx, 10*time.Millisecond); close(done) }()
+	file, body := "claude", "#!/bin/sh\nexit 0\n"
+	if runtime.GOOS == "windows" {
+		file, body = "claude.bat", "@echo off\r\n"
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(bin, file), []byte(body), 0o755)) //nolint:gosec // a test stub must be executable
+	require.Eventually(t, installed, 5*time.Second, 10*time.Millisecond)
+	cancel()
+	<-done
 }

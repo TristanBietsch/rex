@@ -23,6 +23,7 @@ func IsTrustSetting(id string) bool { return slices.Contains(TrustSettingIDs, id
 // setting added later is denied until it is listed here on purpose.
 var WorkspaceAllowIDs = []string{
 	"theme", "accent_color", "spinner", "waiting_spinner", "row_density", "prompt_glyph", "reduce_motion",
+	"selector_glyph", "selector_gap", "selector_bold", "selector_blink", "selector_blink_ms",
 	"blinking_enabled", "show_help_bar", "header_style", "window_border",
 	"window_border_color", "column_layout", "mobile_layout",
 	"mouse_enabled", "attach_scrollback_lines",

@@ -71,11 +71,11 @@ func TestMobileTwoLineRows(t *testing.T) {
 	}
 	require.NotEmpty(t, first)
 	require.Equal(t, 40, ansi.StringWidth(first))
-	require.True(t, strings.HasPrefix(first, " ▸ ⚑  release-notes"), "line 1: %q", first)
+	require.True(t, strings.HasPrefix(first, " ▸  ⚑  release-notes"), "line 1: %q", first)
 	require.Contains(t, first, subagentGlyph+" 2")
 	require.True(t, strings.HasSuffix(first, "11m"), "age flush right: %q", first)
 	require.Equal(t, 40, ansi.StringWidth(second))
-	require.True(t, strings.HasPrefix(second, "      Which feature should lead"), "line 2: %q", second)
+	require.True(t, strings.HasPrefix(second, "       Which feature should lead"), "line 2: %q", second)
 	require.Contains(t, second, "…", "the text is cut to the width")
 
 	// Every row is two lines, so a board of 3 rows has 6 row lines.
@@ -99,7 +99,7 @@ func TestMobileTwoLineRows(t *testing.T) {
 		d := m
 		d.Detailed = true
 		out := ansi.Strip(renderBoard(d, 40, 0))
-		require.Contains(t, out, "      draft ready — which feature leads?")
+		require.Contains(t, out, "       draft ready — which feature")
 	})
 	t.Run("subagent and badge cells only fit from 36 columns", func(t *testing.T) {
 		for _, w := range []int{35, 36} {
@@ -162,7 +162,7 @@ func TestMobileEnsureVisibleKeepsBothLines(t *testing.T) {
 		m = moveSelection(m, 1)
 		var text bool
 		for _, l := range strings.Split(ansi.Strip(renderFullScreen(m, 40, 16)), "\n") {
-			text = text || strings.HasPrefix(l, "      task number "+m.SelectedID[1:])
+			text = text || strings.HasPrefix(l, "       task number "+m.SelectedID[1:])
 		}
 		require.True(t, text, "selected %s: both lines on screen (scroll %d)", m.SelectedID, m.ScrollOffset)
 	}

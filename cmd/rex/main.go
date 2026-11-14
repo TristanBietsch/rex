@@ -160,6 +160,8 @@ func run(args []string) error {
 		return setup.RunTrust(args[1:])
 	case "setup":
 		return setup.RunSetup(args[1:])
+	case "onboard":
+		return setup.RunOnboard(args[1:])
 	case "doctor":
 		return setup.RunDoctor(args[1:])
 	case "update":

@@ -378,6 +378,7 @@ func run(args []string) error {
 	// The one settings poller. With live_reload off it parks without polling;
 	// SIGHUP, rex reload and :reload still reload by hand.
 	go hub.Watch(ctx, 5*time.Second)
+	go cat.WatchInstalled(ctx, boot.InstalledRescanEvery)
 
 	// SIGHUP → reload tools.yaml, then config.yaml.
 	go boot.ReloadOnHUP(ctx, func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) })

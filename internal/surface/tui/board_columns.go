@@ -307,7 +307,7 @@ func squeezeIcons(c *rowCols, width int) {
 
 // usedIcons is used() on the icons path: everything but the spacer.
 func (c rowCols) usedIcons() int {
-	w := rowIndent + colMarker + colGap + c.slug + colGap + colTime
+	w := rowIndent() + colMarker + colGap + c.slug + colGap + colTime
 	for _, x := range []int{c.id, c.model, c.tokens, c.span, c.resume, c.agents, c.run} {
 		if x > 0 {
 			w += colGap + x

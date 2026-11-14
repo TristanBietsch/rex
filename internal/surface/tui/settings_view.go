@@ -301,7 +301,7 @@ func settingsRowsAt(m Model, list []settings.Setting, inner, labelW int, headers
 			badge = selStyle.Render(" ") + selStyle.Foreground(colorFgMuted).Render("lua")
 		}
 		focus = len(lines)
-		marker := styleArrow.Render("▸ ")
+		marker := selectCursor()
 		b := selStyle.Render(bullet)
 		if bullet != "  " {
 			b = selStyle.Foreground(colorAccent).Render(bullet)

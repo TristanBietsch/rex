@@ -474,7 +474,7 @@ func naItemRow(m Model, st *NewAgentState, i, fw int, focused bool) string {
 	}
 	name := stylePrimary.Render(label)
 	if cur {
-		left = styleArrow.Render("▸ ")
+		left = selectCursor()
 		name = selectedStyle(stylePrimary).Bold(true).Render(label)
 	}
 	if cur && st.Renaming {

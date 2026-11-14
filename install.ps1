@@ -394,7 +394,7 @@ if ($script:DaemonStopped) {
 }
 Write-Host ''
 if (-not (Test-Path (Join-Path $HOME '.config\rex'))) {
-  Write-Host '  next: run rex setup to configure rex'
+  Write-Host '  next: run rex onboard for a guided first run'
 } else {
   Write-Host '  next: run rex to launch'
 }

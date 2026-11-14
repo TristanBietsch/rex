@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `rex onboard`: a five-step tour for new users. It checks the install,
+  lists the coding agents on your `PATH` with install hints for the
+  missing ones, runs `rex setup` when there is no config, and teaches the
+  board keys. `rex onboard -check` runs the checks alone, in any format,
+  and exits 1 with no agent installed. The board suggests it on a first
+  run with no config.
+- An agent installed while the daemon runs is offered on the new-agent
+  page within 30 seconds, or at once when the page opens; no `rex reload`
+  needed.
+- The board's selector (the arrow on the selected row) is now a setting:
+  `selector_glyph` picks `▸` `❯` `➜` `➤` `☞` or any glyph you type, and
+  every picker (wizards, settings, new agent, pages) uses it too. `theme`,
+  the default, keeps the theme's own.
+- `selector_gap` (default 2, one more column than before) gives the
+  selector room, and `selector_bold` (on) draws it bold.
+- `selector_blink` (`off`, `blink`, `pulse`) and `selector_blink_ms` make
+  it blink. It is solid right after you move, rests after a minute without
+  input and holds still under `reduce_motion`.
+
 ### Changed
 
 - **`n` opens a stepped, full-screen new-agent flow.** One step per screen,
@@ -19,6 +40,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   there never picks one. The summary shows everything the launch sends and
   the equivalent `rex new` call (display only); `enter` on a row jumps to
   that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
+
+- `rex doctor` lists every agent from the registry (your `tools.yaml`
+  included) and fails when no agent is installed.
 
 ### Removed
 

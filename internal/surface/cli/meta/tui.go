@@ -7,12 +7,25 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/runtime/rexlog"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
+	"github.com/tristanbietsch/rex/internal/surface/cli/setup"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
 )
 
 // QuietBootEnv set to a non-empty value other than "0" silences the boot
 // splash sounds, like --quiet-boot.
 const QuietBootEnv = "REX_QUIET_BOOT"
+
+// onboardNotice is the board's first notice for a new user: no config and
+// rex onboard never finished.
+const onboardNotice = "new to rex? quit (q) and run rex onboard for a guided tour"
+
+// firstRunNotice is onboardNotice for a new user, else "".
+func firstRunNotice() string {
+	if setup.NeedsOnboarding() {
+		return onboardNotice
+	}
+	return ""
+}
 
 // RunTUI opens the Bubble Tea board (no-args entry). quietBoot (or
 // REX_QUIET_BOOT) skips the boot sounds, for scripted relaunches; a plain
@@ -36,6 +49,8 @@ func RunTUIScoped(quietBoot bool, scope *tui.WorkspaceScope) error {
 	if opts.SwapState != "" {
 		_ = os.Unsetenv(tui.SwapEnv)
 		slog.Info("tui: started by a hot swap")
+	} else {
+		opts.Notice = firstRunNotice()
 	}
 	err = swapLoop(opts, func(o tui.RunOptions) error { return tui.RunWith(socket, o) }, execSwap)
 	if err != nil {
