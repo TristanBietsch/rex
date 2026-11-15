@@ -70,6 +70,12 @@ func transcript(t *testing.T, stateDir, id string) string {
 	return string(b)
 }
 
+// lastLines is the last n lines of s.
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	return strings.Join(lines[max(0, len(lines)-n):], "\n")
+}
+
 // A real hot restart: the daemon re-execs in place, the agent keeps its
 // pid and PTY, output that flowed during the handoff is in the transcript
 // exactly once, and input works through the new image.
@@ -164,7 +170,16 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return strings.Count(transcript(t, stateDir, id), "PID:"+strconv.Itoa(childPID)) == 2
 	}, 10*time.Second, 20*time.Millisecond, "same agent answers through the new image")
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, id), "tick149") }, 15*time.Second, 20*time.Millisecond)
+	// The tick stream runs on through the handover. Its 150 ticks take about
+	// 3s, far longer on a slow runner (one sleep process per tick); on a miss
+	// the transcript tail tells a slow stream from one that stopped.
+	deadline := time.Now().Add(30 * time.Second)
+	for !strings.Contains(transcript(t, stateDir, id), "tick149") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no tick149 30s after the handover; transcript tail:\n%s", lastLines(transcript(t, stateDir, id), 20))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
 	all := transcript(t, stateDir, id)
 	require.Equal(t, 1, strings.Count(all, "got:one"))
