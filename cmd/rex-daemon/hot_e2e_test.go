@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -285,11 +286,16 @@ func TestHotRestartSurvivesBrokenToolsYAML(t *testing.T) {
 
 var fdsRe = regexp.MustCompile(`FDS:([0-9,]*):END`)
 
+// fdsSeq numbers the fds probes so each gets its own slug. A clock-based
+// slug collided: macOS reads the wall clock to the microsecond, so
+// UnixNano()%1e6 has only 1000 values.
+var fdsSeq atomic.Int64
+
 // spawnFDs starts the fds probe and returns the descriptors its shell had
 // open.
 func spawnFDs(t *testing.T, c *client.Client, ctx context.Context, stateDir, cwd string) string {
 	t.Helper()
-	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "fds" + strconv.FormatInt(time.Now().UnixNano()%1e6, 10), ToolID: "echo", ModelID: "fds", CWD: cwd})
+	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "fds" + strconv.FormatInt(fdsSeq.Add(1), 10), ToolID: "echo", ModelID: "fds", CWD: cwd})
 	require.NoError(t, err)
 	var ack protocol.Ack
 	require.NoError(t, json.Unmarshal(env.Data, &ack))
