@@ -50,7 +50,7 @@
 2. **Agents.** One row per known agent from the registry (`visibleTools`,
    so `echo` and the `gemini` alias stay out):
    - `✓ Claude Code   claude   /path/to/claude`
-   - `· OpenAI Codex  codex    not installed: see https://github.com/openai/codex`
+   - `· Codex  codex    not installed: see https://github.com/openai/codex`
    - extra agents (qwen, cursor, grok) installed while `extra_agents` is off:
      `✓ … installed, hidden: rex config set extra_agents true`.
    Errors and warnings:

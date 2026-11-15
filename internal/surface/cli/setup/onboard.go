@@ -310,7 +310,11 @@ func (t *tour) run(start int) error {
 	}
 	if err := markOnboarded(); err != nil {
 		slog.Warn("onboard: marker not written", "err", err)
+		t.p.Warn(fmt.Sprintf("onboard: marker not written (%v); the board will suggest rex onboard again", err))
 	}
+	// The tour is interactive: its steps and this closing line are its
+	// output, on stdout like the setup wizard's screens.
+	t.printf("onboard: done; run rex to open the board\n")
 	return nil
 }
 

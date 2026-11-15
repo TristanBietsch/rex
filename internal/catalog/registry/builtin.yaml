@@ -82,7 +82,7 @@ tools:
           arg_template: "--effort={value}"
 
   - id: codex
-    name: "OpenAI Codex"
+    name: "Codex"
     category: paid
     command: ["codex"]
     install_hint: "see https://github.com/openai/codex"
@@ -136,7 +136,7 @@ tools:
   # retired 2026-06-18. A full-screen TUI. Model slugs come from
   # `agy models`; a Gemini slug carries its effort, so the effort picks it.
   - id: antigravity
-    name: "Antigravity CLI"
+    name: "Antigravity"
     category: paid
     command: ["agy"]
     prompt_args: ["--prompt-interactive={prompt}"]
@@ -233,7 +233,7 @@ tools:
         args: ["--model", "gemini-2.5-flash"]
 
   - id: ollama
-    name: "Ollama (local)"
+    name: "Ollama"
     category: self_hosted
     command: ["ollama", "run"]
     install_hint: "download from https://ollama.com"
@@ -424,7 +424,7 @@ tools:
           arg_template: "--effort={value}"
 
   - id: kimi
-    name: "Kimi (Moonshot)"
+    name: "Kimi"
     category: paid
     command: ["kimi"]
     detect:

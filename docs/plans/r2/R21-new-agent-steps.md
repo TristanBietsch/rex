@@ -195,7 +195,7 @@ These rules override anything above that disagrees.
 
 ## Handoff (2026-11-13)
 
-Branch `feat/new-agent-steps`, worktree `.claude/worktrees/new-agent-steps`. All commits signed (`git log --format='%h %G? %s'`). Up to date with `integration/todo` @ `e73021e` (onboard + U7 selector merged in; cursors use `selectCursor()` via `naMarkCol`).
+Branch `feat/new-agent-steps`, worktree `.claude/worktrees/new-agent-steps`. All commits signed (`git log --format='%h %G? %s'`). Up to date with `integration/todo` @ `8d7292b` (also merged: agent label renames from onboard-done) (onboard + U7 selector merged in; cursors use `selectCursor()` via `naMarkCol`).
 
 Done:
 - Spec, spec review (25 findings, folded in as "Iteration 1"), implementation, code review (12 findings, all fixed with tests), `:new!`.
@@ -207,4 +207,4 @@ Next:
 1. User tries it: `cd .claude/worktrees/new-agent-steps && go run ./cmd/rex`, press `n`. Open question for the user: esc on a step before the one the page opened on closes the page (K1 literal); maybe it should go back one step instead.
 2. Re-run `make check` on a quiet machine until the coverage gate runs green.
 3. Merge to `integration/todo` per the merge-queue rule: main checkout clean, no `.git/MERGE_HEAD`, message the active sessions (tristan-0e, tristan-2d) "starting", wait for ack, `git merge --no-ff -S feat/new-agent-steps`, `make check` in main, message "finished". Never bypass signing.
-4. Optional follow-ups: rename `WizardState`/`wizard*.go` leftovers to selection/trust names; parked branch `fix/agent-label-names` (agent rename edits, not ours) still unmerged.
+4. Optional follow-ups: rename `WizardState`/`wizard*.go` leftovers to selection/trust names; known flake also seen: luacfg `TestEval_ChunkNamesErrors` (passes alone).

@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   missing ones, runs `rex setup` when there is no config, and teaches the
   board keys. `rex onboard -check` runs the checks alone, in any format,
   and exits 1 with no agent installed. The board suggests it on a first
-  run with no config.
+  run with no config. Finishing ends with one line,
+  `onboard: done; run rex to open the board`.
 - An agent installed while the daemon runs is offered on the new-agent
   page within 30 seconds, or at once when the page opens; no `rex reload`
   needed.
@@ -43,6 +44,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `rex doctor` lists every agent from the registry (your `tools.yaml`
   included) and fails when no agent is installed.
+- Shorter agent names so the agents column is not cut off: Codex (was
+  OpenAI Codex), Antigravity (was Antigravity CLI), Ollama (was Ollama
+  (local)) and Kimi (was Kimi (Moonshot)).
 
 ### Removed
 
