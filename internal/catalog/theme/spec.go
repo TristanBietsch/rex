@@ -54,6 +54,7 @@ func colorKeys(p *Palette) map[string]*string {
 		"working": &p.Working, "queued": &p.Queued, "needs": &p.Needs,
 		"done": &p.Done, "failed": &p.Failed, "crashed": &p.Crashed,
 		"warn": &p.Warn, "danger": &p.Danger, "success": &p.Success, "info": &p.Info,
+		"cyber": &p.Cyber,
 	}
 }
 
@@ -71,7 +72,7 @@ type Token struct{ Name, Value string }
 var colorOrder = []string{
 	"bg", "fg", "fg_dim", "fg_muted", "bg_sel", "border", "border_focus", "accent",
 	"working", "queued", "needs", "done", "failed", "crashed",
-	"warn", "danger", "success", "info",
+	"warn", "danger", "success", "info", "cyber",
 }
 
 // glyphOrder is the order glyphs are listed in.

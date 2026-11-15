@@ -48,6 +48,7 @@ func TestBuiltinContrast(t *testing.T) {
 		at("Needs", p.Needs, 4.5)
 		at("Done", p.Done, 4.5)
 		at("Failed", p.Failed, 4.5)
+		at("Cyber", p.Cyber, 4.5)
 		at("BorderFocus", p.BorderFocus, 3)
 		at("FgMuted", p.FgMuted, 2)
 		require.Less(t, Contrast(p.FgMuted, p.Bg), Contrast(p.FgDim, p.Bg), "%s: muted recedes behind dim", p.Name)
@@ -139,7 +140,7 @@ func TestAnsiThemeIndices(t *testing.T) {
 	require.False(t, isHex(p.Fg))
 	for name, v := range map[string]string{
 		"Accent": p.Accent, "Working": p.Working, "Queued": p.Queued, "Needs": p.Needs,
-		"Failed": p.Failed, "Warn": p.Warn, "Danger": p.Danger, "Info": p.Info,
+		"Failed": p.Failed, "Warn": p.Warn, "Danger": p.Danger, "Info": p.Info, "Cyber": p.Cyber,
 	} {
 		n, err := strconv.Atoi(v)
 		require.NoError(t, err, "ansi.%s=%q is an index", name, v)
@@ -166,6 +167,9 @@ func TestAnsiThemeIndices(t *testing.T) {
 	require.Equal(t, p.Done, p.Success, "success follows done (quota OK, check marks)")
 	require.Equal(t, "4", p.Working)
 	require.Equal(t, "5", p.Accent)
+	// Cyber Yellow is the normal yellow, not bright 11: a Solarized terminal
+	// maps the bright indexes to grays.
+	require.Equal(t, "3", p.Cyber)
 }
 
 func TestFaintOnlyOnAnsi(t *testing.T) {

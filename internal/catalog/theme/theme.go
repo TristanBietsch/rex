@@ -29,6 +29,9 @@ type Palette struct {
 	// Feedback colors; they default to the state color of the same meaning.
 	Warn, Danger, Success, Info string
 	Fleet                       []string
+	// Cyber paints the sh wait label and the spend $ on board rows: Pantone
+	// Cyber Yellow (14-0760), darkened where the background is light.
+	Cyber string
 	// SelReverse draws the selection in reverse video instead of BgSel.
 	SelReverse bool
 	// Faint draws FgDim, FgMuted and Border faint (SGR 2) on the terminal

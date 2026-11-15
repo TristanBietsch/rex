@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -83,9 +84,50 @@ func TestSpendCell_NilBlank(t *testing.T) {
 }
 
 func TestSpendStyle(t *testing.T) {
-	require.Equal(t, styleDim, spendStyle(4.99))
+	require.Equal(t, styleCyber, spendStyle(4.99))
 	require.Equal(t, styleLongRun[1], spendStyle(5))
 	require.Equal(t, styleLongRun[0], spendStyle(20))
+}
+
+func TestSpendCellStyle(t *testing.T) {
+	cost := func(usd float64) protocol.SessionSummary { return protocol.SessionSummary{CostUSD: &usd} }
+	done := func(s protocol.SessionSummary) protocol.SessionSummary {
+		s.RetireAt = cellNow.Add(time.Hour)
+		return s
+	}
+	require.Equal(t, styleCyber, spendCellStyle(cost(0.42)))
+	require.Equal(t, styleDim, spendCellStyle(done(cost(0.42))), "a marked-done row keeps a dim spend")
+	require.Equal(t, styleLongRun[1], spendCellStyle(done(cost(6))), "the red tiers still show on a marked-done row")
+	require.Equal(t, styleLongRun[0], spendCellStyle(cost(25)))
+	require.Equal(t, styleDim, spendCellStyle(protocol.SessionSummary{}), "no cost, nothing to color")
+}
+
+// The help legend explains the strip's colors, so its sh and spend samples
+// wear the board's colors.
+func TestRowIconLegend_ShAndSpendMatchBoard(t *testing.T) {
+	m := cellModel(t, "waiting_section", true, "usage", true)
+	withProfile(termenv.TrueColor, func() {
+		keys := map[string]string{}
+		for _, r := range rowIconLegend(m) {
+			keys[ansi.Strip(r.Key)] = r.Key
+		}
+		require.Equal(t, styleCyber.Render("sh 42s"), keys["sh 42s"])
+		require.Equal(t, styleCyber.Render("$0.42"), keys["$0.42"])
+	})
+}
+
+func TestReasonStyle_ShellIsCyber(t *testing.T) {
+	m := cellModel(t, "waiting_section", true)
+	w := protocol.SessionSummary{State: protocol.StateWorking, WaitingOn: "shell", WaitingSince: cellNow.Add(-42 * time.Second)}
+	text, style := reasonText(m, w)
+	require.Equal(t, "sh 42s", text)
+	require.Equal(t, styleCyber, style)
+	require.NotEqual(t, styleWorking, style, "sh and sub no longer share a color")
+	for _, kind := range []string{"web", "subagent"} {
+		w.WaitingOn = kind
+		_, style = reasonText(m, w)
+		require.Equal(t, styleWorking, style, kind)
+	}
 }
 
 func TestLoopSlotText(t *testing.T) {

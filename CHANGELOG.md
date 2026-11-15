@@ -35,6 +35,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Shorter agent names so the agents column is not cut off: Codex (was
   OpenAI Codex), Antigravity (was Antigravity CLI), Ollama (was Ollama
   (local)) and Kimi (was Kimi (Moonshot)).
+- The board's `sh` wait cell (`sh 42s`) and the spend `$` under $5 are
+  Cyber Yellow (Pantone 14-0760), so `sh` no longer shares blue with
+  `sub` and `web`. The new `cyber` theme token sets the color; a theme
+  that leaves it out inherits it. `paper` and `ansi` use a darker gold
+  and the terminal's yellow.
 
 ### Fixed (Windows)
 
