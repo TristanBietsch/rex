@@ -180,6 +180,7 @@ func TestTour_WalksEveryStep(t *testing.T) {
 	require.True(t, ok)
 	require.Contains(t, got, cc)
 	require.Contains(t, got, "Claude Code (claude)")
+	require.True(t, strings.HasSuffix(got, "onboard: done; run rex to open the board\n"), "the closing line ends the output")
 	require.False(t, NeedsOnboarding(), "the marker is written")
 }
 
@@ -197,6 +198,7 @@ func TestTour_NoAgentBlocks(t *testing.T) {
 	require.Contains(t, got, "fix the failed check first")
 	require.Contains(t, got, "resume with: rex onboard -step 2")
 	require.NotContains(t, got, "[3/5]")
+	require.NotContains(t, got, "onboard: done", "quitting is not finishing")
 }
 
 // r on step 2 rescans: an agent installed meanwhile unblocks the tour.
@@ -323,11 +325,33 @@ func TestTour_BackAndUnknownKey(t *testing.T) {
 	require.Contains(t, got, `unknown key "zz"`)
 }
 
-// End of input quits like q.
+// End of input quits like q; neither prints the closing line.
 func TestTour_EOFQuits(t *testing.T) {
 	agentsOnPath(t, "claude")
 	fakeOnboardDaemon(t, map[string]bool{"claude": true})
-	out := tourAt(t, "")
-	require.NoError(t, RunOnboard(nil))
-	require.Contains(t, out.String(), "resume with: rex onboard -step 1")
+	for _, input := range []string{"", "q\n"} {
+		out := tourAt(t, input)
+		require.NoError(t, RunOnboard(nil))
+		require.Contains(t, out.String(), "resume with: rex onboard -step 1")
+		require.NotContains(t, out.String(), "onboard: done")
+		require.True(t, NeedsOnboarding(), "no marker")
+	}
+}
+
+// A marker that cannot be written is a warning: the tour still finishes.
+func TestTour_MarkerNotWritten(t *testing.T) {
+	agentsOnPath(t, "claude")
+	fakeOnboardDaemon(t, map[string]bool{"claude": true})
+	out := tourAt(t, "\n")
+	marker, err := paths.OnboardedFile()
+	require.NoError(t, err)
+	// A file where the data folder should be: MkdirAll fails.
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Dir(marker)), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Dir(marker), nil, 0o600))
+
+	require.NoError(t, RunOnboard([]string{"-step", "5"}))
+	got := out.String()
+	require.Contains(t, got, "onboard: marker not written")
+	require.Contains(t, got, "the board will suggest rex onboard again")
+	require.True(t, strings.HasSuffix(got, "onboard: done; run rex to open the board\n"))
 }

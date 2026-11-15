@@ -671,7 +671,7 @@ Five steps, one screen each. `enter` goes on, `b` goes back, `q` quits and print
    - Qwen Code, Cursor CLI or Grok Build installed while `extra_agents` is off: `rex config set extra_agents true`.
 3. **Configure**: with no config, `s` runs [`rex setup`](#rex-setup); with one, it shows the default agent, model and effort, and warns when the default agent is not installed (with `rex config set default_spawn_tool <id>` for each one that is).
 4. **The board**: the four sections and the keys `n`, `enter`, `qq`, `tab`, `cc`, `uc`, `S` and `?`, described as `?` describes them.
-5. **Next steps**: the commands to go on with. Finishing writes `~/.local/share/rex/onboarded`; until then, the board opened with no config shows a notice suggesting `rex onboard`.
+5. **Next steps**: the commands to go on with. Finishing prints `onboard: done; run rex to open the board` and writes `~/.local/share/rex/onboarded` (a failed write is a warning on stderr; the tour still finishes, and the board keeps suggesting `rex onboard`); until then, the board opened with no config shows a notice suggesting `rex onboard`.
 
 The tour needs a terminal: in agent mode, with `-o` or a pipe it exits **5** (`needs_terminal`), pointing at `-check`.
 

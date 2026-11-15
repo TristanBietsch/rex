@@ -124,7 +124,7 @@ Keep the version in step with `GOLANGCI_LINT_PKG` in the `Makefile`.
 
 ## 7. Latest: `rex onboard` (2026-11-13)
 
-On `integration/todo` (not pushed; ahead of `origin`):
+On `integration/todo` (pushed 2026-11-13):
 
 - `522ed38`, `678e55a`: **`rex onboard`**. Spec and decisions:
   [../plans/ON1-onboard.md](../plans/ON1-onboard.md). User docs:
@@ -154,18 +154,28 @@ On `integration/todo` (not pushed; ahead of `origin`):
 - `8fe3edd`: shorter agent display names (Codex, Antigravity, Ollama, Kimi).
   Found uncommitted in main with no owner, parked, reviewed, merged.
 
+Tried by hand (2026-11-15) in a real terminal with a throwaway HOME: all
+five steps, `r` rescan, `s` into the setup wizard and `esc` back, the
+marker, and the board's first-run notice. Finishing prints one line,
+`onboard: done; run rex to open the board` on stdout (the tour is
+interactive; its steps print there too); a failed marker write is a
+`Printer.Warn` on stderr and the tour still finishes.
+
 Open:
 
-1. Push `integration/todo` when the user says so.
-2. The interactive tour was tested with scripted stdin only, never driven
-   in a real terminal. Try `rex onboard` by hand once.
-3. Settings → Onboarding and the new-agent page "N more" row predate ON1;
+1. Settings → Onboarding and the new-agent page "N more" row predate ON1;
    unchanged by decision. Revisit if users want missing agents hidden.
-4. `RescanTools` is not exposed as a CLI command; `rex reload` still works.
+2. `RescanTools` is not exposed as a CLI command; `rex reload` still works.
+3. Found while testing, not fixed (predate ON1):
+   - `rex daemon stop` has no `-socket` flag, so a daemon on a non-default
+     socket can only be stopped by signal.
+   - A HOME with a long path makes the default socket
+     (`~/.cache/rex/rex.sock`) longer than the macOS 104-byte limit; set
+     `XDG_RUNTIME_DIR` to a short folder or pass `-socket`.
 
 ## 8. Latest: U7 board selector settings (2026-11-13)
 
-On `integration/todo` (not pushed):
+On `integration/todo` (pushed 2026-11-13):
 
 Plan and decisions: [../plans/U7-selector-glyph-gutter-blink-settings.md](../plans/U7-selector-glyph-gutter-blink-settings.md).
 Commits `5dbf94e`, `d15d7a1`, `46f6c4b` (+ TODO line `e73021e`).
