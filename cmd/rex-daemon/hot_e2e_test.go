@@ -70,9 +70,9 @@ func transcript(t *testing.T, stateDir, id string) string {
 	return string(b)
 }
 
-// lastLines is the last n lines of s.
+// lastLines is the last n lines of s, without the PTY's carriage returns.
 func lastLines(s string, n int) string {
-	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	lines := strings.Split(strings.TrimRight(strings.ReplaceAll(s, "\r", ""), "\n"), "\n")
 	return strings.Join(lines[max(0, len(lines)-n):], "\n")
 }
 
@@ -171,12 +171,26 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 		return strings.Count(transcript(t, stateDir, id), "PID:"+strconv.Itoa(childPID)) == 2
 	}, 10*time.Second, 20*time.Millisecond, "same agent answers through the new image")
 	// The tick stream runs on through the handover. Its 150 ticks take about
-	// 3s, far longer on a slow runner (one sleep process per tick); on a miss
-	// the transcript tail tells a slow stream from one that stopped.
-	deadline := time.Now().Add(30 * time.Second)
-	for !strings.Contains(transcript(t, stateDir, id), "tick149") {
-		if time.Now().After(deadline) {
-			t.Fatalf("no tick149 30s after the handover; transcript tail:\n%s", lastLines(transcript(t, stateDir, id), 20))
+	// 3s, far longer on a slow runner (one sleep process per tick). A stream
+	// that stops fails after 10s without a new tick; a slow one gets 30s.
+	tickRe := regexp.MustCompile(`tick(\d+)`)
+	last, start := -1, time.Now()
+	lastAt := start
+	for {
+		all := transcript(t, stateDir, id)
+		if strings.Contains(all, "tick149") {
+			break
+		}
+		if m := tickRe.FindAllStringSubmatch(all, -1); len(m) > 0 {
+			if n, _ := strconv.Atoi(m[len(m)-1][1]); n != last {
+				last, lastAt = n, time.Now()
+			}
+		}
+		switch {
+		case time.Since(lastAt) > 10*time.Second:
+			t.Fatalf("ticks stopped at tick%d: none for 10s after the pid echo; transcript tail:\n%s", last, lastLines(all, 20))
+		case time.Since(start) > 30*time.Second:
+			t.Fatalf("ticks still flowing but slow: at tick%d 30s after the pid echo; transcript tail:\n%s", last, lastLines(all, 20))
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
