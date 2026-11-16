@@ -254,11 +254,17 @@ func TestEvalRequireCycleAndLimits(t *testing.T) {
 	}
 	require.ErrorContains(t, f.eval().Err, "more than 64 modules")
 
-	f = newFixture(t, `require("big1") require("big2") require("big3") require("big4") require("big5")`)
-	for i := 1; i <= 5; i++ {
-		f.write("lua/big"+itoa(i)+".lua", "-- "+strings.Repeat("x", 250<<10)+"\n")
-	}
-	require.ErrorContains(t, f.eval().Err, "larger than 1024 KiB")
+	// Four of these modules (a megabyte of source) compile before the total
+	// cap trips; under the race detector on a slow runner that outruns
+	// Timeout and the cap would be reported as a timeout.
+	t.Run("total cap", func(t *testing.T) {
+		withEvalTimeout(t, 10*time.Second)
+		f := newFixture(t, `require("big1") require("big2") require("big3") require("big4") require("big5")`)
+		for i := 1; i <= 5; i++ {
+			f.write("lua/big"+itoa(i)+".lua", "-- "+strings.Repeat("x", 250<<10)+"\n")
+		}
+		require.ErrorContains(t, f.eval().Err, "larger than 1024 KiB")
+	})
 
 	f = newFixture(t, `require("huge")`)
 	f.write("lua/huge.lua", "-- "+strings.Repeat("x", MaxScript)+"\n")
@@ -288,12 +294,36 @@ func TestEval_ScriptTooBig(t *testing.T) {
 
 // CPU
 
+// deadlineSlack is how far past its budget a deadline test lets an
+// evaluation return. A loaded runner under -race can take well over 100ms to
+// notice the deadline and hand the result back; these tests only need to
+// prove that the evaluation stops instead of running on.
+const deadlineSlack = 2 * time.Second
+
 func TestEvalTimeout(t *testing.T) {
 	start := time.Now()
 	r := evalScript(t, "while true do end")
-	require.Less(t, time.Since(start), 300*time.Millisecond+50*time.Millisecond)
+	require.Less(t, time.Since(start), Timeout+deadlineSlack)
 	require.ErrorContains(t, r.Err, "timed out")
 	require.Empty(t, r.Values)
+}
+
+// withEvalTimeout sets the evaluation budget for one test.
+func withEvalTimeout(t *testing.T, d time.Duration) {
+	t.Helper()
+	old := evalTimeout
+	evalTimeout = d
+	t.Cleanup(func() { evalTimeout = old })
+}
+
+func TestEvalTimeoutHook(t *testing.T) {
+	withEvalTimeout(t, 600*time.Millisecond)
+	start := time.Now()
+	r := evalScript(t, "while true do end")
+	// A lower bound holds however loaded the machine is; the default
+	// Timeout would have stopped the script at 250ms.
+	require.GreaterOrEqual(t, time.Since(start), 2*Timeout, "the budget sets the deadline")
+	require.ErrorContains(t, r.Err, "timed out after 600ms", "and the message")
 }
 
 func TestEvalDeepRecursionHitsStackLimit(t *testing.T) {
@@ -308,14 +338,14 @@ func TestEvalPathologicalPatternReturnsAtDeadline(t *testing.T) {
 local s = string.rep("a", 200000)
 string.find(s, ".-.-.-.-.-.-b")
 `)
-	require.Less(t, time.Since(start), Timeout+150*time.Millisecond)
-	require.Error(t, r.Err)
+	require.Less(t, time.Since(start), Timeout+deadlineSlack)
+	require.ErrorContains(t, r.Err, "timed out")
 }
 
 func TestEvalPcallCannotSwallowTheDeadline(t *testing.T) {
 	start := time.Now()
 	r := evalScript(t, "while true do local ok = pcall and pcall(function() while true do end end) end")
-	require.Less(t, time.Since(start), 350*time.Millisecond)
+	require.Less(t, time.Since(start), Timeout+deadlineSlack)
 	require.Error(t, r.Err)
 }
 
@@ -457,6 +487,9 @@ func TestEval_StatErrorOnDirectory(t *testing.T) {
 }
 
 func TestEval_ParentContextCancel(t *testing.T) {
+	// Only the cancel may stop it: under load the 20ms sleeper could
+	// otherwise lose to the default deadline and read "timed out".
+	withEvalTimeout(t, 10*time.Second)
 	f := newFixture(t, "while true do end")
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(20 * time.Millisecond); cancel() }()

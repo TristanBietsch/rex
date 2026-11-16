@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -67,6 +68,12 @@ func transcript(t *testing.T, stateDir, id string) string {
 	t.Helper()
 	b, _ := os.ReadFile(filepath.Join(stateDir, "sessions", id, "transcript.log"))
 	return string(b)
+}
+
+// lastLines is the last n lines of s, without the PTY's carriage returns.
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(strings.ReplaceAll(s, "\r", ""), "\n"), "\n")
+	return strings.Join(lines[max(0, len(lines)-n):], "\n")
 }
 
 // A real hot restart: the daemon re-execs in place, the agent keeps its
@@ -163,7 +170,30 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return strings.Count(transcript(t, stateDir, id), "PID:"+strconv.Itoa(childPID)) == 2
 	}, 10*time.Second, 20*time.Millisecond, "same agent answers through the new image")
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, id), "tick149") }, 15*time.Second, 20*time.Millisecond)
+	// The tick stream runs on through the handover. Its 150 ticks take about
+	// 3s, far longer on a slow runner (one sleep process per tick). A stream
+	// that stops fails after 10s without a new tick; a slow one gets 30s.
+	tickRe := regexp.MustCompile(`tick(\d+)`)
+	last, start := -1, time.Now()
+	lastAt := start
+	for {
+		all := transcript(t, stateDir, id)
+		if strings.Contains(all, "tick149") {
+			break
+		}
+		if m := tickRe.FindAllStringSubmatch(all, -1); len(m) > 0 {
+			if n, _ := strconv.Atoi(m[len(m)-1][1]); n != last {
+				last, lastAt = n, time.Now()
+			}
+		}
+		switch {
+		case time.Since(lastAt) > 10*time.Second:
+			t.Fatalf("ticks stopped at tick%d: none for 10s after the pid echo; transcript tail:\n%s", last, lastLines(all, 20))
+		case time.Since(start) > 30*time.Second:
+			t.Fatalf("ticks still flowing but slow: at tick%d 30s after the pid echo; transcript tail:\n%s", last, lastLines(all, 20))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
 	all := transcript(t, stateDir, id)
 	require.Equal(t, 1, strings.Count(all, "got:one"))
@@ -285,11 +315,16 @@ func TestHotRestartSurvivesBrokenToolsYAML(t *testing.T) {
 
 var fdsRe = regexp.MustCompile(`FDS:([0-9,]*):END`)
 
+// fdsSeq numbers the fds probes so each gets its own slug. A clock-based
+// slug collided: macOS reads the wall clock to the microsecond, so
+// UnixNano()%1e6 has only 1000 values.
+var fdsSeq atomic.Int64
+
 // spawnFDs starts the fds probe and returns the descriptors its shell had
 // open.
 func spawnFDs(t *testing.T, c *client.Client, ctx context.Context, stateDir, cwd string) string {
 	t.Helper()
-	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "fds" + strconv.FormatInt(time.Now().UnixNano()%1e6, 10), ToolID: "echo", ModelID: "fds", CWD: cwd})
+	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "fds" + strconv.FormatInt(fdsSeq.Add(1), 10), ToolID: "echo", ModelID: "fds", CWD: cwd})
 	require.NoError(t, err)
 	var ack protocol.Ack
 	require.NoError(t, json.Unmarshal(env.Data, &ack))
