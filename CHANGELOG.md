@@ -123,6 +123,15 @@ The first release since v1. Details for every change follow the summary.
 - Paths under your home folder show as `~/dev/rex` in the TUI, as in the
   CLI, and `rex trust` saves the suggested folder that way.
 
+### Fixed (hourglass waiting icon)
+
+- The `hourglass` Waiting icon now shows its sand: full in the top bulb,
+  running into the bottom one until it is full, then the glass turns and
+  the top is full again. It used to rock between an empty glass and two
+  half-filled bowties.
+- Two more hourglasses for `waiting_spinner`: `hourglass_drip` (one grain
+  at a time through the neck) and `hourglass_thin` (a one-column glass).
+
 ### Changed (green Ready, check-mark Done, new icons)
 
 - READY is green: its rows' marker, the section title, the `N ready`

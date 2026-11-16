@@ -46,8 +46,8 @@ var Registry = []Setting{
 	{
 		ID: "waiting_spinner", Label: "Waiting icon", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeEnum, Default: "clock",
-		Options: []string{"clock", "hourglass", "sand", "orbit", "pendulum", "pulse"},
-		Help:    "Change the marker of a session waiting on a tool (Waiting section): a clock hand, an hourglass turning over, sand piling up, an orbit, a pendulum or a slow pulse. It steps once a second; reduce_motion holds it still.",
+		Options: []string{"clock", "hourglass", "hourglass_drip", "hourglass_thin", "sand", "orbit", "pendulum", "pulse"},
+		Help:    "Change the marker of a session waiting on a tool (Waiting section): a clock hand, an hourglass whose sand runs from the top bulb to the bottom one and turns over (hourglass, hourglass_drip with one falling grain, hourglass_thin in one column), sand piling up, an orbit, a pendulum or a slow pulse. It steps once a second; reduce_motion holds it still.",
 	},
 	{
 		ID: "row_density", Label: "Row density", Section: SectionAppearance, Apply: ApplyLive,
