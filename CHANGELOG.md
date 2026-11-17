@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Summary scanner**: while the selected session is in Working or
+  Waiting, a band of color sweeps back and forth across the AI summary
+  line under the board (a Larson scanner, like KITT's or RoboCop's visor).
+  `summary_scan` turns it on or off (on by default; `reduce_motion` stops
+  it). `summary_scan_color` picks its color: `accent` (the default,
+  follows `accent_color`), a named color, or a custom `#rrggbb`, `rgb()`,
+  `hsl()`, `cmyk()` or `oklch()` value.
+- **`filter_chips`** (on by default): turn it off to hide the tool filter
+  chip row (`all · claude · ollama …`). Filtering still works with `t`,
+  `:filter` and the `z` chords; while a filter is active the row shows it
+  as text (`claude only (t)`).
+
 ## [2.0.0] - 2026-11-17
 
 The first release since v1. Details for every change follow the summary.
