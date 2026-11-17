@@ -80,7 +80,7 @@ func naRexNewLine(st *NewAgentState, cwd string, w int) string {
 	if st.Trust == trustSession {
 		parts = append(parts, "-trust")
 	}
-	add("-cwd", cwd)
+	add("-cwd", naShowDir(cwd))
 	var extra []string
 	if len(st.Items) > 0 {
 		extra = append(extra, "context")

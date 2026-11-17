@@ -15,8 +15,9 @@ import (
 // change the choice; enter goes on to the next step and never picks, and a
 // launch writes auto_trust_dirs only for an explicitly chosen "always".
 
-// naShowDir is how the trust step names a folder: as it is. Tests swap it
-// to keep a temp folder out of a golden file.
+// naShowDir is how the trust step and the summary's rex new line name a
+// folder: as it is. Tests swap it to keep a temp folder (a different path
+// on each OS) out of a golden file.
 var naShowDir = func(dir string) string { return dir }
 
 // naTrustChoices is the offer for the folder and the choices the step
