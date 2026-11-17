@@ -334,7 +334,7 @@ Prints `short_id` and `slug` tab-separated on success.
 
 Without `-slug` the slug is derived from the prompt (`session` if none) and suffixed `-2`, `-3`, … if already in use. An explicit `-slug` is used as given; if another session holds it the daemon rejects the spawn (exit 5).
 
-`-name` sets the session's display name (see `rex name`; whitespace is collapsed, at most 64 characters). With no prompt and no `-slug`, the slug is derived from the name.
+`-name` sets the session's display name (see `rex name`; whitespace is collapsed, at most 64 characters). With no prompt and no `-slug`, the slug is derived from the name. A name another session holds, in any case, is refused with exit 5: `rex: spawn failed: name "Fix Auth" already in use by 7d4f`.
 
 `-skill name` loads a skill from the library at `~/.config/rex/skills` into this session only; repeat it for more (at most 16). The daemon copies the skills into the session's folder and starts Claude Code with `--plugin-dir`, so nothing is written to `~/.claude`. List the names with `rex skills`; see [howto/skills.md](howto/skills.md). Exit 5 when a name is invalid or not in the library, when the tool cannot load skills per session (Antigravity cannot), or when the `spawn_skills` setting is off (`off: enable in Settings → Features (rex config set spawn_skills true)`). Against a `rex-daemon` older than these flags, `rex new` still spawns and prints `warning: this rex-daemon ignored skills; run \`rex daemon restart\`` on stderr.
 
@@ -495,6 +495,8 @@ rex name <sel> <text…> [-socket path]   # set
 rex name -clear <sel>                   # clear (board shows slug)
 rex name <sel>                          # print
 ```
+
+Names are unique among the sessions that still exist, in any state (done and marked-done sessions included), compared without regard to case or repeated spaces. A name another session holds exits 5 with `rex: name "Fix Auth" already in use by 7d4f`; clear or rename that session, or `rex rm` it, to free the name. A session may always keep its own name or change only its case. See [protocol: unique names](protocol.md#unique-names).
 
 ---
 

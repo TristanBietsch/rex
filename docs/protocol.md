@@ -58,7 +58,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 | `SetSessionFleet` | yes | `session_id`, `fleet` |
 | `SetMaxConcurrent` | yes | `n` (`n <= 0` uncaps) |
 | `Complete` | yes | `session_id` |
-| `SetSessionName` | yes | `session_id`, `name` (always sent; `""` clears; normalized, max 64 runes) |
+| `SetSessionName` | yes | `session_id`, `name` (always sent; `""` clears; normalized, max 64 runes). `name_taken` when another session holds the name (see [Unique names](#unique-names)) |
 | `Retire` | yes | `session_id`, `ttl_seconds` (0 = daemon default; 10 s – 365 d). Marks done; no-op if already marked |
 | `Unretire` | yes | `session_id`. `bad_state` once the reaper has claimed the session |
 | `Resume` | yes | `session_id`. Makes the session live and not marked done; see [Resume](#resume) |
@@ -92,7 +92,7 @@ Store broadcasts are gated until `Hello` completes on that connection.
 
 `cols` and `rows` (numbers, default 0) are the PTY size to start the agent at, so a client that will attach at a known size needs no first `Resize`. The daemon clamps them to 20-1000 columns and 5-500 rows; 0 means the default, 120x32. A daemon that predates the fields ignores them and starts at 120x32.
 
-`name` is the display name, normalized like `SetSessionName` (whitespace collapsed, control characters dropped, at most 64 characters; too long is `bad_intent`). Empty shows the slug.
+`name` is the display name, normalized like `SetSessionName` (whitespace collapsed, control characters dropped, at most 64 characters; too long is `bad_intent`). Empty shows the slug. A name another session holds is `name_taken` and nothing is created (see [Unique names](#unique-names)); a taken `slug` is reported first.
 
 `skills` is a list of skill names (at most 16, unique, each `[a-z0-9][a-z0-9-]{0,63}`) from the daemon's skill library (`-skills-dir`, default `~/.config/rex/skills`). The daemon copies them into `sessions/<id>/plugin` (regular files only, at most 256 files and 4 MiB; a symlink is an error) and adds the tool's `skill_args` with `{plugin_dir}` after the resume args and before the hook args. It never takes a path from a client. The intent is `bad_intent` when the `spawn_skills` setting is off (`skills are off`), the tool has no `skill_args` (`tool X cannot load skills per session`), a name is invalid or missing from the library, or a limit is exceeded; nothing is created then. The names are stored in `meta.json`, shown as `skills` in session summaries, and `Resume` loads the same plugin folder again (staging it from the library if it is gone). A daemon that predates these fields ignores them silently, so a client that sent `skills` should check the `SessionAdded` summary for them.
 
@@ -239,6 +239,18 @@ A daemon that predates acks never sends `Ack`, and its `Snapshot` has no `daemon
 
 A daemon that predates `repaint` ignores the field and answers `mode_sync` as before. A client tells by the `Subscribe`'s reply: send it with an `id`, and if the `Ack` arrives with no `repaint: true` output before it, there was no repaint. A daemon that predates acks sends no reply at all, so wait for it only briefly. rex's attach clients (`client.RepaintWatch`: 250 ms, or 2 s after a replay) then fall back to the `^L` redraw nudge. Clients that do not set `repaint` get exactly what they got before, and no `repaint` key on the wire.
 
+## Unique names
+
+A display name (`NewSession.name`, `SetSessionName.name`) is unique among the sessions in the daemon's store, in every state: queued, working, needs_input, done, failed, crashed and marked done. Only removal frees it: `Delete` (`rex rm`, prune) or the retire sweep clearing a marked-done session. The scope is the whole daemon, not a workspace.
+
+- **Comparison.** Both names are normalized (as above), format characters (Unicode Cf: zero-width space, ZWJ, soft hyphen, …) are ignored, and letters are compared with Unicode simple case folding (`strings.EqualFold`): `Fix Auth`, `fix  auth` and `FIX AUTH` are the same name. There is no NFC/NFKC normalization, no full folding (`ß` is not `ss`) and no locale rule. Go clients use `protocol.SameSessionName`.
+- **Always allowed.** An empty name (any number of sessions may have none), clearing a name, and setting a session's own current name again or with a different case or spacing.
+- **Refused.** Any other name another session holds: an `Error` with code `name_taken` and message `name "<holder's name>" already in use by <holder's short id>`, echoing the request `id` (empty for an intent sent without one). The check and the write happen under the store lock, so of two concurrent requests for one name exactly one wins.
+- **Older sessions.** Sessions restored from disk are loaded as they are, even when an older daemon let two of them share a name; the daemon logs `duplicate name in restored sessions` and renames nothing. Only new collisions are refused. `Resume`, `Unretire` and a hot restart never check names.
+- **Older daemons and clients.** A daemon that predates the rule accepts any name. A client that predates `name_taken` sees an unknown error code and shows the message.
+
+Names and slugs are separate: a name may equal another session's slug.
+
 ## Error codes
 
 | Code | Emitted when |
@@ -247,6 +259,7 @@ A daemon that predates `repaint` ignores the field and answers `mode_sync` as be
 | `unknown_session` | No such session (or input buffer full); `Resume` of a session deleted while it started |
 | `spawn_failed` | `NewSession` failed after validation (effort, PTY start); `Resume` with a missing working directory or an agent that did not start |
 | `too_many_sessions` | Concurrency cap |
+| `name_taken` | `NewSession` or `SetSessionName` with a display name another session holds (see [Unique names](#unique-names)) |
 | `ambiguous_id` | Defined; not emitted by current server |
 | `registry_invalid` | Defined; not emitted by current server |
 | `bad_state` | `Undo` or `Redo` refused (session working, another live session in the folder without `force`, folder not in a git repo, nothing to undo or redo, a turn that was not captured); `Unretire` or `Resume` after the reaper started clearing the session; `Resume` of an exited session whose tool cannot resume (no `resume` block or no known `resume_id`, or the stored effort is no longer offered by the model) |
