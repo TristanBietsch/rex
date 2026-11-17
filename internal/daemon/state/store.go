@@ -102,18 +102,71 @@ func (s *Store) Add(sess *Session) error {
 	return nil
 }
 
-// AddUnique inserts a session like Add but rejects (with *SlugTakenError) a
-// slug any session in the store already uses. The check and the insert happen
-// under one lock, so concurrent spawns cannot both claim a slug.
+// NameTakenError reports a display name already held by another session in
+// the store, compared with protocol.SameSessionName. Every session in the
+// store (any state, marked done or not) holds its name until it is removed.
+type NameTakenError struct {
+	Name    string // the holder's stored name
+	ID      string // holder's full id
+	ShortID string // holder's short id
+}
+
+func (e *NameTakenError) Error() string {
+	return fmt.Sprintf("name %q already in use by %s", e.Name, e.ShortID)
+}
+
+// nameTakenLocked returns a *NameTakenError for the first session other than
+// exceptID whose name has key (a protocol.SessionNameKey), or nil. An empty
+// key never conflicts. Caller holds s.mu; lock order is s.mu -> sess.mu.
+func (s *Store) nameTakenLocked(key, exceptID string) error {
+	if key == "" {
+		return nil
+	}
+	for id, other := range s.sessions {
+		if id == exceptID {
+			continue
+		}
+		other.mu.Lock()
+		name := other.Name
+		other.mu.Unlock()
+		if name != "" && protocol.SessionNameKey(name) == key {
+			return &NameTakenError{Name: name, ID: other.ID, ShortID: other.ShortID}
+		}
+	}
+	return nil
+}
+
+// checkNewLocked is the uniqueness check of AddUnique: the slug first, then
+// the name. Caller holds s.mu.
+func (s *Store) checkNewLocked(id, slug, name string) error {
+	if holder := s.slugHolderLocked(slug, id); holder != nil {
+		return &SlugTakenError{Slug: slug, ID: holder.ID, ShortID: holder.ShortID}
+	}
+	return s.nameTakenLocked(protocol.SessionNameKey(name), id)
+}
+
+// CheckNew returns the *SlugTakenError or *NameTakenError AddUnique would
+// return for a new session with slug and name right now, or nil. It is a
+// cheap early answer for a spawn; only AddUnique's own check is authoritative.
+func (s *Store) CheckNew(slug, name string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.checkNewLocked("", slug, name)
+}
+
+// AddUnique inserts a session like Add but rejects a slug (*SlugTakenError)
+// or a display name (*NameTakenError) any session in the store already uses;
+// the slug is checked first. The check and the insert happen under one lock,
+// so concurrent spawns cannot both claim a slug or a name.
 func (s *Store) AddUnique(sess *Session) error {
 	s.mu.Lock()
 	if _, exists := s.sessions[sess.ID]; exists {
 		s.mu.Unlock()
 		return fmt.Errorf("session %s already exists", sess.ID)
 	}
-	if holder := s.slugHolderLocked(sess.Slug, sess.ID); holder != nil {
+	if err := s.checkNewLocked(sess.ID, sess.Slug, sess.Name); err != nil {
 		s.mu.Unlock()
-		return &SlugTakenError{Slug: sess.Slug, ID: holder.ID, ShortID: holder.ShortID}
+		return err
 	}
 	s.sessions[sess.ID] = sess
 	s.byShortID[sess.ShortID] = sess.ID
@@ -138,6 +191,30 @@ func (s *Store) DuplicateSlugs() map[string][]string {
 	for slug, shorts := range holders {
 		if len(shorts) < 2 {
 			delete(holders, slug)
+		}
+	}
+	return holders
+}
+
+// DuplicateNames maps each display-name key (protocol.SessionNameKey) held
+// by more than one session to the short ids holding it. Only sessions
+// restored from disk (older daemons) can produce duplicates; the store keeps
+// them as they are.
+func (s *Store) DuplicateNames() map[string][]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	holders := make(map[string][]string)
+	for _, sess := range s.sessions {
+		sess.mu.Lock()
+		key := protocol.SessionNameKey(sess.Name)
+		sess.mu.Unlock()
+		if key != "" {
+			holders[key] = append(holders[key], sess.ShortID)
+		}
+	}
+	for key, shorts := range holders {
+		if len(shorts) < 2 {
+			delete(holders, key)
 		}
 	}
 	return holders
@@ -305,10 +382,26 @@ func (s *Store) Transition(id string, newState protocol.State) error {
 // value changed. It does not broadcast: the caller persists meta first and
 // then calls BroadcastPatch, so a client reacting to the event reads the new
 // value from disk.
+//
+// A name another session holds (protocol.SameSessionName) is rejected with
+// *NameTakenError; the check and the write happen under s.mu, so two
+// SetName or AddUnique calls cannot both claim it. A name equal to the
+// session's own current one (a case or whitespace change) is always
+// accepted, even when a session restored from an older daemon shares it.
 func (s *Store) SetName(id, name string) (changed bool, err error) {
-	sess, ok := s.Get(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess, ok := s.sessions[id]
 	if !ok {
 		return false, fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	cur := sess.Name
+	sess.mu.Unlock()
+	if key := protocol.SessionNameKey(name); key != protocol.SessionNameKey(cur) {
+		if err := s.nameTakenLocked(key, id); err != nil {
+			return false, err
+		}
 	}
 	sess.mu.Lock()
 	changed = sess.Name != name
