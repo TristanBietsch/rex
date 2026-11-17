@@ -159,6 +159,12 @@ func run(args []string) error {
 		slog.Warn("daemon: duplicate slug in restored sessions (select by short id or rename)",
 			"slug", slug, "short_ids", shorts)
 	}
+	// Older daemons allowed duplicate display names too. Loading keeps them
+	// as they are; only new collisions are refused.
+	for key, shorts := range store.DuplicateNames() {
+		slog.Warn("daemon: duplicate name in restored sessions (rename or clear one)",
+			"name_key", key, "short_ids", shorts)
+	}
 
 	// Load settings — same config.yaml the TUI writes to. Missing file is fine;
 	// the registry defaults apply.
