@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `selector_glyph` setting preset: added `☛` (black right-pointing index)
+  alongside `☞`.
+
 ## [2.0.0] - 2026-11-17
 
 The first release since v1. Details for every change follow the summary.
