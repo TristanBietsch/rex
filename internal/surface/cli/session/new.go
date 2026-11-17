@@ -144,11 +144,7 @@ func RunNew(args []string) error {
 			var ee protocol.ErrorEvent
 			_ = json.Unmarshal(env.Data, &ee)
 			slog.Debug("cli: new rejected", "slug", *slug, "code", ee.Code, "message", ee.Message)
-			code := core.ExitGeneric
-			if ee.Code == protocol.ErrCodeBadIntent {
-				code = core.ExitInvalidArgs
-			}
-			return core.NewExitError(code, "spawn failed: "+ee.Message)
+			return core.NewExitError(exitForCode(ee.Code), "spawn failed: "+ee.Message)
 		}
 	}
 }

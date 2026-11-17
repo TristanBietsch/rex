@@ -67,6 +67,12 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 		}
 	}
 
+	// Refuse a taken slug or name before a slot or any file is taken.
+	// AddUnique below checks again under the store lock; that one decides.
+	if err := cfg.Store.CheckNew(p.Slug, p.Name); err != nil {
+		return "", takenError(intentID, p, err)
+	}
+
 	if !srv.TryAcquireSession() {
 		return "", fmt.Errorf("too many concurrent sessions (cap=%d)", srv.MaxConcurrentSessions())
 	}
@@ -171,15 +177,10 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 	}
 	if err := cfg.Store.AddUnique(sess); err != nil {
 		srv.ReleaseSession()
-		if pluginDir != "" {
-			_ = state.RemoveSessionDir(cfg.StateDir, id)
-		}
-		var taken *state.SlugTakenError
-		if errors.As(err, &taken) {
-			slog.Warn("spawn: rejected, slug taken", "req_id", intentID, "slug", p.Slug, "holder", taken.ShortID)
-			return "", badIntent(err)
-		}
-		return "", err
+		// The id is new: whatever is in its folder (hook file, staged
+		// skills) was made by this spawn.
+		_ = state.RemoveSessionDir(cfg.StateDir, id)
+		return "", takenError(intentID, p, err)
 	}
 
 	if err := startSupervisor(ctx, srv, sess, spec, cmdArgs, childEnv, ptyPrompt, delivery, nil); err != nil {
@@ -194,6 +195,24 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 		cfg.Workspaces.Started(sess)
 	}
 	return id, nil
+}
+
+// takenError logs a spawn refused by the store's uniqueness check and returns
+// the error to reply with: a taken slug is badIntent, a taken name the
+// *state.NameTakenError itself (handleNewSessionIntent maps it to
+// name_taken). Any other error is returned unchanged.
+func takenError(intentID string, p protocol.NewSession, err error) error {
+	var slug *state.SlugTakenError
+	if errors.As(err, &slug) {
+		slog.Warn("spawn: rejected, slug taken", "req_id", intentID, "slug", p.Slug, "holder", slug.ShortID)
+		return badIntent(err)
+	}
+	var name *state.NameTakenError
+	if errors.As(err, &name) {
+		slog.Warn("spawn: rejected, name taken", "req_id", intentID, "slug", p.Slug, "holder", name.ShortID)
+		return err
+	}
+	return err
 }
 
 // spawnSpec is everything that decides a session's argv and environment.

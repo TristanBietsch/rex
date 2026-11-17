@@ -1,0 +1,41 @@
+# Display names are unique among the sessions that still exist: a
+# duplicate is refused with exit 5 until the holder is deleted.
+
+daemon-start
+exec rex new --tool echo --model short --slug n1 -name 'Fix Auth' first task
+exec rex wait -until done -timeout 20s n1
+exec rex new --tool echo --model short --slug n2 second task
+
+# rex new -name: same name in another case, while n1 is done.
+exitcode 5 rex new --tool echo --model short --slug n3 -name 'fix   AUTH' third task
+stderr '^rex: spawn failed: name "Fix Auth" already in use by [0-9a-f]{4}$'
+exitcode 2 rex name n3
+
+# rex name: taken by n1.
+exitcode 5 rex name n2 FIX AUTH
+stderr '^rex: name "Fix Auth" already in use by [0-9a-f]{4}$'
+exec rex name n2
+stdout '^\(no name — board shows slug n2\)$'
+
+# The holder may change the case of its own name.
+exec rex name n1 fix auth
+stdout '^n1: named "fix auth" \(8/64\)$'
+
+# Marked done still holds it.
+exec rex done -after 1h n1
+exitcode 5 rex name n2 Fix Auth
+
+# Clearing frees it; so does deleting.
+exec rex name -clear n1
+exec rex name n2 Fix Auth
+stdout '^n2: named "Fix Auth" \(8/64\)$'
+exitcode 5 rex name n1 fix auth
+exec rex rm -force n2
+exec rex name n1 fix auth
+stdout '^n1: named "fix auth" \(8/64\)$'
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false
+model_autodetect: false
