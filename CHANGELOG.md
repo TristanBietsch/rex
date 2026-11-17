@@ -30,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
   not the context, trust or skills.
 
-## [2.0.0] - 2026-11-15
+## [2.0.0] - 2026-11-17
 
 The first release since v1. Details for every change follow the summary.
 
