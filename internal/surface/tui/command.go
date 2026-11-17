@@ -21,6 +21,9 @@ func executeCommand(m Model, line string) (Model, tea.Cmd) {
 	}
 	parts := strings.Fields(line)
 	call := cmdCall{Verb: parts[0], Args: parts[1:], Line: line}
+	if call.Verb == "new!" {
+		return runNewFresh(m, call) // :new! shares :new's row in the help
+	}
 	c, ok := lookupCommand(call.Verb)
 	if !ok {
 		m.Err = "unknown command: " + call.Verb + " (try :help)"

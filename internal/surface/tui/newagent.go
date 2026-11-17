@@ -19,36 +19,37 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// The new-agent page (R16): n and :new open one full-screen page with the
-// agent, a multi-line task, context and trust, instead of the popup wizard,
-// while new_agent_page is on. The page lands in the task editor with the
-// last launch's agent; enter there (or ctrl+s anywhere) launches. esc keeps
+// The new-agent page (R16, R21): n and :new open one full-screen page that
+// walks seven steps, one per screen: agent, model, skills, task, context,
+// trust, summary. Finished steps stack above as `✓ key  value` lines, the
+// current one is a `› key  question` line with its body under it. enter
+// moves on; on the summary it launches (ctrl+s launches from anywhere).
+// esc steps back and, on the step the page opened on, closes it, keeping
 // the draft in memory for the next n (D4); nothing of it is written to disk.
 
-// naSection is a section of the Compose screen, in rail order.
-type naSection int
+// naStep is a step of the flow, in order.
+type naStep int
 
 const (
-	naAgent naSection = iota
-	naTask
-	naContext
-	naTrust
-	naLaunchRow
-	naSectionCount
+	naStepAgent naStep = iota
+	naStepModel
+	naStepSkills
+	naStepTask
+	naStepContext
+	naStepTrust
+	naStepSummary
+	naStepCount
 )
 
-// naSectionNames are the rail's and the narrow strip's words.
-var naSectionNames = [naSectionCount]string{"Agent", "Task", "Context", "Trust", "Launch"}
+// naStepNames are the transcript's key words.
+var naStepNames = [naStepCount]string{"agent", "model", "skills", "task", "context", "trust", "summary"}
 
-// naScreen is the page's screen: Compose, the Agent screen (agents,
-// models, effort and skills; newagent_agent.go), one context item's
-// preview (newagent_preview.go), or the import picker
-// (newagent_import.go).
+// naScreen is what the body shows: the step itself, one context item's
+// preview (newagent_preview.go), or the import picker (newagent_import.go).
 type naScreen int
 
 const (
-	naCompose naScreen = iota
-	naAgentScreen
+	naSteps naScreen = iota
 	naPreview
 	naImportScreen
 )
@@ -56,18 +57,19 @@ const (
 // NewAgentState lives on Model while Focus == FocusNewAgent, and as
 // Model.newAgentDraft after esc.
 type NewAgentState struct {
-	Section naSection
-	Screen  naScreen
-	// Editing is true while keys type into the task editor (insert mode);
-	// esc leaves it for navigation, where j/k/h/l move and i or enter on
-	// the task come back (newagent_nav.go). OnRail is true while the step
-	// rail has the focus (h), gPending holds the first g of gg.
-	Editing  bool
-	OnRail   bool
+	// Step is the current step, Opened the one the page opened on (esc
+	// closes the page from there), ReturnToSummary is set after a jump from
+	// the summary: enter goes back to it, and SumRow is its cursor.
+	Step            naStep
+	Opened          naStep
+	ReturnToSummary bool
+	SumRow          int
+	Screen          naScreen
+	// gPending holds the first g of gg.
 	gPending bool
-	// The lists' windows (nav.go): the context items, and on the Agent
-	// screen the agents, models and skills.
-	itemsView, agentsView, modelsView, skillsView listView
+	// The lists' windows (nav.go): the agents, models, skills, context
+	// items and summary rows.
+	itemsView, agentsView, modelsView, skillsView, sumView listView
 	// Tools are the agents offered (pickerTools) and Missing the ones left
 	// out because they are not installed. ToolIdx indexes Tools, ModelIdx
 	// the tool's models and EffortIdx the model's effort options.
@@ -75,27 +77,32 @@ type NewAgentState struct {
 	Missing                      []onboardRow
 	ToolIdx, ModelIdx, EffortIdx int
 	// Skills is the skill library read when the page opened, SkillsOn the
-	// spawn_skills feature then, SkillSel the toggled names (as the wizard).
+	// spawn_skills feature then, SkillSel the toggled names and SkillCur
+	// the skills cursor.
 	Skills   []skills.Skill
 	SkillsOn bool
 	SkillSel map[string]bool
+	SkillCur int
 	Task     Composer
 	// Notice is the open-time notice (a remembered agent that is gone).
 	Notice string
-	// Trust is the folder-trust choice (P2, wizard_trust.go).
-	Trust wizTrustMode
-	// The Agent screen: the focused pane, whether the agent cursor is on the
-	// not installed header, the model filter and whether keys type into it,
-	// and the skills cursor. Remembered is the agent the page opened with:
-	// going back to its tool starts on its model.
-	Pane       naAgentPane
+	// Trust is the folder-trust choice (P2, wizard_trust.go), TrustCur the
+	// trust step's cursor in naTrustChoices.
+	// TrustFor is the folder the choice was made for: one made for another
+	// folder (the draft outlived a workspace or session switch) is dropped.
+	Trust    wizTrustMode
+	TrustFor string
+	TrustCur int
+	// OnMissing is true while the agent cursor is on the not installed
+	// header; Filter is the model filter and Filtering whether keys type
+	// into it. Remembered is the agent the page opened with: going back to
+	// its tool starts on its model.
 	OnMissing  bool
 	Filter     string
 	Filtering  bool
-	SkillCur   int
 	Remembered quickChoice
 	// Items is the context (newagent_context.go), in prompt order; ItemIdx
-	// is the list cursor and PasteSeq the last paste number given, so a
+	// is the list cursor (len(Items) is the next row) and PasteSeq the last paste number given, so a
 	// removed paste's number is never reused while its placeholder may
 	// still be in the task.
 	Items    []spawnctx.Item
@@ -208,7 +215,7 @@ func (st *NewAgentState) request(cwd string, existing []string) (protocol.NewSes
 	w := st.selection()
 	task := strings.TrimSpace(st.Task.String())
 	if err := st.naCheckLaunch(cwd); err != nil {
-		return protocol.NewSession{}, err
+		return protocol.NewSession{}, naInContext(err)
 	}
 	caps := spawnctx.DefaultCaps
 	caps.Prompt = 0 // checked below, in KB
@@ -246,20 +253,11 @@ func (st *NewAgentState) request(cwd string, existing []string) (protocol.NewSes
 	}, nil
 }
 
-// openNew is n and :new: the new-agent page while new_agent_page is on,
-// else the wizard.
-func openNew(m Model) (Model, tea.Cmd) {
-	if m.featureOn("new_agent_page") {
-		return openNewAgent(m)
-	}
-	m, cmd := openWizard(m)
-	return naSeedWizard(m), cmd
-}
-
 // openNewAgent opens the page on the agents pickerTools offers, restoring
 // the draft left with esc. The agent is the draft's, else the last launch
 // (D3), else the quick-spawn defaults; one no longer offered falls back
-// with a notice.
+// with a notice. It opens on the draft's step, else on the agent step when
+// there is a notice, else on the task.
 func openNewAgent(m Model) (Model, tea.Cmd) {
 	m, cmd := openNewAgentPage(m)
 	return m, tea.Batch(cmd, rescanTools(m.Client))
@@ -302,16 +300,18 @@ func openNewAgentPage(m Model) (Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	st := &NewAgentState{Section: naTask, Screen: naCompose, Tools: visible, Missing: missing}
+	st := &NewAgentState{Step: naStepTask, Tools: visible, Missing: missing}
 	if m.featureOn("spawn_skills") {
 		st.SkillsOn = true
 		st.Skills = loadWizardSkills()
 	}
 	want := m.lastSpawn
 	st.ItemsRoot = spawnCWD(m)
+	draftStep := false
 	if d := m.newAgentDraft; d != nil {
-		st.Section, st.Task, st.Trust, st.SkillSel = d.Section, d.Task, d.Trust, d.SkillSel
-		st.OnRail = d.OnRail
+		st.Step, st.Task, st.Trust, st.SkillSel = d.Step, d.Task, d.Trust, d.SkillSel
+		st.TrustFor = d.TrustFor
+		draftStep = true
 		st.Items, st.ItemIdx, st.PasteSeq = d.Items, d.ItemIdx, d.PasteSeq
 		st.Launching, st.launchGen = d.Launching, d.launchGen
 		if naHasPaths(d.Items) {
@@ -335,11 +335,18 @@ func openNewAgentPage(m Model) (Model, tea.Cmd) {
 		st.Notice = notice
 	}
 	st.Remembered = st.choice()
-	st.OnRail = st.OnRail && !pageNarrow(m.Width)   // no rail to focus
-	st.Editing = st.Section == naTask && !st.OnRail // the task types right away
+	if st.Notice != "" && !draftStep {
+		st.Step = naStepAgent
+	}
+	if naSkipped(st, st.Step) {
+		st.Step, _ = naStepFrom(st, st.Step, 1)
+	}
+	st.Opened = st.Step
 	m.NewAgent = st
 	m.newAgentDraft = nil
 	m.Focus = FocusNewAgent
+	naClampTrust(m, st)
+	naEnterStep(m, st)
 	if m.Audio != nil {
 		m.Audio.Play(audio.EventOpen)
 	}
@@ -366,8 +373,10 @@ func closeNewAgent(m Model, keepDraft bool) Model {
 }
 
 // newAgentTrustRequest applies the page's trust choice to req (P2's
-// wizardTrustRequest rules).
+// trustRequest rules). The choice is first clamped to what the folder
+// offers now, so one made for another folder never reaches the request.
 func newAgentTrustRequest(m Model, cwd string, req protocol.NewSession) (Model, protocol.NewSession, bool) {
+	naClampTrust(m, m.NewAgent)
 	return trustRequest(m, m.NewAgent.Trust, cwd, req)
 }
 
@@ -412,16 +421,13 @@ func naResetItemsRoot(st *NewAgentState) {
 	}
 }
 
-// updateNewAgentKey routes a key on the page. A paste only ever inserts;
-// enter launches only as a real key in the task editor.
+// updateNewAgentKey routes a key on the page. A paste only ever inserts (or
+// jumps to the task to insert); enter never launches except on the summary's
+// launch row; ctrl+s launches from anywhere.
 func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
 	if st == nil {
 		return m, nil
-	}
-	if !m.featureOn("new_agent_page") {
-		// Turned off while open: back to the board, the draft kept.
-		return closeNewAgent(m, true), nil
 	}
 	if st.Launching {
 		return naLaunchingKey(m, k)
@@ -431,39 +437,56 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	m.Err, st.Err = "", "" // an error stays until the next key
 	st.Rev++
+	naClampTrust(m, st)
 	switch {
 	case len(st.Pending) > 0:
 		return naPendingKey(m, k)
 	case st.Screen == naImportScreen:
 		return naImportKey(m, k)
-	case st.Screen == naAgentScreen:
-		return updateNewAgentAgentKey(m, k)
 	case st.Renaming:
 		return naRenameKey(m, k)
 	case st.Screen == naPreview:
 		return naPreviewKey(m, k)
-	}
-	if k.Paste {
-		// A paste always lands in the task editor, and keeps typing there.
-		st.Section, st.Editing, st.OnRail, st.Complete = naTask, true, false, nil
-		if err := addPaste(st, string(k.Runes)); err != nil {
-			st.Err = naFail(err)
+	case st.Filtering:
+		if k.String() == "ctrl+s" {
+			return launchNewAgent(m)
 		}
-		return m, nil
+		return naFilterKey(m, k), nil
+	case k.Paste:
+		return naPasteKey(m, k)
+	case k.Type == tea.KeyCtrlS:
+		return launchNewAgent(m)
 	}
 	if next, mode, ok := trustKeyToggle(m, k, st.Trust); ok {
 		next.NewAgent.Trust = mode
+		next.NewAgent.TrustFor = spawnCWD(next)
+		naSyncTrustCur(next, next.NewAgent)
 		if next.Err != "" {
 			next.NewAgent.Err = "✗ " + next.Err // the page shows it, not the board
 			next.Err = ""
 		}
 		return next, nil
 	}
-	if st.Editing && st.Section == naTask {
-		return naInsertKey(m, k)
+	if st.Step == naStepTask {
+		return naTaskKey(m, k)
 	}
-	st.Editing = false
-	return naNormalKey(m, k)
+	return naStepKey(m, k)
+}
+
+// naPasteKey is a bracketed paste: on the task it inserts; anywhere else it
+// jumps to the task (no longer returning to the summary) and inserts. It
+// never advances a step.
+func naPasteKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	st := m.NewAgent
+	if st.Step != naStepTask {
+		st.ReturnToSummary = false
+		naGo(m, naStepTask)
+	}
+	st.Complete = nil
+	if err := addPaste(st, string(k.Runes)); err != nil {
+		st.Err = naFail(err)
+	}
+	return m, nil
 }
 
 // newAgentEditKey is a key in the task editor.
@@ -474,9 +497,7 @@ func newAgentEditKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyEnter:
 		if k.Alt {
 			c.Newline()
-			return m, nil
 		}
-		return launchNewAgent(m)
 	case tea.KeyCtrlJ:
 		c.Newline()
 	case tea.KeyBackspace:
@@ -490,14 +511,8 @@ func newAgentEditKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyCtrlE:
 		return m, editInEditor(-1, c.String())
 	case tea.KeyCtrlU:
-		if c.Empty() {
-			// An empty editor: ctrl+u drops the whole draft (D4).
-			c.Clear()
-			st.Trust = trustAsk
-			st.SkillSel = nil
-			st.Items, st.ItemIdx, st.PasteSeq = nil, 0, 0
-			naResetItemsRoot(st)
-			m.newAgentDraft = nil
+		if c.Row < len(c.Lines) && len(c.Lines[c.Row]) == 0 {
+			c.Clear() // an empty line: the task text goes, not the context
 			return m, nil
 		}
 		c.ClearLine()

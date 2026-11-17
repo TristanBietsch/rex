@@ -1,0 +1,92 @@
+-- plain.80x24 --
+                                                                                
+  ∴ REX › NEW AGENT    ~/dev/rex                                      step 7/7  
+────────────────────────────────────────────────────────────────────────────────
+  › summary  review, then launch                                                
+                                                                                
+      agent    ✻ Claude Code                                                    
+      model    opus · effort max                                                
+      skills   go-testing                                                       
+      task     the auth test is flaky on CI, see the paste. fix it and add a …  
+      context  3 items · 7.1 KB                                                 
+                 file   internal/auth/auth_test.go                      4.2 KB  
+                 dir    internal/auth/testdata/                       12 files  
+                 paste  paste 1  "--- FAIL: TestLogin (0.31…"  38 lines 1.8 KB  
+      trust    this session only                                                
+      prompt   2.0 KB of 96 KB                                                  
+      slug     cc.opus.the-auth-test-is-flaky-on-ci                             
+                                                                                
+      $ rex new -tool claude -model opus -effort max -skill go-t…  # + context  
+                                                                                
+    ▸ launch                                                                    
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+  enter launch · j/k row · e edit row · esc back · ? help                       
+-- plain.50x20 --
+                                                  
+  ∴ REX › NEW AGENT                     step 7/7  
+──────────────────────────────────────────────────
+  › summary  review, then launch                  
+                                                  
+    agent    ✻ Claude Code                        
+    model    opus · effort max                    
+    skills   go-testing                           
+    task     the auth test is flaky on CI, see …  
+    context  3 items · 7.1 KB                     
+    trust    this session only                    
+    prompt   2.0 KB of 96 KB                      
+    slug     cc.opus.the-auth-test-is-flaky-on-ci 
+                                                  
+    $ rex new -tool claude -model …  # + context  
+                                                  
+  ▸ launch                                        
+                                                  
+──────────────────────────────────────────────────
+  enter launch · esc back · ? help · j/k row      
+-- styled.80x24 --
+                                                                                
+  ␛[1m∴ REX␛[0m␛[2m › NEW AGENT␛[0m    ␛[2m~/dev/rex␛[0m                                      ␛[2mstep 7/7␛[0m  
+␛[2m────────────────────────────────────────────────────────────────────────────────␛[0m
+  ␛[35m›␛[0m ␛[1;7msummary  ␛[0m␛[2mreview, then launch␛[0m                                                
+                                                                                
+      ␛[2magent    ␛[0m␛[38;2;217;119;87m✻␛[0m Claude Code                                                    
+      ␛[2mmodel    ␛[0m␛[1mopus␛[0m␛[2m · ␛[0m␛[2meffort ␛[0m␛[1mmax␛[0m                                                
+      ␛[2mskills   ␛[0m␛[1mgo-testing␛[0m                                                       
+      ␛[2mtask     ␛[0mthe auth test is flaky on CI, see the paste. fix it and add a …  
+      ␛[2mcontext  ␛[0m3 items · 7.1 KB                                                 
+                 ␛[2mfile  ␛[0m internal/auth/auth_test.go                      ␛[2m4.2 KB␛[0m  
+                 ␛[2mdir   ␛[0m internal/auth/testdata/                       ␛[2m12 files␛[0m  
+                 ␛[2mpaste ␛[0m paste 1  ␛[2m"--- FAIL: TestLogin (0.31…"␛[0m  ␛[2m38 lines 1.8 KB␛[0m  
+      ␛[2mtrust    ␛[0mthis session only                                                
+      ␛[2mprompt␛[0m   2.0 KB␛[2m of 96 KB␛[0m                                                  
+      ␛[2mslug     ␛[0m␛[1mcc.opus.the-auth-test-is-flaky-on-ci␛[0m                             
+                                                                                
+      ␛[2m$ rex new -tool claude -model opus -effort max -skill go-t…  # + context␛[0m  
+                                                                                
+    ␛[1;35m▸␛[0m ␛[1;7mlaunch␛[0m                                                                    
+                                                                                
+                                                                                
+␛[2m────────────────────────────────────────────────────────────────────────────────␛[0m
+  ␛[1menter␛[0m␛[2m launch␛[0m␛[2m · ␛[0m␛[1mj/k␛[0m␛[2m row␛[0m␛[2m · ␛[0m␛[1me␛[0m␛[2m edit row␛[0m␛[2m · ␛[0m␛[1mesc␛[0m␛[2m back␛[0m␛[2m · ␛[0m␛[1m?␛[0m␛[2m help␛[0m                       
+-- styled.50x20 --
+                                                  
+  ␛[1m∴ REX␛[0m␛[2m › NEW AGENT␛[0m                     ␛[2mstep 7/7␛[0m  
+␛[2m──────────────────────────────────────────────────␛[0m
+  ␛[35m›␛[0m ␛[1;7msummary  ␛[0m␛[2mreview, then launch␛[0m                  
+                                                  
+    ␛[2magent    ␛[0m␛[38;2;217;119;87m✻␛[0m Claude Code                        
+    ␛[2mmodel    ␛[0m␛[1mopus␛[0m␛[2m · ␛[0m␛[2meffort ␛[0m␛[1mmax␛[0m                    
+    ␛[2mskills   ␛[0m␛[1mgo-testing␛[0m                           
+    ␛[2mtask     ␛[0mthe auth test is flaky on CI, see …  
+    ␛[2mcontext  ␛[0m3 items · 7.1 KB                     
+    ␛[2mtrust    ␛[0mthis session only                    
+    ␛[2mprompt␛[0m   2.0 KB␛[2m of 96 KB␛[0m                      
+    ␛[2mslug     ␛[0m␛[1mcc.opus.the-auth-test-is-flaky-on-ci␛[0m 
+                                                  
+    ␛[2m$ rex new -tool claude -model …  # + context␛[0m  
+                                                  
+  ␛[1;35m▸␛[0m ␛[1;7mlaunch␛[0m                                        
+                                                  
+␛[2m──────────────────────────────────────────────────␛[0m
+  ␛[1menter␛[0m␛[2m launch␛[0m␛[2m · ␛[0m␛[1mesc␛[0m␛[2m back␛[0m␛[2m · ␛[0m␛[1m?␛[0m␛[2m help␛[0m␛[2m · ␛[0m␛[1mj/k␛[0m␛[2m row␛[0m      

@@ -88,23 +88,17 @@ func TestCommand_EveryVerbEscapesToBoard(t *testing.T) {
 				return
 			}
 			m = sendKey(m, key("esc"))
-			if tc.line == "new" {
-				// The new-agent page opens typing in the task editor: the
-				// first esc leaves the editor, the second the page.
-				require.Equal(t, FocusNewAgent, m.Focus)
-				m = sendKey(m, key("esc"))
-			}
 			require.Equal(t, FocusBoard, m.Focus, ":%s then esc returns to the board", tc.line)
 		})
 	}
 }
 
-// :new opens the same wizard as `n` (new_agent_page off).
-func TestCommand_NewOpensWizard(t *testing.T) {
-	m := typeCommand(wizardFlag(t, commandModel(t)), "new")
-	require.Equal(t, FocusWizard, m.Focus)
-	require.NotNil(t, m.Wizard)
-	require.NotEmpty(t, m.Wizard.Tools)
+// :new opens the same page as `n`.
+func TestCommand_NewOpensPage(t *testing.T) {
+	m := typeCommand(naOpenable(t, commandModel(t)), "new")
+	require.Equal(t, FocusNewAgent, m.Focus)
+	require.NotNil(t, m.NewAgent)
+	require.NotEmpty(t, m.NewAgent.Tools)
 }
 
 // The invariant behind P0-07: a focus whose component state is missing
@@ -112,7 +106,7 @@ func TestCommand_NewOpensWizard(t *testing.T) {
 // that hit the broken focus is then handled by the board.
 func TestUpdateKey_MissingFocusStateFallsBackToBoard(t *testing.T) {
 	for name, f := range map[string]Focus{
-		"wizard": FocusWizard, "settings": FocusSettings, "attach": FocusAttach,
+		"new agent": FocusNewAgent, "settings": FocusSettings, "attach": FocusAttach,
 		"fail": FocusFail, "rename": FocusRename,
 	} {
 		t.Run(name, func(t *testing.T) {

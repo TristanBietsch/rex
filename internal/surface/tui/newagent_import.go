@@ -193,21 +193,21 @@ type naPending struct {
 	Row, From, To int
 }
 
-// openImport is ctrl+o: the picker, afresh, with the rail on Context.
+// openImport is ctrl+o: the picker, afresh, over the step it was opened
+// from.
 func openImport(m Model) Model {
 	st := m.NewAgent
 	st.Import = &naImport{}
 	st.Screen = naImportScreen
-	naFocus(st, naContext)
-	st.OnRail, st.gPending = false, false
+	st.Complete, st.gPending = nil, false
 	st.rowsKey = ""
 	playNav(m)
 	return m
 }
 
-// closeImport goes back to Compose.
+// closeImport goes back to the step.
 func closeImport(st *NewAgentState) {
-	st.Screen, st.Import = naCompose, nil
+	st.Screen, st.Import = naSteps, nil
 }
 
 // importRows is what the picker lists: with no query the folder's entries
@@ -344,12 +344,13 @@ func naImportAdd(st *NewAgentState, row string) {
 	naImportSettle(st)
 }
 
-// naImportSettle closes the picker for Compose's context list once nothing
-// waits for a confirm and something was added.
+// naImportSettle closes the picker for the context step's list once nothing
+// waits for a confirm and something was added: from the task the page goes
+// to the context step, from the context step it stays there.
 func naImportSettle(st *NewAgentState) {
 	if st.Screen == naImportScreen && st.Import != nil && len(st.Pending) == 0 && st.Import.added {
 		closeImport(st)
-		naFocus(st, naContext)
+		st.Step, st.Complete = naStepContext, nil
 	}
 }
 
@@ -614,7 +615,7 @@ func naPendingLine(st *NewAgentState) string {
 
 // naImportBody is the picker fw wide for a body bh rows tall (mockup D):
 // the folder and the index size, the query, then the rows windowed on the
-// cursor, or the loading state; the confirm and the page's error under it.
+// cursor, or the loading state.
 func naImportBody(m Model, st *NewAgentState, fw, bh int) []string {
 	im := st.Import
 	if im == nil {
@@ -633,8 +634,7 @@ func naImportBody(m Model, st *NewAgentState, fw, bh int) []string {
 	}
 	query := styleArrow.Render("> ") + stylePrimary.Render(protocol.FlattenDisplayText(string(im.Query))) + cursorBlock(m)
 	lines := []string{title, query}
-	errs := naErrLines(st, fw)
-	room := max(bh-len(lines)-len(errs), 1)
+	room := max(bh-len(lines), 1)
 	switch {
 	case st.Indexing:
 		lines = append(lines, naLoadingRow(m, st, fw))
@@ -657,7 +657,6 @@ func naImportBody(m Model, st *NewAgentState, fw, bh int) []string {
 			lines = append(lines, naPathRow(st, rows[i], i == im.Cur, true, slices.Index(im.Marked, rows[i]) >= 0, fw))
 		}
 	}
-	lines = append(lines, errs...)
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, fw, "…")
 	}
@@ -692,7 +691,7 @@ func naPendingHints() [][2]string {
 // up to naCompleteRows matches, the loading state, or "no match"; nil when
 // it is closed.
 func naCompleteLines(m Model, st *NewAgentState, fw int) []string {
-	if st.Complete == nil || st.Section != naTask {
+	if st.Complete == nil || st.Step != naStepTask {
 		return nil
 	}
 	q, ok := st.completeQuery()

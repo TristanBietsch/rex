@@ -172,34 +172,44 @@ func (sc goldenScreen) sizesOf() []goldenSize {
 // goldenScreenSizes overrides the sizes of the screens that are pinned at
 // others than goldenSizes.
 var goldenScreenSizes = map[string][]goldenSize{
-	"usage":                  {{80, 24}, {120, 40}, goldenMobile},
-	"header_meter":           {{60, 24}, {80, 24}, {120, 40}},
-	"undo_confirm":           {{80, 24}, {120, 40}, goldenMobile},
-	"undo_shared":            {{80, 24}, {120, 40}, goldenMobile},
-	"undo_forced":            {{80, 24}, {120, 40}, goldenMobile},
-	"undo_done":              {{80, 24}, {120, 40}, goldenMobile},
-	"board_done_fold":        {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
-	"settings_page":          {{120, 40}, {80, 24}, {50, 20}},
-	"help_page":              {{120, 40}, {80, 24}, {50, 20}},
-	"help_page_narrow":       {{50, 20}},
-	"settings_page_frame":    {{80, 24}},
-	"settings_page_accent":   {{120, 40}, {80, 24}, {50, 20}},
-	"settings_accent_edit":   {{120, 40}, {80, 24}},
-	"settings_page_narrow":   {{50, 20}},
-	"screensaver":            {{80, 24}, {40, 6}},
-	"screensaver_vertical":   {{80, 24}, {40, 12}, {40, 6}, {40, 4}},
-	"board_icons_detailed":   {{80, 24}, {120, 40}, {150, 40}},
-	"newagent_empty":         {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_agent":         {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_models_filter": {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_filled":        {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_preview":       {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_import":        {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_loading":       {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_errors":        {{120, 40}, {80, 24}, {50, 20}},
-	"newagent_frame":         {{80, 24}},
-	"newagent_ansi":          {{80, 24}, {50, 20}},
-	"newagent_highcontrast":  {{80, 24}},
+	"usage":                           {{80, 24}, {120, 40}, goldenMobile},
+	"header_meter":                    {{60, 24}, {80, 24}, {120, 40}},
+	"undo_confirm":                    {{80, 24}, {120, 40}, goldenMobile},
+	"undo_shared":                     {{80, 24}, {120, 40}, goldenMobile},
+	"undo_forced":                     {{80, 24}, {120, 40}, goldenMobile},
+	"undo_done":                       {{80, 24}, {120, 40}, goldenMobile},
+	"board_done_fold":                 {{60, 24}, {80, 24}, {120, 40}, goldenMobile},
+	"settings_page":                   {{120, 40}, {80, 24}, {50, 20}},
+	"help_page":                       {{120, 40}, {80, 24}, {50, 20}},
+	"help_page_narrow":                {{50, 20}},
+	"settings_page_frame":             {{80, 24}},
+	"settings_page_accent":            {{120, 40}, {80, 24}, {50, 20}},
+	"settings_accent_edit":            {{120, 40}, {80, 24}},
+	"settings_page_narrow":            {{50, 20}},
+	"screensaver":                     {{80, 24}, {40, 6}},
+	"screensaver_vertical":            {{80, 24}, {40, 12}, {40, 6}, {40, 4}},
+	"board_icons_detailed":            {{80, 24}, {120, 40}, {150, 40}},
+	"newagent_step_agent":             {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_model":             {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_model_filter":      {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_skills":            {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_task":              {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_task_filled":       {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_context":           {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_trust":             {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_summary":           {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_summary_err":       {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_import":            {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_preview":           {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_loading":           {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_loading_agent":     {{120, 40}, {80, 24}, {50, 20}},
+	"newagent_step_trust_short":       {{40, 12}},
+	"newagent_step_summary_short":     {{40, 12}},
+	"newagent_step_frame":             {{80, 24}},
+	"newagent_step_ansi":              {{80, 24}, {50, 20}},
+	"newagent_step_ansi_task":         {{80, 24}},
+	"newagent_step_highcontrast":      {{80, 24}},
+	"newagent_step_highcontrast_task": {{80, 24}},
 }
 
 // goldenMobile is a terminal narrow enough for the mobile layout.
@@ -273,12 +283,6 @@ func goldenScreens() []goldenScreen {
 			}
 			return m
 		}},
-		{"wizard", false, func(t *testing.T, sz goldenSize) Model {
-			m := goldenBoard(t, sz, false)
-			m.Focus = FocusWizard
-			m.Wizard = &WizardState{Step: wizProvider, Tools: demoTools()}
-			return m
-		}},
 		{"stats", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusStats
@@ -304,21 +308,6 @@ func goldenScreens() []goldenScreen {
 		{"undo_shared", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "shared") }},
 		{"undo_forced", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "forced") }},
 		{"undo_done", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "done") }},
-		{"wizard_models", false, func(t *testing.T, sz goldenSize) Model {
-			m := goldenBoard(t, sz, false)
-			m = wizardFlag(t, m)
-			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
-			m, _ = executeCommand(m, "new")
-			m = sendKey(m, key("j"))
-			return sendKey(m, key("enter"))
-		}},
-		{"wizard_all_agents", false, func(t *testing.T, sz goldenSize) Model {
-			m := goldenBoard(t, sz, false)
-			m = wizardFlag(t, m)
-			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"), true
-			m, _ = executeCommand(m, "new")
-			return m
-		}},
 		{"settings_onboarding", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m = overlayMode(t, m)
@@ -421,51 +410,77 @@ func goldenScreens() []goldenScreen {
 		{"attach", false, func(t *testing.T, sz goldenSize) Model {
 			return bannerModel(t, sz.w, sz.h, bannerSession())
 		}},
-		{"newagent_empty", true, func(t *testing.T, sz goldenSize) Model {
-			m, _ := goldenNewAgentBoard(t, sz)
-			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
-			m, _ = executeCommand(m, "new")
-			m.NewAgent.Indexing = false // indexed: mockup A ("none yet"), not mockup F's loading row
+		{"newagent_step_agent", true, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentStep(t, sz, naStepAgent, "claude", "codex", "ollama", "cursor", "grok")
 			return m
 		}},
-		{"newagent_agent", true, func(t *testing.T, sz goldenSize) Model {
-			m, home := goldenNewAgentBoard(t, sz)
-			writeHomeSkill(t, home, "go-testing", "table-driven tests and goldens")
-			writeHomeSkill(t, home, "release", "cut a release branch")
-			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "ollama", "cursor", "grok"), true
-			m, _ = executeCommand(m, "new")
-			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
-			m.NewAgent.SkillSel = map[string]bool{"go-testing": true}
+		{"newagent_step_model", true, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentStep(t, sz, naStepModel, "claude", "codex")
 			return m
 		}},
-		{"newagent_models_filter", false, func(t *testing.T, sz goldenSize) Model {
+		{"newagent_step_model_filter", false, func(t *testing.T, sz goldenSize) Model {
 			m, _ := goldenNewAgentBoard(t, sz)
 			m.DaemonTools, m.toolsKnown = cursorModels(t), true
 			m, _ = executeCommand(m, "new")
 			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
 			m = sendKey(m, key("j")) // Cursor CLI
+			m = sendKey(m, key("enter"))
 			m = sendKey(m, key("/"))
 			return typeText(m, "son")
 		}},
-		{"newagent_filled", true, goldenNewAgentFilled},
-		{"newagent_preview", false, func(t *testing.T, sz goldenSize) Model {
-			m := goldenNewAgentFilled(t, sz)
-			return sendKey(m, key("enter"))
+		{"newagent_step_skills", true, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentStep(t, sz, naStepSkills, "claude", "codex")
+			m.NewAgent.SkillSel = map[string]bool{"go-testing": true}
+			return m
 		}},
-		{"newagent_import", false, goldenNewAgentImport},
-		{"newagent_errors", true, func(t *testing.T, sz goldenSize) Model {
-			// Mockup F: the workspace still indexing under CONTEXT, and a
-			// launch the daemon refused, with the draft kept.
-			m, _ := goldenNewAgentBoard(t, sz)
-			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
-			m, _ = executeCommand(m, "new") // the walk never comes back
-			m.NewAgent.indexCount.Store(3812)
-			m = typeText(m, "fix the flaky auth test")
+		{"newagent_step_task", true, func(t *testing.T, sz goldenSize) Model {
+			m, _ := goldenNewAgentStep(t, sz, naStepTask, "claude", "codex")
+			return m
+		}},
+		{"newagent_step_task_filled", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentFilled(t, sz, naStepTask)
+		}},
+		{"newagent_step_context", true, func(t *testing.T, sz goldenSize) Model {
+			m := goldenNewAgentFilled(t, sz, naStepContext)
+			m.NewAgent.ItemIdx = 2
+			return m
+		}},
+		{"newagent_step_trust", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentFilled(t, sz, naStepTrust)
+		}},
+		{"newagent_step_trust_short", false, func(t *testing.T, sz goldenSize) Model {
+			// The cursor on the last row of a short screen: the transcript
+			// gives way and the cursor's radio, label and folder show whole.
+			m := goldenNewAgentFilled(t, sz, naStepTrust)
+			m.NewAgent.TrustCur = 2
+			return m
+		}},
+		{"newagent_step_summary_short", false, func(t *testing.T, sz goldenSize) Model {
+			// A notice and a long error on a short screen: the launch row
+			// and the first error line still show.
+			m := goldenNewAgentFilled(t, sz, naStepSummary)
+			m.NewAgent.Notice = "grok isn't available; using claude"
+			m.NewAgent.Err = "✗ launch failed: the daemon answered that the session cap is reached and every slot is taken. Your draft is kept."
+			return m
+		}},
+		{"newagent_step_summary", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentFilled(t, sz, naStepSummary)
+		}},
+		{"newagent_step_summary_err", true, func(t *testing.T, sz goldenSize) Model {
+			// A launch the daemon refused, with the draft kept.
+			m := goldenNewAgentFilled(t, sz, naStepSummary)
 			m.NewAgent.Launching, m.NewAgent.launchGen = true, -1
 			m, _ = handleNewAgentLaunched(m, newAgentLaunchedMsg{Err: errors.New("daemon is not running (rex daemon start)"), gen: -1})
 			return m
 		}},
-		{"newagent_loading", false, func(t *testing.T, sz goldenSize) Model {
+		{"newagent_step_import", false, goldenNewAgentImport},
+		{"newagent_step_preview", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenNewAgentFilled(t, sz, naStepContext)
+			m.NewAgent.ItemIdx = 2
+			return sendKey(m, key("enter"))
+		}},
+		{"newagent_step_loading", false, func(t *testing.T, sz goldenSize) Model {
+			// The picker over a workspace still being listed.
 			m, _ := goldenNewAgentBoard(t, sz)
 			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
 			m, _ = executeCommand(m, "new") // the walk never comes back
@@ -473,28 +488,28 @@ func goldenScreens() []goldenScreen {
 			m.NewAgent.indexCount.Store(3812)
 			return m
 		}},
-		{"newagent_frame", true, func(t *testing.T, sz goldenSize) Model {
-			return framedGolden(t, goldenNewAgentFilled(t, sz), sz)
+		{"newagent_step_loading_agent", false, func(t *testing.T, sz goldenSize) Model {
+			// The daemon's tool list is not in yet.
+			m, _ := goldenNewAgentBoard(t, sz)
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
+			return m
 		}},
-		{"newagent_ansi", true, func(t *testing.T, sz goldenSize) Model {
+		{"newagent_step_frame", true, func(t *testing.T, sz goldenSize) Model {
+			return framedGolden(t, goldenNewAgentFilled(t, sz, naStepSummary), sz)
+		}},
+		{"newagent_step_ansi", true, func(t *testing.T, sz goldenSize) Model {
 			// Last: the theme is global until the test ends.
-			m := goldenNewAgentFilled(t, sz)
-			if err := m.Store.Set("theme", "ansi"); err != nil {
-				t.Fatal(err)
-			}
-			applyThemeNamed(&m, "ansi")
-			t.Cleanup(func() { applyTheme("default") })
-			return m
+			return goldenNewAgentTheme(t, goldenNewAgentFilled(t, sz, naStepSummary), "ansi")
 		}},
-		{"newagent_highcontrast", true, func(t *testing.T, sz goldenSize) Model {
-			// Last too, for the same reason.
-			m := goldenNewAgentFilled(t, sz)
-			if err := m.Store.Set("theme", "high-contrast"); err != nil {
-				t.Fatal(err)
-			}
-			applyThemeNamed(&m, "high-contrast")
-			t.Cleanup(func() { applyTheme("default") })
-			return m
+		{"newagent_step_ansi_task", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentTheme(t, goldenNewAgentFilled(t, sz, naStepTask), "ansi")
+		}},
+		{"newagent_step_highcontrast", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentTheme(t, goldenNewAgentFilled(t, sz, naStepSummary), "high-contrast")
+		}},
+		{"newagent_step_highcontrast_task", true, func(t *testing.T, sz goldenSize) Model {
+			return goldenNewAgentTheme(t, goldenNewAgentFilled(t, sz, naStepTask), "high-contrast")
 		}},
 		{"settings_page_accent", true, func(t *testing.T, sz goldenSize) Model {
 			// very-peri is too dark for default's background: the detail
@@ -590,18 +605,37 @@ func goldenNewAgentBoard(t *testing.T, sz goldenSize) (Model, string) {
 		t.Fatal(err)
 	}
 	m.WS = &WorkspaceScope{ID: wsA, Name: "rex", Root: repo}
+	prev := naShowDir // the temp home is not part of the golden file
+	naShowDir = func(dir string) string {
+		return strings.Replace(filepath.ToSlash(dir), filepath.ToSlash(home), "/home/dev", 1)
+	}
+	t.Cleanup(func() { naShowDir = prev })
 	return m, home
 }
 
-// goldenNewAgentFilled is mockup B: a task, a file, a folder and a 38-line
-// paste (the file and folder set directly until the import picker), the
-// folder trusted for the session, the paste under the context cursor.
-func goldenNewAgentFilled(t *testing.T, sz goldenSize) Model {
+// goldenNewAgentStep is the page open on a step with the given agents
+// installed and two skills in the library (go-testing and release): the
+// steps up to it are the defaults. It returns the home too.
+func goldenNewAgentStep(t *testing.T, sz goldenSize, step naStep, installed ...string) (Model, string) {
 	t.Helper()
-	m, _ := goldenNewAgentBoard(t, sz)
-	m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex"), true
+	m, home := goldenNewAgentBoard(t, sz)
+	writeHomeSkill(t, home, "go-testing", "table-driven tests and goldens")
+	writeHomeSkill(t, home, "release", "cut a release branch")
+	m.DaemonTools, m.toolsKnown = daemonTools(t, installed...), true
 	m, _ = executeCommand(m, "new")
+	m.NewAgent.Indexing = false // indexed: the empty states, not the loading row
+	naGo(m, step)
+	return m, home
+}
+
+// goldenNewAgentFilled is the page with a task, a file, a folder and a
+// 38-line paste (the file and folder set directly until the import
+// picker), a skill, the folder trusted for the session, opened on step.
+func goldenNewAgentFilled(t *testing.T, sz goldenSize, step naStep) Model {
+	t.Helper()
+	m, _ := goldenNewAgentStep(t, sz, naStepTask, "claude", "codex")
 	m = typeText(m, "the auth test is flaky on CI, see the paste. fix it and add a regression test. ")
+	m.NewAgent.SkillSel = map[string]bool{"go-testing": true}
 	m.NewAgent.Items = []spawnctx.Item{
 		{Kind: spawnctx.File, Name: "internal/auth/auth_test.go", Bytes: 4300},
 		{Kind: spawnctx.Dir, Name: "internal/auth/testdata", Files: 12, Bytes: 1100},
@@ -615,20 +649,18 @@ func goldenNewAgentFilled(t *testing.T, sz goldenSize) Model {
 	}
 	m = sendKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(log), Paste: true})
 	m = sendKey(m, tea.KeyMsg{Type: tea.KeyCtrlT})
-	m = sendKey(m, tea.KeyMsg{Type: tea.KeyTab}) // Context
-	m = sendKey(m, key("j"))
-	return sendKey(m, key("j"))
+	naGo(m, step)
+	return m
 }
 
-// wizardFlag turns new_agent_page off, so n and :new open the popup wizard.
-func wizardFlag(t *testing.T, m Model) Model {
+// goldenNewAgentTheme applies a theme to m for the rest of the test.
+func goldenNewAgentTheme(t *testing.T, m Model, name string) Model {
 	t.Helper()
-	if m.Store == nil {
-		m.Store = settings.NewStore()
-	}
-	if err := m.Store.Set("new_agent_page", false); err != nil {
+	if err := m.Store.Set("theme", name); err != nil {
 		t.Fatal(err)
 	}
+	applyThemeNamed(&m, name)
+	t.Cleanup(func() { applyTheme("default") })
 	return m
 }
 

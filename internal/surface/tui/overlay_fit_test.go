@@ -33,7 +33,6 @@ func overlayModels(t *testing.T, w, h int) map[string]Model {
 	return map[string]Model{
 		"help":     with(func(m *Model) { m.Focus = FocusHelp }),
 		"settings": with(func(m *Model) { m.Focus, m.Settings = FocusSettings, &SettingsState{} }),
-		"wizard":   with(func(m *Model) { m.Focus, m.Wizard = FocusWizard, &WizardState{} }),
 		"stats":    with(func(m *Model) { m.Focus = FocusStats }),
 		"overview": with(func(m *Model) { m.Focus = FocusOverview }),
 		"failures": with(func(m *Model) { m.Focus, m.Fail = FocusFail, &FailState{Sessions: sessions[len(sessions)-1:]} }),
