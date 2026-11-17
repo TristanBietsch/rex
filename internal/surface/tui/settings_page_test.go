@@ -290,11 +290,13 @@ func TestSettingsPageSectionKeysKeptSearch(t *testing.T) {
 }
 
 func TestSettingsPageSectionKeysSkipNoHits(t *testing.T) {
-	m := keptSearch(t, "color") // hits in Appearance and Features only
+	m := keptSearch(t, "color") // hits in Appearance, Features and Summary only
 	secs := settingsSections(m.Settings)
 	app, feat := firstHit(m, settings.SectionAppearance), firstHit(m, settings.SectionFeatures)
+	sum := firstHit(m, settings.SectionSummary)
 	require.NotEmpty(t, app)
 	require.NotEmpty(t, feat)
+	require.NotEmpty(t, sum)
 	require.Empty(t, firstHit(m, settings.SectionBehavior))
 	require.Equal(t, settings.SectionBehavior, secs[1])
 
@@ -304,16 +306,18 @@ func TestSettingsPageSectionKeysSkipNoHits(t *testing.T) {
 	m = settingsPress(m, "]")
 	require.Equal(t, feat, m.Settings.CursorID, "] skips sections without hits")
 	m = settingsPress(m, "]")
-	require.Equal(t, feat, m.Settings.CursorID, "] clamps at the last section with hits")
-	m = settingsPress(m, "[")
+	require.Equal(t, sum, m.Settings.CursorID, "] reaches the last section with hits")
+	m = settingsPress(m, "]")
+	require.Equal(t, sum, m.Settings.CursorID, "] clamps at the last section with hits")
+	m = settingsPress(m, "[", "[")
 	require.Equal(t, app, m.Settings.CursorID, "[ skips back past sections without hits")
 
 	m.Settings.CursorID = app
 	m = settingsPress(m, "tab", "j")
 	require.Equal(t, feat, m.Settings.CursorID, "left-pane j skips sections without hits")
-	m = settingsPress(m, "j")
-	require.Equal(t, feat, m.Settings.CursorID, "left-pane j clamps at the last section with hits")
-	m = settingsPress(m, "k")
+	m = settingsPress(m, "j", "j")
+	require.Equal(t, sum, m.Settings.CursorID, "left-pane j clamps at the last section with hits")
+	m = settingsPress(m, "k", "k")
 	require.Equal(t, app, m.Settings.CursorID, "left-pane k skips back")
 	m = settingsPress(m, "k")
 	require.Equal(t, app, m.Settings.CursorID, "left-pane k clamps")
@@ -322,7 +326,10 @@ func TestSettingsPageSectionKeysSkipNoHits(t *testing.T) {
 	m, _ = updateMouse(m, wheel(true))
 	require.Equal(t, feat, m.Settings.CursorID, "left-pane wheel skips sections without hits")
 	m, _ = updateMouse(m, wheel(true))
-	require.Equal(t, feat, m.Settings.CursorID, "left-pane wheel clamps")
+	require.Equal(t, sum, m.Settings.CursorID, "left-pane wheel reaches the last section with hits")
+	m, _ = updateMouse(m, wheel(true))
+	require.Equal(t, sum, m.Settings.CursorID, "left-pane wheel clamps")
+	m, _ = updateMouse(m, wheel(false))
 	m, _ = updateMouse(m, wheel(false))
 	require.Equal(t, app, m.Settings.CursorID)
 }
