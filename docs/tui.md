@@ -64,10 +64,10 @@ The strip's slots, left to right, ending before the age. A slot that exists is a
 | Slot | Width | Shows |
 |------|-------|-------|
 | unseen | 1 | `✦`: a Ready or Done row that finished since you last looked at it (last attach or `cc`). On the first start every row counts as seen. Marked-done rows never show it |
-| why | 8 | Ready: `? asks` (the agent asks for an answer or approval, or its last line is a question); a row whose turn simply finished shows nothing. Waiting: what it waits on and for how long (`sh 42s`, `web 9s`, `sub 3m`). Blank otherwise |
+| why | 8 | Ready: `? asks` (the agent asks for an answer or approval, or its last line is a question); a row whose turn simply finished shows nothing. Waiting: what it waits on and for how long (`sh 42s`, `web 9s`, `sub 3m`); `sh` is Cyber Yellow (the `cyber` theme token), `web` and `sub` blue. Blank otherwise |
 | loop | 8 | `↻ 3/8` while the loop runs; `↻ paused`, `↻ capped`, `↻ done`, `↻ failed`, `↻ stop` otherwise. Only while `loops` is on |
 | subagents | 4 | `⋔ 3`: subagents the session runs now (Claude Code). Counts above 99 show as 99 |
-| spend | 6 | What the session has cost so far, right-aligned: `$0.42`, `$12.3`, `$123`, `$1.2k`. Warmer from $5, red from $20. Only while `usage` is on, and only for sessions the daemon sends a `cost_usd` for (Claude Code); blank otherwise, never `$0.00` |
+| spend | 6 | What the session has cost so far, right-aligned: `$0.42`, `$12.3`, `$123`, `$1.2k`. Cyber Yellow under $5 (dim on a row you marked done), warmer from $5, red from $20. Only while `usage` is on, and only for sessions the daemon sends a `cost_usd` for (Claude Code); blank otherwise, never `$0.00` |
 | long-run | 5 | The long-running badge (`▴ 45m`, see [LONG-RUNNING BADGE](#long-running-badge)) |
 
 `row_icon_set` (Settings → Appearance) removes slots: a comma-separated list of `unseen`, `reason`, `loop`, `subagents`, `spend`, `longrun` (unknown ids are ignored; the order is fixed). `ascii_glyphs` swaps the strip's glyphs for ASCII: `✦→*`, `↻→@`, `⋔→Y`, `▴→^`; `?` and `$` stay. Every glyph has text next to it, so no meaning is color-only, and nothing in the strip animates.

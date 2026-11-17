@@ -242,7 +242,11 @@ func reasonText(m Model, s protocol.SessionSummary) (string, lipgloss.Style) {
 		if label == "" {
 			label = kind
 		}
-		return label + " " + durationAgoAt(m.now(), s.WaitingSince), styleWorking
+		style := styleWorking
+		if kind == protocol.WaitShell {
+			style = styleCyber
+		}
+		return label + " " + durationAgoAt(m.now(), s.WaitingSince), style
 	}
 	return "", styleDim
 }
@@ -266,15 +270,35 @@ func spendText(usd float64) string {
 	return fmt.Sprintf("$%.1fk", math.Round(usd/100)/10)
 }
 
-// spendStyle is dim, then warmer at $5 and $20.
+// Spend tiers in USD: below spendWarnUSD the cell is Cyber Yellow, then it
+// turns red at spendWarnUSD and harder red at spendHotUSD.
+const (
+	spendWarnUSD = 5
+	spendHotUSD  = 20
+)
+
+// spendStyle is Cyber Yellow, then redder at $5 and $20.
 func spendStyle(usd float64) lipgloss.Style {
 	switch {
-	case usd >= 20:
+	case usd >= spendHotUSD:
 		return styleLongRun[0]
-	case usd >= 5:
+	case usd >= spendWarnUSD:
 		return styleLongRun[1]
 	}
-	return styleDim
+	return styleCyber
+}
+
+// spendCellStyle is the spend cell's style: spendStyle, except that a
+// marked-done row keeps the base tier dim, as the subagents cell is muted
+// when marked done. Dim without a cost.
+func spendCellStyle(s protocol.SessionSummary) lipgloss.Style {
+	if s.CostUSD == nil {
+		return styleDim
+	}
+	if isMarkedDone(s) && *s.CostUSD < spendWarnUSD {
+		return styleDim
+	}
+	return spendStyle(*s.CostUSD)
 }
 
 // loopSlotText is the loop slot's text: "↻ 3/8" while running, else the
@@ -335,7 +359,7 @@ func slotCell(m Model, s protocol.SessionSummary, slot iconSlot, w int, selected
 		return c
 	case slotSpend:
 		if s.CostUSD != nil {
-			text, style = spendText(*s.CostUSD), spendStyle(*s.CostUSD)
+			text, style = spendText(*s.CostUSD), spendCellStyle(s)
 		}
 		align = lipgloss.Right
 	case slotLongRun:

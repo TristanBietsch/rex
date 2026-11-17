@@ -65,6 +65,10 @@ const (
 	maxErrRunes       = 200
 )
 
+// evalTimeout is the budget evalSource applies: Timeout, except in tests
+// (see withEvalTimeout).
+var evalTimeout = Timeout
+
 // Opts says what to evaluate.
 type Opts struct {
 	// File is the config.lua path (paths.LuaConfigFile).
@@ -194,7 +198,7 @@ func fail(err error) Result {
 }
 
 func evalSource(parent context.Context, o Opts, src []byte) Result {
-	ctx, cancel := context.WithTimeout(parent, Timeout)
+	ctx, cancel := context.WithTimeout(parent, evalTimeout)
 	defer cancel()
 	ev := newEvaluator(o, len(src))
 	done := make(chan Result, 1)
@@ -231,7 +235,7 @@ func stopReason(ev *evaluator, ctx context.Context) error {
 	case ev.heap.Load():
 		return fmt.Errorf("%s: stopped: the script grew memory by more than %d MiB", name, MaxHeapGrowth>>20)
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return fmt.Errorf("%s: timed out after %s", name, Timeout)
+		return fmt.Errorf("%s: timed out after %s", name, evalTimeout)
 	}
 	return fmt.Errorf("%s: stopped: %w", name, ctx.Err())
 }

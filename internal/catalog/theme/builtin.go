@@ -18,6 +18,7 @@ var classic = Palette{
 	Working: "#5B8DEF", Queued: "#5B8DEF", Needs: "#4ADE80", Done: "#4E9A6A",
 	Failed: "#EF4444", Crashed: "#7A7F8C",
 	Warn: "#E5B341", Danger: "#EF4444", Success: "#4E9A6A", Info: "#5B8DEF",
+	Cyber: "#FFD500",
 	Fleet: fleetColors,
 }
 
@@ -36,6 +37,7 @@ var modern = Palette{
 	Working: "#6EA8FE", Queued: "#6EA8FE", Needs: "#4BE37F", Done: "#4E9E6E",
 	Failed: "#F26B6B", Crashed: "#8B91A1",
 	Warn: "#F5B94A", Danger: "#F26B6B", Success: "#4E9E6E", Info: "#6EA8FE",
+	Cyber: "#FFD500",
 	Fleet: fleetColors,
 }
 
@@ -47,6 +49,7 @@ var noir = Palette{
 	Working: "#7AA6F0", Queued: "#7AA6F0", Needs: "#4FD982", Done: "#4A9A6C",
 	Failed: "#D85A5A", Crashed: "#7A8291",
 	Warn: "#D4B574", Danger: "#D85A5A", Success: "#4A9A6C", Info: "#7AA6F0",
+	Cyber: "#FFD500",
 	Fleet: fleetColors,
 }
 
@@ -58,6 +61,7 @@ var paper = Palette{
 	Working: "#2B5CC0", Queued: "#2B5CC0", Needs: "#14853B", Done: "#3D6650",
 	Failed: "#C23B3B", Crashed: "#6E7380",
 	Warn: "#966200", Danger: "#C23B3B", Success: "#3D6650", Info: "#2B5CC0",
+	Cyber: "#7A5F00", // Cyber Yellow darkened to 4.5:1 on the light bg
 	Fleet: fleetColors,
 }
 
@@ -69,6 +73,7 @@ var highContrast = Palette{
 	Working: "#4DA3FF", Queued: "#4DA3FF", Needs: "#3CF07A", Done: "#57B07A",
 	Failed: "#FF5C5C", Crashed: "#C8C8C8",
 	Warn: "#FFD000", Danger: "#FF5C5C", Success: "#57B07A", Info: "#4DA3FF",
+	Cyber: "#FFD500",
 	Fleet: fleetColors,
 }
 
@@ -87,6 +92,7 @@ var ansi = Palette{
 	Accent:  "5",
 	Working: "4", Queued: "4", Needs: "2", Done: "10", Failed: "1",
 	Warn: "3", Danger: "1", Success: "10", Info: "4",
+	Cyber:      "3", // the normal yellow; bright 11 is a gray on Solarized
 	Fleet:      []string{"4", "3", "2", "1", "5", "6"},
 	SelReverse: true,
 }

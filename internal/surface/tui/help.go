@@ -149,13 +149,13 @@ func rowIconLegend(m Model) []helpRow {
 		{Key: styleNeeds.Render(iconGlyph(m, "asks") + " asks"), Desc: "waiting on your answer"},
 	}
 	if m.featureOn("waiting_section") { // the why slot names the tool only on Waiting rows
-		rows = append(rows, helpRow{Key: styleWorking.Render("sh 42s"), Desc: "waiting on a shell (web, sub)"})
+		rows = append(rows, helpRow{Key: styleCyber.Render("sh 42s"), Desc: "waiting on a shell (web, sub)"})
 	}
 	if m.featureOn("loops") {
 		rows = append(rows, helpRow{Key: styleWorking.Render(iconGlyph(m, "loop") + " 3/8"), Desc: "loop turn"})
 	}
 	if m.featureOn("usage") {
-		rows = append(rows, helpRow{Key: styleDim.Render(spendText(0.42)), Desc: "spend so far (Claude)"})
+		rows = append(rows, helpRow{Key: styleCyber.Render(spendText(0.42)), Desc: "spend so far (Claude)"})
 	}
 	return rows
 }

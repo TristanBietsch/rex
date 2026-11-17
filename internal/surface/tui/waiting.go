@@ -21,9 +21,17 @@ type waitingSet struct {
 // the board (TestWaitingSets_AvoidFixedGlyphs).
 var waitingSets = map[string]waitingSet{
 	"clock": {Frames: []string{"◴", waitingGlyph, "◶", "◵"}, Still: waitingGlyph},
-	// The hourglass turns a full circle: upright, on its side with the sand
-	// on the left, upside down, on its side with the sand on the right.
-	"hourglass": {Frames: []string{"⧖", "⧑", "⧖", "⧒"}, Still: "⧖"},
+	// The hourglasses are drawn in braille, as no one-cell glyph shows where
+	// the sand is: the sand starts full in the top bulb, runs into the bottom
+	// one until it is full, the glass turns on its side, and the sand is full
+	// on top again. hourglass is four grains in two-row bulbs; its still glyph
+	// is half run, sand in both bulbs.
+	"hourglass": {Frames: []string{"⠛", "⢋", "⣉", "⣡", "⣤", "⡇"}, Still: "⣉"},
+	// hourglass_drip shows one grain at a time falling through the neck
+	// from a one-row top bulb to a one-row bottom bulb.
+	"hourglass_drip": {Frames: []string{"⠉", "⠑", "⢁", "⢄", "⣀", "⠒"}, Still: "⢁"},
+	// hourglass_thin is a one-column glass of two grains.
+	"hourglass_thin": {Frames: []string{"⠃", "⡂", "⡄", "⠤"}, Still: "⡂"},
 	// Sand piles up from the bottom of the cell.
 	"sand":     {Frames: []string{"⣀", "⣄", "⣤", "⣦", "⣶", "⣷", "⣿"}, Still: "⣤"},
 	"orbit":    {Frames: []string{"◜", "◝", "◞", "◟"}, Still: "◜"},

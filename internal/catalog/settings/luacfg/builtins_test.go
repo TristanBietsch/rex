@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	lua "github.com/yuin/gopher-lua"
@@ -53,11 +52,10 @@ func TestEvalBuiltinResultCapped(t *testing.T) {
 		"gsub %0 repl":      `string.gsub(string.rep("a", 25000), ".+", string.rep("%0", 500))`,
 		"gsub function big": `local s = string.rep("x", 1048576) string.gsub(string.rep("a", 300), "a", function() return s end)`,
 	} {
-		start := time.Now()
+		// A refusal that came only at the deadline would say "timed out".
 		r := evalScript(t, script)
 		require.ErrorContains(t, r.Err, "larger than", name)
 		require.NotContains(t, r.Err.Error(), "memory", name)
-		require.Less(t, time.Since(start), Timeout, name)
 	}
 }
 
@@ -85,12 +83,11 @@ func TestEvalGsubLinear(t *testing.T) {
 	if raceOn {
 		n = 50000
 	}
-	start := time.Now()
+	// luaOK fails if the evaluation hits the deadline.
 	luaOK(t, fmt.Sprintf(`
 local r, n = string.gsub(string.rep("a", %[1]d), "a", "b")
 assert(n == %[1]d and #r == %[1]d and r:sub(1, 3) == "bbb", "gsub")
 `, n))
-	require.Less(t, time.Since(start), Timeout)
 }
 
 // gsub keeps gopher-lua's semantics.

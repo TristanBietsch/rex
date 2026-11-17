@@ -147,6 +147,36 @@ func TestTokens(t *testing.T) {
 	require.Equal(t, []string{"crashed", "done", "failed", "loop", "needs", "queued", "select"}, GlyphTokens())
 }
 
+func TestCyberToken(t *testing.T) {
+	p, _, err := Parse("mine", []byte(`colors: {cyber: "#112233"}`))
+	require.NoError(t, err)
+	require.Equal(t, "#112233", p.Cyber)
+
+	for name, src := range map[string]string{
+		"blank file":        "",
+		"extends default":   "extends: default\ncolors: {accent: \"#ff7a59\"}\n",
+		"extends classic":   "extends: classic\n",
+		"colors without it": `colors: {accent: "#ff7a59"}`,
+	} {
+		p, _, err := Parse("mine", []byte(src))
+		require.NoError(t, err, name)
+		require.Equal(t, "#FFD500", p.Cyber, "%s: a theme with no cyber key inherits it", name)
+	}
+
+	p, _, err = Parse("mine", []byte("extends: paper\n"))
+	require.NoError(t, err)
+	require.Equal(t, Builtin["paper"].Cyber, p.Cyber, "extends paper keeps paper's darker gold")
+
+	_, _, err = Parse("mine", []byte(`colors: {cyber: "nope"}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "colors.cyber")
+}
+
+func TestColorListHasCyber(t *testing.T) {
+	require.Contains(t, Builtin["default"].ColorList(), Token{Name: "cyber", Value: "#FFD500"})
+	require.Contains(t, ColorTokens(), "cyber")
+}
+
 func TestValidGlyph(t *testing.T) {
 	for _, ok := range []string{"!", "✓", "◆", "x", "●", "é", ">"} {
 		require.NoError(t, ValidGlyph(ok), ok)

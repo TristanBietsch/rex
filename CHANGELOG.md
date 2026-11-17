@@ -6,28 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added
-
-- `rex onboard`: a five-step tour for new users. It checks the install,
-  lists the coding agents on your `PATH` with install hints for the
-  missing ones, runs `rex setup` when there is no config, and teaches the
-  board keys. `rex onboard -check` runs the checks alone, in any format,
-  and exits 1 with no agent installed. The board suggests it on a first
-  run with no config. Finishing ends with one line,
-  `onboard: done; run rex to open the board`.
-- An agent installed while the daemon runs is offered on the new-agent
-  page within 30 seconds, or at once when the page opens; no `rex reload`
-  needed.
-- The board's selector (the arrow on the selected row) is now a setting:
-  `selector_glyph` picks `▸` `❯` `➜` `➤` `☞` or any glyph you type, and
-  every picker (wizards, settings, new agent, pages) uses it too. `theme`,
-  the default, keeps the theme's own.
-- `selector_gap` (default 2, one more column than before) gives the
-  selector room, and `selector_bold` (on) draws it bold.
-- `selector_blink` (`off`, `blink`, `pulse`) and `selector_blink_ms` make
-  it blink. It is solid right after you move, rests after a minute without
-  input and holds still under `reduce_motion`.
-
 ### Changed
 
 - **`n` opens a stepped, full-screen new-agent flow.** One step per screen,
@@ -42,12 +20,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the equivalent `rex new` call (display only); `enter` on a row jumps to
   that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
 
-- `rex doctor` lists every agent from the registry (your `tools.yaml`
-  included) and fails when no agent is installed.
-- Shorter agent names so the agents column is not cut off: Codex (was
-  OpenAI Codex), Antigravity (was Antigravity CLI), Ollama (was Ollama
-  (local)) and Kimi (was Kimi (Moonshot)).
-
 ### Removed
 
 - The popup wizard and the `new_agent_page` setting. The page is the only
@@ -58,20 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
   not the context, trust or skills.
 
-### Fixed (Windows)
-
-- Saving or loading settings while another rex saves `config.yaml` no
-  longer fails with "Access is denied" or a sharing violation.
-- A rejected request (an oversized line, say) gets its error reply instead
-  of a reset connection.
-- With no daemon running, commands say "rex-daemon is not running" and how
-  to start it, instead of a raw dial error.
-- `rex upgrade` keeps the board's place (selection, filter, scroll) across
-  the swap; the saved state was refused for its file mode.
-- Paths under your home folder show as `~/dev/rex` in the TUI, as in the
-  CLI, and `rex trust` saves the suggested folder that way.
-
-## [2.0.0] - 2026-11-12
+## [2.0.0] - 2026-11-15
 
 The first release since v1. Details for every change follow the summary.
 
@@ -133,6 +92,69 @@ The first release since v1. Details for every change follow the summary.
 - **Render fixes**: popups stay straight with CJK and emoji text,
   multi-line pastes keep the help line on screen, short terminals keep the
   prompt, and prompts are typed without escape sequences.
+- **Onboarding**: `rex onboard` walks a new user through the install
+  checks, the agents on `PATH`, `rex setup` and the board keys; the board
+  suggests it on a first run with no config.
+- **Selector settings**: `selector_glyph` picks the arrow on the selected
+  row and in every picker; `selector_gap`, `selector_bold` and
+  `selector_blink` set the board selector's spacing, weight and blink.
+
+### Added (onboarding, agent detection, selector settings)
+
+- `rex onboard`: a five-step tour for new users. It checks the install,
+  lists the coding agents on your `PATH` with install hints for the
+  missing ones, runs `rex setup` when there is no config, and teaches the
+  board keys. `rex onboard -check` runs the checks alone, in any format,
+  and exits 1 with no agent installed. The board suggests it on a first
+  run with no config. Finishing ends with one line,
+  `onboard: done; run rex to open the board`.
+- An agent installed while the daemon runs is offered on the new-agent
+  page within 30 seconds, or at once when the page opens; no `rex reload`
+  needed.
+- The board's selector (the arrow on the selected row) is now a setting:
+  `selector_glyph` picks `▸` `❯` `➜` `➤` `☞` or any glyph you type, and
+  every picker (wizards, settings, new agent, pages) uses it too. `theme`,
+  the default, keeps the theme's own.
+- `selector_gap` (default 2, one more column than before) gives the
+  selector room, and `selector_bold` (on) draws it bold.
+- `selector_blink` (`off`, `blink`, `pulse`) and `selector_blink_ms` make
+  it blink. It is solid right after you move, rests after a minute without
+  input and holds still under `reduce_motion`.
+
+### Changed (doctor, agent names, wait and spend colors)
+
+- `rex doctor` lists every agent from the registry (your `tools.yaml`
+  included) and fails when no agent is installed.
+- Shorter agent names so the agents column is not cut off: Codex (was
+  OpenAI Codex), Antigravity (was Antigravity CLI), Ollama (was Ollama
+  (local)) and Kimi (was Kimi (Moonshot)).
+- The board's `sh` wait cell (`sh 42s`) and the spend `$` under $5 are
+  Cyber Yellow (Pantone 14-0760), so `sh` no longer shares blue with
+  `sub` and `web`. The new `cyber` theme token sets the color; a theme
+  that leaves it out inherits it. `paper` and `ansi` use a darker gold
+  and the terminal's yellow.
+
+### Fixed (Windows)
+
+- Saving or loading settings while another rex saves `config.yaml` no
+  longer fails with "Access is denied" or a sharing violation.
+- A rejected request (an oversized line, say) gets its error reply instead
+  of a reset connection.
+- With no daemon running, commands say "rex-daemon is not running" and how
+  to start it, instead of a raw dial error.
+- `rex upgrade` keeps the board's place (selection, filter, scroll) across
+  the swap; the saved state was refused for its file mode.
+- Paths under your home folder show as `~/dev/rex` in the TUI, as in the
+  CLI, and `rex trust` saves the suggested folder that way.
+
+### Fixed (hourglass waiting icon)
+
+- The `hourglass` Waiting icon now shows its sand: full in the top bulb,
+  running into the bottom one until it is full, then the glass turns and
+  the top is full again. It used to rock between an empty glass and two
+  half-filled bowties.
+- Two more hourglasses for `waiting_spinner`: `hourglass_drip` (one grain
+  at a time through the neck) and `hourglass_thin` (a one-column glass).
 
 ### Changed (green Ready, check-mark Done, new icons)
 

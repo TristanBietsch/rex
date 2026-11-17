@@ -33,6 +33,7 @@ var (
 	colorDanger      lipgloss.Color
 	colorSuccess     lipgloss.Color
 	colorInfo        lipgloss.Color
+	colorCyber       lipgloss.Color
 	colorFleet       []lipgloss.Color
 	faintTones       bool // dim, muted and border tones are drawn faint (theme.Palette.Faint)
 	selReverse       bool // the selection is reverse video (theme.Palette.SelReverse)
@@ -66,6 +67,7 @@ var (
 	styleFailed      lipgloss.Style
 	styleStateFailed lipgloss.Style
 	styleWorking     lipgloss.Style
+	styleCyber       lipgloss.Style // the sh wait label and the spend $
 
 	// styleMarker is a state's bold marker style, by state; styleLongRun is
 	// the long-running badge by tier (0 = most severe), see longRunTiers.
@@ -153,6 +155,7 @@ func applyPalette(p theme.Palette) {
 	colorDanger = c(p.Danger)
 	colorSuccess = c(p.Success)
 	colorInfo = c(p.Info)
+	colorCyber = c(p.Cyber)
 	colorFleet = make([]lipgloss.Color, len(p.Fleet))
 	for i, f := range p.Fleet {
 		colorFleet[i] = c(f)
@@ -203,6 +206,7 @@ func rebuildStyles() {
 	styleFailed = fg(colorFailed)
 	styleStateFailed = bold(colorFailed)
 	styleWorking = fg(colorWorking)
+	styleCyber = fg(colorCyber)
 
 	styleMarker = map[protocol.State]lipgloss.Style{
 		protocol.StateWorking:    bold(colorWorking),

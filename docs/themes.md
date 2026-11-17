@@ -169,6 +169,7 @@ Tokens under `colors:`:
 | `accent` | The prompt arrow, selection marker, focused input and command names |
 | `working`, `queued`, `needs`, `done`, `failed`, `crashed` | One color per session state (`needs` is READY) |
 | `warn`, `danger`, `success`, `info` | Feedback messages |
+| `cyber` | The `sh` wait label (`sh 3m`) and the spend `$` on board rows. Built-ins use Pantone Cyber Yellow (14-0760); `paper` darkens it for its light background. A theme that omits it inherits it from `extends` |
 | `fleet` | A list of 1 to 16 colors, one per fleet |
 
 `rex theme new` lists every token with its base value. `rex theme show <name>` prints the result after `extends`.
