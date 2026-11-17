@@ -8,7 +8,7 @@ import (
 )
 
 func TestSelectorGlyphAcceptsThemeAndOneGlyph(t *testing.T) {
-	for _, g := range []string{"theme", "▸", "☞", "👉", ">", "❯"} {
+	for _, g := range []string{"theme", "▸", "☞", "☛", "👉", ">", "❯"} {
 		st := NewStore()
 		require.NoError(t, st.Set("selector_glyph", g), "%q", g)
 		require.Equal(t, g, st.Get("selector_glyph"))
@@ -28,7 +28,7 @@ func TestSelectorGlyphPresets(t *testing.T) {
 	s, ok := Find("selector_glyph")
 	require.True(t, ok)
 	require.True(t, s.Free)
-	require.Len(t, s.Options, 6, "theme plus five glyphs")
+	require.Len(t, s.Options, 7, "theme plus six glyphs")
 	require.Equal(t, "theme", s.Options[0])
 	for _, g := range s.Options[1:] {
 		require.Equal(t, 1, ansi.StringWidth(g), g)
@@ -36,6 +36,7 @@ func TestSelectorGlyphPresets(t *testing.T) {
 		require.NoError(t, err, g)
 	}
 	require.Contains(t, s.Options, "☞")
+	require.Contains(t, s.Options, "☛")
 }
 
 func TestSelectorNumericBounds(t *testing.T) {
