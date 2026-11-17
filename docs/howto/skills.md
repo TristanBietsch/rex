@@ -66,4 +66,4 @@ A tool loads skills per session when its registry entry has `skill_args` with th
 
 ## See also
 
-- [cli.md](../cli.md) (`rex new`, `rex skills`), [tui.md](../tui.md) (wizard), [settings.md](../settings.md), [protocol.md](../protocol.md) (`NewSession`).
+- [cli.md](../cli.md) (`rex new`, `rex skills`), [tui.md](../tui.md) (new-agent page), [settings.md](../settings.md), [protocol.md](../protocol.md) (`NewSession`).

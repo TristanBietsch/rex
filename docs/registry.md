@@ -161,7 +161,7 @@ Built-in lists: `qwen --list-models` (`Name (id)`, header `MODEL`), `grok models
 
 ### Installed tools
 
-A tool is installed when the first word of `command` is found on the daemon's `PATH` (`exec.LookPath`, which applies `PATHEXT` on Windows). The daemon works this out at start and on every reload and sends it as `installed` on each tool of the `Snapshot` ([protocol.md](protocol.md)). The new-session wizard and the quick-spawn pickers offer installed tools only (the TUI reads `Snapshot.tools` and `ToolsChanged`); Settings → Onboarding lists the missing ones dimmed with their `install_hint`.
+A tool is installed when the first word of `command` is found on the daemon's `PATH` (`exec.LookPath`, which applies `PATHEXT` on Windows). The daemon works this out at start and on every reload and sends it as `installed` on each tool of the `Snapshot` ([protocol.md](protocol.md)). The new-agent page and the quick-spawn pickers offer installed tools only (the TUI reads `Snapshot.tools` and `ToolsChanged`); Settings → Onboarding lists the missing ones dimmed with their `install_hint`.
 
 ### trust_prompt
 

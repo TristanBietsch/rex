@@ -274,7 +274,7 @@ var Registry = []Setting{
 	{
 		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures, Apply: ApplyNextSpawn,
 		Type: TypeBool, Default: true,
-		Help: "Load skills from ~/.config/rex/skills into one session: the skills step in the new-session wizard and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
+		Help: "Load skills from ~/.config/rex/skills into one session: the skills step on the new-agent page and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
 	},
 
 	{
@@ -312,7 +312,7 @@ var Registry = []Setting{
 	{
 		ID: "extra_agents", Label: "Extra agents", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. The new-session wizard offers each one only while its binary is on PATH; Settings → Onboarding lists the missing ones with an install hint. Off: the three never show in the wizard or the pickers, and the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
+		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. The new-agent page offers each one only while its binary is on PATH; Settings → Onboarding lists the missing ones with an install hint. Off: the three never show on the new-agent page or in the pickers, and the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
 	},
 	{
 		ID: "model_autodetect", Label: "Model auto-detect", Section: SectionFeatures, Apply: ApplyLive,
