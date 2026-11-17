@@ -159,7 +159,11 @@ func executeAttachCommand(m Model, line string) (Model, tea.Cmd) {
 		}
 		return m, completeSessionCmd(m.Client, a.SessionID)
 	case "name", "rename":
-		return m, setNameCmd(namerOf(m), a.SessionID, rest)
+		if msg := nameConflict(m.Sessions, a.SessionID, rest); msg != "" {
+			m.Err = "name: " + msg
+			return m, nil
+		}
+		return m.sendName(a.SessionID, rest)
 	case "banner":
 		return toggleBanner(m), nil
 	case "border":

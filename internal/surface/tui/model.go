@@ -89,7 +89,10 @@ type Model struct {
 	// daemon that predates the skills field drops it silently, so
 	// SessionAdded of PendingSelectSlug is checked against it.
 	PendingSpawn pendingSpawn
-	Filter       string
+	// PendingName is the display name this board last sent; a name_taken
+	// refusal of it reopens the rename editor (reopenRename).
+	PendingName *pendingName
+	Filter      string
 	// Search is the board search text (/ or :search): every term must match a
 	// row. Session-only; :bg saves it.
 	Search string
@@ -475,6 +478,9 @@ func (m Model) applyEvent(env protocol.Envelope) Model {
 		var ee protocol.ErrorEvent
 		if err := json.Unmarshal(env.Data, &ee); err == nil {
 			slog.Warn("tui: daemon error event", "code", ee.Code, "message", ee.Message, "id", ee.ID)
+			if reopened, ok := m.reopenRename(ee); ok {
+				return reopened
+			}
 			m.Err = "daemon: " + friendlyDaemonError(ee)
 			// A rejected spawn will never produce SessionAdded.
 			m.PendingSelectSlug = ""
