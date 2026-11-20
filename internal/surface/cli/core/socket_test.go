@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tristanbietsch/rex/internal/wire/client"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 func TestSocketFlag(t *testing.T) {
@@ -67,4 +70,25 @@ func TestSocketFlag_NoHome(t *testing.T) {
 	got, err := s.Path()
 	require.NoError(t, err)
 	require.Equal(t, "/x/rex.sock", got)
+}
+
+// A daemon that refuses the handshake because the caller runs inside a
+// session is up: the refusal is exit 6 with the daemon's reason, not the
+// exit-4 "did not answer" that sends the user to check the daemon.
+func TestHelloFailed_InSessionIsRefusedNotUnreachable(t *testing.T) {
+	err := HelloFailed(&client.Error{Intent: protocol.IntentHello, Code: protocol.ErrCodeInSession,
+		Message: "refused: this process runs inside a rex session"})
+	var ee ExitError
+	require.True(t, errors.As(err, &ee))
+	require.Equal(t, ExitOperationRefused, ee.Code)
+	require.Equal(t, "in_session", ee.ID)
+	require.Contains(t, ee.Error(), "inside a rex session")
+	require.NotContains(t, ee.Error(), "handshake")
+}
+
+func TestHelloFailed_OtherErrorsStayUnreachable(t *testing.T) {
+	var ee ExitError
+	require.True(t, errors.As(HelloFailed(errors.New("i/o timeout")), &ee))
+	require.Equal(t, ExitDaemonUnreachable, ee.Code)
+	require.Contains(t, ee.Error(), "did not answer the handshake")
 }

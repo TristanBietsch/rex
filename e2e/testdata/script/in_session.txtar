@@ -1,0 +1,44 @@
+# A process inside a session (an agent, or a command it runs) cannot control
+# rex: the daemon refuses every intent but UsageSample from its own
+# descendants. The probe tool plays the agent: its script runs rex commands
+# from inside the session and records what they print and their exit codes.
+
+daemon-start
+
+exec rex new x --tool probe --model rex --slug p1
+exec rex wait -until done -timeout 20s p1
+
+# Listing, sending input and starting a trusted session are all refused
+# (exit 6, with the daemon's reason). The session's PTY is a terminal, so
+# rex new -trust passes its own terminal check and the daemon refuses it.
+grep '^ls exit=6$' probe.out
+grep '^send exit=6$' probe.out
+grep '^trust exit=6$' probe.out
+grep -count=3 'inside a rex session' probe.out
+! grep 'p1' probe.out
+
+# The same commands from outside the session still work.
+exec rex ls
+stdout 'p1'
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false
+model_autodetect: false
+-- home/.config/rex/tools.yaml --
+tools:
+  - id: probe
+    name: "Probe"
+    category: self_hosted
+    command: ["bash", "-c"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^awaiting input:"
+      idle_ms: 800
+    models:
+      - id: rex
+        name: "Runs rex"
+        args: ["o=\"$WORK/probe.out\"; rex ls >>\"$o\" 2>&1; echo \"ls exit=$?\" >>\"$o\"; printf 'y\\r' | rex send p1 >>\"$o\" 2>&1; echo \"send exit=$?\" >>\"$o\"; rex new -tool probe -model rex -trust -cwd \"$WORK/home/proj\" -- y 2>>\"$o\"; echo \"trust exit=$?\" >>\"$o\"; echo done"]
+-- home/proj/README --
+A project folder for rex new -trust.

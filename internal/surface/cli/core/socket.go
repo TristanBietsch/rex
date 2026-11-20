@@ -8,6 +8,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/wire/client"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // socketUsage is the -socket help text. The default is described rather
@@ -85,8 +86,16 @@ func DaemonUnreachable(socket string, err error) error {
 }
 
 // HelloFailed is the exit-4 error for a handshake that failed with err: the
-// daemon accepted the connection but did not answer.
+// daemon accepted the connection but did not answer. A daemon that refused
+// because this process runs inside a rex session (in_session) is up, so
+// that is exit 6 with the daemon's reason instead.
 func HelloFailed(err error) error {
+	var de *client.Error
+	if errors.As(err, &de) && de.Code == protocol.ErrCodeInSession {
+		ee := NewExitError(ExitOperationRefused, de.Message)
+		ee.Err = err
+		return ee.WithID("in_session")
+	}
 	ee := Errorf(ExitDaemonUnreachable, "rex daemon status", "daemon did not answer the handshake: %s", err)
 	ee.Err = err
 	return ee.WithID("handshake_failed")
