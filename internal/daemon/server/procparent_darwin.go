@@ -20,3 +20,13 @@ func parentPID(pid int) (int, error) {
 	}
 	return int(kp.Eproc.Ppid), nil
 }
+
+// sessionOf returns the session id of process pid (getsid). It fails for a
+// pid that does not exist.
+func sessionOf(pid int) (int, error) {
+	sid, err := unix.Getsid(pid)
+	if err != nil {
+		return 0, fmt.Errorf("process %d: getsid: %w", pid, err)
+	}
+	return sid, nil
+}

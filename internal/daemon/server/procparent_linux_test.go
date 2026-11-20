@@ -32,3 +32,11 @@ func TestParseStatPPID(t *testing.T) {
 		})
 	}
 }
+
+func TestParseStatSID(t *testing.T) {
+	sid, err := parseStatSID(42, "42 (a b) S 7 40 39 0 -1")
+	require.NoError(t, err)
+	require.Equal(t, 39, sid)
+	_, err = parseStatSID(42, "42 (a b) S 7 40")
+	require.Error(t, err)
+}

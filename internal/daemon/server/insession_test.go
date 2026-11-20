@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -74,19 +75,17 @@ func TestInSessionPeer_ControlIntentsRefused(t *testing.T) {
 	srv, sock, _ := newTestServer(t, state.NewStore())
 	serveTest(t, srv)
 
-	for _, intent := range []string{
-		protocol.IntentHello,
-		protocol.IntentSubscribe,
-		protocol.IntentNewSession,
-		protocol.IntentResume,
-		protocol.IntentSendInput,
-		protocol.IntentReply,
-		protocol.IntentDelete,
-		protocol.IntentShutdown,
-		protocol.IntentRestart,
-		protocol.IntentSetMaxConcurrent,
-		protocol.IntentStartLoop,
-	} {
+	// Every intent the daemon serves, so widening inSessionAllowed (or
+	// adding an intent) cannot slip past this test.
+	intents := make([]string, 0, len(defaultHandlers()))
+	for intent := range defaultHandlers() {
+		if intent != protocol.IntentUsageSample {
+			intents = append(intents, intent)
+		}
+	}
+	slices.Sort(intents)
+	require.Contains(t, intents, protocol.IntentSendInput)
+	for _, intent := range intents {
 		t.Run(intent, func(t *testing.T) {
 			require.Equal(t, protocol.EventError+" "+protocol.ErrCodeInSession, sendFromChild(t, sock, intent))
 		})

@@ -43,6 +43,9 @@ type client struct {
 	// peer is the process behind the connection, classified once at
 	// accept. Immutable.
 	peer peerClass
+	// refusals counts intents refused with in_session. Handler goroutine
+	// only.
+	refusals int
 }
 
 // joinBoard counts the connection as a board viewer (once, however many
@@ -249,9 +252,7 @@ func (c *client) dispatch(env protocol.Envelope) (keepOpen bool) {
 		return true
 	}
 	if c.peer.inSession && !inSessionAllowed(env.Type) {
-		slog.Warn("server: refused intent from inside a session",
-			"conn", c.out.id, "pid", c.peer.pid, "type", env.Type)
-		c.sendError(env.ID, protocol.ErrCodeInSession, inSessionRefusal)
+		c.refuseInSession(env)
 		return true
 	}
 	h := c.srv.handlers[env.Type]
@@ -262,6 +263,25 @@ func (c *client) dispatch(env protocol.Envelope) (keepOpen bool) {
 	res, err := h(c, env)
 	c.reply(env, res, err)
 	return true
+}
+
+// refuseInSession answers env with Error in_session. The first refusal on a
+// connection, and every 100th after it, is logged at Warn with the peer's
+// pid; the rest at Debug, so an agent retrying in a loop cannot flood the
+// log.
+func (c *client) refuseInSession(env protocol.Envelope) {
+	c.refusals++
+	level := slog.LevelDebug
+	if c.refusals == 1 || c.refusals%100 == 0 {
+		level = slog.LevelWarn
+	}
+	slog.Log(c.ctx, level, "server: refused intent from inside a session",
+		"conn", c.out.id, "pid", c.peer.pid, "type", env.Type, "unknown", c.peer.unknown, "refusals", c.refusals)
+	msg := inSessionRefusal
+	if c.peer.unknown {
+		msg = inSessionUnknownRefusal
+	}
+	c.sendError(env.ID, protocol.ErrCodeInSession, msg)
 }
 
 // sendEvent queues an event for this client. Safe from any goroutine and

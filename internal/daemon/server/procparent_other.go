@@ -14,3 +14,8 @@ var errProcTableUnsupported = errors.New("process table not supported")
 func parentPID(int) (int, error) {
 	return 0, errProcTableUnsupported
 }
+
+// sessionOf is not implemented on this platform (see parentPID).
+func sessionOf(int) (int, error) {
+	return 0, errProcTableUnsupported
+}

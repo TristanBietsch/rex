@@ -12,28 +12,53 @@ import (
 // parentPID returns the parent pid of process pid, read from
 // /proc/<pid>/stat. It fails for a pid that does not exist.
 func parentPID(pid int) (int, error) {
+	stat, err := readStat(pid)
+	if err != nil {
+		return 0, err
+	}
+	return parseStatPPID(pid, stat)
+}
+
+// sessionOf returns the session id of process pid, read from
+// /proc/<pid>/stat. It fails for a pid that does not exist.
+func sessionOf(pid int) (int, error) {
+	stat, err := readStat(pid)
+	if err != nil {
+		return 0, err
+	}
+	return parseStatSID(pid, stat)
+}
+
+func readStat(pid int) (string, error) {
 	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
 	if err != nil {
-		return 0, fmt.Errorf("process %d: %w", pid, err)
+		return "", fmt.Errorf("process %d: %w", pid, err)
 	}
-	return parseStatPPID(pid, string(b))
+	return string(b), nil
 }
 
 // parseStatPPID extracts the ppid field from a /proc/<pid>/stat line:
-// "pid (comm) state ppid ...". comm may hold spaces and parentheses, so the
-// fields are counted from the last ')'.
-func parseStatPPID(pid int, stat string) (int, error) {
-	i := strings.LastIndexByte(stat, ')')
-	if i < 0 {
+// "pid (comm) state ppid pgrp session ...".
+func parseStatPPID(pid int, stat string) (int, error) { return statField(pid, stat, 1, "ppid") }
+
+// parseStatSID extracts the session field from a /proc/<pid>/stat line.
+func parseStatSID(pid int, stat string) (int, error) { return statField(pid, stat, 3, "session") }
+
+// statField returns field i (0 is the state) of a /proc/<pid>/stat line as
+// an int. comm may hold spaces and parentheses, so the fields are counted
+// from the last ')'.
+func statField(pid int, stat string, i int, name string) (int, error) {
+	end := strings.LastIndexByte(stat, ')')
+	if end < 0 {
 		return 0, fmt.Errorf("process %d: malformed stat", pid)
 	}
-	fields := strings.Fields(stat[i+1:])
-	if len(fields) < 2 {
+	fields := strings.Fields(stat[end+1:])
+	if len(fields) <= i {
 		return 0, fmt.Errorf("process %d: malformed stat", pid)
 	}
-	ppid, err := strconv.Atoi(fields[1])
+	v, err := strconv.Atoi(fields[i])
 	if err != nil {
-		return 0, fmt.Errorf("process %d: malformed stat ppid: %w", pid, err)
+		return 0, fmt.Errorf("process %d: malformed stat %s: %w", pid, name, err)
 	}
-	return ppid, nil
+	return v, nil
 }

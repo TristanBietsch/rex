@@ -14,7 +14,11 @@ exec rex wait -until done -timeout 20s p1
 grep '^ls exit=6$' probe.out
 grep '^send exit=6$' probe.out
 grep '^trust exit=6$' probe.out
-grep -count=3 'inside a rex session' probe.out
+grep -count=4 'inside a rex session' probe.out
+
+# Leaving the daemon's process tree with `(cmd &)` does not help: the
+# orphan still runs in the agent's session.
+grep '^orphan exit=6$' probe.out
 ! grep 'p1' probe.out
 
 # The same commands from outside the session still work.
@@ -39,6 +43,6 @@ tools:
     models:
       - id: rex
         name: "Runs rex"
-        args: ["o=\"$WORK/probe.out\"; rex ls >>\"$o\" 2>&1; echo \"ls exit=$?\" >>\"$o\"; printf 'y\\r' | rex send p1 >>\"$o\" 2>&1; echo \"send exit=$?\" >>\"$o\"; rex new -tool probe -model rex -trust -cwd \"$WORK/home/proj\" -- y 2>>\"$o\"; echo \"trust exit=$?\" >>\"$o\"; echo done"]
+        args: ["o=\"$WORK/probe.out\"; rex ls >>\"$o\" 2>&1; echo \"ls exit=$?\" >>\"$o\"; printf 'y\\r' | rex send p1 >>\"$o\" 2>&1; echo \"send exit=$?\" >>\"$o\"; rex new -tool probe -model rex -trust -cwd \"$WORK/home/proj\" -- y 2>>\"$o\"; echo \"trust exit=$?\" >>\"$o\"; ( ( rex ls >>\"$o\" 2>&1; echo \"orphan exit=$?\" >>\"$o\" ) & ); for i in 1 2 3 4 5 6 7 8 9 10; do grep -q '^orphan exit=' \"$o\" && break; sleep 0.5; done; echo done"]
 -- home/proj/README --
 A project folder for rex new -trust.

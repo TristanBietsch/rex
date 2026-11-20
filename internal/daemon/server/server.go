@@ -234,7 +234,7 @@ type Server struct {
 	// selfPID is this daemon's pid (os.Getpid() from New). Every agent the
 	// daemon starts is its child, and a hot restart execs in place, so a
 	// peer that descends from selfPID runs inside a session (see
-	// peerInSession).
+	// classifyPeer).
 	selfPID int
 
 	// handlers maps intent types to their handlers. Built in New and
