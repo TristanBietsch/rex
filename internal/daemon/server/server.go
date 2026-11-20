@@ -231,6 +231,12 @@ type Server struct {
 	// New; -1 on Windows, where verifyPeer does not check).
 	ownerUID int
 
+	// selfPID is this daemon's pid (os.Getpid() from New). Every agent the
+	// daemon starts is its child, and a hot restart execs in place, so a
+	// peer that descends from selfPID runs inside a session (see
+	// peerInSession).
+	selfPID int
+
 	// handlers maps intent types to their handlers. Built in New and
 	// read-only once Serve starts; tests may swap entries before Serve.
 	handlers map[string]intentHandler
@@ -475,6 +481,7 @@ func New(cfg Config) (*Server, error) {
 		gate:          &concurrencyGate{max: cfg.MaxConcurrentSessions},
 		handlers:      defaultHandlers(),
 		ownerUID:      os.Getuid(),
+		selfPID:       os.Getpid(),
 		removeSession: state.RemoveSession,
 	}
 	s.storeRegistry(cfg.Registry)
@@ -568,11 +575,13 @@ func (s *Server) Serve(ctx context.Context) error {
 			_ = conn.Close()
 			continue
 		}
-		slog.Debug("server: client connected")
+		// Classify at once: on macOS the peer's pid can be read only while
+		// it is still connected, so a peer gone by now is in-session.
+		peer := s.classifyPeer(conn)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			handleClient(serveCtx, conn, s)
+			handleClient(serveCtx, conn, s, peer)
 			slog.Debug("server: client disconnected")
 		}()
 	}

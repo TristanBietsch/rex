@@ -40,6 +40,9 @@ type client struct {
 	// viewer is set once this connection said Hello as a board viewer and
 	// counted in Server.boardClients. Handler goroutine only.
 	viewer bool
+	// peer is the process behind the connection, classified once at
+	// accept. Immutable.
+	peer peerClass
 }
 
 // joinBoard counts the connection as a board viewer (once, however many
@@ -59,13 +62,16 @@ func (c *client) joinBoard() {
 // one terminal reply (see reply.go).
 type intentHandler func(c *client, env protocol.Envelope) (outcome, error)
 
-func handleClient(ctx context.Context, conn net.Conn, srv *Server) {
+// handleClient serves one accepted connection until it ends. peer is the
+// process behind it, as classifyPeer saw it at accept.
+func handleClient(ctx context.Context, conn net.Conn, srv *Server, peer peerClass) {
 	out := newClientConn(conn, srv.nextConnID.Add(1), srv.clientQueueLen, srv.clientWriteTimeout)
 	if !srv.trackConn(out) {
 		out.abort(errServerShutdown) // accepted while Serve was shutting down
 	}
 	defer srv.untrackConn(out)
-	c := &client{srv: srv, ctx: ctx, out: out}
+	c := &client{srv: srv, ctx: ctx, out: out, peer: peer}
+	slog.Debug("server: client connected", "conn", out.id, "pid", c.peer.pid, "in_session", c.peer.inSession)
 	// Deferred calls run in reverse: subscriptions are canceled first, so no
 	// broadcast can enqueue any more, then queued lines are flushed and the
 	// socket closes.
@@ -240,6 +246,12 @@ func (c *client) dispatch(env protocol.Envelope) (keepOpen bool) {
 	}()
 	if env.Kind != protocol.KindIntent {
 		c.sendError(env.ID, protocol.ErrCodeBadIntent, "expected an Intent")
+		return true
+	}
+	if c.peer.inSession && !inSessionAllowed(env.Type) {
+		slog.Warn("server: refused intent from inside a session",
+			"conn", c.out.id, "pid", c.peer.pid, "type", env.Type)
+		c.sendError(env.ID, protocol.ErrCodeInSession, inSessionRefusal)
 		return true
 	}
 	h := c.srv.handlers[env.Type]
