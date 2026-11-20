@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`make update`** (`tools/update/update.sh`): rebuild from the checkout,
+  install only the binaries that changed (by rename, so a running daemon,
+  board or hook never sees a missing or half-written file), then move the
+  running daemon and boards onto the new build with a hot restart. Safe to
+  run from inside a rex session: it never cold-restarts. `--pull` pulls
+  first; `--no-restart` only installs. Exit 3 when the binaries are in but
+  the daemon is not on them, 75 when another update runs.
+- **`rex upgrade -if-stale`** leaves a daemon already on the installed build
+  alone (`nothing to do: …` when the boards are current too), and
+  **`-no-cold`** refuses (exit 6) instead of falling back to a cold restart.
+
+### Fixed
+
+- `rex upgrade` compared each board with the daemon's build instead of its
+  own, so every board re-executed on every upgrade and the command always
+  waited 10 s and reported `still on build`. It also asked the boards to
+  swap before they had reconnected after the hot restart, so they usually
+  missed it. Boards now swap to the `rex` that ran the upgrade, once they
+  are back.
+- After a hot restart, `rex upgrade` exits 1 when the daemon is not on the
+  installed `rex-daemon` (it re-executes the path it was started from).
+- The daemon and the board hash their own binary at startup, so a binary
+  replaced while one starts can no longer make it report the new build.
+
 ## [2.0.0] - 2026-11-17
 
 The first release since v1. Details for every change follow the summary.

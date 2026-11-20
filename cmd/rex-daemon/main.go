@@ -94,6 +94,9 @@ func run(args []string) error {
 	if *handoffCheck != "" {
 		return runHandoffCheck(*handoffCheck)
 	}
+	// Hash this binary now, before the file can be replaced, so the build
+	// this daemon reports is the code it runs (rex upgrade -if-stale).
+	build := handoff.BuildID()
 	startedAt := time.Now().UTC()
 	if err := requireDefaults(fs, map[string]error{
 		"socket": socketErr, "state-dir": homeErr, "tools": homeErr,
@@ -103,7 +106,7 @@ func run(args []string) error {
 
 	rexlog.Init("daemon")
 	defer rexlog.Close()
-	slog.Info("daemon: starting", "version", version.Version, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
+	slog.Info("daemon: starting", "version", version.Version, "build", build, "socket", *socketPath, "state_dir", *stateDir, "max_concurrent", *maxConcurrent)
 
 	// Owner-only: sessions hold prompts, cwds and full agent output.
 	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
@@ -307,7 +310,7 @@ func run(args []string) error {
 		OnShutdown:            stop,
 		OnBoardClient:         func() { ov.Notify(overview.StructuralChange) },
 		OnReload:              func() protocol.ReloadReport { return boot.ReloadAll(ctx, cat, hub, luaHost) },
-		Build:                 handoff.BuildID(),
+		Build:                 build,
 		StartedAt:             startedAt,
 		Adopt:                 hot.adoptions(store),
 	}

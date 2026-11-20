@@ -579,10 +579,14 @@ rex daemon logs [-f]
 ## rex upgrade
 
 ```sh
-rex upgrade [-cold] [-yes] [-o FORMAT]
+rex upgrade [-cold | -no-cold] [-yes] [-if-stale] [-o FORMAT]
 ```
 
-Load a newly installed build everywhere, after `make install` or `rex update`: hot-restart the daemon (as `rex daemon restart`), then ask every connected board on another build to swap into the new binary, wait up to 10 s, and report each process: `daemon pid 123: hot-restarted, 4 session(s) kept (build abc → def)`, `board pid 456: swapped to build def`, or `board pid 789: still on build abc` (it swaps when idle, or `:swap`). `-cold` and `-yes` are passed to the daemon restart. Exit 4 when no daemon answers. It never installs anything.
+Load a newly installed build everywhere, after `make install`, `make update` or `rex update`: hot-restart the daemon (as `rex daemon restart`), wait for the boards it dropped to reconnect, ask every board on another build than this `rex` to swap into the new binary, wait up to 10 s in all, and report each process: `daemon pid 123: hot-restarted, 4 session(s) kept (build abc → def)`, `board pid 456: swapped to build def`, or `board pid 789: still on build abc` (it swaps when idle, or `:swap`). A board still on the old build does not change the exit code. `-cold` and `-yes` are passed to the daemon restart. Exit 4 when no daemon answers. It never installs anything.
+
+- `-if-stale` leaves the daemon alone when it already runs the installed `rex-daemon` (the one `rex` would start: next to `rex`, else on `$PATH`): `daemon pid 123: already on build def`. With every board current too, it prints `nothing to do: …` and exits 0.
+- `-no-cold` never falls back to a cold restart. When the daemon refuses a hot restart (another restart is running, a session is still starting, the new binary fails the preflight, or it predates hot restart), it exits **6** with the reason and nothing restarted. Without it, a refused hot restart falls back to the cold path. `-cold -no-cold` exits **5**.
+- After a restart, a daemon whose build is not the installed one (it re-executes the path it was started from) is reported, then the command exits **1** naming both builds.
 
 ---
 
