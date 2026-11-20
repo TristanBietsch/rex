@@ -32,6 +32,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The daemon and the board hash their own binary at startup, so a binary
   replaced while one starts can no longer make it report the new build.
 
+### Security
+
+- **Agents can no longer control rex through the socket.** Any process
+  running as you could drive every session, including the agents rex
+  starts: a tool call such as `printf '\r' | rex send <id>` could answer
+  another agent's permission prompt, read transcripts, delete sessions or
+  shut the daemon down. The daemon now reads each connecting process's pid
+  and refuses every intent except `UsageSample` (the Claude status-line
+  usage tap) from a process that descends from it, which every agent and
+  every command an agent runs does. The refusal is `Error` `in_session`;
+  `rex` run inside a session prints the reason and exits 6. Refused
+  intents are logged with the caller's pid. This guards against agents, not against a
+  process of yours that deliberately detaches from its parents. Windows
+  has no peer pids and is not checked.
+- **`rex new -trust` works only at a terminal.** It answers the agent's
+  folder-trust question and, with `skip_permissions` on, starts the agent
+  without permission prompts, so an agent could start such a session from
+  a tool call. Agent mode, `-o` and pipes now exit 6 (`needs_terminal`),
+  as `rex trust` does.
+- Agents no longer get `REX_SESSION_ID` in their environment: it named the
+  session to drive through rex, and nothing in rex used it.
+
 ## [2.0.0] - 2026-11-17
 
 The first release since v1. Details for every change follow the summary.

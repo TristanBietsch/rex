@@ -34,7 +34,21 @@ filesystem permissions.
 - **The daemon socket.** A client that can connect to the socket can type
   into any agent's PTY, so it can run commands as you. Only your user may
   connect. Reports of other users or processes connecting, or of the socket
-  being reachable beyond the filesystem, are in scope. Known gap: the
+  being reachable beyond the filesystem, are in scope.
+- **Agents controlling rex.** Every agent rex starts is a child of
+  `rex-daemon`, and so is every command an agent runs. On macOS and Linux
+  the daemon reads each connecting process's pid (`LOCAL_PEERPID`,
+  `SO_PEERCRED`) and walks its parent chain; a process that descends from
+  the daemon may send only `UsageSample` (the Claude status-line usage tap
+  rex adds) and gets `Error` `in_session` for anything else, so an agent
+  cannot list, read, type into, start, resume or delete sessions, or stop
+  the daemon. A peer whose pid or ancestry cannot be read counts as inside
+  a session. Agents are not given their session id. An agent getting past
+  this check by running rex or talking to the socket is in scope. Not in
+  scope: a process that detaches itself from its parents (double fork,
+  `setsid` and exit) is re-parented outside the daemon's tree and is
+  treated as yours, as is anything that persuades you or another of your
+  programs to run rex for it. Windows has no peer pids and is not checked. Known gap: the
   socket, state directories and files currently get their modes from your
   umask, not from rex. Tightening this is planned.
 - **Transcripts and state on disk.** Every session's full terminal output is
@@ -205,7 +219,8 @@ filesystem permissions.
   folder, never its parent. Every CLI path that changes a trust setting
   (`skip_permissions`, `auto_trust_dirs`) works only at a terminal: adding
   with `rex trust`, `rex config set` and `reset`, and `rex setup
-  -auto-trust` (agent mode, `-o` and pipes exit 6, `needs_terminal`). This
+  -auto-trust` (agent mode, `-o` and pipes exit 6, `needs_terminal`), and
+  so does a session trust with `rex new -trust`. This
   is a speed bump for agents, not a boundary, since anything running as you
   can edit `config.yaml` or `config.lua` directly. For sessions there,
   rex starts the agent with the folder trusted (Antigravity, for that
