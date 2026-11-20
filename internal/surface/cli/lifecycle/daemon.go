@@ -293,6 +293,9 @@ func (c daemonCtl) stop() error {
 		if errors.Is(err, daemonctl.ErrNotRunning) {
 			return c.notRunning()
 		}
+		if ee := core.RefusedInSession(err); ee != nil {
+			return ee
+		}
 		return core.NewExitError(core.ExitGeneric, err.Error())
 	}
 	return emitDaemon(printerFor(c.out, c.errOut), daemonData{Action: "stop", State: "stopped", Socket: c.socket, PID: pid},

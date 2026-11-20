@@ -28,6 +28,23 @@ func TestShutdownDaemon_SendsIntentAndWaitsForSocketRemoval(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
+// A daemon that refuses Shutdown (here: the caller runs inside a rex
+// session) is reported at once with its reason, not after StopTimeout as a
+// daemon that is "still answering".
+func TestShutdownDaemon_ReportsRefusal(t *testing.T) {
+	sock := socketIn(t)
+	startFakeDaemonWith(t, sock, fakeOpts{refuse: &protocol.ErrorEvent{
+		Code: protocol.ErrCodeInSession, Message: "refused: inside a rex session"}}, nil)
+
+	start := time.Now()
+	err := ShutdownDaemon(bg(), sock)
+	var de *client.Error
+	require.ErrorAs(t, err, &de)
+	require.Equal(t, protocol.ErrCodeInSession, de.Code)
+	require.Equal(t, "refused: inside a rex session", de.Message)
+	require.Less(t, time.Since(start), StopTimeout, "reported without waiting for the socket to go")
+}
+
 func TestShutdownDaemon_NotRunning(t *testing.T) {
 	sock := socketIn(t)
 	require.ErrorIs(t, ShutdownDaemon(bg(), sock), ErrNotRunning)
