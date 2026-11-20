@@ -42,7 +42,7 @@ type peerClass struct {
 // ordinary shell. It is not a boundary against a process of the same user
 // that sets out to evade it: one that starts a new session (setsid) and
 // then leaves the daemon's tree is treated as the user's.
-func (s *Server) classifyPeer(conn net.Conn) peerClass {
+func (s *Server) classifyPeer(ctx context.Context, conn net.Conn) peerClass {
 	uc, ok := conn.(*net.UnixConn)
 	if !ok {
 		return peerClass{}
@@ -52,7 +52,7 @@ func (s *Server) classifyPeer(conn net.Conn) peerClass {
 		return peerClass{}
 	}
 	if err != nil || pid <= 0 {
-		logUnknownPeer("pid", pid, err)
+		logUnknownPeer(ctx, "pid", pid, err)
 		return peerClass{pid: pid, inSession: true, unknown: true}
 	}
 	if pid == s.selfPID {
@@ -63,7 +63,7 @@ func (s *Server) classifyPeer(conn net.Conn) peerClass {
 		in, err = inDaemonSession(pid, s.selfPID)
 	}
 	if err != nil {
-		logUnknownPeer("ancestry", pid, err)
+		logUnknownPeer(ctx, "ancestry", pid, err)
 		return peerClass{pid: pid, inSession: true, unknown: true}
 	}
 	return peerClass{pid: pid, inSession: in}
@@ -72,12 +72,12 @@ func (s *Server) classifyPeer(conn net.Conn) peerClass {
 // logUnknownPeer logs a peer that classifyPeer could not classify. A peer
 // that hung up before accept (a liveness probe: connect, then close) is
 // routine, so that is Debug; anything else is a Warn.
-func logUnknownPeer(what string, pid int, err error) {
+func logUnknownPeer(ctx context.Context, what string, pid int, err error) {
 	level := slog.LevelWarn
 	if errors.Is(err, syscall.ENOTCONN) {
 		level = slog.LevelDebug
 	}
-	slog.Log(context.Background(), level, "server: peer "+what+" unknown; treating peer as in-session", "pid", pid, "err", err)
+	slog.Log(ctx, level, "server: peer "+what+" unknown; treating peer as in-session", "pid", pid, "err", err)
 }
 
 // inDaemonSession reports whether process pid runs in a session led by the

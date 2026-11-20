@@ -577,7 +577,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		}
 		// Classify at once: on macOS the peer's pid can be read only while
 		// it is still connected, so a peer gone by now is in-session.
-		peer := s.classifyPeer(conn)
+		peer := s.classifyPeer(serveCtx, conn)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
