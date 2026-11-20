@@ -27,7 +27,7 @@ const (
 // ID and an empty payload, and prints the reply as "<event type> <error
 // code>". It returns the process exit code.
 func runInSessionHelper(sock, intent string) int {
-	conn, err := net.Dial("unix", sock)
+	conn, err := net.Dial("unix", sock) //nolint:gosec // G704: the test daemon's socket, named by the parent test.
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "dial:", err)
 		return 2

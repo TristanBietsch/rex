@@ -66,5 +66,6 @@ func TestRunNew_TrustNeedsTerminal(t *testing.T) {
 func TestRunNew_TrustBadFolderBeforeTerminal(t *testing.T) {
 	atFakeTTY(t, false)
 	home, _ := trustHome(t)
-	requireInvalidArgs(t, checkNewTrust(true, home))
+	ee := requireInvalidArgs(t, checkNewTrust(true, home))
+	require.Contains(t, ee.Error(), "home folder")
 }
