@@ -34,23 +34,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
-- **Agents can no longer control rex through the socket.** Any process
-  running as you could drive every session, including the agents rex
-  starts: a tool call such as `printf '\r' | rex send <id>` could answer
-  another agent's permission prompt, read transcripts, delete sessions or
-  shut the daemon down. The daemon now reads each connecting process's pid
-  and refuses every intent except `UsageSample` (the Claude status-line
-  usage tap) from a process that descends from it, which every agent and
-  every command an agent runs does. The refusal is `Error` `in_session`;
-  `rex` run inside a session prints the reason and exits 6. Refused
-  intents are logged with the caller's pid. This guards against agents, not against a
-  process of yours that deliberately detaches from its parents. Windows
-  has no peer pids and is not checked.
+- **Agents rex starts can no longer control rex.** Any process running as
+  you could drive every session, including the agents rex starts: a tool
+  call such as `printf '\r' | rex send <id>` could answer another agent's
+  permission prompt, read transcripts, delete sessions or shut the daemon
+  down. The daemon now reads each connecting process's pid and refuses
+  every intent except `UsageSample` (the Claude status-line usage tap)
+  from a process that descends from it, or that runs in a session it or a
+  descendant leads: every agent, and every command an agent runs, even one
+  backgrounded out of the agent's process tree with `(cmd &)` or `nohup`.
+  The refusal is `Error` `in_session`; `rex` run inside a session prints
+  the reason and exits 6, and `rex digest` and `rex stats` no longer read
+  the sessions from disk instead. The first refusal on a connection is
+  logged with the caller's pid. This guards against agents, not against a
+  process of yours that deliberately starts a new session (`setsid`) and
+  detaches. It is not yet checked on Windows.
 - **`rex new -trust` works only at a terminal.** It answers the agent's
   folder-trust question and, with `skip_permissions` on, starts the agent
-  without permission prompts, so an agent could start such a session from
-  a tool call. Agent mode, `-o` and pipes now exit 6 (`needs_terminal`),
-  as `rex trust` does.
+  without permission prompts. Agent mode, `-o` and pipes now exit 6
+  (`needs_terminal`), as `rex trust` does. For an agent rex started, the
+  daemon refuses the request anyway (`in_session`); for an agent you run
+  outside rex, the terminal check is a speed bump, not a boundary (a
+  pseudo-terminal or a raw socket write gets past it).
+- `rex daemon stop` (and cold restarts, `rex update` and `rex uninstall`,
+  which stop the daemon the same way) waits for the daemon's reply before
+  hanging up, so the daemon can identify it, and reports a refusal at once
+  instead of waiting 10 s.
 - Agents no longer get `REX_SESSION_ID` in their environment: it named the
   session to drive through rex, and nothing in rex used it.
 

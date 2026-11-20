@@ -36,19 +36,24 @@ filesystem permissions.
   connect. Reports of other users or processes connecting, or of the socket
   being reachable beyond the filesystem, are in scope.
 - **Agents controlling rex.** Every agent rex starts is a child of
-  `rex-daemon`, and so is every command an agent runs. On macOS and Linux
-  the daemon reads each connecting process's pid (`LOCAL_PEERPID`,
-  `SO_PEERCRED`) and walks its parent chain; a process that descends from
-  the daemon may send only `UsageSample` (the Claude status-line usage tap
-  rex adds) and gets `Error` `in_session` for anything else, so an agent
-  cannot list, read, type into, start, resume or delete sessions, or stop
-  the daemon. A peer whose pid or ancestry cannot be read counts as inside
-  a session. Agents are not given their session id. An agent getting past
-  this check by running rex or talking to the socket is in scope. Not in
-  scope: a process that detaches itself from its parents (double fork,
-  `setsid` and exit) is re-parented outside the daemon's tree and is
-  treated as yours, as is anything that persuades you or another of your
-  programs to run rex for it. Windows has no peer pids and is not checked. Known gap: the
+  `rex-daemon` and leads its own session (its PTY), and every command an
+  agent runs either descends from the daemon or, if it left the daemon's
+  tree (`(cmd &)`, `nohup`, a double fork), still runs in the agent's
+  session. On macOS and Linux the daemon reads each connecting process's
+  pid (`LOCAL_PEERPID`, `SO_PEERCRED`), walks its parent chain and reads
+  its session; a process that descends from the daemon, or runs in a
+  session the daemon or one of its descendants leads, may send only
+  `UsageSample` (the Claude status-line usage tap rex adds) and gets
+  `Error` `in_session` for anything else. So an agent cannot list, read,
+  type into, start, resume or delete sessions, or stop the daemon,
+  through rex. A peer whose pid, ancestry or session cannot be read counts
+  as inside a session. Agents are not given their session id. An agent
+  getting past this check with rex or the socket is in scope. Not in
+  scope: a process that starts a new session (`setsid`) and then leaves
+  the daemon's tree is treated as yours, as is anything that persuades you
+  or another of your programs to run rex for it. The check is not yet made
+  on Windows. It covers the socket only: transcripts and state under
+  `~/.local/share/rex` are files any process running as you can read. Known gap: the
   socket, state directories and files currently get their modes from your
   umask, not from rex. Tightening this is planned.
 - **Transcripts and state on disk.** Every session's full terminal output is

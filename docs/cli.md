@@ -59,7 +59,7 @@ Exit **2** if no match. Exit **3** if multiple match: a slug shared by several s
 | 3 | Ambiguous selector |
 | 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
 | 5 | Invalid arguments: a bad flag or value, a missing argument, or an unknown command |
-| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` or `rex prune` confirmation; `rex undo` / `rex redo` without a terminal and without `-yes`, a declined confirmation, or a daemon refusal (session working, another live session in the folder, nothing to undo or redo, folder not in a git repo); also a prompt that cannot be asked (a non-text format, or stderr not a terminal) |
+| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` or `rex prune` confirmation; `rex undo` / `rex redo` without a terminal and without `-yes`, a declined confirmation, or a daemon refusal (session working, another live session in the folder, nothing to undo or redo, folder not in a git repo); also a prompt that cannot be asked (a non-text format, or stderr not a terminal); and any command run from inside a rex session (an agent rex started, or a command it runs), which the daemon refuses (`in_session`) |
 | 7 | `rex wait` timed out |
 
 An unknown command exits **5** and, when a real command is within two edits, names it: `unknown command "lss"; did you mean "ls"?`. A session removed while `rex wait` runs exits **2**.

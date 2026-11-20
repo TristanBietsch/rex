@@ -11,6 +11,13 @@ tool call, where `CLAUDECODE=1` and stdout is not a terminal) and with
 codes, the commands to read and write with, and the interactive ones to
 avoid. `rex --help` prints the same card in agent mode.
 
+## Agents that rex starts
+
+This page is for agents you run yourself, outside rex. An agent that rex
+started cannot use rex: the daemon refuses every command from inside a
+rex session, and from anything the agent runs, with exit `6`
+(`in_session`). See [SECURITY.md](../../SECURITY.md).
+
 ## Paste into your CLAUDE.md or AGENTS.md
 
 rex never writes to your files. This snippet is enough:
@@ -33,7 +40,8 @@ here. `rex errors -n 5` shows why a recent command failed.
 
 `0` ok, `1` error (also `rex status` when a session needs input), `2` not
 found, `3` ambiguous selector, `4` daemon not running, `5` bad arguments,
-`6` refused (needs `-force`/`-yes`), `7` timeout.
+`6` refused (needs `-force`/`-yes`, or run from inside a rex session),
+`7` timeout.
 
 ## Turning it off
 
