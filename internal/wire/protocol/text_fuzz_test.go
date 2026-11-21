@@ -29,7 +29,7 @@ func FuzzValidateSlug(f *testing.F) {
 		require.Equal(t, []string{s}, strings.Fields(s), "accepted slug %q is not a single token", s)
 		for _, r := range s {
 			require.False(t, unicode.IsControl(r), "accepted control rune %U in %q", r, s)
-			require.False(t, isBidiControl(r), "accepted bidi control %U in %q", r, s)
+			require.False(t, IsBidiControl(r), "accepted bidi control %U in %q", r, s)
 		}
 	})
 }
@@ -60,7 +60,7 @@ func FuzzSanitizeDisplayText(f *testing.F) {
 		}
 		for _, r := range out {
 			require.False(t, unicode.IsControl(r), "control rune %U kept in %q", r, out)
-			require.False(t, isBidiControl(r), "bidi control %U kept in %q", r, out)
+			require.False(t, IsBidiControl(r), "bidi control %U kept in %q", r, out)
 			require.False(t, r == '\u2028' || r == '\u2029', "line separator %U kept in %q", r, out)
 		}
 		require.Equal(t, out, SanitizeDisplayText(out, maxRunes), "not idempotent")
@@ -99,7 +99,7 @@ func FuzzNormalizeSessionName(f *testing.F) {
 				require.Equal(t, ' ', r, "whitespace %U not collapsed to a space in %q", r, out)
 			}
 			require.False(t, unicode.IsControl(r), "control rune %U kept in %q", r, out)
-			require.False(t, isBidiControl(r), "bidi control %U kept in %q", r, out)
+			require.False(t, IsBidiControl(r), "bidi control %U kept in %q", r, out)
 		}
 
 		again, err := NormalizeSessionName(out)
@@ -126,7 +126,7 @@ func FuzzFlattenDisplayText(f *testing.F) {
 		for _, r := range out {
 			require.False(t, unicode.IsControl(r), "control rune %U out of %q", r, s)
 			require.False(t, isLineBreak(r), "line break %U out of %q", r, s)
-			require.False(t, isBidiControl(r), "bidi control %U out of %q", r, s)
+			require.False(t, IsBidiControl(r), "bidi control %U out of %q", r, s)
 		}
 		require.Equal(t, out, FlattenDisplayText(out), "not idempotent on %q", s)
 		require.LessOrEqual(t, len(out), len(s), "result longer than input")

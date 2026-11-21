@@ -34,7 +34,7 @@ func NormalizeSessionName(s string) (string, error) {
 			space = true
 			continue
 		}
-		if unicode.IsControl(r) || isBidiControl(r) || r == '\u2028' || r == '\u2029' {
+		if unicode.IsControl(r) || IsBidiControl(r) || r == '\u2028' || r == '\u2029' {
 			continue
 		}
 		if space && b.Len() > 0 {
@@ -50,7 +50,12 @@ func NormalizeSessionName(s string) (string, error) {
 	return out, nil
 }
 
-func isBidiControl(r rune) bool {
+// IsBidiControl reports whether r is a bidirectional formatting control:
+// the embeddings and overrides U+202A–U+202E, the isolates U+2066–U+2069,
+// and the marks U+200E, U+200F and U+061C. Text that carries them can be
+// shown in an order other than the one it is stored in, so places that
+// print untrusted text to a terminal drop them.
+func IsBidiControl(r rune) bool {
 	return (r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069') ||
 		r == '\u200e' || r == '\u200f' || r == '\u061c'
 }
