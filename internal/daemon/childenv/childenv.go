@@ -134,7 +134,8 @@ func Build(parent []string, o Options) []string {
 }
 
 // matchesAny reports whether name equals one of patterns or, for a pattern
-// ending in "*", starts with the pattern's prefix. fold ignores case.
+// ending in "*", starts with the pattern's prefix. fold ignores case. An empty
+// pattern and a bare "*" match nothing.
 func matchesAny(name string, patterns []string, fold bool) bool {
 	if fold {
 		name = strings.ToLower(name)
@@ -144,10 +145,11 @@ func matchesAny(name string, patterns []string, fold bool) bool {
 			p = strings.ToLower(p)
 		}
 		if prefix, ok := strings.CutSuffix(p, "*"); ok {
-			if strings.HasPrefix(name, prefix) {
+			// A bare "*" would match everything; it matches nothing.
+			if prefix != "" && strings.HasPrefix(name, prefix) {
 				return true
 			}
-		} else if name == p {
+		} else if p != "" && name == p {
 			return true
 		}
 	}

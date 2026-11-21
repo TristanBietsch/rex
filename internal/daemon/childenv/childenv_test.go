@@ -100,3 +100,9 @@ func TestBaseNames(t *testing.T) {
 	a[0] = "MUTATED"
 	require.Equal(t, "PATH", BaseNames("linux", false)[0])
 }
+
+func TestBuild_IgnoresBarePattern(t *testing.T) {
+	parent := []string{"PATH=/bin", "SECRET=s", "X=1"}
+	got := Build(parent, Options{Mode: ModeAllowlist, GOOS: "linux", Pass: []string{"*", "", "X"}})
+	require.Equal(t, []string{"PATH=/bin", "X=1"}, got)
+}
