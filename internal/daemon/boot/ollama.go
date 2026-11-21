@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -108,7 +109,7 @@ var ErrRemoteSummarizer = errors.New("summarizer endpoint is not local")
 // ErrRemoteSummarizer unless allowRemote is true and the scheme is https.
 func OllamaEndpoint(raw string, allowRemote bool) (string, error) {
 	raw = strings.TrimSpace(raw)
-	scheme, host, port := "http", "", ollamaDefaultPort
+	scheme, host, port, path := "http", "", ollamaDefaultPort, ""
 
 	switch {
 	case net.ParseIP(raw) != nil:
@@ -116,27 +117,32 @@ func OllamaEndpoint(raw string, allowRemote bool) (string, error) {
 	case strings.Contains(raw, "://"):
 		u, err := url.Parse(raw)
 		if err != nil {
-			return "", fmt.Errorf("invalid OLLAMA_HOST: %w", err)
+			// Never wrap err: *url.Error embeds the raw value, credentials included.
+			return "", errors.New("OLLAMA_HOST: invalid URL")
 		}
 		if u.Scheme != "http" && u.Scheme != "https" {
-			return "", fmt.Errorf("unsupported scheme %q in OLLAMA_HOST", u.Scheme)
+			return "", fmt.Errorf("OLLAMA_HOST: unsupported scheme %q", u.Scheme)
 		}
 		if u.User != nil {
-			return "", errors.New("credentials in OLLAMA_HOST are not allowed")
+			return "", errors.New("OLLAMA_HOST: credentials are not allowed")
 		}
-		if (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
-			return "", errors.New("OLLAMA_HOST must not include a path, query or fragment")
+		if u.RawQuery != "" || u.ForceQuery {
+			return "", errors.New("OLLAMA_HOST: query is not allowed")
+		}
+		if u.Fragment != "" || strings.Contains(raw, "#") {
+			return "", errors.New("OLLAMA_HOST: fragment is not allowed")
 		}
 		scheme, host = u.Scheme, u.Hostname()
 		if p := u.Port(); p != "" {
 			port = p
 		}
+		path = strings.TrimSuffix(u.EscapedPath(), "/")
 	default:
 		h, p, err := net.SplitHostPort(raw)
 		if err != nil {
 			var addrErr *net.AddrError
 			if !errors.As(err, &addrErr) || addrErr.Err != "missing port in address" {
-				return "", fmt.Errorf("invalid OLLAMA_HOST: %w", err)
+				return "", errors.New("OLLAMA_HOST: invalid host:port")
 			}
 			h = strings.TrimSuffix(strings.TrimPrefix(raw, "["), "]")
 		} else if p != "" {
@@ -145,6 +151,9 @@ func OllamaEndpoint(raw string, allowRemote bool) (string, error) {
 		host = h
 	}
 
+	if !validPort(port) {
+		return "", errors.New("OLLAMA_HOST: invalid port")
+	}
 	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
 		host = "127.0.0.1"
 	}
@@ -156,5 +165,22 @@ func OllamaEndpoint(raw string, allowRemote bool) (string, error) {
 			return "", fmt.Errorf("remote summarizer endpoint %s requires https", host)
 		}
 	}
-	return scheme + "://" + net.JoinHostPort(host, port), nil
+	out := scheme + "://" + net.JoinHostPort(host, port) + path
+	// Re-parse what we built: the host a client will dial must be the host we checked.
+	u, err := url.Parse(out)
+	if err != nil || u.Hostname() != host || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", errors.New("OLLAMA_HOST: invalid endpoint")
+	}
+	return out, nil
+}
+
+// validPort reports whether p is all ASCII digits and within 1-65535.
+func validPort(p string) bool {
+	for _, r := range p {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	n, err := strconv.Atoi(p)
+	return err == nil && n >= 1 && n <= 65535
 }

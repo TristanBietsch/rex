@@ -14,6 +14,7 @@ func TestOllamaEndpoint(t *testing.T) {
 		want        string
 		wantErr     error
 		errContains string
+		notContains string
 	}{
 		{name: "empty", raw: "", want: "http://127.0.0.1:11434"},
 		{name: "unspecified v4", raw: "0.0.0.0", want: "http://127.0.0.1:11434"},
@@ -31,10 +32,24 @@ func TestOllamaEndpoint(t *testing.T) {
 		{name: "bad scheme", raw: "httpx://127.0.0.1", errContains: "scheme"},
 		{name: "credentials", raw: "http://u:p@127.0.0.1", //nolint:gosec // test input, not a credential
 			errContains: "credentials"},
+		{name: "port userinfo smuggle", raw: "127.0.0.1:80@evil.com", errContains: "port"},
+		{name: "url userinfo smuggle", raw: "http://127.0.0.1:80@evil.com", //nolint:gosec // test input, not a credential
+			errContains: "credentials"},
+		{name: "port letters", raw: "localhost:abc", errContains: "port"},
+		{name: "port zero", raw: "[::1]:0", errContains: "port"},
+		{name: "port too big", raw: "localhost:65536", errContains: "port"},
+		{name: "bracketed v6 no port", raw: "[::1]", want: "http://[::1]:11434"},
+		{name: "base path kept", raw: "http://127.0.0.1:11434/ollama/", want: "http://127.0.0.1:11434/ollama"},
+		{name: "query refused", raw: "http://127.0.0.1:11434/?x=1", errContains: "query"},
+		{name: "fragment refused", raw: "http://127.0.0.1:11434#f", errContains: "fragment"},
+		{name: "no secret in error", raw: "http://u:secretpw@127.0.0.1:bad", errContains: "OLLAMA_HOST", notContains: "secretpw"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := OllamaEndpoint(tc.raw, tc.allowRemote)
+			if tc.notContains != "" && err != nil && strings.Contains(err.Error(), tc.notContains) {
+				t.Fatalf("error leaks %q: %v", tc.notContains, err)
+			}
 			switch {
 			case tc.wantErr != nil:
 				if !errors.Is(err, tc.wantErr) {
