@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,6 +64,7 @@ type uninstallPlan struct {
 	sessionsDir string
 	configDir   string
 	profiles    []string
+	all         allTargets // -all only: data, cache, logs, workspace files
 }
 
 // RunUninstall removes rex artifacts after one confirmation.
@@ -173,6 +175,9 @@ func newUninstallPlan(opts uninstallOpts, d uninstallDeps) (*uninstallPlan, erro
 		configDir:   l.ConfigDir,
 		profiles:    profileFiles(home),
 	}
+	if opts.all {
+		p.all = planAll(home)
+	}
 	if !opts.binaries {
 		return p, nil
 	}
@@ -226,6 +231,9 @@ func (p *uninstallPlan) items() []removal {
 			out = append(out, removal{Kind: "profile", Detail: "(no # BEGIN REX blocks found)"})
 		}
 	}
+	if o.all {
+		out = append(out, p.all.rows()...)
+	}
 	return out
 }
 
@@ -250,6 +258,9 @@ func (p *uninstallPlan) planView(dryRun bool, done []removal) core.View {
 	title := "Will remove"
 	if done != nil {
 		rows, title = done, "Removed"
+		if p.opts.all {
+			rows = append(slices.Clone(done), p.all.leftRows()...)
+		}
 	}
 	cells := make([][]core.Cell, len(rows))
 	for i, r := range rows {
@@ -331,6 +342,9 @@ func (p *uninstallPlan) execute(pr *core.Printer, d uninstallDeps) (done []remov
 		for _, s := range stripped {
 			done = append(done, removal{Kind: "profile", Path: s.Path, Detail: "backup: " + s.Backup})
 		}
+	}
+	if p.opts.all {
+		done, failed = p.all.removeAll(pr, done, failed)
 	}
 	return done, failed
 }

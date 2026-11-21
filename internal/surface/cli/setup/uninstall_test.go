@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -228,4 +229,155 @@ func TestRunUninstall_failureExitsNonZero(t *testing.T) {
 	requireExitCode(t, err, core.ExitGeneric)
 	require.Contains(t, f.errOut.String(), "error stripping profile")
 	requireFileBytes(t, f.profile, "a\n# BEGIN REX\nb\n")
+}
+
+// writeAt creates path (and parents) with content.
+func writeAt(t *testing.T, path, content string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+}
+
+// registerWorkspace lists root in the fixture's workspaces.json.
+func (f *uninstallFixture) registerWorkspace(t *testing.T, root string) {
+	t.Helper()
+	b, err := json.Marshal(map[string]any{"v": 1, "workspaces": map[string]any{
+		"0a1b2c3d": map[string]any{"id": "0a1b2c3d", "name": "w1", "color": "#ff0000", "root": root},
+	}})
+	require.NoError(t, err)
+	writeAt(t, filepath.Join(f.home, ".local", "share", "rex", "workspaces.json"), string(b))
+}
+
+func (f *uninstallFixture) dataPaths() []string {
+	share := filepath.Join(f.home, ".local", "share", "rex")
+	return []string{
+		filepath.Join(share, "audit.jsonl"), filepath.Join(share, "usage.jsonl"),
+		filepath.Join(share, "snapshots", "x"), filepath.Join(share, "exports", "y"),
+		filepath.Join(f.home, ".cache", "rex", "z"),
+	}
+}
+
+func TestRunUninstall_AllRemovesDataAndCache(t *testing.T) {
+	f := newUninstallFixture(t)
+	for _, p := range f.dataPaths() {
+		writeAt(t, p, "secret")
+	}
+	require.NoError(t, f.run("-all", "-yes"))
+	requireGone(t, f.dataPaths()...)
+	requireGone(t, filepath.Join(f.home, ".local", "share", "rex"), filepath.Join(f.home, ".cache", "rex"))
+}
+
+func TestRunUninstall_AllRemovesWorkspaceIndexAndAudit_KeepsConfig(t *testing.T) {
+	f := newUninstallFixture(t)
+	root := filepath.Join(f.home, "proj")
+	rex := filepath.Join(root, ".rex")
+	for _, n := range []string{"sessions.jsonl", "audit.jsonl", "config.lua", "workspace.json"} {
+		writeAt(t, filepath.Join(rex, n), "x")
+	}
+	f.registerWorkspace(t, root)
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireGone(t, filepath.Join(rex, "sessions.jsonl"), filepath.Join(rex, "audit.jsonl"))
+	requireExists(t, filepath.Join(rex, "config.lua"), filepath.Join(rex, "workspace.json"))
+	for _, n := range []string{"config.lua", "workspace.json"} {
+		require.Contains(t, f.out.String(), filepath.Join(rex, n))
+	}
+	require.Contains(t, f.out.String(), "kept")
+}
+
+func TestRunUninstall_AllSkipsSymlinkedWorkspaceRex(t *testing.T) {
+	f := newUninstallFixture(t)
+	root := filepath.Join(f.home, "proj")
+	target := filepath.Join(f.home, "elsewhere")
+	writeAt(t, filepath.Join(target, "sessions.jsonl"), "keep me")
+	require.NoError(t, os.MkdirAll(root, 0o700))
+	require.NoError(t, os.Symlink(target, filepath.Join(root, ".rex")))
+	f.registerWorkspace(t, root)
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireExists(t, filepath.Join(target, "sessions.jsonl"))
+	require.Contains(t, f.out.String(), "skipped")
+}
+
+func TestRunUninstall_AllSkipsMissingWorkspaceRoot(t *testing.T) {
+	f := newUninstallFixture(t)
+	gone := filepath.Join(f.home, "gone")
+	f.registerWorkspace(t, gone)
+
+	require.NoError(t, f.run("-all", "-yes"))
+	require.Contains(t, f.out.String(), gone)
+	require.Contains(t, f.out.String(), "no longer exists")
+}
+
+func TestRunUninstall_AllListsProfileBackups(t *testing.T) {
+	f := newUninstallFixture(t)
+	bak := filepath.Join(f.home, ".zshrc.rex-backup-1")
+	writeAt(t, bak, "mine")
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireExists(t, bak)
+	require.Contains(t, f.out.String(), bak)
+	require.Contains(t, f.out.String(), "kept")
+}
+
+func TestRunUninstall_AllRemovesOnlyRexLogsInLogDir(t *testing.T) {
+	f := newUninstallFixture(t)
+	logs := filepath.Join(f.home, "logs")
+	t.Setenv("REX_LOG_DIR", logs)
+	writeAt(t, filepath.Join(logs, "daemon.log"), "x")
+	writeAt(t, filepath.Join(logs, "other.log"), "x")
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireGone(t, filepath.Join(logs, "daemon.log"))
+	requireExists(t, filepath.Join(logs, "other.log"))
+}
+
+func TestRunUninstall_AllSkipsLogDirOutsideHome(t *testing.T) {
+	f := newUninstallFixture(t)
+	logs := t.TempDir()
+	t.Setenv("REX_LOG_DIR", logs)
+	writeAt(t, filepath.Join(logs, "daemon.log"), "x")
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireExists(t, filepath.Join(logs, "daemon.log"))
+	require.Contains(t, f.out.String(), "outside your home")
+}
+
+func TestRunUninstall_AllSkipsSymlinkedDataDir(t *testing.T) {
+	f := newUninstallFixture(t)
+	other := filepath.Join(f.home, "other")
+	writeAt(t, filepath.Join(other, "precious"), "x")
+	cache := filepath.Join(f.home, ".cache", "rex")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cache), 0o700))
+	require.NoError(t, os.Symlink(other, cache))
+
+	_ = f.run("-all", "-yes")
+	requireExists(t, filepath.Join(other, "precious"))
+}
+
+func TestRunUninstall_DryRunListsEverything(t *testing.T) {
+	f := newUninstallFixture(t)
+	for _, p := range f.dataPaths() {
+		writeAt(t, p, "secret")
+	}
+	root := filepath.Join(f.home, "proj")
+	writeAt(t, filepath.Join(root, ".rex", "sessions.jsonl"), "x")
+	writeAt(t, filepath.Join(root, ".rex", "config.lua"), "x")
+	f.registerWorkspace(t, root)
+	logs := filepath.Join(f.home, "logs")
+	t.Setenv("REX_LOG_DIR", logs)
+	writeAt(t, filepath.Join(logs, "tui.log"), "x")
+	bak := filepath.Join(f.home, ".zshrc.rex-backup-1")
+	writeAt(t, bak, "mine")
+
+	require.NoError(t, f.run("-all", "-dry-run"))
+	requireExists(t, f.dataPaths()...)
+	out := f.out.String()
+	for _, want := range []string{
+		filepath.Join(f.home, ".local", "share", "rex"), filepath.Join(f.home, ".cache", "rex"),
+		filepath.Join(root, ".rex", "sessions.jsonl"), filepath.Join(root, ".rex", "config.lua"),
+		filepath.Join(logs, "tui.log"), bak,
+	} {
+		require.Contains(t, out, want)
+	}
 }
