@@ -27,6 +27,8 @@ const (
 	tab = 0x09 // kept
 	lf  = 0x0a // kept
 	cr  = 0x0d // kept
+	so  = 0x0e // kept: shift out, selects the G1 charset (curses line drawing)
+	si  = 0x0f // kept: shift in, back to G0
 	can = 0x18 // cancels a sequence or string
 	sub = 0x1a // cancels a sequence or string
 	esc = 0x1b // starts every escape sequence
@@ -57,10 +59,11 @@ const (
 
 // Writer filters terminal output before passing it to another io.Writer.
 //
-// It passes text, the C0 controls tab, newline, carriage return and
-// backspace, every CSI sequence (colors, cursor movement, modes), ESC 7,
-// ESC 8, ESC =, ESC >, the index moves ESC D, ESC E and ESC M, and charset
-// designations (ESC ( B and the like). It drops everything else:
+// It passes text, the C0 controls tab, newline, carriage return,
+// backspace, shift out and shift in, every CSI sequence (colors, cursor
+// movement, modes), ESC 7, ESC 8, ESC =, ESC >, the index moves ESC D,
+// ESC E and ESC M, and charset designations (ESC ( B and the like). It
+// drops everything else:
 //
 //   - OSC, DCS, APC, PM and SOS strings, whole, whether introduced by 7-bit
 //     ESC ], ESC P, ESC _, ESC ^, ESC X or by the UTF-8-encoded C1 runes
@@ -89,9 +92,9 @@ type Writer struct {
 	seq         []byte // ESC sequence held until its final byte
 	seqOverflow bool   // seq passed maxSeqBytes: drop it when it ends
 
-	rune     [utf8.UTFMax]byte // UTF-8 rune being decoded
-	runeLen  int               // bytes of rune received
-	runeNeed int               // bytes rune needs, from its lead byte
+	runeBuf  [utf8.UTFMax]byte // UTF-8 rune being decoded
+	runeLen  int               // bytes of runeBuf received
+	runeNeed int               // bytes the rune needs, from its lead byte
 
 	strLen int // body bytes of the current string
 
@@ -106,7 +109,8 @@ func NewWriter(w io.Writer) *Writer {
 // Write filters p and writes what remains to the underlying writer in one
 // call. Bytes of an unfinished sequence or rune are held for the next Write.
 // It returns len(p) on success, because every byte was consumed even when
-// dropped, and 0 with the underlying writer's error on failure.
+// dropped, and 0 with an error when the underlying writer fails or takes
+// less than it was given (io.ErrShortWrite).
 func (f *Writer) Write(p []byte) (int, error) {
 	f.out = f.out[:0]
 	for _, b := range p {
@@ -115,7 +119,7 @@ func (f *Writer) Write(p []byte) (int, error) {
 	if len(f.out) == 0 {
 		return len(p), nil
 	}
-	if _, err := f.w.Write(f.out); err != nil {
+	if err := f.writeOut(f.out); err != nil {
 		return 0, err
 	}
 	return len(p), nil
@@ -132,8 +136,20 @@ func (f *Writer) Flush() error {
 	if !partial {
 		return nil
 	}
-	_, err := io.WriteString(f.w, replacement)
-	return err
+	return f.writeOut([]byte(replacement))
+}
+
+// writeOut writes p to the underlying writer, reporting a short write as
+// io.ErrShortWrite so output is never lost without an error.
+func (f *Writer) writeOut(p []byte) error {
+	n, err := f.w.Write(p)
+	if err != nil {
+		return err
+	}
+	if n < len(p) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 
 // step advances the filter by one byte.
@@ -170,7 +186,7 @@ func (f *Writer) ground(b byte) {
 		// DEL, or a raw C1 byte that is not part of a UTF-8 rune: dropped.
 	default:
 		if n := utf8Len(b); n > 0 {
-			f.rune[0] = b
+			f.runeBuf[0] = b
 			f.runeLen = 1
 			f.runeNeed = n
 			f.state = stUTF8
@@ -183,7 +199,7 @@ func (f *Writer) ground(b byte) {
 // control handles a C0 control byte other than ESC.
 func (f *Writer) control(b byte) {
 	switch b {
-	case tab, lf, cr, bs:
+	case tab, lf, cr, bs, so, si:
 		f.out = append(f.out, b)
 	}
 }
@@ -191,19 +207,19 @@ func (f *Writer) control(b byte) {
 // utf8 takes the next byte of a multi-byte rune. A byte that cannot
 // continue it ends the rune as one U+FFFD and is then read afresh.
 func (f *Writer) utf8(b byte) {
-	if !utf8Continues(f.rune[0], f.runeLen, b) {
+	if !utf8Continues(f.runeBuf[0], f.runeLen, b) {
 		f.out = append(f.out, replacement...)
 		f.state = stGround
 		f.ground(b)
 		return
 	}
-	f.rune[f.runeLen] = b
+	f.runeBuf[f.runeLen] = b
 	f.runeLen++
 	if f.runeLen < f.runeNeed {
 		return
 	}
 	f.state = stGround
-	enc := f.rune[:f.runeLen]
+	enc := f.runeBuf[:f.runeLen]
 	r, _ := utf8.DecodeRune(enc)
 	switch {
 	case isStringIntroducer(r):

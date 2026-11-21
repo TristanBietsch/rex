@@ -55,7 +55,7 @@ func FuzzFilter(f *testing.F) {
 			require.False(t, r >= 0x80 && r <= 0x9f, "C1 rune %U at %d in %q from %q", r, i, whole, in)
 			require.False(t, protocol.IsBidiControl(r), "bidi control %U at %d in %q from %q", r, i, whole, in)
 			if r < 0x20 || r == 0x7f {
-				require.Contains(t, "\t\n\r\b\x1b", string(r), "control %q at %d in %q from %q", r, i, whole, in)
+				require.Contains(t, "\t\n\r\b\x0e\x0f\x1b", string(r), "control %q at %d in %q from %q", r, i, whole, in)
 			}
 			if r == esc {
 				require.Less(t, i+1, len(whole), "trailing ESC in %q from %q", whole, in)

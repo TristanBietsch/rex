@@ -3,6 +3,7 @@ package termfilter
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -34,6 +35,7 @@ func TestFilter_Keeps(t *testing.T) {
 		"\x1bD\x1bE\x1bM",
 		"\x1b)0\x1b(%5",
 		"\x1b[?1049h\x1b[38;2;1;2;3m\x1b[>4;1m\x1b[0 q",
+		"\x0e\x1b)0qqq\x0f", // SO/SI line drawing (TERM=screen, tmux)
 		"\u00dd\u00a0\u2028",
 	} {
 		require.Equal(t, s, filter(t, s), "input %q", s)
@@ -70,7 +72,7 @@ func TestFilter_DropsC1StringsAndControls(t *testing.T) {
 		"\u009b",             // C1 CSI
 		"\u009c",             // stray C1 ST
 		"\u200e\u200f\u061c", // bidi marks
-		"\x00\x0e\x0f\x1a\x7f",
+		"\x00\x01\x1a\x1c\x7f",
 	} {
 		require.Equal(t, "AB", filter(t, "A"+seq+"B"), "sequence %q", seq)
 	}
@@ -122,6 +124,44 @@ func TestFilter_UnterminatedStringIsBounded(t *testing.T) {
 	require.Equal(t, "bbbb", filter(t, in))
 }
 
+func TestFilter_StringCapSplitNearBoundary(t *testing.T) {
+	capAt := len("\x1b]") + maxStringBytes
+	for _, in := range []string{
+		"\x1b]" + strings.Repeat("a", maxStringBytes) + "bbbb",
+		"\x1b]" + strings.Repeat("a", maxStringBytes) + "\x07bbbb",
+	} {
+		for i := capAt - 4; i <= capAt+4; i++ {
+			require.Equal(t, "bbbb", filterSplit(t, in, i), "split at %d of %q…", i, in[:4])
+		}
+	}
+}
+
+// filterSplit runs s through a fresh Writer in two Writes split at i and
+// flushes it.
+func filterSplit(t *testing.T, s string, i int) string {
+	t.Helper()
+	var out bytes.Buffer
+	w := NewWriter(&out)
+	_, err := w.Write([]byte(s[:i]))
+	require.NoError(t, err)
+	_, err = w.Write([]byte(s[i:]))
+	require.NoError(t, err)
+	require.NoError(t, w.Flush())
+	return out.String()
+}
+
+func TestFilter_StringAfterAbandonedCSI(t *testing.T) {
+	for _, in := range []string{
+		"\x1b[\x1b]52;c;aGk=\x07B",
+		"\x1b[31\xc2\x9d52;c;x\xc2\x9cB", // UTF-8 U+009D … U+009C
+	} {
+		out := filter(t, in)
+		require.NotContains(t, out, "]52;", "input %q", in)
+		require.NotContains(t, out, "\xc2\x9d", "input %q", in)
+		require.Equal(t, "B", out, "input %q", in)
+	}
+}
+
 func TestFilter_CSI(t *testing.T) {
 	// C0 controls inside a sequence act at once, as in a terminal.
 	require.Equal(t, "\n\x1b[31mX", filter(t, "\x1b[3\n1mX"))
@@ -136,6 +176,12 @@ func TestFilter_CSI(t *testing.T) {
 	// A sequence longer than maxSeqBytes is dropped whole.
 	long := "\x1b[" + strings.Repeat("1;", maxSeqBytes) + "mX"
 	require.Equal(t, "X", filter(t, long))
+	// Exactly maxSeqBytes is kept; one byte more is dropped.
+	atCap := "\x1b[" + strings.Repeat("1", maxSeqBytes-3) + "m"
+	require.Len(t, atCap, maxSeqBytes)
+	require.Equal(t, atCap+"X", filter(t, atCap+"X"))
+	overCap := "\x1b[" + strings.Repeat("1", maxSeqBytes-2) + "m"
+	require.Equal(t, "X", filter(t, overCap+"X"))
 }
 
 func TestFilter_InvalidUTF8(t *testing.T) {
@@ -220,4 +266,20 @@ func TestWriter_ReportsWriteErrors(t *testing.T) {
 	require.Zero(t, n)
 
 	require.ErrorIs(t, w.Flush(), errWrite)
+}
+
+// halfWriter takes half of every buffer and reports no error, breaking
+// the io.Writer contract the way a buggy writer can.
+type halfWriter struct{}
+
+func (halfWriter) Write(p []byte) (int, error) { return len(p) / 2, nil }
+
+func TestWriter_ReportsShortWrites(t *testing.T) {
+	w := NewWriter(halfWriter{})
+
+	n, err := w.Write([]byte("hello\xe6"))
+	require.ErrorIs(t, err, io.ErrShortWrite)
+	require.Zero(t, n)
+
+	require.ErrorIs(t, w.Flush(), io.ErrShortWrite)
 }
