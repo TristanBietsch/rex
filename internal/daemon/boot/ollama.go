@@ -2,7 +2,11 @@ package boot
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -87,4 +91,70 @@ func OllamaBaseURL() string {
 		env = "http://" + env
 	}
 	return env
+}
+
+// ollamaDefaultPort is the port Ollama listens on when none is given.
+const ollamaDefaultPort = "11434"
+
+// ErrRemoteSummarizer is returned (wrapped) by OllamaEndpoint when the host is
+// not loopback and a remote summarizer has not been allowed.
+var ErrRemoteSummarizer = errors.New("summarizer endpoint is not local")
+
+// OllamaEndpoint parses an OLLAMA_HOST value the way Ollama accepts it and
+// returns a normalized base URL (scheme://host:port, no path). A bare IP is
+// checked first, then a full URL, then host:port or :port. No scheme means
+// http, no port means 11434, and an empty or unspecified host means
+// 127.0.0.1. Credentials are refused. A non-loopback host is refused with
+// ErrRemoteSummarizer unless allowRemote is true and the scheme is https.
+func OllamaEndpoint(raw string, allowRemote bool) (string, error) {
+	raw = strings.TrimSpace(raw)
+	scheme, host, port := "http", "", ollamaDefaultPort
+
+	switch {
+	case net.ParseIP(raw) != nil:
+		host = raw
+	case strings.Contains(raw, "://"):
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", fmt.Errorf("invalid OLLAMA_HOST: %w", err)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return "", fmt.Errorf("unsupported scheme %q in OLLAMA_HOST", u.Scheme)
+		}
+		if u.User != nil {
+			return "", errors.New("credentials in OLLAMA_HOST are not allowed")
+		}
+		if (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+			return "", errors.New("OLLAMA_HOST must not include a path, query or fragment")
+		}
+		scheme, host = u.Scheme, u.Hostname()
+		if p := u.Port(); p != "" {
+			port = p
+		}
+	default:
+		h, p, err := net.SplitHostPort(raw)
+		if err != nil {
+			var addrErr *net.AddrError
+			if !errors.As(err, &addrErr) || addrErr.Err != "missing port in address" {
+				return "", fmt.Errorf("invalid OLLAMA_HOST: %w", err)
+			}
+			h = strings.TrimSuffix(strings.TrimPrefix(raw, "["), "]")
+		} else if p != "" {
+			port = p
+		}
+		host = h
+	}
+
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host = "127.0.0.1"
+	}
+	if ip := net.ParseIP(host); (ip == nil || !ip.IsLoopback()) && !strings.EqualFold(host, "localhost") {
+		if !allowRemote {
+			return "", fmt.Errorf("%w: %s", ErrRemoteSummarizer, host)
+		}
+		if scheme != "https" {
+			return "", fmt.Errorf("remote summarizer endpoint %s requires https", host)
+		}
+	}
+	return scheme + "://" + net.JoinHostPort(host, port), nil
 }
