@@ -65,6 +65,11 @@ func runTap(args []string) int {
 	})
 }
 
+// summaryRefusedResend is how often the daemon repeats the refused-endpoint
+// SummarizerHealth (a variable so a test can shorten it). Only the event is
+// repeated; the reason is logged once at startup.
+var summaryRefusedResend = 30 * time.Second
+
 func run(args []string) error {
 	// config.lua goes on top of config.yaml for every settings load in this
 	// process (the hub, the boot checks), while lua_config is on.
@@ -392,7 +397,7 @@ func run(args []string) error {
 		// No worker runs, so nothing else reports why. Health is not replayed
 		// to late clients, so repeat it for as long as the daemon runs.
 		go func() {
-			t := time.NewTicker(30 * time.Second)
+			t := time.NewTicker(summaryRefusedResend)
 			defer t.Stop()
 			for {
 				srv.BroadcastSummarizerHealth(false, summaryRefused)
