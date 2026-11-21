@@ -203,8 +203,12 @@ rex config set accent_color very-peri    # or "#ff6f61", "oklch(0.7 0.15 30)"
   after `rex ws trust`, only for display settings, and stops running when
   its bytes change.
 - **Releases are checked.** The installers and `rex update` verify
-  `SHA256SUMS` and refuse a mismatch. Each archive carries a GitHub build
-  provenance attestation:
+  `SHA256SUMS` and refuse a mismatch. A match proves the download is what
+  GitHub published. It does not protect against someone who controls the
+  GitHub account or the release workflow. Releases are built only from tags
+  whose commit is on `master`. Each archive carries a GitHub build
+  provenance attestation, which you can check by hand against the workflow
+  that built it (the installers and `rex update` do not):
 
   ```sh
   gh attestation verify rex_2.0.0_darwin_arm64.tar.gz --repo TristanBietsch/rex

@@ -91,7 +91,7 @@ A security review of rex found two high issues (fixed: agents can no longer driv
 - The release workflow refuses a tag whose commit is not on `master`.
 - `SECURITY.md` and `README.md` say plainly what a release check proves today (the download matches what GitHub published, nothing more) and keep the manual `gh attestation verify` step.
 
-**Deferred to its own spec**, because a signature made from what CI built does not help against the threat it is meant for (someone who controls the account or CI controls what gets built, and the maintainer would sign it):
+**Deferred to its own spec ([release-signing.md](release-signing.md))**, because a signature made from what CI built does not help against the threat it is meant for (someone who controls the account or CI controls what gets built, and the maintainer would sign it):
 - the maintainer rebuilds each release from the tag on their own machine and compares hashes before signing (Linux builds use cgo, so this needs a pinned toolchain or container);
 - signatures in SSHSIG format (`ssh-keygen -Y sign` / `-Y verify`), which every supported OS ships, rather than raw Ed25519 (macOS's LibreSSL `openssl` cannot verify those);
 - `rex update` and the installers verify it; Apple Developer ID signing and notarization; GitHub tag-protection rules.

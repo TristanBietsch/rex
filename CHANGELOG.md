@@ -128,6 +128,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   no redirects and reads at most 1 MiB of any reply. `rex doctor` has a
   `summarizer endpoint` row: it reads `OLLAMA_HOST` from your shell, so the
   daemon's own environment can differ.
+- **Release tags must point at a commit on `master`.** The release workflow
+  now refuses to build a `v*` tag whose commit is not on `master`
+  (`tools/release/tag_on_master.sh`). `SECURITY.md` and `README.md` now say
+  what a release check proves: the download matches what GitHub published,
+  and nothing about who controls the account or the release workflow.
+  Signing is planned in `docs/plans/release-signing.md`.
 
 - **The daemon records which process drove a session.** It reads each
   connecting process's executable path (`/proc/<pid>/exe` on Linux; on macOS

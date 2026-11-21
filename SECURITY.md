@@ -222,12 +222,19 @@ filesystem permissions.
   both are prepared before either is swapped, and a failed swap puts the
   old binaries back. A binary whose path cannot be resolved is not
   updated. rex never overwrites a
-  binary owned by a package manager. The checksum file comes from the same
-  release as the archive, so it detects corruption, not a compromised
-  release or GitHub account on its own. Release archives and `SHA256SUMS` carry
-  GitHub build provenance attestations (`gh attestation verify <file> --repo
-  TristanBietsch/rex`); `install.sh`, `install.ps1` and `rex update` do not check
-  them yet. Reports of the
+  binary owned by a package manager. **What a release check proves.**
+  The checksum file comes from the same release as the archive, so a match
+  shows the download is what GitHub published and was not damaged on the
+  way. It does not protect against someone who controls the GitHub account
+  or the release workflow: they can replace the archive and `SHA256SUMS`
+  together. Release archives and `SHA256SUMS` carry GitHub build provenance
+  attestations; `gh attestation verify <file> --repo TristanBietsch/rex`
+  checks that a file was built by this repository's GitHub workflow. That
+  is a manual step: `install.sh`, `install.ps1` and `rex update` do not run
+  it. It trusts the same workflow, so it has the same limit. The release
+  workflow builds only tags whose commit is on `master`. Signing by the
+  maintainer is planned in
+  [docs/plans/release-signing.md](docs/plans/release-signing.md). Reports of the
   updater writing outside the install folder, installing a file that does
   not match `SHA256SUMS`, following a downgrade without `-force`, or
   leaking the token are in scope.
