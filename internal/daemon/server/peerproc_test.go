@@ -191,3 +191,28 @@ func TestPeerPID_IsTheDialingProcess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, os.Getpid(), pid)
 }
+
+// A peer's executable path is recorded in its class, for the daemon's own
+// process as for any other, and the classification does not depend on it.
+func TestClassifyPeer_RecordsExe(t *testing.T) {
+	dir, err := os.MkdirTemp("", "rex-pe")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	l, err := net.Listen("unix", filepath.Join(dir, "s.sock"))
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+	dialed, err := net.Dial("unix", filepath.Join(dir, "s.sock"))
+	require.NoError(t, err)
+	t.Cleanup(func() { dialed.Close() })
+	conn, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	s := &Server{selfPID: os.Getpid()}
+	pc := s.classifyPeer(t.Context(), conn)
+	want, err := procExe(os.Getpid())
+	require.NoError(t, err)
+	require.Equal(t, want, pc.exe)
+	require.False(t, pc.inSession)
+	require.False(t, pc.unknown)
+}
