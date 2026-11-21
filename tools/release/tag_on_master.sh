@@ -21,7 +21,19 @@ if ! git rev-parse --verify --quiet "refs/remotes/origin/master^{commit}" >/dev/
 	exit 1
 fi
 
-if ! git merge-base --is-ancestor "$commit" refs/remotes/origin/master; then
-	echo "error: refusing release $tag: commit $commit is not on master" >&2
+case "$commit" in
+-*)
+	echo "error: refusing release $tag: bad commit argument $commit" >&2
+	exit 1
+	;;
+esac
+# Peel tag objects and fail closed if the argument names no commit.
+if ! sha=$(git rev-parse --verify --quiet "$commit^{commit}"); then
+	echo "error: refusing release $tag: $commit does not resolve to a commit" >&2
+	exit 1
+fi
+
+if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/master; then
+	echo "error: refusing release $tag: commit $sha is not on master" >&2
 	exit 1
 fi

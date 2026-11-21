@@ -92,3 +92,34 @@ func TestTagOnMaster_UsageError(t *testing.T) {
 	require.Equal(t, 2, code)
 	require.Contains(t, stderr, "usage")
 }
+
+func TestTagOnMaster_AnnotatedTagPeeled(t *testing.T) {
+	dir, on, off := newRepo(t)
+	git(t, dir, "tag", "-a", "-m", "m", "v-on", on)
+	git(t, dir, "tag", "-a", "-m", "m", "v-off", off)
+	onObj := git(t, dir, "rev-parse", "v-on")
+	offObj := git(t, dir, "rev-parse", "v-off")
+	require.NotEqual(t, on, onObj)
+
+	code, stderr := runScript(t, dir, onObj, "v-on")
+	require.Equal(t, 0, code, stderr)
+	code, stderr = runScript(t, dir, offObj, "v-off")
+	require.Equal(t, 1, code)
+	require.Contains(t, stderr, off)
+}
+
+func TestTagOnMaster_RefusesOptionLikeArgument(t *testing.T) {
+	dir, _, _ := newRepo(t)
+	for _, arg := range []string{"--help", "-x"} {
+		code, stderr := runScript(t, dir, arg, "v1.0.0")
+		require.Equal(t, 1, code, arg)
+		require.NotContains(t, stderr, "usage: git")
+	}
+}
+
+func TestTagOnMaster_UnknownCommitFails(t *testing.T) {
+	dir, _, _ := newRepo(t)
+	code, stderr := runScript(t, dir, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "v1.0.0")
+	require.Equal(t, 1, code)
+	require.Contains(t, stderr, "v1.0.0")
+}

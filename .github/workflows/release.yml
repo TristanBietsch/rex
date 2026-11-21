@@ -35,7 +35,6 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          git fetch --no-tags origin '+refs/heads/master:refs/remotes/origin/master'
           sh tools/release/tag_on_master.sh "$GITHUB_SHA" "$TAG"
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
