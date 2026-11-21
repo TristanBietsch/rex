@@ -67,7 +67,7 @@ var applyModeOf = map[string]ApplyMode{
 	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive, "lua_config": ApplyLive,
 	"summary_detail": ApplyLive, "overview_enabled": ApplyLive, "cli_error_log": ApplyLive,
 	// Read once when the daemon starts.
-	"summary_enabled": ApplyDaemonRestart, "summary_model": ApplyDaemonRestart, "lua_config_path": ApplyDaemonRestart,
+	"summary_enabled": ApplyDaemonRestart, "summary_model": ApplyDaemonRestart, "summary_allow_remote": ApplyDaemonRestart, "lua_config_path": ApplyDaemonRestart,
 }
 
 func TestApplyModesMatchHowSettingsAreRead(t *testing.T) {

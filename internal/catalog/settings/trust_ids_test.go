@@ -81,3 +81,11 @@ func keys(m map[string]string) []string {
 	}
 	return out
 }
+
+func TestTrustSettingIDs_IncludeSummaryAllowRemote(t *testing.T) {
+	require.True(t, IsTrustSetting("summary_allow_remote"))
+	s, ok := Find("summary_allow_remote")
+	require.True(t, ok)
+	require.Equal(t, TypeBool, s.Type)
+	require.Equal(t, false, s.Default)
+}

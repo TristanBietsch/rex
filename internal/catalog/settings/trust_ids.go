@@ -7,11 +7,13 @@ import (
 )
 
 // TrustSettingIDs are the settings that grant trust: they decide whether new
-// sessions run without the agent's permission and folder-trust prompts. The
+// sessions run without the agent's permission and folder-trust prompts, and
+// whether session text may go to a summarizer that is not on this machine.
+// The
 // daemon fails them closed when config.yaml does not parse, and rex tells the
 // daemon at once when it changes one (so revoking takes effect immediately
 // instead of at the next poll).
-var TrustSettingIDs = []string{"skip_permissions", "auto_trust_dirs"}
+var TrustSettingIDs = []string{"skip_permissions", "auto_trust_dirs", "summary_allow_remote"}
 
 // IsTrustSetting reports whether id is one of TrustSettingIDs.
 func IsTrustSetting(id string) bool { return slices.Contains(TrustSettingIDs, id) }

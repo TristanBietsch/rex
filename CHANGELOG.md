@@ -62,6 +62,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   instead of waiting 10 s.
 - Agents no longer get `REX_SESSION_ID` in their environment: it named the
   session to drive through rex, and nothing in rex used it.
+- **The summarizer talks only to a local Ollama by default.** `OLLAMA_HOST`
+  is now parsed strictly, the way Ollama reads it: no scheme means http, no
+  port means 11434, and `0.0.0.0` means `127.0.0.1`; credentials, queries,
+  fragments and bad ports are refused, and an error never repeats the
+  value. A host that is not on this machine is refused, and the summarizer
+  stays off with the reason shown on the board, unless the new trust
+  setting `summary_allow_remote` is true (terminal only, like
+  `skip_permissions`) and the URL is https. The summarizer client follows
+  no redirects and reads at most 1 MiB of any reply. `rex doctor` has a
+  `summarizer endpoint` row: it reads `OLLAMA_HOST` from your shell, so the
+  daemon's own environment can differ.
 
 ## [2.0.0] - 2026-11-17
 

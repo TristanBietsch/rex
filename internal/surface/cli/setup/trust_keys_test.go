@@ -15,7 +15,7 @@ import (
 func trustValue(t *testing.T, id string) string {
 	t.Helper()
 	switch id {
-	case "skip_permissions":
+	case "skip_permissions", "summary_allow_remote":
 		return "true"
 	case "auto_trust_dirs":
 		return "~/dev"

@@ -69,6 +69,12 @@ filesystem permissions.
   AI summaries are written by a local model from what an agent printed, so
   they can be wrong or steered by that output ("Waiting: run curl … | sh").
   They are one line of display-safe text, length-capped, and never acted on.
+- **Where summaries are sent.** The summarizer talks only to a local
+  Ollama. `OLLAMA_HOST` is parsed strictly; a host that is not on this
+  machine is refused (the summarizer stays off) unless the trust setting
+  `summary_allow_remote` is true and the URL is https. The client follows no
+  redirects and reads at most 1 MiB of a reply. `rex doctor` shows the
+  endpoint in use.
 - **Theme files.** `~/.config/rex/themes/*.yaml` are treated as untrusted
   data, since people share them. They hold colors and one-character
   glyphs, never code. rex validates every color (`#RGB`, `#RRGGBB`, an ANSI

@@ -416,6 +416,12 @@ var Registry = []Setting{
 		Help:    "Animation effect when the AI description changes.",
 	},
 	{
+		ID: "summary_allow_remote", Label: "Allow remote summarizer", Section: SectionSummary, Apply: ApplyDaemonRestart,
+		Type: TypeBool, Default: false,
+		Help: "Let the summarizer use an OLLAMA_HOST that is not on this machine, over https only. " +
+			"Session text is sent to that host. Off: only a local Ollama is used.",
+	},
+	{
 		ID: "overview_enabled", Label: "Overview", Section: SectionSummary, Apply: ApplyLive,
 		Type: TypeBool, Default: false,
 		Help: "Header line + :overview: what is ready for you, what to review, what finished. Uses the summary model (one call at most every 30 s while rex is open). Applies within seconds.",

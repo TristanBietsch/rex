@@ -42,7 +42,7 @@ The settings page shows this per row (the detail pane under the list), and the r
 | next attach | Read when an attach popup opens or resizes (`attach_banner`, `attach_scrollback_lines`) |
 | applies now (set from the TUI) | `max_concurrent_sessions`: the TUI sends it to the running daemon; the daemon ignores the YAML |
 | next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
-| after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
+| after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `summary_allow_remote`, `lua_config_path`) |
 
 ## Themes
 
@@ -217,6 +217,7 @@ Symlinks are resolved on both sides, so a link inside a trusted folder that poin
 | `summary_model` | string | `gemma2:2b` | Use a small model: `gemma2:2b`, `llama3.2:3b`, `llama3.2:1b`, `gemma3:1b`, `qwen2.5:3b`, `phi3:mini` |
 | `summary_detail` | enum | `medium` | Applies within about 5 s, no daemon restart. `short` (about 8 words, 60 characters), `medium` (about 15 words, 110), `long` (about 28 words, 180). Each step up costs roughly 0.5-1.5 s more per call on a small local model |
 | `desc_animation` | enum | `typewriter` | `typewriter`, `decode`, `wipe`, `off` |
+| `summary_allow_remote` | bool | `false` | Trust setting: set at a terminal (`rex config set`), never from a workspace file. Lets the summarizer use an `OLLAMA_HOST` that is not on this machine; it must be https. Session text is sent to that host. Off: a non-local host keeps the summarizer off and the board shows why. Read at daemon start |
 | `overview_enabled` | bool | `false` | Applies within about 5 s, no daemon restart. Needs `summary_enabled`. The daemon asks the summary model for a one-line headline over the whole board (at most one call every 30 s, only while a rex board is open and something needs you, is ready for review, failed or is running). Off: no call, no goroutine |
 | `attach_banner` | enum | `marquee` | `marquee`, `static`, `off`. One row above the agent in the attach popup (what it is doing, where, for how long). Read when a popup opens and on every resize; the agent's terminal is one row shorter while it shows. Hidden below 25 terminal rows. No Ollama call: built from fields the board already has |
 
@@ -302,7 +303,7 @@ The TUI does the same on its own: every 2 s it checks `config.yaml` and the them
 | To the running feature | `summary_detail`, `summary_schedule`, `overview_enabled`, `turn_snapshots`, `usage` |
 | At the next spawn or `Resume` | `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap` |
 | To the running feature (also) | `retire_after_hours`, `init.lua` handlers (on a manual reload) |
-| At daemon start only | `summary_enabled`, `summary_model`, `lua_config_path`; `rex daemon restart` (hot) applies them and keeps sessions |
+| At daemon start only | `summary_enabled`, `summary_model`, `summary_allow_remote`, `lua_config_path`; `rex daemon restart` (hot) applies them and keeps sessions |
 
 `rex reload`, `:reload` and the Settings page's `R` report the changed ids and, among them, the ones in the last row ("needs a daemon restart").
 

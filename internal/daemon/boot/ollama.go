@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -24,13 +23,12 @@ const warmupTimeout = 60 * time.Second
 // transitions instead of waiting for its failure threshold. A worker is only
 // marked available after a real generate succeeds (which also loads the model
 // into memory), so /api/tags alone can't flip it back on after call failures.
-func ProbeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) {
+// baseURL is the endpoint OllamaEndpoint resolved.
+func ProbeOllamaHealth(ctx context.Context, w *summarizer.Worker, model, baseURL string) {
 	cfg := summarizer.Defaults()
 	cfg.Model = model
 	cfg.RequestTimeout = warmupTimeout
-	if u := OllamaBaseURL(); u != "" {
-		cfg.BaseURL = u
-	}
+	cfg.BaseURL = baseURL
 	client := summarizer.NewClient(cfg)
 	warmed := ""
 	check := func() {
@@ -79,19 +77,6 @@ func ProbeOllamaHealth(ctx context.Context, w *summarizer.Worker, model string) 
 			check()
 		}
 	}
-}
-
-// OllamaBaseURL returns the OLLAMA_HOST env var as a fully-qualified URL
-// (adding the http:// prefix if missing) or empty string when unset.
-func OllamaBaseURL() string {
-	env := os.Getenv("OLLAMA_HOST")
-	if env == "" {
-		return ""
-	}
-	if !strings.HasPrefix(env, "http") {
-		env = "http://" + env
-	}
-	return env
 }
 
 // ollamaDefaultPort is the port Ollama listens on when none is given.
