@@ -53,3 +53,4 @@ github.com/tristanbietsch/rex/internal/runtime/privfile 100
 github.com/tristanbietsch/rex/internal/catalog/settings/luacfg 97
 github.com/tristanbietsch/rex/internal/version 90
 github.com/tristanbietsch/rex/internal/runtime/selfupdate 85
+github.com/tristanbietsch/rex/internal/termfilter 100
