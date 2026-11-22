@@ -68,7 +68,10 @@ func naEscWord(st *NewAgentState) string {
 	switch {
 	case st.ReturnToSummary:
 		return "summary"
-	case st.Step <= st.Opened:
+	case st.Step == st.Opened:
+		return "close"
+	}
+	if _, ok := naStepFrom(st, st.Step, -1); !ok {
 		return "close"
 	}
 	return "back"

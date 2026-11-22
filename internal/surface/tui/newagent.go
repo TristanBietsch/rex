@@ -24,8 +24,9 @@ import (
 // trust, summary. Finished steps stack above as `✓ key  value` lines, the
 // current one is a `› key  question` line with its body under it. enter
 // moves on; on the summary it launches (ctrl+s launches from anywhere).
-// esc steps back and, on the step the page opened on, closes it, keeping
-// the draft in memory for the next n (D4); nothing of it is written to disk.
+// esc steps back one step; on the step the page opened on, or the first
+// step, it closes the page, keeping the draft in memory for the next n (D4);
+// nothing of it is written to disk.
 
 // naStep is a step of the flow, in order.
 type naStep int

@@ -80,9 +80,13 @@ func TestAgentStep_CtrlGEnterAndEsc(t *testing.T) {
 	require.Equal(t, naStepModel, m.NewAgent.Step, "enter confirms the agent and goes to the model")
 	require.Contains(t, naView(m), "✓ agent")
 
-	// The page opened on the task, so esc on any earlier step closes it.
+	// The page opened on the task; on an earlier step esc goes back one step
+	// (R21 K1, decided 2026-11-19), and on the first step it closes the page.
 	m, _ = naKey(m, key("esc"))
-	require.Equal(t, FocusBoard, m.Focus, "esc on a step up to the opened one closes the page")
+	require.Equal(t, FocusNewAgent, m.Focus, "esc on a step before the opened one goes back")
+	require.Equal(t, naStepAgent, m.NewAgent.Step)
+	m, _ = naKey(m, key("esc"))
+	require.Equal(t, FocusBoard, m.Focus, "esc on the first step closes the page")
 	require.NotNil(t, m.newAgentDraft, "the draft is kept")
 }
 
@@ -186,8 +190,14 @@ func TestModelStep_FilterKeepsCursorByID(t *testing.T) {
 	require.Equal(t, "", m.NewAgent.Filter, "esc clears the kept filter first")
 	require.Equal(t, naStepModel, m.NewAgent.Step)
 	require.Equal(t, "sonnet-4.6-thinking", m.NewAgent.choice().Model)
+	require.Equal(t, "back", naEscWord(m.NewAgent))
 	m, _ = naKey(m, key("esc"))
-	require.Equal(t, FocusBoard, m.Focus, "then the step goes back: the page opened on a later step, so it closes")
+	require.Equal(t, FocusNewAgent, m.Focus, "then one step back, even before the step the page opened on")
+	require.Equal(t, naStepAgent, m.NewAgent.Step)
+	require.Equal(t, "close", naEscWord(m.NewAgent), "nothing before the agent step")
+	m, _ = naKey(m, key("esc"))
+	require.Equal(t, FocusBoard, m.Focus, "on the first step esc closes the page")
+	require.NotNil(t, m.newAgentDraft, "the draft is kept")
 }
 
 func TestModelStep_EscClearsTypedFilterThenGoesBack(t *testing.T) {

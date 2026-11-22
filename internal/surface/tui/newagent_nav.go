@@ -14,7 +14,8 @@ import (
 //     task it never launches (the summary is the launch point);
 //   - esc closes the innermost thing (the @ list, a filter, the picker, the
 //     preview) first, then returns to the summary after a jump from it,
-//     else closes the page from the step it opened on, else goes back;
+//     closes the page on the step it opened on, else goes back one step
+//     (also before the opened step), and on the first step closes the page;
 //   - tab / shift+tab go to the next / previous step, 1-7 jump to one;
 //   - j/k, gg/G, ctrl+d/ctrl+u move the step's list with the shared
 //     navigator (nav.go).
@@ -137,8 +138,8 @@ func naJump(m Model, s naStep) Model {
 
 // naEsc is esc outside the editor's own layers: a kept model filter goes
 // first; then a jump from the summary returns to it; on the step the page
-// opened on (or an earlier one) the page closes, the draft kept; else it is
-// one step back.
+// opened on the page closes, the draft kept; else it is one step back (also
+// on a step before the opened one), and on the first step the page closes.
 func naEsc(m Model) (Model, tea.Cmd) {
 	st := m.NewAgent
 	switch {
@@ -147,12 +148,14 @@ func naEsc(m Model) (Model, tea.Cmd) {
 		playNav(m)
 	case st.ReturnToSummary:
 		naToSummary(m, true)
-	case st.Step <= st.Opened:
+	case st.Step == st.Opened:
 		return closeNewAgent(m, true), nil
 	default:
-		if prev, ok := naStepFrom(st, st.Step, -1); ok {
-			naGo(m, prev)
+		prev, ok := naStepFrom(st, st.Step, -1)
+		if !ok {
+			return closeNewAgent(m, true), nil
 		}
+		naGo(m, prev)
 	}
 	return m, nil
 }

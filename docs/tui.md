@@ -468,7 +468,7 @@ The page opens on the step the kept draft was on, else on the `agent` step when 
 | Key | Action |
 |---|---|
 | `enter` | confirm the step and go to the next one that applies; on the `task` it goes next and never launches |
-| `esc` | close the innermost thing (`@` list, a kept model filter, picker, preview); then back to the summary after a jump from it; else close the page from the step it opened on (the draft is kept), else one step back |
+| `esc` | close the innermost thing (`@` list, a kept model filter, picker, preview); then back to the summary after a jump from it; on the step the page opened on, close the page (the draft is kept); else one step back, also on a step before the opened one, and on the first step close the page |
 | `tab` / `shift+tab` | next / previous step (no wrap) |
 | `1`–`7` | jump to a step (not while typing in the task; a skipped step is a no-op); `ctrl+g` goes to the agent step |
 | `ctrl+s` | launch from any step |

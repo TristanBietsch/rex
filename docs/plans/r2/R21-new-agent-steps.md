@@ -204,7 +204,7 @@ Done:
 - `make check` on the merged branch: vet, lint (`0 issues.` host + windows), vuln, e2e green. Only failures: `cmd/rex-daemon` `TestHotRestart*` and `spawnctx` `TestWalk_GitKilledAtBudgetKeepsWhatItListed`, known load flakes (tristan-2d confirmed); both pass alone with `-race`. Because go test failed, the gate's coverage step did not run; per-package numbers from that run are above floors (tui 88.5 vs 88, settings 93.5 vs 93, luacfg 97.7 vs 97).
 
 Next:
-1. User tries it: `cd .claude/worktrees/new-agent-steps && go run ./cmd/rex`, press `n`. Open question for the user: esc on a step before the one the page opened on closes the page (K1 literal); maybe it should go back one step instead.
+1. User tries it: `cd .claude/worktrees/new-agent-steps && go run ./cmd/rex`, press `n`. Open question for the user: esc on a step before the one the page opened on closes the page (K1 literal); maybe it should go back one step instead. **Decided 2026-11-19: it goes back one step**; esc still closes on the step the page opened on and on the first step (done on `feat/new-agent-steps-sync`, PR #28).
 2. Re-run `make check` on a quiet machine until the coverage gate runs green.
 3. Merge to `integration/todo` per the merge-queue rule: main checkout clean, no `.git/MERGE_HEAD`, message the active sessions (tristan-0e, tristan-2d) "starting", wait for ack, `git merge --no-ff -S feat/new-agent-steps`, `make check` in main, message "finished". Never bypass signing.
 4. Optional follow-ups: rename `WizardState`/`wizard*.go` leftovers to selection/trust names; known flake also seen: luacfg `TestEval_ChunkNamesErrors` (passes alone).
