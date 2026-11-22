@@ -117,9 +117,17 @@ func ReloadDaemonReport(ctx context.Context, socket string) (protocol.ReloadRepo
 	return rep, nil
 }
 
-// sendIntent dials socket and writes one intent with an empty payload. The
-// dial is bounded by SocketDialTimeout and the write by intentWriteTimeout,
-// so a wedged daemon cannot hang the caller.
+// sendIntent dials socket, writes one intent with an ID and an empty
+// payload, and waits for the daemon's reply before hanging up. The wait
+// matters: the daemon reads the caller's pid when it accepts the
+// connection, and on macOS it cannot once the caller has hung up, so it
+// would refuse a caller that is already gone (in_session). A rejection is
+// returned as the daemon's *client.Error, wrapped. No reply at all is not
+// an error: a daemon that predates acks answers nothing and closes the
+// connection on Shutdown, and the caller checks the outcome itself. The
+// dial is bounded by SocketDialTimeout, the write by intentWriteTimeout
+// and the wait by intentReplyTimeout, so a wedged daemon cannot hang the
+// caller.
 func sendIntent(ctx context.Context, socket, intent string) error {
 	dialer := net.Dialer{Timeout: SocketDialTimeout}
 	conn, err := dialer.DialContext(ctx, "unix", socket)
@@ -130,10 +138,31 @@ func sendIntent(ctx context.Context, socket, intent string) error {
 	if err := conn.SetWriteDeadline(time.Now().Add(intentWriteTimeout)); err != nil {
 		return fmt.Errorf("send %s to rex-daemon: %w", intent, err)
 	}
-	if err := protocol.NewWriter(conn).WriteIntent(intent, "", struct{}{}); err != nil {
+	id := "rex-" + intent
+	if err := protocol.NewWriter(conn).WriteIntent(intent, id, struct{}{}); err != nil {
 		return fmt.Errorf("send %s to rex-daemon: %w", intent, err)
 	}
-	return nil
+	if err := conn.SetReadDeadline(time.Now().Add(intentReplyTimeout)); err != nil {
+		return nil //nolint:nilerr // the intent is sent; the caller checks the outcome.
+	}
+	r := protocol.NewReader(conn)
+	for {
+		env, err := r.Read()
+		if err != nil {
+			return nil //nolint:nilerr // EOF or no reply in time: the intent is sent; the caller checks the outcome.
+		}
+		if env.ID != id && env.ID != "" {
+			continue
+		}
+		if env.Type != protocol.EventError {
+			return nil
+		}
+		var e protocol.ErrorEvent
+		if err := json.Unmarshal(env.Data, &e); err != nil {
+			return fmt.Errorf("send %s to rex-daemon: decode its error: %w", intent, err)
+		}
+		return fmt.Errorf("send %s to rex-daemon: %w", intent, &client.Error{Intent: intent, Code: e.Code, Message: e.Message})
+	}
 }
 
 // waitSocketRemoved polls until socket no longer exists. At the deadline it

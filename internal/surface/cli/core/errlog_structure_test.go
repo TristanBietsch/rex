@@ -44,7 +44,9 @@ type hostile struct {
 }
 
 func hostileCases() []hostile {
-	sock := "/run/user/501/rex-secret.sock"
+	// The uid is longer than any pid: the log records the test's own pid,
+	// so a short uid such as 501 matched a pid like 50107 by chance.
+	sock := "/run/user/9876543210/rex-secret.sock"
 	dial := &net.OpError{Op: "dial", Net: "unix", Addr: &net.UnixAddr{Name: sock, Net: "unix"},
 		Err: os.NewSyscallError("connect", syscall.ENOENT)}
 	return []hostile{
@@ -74,7 +76,7 @@ func hostileCases() []hostile {
 			[]string{"hunter2", "secret"}},
 		{"unix socket op error", []string{"ls", "-socket", sock},
 			Errorf(ExitDaemonUnreachable, "rex daemon start", "rex-daemon is not running (no socket at %s): %w", sock, dial).WithID("daemon_unreachable"),
-			[]string{"/run/user", "rex-secret", "501", "connect", "no such file", "ENOENT"}},
+			[]string{"/run/user", "rex-secret", "9876543210", "connect", "no such file", "ENOENT"}},
 		{"export selector and path", []string{"export", "my-private-session", "--out", "/home/bob/out.json"},
 			NewExitError(ExitSelectorNotFound, `no session matches "my-private-session"`).WithID("selector_not_found"),
 			[]string{"my-private-session", "bob", "out.json"}},

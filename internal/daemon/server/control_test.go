@@ -48,9 +48,11 @@ func TestIntentShutdown_CancelsServe(t *testing.T) {
 	sock, ctx := startControlServer(t, nil)
 	conn, err := net.Dial("unix", sock)
 	require.NoError(t, err)
+	// Stay connected until the daemon acts: on macOS a peer that hangs up
+	// before its pid is read counts as in-session and is refused.
+	defer conn.Close()
 	w := protocol.NewWriter(conn)
 	require.NoError(t, w.WriteIntent(protocol.IntentShutdown, "", struct{}{}))
-	conn.Close()
 	select {
 	case <-ctx.Done():
 	case <-time.After(2 * time.Second):

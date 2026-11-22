@@ -292,7 +292,9 @@ func childEnvFor(spec spawnSpec) []string {
 	if spec.Tool.Detect.Status != "" {
 		env = append(env, spec.Tool.StatusEnv...)
 	}
-	return append(env, "REX_SESSION_ID="+spec.SessionID)
+	// No REX_SESSION_ID: the agent needs no handle on its own session, and
+	// the daemon refuses control intents from inside a session anyway.
+	return env
 }
 
 // statusDropEnv are the variables removed from the child's environment for a

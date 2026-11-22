@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`make update`** (`tools/update/update.sh`): rebuild from the checkout,
+  install only the binaries that changed (by rename, so a running daemon,
+  board or hook never sees a missing or half-written file), then move the
+  running daemon and boards onto the new build with a hot restart. Safe to
+  run from inside a rex session: it never cold-restarts. `--pull` pulls
+  first; `--no-restart` only installs. Exit 3 when the binaries are in but
+  the daemon is not on them, 75 when another update runs.
+- **`rex upgrade -if-stale`** leaves a daemon already on the installed build
+  alone (`nothing to do: …` when the boards are current too), and
+  **`-no-cold`** refuses (exit 6) instead of falling back to a cold restart.
+
 ### Changed
 
 - **`n` opens a stepped, full-screen new-agent flow.** One step per screen,
@@ -29,6 +42,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
   `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
   not the context, trust or skills.
+
+### Fixed
+
+- `rex upgrade` compared each board with the daemon's build instead of its
+  own, so every board re-executed on every upgrade and the command always
+  waited 10 s and reported `still on build`. It also asked the boards to
+  swap before they had reconnected after the hot restart, so they usually
+  missed it. Boards now swap to the `rex` that ran the upgrade, once they
+  are back.
+- After a hot restart, `rex upgrade` exits 1 when the daemon is not on the
+  installed `rex-daemon` (it re-executes the path it was started from).
+- The daemon and the board hash their own binary at startup, so a binary
+  replaced while one starts can no longer make it report the new build.
+
+### Security
+
+- **Agents rex starts can no longer control rex.** Any process running as
+  you could drive every session, including the agents rex starts: a tool
+  call such as `printf '\r' | rex send <id>` could answer another agent's
+  permission prompt, read transcripts, delete sessions or shut the daemon
+  down. The daemon now reads each connecting process's pid and refuses
+  every intent except `UsageSample` (the Claude status-line usage tap)
+  from a process that descends from it, or that runs in a session it or a
+  descendant leads: every agent, and every command an agent runs, even one
+  backgrounded out of the agent's process tree with `(cmd &)` or `nohup`.
+  The refusal is `Error` `in_session`; `rex` run inside a session prints
+  the reason and exits 6, and `rex digest` and `rex stats` no longer read
+  the sessions from disk instead. The first refusal on a connection is
+  logged with the caller's pid. This guards against agents, not against a
+  process of yours that deliberately starts a new session (`setsid`) and
+  detaches. It is not yet checked on Windows.
+- **`rex new -trust` works only at a terminal.** It answers the agent's
+  folder-trust question and, with `skip_permissions` on, starts the agent
+  without permission prompts. Agent mode, `-o` and pipes now exit 6
+  (`needs_terminal`), as `rex trust` does. For an agent rex started, the
+  daemon refuses the request anyway (`in_session`); for an agent you run
+  outside rex, the terminal check is a speed bump, not a boundary (a
+  pseudo-terminal or a raw socket write gets past it).
+- `rex daemon stop` (and cold restarts, `rex update` and `rex uninstall`,
+  which stop the daemon the same way) waits for the daemon's reply before
+  hanging up, so the daemon can identify it, and reports a refusal at once
+  instead of waiting 10 s.
+- Agents no longer get `REX_SESSION_ID` in their environment: it named the
+  session to drive through rex, and nothing in rex used it.
 
 ## [2.0.0] - 2026-11-17
 

@@ -26,3 +26,18 @@ func peerUID(c *net.UnixConn) (int, error) {
 	})
 	return uid, err
 }
+
+// peerPID returns the pid of the process on the other end of c, as the
+// kernel recorded it at connect time (LOCAL_PEERPID).
+func peerPID(c *net.UnixConn) (int, error) {
+	var pid int
+	err := controlFD(c, func(fd int) error {
+		p, err := unix.GetsockoptInt(fd, unix.SOL_LOCAL, unix.LOCAL_PEERPID)
+		if err != nil {
+			return fmt.Errorf("LOCAL_PEERPID: %w", err)
+		}
+		pid = p
+		return nil
+	})
+	return pid, err
+}

@@ -59,7 +59,7 @@ Exit **2** if no match. Exit **3** if multiple match: a slug shared by several s
 | 3 | Ambiguous selector |
 | 4 | Daemon unreachable: no socket, a stale socket, or a failed handshake. The message says `rex-daemon is not running (no socket at <path>)` and points to `rex daemon start` |
 | 5 | Invalid arguments: a bad flag or value, a missing argument, or an unknown command |
-| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` or `rex prune` confirmation; `rex undo` / `rex redo` without a terminal and without `-yes`, a declined confirmation, or a daemon refusal (session working, another live session in the folder, nothing to undo or redo, folder not in a git repo); also a prompt that cannot be asked (a non-text format, or stderr not a terminal) |
+| 6 | Operation refused: `rex rm` or `rex prune` without a terminal and without `-force`/`-yes`, or a declined `rex rm` or `rex prune` confirmation; `rex undo` / `rex redo` without a terminal and without `-yes`, a declined confirmation, or a daemon refusal (session working, another live session in the folder, nothing to undo or redo, folder not in a git repo); also a prompt that cannot be asked (a non-text format, or stderr not a terminal); and any command run from inside a rex session (an agent rex started, or a command it runs), which the daemon refuses (`in_session`) |
 | 7 | `rex wait` timed out |
 
 An unknown command exits **5** and, when a real command is within two edits, names it: `unknown command "lss"; did you mean "ls"?`. A session removed while `rex wait` runs exits **2**.
@@ -338,7 +338,7 @@ Without `-slug` the slug is derived from the prompt (`session` if none) and suff
 
 `-skill name` loads a skill from the library at `~/.config/rex/skills` into this session only; repeat it for more (at most 16). The daemon copies the skills into the session's folder and starts Claude Code with `--plugin-dir`, so nothing is written to `~/.claude`. List the names with `rex skills`; see [howto/skills.md](howto/skills.md). Exit 5 when a name is invalid or not in the library, when the tool cannot load skills per session (Antigravity cannot), or when the `spawn_skills` setting is off (`off: enable in Settings → Features (rex config set spawn_skills true)`). Against a `rex-daemon` older than these flags, `rex new` still spawns and prints `warning: this rex-daemon ignored skills; run \`rex daemon restart\`` on stderr.
 
-`-trust` trusts the session's folder (`-cwd`) for this one session, as if it were listed in [`auto_trust_dirs`](settings.md#auto-trust): the agent's trust dialog is answered and `skip_permissions` may apply. Nothing is saved (use `rex trust` for that). Exit 5 before anything is sent when the folder is the home folder, a folder that holds it or a filesystem root.
+`-trust` trusts the session's folder (`-cwd`) for this one session, as if it were listed in [`auto_trust_dirs`](settings.md#auto-trust): the agent's trust dialog is answered and `skip_permissions` may apply. Nothing is saved (use `rex trust` for that). Exit 5 before anything is sent when the folder is the home folder, a folder that holds it or a filesystem root. `-trust` works only at a terminal: in agent mode, with `-o` or with stdin or stdout not a terminal it exits **6** (`needs_terminal`) before anything is sent, so an agent cannot start a trusted (or permission-skipping) session from a tool call.
 
 `-wait` (default `5s`) is how long to wait for the daemon to confirm the spawn. If it does not, `rex new` exits 1 with `daemon did not confirm the spawn within 5s; check \`rex ls\``: the session may still appear.
 
@@ -579,10 +579,14 @@ rex daemon logs [-f]
 ## rex upgrade
 
 ```sh
-rex upgrade [-cold] [-yes] [-o FORMAT]
+rex upgrade [-cold | -no-cold] [-yes] [-if-stale] [-o FORMAT]
 ```
 
-Load a newly installed build everywhere, after `make install` or `rex update`: hot-restart the daemon (as `rex daemon restart`), then ask every connected board on another build to swap into the new binary, wait up to 10 s, and report each process: `daemon pid 123: hot-restarted, 4 session(s) kept (build abc → def)`, `board pid 456: swapped to build def`, or `board pid 789: still on build abc` (it swaps when idle, or `:swap`). `-cold` and `-yes` are passed to the daemon restart. Exit 4 when no daemon answers. It never installs anything.
+Load a newly installed build everywhere, after `make install`, `make update` or `rex update`: hot-restart the daemon (as `rex daemon restart`), wait for the boards it dropped to reconnect, ask every board on another build than this `rex` to swap into the new binary, wait up to 10 s in all, and report each process: `daemon pid 123: hot-restarted, 4 session(s) kept (build abc → def)`, `board pid 456: swapped to build def`, or `board pid 789: still on build abc` (it swaps when idle, or `:swap`). A board still on the old build does not change the exit code. `-cold` and `-yes` are passed to the daemon restart. Exit 4 when no daemon answers. It never installs anything.
+
+- `-if-stale` leaves the daemon alone when it already runs the installed `rex-daemon` (the one `rex` would start: next to `rex`, else on `$PATH`): `daemon pid 123: already on build def`. With every board current too, it prints `nothing to do: …` and exits 0.
+- `-no-cold` never falls back to a cold restart. When the daemon refuses a hot restart (another restart is running, a session is still starting, the new binary fails the preflight, or it predates hot restart), it exits **6** with the reason and nothing restarted. Without it, a refused hot restart falls back to the cold path. `-cold -no-cold` exits **5**.
+- After a restart, a daemon whose build is not the installed one (it re-executes the path it was started from) is reported, then the command exits **1** naming both builds.
 
 ---
 
