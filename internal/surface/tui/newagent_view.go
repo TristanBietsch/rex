@@ -63,9 +63,12 @@ func naHeader(title, middle, right string, w int) []string {
 	return head
 }
 
-// naEscWord is what esc does on the current step, for the footer.
+// naEscWord is what esc does on the current step, for the footer, in
+// naEsc's order.
 func naEscWord(st *NewAgentState) string {
 	switch {
+	case st.Step == naStepModel && st.Filter != "":
+		return "clear"
 	case st.ReturnToSummary:
 		return "summary"
 	case st.Step == st.Opened:

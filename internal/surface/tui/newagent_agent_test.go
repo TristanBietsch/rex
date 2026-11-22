@@ -186,6 +186,7 @@ func TestModelStep_FilterKeepsCursorByID(t *testing.T) {
 	require.False(t, m.NewAgent.Filtering, "enter keeps the filter, stops typing")
 	require.Equal(t, naStepModel, m.NewAgent.Step, "the first enter does not leave the step")
 
+	require.Equal(t, "clear", naEscWord(m.NewAgent), "the footer says what esc does with a kept filter")
 	m, _ = naKey(m, key("esc"))
 	require.Equal(t, "", m.NewAgent.Filter, "esc clears the kept filter first")
 	require.Equal(t, naStepModel, m.NewAgent.Step)
