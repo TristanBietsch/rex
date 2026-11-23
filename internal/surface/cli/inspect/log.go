@@ -75,10 +75,20 @@ func streamFile(ctx context.Context, path string, out io.Writer, follow bool, ta
 	}
 	defer f.Close()
 
-	dst := out
-	if !raw {
-		dst = newStripWriter(out)
+	if raw {
+		return copyFile(ctx, f, out, follow, tailN)
 	}
+	sw := newStripWriter(out)
+	err = copyFile(ctx, f, sw, follow, tailN)
+	if err != nil {
+		return err
+	}
+	return sw.flush()
+}
+
+// copyFile writes the tail or all of f to dst, then follows it if asked.
+func copyFile(ctx context.Context, f *os.File, dst io.Writer, follow bool, tailN int) error {
+	var err error
 	if tailN > 0 {
 		err = emitTail(f, dst, tailN)
 	} else {
