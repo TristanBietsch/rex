@@ -46,13 +46,16 @@ func ChildEnv(st *settings.Store) childenv.Options {
 // needExec is false when parent already carries the filtered marker (a hot
 // restart, or the second image after the re-exec) or when opts.Mode is
 // inherit. Otherwise env is the allowlisted environment: the base names, the
-// names in toolPass (the union of every tool's env_pass) and opts.Pass, plus
-// the marker. Neither parent nor the slices are modified.
+// names in toolPass (the union of every tool's env_pass), opts.Pass and every
+// REX_* variable (rex's own configuration), plus the marker. Neither parent nor the slices are modified.
 func OwnEnv(parent []string, opts childenv.Options, toolPass []string) (env []string, needExec bool) {
 	if opts.Mode == childenv.ModeInherit || slices.Contains(parent, filteredMarker+"=1") {
 		return nil, false
 	}
-	opts.Pass = slices.Concat(toolPass, opts.Pass)
+	// rex's own configuration (REX_LOG_LEVEL, REX_LOG_DIR, ...) stays in the
+	// daemon. Children still do not get it: Build for a spawn has no REX_*
+	// base name.
+	opts.Pass = slices.Concat([]string{"REX_*"}, toolPass, opts.Pass)
 	return append(childenv.Build(parent, opts), filteredMarker+"=1"), true
 }
 
@@ -64,7 +67,7 @@ func OwnEnv(parent []string, opts childenv.Options, toolPass []string) (env []st
 // and when the registry does not load it uses no tool names; either way it
 // logs a warning to stderr and slog instead of guessing a policy.
 func FilteredEnv(parent, args []string) (env []string, needExec bool) {
-	if slices.Contains(parent, filteredMarker+"=1") {
+	if slices.Contains(parent, filteredMarker+"=1") || probeOnly(args) {
 		return nil, false
 	}
 	opts := childenv.Options{Mode: childenv.ModeAllowlist, SSHAgent: true, GOOS: runtime.GOOS}
@@ -81,13 +84,28 @@ func FilteredEnv(parent, args []string) (env []string, needExec bool) {
 		if err != nil {
 			warn("registry load failed; filtering without the tools' env_pass", toolsPath, err)
 		} else {
-			if !settings.FeatureOn(st, "extra_agents") {
-				reg = reg.Without(registry.ExtraAgentIDs...)
-			}
+			// Every tool counts, extra_agents or not: that switch can be
+			// turned on while the daemon runs, and the keys must be there then.
 			toolPass = registry.AllEnvPass(reg)
 		}
 	}
 	return OwnEnv(parent, opts, toolPass)
+}
+
+// probeOnly reports whether args ask for a one-shot answer (-version, -help,
+// -handoff-check) that must not load config or replace the process.
+func probeOnly(args []string) bool {
+	for _, a := range args {
+		a = strings.TrimLeft(a, "-")
+		switch a {
+		case "version", "h", "help", "handoff-check":
+			return true
+		}
+		if strings.HasPrefix(a, "handoff-check=") {
+			return true
+		}
+	}
+	return false
 }
 
 func warn(msg, path string, err error) {

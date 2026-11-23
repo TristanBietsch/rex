@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/tristanbietsch/rex/internal/daemon/childenv"
@@ -116,5 +117,49 @@ func TestToolsPathFromArgs(t *testing.T) {
 		if got := toolsPathFromArgs(c.args); got != c.want {
 			t.Errorf("%v = %q, want %q", c.args, got, c.want)
 		}
+	}
+}
+
+func TestOwnEnv_KeepsRexConfigButChildrenDoNotGetIt(t *testing.T) {
+	parent := []string{"PATH=/bin", "REX_LOG_LEVEL=debug", "REX_LOG_DIR=/l", "REX_DAEMONCTL_FAKE_MODE=x", "SECRET_X=s"}
+	env, need := OwnEnv(parent, ownOpts(), nil)
+	if !need {
+		t.Fatal("needExec = false")
+	}
+	for _, w := range []string{"REX_LOG_LEVEL=debug", "REX_LOG_DIR=/l", "REX_DAEMONCTL_FAKE_MODE=x"} {
+		if !slices.Contains(env, w) {
+			t.Errorf("daemon env lacks %s", w)
+		}
+	}
+	if slices.Contains(env, "SECRET_X=s") {
+		t.Error("SECRET_X survived")
+	}
+	// The spawn filter is unchanged: an agent gets no REX_* the daemon holds.
+	for _, e := range childenv.Build(env, ownOpts()) {
+		if strings.HasPrefix(e, "REX_") {
+			t.Errorf("child got %s", e)
+		}
+	}
+}
+
+func TestFilteredEnv_KeepsEveryToolsEnvPassEvenWithExtraAgentsOff(t *testing.T) {
+	sandbox(t, "extra_agents: false\n")
+	env, _ := FilteredEnv([]string{"PATH=/bin", "CURSOR_API_KEY=c", "GROK_CODE_XAI_API_KEY=g"}, nil)
+	for _, w := range []string{"CURSOR_API_KEY=c", "GROK_CODE_XAI_API_KEY=g"} {
+		if !slices.Contains(env, w) {
+			t.Errorf("env lacks %s", w)
+		}
+	}
+}
+
+func TestFilteredEnv_NoReexecForProbes(t *testing.T) {
+	sandbox(t, "")
+	for _, a := range [][]string{{"-version"}, {"--version"}, {"-h"}, {"-help"}, {"-handoff-check", "/f"}, {"-handoff-check=/f"}} {
+		if _, need := FilteredEnv([]string{"PATH=/bin"}, a); need {
+			t.Errorf("%v: needExec = true", a)
+		}
+	}
+	if _, need := FilteredEnv([]string{"PATH=/bin"}, []string{"-socket", "/s"}); !need {
+		t.Error("normal start: needExec = false")
 	}
 }

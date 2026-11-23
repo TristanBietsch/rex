@@ -38,14 +38,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `rex config set` changes them only at a terminal. The daemon filters its
   own environment too: at startup it re-executes itself (same pid) with
   the base names, every tool's `env_pass` and `env_passthrough`; hot
-  restarts keep that environment, so a name added to `env_passthrough`
-  later needs a full restart (`rex daemon restart -cold`). On Windows, which
+  restarts keep that environment, so a name added to `env_passthrough` or
+  a tool's `env_pass` later, or `child_env: inherit`, needs
+  `rex daemon restart -cold`. The daemon also keeps its own `REX_*`
+  variables (such as `REX_LOG_LEVEL`); agents do not get them. On Windows, which
   has no exec-in-place, `rex` builds the same environment before it starts
   the daemon. **To migrate:** if an agent or tool lost a
   variable it needs, list the name in `env_passthrough` (comma-separated;
   a trailing `*` matches a prefix) or add it to the tool's `env_pass` in
   `tools.yaml`, or set `child_env: inherit` for the old behavior; then
-  restart the daemon.
+  restart the daemon with `rex daemon restart -cold` (a hot restart keeps
+  the daemon's environment).
 
 ### Fixed
 
