@@ -35,6 +35,27 @@ filesystem permissions.
   into any agent's PTY, so it can run commands as you. Only your user may
   connect. Reports of other users or processes connecting, or of the socket
   being reachable beyond the filesystem, are in scope.
+- **The environment agents and the daemon hold.** The `child_env` setting
+  (default `allowlist`) gives each agent, model probe and loop check only
+  the base names (`PATH`, `HOME`, locale, proxy and CA variables and so
+  on), the names its tool declares in `env_pass`, and `env_passthrough`; a
+  key exported in the shell that started rex does not reach them. The
+  daemon filters its own environment the same way at startup, by
+  re-executing itself with the allowlist, so it no longer holds anything
+  else (not yet on Windows, which cannot replace a process in place;
+  agents there are filtered all the same). `child_env`, `env_passthrough` and `env_ssh_agent` are trust
+  settings: from the CLI they change only at a terminal. What the default
+  still gives away: `SSH_AUTH_SOCK` (while `env_ssh_agent` is on, the
+  default) lets an agent use every key loaded in your SSH agent for as
+  long as it runs, so turn it off with `env_ssh_agent: false` if agents
+  should not sign with them; and a proxy URL in `HTTP_PROXY` and friends
+  can carry a user name and password. Remaining exposure: on Linux a
+  process can read another process of the same user's environment from
+  `/proc/<pid>/environ`, so an agent can still read the keys of the tool
+  processes it can see running (its own and sibling agents'). `inherit`
+  restores the old behavior and the old exposure. An agent receiving a
+  variable that is neither a base name nor in `env_pass` or
+  `env_passthrough`, or the daemon keeping one, is in scope.
 - **Agents controlling rex.** Every agent rex starts is a child of
   `rex-daemon` and leads its own session (its PTY), and every command an
   agent runs either descends from the daemon or, if it left the daemon's

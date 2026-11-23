@@ -19,6 +19,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   alone (`nothing to do: …` when the boards are current too), and
   **`-no-cold`** refuses (exit 6) instead of falling back to a cold restart.
 
+### Changed
+
+- **Breaking: agents get an allowlisted environment.** Every agent, model
+  probe and loop check used to inherit the whole environment of the shell
+  that started rex, frozen for as long as the daemon ran, so an API key or
+  token exported there reached every agent and everything an agent ran. In
+  the new default (`child_env: allowlist`) a child gets only: the base names
+  (`PATH`, `HOME`, `USER`, `SHELL`, `TERM`, locale and `XDG_*`, proxy and CA
+  variables, `EDITOR`, plus a few per OS), the names its tool declares in
+  the new registry field `env_pass` (the built-in tools list their own
+  login and provider variables; a `tools.yaml` can add names, which are
+  merged with the built-in list), the names in the new `env_passthrough`
+  setting, `SSH_AUTH_SOCK` while the new `env_ssh_agent` setting is on (the
+  default), and what rex itself adds. Model probes get the probed tool's
+  `env_pass`; loop checks get the base names and `env_passthrough`.
+  `child_env`, `env_passthrough` and `env_ssh_agent` are trust settings:
+  `rex config set` changes them only at a terminal. The daemon filters its
+  own environment too: at startup it re-executes itself (same pid) with
+  the base names, every tool's `env_pass` and `env_passthrough`; hot
+  restarts keep that environment, so a name added to `env_passthrough`
+  later needs a full restart (`rex daemon restart -cold`). Windows has no
+  exec-in-place, so the daemon's own environment is not filtered there yet
+  (agents and probes still are). **To migrate:** if an agent or tool lost a
+  variable it needs, list the name in `env_passthrough` (comma-separated;
+  a trailing `*` matches a prefix) or add it to the tool's `env_pass` in
+  `tools.yaml`, or set `child_env: inherit` for the old behavior; then
+  restart the daemon.
+
 ### Fixed
 
 - `rex upgrade` compared each board with the daemon's build instead of its
@@ -42,7 +70,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `rex log` drops control characters and invalid UTF-8 (use `-bytes` for raw).
   Cost: agent hyperlinks and titles no longer reach the terminal through
   `rex attach`.
-
 - **`rex uninstall -all` removes everything rex writes.** It used to leave
   most of `~/.local/share/rex` (audit trail, usage ledger, snapshots with
   copies of repository files, exports with transcripts, loops, workspace
@@ -54,6 +81,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `.rex/config.lua` and `.rex/workspace.json` and your shell-profile
   backups. The closing hint and the `-wipe-state` help name the real
   folders; `-dry-run` lists everything.
+- **The daemon no longer holds your shell's secrets.** Its environment is
+  filtered at startup (see Changed), so another process of yours can no
+  longer read an exported key from `/proc/<daemon pid>/environ` on Linux.
+  An agent can still read the environment of the tool processes it can see
+  running (its own and sibling agents'); see SECURITY.md.
 - **Agents rex starts can no longer control rex.** Any process running as
   you could drive every session, including the agents rex starts: a tool
   call such as `printf '\r' | rex send <id>` could answer another agent's
