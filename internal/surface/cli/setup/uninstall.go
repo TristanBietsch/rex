@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -237,18 +236,33 @@ func (p *uninstallPlan) items() []removal {
 	return out
 }
 
+// left lists what the plan keeps and what it skipped, never as removals.
+func (p *uninstallPlan) left() (kept, skipped []removal) {
+	kept, skipped = []removal{}, []removal{}
+	if p.opts.all {
+		kept = append(kept, p.all.keep...)
+		skipped = append(skipped, p.all.skipped...)
+	}
+	return kept, skipped
+}
+
 // uninstallData is the `-o json` payload of rex uninstall.
 type uninstallData struct {
 	DryRun  bool      `json:"dry_run"`
 	Plan    []removal `json:"plan"`
 	Removed []removal `json:"removed"`
+	// Kept are paths -all leaves in place on purpose; Skipped are paths it
+	// would not touch (symlinks, folders that are gone, paths outside home).
+	Kept    []removal `json:"kept"`
+	Skipped []removal `json:"skipped"`
 }
 
 func (p *uninstallPlan) data(dryRun bool, removed []removal) uninstallData {
 	if removed == nil {
 		removed = []removal{}
 	}
-	return uninstallData{DryRun: dryRun, Plan: p.items(), Removed: removed}
+	kept, skipped := p.left()
+	return uninstallData{DryRun: dryRun, Plan: p.items(), Removed: removed, Kept: kept, Skipped: skipped}
 }
 
 // planView shows the plan (dry run, or before the question) or, once done is
@@ -258,20 +272,15 @@ func (p *uninstallPlan) planView(dryRun bool, done []removal) core.View {
 	title := "Will remove"
 	if done != nil {
 		rows, title = done, "Removed"
-		if p.opts.all {
-			rows = append(slices.Clone(done), p.all.leftRows()...)
-		}
 	}
-	cells := make([][]core.Cell, len(rows))
-	for i, r := range rows {
-		detail := strings.TrimSpace(r.Path + "  " + r.Detail)
-		cells[i] = []core.Cell{{Text: r.Kind}, {Text: detail, Raw: r.Path}, {Text: r.Detail}}
+	v := core.View{core.Section{Title: title}, removalTable(rows)}
+	kept, skipped := p.left()
+	if len(kept) > 0 {
+		v = append(v, core.Section{Title: "Kept"}, removalTable(kept))
 	}
-	v := core.View{core.Section{Title: title}, core.Table{Kind: "removal", Empty: "(nothing)", Rows: cells, Cols: []core.Col{
-		{Key: "kind", Title: "What"},
-		{Key: "path", Title: "Where"},
-		{Key: "detail", Title: "Detail", Formats: core.SetOf(core.FormatAgent)},
-	}}}
+	if len(skipped) > 0 {
+		v = append(v, core.Section{Title: "Skipped"}, removalTable(skipped))
+	}
 	switch {
 	case dryRun:
 		v = append(v, core.Note{Text: "dry-run: nothing removed"}, agentPairs(core.Field{Key: "dry_run", Val: true}))
@@ -279,6 +288,20 @@ func (p *uninstallPlan) planView(dryRun bool, done []removal) core.View {
 		v = append(v, core.Note{Text: "run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure"})
 	}
 	return v
+}
+
+// removalTable renders rows as the what / where / detail table.
+func removalTable(rows []removal) core.Table {
+	cells := make([][]core.Cell, len(rows))
+	for i, r := range rows {
+		detail := strings.TrimSpace(r.Path + "  " + r.Detail)
+		cells[i] = []core.Cell{{Text: r.Kind}, {Text: detail, Raw: r.Path}, {Text: r.Detail}}
+	}
+	return core.Table{Kind: "removal", Empty: "(nothing)", Rows: cells, Cols: []core.Col{
+		{Key: "kind", Title: "What"},
+		{Key: "path", Title: "Where"},
+		{Key: "detail", Title: "Detail", Formats: core.SetOf(core.FormatAgent)},
+	}}
 }
 
 // checkBinaryLocations refuses to delete binaries outside the user's home

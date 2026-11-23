@@ -296,7 +296,8 @@ func TestRunUninstall_AllSkipsSymlinkedWorkspaceRex(t *testing.T) {
 
 	require.NoError(t, f.run("-all", "-yes"))
 	requireExists(t, filepath.Join(target, "sessions.jsonl"))
-	require.Contains(t, f.out.String(), "skipped")
+	require.Contains(t, f.out.String(), filepath.Join(root, ".rex"))
+	require.Contains(t, f.out.String(), "not followed")
 }
 
 func TestRunUninstall_AllSkipsMissingWorkspaceRoot(t *testing.T) {
@@ -351,7 +352,7 @@ func TestRunUninstall_AllSkipsSymlinkedDataDir(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(cache), 0o700))
 	require.NoError(t, os.Symlink(other, cache))
 
-	_ = f.run("-all", "-yes")
+	require.NoError(t, f.run("-all", "-yes"))
 	requireExists(t, filepath.Join(other, "precious"))
 }
 
@@ -372,6 +373,7 @@ func TestRunUninstall_DryRunListsEverything(t *testing.T) {
 
 	require.NoError(t, f.run("-all", "-dry-run"))
 	requireExists(t, f.dataPaths()...)
+	requireExists(t, filepath.Join(root, ".rex", "sessions.jsonl"), filepath.Join(logs, "tui.log"))
 	out := f.out.String()
 	for _, want := range []string{
 		filepath.Join(f.home, ".local", "share", "rex"), filepath.Join(f.home, ".cache", "rex"),
@@ -380,4 +382,132 @@ func TestRunUninstall_DryRunListsEverything(t *testing.T) {
 	} {
 		require.Contains(t, out, want)
 	}
+}
+
+type testWarn struct{ t *testing.T }
+
+func (w testWarn) Warn(s string) { w.t.Log("warn:", s) }
+
+// twoDirs returns a resolved temp home and a resolved folder outside it.
+func twoDirs(t *testing.T) (home, outside string) {
+	t.Helper()
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	outside, err = filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	return home, outside
+}
+
+func writeRegistry(t *testing.T, home, root string) {
+	t.Helper()
+	b, err := json.Marshal(map[string]any{"v": 1, "workspaces": map[string]any{
+		"0a1b2c3d": map[string]any{"id": "0a1b2c3d", "name": "w", "root": root},
+	}})
+	require.NoError(t, err)
+	writeAt(t, filepath.Join(home, ".local", "share", "rex", "workspaces.json"), string(b))
+}
+
+// A .rex swapped for a symlink after the plan was built (the prompt can stay
+// open) must not redirect a removal.
+func TestUninstallAll_RexSwappedForSymlinkAfterPlan(t *testing.T) {
+	home, out := twoDirs(t)
+	t.Setenv("REX_LOG_DIR", "")
+	root := filepath.Join(home, "proj")
+	writeAt(t, filepath.Join(root, ".rex", "sessions.jsonl"), "x")
+	victim := filepath.Join(out, "sessions.jsonl")
+	writeAt(t, victim, "victim")
+	writeRegistry(t, home, root)
+
+	tg := planAll(home)
+	require.NotEmpty(t, tg.files)
+	require.NoError(t, os.RemoveAll(filepath.Join(root, ".rex")))
+	require.NoError(t, os.Symlink(out, filepath.Join(root, ".rex")))
+	tg.removeAll(testWarn{t}, nil, 0)
+	requireExists(t, victim)
+}
+
+func TestUninstallAll_SymlinkedWorkspaceRoot(t *testing.T) {
+	home, out := twoDirs(t)
+	t.Setenv("REX_LOG_DIR", "")
+	victim := filepath.Join(out, ".rex", "sessions.jsonl")
+	writeAt(t, victim, "victim")
+	root := filepath.Join(home, "proj")
+	require.NoError(t, os.Symlink(out, root))
+	writeRegistry(t, home, root)
+
+	tg := planAll(home)
+	tg.removeAll(testWarn{t}, nil, 0)
+	requireExists(t, victim)
+	require.Len(t, tg.skipped, 1)
+	require.Contains(t, tg.skipped[0].Detail, "symlink")
+}
+
+func TestUninstallAll_LogDirSymlinkToShared(t *testing.T) {
+	home, out := twoDirs(t)
+	victim := filepath.Join(out, "daemon.log")
+	writeAt(t, victim, "other program")
+	require.NoError(t, os.Symlink(out, filepath.Join(home, "logs")))
+	t.Setenv("REX_LOG_DIR", filepath.Join(home, "logs"))
+
+	tg := planAll(home)
+	tg.removeAll(testWarn{t}, nil, 0)
+	requireExists(t, victim)
+	require.NotEmpty(t, tg.skipped)
+}
+
+// The log folder swapped for a symlink after the plan.
+func TestUninstallAll_LogDirSwappedAfterPlan(t *testing.T) {
+	home, out := twoDirs(t)
+	logs := filepath.Join(home, "logs")
+	writeAt(t, filepath.Join(logs, "daemon.log"), "x")
+	victim := filepath.Join(out, "daemon.log")
+	writeAt(t, victim, "other program")
+	t.Setenv("REX_LOG_DIR", logs)
+
+	tg := planAll(home)
+	require.NotEmpty(t, tg.files)
+	require.NoError(t, os.RemoveAll(logs))
+	require.NoError(t, os.Symlink(out, logs))
+	tg.removeAll(testWarn{t}, nil, 0)
+	requireExists(t, victim)
+}
+
+// A symlinked data or cache folder is skipped and reported, not planned and
+// not a failed run.
+func TestRunUninstall_AllSymlinkedCacheIsSkippedNotFailed(t *testing.T) {
+	f := newUninstallFixture(t)
+	other := filepath.Join(f.home, "other")
+	writeAt(t, filepath.Join(other, "precious"), "x")
+	cache := filepath.Join(f.home, ".cache", "rex")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cache), 0o700))
+	require.NoError(t, os.Symlink(other, cache))
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireExists(t, filepath.Join(other, "precious"))
+	require.Contains(t, f.out.String(), cache)
+	require.Contains(t, f.out.String(), "not followed")
+	require.NotContains(t, f.errOut.String(), "error removing")
+}
+
+func TestRunUninstall_AllJSONHasKeptAndSkippedApart(t *testing.T) {
+	f := newUninstallFixture(t)
+	bak := filepath.Join(f.home, ".zshrc.rex-backup-1")
+	writeAt(t, bak, "mine")
+
+	require.NoError(t, f.run("-all", "-dry-run", "-o", "json"))
+	var got struct {
+		Data struct {
+			Plan, Removed, Kept, Skipped []struct{ Path string }
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(f.out.Bytes(), &got), f.out.String())
+	var kept []string
+	for _, k := range got.Data.Kept {
+		kept = append(kept, k.Path)
+	}
+	require.Contains(t, kept, bak)
+	for _, r := range got.Data.Plan {
+		require.NotEqual(t, bak, r.Path)
+	}
+	require.Contains(t, f.out.String(), `"skipped"`)
 }
