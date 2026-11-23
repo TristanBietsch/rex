@@ -30,6 +30,8 @@ func TestBuiltinEnvPass(t *testing.T) {
 	})
 	codex, _ := reg.Find("codex")
 	require.Contains(t, codex.EnvPass, "OPENAI_API_KEY")
+	ollama, _ := reg.Find("ollama")
+	require.Subset(t, ollama.EnvPass, []string{"OLLAMA_HOST", "OLLAMA_API_KEY"})
 	secrets := []string{"GH_TOKEN", "GITHUB_TOKEN", "NPM_TOKEN", "*"}
 	for _, tool := range reg.Tools {
 		for _, s := range secrets {

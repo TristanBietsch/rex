@@ -272,10 +272,9 @@ tools:
     name: "Ollama"
     category: self_hosted
     command: ["ollama", "run"]
-    # Variable the tool reads: OLLAMA_API_KEY, from https://docs.ollama.com/api/authentication
-    # (direct cloud API). OLLAMA_HOST is documented only as the server's bind address, so it is not listed;
-    # add it with env_passthrough when `ollama run` must reach another host.
-    env_pass: [OLLAMA_API_KEY]
+    # OLLAMA_HOST: the ollama client reads it (api.ClientFromEnvironment) to find the server.
+    # OLLAMA_API_KEY: direct cloud API key, https://docs.ollama.com/api/authentication
+    env_pass: [OLLAMA_HOST, OLLAMA_API_KEY]
     install_hint: "download from https://ollama.com"
     # run MODEL PROMPT is one-shot, so the task is pasted into the REPL.
     prompt_paste: {plain: true, settle_ms: 800}
