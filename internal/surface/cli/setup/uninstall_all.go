@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
+	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/workspace"
 )
 
@@ -24,7 +25,11 @@ func rexLogFileNames() []string {
 	for _, n := range rexLogBaseNames {
 		out = append(out, n+".log")
 	}
-	return out
+	errLog := "cli-errors.log"
+	if p, err := core.ErrLogPath(); err == nil {
+		errLog = filepath.Base(p)
+	}
+	return append(out, errLog, errLog+".1")
 }
 
 // target is one planned removal. guard is the directory whose identity is

@@ -489,6 +489,34 @@ func TestRunUninstall_AllSymlinkedCacheIsSkippedNotFailed(t *testing.T) {
 	require.NotContains(t, f.errOut.String(), "error removing")
 }
 
+// Every file name rex writes in a log folder. Callers: rexlog.Init in
+// cmd/rex-daemon/main.go ("daemon"), setup/setup.go ("setup"),
+// setup/onboard.go ("onboard"), meta/tui.go and tui/splash_steps.go
+// ("tui"); core/errlog.go writes "cli-errors" and rotates it to ".1".
+// Add a name here when a new rexlog caller appears.
+var rexLogFilesInUse = []string{
+	"daemon.log", "setup.log", "onboard.log", "tui.log", "cli-errors.log", "cli-errors.log.1",
+}
+
+func TestRunUninstall_AllRemovesEveryRexLogFile(t *testing.T) {
+	f := newUninstallFixture(t)
+	logs := filepath.Join(f.home, "logs")
+	t.Setenv("REX_LOG_DIR", logs)
+	var made []string
+	for _, n := range rexLogFilesInUse {
+		made = append(made, filepath.Join(logs, n))
+		writeAt(t, made[len(made)-1], "x")
+	}
+	writeAt(t, filepath.Join(logs, "other.log"), "x")
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireGone(t, made...)
+	requireExists(t, filepath.Join(logs, "other.log"))
+	for _, n := range rexLogFilesInUse {
+		require.Contains(t, rexLogFileNames(), n)
+	}
+}
+
 func TestRunUninstall_AllJSONHasKeptAndSkippedApart(t *testing.T) {
 	f := newUninstallFixture(t)
 	bak := filepath.Join(f.home, ".zshrc.rex-backup-1")
