@@ -344,11 +344,16 @@ func validateStatusEnv(t Tool) error {
 // prefix. The name part must be non-empty, so a bare "*" never matches.
 var envPassPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\*?$`)
 
+// ValidEnvPassName reports whether e is a valid env_pass entry: a variable
+// name, optionally ending in "*" for a prefix, never "" or a bare "*". The
+// env_passthrough setting uses the same rule.
+func ValidEnvPassName(e string) bool { return envPassPattern.MatchString(e) }
+
 // validateEnvPass checks env_pass: each entry is a plain variable name or a
 // prefix pattern ending in "*", never "" or a bare "*".
 func validateEnvPass(t Tool) error {
 	for _, e := range t.EnvPass {
-		if !envPassPattern.MatchString(e) {
+		if !ValidEnvPassName(e) {
 			return fmt.Errorf("tool %q: env_pass entry %q must be a variable name, optionally ending in *", t.ID, e)
 		}
 	}

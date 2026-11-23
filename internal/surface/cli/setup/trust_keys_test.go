@@ -17,6 +17,12 @@ func trustValue(t *testing.T, id string) string {
 	switch id {
 	case "skip_permissions", "summary_allow_remote":
 		return "true"
+	case "env_ssh_agent":
+		return "false"
+	case "child_env":
+		return "inherit"
+	case "env_passthrough":
+		return "FOO_*,BAR"
 	case "auto_trust_dirs":
 		return "~/dev"
 	}

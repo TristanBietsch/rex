@@ -2,8 +2,10 @@ package boot
 
 import (
 	"log/slog"
+	"runtime"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 )
 
 // The functions below read one setting from st, normally SettingsHub.Current.
@@ -14,6 +16,17 @@ import (
 func SkipPermissions(st *settings.Store) bool {
 	on, _ := st.Get("skip_permissions").(bool)
 	return on
+}
+
+// ChildEnv reads child_env and env_ssh_agent into the environment policy for
+// this OS, with Pass empty (see server.Config.ChildEnv).
+func ChildEnv(st *settings.Store) childenv.Options {
+	mode := childenv.ModeAllowlist
+	if st.String("child_env") == string(childenv.ModeInherit) {
+		mode = childenv.ModeInherit
+	}
+	ssh, _ := st.Get("env_ssh_agent").(bool)
+	return childenv.Options{Mode: mode, SSHAgent: ssh, GOOS: runtime.GOOS}
 }
 
 // ResumeEnabled reads the resume feature switch.

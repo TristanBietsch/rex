@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/snapshot"
@@ -88,6 +89,11 @@ type Config struct {
 	// skip_permissions_args (setting skip_permissions). Called at each
 	// spawn. nil: never.
 	SkipPermissions func() bool
+	// ChildEnv returns the environment policy for new sessions (settings
+	// child_env, env_ssh_agent) with Pass empty: the spawn adds the tool's
+	// env_pass, and env_passthrough is applied to the daemon's own
+	// environment. Called at each spawn. nil: today's behavior.
+	ChildEnv func() childenv.Options
 	// ResumeEnabled reports whether the resume feature is on (setting
 	// resume). Called at each spawn and Resume. Off: no conversation id is
 	// preassigned or captured, and a Resume intent is refused. nil: on.

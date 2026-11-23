@@ -3,11 +3,13 @@ package boot
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 )
 
 // storeWith returns the defaults overlaid with a config.yaml holding body.
@@ -47,4 +49,17 @@ func TestSpawnSkillsEnabled(t *testing.T) {
 func TestResumeEnabled(t *testing.T) {
 	require.True(t, ResumeEnabled(settings.NewStore()), "default: on")
 	require.False(t, ResumeEnabled(storeWith(t, "resume: false\n")))
+}
+
+func TestChildEnv(t *testing.T) {
+	o := ChildEnv(settings.NewStore())
+	require.Equal(t, childenv.ModeAllowlist, o.Mode)
+	require.True(t, o.SSHAgent)
+	require.Equal(t, runtime.GOOS, o.GOOS)
+	require.Empty(t, o.Pass)
+
+	o = ChildEnv(storeWith(t, "child_env: inherit\nenv_ssh_agent: false\nenv_passthrough: FOO\n"))
+	require.Equal(t, childenv.ModeInherit, o.Mode)
+	require.False(t, o.SSHAgent)
+	require.Empty(t, o.Pass, "env_passthrough is applied by the daemon re-exec, not here")
 }

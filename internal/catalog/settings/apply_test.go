@@ -54,6 +54,7 @@ var applyModeOf = map[string]ApplyMode{
 	// Read at each spawn.
 	"default_spawn_tool": ApplyNextSpawn, "default_spawn_model": ApplyNextSpawn, "default_spawn_effort": ApplyNextSpawn,
 	"auto_trust_dirs": ApplyNextSpawn, "skip_permissions": ApplyNextSpawn,
+	"child_env": ApplyNextSpawn, "env_ssh_agent": ApplyNextSpawn,
 	"resume": ApplyNextSpawn, "spawn_skills": ApplyNextSpawn, "usage_statusline_tap": ApplyNextSpawn,
 	// Features the TUI or CLI reads live, or the daemon applies through its
 	// SettingsHub subscribers (cmd/rex-daemon/main.go).
@@ -67,7 +68,7 @@ var applyModeOf = map[string]ApplyMode{
 	"workspaces": ApplyLive, "audit_trail": ApplyLive, "audit_full_prompt": ApplyLive, "lua_config": ApplyLive,
 	"summary_detail": ApplyLive, "overview_enabled": ApplyLive, "cli_error_log": ApplyLive,
 	// Read once when the daemon starts.
-	"summary_enabled": ApplyDaemonRestart, "summary_model": ApplyDaemonRestart, "summary_allow_remote": ApplyDaemonRestart, "lua_config_path": ApplyDaemonRestart,
+	"env_passthrough": ApplyDaemonRestart, "summary_enabled": ApplyDaemonRestart, "summary_model": ApplyDaemonRestart, "summary_allow_remote": ApplyDaemonRestart, "lua_config_path": ApplyDaemonRestart,
 }
 
 func TestApplyModesMatchHowSettingsAreRead(t *testing.T) {
