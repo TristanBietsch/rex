@@ -81,3 +81,41 @@ func TestDelete_PassesTheRequesterToTheAuditHook(t *testing.T) {
 	require.Equal(t, "rex-cli", fa.deletes[0].by.Client)
 	require.Equal(t, os.Getpid(), fa.deletes[0].by.PID)
 }
+
+// seedExited adds an exited resumable session started by "original".
+func seedExited(t *testing.T, e *retireEnv, id string) *state.Session {
+	t.Helper()
+	sess := exited(func() string { return e.dir }, id, protocol.StateDone, "slow", testResumeID)
+	sess.SetRequestedBy(&state.Requester{Client: "original", PID: 11, Exe: "/bin/original"})
+	require.NoError(t, e.store.Add(sess))
+	require.NoError(t, state.WriteMeta(e.dir, sess))
+	return sess
+}
+
+func TestResume_ByAClientRecordsThatClient(t *testing.T) {
+	e := startResumeServer(t, resumeTools, 0)
+	sess := seedExited(t, e, "a")
+	conn := dialTest(t, e.sock)
+	w, r, _ := helloAs(t, conn, "resumer")
+
+	code, msg := call(t, conn, w, r, protocol.IntentResume, protocol.Resume{SessionID: "a"})
+	require.Empty(t, code, msg)
+	by := sess.Requester()
+	require.NotNil(t, by)
+	require.Equal(t, "resumer", by.Client, "the client that asked for this run")
+	require.Equal(t, os.Getpid(), by.PID)
+	onDisk, err := state.LoadMeta(e.dir, "a")
+	require.NoError(t, err)
+	require.Equal(t, by, onDisk.Requester())
+}
+
+func TestResume_WithoutClientKeepsRequester(t *testing.T) {
+	e := startResumeServer(t, resumeTools, 0)
+	sess := seedExited(t, e, "a")
+
+	require.NoError(t, e.srv.EnsureLive(t.Context(), "a")) // rex resumes it itself, as a loop does
+	require.Equal(t, &state.Requester{Client: "original", PID: 11, Exe: "/bin/original"}, sess.Requester())
+	onDisk, err := state.LoadMeta(e.dir, "a")
+	require.NoError(t, err)
+	require.Equal(t, "original", onDisk.Requester().Client)
+}

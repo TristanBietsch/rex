@@ -52,6 +52,10 @@ func TestRead_DeleteLinesFollowFiltersAndOldFieldsStillParse(t *testing.T) {
 
 	got, _ := Read([]string{path}, Filter{})
 	require.Len(t, got, 2, "the duplicate delete counts once")
+	// A delete at the very instant a run ended is a different line.
+	require.NoError(t, AppendDelete(path, "aaaa1111", nil, t0))
+	got, _ = Read([]string{path}, Filter{})
+	require.Len(t, got, 3, "a delete never dedupes against a run record")
 	require.Equal(t, old.RequestedBy, got[0].RequestedBy)
 	got, _ = Read([]string{path}, Filter{Since: t0.Add(30 * time.Minute)})
 	require.Len(t, got, 1, "since applies to the delete's time")

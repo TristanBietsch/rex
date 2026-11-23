@@ -126,9 +126,9 @@ Trust is kept in `~/.local/share/rex/workspace-trust.json`, outside every `.rex/
 
 When a session finishes, the daemon writes one line to the audit trail: who ran what, when, for how long, and how it ended. A session that is cleared (`rex rm`, `rex prune`, or the done timer) before its record was written gets it first, so a session is never deleted without one. A resumed session writes a second record when it ends again.
 
-The record also says who started the run: `requested_by` holds the `client` name the caller sent in its hello, its `pid` and its executable path `exe`. It is taken at the daemon's socket, so the name and path are what the caller reported (the path is kernel-verified on Linux only) and identify the caller rather than prove it; they are flattened to plain text and capped. A session the daemon started itself (a loop turn) has no `requested_by`. Resuming a finished session replaces it with whoever resumed it, so each run's record names who started that run.
+The record also says who started the run: `requested_by` holds the `client` name the caller sent in its hello, its `pid` and its executable path `exe`. It is taken at the daemon's socket, so the name and path are what the caller reported (the path is kernel-verified on Linux only) and identify the caller rather than prove it; they are flattened to plain text and capped. A session the daemon started itself (a loop turn) has no `requested_by`. Resuming a finished session replaces it with the client that asked for the resume, so each run's record names who started that run; a resume rex makes itself (a loop) keeps the existing one.
 
-Clearing a session adds one more line of its own, because a finished session's record is written once, at its end, before any delete: `{"event":"delete","session_id":"…","deleted_by":{"client","pid","exe"},"ts":"…"}`. `deleted_by` is absent when the daemon cleared the session itself (the done timer). `rex audit` lists it as a `deleted` row.
+Clearing a session adds one more line of its own, because a finished session's record is written once, at its end, before any delete: `{"event":"delete","session_id":"…","deleted_by":{"client","pid","exe"},"ts":"…"}`. A delete line without `deleted_by` was made by rex itself, e.g. the retire sweep (the done timer). `rex audit` lists it as a `deleted` row.
 
 | Where the session ran | File |
 |---|---|

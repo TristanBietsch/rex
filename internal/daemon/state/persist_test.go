@@ -189,6 +189,12 @@ func TestMeta_RoundTripsRequestedByAndFlattensIt(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, got.Requester().Client, "\x1b")
 	require.NotContains(t, got.Requester().Client, "\n")
+	bad = strings.Replace(bad, "/bin/rex", `/bin/\u001b]0;x\u0007rex`, 1)
+	require.NoError(t, os.WriteFile(metaPath, []byte(bad), 0o600)) //nolint:gosec // G703: a temp dir the test made
+	got, err = LoadMeta(root, "aaaa1111")
+	require.NoError(t, err)
+	require.NotContains(t, got.Requester().Exe, "\x1b")
+	require.NotContains(t, got.Requester().Exe, "\x07")
 
 	none := &Session{ID: "bbbb2222", ShortID: "bbbb", ToolID: "t", ModelID: "m", Slug: "y", State: protocol.StateDone}
 	require.NoError(t, WriteMeta(root, none))

@@ -82,7 +82,8 @@ func (s *Server) unmarkLive(sess *state.Session) error {
 // resumeExited respawns a done, failed or crashed session in place. It
 // reports false, with nothing changed, when another resume or a supervisor
 // already holds the session's stop slot. by, who asked, replaces the
-// session's requester: the new run is theirs.
+// session's requester: the new run is theirs. nil (rex resumes it itself,
+// as a loop does) keeps the existing one.
 func (s *Server) resumeExited(ctx context.Context, sess *state.Session, by *state.Requester) (bool, error) {
 	cfg := s.cfg
 	sum := sess.Summary()
@@ -148,7 +149,9 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session, by *stat
 			return false, replyErr(protocol.ErrCodeUnknownSession, err)
 		}
 	}
-	sess.SetRequestedBy(by)
+	if by != nil { // rex resuming on its own keeps whoever started the session
+		sess.SetRequestedBy(by)
+	}
 	reopened := sess.Summary()
 	s.commit(sess, map[string]any{
 		"state":         reopened.State,
