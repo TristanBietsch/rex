@@ -94,6 +94,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `summarizer endpoint` row: it reads `OLLAMA_HOST` from your shell, so the
   daemon's own environment can differ.
 
+- **The daemon records which process drove a session.** It reads each
+  connecting process's executable path (`/proc/<pid>/exe` on Linux; on macOS
+  the path the process gave to exec, as reported and not verified; nothing on
+  Windows) and, at a connection's first intent, logs at Info the connection
+  id, pid, executable, `in_session` and the `Hello` client name. Every intent
+  except the read-only ones (`Hello`, `Subscribe`, `Resize`, `Boards`,
+  `UsageQuery`, `FocusFilter`, `UsageSample`) is now logged with its type and
+  session id, and input to a session is logged as the first input plus one
+  byte count per session at disconnect, never the bytes. `meta.json` and the
+  audit record of a session now hold `requested_by` (`client`, `pid`, `exe`):
+  who started it, whatever the prompt. Deleting a session appends its own
+  audit line (`"event":"delete"`, `session_id`, `deleted_by`, `ts`), and
+  `rex audit` lists it. The client name and executable path come from the
+  peer, so they are flattened to plain text and capped, and identify rather
+  than prove who asked.
+
 ## [2.0.0] - 2026-11-17
 
 The first release since v1. Details for every change follow the summary.

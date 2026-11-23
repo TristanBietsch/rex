@@ -102,7 +102,7 @@ func handleNewSessionIntent(c *client, env protocol.Envelope) (outcome, error) {
 	if err != nil {
 		return outcome{}, err
 	}
-	id, err := handleNewSession(c.ctx, env.ID, p, c.srv)
+	id, err := handleNewSession(c.ctx, env.ID, p, c.srv, c.requester())
 	if err != nil {
 		code := protocol.ErrCodeSpawn
 		switch {
@@ -123,7 +123,7 @@ func handleDelete(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	// Stops a running supervisor first so its goroutines don't race with
 	// the on-disk cleanup; disk cleanup is best-effort.
-	if err := c.srv.deleteSession(p.SessionID, protocol.RemovedByUser); err != nil {
+	if err := c.srv.deleteSessionBy(p.SessionID, protocol.RemovedByUser, c.requester()); err != nil {
 		if errors.Is(err, errAuditFailed) {
 			return outcome{}, replyErr(protocol.ErrCodeInternal, err)
 		}

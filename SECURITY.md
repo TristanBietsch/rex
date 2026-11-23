@@ -134,8 +134,10 @@ filesystem permissions.
   default) the daemon appends one line per finished session to
   `~/.local/share/rex/audit.jsonl`, or to `<workspace>/.rex/audit.jsonl` for
   a session inside a workspace. A line holds ids, names, the tool, times, the
-  end state and the first line of the initial prompt (200 characters,
-  control characters removed). With `audit_full_prompt` (off by default) it
+  end state, who started it (the client name, pid and executable path the
+  caller reported, flattened to plain text) and the first line of the
+  initial prompt (200 characters, control characters removed); deleting a
+  session adds a line naming who deleted it. With `audit_full_prompt` (off by default) it
   also holds the whole prompt, which can contain secrets, in a file that may
   sit in a synced or committed folder. rex writes these files 0600 in 0700
   folders and never follows a symlink at `.rex/`, `workspace.json` or

@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/audit"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -188,29 +190,68 @@ func auditView(recs []audit.Record, scope auditScope, loc *time.Location) core.V
 		{Key: "model", Title: "Model", DropBelow: 100},
 		{Key: "name", Title: "Session", Flex: true, Min: 8, Max: 24},
 		{Key: "duration", Title: "Took", Align: core.AlignRight},
+		{Key: "by", Title: "By", DropBelow: 110},
 		{Key: "workspace_id", Title: "Workspace", DropBelow: 90},
 		{Key: "session_id", Title: "Session id", Formats: agent},
 		{Key: "prompt", Title: "Prompt", Flex: true, Min: 10, Max: 60, Below: true},
 	}
 	rows := make([][]core.Cell, len(recs))
+	deletes := 0
 	for i, r := range recs {
+		when, st, by, dur := r.EndedAt, r.State, r.RequestedBy, spanText(r.DurationS)
+		name := nonEmpty(r.Name, r.ShortID)
+		if r.IsDelete() {
+			deletes++
+			// A delete line: when it happened, and who asked
+			when, st, by, dur = r.TS, "deleted", r.DeletedBy, ""
+			name = shortSessionID(r.SessionID)
+		}
 		rows[i] = []core.Cell{
-			{Text: r.EndedAt.In(loc).Format("2006-01-02 15:04"), Raw: r.EndedAt.UTC().Format(time.RFC3339)},
-			{Text: r.State, Tone: auditTone(r.State)},
+			{Text: when.In(loc).Format("2006-01-02 15:04"), Raw: when.UTC().Format(time.RFC3339)},
+			{Text: st, Tone: auditTone(st)},
 			{Text: r.Tool},
 			{Text: r.Model},
-			{Text: nonEmpty(r.Name, r.ShortID)},
-			{Text: spanText(r.DurationS), Raw: r.DurationS},
+			{Text: name},
+			{Text: dur, Raw: r.DurationS},
+			{Text: requesterText(by)},
 			{Text: r.WorkspaceID},
 			{Text: r.SessionID},
 			{Text: r.PromptFirstLine},
 		}
 	}
-	v := core.View{core.Header{Title: "Audit", Meta: fmt.Sprintf("%s · %d sessions", scope.label, len(recs))}}
+	meta := fmt.Sprintf("%s · %d sessions", scope.label, len(recs)-deletes)
+	if deletes > 0 {
+		meta += fmt.Sprintf(" · %d deleted", deletes)
+	}
+	v := core.View{core.Header{Title: "Audit", Meta: meta}}
 	for _, n := range scope.notes {
 		v = append(v, core.Note{Tone: core.ToneWarn, Text: n})
 	}
 	return append(v, core.Table{Kind: "audit", Cols: cols, Rows: rows, Empty: "no audit records in this scope"})
+}
+
+// requesterText names who asked: the client name and pid, or the executable
+// when no name was sent. Empty when unknown.
+func requesterText(r *state.Requester) string {
+	if r == nil {
+		return ""
+	}
+	who := nonEmpty(r.Client, filepath.Base(r.Exe))
+	if who == "." {
+		who = ""
+	}
+	if r.PID > 0 {
+		who = strings.TrimSpace(who + " pid " + strconv.Itoa(r.PID))
+	}
+	return who
+}
+
+// shortSessionID is the first 8 characters of a session id.
+func shortSessionID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
 }
 
 func auditTone(state string) core.Tone {

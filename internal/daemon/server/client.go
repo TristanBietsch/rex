@@ -311,6 +311,13 @@ func logText(s string) string {
 	return s
 }
 
+// requester describes the process behind the connection for the session's
+// meta.json and the audit trail. The Hello name and the executable path are
+// chosen by the peer, so they are flattened and capped like log fields.
+func (c *client) requester() *state.Requester {
+	return &state.Requester{Client: logText(c.helloName), PID: c.peer.pid, Exe: logText(c.peer.exe)}
+}
+
 // helloClientName reads the client name from a Hello envelope; empty when
 // the payload is missing or malformed.
 func helloClientName(env protocol.Envelope) string {

@@ -231,7 +231,7 @@ rex audit [--ws <id|path> | --all] [--since 7d] [--tool T] [--state S] [-o FORMA
 
 Reads the files itself (the daemon only writes them), newest first. With no scope flag it reads the workspace around the current folder when `workspaces` is on, else the global trail (`~/.local/share/rex/audit.jsonl`). `--ws` reads one workspace's trail and needs `workspaces` on; `--all` reads the global trail and every known workspace's. `--since` is `7d`, `12h`, `90m` or a date; `--state` is `done`, `failed` or `crashed`. A trail that cannot be read (a symlink, an unsafe `.rex/`) is skipped with a warning line.
 
-`json` is `{"v":1,"cmd":"audit","data":[{"ts","workspace_id","session_id","short_id","name","tool","model","prompt_first_line","prompt","state","started_at","ended_at","duration_s","resume_id","description"}]}`; `prompt` appears only when `audit_full_prompt` was on for that session. `agent` prints one `audit …` line per record, then `ok cmd=audit count=N`.
+`json` is `{"v":1,"cmd":"audit","data":[{"ts","workspace_id","session_id","short_id","name","tool","model","prompt_first_line","prompt","state","started_at","ended_at","duration_s","resume_id","description","requested_by"}]}` (a delete line is `{"event":"delete","session_id","deleted_by","ts"}`, shown as a `deleted` row in the table); `prompt` appears only when `audit_full_prompt` was on for that session. `agent` prints one `audit …` line per record, then `ok cmd=audit count=N`.
 
 Exit **5** with `off: enable in Settings → Features (rex config set audit_trail true)` while `audit_trail` is off, for a bad `--since` or `--state`, and for `--ws` while `workspaces` is off. Exit **2** for an unknown `--ws`.
 

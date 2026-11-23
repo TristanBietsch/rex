@@ -163,6 +163,10 @@ type AuditHook interface {
 	// The server calls it before it removes the session's directory, and
 	// keeps the session when it fails.
 	End(sess *state.Session) error
+	// Deleted appends the line that says by (nil: the daemon itself)
+	// deleted the session. The server calls it after End succeeded and
+	// before the session goes; a failure is the hook's to log.
+	Deleted(sess *state.Session, by *state.Requester)
 }
 
 // WorkspaceHook is how the server tags sessions with their workspace (see

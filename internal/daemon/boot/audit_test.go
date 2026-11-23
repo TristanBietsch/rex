@@ -330,3 +330,44 @@ func TestAuditSettingIDsCoverEveryFlagConfigureReads(t *testing.T) {
 	require.NoError(t, h.Reload())
 	require.True(t, a.ws.Load(), "a workspaces edit reaches the applier")
 }
+
+func TestAudit_RecordCarriesRequestedBy(t *testing.T) {
+	r := newAuditRig(t, nil, "")
+	s := auditSession("aaaa1111", "/w")
+	by := &state.Requester{Client: "rex-cli", PID: 4242, Exe: "/usr/bin/rex"}
+	s.SetRequestedBy(by)
+	require.NoError(t, r.store.Add(s))
+	require.NoError(t, r.store.Transition("aaaa1111", protocol.StateDone))
+	r.a.Close()
+
+	got := r.records(t, r.global())
+	require.Len(t, got, 1)
+	require.Equal(t, by, got[0].RequestedBy)
+}
+
+func TestAudit_DeletedAppendsADeleteLine(t *testing.T) {
+	r := newAuditRig(t, nil, "")
+	s := auditSession("aaaa1111", "/w")
+	require.NoError(t, r.store.Add(s))
+	require.NoError(t, r.store.Transition("aaaa1111", protocol.StateDone))
+	r.a.Close()
+
+	by := &state.Requester{Client: "rex-cli", PID: 99, Exe: "/usr/bin/rex"}
+	deleteAt := time.Now().Add(time.Hour) // after the run's real end time
+	r.a.now = func() time.Time { return deleteAt }
+	r.a.Deleted(s, by)
+	got := r.records(t, r.global())
+	require.Len(t, got, 2)
+	require.Equal(t, "aaaa1111", got[0].SessionID)
+	require.True(t, got[1].IsDelete())
+	require.Equal(t, "aaaa1111", got[1].SessionID)
+	require.Equal(t, by, got[1].DeletedBy)
+	require.True(t, deleteAt.Equal(got[1].TS))
+}
+
+func TestAudit_DeletedIsInertWhileTheTrailIsOff(t *testing.T) {
+	r := newAuditRig(t, map[string]any{"audit_trail": false}, "")
+	r.a.Deleted(auditSession("aaaa1111", "/w"), nil)
+	r.a.Close()
+	require.NoFileExists(t, r.global())
+}

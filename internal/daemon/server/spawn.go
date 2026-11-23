@@ -31,15 +31,17 @@ func unknownToolError(reg *registry.Registry, toolID, modelID string) error {
 }
 
 // handleNewSession validates p, spawns its session and returns the new
-// session's ID. Errors from validation, and an unknown tool or model, are
+// session's ID. by is who asked (nil when unknown); it is stored with the
+// session. Errors from validation, and an unknown tool or model, are
 // badIntent; the caller maps the rest to spawn_failed or too_many_sessions.
-func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) (string, error) {
-	return spawnSession(ctx, intentID, p, srv, "", 0)
+func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, by *state.Requester) (string, error) {
+	return spawnSession(ctx, intentID, p, srv, "", 0, by)
 }
 
 // spawnSession is handleNewSession with the loop that owns the session (""
-// and 0 for an ordinary one), set on the session before it is announced.
-func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, loopID string, loopIter int) (string, error) {
+// and 0 for an ordinary one), set on the session before it is announced,
+// and who asked for it (nil when no client did).
+func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, loopID string, loopIter int, by *state.Requester) (string, error) {
 	if err := validateNewSession(p); err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
 		return "", badIntent(err)
@@ -163,6 +165,7 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 		LoopID:      loopID,
 		LoopIter:    loopIter,
 	}
+	sess.SetRequestedBy(by) // whatever the prompt: meta.json says who started it
 	if cfg.Audit != nil {
 		cfg.Audit.Begin(sess, p.InitialPrompt)
 	}

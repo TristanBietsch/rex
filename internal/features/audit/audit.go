@@ -1,6 +1,7 @@
 // Package audit keeps the audit trail: one JSON line per finished session
-// (who ran what, how it ended, how long it took, the first line of the
-// prompt) in an append-only file. Sessions inside a workspace write to
+// (who ran what, who started it, how it ended, how long it took, the first
+// line of the prompt), and one per deleted session (who deleted it), in an
+// append-only file. Sessions inside a workspace write to
 // <root>/.rex/audit.jsonl; every other session writes to the global
 // ~/.local/share/rex/audit.jsonl.
 //
@@ -20,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
@@ -34,31 +36,59 @@ const (
 // before it ended; its state is recorded as failed.
 const DeletedWhileRunning = "deleted while running"
 
-// Record is one audit line: how one session run ended.
+// EventDelete is the Event of a line that records a session being deleted.
+const EventDelete = "delete"
+
+// Record is one audit line: how one session run ended, or (Event is
+// EventDelete) that the session was deleted. A delete line holds only Event,
+// SessionID, DeletedBy and TS.
 type Record struct {
+	// Event is "" for a run record and EventDelete for a delete line.
+	Event       string    `json:"event,omitempty"`
 	TS          time.Time `json:"ts"`
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	SessionID   string    `json:"session_id"`
 	ShortID     string    `json:"short_id"`
 	Name        string    `json:"name,omitempty"`
-	Tool        string    `json:"tool"`
+	Tool        string    `json:"tool,omitempty"`
 	Model       string    `json:"model,omitempty"`
 	// PromptFirstLine is the first line of the initial prompt, sanitized and
 	// cut to MaxFirstLineRunes. Empty when the daemon never saw a prompt.
 	PromptFirstLine string `json:"prompt_first_line,omitempty"`
 	// Prompt is the whole initial prompt. Only written with audit_full_prompt.
 	Prompt      string    `json:"prompt,omitempty"`
-	State       string    `json:"state"`
+	State       string    `json:"state,omitempty"`
 	StartedAt   time.Time `json:"started_at,omitzero"`
-	EndedAt     time.Time `json:"ended_at"`
+	EndedAt     time.Time `json:"ended_at,omitzero"`
 	DurationS   int64     `json:"duration_s"`
 	ResumeID    string    `json:"resume_id,omitempty"`
 	Description string    `json:"description,omitempty"`
+	// RequestedBy is who started the run: the process that sent NewSession
+	// or Resume. Nil for a session the daemon started itself (a loop turn)
+	// and for records written before this field existed.
+	RequestedBy *state.Requester `json:"requested_by,omitempty"`
+	// DeletedBy is who asked for the delete, on a delete line. Nil when the
+	// daemon deleted the session itself (the retire sweep).
+	DeletedBy *state.Requester `json:"deleted_by,omitempty"`
 }
+
+// IsDelete reports whether r is a delete line.
+func (r Record) IsDelete() bool { return r.Event == EventDelete }
 
 // valid reports whether a parsed line is a usable record.
 func (r Record) valid() bool {
+	if r.IsDelete() {
+		return r.SessionID != "" && !r.TS.IsZero()
+	}
 	return r.SessionID != "" && !r.EndedAt.IsZero() && r.State != ""
+}
+
+// When is when the line's event happened: a run's end, a delete's time.
+func (r Record) When() time.Time {
+	if r.IsDelete() {
+		return r.TS
+	}
+	return r.EndedAt
 }
 
 // FirstLine is the first visible line of prompt, safe to print and at most
@@ -174,6 +204,34 @@ func Append(path string, r Record) error {
 	if err != nil {
 		return err
 	}
+	return appendLine(path, b)
+}
+
+// deleteLine is what AppendDelete writes: only the delete's own fields.
+type deleteLine struct {
+	Event     string           `json:"event"`
+	SessionID string           `json:"session_id"`
+	DeletedBy *state.Requester `json:"deleted_by,omitempty"`
+	TS        time.Time        `json:"ts"`
+}
+
+// AppendDelete writes the line that says sessionID was deleted at at, by
+// the process described by by (nil when the daemon did it itself). A session
+// that finished has its run record already, so the delete needs a line of
+// its own. Same file rules as Append.
+func AppendDelete(path string, sessionID string, by *state.Requester, at time.Time) error {
+	if sessionID == "" || at.IsZero() {
+		return fmt.Errorf("audit: incomplete delete line (session %q)", sessionID)
+	}
+	b, err := json.Marshal(deleteLine{Event: EventDelete, SessionID: sessionID, DeletedBy: by, TS: at.UTC()})
+	if err != nil {
+		return err
+	}
+	return appendLine(path, append(b, '\n'))
+}
+
+// appendLine appends one whole line b to path under the package rules.
+func appendLine(path string, b []byte) error {
 	appendMu.Lock()
 	defer appendMu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

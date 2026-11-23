@@ -93,6 +93,8 @@ type metaFile struct {
 	protocol.SessionSummary
 	// AuditWritten is Session.AuditWritten.
 	AuditWritten bool `json:"audit_written,omitempty"`
+	// RequestedBy is Session.RequestedBy.
+	RequestedBy *Requester `json:"requested_by,omitempty"`
 }
 
 // WriteMeta persists a session's metadata atomically. Writers are serialized
@@ -117,7 +119,7 @@ func WriteMeta(root string, s *Session) error {
 	// Snapshot under metaMu: whichever writer takes the lock last also takes
 	// the newest snapshot, so the file on disk never regresses.
 	sum := s.Summary()
-	b, err := json.MarshalIndent(metaFile{SessionSummary: sum, AuditWritten: s.AuditIsWritten()}, "", "  ")
+	b, err := json.MarshalIndent(metaFile{SessionSummary: sum, AuditWritten: s.AuditIsWritten(), RequestedBy: s.Requester()}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal meta: %w", err)
 	}
@@ -160,6 +162,7 @@ func LoadMeta(root, id string) (*Session, error) {
 	}
 	sess := fromSummary(mf.SessionSummary)
 	sess.AuditWritten = mf.AuditWritten
+	sess.RequestedBy = mf.RequestedBy.clean()
 	return sess, nil
 }
 

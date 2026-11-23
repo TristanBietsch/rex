@@ -48,7 +48,7 @@ func handleResume(c *client, env protocol.Envelope) (outcome, error) {
 		exitedFree = srv.waitSupervisorExit(c.ctx, p.SessionID, supervisorExitWait)
 	}
 	if exitedFree && state.IsTerminal(sess.Summary().State) {
-		resumed, err := srv.resumeExited(c.ctx, sess)
+		resumed, err := srv.resumeExited(c.ctx, sess, c.requester())
 		if err != nil {
 			return outcome{}, err
 		}
@@ -81,8 +81,9 @@ func (s *Server) unmarkLive(sess *state.Session) error {
 
 // resumeExited respawns a done, failed or crashed session in place. It
 // reports false, with nothing changed, when another resume or a supervisor
-// already holds the session's stop slot.
-func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, error) {
+// already holds the session's stop slot. by, who asked, replaces the
+// session's requester: the new run is theirs.
+func (s *Server) resumeExited(ctx context.Context, sess *state.Session, by *state.Requester) (bool, error) {
 	cfg := s.cfg
 	sum := sess.Summary()
 	tool, model, ok := s.Registry().FindModel(sum.ToolID, sum.ModelID)
@@ -147,6 +148,7 @@ func (s *Server) resumeExited(ctx context.Context, sess *state.Session) (bool, e
 			return false, replyErr(protocol.ErrCodeUnknownSession, err)
 		}
 	}
+	sess.SetRequestedBy(by)
 	reopened := sess.Summary()
 	s.commit(sess, map[string]any{
 		"state":         reopened.State,
