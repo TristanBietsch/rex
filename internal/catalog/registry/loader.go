@@ -164,6 +164,9 @@ func mergeOne(base, over Tool) Tool {
 	if len(over.StatusEnv) > 0 {
 		merged.StatusEnv = over.StatusEnv
 	}
+	if len(over.EnvPass) > 0 {
+		merged.EnvPass = slices.Clone(over.EnvPass)
+	}
 	if over.ModelEffort != nil {
 		merged.ModelEffort = over.ModelEffort
 	}
@@ -267,6 +270,9 @@ func validateTool(t Tool) error {
 	if err := validateStatusEnv(t); err != nil {
 		return err
 	}
+	if err := validateEnvPass(t); err != nil {
+		return err
+	}
 	if err := validateModelsCmd(t.ID, t.ModelsCmd); err != nil {
 		return err
 	}
@@ -331,4 +337,34 @@ func validateStatusEnv(t Tool) error {
 		}
 	}
 	return nil
+}
+
+// envPassPattern is a variable name with an optional trailing "*" for a
+// prefix. The name part must be non-empty, so a bare "*" never matches.
+var envPassPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\*?$`)
+
+// validateEnvPass checks env_pass: each entry is a plain variable name or a
+// prefix pattern ending in "*", never "" or a bare "*".
+func validateEnvPass(t Tool) error {
+	for _, e := range t.EnvPass {
+		if !envPassPattern.MatchString(e) {
+			return fmt.Errorf("tool %q: env_pass entry %q must be a variable name, optionally ending in *", t.ID, e)
+		}
+	}
+	return nil
+}
+
+// AllEnvPass returns the union of every tool's env_pass entries, sorted and
+// without duplicates (nil for a nil or empty registry). The result is a fresh
+// slice.
+func AllEnvPass(r *Registry) []string {
+	if r == nil {
+		return nil
+	}
+	var all []string
+	for _, t := range r.Tools {
+		all = append(all, t.EnvPass...)
+	}
+	slices.Sort(all)
+	return slices.Compact(all)
 }
