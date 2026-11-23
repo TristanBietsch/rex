@@ -29,9 +29,11 @@ tools:
     name: "Claude Code"
     category: paid
     command: ["claude"]
-    # Variables the tool reads, from https://code.claude.com/docs/en/env-vars (ANTHROPIC_*, AWS_BEARER_TOKEN_BEDROCK and CLAUDE_CODE_GIT_BASH_PATH confirmed there;
-    # CLAUDE_CODE_USE_*, CLAUDE_CODE_OAUTH_TOKEN, CLOUD_ML_REGION, GOOGLE_APPLICATION_CREDENTIALS and AWS_* are the standard provider
-    # selectors and credential-chain names, not found on that page)
+    # Variables the tool reads. Confirmed in the Claude Code docs: env-vars
+    # (https://code.claude.com/docs/en/env-vars), amazon-bedrock (.../amazon-bedrock:
+    # AWS_PROFILE, AWS_REGION, AWS_ACCESS_KEY_ID, ...), google-vertex-ai
+    # (.../google-vertex-ai: CLOUD_ML_REGION, GOOGLE_APPLICATION_CREDENTIALS) and iam
+    # (.../iam: CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CODE_USE_*).
     env_pass:
       - ANTHROPIC_*
       - ANTHROPIC_API_KEY
@@ -100,7 +102,9 @@ tools:
     name: "Codex"
     category: paid
     command: ["codex"]
-    # Variables the tool reads, from https://learn.chatgpt.com/docs/auth (CODEX_HOME confirmed; OPENAI_API_KEY is shown there only as login input)
+    # Variables the tool reads, from https://developers.openai.com/codex/auth (CODEX_HOME,
+    # CODEX_CA_CERTIFICATE; OPENAI_API_KEY is the documented key for `codex login --with-api-key`
+    # and for custom providers in .../codex/config-advanced)
     env_pass: [OPENAI_API_KEY, CODEX_HOME, CODEX_CA_CERTIFICATE]
     install_hint: "see https://github.com/openai/codex"
     prompt_args: ["--", "{prompt}"]
@@ -268,8 +272,10 @@ tools:
     name: "Ollama"
     category: self_hosted
     command: ["ollama", "run"]
-    # Variables the tool reads, from https://docs.ollama.com/faq (OLLAMA_HOST names the server the client talks to)
-    env_pass: [OLLAMA_HOST]
+    # Variable the tool reads: OLLAMA_API_KEY, from https://docs.ollama.com/api/authentication
+    # (direct cloud API). OLLAMA_HOST is documented only as the server's bind address, so it is not listed;
+    # add it with env_passthrough when `ollama run` must reach another host.
+    env_pass: [OLLAMA_API_KEY]
     install_hint: "download from https://ollama.com"
     # run MODEL PROMPT is one-shot, so the task is pasted into the REPL.
     prompt_paste: {plain: true, settle_ms: 800}

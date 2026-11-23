@@ -51,7 +51,7 @@ type Tool struct {
 	// EnvPass names the environment variables the tool needs from the daemon's
 	// environment (its auth, config and provider variables). A name ending in
 	// "*" matches a prefix. A bare "*" or "" is refused. A tools.yaml list
-	// replaces the built-in one.
+	// is added to the built-in one (a union), so it never drops a built-in name.
 	EnvPass []string `yaml:"env_pass,omitempty"`
 	// ModelsCmd asks the tool for its models; nil: static Models only.
 	ModelsCmd *ModelsCmd `yaml:"models_cmd,omitempty"`

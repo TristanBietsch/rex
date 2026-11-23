@@ -165,7 +165,8 @@ func mergeOne(base, over Tool) Tool {
 		merged.StatusEnv = over.StatusEnv
 	}
 	if len(over.EnvPass) > 0 {
-		merged.EnvPass = slices.Clone(over.EnvPass)
+		// A union, so a user adding one name keeps the built-in auth names.
+		merged.EnvPass = unionNames(base.EnvPass, over.EnvPass)
 	}
 	if over.ModelEffort != nil {
 		merged.ModelEffort = over.ModelEffort
@@ -367,4 +368,16 @@ func AllEnvPass(r *Registry) []string {
 	}
 	slices.Sort(all)
 	return slices.Compact(all)
+}
+
+// unionNames returns a new slice with the names of a, then the names of b
+// that a does not hold, each once. Neither input is modified.
+func unionNames(a, b []string) []string {
+	out := make([]string, 0, len(a)+len(b))
+	for _, n := range slices.Concat(a, b) {
+		if !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out
 }

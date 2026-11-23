@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,12 +39,27 @@ func TestBuiltinEnvPass(t *testing.T) {
 	}
 }
 
-func TestMergeEnvPassReplaces(t *testing.T) {
-	base := Tool{ID: "a", EnvPass: []string{"A", "B"}}
-	m := mergeOne(base, Tool{ID: "a", EnvPass: []string{"C"}})
-	require.Equal(t, []string{"C"}, m.EnvPass)
+func TestMergeEnvPassUnion(t *testing.T) {
+	baseList := make([]string, 2, 8) // spare capacity: an append onto it would show
+	copy(baseList, []string{"A", "B"})
+	base := Tool{ID: "a", EnvPass: baseList}
+	m := mergeOne(base, Tool{ID: "a", EnvPass: []string{"C", "A", "C"}})
+	require.Equal(t, []string{"A", "B", "C"}, m.EnvPass, "built-in names first, overlay names added once")
 	require.Equal(t, []string{"A", "B"}, base.EnvPass)
+	require.Equal(t, []string{"A", "B", ""}, slices.Concat(baseList, baseList[len(baseList):cap(baseList)][:1]),
+		"registry slice's spare capacity untouched")
 	require.Equal(t, []string{"A", "B"}, mergeOne(base, Tool{ID: "a", Name: "n"}).EnvPass)
+}
+
+func TestMergeEnvPassKeepsBuiltinNames(t *testing.T) {
+	reg, err := Load("")
+	require.NoError(t, err)
+	claude, _ := reg.Find("claude")
+	merged := mergeOne(claude, Tool{ID: "claude", EnvPass: []string{"MY_PROXY_TOKEN"}})
+	require.Subset(t, merged.EnvPass, claude.EnvPass)
+	require.Contains(t, merged.EnvPass, "MY_PROXY_TOKEN")
+	require.Contains(t, merged.EnvPass, "ANTHROPIC_*")
+	require.Contains(t, merged.EnvPass, "AWS_*")
 }
 
 func TestAllEnvPass_Union(t *testing.T) {

@@ -120,7 +120,7 @@ func TestMergeNewFields(t *testing.T) {
 	over := Tool{ID: "a", PromptArgs: []string{"-i", "{prompt}"}, ModelArgTemplate: []string{"-m", "{model}"},
 		LoginRegex: "new", ModelsCmd: &ModelsCmd{Args: []string{"y"}}, EnvPass: []string{"NEW_KEY"}}
 	m := mergeOne(base, over)
-	require.Equal(t, []string{"NEW_KEY"}, m.EnvPass)
+	require.Equal(t, []string{"OLD_*", "NEW_KEY"}, m.EnvPass)
 	require.Equal(t, over.PromptArgs, m.PromptArgs)
 	require.Equal(t, over.ModelArgTemplate, m.ModelArgTemplate)
 	require.Equal(t, "new", m.LoginRegex)
