@@ -539,3 +539,29 @@ func TestRunUninstall_AllJSONHasKeptAndSkippedApart(t *testing.T) {
 	}
 	require.Contains(t, f.out.String(), `"skipped"`)
 }
+
+// The backup that this run's -strip-profile writes is kept too: it holds
+// the user's own profile, so -all lists it with the older ones.
+func TestRunUninstall_AllKeepsBackupWrittenByThisRun(t *testing.T) {
+	f := newUninstallFixture(t)
+	bak := f.profile + ".rex-backup-1700000000"
+
+	require.NoError(t, f.run("-all", "-yes"))
+	requireExists(t, bak)
+	out := f.out.String()
+	i := strings.Index(out, "# Kept")
+	require.GreaterOrEqual(t, i, 0, out)
+	require.Contains(t, out[i:], bak)
+
+	g := newUninstallFixture(t)
+	require.NoError(t, g.run("-all", "-yes", "-o", "json"))
+	var got struct {
+		Data struct{ Kept []struct{ Path string } } `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(g.out.Bytes(), &got), g.out.String())
+	var kept []string
+	for _, k := range got.Data.Kept {
+		kept = append(kept, k.Path)
+	}
+	require.Equal(t, []string{g.profile + ".rex-backup-1700000000"}, kept)
+}

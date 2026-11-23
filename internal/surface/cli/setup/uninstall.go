@@ -364,6 +364,7 @@ func (p *uninstallPlan) execute(pr *core.Printer, d uninstallDeps) (done []remov
 		failed += len(errs)
 		for _, s := range stripped {
 			done = append(done, removal{Kind: "profile", Path: s.Path, Detail: "backup: " + s.Backup})
+			p.all.keepBackup(s.Backup)
 		}
 	}
 	if p.opts.all {

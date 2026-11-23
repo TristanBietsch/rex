@@ -233,6 +233,18 @@ func (t *allTargets) addFile(path, guard, resolved string) {
 	}
 }
 
+// keepBackup lists a profile backup written during this run as kept, unless
+// the plan already listed it. It only matters with -all, which lists kept
+// paths.
+func (t *allTargets) keepBackup(path string) {
+	for _, k := range t.keep {
+		if k.Path == path {
+			return
+		}
+	}
+	t.keep = append(t.keep, removal{Kind: "kept", Path: path})
+}
+
 func (t *allTargets) skip(path, why string) {
 	t.skipped = append(t.skipped, removal{Kind: "skipped", Path: path, Detail: why})
 }
