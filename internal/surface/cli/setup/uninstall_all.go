@@ -116,7 +116,7 @@ func (t *allTargets) addDir(kind, dir, home, rhome string) {
 	case err != nil:
 		t.skip(dir, err.Error())
 		return
-	case fi.Mode().Type() != fs.ModeDir:
+	case !plainDir(fi):
 		t.skip(dir, "not a plain directory (symlink?): not followed")
 		return
 	}
@@ -172,7 +172,7 @@ func (t *allTargets) planWorkspace(rawRoot string) {
 	case err != nil:
 		t.skip(rexDir, err.Error())
 		return
-	case fi.Mode().Type() != fs.ModeDir:
+	case !plainDir(fi):
 		t.skip(rexDir, "not a plain directory (symlink or file): not followed")
 		return
 	}
@@ -295,7 +295,7 @@ func (tg target) remove(path string) error {
 	if err != nil {
 		return err
 	}
-	if gi.Mode().Type() != fs.ModeDir {
+	if !plainDir(gi) {
 		return errChanged
 	}
 	if r, err := filepath.EvalSymlinks(tg.guard); err != nil || r != tg.resolved {
@@ -309,7 +309,7 @@ func (tg target) remove(path string) error {
 		return err
 	}
 	if tg.isDir {
-		if fi.Mode().Type() != fs.ModeDir {
+		if !plainDir(fi) {
 			return errChanged
 		}
 		return os.RemoveAll(path)
@@ -318,4 +318,14 @@ func (tg target) remove(path string) error {
 		return errChanged
 	}
 	return os.Remove(path)
+}
+
+// plainDir reports whether fi describes a real directory, not a link to
+// one. Since Go 1.23 a Windows junction (mount point) is reported by Lstat
+// without fs.ModeSymlink: it carries fs.ModeIrregular, possibly with
+// fs.ModeDir, and filepath.EvalSymlinks no longer resolves it. A check of
+// IsDir alone would pass a junction and let a deletion follow it, so both
+// bits are rejected here.
+func plainDir(fi fs.FileInfo) bool {
+	return fi.IsDir() && fi.Mode()&(fs.ModeSymlink|fs.ModeIrregular) == 0
 }
