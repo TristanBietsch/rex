@@ -208,12 +208,23 @@ func copyBinary(src, dst string) error {
 // starts itself, reflecting any `env` changes the script made.
 func scriptEnv(ts *testscript.TestScript) []string {
 	keys, _ := ts.Value(envKeysKey{}).([]string)
-	out := make([]string, 0, len(keys))
+	out := make([]string, 0, len(keys)+len(scriptSetKeys))
 	for _, k := range keys {
 		out = append(out, k+"="+ts.Getenv(k))
 	}
+	// Variables a script may set itself (`env NAME=value`) and expect the
+	// daemon to be started with; testscript cannot list them, so they are named.
+	for _, k := range scriptSetKeys {
+		if v := ts.Getenv(k); v != "" && !slices.Contains(keys, k) {
+			out = append(out, k+"="+v)
+		}
+	}
 	return out
 }
+
+// scriptSetKeys are the variables a script may set with `env` for the daemon
+// it starts (see child_env.txtar).
+var scriptSetKeys = []string{"SECRET_X"}
 
 // cmdExitCode runs a program and asserts its exact exit status, which plain
 // `exec` and `! exec` cannot express. stdout and stderr stay available to

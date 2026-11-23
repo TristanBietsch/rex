@@ -90,9 +90,10 @@ type Config struct {
 	// spawn. nil: never.
 	SkipPermissions func() bool
 	// ChildEnv returns the environment policy for new sessions (settings
-	// child_env, env_ssh_agent) with Pass empty: the spawn adds the tool's
-	// env_pass, and env_passthrough is applied to the daemon's own
-	// environment. Called at each spawn. nil: today's behavior.
+	// child_env, env_ssh_agent, env_passthrough). Pass holds the
+	// env_passthrough names, for every tool; the spawn adds the tool's own
+	// env_pass. Called at each spawn. nil: fails closed, to allowlist mode
+	// with the base names and the tool's env_pass only.
 	ChildEnv func() childenv.Options
 	// ResumeEnabled reports whether the resume feature is on (setting
 	// resume). Called at each spawn and Resume. Off: no conversation id is

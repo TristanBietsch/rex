@@ -1,0 +1,46 @@
+# Agents get an allowlisted environment: a variable exported where the daemon
+# started does not reach the agent, unless env_passthrough names it.
+
+env SECRET_X=s1
+
+daemon-start
+
+exec rex new x --tool probe --model env --slug e1 -cwd $WORK
+exec rex wait -until done -timeout 20s e1
+exists env.out
+grep '^PATH=' env.out
+! grep 'SECRET_X' env.out
+rm env.out
+daemon-stop
+
+# Named in env_passthrough, the variable reaches every tool.
+cp cfg-pass.yaml home/.config/rex/config.yaml
+daemon-start
+
+exec rex new x --tool probe --model env --slug e2 -cwd $WORK
+exec rex wait -until done -timeout 20s e2
+grep '^SECRET_X=s1$' env.out
+
+daemon-stop
+
+-- home/.config/rex/config.yaml --
+summary_enabled: false
+model_autodetect: false
+-- cfg-pass.yaml --
+summary_enabled: false
+model_autodetect: false
+env_passthrough: SECRET_X
+-- home/.config/rex/tools.yaml --
+tools:
+  - id: probe
+    name: "Probe"
+    category: self_hosted
+    command: ["bash", "-c"]
+    detect:
+      kind: heuristic
+      prompt_regex: "(?m)^awaiting input:"
+      idle_ms: 800
+    models:
+      - id: env
+        name: "Writes its environment"
+        args: ["env > env.out"]

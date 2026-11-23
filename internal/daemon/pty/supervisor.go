@@ -37,10 +37,14 @@ const defaultStopDrainTimeout = 5 * time.Second
 
 // SupervisorConfig configures a per-session supervisor.
 type SupervisorConfig struct {
-	StateDir       string          // root of persisted state (~/.local/share/rex)
-	Store          *state.Store    // central store for state transitions
-	Command        []string        // argv to spawn (command + args resolved from registry+model)
-	CWD            string          // working directory for the child
+	StateDir string       // root of persisted state (~/.local/share/rex)
+	Store    *state.Store // central store for state transitions
+	Command  []string     // argv to spawn (command + args resolved from registry+model)
+	CWD      string       // working directory for the child
+	// BaseEnv, when non-nil, is the child's starting environment instead of the
+	// daemon's own (os.Environ). Even an empty slice replaces it. nil keeps
+	// os.Environ().
+	BaseEnv        []string
 	Env            []string        // extra KEY=VALUE entries added to the child's environment
 	DropEnv        []string        // inherited variable names removed from the child's environment
 	Adapter        adapter.Adapter // nil = no state classification (tests/echo tool)
@@ -172,7 +176,11 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 		if s.cfg.CWD != "" {
 			cmd.Dir = s.cfg.CWD
 		}
-		if len(s.cfg.Env) > 0 || len(s.cfg.DropEnv) > 0 {
+		if s.cfg.BaseEnv != nil {
+			// Clone: never append onto the caller's slice. It stays non-nil when
+			// empty, so an empty base means an empty environment.
+			cmd.Env = append(slices.Clone(envWithout(s.cfg.BaseEnv, s.cfg.DropEnv)), s.cfg.Env...)
+		} else if len(s.cfg.Env) > 0 || len(s.cfg.DropEnv) > 0 {
 			cmd.Env = append(envWithout(os.Environ(), s.cfg.DropEnv), s.cfg.Env...)
 		}
 		f, err = startConsole(cmd, cols, rows)

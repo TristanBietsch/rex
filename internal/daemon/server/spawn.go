@@ -8,12 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/skills"
@@ -314,6 +316,22 @@ func childEnvDropFor(spec spawnSpec) []string {
 	return nil
 }
 
+// childBaseEnv returns the starting environment for a child of tool, built
+// from parent by the current child_env policy, and how many parent variables
+// it dropped. The names are the tool's env_pass plus the env_passthrough
+// names, for every tool. A nil Config.ChildEnv fails closed to the allowlist
+// defaults. Spawn and Resume both use it, so the two cannot diverge.
+func (s *Server) childBaseEnv(tool registry.Tool, parent []string) ([]string, int) {
+	o := childenv.Options{Mode: childenv.ModeAllowlist, SSHAgent: true, GOOS: runtime.GOOS}
+	if s.cfg.ChildEnv != nil {
+		o = s.cfg.ChildEnv()
+	}
+	// Concat builds a new slice: tool.EnvPass is shared registry data.
+	o.Pass = slices.Concat(tool.EnvPass, o.Pass)
+	env := childenv.Build(parent, o)
+	return env, len(parent) - len(env)
+}
+
 // startSupervisor builds the adapter and PTY supervisor for sess and runs it
 // in the background. The caller owns the session slot and the Store entry:
 // on error it must release the slot (and remove sess if it added it).
@@ -357,11 +375,20 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 
 	completeCh := make(chan struct{}, 1)
 
+	// Adopted children (hot restart) are already running: no environment to build.
+	var baseEnv []string
+	if spec.Adopt == nil {
+		var dropped int
+		baseEnv, dropped = srv.childBaseEnv(spec.Tool, os.Environ())
+		slog.Debug("spawn: child environment built", "session", sess.ID, "tool", spec.Tool.ID, "dropped", dropped)
+	}
+
 	sup := pty.New(pty.SupervisorConfig{
 		StateDir:       cfg.StateDir,
 		Store:          cfg.Store,
 		Command:        argv,
 		CWD:            spec.CWD,
+		BaseEnv:        baseEnv,
 		Env:            env,
 		DropEnv:        childEnvDropFor(spec),
 		InitialCols:    spec.Cols,

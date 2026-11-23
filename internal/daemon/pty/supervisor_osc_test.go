@@ -2,7 +2,9 @@ package pty
 
 import (
 	"context"
+	"os"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,7 +15,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-func runOSC(t *testing.T, id string, ad adapter.Adapter, script string, env, drop []string) string {
+func runOSC(t *testing.T, id string, ad adapter.Adapter, script string, env, drop []string, base ...string) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sh and a Unix tty")
@@ -26,7 +28,7 @@ func runOSC(t *testing.T, id string, ad adapter.Adapter, script string, env, dro
 	sup := New(SupervisorConfig{
 		StateDir: stateDir, Store: store,
 		Command: []string{"sh", "-c", script},
-		Env:     env, DropEnv: drop, Adapter: ad,
+		Env:     env, DropEnv: drop, Adapter: ad, BaseEnv: baseEnvArg(base),
 		IdleTick: 20 * time.Millisecond,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -66,4 +68,32 @@ func TestSupervisor_DropEnv(t *testing.T) {
 	out := runOSC(t, "envd1", nil, `printf 'drop=[%s] keep=[%s] add=[%s]\n' "$REX_DROP_ME" "$REX_KEEP_ME" "$REX_ADD"`,
 		[]string{"REX_ADD=yes"}, []string{"REX_DROP_ME"})
 	require.Contains(t, out, "drop=[] keep=[kept] add=[yes]")
+}
+
+// BaseEnv replaces the daemon's own environment; Env and DropEnv still apply
+// on top of it.
+func TestSupervisor_BaseEnvReplacesInherited(t *testing.T) {
+	t.Setenv("REX_INHERITED", "leak")
+	out := runOSC(t, "envb1", nil,
+		`printf 'inh=[%s] base=[%s] drop=[%s] add=[%s]\n' "$REX_INHERITED" "$REX_BASE" "$REX_BASE_DROP" "$REX_ADD"`,
+		[]string{"REX_ADD=yes"}, []string{"REX_BASE_DROP"},
+		"PATH="+os.Getenv("PATH"), "REX_BASE=b", "REX_BASE_DROP=d")
+	require.Contains(t, out, "inh=[] base=[b] drop=[] add=[yes]")
+}
+
+// A non-nil empty BaseEnv is still a base: the child inherits nothing.
+func TestSupervisor_EmptyBaseEnvInheritsNothing(t *testing.T) {
+	t.Setenv("REX_INHERITED", "leak")
+	out := runOSC(t, "envb2", nil, `/bin/sh -c 'echo "inh=[$REX_INHERITED]"'`,
+		nil, nil, "PATH=/usr/bin:/bin")
+	require.Contains(t, out, "inh=[]")
+}
+
+// baseEnvArg maps runOSC's variadic base to SupervisorConfig.BaseEnv: absent
+// is nil (inherit), present is a non-nil slice even when empty.
+func baseEnvArg(base []string) []string {
+	if base == nil {
+		return nil
+	}
+	return slices.Clone(base)
 }
