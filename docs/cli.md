@@ -366,7 +366,7 @@ Attach terminal to a session PTY.
 rex attach <sel> [-socket path] [-read-only] [-no-replay]
 ```
 
-Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail. There is no banner row here: the agent draws on your terminal directly; the in-TUI popup has one ([tui.md](tui.md#banner)).
+Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail. `rex attach` filters what the agent sends before it reaches your terminal: colors, cursor movement and modes pass; OSC strings (clipboard, links, titles), DCS/APC/PM/SOS, C1 controls and bidi controls are dropped. On detach it resets cursor shape, synchronized output, modifyOtherKeys and the kitty keyboard stack. Hyperlinks and titles set by agents therefore do not show. There is no banner row here: the agent draws on your terminal directly; the in-TUI popup has one ([tui.md](tui.md#banner)).
 
 For full-screen agents (claude, codex, gemini, …) the daemon then redraws the agent's current screen, so you see it at once even if the agent is busy or the transcript tail starts mid-frame. A daemon too old for that gets **Ctrl+L** instead, which asks the agent to redraw.
 
@@ -404,7 +404,7 @@ Read transcript file.
 rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes]
 ```
 
-`-f` follows the file. `-n` shows only the last N lines (`0`, the default, shows all; a negative number exits 5). `-bytes` is a switch that prints the raw bytes, including ANSI sequences, instead of stripping them. Default state dir: `~/.local/share/rex`.
+`-f` follows the file. `-n` shows only the last N lines (`0`, the default, shows all; a negative number exits 5). `-bytes` is a switch that prints the raw bytes, including ANSI sequences, instead of stripping them. Without `-bytes`, `log` also drops control characters (everything below space except tab and newline, so `\r` and BEL go), C1 and bidi controls, and replaces invalid UTF-8 with U+FFFD. Default state dir: `~/.local/share/rex`.
 
 ---
 

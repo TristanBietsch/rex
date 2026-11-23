@@ -34,6 +34,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- **Terminal escapes from agents are filtered.** `rex attach` filters agent
+  escapes (OSC 52 clipboard, OSC 8 links, titles, DCS/APC/PM/SOS, C1 and bidi
+  controls) while keeping colors and cursor movement, and resets cursor shape,
+  synchronized output, modifyOtherKeys and kitty keyboard (and leaves VT52
+  mode) on detach. The TUI attach popup never prints C1 or bidi controls.
+  `rex log` drops control characters and invalid UTF-8 (use `-bytes` for raw).
+  Cost: agent hyperlinks and titles no longer reach the terminal through
+  `rex attach`.
+
 - **Agents rex starts can no longer control rex.** Any process running as
   you could drive every session, including the agents rex starts: a tool
   call such as `printf '\r' | rex send <id>` could answer another agent's
