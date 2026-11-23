@@ -3,6 +3,7 @@ package boot
 import (
 	"log/slog"
 	"runtime"
+	"strings"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/childenv"
@@ -18,15 +19,23 @@ func SkipPermissions(st *settings.Store) bool {
 	return on
 }
 
-// ChildEnv reads child_env and env_ssh_agent into the environment policy for
-// this OS, with Pass empty (see server.Config.ChildEnv).
+// ChildEnv reads child_env, env_ssh_agent and env_passthrough into the
+// environment policy for this OS. Pass is the env_passthrough names (a fresh
+// slice: trimmed, empty entries dropped); the spawn adds the tool's env_pass
+// (see server.Config.ChildEnv).
 func ChildEnv(st *settings.Store) childenv.Options {
 	mode := childenv.ModeAllowlist
 	if st.String("child_env") == string(childenv.ModeInherit) {
 		mode = childenv.ModeInherit
 	}
 	ssh, _ := st.Get("env_ssh_agent").(bool)
-	return childenv.Options{Mode: mode, SSHAgent: ssh, GOOS: runtime.GOOS}
+	var pass []string
+	for _, n := range strings.Split(st.String("env_passthrough"), ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			pass = append(pass, n)
+		}
+	}
+	return childenv.Options{Mode: mode, SSHAgent: ssh, GOOS: runtime.GOOS, Pass: pass}
 }
 
 // ResumeEnabled reads the resume feature switch.

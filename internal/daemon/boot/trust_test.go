@@ -61,5 +61,8 @@ func TestChildEnv(t *testing.T) {
 	o = ChildEnv(storeWith(t, "child_env: inherit\nenv_ssh_agent: false\nenv_passthrough: FOO\n"))
 	require.Equal(t, childenv.ModeInherit, o.Mode)
 	require.False(t, o.SSHAgent)
-	require.Empty(t, o.Pass, "env_passthrough is applied by the daemon re-exec, not here")
+	require.Equal(t, []string{"FOO"}, o.Pass)
+
+	o = ChildEnv(storeWith(t, "env_passthrough: \"A, B*\"\n"))
+	require.Equal(t, []string{"A", "B*"}, o.Pass, "trimmed")
 }
