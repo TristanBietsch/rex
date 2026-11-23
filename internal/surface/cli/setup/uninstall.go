@@ -141,10 +141,10 @@ func parseUninstallFlags(args []string, errOut io.Writer) (uninstallOpts, error)
 	fs.BoolVar(&o.yes, "yes", false, "skip confirmations")
 	fs.BoolVar(&o.yes, "y", false, "skip confirmations (shorthand)")
 	fs.BoolVar(&o.binaries, "binaries", true, "remove rex and rex-daemon binaries")
-	fs.BoolVar(&o.wipeState, "wipe-state", false, "remove ~/.local/state/rex/ and ~/.local/share/rex/sessions/")
+	fs.BoolVar(&o.wipeState, "wipe-state", false, "remove ~/.local/state/rex/ and ~/.local/share/rex/sessions/ (-all also removes the rest of ~/.local/share/rex/, ~/.cache/rex/, rex log files and each workspace's .rex/sessions.jsonl and audit.jsonl)")
 	fs.BoolVar(&o.purgeConfig, "purge-config", false, "remove ~/.config/rex/")
 	fs.BoolVar(&o.stripProfile, "strip-profile", false, "remove # BEGIN REX … # END REX blocks from shell profiles (backups are kept)")
-	fs.BoolVar(&o.all, "all", false, "equivalent to all flags above")
+	fs.BoolVar(&o.all, "all", false, "equivalent to all flags above, plus every other folder rex writes (config.lua, workspace.json and shell-profile backups are kept and listed)")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print what would be removed without touching anything")
 	fs.BoolVar(&o.force, "force", false, "remove files even if rex-daemon is still running after the stop request")
 	out := core.AddOutputFlags(fs, core.AllFormats)
@@ -285,7 +285,7 @@ func (p *uninstallPlan) planView(dryRun bool, done []removal) core.View {
 	case dryRun:
 		v = append(v, core.Note{Text: "dry-run: nothing removed"}, agentPairs(core.Field{Key: "dry_run", Val: true}))
 	case done != nil:
-		v = append(v, core.Note{Text: "run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure"})
+		v = append(v, core.Note{Text: "run `rm -rf ~/.local/state/rex ~/.local/share/rex ~/.cache/rex ~/.config/rex` to be doubly sure"})
 	}
 	return v
 }

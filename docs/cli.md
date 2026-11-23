@@ -739,9 +739,11 @@ rex uninstall [-yes|-y] [-binaries] [-wipe-state] [-purge-config]
               [-strip-profile] [-all] [-dry-run]
 ```
 
-`-all` enables `-wipe-state`, `-purge-config`, and `-strip-profile`. `make uninstall` removes binaries only.
+`-all` enables `-wipe-state`, `-purge-config`, and `-strip-profile`, and removes everything else rex writes: the whole data folder (`~/.local/share/rex`: audit trail, usage ledger, snapshots, exports, loops, workspace lists), the cache folder (`~/.cache/rex`), the rex log files under `REX_LOG_DIR`, and in each workspace listed in `workspaces.json` the files `.rex/sessions.jsonl` and `.rex/audit.jsonl`. `-wipe-state` alone removes `~/.local/state/rex` and `~/.local/share/rex/sessions`. `make uninstall` removes binaries only.
 
-The plan (`-dry-run` prints it and exits) is a table of what would be removed; the run reports what was removed. The question goes to stderr; without a terminal on stdin and stderr, or in any format but `text`, `-yes` is required (exit **6**), and a declined question exits **6** (it was 1). `-o json` carries `{"dry_run":…,"plan":[…],"removed":[…]}`; `agent` gives `removal kind=… path=…` lines.
+It never removes a workspace's `.rex/config.lua` or `.rex/workspace.json` (you may have committed them) or the shell-profile backups `*.rex-backup-*` (they hold your own files). These are listed as `kept` at the end. Every path removed must be inside your home or a listed workspace's `.rex/`, and is checked with `Lstat`: a symlink (or, on Windows, a junction) is never followed or removed, and is listed as `skipped`. `-dry-run` lists all of it.
+
+The plan (`-dry-run` prints it and exits) is a table of what would be removed; the run reports what was removed. The question goes to stderr; without a terminal on stdin and stderr, or in any format but `text`, `-yes` is required (exit **6**), and a declined question exits **6** (it was 1). `-o json` carries `{"dry_run":…,"plan":[…],"removed":[…],"kept":[…],"skipped":[…]}`; `agent` gives `removal kind=… path=…` lines.
 
 ---
 

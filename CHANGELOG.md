@@ -43,6 +43,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Cost: agent hyperlinks and titles no longer reach the terminal through
   `rex attach`.
 
+- **`rex uninstall -all` removes everything rex writes.** It used to leave
+  most of `~/.local/share/rex` (audit trail, usage ledger, snapshots with
+  copies of repository files, exports with transcripts, loops, workspace
+  lists), `~/.cache/rex`, rex log files under `REX_LOG_DIR` and each
+  workspace's `.rex/sessions.jsonl` and `.rex/audit.jsonl`. All of these
+  are now removed. It never follows a symlink (or a Windows junction), and
+  removes only paths inside your home or a listed workspace's `.rex/`. It
+  keeps, and lists as `kept` (also in `-o json`), each workspace's
+  `.rex/config.lua` and `.rex/workspace.json` and your shell-profile
+  backups. The closing hint and the `-wipe-state` help name the real
+  folders; `-dry-run` lists everything.
 - **Agents rex starts can no longer control rex.** Any process running as
   you could drive every session, including the agents rex starts: a tool
   call such as `printf '\r' | rex send <id>` could answer another agent's

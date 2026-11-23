@@ -565,3 +565,13 @@ func TestRunUninstall_AllKeepsBackupWrittenByThisRun(t *testing.T) {
 	}
 	require.Equal(t, []string{g.profile + ".rex-backup-1700000000"}, kept)
 }
+
+// TestRunUninstall_ClosingHintNamesAllFolders pins that the closing hint
+// names every folder rex writes, not only state and config.
+func TestRunUninstall_ClosingHintNamesAllFolders(t *testing.T) {
+	f := newUninstallFixture(t)
+	require.NoError(t, f.run("-all", "-yes"))
+	for _, dir := range []string{"~/.local/state/rex", "~/.local/share/rex", "~/.cache/rex", "~/.config/rex"} {
+		require.Contains(t, f.out.String(), dir)
+	}
+}
