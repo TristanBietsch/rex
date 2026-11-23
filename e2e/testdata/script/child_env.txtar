@@ -5,6 +5,10 @@ env SECRET_X=s1
 
 daemon-start
 
+# The daemon's own environment is filtered too: nothing of it is left in
+# /proc/<pid>/environ (the process re-executed itself with the allowlist).
+[linux] exec sh daemon-env-check.sh
+
 exec rex new x --tool probe --model env --slug e1 -cwd $WORK
 exec rex wait -until done -timeout 20s e1
 exists env.out
@@ -26,6 +30,15 @@ daemon-stop
 -- home/.config/rex/config.yaml --
 summary_enabled: false
 model_autodetect: false
+-- daemon-env-check.sh --
+pid=$(rex -o json daemon status | tr ',' '\n' | grep '"pid"' | tr -dc '0-9')
+test -n "$pid"
+test -r /proc/$pid/environ
+grep -qa 'REX_DAEMON_ENV_FILTERED=1' /proc/$pid/environ
+if grep -qa 'SECRET_X' /proc/$pid/environ; then
+  echo "daemon environment still holds SECRET_X" >&2
+  exit 1
+fi
 -- cfg-pass.yaml --
 summary_enabled: false
 model_autodetect: false

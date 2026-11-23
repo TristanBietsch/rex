@@ -74,6 +74,14 @@ func run(args []string) error {
 	// config.lua goes on top of config.yaml for every settings load in this
 	// process (the hub, the boot checks), while lua_config is on.
 	luacfg.Install()
+	// First, before any log, pid or socket file is opened: a daemon whose
+	// environment is not filtered yet replaces itself (same pid) with one
+	// that holds only the allowlisted variables. A no-op after that, on a
+	// hot restart, and with child_env: inherit. The settings and registry
+	// reads it does open nothing it keeps.
+	if err := boot.ReexecFiltered(syscall.Exec); err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
 	// Path defaults come from package paths. Without a home directory they
 	// are empty, and requireDefaults fails unless the flag was given.

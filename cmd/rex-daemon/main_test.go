@@ -36,6 +36,11 @@ func TestMain(m *testing.M) {
 	if err := os.Setenv("PATH", "/usr/bin"+string(os.PathListSeparator)+"/bin"); err != nil {
 		panic(err)
 	}
+	// run() filters the daemon's own environment by re-executing the process
+	// unless this marker is set; a test binary must not replace itself.
+	if err := os.Setenv("REX_DAEMON_ENV_FILTERED", "1"); err != nil {
+		panic(err)
+	}
 	testenv.Run(m)
 }
 
