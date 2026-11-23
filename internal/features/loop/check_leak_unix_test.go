@@ -20,7 +20,7 @@ import (
 func TestRunCheck_LeakedChildStillPasses(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
 	script := "sleep 300 & echo $! > " + pidFile + "; echo done; exit 0"
-	r := RunCheck(context.Background(), []string{"sh", "-c", script}, t.TempDir(), time.Minute)
+	r := RunCheck(context.Background(), []string{"sh", "-c", script}, t.TempDir(), time.Minute, os.Environ())
 	require.NoError(t, r.Err)
 	require.True(t, r.Passed(), "exit 0 is a pass")
 	require.True(t, r.Leaked)

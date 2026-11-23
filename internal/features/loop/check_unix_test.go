@@ -20,7 +20,7 @@ func TestRunCheck_TimeoutKillsProcessGroup(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
 	script := "sleep 300 & echo $! > " + pidFile + "; wait"
 	start := time.Now()
-	r := RunCheck(context.Background(), []string{"sh", "-c", script}, t.TempDir(), 500*time.Millisecond)
+	r := RunCheck(context.Background(), []string{"sh", "-c", script}, t.TempDir(), 500*time.Millisecond, os.Environ())
 	require.True(t, r.TimedOut)
 	require.Less(t, time.Since(start), 10*time.Second)
 

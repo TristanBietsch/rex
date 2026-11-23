@@ -41,6 +41,9 @@ func TestCheckHelper(t *testing.T) {
 			fmt.Print(chunk)
 		}
 		os.Exit(0)
+	case "env": // print two probe variables
+		fmt.Printf("leak=%q given=%q\n", os.Getenv("REX_E5_LEAK"), os.Getenv("REX_E5_GIVEN"))
+		os.Exit(0)
 	case "hang":
 		time.Sleep(time.Hour)
 	case "count": // count <file> <n>: exit 0 from the n-th run on
@@ -68,29 +71,48 @@ func TestCheckHelper(t *testing.T) {
 
 func TestRunCheck_ExitCodes(t *testing.T) {
 	t.Setenv("REX_LOOP_HELPER", "1")
-	ok := RunCheck(context.Background(), helperArgv("exit", "0"), t.TempDir(), time.Minute)
+	ok := RunCheck(context.Background(), helperArgv("exit", "0"), t.TempDir(), time.Minute, os.Environ())
 	require.True(t, ok.Passed())
 	require.Equal(t, 0, ok.ExitCode)
 	require.Contains(t, string(ok.Output), "out line")
 	require.Contains(t, string(ok.Output), "err line", "stderr is captured too")
 
-	bad := RunCheck(context.Background(), helperArgv("exit", "3"), t.TempDir(), time.Minute)
+	bad := RunCheck(context.Background(), helperArgv("exit", "3"), t.TempDir(), time.Minute, os.Environ())
 	require.False(t, bad.Passed())
 	require.Equal(t, 3, bad.ExitCode)
 	require.NoError(t, bad.Err)
 }
 
+// A check runs with exactly the environment it is given: a variable the
+// daemon has but the given env lacks never reaches the command, and a nil env
+// is an empty environment, not the daemon's.
+func TestRunCheck_UsesGivenEnv(t *testing.T) {
+	t.Setenv("REX_E5_LEAK", "daemon-secret")
+	t.Setenv("REX_E5_GIVEN", "daemon-value")
+	env := []string{"REX_LOOP_HELPER=1", "REX_E5_GIVEN=check-value"}
+
+	r := RunCheck(context.Background(), helperArgv("env"), t.TempDir(), time.Minute, env)
+	require.True(t, r.Passed(), string(r.Output))
+	require.Contains(t, string(r.Output), "leak=\"\" given=\"check-value\"\n") // coverage builds may add a warning line
+
+	// nil env: the helper does not even start (no REX_LOOP_HELPER), proving
+	// nothing is inherited.
+	r = RunCheck(context.Background(), helperArgv("env"), t.TempDir(), time.Minute, nil)
+	require.NotContains(t, string(r.Output), "daemon-secret")
+	require.NotContains(t, string(r.Output), "daemon-value")
+}
+
 func TestRunCheck_StartFailure(t *testing.T) {
-	r := RunCheck(context.Background(), []string{"rex-no-such-command-xyz"}, t.TempDir(), time.Minute)
+	r := RunCheck(context.Background(), []string{"rex-no-such-command-xyz"}, t.TempDir(), time.Minute, os.Environ())
 	require.Error(t, r.Err)
 	require.False(t, r.Passed())
-	r = RunCheck(context.Background(), nil, t.TempDir(), time.Minute)
+	r = RunCheck(context.Background(), nil, t.TempDir(), time.Minute, os.Environ())
 	require.Error(t, r.Err)
 }
 
 func TestRunCheck_OutputCapped(t *testing.T) {
 	t.Setenv("REX_LOOP_HELPER", "1")
-	r := RunCheck(context.Background(), helperArgv("flood"), t.TempDir(), time.Minute)
+	r := RunCheck(context.Background(), helperArgv("flood"), t.TempDir(), time.Minute, os.Environ())
 	require.True(t, r.Passed())
 	require.Len(t, r.Output, MaxCheckOutput)
 	require.True(t, r.Truncated)
@@ -99,7 +121,7 @@ func TestRunCheck_OutputCapped(t *testing.T) {
 func TestRunCheck_Timeout(t *testing.T) {
 	t.Setenv("REX_LOOP_HELPER", "1")
 	start := time.Now()
-	r := RunCheck(context.Background(), helperArgv("hang"), t.TempDir(), 300*time.Millisecond)
+	r := RunCheck(context.Background(), helperArgv("hang"), t.TempDir(), 300*time.Millisecond, os.Environ())
 	require.True(t, r.TimedOut)
 	require.False(t, r.Passed())
 	require.Less(t, time.Since(start), 10*time.Second)
@@ -109,7 +131,7 @@ func TestRunCheck_ContextCanceled(t *testing.T) {
 	t.Setenv("REX_LOOP_HELPER", "1")
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(200 * time.Millisecond); cancel() }()
-	r := RunCheck(ctx, helperArgv("hang"), t.TempDir(), time.Hour)
+	r := RunCheck(ctx, helperArgv("hang"), t.TempDir(), time.Hour, os.Environ())
 	require.False(t, r.TimedOut)
 	require.ErrorIs(t, r.Err, context.Canceled)
 }
@@ -117,7 +139,7 @@ func TestRunCheck_ContextCanceled(t *testing.T) {
 func TestRunCheck_MissingFolderIsAStartFailure(t *testing.T) {
 	t.Setenv("REX_LOOP_HELPER", "1")
 	dir := t.TempDir()
-	require.True(t, RunCheck(context.Background(), helperArgv("exit", "0"), dir, time.Minute).Passed())
-	r := RunCheck(context.Background(), helperArgv("exit", "0"), dir+"/missing", time.Minute)
+	require.True(t, RunCheck(context.Background(), helperArgv("exit", "0"), dir, time.Minute, os.Environ()).Passed())
+	r := RunCheck(context.Background(), helperArgv("exit", "0"), dir+"/missing", time.Minute, os.Environ())
 	require.Error(t, r.Err)
 }

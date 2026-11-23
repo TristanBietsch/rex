@@ -532,7 +532,7 @@ func (a *actor) runCheck(ru *run) {
 	go func() {
 		defer a.wg.Done()
 		defer cancel()
-		res := RunCheck(ctx, def.Until.Check, def.CWD, def.Until.CheckTimeout)
+		res := RunCheck(ctx, def.Until.Check, def.CWD, def.Until.CheckTimeout, a.r.cfg.checkEnv())
 		a.q.push(func() { a.checkDone(id, seq, res) }) //nolint:contextcheck // the result is handed back to the actor, which owns its own context
 	}()
 }

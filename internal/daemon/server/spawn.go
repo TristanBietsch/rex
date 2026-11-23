@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -316,16 +315,24 @@ func childEnvDropFor(spec spawnSpec) []string {
 	return nil
 }
 
+// ChildEnvOptions returns the current child-environment policy: Config.ChildEnv
+// (read now, so a settings reload applies), or the allowlist defaults when it
+// is nil, so every caller fails closed. Pass holds the env_passthrough names
+// only; model probes and loop checks build on it. The caller owns the result.
+func (s *Server) ChildEnvOptions() childenv.Options {
+	if s.cfg.ChildEnv != nil {
+		return s.cfg.ChildEnv()
+	}
+	return childenv.Default()
+}
+
 // childBaseEnv returns the starting environment for a child of tool, built
 // from parent by the current child_env policy, and how many parent variables
 // it dropped. The names are the tool's env_pass plus the env_passthrough
 // names, for every tool. A nil Config.ChildEnv fails closed to the allowlist
 // defaults. Spawn and Resume both use it, so the two cannot diverge.
 func (s *Server) childBaseEnv(tool registry.Tool, parent []string) ([]string, int) {
-	o := childenv.Options{Mode: childenv.ModeAllowlist, SSHAgent: true, GOOS: runtime.GOOS}
-	if s.cfg.ChildEnv != nil {
-		o = s.cfg.ChildEnv()
-	}
+	o := s.ChildEnvOptions()
 	// Concat builds a new slice: tool.EnvPass is shared registry data.
 	o.Pass = slices.Concat(tool.EnvPass, o.Pass)
 	env := childenv.Build(parent, o)

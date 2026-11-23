@@ -56,6 +56,13 @@ type Options struct {
 	GOOS string
 }
 
+// Default is the policy that applies when no settings are available: the
+// allowlist with the base names for this OS and SSH_AUTH_SOCK, no extra names.
+// Callers that cannot read the settings use it so they fail closed.
+func Default() Options {
+	return Options{Mode: ModeAllowlist, SSHAgent: true, GOOS: runtime.GOOS}
+}
+
 var baseAll = []string{
 	"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "COLORTERM", "LANG", "LC_*", "TZ", "TMPDIR", "XDG_*",
 	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",

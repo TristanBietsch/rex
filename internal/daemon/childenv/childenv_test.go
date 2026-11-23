@@ -1,6 +1,7 @@
 package childenv
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -105,4 +106,13 @@ func TestBuild_IgnoresBarePattern(t *testing.T) {
 	parent := []string{"PATH=/bin", "SECRET=s", "X=1"}
 	got := Build(parent, Options{Mode: ModeAllowlist, GOOS: "linux", Pass: []string{"*", "", "X"}})
 	require.Equal(t, []string{"PATH=/bin", "X=1"}, got)
+}
+
+// Default is the fail-closed policy: allowlist, SSH agent kept, no extra names.
+func TestDefault(t *testing.T) {
+	o := Default()
+	require.Equal(t, ModeAllowlist, o.Mode)
+	require.True(t, o.SSHAgent)
+	require.Empty(t, o.Pass)
+	require.Equal(t, runtime.GOOS, o.GOOS)
 }

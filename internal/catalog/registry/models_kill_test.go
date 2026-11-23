@@ -20,7 +20,7 @@ import (
 func TestDetectModels_NeutralDir(t *testing.T) {
 	dir := t.TempDir()
 	tool := stubTool(t, dir, "stub-pwd", `pwd -P`, ModelsCmd{Args: []string{"m"}})
-	models, err := DetectModels(context.Background(), tool)
+	models, err := DetectModels(context.Background(), tool, os.Environ())
 	require.NoError(t, err)
 	want, err := filepath.EvalSymlinks(os.TempDir())
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestDetectModels_TimeoutKillsGrandchild(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	tool := stubTool(t, dir, "stub-gc", "[ \"$1\" = --warm ] && exit 0\nsleep 60 &\necho $! > '"+pidFile+"'\nwait", ModelsCmd{Args: []string{"m"}, TimeoutMs: 2000})
 	require.NoError(t, exec.Command(filepath.Join(dir, "stub-gc"), "--warm").Run()) // a fresh script's first run can be slow
-	_, err := DetectModels(context.Background(), tool)
+	_, err := DetectModels(context.Background(), tool, os.Environ())
 	require.ErrorContains(t, err, "timed out")
 	raw, rerr := os.ReadFile(pidFile) //nolint:gosec // test path under t.TempDir()
 	require.NoError(t, rerr)

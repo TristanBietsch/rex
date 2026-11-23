@@ -152,8 +152,10 @@ func CachedModels(tools []Tool, path string, now time.Time, allowStale bool) map
 // running the command, unless force is set. A tool whose detection fails
 // (timeout, auth error, garbage) logs one line and is left out, so the caller
 // shows its static models. Tools run concurrently, each bounded by its own
-// timeout.
-func RefreshModels(ctx context.Context, tools []Tool, path string, force bool, now time.Time) map[string][]Model {
+// timeout. envFor gives the environment a tool's command runs with (nil: an
+// empty environment, never the daemon's); it is called once per probe, from
+// that tool's goroutine.
+func RefreshModels(ctx context.Context, tools []Tool, path string, force bool, now time.Time, envFor func(Tool) []string) map[string][]Model {
 	cache := readModelsCache(path)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -177,7 +179,11 @@ func RefreshModels(ctx context.Context, tools []Tool, path string, force bool, n
 					return
 				}
 			}
-			models, err := DetectModels(ctx, t)
+			var env []string
+			if envFor != nil {
+				env = envFor(t)
+			}
+			models, err := DetectModels(ctx, t, env)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

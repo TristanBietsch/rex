@@ -3,11 +3,13 @@ package boot
 import (
 	"context"
 	"log/slog"
+	"os"
 	"path/filepath"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/daemon/termtext"
@@ -43,8 +45,21 @@ func NewLoops(sessionCtx context.Context, stateDir, loopsDir string, store *stat
 		StateDir:   filepath.Join(stateDir, paths.LoopStateDirName),
 		SessionCtx: sessionCtx,
 		LoadDef:    func(name string) (loop.Def, error) { return loop.LoadFile(loopsDir, name) },
+		CheckEnv:   l.checkEnv,
 	})
 	return l
+}
+
+// checkEnv is the environment a loop check runs with: the daemon's
+// environment through the current child_env policy, base names and
+// env_passthrough only (no tool's env_pass). Before SetServer it fails
+// closed to the allowlist defaults.
+func (l *Loops) checkEnv() []string {
+	o := childenv.Default()
+	if l.srv != nil {
+		o = l.srv.ChildEnvOptions()
+	}
+	return childenv.Build(os.Environ(), o)
 }
 
 // SetServer gives the host its server. Call it before the first intent.
