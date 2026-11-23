@@ -64,6 +64,7 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 	// its snapshot, as before.
 	var p protocol.Hello
 	_ = json.Unmarshal(env.Data, &p)
+	c.helloName = p.Client
 	slog.Debug("server: hello", "conn", c.out.id, "client", p.Client, "client_version", p.ClientVersion)
 	// Board events (store changes, health, overview, usage, tools, loops)
 	// are held from here and sent right after the Snapshot, so a change
@@ -246,6 +247,7 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 	if !p.Synthetic {
 		c.srv.cancelRetireOnInput(p.SessionID, "SendInput")
 	}
+	c.noteInput(p.SessionID, len(p.Bytes))
 	return outcome{sessionID: p.SessionID}, nil
 }
 
@@ -270,6 +272,7 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
 	c.srv.cancelRetireOnInput(p.SessionID, "Reply")
+	c.noteInput(p.SessionID, len(p.Text))
 	return outcome{sessionID: p.SessionID}, nil
 }
 

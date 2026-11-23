@@ -6,8 +6,11 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"runtime/debug"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -46,6 +49,29 @@ type client struct {
 	// refusals counts intents refused with in_session. Handler goroutine
 	// only.
 	refusals int
+	// announced is set once the connection's first intent has been logged
+	// with the peer's identity. Handler goroutine only.
+	announced bool
+	// helloName is the client name from the last Hello. Display text the
+	// peer chose: never trust it. Handler goroutine only.
+	helloName string
+	// inputBytes counts the input bytes this connection sent, per session,
+	// for the one line per session logged at disconnect. Handler goroutine
+	// only.
+	inputBytes map[string]int
+}
+
+// readOnlyIntents are the intents that are not logged one by one: they
+// change nothing. Every other intent is logged at Info, so a new intent is
+// logged unless someone adds it here.
+var readOnlyIntents = map[string]bool{
+	protocol.IntentHello:       true,
+	protocol.IntentSubscribe:   true,
+	protocol.IntentResize:      true,
+	protocol.IntentBoards:      true,
+	protocol.IntentUsageQuery:  true,
+	protocol.IntentFocusFilter: true,
+	protocol.IntentUsageSample: true,
 }
 
 // joinBoard counts the connection as a board viewer (once, however many
@@ -75,11 +101,16 @@ func handleClient(ctx context.Context, conn net.Conn, srv *Server, peer peerClas
 	defer srv.untrackConn(out)
 	c := &client{srv: srv, ctx: ctx, out: out, peer: peer}
 	slog.Debug("server: client connected", "conn", out.id, "pid", c.peer.pid, "in_session", c.peer.inSession)
+	// Runs first of the deferred calls: one line per session with the
+	// input bytes this connection sent.
 	// Deferred calls run in reverse: subscriptions are canceled first, so no
 	// broadcast can enqueue any more, then queued lines are flushed and the
 	// socket closes.
 	defer out.finish()
 	defer c.runCleanups()
+	// Registered last, so it runs first: one Info line per session with
+	// the input bytes this connection sent. Never the bytes.
+	defer c.logInputTotals()
 	c.subscribeBoard()
 
 	r := protocol.NewReaderSize(conn, srv.maxLineBytes)
@@ -251,10 +282,12 @@ func (c *client) dispatch(env protocol.Envelope) (keepOpen bool) {
 		c.sendError(env.ID, protocol.ErrCodeBadIntent, "expected an Intent")
 		return true
 	}
+	c.announce(env)
 	if c.peer.inSession && !inSessionAllowed(env.Type) {
 		c.refuseInSession(env)
 		return true
 	}
+	c.logIntent(env)
 	h := c.srv.handlers[env.Type]
 	if h == nil {
 		c.sendError(env.ID, protocol.ErrCodeBadIntent, "intent not implemented")
@@ -263,6 +296,79 @@ func (c *client) dispatch(env protocol.Envelope) (keepOpen bool) {
 	res, err := h(c, env)
 	c.reply(env, res, err)
 	return true
+}
+
+// maxLoggedField caps an attacker-supplied string in a log line.
+const maxLoggedField = 128
+
+// logText makes s safe for a log line: display-flattened (no control,
+// escape, bidi or line-break runes) and capped.
+func logText(s string) string {
+	s = protocol.FlattenDisplayText(s)
+	if len(s) > maxLoggedField {
+		s = strings.ToValidUTF8(s[:maxLoggedField], "") + "..."
+	}
+	return s
+}
+
+// helloClientName reads the client name from a Hello envelope; empty when
+// the payload is missing or malformed.
+func helloClientName(env protocol.Envelope) string {
+	var p protocol.Hello
+	_ = json.Unmarshal(env.Data, &p)
+	return p.Client
+}
+
+// announce logs once per connection, at its first intent (refused or not),
+// who is on the other end: pid, executable, in_session and the Hello name.
+// A connection that sends nothing logs nothing.
+func (c *client) announce(env protocol.Envelope) {
+	if c.announced {
+		return
+	}
+	c.announced = true
+	name := c.helloName
+	if env.Type == protocol.IntentHello {
+		name = helloClientName(env)
+	}
+	slog.Info("server: client", "conn", c.out.id, "pid", c.peer.pid, "exe", logText(c.peer.exe),
+		"in_session", c.peer.inSession, "client", logText(name))
+}
+
+// logIntent logs, before the handler runs (so a failing intent is logged
+// too), every intent not in readOnlyIntents. The
+// executable and the names are chosen by the peer, so they are flattened;
+// the session id is read from the payload unvalidated, so it is too.
+func (c *client) logIntent(env protocol.Envelope) {
+	if readOnlyIntents[env.Type] {
+		return
+	}
+	var p struct {
+		SessionID string `json:"session_id"`
+	}
+	_ = json.Unmarshal(env.Data, &p)
+	slog.Info("server: intent", "conn", c.out.id, "type", logText(env.Type), "session", logText(p.SessionID))
+}
+
+// noteInput counts n input bytes sent to session (already validated) and
+// logs the first input of this connection to that session. The bytes
+// themselves are never logged.
+func (c *client) noteInput(session string, n int) {
+	if c.inputBytes == nil {
+		c.inputBytes = map[string]int{}
+	}
+	if _, seen := c.inputBytes[session]; !seen {
+		slog.Info("server: first input", "conn", c.out.id, "session", session)
+	}
+	c.inputBytes[session] += n
+}
+
+// logInputTotals logs one Info line per session with the input bytes this
+// connection sent to it.
+func (c *client) logInputTotals() {
+	for _, id := range slices.Sorted(maps.Keys(c.inputBytes)) {
+		slog.Info("server: input total", "conn", c.out.id, "session", id, "bytes", c.inputBytes[id])
+	}
 }
 
 // refuseInSession answers env with Error in_session. The first refusal on a
