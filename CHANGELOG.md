@@ -39,9 +39,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   own environment too: at startup it re-executes itself (same pid) with
   the base names, every tool's `env_pass` and `env_passthrough`; hot
   restarts keep that environment, so a name added to `env_passthrough`
-  later needs a full restart (`rex daemon restart -cold`). Windows has no
-  exec-in-place, so the daemon's own environment is not filtered there yet
-  (agents and probes still are). **To migrate:** if an agent or tool lost a
+  later needs a full restart (`rex daemon restart -cold`). On Windows, which
+  has no exec-in-place, `rex` builds the same environment before it starts
+  the daemon. **To migrate:** if an agent or tool lost a
   variable it needs, list the name in `env_passthrough` (comma-separated;
   a trailing `*` matches a prefix) or add it to the tool's `env_pass` in
   `tools.yaml`, or set `child_env: inherit` for the old behavior; then

@@ -42,8 +42,8 @@ filesystem permissions.
   key exported in the shell that started rex does not reach them. The
   daemon filters its own environment the same way at startup, by
   re-executing itself with the allowlist, so it no longer holds anything
-  else (not yet on Windows, which cannot replace a process in place;
-  agents there are filtered all the same). `child_env`, `env_passthrough` and `env_ssh_agent` are trust
+  else (on Windows, which cannot replace a process in place, rex builds
+  the same environment before it starts the daemon). `child_env`, `env_passthrough` and `env_ssh_agent` are trust
   settings: from the CLI they change only at a terminal. What the default
   still gives away: `SSH_AUTH_SOCK` (while `env_ssh_agent` is on, the
   default) lets an agent use every key loaded in your SSH agent for as

@@ -8,49 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
-
-	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 )
-
-func ownOpts() childenv.Options {
-	return childenv.Options{Mode: childenv.ModeAllowlist, SSHAgent: true, GOOS: "linux", Pass: []string{"EXTRA_*"}}
-}
-
-func TestOwnEnv_FiltersAndMarks(t *testing.T) {
-	parent := []string{"PATH=/bin", "HOME=/h", "SECRET_X=s1", "TOOL_KEY=k", "EXTRA_A=1", "SSH_AUTH_SOCK=/s", "CLAUDECODE=1"}
-	snapshot := slices.Clone(parent)
-	env, need := OwnEnv(parent, ownOpts(), []string{"TOOL_KEY"})
-	if !need {
-		t.Fatal("needExec = false, want true")
-	}
-	want := []string{"PATH=/bin", "HOME=/h", "TOOL_KEY=k", "EXTRA_A=1", "SSH_AUTH_SOCK=/s", "REX_DAEMON_ENV_FILTERED=1"}
-	if !slices.Equal(env, want) {
-		t.Errorf("env = %v, want %v", env, want)
-	}
-	if !slices.Equal(parent, snapshot) {
-		t.Errorf("parent modified: %v", parent)
-	}
-	// The marker never reaches an agent: Build drops it in allowlist mode.
-	for _, e := range childenv.Build(env, ownOpts()) {
-		if e == "REX_DAEMON_ENV_FILTERED=1" {
-			t.Error("marker reached the child environment")
-		}
-	}
-}
-
-func TestOwnEnv_NoExecWhenMarked(t *testing.T) {
-	if _, need := OwnEnv([]string{"PATH=/bin", "REX_DAEMON_ENV_FILTERED=1"}, ownOpts(), nil); need {
-		t.Error("needExec = true with the marker set")
-	}
-}
-
-func TestOwnEnv_NoExecWhenInherit(t *testing.T) {
-	o := ownOpts()
-	o.Mode = childenv.ModeInherit
-	if _, need := OwnEnv([]string{"PATH=/bin", "SECRET_X=1"}, o, nil); need {
-		t.Error("needExec = true in inherit mode")
-	}
-}
 
 var errTestExec = errors.New("exec failed")
 
@@ -129,20 +87,5 @@ func TestReexecFiltered_ExecErrorReturned(t *testing.T) {
 	ownSandbox(t, "")
 	if err := ReexecFiltered(func(string, []string, []string) error { return errTestExec }); err == nil {
 		t.Error("exec error swallowed")
-	}
-}
-
-func TestToolsPathFromArgs(t *testing.T) {
-	for _, c := range []struct {
-		args []string
-		want string
-	}{
-		{[]string{"-tools", "/a"}, "/a"},
-		{[]string{"--tools=/b"}, "/b"},
-		{[]string{"-socket", "/s", "-tools", "/c"}, "/c"},
-	} {
-		if got := toolsPathFromArgs(c.args); got != c.want {
-			t.Errorf("%v = %q, want %q", c.args, got, c.want)
-		}
 	}
 }
