@@ -1,8 +1,8 @@
 # Rex — agent documentation
 
-**New agent? Start with [HANDOFF.md](HANDOFF.md)** (onboarding order, gate, conventions, open work).
+**New agent? Start here**, then [AGENTS.md](AGENTS.md) for the gate and conventions.
 
-Read this file next. For directory layout and “where does new code go?”, see [`../STRUCTURE.md`](../STRUCTURE.md).
+For directory layout and “where does new code go?”, see [`../STRUCTURE.md`](../STRUCTURE.md).
 
 Rex is a Go terminal kanban for parallel AI coding-agent sessions: `rex` (TUI/CLI) talks to `rex-daemon` (PTY supervisor) over newline-delimited JSON on a Unix socket.
 
@@ -58,11 +58,10 @@ rex
 | File | Contents |
 |------|----------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Processes, data flow, dependencies |
-| [GLOSSARY.md](GLOSSARY.md) | Project terms |
+| [../glossary.md](../glossary.md) | Project terms |
 | [CONVENTIONS.md](CONVENTIONS.md) | Code style observed in repo |
 | [WORKFLOWS.md](WORKFLOWS.md) | Make targets and commands |
 | [DECISIONS.md](DECISIONS.md) | Non-obvious design choices |
-| [HANDOFF.md](HANDOFF.md) | Start here: current state, conventions, open work |
 | [AGENTS.md](AGENTS.md) | Meta: authority, safe edits, gaps |
 | [interfaces/cli.md](interfaces/cli.md) | CLI commands and flags |
 | [interfaces/config.md](interfaces/config.md) | Paths, env, settings keys |

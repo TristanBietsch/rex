@@ -13,7 +13,7 @@ import (
 
 // R19 replay tests: hook lines as Claude Code writes them (the current hook
 // commands), with an injected clock. READY (needs_input) must only show
-// when the user is needed. See docs/plans/r2/R19-ready-edge-cases.md.
+// when the user is needed.
 
 // Lines each hook writes, by event (main thread unless named sub).
 const (

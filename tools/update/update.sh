@@ -18,8 +18,6 @@
 # Exit: 0 done, 1 failed (nothing new installed), 2 usage,
 #       3 installed, but the daemon is not on the new build (reason above),
 #       75 another update is running.
-#
-# Design and edge cases: docs/plans/UP1-update-script.md
 
 set -eu
 

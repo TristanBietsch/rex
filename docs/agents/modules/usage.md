@@ -5,8 +5,6 @@
 **Depended on by:** `internal/daemon/boot`, `cmd/rex-daemon`, `internal/surface/cli/inspect`
 **Entry points:** `RunTap`, `NewHub`, `ShouldInjectTap`, `ParseStatusLine`
 
-Spec: [docs/plans/r2/R10-usage.md](../../plans/r2/R10-usage.md).
-
 ## Purpose
 
 What the agents used: per-session tokens and cost in an append-only ledger, the plan quotas Claude Code reports, and the aggregates behind `rex usage`. Off (the `usage` setting) means inert: no tap, no goroutine, no file.
