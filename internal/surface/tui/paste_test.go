@@ -50,13 +50,10 @@ func TestPaste_PromptKeepsLineBreaksDrawsOneRow(t *testing.T) {
 	require.Equal(t, ansi.Strip(renderHelpLine(m, 80)), lines[len(lines)-1], "help line pinned to the bottom")
 }
 
-// The wizard's task text keeps line breaks for the agent and draws flat.
-func TestPaste_WizardTaskKeepsLineBreaksDrawsFlat(t *testing.T) {
-	m := simpleBoardStore(t, true)
-	m, _ = openWizard(m)
-	m.Wizard.Step = wizDescribe
+// The page's task keeps line breaks for the agent and draws no escape.
+func TestPaste_NewAgentTaskKeepsLineBreaks(t *testing.T) {
+	m := naOpen(t, naModel(t))
 	m, _ = updateKey(m, pasteKey(hostilePaste))
-	require.Equal(t, "one\ntwo\tthreered", m.Wizard.TaskText)
-	box := strings.Join(wizInputBoxLines(m.Wizard.TaskText, m), "\n")
-	require.Len(t, strings.Split(box, "\n"), 3, "border, one text row, border")
+	require.Equal(t, "one\ntwo\tthreered", m.NewAgent.Task.String())
+	require.NotContains(t, m.View(), "\x1b[2J")
 }

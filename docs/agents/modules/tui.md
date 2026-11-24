@@ -7,7 +7,7 @@
 
 ## Purpose
 
-Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, settings, boot splash, stats overlay, slash command palette.
+Bubble Tea kanban board: session list by state, new-agent page, attach overlay, settings, boot splash, stats overlay, slash command palette.
 
 ## Public surface
 
@@ -21,10 +21,10 @@ Bubble Tea kanban board: session list by state, spawn wizard, attach overlay, se
 
 ### Types (Bubble Tea)
 
-- `Model` — `Init`, `Update`, `View`; fields include `Client`, `Socket`, `Focus`, `Sessions`, `SelectedID`, `Filter`, prompts, wizard/attach/settings state.
-- `Focus` enum — `FocusBoard`, `FocusPrompt`, `FocusCommand`, `FocusWizard`, `FocusHelp`, `FocusConfirmQuit`, `FocusConfirmDelete`, `FocusSettings`, `FocusAttach`, `FocusFail`, `FocusBoot`, `FocusStats`
+- `Model` — `Init`, `Update`, `View`; fields include `Client`, `Socket`, `Focus`, `Sessions`, `SelectedID`, `Filter`, prompts, new-agent/attach/settings state.
+- `Focus` enum — `FocusBoard`, `FocusPrompt`, `FocusCommand`, `FocusNewAgent`, `FocusHelp`, `FocusConfirmQuit`, `FocusConfirmDelete`, `FocusSettings`, `FocusAttach`, `FocusFail`, `FocusBoot`, `FocusStats`
 - Message types: `DaemonEventMsg`, `DaemonErrMsg`, `SpinnerTickMsg`, `AttachOutputMsg`, `AttachClosedMsg`
-- `AttachState`, `WizardState`, `SettingsState`, `FailState`, `SetupWizardModel`, `DescAnim`
+- `AttachState`, `NewAgentState`, `SettingsState`, `FailState`, `SetupWizardModel`, `DescAnim`
 
 ## Colors and styles
 
@@ -51,8 +51,8 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `prompt.go` | Bottom prompt |
 | `command.go` | `:` command line: parse and look up in `commands` |
 | `keys.go` | `commands` table (names, args, help text, `Run`) and `bindings` table (help rows, board help line); add a `:` command here |
-| `wizard.go` | New-session wizard |
-| `newagent*.go`, `composer.go` | New-agent page behind `new_agent_page` (`openNew` picks it or the wizard): state and keys (`newagent.go`), view incl. narrow strip (`newagent_view.go`), Agent screen, context list, import picker and `@`, preview, launch; `Composer` is the multi-line task editor. Prompt assembly and path rules live in `internal/features/spawnctx` |
+| `wizard.go` | Shared agent-choice helpers (`WizardState` selection, tool registry loading, slug rules, `pendingSpawn`); the popup wizard is gone (R21) |
+| `newagent*.go`, `composer.go` | New-agent page, seven steps one per screen (`naStep`): state, open/close, key routing (`newagent.go`), step navigation, esc/tab/ReturnToSummary rules and the wheel (`newagent_nav.go`), transcript, bodies and footer (`newagent_view.go`), agent, model and skills steps (`newagent_agent.go`), trust step (`newagent_trust.go`), summary and `rex new` line (`newagent_summary.go`), context items, import picker and `@`, preview, launch; `Composer` is the multi-line task editor. Prompt assembly and path rules live in `internal/features/spawnctx` |
 | `attach.go` | Full-screen attach (vt10x) |
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |
 | `attach_scroll.go` | Popup scrollback ring + scroll mode (primary-screen agents) |
@@ -78,7 +78,7 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `screensaver.go` | Idle timer, screensaver show/wake and render (`screensaver_*` settings) |
 | `keepawake.go` | macOS display keep-awake (`caffeinate -d -w <pid>`) while the screensaver shows |
 
-Tests: `*_test.go` for board snapshots, splash, wizard slugs, settings, stats overlay, update spawn logic.
+Tests: `*_test.go` for board snapshots, splash, slug rules, new-agent page, settings, stats overlay, update spawn logic.
 
 ## Invariants
 

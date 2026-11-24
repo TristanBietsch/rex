@@ -12,7 +12,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 )
 
-// failClosedStore writes auto_trust_dirs = ~/dev/other to the wizard's
+// failClosedStore writes auto_trust_dirs = ~/dev/other to the page's
 // config.yaml and loads it under a config.lua that failed, as the TUI does:
 // the effective value fails closed (empty).
 func failClosedStore(t *testing.T, m Model) Model {
@@ -38,7 +38,7 @@ func savedTrustDirs(t *testing.T, path string) string {
 
 // R05 review leftover: ctrl+a used to save just the new folder over the
 // YAML list while config.lua was broken.
-func TestWizardDescribe_CtrlAKeepsYAMLListWhileLuaIsBroken(t *testing.T) {
+func TestNewAgentTrust_CtrlAKeepsYAMLListWhileLuaIsBroken(t *testing.T) {
 	m, home, _, _ := spawnTrustWizard(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "dev", "other"), 0o700))
 	m = failClosedStore(t, m)
@@ -52,7 +52,7 @@ func TestCommandTrust_KeepsYAMLListWhileLuaIsBroken(t *testing.T) {
 	m, home, _, _ := spawnTrustWizard(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "dev", "other"), 0o700))
 	m = failClosedStore(t, m)
-	m.Wizard, m.Focus = nil, FocusBoard
+	m.NewAgent, m.Focus = nil, FocusBoard
 	m, _ = executeCommand(m, "trust")
 	require.Empty(t, m.Err)
 	require.Equal(t, "~/dev/other"+string(filepath.ListSeparator)+"~/dev/proj", savedTrustDirs(t, m.StorePath))

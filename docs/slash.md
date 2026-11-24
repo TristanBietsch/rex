@@ -32,7 +32,7 @@ Commands run in the TUI process. Some call the daemon over the TUI's socket; a f
 | `trust` | `[folder]` | Save a folder to `auto_trust_dirs`, so new sessions there skip the agent's "trust this folder" dialog (sessions already running keep asking). No folder: the repo folder of the selected session's folder, or of the folder rex runs in. The home folder, a folder that holds it, the root, relative paths and paths with `..` are refused with the reason. The status line shows the exact folder saved, or `already trusted`. See [settings.md](settings.md) |
 | `filter` | `[what]` | No argument: clear every filter (tool, hidden sections and search). `<tool>`: set the tool filter (`all`, a filter chip tool, or a tool id on the board; anything else is an error). `hide <sec…>`, `show <sec…\|all>`, `only <sec…>`: hide or show board sections |
 | `search` | `[text…]` | Search the board: a row must contain every word (case-insensitive). No text clears the search. Same as `/`; `:filter` with no argument clears it too |
-| `new` | — | New-session wizard |
+| `new` | — | New-agent page: seven steps, agent to summary ([tui.md](tui.md#new-agent-page)) |
 | `rm` | `<sel>` | Delete session |
 | `prune` | — | Delete every DONE session except those still working (confirm `y`; sessions that changed while the prompt was open are kept) |
 | `rename` | `<sel> <slug>` | Rename slug |

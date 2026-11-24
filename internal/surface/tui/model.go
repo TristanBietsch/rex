@@ -21,7 +21,6 @@ const (
 	FocusBoard Focus = iota
 	FocusPrompt
 	FocusCommand
-	FocusWizard
 	FocusNewAgent
 	FocusHelp
 	FocusConfirmQuit
@@ -133,7 +132,6 @@ type Model struct {
 	newAgentDraft *NewAgentState
 	lastSpawn     *quickChoice
 
-	Wizard   *WizardState
 	Settings *SettingsState
 	// Help is the help overlay's scroll and filter; nil reads as the top,
 	// unfiltered.

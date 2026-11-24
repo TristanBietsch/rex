@@ -146,8 +146,8 @@ func TestScreensaverUnderEveryFocus(t *testing.T) {
 			m.Focus, m.Settings = FocusSettings, &SettingsState{}
 			return m
 		},
-		"wizard": func(m Model) Model {
-			m.Focus, m.Wizard = FocusWizard, &WizardState{}
+		"new agent": func(m Model) Model {
+			m.Focus, m.NewAgent = FocusNewAgent, &NewAgentState{}
 			return m
 		},
 		"rename": func(m Model) Model {
@@ -187,18 +187,18 @@ func TestScreensaverUnderEveryFocus(t *testing.T) {
 	}
 }
 
-// The new-session wizard left open is the reported case: it used to block
-// the screensaver (and kept the cursor blinking at 10 FPS) forever.
-func TestScreensaverOverOpenWizard(t *testing.T) {
+// The new-agent page left open is the reported case: it used to block the
+// screensaver (and kept the cursor blinking at 10 FPS) forever.
+func TestScreensaverOverOpenNewAgent(t *testing.T) {
 	m, now, _ := saverModel(t, saverSessions()...)
-	m.Focus, m.Wizard = FocusWizard, &WizardState{}
-	require.True(t, m.wantsSpinnerTick(), "the wizard cursor blinks")
+	m.Focus, m.NewAgent = FocusNewAgent, &NewAgentState{}
+	require.True(t, m.wantsSpinnerTick(), "the page cursor blinks")
 	m = idleTo(t, m, now, *now, 5*time.Minute)
 	require.True(t, m.saverOn)
 	require.False(t, m.wantsSpinnerTick(), "no cursor ticks under the screensaver")
 	m, _ = step(t, m, key("esc"))
-	require.Equal(t, FocusWizard, m.Focus, "esc only woke; the wizard is still open")
-	require.NotNil(t, m.Wizard)
+	require.Equal(t, FocusNewAgent, m.Focus, "esc only woke; the page is still open")
+	require.NotNil(t, m.NewAgent)
 }
 
 func TestScreensaverResizeWakes(t *testing.T) {

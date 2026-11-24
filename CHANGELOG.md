@@ -47,6 +47,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   restored from an older daemon keep their names, duplicates included; the
   daemon logs them and renames nothing.
 
+### Changed
+
+- **`n` opens a stepped, full-screen new-agent flow.** One step per screen,
+  in order: agent, model (with effort), skills, task, context, trust, then
+  a summary where `enter` on `launch` starts the agent (`ctrl+s` still
+  launches from any step). Finished steps stack above as `✓ key  value`
+  lines and the current one is a `› key  question` line with room for its
+  body; the header says `step 3/7`. One layout at every width. `enter` in
+  the task goes to the next step instead of launching. The trust step is a
+  radio list that names the exact folder each choice trusts, and `enter`
+  there never picks one. The summary shows everything the launch sends and
+  the equivalent `rex new` call (display only); `enter` on a row jumps to
+  that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
+
+### Removed
+
+- The popup wizard and the `new_agent_page` setting. The page is the only
+  way to start an agent from `n` / `:new`. A stored `new_agent_page` in
+  `config.yaml` or `config.lua` is ignored without a warning.
+- The page's Compose screen, step rail and three-pane Agent screen, and the
+  vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
+  `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
+  not the context, trust or skills.
+
 ### Fixed
 
 - `rex upgrade` compared each board with the daemon's build instead of its

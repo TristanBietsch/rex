@@ -49,6 +49,9 @@ func boardModel(sessions ...protocol.SessionSummary) Model {
 }
 
 func key(s string) tea.KeyMsg {
+	if t, ok := navKeys[s]; ok {
+		return tea.KeyMsg{Type: t}
+	}
 	switch s {
 	case "enter":
 		return tea.KeyMsg{Type: tea.KeyEnter}

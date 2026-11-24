@@ -65,7 +65,7 @@ rex ws open ~/dev/other  # the same for another folder (any folder inside the wo
 
 - The header starts with `[7f3b89a2 myproject]` in the workspace color (the id alone in a narrow layout).
 - The window border takes the workspace color. On a workspace board the border is **on by default**, so the color shows; set `window_border` yourself (to `false` to switch it off) or use `:border` for one run and rex follows. An explicit `window_border_color` or `:border <color>` also wins over the workspace color.
-- The new-session wizard and quick spawn (`i`) start in the **workspace root**, not in the folder you ran `rex here` from.
+- The new-agent page and quick spawn (`i`) start in the **workspace root**, not in the folder you ran `rex here` from.
 
 With no `.rex/` above the folder, `rex here` exits 5 with ``no .rex/ here — run `rex ws init` ``. With `workspaces` off it exits 5 with the usual `off: enable in Settings → Features (rex config set workspaces true)`. Both need a terminal (like `rex`): `-o`, `--agent` and a pipe are refused.
 

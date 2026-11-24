@@ -41,10 +41,12 @@ const naEditorMax = 1 << 20
 const naSaveHint = "Save it to a file in the workspace and import it (ctrl+o)."
 
 // naErr is an error in the page's own words, shown after "✗ ". tooBig marks
-// a size cap, which the page follows with hint, or naSaveHint without one.
+// a size cap, which the page follows with hint, or naSaveHint without one;
+// ctx marks a problem with the context (a launch then goes to that step).
 type naErr struct {
 	msg    string
 	tooBig bool
+	ctx    bool
 	hint   string
 }
 
