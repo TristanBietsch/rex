@@ -71,6 +71,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
   not the context, trust or skills.
 
+### Changed
+
+- **Breaking: agents get an allowlisted environment.** Every agent, model
+  probe and loop check used to inherit the whole environment of the shell
+  that started rex, frozen for as long as the daemon ran, so an API key or
+  token exported there reached every agent and everything an agent ran. In
+  the new default (`child_env: allowlist`) a child gets only: the base names
+  (`PATH`, `HOME`, `USER`, `SHELL`, `TERM`, locale and `XDG_*`, proxy and CA
+  variables, `EDITOR`, plus a few per OS), the names its tool declares in
+  the new registry field `env_pass` (the built-in tools list their own
+  login and provider variables; a `tools.yaml` can add names, which are
+  merged with the built-in list), the names in the new `env_passthrough`
+  setting, `SSH_AUTH_SOCK` while the new `env_ssh_agent` setting is on (the
+  default), and what rex itself adds. Model probes get the probed tool's
+  `env_pass`; loop checks get the base names and `env_passthrough`.
+  `child_env`, `env_passthrough` and `env_ssh_agent` are trust settings:
+  `rex config set` changes them only at a terminal. The daemon filters its
+  own environment too: at startup it re-executes itself (same pid) with
+  the base names, every tool's `env_pass` and `env_passthrough`; hot
+  restarts keep that environment, so a name added to `env_passthrough` or
+  a tool's `env_pass` later, or `child_env: inherit`, needs
+  `rex daemon restart -cold`. The daemon also keeps its own `REX_*`
+  variables (such as `REX_LOG_LEVEL`); agents do not get them. On Windows, which
+  has no exec-in-place, `rex` builds the same environment before it starts
+  the daemon. **To migrate:** if an agent or tool lost a
+  variable it needs, list the name in `env_passthrough` (comma-separated;
+  a trailing `*` matches a prefix) or add it to the tool's `env_pass` in
+  `tools.yaml`, or set `child_env: inherit` for the old behavior; then
+  restart the daemon with `rex daemon restart -cold` (a hot restart keeps
+  the daemon's environment).
+
 ### Fixed
 
 - `rex upgrade` compared each board with the daemon's build instead of its
@@ -86,6 +117,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- **Terminal escapes from agents are filtered.** `rex attach` filters agent
+  escapes (OSC 52 clipboard, OSC 8 links, titles, DCS/APC/PM/SOS, C1 and bidi
+  controls) while keeping colors and cursor movement, and resets cursor shape,
+  synchronized output, modifyOtherKeys and kitty keyboard (and leaves VT52
+  mode) on detach. The TUI attach popup never prints C1 or bidi controls.
+  `rex log` drops control characters and invalid UTF-8 (use `-bytes` for raw).
+  Cost: agent hyperlinks and titles no longer reach the terminal through
+  `rex attach`.
+- **`rex uninstall -all` removes everything rex writes.** It used to leave
+  most of `~/.local/share/rex` (audit trail, usage ledger, snapshots with
+  copies of repository files, exports with transcripts, loops, workspace
+  lists), `~/.cache/rex`, rex log files under `REX_LOG_DIR` and each
+  workspace's `.rex/sessions.jsonl` and `.rex/audit.jsonl`. All of these
+  are now removed. It never follows a symlink (or a Windows junction), and
+  removes only paths inside your home or a listed workspace's `.rex/`. It
+  keeps, and lists as `kept` (also in `-o json`), each workspace's
+  `.rex/config.lua` and `.rex/workspace.json` and your shell-profile
+  backups. The closing hint and the `-wipe-state` help name the real
+  folders; `-dry-run` lists everything.
+- **The daemon no longer holds your shell's secrets.** Its environment is
+  filtered at startup (see Changed), so another process of yours can no
+  longer read an exported key from `/proc/<daemon pid>/environ` on Linux.
+  An agent can still read the environment of the tool processes it can see
+  running (its own and sibling agents'); see SECURITY.md.
 - **Agents rex starts can no longer control rex.** Any process running as
   you could drive every session, including the agents rex starts: a tool
   call such as `printf '\r' | rex send <id>` could answer another agent's
@@ -114,6 +169,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   instead of waiting 10 s.
 - Agents no longer get `REX_SESSION_ID` in their environment: it named the
   session to drive through rex, and nothing in rex used it.
+- **The summarizer talks only to a local Ollama by default.** `OLLAMA_HOST`
+  is now parsed strictly, the way Ollama reads it: no scheme means http, no
+  port means 11434, and `0.0.0.0` means `127.0.0.1`; credentials, queries,
+  fragments and bad ports are refused, and an error never repeats the
+  value. A host that is not on this machine is refused, and the summarizer
+  stays off with the reason shown on the board, unless the new trust
+  setting `summary_allow_remote` is true (terminal only, like
+  `skip_permissions`) and the URL is https. The summarizer client follows
+  no redirects and reads at most 1 MiB of any reply. `rex doctor` has a
+  `summarizer endpoint` row: it reads `OLLAMA_HOST` from your shell, so the
+  daemon's own environment can differ.
+- **Release tags must point at a commit on `master`.** The release workflow
+  now refuses to build a `v*` tag whose commit is not on `master`
+  (`tools/release/tag_on_master.sh`). `SECURITY.md` and `README.md` now say
+  what a release check proves: the download matches what GitHub published,
+  and nothing about who controls the account or the release workflow.
+  Signing is planned in `docs/plans/release-signing.md`.
+
+- **The daemon records which process drove a session.** It reads each
+  connecting process's executable path (`/proc/<pid>/exe` on Linux; on macOS
+  the path the process gave to exec, as reported and not verified; nothing on
+  Windows) and, at a connection's first intent, logs at Info the connection
+  id, pid, executable, `in_session` and the `Hello` client name. Every intent
+  except the read-only ones (`Hello`, `Subscribe`, `Resize`, `Boards`,
+  `UsageQuery`, `FocusFilter`, `UsageSample`) is now logged with its type and
+  session id, and input to a session is logged as the first input plus one
+  byte count per session at disconnect, never the bytes. `meta.json` and the
+  audit record of a session now hold `requested_by` (`client`, `pid`, `exe`):
+  who started it, whatever the prompt. Deleting a session appends its own
+  audit line (`"event":"delete"`, `session_id`, `deleted_by`, `ts`), and
+  `rex audit` lists it. The client name and executable path come from the
+  peer, so they are flattened to plain text and capped, and identify rather
+  than prove who asked.
 
 ## [2.0.0] - 2026-11-17
 

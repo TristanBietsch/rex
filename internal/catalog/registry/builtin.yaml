@@ -29,6 +29,23 @@ tools:
     name: "Claude Code"
     category: paid
     command: ["claude"]
+    # Variables the tool reads. Confirmed in the Claude Code docs: env-vars
+    # (https://code.claude.com/docs/en/env-vars), amazon-bedrock (.../amazon-bedrock:
+    # AWS_PROFILE, AWS_REGION, AWS_ACCESS_KEY_ID, ...), google-vertex-ai
+    # (.../google-vertex-ai: CLOUD_ML_REGION, GOOGLE_APPLICATION_CREDENTIALS) and iam
+    # (.../iam: CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CODE_USE_*).
+    env_pass:
+      - ANTHROPIC_*
+      - ANTHROPIC_API_KEY
+      - CLAUDE_CODE_USE_BEDROCK
+      - CLAUDE_CODE_USE_VERTEX
+      - CLAUDE_CODE_USE_FOUNDRY
+      - CLAUDE_CODE_OAUTH_TOKEN
+      - CLAUDE_CODE_GIT_BASH_PATH
+      - AWS_*
+      - ANTHROPIC_VERTEX_PROJECT_ID
+      - CLOUD_ML_REGION
+      - GOOGLE_APPLICATION_CREDENTIALS
     install_hint: "see https://code.claude.com/docs/en/setup"
     prompt_args: ["--", "{prompt}"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
@@ -85,6 +102,10 @@ tools:
     name: "Codex"
     category: paid
     command: ["codex"]
+    # Variables the tool reads, from https://developers.openai.com/codex/auth (CODEX_HOME,
+    # CODEX_CA_CERTIFICATE; OPENAI_API_KEY is the documented key for `codex login --with-api-key`
+    # and for custom providers in .../codex/config-advanced)
+    env_pass: [OPENAI_API_KEY, CODEX_HOME, CODEX_CA_CERTIFICATE]
     install_hint: "see https://github.com/openai/codex"
     prompt_args: ["--", "{prompt}"]
     detect:
@@ -139,6 +160,13 @@ tools:
     name: "Antigravity"
     category: paid
     command: ["agy"]
+    # Variables the tool reads, from https://antigravity.google/docs/install.md
+    env_pass:
+      - GEMINI_API_KEY
+      - GOOGLE_GEMINI_BASE_URL
+      - AGY_ADC_AUTH
+      - GOOGLE_CLOUD_QUOTA_PROJECT
+      - GOOGLE_CLOUD_LOCATION
     prompt_args: ["--prompt-interactive={prompt}"]
     skip_permissions_args: ["--dangerously-skip-permissions"]
     detect:
@@ -215,6 +243,14 @@ tools:
     name: "Gemini CLI"
     category: paid
     command: ["gemini"]
+    # Variables the tool reads, from https://geminicli.com/docs/get-started/authentication/
+    env_pass:
+      - GEMINI_API_KEY
+      - GOOGLE_API_KEY
+      - GOOGLE_CLOUD_PROJECT
+      - GOOGLE_CLOUD_PROJECT_ID
+      - GOOGLE_CLOUD_LOCATION
+      - GOOGLE_APPLICATION_CREDENTIALS
     prompt_args: ["--prompt-interactive={prompt}"]
     enabled_by_default: false
     detect:
@@ -236,6 +272,9 @@ tools:
     name: "Ollama"
     category: self_hosted
     command: ["ollama", "run"]
+    # OLLAMA_HOST: the ollama client reads it (api.ClientFromEnvironment) to find the server.
+    # OLLAMA_API_KEY: direct cloud API key, https://docs.ollama.com/api/authentication
+    env_pass: [OLLAMA_HOST, OLLAMA_API_KEY]
     install_hint: "download from https://ollama.com"
     # run MODEL PROMPT is one-shot, so the task is pasted into the REPL.
     prompt_paste: {plain: true, settle_ms: 800}
@@ -277,6 +316,21 @@ tools:
     # PATH and the extra_agents feature is on.
     enabled_by_default: true
     command: ["qwen"]
+    # Variables the tool reads, from https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/
+    env_pass:
+      - OPENAI_API_KEY
+      - OPENAI_BASE_URL
+      - OPENAI_MODEL
+      - QWEN_MODEL
+      - ANTHROPIC_API_KEY
+      - ANTHROPIC_BASE_URL
+      - ANTHROPIC_MODEL
+      - GEMINI_API_KEY
+      - GEMINI_MODEL
+      - GOOGLE_API_KEY
+      - GOOGLE_MODEL
+      - GOOGLE_GENAI_USE_VERTEXAI
+      - GOOGLE_CLOUD_PROJECT
     install_hint: "see https://github.com/QwenLM/qwen-code"
     skip_permissions_args: ["--dangerously-skip-permissions"]
     # --prompt-interactive keeps the session interactive (a bare positional
@@ -329,6 +383,8 @@ tools:
     # PATH and the extra_agents feature is on.
     enabled_by_default: true
     command: ["cursor-agent"]
+    # Variables the tool reads, from https://cursor.com/docs/cli/reference/authentication
+    env_pass: [CURSOR_API_KEY]
     skip_permissions_args: ["--yolo"]
     prompt_args: ["{prompt}"]
     detect:
@@ -366,6 +422,8 @@ tools:
     # PATH and the extra_agents feature is on.
     enabled_by_default: true
     command: ["grok"]
+    # Variables the tool reads, from https://docs.x.ai/build/overview (GROK_CODE_XAI_API_KEY)
+    env_pass: [GROK_CODE_XAI_API_KEY]
     skip_permissions_args: ["--always-approve"]
     prompt_args: ["{prompt}"]
     detect:

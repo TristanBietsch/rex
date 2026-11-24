@@ -18,7 +18,7 @@ Removed:
   binaries  /home/u/.local/bin/rex
   config    /home/u/.config/rex
 
-run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure
+run `rm -rf ~/.local/state/rex ~/.local/share/rex ~/.cache/rex ~/.config/rex` to be doubly sure
 -- plan.txt --
 # Will remove
 WHAT      WHERE
@@ -39,7 +39,7 @@ WHAT      WHERE
 binaries  /home/u/.local/bin/rex
 config    /home/u/.config/rex
 
-run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure
+run `rm -rf ~/.local/state/rex ~/.local/share/rex ~/.cache/rex ~/.config/rex` to be doubly sure
 -- plan.md --
 #### Will remove
 
@@ -66,13 +66,13 @@ run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure
 | binaries | /home/u/.local/bin/rex |
 | config | /home/u/.config/rex |
 
-> run \`rm -rf \~/.local/state/rex \~/.config/rex\` to be doubly sure
+> run \`rm -rf \~/.local/state/rex \~/.local/share/rex \~/.cache/rex \~/.config/rex\` to be doubly sure
 -- plan.json --
-{"v":1,"cmd":"uninstall","data":{"dry_run":false,"plan":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"binaries","path":"/home/u/.local/bin/rex-daemon"},{"kind":"config","path":"/home/u/.config/rex/"}],"removed":[]}}
+{"v":1,"cmd":"uninstall","data":{"dry_run":false,"plan":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"binaries","path":"/home/u/.local/bin/rex-daemon"},{"kind":"config","path":"/home/u/.config/rex/"}],"removed":[],"kept":[],"skipped":[]}}
 -- dry.json --
-{"v":1,"cmd":"uninstall","data":{"dry_run":true,"plan":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"binaries","path":"/home/u/.local/bin/rex-daemon"},{"kind":"config","path":"/home/u/.config/rex/"}],"removed":[]}}
+{"v":1,"cmd":"uninstall","data":{"dry_run":true,"plan":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"binaries","path":"/home/u/.local/bin/rex-daemon"},{"kind":"config","path":"/home/u/.config/rex/"}],"removed":[],"kept":[],"skipped":[]}}
 -- done.json --
-{"v":1,"cmd":"uninstall","data":{"dry_run":false,"plan":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"binaries","path":"/home/u/.local/bin/rex-daemon"},{"kind":"config","path":"/home/u/.config/rex/"}],"removed":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"config","path":"/home/u/.config/rex"}]}}
+{"v":1,"cmd":"uninstall","data":{"dry_run":false,"plan":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"binaries","path":"/home/u/.local/bin/rex-daemon"},{"kind":"config","path":"/home/u/.config/rex/"}],"removed":[{"kind":"binaries","path":"/home/u/.local/bin/rex"},{"kind":"config","path":"/home/u/.config/rex"}],"kept":[],"skipped":[]}}
 -- plan.agent --
 removal kind=binaries path=/home/u/.local/bin/rex detail=""
 removal kind=binaries path=/home/u/.local/bin/rex-daemon detail=""

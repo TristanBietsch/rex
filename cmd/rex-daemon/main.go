@@ -65,10 +65,23 @@ func runTap(args []string) int {
 	})
 }
 
+// summaryRefusedResend is how often the daemon repeats the refused-endpoint
+// SummarizerHealth (a variable so a test can shorten it). Only the event is
+// repeated; the reason is logged once at startup.
+var summaryRefusedResend = 30 * time.Second
+
 func run(args []string) error {
 	// config.lua goes on top of config.yaml for every settings load in this
 	// process (the hub, the boot checks), while lua_config is on.
 	luacfg.Install()
+	// First, before any log, pid or socket file is opened: a daemon whose
+	// environment is not filtered yet replaces itself (same pid) with one
+	// that holds only the allowlisted variables. A no-op after that, on a
+	// hot restart, and with child_env: inherit. The settings and registry
+	// reads it does open nothing it keeps.
+	if err := boot.ReexecFiltered(syscall.Exec); err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("rex-daemon", flag.ContinueOnError)
 	// Path defaults come from package paths. Without a home directory they
 	// are empty, and requireDefaults fails unless the flag was given.
@@ -208,14 +221,24 @@ func run(args []string) error {
 
 	var summaryCh chan<- string
 	var summaryWorker *summarizer.Worker
+	var summaryURL, summaryRefused string
+	if summaryEnabled {
+		allowRemote, _ := settingsStore.Get("summary_allow_remote").(bool)
+		var err error
+		summaryURL, err = boot.OllamaEndpoint(os.Getenv("OLLAMA_HOST"), allowRemote)
+		if err != nil {
+			// The error never echoes the raw OLLAMA_HOST (it can hold credentials).
+			summaryRefused = err.Error()
+			slog.Warn("daemon: summarizer off: OLLAMA_HOST refused", "reason", summaryRefused)
+			summaryEnabled = false
+		}
+	}
 	if summaryEnabled {
 		cfg := summarizer.Defaults()
 		cfg.Model = summaryModel
 		cfg.Detail = summarizer.ParseDetail(settingsStore.String("summary_detail"))
 		cfg.Schedule = settings.FeatureOn(hub.Current(), "summary_schedule")
-		if u := boot.OllamaBaseURL(); u != "" {
-			cfg.BaseURL = u
-		}
+		cfg.BaseURL = summaryURL
 		summaryWorker = summarizer.New(cfg, store, func(id string, max int) []byte {
 			// The supervisor's emulated screen is the readable view of TUIs;
 			// fall back to the cleaned transcript for line-oriented tools.
@@ -379,10 +402,26 @@ func run(args []string) error {
 				slog.Warn("summarizer: worker exited", "err", err)
 			}
 		}()
-		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel)
+		go boot.ProbeOllamaHealth(ctx, summaryWorker, summaryModel, summaryURL)
 		hub.Subscribe([]string{"summary_detail"}, boot.SummaryDetailApplier(summaryWorker))
 		hub.Subscribe([]string{"summary_schedule"}, boot.SummaryScheduleApplier(summaryWorker))
 		hub.Subscribe([]string{"overview_enabled"}, ov.Applier())
+	}
+	if summaryRefused != "" {
+		// No worker runs, so nothing else reports why. Health is not replayed
+		// to late clients, so repeat it for as long as the daemon runs.
+		go func() {
+			t := time.NewTicker(summaryRefusedResend)
+			defer t.Stop()
+			for {
+				srv.BroadcastSummarizerHealth(false, summaryRefused)
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+				}
+			}
+		}()
 	}
 	// The one settings poller. With live_reload off it parks without polling;
 	// SIGHUP, rex reload and :reload still reload by hand.

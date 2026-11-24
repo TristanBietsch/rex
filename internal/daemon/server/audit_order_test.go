@@ -35,6 +35,19 @@ type fakeAudit struct {
 	log     *auditLog
 	prompts map[string]string
 	err     error
+	// deletes holds one entry per Deleted call: the session, who asked, and
+	// the calls logged so far (to tell the order).
+	deletes []deleteCall
+}
+
+type deleteCall struct {
+	id     string
+	by     *state.Requester
+	before []string
+}
+
+func (f *fakeAudit) Deleted(sess *state.Session, by *state.Requester) {
+	f.deletes = append(f.deletes, deleteCall{id: sess.ID, by: by, before: f.log.get()})
 }
 
 func (f *fakeAudit) Begin(sess *state.Session, prompt string) { f.prompts[sess.ID] = prompt }
@@ -144,4 +157,29 @@ func TestDeleteSession_SlugReadDoesNotRaceRename(t *testing.T) {
 	}()
 	_ = srv.deleteSession("bbbb2222", protocol.RemovedByUser)
 	<-done
+}
+
+func TestDeleteSession_AppendsDeleteLine(t *testing.T) {
+	srv, log := newAuditServer(t, time.Now())
+	fa := srv.cfg.Audit.(*fakeAudit)
+	addEnded(t, srv, "aaaa1111", protocol.StateDone)
+
+	by := &state.Requester{Client: "rex-cli", PID: 4242, Exe: "/usr/bin/rex"}
+	require.NoError(t, srv.deleteSessionBy("aaaa1111", protocol.RemovedByUser, by))
+	require.Len(t, fa.deletes, 1)
+	require.Equal(t, by, fa.deletes[0].by)
+	require.Equal(t, []string{"audit:aaaa1111"}, fa.deletes[0].before, "after the run record, before the removal")
+	require.Equal(t, []string{"audit:aaaa1111", "remove:aaaa1111"}, log.get())
+
+	require.ErrorIs(t, srv.deleteSessionBy("aaaa1111", protocol.RemovedByUser, by), errSessionNotFound)
+	require.Len(t, fa.deletes, 1, "a missing session writes no delete line")
+}
+
+func TestDeleteSession_FailedRecordWritesNoDeleteLine(t *testing.T) {
+	srv, _ := newAuditServer(t, time.Now())
+	fa := srv.cfg.Audit.(*fakeAudit)
+	fa.err = errors.New("audit dir not writable")
+	addEnded(t, srv, "aaaa1111", protocol.StateDone)
+	require.ErrorIs(t, srv.deleteSession("aaaa1111", protocol.RemovedByUser), errAuditFailed)
+	require.Empty(t, fa.deletes, "the session is kept, so it is not deleted yet")
 }

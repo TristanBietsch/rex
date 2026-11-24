@@ -44,7 +44,12 @@ func (s *Server) retireDeadline(ttlSeconds int64) (time.Time, time.Duration, err
 // stop the supervisor (blocks until it exits), drop the session from the
 // store (broadcasts SessionRemoved with reason), delete its directory. A
 // session that is already gone counts as success so racing deletes are safe.
-func (s *Server) deleteSession(id, reason string) error {
+func (s *Server) deleteSession(id, reason string) error { return s.deleteSessionBy(id, reason, nil) }
+
+// deleteSessionBy is deleteSession for a delete somebody asked for: by (nil
+// when the daemon deletes on its own) goes into the audit trail's delete
+// line.
+func (s *Server) deleteSessionBy(id, reason string, by *state.Requester) error {
 	if err := s.frozenGuard(id); err != nil {
 		return err
 	}
@@ -70,6 +75,9 @@ func (s *Server) deleteSession(id, reason string) error {
 			s.cfg.Store.ReleaseReaping(id)
 			return fmt.Errorf("%w: %w", errAuditFailed, err)
 		}
+		// Its own line: the run record above is normally written once, at
+		// the end of the run, before anyone deletes the session.
+		s.cfg.Audit.Deleted(sess, by)
 	}
 	if err := s.cfg.Store.RemoveWithReason(id, reason); err != nil {
 		slog.Debug("session: delete raced; already removed", "session", id, "reason", reason)

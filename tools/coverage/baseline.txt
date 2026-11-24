@@ -8,7 +8,8 @@ github.com/tristanbietsch/rex/internal/catalog/registry 92
 github.com/tristanbietsch/rex/internal/catalog/settings 93
 github.com/tristanbietsch/rex/internal/catalog/theme 100
 github.com/tristanbietsch/rex/internal/daemon/adapter 98
-github.com/tristanbietsch/rex/internal/daemon/boot 84
+github.com/tristanbietsch/rex/internal/daemon/boot 85
+github.com/tristanbietsch/rex/internal/daemon/ownenv 95
 github.com/tristanbietsch/rex/internal/daemon/handoff 86
 github.com/tristanbietsch/rex/internal/daemon/pty 88
 github.com/tristanbietsch/rex/internal/daemon/server 93
@@ -53,3 +54,5 @@ github.com/tristanbietsch/rex/internal/runtime/privfile 100
 github.com/tristanbietsch/rex/internal/catalog/settings/luacfg 97
 github.com/tristanbietsch/rex/internal/version 90
 github.com/tristanbietsch/rex/internal/runtime/selfupdate 85
+github.com/tristanbietsch/rex/internal/termfilter 100
+github.com/tristanbietsch/rex/internal/daemon/childenv 97

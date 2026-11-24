@@ -14,6 +14,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/skills"
@@ -31,15 +32,17 @@ func unknownToolError(reg *registry.Registry, toolID, modelID string) error {
 }
 
 // handleNewSession validates p, spawns its session and returns the new
-// session's ID. Errors from validation, and an unknown tool or model, are
+// session's ID. by is who asked (nil when unknown); it is stored with the
+// session. Errors from validation, and an unknown tool or model, are
 // badIntent; the caller maps the rest to spawn_failed or too_many_sessions.
-func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server) (string, error) {
-	return spawnSession(ctx, intentID, p, srv, "", 0)
+func handleNewSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, by *state.Requester) (string, error) {
+	return spawnSession(ctx, intentID, p, srv, "", 0, by)
 }
 
 // spawnSession is handleNewSession with the loop that owns the session (""
-// and 0 for an ordinary one), set on the session before it is announced.
-func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, loopID string, loopIter int) (string, error) {
+// and 0 for an ordinary one), set on the session before it is announced,
+// and who asked for it (nil when no client did).
+func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, srv *Server, loopID string, loopIter int, by *state.Requester) (string, error) {
 	if err := validateNewSession(p); err != nil {
 		slog.Warn("spawn: rejected", "req_id", intentID, "slug", p.Slug, "reason", err)
 		return "", badIntent(err)
@@ -169,6 +172,7 @@ func spawnSession(ctx context.Context, intentID string, p protocol.NewSession, s
 		LoopID:      loopID,
 		LoopIter:    loopIter,
 	}
+	sess.SetRequestedBy(by) // whatever the prompt: meta.json says who started it
 	if cfg.Audit != nil {
 		cfg.Audit.Begin(sess, p.InitialPrompt)
 	}
@@ -330,6 +334,30 @@ func childEnvDropFor(spec spawnSpec) []string {
 	return nil
 }
 
+// ChildEnvOptions returns the current child-environment policy: Config.ChildEnv
+// (read now, so a settings reload applies), or the allowlist defaults when it
+// is nil, so every caller fails closed. Pass holds the env_passthrough names
+// only; model probes and loop checks build on it. The caller owns the result.
+func (s *Server) ChildEnvOptions() childenv.Options {
+	if s.cfg.ChildEnv != nil {
+		return s.cfg.ChildEnv()
+	}
+	return childenv.Default()
+}
+
+// childBaseEnv returns the starting environment for a child of tool, built
+// from parent by the current child_env policy, and how many parent variables
+// it dropped. The names are the tool's env_pass plus the env_passthrough
+// names, for every tool. A nil Config.ChildEnv fails closed to the allowlist
+// defaults. Spawn and Resume both use it, so the two cannot diverge.
+func (s *Server) childBaseEnv(tool registry.Tool, parent []string) ([]string, int) {
+	o := s.ChildEnvOptions()
+	// Concat builds a new slice: tool.EnvPass is shared registry data.
+	o.Pass = slices.Concat(tool.EnvPass, o.Pass)
+	env := childenv.Build(parent, o)
+	return env, len(parent) - len(env)
+}
+
 // startSupervisor builds the adapter and PTY supervisor for sess and runs it
 // in the background. The caller owns the session slot and the Store entry:
 // on error it must release the slot (and remove sess if it added it).
@@ -373,11 +401,20 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 
 	completeCh := make(chan struct{}, 1)
 
+	// Adopted children (hot restart) are already running: no environment to build.
+	var baseEnv []string
+	if spec.Adopt == nil {
+		var dropped int
+		baseEnv, dropped = srv.childBaseEnv(spec.Tool, os.Environ())
+		slog.Debug("spawn: child environment built", "session", sess.ID, "tool", spec.Tool.ID, "dropped", dropped)
+	}
+
 	sup := pty.New(pty.SupervisorConfig{
 		StateDir:       cfg.StateDir,
 		Store:          cfg.Store,
 		Command:        argv,
 		CWD:            spec.CWD,
+		BaseEnv:        baseEnv,
 		Env:            env,
 		DropEnv:        childEnvDropFor(spec),
 		InitialCols:    spec.Cols,

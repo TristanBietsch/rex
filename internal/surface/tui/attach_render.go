@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/hinshun/vt10x"
 	"github.com/muesli/termenv"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // The attach popup paints the emulator grid itself instead of going through
@@ -108,6 +110,8 @@ const sgrReset = termenv.CSI + termenv.ResetSeq + "m"
 // colored text twice, and drawing them without it lost reverse on
 // default-colored text (an agent's own cursor).
 //
+// C1 control and bidi control runes are drawn as spaces.
+//
 // The row is always exactly len(cells) terminal columns. vt10x gives every
 // rune one cell, but a terminal draws a wide (CJK, emoji) rune over two
 // columns: a blank cell after a wide rune is taken as its right half (apps
@@ -126,7 +130,9 @@ func (p *glyphPainter) row(cells []vt10x.Glyph, cursorX int) string {
 	for x := 0; x < cols; x++ {
 		g := cells[x]
 		r := g.Char
-		if r == 0 {
+		if r == 0 || isUnsafeRune(r) {
+			// C1 and bidi controls would act on the user's terminal if
+			// written raw; a space keeps the cell's one column.
 			r = ' '
 		}
 		w := runeCols(r)
@@ -153,7 +159,7 @@ func (p *glyphPainter) row(cells []vt10x.Glyph, cursorX int) string {
 		}
 		out.WriteRune(r)
 		width += w
-		if w == 2 && x+1 < cols && x+1 != cursorX && isBlankGlyph(cells[x+1]) {
+		if w == 2 && x+1 < len(cells) && x+1 != cursorX && isBlankGlyph(cells[x+1]) {
 			x++
 		}
 	}
@@ -173,6 +179,12 @@ func (p *glyphPainter) row(cells []vt10x.Glyph, cursorX int) string {
 		s += strings.Repeat(" ", cols-width)
 	}
 	return s
+}
+
+// isUnsafeRune reports whether r is a C1 control or bidi control rune, which
+// must never reach the terminal from a screen cell.
+func isUnsafeRune(r rune) bool {
+	return (r >= 0x80 && r <= 0x9f) || protocol.IsBidiControl(r)
 }
 
 // runeCols is how many terminal columns r takes: 1 below U+0300 (no wide or

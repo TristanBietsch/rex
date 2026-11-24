@@ -4,6 +4,8 @@ import (
 	"log/slog"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
+	"github.com/tristanbietsch/rex/internal/daemon/ownenv"
 )
 
 // The functions below read one setting from st, normally SettingsHub.Current.
@@ -15,6 +17,12 @@ func SkipPermissions(st *settings.Store) bool {
 	on, _ := st.Get("skip_permissions").(bool)
 	return on
 }
+
+// ChildEnv reads child_env, env_ssh_agent and env_passthrough into the
+// environment policy for this OS. Pass is the env_passthrough names (a fresh
+// slice: trimmed, empty entries dropped); the spawn adds the tool's env_pass
+// (see server.Config.ChildEnv).
+func ChildEnv(st *settings.Store) childenv.Options { return ownenv.ChildEnv(st) }
 
 // ResumeEnabled reads the resume feature switch.
 func ResumeEnabled(st *settings.Store) bool { return settings.FeatureOn(st, "resume") }

@@ -21,7 +21,7 @@ func ValidateSlug(s string) error {
 		if unicode.IsSpace(r) {
 			return errors.New("slug must not contain whitespace")
 		}
-		if unicode.IsControl(r) || isBidiControl(r) {
+		if unicode.IsControl(r) || IsBidiControl(r) {
 			return errors.New("slug must not contain control characters")
 		}
 	}

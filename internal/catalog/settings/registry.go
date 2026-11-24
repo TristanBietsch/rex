@@ -390,6 +390,25 @@ var Registry = []Setting{
 			"Separate folders with " + string(filepath.ListSeparator) + "; ~/ is your home. Empty: always ask. " +
 			"Only list folders whose code you trust: accepting lets a repo's own agent settings apply.",
 	},
+	{
+		ID: "child_env", Label: "Agent environment", Section: SectionSpawn, Apply: ApplyNextSpawn,
+		Type: TypeEnum, Default: "allowlist",
+		Options: []string{"allowlist", "inherit"},
+		Help: "Which environment variables agents get. allowlist: only the base names (PATH, HOME, proxies, locale and so on), the names the tool declares for its own login (env_pass) and env_passthrough. " +
+			"inherit: everything the daemon has, as before. Applies to the next session; the daemon itself keeps only the allowlist until a cold restart (rex daemon restart -cold).",
+	},
+	{
+		ID: "env_passthrough", Label: "Extra environment variables", Section: SectionSpawn, Apply: ApplyDaemonRestart,
+		Type: TypeString, Default: "", ListSep: ",",
+		Free: true, Normalize: normalizeEnvPassthrough,
+		Help: "Variable names every agent also gets in allowlist mode, comma-separated; a trailing * matches a prefix (for example: GH_TOKEN,MY_TOOL_*). Empty: none. " +
+			"The daemon itself only keeps these names, so a name added later needs a cold restart (rex daemon restart -cold): a hot restart keeps the daemon's environment.",
+	},
+	{
+		ID: "env_ssh_agent", Label: "Pass SSH agent", Section: SectionSpawn, Apply: ApplyNextSpawn,
+		Type: TypeBool, Default: true,
+		Help: "Give agents SSH_AUTH_SOCK in allowlist mode, so they can use every key loaded in your SSH agent for as long as they run. Off: agents cannot reach the SSH agent. Applies to the next session; turning it on later needs a cold restart (rex daemon restart -cold), because the daemon dropped SSH_AUTH_SOCK at start.",
+	},
 
 	// AI summary
 	{
@@ -414,6 +433,12 @@ var Registry = []Setting{
 		Type: TypeEnum, Default: "typewriter",
 		Options: []string{"typewriter", "decode", "wipe", "off"},
 		Help:    "Animation effect when the AI description changes.",
+	},
+	{
+		ID: "summary_allow_remote", Label: "Allow remote summarizer", Section: SectionSummary, Apply: ApplyDaemonRestart,
+		Type: TypeBool, Default: false,
+		Help: "Let the summarizer use an OLLAMA_HOST that is not on this machine, over https only. " +
+			"Session text is sent to that host. Off: only a local Ollama is used.",
 	},
 	{
 		ID: "summary_scan", Label: "Summary scanner", Section: SectionSummary, Apply: ApplyLive,

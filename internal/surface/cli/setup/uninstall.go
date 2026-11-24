@@ -63,6 +63,7 @@ type uninstallPlan struct {
 	sessionsDir string
 	configDir   string
 	profiles    []string
+	all         allTargets // -all only: data, cache, logs, workspace files
 }
 
 // RunUninstall removes rex artifacts after one confirmation.
@@ -140,10 +141,10 @@ func parseUninstallFlags(args []string, errOut io.Writer) (uninstallOpts, error)
 	fs.BoolVar(&o.yes, "yes", false, "skip confirmations")
 	fs.BoolVar(&o.yes, "y", false, "skip confirmations (shorthand)")
 	fs.BoolVar(&o.binaries, "binaries", true, "remove rex and rex-daemon binaries")
-	fs.BoolVar(&o.wipeState, "wipe-state", false, "remove ~/.local/state/rex/ and ~/.local/share/rex/sessions/")
+	fs.BoolVar(&o.wipeState, "wipe-state", false, "remove ~/.local/state/rex/ and ~/.local/share/rex/sessions/ (-all also removes the rest of ~/.local/share/rex/, ~/.cache/rex/, rex log files and each workspace's .rex/sessions.jsonl and audit.jsonl)")
 	fs.BoolVar(&o.purgeConfig, "purge-config", false, "remove ~/.config/rex/")
 	fs.BoolVar(&o.stripProfile, "strip-profile", false, "remove # BEGIN REX … # END REX blocks from shell profiles (backups are kept)")
-	fs.BoolVar(&o.all, "all", false, "equivalent to all flags above")
+	fs.BoolVar(&o.all, "all", false, "equivalent to all flags above, plus every other folder rex writes (config.lua, workspace.json and shell-profile backups are kept and listed)")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print what would be removed without touching anything")
 	fs.BoolVar(&o.force, "force", false, "remove files even if rex-daemon is still running after the stop request")
 	out := core.AddOutputFlags(fs, core.AllFormats)
@@ -172,6 +173,9 @@ func newUninstallPlan(opts uninstallOpts, d uninstallDeps) (*uninstallPlan, erro
 		sessionsDir: l.SessionsDir,
 		configDir:   l.ConfigDir,
 		profiles:    profileFiles(home),
+	}
+	if opts.all {
+		p.all = planAll(home)
 	}
 	if !opts.binaries {
 		return p, nil
@@ -226,7 +230,20 @@ func (p *uninstallPlan) items() []removal {
 			out = append(out, removal{Kind: "profile", Detail: "(no # BEGIN REX blocks found)"})
 		}
 	}
+	if o.all {
+		out = append(out, p.all.rows()...)
+	}
 	return out
+}
+
+// left lists what the plan keeps and what it skipped, never as removals.
+func (p *uninstallPlan) left() (kept, skipped []removal) {
+	kept, skipped = []removal{}, []removal{}
+	if p.opts.all {
+		kept = append(kept, p.all.keep...)
+		skipped = append(skipped, p.all.skipped...)
+	}
+	return kept, skipped
 }
 
 // uninstallData is the `-o json` payload of rex uninstall.
@@ -234,13 +251,18 @@ type uninstallData struct {
 	DryRun  bool      `json:"dry_run"`
 	Plan    []removal `json:"plan"`
 	Removed []removal `json:"removed"`
+	// Kept are paths -all leaves in place on purpose; Skipped are paths it
+	// would not touch (symlinks, folders that are gone, paths outside home).
+	Kept    []removal `json:"kept"`
+	Skipped []removal `json:"skipped"`
 }
 
 func (p *uninstallPlan) data(dryRun bool, removed []removal) uninstallData {
 	if removed == nil {
 		removed = []removal{}
 	}
-	return uninstallData{DryRun: dryRun, Plan: p.items(), Removed: removed}
+	kept, skipped := p.left()
+	return uninstallData{DryRun: dryRun, Plan: p.items(), Removed: removed, Kept: kept, Skipped: skipped}
 }
 
 // planView shows the plan (dry run, or before the question) or, once done is
@@ -251,23 +273,35 @@ func (p *uninstallPlan) planView(dryRun bool, done []removal) core.View {
 	if done != nil {
 		rows, title = done, "Removed"
 	}
+	v := core.View{core.Section{Title: title}, removalTable(rows)}
+	kept, skipped := p.left()
+	if len(kept) > 0 {
+		v = append(v, core.Section{Title: "Kept"}, removalTable(kept))
+	}
+	if len(skipped) > 0 {
+		v = append(v, core.Section{Title: "Skipped"}, removalTable(skipped))
+	}
+	switch {
+	case dryRun:
+		v = append(v, core.Note{Text: "dry-run: nothing removed"}, agentPairs(core.Field{Key: "dry_run", Val: true}))
+	case done != nil:
+		v = append(v, core.Note{Text: "run `rm -rf ~/.local/state/rex ~/.local/share/rex ~/.cache/rex ~/.config/rex` to be doubly sure"})
+	}
+	return v
+}
+
+// removalTable renders rows as the what / where / detail table.
+func removalTable(rows []removal) core.Table {
 	cells := make([][]core.Cell, len(rows))
 	for i, r := range rows {
 		detail := strings.TrimSpace(r.Path + "  " + r.Detail)
 		cells[i] = []core.Cell{{Text: r.Kind}, {Text: detail, Raw: r.Path}, {Text: r.Detail}}
 	}
-	v := core.View{core.Section{Title: title}, core.Table{Kind: "removal", Empty: "(nothing)", Rows: cells, Cols: []core.Col{
+	return core.Table{Kind: "removal", Empty: "(nothing)", Rows: cells, Cols: []core.Col{
 		{Key: "kind", Title: "What"},
 		{Key: "path", Title: "Where"},
 		{Key: "detail", Title: "Detail", Formats: core.SetOf(core.FormatAgent)},
-	}}}
-	switch {
-	case dryRun:
-		v = append(v, core.Note{Text: "dry-run: nothing removed"}, agentPairs(core.Field{Key: "dry_run", Val: true}))
-	case done != nil:
-		v = append(v, core.Note{Text: "run `rm -rf ~/.local/state/rex ~/.config/rex` to be doubly sure"})
-	}
-	return v
+	}}
 }
 
 // checkBinaryLocations refuses to delete binaries outside the user's home
@@ -330,7 +364,11 @@ func (p *uninstallPlan) execute(pr *core.Printer, d uninstallDeps) (done []remov
 		failed += len(errs)
 		for _, s := range stripped {
 			done = append(done, removal{Kind: "profile", Path: s.Path, Detail: "backup: " + s.Backup})
+			p.all.keepBackup(s.Backup)
 		}
+	}
+	if p.opts.all {
+		done, failed = p.all.removeAll(pr, done, failed)
 	}
 	return done, failed
 }

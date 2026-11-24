@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/features/summarizer"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
@@ -291,12 +292,13 @@ func SummaryScheduleApplier(w *summarizer.Worker) func(*settings.Store) {
 }
 
 // WireSpawnReads points cfg's spawn-time settings reads (AutoTrustDirs,
-// SkipPermissions, ResumeEnabled, SkillsEnabled, SnapshotsEnabled, UsageTap)
+// SkipPermissions, ChildEnv, ResumeEnabled, SkillsEnabled, SnapshotsEnabled, UsageTap)
 // at the hub's current settings, so each spawn sees the latest reload. socket
 // is the daemon's own socket, as UsageTap takes it.
 func (h *SettingsHub) WireSpawnReads(cfg *server.Config, socket string) {
 	cfg.AutoTrustDirs = func() []string { return AutoTrustDirs(h.Current()) }
 	cfg.SkipPermissions = func() bool { return SkipPermissions(h.Current()) }
+	cfg.ChildEnv = func() childenv.Options { return ChildEnv(h.Current()) }
 	cfg.ResumeEnabled = func() bool { return ResumeEnabled(h.Current()) }
 	cfg.SkillsEnabled = func() bool { return SpawnSkillsEnabled(h.Current()) }
 	cfg.SnapshotsEnabled = func() bool { return TurnSnapshotsEnabled(h.Current()) }

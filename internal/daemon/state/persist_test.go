@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,4 +166,39 @@ func TestReplayTail_EdgeCases(t *testing.T) {
 
 	_, err = ReplayTail(dir, "../escape", 64)
 	require.Error(t, err)
+}
+
+func TestMeta_RoundTripsRequestedByAndFlattensIt(t *testing.T) {
+	root := t.TempDir()
+	s := &Session{ID: "aaaa1111", ShortID: "aaaa", ToolID: "t", ModelID: "m", Slug: "x", State: protocol.StateDone}
+	s.SetRequestedBy(&Requester{Client: "rex-cli", PID: 12, Exe: "/bin/rex"})
+	require.NoError(t, WriteMeta(root, s))
+	raw, err := os.ReadFile(filepath.Join(root, "sessions", "aaaa1111", "meta.json"))
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"requested_by"`)
+
+	got, err := LoadMeta(root, "aaaa1111")
+	require.NoError(t, err)
+	require.Equal(t, &Requester{Client: "rex-cli", PID: 12, Exe: "/bin/rex"}, got.Requester())
+
+	// A hand-edited meta.json cannot smuggle control text into later logs.
+	bad := strings.Replace(string(raw), "rex-cli", `rex\u001b[31m\nforged`, 1)
+	metaPath := filepath.Join(root, "sessions", "aaaa1111", "meta.json")
+	require.NoError(t, os.WriteFile(metaPath, []byte(bad), 0o600)) //nolint:gosec // G703: a temp dir the test made
+	got, err = LoadMeta(root, "aaaa1111")
+	require.NoError(t, err)
+	require.NotContains(t, got.Requester().Client, "\x1b")
+	require.NotContains(t, got.Requester().Client, "\n")
+	bad = strings.Replace(bad, "/bin/rex", `/bin/\u001b]0;x\u0007rex`, 1)
+	require.NoError(t, os.WriteFile(metaPath, []byte(bad), 0o600)) //nolint:gosec // G703: a temp dir the test made
+	got, err = LoadMeta(root, "aaaa1111")
+	require.NoError(t, err)
+	require.NotContains(t, got.Requester().Exe, "\x1b")
+	require.NotContains(t, got.Requester().Exe, "\x07")
+
+	none := &Session{ID: "bbbb2222", ShortID: "bbbb", ToolID: "t", ModelID: "m", Slug: "y", State: protocol.StateDone}
+	require.NoError(t, WriteMeta(root, none))
+	raw, err = os.ReadFile(filepath.Join(root, "sessions", "bbbb2222", "meta.json"))
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "requested_by")
 }

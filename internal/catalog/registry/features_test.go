@@ -28,7 +28,7 @@ func TestWithFeatures(t *testing.T) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	cache := filepath.Join(t.TempDir(), "models-cache.json")
 	now := time.Now()
-	RefreshModels(context.Background(), []Tool{qwen}, cache, false, now)
+	RefreshModels(context.Background(), []Tool{qwen}, cache, false, now, osEnv)
 	require.FileExists(t, marker)
 	require.NoError(t, os.Remove(marker))
 

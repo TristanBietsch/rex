@@ -73,6 +73,16 @@ func TestGlyphPainterAsciiDrawsPlainText(t *testing.T) {
 	}
 }
 
+func TestGlyphPainterRow_DropsC1AndBidi(t *testing.T) {
+	p := newGlyphPainter(termenv.Ascii)
+	cells := []vt10x.Glyph{
+		{Char: '\u009d'}, {Char: '\u009b'}, {Char: '\u202e'}, {Char: 'é'},
+	}
+	if got, want := p.row(cells, -1), "   é"; got != want {
+		t.Fatalf("row = %q, want %q", got, want)
+	}
+}
+
 func TestLiveRowCache(t *testing.T) {
 	st := &AttachState{SessionID: "a", Cols: 6, Rows: 2}
 	st.Term = newAttachTerm(st, 6, 2, 0)

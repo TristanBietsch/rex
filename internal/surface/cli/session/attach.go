@@ -12,6 +12,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
+	"github.com/tristanbietsch/rex/internal/termfilter"
 	"github.com/tristanbietsch/rex/internal/wire/client"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -27,8 +28,12 @@ const enterAlt = "\x1b[?1049h\x1b[?25l"
 // exitAlt restores the caller's terminal. It also turns off mouse tracking /
 // bracketed paste the agent may have enabled (Claude fullscreen does), or
 // the shell is left in mouse mode, and resets the pen, charset, scroll
-// region and the other modes a replay or repaint may have set.
-const exitAlt = "\x1b[0m\x1b(B\x1b[r\x1b[4l\x1b[20l\x1b[?5l\x1b[?7h\x1b[?1l\x1b>" +
+// region and the other modes a replay or repaint may have set. It starts
+// with ESC < (leave VT52 mode, which the output filter lets through as
+// CSI ? 2 l and in which CSI resets are ignored), and ends the keyboard
+// protocols an agent may have pushed: cursor shape, synchronized output,
+// modifyOtherKeys and the kitty keyboard stack.
+const exitAlt = "\x1b<\x1b[0 q\x1b[?2026l\x1b[>4;0m\x1b[<u\x1b[0m\x1b(B\x1b[r\x1b[4l\x1b[20l\x1b[?5l\x1b[?7h\x1b[?1l\x1b>" +
 	"\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l\x1b[?25h\x1b[?1049l"
 
 // redrawKickTools are TUI agents that own their own screen state and won't
@@ -177,8 +182,13 @@ func redrawFallback(c *client.Client, sess protocol.SessionSummary, reqID string
 
 // streamAttach copies the session's output to out until the connection
 // closes (nil) or the session is removed (an ExitError). watch sees every
-// event, in order.
+// event, in order. Replay and live output both pass through one termfilter
+// writer, which drops agent strings (OSC, DCS, ...) that could set the
+// clipboard or title; it is flushed once, when the stream ends, so the
+// caller's exitAlt never lands inside a half-written sequence.
 func streamAttach(c *client.Client, sessionID string, watch *client.RepaintWatch, out io.Writer) error {
+	f := termfilter.NewWriter(out)
+	defer func() { _ = f.Flush() }()
 	for {
 		env, err := c.NextEvent()
 		if err != nil {
@@ -192,7 +202,10 @@ func streamAttach(c *client.Client, sessionID string, watch *client.RepaintWatch
 		case protocol.EventSessionOutput:
 			var so protocol.SessionOutput
 			if jerr := json.Unmarshal(env.Data, &so); jerr == nil && so.SessionID == sessionID {
-				_, _ = out.Write(so.Bytes)
+				if _, werr := f.Write(so.Bytes); werr != nil {
+					slog.Debug("attach: output write failed", "session", sessionID, "err", werr)
+					return nil
+				}
 			}
 		case protocol.EventSessionRemoved:
 			var rm protocol.SessionRemoved

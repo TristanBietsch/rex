@@ -104,6 +104,11 @@ type Session struct {
 	// live again, so a resumed session writes a new record at its next end.
 	AuditWritten bool
 
+	// RequestedBy is who started this run (NewSession, or the Resume that
+	// respawned it), nil when unknown. Persisted in meta.json, never sent to
+	// clients; use SetRequestedBy and Requester once the session is shared.
+	RequestedBy *Requester
+
 	// Internal — not serialized to summary.
 	mu sync.Mutex
 	// auditMu makes the audit write for one session run one at a time.

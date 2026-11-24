@@ -30,6 +30,8 @@ daemon-stop
 -- home/.config/rex/config.yaml --
 summary_enabled: false
 model_autodetect: false
+# The probe's script reads $WORK and finds the daemon through $SOCKET.
+env_passthrough: WORK,SOCKET
 -- home/.config/rex/tools.yaml --
 tools:
   - id: probe

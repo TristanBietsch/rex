@@ -20,6 +20,10 @@ const (
 	curModels  = "Available models\n\nauto - Auto (current, default)\ngpt-5.3-codex-high - Codex 5.3 High\nclaude-opus-5-thinking-high - Claude Opus 5 1M Thinking\n"
 )
 
+// osEnv passes the test process's environment to a probe, as the tests that
+// are not about the environment expect.
+func osEnv(Tool) []string { return os.Environ() }
+
 func builtinTool(t *testing.T, id string) Tool {
 	t.Helper()
 	reg, err := Load("")
@@ -153,11 +157,42 @@ func stubTool(t *testing.T, dir, name, body string, mc ModelsCmd) Tool {
 		ModelEffort: &Effort{Options: []string{"low", "high"}, Default: "low", ArgTemplate: "--e={value}"}}
 }
 
+// A model probe runs with exactly the environment it is given: a variable the
+// daemon has but the given env lacks never reaches the command, and a nil env
+// is an empty environment, not the daemon's.
+func TestRunModelsCmd_UsesGivenEnv(t *testing.T) {
+	tool := stubTool(t, t.TempDir(), "stub-env", `echo "leak=${REX_E5_LEAK:-none}"; echo "given=${REX_E5_GIVEN:-none}"`,
+		ModelsCmd{Args: []string{"m"}})
+	t.Setenv("REX_E5_LEAK", "daemon-secret")
+	t.Setenv("REX_E5_GIVEN", "daemon-value")
+
+	out, err := runModelsCmd(context.Background(), tool, []string{"REX_E5_GIVEN=probe-value"})
+	require.NoError(t, err)
+	require.Equal(t, "leak=none\ngiven=probe-value\n", string(out))
+
+	out, err = runModelsCmd(context.Background(), tool, nil)
+	require.NoError(t, err)
+	require.Equal(t, "leak=none\ngiven=none\n", string(out), "nil env must not fall back to the daemon's")
+}
+
+// RefreshModels asks envFor for each probed tool's environment.
+func TestRefreshModels_EnvForPerTool(t *testing.T) {
+	tool := stubTool(t, t.TempDir(), "stub-envfor", `echo "${REX_E5_GIVEN:-none}"`,
+		ModelsCmd{Args: []string{"m"}})
+	var asked []string
+	got := RefreshModels(context.Background(), []Tool{tool}, "", true, time.Now(), func(tl Tool) []string {
+		asked = append(asked, tl.ID)
+		return []string{"REX_E5_GIVEN=from-envfor"}
+	})
+	require.Equal(t, []string{"stub-envfor"}, asked)
+	require.Equal(t, []string{"from-envfor"}, ids(got["stub-envfor"]))
+}
+
 func TestDetectModels_Lines(t *testing.T) {
 	dir := t.TempDir()
 	tool := stubTool(t, dir, "stub-lines", `printf 'MODEL\nOne (m-one)\nTwo (m-two)\n'`,
 		ModelsCmd{Args: []string{"--list-models"}, IDRegex: `\(([^)]+)\)\s*$`, SkipHeader: 1})
-	models, err := DetectModels(context.Background(), tool)
+	models, err := DetectModels(context.Background(), tool, os.Environ())
 	require.NoError(t, err)
 	require.Equal(t, []string{"m-one", "m-two"}, ids(models))
 	require.Equal(t, []string{"--model", "m-one"}, models[0].Args)
@@ -170,7 +205,7 @@ func TestDetectModels_JSON(t *testing.T) {
 	dir := t.TempDir()
 	tool := stubTool(t, dir, "stub-json", `printf '{"models":[{"id":"j1"},{"id":"j2"}]}'`,
 		ModelsCmd{Args: []string{"list"}, Parse: ParseJSON, JSONPath: "models[].id"})
-	models, err := DetectModels(context.Background(), tool)
+	models, err := DetectModels(context.Background(), tool, os.Environ())
 	require.NoError(t, err)
 	require.Equal(t, []string{"j1", "j2"}, ids(models))
 }
@@ -179,7 +214,7 @@ func TestDetectModels_JSON(t *testing.T) {
 func TestDetectModels_ArgsAndNoStdin(t *testing.T) {
 	dir := t.TempDir()
 	tool := stubTool(t, dir, "stub-args", `echo "$1"; cat | wc -c | tr -d ' '`, ModelsCmd{Args: []string{"models"}})
-	models, err := DetectModels(context.Background(), tool)
+	models, err := DetectModels(context.Background(), tool, os.Environ())
 	require.NoError(t, err)
 	require.Equal(t, []string{"models", "0"}, ids(models), "first arg is models_cmd.args, stdin is empty")
 }
@@ -200,7 +235,7 @@ func TestDetectModels_FailuresFallBack(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			tool := stubTool(t, dir, "stub-"+strings.ReplaceAll(name, " ", "-"), tc.body, tc.mc)
-			models, err := DetectModels(context.Background(), tool)
+			models, err := DetectModels(context.Background(), tool, os.Environ())
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.want)
 			require.Empty(t, models)
@@ -210,9 +245,9 @@ func TestDetectModels_FailuresFallBack(t *testing.T) {
 
 func TestDetectModels_Errors(t *testing.T) {
 	_, err := DetectModels(context.Background(), Tool{ID: "x", Command: []string{"definitely-not-installed-xyz"},
-		ModelsCmd: &ModelsCmd{Args: []string{"m"}}, ModelArgTemplate: []string{"{model}"}})
+		ModelsCmd: &ModelsCmd{Args: []string{"m"}}, ModelArgTemplate: []string{"{model}"}}, os.Environ())
 	require.ErrorContains(t, err, "binary not found")
-	_, err = DetectModels(context.Background(), Tool{ID: "x", Command: []string{"x"}, ModelsCmd: &ModelsCmd{Args: []string{"m"}}})
+	_, err = DetectModels(context.Background(), Tool{ID: "x", Command: []string{"x"}, ModelsCmd: &ModelsCmd{Args: []string{"m"}}}, os.Environ())
 	require.ErrorContains(t, err, "model_arg_template")
 }
 
@@ -265,7 +300,7 @@ func TestRefreshModelsCache(t *testing.T) {
 	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
 
 	require.Empty(t, CachedModels(tools, cache, now, false), "no file yet")
-	got := RefreshModels(context.Background(), tools, cache, false, now)
+	got := RefreshModels(context.Background(), tools, cache, false, now, osEnv)
 	require.Equal(t, []string{"m1", "m2"}, ids(got["stub-cache"]))
 	fi, err := os.Stat(cache)
 	require.NoError(t, err)
@@ -278,7 +313,7 @@ func TestRefreshModelsCache(t *testing.T) {
 	// Rewriting the binary changes its mtime, which invalidates the entry.
 	time.Sleep(20 * time.Millisecond)
 	stubBinary(t, dir, "stub-cache", `printf 'm9 - Nine\n'`)
-	got = RefreshModels(context.Background(), tools, cache, false, now.Add(time.Hour))
+	got = RefreshModels(context.Background(), tools, cache, false, now.Add(time.Hour), osEnv)
 	require.Equal(t, []string{"m9"}, ids(got["stub-cache"]), "a new binary mtime invalidates the entry")
 }
 
@@ -288,23 +323,23 @@ func TestRefreshModelsCacheServesAndExpires(t *testing.T) {
 	tool := stubTool(t, dir, "stub-age", `printf 'm1 - One\n'`, ModelsCmd{Args: []string{"m"}, IDRegex: `^(\S+) - `})
 	tools := []Tool{tool}
 	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
-	RefreshModels(context.Background(), tools, cache, false, now)
+	RefreshModels(context.Background(), tools, cache, false, now, osEnv)
 
 	// Poison the cached ids: a valid entry answers without running the stub.
 	raw, err := os.ReadFile(cache)
 	require.NoError(t, err)
 	poisoned := strings.Replace(string(raw), `"m1"`, `"cached-id","bad id","-x"`, 1)
 	require.NoError(t, os.WriteFile(cache, []byte(poisoned), 0o600)) //nolint:gosec // test path under t.TempDir()
-	got := RefreshModels(context.Background(), tools, cache, false, now.Add(23*time.Hour))
+	got := RefreshModels(context.Background(), tools, cache, false, now.Add(23*time.Hour), osEnv)
 	require.Equal(t, []string{"cached-id"}, ids(got["stub-age"]), "served from the cache, ids re-validated")
 
 	// 24 h later the entry is too old: the command runs again.
-	got = RefreshModels(context.Background(), tools, cache, false, now.Add(25*time.Hour))
+	got = RefreshModels(context.Background(), tools, cache, false, now.Add(25*time.Hour), osEnv)
 	require.Equal(t, []string{"m1"}, ids(got["stub-age"]))
 
 	// force ignores a fresh entry.
 	require.NoError(t, os.WriteFile(cache, []byte(poisoned), 0o600)) //nolint:gosec // test path under t.TempDir()
-	got = RefreshModels(context.Background(), tools, cache, true, now.Add(time.Minute))
+	got = RefreshModels(context.Background(), tools, cache, true, now.Add(time.Minute), osEnv)
 	require.Equal(t, []string{"m1"}, ids(got["stub-age"]))
 
 	// Stale entries can still be read for display.
@@ -318,7 +353,7 @@ func TestRefreshModelsKeyedByBinaryMtime(t *testing.T) {
 	tool := stubTool(t, dir, "stub-mtime", `printf 'm1 - One\n'`, ModelsCmd{Args: []string{"m"}, IDRegex: `^(\S+) - `})
 	tools := []Tool{tool}
 	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
-	RefreshModels(context.Background(), tools, cache, false, now)
+	RefreshModels(context.Background(), tools, cache, false, now, osEnv)
 	require.NotEmpty(t, CachedModels(tools, cache, now, false))
 
 	bin := filepath.Join(dir, "stub-mtime")
@@ -331,7 +366,7 @@ func TestRefreshModelsKeyedByBinaryMtime(t *testing.T) {
 	mc := *tool.ModelsCmd
 	mc.Args = []string{"other"}
 	tool2.ModelsCmd = &mc
-	RefreshModels(context.Background(), tools, cache, false, now)
+	RefreshModels(context.Background(), tools, cache, false, now, osEnv)
 	require.Empty(t, CachedModels([]Tool{tool2}, cache, now, false))
 }
 
@@ -342,7 +377,7 @@ func TestRefreshModelsCanceledChangesNothing(t *testing.T) {
 	tool := stubTool(t, dir, "stub-keep", `printf 'm1 - One\n'`, ModelsCmd{Args: []string{"m"}, IDRegex: `^(\S+) - `})
 	tools := []Tool{tool}
 	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
-	RefreshModels(context.Background(), tools, cache, false, now)
+	RefreshModels(context.Background(), tools, cache, false, now, osEnv)
 
 	// A canceled context (shutdown, a newer reload) is not a failure: nothing
 	// is returned and the cache is not touched.
@@ -350,7 +385,7 @@ func TestRefreshModelsCanceledChangesNothing(t *testing.T) {
 	cancel()
 	before, err := os.ReadFile(cache) //nolint:gosec // test path under t.TempDir()
 	require.NoError(t, err)
-	got := RefreshModels(ctx, tools, cache, true, now.Add(time.Hour))
+	got := RefreshModels(ctx, tools, cache, true, now.Add(time.Hour), osEnv)
 	require.Empty(t, got, "canceled: nothing returned")
 	after, err := os.ReadFile(cache) //nolint:gosec // test path under t.TempDir()
 	require.NoError(t, err)
@@ -366,17 +401,17 @@ func TestRefreshModelsServesStaleWhenCommandFails(t *testing.T) {
 		ModelsCmd{Args: []string{"m"}, IDRegex: `^(\S+) - `})
 	tools := []Tool{tool}
 	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
-	RefreshModels(context.Background(), tools, cache, false, now)
+	RefreshModels(context.Background(), tools, cache, false, now, osEnv)
 	require.NoError(t, os.WriteFile(flag, nil, 0o600)) //nolint:gosec // test path under t.TempDir()
 
-	got := RefreshModels(context.Background(), tools, cache, true, now.Add(48*time.Hour))
+	got := RefreshModels(context.Background(), tools, cache, true, now.Add(48*time.Hour), osEnv)
 	require.Equal(t, []string{"m1"}, ids(got["stub-flaky"]), "stale list served after a failure")
 	require.NotEmpty(t, CachedModels(tools, cache, now.Add(48*time.Hour), true), "the entry is kept")
 
 	// The binary changes (new key): the old ids no longer describe it.
 	time.Sleep(20 * time.Millisecond)
 	stubBinary(t, dir, "stub-flaky", `echo "Please log in"; exit 1`)
-	got = RefreshModels(context.Background(), tools, cache, true, now.Add(49*time.Hour))
+	got = RefreshModels(context.Background(), tools, cache, true, now.Add(49*time.Hour), osEnv)
 	require.Empty(t, got)
 	require.Empty(t, CachedModels(tools, cache, now.Add(49*time.Hour), true), "entry dropped with its binary")
 }
@@ -388,7 +423,7 @@ func TestRefreshModelsFailureFallsBack(t *testing.T) {
 	cache := filepath.Join(t.TempDir(), "models-cache.json")
 	tool := stubTool(t, dir, "stub-fail", `echo "Please log in"; exit 1`, ModelsCmd{Args: []string{"m"}})
 	now := time.Now()
-	got := RefreshModels(context.Background(), []Tool{tool}, cache, false, now)
+	got := RefreshModels(context.Background(), []Tool{tool}, cache, false, now, osEnv)
 	require.Empty(t, got)
 	_, err := os.Stat(cache)
 	require.True(t, os.IsNotExist(err), "nothing worth caching, nothing written")
@@ -396,7 +431,7 @@ func TestRefreshModelsFailureFallsBack(t *testing.T) {
 	// A tool without a binary, or without models_cmd, is not even tried.
 	missing := Tool{ID: "gone", Command: []string{"not-installed-xyz"}, ModelsCmd: &ModelsCmd{Args: []string{"m"}}, ModelArgTemplate: []string{"{model}"}}
 	plain := Tool{ID: "plain", Command: []string{"sh"}}
-	require.Empty(t, RefreshModels(context.Background(), []Tool{missing, plain}, cache, true, now))
+	require.Empty(t, RefreshModels(context.Background(), []Tool{missing, plain}, cache, true, now, osEnv))
 }
 
 func TestCorruptCacheIgnored(t *testing.T) {

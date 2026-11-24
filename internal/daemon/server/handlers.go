@@ -64,6 +64,7 @@ func handleHello(c *client, env protocol.Envelope) (outcome, error) {
 	// its snapshot, as before.
 	var p protocol.Hello
 	_ = json.Unmarshal(env.Data, &p)
+	c.helloName = p.Client
 	slog.Debug("server: hello", "conn", c.out.id, "client", p.Client, "client_version", p.ClientVersion)
 	// Board events (store changes, health, overview, usage, tools, loops)
 	// are held from here and sent right after the Snapshot, so a change
@@ -101,7 +102,7 @@ func handleNewSessionIntent(c *client, env protocol.Envelope) (outcome, error) {
 	if err != nil {
 		return outcome{}, err
 	}
-	id, err := handleNewSession(c.ctx, env.ID, p, c.srv)
+	id, err := handleNewSession(c.ctx, env.ID, p, c.srv, c.requester())
 	if err != nil {
 		code := protocol.ErrCodeSpawn
 		switch {
@@ -124,7 +125,7 @@ func handleDelete(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	// Stops a running supervisor first so its goroutines don't race with
 	// the on-disk cleanup; disk cleanup is best-effort.
-	if err := c.srv.deleteSession(p.SessionID, protocol.RemovedByUser); err != nil {
+	if err := c.srv.deleteSessionBy(p.SessionID, protocol.RemovedByUser, c.requester()); err != nil {
 		if errors.Is(err, errAuditFailed) {
 			return outcome{}, replyErr(protocol.ErrCodeInternal, err)
 		}
@@ -248,6 +249,7 @@ func handleSendInput(c *client, env protocol.Envelope) (outcome, error) {
 	if !p.Synthetic {
 		c.srv.cancelRetireOnInput(p.SessionID, "SendInput")
 	}
+	c.noteInput(p.SessionID, len(p.Bytes))
 	return outcome{sessionID: p.SessionID}, nil
 }
 
@@ -272,6 +274,7 @@ func handleReply(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	slog.Debug("server: reply submitted", "session", p.SessionID, "bytes", len(p.Text))
 	c.srv.cancelRetireOnInput(p.SessionID, "Reply")
+	c.noteInput(p.SessionID, len(p.Text))
 	return outcome{sessionID: p.SessionID}, nil
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/audit"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
@@ -308,4 +309,29 @@ func TestAudit_WsByIDFollowsAMovedFolderOnceItIsSeenThere(t *testing.T) {
 
 	require.NoError(t, r.run(t, "json", "--ws", w.ID))
 	require.Equal(t, []string{"aaaa1111"}, ids(decodeAudit(t, r)))
+}
+
+func TestAuditReader_ShowsDeleteLines(t *testing.T) {
+	r := newAuditRig(t, "")
+	old := arec("aaaa1111", auditNow.Add(-3*time.Hour))
+	started := arec("bbbb2222", auditNow.Add(-2*time.Hour), func(x *audit.Record) {
+		x.RequestedBy = &state.Requester{Client: "rex-cli", PID: 4242, Exe: "/usr/bin/rex"}
+	})
+	appendAll(t, r.global(t), old, started)
+	require.NoError(t, audit.AppendDelete(r.global(t), "bbbb2222",
+		&state.Requester{Client: "rex-tui", PID: 77, Exe: "/usr/bin/rex"}, auditNow.Add(-time.Hour)))
+
+	require.NoError(t, r.run(t, "json"))
+	got := decodeAudit(t, r)
+	require.Equal(t, []string{"bbbb2222", "bbbb2222", "aaaa1111"}, ids(got), "newest first, the delete among them")
+	require.True(t, got[0].IsDelete())
+	require.Equal(t, "rex-tui", got[0].DeletedBy.Client)
+	require.Equal(t, "rex-cli", got[1].RequestedBy.Client, "the run record keeps requested_by")
+	require.Nil(t, got[2].RequestedBy, "a record from before requested_by existed still parses")
+
+	require.NoError(t, r.run(t, "txt"))
+	out := r.out.String()
+	require.Contains(t, out, "deleted")
+	require.Contains(t, out, "rex-tui")
+	require.Contains(t, out, "rex-cli")
 }

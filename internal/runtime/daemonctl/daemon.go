@@ -89,6 +89,7 @@ func start(bin, socket string, stderrLog *os.File) (*StartResult, error) {
 	t0 := time.Now()
 	cmd := exec.Command(bin, "-socket", socket)
 	cmd.SysProcAttr = detachAttr()
+	cmd.Env = daemonEnv() // nil (the caller's environment) unless the OS cannot filter it in the daemon
 	if stderrLog != nil {
 		tightenLog(stderrLog)
 		cmd.Stderr = stderrLog

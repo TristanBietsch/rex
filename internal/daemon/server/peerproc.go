@@ -23,6 +23,11 @@ type peerClass struct {
 	// unknown is set when inSession is set only because the pid, the
 	// ancestry or the session could not be read.
 	unknown bool
+	// exe is the peer's executable path; empty when it could not be read
+	// or the platform has none. On macOS it is the path as the peer gave
+	// it to exec (set by the process itself), so it is reported, not
+	// verified. Failing to read it never changes inSession or unknown.
+	exe string
 }
 
 // classifyPeer reads the pid behind conn and decides whether the peer runs
@@ -55,8 +60,9 @@ func (s *Server) classifyPeer(ctx context.Context, conn net.Conn) peerClass {
 		logUnknownPeer(ctx, "pid", pid, err)
 		return peerClass{pid: pid, inSession: true, unknown: true}
 	}
+	exe := peerExe(ctx, pid)
 	if pid == s.selfPID {
-		return peerClass{pid: pid}
+		return peerClass{pid: pid, exe: exe}
 	}
 	in, err := descendsFrom(pid, s.selfPID)
 	if err == nil && !in {
@@ -64,9 +70,20 @@ func (s *Server) classifyPeer(ctx context.Context, conn net.Conn) peerClass {
 	}
 	if err != nil {
 		logUnknownPeer(ctx, "ancestry", pid, err)
-		return peerClass{pid: pid, inSession: true, unknown: true}
+		return peerClass{pid: pid, exe: exe, inSession: true, unknown: true}
 	}
-	return peerClass{pid: pid, inSession: in}
+	return peerClass{pid: pid, exe: exe, inSession: in}
+}
+
+// peerExe reads the executable path of peer pid. An error (the peer exited,
+// or the platform cannot say) is logged at Debug and yields "".
+func peerExe(ctx context.Context, pid int) string {
+	exe, err := procExe(pid)
+	if err != nil {
+		slog.DebugContext(ctx, "server: peer executable unknown", "pid", pid, "err", err)
+		return ""
+	}
+	return exe
 }
 
 // logUnknownPeer logs a peer that classifyPeer could not classify. A peer

@@ -172,17 +172,9 @@ func (a *Audit) end(sess *state.Session, sum protocol.SessionSummary) error {
 
 func (a *Audit) write(sess *state.Session, sum protocol.SessionSummary) error {
 	first, full := sess.AuditText()
-	wsID, path := "", a.global
-	if a.ws.Load() && a.home != "" {
-		w, err := a.find(sum.CWD, a.home)
-		switch {
-		case err != nil:
-			a.warnOnce("find:"+sum.CWD, err)
-		case w != nil:
-			wsID, path = w.ID, filepath.Join(w.Root, workspace.DirName, workspace.AuditFileName)
-		}
-	}
+	wsID, path := a.locate(sum.CWD)
 	rec := audit.FromSummary(sum, wsID, first, full, a.full.Load(), a.now())
+	rec.RequestedBy = sess.Requester()
 	err := audit.Append(path, rec)
 	if err != nil && path != a.global {
 		// A workspace file that cannot be written (read-only, unsafe) must
@@ -191,6 +183,23 @@ func (a *Audit) write(sess *state.Session, sum protocol.SessionSummary) error {
 		err = audit.Append(a.global, rec)
 	}
 	return err
+}
+
+// locate returns the workspace id ("" for none) and the audit file for a
+// session working in cwd: the workspace's own when the workspaces setting is
+// on and cwd is inside one, else the global file.
+func (a *Audit) locate(cwd string) (wsID, path string) {
+	wsID, path = "", a.global
+	if a.ws.Load() && a.home != "" {
+		w, err := a.find(cwd, a.home)
+		switch {
+		case err != nil:
+			a.warnOnce("find:"+cwd, err)
+		case w != nil:
+			wsID, path = w.ID, filepath.Join(w.Root, workspace.DirName, workspace.AuditFileName)
+		}
+	}
+	return wsID, path
 }
 
 // warnOnce logs err for key the first time only.
@@ -203,6 +212,25 @@ func (a *Audit) warnOnce(key string, err error) {
 		level = slog.LevelError
 	}
 	slog.Log(context.Background(), level, "audit: cannot write the audit trail; will keep trying quietly", "path", key, "err", err)
+}
+
+// Deleted appends the delete line for sess to the file its run record goes
+// to (the workspace's or the global one). It is inert while the audit trail
+// is off. A write that fails is logged once per file and does not stop the
+// delete: the run record, written first, is what must not be lost.
+func (a *Audit) Deleted(sess *state.Session, by *state.Requester) {
+	if !a.on.Load() {
+		return
+	}
+	_, path := a.locate(sess.Summary().CWD)
+	err := audit.AppendDelete(path, sess.ID, by, a.now())
+	if err != nil && path != a.global {
+		a.warnOnce(path, err)
+		err = audit.AppendDelete(a.global, sess.ID, by, a.now())
+	}
+	if err != nil {
+		a.warnOnce(a.global, err)
+	}
 }
 
 // Close stops listening to the store and waits for the writer.

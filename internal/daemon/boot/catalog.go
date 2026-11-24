@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 	"github.com/tristanbietsch/rex/internal/daemon/server"
 	"github.com/tristanbietsch/rex/internal/runtime/paths"
 )
@@ -118,7 +120,7 @@ func (c *Catalog) Refresh(ctx context.Context, st *settings.Store, force bool) {
 			slog.Warn("daemon: model refresh skipped", "err", err)
 			return
 		}
-		detected := registry.RefreshModels(rctx, base.Tools, modelsCachePath(), force, time.Now())
+		detected := registry.RefreshModels(rctx, base.Tools, modelsCachePath(), force, time.Now(), c.probeEnv)
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		if rctx.Err() != nil || c.gen.Load() != gen {
@@ -127,6 +129,17 @@ func (c *Catalog) Refresh(ctx context.Context, st *settings.Store, force bool) {
 		c.srv.SetRegistry(base.WithModels(detected))
 		slog.Info("daemon: models refreshed", "tools_with_detected_models", len(detected))
 	}()
+}
+
+// probeEnv is the environment a model probe of tool runs with: the daemon's
+// environment through the current child_env policy, with the tool's own
+// env_pass added to the env_passthrough names. Settings are read now, at
+// probe time, through the server (nil Config.ChildEnv fails closed).
+func (c *Catalog) probeEnv(tool registry.Tool) []string {
+	o := c.srv.ChildEnvOptions()
+	// Concat builds a new slice: tool.EnvPass is shared registry data.
+	o.Pass = slices.Concat(tool.EnvPass, o.Pass)
+	return childenv.Build(os.Environ(), o)
 }
 
 // InstalledRescanEvery is how often WatchInstalled probes PATH.

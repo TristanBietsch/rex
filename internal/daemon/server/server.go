@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 	"github.com/tristanbietsch/rex/internal/daemon/pty"
 	"github.com/tristanbietsch/rex/internal/daemon/state"
 	"github.com/tristanbietsch/rex/internal/features/snapshot"
@@ -88,6 +89,12 @@ type Config struct {
 	// skip_permissions_args (setting skip_permissions). Called at each
 	// spawn. nil: never.
 	SkipPermissions func() bool
+	// ChildEnv returns the environment policy for new sessions (settings
+	// child_env, env_ssh_agent, env_passthrough). Pass holds the
+	// env_passthrough names, for every tool; the spawn adds the tool's own
+	// env_pass. Called at each spawn. nil: fails closed, to allowlist mode
+	// with the base names and the tool's env_pass only.
+	ChildEnv func() childenv.Options
 	// ResumeEnabled reports whether the resume feature is on (setting
 	// resume). Called at each spawn and Resume. Off: no conversation id is
 	// preassigned or captured, and a Resume intent is refused. nil: on.
@@ -163,6 +170,10 @@ type AuditHook interface {
 	// The server calls it before it removes the session's directory, and
 	// keeps the session when it fails.
 	End(sess *state.Session) error
+	// Deleted appends the line that says by (nil: the daemon itself)
+	// deleted the session. The server calls it after End succeeded and
+	// before the session goes; a failure is the hook's to log.
+	Deleted(sess *state.Session, by *state.Requester)
 }
 
 // WorkspaceHook is how the server tags sessions with their workspace (see

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -152,4 +153,44 @@ func TestClientComplete_OmitsZeroOptions(t *testing.T) {
 	opts := body()["options"].(map[string]any)
 	require.NotContains(t, opts, "num_predict")
 	require.NotContains(t, opts, "stop")
+}
+
+func TestClient_RefusesRedirect(t *testing.T) {
+	var hits atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = io.WriteString(w, `{"response":"x"}`)
+	}))
+	defer target.Close()
+	src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/api/generate", http.StatusTemporaryRedirect)
+	}))
+	defer src.Close()
+
+	c := NewClient(Config{BaseURL: src.URL, Model: "m"})
+	_, err := c.Complete(context.Background(), CompleteRequest{Prompt: "SECRET-SCREEN-TEXT"})
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "SECRET-SCREEN-TEXT")
+	require.Zero(t, hits.Load())
+}
+
+func TestClient_CapsReplySize(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		pad := strings.Repeat("a", 2<<20)
+		if r.URL.Path == "/api/tags" {
+			_, _ = io.WriteString(w, `{"models":[{"name":"`+pad+`"}]}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"response":"`+pad+`"}`)
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{BaseURL: srv.URL, Model: "m"})
+	_, err := c.Complete(context.Background(), CompleteRequest{Prompt: "p"})
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "aaaa")
+	_, err = c.Tags(context.Background())
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "aaaa")
 }

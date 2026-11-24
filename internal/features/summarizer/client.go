@@ -14,6 +14,30 @@ import (
 	"time"
 )
 
+// maxReplyBytes caps how much of an Ollama reply the client reads. A larger
+// reply is an error, never a truncated decode.
+const maxReplyBytes = 1 << 20
+
+// errRedirect is returned instead of following a redirect: a redirect would
+// re-send the request body, which carries session text, to another address.
+var errRedirect = errors.New("ollama endpoint redirected; redirects are not followed")
+
+// decodeReply reads at most maxReplyBytes from r and decodes it as JSON into
+// v. A longer reply fails; the error never contains reply text.
+func decodeReply(r io.Reader, v any) error {
+	data, err := io.ReadAll(io.LimitReader(r, maxReplyBytes+1))
+	if err != nil {
+		return fmt.Errorf("read reply: %w", err)
+	}
+	if len(data) > maxReplyBytes {
+		return fmt.Errorf("reply exceeds %d bytes", maxReplyBytes)
+	}
+	if err := json.Unmarshal(data, v); err != nil {
+		return fmt.Errorf("decode: %w", err)
+	}
+	return nil
+}
+
 // statusError is a non-200 reply from Ollama.
 type statusError struct{ Code int }
 
@@ -64,6 +88,9 @@ func NewClient(cfg Config) *Client {
 		baseURL: cfg.BaseURL,
 		http: &http.Client{
 			Timeout: cfg.RequestTimeout,
+			CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+				return fmt.Errorf("%w: to %s", errRedirect, req.URL.Redacted())
+			},
 			Transport: &http.Transport{
 				MaxIdleConnsPerHost: 1,
 				IdleConnTimeout:     90 * time.Second,
@@ -156,8 +183,8 @@ func (c *Client) Complete(ctx context.Context, cr CompleteRequest) (string, erro
 		return "", &statusError{Code: resp.StatusCode}
 	}
 	var out generateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", fmt.Errorf("decode: %w", err)
+	if err := decodeReply(resp.Body, &out); err != nil {
+		return "", err
 	}
 	return out.Response, nil
 }
@@ -183,8 +210,8 @@ func (c *Client) Tags(ctx context.Context) ([]string, error) {
 		return nil, &statusError{Code: resp.StatusCode}
 	}
 	var out tagsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
+	if err := decodeReply(resp.Body, &out); err != nil {
+		return nil, err
 	}
 	names := make([]string, 0, len(out.Models))
 	for _, m := range out.Models {

@@ -35,6 +35,34 @@ filesystem permissions.
   into any agent's PTY, so it can run commands as you. Only your user may
   connect. Reports of other users or processes connecting, or of the socket
   being reachable beyond the filesystem, are in scope.
+- **The environment agents and the daemon hold.** The `child_env` setting
+  (default `allowlist`) gives each agent, model probe and loop check only
+  the base names (`PATH`, `HOME`, locale, proxy and CA variables and so
+  on), the names its tool declares in `env_pass`, and `env_passthrough`; a
+  key exported in the shell that started rex does not reach them. The
+  daemon filters its own environment the same way at startup, by
+  re-executing itself with the allowlist (it also keeps rex's own `REX_*`
+  variables, which agents do not get), so it no longer holds anything
+  else. On Windows, which cannot replace a process in place, `rex` builds
+  the same environment before it starts the daemon; a daemon not started
+  through `rex` (an older build, or by hand) runs unfiltered there.
+  `child_env`, `env_passthrough` and `env_ssh_agent` are trust settings:
+  from the CLI they change only at a terminal. A hot restart keeps the
+  daemon's environment, so a change to `env_passthrough`, a tool's
+  `env_pass` or `child_env: inherit` reaches the daemon only after
+  `rex daemon restart -cold`.
+  What the default still gives away: `SSH_AUTH_SOCK` (while
+  `env_ssh_agent` is on, the default) lets an agent use every key loaded
+  in your SSH agent for as long as it runs, so turn it off with
+  `env_ssh_agent: false` if agents should not sign with them; and a proxy
+  URL in `HTTP_PROXY` and friends can carry a user name and password.
+  Remaining exposure: on Linux a process can read another process of the
+  same user's environment from `/proc/<pid>/environ`, so an agent can
+  still read the keys of the tool processes it can see running (its own
+  and sibling agents'). `inherit` restores the old behavior and the old
+  exposure. An agent receiving a variable that is neither a base name nor
+  in `env_pass` or `env_passthrough`, or the daemon keeping one, is in
+  scope.
 - **Agents controlling rex.** Every agent rex starts is a child of
   `rex-daemon` and leads its own session (its PTY), and every command an
   agent runs either descends from the daemon or, if it left the daemon's
@@ -69,6 +97,12 @@ filesystem permissions.
   AI summaries are written by a local model from what an agent printed, so
   they can be wrong or steered by that output ("Waiting: run curl … | sh").
   They are one line of display-safe text, length-capped, and never acted on.
+- **Where summaries are sent.** The summarizer talks only to a local
+  Ollama. `OLLAMA_HOST` is parsed strictly; a host that is not on this
+  machine is refused (the summarizer stays off) unless the trust setting
+  `summary_allow_remote` is true and the URL is https. The client follows no
+  redirects and reads at most 1 MiB of a reply. `rex doctor` shows the
+  endpoint in use.
 - **Theme files.** `~/.config/rex/themes/*.yaml` are treated as untrusted
   data, since people share them. They hold colors and one-character
   glyphs, never code. rex validates every color (`#RGB`, `#RRGGBB`, an ANSI
@@ -128,8 +162,10 @@ filesystem permissions.
   default) the daemon appends one line per finished session to
   `~/.local/share/rex/audit.jsonl`, or to `<workspace>/.rex/audit.jsonl` for
   a session inside a workspace. A line holds ids, names, the tool, times, the
-  end state and the first line of the initial prompt (200 characters,
-  control characters removed). With `audit_full_prompt` (off by default) it
+  end state, who started it (the client name, pid and executable path the
+  caller reported, flattened to plain text) and the first line of the
+  initial prompt (200 characters, control characters removed); deleting a
+  session adds a line naming who deleted it. With `audit_full_prompt` (off by default) it
   also holds the whole prompt, which can contain secrets, in a file that may
   sit in a synced or committed folder. rex writes these files 0600 in 0700
   folders and never follows a symlink at `.rex/`, `workspace.json` or
@@ -186,12 +222,19 @@ filesystem permissions.
   both are prepared before either is swapped, and a failed swap puts the
   old binaries back. A binary whose path cannot be resolved is not
   updated. rex never overwrites a
-  binary owned by a package manager. The checksum file comes from the same
-  release as the archive, so it detects corruption, not a compromised
-  release or GitHub account on its own. Release archives and `SHA256SUMS` carry
-  GitHub build provenance attestations (`gh attestation verify <file> --repo
-  TristanBietsch/rex`); `install.sh`, `install.ps1` and `rex update` do not check
-  them yet. Reports of the
+  binary owned by a package manager. **What a release check proves.**
+  The checksum file comes from the same release as the archive, so a match
+  shows the download is what GitHub published and was not damaged on the
+  way. It does not protect against someone who controls the GitHub account
+  or the release workflow: they can replace the archive and `SHA256SUMS`
+  together. Release archives and `SHA256SUMS` carry GitHub build provenance
+  attestations; `gh attestation verify <file> --repo TristanBietsch/rex`
+  checks that a file was built by this repository's GitHub workflow. That
+  is a manual step: `install.sh`, `install.ps1` and `rex update` do not run
+  it. It trusts the same workflow, so it has the same limit. The release
+  workflow builds only tags whose commit is on `master`. Signing by the
+  maintainer is planned in
+  [docs/plans/release-signing.md](docs/plans/release-signing.md). Reports of the
   updater writing outside the install folder, installing a file that does
   not match `SHA256SUMS`, following a downgrade without `-force`, or
   leaking the token are in scope.

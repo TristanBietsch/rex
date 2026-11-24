@@ -69,7 +69,7 @@ func (s *Server) SpawnLoopSession(ctx context.Context, req loop.SpawnRequest) (s
 	return spawnSession(ctx, "", protocol.NewSession{
 		ToolID: req.Tool, ModelID: req.Model, Effort: req.Effort,
 		Slug: req.Slug, Title: req.Title, CWD: req.CWD, InitialPrompt: req.Prompt,
-	}, s, req.LoopID, req.Iter)
+	}, s, req.LoopID, req.Iter, nil) // no client asked: the loop did
 }
 
 // lockInput takes the session's input lock and returns its unlock.
@@ -223,7 +223,7 @@ func (s *Server) EnsureLive(ctx context.Context, sessionID string) error {
 	if !s.resumeOn() {
 		return errors.New("resume is off")
 	}
-	resumed, err := s.resumeExited(ctx, sess)
+	resumed, err := s.resumeExited(ctx, sess, nil)
 	if err != nil {
 		return err
 	}

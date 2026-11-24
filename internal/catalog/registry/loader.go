@@ -164,6 +164,10 @@ func mergeOne(base, over Tool) Tool {
 	if len(over.StatusEnv) > 0 {
 		merged.StatusEnv = over.StatusEnv
 	}
+	if len(over.EnvPass) > 0 {
+		// A union, so a user adding one name keeps the built-in auth names.
+		merged.EnvPass = unionNames(base.EnvPass, over.EnvPass)
+	}
 	if over.ModelEffort != nil {
 		merged.ModelEffort = over.ModelEffort
 	}
@@ -267,6 +271,9 @@ func validateTool(t Tool) error {
 	if err := validateStatusEnv(t); err != nil {
 		return err
 	}
+	if err := validateEnvPass(t); err != nil {
+		return err
+	}
 	if err := validateModelsCmd(t.ID, t.ModelsCmd); err != nil {
 		return err
 	}
@@ -331,4 +338,51 @@ func validateStatusEnv(t Tool) error {
 		}
 	}
 	return nil
+}
+
+// envPassPattern is a variable name with an optional trailing "*" for a
+// prefix. The name part must be non-empty, so a bare "*" never matches.
+var envPassPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\*?$`)
+
+// ValidEnvPassName reports whether e is a valid env_pass entry: a variable
+// name, optionally ending in "*" for a prefix, never "" or a bare "*". The
+// env_passthrough setting uses the same rule.
+func ValidEnvPassName(e string) bool { return envPassPattern.MatchString(e) }
+
+// validateEnvPass checks env_pass: each entry is a plain variable name or a
+// prefix pattern ending in "*", never "" or a bare "*".
+func validateEnvPass(t Tool) error {
+	for _, e := range t.EnvPass {
+		if !ValidEnvPassName(e) {
+			return fmt.Errorf("tool %q: env_pass entry %q must be a variable name, optionally ending in *", t.ID, e)
+		}
+	}
+	return nil
+}
+
+// AllEnvPass returns the union of every tool's env_pass entries, sorted and
+// without duplicates (nil for a nil or empty registry). The result is a fresh
+// slice.
+func AllEnvPass(r *Registry) []string {
+	if r == nil {
+		return nil
+	}
+	var all []string
+	for _, t := range r.Tools {
+		all = append(all, t.EnvPass...)
+	}
+	slices.Sort(all)
+	return slices.Compact(all)
+}
+
+// unionNames returns a new slice with the names of a, then the names of b
+// that a does not hold, each once. Neither input is modified.
+func unionNames(a, b []string) []string {
+	out := make([]string, 0, len(a)+len(b))
+	for _, n := range slices.Concat(a, b) {
+		if !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out
 }

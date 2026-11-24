@@ -82,3 +82,45 @@ func keys(m map[string]string) []string {
 	}
 	return out
 }
+
+func TestTrustSettingIDs_IncludeSummaryAllowRemote(t *testing.T) {
+	require.True(t, IsTrustSetting("summary_allow_remote"))
+	s, ok := Find("summary_allow_remote")
+	require.True(t, ok)
+	require.Equal(t, TypeBool, s.Type)
+	require.Equal(t, false, s.Default)
+}
+
+func TestChildEnvSettings_DefaultsAndTrust(t *testing.T) {
+	for id, want := range map[string]any{"child_env": "allowlist", "env_passthrough": "", "env_ssh_agent": true} {
+		s, ok := Find(id)
+		require.True(t, ok, id)
+		require.Equal(t, want, s.Default, id)
+		require.True(t, IsTrustSetting(id), id)
+		require.Contains(t, TrustSettingIDs, id)
+	}
+	cs, _ := Find("child_env")
+	require.Equal(t, ApplyNextSpawn, cs.Apply)
+	ps, _ := Find("env_passthrough")
+	require.Equal(t, ApplyDaemonRestart, ps.Apply)
+	require.Equal(t, ",", ps.ListSep)
+	as, _ := Find("env_ssh_agent")
+	require.Equal(t, ApplyNextSpawn, as.Apply)
+}
+
+func TestChildEnvValidation(t *testing.T) {
+	v, err := Validate("child_env", "inherit")
+	require.NoError(t, err)
+	require.Equal(t, "inherit", v)
+	_, err = Validate("child_env", "nope")
+	require.Error(t, err)
+
+	for _, ok := range []string{"", "FOO", "FOO,BAR_*", " A , B "} {
+		_, err := Validate("env_passthrough", ok)
+		require.NoError(t, err, ok)
+	}
+	for _, bad := range []string{"*", "A,,B", "A,*", "1A", "A B", ","} {
+		_, err := Validate("env_passthrough", bad)
+		require.Error(t, err, bad)
+	}
+}

@@ -35,13 +35,34 @@ var stripCases = []struct {
 	{"ESC in OSC starts new sequence", "\x1b]0;t\x1b[31mred", "red"},
 	{"UTF-8 kept", "\x1b[1mcafé ✓\x1b[0m", "café ✓"},
 	{"non-ASCII ends malformed CSI", "\x1b[3é", "é"},
-	{"broken UTF-8 kept", "\xff\xfe x", "\xff\xfe x"},
+	{"invalid UTF-8 replaced", "\xff\xfe x", "\ufffd\ufffd x"},
+	{"BEL dropped", "a\x07b", "ab"},
+	{"CR dropped, LF and tab kept", "a\rb\n\tc", "ab\n\tc"},
+	{"backspace dropped", "a\x08b", "ab"},
+	{"UTF-8 C1 dropped", "a\u009bb", "ab"},
+	{"UTF-8 OSC C1 dropped", "a\u009d0;x\u009cb", "a0;xb"},
+	{"raw C1 byte replaced", "a\x9bb", "a\ufffdb"},
+	{"bidi override dropped", "a\u202eb\u2067c", "abc"},
+	{"multi-byte kept", "caf\u00e9 \u2713 \U0001F600", "caf\u00e9 \u2713 \U0001F600"},
+	{"truncated rune replaced", "a\xe2\x82b", "a\ufffd\ufffdb"},
+	{"C0 inside CSI dropped except LF", "a\x1b[3\r\x071mb\n", "ab\n"},
 }
 
-// stripANSI strips b in one call.
+// A rune cut off at the end of the stream becomes U+FFFD.
+func TestStripWriter_flushPartialRune(t *testing.T) {
+	var out bytes.Buffer
+	w := newStripWriter(&out)
+	_, err := w.Write([]byte("a\xe2\x82"))
+	require.NoError(t, err)
+	require.Equal(t, "a", out.String())
+	require.NoError(t, w.flush())
+	require.Equal(t, "a\ufffd\ufffd", out.String())
+}
+
+// stripANSI strips b in one call, including a rune cut off at its end.
 func stripANSI(b []byte) []byte {
 	var s ansiStripper
-	return s.strip(make([]byte, 0, len(b)), b)
+	return s.finish(s.strip(make([]byte, 0, len(b)), b))
 }
 
 func TestStripANSI(t *testing.T) {

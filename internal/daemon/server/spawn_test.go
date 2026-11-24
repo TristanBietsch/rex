@@ -2,6 +2,7 @@ package server
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/daemon/adapter"
+	"github.com/tristanbietsch/rex/internal/daemon/childenv"
 )
 
 // legacyArgv is handleNewSession's inline argv construction as it was before
@@ -143,4 +145,43 @@ func TestBuildArgvSkipPermissions(t *testing.T) {
 			require.Contains(t, on, "--dangerously-skip-permissions", "%s: setting on, folder trusted", id)
 		}
 	}
+}
+
+func TestChildBaseEnv(t *testing.T) {
+	parent := []string{"PATH=/bin", "HOME=/h", "SECRET_X=s1", "ANTHROPIC_API_KEY=k", "EXTRA_A=a", "OTHER=o"}
+	tool := registry.Tool{EnvPass: []string{"ANTHROPIC_*"}}
+
+	// nil ChildEnv fails closed: the allowlist with the tool's names only.
+	got, dropped := (&Server{}).childBaseEnv(tool, parent)
+	require.ElementsMatch(t, []string{"PATH=/bin", "HOME=/h", "ANTHROPIC_API_KEY=k"}, got)
+	require.Equal(t, 3, dropped)
+
+	// env_passthrough names reach every tool, next to the tool's own.
+	srv := &Server{cfg: Config{ChildEnv: func() childenv.Options {
+		return childenv.Options{Mode: childenv.ModeAllowlist, Pass: []string{"EXTRA_A"}, GOOS: runtime.GOOS}
+	}}}
+	got, _ = srv.childBaseEnv(tool, parent)
+	require.ElementsMatch(t, []string{"PATH=/bin", "HOME=/h", "ANTHROPIC_API_KEY=k", "EXTRA_A=a"}, got)
+	got, _ = srv.childBaseEnv(registry.Tool{}, parent)
+	require.ElementsMatch(t, []string{"PATH=/bin", "HOME=/h", "EXTRA_A=a"}, got)
+
+	// inherit keeps everything.
+	srv = &Server{cfg: Config{ChildEnv: func() childenv.Options { return childenv.Options{Mode: childenv.ModeInherit} }}}
+	got, dropped = srv.childBaseEnv(tool, parent)
+	require.Equal(t, parent, got)
+	require.Zero(t, dropped)
+}
+
+// The tool's EnvPass is registry data shared across goroutines: building the
+// environment must never write into its backing array.
+func TestChildBaseEnv_DoesNotMutateToolEnvPass(t *testing.T) {
+	backing := make([]string, 8)
+	backing[0] = "A"
+	tool := registry.Tool{EnvPass: backing[:1]}
+	srv := &Server{cfg: Config{ChildEnv: func() childenv.Options {
+		return childenv.Options{Mode: childenv.ModeAllowlist, Pass: []string{"B"}}
+	}}}
+	srv.childBaseEnv(tool, []string{"A=1", "B=2"})
+	require.Equal(t, []string{"A"}, tool.EnvPass)
+	require.Equal(t, "", backing[1], "spare capacity untouched")
 }

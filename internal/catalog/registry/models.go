@@ -130,9 +130,10 @@ func jsonPathStrings(doc any, segs []string) []string {
 
 // runModelsCmd runs the tool's model-list command and returns its stdout.
 // The command is Command plus ModelsCmd.Args, fixed in the registry. It gets
-// no stdin, the daemon's environment, a timeout, and at most MaxModelsOutput
+// no stdin, exactly the environment env (never the daemon's own: a nil env
+// means an empty one), a timeout, and at most MaxModelsOutput
 // bytes of stdout (stderr is discarded). A non-zero exit is an error.
-func runModelsCmd(ctx context.Context, tool Tool) ([]byte, error) {
+func runModelsCmd(ctx context.Context, tool Tool, env []string) ([]byte, error) {
 	mc := tool.ModelsCmd
 	if mc == nil {
 		return nil, errors.New("tool has no models_cmd")
@@ -154,6 +155,7 @@ func runModelsCmd(ctx context.Context, tool Tool) ([]byte, error) {
 	argv := append(append([]string{}, tool.Command[1:]...), mc.Args...)
 	cmd := exec.CommandContext(ctx, path, argv...) //nolint:gosec // the command is fixed in the registry
 	cmd.Stdin = nil                                // /dev/null
+	cmd.Env = append([]string{}, env...)           // non-nil: exec treats a nil Env as "inherit the daemon's"
 	cmd.Dir = os.TempDir()                         // a neutral folder, never the daemon's working directory
 	configureKill(cmd)                             //nolint:contextcheck // Cancel runs after ctx is done, so the tree kill needs its own context
 	cmd.WaitDelay = waitDelay
@@ -199,12 +201,12 @@ func (c *cappedBuffer) Write(p []byte) (int, error) {
 // each id validated, Name the id, Args from model_arg_template, Effort from
 // model_effort. An error (missing binary, non-zero exit, timeout, oversized
 // output, or output with no valid id such as an auth error) means the caller
-// should use the static models.
-func DetectModels(ctx context.Context, tool Tool) ([]Model, error) {
+// should use the static models. The command runs with exactly env.
+func DetectModels(ctx context.Context, tool Tool, env []string) ([]Model, error) {
 	if len(tool.ModelArgTemplate) == 0 {
 		return nil, errors.New("tool has no model_arg_template")
 	}
-	out, err := runModelsCmd(ctx, tool)
+	out, err := runModelsCmd(ctx, tool, env)
 	if err != nil {
 		return nil, err
 	}

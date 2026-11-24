@@ -67,8 +67,9 @@ func (c *cappedBuffer) result() ([]byte, bool) {
 // RunCheck runs argv in dir with a timeout, in its own process group that is
 // killed on timeout or when ctx ends. Output is captured up to
 // MaxCheckOutput. argv comes from a validated loop file, never from agent
-// output; it is executed directly, with no shell.
-func RunCheck(ctx context.Context, argv []string, dir string, timeout time.Duration) CheckResult {
+// output; it is executed directly, with no shell. It runs with exactly env
+// (never the daemon's own: a nil env means an empty one).
+func RunCheck(ctx context.Context, argv []string, dir string, timeout time.Duration, env []string) CheckResult {
 	if len(argv) == 0 {
 		return CheckResult{ExitCode: -1, Err: errors.New("empty check command")}
 	}
@@ -76,6 +77,7 @@ func RunCheck(ctx context.Context, argv []string, dir string, timeout time.Durat
 	defer cancel()
 	cmd := exec.CommandContext(cctx, argv[0], argv[1:]...)
 	cmd.Dir = dir
+	cmd.Env = append([]string{}, env...) // non-nil: exec treats a nil Env as "inherit the daemon's"
 	out := &cappedBuffer{limit: MaxCheckOutput}
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.WaitDelay = checkWaitDelay

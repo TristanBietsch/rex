@@ -42,7 +42,7 @@ The settings page shows this per row (the detail pane under the list), and the r
 | next attach | Read when an attach popup opens or resizes (`attach_banner`, `attach_scrollback_lines`) |
 | applies now (set from the TUI) | `max_concurrent_sessions`: the TUI sends it to the running daemon; the daemon ignores the YAML |
 | next new session | Read at each spawn; running sessions keep their value (`default_spawn_*`, `auto_trust_dirs`, `skip_permissions`, `resume`, `spawn_skills`, `usage_statusline_tap`) |
-| after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `lua_config_path`) |
+| after a daemon restart | Read once when the daemon starts (`summary_enabled`, `summary_model`, `summary_allow_remote`, `lua_config_path`) |
 
 ## Themes
 
@@ -175,6 +175,9 @@ The `new_agent_page` switch was removed with the popup wizard (R21): `n` always 
 | `default_spawn_model` | string | `opus` | Model id on that tool |
 | `default_spawn_effort` | string | `max` | Ignored if tool has no effort axis |
 | `auto_trust_dirs` | string | `""` | Folders (separated by `:`, `;` on Windows; `~/` allowed) whose sessions get the agent's "trust this folder" dialog accepted. Empty: always ask. Set with `rex trust`, `ctrl+a` on the new-agent page, `:trust`, `rex setup -auto-trust` or `rex config set` (the CLI ones only at a terminal; exit 6 for agents and pipes); all refuse the values listed below (exit 5). A change made through rex reaches a running daemon at once; a hand edit of `config.yaml` applies within 5 s, or on `rex reload` with `live_reload` off |
+| `child_env` | enum | `allowlist` | Values `allowlist`, `inherit`. Which environment variables agents, model probes and loop checks get. `allowlist`: the base names (`PATH`, `HOME`, `USER`, `SHELL`, `TERM`, `LANG`/`LC_*`, `XDG_*`, proxy and CA variables, `EDITOR`, plus a few per OS), the names the tool declares in `env_pass` (see [registry.md](registry.md)), `env_passthrough`, and `SSH_AUTH_SOCK` while `env_ssh_agent` is on. `inherit`: everything the daemon has. The daemon itself filters its own environment the same way at startup (a re-exec, same pid), so it stops holding secrets from the shell that started it. Trust setting: `rex config set` / `reset` change it only at a terminal (exit 6 for agents and pipes). Read at each spawn; the daemon's own environment is read once at daemon start, and `inherit` reaches it only after `rex daemon restart -cold` (a hot restart keeps the daemon's environment). See [SECURITY.md](../SECURITY.md) |
+| `env_passthrough` | string | `""` | Variable names every agent also gets in `allowlist` mode, comma-separated; a trailing `*` matches a prefix (`GH_TOKEN,MY_TOOL_*`). Trust setting (terminal only, like `child_env`). Applies after a daemon restart: the daemon keeps only the names listed when it started, so a name added later is not in the filtered daemon until `rex daemon restart -cold` (a hot restart keeps the daemon's environment) |
+| `env_ssh_agent` | bool | `true` | Give agents `SSH_AUTH_SOCK` in `allowlist` mode. It lets an agent use every key loaded in your SSH agent for as long as it runs; turn it off to keep agents away from the agent. Trust setting (terminal only). Next new session; turning it on after the daemon started needs `rex daemon restart -cold`, because the daemon dropped `SSH_AUTH_SOCK` at start (a hot restart keeps the daemon's environment) |
 
 In the settings page (`S`) these three cycle with `+`/`-` through the tool registry: tool → that tool's models → that model's effort options. Changing the tool resets model and effort; changing the model resets an effort it doesn't offer. The daemon rejects an effort the model doesn't list.
 
@@ -219,6 +222,7 @@ Symlinks are resolved on both sides, so a link inside a trusted folder that poin
 | `summary_model` | string | `gemma2:2b` | Use a small model: `gemma2:2b`, `llama3.2:3b`, `llama3.2:1b`, `gemma3:1b`, `qwen2.5:3b`, `phi3:mini` |
 | `summary_detail` | enum | `medium` | Applies within about 5 s, no daemon restart. `short` (about 8 words, 60 characters), `medium` (about 15 words, 110), `long` (about 28 words, 180). Each step up costs roughly 0.5-1.5 s more per call on a small local model |
 | `desc_animation` | enum | `typewriter` | `typewriter`, `decode`, `wipe`, `off` |
+| `summary_allow_remote` | bool | `false` | Trust setting: set at a terminal (`rex config set`), never from a workspace file. Lets the summarizer use an `OLLAMA_HOST` that is not on this machine; it must be https. Session text is sent to that host. Off: a non-local host keeps the summarizer off and the board shows why. Read at daemon start |
 | `summary_scan` | bool | `true` | A Larson scanner (the KITT / Cylon / RoboCop visor sweep): a band of color runs back and forth across the summary line under the board (`summary_preview`) while the selected session is in Working or Waiting. No animation for any other state, a marked-done session, or with `reduce_motion` on. Live |
 | `summary_scan_color` | string | `accent` | The scanner's color. `accent` follows `accent_color` (or the theme's accent). Or a name from the `accent_color` list, or any `accent_color` form: `#rrggbb`, `rgb()`, `hsl()`, `cmyk()`, `oklch()`. A color too faint on the theme's background is lightened or darkened until it reads (4.5:1). The settings page cycles the names with the arrows and takes a typed color with enter. Live |
 | `overview_enabled` | bool | `false` | Applies within about 5 s, no daemon restart. Needs `summary_enabled`. The daemon asks the summary model for a one-line headline over the whole board (at most one call every 30 s, only while a rex board is open and something needs you, is ready for review, failed or is running). Off: no call, no goroutine |
@@ -306,7 +310,7 @@ The TUI does the same on its own: every 2 s it checks `config.yaml` and the them
 | To the running feature | `summary_detail`, `summary_schedule`, `overview_enabled`, `turn_snapshots`, `usage` |
 | At the next spawn or `Resume` | `skip_permissions`, `auto_trust_dirs`, `resume`, `spawn_skills`, `usage_statusline_tap` |
 | To the running feature (also) | `retire_after_hours`, `init.lua` handlers (on a manual reload) |
-| At daemon start only | `summary_enabled`, `summary_model`, `lua_config_path`; `rex daemon restart` (hot) applies them and keeps sessions |
+| At daemon start only | `summary_enabled`, `summary_model`, `summary_allow_remote`, `lua_config_path`; `rex daemon restart` (hot) applies them and keeps sessions |
 
 `rex reload`, `:reload` and the Settings page's `R` report the changed ids and, among them, the ones in the last row ("needs a daemon restart").
 

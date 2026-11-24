@@ -37,6 +37,17 @@ type Config struct {
 	SessionCtx context.Context
 	// MinuteUnit is what max_minutes counts in (0 = a minute). Tests shrink it.
 	MinuteUnit time.Duration
+	// CheckEnv returns the environment a loop check runs with, read at each
+	// check. nil: an empty environment, so a check never inherits the daemon's.
+	CheckEnv func() []string
+}
+
+// checkEnv is CheckEnv, or an empty environment when it is nil.
+func (c Config) checkEnv() []string {
+	if c.CheckEnv == nil {
+		return []string{}
+	}
+	return c.CheckEnv()
 }
 
 // Runner drives repeat loops. It is inert until Enable: no goroutine, no

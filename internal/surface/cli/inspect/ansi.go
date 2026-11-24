@@ -1,6 +1,11 @@
 package inspect
 
-import "io"
+import (
+	"io"
+	"unicode/utf8"
+
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
+)
 
 // Control bytes the escape-sequence stripper reacts to.
 const (
@@ -34,62 +39,116 @@ const (
 //   - The output never contains ESC. Every ESC opens a sequence that is
 //     dropped, so removed bytes can't leave a fused escape behind (F-02:
 //     "\x1b\x1b[A[" used to become "\x1b[").
-//   - Text without ESC passes through unchanged.
+//   - The output is valid UTF-8 with no C0 control except tab and newline
+//     (CR, BEL, BS, … are dropped), no C1 rune (U+0080 to U+009F, which
+//     includes UTF-8-encoded CSI and OSC) and no bidi control. Each invalid
+//     UTF-8 byte, raw 0x80 to 0x9F included, becomes U+FFFD.
+//   - Other text passes through unchanged. A rune split between two calls
+//     is held until its end arrives; finish turns one still cut off at the
+//     end of the stream into U+FFFD.
 //   - State carries across calls, so splitting the input anywhere gives
 //     the same output as stripping it whole (`rex log -f` reads chunks).
 //
-// Like a terminal, it executes C0 controls (newline, tab, …) that appear
-// inside a sequence, and CAN/SUB cancel one. Unlike a terminal, a newline
+// Like a terminal, it executes C0 controls (only newline and tab are kept)
+// that appear inside a sequence, and CAN/SUB cancel one. Unlike a terminal, a newline
 // ends an unterminated string and a non-ASCII byte ends a malformed CSI or
 // escape, so one broken sequence can't hide the rest of a transcript.
 //
 // The zero value is ready to use.
 type ansiStripper struct {
 	state stripState
+	pend  [utf8.UTFMax]byte // leading bytes of a rune cut off by the end of a write
+	n     int               // how many bytes of pend are held
 }
 
-// strip appends the text bytes of p to dst and returns the extended slice.
+// strip appends the text of p to dst and returns the extended slice. A
+// UTF-8 rune cut off at the end of p is held until the next call.
 func (s *ansiStripper) strip(dst, p []byte) []byte {
 	for _, b := range p {
-		if s.step(b) {
-			dst = append(dst, b)
-		}
+		dst = s.step(dst, b)
 	}
 	return dst
 }
 
-// step advances the parser by one byte and reports whether b is text.
-func (s *ansiStripper) step(b byte) (emit bool) {
+// finish ends the stream: a rune still cut off becomes one U+FFFD per
+// held byte, as if the text had continued with a byte that cannot follow.
+func (s *ansiStripper) finish(dst []byte) []byte {
+	for ; s.n > 0; s.n-- {
+		dst = utf8.AppendRune(dst, utf8.RuneError)
+	}
+	return dst
+}
+
+// step advances the parser by one byte and appends any text it yields.
+func (s *ansiStripper) step(dst []byte, b byte) []byte {
 	switch s.state {
 	case stGround:
-		return s.ground(b)
+		return s.ground(dst, b)
 	case stEsc:
-		return s.escape(b)
+		return s.escape(dst, b)
 	case stEscInter:
-		return s.escIntermediate(b)
+		return s.escIntermediate(dst, b)
 	case stCSI:
-		return s.csi(b)
+		return s.csi(dst, b)
 	case stString:
-		return s.str(b)
+		return s.str(dst, b)
 	case stStringEsc:
-		return s.strEsc(b)
+		return s.strEsc(dst, b)
 	default:
 		s.state = stGround
-		return s.ground(b)
+		return s.ground(dst, b)
 	}
 }
 
-func (s *ansiStripper) ground(b byte) bool {
-	if b == esc {
-		s.state = stEsc
-		return false
+// keep reports whether the ASCII byte b is text: tab and newline only.
+// CR, BEL, BS and the other C0 controls are dropped.
+func keep(b byte) bool { return b == '\t' || b == '\n' }
+
+// ground handles plain text. It decodes UTF-8, holding a partial rune
+// across calls; an invalid byte becomes U+FFFD, and C1 runes (U+0080 to
+// U+009F, including the UTF-8 form of CSI and OSC) and bidi controls are
+// dropped.
+func (s *ansiStripper) ground(dst []byte, b byte) []byte {
+	if s.n == 0 {
+		switch {
+		case b == esc:
+			s.state = stEsc
+			return dst
+		case b < utf8.RuneSelf:
+			if b >= 0x20 || keep(b) {
+				dst = append(dst, b)
+			}
+			return dst
+		}
 	}
-	return true
+	s.pend[s.n] = b
+	s.n++
+	if !utf8.FullRune(s.pend[:s.n]) {
+		return dst
+	}
+	r, size := utf8.DecodeRune(s.pend[:s.n])
+	if r == utf8.RuneError && size == 1 {
+		// The first held byte is invalid. Replace it, then read the rest
+		// again: any of them may start a rune or an escape.
+		rest := s.pend
+		n := s.n
+		s.n = 0
+		dst = utf8.AppendRune(dst, utf8.RuneError)
+		for _, c := range rest[1:n] {
+			dst = s.ground(dst, c)
+		}
+		return dst
+	}
+	s.n = 0
+	if (r >= 0x80 && r <= 0x9f) || protocol.IsBidiControl(r) {
+		return dst
+	}
+	return utf8.AppendRune(dst, r)
 }
 
-func (s *ansiStripper) escape(b byte) bool {
-	if emit, ok := s.inSequence(b); ok {
-		return emit
+func (s *ansiStripper) escape(dst []byte, b byte) []byte {
+	if out, ok := s.inSequence(dst, b); ok {
+		return out
 	}
 	switch {
 	case b == '[':
@@ -101,77 +160,77 @@ func (s *ansiStripper) escape(b byte) bool {
 	default: // 0x30–0x7e: final byte of a two-byte escape
 		s.state = stGround
 	}
-	return false
+	return dst
 }
 
-func (s *ansiStripper) escIntermediate(b byte) bool {
-	if emit, ok := s.inSequence(b); ok {
-		return emit
+func (s *ansiStripper) escIntermediate(dst []byte, b byte) []byte {
+	if out, ok := s.inSequence(dst, b); ok {
+		return out
 	}
 	if b > 0x2f { // final byte; 0x20–0x2f are more intermediates
 		s.state = stGround
 	}
-	return false
+	return dst
 }
 
-func (s *ansiStripper) csi(b byte) bool {
-	if emit, ok := s.inSequence(b); ok {
-		return emit
+func (s *ansiStripper) csi(dst []byte, b byte) []byte {
+	if out, ok := s.inSequence(dst, b); ok {
+		return out
 	}
 	if b >= 0x40 { // final byte; 0x20–0x3f are parameters and intermediates
 		s.state = stGround
 	}
-	return false
+	return dst
 }
 
 // inSequence handles the bytes that mean the same in every ESC and CSI
 // state, and reports ok=false for printable ASCII (0x20–0x7e), which the
 // caller interprets.
-func (s *ansiStripper) inSequence(b byte) (emit, ok bool) {
+func (s *ansiStripper) inSequence(dst []byte, b byte) (out []byte, ok bool) {
 	switch {
 	case b == esc: // abandon the current sequence, start a new one
 		s.state = stEsc
-		return false, true
+		return dst, true
 	case b == can || b == sub:
 		s.state = stGround
-		return false, true
+		return dst, true
 	case b < 0x20: // other C0 controls are executed mid-sequence
-		return true, true
+		if keep(b) {
+			dst = append(dst, b)
+		}
+		return dst, true
 	case b == del:
-		return false, true
+		return dst, true
 	case b > del: // not part of any sequence: end it, keep the text
 		s.state = stGround
-		return true, true
+		return s.ground(dst, b), true
 	default:
-		return false, false
+		return dst, false
 	}
 }
 
-func (s *ansiStripper) str(b byte) bool {
+func (s *ansiStripper) str(dst []byte, b byte) []byte {
 	switch b {
 	case bel, can, sub:
 		s.state = stGround
-		return false
 	case esc:
 		s.state = stStringEsc
-		return false
 	case '\n':
 		s.state = stGround
-		return true
-	default:
-		return false
+		dst = append(dst, b)
 	}
+	return dst
 }
 
 // strEsc follows an ESC inside a string. ESC \ is the String Terminator;
 // any other byte means the ESC began a new sequence.
-func (s *ansiStripper) strEsc(b byte) bool {
+func (s *ansiStripper) strEsc(dst []byte, b byte) []byte {
 	if b == '\\' {
 		s.state = stGround
-		return false
+		return dst
 	}
 	s.state = stEsc
-	return s.escape(b)
+	return s.escape(dst, b)
 }
 
 // stripWriter strips escape sequences from everything written to it
@@ -188,11 +247,23 @@ func newStripWriter(w io.Writer) *stripWriter { return &stripWriter{w: w} }
 // success because every input byte was consumed, even when stripped.
 func (sw *stripWriter) Write(p []byte) (int, error) {
 	sw.buf = sw.s.strip(sw.buf[:0], p)
-	if len(sw.buf) == 0 {
-		return len(p), nil
-	}
-	if _, err := sw.w.Write(sw.buf); err != nil {
+	if err := sw.emit(); err != nil {
 		return 0, err
 	}
 	return len(p), nil
+}
+
+// flush ends the stream: a rune cut off at the end is written as U+FFFD.
+func (sw *stripWriter) flush() error {
+	sw.buf = sw.s.finish(sw.buf[:0])
+	return sw.emit()
+}
+
+// emit writes the buffered text, if any.
+func (sw *stripWriter) emit() error {
+	if len(sw.buf) == 0 {
+		return nil
+	}
+	_, err := sw.w.Write(sw.buf)
+	return err
 }

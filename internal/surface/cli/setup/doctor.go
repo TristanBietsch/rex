@@ -115,6 +115,7 @@ func runAllChecks(socket *core.SocketFlag) []checkResult {
 	results = append(results, checkSnapshots()...)
 	results = append(results, checkAgyVersion()...)
 	results = append(results, checkAutoTrustDirs()...)
+	results = append(results, checkSummarizerSetting())
 	results = append(results, checkGoVersion())
 	results = append(results, checkCLIErrors(time.Now()))
 

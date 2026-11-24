@@ -74,7 +74,7 @@ func FlattenDisplayText(s string) string {
 // bidi runes. A literal U+FFFD takes the slow path, which keeps it.
 func isPlainDisplayText(s string) bool {
 	for _, r := range s {
-		if r == utf8.RuneError || unicode.IsControl(r) || isLineBreak(r) || isBidiControl(r) {
+		if r == utf8.RuneError || unicode.IsControl(r) || isLineBreak(r) || IsBidiControl(r) {
 			return false
 		}
 	}
@@ -108,7 +108,7 @@ func scanDisplayText(s string, flatten bool) string {
 			}
 		case r == '\t':
 			b.WriteByte(' ')
-		case unicode.IsControl(r) || isBidiControl(r):
+		case unicode.IsControl(r) || IsBidiControl(r):
 			// C0, DEL, the remaining C1 controls, bidi overrides.
 		default:
 			b.WriteRune(r)

@@ -116,10 +116,11 @@ func TestValidateLoginRegex(t *testing.T) {
 
 func TestMergeNewFields(t *testing.T) {
 	base := Tool{ID: "a", PromptArgs: []string{"{prompt}"}, ModelArgTemplate: []string{"--model", "{model}"},
-		LoginRegex: "old", ModelsCmd: &ModelsCmd{Args: []string{"x"}}}
+		LoginRegex: "old", ModelsCmd: &ModelsCmd{Args: []string{"x"}}, EnvPass: []string{"OLD_*"}}
 	over := Tool{ID: "a", PromptArgs: []string{"-i", "{prompt}"}, ModelArgTemplate: []string{"-m", "{model}"},
-		LoginRegex: "new", ModelsCmd: &ModelsCmd{Args: []string{"y"}}}
+		LoginRegex: "new", ModelsCmd: &ModelsCmd{Args: []string{"y"}}, EnvPass: []string{"NEW_KEY"}}
 	m := mergeOne(base, over)
+	require.Equal(t, []string{"OLD_*", "NEW_KEY"}, m.EnvPass)
 	require.Equal(t, over.PromptArgs, m.PromptArgs)
 	require.Equal(t, over.ModelArgTemplate, m.ModelArgTemplate)
 	require.Equal(t, "new", m.LoginRegex)
@@ -127,6 +128,7 @@ func TestMergeNewFields(t *testing.T) {
 	kept := mergeOne(base, Tool{ID: "a", Name: "n"})
 	require.Equal(t, base.PromptArgs, kept.PromptArgs)
 	require.Equal(t, "old", kept.LoginRegex)
+	require.Equal(t, base.EnvPass, kept.EnvPass)
 }
 
 // Existing tools keep their prompt delivery after the tool-id switch moved

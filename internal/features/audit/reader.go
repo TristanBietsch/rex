@@ -36,11 +36,11 @@ type Filter struct {
 
 func (f Filter) match(r Record) bool {
 	switch {
-	case !f.Since.IsZero() && r.EndedAt.Before(f.Since):
+	case !f.Since.IsZero() && r.When().Before(f.Since):
 		return false
-	case f.Tool != "" && r.Tool != f.Tool:
+	case f.Tool != "" && r.Tool != f.Tool: // a delete line has no tool
 		return false
-	case f.State != "" && r.State != f.State:
+	case f.State != "" && r.State != f.State: // nor a state
 		return false
 	case f.Workspace != "" && r.WorkspaceID != f.Workspace:
 		return false
@@ -52,7 +52,7 @@ func (f Filter) match(r Record) bool {
 // first. A missing file is empty. A file that cannot be read (a symlink, a
 // permission error) adds an error to the second result and the other files
 // still count. Lines that are torn, too long or not records are skipped, and
-// a record repeated across files or lines (same session_id and ended_at,
+// a record repeated across files or lines (same event, session_id and time,
 // as when two machines append to one synced file) counts once.
 func Read(paths []string, f Filter) ([]Record, []error) {
 	var (
@@ -62,7 +62,7 @@ func Read(paths []string, f Filter) ([]Record, []error) {
 	)
 	for _, p := range paths {
 		err := scanFile(p, func(r Record) {
-			key := r.SessionID + "\x00" + r.EndedAt.UTC().Format(time.RFC3339Nano)
+			key := r.Event + "\x00" + r.SessionID + "\x00" + r.When().UTC().Format(time.RFC3339Nano)
 			if seen[key] {
 				return
 			}
@@ -75,7 +75,7 @@ func Read(paths []string, f Filter) ([]Record, []error) {
 			errs = append(errs, fmt.Errorf("%s: %w", p, err))
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].EndedAt.Before(out[j].EndedAt) })
+	sort.SliceStable(out, func(i, j int) bool { return out[i].When().Before(out[j].When()) })
 	return out, errs
 }
 

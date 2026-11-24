@@ -231,7 +231,7 @@ rex audit [--ws <id|path> | --all] [--since 7d] [--tool T] [--state S] [-o FORMA
 
 Reads the files itself (the daemon only writes them), newest first. With no scope flag it reads the workspace around the current folder when `workspaces` is on, else the global trail (`~/.local/share/rex/audit.jsonl`). `--ws` reads one workspace's trail and needs `workspaces` on; `--all` reads the global trail and every known workspace's. `--since` is `7d`, `12h`, `90m` or a date; `--state` is `done`, `failed` or `crashed`. A trail that cannot be read (a symlink, an unsafe `.rex/`) is skipped with a warning line.
 
-`json` is `{"v":1,"cmd":"audit","data":[{"ts","workspace_id","session_id","short_id","name","tool","model","prompt_first_line","prompt","state","started_at","ended_at","duration_s","resume_id","description"}]}`; `prompt` appears only when `audit_full_prompt` was on for that session. `agent` prints one `audit …` line per record, then `ok cmd=audit count=N`.
+`json` is `{"v":1,"cmd":"audit","data":[{"ts","workspace_id","session_id","short_id","name","tool","model","prompt_first_line","prompt","state","started_at","ended_at","duration_s","resume_id","description","requested_by"}]}` (a delete line is `{"event":"delete","session_id","deleted_by","ts"}`, shown as a `deleted` row in the table); `prompt` appears only when `audit_full_prompt` was on for that session. `agent` prints one `audit …` line per record, then `ok cmd=audit count=N`.
 
 Exit **5** with `off: enable in Settings → Features (rex config set audit_trail true)` while `audit_trail` is off, for a bad `--since` or `--state`, and for `--ws` while `workspaces` is off. Exit **2** for an unknown `--ws`.
 
@@ -366,7 +366,7 @@ Attach terminal to a session PTY.
 rex attach <sel> [-socket path] [-read-only] [-no-replay]
 ```
 
-Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail. There is no banner row here: the agent draws on your terminal directly; the in-TUI popup has one ([tui.md](tui.md#banner)).
+Detach with **Ctrl+]**. `-read-only` does not send keyboard input. `-no-replay` skips transcript tail. `rex attach` filters what the agent sends before it reaches your terminal: colors, cursor movement and modes pass; OSC strings (clipboard, links, titles), DCS/APC/PM/SOS, C1 controls and bidi controls are dropped. On detach it resets cursor shape, synchronized output, modifyOtherKeys and the kitty keyboard stack. Hyperlinks and titles set by agents therefore do not show. There is no banner row here: the agent draws on your terminal directly; the in-TUI popup has one ([tui.md](tui.md#banner)).
 
 For full-screen agents (claude, codex, gemini, …) the daemon then redraws the agent's current screen, so you see it at once even if the agent is busy or the transcript tail starts mid-frame. A daemon too old for that gets **Ctrl+L** instead, which asks the agent to redraw.
 
@@ -404,7 +404,7 @@ Read transcript file.
 rex log <sel> [-socket path] [-state-dir dir] [-f] [-n lines] [-bytes]
 ```
 
-`-f` follows the file. `-n` shows only the last N lines (`0`, the default, shows all; a negative number exits 5). `-bytes` is a switch that prints the raw bytes, including ANSI sequences, instead of stripping them. Default state dir: `~/.local/share/rex`.
+`-f` follows the file. `-n` shows only the last N lines (`0`, the default, shows all; a negative number exits 5). `-bytes` is a switch that prints the raw bytes, including ANSI sequences, instead of stripping them. Without `-bytes`, `log` also drops control characters (everything below space except tab and newline, so `\r` and BEL go), C1 and bidi controls, and replaces invalid UTF-8 with U+FFFD. Default state dir: `~/.local/share/rex`.
 
 ---
 
@@ -741,9 +741,11 @@ rex uninstall [-yes|-y] [-binaries] [-wipe-state] [-purge-config]
               [-strip-profile] [-all] [-dry-run]
 ```
 
-`-all` enables `-wipe-state`, `-purge-config`, and `-strip-profile`. `make uninstall` removes binaries only.
+`-all` enables `-wipe-state`, `-purge-config`, and `-strip-profile`, and removes everything else rex writes: the whole data folder (`~/.local/share/rex`: audit trail, usage ledger, snapshots, exports, loops, workspace lists), the cache folder (`~/.cache/rex`), the rex log files under `REX_LOG_DIR`, and in each workspace listed in `workspaces.json` the files `.rex/sessions.jsonl` and `.rex/audit.jsonl`. `-wipe-state` alone removes `~/.local/state/rex` and `~/.local/share/rex/sessions`. `make uninstall` removes binaries only.
 
-The plan (`-dry-run` prints it and exits) is a table of what would be removed; the run reports what was removed. The question goes to stderr; without a terminal on stdin and stderr, or in any format but `text`, `-yes` is required (exit **6**), and a declined question exits **6** (it was 1). `-o json` carries `{"dry_run":…,"plan":[…],"removed":[…]}`; `agent` gives `removal kind=… path=…` lines.
+It never removes a workspace's `.rex/config.lua` or `.rex/workspace.json` (you may have committed them) or the shell-profile backups `*.rex-backup-*` (they hold your own files). These are listed as `kept` at the end. Every path removed must be inside your home or a listed workspace's `.rex/`, and is checked with `Lstat`: a symlink (or, on Windows, a junction) is never followed or removed, and is listed as `skipped`. `-dry-run` lists all of it.
+
+The plan (`-dry-run` prints it and exits) is a table of what would be removed; the run reports what was removed. The question goes to stderr; without a terminal on stdin and stderr, or in any format but `text`, `-yes` is required (exit **6**), and a declined question exits **6** (it was 1). `-o json` carries `{"dry_run":…,"plan":[…],"removed":[…],"kept":[…],"skipped":[…]}`; `agent` gives `removal kind=… path=…` lines.
 
 ---
 

@@ -287,7 +287,7 @@ func newRig(t *testing.T) *rig {
 
 func (rg *rig) newRunner() *Runner {
 	return NewRunner(Config{
-		Host: rg.h, StateDir: rg.dir, MinuteUnit: time.Minute, SessionCtx: rg.sessCtx, Now: rg.now,
+		Host: rg.h, StateDir: rg.dir, MinuteUnit: time.Minute, SessionCtx: rg.sessCtx, Now: rg.now, CheckEnv: os.Environ,
 		LoadDef: func(name string) (Def, error) {
 			rg.loaded = append(rg.loaded, name)
 			d, ok := rg.defs[name]
@@ -741,7 +741,7 @@ func TestLoop_PauseResumeStop(t *testing.T) {
 
 func TestLoop_WallClockCap(t *testing.T) {
 	rg := newRig(t)
-	rg.r = NewRunner(Config{Host: rg.h, StateDir: rg.dir, MinuteUnit: 100 * time.Millisecond,
+	rg.r = NewRunner(Config{Host: rg.h, StateDir: rg.dir, MinuteUnit: 100 * time.Millisecond, CheckEnv: os.Environ,
 		LoadDef: func(string) (Def, error) { return rg.defs["w"], nil }})
 	t.Cleanup(rg.r.Close)
 	rg.enable()
