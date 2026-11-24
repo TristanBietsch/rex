@@ -33,7 +33,7 @@ func RunNew(args []string) error {
 	fleet := fs.String("fleet", "", "fleet name (optional; groups related sessions)")
 	name := fs.String("name", "", "display name (optional; the slug is shown when empty)")
 	var skillNames core.StringList
-	fs.Var(&skillNames, "skill", "skill from ~/.config/rex/skills to load into this session (repeatable; see `rex skills`)")
+	fs.Var(&skillNames, "skill", "skill `NAME` from ~/.config/rex/skills to load into this session (repeatable; see rex skills)")
 	trust := fs.Bool("trust", false, "trust the working folder for this session only (answers the agent's trust dialog; only at a terminal; nothing is saved, see `rex trust` to save it)")
 	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
 	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")

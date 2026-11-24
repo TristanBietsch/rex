@@ -109,7 +109,8 @@ func (p *Printer) renderMD(v View) string {
 			}
 			rows := make([][]string, len(b.Items))
 			for i, it := range b.Items {
-				rows[i] = []string{"`" + strings.ReplaceAll(it.Name, "`", "'") + "`", escapeMD(it.Desc)}
+				name := strings.TrimSpace(it.Name + " " + it.Args)
+				rows[i] = []string{"`" + strings.ReplaceAll(name, "`", "'") + "`", escapeMD(it.Desc)}
 			}
 			blocks = append(blocks, mdTable([]string{"Name", "Description"}, []Align{AlignLeft, AlignLeft}, rows))
 		}

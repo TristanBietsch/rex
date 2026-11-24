@@ -70,22 +70,42 @@ func TestHelpTextFitsWidth(t *testing.T) {
 	}
 }
 
-// Agy layout: Usage first, Title-case sections with a colon, no banner, no
-// rule, no blank line at the top, one closing hint.
+// Layout D: a title line, then one rule-line section per group (Usage, the
+// HelpSections, Options) with names, args and descriptions in columns that
+// line up across every section.
 func TestHelpLayout(t *testing.T) {
 	out := emitKit(t, "text", 80, false, helpResult())
 	lines := strings.Split(out, "\n")
-	require.True(t, strings.HasPrefix(lines[0], "rex — Runtime Executive for Agents"), lines[0])
-	require.Equal(t, "Usage:", lines[2])
-	for _, sec := range append(append([]string{}, HelpSections...), "Output") {
-		require.Contains(t, lines, sec+":")
+	require.True(t, strings.HasPrefix(lines[0], "rex "), lines[0])
+	require.Contains(t, lines[0], "· Runtime Executive for Agents")
+	for _, sec := range append(append([]string{"Usage"}, HelpSections...), "Options") {
+		var rule string
+		for _, l := range lines {
+			if strings.HasPrefix(l, "── "+sec+" ─") {
+				rule = l
+			}
+		}
+		require.NotEmpty(t, rule, "section %q has a rule line", sec)
+		require.Equal(t, 80, displayWidth(rule), "rule %q spans the width", sec)
 	}
-	require.NotContains(t, out, "─")
-	require.NotContains(t, out, "✦")
-	require.NotContains(t, out, "USAGE")
-	require.Contains(t, out, `Run "rex <command> -h" for flags · agents: rex agent-help`)
-	require.NotContains(t, out, "new [flags] -- <prompt>   start a session (wizard)")
-	require.True(t, strings.HasSuffix(out, "agent-help\n"))
+	// Every command line puts its description in the same column.
+	descCol := 2 + helpNameWidth + 1 + helpArgsWidth + 2
+	for _, c := range Commands {
+		var line string
+		for _, l := range lines {
+			if strings.HasPrefix(l, "  "+c.Name+" ") {
+				line = l
+				break
+			}
+		}
+		require.NotEmpty(t, line, c.Name)
+		require.Equal(t, c.Short, strings.TrimSpace(string([]rune(line)[descCol:])), c.Name)
+		if c.Brief != "" {
+			require.Contains(t, line, c.Brief, c.Name)
+		}
+	}
+	require.NotContains(t, out, "Other")
+	require.True(t, strings.HasSuffix(out, "the usage card for LLM agents\n"), out[len(out)-60:])
 }
 
 // Every table entry is well formed, so help, the card and completion agree.
@@ -98,6 +118,9 @@ func TestCommandsTable(t *testing.T) {
 		require.Contains(t, HelpSections, c.Section, c.Name)
 		require.NotEmpty(t, c.Short, c.Name)
 		require.NotEmpty(t, c.Example, c.Name)
+		require.LessOrEqual(t, displayWidth(c.Name), helpNameWidth, c.Name)
+		require.LessOrEqual(t, displayWidth(c.Brief), helpArgsWidth, c.Name)
+		require.LessOrEqual(t, displayWidth(c.Short), 80-(2+helpNameWidth+1+helpArgsWidth+2), c.Name)
 		if c.Name == "new" {
 			require.NotContains(t, c.Short+c.Long, "wizard", "new takes flags; it is not a wizard")
 		}
@@ -153,7 +176,7 @@ func TestRunHelpTopics(t *testing.T) {
 		fmt  string
 		want string
 	}{
-		{nil, "txt", "Selectors: short id"},
+		{nil, "txt", "short id (4+ hex), slug or full id"},
 		{[]string{"agent"}, "txt", "rex agent card v1"},
 		{nil, "agent", "rex agent card v1"},
 		{[]string{"-o", "json"}, "txt", `"commands":[`},
