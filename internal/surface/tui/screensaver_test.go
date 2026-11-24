@@ -150,6 +150,10 @@ func TestScreensaverUnderEveryFocus(t *testing.T) {
 			m.Focus, m.NewAgent = FocusNewAgent, &NewAgentState{}
 			return m
 		},
+		"wizard": func(m Model) Model {
+			m.Focus, m.Wizard = FocusWizard, &WizardState{}
+			return m
+		},
 		"rename": func(m Model) Model {
 			m.Focus, m.Rename = FocusRename, &RenameState{SessionID: "a"}
 			return m
@@ -199,6 +203,20 @@ func TestScreensaverOverOpenNewAgent(t *testing.T) {
 	m, _ = step(t, m, key("esc"))
 	require.Equal(t, FocusNewAgent, m.Focus, "esc only woke; the page is still open")
 	require.NotNil(t, m.NewAgent)
+}
+
+// The popup wizard (new_agent_page off) left open does not block the
+// screensaver either.
+func TestScreensaverOverOpenWizard(t *testing.T) {
+	m, now, _ := saverModel(t, saverSessions()...)
+	m.Focus, m.Wizard = FocusWizard, &WizardState{}
+	require.True(t, m.wantsSpinnerTick(), "the wizard cursor blinks")
+	m = idleTo(t, m, now, *now, 5*time.Minute)
+	require.True(t, m.saverOn)
+	require.False(t, m.wantsSpinnerTick(), "no cursor ticks under the screensaver")
+	m, _ = step(t, m, key("esc"))
+	require.Equal(t, FocusWizard, m.Focus, "esc only woke; the wizard is still open")
+	require.NotNil(t, m.Wizard)
 }
 
 func TestScreensaverResizeWakes(t *testing.T) {

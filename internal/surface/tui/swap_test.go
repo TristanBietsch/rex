@@ -97,7 +97,7 @@ func TestNewBuildNoticeThenIdleSwap(t *testing.T) {
 // No unattended swap while something is being typed or the attach popup
 // is open.
 func TestNoAutoSwapWhileBusy(t *testing.T) {
-	for _, f := range []Focus{FocusNewAgent, FocusPrompt, FocusConfirmDelete, FocusRename} {
+	for _, f := range []Focus{FocusWizard, FocusNewAgent, FocusPrompt, FocusConfirmDelete, FocusRename} {
 		m := swapBoard()
 		m.Focus = f
 		m.newBuild = true

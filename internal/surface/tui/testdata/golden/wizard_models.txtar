@@ -1,0 +1,66 @@
+-- plain.80x24 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                             
+  all · claude · qwen                                                           
+
+┌─ which model?                                                             … ─┐
+│                                                                           …  │
+│    ▸ qwen3-coder-plus  detected                                           …  │
+│      qwen3-max  detected                                                  …  │
+│      Default model                                                        …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│                                                                           …  │
+│    j/k select   enter next   b back   esc cancel                          …  │
+└──────────────────────────────────────────────────────────────────────────────┘
+  ↳ draft ready — which feature leads?                                          
+────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                
+  enter open · i new · cc done · tab next · ? more                              
+-- plain.120x40 --
+
+  ∴ REX    1 ready · 3 working · 1 done  · 2 failed                                                                     
+  all · claude · qwen                                                                                                   
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  READY  1                                                                                                              
+    ⚑  dark-mode             system theme vs explicit toggle — your call                                              4m
+
+  WAITING  0                                                                                                            
+       nothing waiting on a tool
+
+  WORKING  3      ┌─ which model?                                                                   ─┐                  
+ ▸  ⠋  release-not│                                                                                  │       ▴ 45m   11m
+    ⠋  日本語の長 │    ▸ qwen3-coder-plus  detected                                                  │                7s
+    ⠋  payment-mig│      qwen3-max  detected                                                         │       ▴ 7h     2h
+                  │      Default model                                                               │
+  DONE  3         │                                                                                  │                  
+    ✓  test-covera│                                                                                  │                9d
+    ✗  no-model   │                                                                                  │                 -
+    ✗  failing-job│                                                                                  │                 -
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │    j/k select   enter next   b back   esc cancel                                 │
+                  └──────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+
+
+  ↳ draft ready — which feature leads?                                                                                  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  λ press i to describe a task for a new session                                                                        
+  enter open · i new · cc done · tab next · ? more                                                                      
