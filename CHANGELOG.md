@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`prompt_paste.ready_regex`** (tools.yaml): a pattern on the agent's
+  screen that says it waits for input, so a tool whose adapter cannot tell
+  can still take its first prompt by paste instead of on the command line,
+  where every local process can read it.
+
+### Fixed
+
+- The first prompt of a pasted session is typed in only when the agent is
+  ready and its folder-trust dialog is not on screen (an Enter would have
+  answered the dialog). The 30 s wait pauses while the dialog shows, so a
+  late answer still gets the prompt; a 10 minute cap bounds it. A prompt
+  that is never delivered now says so on the board (`first prompt not
+  delivered; paste it yourself`) instead of only in the log.
+
 ## [2.1.0] - 2026-11-24
 
 Details for every change follow the summary.
