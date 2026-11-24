@@ -127,7 +127,7 @@ func TestSettleChildEnv_SaveErrorIsReturned(t *testing.T) {
 	}
 	dir := filepath.Join(t.TempDir(), "ro")
 	require.NoError(t, os.MkdirAll(dir, 0o500))
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) }) //nolint:gosec // a directory needs its exec bit back so TempDir can empty it
 	got, err := SettleChildEnv(filepath.Join(dir, "config.yaml"), "")
 	require.Error(t, err)
 	require.Empty(t, got)
