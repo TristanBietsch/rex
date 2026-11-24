@@ -13,9 +13,9 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// ackFor reads conn until the reply to request id arrives and returns the
+// ackSessionID reads conn until the reply to request id arrives and returns the
 // session id the Ack names.
-func ackFor(t *testing.T, conn interface{ SetReadDeadline(time.Time) error }, r *protocol.Reader, id string) string {
+func ackSessionID(t *testing.T, conn interface{ SetReadDeadline(time.Time) error }, r *protocol.Reader, id string) string {
 	t.Helper()
 	for {
 		require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
@@ -41,7 +41,7 @@ func TestSpawn_StoresRequesterInMeta(t *testing.T) {
 		reqID := "n-" + slug
 		require.NoError(t, w.WriteIntent(protocol.IntentNewSession, reqID,
 			protocol.NewSession{ToolID: "echo", ModelID: "short", Slug: slug, CWD: e.dir, InitialPrompt: prompt}))
-		id := ackFor(t, conn, r, reqID)
+		id := ackSessionID(t, conn, r, reqID)
 
 		var by *state.Requester
 		require.Eventually(t, func() bool {
@@ -75,7 +75,7 @@ func TestDelete_PassesTheRequesterToTheAuditHook(t *testing.T) {
 	conn := dialTest(t, sock)
 	w, r, _ := helloAs(t, conn, "rex-cli")
 	require.NoError(t, w.WriteIntent(protocol.IntentDelete, "d1", protocol.Delete{SessionID: "aaaa1111"}))
-	ackFor(t, conn, r, "d1")
+	ackSessionID(t, conn, r, "d1")
 
 	require.Len(t, fa.deletes, 1)
 	require.Equal(t, "rex-cli", fa.deletes[0].by.Client)
