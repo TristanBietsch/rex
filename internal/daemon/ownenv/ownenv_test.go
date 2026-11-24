@@ -54,6 +54,7 @@ func sandbox(t *testing.T, configYAML string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("XDG_CONFIG_HOME", home+"/.config")
 	t.Setenv("XDG_DATA_HOME", home+"/.local/share")
 	t.Setenv("XDG_CACHE_HOME", home+"/.cache")
