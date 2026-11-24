@@ -51,6 +51,12 @@ type PromptPaste struct {
 	Plain bool `yaml:"plain,omitempty"`
 	// SettleMs is how long output must be quiet before pasting.
 	SettleMs int `yaml:"settle_ms,omitempty"`
+	// ReadyRegex matches the agent's rendered screen once it waits for
+	// input. It counts as ready alongside the agent adapter's own check, so
+	// a tool whose adapter cannot tell (Claude Code) can still take its first
+	// prompt by paste. It lives inside prompt_paste, so a tools.yaml that
+	// switches the tool back to prompt_args replaces it too.
+	ReadyRegex string `yaml:"ready_regex,omitempty"`
 }
 
 const maxPromptSettleMs = 10000
@@ -168,6 +174,11 @@ func validateTemplates(t Tool) error {
 	}
 	if pp := t.PromptPaste; pp != nil && (pp.SettleMs < 0 || pp.SettleMs > maxPromptSettleMs) {
 		return fmt.Errorf("tool %q: prompt_paste.settle_ms must be 0-%d", t.ID, maxPromptSettleMs)
+	}
+	if pp := t.PromptPaste; pp != nil && pp.ReadyRegex != "" {
+		if _, err := regexp.Compile(pp.ReadyRegex); err != nil {
+			return fmt.Errorf("tool %q: prompt_paste.ready_regex compile failed: %w", t.ID, err)
+		}
 	}
 	if t.LoginRegex != "" {
 		if _, err := regexp.Compile(t.LoginRegex); err != nil {

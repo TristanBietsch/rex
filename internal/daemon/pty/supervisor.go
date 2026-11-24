@@ -64,14 +64,25 @@ type SupervisorConfig struct {
 	// it is published (default readyHoldDefault; negative publishes at once).
 	ReadyHold time.Duration
 	// Now is the clock for the ready hold (default time.Now).
-	Now              func() time.Time
-	InitialCols      uint16        // initial PTY width (0 = default)
-	InitialRows      uint16        // initial PTY height (0 = default)
-	InitialPrompt    string        // optional: typed into the agent once its TUI settles
-	PlainPaste       bool          // paste InitialPrompt without bracketed-paste markers (line REPLs)
-	ReadySettle      time.Duration // output must be quiet this long before pasting InitialPrompt
-	RegisterResize   func(resize func(cols, rows uint16) error)
-	UnregisterResize func()
+	Now           func() time.Time
+	InitialCols   uint16        // initial PTY width (0 = default)
+	InitialRows   uint16        // initial PTY height (0 = default)
+	InitialPrompt string        // optional: typed into the agent once its TUI settles
+	PlainPaste    bool          // paste InitialPrompt without bracketed-paste markers (line REPLs)
+	ReadySettle   time.Duration // output must be quiet this long before pasting InitialPrompt
+	// ReadyRe, when set, matches the rendered screen once the agent waits
+	// for input (prompt_paste.ready_regex). It counts as ready alongside the
+	// adapter's IsReadyForInput; either is enough.
+	ReadyRe *regexp.Regexp
+	// OnPromptUndelivered is called once when InitialPrompt is given up on
+	// (no readiness within the deadline or the hard cap), so the session can
+	// say so. nil: only logged.
+	OnPromptUndelivered func()
+	// PromptDeadline and PromptHardCap override promptReadyDeadline and
+	// promptHardCap, for tests (zero: the defaults).
+	PromptDeadline, PromptHardCap time.Duration
+	RegisterResize                func(resize func(cols, rows uint16) error)
+	UnregisterResize              func()
 	// RegisterModePreamble exposes the child's current terminal modes as an
 	// escape-sequence preamble (see ModePreamble) to attach clients.
 	RegisterModePreamble   func(preamble func() []byte)
@@ -350,73 +361,81 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 	lastSummaryAt := time.Now()
 	errc := make(chan error, 1)
 
-	// If the caller provided an initial prompt (from the wizard's "describe the
-	// task" step), type it into the agent once its TUI is parked at its input
-	// field. Readiness is detected by the per-tool Adapter via IsReadyForInput
-	// — each agent has its own signal (Claude/Codex/Gemini's input box ready,
-	// Ollama's `>>>` prompt, etc.). Without an adapter we have no reliable
-	// signal so the paste is skipped entirely.
+	// If the caller provided an initial prompt, paste it into the agent once
+	// its TUI waits for input: the adapter's IsReadyForInput or the tool's
+	// ReadyRe on the rendered screen says so, the output has been quiet for
+	// ReadySettle, and the folder-trust dialog is not on screen (an Enter
+	// typed into it would answer it). The wait gives up after
+	// promptReadyDeadline of time with no dialog shown, or promptHardCap in
+	// all (promptGate). Without any readiness signal the paste is skipped.
 	// promptPending is set while the initial prompt waits to be typed; a
 	// freeze is refused meanwhile (errStarting).
 	var promptPending atomic.Bool
 	if s.cfg.InitialPrompt != "" {
-		if s.cfg.Adapter == nil {
-			slog.Warn("pty: initial_prompt set but no adapter; cannot detect readiness", "session", sess.ID)
+		gcfg := promptGateConfig{
+			ReadyRe: s.cfg.ReadyRe, TrustRe: s.cfg.TrustDetect, Settle: s.cfg.ReadySettle,
+			Deadline: s.cfg.PromptDeadline, HardCap: s.cfg.PromptHardCap,
+		}
+		if s.cfg.TrustPrompt != nil && s.cfg.TrustPrompt.Shown != nil {
+			gcfg.TrustRe = s.cfg.TrustPrompt.Shown
+		}
+		if s.cfg.Adapter != nil {
+			gcfg.AdapterReady = s.cfg.Adapter.IsReadyForInput
+		}
+		if !gcfg.hasSignal() {
+			slog.Warn("pty: initial_prompt set but no adapter or ready_regex; cannot detect readiness", "session", sess.ID)
 		} else {
 			promptPending.Store(true)
 			go func(prompt string) {
 				defer promptPending.Store(false)
-				deadline := time.NewTimer(30 * time.Second)
-				defer deadline.Stop()
+				gate := newPromptGate(gcfg, time.Now())
 				poll := time.NewTicker(200 * time.Millisecond)
 				defer poll.Stop()
 				for {
 					select {
-					case <-deadline.C:
-						windowMu.Lock()
-						tailLen := len(window)
-						windowMu.Unlock()
-						slog.Warn("pty: initial_prompt timed out waiting for ready", "session", sess.ID, "window_bytes", tailLen)
-						return
 					case <-ctx.Done():
 						return
 					case <-poll.C:
-						windowMu.Lock()
-						idle := time.Since(lastChunk)
-						snap := append([]byte(nil), window...)
-						windowMu.Unlock()
-						if !s.cfg.Adapter.IsReadyForInput(snap, idle) {
-							continue
+					}
+					windowMu.Lock()
+					sample := promptSample{Idle: time.Since(lastChunk), Window: append([]byte(nil), window...)}
+					windowMu.Unlock()
+					sample.Screen = screen.String()
+					switch gate.step(time.Now(), sample) {
+					case promptWait:
+						continue
+					case promptGiveUp:
+						slog.Warn("pty: initial_prompt not delivered: agent never ready", "session", sess.ID,
+							"window_bytes", len(sample.Window), "waited_ms", gate.waited.Milliseconds())
+						if s.cfg.OnPromptUndelivered != nil {
+							s.cfg.OnPromptUndelivered()
 						}
-						// Some REPLs flash their prompt mid-redraw (ollama's spinner);
-						// wait for a quiet beat so the paste lands on a settled screen.
-						if idle < s.cfg.ReadySettle {
-							continue
-						}
-						// Modern agent TUIs (Claude Code, Gemini CLI, Codex) detect
-						// bracketed paste and silently drop bursts of raw text — the
-						// only reliable way to fill their input fields is to wrap the
-						// payload in DEC bracketed-paste markers (ESC[200~ … ESC[201~).
-						// Then a SEPARATE write of \r commits the input. Sending text
-						// and Enter in one chunk lets the TUI treat the whole thing as
-						// a paste and never trigger submit.
-						// Typed text only: an ESC[201~ in the prompt would
-						// close the paste early (TypedText).
-						paste := []byte(TypedText(prompt))
-						if !s.cfg.PlainPaste {
-							paste = append([]byte("\x1b[200~"), paste...)
-							paste = append(paste, []byte("\x1b[201~")...)
-						}
-						// One unit: the paste, a beat for the TUI to commit it to its
-						// input state (without it Claude sometimes fires Enter against
-						// an empty box), then Enter, with no other input in between.
-						if !pw.Send(ctx, writeUnit{parts: [][]byte{paste, {'\r'}}, gap: 120 * time.Millisecond}) {
-							slog.Warn("pty: initial_prompt not sent", "session", sess.ID)
-							return
-						}
-						slog.Info("pty: initial_prompt queued", "session", sess.ID, "bytes", len(paste), "plain", s.cfg.PlainPaste, "idle_ms", idle.Milliseconds())
+						return
+					case promptPaste:
+					}
+					// Modern agent TUIs (Claude Code, Gemini CLI, Codex) detect
+					// bracketed paste and silently drop bursts of raw text — the
+					// only reliable way to fill their input fields is to wrap the
+					// payload in DEC bracketed-paste markers (ESC[200~ … ESC[201~).
+					// Then a SEPARATE write of \r commits the input. Sending text
+					// and Enter in one chunk lets the TUI treat the whole thing as
+					// a paste and never trigger submit.
+					// Typed text only: an ESC[201~ in the prompt would
+					// close the paste early (TypedText).
+					paste := []byte(TypedText(prompt))
+					if !s.cfg.PlainPaste {
+						paste = append([]byte("\x1b[200~"), paste...)
+						paste = append(paste, []byte("\x1b[201~")...)
+					}
+					// One unit: the paste, a beat for the TUI to commit it to its
+					// input state (without it Claude sometimes fires Enter against
+					// an empty box), then Enter, with no other input in between.
+					if !pw.Send(ctx, writeUnit{parts: [][]byte{paste, {'\r'}}, gap: 120 * time.Millisecond}) {
+						slog.Warn("pty: initial_prompt not sent", "session", sess.ID)
 						return
 					}
+					slog.Info("pty: initial_prompt queued", "session", sess.ID, "bytes", len(paste), "plain", s.cfg.PlainPaste, "idle_ms", sample.Idle.Milliseconds())
+					return
 				}
 			}(s.cfg.InitialPrompt)
 		}

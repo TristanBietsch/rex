@@ -80,6 +80,9 @@ func anyLead(m Model) bool {
 // banner's lead (summary, task, then question), the question comes first.
 // Flattened: all three are agent or user supplied.
 func previewLeadText(s protocol.SessionSummary) (text string, isSummary bool) {
+	if s.PromptUndelivered {
+		return promptUndeliveredText, false
+	}
 	if q := rowQuestion(s); q != "" {
 		return q, false
 	}

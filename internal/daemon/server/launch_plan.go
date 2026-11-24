@@ -39,8 +39,9 @@ func planLaunch(env *winlaunch.Env, session string, argv []string, ptyPrompt str
 	}
 	if l.PromptMoved {
 		// Bracketed paste once the agent's input is ready, as for a
-		// prompt_paste tool.
-		d = promptDelivery{}
+		// prompt_paste tool; a ready_regex and settle time the tool has
+		// still apply.
+		d = promptDelivery{readyRe: d.readyRe, readySettle: d.readySettle}
 		slog.Info("spawn: initial_prompt moved to pty paste", "session", session, "reason", l.Reason, "bytes", len(l.Paste))
 	}
 	slog.Info("spawn: windows launch", "session", session, "via", l.Via, "argc", len(l.Argv))

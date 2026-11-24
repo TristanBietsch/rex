@@ -565,6 +565,9 @@ func applyPatch(s *protocol.SessionSummary, patch map[string]any) {
 	if v, ok := patch["subagents"].(float64); ok && v >= 0 {
 		s.Subagents = int(v)
 	}
+	if v, ok := patch["prompt_undelivered"].(bool); ok {
+		s.PromptUndelivered = v
+	}
 	if raw, ok := patch["cost_usd"]; ok { // null clears it
 		if v, isNum := raw.(float64); isNum && v >= 0 {
 			s.CostUSD = &v

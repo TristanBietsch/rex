@@ -624,6 +624,26 @@ func (s *Store) SetSubagents(id string, n int) error {
 	return nil
 }
 
+// SetPromptUndelivered marks a session whose first prompt was given up on
+// and broadcasts it once.
+func (s *Store) SetPromptUndelivered(id string) error {
+	s.mu.RLock()
+	sess, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	sess.mu.Lock()
+	if sess.PromptUndelivered {
+		sess.mu.Unlock()
+		return nil
+	}
+	sess.PromptUndelivered = true
+	sess.mu.Unlock()
+	s.broadcast(Event{Kind: EventUpdated, SessionID: id, Patch: map[string]any{"prompt_undelivered": true}})
+	return nil
+}
+
 // SetCost records what a session has cost so far and broadcasts a change. It
 // is not activity: last_event_at is left alone.
 func (s *Store) SetCost(id string, usd float64) error {

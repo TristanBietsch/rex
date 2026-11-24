@@ -101,3 +101,16 @@ func TestInitialPromptDelivery_BlankPrompt(t *testing.T) {
 	d := initialPromptDelivery(builtinTool(t, "claude"), []string{"claude"}, "   ")
 	require.Nil(t, d.argv)
 }
+
+// prompt_paste.ready_regex reaches the supervisor compiled; none leaves it nil.
+func TestInitialPromptDelivery_PasteReadyRegex(t *testing.T) {
+	tool := registry.Tool{ID: "t", PromptPaste: &registry.PromptPaste{SettleMs: 300, ReadyRegex: `READY>`}}
+	d := initialPromptDelivery(tool, []string{"t"}, "do it")
+	require.Nil(t, d.argv)
+	require.NotNil(t, d.readyRe)
+	require.True(t, d.readyRe.MatchString("x READY> y"))
+	require.Equal(t, 300*time.Millisecond, d.readySettle)
+
+	tool.PromptPaste.ReadyRegex = ""
+	require.Nil(t, initialPromptDelivery(tool, []string{"t"}, "do it").readyRe)
+}

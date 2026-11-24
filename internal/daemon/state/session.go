@@ -37,6 +37,10 @@ type Session struct {
 	// restored from meta.json: subagents do not outlive the daemon.
 	Subagents int
 
+	// PromptUndelivered is set when the first prompt was given up on (the
+	// agent never looked ready). Not restored from meta.json.
+	PromptUndelivered bool
+
 	// CostUSD is the session's cost so far, nil when unknown (usage off or
 	// no cost reported). Persisted in meta.json.
 	CostUSD *float64
@@ -140,41 +144,42 @@ func (s *Session) Summary() protocol.SessionSummary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return protocol.SessionSummary{
-		ID:            s.ID,
-		ShortID:       s.ShortID,
-		ToolID:        s.ToolID,
-		ModelID:       s.ModelID,
-		Effort:        s.Effort,
-		Slug:          s.Slug,
-		Title:         s.Title,
-		CWD:           s.CWD,
-		State:         s.State,
-		StartedAt:     s.StartedAt,
-		LastEventAt:   s.LastEventAt,
-		LastLine:      s.LastLine,
-		Description:   s.Description,
-		DescriptionAt: s.DescriptionAt,
-		ExitCode:      s.ExitCode,
-		Tokens:        s.Tokens,
-		OutputBytes:   s.OutputBytes,
-		Subagents:     s.Subagents,
-		CostUSD:       copyFloat(s.CostUSD),
-		Prompts:       s.Prompts,
-		WaitReason:    s.WaitReason,
-		WaitingOn:     s.WaitingOn,
-		WaitingSince:  s.WaitingSince,
-		Fleet:         s.Fleet,
-		Name:          s.Name,
-		RetireAt:      s.RetireAt,
-		RetiredAt:     s.RetiredAt,
-		WorkingSince:  s.WorkingSince,
-		EndedAt:       s.EndedAt,
-		ResumeID:      s.ResumeID,
-		TrustFolder:   s.TrustFolder,
-		Skills:        slices.Clone(s.Skills),
-		LoopID:        s.LoopID,
-		LoopIter:      s.LoopIter,
-		WorkspaceID:   s.WorkspaceID,
+		ID:                s.ID,
+		ShortID:           s.ShortID,
+		ToolID:            s.ToolID,
+		ModelID:           s.ModelID,
+		Effort:            s.Effort,
+		Slug:              s.Slug,
+		Title:             s.Title,
+		CWD:               s.CWD,
+		State:             s.State,
+		StartedAt:         s.StartedAt,
+		LastEventAt:       s.LastEventAt,
+		LastLine:          s.LastLine,
+		Description:       s.Description,
+		DescriptionAt:     s.DescriptionAt,
+		ExitCode:          s.ExitCode,
+		Tokens:            s.Tokens,
+		OutputBytes:       s.OutputBytes,
+		Subagents:         s.Subagents,
+		PromptUndelivered: s.PromptUndelivered,
+		CostUSD:           copyFloat(s.CostUSD),
+		Prompts:           s.Prompts,
+		WaitReason:        s.WaitReason,
+		WaitingOn:         s.WaitingOn,
+		WaitingSince:      s.WaitingSince,
+		Fleet:             s.Fleet,
+		Name:              s.Name,
+		RetireAt:          s.RetireAt,
+		RetiredAt:         s.RetiredAt,
+		WorkingSince:      s.WorkingSince,
+		EndedAt:           s.EndedAt,
+		ResumeID:          s.ResumeID,
+		TrustFolder:       s.TrustFolder,
+		Skills:            slices.Clone(s.Skills),
+		LoopID:            s.LoopID,
+		LoopIter:          s.LoopIter,
+		WorkspaceID:       s.WorkspaceID,
 	}
 }
 
