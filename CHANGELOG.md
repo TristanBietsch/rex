@@ -18,6 +18,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`rex upgrade -if-stale`** leaves a daemon already on the installed build
   alone (`nothing to do: …` when the boards are current too), and
   **`-no-cold`** refuses (exit 6) instead of falling back to a cold restart.
+- `selector_glyph` setting preset: added `☛` (black right-pointing index)
+  alongside `☞`.
+- **Summary scanner**: while the selected session is in Working or
+  Waiting, a band of color sweeps back and forth across the AI summary
+  line under the board (a Larson scanner, like KITT's or RoboCop's visor).
+  `summary_scan` turns it on or off (on by default; `reduce_motion` stops
+  it). `summary_scan_color` picks its color: `accent` (the default,
+  follows `accent_color`), a named color, or a custom `#rrggbb`, `rgb()`,
+  `hsl()`, `cmyk()` or `oklch()` value.
+- **`filter_chips`** (on by default): turn it off to hide the tool filter
+  chip row (`all · claude · ollama …`). Filtering still works with `t`,
+  `:filter` and the `z` chords; while a filter is active the row shows it
+  as text (`claude only (t)`).
+- `name_taken` protocol error code: `NewSession` and `SetSessionName` refuse
+  a display name another session holds, with
+  `name "Fix Auth" already in use by 7d4f`.
+- The TUI's rename (`r`) keeps the editor open with your text and the reason
+  when a name is taken, and reopens it when the daemon refuses a name the
+  board could not see; `:name` and `::name` refuse on the status line.
+
+### Changed
+
+- Session display names are unique among the sessions that still exist, in
+  any state (done and marked-done included), compared without regard to
+  case, repeated spaces or zero-width characters. Deleting a session frees
+  its name. `rex new -name` and `rex name` exit 5 on a taken name. Sessions
+  restored from an older daemon keep their names, duplicates included; the
+  daemon logs them and renames nothing.
 
 ### Changed
 

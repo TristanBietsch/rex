@@ -105,6 +105,8 @@ func handleNewSessionIntent(c *client, env protocol.Envelope) (outcome, error) {
 	if err != nil {
 		code := protocol.ErrCodeSpawn
 		switch {
+		case errors.As(err, new(*state.NameTakenError)):
+			code = protocol.ErrCodeNameTaken
 		case isBadIntent(err):
 			code = protocol.ErrCodeBadIntent
 		case strings.Contains(err.Error(), "too many concurrent sessions"):
@@ -326,6 +328,12 @@ func handleSetSessionName(c *client, env protocol.Envelope) (outcome, error) {
 	}
 	changed, err := c.srv.cfg.Store.SetName(p.SessionID, name)
 	if err != nil {
+		var taken *state.NameTakenError
+		if errors.As(err, &taken) {
+			slog.Warn("server: set_name rejected, name taken", "session", p.SessionID,
+				"holder", taken.ShortID, "req_id", env.ID)
+			return outcome{}, replyErr(protocol.ErrCodeNameTaken, err)
+		}
 		return outcome{}, replyErr(protocol.ErrCodeUnknownSession, err)
 	}
 	// Broadcast even when unchanged: clients older than acks wait on it as

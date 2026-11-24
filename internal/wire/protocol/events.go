@@ -327,6 +327,10 @@ const (
 	ErrCodeSpawn           = "spawn_failed"
 	ErrCodeTooManySessions = "too_many_sessions"
 	ErrCodeBadState        = "bad_state"
+	// ErrCodeNameTaken: NewSession or SetSessionName asked for a display
+	// name another session in the store already has (compared with
+	// SameSessionName). The message names the holder's short id.
+	ErrCodeNameTaken = "name_taken"
 	// ErrCodeRestartRefused: a hot restart was refused or failed; the
 	// daemon is still running as before.
 	ErrCodeRestartRefused = "restart_refused"

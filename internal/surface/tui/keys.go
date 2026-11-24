@@ -317,7 +317,11 @@ func runName(m Model, c cmdCall) (Model, tea.Cmd) {
 		return m, nil
 	}
 	name := strings.TrimSpace(strings.TrimPrefix(c.Line, c.Verb))
-	return m, setNameCmd(namerOf(m), m.SelectedID, name)
+	if msg := nameConflict(m.Sessions, m.SelectedID, name); msg != "" {
+		m.Err = "name: " + msg
+		return m, nil
+	}
+	return m.sendName(m.SelectedID, name)
 }
 
 func runDone(m Model, c cmdCall) (Model, tea.Cmd) {

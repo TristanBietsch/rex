@@ -248,12 +248,16 @@ func showAllSections(m Model) Model {
 	return refilter(m)
 }
 
-// renderFilterStatus is the dim note after the filter chips: which sections
+// renderFilterStatus is the dim note after the filter chips: the tool shown
+// when the chips are hidden (toolStatus), which sections
 // are hidden ("done hidden (zh)") and the active search ("/auth · 3 matches
 // · esc clear"), or "" when neither applies. It sits after the chips so
 // headerHitAt still finds every chip.
 func renderFilterStatus(m Model) string {
 	var notes []string
+	if tool := toolStatus(m); tool != "" {
+		notes = append(notes, tool)
+	}
 	if hidden := hiddenStatus(m); hidden != "" {
 		notes = append(notes, hidden)
 	}
@@ -264,6 +268,20 @@ func renderFilterStatus(m Model) string {
 		return ""
 	}
 	return styleDim.Render(strings.Join(notes, " · "))
+}
+
+// toolStatus is the tool part of the filter status, shown only while the
+// chips are hidden (filter_chips off): the chips already highlight the tool
+// otherwise. "" when no tool filter is active.
+func toolStatus(m Model) string {
+	if chipsShown(m) {
+		return ""
+	}
+	tool := rowFilterOf(m).tool
+	if tool == "" || tool == "all" {
+		return ""
+	}
+	return tool + " only (t)"
 }
 
 // searchStatus is the search part of the filter status: the query, how many

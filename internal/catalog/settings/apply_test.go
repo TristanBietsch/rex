@@ -43,8 +43,8 @@ var applyModeOf = map[string]ApplyMode{
 	"screensaver_enabled": ApplyLive, "screensaver_after_minutes": ApplyLive, "screensaver_keep_awake": ApplyLive,
 	"screensaver_counts": ApplyLive, "screensaver_clock": ApplyLive, "screensaver_drift": ApplyLive,
 	"board_hidden_sections": ApplyLive, // applyLive re-reads it into the board
-	"desc_animation":        ApplyLive,
-	"sound_enabled":         ApplyLive, "soundset": ApplyLive, "master_volume": ApplyLive,
+	"desc_animation":        ApplyLive, "summary_scan": ApplyLive, "summary_scan_color": ApplyLive, "filter_chips": ApplyLive,
+	"sound_enabled": ApplyLive, "soundset": ApplyLive, "master_volume": ApplyLive,
 	"notify_on_state_change": ApplyLive, "boot_voice": ApplyLive, "audio_dedupe": ApplyLive,
 	// The cap is set live by the TUI (SetMaxConcurrent); the daemon never
 	// reads it from config.yaml, only from its -max-concurrent-sessions flag.
