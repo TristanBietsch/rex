@@ -22,7 +22,7 @@ Bubble Tea kanban board: session list by state, new-agent page, attach overlay, 
 ### Types (Bubble Tea)
 
 - `Model` — `Init`, `Update`, `View`; fields include `Client`, `Socket`, `Focus`, `Sessions`, `SelectedID`, `Filter`, prompts, new-agent/attach/settings state.
-- `Focus` enum — `FocusBoard`, `FocusPrompt`, `FocusCommand`, `FocusNewAgent`, `FocusHelp`, `FocusConfirmQuit`, `FocusConfirmDelete`, `FocusSettings`, `FocusAttach`, `FocusFail`, `FocusBoot`, `FocusStats`
+- `Focus` enum — `FocusBoard`, `FocusPrompt`, `FocusCommand`, `FocusWizard`, `FocusNewAgent`, `FocusHelp`, `FocusConfirmQuit`, `FocusConfirmDelete`, `FocusSettings`, `FocusAttach`, `FocusFail`, `FocusBoot`, `FocusStats`
 - Message types: `DaemonEventMsg`, `DaemonErrMsg`, `SpinnerTickMsg`, `AttachOutputMsg`, `AttachClosedMsg`
 - `AttachState`, `NewAgentState`, `SettingsState`, `FailState`, `SetupWizardModel`, `DescAnim`
 
@@ -51,7 +51,7 @@ Colors come from `internal/catalog/theme` (`theme.Palette`, six built-ins). `app
 | `prompt.go` | Bottom prompt |
 | `command.go` | `:` command line: parse and look up in `commands` |
 | `keys.go` | `commands` table (names, args, help text, `Run`) and `bindings` table (help rows, board help line); add a `:` command here |
-| `wizard.go` | Shared agent-choice helpers (`WizardState` selection, tool registry loading, slug rules, `pendingSpawn`); the popup wizard is gone (R21) |
+| `wizard.go` | Popup new-session wizard (`new_agent_page` off) and the agent-choice helpers the new-agent page shares (`WizardState` selection, tool registry loading, slug rules, `pendingSpawn`) |
 | `newagent*.go`, `composer.go` | New-agent page, seven steps one per screen (`naStep`): state, open/close, key routing (`newagent.go`), step navigation, esc/tab/ReturnToSummary rules and the wheel (`newagent_nav.go`), transcript, bodies and footer (`newagent_view.go`), agent, model and skills steps (`newagent_agent.go`), trust step (`newagent_trust.go`), summary and `rex new` line (`newagent_summary.go`), context items, import picker and `@`, preview, launch; `Composer` is the multi-line task editor. Prompt assembly and path rules live in `internal/features/spawnctx` |
 | `attach.go` | Full-screen attach (vt10x) |
 | `attach_mouse.go` | Popup mouse: wheel/click passthrough, wheel batching |
