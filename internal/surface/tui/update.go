@@ -851,7 +851,7 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil && !m.QuietBoot {
+	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil && !m.QuietBoot && !m.BootHidden {
 		m.Audio.Play(ev)
 	}
 	m.BootStep++
@@ -861,6 +861,9 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 			return m.handOffToBoard()
 		}
 		return m, nil
+	}
+	if m.BootHidden {
+		return m, nextStep(m)
 	}
 	return m, delayThen(nextStep(m))
 }
