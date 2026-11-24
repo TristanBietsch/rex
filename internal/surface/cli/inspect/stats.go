@@ -26,7 +26,10 @@ func RunStats(args []string) error {
 		return err
 	}
 
-	sessions, fromDaemon := loadSessionsForStats(socket)
+	sessions, fromDaemon, err := loadSessionsForStats(socket)
+	if err != nil {
+		return err
+	}
 	slog.Debug("stats: loaded sessions", "count", len(sessions), "from_daemon", fromDaemon)
 
 	agg := aggregateSessions(sessions)
@@ -41,15 +44,20 @@ func RunStats(args []string) error {
 }
 
 // loadSessionsForStats tries the daemon first, then falls back to on-disk state.
-// Returns the sessions and a bool indicating whether the daemon was used.
-func loadSessionsForStats(socket *core.SocketFlag) ([]protocol.SessionSummary, bool) {
+// Returns the sessions and a bool indicating whether the daemon was used. A
+// daemon that refuses this caller because it runs inside a rex session is
+// an error (exit 6), not a reason to read the sessions from disk.
+func loadSessionsForStats(socket *core.SocketFlag) ([]protocol.SessionSummary, bool, error) {
 	c, err := socket.Dial()
 	if err == nil {
 		defer c.Close()
 		snap, err := c.Hello("rex-cli")
 		if err == nil {
 			slog.Debug("stats: using daemon snapshot")
-			return snap.Sessions, true
+			return snap.Sessions, true, nil
+		}
+		if ee := core.RefusedInSession(err); ee != nil {
+			return nil, false, ee
 		}
 		slog.Warn("stats: daemon hello failed, falling back to disk", "err", err)
 	} else {
@@ -59,18 +67,18 @@ func loadSessionsForStats(socket *core.SocketFlag) ([]protocol.SessionSummary, b
 	root, err := paths.DataDir()
 	if err != nil {
 		slog.Warn("stats: no session data dir", "err", err)
-		return nil, false
+		return nil, false, nil
 	}
 	sessions, err := state.LoadAll(root)
 	if err != nil {
 		slog.Warn("stats: LoadAll failed", "root", root, "err", err)
-		return nil, false
+		return nil, false, nil
 	}
 	summaries := make([]protocol.SessionSummary, 0, len(sessions))
 	for _, s := range sessions {
 		summaries = append(summaries, s.Summary())
 	}
-	return summaries, false
+	return summaries, false, nil
 }
 
 // statsModelRow holds per-model aggregated data.

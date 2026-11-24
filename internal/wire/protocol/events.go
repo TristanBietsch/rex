@@ -330,6 +330,10 @@ const (
 	// ErrCodeRestartRefused: a hot restart was refused or failed; the
 	// daemon is still running as before.
 	ErrCodeRestartRefused = "restart_refused"
+	// ErrCodeInSession: the intent came from a process running inside a
+	// session the daemon supervises (an agent or one of its tools), which
+	// may send only UsageSample. The connection stays open.
+	ErrCodeInSession = "in_session"
 	// The daemon sends these, then closes the connection.
 	ErrCodeLineTooLong        = "line_too_long"       // a line exceeded MaxLineBytes
 	ErrCodeUnsupportedVersion = "unsupported_version" // envelope "v" is not ProtocolVersion

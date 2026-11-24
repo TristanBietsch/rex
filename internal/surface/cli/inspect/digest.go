@@ -291,6 +291,11 @@ func RunDigest(args []string) error {
 	} else {
 		defer c.Close()
 		snap, helloErr := c.Hello("rex-cli")
+		if ee := core.RefusedInSession(helloErr); ee != nil {
+			// The daemon is up and refused this caller: reading the
+			// sessions from disk instead would get around the refusal.
+			return ee
+		}
 		if helloErr != nil {
 			slog.Info("digest: daemon hello failed, falling back to disk", "err", helloErr)
 			daemonDown = true

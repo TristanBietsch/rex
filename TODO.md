@@ -2,6 +2,7 @@
 
 - [ ] steal the best ideas from opencode and impliment them in rex (like the kanban board, the summary, the audit trail, etc) (done: R01 spike, R01-1 turn snapshots + `rex undo`/`redo`, R01-5 `rex export`, audit trail (R06 W4); left: R01-2 session diff, R01-3 prompt templates, R01-4 spawn presets)
 - [ ] add qwen code and oh my pi and cursor cli and grok build to the options, have settings auto detect which models are installed and available and show them in the list of options (done: R02 qwen, cursor, grok + model auto-detect, `extra_agents`/`model_autodetect`; left: oh my pi, dropped in R02 D1)
+- [ ] (epic) mac app, without electron? make a spec + plan first: native (SwiftUI) or a light wrapper (tauri / wails), talking to rex-daemon over the socket like the board does
 
 ## Workspaces / state
 
