@@ -111,6 +111,9 @@ func TestSettleChildEnv_NoPathIsANoop(t *testing.T) {
 // A lock path that cannot be checked (its parent is a file) is an error, and
 // nothing is written.
 func TestSettleChildEnv_LockStatErrorIsReturned(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows reports a path under a file as not existing")
+	}
 	cfg, _ := settleFiles(t, "", false)
 	file := filepath.Join(t.TempDir(), "file")
 	require.NoError(t, os.WriteFile(file, nil, 0o600))
