@@ -15,12 +15,21 @@ import (
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
-// naAgentScreen opens the page and its Agent screen with ctrl+g.
+// naAgentOpen opens the page and goes to its agent step with ctrl+g.
 func naAgentOpen(t *testing.T, m Model) Model {
 	t.Helper()
 	m = naOpen(t, m)
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlG})
-	require.Equal(t, naAgentScreen, m.NewAgent.Screen)
+	require.Equal(t, naStepAgent, m.NewAgent.Step)
+	return m
+}
+
+// naModelOpen is naAgentOpen then enter: the model step.
+func naModelOpen(t *testing.T, m Model) Model {
+	t.Helper()
+	m = naAgentOpen(t, m)
+	m, _ = naKey(m, key("enter"))
+	require.Equal(t, naStepModel, m.NewAgent.Step)
 	return m
 }
 
@@ -63,24 +72,25 @@ func cursorModels(t *testing.T) []protocol.ToolInfo {
 	return infos
 }
 
-func TestAgentScreen_CtrlGAndEnterOpenEscBack(t *testing.T) {
+func TestAgentStep_CtrlGEnterAndEsc(t *testing.T) {
 	m := naAgentOpen(t, naModel(t))
-	m, _ = naKey(m, key("esc"))
-	require.Equal(t, naCompose, m.NewAgent.Screen)
-	require.Equal(t, FocusNewAgent, m.Focus, "esc on the Agent screen goes back to Compose")
-
-	m.NewAgent.Section = naAgent // the agent row
+	require.Contains(t, naView(m), "› agent")
 	m, cmd := naKey(m, key("enter"))
-	require.Nil(t, cmd, "enter on the agent row never launches")
-	require.Equal(t, naAgentScreen, m.NewAgent.Screen)
-	require.Contains(t, naView(m), "NEW AGENT › AGENT")
+	require.Nil(t, cmd, "enter never launches")
+	require.Equal(t, naStepModel, m.NewAgent.Step, "enter confirms the agent and goes to the model")
+	require.Contains(t, naView(m), "✓ agent")
 
-	m, _ = naKey(m, key("enter")) // done
-	require.Equal(t, naCompose, m.NewAgent.Screen)
-	require.Equal(t, FocusNewAgent, m.Focus)
+	// The page opened on the task; on an earlier step esc goes back one step
+	// (R21 K1, decided 2026-11-19), and on the first step it closes the page.
+	m, _ = naKey(m, key("esc"))
+	require.Equal(t, FocusNewAgent, m.Focus, "esc on a step before the opened one goes back")
+	require.Equal(t, naStepAgent, m.NewAgent.Step)
+	m, _ = naKey(m, key("esc"))
+	require.Equal(t, FocusBoard, m.Focus, "esc on the first step closes the page")
+	require.NotNil(t, m.newAgentDraft, "the draft is kept")
 }
 
-func TestAgentScreen_ListsMissingDimmedUnselectable(t *testing.T) {
+func TestAgentStep_ListsMissingDimmedUnselectable(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools = daemonTools(t, "claude", "cursor")
 	m = naAgentOpen(t, m)
@@ -114,7 +124,7 @@ func TestAgentScreen_ListsMissingDimmedUnselectable(t *testing.T) {
 	require.NotNil(t, m.newAgentDraft, "the draft survives the detour")
 }
 
-func TestAgentScreen_OnMissingClearsOnPaneChange(t *testing.T) {
+func TestAgentStep_TabLeavesTheMissingHeader(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools = daemonTools(t, "claude", "cursor")
 	m = naAgentOpen(t, m)
@@ -124,32 +134,30 @@ func TestAgentScreen_OnMissingClearsOnPaneChange(t *testing.T) {
 	require.True(t, m.NewAgent.OnMissing)
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
 	require.False(t, m.NewAgent.OnMissing)
-	require.Equal(t, naPaneModels, m.NewAgent.Pane)
-	m, _ = naKey(m, key("enter"))
-	require.NotEqual(t, FocusSettings, m.Focus, "enter off the agents pane returns to Compose")
+	require.Equal(t, naStepModel, m.NewAgent.Step)
 	require.Nil(t, m.Settings)
-	require.NotContains(t, naView(m), "k agents")
 }
 
-func TestAgentScreen_CtrlSLaunchesWhileFiltering(t *testing.T) {
+func TestModelStep_CtrlSLaunchesWhileFiltering(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools = cursorModels(t)
-	m = naAgentOpen(t, m)
+	m = naModelOpen(t, m)
 	m, _ = naKey(m, key("/"))
 	require.True(t, m.NewAgent.Filtering)
 	m, cmd := naKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
 	require.NotNil(t, cmd, "ctrl+s launches while the filter is active")
 	require.True(t, m.NewAgent.Launching)
-	require.Equal(t, naCompose, m.NewAgent.Screen, "the progress shows on Compose")
+	require.False(t, m.NewAgent.Filtering)
+	require.Contains(t, naView(m), "starting…", "the progress shows under the current line")
 }
 
-func TestAgentScreen_ModelFilterKeepsCursorByID(t *testing.T) {
+func TestModelStep_FilterKeepsCursorByID(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools = cursorModels(t)
 	m = naAgentOpen(t, m)
 	m = naPickTool(t, m, "cursor")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	require.Equal(t, naPaneModels, m.NewAgent.Pane)
+	m, _ = naKey(m, key("enter"))
+	require.Equal(t, naStepModel, m.NewAgent.Step)
 	m, _ = naKey(m, key("j"))
 	m, _ = naKey(m, key("j"))
 	require.Equal(t, "sonnet-4.6-thinking", m.NewAgent.choice().Model)
@@ -176,18 +184,49 @@ func TestAgentScreen_ModelFilterKeepsCursorByID(t *testing.T) {
 	require.Equal(t, "sonnet-4.6-thinking", m.NewAgent.choice().Model)
 	m, _ = naKey(m, key("enter"))
 	require.False(t, m.NewAgent.Filtering, "enter keeps the filter, stops typing")
-	require.Equal(t, naAgentScreen, m.NewAgent.Screen)
+	require.Equal(t, naStepModel, m.NewAgent.Step, "the first enter does not leave the step")
 
+	require.Equal(t, "clear", naEscWord(m.NewAgent), "the footer says what esc does with a kept filter")
 	m, _ = naKey(m, key("esc"))
-	require.Equal(t, "", m.NewAgent.Filter, "esc clears the filter first")
-	require.Equal(t, naAgentScreen, m.NewAgent.Screen)
+	require.Equal(t, "", m.NewAgent.Filter, "esc clears the kept filter first")
+	require.Equal(t, naStepModel, m.NewAgent.Step)
 	require.Equal(t, "sonnet-4.6-thinking", m.NewAgent.choice().Model)
+	require.Equal(t, "back", naEscWord(m.NewAgent))
 	m, _ = naKey(m, key("esc"))
-	require.Equal(t, naCompose, m.NewAgent.Screen)
+	require.Equal(t, FocusNewAgent, m.Focus, "then one step back, even before the step the page opened on")
+	require.Equal(t, naStepAgent, m.NewAgent.Step)
+	require.Equal(t, "close", naEscWord(m.NewAgent), "nothing before the agent step")
+	m, _ = naKey(m, key("esc"))
+	require.Equal(t, FocusBoard, m.Focus, "on the first step esc closes the page")
+	require.NotNil(t, m.newAgentDraft, "the draft is kept")
 }
 
-func TestAgentScreen_FilterMatchesName(t *testing.T) {
-	m := naAgentOpen(t, naModel(t))
+func TestModelStep_EscClearsTypedFilterThenGoesBack(t *testing.T) {
+	m := naModel(t)
+	m.DaemonTools = cursorModels(t)
+	m = naModelOpen(t, m)
+	m, _ = naKey(m, key("/"))
+	m = naType(m, "son")
+	m, _ = naKey(m, key("esc"))
+	require.Empty(t, m.NewAgent.Filter, "esc clears the typed text")
+	require.False(t, m.NewAgent.Filtering)
+	require.Equal(t, naStepModel, m.NewAgent.Step)
+	m, _ = naKey(m, key("enter"))
+	require.NotEqual(t, naStepModel, m.NewAgent.Step, "a second enter goes next")
+}
+
+func TestModelStep_PasteTypesFlat(t *testing.T) {
+	m := naModel(t)
+	m.DaemonTools = cursorModels(t)
+	m = naModelOpen(t, m)
+	m, _ = naKey(m, key("/"))
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("so\nn\x1b[31m"), Paste: true})
+	require.Equal(t, "so n[31m", m.NewAgent.Filter)
+	require.Equal(t, naStepModel, m.NewAgent.Step, "a paste never advances")
+}
+
+func TestModelStep_FilterMatchesName(t *testing.T) {
+	m := naModelOpen(t, naModel(t))
 	m = naPickTool(t, m, "claude")
 	m, _ = naKey(m, key("/"))
 	m = naType(m, "opus 4")
@@ -199,53 +238,73 @@ func TestAgentScreen_FilterMatchesName(t *testing.T) {
 	require.Equal(t, "opus 4[31m", m.NewAgent.Filter)
 }
 
-func TestAgentScreen_EffortBracketed(t *testing.T) {
-	m := naAgentOpen(t, naModel(t))
-	m = naPickTool(t, m, "claude")
+func TestModelStep_EffortBracketed(t *testing.T) {
+	m := naModelOpen(t, naModel(t))
 	require.Contains(t, naView(m), "["+m.NewAgent.choice().Effort+"]")
 	for range 6 {
 		m, _ = naKey(m, key("-"))
 	}
 	require.Equal(t, "low", m.NewAgent.choice().Effort, "- stops at the first option")
 	m, _ = naKey(m, key("+"))
-	m, _ = naKey(m, key("+"))
+	m, _ = naKey(m, key("l"))
 	require.Equal(t, "high", m.NewAgent.choice().Effort)
+	m, _ = naKey(m, key("h"))
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyRight})
 	v := naView(m)
 	require.Contains(t, v, "[high]")
-	require.Contains(t, v, "low  medium  [high]  xhigh  max")
+	require.Contains(t, v, "effort  low  medium  [high]  xhigh  max")
 
+	// A model with no effort has no effort row and its done line drops it.
 	m = naModel(t)
 	m.DaemonTools = cursorModels(t)
 	m = naPickTool(t, naAgentOpen(t, m), "cursor")
-	require.Contains(t, naView(m), "(none for this model)")
+	m, _ = naKey(m, key("enter"))
+	require.NotContains(t, naView(m), "[", "no effort row, so nothing is bracketed")
+	m, _ = naKey(m, key("enter")) // skills do not apply: the task
+	require.Equal(t, naStepTask, m.NewAgent.Step)
+	require.NotContains(t, naView(m), "· effort")
 }
 
-func TestAgentScreen_SkillsOnlyWithSkillArgs(t *testing.T) {
+func TestSkillsStep_OnlyWithSkillArgs(t *testing.T) {
 	m := naModel(t)
 	home := filepathHome(t)
 	writeHomeSkill(t, home, "go-testing", "table-driven tests and goldens")
 	writeHomeSkill(t, home, "release", "cut a release branch")
 	m.DaemonTools = daemonTools(t, "claude", "cursor")
-	m = naAgentOpen(t, m)
-	m = naPickTool(t, m, "claude")
-	require.Contains(t, naView(m), "SKILLS")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	require.Equal(t, naPaneEffort, m.NewAgent.Pane, "models, then effort")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	require.Equal(t, naPaneSkills, m.NewAgent.Pane)
+	m = naModelOpen(t, m)
+	m = naPickToolOnAgentStep(t, m, "claude")
+	m, _ = naKey(m, key("enter")) // model
+	m, _ = naKey(m, key("enter")) // skills
+	require.Equal(t, naStepSkills, m.NewAgent.Step)
+	require.Contains(t, naView(m), "› skills")
 	m, _ = naKey(m, key(" "))
 	require.Equal(t, []string{"go-testing"}, m.NewAgent.selection().chosenSkills())
 	require.Contains(t, naView(m), "[x] go-testing")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	require.Equal(t, naPaneAgents, m.NewAgent.Pane)
+	m, _ = naKey(m, key("j"))
+	m, _ = naKey(m, key(" "))
+	m, _ = naKey(m, key(" "))
+	require.Equal(t, []string{"go-testing"}, m.NewAgent.selection().chosenSkills(), "space toggles the row under the cursor")
+	m, _ = naKey(m, key("enter"))
+	require.Equal(t, naStepTask, m.NewAgent.Step)
+	require.Contains(t, naView(m), "✓ skills   go-testing")
 
+	// Cursor declares no skill_args: the step is skipped both ways.
+	m, _ = naKey(m, key("ctrl+g"))
 	m = naPickTool(t, m, "cursor")
-	require.NotContains(t, naView(m), "SKILLS", "cursor declares no skill_args")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
-	require.Equal(t, naPaneAgents, m.NewAgent.Pane, "tab skips the skills pane")
+	m, _ = naKey(m, key("enter")) // model
+	m, _ = naKey(m, key("enter"))
+	require.Equal(t, naStepTask, m.NewAgent.Step, "enter skips the skills step")
 	require.Nil(t, m.NewAgent.selection().chosenSkills())
+	require.Contains(t, naView(m), "– skills   not available")
+	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyShiftTab})
+	require.Equal(t, naStepModel, m.NewAgent.Step, "shift+tab skips it too")
+}
+
+// naPickToolOnAgentStep goes to the agent step and picks tool id there.
+func naPickToolOnAgentStep(t *testing.T, m Model, id string) Model {
+	t.Helper()
+	m, _ = naKey(m, key("ctrl+g"))
+	return naPickTool(t, m, id)
 }
 
 // filepathHome is the test's HOME (naModel set it).
@@ -256,12 +315,12 @@ func filepathHome(t *testing.T) string {
 	return home
 }
 
-func TestAgentScreen_RefreshPickersKeepsSelection(t *testing.T) {
+func TestAgentStep_RefreshPickersKeepsSelection(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools = daemonTools(t, "claude", "codex", "cursor")
 	m = naAgentOpen(t, m)
 	m = naPickTool(t, m, "codex")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = naKey(m, key("enter"))
 	m, _ = naKey(m, key("j"))
 	m, _ = naKey(m, key("l"))
 	want := m.NewAgent.choice()
@@ -274,7 +333,7 @@ func TestAgentScreen_RefreshPickersKeepsSelection(t *testing.T) {
 	}
 	m = send(m, daemonTools(t, "codex", "cursor"))
 	require.Equal(t, FocusNewAgent, m.Focus)
-	require.Equal(t, naAgentScreen, m.NewAgent.Screen)
+	require.Equal(t, naStepModel, m.NewAgent.Step)
 	require.Equal(t, want, m.NewAgent.choice(), "tool, model and effort kept by id")
 	require.Equal(t, "codex", m.NewAgent.Tools[m.NewAgent.ToolIdx].ID)
 	require.True(t, func() bool {
@@ -285,9 +344,11 @@ func TestAgentScreen_RefreshPickersKeepsSelection(t *testing.T) {
 		}
 		return false
 	}(), "claude moved to not installed")
+	require.Empty(t, m.NewAgent.Notice)
 
 	m = send(m, daemonTools(t, "cursor"))
 	require.Equal(t, "cursor", m.NewAgent.choice().Tool, "a tool that went away falls back")
+	require.Contains(t, m.NewAgent.Notice, "codex isn't available", "with a notice")
 
 	m = send(m, daemonTools(t))
 	require.Equal(t, FocusBoard, m.Focus)
@@ -296,11 +357,28 @@ func TestAgentScreen_RefreshPickersKeepsSelection(t *testing.T) {
 	require.Contains(t, m.Notice, "no agent is available")
 }
 
-func TestAgentScreen_FitsEverySize(t *testing.T) {
+// A refresh that leaves the current step without anything to show moves on
+// to the next step that applies (S2).
+func TestSkillsStep_RefreshMovesOffASkippedStep(t *testing.T) {
+	m := naModel(t)
+	writeHomeSkill(t, filepathHome(t), "go-testing", "tests")
+	m.DaemonTools = daemonTools(t, "claude", "cursor")
+	m = naAgentOpen(t, m)
+	m, _ = naKey(m, key("enter"))
+	m, _ = naKey(m, key("enter"))
+	require.Equal(t, naStepSkills, m.NewAgent.Step)
+	data, err := json.Marshal(protocol.ToolsChanged{Tools: daemonTools(t, "cursor")})
+	require.NoError(t, err)
+	m = m.applyEvent(protocol.Envelope{Type: protocol.EventToolsChanged, Data: data})
+	require.Equal(t, naStepTask, m.NewAgent.Step)
+}
+
+func TestModelStep_FitsEverySize(t *testing.T) {
 	m := naModel(t)
 	m.DaemonTools = cursorModels(t)
 	m = naAgentOpen(t, m)
 	m = naPickTool(t, m, "cursor")
+	m, _ = naKey(m, key("enter"))
 	m, _ = naKey(m, key("/"))
 	m = naType(m, "son")
 	for _, sz := range []goldenSize{{120, 40}, {80, 24}, {60, 20}, {59, 20}, {50, 20}, {40, 12}} {
@@ -311,6 +389,4 @@ func TestAgentScreen_FitsEverySize(t *testing.T) {
 			require.LessOrEqual(t, ansi.StringWidth(l), sz.w, "%dx%d line %d: %q", sz.w, sz.h, i, ansi.Strip(l))
 		}
 	}
-	m.Width, m.Height = 50, 20
-	require.Contains(t, naView(m), "‹ Agents · [Models] · Effort · Skills ›")
 }

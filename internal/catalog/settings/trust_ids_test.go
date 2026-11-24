@@ -49,6 +49,7 @@ func TestWorkspaceAllowIDs_Exact(t *testing.T) {
 		"summary_preview": "display", "waiting_section": "grouping only",
 		"usage_meter": "display", "summary_detail": "description length",
 		"desc_animation": "animation", "attach_banner": "display",
+		"summary_scan": "animation", "summary_scan_color": "colors", "filter_chips": "display",
 	}
 	require.ElementsMatch(t, keys(why), WorkspaceAllowIDs)
 	for _, id := range WorkspaceAllowIDs {

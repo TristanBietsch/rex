@@ -20,7 +20,7 @@ flowchart LR
 | Component | Path | Role |
 |-----------|------|------|
 | CLI | `internal/surface/cli/` | Subcommands, selectors, exit codes |
-| TUI | `internal/surface/tui/` | Board, wizard, attach overlay |
+| TUI | `internal/surface/tui/` | Board, new-agent page, attach overlay |
 | Client | `internal/wire/client/` | Socket dial, intents, events |
 | Server | `internal/daemon/server/` | Intent handlers, fan-out |
 | Store | `internal/daemon/state/` | In-memory sessions, persistence |
@@ -31,7 +31,7 @@ flowchart LR
 
 ## Spawn flow
 
-1. User runs `rex new` or the TUI wizard → `NewSession` intent.
+1. User runs `rex new` or the TUI new-agent page → `NewSession` intent.
 2. Server checks concurrency cap (`TryAcquireSession`).
 3. Server creates `state.Session`, resolves `registry.Tool` command line.
 4. `pty.Supervisor` starts the child with model args and optional effort.

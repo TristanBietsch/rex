@@ -96,12 +96,14 @@ func launchNewAgent(m Model) (Model, tea.Cmd) {
 	req, err := st.request(cwd, existingSlugs(m))
 	if err != nil {
 		st.Err = naFail(err)
+		naLaunchFailed(m, err)
 		return m, nil
 	}
 	var ok bool
 	if m, req, ok = newAgentTrustRequest(m, cwd, req); !ok {
 		m.NewAgent.Err = "✗ " + m.Err // the page shows it, not the board
 		m.Err = ""
+		naLaunchFailed(m, nil)
 		return m, nil
 	}
 	req.Cols, req.Rows = spawnSizeOf(m)
@@ -109,9 +111,23 @@ func launchNewAgent(m Model) (Model, tea.Cmd) {
 	m.PendingSpawn = pendingSpawn{Skills: req.Skills}
 	st.Launching = true
 	st.launchGen = launchGens.Add(1)
-	// The progress shows on Compose, wherever the launch came from.
-	st.Screen, st.Filtering, st.Renaming, st.Complete, st.Import = naCompose, false, false, nil, nil
+	// The progress shows under the current line, wherever the launch came from.
+	st.Screen, st.Filtering, st.Renaming, st.Complete, st.Import = naSteps, false, false, nil, nil
 	return m, naLaunchCmd(m.Client, req, st.launchGen)
+}
+
+// naLaunchFailed shows where a refused launch left the page: a context
+// problem (a path, the item or paste caps) on the context step, anything
+// else on the summary, under the launch row.
+func naLaunchFailed(m Model, err error) {
+	st := m.NewAgent
+	st.Screen, st.ReturnToSummary = naSteps, false
+	var ne naErr
+	if errors.As(err, &ne) && ne.ctx {
+		naGo(m, naStepContext)
+		return
+	}
+	naGo(m, naStepSummary)
 }
 
 // naLaunching is the page or the draft (left with esc) whose launch gen is,
@@ -142,6 +158,9 @@ func handleNewAgentLaunched(m Model, msg newAgentLaunchedMsg) (Model, tea.Cmd) {
 		why := strings.TrimRight(protocol.FlattenDisplayText(msg.Err.Error()), ". ")
 		if open {
 			st.Err = "✗ launch failed: " + why + ". Your draft is kept."
+			st.ReturnToSummary = false
+			st.Step = naStepSummary
+			st.SumRow = len(naSumTargets(st))
 		} else {
 			m.Err = "launch failed: " + why + ". Your draft is kept (n reopens it)."
 		}
@@ -185,7 +204,7 @@ func (st *NewAgentState) naCheckLaunch(cwd string) error {
 		}
 		if st.ItemsRoot != "" && filepath.Clean(st.ItemsRoot) != filepath.Clean(cwd) {
 			return naErr{msg: it.Name + " was added in " + tildePath(st.ItemsRoot) + "; new agents now start in " +
-				tildePath(cwd) + ". Remove it (x) to launch here."}
+				tildePath(cwd) + ". Go to context (5), x removes it."}
 		}
 		info, err := spawnctx.ValidatePath(cwd, it.Name)
 		if err != nil {
@@ -196,7 +215,7 @@ func (st *NewAgentState) naCheckLaunch(cwd string) error {
 			if info.Dir {
 				now = "folder"
 			}
-			return naErr{msg: it.Name + " is now a " + now + ": remove it (x) and add it again."}
+			return naErr{msg: it.Name + " is now a " + now + ": go to context (5), x removes it; add it again."}
 		}
 	}
 	total := 0
@@ -215,17 +234,27 @@ func (st *NewAgentState) naCheckLaunch(cwd string) error {
 	return nil
 }
 
+// naInContext marks err as a problem with the context.
+func naInContext(err error) error {
+	var ne naErr
+	if errors.As(err, &ne) {
+		ne.ctx = true
+		return ne
+	}
+	return naErr{msg: err.Error(), ctx: true}
+}
+
 // naLaunchPathErr is a file or folder refused at launch (mockup F words).
 func naLaunchPathErr(root, rel string, err error) error {
 	switch {
 	case errors.Is(err, spawnctx.ErrOutside):
 		return naPathErr(root, rel, err)
 	case errors.Is(err, spawnctx.ErrSpecial):
-		return naErr{msg: rel + " is no longer a regular file or folder: remove it (x)."}
+		return naErr{msg: rel + " is no longer a regular file or folder: go to context (5), x removes it."}
 	case errors.Is(err, spawnctx.ErrBadName):
-		return naErr{msg: strconv.Quote(rel) + " has control characters or line breaks in its name: remove it (x)."}
+		return naErr{msg: strconv.Quote(rel) + " has control characters or line breaks in its name: go to context (5), x removes it."}
 	case errors.Is(err, fs.ErrNotExist):
-		return naErr{msg: rel + " does not exist (any more). Remove it (x)."}
+		return naErr{msg: rel + " does not exist (any more). Go to context (5), x removes it."}
 	}
 	return naErr{msg: "cannot check " + rel + ": " + err.Error()}
 }
@@ -252,31 +281,4 @@ func naAssembleErr(err error) error {
 		return naErr{msg: "cannot launch with " + why + ": rename or remove it."}
 	}
 	return naErr{msg: "cannot launch: " + err.Error()}
-}
-
-// closeNewAgentIfOff closes the page, keeping the draft, once
-// new_agent_page is off (Feature flag: turning it off closes the page).
-func closeNewAgentIfOff(m Model) Model {
-	if m.NewAgent != nil && !m.featureOn("new_agent_page") {
-		return closeNewAgent(m, true)
-	}
-	return m
-}
-
-// naSeedWizard starts the older wizard (new_agent_page off) with the draft's
-// task as one line; the context cannot go with it and the notice says so.
-func naSeedWizard(m Model) Model {
-	d := m.newAgentDraft
-	if d == nil || m.Wizard == nil {
-		return m
-	}
-	m.Wizard.TaskText = strings.Join(strings.Fields(d.Task.String()), " ")
-	if n := len(d.Items); n > 0 {
-		what := strconv.Itoa(n) + " context items were dropped"
-		if n == 1 {
-			what = "1 context item was dropped"
-		}
-		m.Notice = "the older wizard takes the task text only: " + what + " (kept for the new-agent page)"
-	}
-	return m
 }

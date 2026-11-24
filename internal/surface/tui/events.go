@@ -78,7 +78,8 @@ func armSpinner(m Model) (Model, tea.Cmd) {
 
 // wantsSpinnerTick reports whether anything on screen is driven by the
 // SpinnerTick chain: working-row / attach-chip spinners, the blinking text
-// cursor of an open input bar, the blinking board selector, and the done-row
+// cursor of an open input bar, the blinking board selector, the summary
+// scanner (a queued session is not "working" but still scans), and the done-row
 // flash (which reads the clock at render time and so needs periodic
 // re-renders). None of them is on
 // screen while the screensaver shows, so the chain rests then.
@@ -89,7 +90,7 @@ func (m Model) wantsSpinnerTick() bool {
 	if m.hasWorkingSessions() {
 		return true
 	}
-	if m.cursorBlinking() || m.selectorBlinking(m.now()) {
+	if m.cursorBlinking() || m.selectorBlinking(m.now()) || m.scanning() {
 		return true
 	}
 	return m.doneBlinkActive(time.Now())
@@ -98,7 +99,7 @@ func (m Model) wantsSpinnerTick() bool {
 // cursorBlinking is true while an input bar showing cursorBlock is focused.
 func (m Model) cursorBlinking() bool {
 	switch m.Focus {
-	case FocusPrompt, FocusCommand, FocusRename, FocusSearch, FocusWizard, FocusNewAgent:
+	case FocusPrompt, FocusCommand, FocusRename, FocusSearch, FocusNewAgent:
 	default:
 		return false
 	}

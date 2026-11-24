@@ -157,11 +157,11 @@ func adoptSnapshotTools(m Model, infos []protocol.ToolInfo) Model {
 	return adoptDaemonTools(m, infos)
 }
 
-// refreshPickers rebuilds the open wizard's, settings page's and new-agent page's tool lists
+// refreshPickers rebuilds the open settings page's and new-agent page's tool lists
 // after the daemon's list or a setting changed. The cursor stays on the same
 // tool and model by id when they are still offered.
 func refreshPickers(m Model) Model {
-	if m.Wizard == nil && m.Settings == nil && m.NewAgent == nil {
+	if m.Settings == nil && m.NewAgent == nil {
 		return m
 	}
 	reg, err := loadToolsStrict()
@@ -170,39 +170,6 @@ func refreshPickers(m Model) Model {
 		return m
 	}
 	offer, onboarding := pickerTools(m, reg)
-	if m.Wizard != nil && len(offer) == 0 {
-		// Nothing left to offer (the last agent went away, or extra_agents
-		// was turned off): there is nothing to pick.
-		m.Wizard = nil
-		m.Focus = FocusBoard
-		m.Notice = "the new-session wizard closed: no agent is available (see Settings → Onboarding)"
-	}
-	if m.Wizard != nil {
-		w := *m.Wizard
-		toolID, modelID, effort := w.selectedTool().ID, w.selectedModel().ID, w.currentEffort()
-		w.Tools = offer
-		w.ToolIdx = max(slices.IndexFunc(offer, func(t registry.Tool) bool { return t.ID == toolID }), 0)
-		t := w.selectedTool()
-		if i := slices.IndexFunc(t.Models, func(md registry.Model) bool { return md.ID == modelID }); t.ID == toolID && i >= 0 {
-			w.ModelIdx = i
-		} else {
-			presetModelDefault(&w)
-		}
-		// The effort stays where the user put it while the model is the same
-		// and still offers it.
-		presetEffortDefault(&w)
-		// The step the user was on may not exist for the new tool or model
-		// (no effort block, no skills): step back to one that does.
-		for w.Step > wizProvider && !w.stepApplies(w.Step) {
-			w.Step--
-		}
-		if opts := w.selectedModel().Effort; opts != nil && w.selectedModel().ID == modelID {
-			if i := slices.Index(opts.Options, effort); i >= 0 {
-				w.EffortIdx = i
-			}
-		}
-		m.Wizard = &w
-	}
 	if m.Settings != nil {
 		st := *m.Settings
 		st.Tools, st.Onboarding = offer, onboarding

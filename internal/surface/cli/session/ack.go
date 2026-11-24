@@ -42,11 +42,7 @@ func awaitPatch(c *client.Client, sessionID, reqID, patchKey string) error {
 			if ee.Code == protocol.ErrCodeBadIntent && msg == "intent not implemented" {
 				msg = "daemon is older than rex — run 'rex daemon restart'"
 			}
-			code := core.ExitGeneric
-			if ee.Code == protocol.ErrCodeBadIntent {
-				code = core.ExitInvalidArgs
-			}
-			return core.NewExitError(code, msg)
+			return core.NewExitError(exitForCode(ee.Code), msg)
 		case protocol.EventSessionUpdated:
 			var u protocol.SessionUpdated
 			if json.Unmarshal(env.Data, &u) != nil || u.SessionID != sessionID {
@@ -57,6 +53,17 @@ func awaitPatch(c *client.Client, sessionID, reqID, patchKey string) error {
 			}
 		}
 	}
+}
+
+// exitForCode is the exit code for a daemon Error code: a bad request
+// (bad_intent) or a taken name (name_taken) is the caller's to fix, exit 5;
+// anything else, including codes this rex does not know, is exit 1.
+func exitForCode(code string) int {
+	switch code {
+	case protocol.ErrCodeBadIntent, protocol.ErrCodeNameTaken:
+		return core.ExitInvalidArgs
+	}
+	return core.ExitGeneric
 }
 
 // shortDuration renders d with one unit: 45s, 12m, 5h, 6d.

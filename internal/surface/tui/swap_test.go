@@ -97,7 +97,7 @@ func TestNewBuildNoticeThenIdleSwap(t *testing.T) {
 // No unattended swap while something is being typed or the attach popup
 // is open.
 func TestNoAutoSwapWhileBusy(t *testing.T) {
-	for _, f := range []Focus{FocusWizard, FocusNewAgent, FocusPrompt, FocusConfirmDelete, FocusRename} {
+	for _, f := range []Focus{FocusNewAgent, FocusPrompt, FocusConfirmDelete, FocusRename} {
 		m := swapBoard()
 		m.Focus = f
 		m.newBuild = true
@@ -123,14 +123,14 @@ func TestSwapEvent(t *testing.T) {
 	require.NotEmpty(t, got.swapPath)
 	_ = os.Remove(got.swapPath)
 
-	m.Focus = FocusWizard
+	m.Focus = FocusNewAgent
 	nm, _ = m.Update(ev("another"))
 	got = nm.(Model)
 	require.Empty(t, got.swapPath)
 	require.True(t, got.swapWanted)
 	got.Focus = FocusBoard
 	nm, _ = got.Update(binChangedMsg{})
-	require.NotEmpty(t, nm.(Model).swapPath, "swaps once the wizard is closed")
+	require.NotEmpty(t, nm.(Model).swapPath, "swaps once the page is closed")
 	_ = os.Remove(nm.(Model).swapPath)
 }
 

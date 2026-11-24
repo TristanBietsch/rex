@@ -22,7 +22,7 @@ import (
 func naPreviewKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
 	if st.ItemIdx >= len(st.Items) {
-		st.Screen = naCompose
+		st.Screen = naSteps
 		return m, nil
 	}
 	if k.Paste {
@@ -31,15 +31,13 @@ func naPreviewKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	it := st.Items[st.ItemIdx]
 	switch {
 	case k.Type == tea.KeyEsc || isRune(k, 'q') || isRune(k, 'h') || k.Type == tea.KeyLeft:
-		st.Screen = naCompose
-		naFocus(st, naContext)
+		st.Screen = naSteps
 		playNav(m)
 	case k.Type == tea.KeyCtrlS:
 		return launchNewAgent(m)
 	case k.Type == tea.KeyDelete || isRune(k, 'x') || isRune(k, 'd'):
 		removeItem(st, st.ItemIdx)
-		st.Screen = naCompose
-		naFocus(st, naContext)
+		st.Screen = naSteps
 	case isRune(k, 'r'):
 		naStartRename(st)
 	case k.Type == tea.KeyCtrlE || isRune(k, 'e'):
@@ -61,12 +59,8 @@ func naPreviewScroll(m Model, mv navMove) {
 	if st.ItemIdx >= len(st.Items) {
 		return
 	}
-	h := m.Height
-	if h <= 0 {
-		h = 32
-	}
 	last := naPreviewMaxScroll(m, st, st.Items[st.ItemIdx])
-	st.PrevScroll = navTarget(mv, min(st.PrevScroll, last), last+1, naPreviewTextRows(h, 0))
+	st.PrevScroll = navTarget(mv, min(st.PrevScroll, last), last+1, naPreviewTextRows(naBodyRows(m, st), 0))
 }
 
 // naPreviewLines is what the preview shows of an item, one entry a line,
@@ -102,28 +96,23 @@ func naPreviewMeta(it spawnctx.Item) string {
 	}
 }
 
-// naPreviewTextRows is how many text rows the preview box has on a page h
-// rows tall, with errLines error lines under it.
-func naPreviewTextRows(h, errLines int) int {
-	return max(1, pageBodyHeight(h)-3-errLines)
+// naPreviewTextRows is how many text rows the preview box has in a body
+// rows tall (under the transcript), with errLines error lines under it:
+// the title and the box's two edges take three.
+func naPreviewTextRows(rows, errLines int) int {
+	return max(1, rows-3-errLines)
 }
 
 // naPreviewMaxScroll is the last first line that still fills the box.
 func naPreviewMaxScroll(m Model, st *NewAgentState, it spawnctx.Item) int {
-	h := m.Height
-	if h <= 0 {
-		h = 32
-	}
 	text, _ := naPreviewLines(st, it)
-	return max(0, len(text)-naPreviewTextRows(h, 0))
+	return max(0, len(text)-naPreviewTextRows(naBodyRows(m, st), 0))
 }
 
 // naPreviewBody is the preview fw wide for a body bh rows tall: title and
-// size, the boxed text from PrevScroll ("… N more lines" when it goes on),
-// then the page's error.
+// size, the boxed text from PrevScroll ("… N more lines" when it goes on).
 func naPreviewBody(m Model, st *NewAgentState, fw, bh int) []string {
 	it := st.Items[st.ItemIdx]
-	errs := naErrLines(st, fw)
 	title := styleArrow.Render(strings.ToUpper(protocol.FlattenDisplayText(it.Name)))
 	if st.Renaming {
 		title = naRenameField(m, st)
@@ -135,7 +124,7 @@ func naPreviewBody(m Model, st *NewAgentState, fw, bh int) []string {
 
 	w := max(fw, 5)
 	inner := w - 4
-	rows := naPreviewTextRows(pageChromeRows+bh, len(errs))
+	rows := naPreviewTextRows(bh, 0)
 	text, unread := naPreviewLines(st, it)
 	start := min(st.PrevScroll, max(0, len(text)-rows))
 	shown := text[start:]
@@ -164,7 +153,6 @@ func naPreviewBody(m Model, st *NewAgentState, fw, bh int) []string {
 		box("")
 	}
 	lines = append(lines, border.Render("└"+strings.Repeat("─", w-2)+"┘"))
-	lines = append(lines, errs...)
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, fw, "…")
 	}

@@ -2,6 +2,10 @@ package tui
 
 import (
 	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -153,10 +157,25 @@ func renderDescPreview(m Model, cw int) []string {
 		wrapped[len(wrapped)-1] = last + age
 	}
 	dim := styleDim
+	scan, head, offset := scanActive(m, s), 0, 0
+	var scanFg lipgloss.Color
+	if scan {
+		n := 0
+		for _, w := range wrapped {
+			n += utf8.RuneCountInString(w)
+		}
+		head = scanHead(n, time.Duration(m.now().UnixNano()))
+		scanFg = scanColor(m)
+	}
 	for i, w := range wrapped {
 		prefix := previewIndent
 		if i == 0 {
 			prefix = previewLead
+		}
+		if scan {
+			lines[i] = padLine(dim.Render(prefix)+renderScan(w, offset, head, scanFg, dim), cw)
+			offset += utf8.RuneCountInString(w)
+			continue
 		}
 		lines[i] = padLine(dim.Render(prefix+w), cw)
 	}

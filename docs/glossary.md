@@ -100,4 +100,4 @@ Unix domain socket. Carries newline-delimited JSON. Default path: [paths.md](pat
 
 ## wizard
 
-Interactive flow to create a session (TUI) or run first-time setup (`rex setup`).
+Interactive first-time setup (`rex setup`). New sessions start from the new-agent page instead.

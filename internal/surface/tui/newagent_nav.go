@@ -1,87 +1,168 @@
 package tui
 
 import (
+	"slices"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/tristanbietsch/rex/internal/features/spawnctx"
 )
 
-// Compose navigation on the new-agent page, vim-style. The page has two
-// modes:
+// Step navigation on the new-agent page (R21). One step shows at a time:
 //
-//   - Editing (insert mode): keys type into the task editor. enter launches
-//     (R16 D2), ctrl+j and alt+enter add a line, esc leaves the editor
-//     (closing an open @ list first), tab / shift+tab leave it for the next
-//     or previous step.
-//   - Navigation: the form is one list (agent, task, each context item,
-//     trust, launch) that j/k walk with the shared navigator (nav.go); h
-//     focuses the step rail and l comes back; i, a, A or enter on the task
-//     edit it again; esc or q closes the page (the draft is kept).
+//   - enter confirms the step and goes to the next one that applies; on the
+//     task it never launches (the summary is the launch point);
+//   - esc closes the innermost thing (the @ list, a filter, the picker, the
+//     preview) first, then returns to the summary after a jump from it,
+//     closes the page on the step it opened on, else goes back one step
+//     (also before the opened step), and on the first step closes the page;
+//   - tab / shift+tab go to the next / previous step, 1-7 jump to one;
+//   - j/k, gg/G, ctrl+d/ctrl+u move the step's list with the shared
+//     navigator (nav.go).
 //
-// ctrl+s launches, ctrl+g opens the Agent screen and ctrl+o the import
-// picker in both modes.
+// ctrl+s launches from anywhere; ctrl+o opens the import picker on the task
+// and context steps; ctrl+g goes to the agent step.
 
-// naRows is the number of rows j/k walk on Compose: agent, task, the
-// context items (one row when there are none), trust and launch.
-func naRows(st *NewAgentState) int { return 4 + max(len(st.Items), 1) }
+// naSkipped reports whether step s does not apply: the model step for an
+// agent with no models, the skills step when skills cannot be loaded (the
+// feature is off, the library is empty or the agent has no skill_args).
+func naSkipped(st *NewAgentState, s naStep) bool {
+	switch s {
+	case naStepModel:
+		return len(st.selection().selectedTool().Models) == 0
+	case naStepSkills:
+		return !st.selection().skillsApply()
+	case naStepAgent, naStepTask, naStepContext, naStepTrust, naStepSummary, naStepCount:
+	}
+	return false
+}
 
-// naRow is the cursor's row in naRows.
-func naRow(st *NewAgentState) int {
-	switch st.Section {
-	case naAgent:
-		return 0
-	case naTask:
-		return 1
-	case naContext:
-		return 2 + min(max(st.ItemIdx, 0), max(len(st.Items)-1, 0))
-	case naTrust:
-		return naRows(st) - 2
+// naStepFrom is the step dir (±1) away from from that applies, ok false
+// when there is none.
+func naStepFrom(st *NewAgentState, from naStep, dir int) (naStep, bool) {
+	for s := from + naStep(dir); s >= 0 && s < naStepCount; s += naStep(dir) {
+		if !naSkipped(st, s) {
+			return s, true
+		}
+	}
+	return from, false
+}
+
+// naEnterStep points the step's own cursor at its starting row: the trust
+// step on the current choice, the summary on its launch row (unless it is
+// being returned to), the lists inside their rows.
+func naEnterStep(m Model, st *NewAgentState) {
+	switch st.Step {
+	case naStepTrust:
+		naSyncTrustCur(m, st)
+	case naStepSummary:
+		if !st.ReturnToSummary {
+			st.SumRow = len(naSumTargets(st))
+		}
+		st.ReturnToSummary = false
+	case naStepContext:
+		st.ItemIdx = min(max(st.ItemIdx, 0), len(st.Items))
+	case naStepSkills:
+		st.SkillCur = min(max(st.SkillCur, 0), max(len(st.Skills)-1, 0))
+	case naStepAgent, naStepModel, naStepTask, naStepCount:
+	}
+}
+
+// naGo moves to step s, dropping what belonged to the step left (the @
+// list, the filter being typed).
+func naGo(m Model, s naStep) {
+	st := m.NewAgent
+	if s != naStepAgent {
+		st.OnMissing = false
+		if st.Step == naStepAgent {
+			st.Notice = "" // leaving the agent step, by any route, ends the open-time notice
+		}
+	}
+	st.Step, st.Complete, st.Filtering, st.gPending = s, nil, false, false
+	naEnterStep(m, st)
+	playNav(m)
+}
+
+// naToSummary goes to the summary, keeping its cursor on the row jumped
+// from (keepRow) or putting it on the launch row.
+func naToSummary(m Model, keepRow bool) {
+	st := m.NewAgent
+	st.ReturnToSummary = keepRow
+	naGo(m, naStepSummary)
+}
+
+// naAdvance is enter on a step: it moves on to the next step that applies.
+// After a jump from the summary it goes back there instead: after an agent
+// change through the model and skills steps (the ones that apply), after
+// any other change at once.
+func naAdvance(m Model) (Model, tea.Cmd) {
+	st := m.NewAgent
+	if st.Step == naStepAgent {
+		if naToolsLoading(m) {
+			return m, nil // the list is not in yet
+		}
+		st.Notice = "" // confirming the agent clears the open-time notice
+	}
+	next, ok := naStepFrom(st, st.Step, 1)
+	if st.ReturnToSummary && (!ok || next > naStepSkills) {
+		naToSummary(m, true)
+		return m, nil
+	}
+	if ok {
+		naGo(m, next)
+	}
+	return m, nil
+}
+
+// naTab is tab (dir 1) and shift+tab (-1): the next or previous step that
+// applies, no wrap. It ends the return to the summary.
+func naTab(m Model, dir int) Model {
+	st := m.NewAgent
+	st.ReturnToSummary = false
+	if next, ok := naStepFrom(st, st.Step, dir); ok {
+		naGo(m, next)
+	}
+	return m
+}
+
+// naJump is a number key or ctrl+g: go to step s unless it is skipped.
+func naJump(m Model, s naStep) Model {
+	st := m.NewAgent
+	if naSkipped(st, s) {
+		return m
+	}
+	st.ReturnToSummary = false
+	naGo(m, s)
+	return m
+}
+
+// naEsc is esc outside the editor's own layers: a kept model filter goes
+// first; then a jump from the summary returns to it; on the step the page
+// opened on the page closes, the draft kept; else it is one step back (also
+// on a step before the opened one), and on the first step the page closes.
+func naEsc(m Model) (Model, tea.Cmd) {
+	st := m.NewAgent
+	switch {
+	case st.Step == naStepModel && st.Filter != "":
+		st.Filter = ""
+		playNav(m)
+	case st.ReturnToSummary:
+		naToSummary(m, true)
+	case st.Step == st.Opened:
+		return closeNewAgent(m, true), nil
 	default:
-		return naRows(st) - 1
+		prev, ok := naStepFrom(st, st.Step, -1)
+		if !ok {
+			return closeNewAgent(m, true), nil
+		}
+		naGo(m, prev)
 	}
+	return m, nil
 }
 
-// naSetRow puts the cursor on row r of naRows.
-func naSetRow(st *NewAgentState, r int) {
-	n := naRows(st)
-	switch r = min(max(r, 0), n-1); r {
-	case 0:
-		naFocus(st, naAgent)
-	case 1:
-		naFocus(st, naTask)
-	case n - 2:
-		naFocus(st, naTrust)
-	case n - 1:
-		naFocus(st, naLaunchRow)
-	default:
-		naFocus(st, naContext)
-		st.ItemIdx = r - 2
-	}
-}
-
-// naFocus moves the cursor to section s, leaving the editor; the context
-// list keeps its item.
-func naFocus(st *NewAgentState, s naSection) {
-	st.Section, st.Editing, st.Complete = s, false, nil
-}
-
-// naEdit enters the task editor (insert mode).
-func naEdit(st *NewAgentState) {
-	st.Section, st.Editing, st.OnRail = naTask, true, false
-}
-
-// naStepSection is the section dir steps (±1) from the current one; wrap
-// cycles past the ends (tab), else it clamps ([ ], the rail's j/k).
-func naStepSection(st *NewAgentState, dir int, wrap bool) naSection {
-	next := int(st.Section) + dir
-	if wrap {
-		return naSection((next + int(naSectionCount)) % int(naSectionCount))
-	}
-	return naSection(min(max(next, 0), int(naSectionCount)-1))
-}
-
-// naInsertKey is a key while typing in the task editor.
-func naInsertKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+// naTaskKey is a key on the task step, which always types: enter goes to
+// the next step, ctrl+j and alt+enter add a line.
+func naTaskKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
 	if st.Complete != nil {
 		if m, cmd, ok := naCompleteKey(m, k); ok {
@@ -90,22 +171,23 @@ func naInsertKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	switch k.Type {
 	case tea.KeyEsc:
-		st.Editing, st.Complete = false, nil
-		return m, nil
-	case tea.KeyTab, tea.KeyShiftTab:
-		dir := 1
-		if k.Type == tea.KeyShiftTab {
-			dir = -1
-		}
-		naFocus(st, naStepSection(st, dir, true))
-		playNav(m)
-		return m, nil
+		return naEsc(m)
+	case tea.KeyTab:
+		return naTab(m, 1), nil
+	case tea.KeyShiftTab:
+		return naTab(m, -1), nil
 	case tea.KeyCtrlO:
 		return openImport(m), nil
-	case tea.KeyCtrlS:
-		return launchNewAgent(m)
 	case tea.KeyCtrlG:
-		return openAgentScreen(m), nil
+		return naJump(m, naStepAgent), nil
+	case tea.KeyEnter:
+		if !k.Alt {
+			return naAdvance(m)
+		}
+	case tea.KeyRunes:
+		if isRune(k, '?') && st.Task.Empty() {
+			return openNewAgentHelp(m), nil
+		}
 	}
 	m, cmd := newAgentEditKey(m, k)
 	if m.NewAgent != nil {
@@ -114,215 +196,254 @@ func naInsertKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-// naNormalKey is a key on Compose outside the editor.
-func naNormalKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+// naStepKey is a key on any step but the task: the keys every step shares,
+// then the step's own.
+func naStepKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
 	key := k.String()
-	narrow := pageNarrow(m.Width)
-	if narrow {
-		st.OnRail = false // no rail to focus
-	}
 	switch key {
-	case "esc", "q":
+	case "esc":
+		return naEsc(m)
+	case "q":
 		return closeNewAgent(m, true), nil
-	case "ctrl+o":
-		return openImport(m), nil
-	case "ctrl+s":
-		return launchNewAgent(m)
-	case "ctrl+g":
-		return openAgentScreen(m), nil
 	case "?":
 		return openNewAgentHelp(m), nil
-	case "tab", "shift+tab", "[", "]":
-		dir := 1
-		if key == "shift+tab" || key == "[" {
-			dir = -1
-		}
-		naFocus(st, naStepSection(st, dir, key == "tab" || key == "shift+tab"))
-		playNav(m)
-		return m, nil
-	case "1", "2", "3", "4", "5":
-		naFocus(st, naSection(key[0]-'1'))
-		playNav(m)
-		return m, nil
-	case "i", "a", "A", "I":
-		naEdit(st)
-		switch key {
-		case "a":
-			st.Task.Move(0, 1)
-		case "A":
-			st.Task.End()
-		case "I":
-			st.Task.Home()
-		}
-		return m, nil
-	case "h", "left":
-		if narrow {
-			naFocus(st, naStepSection(st, -1, false))
-		} else {
-			st.OnRail = true
-		}
-		playNav(m)
-		return m, nil
-	case "l", "right":
-		if narrow {
-			naFocus(st, naStepSection(st, 1, false))
-		} else {
-			st.OnRail = false
-		}
-		playNav(m)
-		return m, nil
-	}
-	if mv := vimMotion(key, &st.gPending); mv != navNone {
-		if mv != navPending {
-			naMove(m, mv)
+	case "tab":
+		return naTab(m, 1), nil
+	case "shift+tab":
+		return naTab(m, -1), nil
+	case "ctrl+g":
+		return naJump(m, naStepAgent), nil
+	case "1", "2", "3", "4", "5", "6", "7":
+		return naJump(m, naStep(key[0]-'1')), nil
+	case "ctrl+o":
+		if st.Step == naStepContext {
+			return openImport(m), nil
 		}
 		return m, nil
 	}
-	if st.OnRail {
-		if key == "enter" {
-			st.OnRail = false
+	switch st.Step {
+	case naStepAgent:
+		return naAgentKey(m, k)
+	case naStepModel:
+		return naModelKey(m, k)
+	case naStepContext:
+		return naContextKey(m, k)
+	case naStepSummary:
+		return naSummaryKey(m, k)
+	case naStepSkills:
+		if key == " " {
+			st.toggleSkill()
 			playNav(m)
+			return m, nil
 		}
-		return m, nil
+	case naStepTrust:
+		if key == " " {
+			naPickTrust(m)
+			return m, nil
+		}
+	case naStepTask, naStepCount:
 	}
-	return naSectionKey(m, k)
-}
-
-// naMove moves the cursor by mv: through the steps on the rail, else
-// through the form's rows.
-func naMove(m Model, mv navMove) {
-	st := m.NewAgent
-	before := naRow(st)
-	if st.OnRail {
-		s := naSection(navTarget(mv, int(st.Section), int(naSectionCount), int(naSectionCount)))
-		if s != st.Section {
-			naFocus(st, s)
-		}
-	} else {
-		naSetRow(st, navTarget(mv, before, naRows(st), st.itemsView.H+4))
+	if key == "enter" {
+		return naAdvance(m)
 	}
-	if naRow(st) != before {
-		playNav(m)
-	}
-}
-
-// naSectionKey is a key on the focused section's content: enter opens or
-// acts on it; the context list also takes x/d/delete, r and e.
-func naSectionKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
-	st := m.NewAgent
-	key := k.String()
-	switch st.Section {
-	case naAgent:
-		if key == "enter" {
-			return openAgentScreen(m), nil
-		}
-	case naTask:
-		switch key {
-		case "enter":
-			naEdit(st)
-		case "e", "ctrl+e":
-			return m, editInEditor(-1, st.Task.String())
-		}
-	case naContext:
-		if m, cmd, ok := naContextKey(m, k); ok {
-			return m, cmd
-		}
-	case naTrust:
-		if key == "enter" || key == " " {
-			return naCycleTrust(m), nil
-		}
-	case naLaunchRow:
-		if key == "enter" {
-			return launchNewAgent(m)
-		}
-	case naSectionCount:
+	if mv := vimMotion(key, &st.gPending); mv != navNone && mv != navPending {
+		naMoveList(m, mv)
 	}
 	return m, nil
 }
 
-// naCycleTrust is enter or space on the trust step: ask, then this session,
-// then always (skipped where the folder cannot be saved), then ask again,
-// through the same checks as ctrl+t and ctrl+a.
-func naCycleTrust(m Model) Model {
+// naAgentKey is a key on the agent step: enter on the not installed header
+// opens Onboarding (D7), else it confirms the agent.
+func naAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
-	want := tea.KeyMsg{Type: tea.KeyCtrlT}
-	if st.Trust != trustAsk {
-		want = tea.KeyMsg{Type: tea.KeyCtrlA} // session → always; always → ask
+	key := k.String()
+	if key == "enter" {
+		if st.OnMissing {
+			return naOpenOnboarding(m)
+		}
+		return naAdvance(m)
 	}
-	next, mode, _ := trustKeyToggle(m, want, st.Trust)
-	if st.Trust == trustSession && next.Err != "" {
-		next.Err, mode = "", trustAsk // always cannot be saved here: back to ask
+	if mv := vimMotion(key, &st.gPending); mv != navNone && mv != navPending {
+		naMoveList(m, mv)
 	}
-	if next.Err != "" {
-		next.NewAgent.Err = "✗ " + next.Err
-		next.Err = ""
-	}
-	next.NewAgent.Trust = mode
-	return next
+	return m, nil
 }
 
-// naContextKey is a key on the Compose context list; ok false when it is
-// none of the list's keys.
-func naContextKey(m Model, k tea.KeyMsg) (Model, tea.Cmd, bool) {
+// naModelKey is a key on the model step: / filters, h/l (and ←/→, +/-) move
+// the effort, j/k the models; enter moves on.
+func naModelKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
-	if len(st.Items) == 0 {
-		return m, nil, false
+	key := k.String()
+	moved := false
+	switch key {
+	case "enter":
+		return naAdvance(m)
+	case "/":
+		st.Filtering, moved = true, true
+	case "+", "=", "l", "right":
+		moved = st.moveEffort(1)
+	case "-", "_", "h", "left":
+		moved = st.moveEffort(-1)
+	default:
+		if mv := vimMotion(key, &st.gPending); mv != navNone && mv != navPending {
+			naMoveList(m, mv)
+		}
 	}
-	st.ItemIdx = min(max(st.ItemIdx, 0), len(st.Items)-1)
+	if moved {
+		playNav(m)
+	}
+	return m, nil
+}
+
+// naSummaryKey is a key on the summary: enter on the launch row launches,
+// on a step row (or e) it jumps to that step, and enter there comes back.
+func naSummaryKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	st := m.NewAgent
+	key := k.String()
+	targets := naSumTargets(st)
+	switch key {
+	case "enter", "e":
+		if st.SumRow >= len(targets) {
+			if key == "enter" {
+				return launchNewAgent(m)
+			}
+			return m, nil
+		}
+		st.ReturnToSummary = true
+		naGo(m, targets[st.SumRow])
+		return m, nil
+	}
+	if mv := vimMotion(key, &st.gPending); mv != navNone && mv != navPending {
+		naMoveList(m, mv)
+	}
+	return m, nil
+}
+
+// naSumTargets are the steps the summary's rows jump to, in order: the
+// steps that apply, before the summary itself. The launch row follows them.
+func naSumTargets(st *NewAgentState) []naStep {
+	var out []naStep
+	for s := range naStepSummary {
+		if !naSkipped(st, s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// naMoveList moves the current step's list cursor by mv (the shared
+// navigator): the agents, the models, the skills, the context items and the
+// next row, the trust choices or the summary rows.
+func naMoveList(m Model, mv navMove) {
+	st := m.NewAgent
+	moved := false
+	switch st.Step {
+	case naStepAgent:
+		moved = naAgentMove(st, mv)
+	case naStepModel:
+		idx := st.filteredIdx()
+		pos := max(slices.Index(idx, st.modelIdx()), 0)
+		if to := navTarget(mv, pos, len(idx), st.modelsView.H); len(idx) > 0 && (to != pos || idx[to] != st.modelIdx()) {
+			st.setModel(idx[to])
+			moved = true
+		}
+	case naStepSkills:
+		if to := navTarget(mv, st.SkillCur, len(st.Skills), st.skillsView.H); to != st.SkillCur {
+			st.SkillCur, moved = to, true
+		}
+	case naStepContext:
+		if n := len(st.Items); n > 0 {
+			if to := navTarget(mv, st.ItemIdx, n+1, st.itemsView.H); to != st.ItemIdx {
+				st.ItemIdx, moved = to, true
+			}
+		}
+	case naStepTrust:
+		_, rows := naTrustChoices(m, st)
+		if to := navTarget(mv, st.TrustCur, len(rows), len(rows)); to != st.TrustCur && len(rows) > 0 {
+			st.TrustCur, moved = to, true
+		}
+	case naStepSummary:
+		if to := navTarget(mv, st.SumRow, len(naSumTargets(st))+1, st.sumView.H); to != st.SumRow {
+			st.SumRow, moved = to, true
+		}
+	case naStepTask, naStepCount:
+	}
+	if moved {
+		playNav(m)
+	}
+}
+
+// naAgentMove moves the agent cursor by mv: through the agents (the
+// cursor's agent is the chosen one) and on to the not installed header.
+func naAgentMove(st *NewAgentState, mv navMove) bool {
+	n := len(st.Tools)
+	if len(st.Missing) > 0 {
+		n++ // the not installed header
+	}
+	cur := st.ToolIdx
+	if st.OnMissing {
+		cur = len(st.Tools)
+	}
+	to := navTarget(mv, cur, n, st.agentsView.H)
+	if to == cur {
+		return false
+	}
+	st.OnMissing = to >= len(st.Tools)
+	if !st.OnMissing && to != st.ToolIdx {
+		st.setTool(to) // back from the header onto the chosen agent keeps its model
+	}
+	return true
+}
+
+// naContextKey is a key on the context step: enter previews an item, or on
+// the next row (or with no items) goes to the next step; x, d and delete
+// remove, r renames, e edits a paste.
+func naContextKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
+	st := m.NewAgent
+	n := len(st.Items)
+	st.ItemIdx = min(max(st.ItemIdx, 0), n)
+	onItem := st.ItemIdx < n
 	switch {
 	case k.Type == tea.KeyEnter:
+		if !onItem {
+			return naAdvance(m)
+		}
 		st.Screen, st.PrevScroll = naPreview, 0
 		naLoadPreview(st)
 		playNav(m)
-	case k.Type == tea.KeyDelete || isRune(k, 'x') || isRune(k, 'd'):
+	case onItem && (k.Type == tea.KeyDelete || isRune(k, 'x') || isRune(k, 'd')):
 		removeItem(st, st.ItemIdx)
-		if len(st.Items) == 0 {
-			naFocus(st, naContext)
-		}
-	case isRune(k, 'r'):
+	case onItem && isRune(k, 'r'):
 		naStartRename(st)
-	case k.Type == tea.KeyCtrlE || isRune(k, 'e'):
+	case onItem && (k.Type == tea.KeyCtrlE || isRune(k, 'e')):
 		if it := st.Items[st.ItemIdx]; it.Kind == spawnctx.Paste {
-			return m, editInEditor(st.ItemIdx, it.Text), true
+			return m, editInEditor(st.ItemIdx, it.Text)
 		}
 		st.Err = "! only a paste can be edited here; a file is edited in its own editor"
 	default:
-		return m, nil, false
+		if mv := vimMotion(k.String(), &st.gPending); mv != navNone && mv != navPending {
+			naMoveList(m, mv)
+		}
 	}
-	return m, nil, true
+	return m, nil
 }
 
 // updateNewAgentMouse is the wheel on the new-agent page: one row, as j/k,
-// on the pane under the pointer (the step rail or the form; on the Agent
-// screen the agents or the right column; the preview scrolls).
+// on the step's list (agent, models, skills, context, trust, summary); the
+// task ignores it, the preview scrolls and the picker keeps its own keys.
 func updateNewAgentMouse(m Model, msg tea.MouseMsg) Model {
 	st := m.NewAgent
 	mv := wheelMotion(msg)
-	if st == nil || mv == navNone || st.Launching || st.Renaming || len(st.Pending) > 0 {
+	if st == nil || mv == navNone || st.Launching || st.Renaming || st.Filtering || len(st.Pending) > 0 {
 		return m
 	}
 	m.Err, st.Err = "", ""
 	st.Rev++
 	st.gPending = false
-	narrow := pageNarrow(m.Width)
-	left := !narrow && msg.X-frameInset(m) < naRailW+1
 	switch st.Screen {
-	case naCompose:
-		st.Editing, st.OnRail = false, left
-		naMove(m, mv)
-	case naAgentScreen:
-		if st.Filtering {
-			return m
-		}
-		switch {
-		case narrow: // one pane shows: the wheel moves it
-		case left:
-			st.Pane = naPaneAgents
-		case st.Pane == naPaneAgents:
-			st.Pane = naPaneModels
-		}
-		naAgentMove(m, mv)
+	case naSteps:
+		naMoveList(m, mv)
 	case naPreview:
 		naPreviewScroll(m, mv)
 	case naImportScreen:

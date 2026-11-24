@@ -35,6 +35,7 @@ var WorkspaceAllowIDs = []string{
 	"board_filter", "search", "timestamps", "summary_preview",
 	"waiting_section", "usage_meter",
 	"summary_detail", "desc_animation", "attach_banner",
+	"summary_scan", "summary_scan_color", "filter_chips",
 }
 
 // WorkspaceDenyIDs are the settings a workspace's .rex/config.lua can never

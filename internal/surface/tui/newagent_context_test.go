@@ -120,13 +120,14 @@ func TestContextList_RemoveRenamePreview(t *testing.T) {
 	m = naPaste(m, nLines(12))
 	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyTab}) // Context
 	st := m.NewAgent
-	require.Equal(t, naContext, st.Section)
+	require.Equal(t, naStepContext, st.Step)
 	require.Equal(t, 0, st.ItemIdx)
 
 	m = naType(m, "j")
 	require.Equal(t, 1, m.NewAgent.ItemIdx)
 	m = naType(m, "j")
-	require.Equal(t, naTrust, m.NewAgent.Section, "j past the last item goes on to trust")
+	require.Equal(t, 2, m.NewAgent.ItemIdx, "j past the last item lands on the next row")
+	require.Equal(t, naStepContext, m.NewAgent.Step)
 	m = naType(m, "k")
 	require.Equal(t, 1, m.NewAgent.ItemIdx, "k comes back to the last item")
 
@@ -167,7 +168,7 @@ func TestContextList_RemoveRenamePreview(t *testing.T) {
 	// x in the preview removes the item and goes back; the placeholder goes.
 	m = naType(m, "x")
 	st = m.NewAgent
-	require.Equal(t, naCompose, st.Screen)
+	require.Equal(t, naSteps, st.Screen)
 	require.Len(t, st.Items, 1)
 	require.Equal(t, 0, st.ItemIdx)
 	require.Equal(t, "[paste 1 · 9 lines]", st.Task.String())
@@ -177,7 +178,7 @@ func TestContextList_RemoveRenamePreview(t *testing.T) {
 	require.Empty(t, m.NewAgent.Items)
 	require.Empty(t, m.NewAgent.Task.String())
 	m.NewAgent.Indexing = false // the walk is in: the empty state, not the loading row
-	require.Contains(t, ansi.Strip(m.View()), "none yet")
+	require.Contains(t, ansi.Strip(m.View()), "nothing added yet")
 
 	// The next paste keeps numbering on.
 	m = naPaste(m, nLines(9))
@@ -189,20 +190,25 @@ func TestContextList_ViewAndSummary(t *testing.T) {
 	m = naType(m, "fix the flaky test ")
 	m = naPaste(m, "--- FAIL: TestLogin (0.31s)\n"+nLines(37))
 	m.Width, m.Height = 80, 24
+	m = naAt(m, naStepContext)
 	out := ansi.Strip(m.View())
-	require.Contains(t, out, "1 item · ")
+	require.Contains(t, out, "1 item · ", "the total sits on the current line")
 	require.Contains(t, out, "paste  paste 1")
 	require.Contains(t, out, `"--- FAIL`)
 	require.Contains(t, out, "38 lines")
-	require.Regexp(t, `Context +1`, out, "the rail counts the items")
-	require.Contains(t, out, "prompt ")
-	require.Contains(t, out, " of 96 KB · slug ")
+	require.Contains(t, out, "next ›")
+
+	m = naAt(m, naStepSummary)
+	out = ansi.Strip(m.View())
+	require.Contains(t, out, "context  1 item · ")
+	require.Contains(t, out, "prompt   ")
+	require.Contains(t, out, " of 96 KB")
+	require.Contains(t, out, "slug     cc.opus.fix-the-flaky-test")
 
 	st := m.NewAgent
 	rev := st.Rev
-	s1 := naLaunchSummary(m, st)
-	require.Equal(t, rev, st.sumRev, "the summary is cached by revision")
-	require.Equal(t, s1, naLaunchSummary(m, st))
+	_, _ = naPromptSize(st)
+	require.Equal(t, rev, st.sumRev, "the size is cached by revision")
 	m = naType(m, "x")
 	require.Greater(t, m.NewAgent.Rev, rev, "a key bumps the revision")
 
@@ -213,7 +219,8 @@ func TestContextList_ViewAndSummary(t *testing.T) {
 	p.NewAgent.choose(quickChoice{Tool: "ollama"})
 	require.Equal(t, "ollama", p.NewAgent.choice().Tool)
 	p = naType(p, "hi")
-	require.Contains(t, ansi.Strip(naLaunchSummary(p, p.NewAgent)), "prompt 2 B of 16 KB")
+	_, value := naPromptCell(p.NewAgent)
+	require.Equal(t, "2 B of 16 KB", ansi.Strip(value))
 }
 
 func TestContextList_LaunchAssemblesPrompt(t *testing.T) {
@@ -245,10 +252,11 @@ func TestContextList_DraftKeepsItems(t *testing.T) {
 	m = naPaste(m, nLines(9))
 	require.Equal(t, "paste 2", m.NewAgent.Items[1].Name, "the draft keeps the paste number")
 
-	// ctrl+u on an empty editor drops the items with the draft.
-	m.NewAgent.Task.Clear()
+	// ctrl+u on an empty line clears the task text, never the items.
 	m, _ = naKey(m, key("ctrl+u"))
-	require.Empty(t, m.NewAgent.Items)
+	m, _ = naKey(m, key("ctrl+u"))
+	require.True(t, m.NewAgent.Task.Empty())
+	require.Len(t, m.NewAgent.Items, 2)
 }
 
 // fakeExec stands in for tea.ExecProcess: it runs edit on the file, then the
@@ -336,7 +344,7 @@ func TestEditor_DoneUpdatesPasteAndTask(t *testing.T) {
 
 	// ctrl+e in the task editor edits the task.
 	fakeExec(t, func(p string) error { return os.WriteFile(p, []byte("new task\r\n"), 0o600) })
-	st.Screen, st.Section = naCompose, naTask
+	st.Screen, st.Step = naSteps, naStepTask
 	m, cmd = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	require.NotNil(t, cmd)
 	m, _ = update(m, cmd())
@@ -378,10 +386,12 @@ func TestPreview_ScrollAndBack(t *testing.T) {
 
 	m, _ = naKey(m, key("esc"))
 	require.Equal(t, FocusNewAgent, m.Focus, "esc leaves the preview, not the page")
-	require.Equal(t, naCompose, m.NewAgent.Screen)
-	require.Equal(t, naContext, m.NewAgent.Section)
+	require.Equal(t, naSteps, m.NewAgent.Screen)
+	require.Equal(t, naStepContext, m.NewAgent.Step)
 	m, _ = naKey(m, key("esc"))
-	require.Equal(t, FocusBoard, m.Focus)
+	require.Equal(t, naStepTask, m.NewAgent.Step, "esc on the context step goes back")
+	m, _ = naKey(m, key("esc"))
+	require.Equal(t, FocusBoard, m.Focus, "esc on the step the page opened on closes it")
 }
 
 func TestContextList_ViewFitsEverySize(t *testing.T) {
@@ -393,12 +403,15 @@ func TestContextList_ViewFitsEverySize(t *testing.T) {
 			m = naPaste(m, "日本語 "+nLines(12))
 		}
 		m = naPaste(m, "\x00\x00binary")
-		for _, screen := range []string{"compose", "context", "preview"} {
+		for _, screen := range []string{"task", "context", "preview", "summary"} {
 			switch screen {
 			case "context":
-				m.NewAgent.Section = naContext
+				naGo(m, naStepContext)
 			case "preview":
 				m, _ = naKey(m, key("enter"))
+			case "summary":
+				m.NewAgent.Screen = naSteps
+				naGo(m, naStepSummary)
 			}
 			lines := strings.Split(m.View(), "\n")
 			require.Len(t, lines, sz.h, "%s %dx%d", screen, sz.w, sz.h)
@@ -443,6 +456,7 @@ func TestContextList_OneLinePasteRowSingular(t *testing.T) {
 	m = naPaste(m, strings.Repeat("y", 1025)) // one line over 1 KiB: a chip
 	require.Len(t, m.NewAgent.Items, 1)
 	m.Width, m.Height = 80, 24
+	m = naAt(m, naStepContext)
 	out := ansi.Strip(m.View())
 	require.Contains(t, out, "1 line ")
 	require.NotContains(t, out, "1 lines")

@@ -15,7 +15,7 @@ import (
 )
 
 // Key-sequence tests of the full-screen pages' vim-style navigation (the
-// shared navigator in nav.go): settings, help and the new-agent page.
+// shared navigator in nav.go): settings and help (the new-agent page is in newagent_nav_test.go).
 
 // navKeys names the special keys the tests press.
 var navKeys = map[string]tea.KeyType{
@@ -24,6 +24,7 @@ var navKeys = map[string]tea.KeyType{
 	"home": tea.KeyHome, "end": tea.KeyEnd, "pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown,
 	"ctrl+d": tea.KeyCtrlD, "ctrl+u": tea.KeyCtrlU, "ctrl+f": tea.KeyCtrlF, "ctrl+b": tea.KeyCtrlB,
 	"ctrl+s": tea.KeyCtrlS, "ctrl+g": tea.KeyCtrlG, "ctrl+e": tea.KeyCtrlE, "ctrl+t": tea.KeyCtrlT,
+	"ctrl+o": tea.KeyCtrlO, "ctrl+a": tea.KeyCtrlA, "ctrl+j": tea.KeyCtrlJ,
 	"backspace": tea.KeyBackspace, "delete": tea.KeyDelete, " ": tea.KeySpace,
 }
 
@@ -342,181 +343,6 @@ func TestPageNav_HelpWheelIsOneRow(t *testing.T) {
 	require.Equal(t, 1, m.Help.Scroll, "the wheel scrolls one row, as j")
 }
 
-// ── New-agent page: Compose ─────────────────────────────────────────────────
-
-// naWithItems is the page with a typed task and three pasted context items.
-func naWithItems(t *testing.T) Model {
-	t.Helper()
-	m := naOpen(t, naModel(t))
-	m = naType(m, "fix it")
-	for i := range 3 {
-		require.NoError(t, addPaste(m.NewAgent, fmt.Sprintf("paste body %d\n", i)+strings.Repeat("line\n", naChipLines+1)))
-	}
-	return m
-}
-
-func TestPageNav_NAEscLeavesTheEditorFirst(t *testing.T) {
-	m := naOpen(t, naModel(t))
-	m = naType(m, "ab")
-	m = navPress(m, "esc")
-	require.Equal(t, FocusNewAgent, m.Focus, "esc in the editor leaves the editor, not the page")
-	m = navPress(m, "j", "k", "x")
-	require.Equal(t, "ab", m.NewAgent.Task.String(), "j, k and x do not type outside the editor")
-	m = navPress(m, "esc")
-	require.Equal(t, FocusBoard, m.Focus, "a second esc closes the page")
-	require.NotNil(t, m.newAgentDraft)
-}
-
-func TestPageNav_NAIAndEnterEdit(t *testing.T) {
-	m := naOpen(t, naModel(t))
-	m = navPress(m, "esc", "i", "q")
-	require.Equal(t, "q", m.NewAgent.Task.String(), "i types again")
-	m = navPress(m, "esc", "enter", "w")
-	require.Equal(t, "qw", m.NewAgent.Task.String(), "enter on the task edits it")
-	require.False(t, m.NewAgent.Launching, "enter outside the editor never launches from the task")
-}
-
-func TestPageNav_NAJKCrossSections(t *testing.T) {
-	m := naWithItems(t)
-	m = navPress(m, "esc")
-	require.Equal(t, naTask, m.NewAgent.Section)
-	m = navPress(m, "k")
-	require.Equal(t, naAgent, m.NewAgent.Section, "k from the task: the agent row")
-	m = navPress(m, "k")
-	require.Equal(t, naAgent, m.NewAgent.Section, "k clamps at the top")
-	m = navPress(m, "j", "j")
-	require.Equal(t, naContext, m.NewAgent.Section, "j from the task: the context list")
-	require.Zero(t, m.NewAgent.ItemIdx)
-	m = navPress(m, "j", "j")
-	require.Equal(t, 2, m.NewAgent.ItemIdx, "j walks the items")
-	m = navPress(m, "j")
-	require.Equal(t, naTrust, m.NewAgent.Section, "j past the last item: trust")
-	m = navPress(m, "k")
-	require.Equal(t, naContext, m.NewAgent.Section)
-	require.Equal(t, 2, m.NewAgent.ItemIdx, "k comes back onto the last item")
-	m = navPress(m, "G")
-	require.Equal(t, naLaunchRow, m.NewAgent.Section, "G: the launch row")
-	m = navPress(m, "g", "g")
-	require.Equal(t, naAgent, m.NewAgent.Section, "gg: the agent row")
-}
-
-func TestPageNav_NARailFocus(t *testing.T) {
-	m := naWithItems(t)
-	m = navPress(m, "esc", "j")
-	require.Equal(t, naContext, m.NewAgent.Section)
-	m = navPress(m, "h")
-	require.True(t, m.NewAgent.OnRail, "h focuses the step rail")
-	m = navPress(m, "j")
-	require.Equal(t, naTrust, m.NewAgent.Section, "j on the rail: the next step, not the next item")
-	m = navPress(m, "k", "l")
-	require.False(t, m.NewAgent.OnRail, "l goes back to the content")
-	require.Equal(t, naContext, m.NewAgent.Section)
-	m = navPress(m, "h", "enter")
-	require.False(t, m.NewAgent.OnRail, "enter on the rail opens the step")
-}
-
-func TestPageNav_NAContextKeys(t *testing.T) {
-	m := naWithItems(t)
-	m = navPress(m, "esc", "j")
-	require.Equal(t, naContext, m.NewAgent.Section)
-	m = navPress(m, "d")
-	require.Len(t, m.NewAgent.Items, 2, "d removes the item")
-	m = navPress(m, "x")
-	require.Len(t, m.NewAgent.Items, 1, "x too")
-	_, cmd := updateKey(m, vk("e"))
-	require.NotNil(t, cmd, "e edits a paste in $EDITOR")
-	m = navPress(m, "enter")
-	require.Equal(t, naPreview, m.NewAgent.Screen)
-	m = navPress(m, "esc")
-	require.Equal(t, naCompose, m.NewAgent.Screen)
-}
-
-func TestPageNav_NAEnterOnLaunchRow(t *testing.T) {
-	m := naOpen(t, naModel(t))
-	m = naType(m, "ship it")
-	m = navPress(m, "esc", "G")
-	require.Equal(t, naLaunchRow, m.NewAgent.Section)
-	require.Contains(t, naView(m), "launch")
-	m, cmd := updateKey(m, vk("enter"))
-	require.NotNil(t, cmd)
-	require.True(t, m.NewAgent.Launching, "enter on the launch row launches")
-}
-
-func TestPageNav_NATrustCycles(t *testing.T) {
-	m := naOpen(t, naModel(t))
-	m = navPress(m, "esc", "4")
-	require.Equal(t, naTrust, m.NewAgent.Section)
-	require.Equal(t, trustAsk, m.NewAgent.Trust)
-	m = navPress(m, "enter")
-	require.Equal(t, trustSession, m.NewAgent.Trust, "enter on trust: this session")
-	m = navPress(m, " ")
-	require.Equal(t, trustAlways, m.NewAgent.Trust, "space: always")
-	m = navPress(m, "enter")
-	require.Equal(t, trustAsk, m.NewAgent.Trust, "and back to ask")
-}
-
-func TestPageNav_NAWheel(t *testing.T) {
-	m := naOpen(t, naModel(t))
-	require.NoError(t, m.Store.Set("mouse_enabled", true))
-	m, _ = updateMouse(m, wheelAt(true, 60, 10))
-	require.Equal(t, naContext, m.NewAgent.Section, "the wheel moves as j")
-}
-
-func TestPageNav_NANarrowHL(t *testing.T) {
-	m := naModel(t)
-	m.Width, m.Height = 50, 20
-	m = naOpen(t, m)
-	m = navPress(m, "esc", "l")
-	require.Equal(t, naContext, m.NewAgent.Section, "narrow: l is the next step")
-	m = navPress(m, "h", "h")
-	require.Equal(t, naAgent, m.NewAgent.Section, "h the previous one")
-}
-
-// ── New-agent page: Agent screen ────────────────────────────────────────────
-
-func TestPageNav_NAAgentHLColumns(t *testing.T) {
-	m := naAgentOpen(t, naModel(t))
-	m = naPickTool(t, m, "claude")
-	effort := m.NewAgent.choice().Effort
-	m = navPress(m, "l")
-	require.Equal(t, naPaneModels, m.NewAgent.Pane, "l: the models")
-	m = navPress(m, "h")
-	require.Equal(t, naPaneAgents, m.NewAgent.Pane, "h: the agents")
-	require.Equal(t, effort, m.NewAgent.choice().Effort, "h/l never change the effort")
-}
-
-func TestPageNav_NAAgentJIntoEffort(t *testing.T) {
-	m := naAgentOpen(t, naModel(t))
-	m = naPickTool(t, m, "claude")
-	m = navPress(m, "l", "G")
-	models := m.NewAgent.filteredIdx()
-	require.Equal(t, models[len(models)-1], m.NewAgent.modelIdx(), "G: the last model")
-	m = navPress(m, "j")
-	require.Equal(t, naPaneEffort, m.NewAgent.Pane, "j past the last model: effort")
-	m = pressN(m, "left", 6)
-	require.Zero(t, m.NewAgent.EffortIdx, "← on effort steps it, down to the first")
-	require.Equal(t, naPaneEffort, m.NewAgent.Pane, "← stays on the effort row")
-	m = navPress(m, "right")
-	require.Equal(t, 1, m.NewAgent.EffortIdx, "→ steps it up")
-	m = navPress(m, "k")
-	require.Equal(t, naPaneModels, m.NewAgent.Pane, "k comes back to the models")
-	m = navPress(m, "g", "g")
-	require.Equal(t, models[0], m.NewAgent.modelIdx(), "gg: the first model")
-}
-
-func TestPageNav_NAAgentManyModels(t *testing.T) {
-	m := naModel(t)
-	m.DaemonTools = cursorModels(t)
-	m = naPickTool(t, naAgentOpen(t, m), "cursor")
-	m = navPress(m, "l", "ctrl+d")
-	require.Greater(t, m.NewAgent.modelIdx(), 2, "ctrl+d moves half a window of models")
-	m = navPress(m, "G")
-	require.Equal(t, 199, m.NewAgent.modelIdx())
-	require.Contains(t, naView(m), "model-199")
-	m = navPress(m, "/", "s", "o", "n", "enter", "j")
-	require.Equal(t, "sonnet-4.6-thinking", m.NewAgent.choice().Model, "j after enter moves through the matches")
-}
-
 // The accent row (feat/accent-color) keeps its keys under the navigator:
 // ←/→ cycle the names, e and # open the inline editor, h/l only move focus.
 func TestPageNav_SettingsAccentRowKeys(t *testing.T) {
@@ -559,8 +385,7 @@ func TestNav_ShortWindowShowsTheCursor(t *testing.T) {
 	}
 }
 
-// Review findings: a g then another key is not gg; the import picker
-// leaves the editor; k from the not-installed header keeps the model.
+// Review finding: a g then another key is not gg.
 func TestPageNav_GThenOtherKeyIsNotGg(t *testing.T) {
 	m := pageSettings(t)
 	all := settingsNavList(m)
@@ -571,32 +396,7 @@ func TestPageNav_GThenOtherKeyIsNotGg(t *testing.T) {
 	h = navPress(h, "3", "g", "]", "g")
 	require.Equal(t, 3, h.Help.Group, "g ] g is no gg")
 
-	n := naOpen(t, naModel(t))
-	n = navPress(n, "esc", "j", "g", "2", "g")
-	require.Equal(t, naTask, n.NewAgent.Section, "g 2 g is no gg")
-}
-
-func TestPageNav_NAImportLeavesTheEditor(t *testing.T) {
-	m := naOpen(t, naModel(t))
-	m = navPress(m, "x")
-	m, _ = naKey(m, tea.KeyMsg{Type: tea.KeyCtrlO})
-	require.False(t, m.NewAgent.Editing)
-	m = navPress(m, "esc")
-	require.Equal(t, naContext, m.NewAgent.Section)
-	require.False(t, m.NewAgent.Editing, "back from the picker: navigating, not typing")
-	require.Equal(t, "x", m.NewAgent.Task.String())
-}
-
-func TestPageNav_NAAgentBackFromMissingKeepsModel(t *testing.T) {
-	m := naModel(t)
-	m.DaemonTools = daemonTools(t, "claude") // codex and the rest are missing
-	m = naAgentOpen(t, m)
-	require.NotEmpty(t, m.NewAgent.Missing)
-	m = navPress(m, "l", "j")
-	model := m.NewAgent.choice().Model
-	m = navPress(m, "h", "G")
-	require.True(t, m.NewAgent.OnMissing)
-	m = navPress(m, "k")
-	require.False(t, m.NewAgent.OnMissing)
-	require.Equal(t, model, m.NewAgent.choice().Model, "the model picked stays")
+	n := naAt(naOpen(t, naModel(t)), naStepAgent)
+	n = navPress(n, "j", "g", "2", "g")
+	require.Equal(t, naStepModel, n.NewAgent.Step, "g 2 g is no gg")
 }

@@ -36,9 +36,9 @@ Read the diff. List problems by severity. Say what you would test.
 rex skills
 ```
 
-3. Load skills into a new session, from the wizard or the CLI:
+3. Load skills into a new session, from the new-agent page or the CLI:
 
-   - TUI: press `n`. After provider, model, effort and name comes a **skills** step: `j`/`k` to move, `space` to toggle, `enter` to continue.
+   - TUI: press `n`. After the agent and model comes a **skills** step: `j`/`k` to move, `space` to toggle, `enter` to continue.
    - CLI: `rex new -tool claude -model opus -skill review -skill release-notes "tidy the changelog"`.
 
 4. In Claude Code, the skills appear as `rex:<name>` in `/skills`.
@@ -51,7 +51,7 @@ Rex never writes to `~/.claude`. It writes its own `plugin.json`, and copies onl
 
 ## Switching it off
 
-Settings → Features → `spawn_skills` (or `rex config set spawn_skills false`) hides the wizard step, makes `rex new -skill` and `rex skills` exit 5 with `off: enable in Settings → Features (rex config set spawn_skills true)`, and adds no `--plugin-dir`.
+Settings → Features → `spawn_skills` (or `rex config set spawn_skills false`) skips the page's skills step, makes `rex new -skill` and `rex skills` exit 5 with `off: enable in Settings → Features (rex config set spawn_skills true)`, and adds no `--plugin-dir`.
 
 ## Another tool
 
@@ -66,4 +66,4 @@ A tool loads skills per session when its registry entry has `skill_args` with th
 
 ## See also
 
-- [cli.md](../cli.md) (`rex new`, `rex skills`), [tui.md](../tui.md) (wizard), [settings.md](../settings.md), [protocol.md](../protocol.md) (`NewSession`).
+- [cli.md](../cli.md) (`rex new`, `rex skills`), [tui.md](../tui.md) (new-agent page), [settings.md](../settings.md), [protocol.md](../protocol.md) (`NewSession`).

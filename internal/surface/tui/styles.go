@@ -130,10 +130,20 @@ var (
 	accentErr    error
 )
 
+// livePalette is the palette applyPalette last made live, accent override
+// included, and paletteGen counts those applies, so a color derived from the
+// palette (scanColor) knows when to resolve again. Written only from Update.
+var (
+	livePalette theme.Palette
+	paletteGen  int
+)
+
 // applyPalette makes p, with the accent_color override, the live palette
 // and rebuilds every style.
 func applyPalette(p theme.Palette) {
 	p, accentLast, accentErr = theme.WithAccent(p, accentChoice)
+	livePalette = p
+	paletteGen++
 	curGlyphs = p.Glyphs
 	c := func(s string) lipgloss.Color { return lipgloss.Color(s) }
 	colorFgPrimary = c(p.Fg)
@@ -167,6 +177,14 @@ func applyPalette(p theme.Palette) {
 // (a per-launch-folder pick, not a palette token) is chosen at render time.
 func edgeStyle(c lipgloss.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c)
+}
+
+// scanStyles are the summary scanner's band tiers in c (a palette-derived
+// color chosen at render time, see scanColor): the bold head, the plain
+// cells beside it and the faint tail.
+func scanStyles(c lipgloss.Color) [3]lipgloss.Style {
+	st := lipgloss.NewStyle().Foreground(c)
+	return [3]lipgloss.Style{st.Bold(true), st, st.Faint(true)}
 }
 
 // swatchStyle paints a candidate color that is not (yet) a palette token:

@@ -65,9 +65,9 @@ var Registry = []Setting{
 	{
 		ID: "selector_glyph", Label: "Selector glyph", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "theme",
-		Options: []string{"theme", "▸", "❯", "➜", "➤", "☞"},
+		Options: []string{"theme", "▸", "❯", "➜", "➤", "☞", "☛"},
 		Free:    true, Normalize: normalizeSelectorGlyph,
-		Help: "The marker left of the selected row in the board and every picker. theme keeps the theme's own (▸ by default). Pick a preset with the arrows or press enter and type your own. ☞ is drawn two cells wide by terminals set to treat ambiguous-width characters as wide, which shifts the selected row by one column; 👉 is always two cells.",
+		Help: "The marker left of the selected row in the board and every picker. theme keeps the theme's own (▸ by default). Pick a preset with the arrows or press enter and type your own. ☞ and ☛ are drawn two cells wide by terminals set to treat ambiguous-width characters as wide, which shifts the selected row by one column; 👉 is always two cells.",
 	},
 	{
 		ID: "selector_gap", Label: "Selector gap", Section: SectionAppearance, Apply: ApplyLive,
@@ -124,6 +124,11 @@ var Registry = []Setting{
 		Options: append([]string{"random"}, theme.EdgeIDs()...),
 		Free:    true, Normalize: normalizeBorderColor,
 		Help: "random picks a color per launch folder, so a project keeps its color. Or pick a name, or press enter and type #rrggbb.",
+	},
+	{
+		ID: "filter_chips", Label: "Filter chips", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Show the tool filter chips (all, claude, ollama, ...) under the header when sessions run more than one tool. Off hides the row; t, :filter and the z chords still work, and while a filter or search is on the row shows what is filtered, without the chips.",
 	},
 	{
 		ID: "column_layout", Label: "Column layout", Section: SectionAppearance, Apply: ApplyLive,
@@ -274,7 +279,7 @@ var Registry = []Setting{
 	{
 		ID: "spawn_skills", Label: "Skills per session", Section: SectionFeatures, Apply: ApplyNextSpawn,
 		Type: TypeBool, Default: true,
-		Help: "Load skills from ~/.config/rex/skills into one session: the skills step in the new-session wizard and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
+		Help: "Load skills from ~/.config/rex/skills into one session: the skills step on the new-agent page and rex new -skill, which start Claude Code with --plugin-dir. Off: the step is hidden, -skill refuses, and no --plugin-dir is added (a resumed session loads none). Read at each spawn.",
 	},
 
 	{
@@ -312,7 +317,7 @@ var Registry = []Setting{
 	{
 		ID: "extra_agents", Label: "Extra agents", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
-		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. The new-session wizard offers each one only while its binary is on PATH; Settings → Onboarding lists the missing ones with an install hint. Off: the three never show in the wizard or the pickers, and the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
+		Help: "Qwen Code (qwen), Cursor CLI (cursor-agent) and Grok Build (grok). Their default modes can edit files or run commands without asking; check each agent's own safety settings. The new-agent page offers each one only while its binary is on PATH; Settings → Onboarding lists the missing ones with an install hint. Off: the three never show on the new-agent page or in the pickers, and the daemon refuses to spawn them (rex new, quick-spawn) with an off message. A change applies within a few seconds.",
 	},
 	{
 		ID: "model_autodetect", Label: "Model auto-detect", Section: SectionFeatures, Apply: ApplyLive,
@@ -338,11 +343,6 @@ var Registry = []Setting{
 		ID: "fullscreen_pages", Label: "Full-screen settings and help", Section: SectionFeatures, Apply: ApplyLive,
 		Type: TypeBool, Default: true,
 		Help: "Settings and help open as full-screen pages with a section list on the left, like the board. Off: they open as the older floating overlays, and the page keys (tab between panes, 1-9, [ and ], q) do nothing.",
-	},
-	{
-		ID: "new_agent_page", Label: "New-agent page", Section: SectionFeatures, Apply: ApplyLive,
-		Type: TypeBool, Default: true,
-		Help: "n opens the new-agent page: task, context (paste, @file, import) and trust on one full-screen page. Off: the older popup wizard.",
 	},
 	{
 		ID: "workspaces", Label: "Workspaces", Section: SectionFeatures, Apply: ApplyLive,
@@ -439,6 +439,18 @@ var Registry = []Setting{
 		Type: TypeBool, Default: false,
 		Help: "Let the summarizer use an OLLAMA_HOST that is not on this machine, over https only. " +
 			"Session text is sent to that host. Off: only a local Ollama is used.",
+	},
+	{
+		ID: "summary_scan", Label: "Summary scanner", Section: SectionSummary, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "A band of color sweeps back and forth across the summary line under the board (a Larson scanner) while the selected session is working or waiting. Still everywhere else, and off with reduce_motion.",
+	},
+	{
+		ID: "summary_scan_color", Label: "Scanner color", Section: SectionSummary, Apply: ApplyLive,
+		Type: TypeString, Default: ScanColorAccent,
+		Options: append([]string{ScanColorAccent}, theme.AccentIDs()...),
+		Free:    true, Normalize: normalizeScanColor,
+		Help: "The summary scanner's color. accent follows accent_color (or the theme's accent). The arrows cycle the named colors; enter types your own in any accent_color form: #rrggbb, rgb(), hsl(), cmyk(), oklch(). A color too faint on the background is adjusted until it reads.",
 	},
 	{
 		ID: "overview_enabled", Label: "Overview", Section: SectionSummary, Apply: ApplyLive,
