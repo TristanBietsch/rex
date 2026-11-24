@@ -52,11 +52,13 @@ func TestSpawn_StoresRequesterInMeta(t *testing.T) {
 			by = sess.Requester()
 			return by != nil
 		}, 5*time.Second, 10*time.Millisecond, "meta.json carries requested_by (prompt %q)", prompt)
-		require.Equal(t, os.Getpid(), by.PID)
+		require.Equal(t, wantPeerPID(), by.PID)
 		require.True(t, strings.HasPrefix(by.Client, "rex-cli"), by.Client)
 		require.NotContains(t, by.Client, "\x1b")
 		require.NotContains(t, by.Client, "\n")
-		require.NotEmpty(t, by.Exe)
+		if peerCredSupported {
+			require.NotEmpty(t, by.Exe)
+		}
 		live, ok := e.srv.cfg.Store.Get(id)
 		require.True(t, ok)
 		require.Equal(t, by, live.Requester())
@@ -79,7 +81,7 @@ func TestDelete_PassesTheRequesterToTheAuditHook(t *testing.T) {
 
 	require.Len(t, fa.deletes, 1)
 	require.Equal(t, "rex-cli", fa.deletes[0].by.Client)
-	require.Equal(t, os.Getpid(), fa.deletes[0].by.PID)
+	require.Equal(t, wantPeerPID(), fa.deletes[0].by.PID)
 }
 
 // seedExited adds an exited resumable session started by "original".
@@ -103,7 +105,7 @@ func TestResume_ByAClientRecordsThatClient(t *testing.T) {
 	by := sess.Requester()
 	require.NotNil(t, by)
 	require.Equal(t, "resumer", by.Client, "the client that asked for this run")
-	require.Equal(t, os.Getpid(), by.PID)
+	require.Equal(t, wantPeerPID(), by.PID)
 	onDisk, err := state.LoadMeta(e.dir, "a")
 	require.NoError(t, err)
 	require.Equal(t, by, onDisk.Requester())
@@ -118,4 +120,14 @@ func TestResume_WithoutClientKeepsRequester(t *testing.T) {
 	onDisk, err := state.LoadMeta(e.dir, "a")
 	require.NoError(t, err)
 	require.Equal(t, "original", onDisk.Requester().Client)
+}
+
+// wantPeerPID is the requester pid the daemon records for this test process:
+// its own pid where peer credentials exist, 0 where peerPID is a documented
+// no-op (Windows).
+func wantPeerPID() int {
+	if !peerCredSupported {
+		return 0
+	}
+	return os.Getpid()
 }

@@ -77,5 +77,5 @@ func TestHelp_NoAtAliases(t *testing.T) {
 	for _, alias := range []string{"@needs", "@working", "@done"} {
 		require.NotContains(t, out.String(), alias)
 	}
-	require.Contains(t, out.String(), "Selectors: short id (4+ hex), slug or full id.")
+	require.Contains(t, out.String(), "short id (4+ hex), slug or full id")
 }

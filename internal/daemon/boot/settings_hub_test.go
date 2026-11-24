@@ -370,7 +370,7 @@ func TestWireSpawnReads_FollowTheHub(t *testing.T) {
 	require.False(t, cfg.SkipPermissions())
 	require.True(t, cfg.ResumeEnabled())
 	require.True(t, cfg.SkillsEnabled())
-	require.False(t, cfg.SnapshotsEnabled())
+	require.True(t, cfg.SnapshotsEnabled())
 	require.Empty(t, cfg.AutoTrustDirs())
 	require.Empty(t, cfg.UsageTap("s1"), "usage_statusline_tap auto, no user status line")
 

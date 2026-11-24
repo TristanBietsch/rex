@@ -283,6 +283,12 @@ func goldenScreens() []goldenScreen {
 			}
 			return m
 		}},
+		{"wizard", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizProvider, Tools: demoTools()}
+			return m
+		}},
 		{"stats", false, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m.Focus = FocusStats
@@ -308,6 +314,21 @@ func goldenScreens() []goldenScreen {
 		{"undo_shared", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "shared") }},
 		{"undo_forced", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "forced") }},
 		{"undo_done", false, func(t *testing.T, sz goldenSize) Model { return undoDialogModel(t, sz, "done") }},
+		{"wizard_models", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m = wizardFlag(t, m)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "qwen"), true
+			m, _ = executeCommand(m, "new")
+			m = sendKey(m, key("j"))
+			return sendKey(m, key("enter"))
+		}},
+		{"wizard_all_agents", false, func(t *testing.T, sz goldenSize) Model {
+			m := goldenBoard(t, sz, false)
+			m = wizardFlag(t, m)
+			m.DaemonTools, m.toolsKnown = daemonTools(t, "claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"), true
+			m, _ = executeCommand(m, "new")
+			return m
+		}},
 		{"settings_onboarding", true, func(t *testing.T, sz goldenSize) Model {
 			m := goldenBoard(t, sz, false)
 			m = overlayMode(t, m)
@@ -661,6 +682,18 @@ func goldenNewAgentTheme(t *testing.T, m Model, name string) Model {
 	}
 	applyThemeNamed(&m, name)
 	t.Cleanup(func() { applyTheme("default") })
+	return m
+}
+
+// wizardFlag turns new_agent_page off, so n and :new open the popup wizard.
+func wizardFlag(t *testing.T, m Model) Model {
+	t.Helper()
+	if m.Store == nil {
+		m.Store = settings.NewStore()
+	}
+	if err := m.Store.Set("new_agent_page", false); err != nil {
+		t.Fatal(err)
+	}
 	return m
 }
 

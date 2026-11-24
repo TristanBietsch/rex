@@ -36,7 +36,9 @@ filesystem permissions.
   connect. Reports of other users or processes connecting, or of the socket
   being reachable beyond the filesystem, are in scope.
 - **The environment agents and the daemon hold.** The `child_env` setting
-  (default `allowlist`) gives each agent, model probe and loop check only
+  (`allowlist` on a fresh install; an upgrade from a rex without the
+  setting keeps the old behavior, because the daemon's first start writes
+  `child_env: inherit` into `config.yaml`) in `allowlist` mode gives each agent, model probe and loop check only
   the base names (`PATH`, `HOME`, locale, proxy and CA variables and so
   on), the names its tool declares in `env_pass`, and `env_passthrough`; a
   key exported in the shell that started rex does not reach them. The

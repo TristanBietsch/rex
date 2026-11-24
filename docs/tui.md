@@ -143,6 +143,7 @@ At 60 columns or fewer (a phone over SSH) the board stacks each session on two l
 | Search | `/` | `enter` keeps the query, `esc` restores the previous one |
 | Attach | `enter` on selected row | `qq`, `ctrl+]` or `::q` |
 | New-agent page | `n` or `:new` | `esc` (keeps the draft), or a launch |
+| Wizard | `n` or `:new` with `new_agent_page` off | `esc`, or `enter` on the task (launches) |
 | Settings | `S` or `:settings` | `esc`, `q` (page only) |
 | Help | `?` or `:help` | `esc`, `?`, `q` (page only) |
 | Stats | `:stats` | `esc`, `:` |
@@ -177,7 +178,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 - **Close.** `esc` (it clears a search or filter first) or `q`; `?` also closes help.
 - **While attached.** `::settings` and `::help` detach first, then open the page; a page is never drawn over a running agent.
 
-`fullscreen_pages` (Features, on by default) turns the pages off: settings and help then open as the older floating overlays over the dimmed board (a square box with its title set into the top border, `┌─ HELP ──── rex v1 ─┐`), as stats, failures, overview and `:usage` always do. In the overlays `tab` / `shift+tab` jump to the next / previous section of settings, and the page keys (`q`, `1`–`9`, `[`, `]`) do nothing; `j` `k` `h` `l` and the wheel keep their overlay meaning (rows within the list, `h` / `l` step a value). The change applies on the next frame, with the cursor kept. The attach popup uses the same square corners but keeps the board's colors around it.
+`fullscreen_pages` (Features, on by default) turns the pages off: settings and help then open as the older floating overlays over the dimmed board (a square box with its title set into the top border, `┌─ HELP ──── rex v1 ─┐`), as stats, failures, overview, `:usage` and the wizard always do. In the overlays `tab` / `shift+tab` jump to the next / previous section of settings, and the page keys (`q`, `1`–`9`, `[`, `]`) do nothing; `j` `k` `h` `l` and the wheel keep their overlay meaning (rows within the list, `h` / `l` step a value). The change applies on the next frame, with the cursor kept. The attach popup uses the same square corners but keeps the board's colors around it.
 
 ### Help page
 
@@ -222,7 +223,7 @@ Settings and help open as full-screen pages that look like the board: the same b
 | `z1`-`z9` | Hide / show section N (`z1` Ready, `z2` Waiting, `z3` Working, `z4` Done) |
 | `z0` | Show every section |
 | `enter` | Attach to selected session |
-| `n` | New-agent page (seven steps, one per screen) |
+| `n` | New-agent page (seven steps, one per screen; the popup wizard with `new_agent_page` off) |
 | `i` | Focus bottom prompt (quick-spawn) |
 | `r` | Rename selected (display name; empty resets to slug) |
 | `cc` | Mark selected done / undo (see MARK DONE) |
@@ -490,7 +491,19 @@ Every state has a glyph or a word besides its color: `✓` done, `›` current, 
 
 The first prompt is the task, then `Context from rex (read before starting):` with one `- file:` or `- dir:` line per reference (workspace-relative paths; the agent reads them itself), then each paste in a `<pasted name="paste 1" lines="38">` block. No file is copied and no shell runs.
 
-The page replaced the older popup wizard and its `new_agent_page` setting (R21); a stored `new_agent_page` is ignored, and `config.lua` may still set it without a warning. The popup's provider, model, effort, skills and describe steps are the page's agent, model, skills and task steps. It does not ask for a name; press `r` on the board to give a session a display name, or use `rex new -name`.
+The page does not ask for a name; press `r` on the board to give a session a display name, or use `rex new -name`. Turning `new_agent_page` off while the page is open closes it and keeps the draft.
+
+## NEW-SESSION WIZARD (with `new_agent_page` off)
+
+With `new_agent_page` off (Settings → Features, on by default), `n`, `:new` and `:new!` open the older popup wizard over the dimmed board instead of the page. Steps that do not apply are skipped, in both directions, so the common path is a few `enter` presses; `b` goes back a step (on the task only while it is empty) and `esc` cancels:
+
+1. **Provider**: the tool (`j`/`k`, `enter`). Only installed tools are listed, as on the page's agent step; the open wizard follows `ToolsChanged` in place, keeping your cursor on the same tool, and closes with a notice when no agent is left. A long list scrolls.
+2. **Model**: the tool's model (the ones the tool reported first, tagged `detected`). Skipped when the tool has one model. It starts on `default_spawn_model` when the tool is `default_spawn_tool`, else on the first model.
+3. **Effort**: the reasoning effort of the chosen model. Skipped when it has none.
+4. **Skills**: a checklist of `~/.config/rex/skills` (`j`/`k` move, `space` toggles, `enter` continues). Skipped as the page's skills step is.
+5. **Describe**: the task, on one line. `enter` launches; the slug comes from the task. Under the input a trust line names the exact folder each key trusts: `ctrl+t` this session only, `ctrl+a` saves the repo folder to `auto_trust_dirs` at launch; press the key again to take the choice back. Nothing is trusted unless you press one.
+
+The wizard has no context: a kept page draft gives it the task text only, and the status line says how many context items stay with the draft.
 
 `:trust [folder]` on the board does the same as `ctrl+a` without starting a session: it saves the repo folder of the selected session's folder (or of the folder rex runs in, or the folder you name) to `auto_trust_dirs` and says which folder it trusted. Sessions already running keep asking; new ones skip the dialog. A refused folder shows why on the status line. `rex trust` does the same from the shell.
 
@@ -598,9 +611,9 @@ A small column before the time column flags sessions that have been **working** 
 
 ## LOADING A NEW BUILD (`:swap`)
 
-The board checks its own executable every 10 s. When a new build is installed (`make install`, `rex update`) the status line says `new rex build installed · :swap to load it`. `:swap` re-execs the board into the new binary at once; with `auto_swap` on (the default) it also does so by itself once it has sat on the board for 60 s with no key, no overlay, new-agent page, dialog or editor open. `rex upgrade` waits for the boards to reconnect after the daemon's hot restart, then asks every board on another build to swap (see [cli.md](cli.md)); a board with the new-agent page or another overlay open swaps later, once idle.
+The board checks its own executable every 10 s. When a new build is installed (`make install`, `rex update`) the status line says `new rex build installed · :swap to load it`. `:swap` re-execs the board into the new binary at once; with `auto_swap` on (the default) it also does so by itself once it has sat on the board for 60 s with no key, no overlay, new-agent page, wizard, dialog or editor open. `rex upgrade` waits for the boards to reconnect after the daemon's hot restart, then asks every board on another build to swap (see [cli.md](cli.md)); a board with the new-agent page or another overlay open swaps later, once idle.
 
-A swap keeps the view: selection, scroll, tool filter, search, hidden sections, the open page (board, help, settings, usage, stats, overview, loops) and the attach popup when its session is still running. The state goes through `tui-swap-<pid>.json` next to `tui-state.json` (0600, read once and removed, pid-checked). The new board boots quietly (no boot sounds, as `--quiet-boot`). An open new-agent page, confirm dialog, rename or inline editor is not carried: an automatic or `rex upgrade` swap waits until none is open. If the exec fails the board keeps running and says why. Not on Windows (the status line says so).
+A swap keeps the view: selection, scroll, tool filter, search, hidden sections, the open page (board, help, settings, usage, stats, overview, loops) and the attach popup when its session is still running. The state goes through `tui-swap-<pid>.json` next to `tui-state.json` (0600, read once and removed, pid-checked). The new board boots quietly (no boot sounds, as `--quiet-boot`). An open new-agent page, wizard, confirm dialog, rename or inline editor is not carried: an automatic or `rex upgrade` swap waits until none is open. If the exec fails the board keeps running and says why. Not on Windows (the status line says so).
 
 When the daemon hot-restarts, boards reconnect by themselves and an open attach popup re-attaches to the same session (backoff 250 ms to 2 s, 10 tries) instead of showing it as ended.
 

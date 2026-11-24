@@ -38,6 +38,7 @@ var applyModeOf = map[string]ApplyMode{
 	"selector_glyph": ApplyLive, "selector_gap": ApplyLive, "selector_bold": ApplyLive, "selector_blink": ApplyLive, "selector_blink_ms": ApplyLive,
 	"reduce_motion": ApplyLive, "blinking_enabled": ApplyLive, "show_help_bar": ApplyLive,
 	"header_style": ApplyLive, "window_border": ApplyLive, "window_border_color": ApplyLive, "column_layout": ApplyLive, "mobile_layout": ApplyLive,
+	"boot_screen":  ApplyLive, // read when the board starts, like boot_voice
 	"row_icon_set": ApplyLive, "ascii_glyphs": ApplyLive, "row_icons": ApplyLive,
 	"keybind_preset": ApplyLive, "mouse_enabled": ApplyLive, "retire_after_hours": ApplyLive,
 	"screensaver_enabled": ApplyLive, "screensaver_after_minutes": ApplyLive, "screensaver_keep_awake": ApplyLive,
@@ -61,6 +62,7 @@ var applyModeOf = map[string]ApplyMode{
 	"board_filter": ApplyLive, "search": ApplyLive, "undo_complete": ApplyLive, "summary_preview": ApplyLive, "summary_schedule": ApplyLive,
 	"waiting_section": ApplyLive, "timestamps": ApplyLive, "cli_agent_auto": ApplyLive, "session_export": ApplyLive,
 	"fullscreen_pages": ApplyLive,                                               // the TUI picks the renderer on every frame
+	"new_agent_page":   ApplyLive,                                               // the TUI picks the page or the wizard on every n
 	"turn_snapshots":   ApplyLive, "usage": ApplyLive, "usage_meter": ApplyLive, // the TUI reads usage_meter on every frame
 	"live_reload": ApplyLive, "loops": ApplyLive, "auto_swap": ApplyLive, // the TUI reads it on every binary check
 	"extra_agents": ApplyLive, "model_autodetect": ApplyLive, // catalog applier subscribes to both

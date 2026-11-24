@@ -23,7 +23,9 @@ func rowsByName(rows []checkResult) map[string]checkResult {
 }
 
 func TestCheckSnapshots_OffCreatesNothing(t *testing.T) {
-	home, _ := setupHome(t)
+	home, cfg := setupHome(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
+	require.NoError(t, os.WriteFile(cfg, []byte("turn_snapshots: false\n"), 0o600))
 	rows := checkSnapshots()
 	require.Equal(t, checkInfo, rows[0].Status)
 	require.Contains(t, rows[0].Detail, "off")

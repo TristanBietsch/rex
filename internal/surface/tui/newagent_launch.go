@@ -282,3 +282,30 @@ func naAssembleErr(err error) error {
 	}
 	return naErr{msg: "cannot launch: " + err.Error()}
 }
+
+// closeNewAgentIfOff closes the page, keeping the draft, once
+// new_agent_page is off (Feature flag: turning it off closes the page).
+func closeNewAgentIfOff(m Model) Model {
+	if m.NewAgent != nil && !m.featureOn("new_agent_page") {
+		return closeNewAgent(m, true)
+	}
+	return m
+}
+
+// naSeedWizard starts the popup wizard (new_agent_page off) with the draft's
+// task as one line; the context cannot go with it and the notice says so.
+func naSeedWizard(m Model) Model {
+	d := m.newAgentDraft
+	if d == nil || m.Wizard == nil {
+		return m
+	}
+	m.Wizard.TaskText = strings.Join(strings.Fields(d.Task.String()), " ")
+	if n := len(d.Items); n > 0 {
+		what := strconv.Itoa(n) + " context items were dropped"
+		if n == 1 {
+			what = "1 context item was dropped"
+		}
+		m.Notice = "the popup wizard takes the task text only: " + what + " (kept for the new-agent page)"
+	}
+	return m
+}

@@ -14,8 +14,8 @@
   WO│   :uc :resume [sel]       undo done: unmark a running session, or    │    
  ▸  │                           resume an exited one                       │ 11m
     │   :undo [sel] [-turns N]  restore the folder to before the agent's   │  7s
-    │                           last turn (asks first) (off)               │  2h
-    │   :redo [sel]             bring back what :undo replaced (off)       │
+    │                           last turn (asks first)                     │  2h
+    │   :redo [sel]             bring back what :undo replaced             │
   DO│                                                                      │    
     │   j/k scroll · / edit filter · esc clear                             │  9d
     └──────────────────────────────────────────────────────────────────────┘   -
@@ -45,9 +45,9 @@
     ✓│                                                                                resume an exited one        │   9d
     ✗│                                                        :undo [sel] [-turns N]  restore the folder to       │    -
     ✗│                                                                                before the agent's last     │    -
-     │                                                                                turn (asks first) (off)     │
+     │                                                                                turn (asks first)           │
      │                                                        :redo [sel]             bring back what :undo       │
-     │                                                                                replaced (off)              │
+     │                                                                                replaced                    │
      │                                                                                                            │
      │   j/k scroll · / edit filter · esc clear                                                                   │
      └────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

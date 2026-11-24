@@ -54,8 +54,8 @@ func rowIconsOn(m Model) bool {
 }
 
 // iconSlots are the strip's slots in layout order: the row_icon_set ids
-// (unknown ones ignored), minus the loop slot with loops off and the spend
-// slot with usage off.
+// (unknown ones ignored), minus the loop slot with loops off or while no
+// session on the board belongs to a loop, and the spend slot with usage off.
 func iconSlots(m Model) []iconSlot {
 	raw := "unseen,reason,loop,subagents,spend,longrun"
 	if m.Store != nil {
@@ -72,7 +72,7 @@ func iconSlots(m Model) []iconSlot {
 		if !want[s.id()] {
 			continue
 		}
-		if s == slotLoop && !settings.FeatureOn(m.Store, "loops") {
+		if s == slotLoop && (!settings.FeatureOn(m.Store, "loops") || !anyLoopSession(m)) {
 			continue
 		}
 		if s == slotSpend && !settings.FeatureOn(m.Store, "usage") {
@@ -370,4 +370,15 @@ func slotCell(m Model, s protocol.SessionSummary, slot iconSlot, w int, selected
 		return c
 	}
 	return style.Width(w).Align(align).Render(ansi.Truncate(text, w, "…"))
+}
+
+// anyLoopSession reports whether a session on the board belongs to a loop,
+// so the loop slot takes room only while there is something to show in it.
+func anyLoopSession(m Model) bool {
+	for _, s := range m.Sessions {
+		if s.LoopID != "" {
+			return true
+		}
+	}
+	return false
 }

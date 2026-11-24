@@ -379,6 +379,8 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 // would swallow every key, esc included.
 func (m Model) focusStateMissing() bool {
 	switch m.Focus {
+	case FocusWizard:
+		return m.Wizard == nil
 	case FocusNewAgent:
 		return m.NewAgent == nil
 	case FocusSettings:
@@ -403,6 +405,7 @@ func (m Model) focusStateMissing() bool {
 // via `:new`, P0-07), so it is logged and the board takes focus back rather
 // than leaving the user stuck.
 func normalizeFocus(m Model) Model {
+	m = closeNewAgentIfOff(m)
 	if !m.focusStateMissing() {
 		return m
 	}
@@ -501,7 +504,7 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			return cycleFilter(m), nil
 		case "n":
-			return openNewAgent(m)
+			return openNew(m)
 		case "?":
 			return openHelp(m), nil
 		case "S":
@@ -557,6 +560,9 @@ func updateKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.Focus == FocusConfirmDelete {
 		return updateConfirmDeleteKey(m, k)
+	}
+	if m.Focus == FocusWizard {
+		return updateWizardKey(m, k)
 	}
 	if m.Focus == FocusNewAgent {
 		return updateNewAgentKey(m, k)
@@ -845,7 +851,7 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil && !m.QuietBoot {
+	if ev := chimeFor(msg.Status); ev != "" && m.Audio != nil && !m.QuietBoot && !m.BootHidden {
 		m.Audio.Play(ev)
 	}
 	m.BootStep++
@@ -855,6 +861,9 @@ func (m Model) appendBootStep(msg bootStepMsg) (tea.Model, tea.Cmd) {
 			return m.handOffToBoard()
 		}
 		return m, nil
+	}
+	if m.BootHidden {
+		return m, nextStep(m)
 	}
 	return m, delayThen(nextStep(m))
 }

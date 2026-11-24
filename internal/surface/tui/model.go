@@ -21,6 +21,7 @@ const (
 	FocusBoard Focus = iota
 	FocusPrompt
 	FocusCommand
+	FocusWizard
 	FocusNewAgent
 	FocusHelp
 	FocusConfirmQuit
@@ -132,6 +133,7 @@ type Model struct {
 	newAgentDraft *NewAgentState
 	lastSpawn     *quickChoice
 
+	Wizard   *WizardState
 	Settings *SettingsState
 	// Help is the help overlay's scroll and filter; nil reads as the top,
 	// unfiltered.
@@ -306,6 +308,10 @@ type Model struct {
 	// QuietBoot skips the boot chimes, startup tone and boot voice, for a
 	// relaunch nobody is watching. Board sounds after boot still play.
 	QuietBoot bool
+	// BootHidden is boot_screen off: the boot steps run without the splash,
+	// its minimum time, the inter-step delay or the step chimes. A failed
+	// step still shows the splash.
+	BootHidden bool
 }
 
 // audioPlayer is the subset of *audio.Player the TUI uses.

@@ -13,25 +13,30 @@ Details for every change follow the summary.
 ### Highlights
 
 - **Stepped new-agent flow**: `n` opens a full-screen page with one step per
-  screen (agent, model, skills, task, context, trust, summary). It replaces
-  the popup wizard.
-- **Agents get an allowlisted environment** (`child_env`, on by default):
-  keys exported in your shell no longer reach every agent, and the daemon
-  drops them from its own environment. **Breaking**; see Changed for how to
-  pass a variable through.
-- **Agents rex starts can no longer control rex**: the daemon refuses
-  every intent but the usage tap from processes inside its sessions.
-- **Attribution**: the daemon logs which process drove a session and
-  records `requested_by` in `meta.json` and the audit trail.
-- **Safer defaults**: terminal escapes from agents are filtered in
-  `rex attach` and `rex log`; the summarizer talks only to a local Ollama
-  unless `summary_allow_remote` is on; `rex uninstall -all` removes
-  everything rex wrote.
-- **Unique session names**, a **summary scanner** on the board, a
-  `filter_chips` switch, and `make update` for checkout installs.
+  screen (agent, model, skills, task, context, trust, summary).
+  `new_agent_page` off keeps the popup wizard.
+- **Every feature on by default**: `turn_snapshots`, `loops` and
+  `workspaces` join the rest; a value you set is kept.
+- **A cleaner `rex --help`**: five groups under rule lines, one aligned line
+  per command; `rex <command> -h` matches.
+- **`boot_screen`** hides the boot screen; the startup checks still run.
+- **Allowlisted environment for agents** (`child_env`) on fresh installs;
+  upgrades keep the full environment (`child_env: inherit` is written once).
+- **Agents rex starts can no longer control rex**, and the daemon records
+  which process drove each session.
+- **Safer defaults**: escape filtering in `rex attach` and `rex log`, a
+  local-only summarizer unless `summary_allow_remote`, and a complete
+  `rex uninstall -all`.
+- **Unique session names**, a **summary scanner**, `filter_chips` and
+  `make update`.
 
 ### Added
 
+- **`boot_screen`** (Appearance, on by default): turn it off to skip the
+  boot screen with its startup checks. The checks still run, without the
+  screen, its 1.2 s minimum or the step chimes, and the board opens as soon
+  as it is connected; a failed check still shows the screen with the cause
+  and fix.
 - **`make update`** (`tools/update/update.sh`): rebuild from the checkout,
   install only the binaries that changed (by rename, so a running daemon,
   board or hook never sees a missing or half-written file), then move the
@@ -64,6 +69,23 @@ Details for every change follow the summary.
 
 ### Changed
 
+- **`turn_snapshots`, `loops` and `workspaces` are on by default.** Each
+  only acts when used: `rex undo` restores the snapshots taken while
+  `turn_snapshots` is on (folders inside a git repo only; the private store
+  under `~/.local/share/rex/snapshots` holds file contents, including
+  untracked files such as `.env` unless they are gitignored), `rex loop`
+  runs loop files from `~/.config/rex/loops`, and `rex ws init` marks a
+  workspace. A value set in `config.yaml` or `config.lua` is kept; set one
+  to `false` to turn it off.
+- **`rex --help` is reorganized and aligned.** Commands are in five groups
+  (Start & steer, Watch, Manage, Daemon, Setup) under rule lines, one line
+  each: name, a short argument hint and a description, in columns that line
+  up across the whole page and fit 80 columns. `rex <command> -h` uses the
+  same layout: Flags, Advanced (`-socket`), Output and Example sections,
+  aligned columns and upper-case placeholders (`-cwd CWD`). Deprecated flags
+  no longer show in help (they still parse and stay in `-o json`). The
+  `-o json` help and the agent card list the commands in the new order and
+  sections.
 - Session display names are unique among the sessions that still exist, in
   any state (done and marked-done included), compared without regard to
   case, repeated spaces or zero-width characters. Deleting a session frees
@@ -82,8 +104,15 @@ Details for every change follow the summary.
   there never picks one. The summary shows everything the launch sends and
   the equivalent `rex new` call (display only); `enter` on a row jumps to
   that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
+- `new_agent_page: false` still opens the popup wizard from `n`, `:new`
+  and `:new!`, as before; the stepped page is the default (on).
 
-- **Breaking: agents get an allowlisted environment.** Every agent, model
+- **Agents get an allowlisted environment on fresh installs; upgrades keep
+  the old behavior.** The first time a 2.1.0 daemon starts where an earlier
+  daemon ran (its `daemon.lock` exists) and `child_env` is not set, it
+  writes `child_env: inherit` into `config.yaml` and says so in
+  `daemon.log`; set `child_env: allowlist` to turn the filter on. A fresh
+  install writes `child_env: allowlist`. Every agent, model
   probe and loop check used to inherit the whole environment of the shell
   that started rex, frozen for as long as the daemon ran, so an API key or
   token exported there reached every agent and everything an agent ran. In
@@ -105,7 +134,7 @@ Details for every change follow the summary.
   `rex daemon restart -cold`. The daemon also keeps its own `REX_*`
   variables (such as `REX_LOG_LEVEL`); agents do not get them. On Windows, which
   has no exec-in-place, `rex` builds the same environment before it starts
-  the daemon. **To migrate:** if an agent or tool lost a
+  the daemon. **After switching to `allowlist`:** if an agent or tool lost a
   variable it needs, list the name in `env_passthrough` (comma-separated;
   a trailing `*` matches a prefix) or add it to the tool's `env_pass` in
   `tools.yaml`, or set `child_env: inherit` for the old behavior; then
@@ -114,9 +143,6 @@ Details for every change follow the summary.
 
 ### Removed
 
-- The popup wizard and the `new_agent_page` setting. The page is the only
-  way to start an agent from `n` / `:new`. A stored `new_agent_page` in
-  `config.yaml` or `config.lua` is ignored without a warning.
 - The page's Compose screen, step rail and three-pane Agent screen, and the
   vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
   `[` `]`). `ctrl+u` on an empty task line now clears the task text only,

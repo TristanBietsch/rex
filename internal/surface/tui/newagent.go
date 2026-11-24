@@ -254,6 +254,16 @@ func (st *NewAgentState) request(cwd string, existing []string) (protocol.NewSes
 	}, nil
 }
 
+// openNew is n and :new: the new-agent page while new_agent_page is on,
+// else the popup wizard.
+func openNew(m Model) (Model, tea.Cmd) {
+	if m.featureOn("new_agent_page") {
+		return openNewAgent(m)
+	}
+	m, cmd := openWizard(m)
+	return naSeedWizard(m), cmd
+}
+
 // openNewAgent opens the page on the agents pickerTools offers, restoring
 // the draft left with esc. The agent is the draft's, else the last launch
 // (D3), else the quick-spawn defaults; one no longer offered falls back
@@ -429,6 +439,10 @@ func updateNewAgentKey(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 	st := m.NewAgent
 	if st == nil {
 		return m, nil
+	}
+	if !m.featureOn("new_agent_page") {
+		// Turned off while open: back to the board, the draft kept.
+		return closeNewAgent(m, true), nil
 	}
 	if st.Launching {
 		return naLaunchingKey(m, k)
