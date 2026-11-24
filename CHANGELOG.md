@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-24
+
+Details for every change follow the summary.
+
+### Highlights
+
+- **Stepped new-agent flow**: `n` opens a full-screen page with one step per
+  screen (agent, model, skills, task, context, trust, summary).
+  `new_agent_page` off keeps the popup wizard.
+- **Every feature on by default**: `turn_snapshots`, `loops` and
+  `workspaces` join the rest; a value you set is kept.
+- **A cleaner `rex --help`**: five groups under rule lines, one aligned line
+  per command; `rex <command> -h` matches.
+- **`boot_screen`** hides the boot screen; the startup checks still run.
+- **Allowlisted environment for agents** (`child_env`) on fresh installs;
+  upgrades keep the full environment (`child_env: inherit` is written once).
+- **Agents rex starts can no longer control rex**, and the daemon records
+  which process drove each session.
+- **Safer defaults**: escape filtering in `rex attach` and `rex log`, a
+  local-only summarizer unless `summary_allow_remote`, and a complete
+  `rex uninstall -all`.
+- **Unique session names**, a **summary scanner**, `filter_chips` and
+  `make update`.
+
 ### Added
 
 - **`boot_screen`** (Appearance, on by default): turn it off to skip the
@@ -69,8 +93,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   restored from an older daemon keep their names, duplicates included; the
   daemon logs them and renames nothing.
 
-### Changed
-
 - **`n` opens a stepped, full-screen new-agent flow.** One step per screen,
   in order: agent, model (with effort), skills, task, context, trust, then
   a summary where `enter` on `launch` starts the agent (`ctrl+s` still
@@ -84,15 +106,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
 - `new_agent_page: false` still opens the popup wizard from `n`, `:new`
   and `:new!`, as before; the stepped page is the default (on).
-
-### Removed
-
-- The page's Compose screen, step rail and three-pane Agent screen, and the
-  vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
-  `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
-  not the context, trust or skills.
-
-### Changed
 
 - **Agents get an allowlisted environment on fresh installs; upgrades keep
   the old behavior.** The first time a 2.1.0 daemon starts where an earlier
@@ -127,6 +140,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `tools.yaml`, or set `child_env: inherit` for the old behavior; then
   restart the daemon with `rex daemon restart -cold` (a hot restart keeps
   the daemon's environment).
+
+### Removed
+
+- The page's Compose screen, step rail and three-pane Agent screen, and the
+  vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
+  `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
+  not the context, trust or skills.
 
 ### Fixed
 
@@ -1931,6 +1951,7 @@ Baseline release: `rex` CLI and TUI, `rex-daemon` PTY supervisor, JSONL
 protocol over a Unix socket, tool registry, Lua hooks, and native Windows
 support (ConPTY).
 
-[Unreleased]: https://github.com/TristanBietsch/rex/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/TristanBietsch/rex/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/TristanBietsch/rex/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/TristanBietsch/rex/releases/tag/v2.0.0
 [v1]: https://github.com/tristanbietsch/rex/commits/6a6e0a1

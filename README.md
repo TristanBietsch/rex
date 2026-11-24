@@ -268,7 +268,7 @@ Go source wins when a doc disagrees with behavior.
 ## Contributing
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents start with
-[docs/agents/HANDOFF.md](docs/agents/HANDOFF.md). Build, test and release
+[docs/agents/README.md](docs/agents/README.md). Build, test and release
 commands are in [docs/agents/WORKFLOWS.md](docs/agents/WORKFLOWS.md).
 
 ```sh
