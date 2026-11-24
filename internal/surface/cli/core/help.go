@@ -9,38 +9,58 @@ import (
 // lists them in their own Output section.
 var outputFlagNames = map[string]bool{"o": true, "output": true, "agent": true, "no-color": true, "json": true}
 
-// helpView builds the top-level help: Usage first, Title-case sections, no
-// banners, ending with one hint line.
+// Help overview column widths: every Defs in `rex --help` uses them, so the
+// names, args and descriptions line up across sections.
+const (
+	helpNameWidth = 10
+	helpArgsWidth = 22
+)
+
+// helpView builds the top-level help: a title line, how to start, then one
+// rule-line section per HelpSections entry with every command as name, short
+// args and description in shared columns, and an Options section last.
 func helpView() View {
+	defs := func(items []Def) Defs {
+		return Defs{Kind: "command", Items: items, NameWidth: helpNameWidth, ArgsWidth: helpArgsWidth}
+	}
 	v := View{
-		Header{Title: "rex — Runtime Executive for Agents", Meta: Version},
-		Section{Title: "Usage"},
+		Header{Title: "rex " + displayVersion(Version) + " · Runtime Executive for Agents"},
+		Section{Title: "Usage", Rule: true},
 		Defs{Items: []Def{
-			{Name: "rex", Desc: "open the board (TUI)"},
-			{Name: "rex --quiet-boot", Desc: "open the board without boot sounds"},
-			{Name: "rex <command> [flags]"},
-		}},
+			{Name: "rex", Args: "[--quiet-boot]", Desc: "open the board (--quiet-boot: no sounds)"},
+			{Name: "rex", Args: "<command> -h", Desc: "flags and examples for a command"},
+		}, NameWidth: helpNameWidth, ArgsWidth: helpArgsWidth},
 	}
 	for _, sec := range HelpSections {
 		var items []Def
 		for _, c := range Commands {
 			if c.Section == sec {
-				items = append(items, Def{Name: strings.TrimSpace(c.Name + " " + c.Args), Key: c.Name, Desc: c.Short,
+				items = append(items, Def{Name: c.Name, Args: c.Brief, Key: c.Name, Desc: c.Short,
 					Extra: []Field{{"class", c.Class.String()}}})
 			}
 		}
-		v = append(v, Section{Title: sec}, Defs{Kind: "command", Items: items})
+		v = append(v, Section{Title: sec, Rule: true}, defs(items))
 	}
 	v = append(v,
-		Section{Title: "Output"},
+		Section{Title: "Options", Rule: true},
 		Defs{Items: []Def{
-			{Name: "-o, --output FORMAT", Desc: "text | txt | md | json | agent (txt when piped)"},
+			{Name: "<sel>", Desc: "short id (4+ hex), slug or full id"},
+			{Name: "-o", Args: "FORMAT", Desc: "text|txt|md|json|agent; txt when piped"},
 			{Name: "--agent", Desc: "one line per record, no color, no prompts"},
 			{Name: "--no-color", Desc: "never emit ANSI color"},
-		}},
-		Para{Text: "Selectors: short id (4+ hex), slug or full id."},
-		Para{Text: `Run "rex <command> -h" for flags · agents: rex agent-help`},
+			{Name: "agents", Args: "rex agent-help", Desc: "the usage card for LLM agents"},
+		}, NameWidth: helpNameWidth, ArgsWidth: helpArgsWidth},
 	)
+	return v
+}
+
+// displayVersion is Version for the help title: without the leading v, and
+// "dev" for a development build (a Go pseudo-version or "dev").
+func displayVersion(v string) string {
+	v = strings.TrimPrefix(v, "v")
+	if v == "" || v == "dev" || strings.HasPrefix(v, "0.0.0-") {
+		return "dev"
+	}
 	return v
 }
 
@@ -136,7 +156,7 @@ func showCommandHelp(fs *flag.FlagSet) {
 	}
 
 	data := cmdHelpData{Command: fs.Name(), Usage: usage, Desc: desc, Flags: []flagData{}, Example: cmd.Example}
-	var items []Def
+	var items, advanced []Def
 	fs.VisitAll(func(f *flag.Flag) {
 		if o != nil && outputFlagNames[f.Name] {
 			return
@@ -151,27 +171,48 @@ func showCommandHelp(fs *flag.FlagSet) {
 		}
 		fd := flagData{Name: "-" + f.Name, Arg: arg, Default: def, Desc: text}
 		data.Flags = append(data.Flags, fd)
-		name := fd.Name
-		if arg != "" {
-			name += " " + arg
+		if strings.HasPrefix(f.Usage, "(deprecated") {
+			return // kept for old scripts and in -o json, not shown
 		}
 		if def != "" {
 			text += " (default " + def + ")"
 		}
-		items = append(items, Def{Name: name, Key: fd.Name, Desc: text,
-			Extra: []Field{{"arg", arg}, {"default", def}}})
+		d := Def{Name: fd.Name, Args: argPlaceholder(f.Name, arg), Key: fd.Name, Desc: text,
+			Extra: []Field{{"arg", arg}, {"default", def}}}
+		if advancedFlags[f.Name] {
+			advanced = append(advanced, d)
+			return
+		}
+		items = append(items, d)
 	})
 
-	v := View{Line{Text: "Usage: " + usage}, Para{Text: desc}}
+	title := "rex " + fs.Name()
+	if cmd.Short != "" {
+		title += " · " + cmd.Short
+	}
+	v := View{
+		Header{Title: title},
+		Line{Text: "Usage: " + usage},
+		Para{Text: desc},
+	}
+	// Flags, Advanced and Output share their columns.
+	var output []Def
+	if o != nil {
+		output = outputDefs(o)
+	}
+	nameW, argsW := defsWidths(Defs{Items: append(append(append([]Def(nil), items...), advanced...), output...)})
 	if len(items) > 0 {
-		v = append(v, Section{Title: "Flags"}, Defs{Kind: "flag", Items: items})
+		v = append(v, Section{Title: "Flags", Rule: true}, Defs{Kind: "flag", Items: items, NameWidth: nameW, ArgsWidth: argsW})
+	}
+	if len(advanced) > 0 {
+		v = append(v, Section{Title: "Advanced", Rule: true}, Defs{Kind: "flag", Items: advanced, NameWidth: nameW, ArgsWidth: argsW})
 	}
 	if o != nil {
 		data.Formats = formatNamesOf(o.supported)
-		v = append(v, Section{Title: "Output"}, Defs{Items: outputDefs(o)})
+		v = append(v, Section{Title: "Output", Rule: true}, Defs{Items: output, NameWidth: nameW, ArgsWidth: argsW})
 	}
 	if cmd.Example != "" {
-		v = append(v, Section{Title: "Example"}, Defs{Items: []Def{{Name: cmd.Example}}})
+		v = append(v, Section{Title: "Example", Rule: true}, Defs{Items: []Def{{Name: cmd.Example}}})
 	}
 	v = append(v, KV{Pairs: []Pair{
 		{Key: "usage", Val: Cell{Text: usage}, Formats: SetOf(FormatAgent)},
@@ -180,9 +221,25 @@ func showCommandHelp(fs *flag.FlagSet) {
 	_ = p.Emit(Result{Cmd: "help", Data: data, View: v})
 }
 
+// advancedFlags are shown under Advanced in a command's help: plumbing most
+// users never set.
+var advancedFlags = map[string]bool{"socket": true}
+
+// argPlaceholder is a flag's argument as help shows it: upper case, and the
+// flag's own name for a plain string ("-cwd CWD", "-wait DURATION").
+func argPlaceholder(name, arg string) string {
+	switch arg {
+	case "":
+		return ""
+	case "string":
+		return strings.ToUpper(name)
+	}
+	return strings.ToUpper(arg)
+}
+
 func outputDefs(o *OutputFlags) []Def {
 	defs := []Def{
-		{Name: "-o, --output FORMAT", Desc: o.supported.String()},
+		{Name: "-o, --output", Args: "FORMAT", Desc: o.supported.String()},
 		{Name: "--agent", Desc: "one line per record, no color, no prompts"},
 		{Name: "--no-color", Desc: "never emit ANSI color"},
 	}

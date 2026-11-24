@@ -99,8 +99,13 @@ func (c Col) shownIn(f Format) bool { return c.Formats == 0 || c.Formats.Has(f) 
 // Header is a one-line title with dim meta text.
 type Header struct{ Title, Meta string }
 
-// Section is a Title-case heading with a trailing colon at column 0.
-type Section struct{ Title string }
+// Section is a Title-case heading with a trailing colon at column 0. With
+// Rule the text layout draws it as a rule line instead ("── Title ────"),
+// as wide as the terminal up to ruleMax columns.
+type Section struct {
+	Title string
+	Rule  bool
+}
 
 // Pair is one KV entry.
 type Pair struct {
@@ -206,6 +211,9 @@ type Pre struct{ Text string }
 // Def is one Defs entry.
 type Def struct {
 	Name, Desc string
+	// Args is an optional argument hint shown dim between Name and Desc, in
+	// its own aligned column ("<sel> [-f]").
+	Args string
 	// Key is the name in agent lines when it differs from the displayed Name
 	// ("-state" for "-state dir").
 	Key string
@@ -219,6 +227,9 @@ type Def struct {
 type Defs struct {
 	Kind  string
 	Items []Def
+	// NameWidth and ArgsWidth fix the name and args columns, so several
+	// Defs in one view line up; zero sizes a column to its widest entry.
+	NameWidth, ArgsWidth int
 }
 
 func (Header) isBlock()  {}
@@ -258,7 +269,7 @@ func (v View) sanitized() View {
 		case Header:
 			out[i] = Header{Title: flat(b.Title), Meta: flat(b.Meta)}
 		case Section:
-			out[i] = Section{Title: flat(b.Title)}
+			out[i] = Section{Title: flat(b.Title), Rule: b.Rule}
 		case KV:
 			pairs := make([]Pair, len(b.Pairs))
 			for j, p := range b.Pairs {
@@ -297,7 +308,7 @@ func (v View) sanitized() View {
 		case Defs:
 			items := make([]Def, len(b.Items))
 			for j, d := range b.Items {
-				items[j] = Def{Name: flat(d.Name), Desc: flat(d.Desc), Key: d.Key, Extra: d.Extra}
+				items[j] = Def{Name: flat(d.Name), Args: flat(d.Args), Desc: flat(d.Desc), Key: d.Key, Extra: d.Extra}
 			}
 			b.Items = items
 			out[i] = b

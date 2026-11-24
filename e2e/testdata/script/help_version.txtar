@@ -2,7 +2,7 @@
 
 exec rex help
 stdout '^# Usage$'
-stdout 'rex <command> \[flags\]'
+stdout 'rex +<command> -h'
 stdout 'completion bash.zsh.fish'
 ! stderr .
 

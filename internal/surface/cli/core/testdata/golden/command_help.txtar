@@ -1,24 +1,28 @@
 -- text --
+rex ls · list sessions
+
 Usage: rex ls [flags]
 
 List sessions, newest state first. -wide adds start and end times and the resume
 id.
 
-Flags:
-  -n int         lines (default 5)
-  -socket path   daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else
-                 ~/.cache/rex/rex.sock)
-  -state string  filter by state
-  -timeout wait  max wait time
-  -wide          add columns
+── Flags ───────────────────────────────────────────────────────────────────────
+  -n           INT     lines (default 5)
+  -state       STATE   filter by state
+  -timeout     WAIT    max wait time
+  -wide                add columns
 
-Output:
+── Advanced ────────────────────────────────────────────────────────────────────
+  -socket      PATH    daemon socket path (default $XDG_RUNTIME_DIR/rex.sock,
+                       else ~/.cache/rex/rex.sock)
+
+── Output ──────────────────────────────────────────────────────────────────────
   -o, --output FORMAT  text, txt, md, json, agent
   --agent              one line per record, no color, no prompts
   --no-color           never emit ANSI color
   -json                legacy JSON shape (prefer -o json)
 
-Example:
+── Example ─────────────────────────────────────────────────────────────────────
   rex ls -state needs_input
 -- txt --
 Usage: rex ls [flags]
@@ -26,11 +30,13 @@ Usage: rex ls [flags]
 List sessions, newest state first. -wide adds start and end times and the resume id.
 
 # Flags
-  -n int         lines (default 5)
-  -socket path   daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
-  -state string  filter by state
-  -timeout wait  max wait time
-  -wide          add columns
+  -n           INT     lines (default 5)
+  -state       STATE   filter by state
+  -timeout     WAIT    max wait time
+  -wide                add columns
+
+# Advanced
+  -socket      PATH    daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)
 
 # Output
   -o, --output FORMAT  text, txt, md, json, agent
@@ -41,6 +47,8 @@ List sessions, newest state first. -wide adds start and end times and the resume
 # Example
   rex ls -state needs_input
 -- md --
+### rex ls · list sessions
+
 Usage: rex ls \[flags\]
 
 List sessions, newest state first. -wide adds start and end times and the resume id.
@@ -49,11 +57,16 @@ List sessions, newest state first. -wide adds start and end times and the resume
 
 | Name | Description |
 | --- | --- |
-| `-n int` | lines (default 5) |
-| `-socket path` | daemon socket path (default $XDG\_RUNTIME\_DIR/rex.sock, else \~/.cache/rex/rex.sock) |
-| `-state string` | filter by state |
-| `-timeout wait` | max wait time |
+| `-n INT` | lines (default 5) |
+| `-state STATE` | filter by state |
+| `-timeout WAIT` | max wait time |
 | `-wide` | add columns |
+
+#### Advanced
+
+| Name | Description |
+| --- | --- |
+| `-socket PATH` | daemon socket path (default $XDG\_RUNTIME\_DIR/rex.sock, else \~/.cache/rex/rex.sock) |
 
 #### Output
 
@@ -73,8 +86,8 @@ List sessions, newest state first. -wide adds start and end times and the resume
 {"v":1,"cmd":"help","data":{"command":"ls","usage":"rex ls [flags]","desc":"List sessions, newest state first. -wide adds start and end times and the resume id.","flags":[{"name":"-n","arg":"int","default":"5","desc":"lines"},{"name":"-socket","arg":"path","desc":"daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)"},{"name":"-state","arg":"string","desc":"filter by state"},{"name":"-timeout","arg":"wait","desc":"max wait time"},{"name":"-wide","desc":"add columns"}],"formats":["text","txt","md","json","agent"],"example":"rex ls -state needs_input"}}
 -- agent --
 flag name=-n desc="lines (default 5)" arg=int default=5
-flag name=-socket desc="daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)" arg=path default=""
 flag name=-state desc="filter by state" arg=string default=""
 flag name=-timeout desc="max wait time" arg=wait default=""
 flag name=-wide desc="add columns" arg="" default=""
+flag name=-socket desc="daemon socket path (default $XDG_RUNTIME_DIR/rex.sock, else ~/.cache/rex/rex.sock)" arg=path default=""
 ok cmd=help count=5 usage="rex ls [flags]" desc="List sessions, newest state first. -wide adds start and end times and the resume id."

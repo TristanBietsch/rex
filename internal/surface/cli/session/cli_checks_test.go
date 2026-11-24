@@ -30,8 +30,8 @@ func TestRunReply_NoTTYNoTextReachesTheSocket(t *testing.T) {
 	require.Equal(t, 4, exitCode(t, err), "stdin is read (empty), then the dial fails")
 }
 
-// The flags kept only so old scripts still parse say they do nothing.
-func TestUsage_DeprecatedFlagsMarked(t *testing.T) {
+// The flags kept only so old scripts still parse are left out of the help.
+func TestUsage_DeprecatedFlagsHidden(t *testing.T) {
 	help := func(run func([]string) error) string {
 		p, out := lsPrinter(t, "txt", 80, false)
 		core.SetOut(p)
@@ -40,9 +40,9 @@ func TestUsage_DeprecatedFlagsMarked(t *testing.T) {
 		return out.String()
 	}
 	ls := help(RunLs)
-	require.Regexp(t, `-short\s+\(deprecated, no effect\)`, ls)
-	require.Regexp(t, `-show-archived\s+\(deprecated, no effect\)`, ls)
-	require.Regexp(t, `-no-attach\s+\(deprecated, no effect\)`, help(RunNew))
+	require.NotContains(t, ls, "-short", "deprecated flags are not shown")
+	require.NotContains(t, ls, "-show-archived", "deprecated flags are not shown")
+	require.NotContains(t, help(RunNew), "-no-attach", "deprecated flags are not shown")
 }
 
 // A daemon that takes the intent but never reports the session: a message

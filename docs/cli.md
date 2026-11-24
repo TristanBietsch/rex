@@ -23,7 +23,7 @@ Commands dial the default socket unless `-socket` is set. See [paths.md](paths.m
 
 ## HELP
 
-`rex --help` lists the commands by section. It is built like `agy`'s help: `Usage:` first, Title-case section headers with a colon, aligned names, no banner or rule, and one closing hint. `rex <command> -h` (or `rex help <command>`) prints that command's usage, description, flags, output formats and an example, from the same table, to stdout, and exits 0. A flag error prints the error and one `Usage:` line on stderr, not the whole list.
+`rex --help` lists every command in five groups, each under a rule line (`── Start & steer ───`): Start & steer, Watch, Manage, Daemon and Setup, between a Usage section and an Options section. Each command takes one line: its name in the accent color, a short argument hint (dim) and a description, in columns that line up across every section and fit 80 columns; below 57 columns the description moves under the name. `rex <command> -h` (or `rex help <command>`) prints that command's title and `Usage:` line, description, then Flags, Advanced (`-socket`), Output and Example under the same rule lines, with flags, placeholders (`-cwd CWD`, `-wait DURATION`) and descriptions in shared columns. Flags kept only for old scripts are left out (they stay in `-o json`). Both come from the same table, print to stdout, and exit 0. A flag error prints the error and one `Usage:` line on stderr, not the whole list.
 
 Help is a query like any other: `-o txt` (the default in a pipe) has `# Usage` style headers, `-o md` pastes into an issue, and `-o json` gives `{"v":1,"cmd":"help","data":{...}}` with every command (or, for `rex <command> -h`, every flag and its default). In agent mode `rex --help` prints the agent card.
 
