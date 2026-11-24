@@ -290,13 +290,13 @@ var Registry = []Setting{
 
 	{
 		ID: "turn_snapshots", Label: "Turn snapshots and undo", Section: SectionFeatures, Apply: ApplyLive,
-		Type: TypeBool, Default: false,
+		Type: TypeBool, Default: true,
 		Help: "Snapshot a session's folder at the start and end of every agent turn into a private store under ~/.local/share/rex/snapshots, so rex undo can restore it. Only folders inside a git repo are captured, and that repo is never touched. The store holds file contents, including untracked secrets such as .env unless they are gitignored. Off: no snapshot, no git call, and rex undo refuses.",
 	},
 
 	{
 		ID: "loops", Label: "Loop workflows", Section: SectionFeatures, Apply: ApplyLive,
-		Type: TypeBool, Default: false,
+		Type: TypeBool, Default: true,
 		Help: "Run an agent session in a repeat loop (rex loop): the daemon re-sends your prompt each time the agent finishes a turn, until a check command you wrote exits 0 or a cap is reached. Loop files are read only from ~/.config/rex/loops, and their check commands run on your machine. A permission or question prompt pauses the loop; rex never answers it. Off: no loop runs, no loop file is read, and rex loop refuses.",
 	},
 	{
@@ -346,7 +346,7 @@ var Registry = []Setting{
 	},
 	{
 		ID: "workspaces", Label: "Workspaces", Section: SectionFeatures, Apply: ApplyLive,
-		Type: TypeBool, Default: false,
+		Type: TypeBool, Default: true,
 		Help: "Mark a project folder as a workspace with rex ws init: a small .rex/ folder holds an id, a name and a color so sessions in that tree can be told apart. Off: rex never looks for or writes a .rex/ folder, and rex ws refuses.",
 	},
 	{

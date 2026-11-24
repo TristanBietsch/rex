@@ -203,7 +203,7 @@ func TestAudit_WorkspacesFlagOffMeansNoDiscovery(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	r := newAuditRig(t, nil, home) // workspaces defaults to off
+	r := newAuditRig(t, map[string]any{"workspaces": false}, home)
 	finds := 0
 	r.a.find = func(string, string) (*workspace.Workspace, error) { finds++; return nil, nil }
 	require.NoError(t, r.store.Add(auditSession("aaaa1111", root)))
@@ -319,7 +319,7 @@ func TestAuditSettingIDsCoverEveryFlagConfigureReads(t *testing.T) {
 	require.ElementsMatch(t, []string{"audit_trail", "audit_full_prompt", "workspaces"}, AuditSettingIDs)
 
 	t0 := time.Now().Add(-time.Hour)
-	h, path := newHub(t, "", t0)
+	h, path := newHub(t, "workspaces: false\n", t0)
 	a := NewAudit(AuditConfig{StateDir: t.TempDir(), Home: "/h"}, state.NewStore())
 	t.Cleanup(a.Close)
 	a.Configure(h.Current())

@@ -448,5 +448,5 @@ func TestLoopStopConfirm_FromTheOverlayOnAnUnlistedLoop(t *testing.T) {
 func TestLoopsFlagRegistered(t *testing.T) {
 	_, ok := settings.Find(loopsFlag)
 	require.True(t, ok)
-	require.False(t, settings.FeatureOn(settings.NewStore(), loopsFlag), "off by default")
+	require.True(t, settings.FeatureOn(settings.NewStore(), loopsFlag), "on by default")
 }

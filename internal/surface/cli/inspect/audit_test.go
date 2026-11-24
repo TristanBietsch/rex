@@ -165,7 +165,7 @@ func TestAudit_ArgumentErrors(t *testing.T) {
 }
 
 func TestAudit_WsFlagNeedsTheWorkspacesFeature(t *testing.T) {
-	r := newAuditRig(t, "")
+	r := newAuditRig(t, "workspaces: false\n")
 	err := r.run(t, "txt", "--ws", "7f3b89a2")
 	var ec core.ExitCoder
 	require.ErrorAs(t, err, &ec)
@@ -223,7 +223,7 @@ func TestAudit_ScopesWithWorkspacesOn(t *testing.T) {
 }
 
 func TestAudit_WorkspacesOffIgnoresWorkspaceFiles(t *testing.T) {
-	r := newAuditRig(t, "")
+	r := newAuditRig(t, "workspaces: false\n")
 	_, root := wsSetup(t, r)
 	t.Chdir(root)
 	require.NoError(t, r.run(t, "json"))
