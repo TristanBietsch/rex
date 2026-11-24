@@ -93,6 +93,14 @@ func TestValidatePromptArgs(t *testing.T) {
 	require.ErrorContains(t, validate([]Tool{tool}), "settle_ms")
 }
 
+func TestReadyRegexValidation(t *testing.T) {
+	tool := baseTool()
+	tool.PromptPaste = &PromptPaste{ReadyRegex: `(?m)^> $`}
+	require.NoError(t, validate([]Tool{tool}))
+	tool.PromptPaste = &PromptPaste{ReadyRegex: `([`}
+	require.ErrorContains(t, validate([]Tool{tool}), "ready_regex")
+}
+
 func TestPromptArgsFor(t *testing.T) {
 	tool := Tool{PromptArgs: []string{"-i", "{prompt}"}}
 	require.Equal(t, []string{"-i", "a b {prompt} -x"}, tool.PromptArgsFor("a b {prompt} -x"), "one argv element, no re-expansion")

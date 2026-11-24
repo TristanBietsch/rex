@@ -425,6 +425,7 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 		InitialPrompt:  ptyPrompt,
 		PlainPaste:     delivery.plainPaste,
 		ReadySettle:    delivery.readySettle,
+		ReadyRe:        delivery.readyRe,
 		SummaryRequest: cfg.SummaryRequest,
 		TrustPrompt:    spec.Trust.Answer,
 		TrustDetect:    spec.Trust.Detect,
