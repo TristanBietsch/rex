@@ -40,7 +40,7 @@ Each row starts with a one-cell marker. READY and DONE are both green, in two cl
 | `✗` | failed | red | The ballot X that pairs with `✓` |
 | `⊘` | crashed | gray | A slashed circle: stopped dead |
 | `▍` | fleet member | per fleet | A bar that joins across rows |
-| `▸` | selected row | accent | `selector_glyph` picks another (`❯ ➜ ➤ ☞` or your own); `selector_gap`, `selector_bold` and `selector_blink` set its room, weight and blink |
+| `▸` | selected row | accent | `selector_glyph` picks another (`❯ ➜ ➤ ☞ ☛` or your own); `selector_gap`, `selector_bold` and `selector_blink` set its room, weight and blink |
 
 Every marker is East Asian narrow or neutral (never ambiguous, which CJK terminals draw two cells wide), has no emoji presentation, and is drawn by Menlo itself, so terminals using SF Mono, JetBrains Mono, Fira Code or Cascadia (which fall back to Menlo on macOS) keep it one cell wide. `▍` is the one ambiguous-width glyph kept, like the box-drawing borders, because a block element joins into a continuous bar. A theme file can replace any marker (`glyphs:` in [themes.md](themes.md)); the `selector_glyph` setting, when not `theme`, beats the theme's `select`. The header counts follow the same colors: `N ready` is green while anything waits on you.
 

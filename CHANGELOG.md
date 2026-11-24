@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`rex upgrade -if-stale`** leaves a daemon already on the installed build
   alone (`nothing to do: …` when the boards are current too), and
   **`-no-cold`** refuses (exit 6) instead of falling back to a cold restart.
+- `selector_glyph` setting preset: added `☛` (black right-pointing index)
+  alongside `☞`.
 
 ### Fixed
 

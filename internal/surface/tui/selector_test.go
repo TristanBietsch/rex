@@ -45,7 +45,7 @@ func TestSelectGlyphPrecedence(t *testing.T) {
 // A picker's cursor cell is always 2 columns, so it lines up with the
 // unselected "  " whatever the glyph's width.
 func TestSelectCursorIsTwoColumns(t *testing.T) {
-	for _, g := range []string{"▸", "☞", "👉"} {
+	for _, g := range []string{"▸", "☞", "☛", "👉"} {
 		withSelector(t, storeWith(t, "selector_glyph", g))
 		require.Equal(t, 2, ansi.StringWidth(selectCursor()), g)
 	}
