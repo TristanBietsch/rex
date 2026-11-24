@@ -36,8 +36,6 @@ coverage.out
 claude.md
 claude/*
 
-# Local agent scratch (tracked docs live under docs/agents/)
-/agents/mockup.html
 
 # dev
 dev/
