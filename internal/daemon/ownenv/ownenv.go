@@ -70,6 +70,7 @@ func FilteredEnv(parent, args []string) (env []string, needExec bool) {
 	if slices.Contains(parent, filteredMarker+"=1") || probeOnly(args) {
 		return nil, false
 	}
+	settle()
 	opts := childenv.Options{Mode: childenv.ModeAllowlist, SSHAgent: true, GOOS: runtime.GOOS}
 	var toolPass []string
 	st, path, err := settings.LoadDefault()

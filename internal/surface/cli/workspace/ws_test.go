@@ -33,11 +33,13 @@ func newRig(t *testing.T, on bool) *rig {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	cfg := filepath.Join(home, ".config", "rex", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
+	body := "workspaces: false\n"
 	if on {
-		cfg := filepath.Join(home, ".config", "rex", "config.yaml")
-		require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
-		require.NoError(t, os.WriteFile(cfg, []byte("workspaces: true\n"), 0o600))
+		body = "workspaces: true\n"
 	}
+	require.NoError(t, os.WriteFile(cfg, []byte(body), 0o600))
 	r := &rig{home: home, out: &bytes.Buffer{}, err: &bytes.Buffer{}}
 	r.printer(t, core.FormatFlags{})
 	return r

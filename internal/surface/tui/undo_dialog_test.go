@@ -310,7 +310,8 @@ func TestUndo_RunFailureStaysInTheDialog(t *testing.T) {
 func TestUndo_OffIsInert(t *testing.T) {
 	fu := okUndoer()
 	m := undoBoardModel(t, fu)
-	m.Store = settings.NewStore() // turn_snapshots defaults to off
+	m.Store = settings.NewStore()
+	require.NoError(t, m.Store.Set("turn_snapshots", false))
 	require.False(t, m.featureOn("turn_snapshots"))
 	for _, line := range []string{"undo", "redo", "undo -turns 2"} {
 		m2, cmd := executeCommand(m, line)

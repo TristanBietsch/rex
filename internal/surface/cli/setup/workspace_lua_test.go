@@ -101,7 +101,7 @@ func TestDoctor_WorkspaceConfigRow(t *testing.T) {
 	wsconfig.SetDir("")
 	require.Empty(t, checkWorkspaceConfig(), "outside a workspace: no row")
 
-	luaConfigHome(t, "", "")
+	luaConfigHome(t, "", "workspaces: false\n")
 	wsconfig.Install(root)
 	require.Empty(t, checkWorkspaceConfig(), "workspaces off: no row")
 }

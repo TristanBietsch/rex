@@ -44,6 +44,13 @@ func iconSessions(now time.Time) []protocol.SessionSummary {
 
 var iconNow = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
+// withLoopRow adds a session that belongs to a loop, so the loop slot takes
+// its room (it is dropped while no session on the board is a loop).
+func withLoopRow(ss []protocol.SessionSummary) []protocol.SessionSummary {
+	return append(ss, protocol.SessionSummary{ID: "6", ShortID: "100p", ToolID: "claude",
+		Slug: "loop-row", State: protocol.StateWorking, LoopID: "loop-1", LoopIter: 3, LastEventAt: iconNow})
+}
+
 func TestIconLayout_ClassWidths(t *testing.T) {
 	cases := []struct {
 		w              int
@@ -51,7 +58,7 @@ func TestIconLayout_ClassWidths(t *testing.T) {
 	}{{80, 20, 20}, {120, 24, 18}, {150, 32, 24}}
 	for _, tc := range cases {
 		for _, detailed := range []bool{false, true} {
-			m := iconLayoutModel(t, iconNow, tc.w, iconSessions(iconNow))
+			m := iconLayoutModel(t, iconNow, tc.w, withLoopRow(iconSessions(iconNow)))
 			m.Detailed = detailed
 			c := boardLayout(m, tc.w)
 			want := tc.simple
@@ -159,7 +166,7 @@ func TestIconLayout_SqueezeOrder(t *testing.T) {
 	}
 	first := make([]int, len(events))
 	for w := 100; w >= 20; w-- {
-		m := iconLayoutModel(t, iconNow, w, iconSessions(iconNow), "mobile_layout", "off")
+		m := iconLayoutModel(t, iconNow, w, withLoopRow(iconSessions(iconNow)), "mobile_layout", "off")
 		m.Detailed = false
 		c := boardLayout(m, w)
 		require.True(t, c.icons)
@@ -186,7 +193,7 @@ func TestIconLayout_SqueezeOrder(t *testing.T) {
 	}
 	// The brief's range: 61 down to 40 still fits a row exactly.
 	for w := 61; w >= 40; w-- {
-		m := iconLayoutModel(t, iconNow, w, iconSessions(iconNow), "mobile_layout", "off")
+		m := iconLayoutModel(t, iconNow, w, withLoopRow(iconSessions(iconNow)), "mobile_layout", "off")
 		c := boardLayout(m, w)
 		for _, s := range m.Sessions {
 			require.Equal(t, w, ansi.StringWidth(renderRow(m, s, c)), "width %d", w)
