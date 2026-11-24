@@ -100,28 +100,28 @@ var bindings = []binding{
 	{Keys: "← → + -", Desc: "settings: change the row's value (← elsewhere: sections)", Group: groupPages, Ctx: ctxPage},
 	{Keys: "wheel", Desc: "pages: one row on the pane under the pointer", Group: groupPages, Ctx: ctxPage},
 
-	{Keys: "n, :new", Desc: "open the page: seven steps, one per screen (draft kept)", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: ":new!", Desc: "open a fresh page: the kept draft is cleared", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "enter", Desc: "next step; on the summary: launch, or edit the row", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "esc", Desc: "close the innermost (@ list, filter, picker, preview), then back a step; the first step closes the page", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "tab, shift+tab", Desc: "next / previous step", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "1-7", Desc: "jump to a step (not while typing in the task)", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+s", Desc: "launch from any step", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+g", Desc: "go to the agent step", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "j k, ↓ ↑, gg G", Desc: "move the step's list (agents, models, skills, items, trust, summary)", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "/, h l, + -", Desc: "model: filter; effort (← → too)", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "space", Desc: "skills: toggle; trust: pick", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+t, ctrl+a", Desc: "trust this session / always (enter on trust never picks)", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+j, alt+enter", Desc: "new line in the task", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "paste", Desc: "insert in the task; over 8 lines or 1 KiB becomes a context item", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "@", Desc: "add a workspace file (completion)", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+o", Desc: "import picker: workspace files and folders", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+e", Desc: "edit the task or a paste in $EDITOR", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+u", Desc: "clear the line; on an empty line, the task text", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "ctrl+w, alt+backspace", Desc: "delete a word", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "← → ↑ ↓ home end", Desc: "move the cursor in the task", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "x, d, delete, r, e", Desc: "context item: remove, rename, edit a paste", Group: groupNewAgent, Ctx: ctxNewAgent},
-	{Keys: "?", Desc: "this help (not in a typed task)", Group: groupNewAgent, Ctx: ctxNewAgent},
+	{Keys: "n, :new", Desc: "open the page: seven steps, one per screen (draft kept)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: ":new!", Desc: "open a fresh page: the kept draft is cleared", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "enter", Desc: "next step; on the summary: launch, or edit the row", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "esc", Desc: "close the innermost (@ list, filter, picker, preview), then back a step; the first step closes the page", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "tab, shift+tab", Desc: "next / previous step", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "1-7", Desc: "jump to a step (not while typing in the task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+s", Desc: "launch from any step", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+g", Desc: "go to the agent step", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "j k, ↓ ↑, gg G", Desc: "move the step's list (agents, models, skills, items, trust, summary)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "/, h l, + -", Desc: "model: filter; effort (← → too)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "space", Desc: "skills: toggle; trust: pick", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+t, ctrl+a", Desc: "trust this session / always (enter on trust never picks)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+j, alt+enter", Desc: "new line in the task", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "paste", Desc: "insert in the task; over 8 lines or 1 KiB becomes a context item", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "@", Desc: "add a workspace file (completion)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+o", Desc: "import picker: workspace files and folders", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+e", Desc: "edit the task or a paste in $EDITOR", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+u", Desc: "clear the line; on an empty line, the task text", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "ctrl+w, alt+backspace", Desc: "delete a word", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "← → ↑ ↓ home end", Desc: "move the cursor in the task", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "x, d, delete, r, e", Desc: "context item: remove, rename, edit a paste", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
+	{Keys: "?", Desc: "this help (not in a typed task)", Group: groupNewAgent, Ctx: ctxNewAgent, Flag: "new_agent_page"},
 }
 
 // BoardKeyDesc is the help text of the board or attach binding labelled
@@ -358,15 +358,16 @@ func runComplete(m Model, c cmdCall) (Model, tea.Cmd) {
 	return m, completeSessionCmd(m.Client, id)
 }
 
-// runNew takes the same path as the `n` key: setting FocusNewAgent alone
-// left NewAgent nil and soft-locked the TUI (P0-07).
-func runNew(m Model, _ cmdCall) (Model, tea.Cmd) { return openNewAgent(m) }
+// runNew takes the same path as the `n` key: setting FocusNewAgent or
+// FocusWizard alone left its state nil and soft-locked the TUI (P0-07).
+func runNew(m Model, _ cmdCall) (Model, tea.Cmd) { return openNew(m) }
 
 // runNewFresh is :new!, dispatched from the verb "new!": the kept draft is
-// dropped first, so the page opens empty.
+// dropped first, so the page (or, with new_agent_page off, the wizard)
+// opens empty.
 func runNewFresh(m Model, _ cmdCall) (Model, tea.Cmd) {
 	m.newAgentDraft = nil
-	return openNewAgent(m)
+	return openNew(m)
 }
 
 func runFail(m Model, _ cmdCall) (Model, tea.Cmd) { return openFail(m) }

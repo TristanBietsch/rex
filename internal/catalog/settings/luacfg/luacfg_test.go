@@ -120,16 +120,6 @@ rex.set("theme", "bad name!")
 	require.Contains(t, r.Warnings[4], `"theme"`)
 }
 
-// A removed setting (new_agent_page) is ignored without a warning, so an
-// older config.lua stays quiet.
-func TestEvalSet_RemovedSettingIsSilent(t *testing.T) {
-	f := newFixture(t, `rex.set("new_agent_page", false)`)
-	r := f.eval()
-	require.NoError(t, r.Err)
-	require.Empty(t, r.Values)
-	require.Empty(t, r.Warnings)
-}
-
 func TestEvalNormalize_SameMessageAsValidate(t *testing.T) {
 	_, want := settings.Validate("auto_trust_dirs", "relative/dir")
 	require.Error(t, want)

@@ -226,7 +226,7 @@ func checkBinary(b binStamp) tea.Cmd {
 // swapBlockingFocus are views a swap must never interrupt: something is
 // being typed or confirmed.
 var swapBlockingFocus = map[Focus]bool{
-	FocusBoot: true, FocusFail: true, FocusPrompt: true, FocusCommand: true,
+	FocusBoot: true, FocusFail: true, FocusWizard: true, FocusPrompt: true, FocusCommand: true,
 	FocusConfirmQuit: true, FocusConfirmDelete: true, FocusConfirmLoopStop: true,
 	FocusRename: true, FocusSearch: true, FocusUndo: true, FocusNewAgent: true,
 }

@@ -196,12 +196,6 @@ func checkString(s string) error {
 	return nil
 }
 
-// removedSettings are settings that no longer exist. A config.lua that
-// still sets one is not told it is unknown: the call is ignored silently.
-var removedSettings = map[string]bool{
-	"new_agent_page": true, // R21: the popup wizard and its flag are gone
-}
-
 // set is rex.set(key, value). A refused call is a warning, not an error.
 func (ev *evaluator) set(L *lua.LState) int {
 	key := L.CheckString(1)
@@ -211,8 +205,6 @@ func (ev *evaluator) set(L *lua.LState) int {
 	switch {
 	case key == "lua_config" || ok && (st.ReadOnly || slices.Contains(ev.opts.Deny, key)):
 		ev.warn("%s: %q cannot be set from Lua (ignored)", at, key)
-		return 0
-	case !ok && removedSettings[key]:
 		return 0
 	case !ok:
 		ev.warn("%s: unknown setting %q (ignored)", at, key)

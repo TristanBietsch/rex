@@ -68,12 +68,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   there never picks one. The summary shows everything the launch sends and
   the equivalent `rex new` call (display only); `enter` on a row jumps to
   that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
+- `new_agent_page: false` still opens the popup wizard from `n`, `:new`
+  and `:new!`, as before; the stepped page is the default (on).
 
 ### Removed
 
-- The popup wizard and the `new_agent_page` setting. The page is the only
-  way to start an agent from `n` / `:new`. A stored `new_agent_page` in
-  `config.yaml` or `config.lua` is ignored without a warning.
 - The page's Compose screen, step rail and three-pane Agent screen, and the
   vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
   `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
