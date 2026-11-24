@@ -57,3 +57,14 @@ func TestPaste_NewAgentTaskKeepsLineBreaks(t *testing.T) {
 	require.Equal(t, "one\ntwo\tthreered", m.NewAgent.Task.String())
 	require.NotContains(t, m.View(), "\x1b[2J")
 }
+
+// The wizard's task text keeps line breaks for the agent and draws flat.
+func TestPaste_WizardTaskKeepsLineBreaksDrawsFlat(t *testing.T) {
+	m := simpleBoardStore(t, true)
+	m, _ = openWizard(m)
+	m.Wizard.Step = wizDescribe
+	m, _ = updateKey(m, pasteKey(hostilePaste))
+	require.Equal(t, "one\ntwo\tthreered", m.Wizard.TaskText)
+	box := strings.Join(wizInputBoxLines(m.Wizard.TaskText, m), "\n")
+	require.Len(t, strings.Split(box, "\n"), 3, "border, one text row, border")
+}

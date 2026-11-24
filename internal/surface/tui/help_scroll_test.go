@@ -29,6 +29,21 @@ func helpPress(m Model, keys ...string) Model {
 
 func helpText(m Model) string { return ansi.Strip(m.View()) }
 
+// keyShown reports whether a help key is in text, whole or cut short with
+// "…" by a narrow key column (":undo [sel] [-turns…" at 50 columns).
+func keyShown(text, key string) bool {
+	if strings.Contains(text, key) {
+		return true
+	}
+	r := []rune(key)
+	for n := len(r) - 1; n >= len([]rune(strings.Fields(key)[0])); n-- {
+		if strings.Contains(text, string(r[:n])+"…") {
+			return true
+		}
+	}
+	return false
+}
+
 // Every group is reachable by scrolling, whatever the terminal: nothing is
 // dropped, and the cut edges say so.
 func TestHelpScrolls(t *testing.T) {
@@ -52,7 +67,7 @@ func TestHelpScrolls(t *testing.T) {
 	}
 	for _, c := range commands {
 		if c.Flag == "" || m.featureOn(c.Flag) {
-			require.Contains(t, seen, c.helpKey(), "command %v is reachable", c.Names)
+			require.True(t, keyShown(seen, c.helpKey()), "command %v is reachable", c.Names)
 		}
 	}
 
@@ -167,9 +182,11 @@ func TestHelpLegendOmitsWaitingWhenOff(t *testing.T) {
 // explains why it does nothing.
 func TestHelpMarksFeaturesThatAreOff(t *testing.T) {
 	m := overlayMode(t, helpModel(200, 90))
-	// Opt-in features show their rows as off: loops (p x L :loop :loops)
-	// and turn_snapshots (:undo :redo).
-	require.Equal(t, 7, strings.Count(helpText(m), "(off)"), "only the loop and undo rows are off by default")
+	// Features that are off show their rows marked: loops (p x L :loop
+	// :loops) and turn_snapshots (:undo :redo).
+	require.NoError(t, m.Store.Set("loops", false))
+	require.NoError(t, m.Store.Set("turn_snapshots", false))
+	require.Equal(t, 7, strings.Count(helpText(m), "(off)"), "the loop and undo rows are marked off")
 	require.NoError(t, m.Store.Set("loops", true))
 	require.NoError(t, m.Store.Set("turn_snapshots", true))
 	require.NotContains(t, helpText(m), "(off)", "every other feature is on by default")

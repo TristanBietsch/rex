@@ -6,6 +6,8 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -58,8 +60,10 @@ func TestRun_ExplicitOutputFlagRefusedOnUnmigratedVerb(t *testing.T) {
 // that answers the same question, and with workspaces off (the default) it
 // exits 5 with the standard message before any folder is read.
 func TestRun_HereIsInteractiveAndGated(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	writeHomeConfig(t, home, "workspaces: false\n")
 	t.Cleanup(func() { core.SetOut(nil) })
 
 	rest, err := core.InitOutput([]string{"-o", "json", "here"}, nil)
@@ -89,9 +93,12 @@ func TestRun_OverviewAcceptsOutputFlags(t *testing.T) {
 }
 
 // rex undo and rex redo are on the kit: an output flag before them is
-// accepted, and with turn_snapshots off (the default) they exit 5.
+// accepted, and with turn_snapshots off they exit 5.
 func TestRun_UndoRedoOnTheKit(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	writeHomeConfig(t, home, "turn_snapshots: false\n")
 	for _, verb := range []string{"undo", "redo"} {
 		rest, err := core.InitOutput([]string{"-o", "json", verb, "-yes", "x"}, nil)
 		require.NoError(t, err)
@@ -289,4 +296,12 @@ func TestRun_HelpForEveryCommand(t *testing.T) {
 			})
 		}
 	}
+}
+
+// writeHomeConfig writes body as home's ~/.config/rex/config.yaml.
+func writeHomeConfig(t *testing.T, home, body string) {
+	t.Helper()
+	p := filepath.Join(home, ".config", "rex", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o700))
+	require.NoError(t, os.WriteFile(p, []byte(body), 0o600))
 }

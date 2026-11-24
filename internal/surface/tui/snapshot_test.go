@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tristanbietsch/rex/internal/catalog/registry"
 	"github.com/tristanbietsch/rex/internal/catalog/settings"
 	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
@@ -32,9 +33,22 @@ func demoSessions(now time.Time) []protocol.SessionSummary {
 	}
 }
 
+func demoTools() []registry.Tool {
+	return []registry.Tool{
+		{ID: "echo", Name: "Echo (test)", Category: "self_hosted"},
+		{ID: "claude", Name: "Claude Code", Category: "paid",
+			Models: []registry.Model{{ID: "opus", Name: "Opus 4.7", Effort: &registry.Effort{Options: []string{"minimal", "default", "high", "max"}, Default: "default"}},
+				{ID: "sonnet", Name: "Sonnet 4.6"}, {ID: "haiku", Name: "Haiku 4.5"}}},
+		{ID: "codex", Name: "Codex", Category: "paid"},
+		{ID: "gemini", Name: "Gemini CLI", Category: "paid"},
+		{ID: "ollama", Name: "Ollama", Category: "self_hosted"},
+	}
+}
+
 // TestBoardSnapshot prints View() for each focus mode at a wide terminal.
 func TestBoardSnapshot(t *testing.T) {
 	sessions := demoSessions(time.Now())
+	tools := demoTools()
 	base := Model{
 		Sessions:   sessions,
 		Filter:     "all",
@@ -48,6 +62,21 @@ func TestBoardSnapshot(t *testing.T) {
 		setup func(m Model) Model
 	}{
 		{"board-default", func(m Model) Model { m.Focus = FocusBoard; return m }},
+		{"wiz-1-provider", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizProvider, Tools: tools}
+			return m
+		}},
+		{"wiz-2-effort", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizEffort, Tools: tools, ToolIdx: 1, EffortIdx: 1}
+			return m
+		}},
+		{"wiz-3-describe", func(m Model) Model {
+			m.Focus = FocusWizard
+			m.Wizard = &WizardState{Step: wizDescribe, Tools: tools, ToolIdx: 1, TaskText: "fix auth bug"}
+			return m
+		}},
 	}
 
 	for _, c := range cases {

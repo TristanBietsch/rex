@@ -101,12 +101,20 @@ func TestCommand_NewOpensPage(t *testing.T) {
 	require.NotEmpty(t, m.NewAgent.Tools)
 }
 
+// :new opens the same wizard as `n` while new_agent_page is off.
+func TestCommand_NewOpensWizard(t *testing.T) {
+	m := typeCommand(wizardFlag(t, commandModel(t)), "new")
+	require.Equal(t, FocusWizard, m.Focus)
+	require.NotNil(t, m.Wizard)
+	require.NotEmpty(t, m.Wizard.Tools)
+}
+
 // The invariant behind P0-07: a focus whose component state is missing
 // routes back to the board instead of silently dropping every key. The key
 // that hit the broken focus is then handled by the board.
 func TestUpdateKey_MissingFocusStateFallsBackToBoard(t *testing.T) {
 	for name, f := range map[string]Focus{
-		"new agent": FocusNewAgent, "settings": FocusSettings, "attach": FocusAttach,
+		"new agent": FocusNewAgent, "wizard": FocusWizard, "settings": FocusSettings, "attach": FocusAttach,
 		"fail": FocusFail, "rename": FocusRename,
 	} {
 		t.Run(name, func(t *testing.T) {

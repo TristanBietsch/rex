@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -258,4 +259,125 @@ func TestSetupWizard_ExtraAgentsNeedPathAndTheSwitch(t *testing.T) {
 	require.NoError(t, os.WriteFile(cfg, []byte("extra_agents: false\n"), 0o600))
 	m = NewSetupWizardModel(cfg, "")
 	require.NotContains(t, toolIDs(m.tools), "qwen", "the switch is off")
+}
+
+// wizPickerModel is pickerModel with new_agent_page off: :new opens the
+// popup wizard.
+func wizPickerModel(t *testing.T, installed ...string) Model {
+	t.Helper()
+	return wizardFlag(t, pickerModel(t, installed...))
+}
+
+func TestWizard_OffersInstalledToolsOnly(t *testing.T) {
+	m := wizPickerModel(t, "claude", "qwen")
+	m, _ = executeCommand(m, "new")
+	require.Equal(t, FocusWizard, m.Focus)
+	require.Equal(t, []string{"claude", "qwen"}, toolIDs(m.Wizard.Tools))
+	out := ansi.Strip(m.View())
+	require.Contains(t, out, "Claude Code")
+	require.Contains(t, out, "Qwen Code")
+	require.NotContains(t, out, "Grok Build")
+	require.NotContains(t, toolIDs(m.Wizard.Tools), "codex")
+	require.NotContains(t, out, "Codex")
+
+	// Nothing installed: the wizard refuses and points at Onboarding.
+	none := wizPickerModel(t)
+	none, _ = executeCommand(none, "new")
+	require.Equal(t, FocusBoard, none.Focus)
+	require.Equal(t, "wizard: no agent is installed (run rex onboard, or see Settings → Onboarding)", none.Err)
+}
+
+// With every agent installed the provider step lists Qwen Code, Cursor CLI
+// and Grok Build after the others, in registry order; one that is not
+// installed moves to Settings → Onboarding like claude or codex would.
+func TestWizard_OffersExtraAgentsWhenInstalled(t *testing.T) {
+	all := []string{"claude", "codex", "antigravity", "ollama", "qwen", "cursor", "grok"}
+	m := wizPickerModel(t, all...)
+	m, _ = executeCommand(m, "new")
+	require.Equal(t, FocusWizard, m.Focus)
+	require.Equal(t, all, toolIDs(m.Wizard.Tools))
+	out := ansi.Strip(m.View())
+	for _, name := range []string{"Qwen Code", "Cursor CLI", "Grok Build"} {
+		require.Contains(t, out, name)
+	}
+
+	m = wizPickerModel(t, "claude", "codex", "qwen", "grok")
+	reg, err := registry.Load("")
+	require.NoError(t, err)
+	offer, missing := pickerTools(m, reg)
+	require.Equal(t, []string{"claude", "codex", "qwen", "grok"}, toolIDs(offer))
+	var missingIDs []string
+	for _, r := range missing {
+		missingIDs = append(missingIDs, r.Tool.ID)
+	}
+	require.Contains(t, missingIDs, "cursor")
+	for _, r := range missing {
+		if r.Tool.ID == "cursor" {
+			require.Contains(t, r.setting().Help, "cursor-agent", "the hint names the binary to install")
+		}
+	}
+}
+
+func TestWizard_ModelStepMarksDetectedModels(t *testing.T) {
+	m := wizPickerModel(t, "claude", "qwen")
+	m, _ = executeCommand(m, "new")
+	m = sendKey(m, key("j")) // qwen
+	require.Equal(t, "qwen", m.Wizard.selectedTool().ID)
+	m = sendKey(m, key("enter"))
+	require.Equal(t, wizModel, m.Wizard.Step)
+	out := ansi.Strip(m.View())
+	require.Regexp(t, `qwen3-coder-plus\s+detected`, out)
+	require.Regexp(t, `qwen3-max\s+detected`, out)
+	require.NotRegexp(t, `Default model\s+detected`, out, "a built-in model is not marked")
+}
+
+// An open wizard picks up ToolsChanged without losing its place.
+func TestWizard_ToolsChangedUpdatesInPlace(t *testing.T) {
+	m := wizPickerModel(t, "claude", "qwen")
+	m, _ = executeCommand(m, "new")
+	m = sendKey(m, key("j"))
+	m = sendKey(m, key("enter"))
+	m = sendKey(m, key("j")) // the second qwen model
+	require.Equal(t, "qwen3-max", m.Wizard.selectedModel().ID)
+
+	// A new model is detected, and grok appears (installed meanwhile).
+	infos := daemonTools(t, "claude", "qwen", "grok")
+	for i := range infos {
+		if infos[i].ID == "qwen" {
+			infos[i].Models = append([]protocol.ModelInfo{{ID: "qwen3-new", Name: "qwen3-new", Detected: true}}, infos[i].Models...)
+		}
+	}
+	data, err := json.Marshal(protocol.ToolsChanged{Tools: infos})
+	require.NoError(t, err)
+	m = m.applyEvent(protocol.Envelope{Type: protocol.EventToolsChanged, Data: data})
+
+	require.Equal(t, []string{"claude", "qwen", "grok"}, toolIDs(m.Wizard.Tools))
+	require.Equal(t, wizModel, m.Wizard.Step, "still on the model step")
+	require.Equal(t, "qwen", m.Wizard.selectedTool().ID, "the cursor stays on the same tool")
+	require.Equal(t, "qwen3-max", m.Wizard.selectedModel().ID, "and the same model, found by id")
+	require.Contains(t, ansi.Strip(m.View()), "qwen3-new")
+}
+
+func TestWizard_LongModelListScrollsToTheCursor(t *testing.T) {
+	m := wizPickerModel(t, "claude", "qwen")
+	infos := daemonTools(t, "claude", "qwen")
+	for i := range infos {
+		if infos[i].ID != "qwen" {
+			continue
+		}
+		infos[i].Models = nil
+		for n := 0; n < 40; n++ {
+			infos[i].Models = append(infos[i].Models, protocol.ModelInfo{ID: "m" + strings.Repeat("x", n%3) + string(rune('a'+n%26)) + string(rune('a'+n/26)), Detected: true})
+		}
+	}
+	m.DaemonTools = infos
+	m, _ = executeCommand(m, "new")
+	m = sendKey(m, key("j"))
+	m = sendKey(m, key("enter"))
+	for range 30 {
+		m = sendKey(m, key("j"))
+	}
+	want := m.Wizard.selectedModel().Name
+	require.Contains(t, ansi.Strip(m.View()), want, "the selected model stays on screen")
+	require.Contains(t, ansi.Strip(m.View()), "↑ more")
 }

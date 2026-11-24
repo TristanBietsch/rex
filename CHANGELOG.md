@@ -40,6 +40,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **`turn_snapshots`, `loops` and `workspaces` are on by default.** Each
+  only acts when used: `rex undo` restores the snapshots taken while
+  `turn_snapshots` is on (folders inside a git repo only; the private store
+  under `~/.local/share/rex/snapshots` holds file contents, including
+  untracked files such as `.env` unless they are gitignored), `rex loop`
+  runs loop files from `~/.config/rex/loops`, and `rex ws init` marks a
+  workspace. A value set in `config.yaml` or `config.lua` is kept; set one
+  to `false` to turn it off.
 - **`rex --help` is reorganized and aligned.** Commands are in five groups
   (Start & steer, Watch, Manage, Daemon, Setup) under rule lines, one line
   each: name, a short argument hint and a description, in columns that line
@@ -69,12 +77,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   there never picks one. The summary shows everything the launch sends and
   the equivalent `rex new` call (display only); `enter` on a row jumps to
   that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
+- `new_agent_page: false` still opens the popup wizard from `n`, `:new`
+  and `:new!`, as before; the stepped page is the default (on).
 
 ### Removed
 
-- The popup wizard and the `new_agent_page` setting. The page is the only
-  way to start an agent from `n` / `:new`. A stored `new_agent_page` in
-  `config.yaml` or `config.lua` is ignored without a warning.
 - The page's Compose screen, step rail and three-pane Agent screen, and the
   vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
   `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
@@ -82,7 +89,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **Breaking: agents get an allowlisted environment.** Every agent, model
+- **Agents get an allowlisted environment on fresh installs; upgrades keep
+  the old behavior.** The first time a 2.1.0 daemon starts where an earlier
+  daemon ran (its `daemon.lock` exists) and `child_env` is not set, it
+  writes `child_env: inherit` into `config.yaml` and says so in
+  `daemon.log`; set `child_env: allowlist` to turn the filter on. A fresh
+  install writes `child_env: allowlist`. Every agent, model
   probe and loop check used to inherit the whole environment of the shell
   that started rex, frozen for as long as the daemon ran, so an API key or
   token exported there reached every agent and everything an agent ran. In
@@ -104,7 +116,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `rex daemon restart -cold`. The daemon also keeps its own `REX_*`
   variables (such as `REX_LOG_LEVEL`); agents do not get them. On Windows, which
   has no exec-in-place, `rex` builds the same environment before it starts
-  the daemon. **To migrate:** if an agent or tool lost a
+  the daemon. **After switching to `allowlist`:** if an agent or tool lost a
   variable it needs, list the name in `env_passthrough` (comma-separated;
   a trailing `*` matches a prefix) or add it to the tool's `env_pass` in
   `tools.yaml`, or set `child_env: inherit` for the old behavior; then

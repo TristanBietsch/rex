@@ -80,4 +80,4 @@ Unix domain socket carrying JSONL protocol. Default path: see `daemonctl.Default
 
 ## wizard
 
-Interactive first-time setup, `rex setup` (`SetupWizardModel`). Origin: `internal/surface/tui/setup_wizard.go`. New sessions start from the new-agent page (`NewAgentState`, `newagent*.go`).
+Interactive first-time setup, `rex setup` (`SetupWizardModel`). Origin: `internal/surface/tui/setup_wizard.go`. New sessions start from the new-agent page (`NewAgentState`, `newagent*.go`), or with `new_agent_page` off from the popup new-session wizard (`WizardState`, `wizard.go`).

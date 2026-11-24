@@ -82,8 +82,10 @@ func TestRowIconGlyphs(t *testing.T) {
 
 func TestIconSlots_SetAndFlags(t *testing.T) {
 	all := []iconSlot{slotUnseen, slotReason, slotLoop, slotSubagents, slotSpend, slotLongRun}
-	// loops defaults off; turn it on to see all six.
+	// The loop slot shows only while a session on the board is a loop.
 	m := iconModel(t, "loops", true)
+	require.NotContains(t, iconSlots(m), slotLoop, "no loop session: no loop slot")
+	m.Sessions = append(m.Sessions, protocol.SessionSummary{ID: "l1", LoopID: "loop-1"})
 	require.Equal(t, all, iconSlots(m))
 
 	require.NoError(t, m.Store.Set("row_icon_set", "spend,unseen,bogus"))

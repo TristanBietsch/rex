@@ -365,6 +365,7 @@ func TestWantsSpinnerTick(t *testing.T) {
 		{"command cursor", func(m Model) Model { m.Focus = FocusCommand; return m }, idle, true},
 		{"rename cursor", func(m Model) Model { m.Focus = FocusRename; return m }, idle, true},
 		{"new agent cursor", func(m Model) Model { m.Focus = FocusNewAgent; return m }, idle, true},
+		{"wizard cursor", func(m Model) Model { m.Focus = FocusWizard; return m }, idle, true},
 		{"prompt + reduce_motion", func(m Model) Model { m.Focus, m.Store = FocusPrompt, reduced; return m }, idle, false},
 		{"help overlay idle", func(m Model) Model { m.Focus = FocusHelp; return m }, idle, false},
 		{"done flash live", func(m Model) Model {
