@@ -253,6 +253,7 @@ A daemon that predates `repaint` ignores the field and answers `mode_sync` as be
 | `line_too_long` | A line exceeded 16 MiB; the daemon closes the connection |
 | `unsupported_version` | The envelope's `v` is not `1`; the daemon closes the connection |
 | `internal_error` | A daemon bug while handling the intent; the daemon closes the connection |
+| `in_session` | The connecting process runs inside a session this daemon supervises: it descends from the daemon, or runs in a session the daemon or one of its descendants leads (every agent leads the session of its PTY). Such a process may send only `UsageSample`; any other intent, `Hello` included, gets this error. The connection stays open. Checked on macOS and Linux, not yet on Windows; a process whose pid, ancestry or session cannot be read counts as inside a session |
 
 ## EXAMPLES
 

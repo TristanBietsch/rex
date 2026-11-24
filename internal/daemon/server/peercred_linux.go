@@ -26,3 +26,19 @@ func peerUID(c *net.UnixConn) (int, error) {
 	})
 	return uid, err
 }
+
+// peerPID returns the pid of the process on the other end of c, as the
+// kernel recorded it at connect time (SO_PEERCRED). It is 0 when the peer
+// is in a pid namespace this process cannot see.
+func peerPID(c *net.UnixConn) (int, error) {
+	var pid int
+	err := controlFD(c, func(fd int) error {
+		cred, err := unix.GetsockoptUcred(fd, unix.SOL_SOCKET, unix.SO_PEERCRED)
+		if err != nil {
+			return fmt.Errorf("SO_PEERCRED: %w", err)
+		}
+		pid = int(cred.Pid)
+		return nil
+	})
+	return pid, err
+}

@@ -123,6 +123,9 @@ type fakeOpts struct {
 	// hot, when set, makes the fake an R20 daemon: identity in the
 	// Snapshot, Restart, Boards and SwapBoards.
 	hot *fakeHot
+	// refuse, when set, answers every intent (with or without an ID) with
+	// this Error, as rex-daemon refuses a caller inside a session.
+	refuse *protocol.ErrorEvent
 }
 
 // fakeHot is the hot-restart side of a fake daemon.
@@ -221,6 +224,10 @@ func (fd *fakeDaemon) serve(conn net.Conn, onShutdown func(*fakeDaemon)) {
 // ignored: the client may already have hung up.
 func (fd *fakeDaemon) reply(w *protocol.Writer, env protocol.Envelope) {
 	switch {
+	case fd.opts.refuse != nil:
+		e := *fd.opts.refuse
+		e.ID = env.ID
+		_ = w.WriteEvent(protocol.EventError, env.ID, e)
 	case env.Type == protocol.IntentHello:
 		snap := protocol.Snapshot{Sessions: []protocol.SessionSummary{}, Filter: "all"}
 		if !fd.opts.legacy {

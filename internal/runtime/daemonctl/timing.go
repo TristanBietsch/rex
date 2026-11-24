@@ -24,5 +24,9 @@ const ReloadTimeout = 5 * time.Second
 // intentWriteTimeout bounds writing one intent to a connected daemon.
 const intentWriteTimeout = 2 * time.Second
 
+// intentReplyTimeout bounds waiting for the daemon's reply to an intent
+// sendIntent wrote.
+const intentReplyTimeout = 2 * time.Second
+
 // pidLookupTimeout bounds the pgrep/tasklist run behind FindPID.
 const pidLookupTimeout = 2 * time.Second

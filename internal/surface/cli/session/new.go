@@ -34,7 +34,7 @@ func RunNew(args []string) error {
 	name := fs.String("name", "", "display name (optional; the slug is shown when empty)")
 	var skillNames core.StringList
 	fs.Var(&skillNames, "skill", "skill from ~/.config/rex/skills to load into this session (repeatable; see `rex skills`)")
-	trust := fs.Bool("trust", false, "trust the working folder for this session only (answers the agent's trust dialog; nothing is saved, see `rex trust` to save it)")
+	trust := fs.Bool("trust", false, "trust the working folder for this session only (answers the agent's trust dialog; only at a terminal; nothing is saved, see `rex trust` to save it)")
 	noAttach := fs.Bool("no-attach", true, "(deprecated, no effect)")
 	wait := fs.Duration("wait", 5*time.Second, "how long to wait for the daemon to confirm the spawn")
 	rest, err := out.ParseText(fs, args, 0)
@@ -176,8 +176,11 @@ func checkNewExtras(name string, skillNames []string) (string, error) {
 	return norm, nil
 }
 
-// checkNewTrust refuses -trust for a folder the daemon would refuse (home,
-// an ancestor of home, a filesystem root), before anything is sent.
+// checkNewTrust refuses -trust, before anything is sent, for a folder the
+// daemon would refuse (home, an ancestor of home, a filesystem root; exit
+// 5), then unless a person runs rex new at a terminal (exit 6): -trust
+// answers the agent's trust question and, with skip_permissions, starts it
+// without permission prompts, so an agent must not pass it from a tool call.
 func checkNewTrust(trust bool, cwd string) error {
 	if !trust {
 		return nil
@@ -185,7 +188,7 @@ func checkNewTrust(trust bool, cwd string) error {
 	if _, err := settings.TrustDir(cwd); err != nil {
 		return core.Errorf(core.ExitInvalidArgs, "rex new -cwd <project folder> -trust", "new: -trust: %w", err)
 	}
-	return nil
+	return core.RequireTerminal("new -trust", "rex new -trust -cwd "+cwd+" ...")
 }
 
 // ignoredByDaemon says what an older rex-daemon silently dropped: it

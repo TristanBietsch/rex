@@ -82,6 +82,7 @@ var errCodes = map[string]bool{
 	"selector_not_found": true, "selector_ambiguous": true,
 	"unknown_command": true, "invalid_flag": true,
 	"feature_off": true, "needs_confirmation": true, "needs_terminal": true,
+	"in_session": true,
 }
 
 // cliSubcommands are the subcommands rex knows, per command.

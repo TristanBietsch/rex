@@ -181,7 +181,7 @@ Plan and decisions: [../plans/U7-selector-glyph-gutter-blink-settings.md](../pla
 Commits `5dbf94e`, `d15d7a1`, `46f6c4b` (+ TODO line `e73021e`).
 
 - Five Appearance settings: `selector_glyph` (`theme` default, presets
-  `▸ ❯ ➜ ➤ ☞`, free entry 1–2 cells), `selector_gap` (1–3, default 2),
+  `▸ ❯ ➜ ➤ ☞ ☛`, free entry 1–2 cells), `selector_gap` (1–3, default 2),
   `selector_bold` (on), `selector_blink` (`off`/`blink`/`pulse`),
   `selector_blink_ms` (200–2000, default 600). All five are in
   `WorkspaceAllowIDs`.

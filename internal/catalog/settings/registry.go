@@ -65,9 +65,9 @@ var Registry = []Setting{
 	{
 		ID: "selector_glyph", Label: "Selector glyph", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "theme",
-		Options: []string{"theme", "▸", "❯", "➜", "➤", "☞"},
+		Options: []string{"theme", "▸", "❯", "➜", "➤", "☞", "☛"},
 		Free:    true, Normalize: normalizeSelectorGlyph,
-		Help: "The marker left of the selected row in the board and every picker. theme keeps the theme's own (▸ by default). Pick a preset with the arrows or press enter and type your own. ☞ is drawn two cells wide by terminals set to treat ambiguous-width characters as wide, which shifts the selected row by one column; 👉 is always two cells.",
+		Help: "The marker left of the selected row in the board and every picker. theme keeps the theme's own (▸ by default). Pick a preset with the arrows or press enter and type your own. ☞ and ☛ are drawn two cells wide by terminals set to treat ambiguous-width characters as wide, which shifts the selected row by one column; 👉 is always two cells.",
 	},
 	{
 		ID: "selector_gap", Label: "Selector gap", Section: SectionAppearance, Apply: ApplyLive,
