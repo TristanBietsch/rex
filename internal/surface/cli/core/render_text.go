@@ -28,6 +28,10 @@ func (p *Printer) renderText(v View) string {
 			}
 			l.add(s)
 		case Section:
+			if b.Rule {
+				l.section(p.textRule(b.Title))
+				continue
+			}
 			l.section(p.Styles.Bold.Render(b.Title + ":"))
 		case KV:
 			l.add(p.textKV(b))
@@ -83,7 +87,88 @@ func defNameWidth(items []Def) int {
 	return w
 }
 
+// ruleMax is the widest a Section rule line gets.
+const ruleMax = 80
+
+// textRule is a rule-line section heading: "── Title ───…" to the terminal
+// width, at most ruleMax.
+func (p *Printer) textRule(title string) string {
+	head := "── "
+	w := min(p.Width, ruleMax) - displayWidth(head) - displayWidth(title) - 1
+	return p.Styles.HR.Render(head) + p.Styles.Bold.Render(title) + " " + p.Styles.HR.Render(strings.Repeat("─", max(w, 2)))
+}
+
+// hasArgs reports whether a Defs list uses the args column or fixed widths.
+func (d Defs) hasArgs() bool {
+	if d.NameWidth > 0 || d.ArgsWidth > 0 {
+		return true
+	}
+	for _, it := range d.Items {
+		if it.Args != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// defsWidths returns the name and args column widths of a three-column
+// Defs: the fixed widths when set, else the widest entry of each.
+func defsWidths(d Defs) (nameW, argsW int) {
+	nameW, argsW = d.NameWidth, d.ArgsWidth
+	for _, it := range d.Items {
+		if d.NameWidth == 0 {
+			nameW = max(nameW, displayWidth(it.Name))
+		}
+		if d.ArgsWidth == 0 {
+			argsW = max(argsW, displayWidth(it.Args))
+		}
+	}
+	return nameW, argsW
+}
+
+// textDefs3 lays a Defs with an args column out as name (accent), args
+// (dim) and description, each in its own column. On a narrow terminal the
+// description goes under the name and args, indented.
+func (p *Printer) textDefs3(d Defs) string {
+	nameW, argsW := defsWidths(d)
+	descCol := bodyIndent + nameW + 1 + argsW + gutter
+	stack := p.Width-descCol < 20
+	if stack {
+		descCol = bodyIndent * 2
+	}
+	descW := max(p.Width-descCol, 10)
+	pad := strings.Repeat(" ", descCol)
+	var lines []string
+	for _, it := range d.Items {
+		head := strings.Repeat(" ", bodyIndent) + p.Styles.Accent.Render(it.Name)
+		used := bodyIndent + displayWidth(it.Name)
+		if it.Args != "" {
+			gap := max(nameW-displayWidth(it.Name), 0) + 1
+			head += strings.Repeat(" ", gap) + p.Styles.Dim.Render(it.Args)
+			used += gap + displayWidth(it.Args)
+		}
+		if it.Desc == "" {
+			lines = append(lines, head)
+			continue
+		}
+		parts := strings.Split(ansi.Wrap(it.Desc, descW, ""), "\n")
+		if stack || used+gutter > descCol {
+			lines = append(lines, head)
+		} else {
+			lines = append(lines, head+strings.Repeat(" ", descCol-used)+parts[0])
+			parts = parts[1:]
+		}
+		for _, part := range parts {
+			lines = append(lines, pad+part)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (p *Printer) textDefs(d Defs) string {
+	if d.hasArgs() {
+		return p.textDefs3(d)
+	}
 	w := defNameWidth(d.Items)
 	descCol := bodyIndent + w + gutter
 	// On a narrow terminal each description goes under its name, indented.

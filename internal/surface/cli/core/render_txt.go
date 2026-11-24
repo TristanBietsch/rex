@@ -49,6 +49,18 @@ func (p *Printer) renderTXT(v View) string {
 }
 
 func txtDefs(d Defs) string {
+	if d.hasArgs() {
+		nameW, argsW := defsWidths(d)
+		lines := make([]string, len(d.Items))
+		for i, it := range d.Items {
+			s := "  " + padRight(it.Name, nameW) + " " + padRight(it.Args, argsW)
+			if it.Desc != "" {
+				s += "  " + it.Desc
+			}
+			lines[i] = strings.TrimRight(s, " ")
+		}
+		return strings.Join(lines, "\n")
+	}
 	w := defNameWidth(d.Items)
 	lines := make([]string, len(d.Items))
 	for i, it := range d.Items {

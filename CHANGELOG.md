@@ -53,6 +53,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   runs loop files from `~/.config/rex/loops`, and `rex ws init` marks a
   workspace. A value set in `config.yaml` or `config.lua` is kept; set one
   to `false` to turn it off.
+- **`rex --help` is reorganized and aligned.** Commands are in five groups
+  (Start & steer, Watch, Manage, Daemon, Setup) under rule lines, one line
+  each: name, a short argument hint and a description, in columns that line
+  up across the whole page and fit 80 columns. `rex <command> -h` uses the
+  same layout: Flags, Advanced (`-socket`), Output and Example sections,
+  aligned columns and upper-case placeholders (`-cwd CWD`). Deprecated flags
+  no longer show in help (they still parse and stay in `-o json`). The
+  `-o json` help and the agent card list the commands in the new order and
+  sections.
 - Session display names are unique among the sessions that still exist, in
   any state (done and marked-done included), compared without regard to
   case, repeated spaces or zero-width characters. Deleting a session frees
