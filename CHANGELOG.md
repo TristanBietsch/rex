@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`boot_screen`** (Appearance, on by default): turn it off to skip the
+  boot screen with its startup checks. The checks still run, without the
+  screen, its 1.2 s minimum or the step chimes, and the board opens as soon
+  as it is connected; a failed check still shows the screen with the cause
+  and fix.
 - **`make update`** (`tools/update/update.sh`): rebuild from the checkout,
   install only the binaries that changed (by rename, so a running daemon,
   board or hook never sees a missing or half-written file), then move the

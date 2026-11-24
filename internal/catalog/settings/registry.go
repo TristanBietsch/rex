@@ -152,6 +152,11 @@ var Registry = []Setting{
 		Options: []string{"auto", "always", "off"},
 		Help:    "Two-line rows and a compact header for narrow terminals. auto: 60 columns or fewer. always / off force it.",
 	},
+	{
+		ID: "boot_screen", Label: "Boot screen", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Show the boot screen with each startup check and its status while rex starts. Off: the checks still run, without the screen, the minimum display time or the step chimes, and the board opens as soon as it is connected; a failed check still shows the screen with the error. Read when the board starts.",
+	},
 
 	// Behavior
 	{

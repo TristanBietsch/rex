@@ -38,6 +38,7 @@ var applyModeOf = map[string]ApplyMode{
 	"selector_glyph": ApplyLive, "selector_gap": ApplyLive, "selector_bold": ApplyLive, "selector_blink": ApplyLive, "selector_blink_ms": ApplyLive,
 	"reduce_motion": ApplyLive, "blinking_enabled": ApplyLive, "show_help_bar": ApplyLive,
 	"header_style": ApplyLive, "window_border": ApplyLive, "window_border_color": ApplyLive, "column_layout": ApplyLive, "mobile_layout": ApplyLive,
+	"boot_screen":  ApplyLive, // read when the board starts, like boot_voice
 	"row_icon_set": ApplyLive, "ascii_glyphs": ApplyLive, "row_icons": ApplyLive,
 	"keybind_preset": ApplyLive, "mouse_enabled": ApplyLive, "retire_after_hours": ApplyLive,
 	"screensaver_enabled": ApplyLive, "screensaver_after_minutes": ApplyLive, "screensaver_keep_awake": ApplyLive,

@@ -48,6 +48,7 @@ func RunWith(socket string, opts RunOptions) error {
 	soundset, _ := store.Get("soundset").(string)
 	volume := settings.VolumeGain(store.Get("master_volume"))
 	bootVoice, _ := store.Get("boot_voice").(bool)
+	bootScreen, _ := store.Get("boot_screen").(bool)
 	if soundset == "off" {
 		soundEnabled = false
 	}
@@ -70,6 +71,8 @@ func RunWith(socket string, opts RunOptions) error {
 		idleDone:    idleDone,
 		keepAwake:   awake,
 		QuietBoot:   quietBoot,
+		BootHidden:  !bootScreen,
+		BootMinDone: !bootScreen, // no minimum display time without the screen
 
 		BorderSeed: launchFolder(),
 		termLight:  termLight,
@@ -116,6 +119,9 @@ func runProgram(run func() (tea.Model, error), awake *displayAwake, idleDone cha
 func (m Model) Init() tea.Cmd {
 	if m.Focus == FocusBoot {
 		first := nextStep(m)
+		if m.BootHidden {
+			return tea.Batch(tea.HideCursor, first, tickSpinner(m.spinnerGen))
+		}
 		return tea.Batch(tea.HideCursor, bootMinTick(), delayThen(first), tickSpinner(m.spinnerGen))
 	}
 	return tea.Batch(tea.HideCursor, listenDaemon(m.Client), tickSpinner(m.spinnerGen))
@@ -181,6 +187,9 @@ func (m Model) view(w, h int) string {
 
 	switch m.Focus {
 	case FocusBoot:
+		if m.BootHidden && !m.BootFailed {
+			return renderBootHidden(h)
+		}
 		return renderSplash(m, w, h)
 	case FocusWizard:
 		return centerPanel(w, h, fitOverlay(renderWizard(m), w), dimBoard(renderFullScreen(m, w, h)))

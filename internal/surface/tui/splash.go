@@ -101,6 +101,14 @@ func renderSplash(m Model, w, h int) string {
 	return strings.Join(rows, "\n")
 }
 
+// renderBootHidden is the boot screen with boot_screen off: one dim line
+// while the checks run, so the terminal is not blank.
+func renderBootHidden(h int) string {
+	rows := make([]string, max(h, 2))
+	rows[1] = "  " + styleDim.Render("starting rex…")
+	return strings.Join(rows, "\n")
+}
+
 // renderSplashStatusLine produces either the running header or, on failure,
 // the freeze-state header.
 func renderSplashStatusLine(m Model, elapsed time.Duration) string {
