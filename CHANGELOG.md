@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-24
+
+Details for every change follow the summary.
+
+### Highlights
+
+- **Stepped new-agent flow**: `n` opens a full-screen page with one step per
+  screen (agent, model, skills, task, context, trust, summary). It replaces
+  the popup wizard.
+- **Agents get an allowlisted environment** (`child_env`, on by default):
+  keys exported in your shell no longer reach every agent, and the daemon
+  drops them from its own environment. **Breaking**; see Changed for how to
+  pass a variable through.
+- **Agents rex starts can no longer control rex**: the daemon refuses
+  every intent but the usage tap from processes inside its sessions.
+- **Attribution**: the daemon logs which process drove a session and
+  records `requested_by` in `meta.json` and the audit trail.
+- **Safer defaults**: terminal escapes from agents are filtered in
+  `rex attach` and `rex log`; the summarizer talks only to a local Ollama
+  unless `summary_allow_remote` is on; `rex uninstall -all` removes
+  everything rex wrote.
+- **Unique session names**, a **summary scanner** on the board, a
+  `filter_chips` switch, and `make update` for checkout installs.
+
 ### Added
 
 - **`make update`** (`tools/update/update.sh`): rebuild from the checkout,
@@ -47,8 +71,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   restored from an older daemon keep their names, duplicates included; the
   daemon logs them and renames nothing.
 
-### Changed
-
 - **`n` opens a stepped, full-screen new-agent flow.** One step per screen,
   in order: agent, model (with effort), skills, task, context, trust, then
   a summary where `enter` on `launch` starts the agent (`ctrl+s` still
@@ -60,18 +82,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   there never picks one. The summary shows everything the launch sends and
   the equivalent `rex new` call (display only); `enter` on a row jumps to
   that step and `enter` there comes back. See [docs/tui.md](docs/tui.md#new-agent-page).
-
-### Removed
-
-- The popup wizard and the `new_agent_page` setting. The page is the only
-  way to start an agent from `n` / `:new`. A stored `new_agent_page` in
-  `config.yaml` or `config.lua` is ignored without a warning.
-- The page's Compose screen, step rail and three-pane Agent screen, and the
-  vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
-  `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
-  not the context, trust or skills.
-
-### Changed
 
 - **Breaking: agents get an allowlisted environment.** Every agent, model
   probe and loop check used to inherit the whole environment of the shell
@@ -101,6 +111,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `tools.yaml`, or set `child_env: inherit` for the old behavior; then
   restart the daemon with `rex daemon restart -cold` (a hot restart keeps
   the daemon's environment).
+
+### Removed
+
+- The popup wizard and the `new_agent_page` setting. The page is the only
+  way to start an agent from `n` / `:new`. A stored `new_agent_page` in
+  `config.yaml` or `config.lua` is ignored without a warning.
+- The page's Compose screen, step rail and three-pane Agent screen, and the
+  vim-style editing mode of the task (`i`, `a`, `A`, `I`, `h` rail focus,
+  `[` `]`). `ctrl+u` on an empty task line now clears the task text only,
+  not the context, trust or skills.
 
 ### Fixed
 
@@ -1905,6 +1925,7 @@ Baseline release: `rex` CLI and TUI, `rex-daemon` PTY supervisor, JSONL
 protocol over a Unix socket, tool registry, Lua hooks, and native Windows
 support (ConPTY).
 
-[Unreleased]: https://github.com/TristanBietsch/rex/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/TristanBietsch/rex/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/TristanBietsch/rex/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/TristanBietsch/rex/releases/tag/v2.0.0
 [v1]: https://github.com/tristanbietsch/rex/commits/6a6e0a1
