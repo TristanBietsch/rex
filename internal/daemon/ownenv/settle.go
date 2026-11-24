@@ -54,10 +54,11 @@ func SettleChildEnv(configPath, lockPath string) (string, error) {
 		}
 	}
 	pin := settings.NewStore()
-	if err := pin.Set("child_env", value); err != nil {
-		return "", fmt.Errorf("settle child_env: %w", err)
+	err = pin.Set("child_env", value)
+	if err == nil {
+		err = pin.Save(configPath)
 	}
-	if err := pin.Save(configPath); err != nil {
+	if err != nil {
 		return "", fmt.Errorf("settle child_env: %w", err)
 	}
 	return value, nil
@@ -67,15 +68,12 @@ func SettleChildEnv(configPath, lockPath string) (string, error) {
 // failure is logged and ignored: child_env then stays at its allowlist
 // default for this start, and the next start tries again.
 func settle() {
-	cfg, err := paths.ConfigFile()
+	layout, err := paths.Resolve()
 	if err != nil {
 		return // no home directory: LoadDefault reports it
 	}
-	lock, err := paths.DaemonLock()
-	if err != nil {
-		return
-	}
-	got, err := SettleChildEnv(cfg, lock)
+	cfg := layout.ConfigFile
+	got, err := SettleChildEnv(cfg, layout.DaemonLock)
 	if err != nil {
 		warn("could not record child_env in config.yaml", cfg, err)
 		return

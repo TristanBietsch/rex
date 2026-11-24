@@ -3,9 +3,11 @@ package ownenv
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tristanbietsch/rex/internal/runtime/paths"
 	"gopkg.in/yaml.v3"
 )
 
@@ -104,4 +106,64 @@ func TestSettleChildEnv_NoPathIsANoop(t *testing.T) {
 	got, err := SettleChildEnv("", "")
 	require.NoError(t, err)
 	require.Empty(t, got)
+}
+
+// A lock path that cannot be checked (its parent is a file) is an error, and
+// nothing is written.
+func TestSettleChildEnv_LockStatErrorIsReturned(t *testing.T) {
+	cfg, _ := settleFiles(t, "", false)
+	file := filepath.Join(t.TempDir(), "file")
+	require.NoError(t, os.WriteFile(file, nil, 0o600))
+	got, err := SettleChildEnv(cfg, filepath.Join(file, "daemon.lock"))
+	require.Error(t, err)
+	require.Empty(t, got)
+	require.NoFileExists(t, cfg)
+}
+
+// A config folder that cannot be written is an error.
+func TestSettleChildEnv_SaveErrorIsReturned(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs Unix permission bits and a non-root user")
+	}
+	dir := filepath.Join(t.TempDir(), "ro")
+	require.NoError(t, os.MkdirAll(dir, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	got, err := SettleChildEnv(filepath.Join(dir, "config.yaml"), "")
+	require.Error(t, err)
+	require.Empty(t, got)
+}
+
+// Without a home directory settle does nothing.
+func TestSettle_NoHomeIsANoop(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	settle()
+}
+
+// settle uses the default paths: an upgrade pins inherit in ~/.config/rex,
+// a bad config is reported and left alone, a fresh home pins allowlist.
+func TestSettle_DefaultPaths(t *testing.T) {
+	sandbox(t, "")
+	cfg, err := paths.ConfigFile()
+	require.NoError(t, err)
+	lock, err := paths.DaemonLock()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(lock), 0o700))
+	require.NoError(t, os.WriteFile(lock, nil, 0o600))
+	settle()
+	require.Equal(t, "inherit", readYAML(t, cfg)["child_env"])
+
+	sandbox(t, "theme: [\n")
+	cfg, err = paths.ConfigFile()
+	require.NoError(t, err)
+	settle()
+	raw, err := os.ReadFile(cfg)
+	require.NoError(t, err)
+	require.Equal(t, "theme: [\n", string(raw))
+
+	sandbox(t, "")
+	cfg, err = paths.ConfigFile()
+	require.NoError(t, err)
+	settle()
+	require.Equal(t, "allowlist", readYAML(t, cfg)["child_env"])
 }
