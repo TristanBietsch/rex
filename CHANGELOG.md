@@ -31,6 +31,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   chip row (`all · claude · ollama …`). Filtering still works with `t`,
   `:filter` and the `z` chords; while a filter is active the row shows it
   as text (`claude only (t)`).
+- `name_taken` protocol error code: `NewSession` and `SetSessionName` refuse
+  a display name another session holds, with
+  `name "Fix Auth" already in use by 7d4f`.
+- The TUI's rename (`r`) keeps the editor open with your text and the reason
+  when a name is taken, and reopens it when the daemon refuses a name the
+  board could not see; `:name` and `::name` refuse on the status line.
+
+### Changed
+
+- Session display names are unique among the sessions that still exist, in
+  any state (done and marked-done included), compared without regard to
+  case, repeated spaces or zero-width characters. Deleting a session frees
+  its name. `rex new -name` and `rex name` exit 5 on a taken name. Sessions
+  restored from an older daemon keep their names, duplicates included; the
+  daemon logs them and renames nothing.
 
 ### Fixed
 

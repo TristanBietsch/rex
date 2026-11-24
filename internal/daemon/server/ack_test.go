@@ -98,6 +98,7 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 		snap = protocol.EventSnapshot
 	)
 	bad, unknown, badState := protocol.ErrCodeBadIntent, protocol.ErrCodeUnknownSession, protocol.ErrCodeBadState
+	nameTaken := protocol.ErrCodeNameTaken
 	cases := []struct {
 		intent  string
 		payload any
@@ -130,6 +131,9 @@ func TestEveryIntentWithAnIDGetsExactlyOneTerminalReply(t *testing.T) {
 
 		{intent: protocol.IntentSetSessionName, payload: protocol.SetSessionName{SessionID: "s1", Name: "One"}, want: ack, session: "s1"},
 		{intent: protocol.IntentSetSessionName, payload: protocol.SetSessionName{SessionID: "zz", Name: "x"}, want: fail, code: unknown},
+		{intent: protocol.IntentSetSessionName, payload: protocol.SetSessionName{SessionID: "s2", Name: "one"}, want: fail, code: nameTaken},
+		{intent: protocol.IntentSetSessionName, payload: protocol.SetSessionName{SessionID: "s1", Name: "ONE"}, want: ack, session: "s1"}, // own name, new case
+		{intent: protocol.IntentNewSession, payload: protocol.NewSession{ToolID: "echo", ModelID: "short", Slug: "named", Name: "One", CWD: e.dir}, want: fail, code: nameTaken},
 
 		{intent: protocol.IntentSetSessionFleet, payload: protocol.SetSessionFleet{SessionID: "s1", Fleet: "f"}, want: ack, session: "s1"},
 		{intent: protocol.IntentSetSessionFleet, payload: protocol.SetSessionFleet{SessionID: "zz", Fleet: "f"}, want: fail, code: unknown},

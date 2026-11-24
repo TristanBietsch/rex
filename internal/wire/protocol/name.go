@@ -54,3 +54,46 @@ func isBidiControl(r rune) bool {
 	return (r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069') ||
 		r == '\u200e' || r == '\u200f' || r == '\u061c'
 }
+
+// SessionNameKey is the comparison key of a display name: the name after
+// NormalizeSessionName (a name too long to normalize is only trimmed), with
+// format runes (Unicode category Cf: zero-width space, ZWJ, soft hyphen, \u2026)
+// dropped and every rune mapped to the smallest rune of its unicode.SimpleFold
+// orbit. Two names are the same when their keys are equal: Unicode simple
+// case folding, as strings.EqualFold, with no NFC/NFKC normalization, no full
+// folding (\u00df is not ss) and no locale rules. "" means no name.
+func SessionNameKey(s string) string {
+	n, err := NormalizeSessionName(s)
+	if err != nil {
+		n = strings.TrimSpace(s)
+	}
+	var b strings.Builder
+	b.Grow(len(n))
+	for _, r := range n {
+		if unicode.Is(unicode.Cf, r) {
+			continue
+		}
+		b.WriteRune(foldRune(r))
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// SameSessionName reports whether two display names collide: both have a
+// non-empty SessionNameKey and the keys are equal. Names with no key (empty,
+// or only format runes) never collide.
+func SameSessionName(a, b string) bool {
+	ka := SessionNameKey(a)
+	return ka != "" && ka == SessionNameKey(b)
+}
+
+// foldRune maps r to the smallest rune of its simple case-folding orbit, so
+// every rune that strings.EqualFold treats as equal maps to the same rune.
+func foldRune(r rune) rune {
+	m := r
+	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+		if f < m {
+			m = f
+		}
+	}
+	return m
+}

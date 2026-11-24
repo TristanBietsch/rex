@@ -521,6 +521,8 @@ The wizard does not ask for a name; press `r` on the board to give a session a d
 
 `r` edits the selected session's **name**: free text (64 characters max) shown in the name column instead of the slug. The slug stays the selector for commands and scripts. Enter an empty name to go back to the slug. Control characters, escapes and bidi overrides are stripped; whitespace collapses. Names are stored by the daemon and appear in every connected TUI and in `rex ls`.
 
+Names are unique among the sessions that still exist, in any state, compared without regard to case or repeated spaces; only deleting a session frees its name. A taken name keeps the editor open with your text and `✗ name "Fix Auth" already in use by 7d4f` on the editor line; edit it and press enter again, or `esc`. If the daemon refuses a name the board could not see (another board took it first), the editor opens again with the name. `:name <text>` and the attach popup's `::name <text>` show the same message on the status line and send nothing.
+
 ## MARK DONE
 
 `cc` marks the selected session done **without stopping it**. The row dims, moves to **DONE** whatever its live state. The detailed view's span column shows when it was marked, and its header shows `N marked done`. The notice when marking says when it will clear; the attach footer keeps showing the countdown. The session stays fully usable until the deadline (`retire_after_hours`, default 168 = one week). Then the daemon kills the agent, removes the row, and deletes the session's directory (`meta.json`, `transcript.log`, `hooks.log`). Claude Code's own conversation files are never touched.
