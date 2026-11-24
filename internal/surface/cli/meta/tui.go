@@ -9,6 +9,7 @@ import (
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/surface/cli/setup"
 	"github.com/tristanbietsch/rex/internal/surface/tui"
+	"github.com/tristanbietsch/rex/internal/version"
 )
 
 // QuietBootEnv set to a non-empty value other than "0" silences the boot
@@ -44,7 +45,9 @@ func RunTUIScoped(quietBoot bool, scope *tui.WorkspaceScope) error {
 	if err != nil {
 		return err
 	}
-	slog.Info("tui: starting", "socket", socket, "quiet_boot", quietBoot)
+	// Hash this binary before the first hello, so the build the board
+	// reports is the code it runs even if the file is replaced meanwhile.
+	slog.Info("tui: starting", "socket", socket, "quiet_boot", quietBoot, "build", version.Build())
 	opts := tui.RunOptions{QuietBoot: quietBoot, Scope: scope, SwapState: os.Getenv(tui.SwapEnv)}
 	if opts.SwapState != "" {
 		_ = os.Unsetenv(tui.SwapEnv)

@@ -1,4 +1,4 @@
-.PHONY: build build-all install uninstall dist \
+.PHONY: build build-all install update uninstall dist \
 	test test-race test-e2e vet lint lint-windows vuln \
 	cover cover-check fuzz check clean \
 	bench bench-integration bench-profile bench-check bench-compare
@@ -48,6 +48,13 @@ install: build
 	@echo "  make sure $(PREFIX)/bin is on your PATH (e.g. add to ~/.zshrc):"
 	@echo "    export PATH=\"$(PREFIX)/bin:\$$PATH\""
 	@echo
+
+# update rebuilds from this checkout, installs only the binaries that
+# changed (by rename, safe while rex runs) and hot-restarts a running
+# daemon and its boards; sessions survive. UPDATE_FLAGS=--pull pulls first.
+# See tools/update/update.sh.
+update:
+	@PREFIX="$(PREFIX)" sh tools/update/update.sh $(UPDATE_FLAGS)
 
 uninstall:
 	rm -f "$(PREFIX)/bin/rex" "$(PREFIX)/bin/rex-daemon"

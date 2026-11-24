@@ -81,23 +81,37 @@ func TestChildEnvFor(t *testing.T) {
 	hook := registry.Tool{Detect: registry.Detect{Kind: "hooks"}}
 	hf := filepath.Join(t.TempDir(), "hooks.log")
 	require.Equal(t,
-		[]string{adapter.HookFileEnv + "=" + filepath.ToSlash(hf), "REX_SESSION_ID=abc"},
+		[]string{adapter.HookFileEnv + "=" + filepath.ToSlash(hf)},
 		childEnvFor(spawnSpec{Tool: hook, HookFile: hf, SessionID: "abc"}))
 
-	require.Equal(t, []string{"REX_SESSION_ID=abc"},
+	require.Empty(t,
 		childEnvFor(spawnSpec{Tool: registry.Tool{}, HookFile: hf, SessionID: "abc"}),
 		"no hook env for tools that are not hook-detected")
 
 	osc := registry.Tool{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501},
 		StatusEnv: []string{"AGY_CLI_OSC7501=on"}}
-	require.Equal(t, []string{"AGY_CLI_OSC7501=on", "REX_SESSION_ID=abc"},
+	require.Equal(t, []string{"AGY_CLI_OSC7501=on"},
 		childEnvFor(spawnSpec{Tool: osc, HookFile: hf, SessionID: "abc"}),
 		"status_env is added, and no hook env")
 
 	osc.StatusEnv = nil
-	require.Equal(t, []string{"REX_SESSION_ID=abc"},
+	require.Empty(t,
 		childEnvFor(spawnSpec{Tool: osc, HookFile: hf, SessionID: "abc"}),
 		"a tool that answers the query needs no env")
+}
+
+// The agent is not told its session id: an id in the environment is a
+// handle for driving the session through rex.
+func TestChildEnvFor_NoSessionID(t *testing.T) {
+	for _, tool := range []registry.Tool{
+		{},
+		{Detect: registry.Detect{Kind: "hooks"}},
+		{Detect: registry.Detect{Kind: "heuristic", Status: registry.StatusOSC7501}, StatusEnv: []string{"X=1"}},
+	} {
+		for _, kv := range childEnvFor(spawnSpec{Tool: tool, HookFile: "/h", SessionID: "abc"}) {
+			require.NotContains(t, kv, "REX_SESSION_ID")
+		}
+	}
 }
 
 // Only tools on the OSC 7501 channel lose the tmux / terminal-program vars.

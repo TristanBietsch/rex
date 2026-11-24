@@ -121,7 +121,7 @@ var Commands = []Command{
 		Long:    "Re-read every layer that applies live and print what changed, what needs a restart, and errors with file:line.",
 		Example: "rex reload", Class: ClassAction},
 	{Name: "upgrade", Section: SectionDaemon, Args: "[-cold] [-yes] [flags]", Short: "load a newly installed build: hot-restart the daemon, swap every board",
-		Long:    "After make install or rex update: hot-restart the daemon (running sessions survive), then have every board re-exec into the new binary. Reports each process.",
+		Long:    "After make install, make update or rex update: hot-restart the daemon (running sessions survive), then have every board re-exec into the new binary. Reports each process. -if-stale skips a daemon already on the installed build; -no-cold refuses instead of a cold restart.",
 		Example: "rex upgrade", Class: ClassAction},
 
 	{Name: "errors", Section: SectionInsights, Args: "[-n N] [-since 24h] [-clear]", Short: "failed rex commands from the error log",

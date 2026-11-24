@@ -30,6 +30,12 @@ Docs start at [docs/index.md](docs/index.md).
 Do not run `make install` or `./install.sh` while working on rex unless
 you mean to replace your installed binaries.
 
+To run your checkout as your everyday rex, use `make update`
+(`tools/update/update.sh`) instead of `make install`. It installs only the
+binaries that changed, by rename, then hot-restarts a running daemon and
+swaps open boards (sessions survive, even the one running it), and it
+never cold-restarts. `make update UPDATE_FLAGS=--pull` pulls first.
+
 ## Test tiers
 
 1. **Unit and integration** (`make test-race`): CI runs these on every push

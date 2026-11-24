@@ -55,7 +55,7 @@ func renderHeaderRest(m Model, out string, width int) string {
 	mobile := mobileLayout(m)
 	if showFilterChips(m) {
 		chips := ""
-		if m.featureOn("board_filter") {
+		if chipsShown(m) {
 			chips = renderFilterChips(m)
 		}
 		if status := renderFilterStatus(m); status != "" {
@@ -146,16 +146,24 @@ func renderOverviewLine(m Model, width int) string {
 // minHeadlineCells is the least room worth showing a headline in.
 const minHeadlineCells = 8
 
+// chipsShown reports whether the tool filter chips are drawn: board_filter
+// is on (the chips are the filter) and filter_chips does not hide them.
+func chipsShown(m Model) bool {
+	return m.featureOn("board_filter") && settingBool(m.Store, "filter_chips")
+}
+
 // showFilterChips reports whether the tool filter row is worth a line: some
-// filter is active (a tool, or a hidden section), or sessions run more than
-// one tool.
+// filter is active (a tool, or a hidden section), or the chips are shown and
+// sessions run more than one tool. With filter_chips off an active filter
+// still keeps the row, as status only, so a filtered board never passes for
+// the whole board.
 func showFilterChips(m Model) bool {
 	f := rowFilterOf(m)
 	if (f.tool != "" && f.tool != "all") || len(f.hidden) > 0 || f.searching() {
 		return true
 	}
-	if !m.featureOn("board_filter") {
-		return false // the chips are the filter; only a search keeps the row
+	if !chipsShown(m) {
+		return false // no chips to show; only an active filter or search keeps the row
 	}
 	first := ""
 	for _, s := range m.Sessions {

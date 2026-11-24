@@ -15,6 +15,8 @@ import (
 	"github.com/tristanbietsch/rex/internal/runtime/daemonctl"
 	"github.com/tristanbietsch/rex/internal/surface/cli/core"
 	"github.com/tristanbietsch/rex/internal/testutil/testperm"
+	"github.com/tristanbietsch/rex/internal/wire/client"
+	"github.com/tristanbietsch/rex/internal/wire/protocol"
 )
 
 // S-01: the daemon log was opened 0644 (after umask) with the error dropped.
@@ -219,6 +221,16 @@ func TestDaemonStop_shutdownFails(t *testing.T) {
 	err := f.ctl(t).stop()
 	requireExitCode(t, err, core.ExitGeneric)
 	require.Contains(t, err.Error(), "still answering")
+}
+
+// Inside a rex session the daemon refuses Shutdown: exit 6 with its reason,
+// like every other rex command there.
+func TestDaemonStop_refusedInSession(t *testing.T) {
+	f := &fakeCtl{up: true, shutdownErr: fmt.Errorf("send Shutdown to rex-daemon: %w", &client.Error{
+		Intent: protocol.IntentShutdown, Code: protocol.ErrCodeInSession, Message: "refused: inside a rex session"})}
+	err := f.ctl(t).stop()
+	requireExitCode(t, err, core.ExitOperationRefused)
+	require.Equal(t, "refused: inside a rex session", err.Error())
 }
 
 func TestDaemonStop_goneBeforeShutdown(t *testing.T) {

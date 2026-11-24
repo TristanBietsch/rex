@@ -14,3 +14,9 @@ const peerCredSupported = false
 func peerUID(*net.UnixConn) (int, error) {
 	return 0, errPeerCredUnsupported
 }
+
+// peerPID is a documented no-op on this platform: connections are never
+// classified by process ancestry here.
+func peerPID(*net.UnixConn) (int, error) {
+	return 0, errPeerCredUnsupported
+}

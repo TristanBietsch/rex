@@ -65,9 +65,9 @@ var Registry = []Setting{
 	{
 		ID: "selector_glyph", Label: "Selector glyph", Section: SectionAppearance, Apply: ApplyLive,
 		Type: TypeString, Default: "theme",
-		Options: []string{"theme", "▸", "❯", "➜", "➤", "☞"},
+		Options: []string{"theme", "▸", "❯", "➜", "➤", "☞", "☛"},
 		Free:    true, Normalize: normalizeSelectorGlyph,
-		Help: "The marker left of the selected row in the board and every picker. theme keeps the theme's own (▸ by default). Pick a preset with the arrows or press enter and type your own. ☞ is drawn two cells wide by terminals set to treat ambiguous-width characters as wide, which shifts the selected row by one column; 👉 is always two cells.",
+		Help: "The marker left of the selected row in the board and every picker. theme keeps the theme's own (▸ by default). Pick a preset with the arrows or press enter and type your own. ☞ and ☛ are drawn two cells wide by terminals set to treat ambiguous-width characters as wide, which shifts the selected row by one column; 👉 is always two cells.",
 	},
 	{
 		ID: "selector_gap", Label: "Selector gap", Section: SectionAppearance, Apply: ApplyLive,
@@ -124,6 +124,11 @@ var Registry = []Setting{
 		Options: append([]string{"random"}, theme.EdgeIDs()...),
 		Free:    true, Normalize: normalizeBorderColor,
 		Help: "random picks a color per launch folder, so a project keeps its color. Or pick a name, or press enter and type #rrggbb.",
+	},
+	{
+		ID: "filter_chips", Label: "Filter chips", Section: SectionAppearance, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "Show the tool filter chips (all, claude, ollama, ...) under the header when sessions run more than one tool. Off hides the row; t, :filter and the z chords still work, and while a filter or search is on the row shows what is filtered, without the chips.",
 	},
 	{
 		ID: "column_layout", Label: "Column layout", Section: SectionAppearance, Apply: ApplyLive,
@@ -414,6 +419,18 @@ var Registry = []Setting{
 		Type: TypeEnum, Default: "typewriter",
 		Options: []string{"typewriter", "decode", "wipe", "off"},
 		Help:    "Animation effect when the AI description changes.",
+	},
+	{
+		ID: "summary_scan", Label: "Summary scanner", Section: SectionSummary, Apply: ApplyLive,
+		Type: TypeBool, Default: true,
+		Help: "A band of color sweeps back and forth across the summary line under the board (a Larson scanner) while the selected session is working or waiting. Still everywhere else, and off with reduce_motion.",
+	},
+	{
+		ID: "summary_scan_color", Label: "Scanner color", Section: SectionSummary, Apply: ApplyLive,
+		Type: TypeString, Default: ScanColorAccent,
+		Options: append([]string{ScanColorAccent}, theme.AccentIDs()...),
+		Free:    true, Normalize: normalizeScanColor,
+		Help: "The summary scanner's color. accent follows accent_color (or the theme's accent). The arrows cycle the named colors; enter types your own in any accent_color form: #rrggbb, rgb(), hsl(), cmyk(), oklch(). A color too faint on the background is adjusted until it reads.",
 	},
 	{
 		ID: "overview_enabled", Label: "Overview", Section: SectionSummary, Apply: ApplyLive,
