@@ -62,6 +62,10 @@ type SessionSummary struct {
 	// 0 when the last one stops.
 	Subagents int `json:"subagents,omitempty"`
 
+	// PromptUndelivered says the session's first prompt was never typed in:
+	// the agent did not look ready within the deadline. The user pastes it.
+	PromptUndelivered bool `json:"prompt_undelivered,omitempty"`
+
 	// CostUSD is what the session has cost so far in US dollars (Claude
 	// Code, from the usage hub). Nil means unknown; it is never sent while
 	// the usage setting is off.

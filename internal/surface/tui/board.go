@@ -990,12 +990,19 @@ func durationAgoAt(now, t time.Time) string {
 	}
 }
 
+// promptUndeliveredText replaces a session's description while its first
+// prompt was never typed in, so the user knows to paste it.
+const promptUndeliveredText = "first prompt not delivered; paste it yourself"
+
 // rowDescription is the desc column text: the AI summary once one exists,
 // else the task the session was started with. Raw last_line is never shown —
 // for TUI agents it is spinner frames and key hints, not activity. The
 // result is sanitized (see protocol.FlattenDisplayText) so column sizing
 // measures what renders.
 func rowDescription(s protocol.SessionSummary) string {
+	if s.PromptUndelivered {
+		return promptUndeliveredText
+	}
 	if s.Description != "" {
 		return protocol.FlattenDisplayText(s.Description)
 	}
@@ -1007,6 +1014,9 @@ func rowDescription(s protocol.SessionSummary) string {
 // line is a question; otherwise last_line is usually the agent's own status
 // text ("Checking for updates"), which says nothing about what it needs.
 func rowText(s protocol.SessionSummary) string {
+	if s.PromptUndelivered {
+		return promptUndeliveredText
+	}
 	if q := rowQuestion(s); q != "" {
 		return q
 	}

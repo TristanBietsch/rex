@@ -410,22 +410,27 @@ func startSupervisor(ctx context.Context, srv *Server, sess *state.Session, spec
 	}
 
 	sup := pty.New(pty.SupervisorConfig{
-		StateDir:       cfg.StateDir,
-		Store:          cfg.Store,
-		Command:        argv,
-		CWD:            spec.CWD,
-		BaseEnv:        baseEnv,
-		Env:            env,
-		DropEnv:        childEnvDropFor(spec),
-		InitialCols:    spec.Cols,
-		InitialRows:    spec.Rows,
-		Adapter:        ad,
-		InputCh:        inputCh,
-		CompleteCh:     completeCh,
-		InitialPrompt:  ptyPrompt,
-		PlainPaste:     delivery.plainPaste,
-		ReadySettle:    delivery.readySettle,
-		ReadyRe:        delivery.readyRe,
+		StateDir:      cfg.StateDir,
+		Store:         cfg.Store,
+		Command:       argv,
+		CWD:           spec.CWD,
+		BaseEnv:       baseEnv,
+		Env:           env,
+		DropEnv:       childEnvDropFor(spec),
+		InitialCols:   spec.Cols,
+		InitialRows:   spec.Rows,
+		Adapter:       ad,
+		InputCh:       inputCh,
+		CompleteCh:    completeCh,
+		InitialPrompt: ptyPrompt,
+		PlainPaste:    delivery.plainPaste,
+		ReadySettle:   delivery.readySettle,
+		ReadyRe:       delivery.readyRe,
+		OnPromptUndelivered: func() {
+			if err := cfg.Store.SetPromptUndelivered(sess.ID); err != nil {
+				slog.Warn("spawn: mark prompt undelivered failed", "session", sess.ID, "err", err)
+			}
+		},
 		SummaryRequest: cfg.SummaryRequest,
 		TrustPrompt:    spec.Trust.Answer,
 		TrustDetect:    spec.Trust.Detect,
