@@ -411,6 +411,7 @@ func (s *Supervisor) Run(ctx context.Context, sess *state.Session) error {
 							s.cfg.OnPromptUndelivered()
 						}
 						return
+					case promptPaste:
 					}
 					// Modern agent TUIs (Claude Code, Gemini CLI, Codex) detect
 					// bracketed paste and silently drop bursts of raw text — the
