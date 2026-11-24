@@ -81,7 +81,7 @@ func TestRun_LoopsEndToEnd(t *testing.T) {
 	cfg, err := paths.ConfigFile()
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfg), 0o700))
-	require.NoError(t, os.WriteFile(cfg, []byte("summary_enabled: false\n"), 0o600))
+	require.NoError(t, os.WriteFile(cfg, []byte("summary_enabled: false\nloops: false\n"), 0o600))
 
 	c, stop := startLoopDaemon(t, dir)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

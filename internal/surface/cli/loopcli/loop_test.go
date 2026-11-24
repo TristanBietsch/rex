@@ -123,7 +123,7 @@ func daemonWith(t *testing.T, fl *fakeLoops) *testutil.Daemon {
 // Off is inert: every subcommand gives the standard off message (exit 5)
 // before any file is read, any file written or any connection tried.
 func TestRunLoop_OffIsInert(t *testing.T) {
-	h := home(t, "")
+	h := home(t, "loops: false\n")
 	writeLoopFile(t, h, "fix", fixYAML)
 	for _, args := range [][]string{
 		{"ls"}, {"start", "fix"}, {"pause", "loop-1a2b3c4d"}, {"resume", "loop-1a2b3c4d"},

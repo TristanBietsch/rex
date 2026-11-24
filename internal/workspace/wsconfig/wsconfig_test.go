@@ -144,7 +144,7 @@ rex.set("theme", "noir")
 }
 
 func TestWorkspacesOffIsInert(t *testing.T) {
-	e := newEnv(t, "", "", "rex.set('theme', 'noir')\n")
+	e := newEnv(t, "workspaces: false\n", "", "rex.set('theme', 'noir')\n")
 	e.trust()
 	before := looks.Load()
 	s, rep := e.load()

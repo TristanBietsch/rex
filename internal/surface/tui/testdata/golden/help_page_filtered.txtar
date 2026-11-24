@@ -13,9 +13,9 @@
     App commands      │                         one                             
     Attached session  │ :undo [sel] [-turns N]  restore the folder to before    
                       │                         the agent's last turn (asks     
-                      │                         first) (off)                    
+                      │                         first)                          
                       │ :redo [sel]             bring back what :undo replaced  
-                      │                         (off)                           
+                      │                                                         
                       │                                                         
                       │                                                         
                       │                                                         
@@ -34,8 +34,8 @@
     Mouse             │ ── Session commands ──────────────────────────────────────────────────────────────────────────  
     Modes             │ :undone [sel]           undo done                                                               
     Legend            │ :uc :resume [sel]       undo done: unmark a running session, or resume an exited one            
-    Session commands  │ :undo [sel] [-turns N]  restore the folder to before the agent's last turn (asks first) (off)   
-    App commands      │ :redo [sel]             bring back what :undo replaced (off)                                    
+    Session commands  │ :undo [sel] [-turns N]  restore the folder to before the agent's last turn (asks first)         
+    App commands      │ :redo [sel]             bring back what :undo replaced                                          
     Attached session  │                                                                                                 
                       │                                                                                                 
                       │                                                                                                 
@@ -77,11 +77,11 @@
     ␛[38;2;89;96;112mLegend␛[0m           ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m:uc :resume [sel]␛[0m       ␛[38;2;139;145;161mundo done: unmark a running␛[0m     
     ␛[38;2;230;232;238mSession commands␛[0m ␛[38;2;43;48;60m │ ␛[0m                        ␛[38;2;139;145;161msession, or resume an exited␛[0m    
     ␛[38;2;89;96;112mApp commands␛[0m     ␛[38;2;43;48;60m │ ␛[0m                        ␛[38;2;139;145;161mone␛[0m                             
-    ␛[38;2;89;96;112mAttached session␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[38;2;89;96;112m:undo [sel] [-turns N]␛[0m  ␛[38;2;89;96;112mrestore the folder to before␛[0m    
-                     ␛[38;2;43;48;60m │ ␛[0m                        ␛[38;2;89;96;112mthe agent's last turn (asks␛[0m     
-                     ␛[38;2;43;48;60m │ ␛[0m                        ␛[38;2;89;96;112mfirst) (off)␛[0m                    
-                     ␛[38;2;43;48;60m │ ␛[0m␛[38;2;89;96;112m:redo [sel]␛[0m             ␛[38;2;89;96;112mbring back what :undo replaced␛[0m  
-                     ␛[38;2;43;48;60m │ ␛[0m                        ␛[38;2;89;96;112m(off)␛[0m                           
+    ␛[38;2;89;96;112mAttached session␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m:undo [sel] [-turns N]␛[0m  ␛[38;2;139;145;161mrestore the folder to before␛[0m    
+                     ␛[38;2;43;48;60m │ ␛[0m                        ␛[38;2;139;145;161mthe agent's last turn (asks␛[0m     
+                     ␛[38;2;43;48;60m │ ␛[0m                        ␛[38;2;139;145;161mfirst)␛[0m                          
+                     ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m:redo [sel]␛[0m             ␛[38;2;139;145;161mbring back what :undo replaced␛[0m  
+                     ␛[38;2;43;48;60m │ ␛[0m                                                        
                      ␛[38;2;43;48;60m │ ␛[0m                                                        
                      ␛[38;2;43;48;60m │ ␛[0m                                                        
                      ␛[38;2;43;48;60m │ ␛[0m                                                        
@@ -100,8 +100,8 @@
     ␛[38;2;89;96;112mMouse␛[0m            ␛[38;2;43;48;60m │ ␛[0m␛[38;2;139;145;161m── ␛[0m␛[1;38;2;230;232;238mSession commands␛[0m␛[38;2;139;145;161m ──────────────────────────────────────────────────────────────────────────␛[0m  
     ␛[38;2;89;96;112mModes␛[0m            ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m:undone [sel]␛[0m           ␛[38;2;139;145;161mundo done␛[0m                                                               
     ␛[38;2;89;96;112mLegend␛[0m           ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m:uc :resume [sel]␛[0m       ␛[38;2;139;145;161mundo done: unmark a running session, or resume an exited one␛[0m            
-    ␛[38;2;230;232;238mSession commands␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[38;2;89;96;112m:undo [sel] [-turns N]␛[0m  ␛[38;2;89;96;112mrestore the folder to before the agent's last turn (asks first) (off)␛[0m   
-    ␛[38;2;89;96;112mApp commands␛[0m     ␛[38;2;43;48;60m │ ␛[0m␛[38;2;89;96;112m:redo [sel]␛[0m             ␛[38;2;89;96;112mbring back what :undo replaced (off)␛[0m                                    
+    ␛[38;2;230;232;238mSession commands␛[0m ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m:undo [sel] [-turns N]␛[0m  ␛[38;2;139;145;161mrestore the folder to before the agent's last turn (asks first)␛[0m         
+    ␛[38;2;89;96;112mApp commands␛[0m     ␛[38;2;43;48;60m │ ␛[0m␛[1;38;2;179;146;240m:redo [sel]␛[0m             ␛[38;2;139;145;161mbring back what :undo replaced␛[0m                                          
     ␛[38;2;89;96;112mAttached session␛[0m ␛[38;2;43;48;60m │ ␛[0m                                                                                                
                      ␛[38;2;43;48;60m │ ␛[0m                                                                                                
                      ␛[38;2;43;48;60m │ ␛[0m                                                                                                
