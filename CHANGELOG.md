@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-11-24
+
 ### Added
 
 - **`prompt_paste.ready_regex`** (tools.yaml): a pattern on the agent's
@@ -1967,7 +1969,8 @@ Baseline release: `rex` CLI and TUI, `rex-daemon` PTY supervisor, JSONL
 protocol over a Unix socket, tool registry, Lua hooks, and native Windows
 support (ConPTY).
 
-[Unreleased]: https://github.com/TristanBietsch/rex/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/TristanBietsch/rex/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/TristanBietsch/rex/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/TristanBietsch/rex/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/TristanBietsch/rex/releases/tag/v2.0.0
 [v1]: https://github.com/tristanbietsch/rex/commits/6a6e0a1
