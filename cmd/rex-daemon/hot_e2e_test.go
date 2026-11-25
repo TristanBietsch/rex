@@ -27,6 +27,16 @@ import (
 // hotTools is a fake agent: it prints its pid, a background tick stream
 // (output that keeps flowing while the daemon hands over) and echoes each
 // input line.
+// hotWait is how long a hot restart test waits for one step (the daemon
+// listening, a line in the transcript) and hotLimit how long a whole test may
+// run. Generous: the daemon re-executes itself at start to filter its
+// environment, and under -race, coverage and a full parallel test run a
+// start can take well over ten seconds. A healthy run is no slower.
+const (
+	hotWait  = 30 * time.Second
+	hotLimit = 90 * time.Second
+)
+
 const hotTools = `tools:
   - id: echo
     models:
@@ -58,7 +68,7 @@ func hello(t *testing.T, socket string) (*client.Client, *protocol.Snapshot) {
 	require.Eventually(t, func() bool {
 		c, err = client.Dial(socket)
 		return err == nil
-	}, 10*time.Second, 20*time.Millisecond)
+	}, hotWait, 20*time.Millisecond)
 	snap, err := c.Hello("hot-test")
 	require.NoError(t, err)
 	return c, snap
@@ -105,7 +115,7 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 		_ = d.Process.Signal(syscall.SIGTERM)
 		select {
 		case <-exited:
-		case <-time.After(10 * time.Second):
+		case <-time.After(hotWait):
 			_ = d.Process.Kill()
 		}
 		if t.Failed() {
@@ -118,7 +128,7 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 	require.Equal(t, daemonPID, snap.DaemonPID)
 	firstStart := snap.DaemonStartedAt
 	require.False(t, firstStart.IsZero())
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), hotLimit)
 	defer cancel()
 	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{
 		Slug: "hot", ToolID: "echo", ModelID: "hot", CWD: dir,
@@ -138,11 +148,11 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 		}
 		childPID, _ = strconv.Atoi(m[1])
 		return true
-	}, 10*time.Second, 20*time.Millisecond)
+	}, hotWait, 20*time.Millisecond)
 	require.NoError(t, c.SendInput(id, []byte("one\n")))
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, id), "got:one") }, 10*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, id), "got:one") }, hotWait, 20*time.Millisecond)
 	// Ticks are flowing.
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, id), "tick10") }, 10*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, id), "tick10") }, hotWait, 10*time.Millisecond)
 
 	fdsBefore := spawnFDs(t, c, ctx, stateDir, dir)
 
@@ -169,7 +179,7 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 	require.NoError(t, c2.SendInput(id, []byte("pid\n")))
 	require.Eventually(t, func() bool {
 		return strings.Count(transcript(t, stateDir, id), "PID:"+strconv.Itoa(childPID)) == 2
-	}, 10*time.Second, 20*time.Millisecond, "same agent answers through the new image")
+	}, hotWait, 20*time.Millisecond, "same agent answers through the new image")
 	// The tick stream runs on through the handover. Its 150 ticks take about
 	// 3s, far longer on a slow runner (one sleep process per tick). A stream
 	// that stops fails after 10s without a new tick; a slow one gets 30s.
@@ -187,9 +197,9 @@ func TestHotRestartKeepsSessionAlive(t *testing.T) {
 			}
 		}
 		switch {
-		case time.Since(lastAt) > 10*time.Second:
+		case time.Since(lastAt) > hotWait:
 			t.Fatalf("ticks stopped at tick%d: none for 10s after the pid echo; transcript tail:\n%s", last, lastLines(all, 20))
-		case time.Since(start) > 30*time.Second:
+		case time.Since(start) > hotLimit:
 			t.Fatalf("ticks still flowing but slow: at tick%d 30s after the pid echo; transcript tail:\n%s", last, lastLines(all, 20))
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -236,19 +246,19 @@ func TestHotRestartRefusedByOldBinary(t *testing.T) {
 		_ = d.Process.Signal(syscall.SIGTERM)
 		select {
 		case <-exited:
-		case <-time.After(10 * time.Second):
+		case <-time.After(hotWait):
 			_ = d.Process.Kill()
 		}
 	})
 	c, _ := hello(t, socket)
 	defer c.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), hotLimit)
 	defer cancel()
 	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "hot", ToolID: "echo", ModelID: "hot", CWD: dir})
 	require.NoError(t, err)
 	var ack protocol.Ack
 	require.NoError(t, json.Unmarshal(env.Data, &ack))
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "PID:") }, 10*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "PID:") }, hotWait, 20*time.Millisecond)
 
 	// "Install" an older build: anything that does not know -handoff-check.
 	require.NoError(t, os.Remove(bin))
@@ -262,7 +272,7 @@ func TestHotRestartRefusedByOldBinary(t *testing.T) {
 
 	// Still the same daemon, input still flows.
 	require.NoError(t, c.SendInput(ack.SessionID, []byte("after\n")))
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "got:after") }, 10*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "got:after") }, hotWait, 20*time.Millisecond)
 }
 
 // R20 review: a tools.yaml broken between the start and the hot restart
@@ -288,18 +298,18 @@ func TestHotRestartSurvivesBrokenToolsYAML(t *testing.T) {
 		_ = d.Process.Signal(syscall.SIGTERM)
 		select {
 		case <-exited:
-		case <-time.After(10 * time.Second):
+		case <-time.After(hotWait):
 			_ = d.Process.Kill()
 		}
 	})
 	c, _ := hello(t, socket)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), hotLimit)
 	defer cancel()
 	env, err := c.Do(ctx, protocol.IntentNewSession, protocol.NewSession{Slug: "hot", ToolID: "echo", ModelID: "hot", CWD: dir})
 	require.NoError(t, err)
 	var ack protocol.Ack
 	require.NoError(t, json.Unmarshal(env.Data, &ack))
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "PID:") }, 10*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "PID:") }, hotWait, 20*time.Millisecond)
 
 	require.NoError(t, os.WriteFile(tools, []byte("tools: [unclosed\n"), 0o600))
 	_, err = c.Do(ctx, protocol.IntentRestart, protocol.Restart{Mode: protocol.RestartHot})
@@ -310,7 +320,7 @@ func TestHotRestartSurvivesBrokenToolsYAML(t *testing.T) {
 	defer c2.Close()
 	require.Equal(t, d.Process.Pid, snap.DaemonPID)
 	require.NoError(t, c2.SendInput(ack.SessionID, []byte("after\n")))
-	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "got:after") }, 10*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(transcript(t, stateDir, ack.SessionID), "got:after") }, hotWait, 20*time.Millisecond)
 }
 
 var fdsRe = regexp.MustCompile(`FDS:([0-9,]*):END`)
@@ -336,6 +346,6 @@ func spawnFDs(t *testing.T, c *client.Client, ctx context.Context, stateDir, cwd
 		}
 		got = m[1]
 		return true
-	}, 10*time.Second, 20*time.Millisecond)
+	}, hotWait, 20*time.Millisecond)
 	return got
 }

@@ -78,6 +78,13 @@ func ReloadOnHUP(ctx context.Context, reload func() protocol.ReloadReport) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGHUP)
 	defer signal.Stop(sig)
+	reloadOnSignal(ctx, sig, reload)
+}
+
+// reloadOnSignal is ReloadOnHUP's loop: reload once per value on sig until
+// ctx is canceled. Tests drive it with their own channel, so they need no
+// real signal.
+func reloadOnSignal(ctx context.Context, sig <-chan os.Signal, reload func() protocol.ReloadReport) {
 	for {
 		select {
 		case <-ctx.Done():
